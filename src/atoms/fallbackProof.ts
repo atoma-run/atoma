@@ -1,7 +1,7 @@
 import { MIN_PHASE_LANDING_MS, MIN_TOOL_ITERATION_MS } from '../core/limits.js';
 import type { RunContext, Task } from '../core/types.js';
 import { proofObligationLines } from './L1Atom.js';
-import { WEB_DELIVERY_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
+import { WEB_DELIVERY_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, READABLE_SOURCE_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
 import { anyUncovered, checkProofCoverage, type ProofCoverage } from './proofCoverage.js';
 
 /**
@@ -61,6 +61,7 @@ export function fallbackProofTurnContent(args: {
     KEYBOARD_EVIDENCE_GUIDANCE,
     STATEFUL_EVIDENCE_GUIDANCE,
     EXISTING_FILE_GUIDANCE,
+    READABLE_SOURCE_GUIDANCE,
     ``,
     `Run ONLY the missing proof now, on the files as they are: validate_html with real "interactions"`,
     `(click, type, keypress, select by selector) and a smoke that only READS the state they produced.`,

@@ -14,7 +14,7 @@ describe('recorded skill context presentation', () => {
     expect(detail.truncated).toBe(false);
     expect(detail.nodes[0]).toMatchObject({ kind: 'section', label: 'Build an interactive page' });
     expect(JSON.stringify(detail.nodes)).toContain('Verify the interactions.');
-    expect(JSON.stringify(detail.nodes)).not.toMatch(/TRUST BOUNDARY|FASTEST|Two things no recipe/);
+    expect(JSON.stringify(detail.nodes)).not.toMatch(/TRUST BOUNDARY|FASTEST|Three things no recipe/);
   });
 
   it('reflows wrapped prose while preserving script indentation', () => {

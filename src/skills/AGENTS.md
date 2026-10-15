@@ -77,10 +77,12 @@ by owner decision on 2026-09-26
   hidden workspace state the prefilter cannot inspect.
 - The skill prefilter runs only when candidates exist. Injection is guidance;
   it never guarantees adherence or credit.
-- Two things no recipe step changes (`RECIPE_STEP_LIMITS`, in the llm and the
+- Three things no recipe step changes (`RECIPE_STEP_LIMITS`, in the llm and the
   event blocks; never in a script block, which runs verbatim):
   - A file that exists is changed with edit_file where a step says write_file,
     unless the subtask says to discard it or put an earlier version back.
+  - Source is written readable (`READABLE_SOURCE_RULE`, [src/atoms](../atoms/AGENTS.md)),
+    whatever style the recipe's traces showed.
   - A "do not rerun" step never covers a new example.
 
   Distilled recipes keep the tools their traces showed: run 0b51e494 rewrote

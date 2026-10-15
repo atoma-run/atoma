@@ -514,6 +514,32 @@ export const EXISTING_FILE_RULE: readonly string[] = [
 export const EXISTING_FILE_GUIDANCE = EXISTING_FILE_RULE.join('\n');
 
 /**
+ * Source is written for a reader, one definition, RUNTIME text like the rule
+ * above: read by every molecule that writes or edits a file when it plans and
+ * executes, by the fallback executors and the proof turn, and carried by the
+ * recipe limits. The Attica runs of 2026-10-15 (85cc4e83, f74c140a, a62780e7)
+ * wrote whole functions and test bodies on one line with a one-space indent,
+ * because the first file of that repository was dense and every later run
+ * matched it, while the same model wrote the habit tracker's server normally
+ * (ba826731, 2026-10-12). Dense source is what the edit tool pays for: 27 of
+ * its 310 calls failed there, a leading space recalled where the file has
+ * none, a short span that repeats, a one-line function remembered with a
+ * signature it no longer has. Lines the molecule does not otherwise change
+ * stay as they are: a reformat would reach the host's file comparison and
+ * every edit after it. Measured in
+ * docs/incidents/edit-file-failures-2026-10-15.md.
+ */
+export const READABLE_SOURCE_RULE: readonly string[] = [
+  `Source you write is for a reader: one statement per line, the file's own indentation where it has one`,
+  `and two or four spaces otherwise, a blank line between top-level declarations, never a function, class`,
+  `body or test on one line. Keep this where the files already there are dense: a new file and a new block`,
+  `in an existing file are written readable, and lines you do not otherwise change stay as they are. A`,
+  `minified or generated asset and a data file are left as they are. Dense source costs you edits: a`,
+  `one-line function recalled from memory rarely matches byte for byte, and a short span repeats.`,
+];
+export const READABLE_SOURCE_GUIDANCE = READABLE_SOURCE_RULE.join('\n');
+
+/**
  * A control the page does not have, needed only to test a behaviour, lives
  * in the smoke, and the call's interactions set up what the key would change.
  * Run 81375f01 (2026-10-01): a plan asked to prove a shortcut is ignored in a

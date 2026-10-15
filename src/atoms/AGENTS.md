@@ -447,6 +447,21 @@ load-bearing.
   and the recipe blocks carry the same lines. Run 495c20ef's trusted web
   molecule, in a correction phase with no recipe, wrote a restored page
   again whole.
+- Source is written for a reader (`READABLE_SOURCE_RULE`, 2026-10-15): one
+  statement per line, the file's indentation or two to four spaces, never a
+  function or test body on one line, kept even where the repository's files
+  are already dense, with untouched lines left as they are and minified or
+  generated assets exempt. RUNTIME text like the two rules above, for every
+  molecule that writes or edits files, the fallback executors, the proof turn
+  and the recipe limits. The model matches the style it finds: the Attica
+  repository's first file was dense and three runs on 2026-10-15 wrote every
+  function and test on one line, while the same model wrote the habit
+  tracker's server normally. Dense source is what edit_file pays for, 27 of
+  310 calls there, a leading space recalled where none exists and spans that
+  repeat ([measurement](../../docs/incidents/edit-file-failures-2026-10-15.md)).
+  Prompt text, not a gate: a density detector would refuse a vendored
+  minified asset or a data file, and the measured failures recover in one
+  retry each.
 - A control the page lacks, needed only to test a behaviour (a text field to
   prove a shortcut is ignored there), never goes into the page. One call,
   after the page's other checks pass, proves it: real interactions set up

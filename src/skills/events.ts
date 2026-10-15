@@ -1,5 +1,5 @@
 import type { Skill } from './types.js';
-import { EXISTING_FILE_RULE } from '../atoms/prompts.js';
+import { EXISTING_FILE_RULE, READABLE_SOURCE_RULE } from '../atoms/prompts.js';
 
 /**
  * EVENT-DRIVEN SKILLS — recovery guidance matched against mid-run events.
@@ -96,9 +96,11 @@ export const LEARNED_CONTENT_TRUST_BOUNDARY_LINES: readonly string[] = [
  * following it.
  */
 export const RECIPE_STEP_LIMITS: readonly string[] = [
-  `Two things no recipe step changes.`,
+  `Three things no recipe step changes.`,
   `- ${EXISTING_FILE_RULE[0]}`,
   ...EXISTING_FILE_RULE.slice(1).map((line) => `  ${line}`),
+  `- ${READABLE_SOURCE_RULE[0]}`,
+  ...READABLE_SOURCE_RULE.slice(1).map((line) => `  ${line}`),
   `- A step that says not to rerun covers only what an earlier run recorded,`,
   `  never a new example.`,
 ];

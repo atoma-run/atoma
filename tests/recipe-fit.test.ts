@@ -39,7 +39,7 @@ describe('which recipe fits a documentation phase', () => {
     // The validator judging adherence reads them with the recipe: obeying them is following it.
     expect(flat(renderActiveSkillBlock({ id: 'patch-verified-static-ui', body: recipe }))).toContain(edit);
     // A script recipe runs verbatim: none of this applies to it.
-    expect(skillContextBlock({ id: 's', body: 'console.log(1)', kind: 'script', language: 'node' })).not.toContain('Two things no recipe step changes');
+    expect(skillContextBlock({ id: 's', body: 'console.log(1)', kind: 'script', language: 'node' })).not.toContain('Three things no recipe step changes');
     expect(flat(READER_FACING_DOC_GUIDANCE)).toContain('An example output you add is copied from a tool result of this run (a command or request you ran, or an entry this run recorded), never composed;');
   });
 

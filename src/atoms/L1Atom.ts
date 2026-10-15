@@ -21,7 +21,7 @@ import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { executorEvidence } from './executorEvidence.js';
 import { AttemptDigest } from './attemptDigest.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
-import { WEB_DELIVERY_GUIDANCE, HTTP_STARTUP_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
+import { WEB_DELIVERY_GUIDANCE, HTTP_STARTUP_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, READABLE_SOURCE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
 
 /**
  * Where a molecule puts what only EXERCISES the artefact. Publication and the
@@ -351,6 +351,7 @@ export class L1Atom extends Atom {
       this.tools.length > 0 ? STATEFUL_EVIDENCE_GUIDANCE : '',
       this.tools.some((t) => t.name === 'start_node_server') ? HTTP_STARTUP_GUIDANCE : '',
       writesFiles(this.tools) ? READER_FACING_DOC_GUIDANCE : '',
+      writesFiles(this.tools) ? READABLE_SOURCE_GUIDANCE : '',
       editsFiles(this.tools) ? EXISTING_FILE_GUIDANCE : '',
       this.tools.some((t) => t.name === 'validate_html') ? TEST_ONLY_ELEMENT_GUIDANCE : '',
       this.tools.some((t) => t.name === 'validate_html') ? WEB_DELIVERY_GUIDANCE + '\n' + KEYBOARD_EVIDENCE_GUIDANCE : '',
@@ -506,6 +507,7 @@ ${previousAttempt}` : '',
         ? `  only when required claims pass; otherwise report what failed or remains unverified.`
         : null,
       writesFiles(this.tools) ? READER_FACING_DOC_GUIDANCE : null,
+      writesFiles(this.tools) ? READABLE_SOURCE_GUIDANCE : null,
       editsFiles(this.tools) ? EXISTING_FILE_GUIDANCE : null,
       ``,
       `When and only when the work is truly done, produce the final result as JSON:`,
