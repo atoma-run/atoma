@@ -34,11 +34,25 @@ export function gpuFilterButtonWidthCompact(label: string) {
 
 
 export const FILTER_BLOCK_PAD = 8;
+/** A segmented strip is its own outline; the frame only hugs it. */
+export const FILTER_BLOCK_PAD_SEGMENTED = 5;
+/** Segments touch: their shared 1px strokes draw the `|` between them. */
+const SEGMENT_GAP = 0;
+// Without bevel rings between segments the label needs less air per side.
+const FILTER_CHIP_TEXT_PAD_SEGMENTED = 12;
 export const FILTER_BLOCK_GAP = 12;
 export const FILTER_BUTTON_HEIGHT = 27;
 export const FILTER_BUTTON_HEIGHT_COMPACT = 26;
 export const FILTER_BUTTON_LABEL_SIZE = 11;
 export const FILTER_BUTTON_LABEL_SIZE_COMPACT = 8;
+/**
+ * The dense face for segmented strips. `gpuTextSize` floors every label at
+ * 12px, so the "8px compact" chips draw at the same size as the 11px kind
+ * chips. A segmented branch strip asks for an EXACT 8px face (owner,
+ * 2026-10-15, down from 9) so the row shows more of each branch title.
+ */
+export const FILTER_BUTTON_LABEL_SIZE_DENSE = 8;
+export const FILTER_BUTTON_HEIGHT_DENSE = 18;
 export const ATOM_BUTTON_HEIGHT = 28;
 
 export function gpuLaneLabelWidth(label: string) {
@@ -50,11 +64,19 @@ export interface FilterChipSpec {
   label: string;
 }
 
+/**
+ * Where a chip sits in a SEGMENTED strip (`<A|B|C>`): the strip shares one
+ * outline, so only `start` rounds its left corners and only `end` its right
+ * ones; a row break ends a strip, and a lone chip on a row is `only`.
+ */
+export type FilterChipJoint = 'only' | 'start' | 'middle' | 'end';
+
 export interface FilterChipLayout extends FilterChipSpec {
   x: number;
   y: number;
   width: number;
   height: number;
+  joint?: FilterChipJoint;
 }
 
 export interface FilterBlockLayout {
@@ -73,9 +95,10 @@ function placeChipBlock(
   widthOf: (label: string) => number,
   buttonH: number,
   insetX = 0,
-  gap: number = CONTROL_HOVER_GAP
+  gap: number = CONTROL_HOVER_GAP,
+  segmented = false
 ): FilterBlockLayout {
-  const pad = FILTER_BLOCK_PAD;
+  const pad = segmented ? FILTER_BLOCK_PAD_SEGMENTED : FILTER_BLOCK_PAD;
   let x = 0;
   let y = 0;
   let innerW = insetX;
@@ -95,6 +118,19 @@ function placeChipBlock(
     });
     x += width + gap;
     innerW = Math.max(innerW, insetX + x - gap);
+  }
+  if (segmented) {
+    for (const [index, chip] of placed.entries()) {
+      const joinsPrevious = index > 0 && placed[index - 1]!.y === chip.y;
+      const joinsNext = index < placed.length - 1 && placed[index + 1]!.y === chip.y;
+      chip.joint = joinsPrevious && joinsNext
+        ? 'middle'
+        : joinsPrevious
+          ? 'end'
+          : joinsNext
+            ? 'start'
+            : 'only';
+    }
   }
   return {
     x: originX,
@@ -116,6 +152,10 @@ export interface FilterChipBlockOptions {
    * long labels unevenly.
    */
   measure?: (label: string) => number;
+  /** Lay the chips out as one `<A|B|C>` strip per row instead of spaced pills. */
+  segmented?: boolean;
+  /** Chip height override (the dense segmented face uses 22). */
+  buttonHeight?: number;
 }
 
 export function layoutFilterChipBlock(
@@ -126,24 +166,29 @@ export function layoutFilterChipBlock(
   options: FilterChipBlockOptions = {}
 ): FilterBlockLayout {
   const compact = options.size === 'compact';
-  const buttonH = compact ? FILTER_BUTTON_HEIGHT_COMPACT : FILTER_BUTTON_HEIGHT;
+  const segmented = options.segmented === true;
+  const buttonH = options.buttonHeight ?? (compact ? FILTER_BUTTON_HEIGHT_COMPACT : FILTER_BUTTON_HEIGHT);
   const measure = options.measure;
   const minWidth = compact ? FILTER_CHIP_MIN_WIDTH_COMPACT : FILTER_CHIP_MIN_WIDTH;
-  const textPad = compact ? FILTER_CHIP_TEXT_PAD_COMPACT : FILTER_CHIP_TEXT_PAD;
+  const textPad = segmented
+    ? FILTER_CHIP_TEXT_PAD_SEGMENTED
+    : compact ? FILTER_CHIP_TEXT_PAD_COMPACT : FILTER_CHIP_TEXT_PAD;
   const widthOf = measure
     ? (label: string) => Math.max(minWidth, Math.ceil(measure(label)) + textPad)
     : compact
       ? gpuFilterButtonWidthCompact
       : gpuFilterButtonWidth;
+  const pad = segmented ? FILTER_BLOCK_PAD_SEGMENTED : FILTER_BLOCK_PAD;
   return placeChipBlock(
     chips,
     originX,
     originY,
-    Math.max(buttonH, maxWidth - FILTER_BLOCK_PAD * 2),
+    Math.max(buttonH, maxWidth - pad * 2),
     widthOf,
     buttonH,
     0,
-    compact ? 10 : undefined
+    segmented ? SEGMENT_GAP : compact ? 10 : undefined,
+    segmented
   );
 }
 
@@ -154,25 +199,35 @@ export function layoutRunFilterBlocks(options: {
   kinds: readonly FilterChipSpec[];
   roles: readonly FilterChipSpec[] | null;
   measure?: (label: string, size: number) => number;
+  /** Both rows as `<A|B|C>` strips (see `FilterChipBlockOptions.segmented`). */
+  segmented?: boolean;
 }): { kinds: FilterBlockLayout; roles: FilterBlockLayout | null; bottom: number } {
-  const pad = FILTER_BLOCK_PAD;
+  const segmented = options.segmented === true;
+  const pad = segmented ? FILTER_BLOCK_PAD_SEGMENTED : FILTER_BLOCK_PAD;
   const buttonH = FILTER_BUTTON_HEIGHT;
   const maxInner = Math.max(buttonH, options.maxWidth - pad * 2);
+  const kindPad = segmented ? FILTER_CHIP_TEXT_PAD_SEGMENTED : FILTER_CHIP_TEXT_PAD;
+  const rolePad = segmented ? FILTER_CHIP_TEXT_PAD_SEGMENTED : FILTER_CHIP_TEXT_PAD_COMPACT;
   const kindWidth = options.measure
     ? (label: string) => Math.max(FILTER_CHIP_MIN_WIDTH,
-      Math.ceil(options.measure!(label, FILTER_BUTTON_LABEL_SIZE)) + FILTER_CHIP_TEXT_PAD)
+      Math.ceil(options.measure!(label, FILTER_BUTTON_LABEL_SIZE)) + kindPad)
     : gpuFilterButtonWidth;
   const roleWidth = options.measure
     ? (label: string) => Math.max(FILTER_CHIP_MIN_WIDTH_COMPACT,
-      Math.ceil(options.measure!(label, FILTER_BUTTON_LABEL_SIZE_COMPACT)) + FILTER_CHIP_TEXT_PAD_COMPACT)
+      Math.ceil(options.measure!(label, FILTER_BUTTON_LABEL_SIZE_COMPACT)) + rolePad)
     : gpuFilterButtonWidthCompact;
+  const kindGap = segmented ? SEGMENT_GAP : CONTROL_HOVER_GAP;
+  const roleGap = segmented ? SEGMENT_GAP : 10;
   const kinds = placeChipBlock(
     options.kinds,
     options.originX,
     options.originY,
     maxInner,
     kindWidth,
-    buttonH
+    buttonH,
+    0,
+    kindGap,
+    segmented
   );
   if (!options.roles?.length) {
     return { kinds, roles: null, bottom: kinds.y + kinds.height };
@@ -186,7 +241,8 @@ export function layoutRunFilterBlocks(options: {
     roleWidth,
     FILTER_BUTTON_HEIGHT_COMPACT,
     0,
-    10
+    roleGap,
+    segmented
   );
   const inlineRoles = placeChipBlock(
     options.roles,
@@ -196,7 +252,8 @@ export function layoutRunFilterBlocks(options: {
     roleWidth,
     FILTER_BUTTON_HEIGHT_COMPACT,
     0,
-    10
+    roleGap,
+    segmented
   );
   const singleRow =
     kinds.height === buttonH + pad * 2 &&

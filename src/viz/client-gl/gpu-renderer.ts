@@ -259,6 +259,14 @@ function trackXFromTurnDegree(degrees: number, trackX: number, trackWidth: numbe
   return trackX + wrapped / 360 * trackWidth;
 }
 
+/**
+ * The smallest face an `exactSize` label may ask for. 8px is the floor the
+ * muted facts already live at (`GPU_COLORS.muted` is calibrated for 8–9px);
+ * the branch strip asks for exactly it (owner, 2026-10-15: smaller, to show
+ * more of each branch title).
+ */
+const EXACT_SIZE_FLOOR = 8;
+
 export interface GpuRenderSnapshot {
   state: GpuUiState;
   data: GpuDataSnapshot;
@@ -278,6 +286,56 @@ interface TextOptions {
   singleLine?: boolean;
   mono?: boolean;
   alpha?: number;
+  /**
+   * Draw at the requested size even below `gpuTextSize`'s 12px floor. Only
+   * for a face a control chose deliberately (the dense segmented strip).
+   */
+  exactSize?: boolean;
+}
+
+/** How a filter chip is drawn: alone, or as one face of a segmented strip. */
+export interface FilterButtonOptions {
+  joint?: FilterChipJoint;
+  /**
+   * The chip belongs to a segmented strip even when it is `only` on its row:
+   * the strip's text inset, no own shadow, no hover growth. Defaults to the
+   * joint saying so; a lone chip of a wrapped strip must pass it explicitly,
+   * or it is drawn as a pill 6px wider than its measured box and clips.
+   */
+  segmented?: boolean;
+  /** Honour a label size below the 12px floor (see `TextOptions.exactSize`). */
+  exactSize?: boolean;
+}
+
+/**
+ * A rounded rectangle whose left and/or right corners may be SQUARE — the
+ * face of a segmented strip. Pixi's `roundRect` rounds all four corners, and
+ * a strip of them leaves a notch at every seam.
+ */
+function segmentPath(
+  g: Graphics,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+  roundLeft: boolean,
+  roundRight: boolean
+) {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  const l = roundLeft ? radius : 0;
+  const rr = roundRight ? radius : 0;
+  g.moveTo(x + l, y);
+  g.lineTo(x + w - rr, y);
+  if (rr) g.arcTo(x + w, y, x + w, y + rr, rr);
+  g.lineTo(x + w, y + h - rr);
+  if (rr) g.arcTo(x + w, y + h, x + w - rr, y + h, rr);
+  g.lineTo(x + l, y + h);
+  if (l) g.arcTo(x, y + h, x, y + h - l, l);
+  g.lineTo(x, y + l);
+  if (l) g.arcTo(x, y, x + l, y, l);
+  g.closePath();
+  return g;
 }
 
 /** Diameter of the account orb in the overview header. */
@@ -438,7 +496,7 @@ export {
   type GpuTimelineViewport,
 } from './renderer/metrics.js';
 export { TUNING_ROW_HEIGHT as TUNING_PANEL_ROW_HEIGHT } from './renderer/tuning-layout.js';
-import { type FilterBlockLayout } from './renderer/chip-layout.js';
+import { type FilterBlockLayout, type FilterChipJoint } from './renderer/chip-layout.js';
 import {
   POINTER_LIGHT_BOUNDED_WGSL,
   POINTER_LIGHT_GLSL,
@@ -1512,6 +1570,9 @@ export class GpuRenderer {
         // to hit-test against — so the smoke needs both to prove a drag
         // survived the render that used to destroy it.
         hitTargets: () => this.metrics.hitTargets,
+        // The renderer's own text metrics, so a probe can compare a control's
+        // allotted width with the copy it was sized for.
+        measureText: (value: string, options: TextOptions = {}) => this.measureText(value, options),
         projectRendererPoint: (x: number, y: number) =>
           this.rendererToClientPosition(x, y),
         tooltip: () => this.tooltipLayer?.diagnostics() ?? {
@@ -2916,7 +2977,7 @@ export class GpuRenderer {
    * built: mutating one would invalidate every label drawn with it.
    */
   private textStyle(options: TextOptions): { style: TextStyle; key: string } {
-    const size = gpuTextSize(options.size);
+    const size = options.exactSize ? Math.max(EXACT_SIZE_FLOOR, options.size ?? 13) : gpuTextSize(options.size);
     const weight = options.weight ?? '400';
     const color = options.color ?? GPU_COLORS.text;
     const mono = options.mono ?? false;
@@ -3565,8 +3626,14 @@ export class GpuRenderer {
     active: boolean,
     onActivate: (id: string) => void,
     accent: number = GPU_COLORS.primary,
-    labelSize: number = 11
+    labelSize: number = 11,
+    options: FilterButtonOptions = {}
   ) {
+    const joint = options.joint ?? 'only';
+    const segment = options.segmented ?? joint !== 'only';
+    const roundLeft = joint === 'only' || joint === 'start';
+    const roundRight = joint === 'only' || joint === 'end';
+    const exactSize = options.exactSize === true;
     const localTarget = {
       id,
       role: 'button',
@@ -3594,20 +3661,30 @@ export class GpuRenderer {
     container.eventMode = 'static';
     container.cursor = 'pointer';
     container.hitArea = new Rectangle(0, 0, width, height);
-    const dropShadow = this.addSurfaceShadow(container, width, height, {
-      radius: 8,
-      alpha: 0.4,
-      surface: 'button',
-    });
+    // A segment casts no shadow of its own: the strip's frame carries the
+    // lift, and per-segment shadows would print a seam under every `|`.
+    const dropShadow = segment
+      ? null
+      : this.addSurfaceShadow(container, width, height, {
+        radius: 8,
+        alpha: 0.4,
+        surface: 'button',
+      });
 
     const aura = new Graphics();
-    aura.roundRect(-3, -3, width + 6, height + 6, 10);
-    aura.stroke({ color: accent, width: 2.5, alpha: 0.8 });
+    if (segment) {
+      // The ring stays INSIDE a segment, or it would overdraw its neighbours.
+      segmentPath(aura, 1.5, 1.5, width - 3, height - 3, 6, roundLeft, roundRight);
+      aura.stroke({ color: accent, width: 1.6, alpha: 0.8 });
+    } else {
+      aura.roundRect(-3, -3, width + 6, height + 6, 10);
+      aura.stroke({ color: accent, width: 2.5, alpha: 0.8 });
+    }
     aura.alpha = active ? 0.32 : 0;
     container.addChild(aura);
 
     const base = new Graphics();
-    base.roundRect(0, 0, width, height, 8);
+    segmentPath(base, 0, 0, width, height, 8, roundLeft, roundRight);
     base.fill({
       color: active ? accent : 0x111b2c,
       alpha: active ? 0.3 : 0.94,
@@ -3624,7 +3701,11 @@ export class GpuRenderer {
     const insetShadow = this.addInsetShadow(container, width, height, 8);
 
     const inner = new Graphics();
-    inner.roundRect(3, 3, width - 6, height - 6, 6);
+    if (segment) {
+      segmentPath(inner, 3, 3, width - 6, height - 6, 5, roundLeft, roundRight);
+    } else {
+      inner.roundRect(3, 3, width - 6, height - 6, 6);
+    }
     inner.stroke({ color: active ? 0xd9e8ff : 0x6f86ad, width: 0.7, alpha: active ? 0.35 : 0.12 });
     container.addChild(inner);
 
@@ -3633,15 +3714,14 @@ export class GpuRenderer {
     scanline.alpha = active ? 0.15 : 0.035;
     container.addChild(scanline);
 
+    // The two corner ticks belong to the strip's outer corners: a middle
+    // segment draws none, so the row reads as ONE control with many faces.
     const corner = new Graphics();
-    corner
-      .moveTo(4, 9)
-      .lineTo(4, 4)
-      .lineTo(9, 4)
-      .moveTo(width - 9, height - 4)
-      .lineTo(width - 4, height - 4)
-      .lineTo(width - 4, height - 9)
-      .stroke({ color: accent, width: 1.2, alpha: active ? 0.9 : 0.45 });
+    if (roundLeft) corner.moveTo(4, 9).lineTo(4, 4).lineTo(9, 4);
+    if (roundRight) {
+      corner.moveTo(width - 9, height - 4).lineTo(width - 4, height - 4).lineTo(width - 4, height - 9);
+    }
+    corner.stroke({ color: accent, width: 1.2, alpha: active ? 0.9 : 0.45 });
     container.addChild(corner);
 
     const sparkles = Array.from({ length: 4 }, (_, index) => {
@@ -3656,17 +3736,26 @@ export class GpuRenderer {
 
     // The label box tracks the face: 11px renders ~16px tall, so centre on
     // labelSize + 5 rather than a constant tied to the default face.
-    const labelBox = gpuTextSize(labelSize) + 5;
-    const fittedLabel = this.fitText(label, Math.max(0, width - 22), {
-      size: labelSize, weight: '700',
+    const labelBox = (exactSize ? Math.max(EXACT_SIZE_FLOOR, labelSize) : gpuTextSize(labelSize)) + 5;
+    const labelInset = segment ? 6 : 11;
+    // The dense face is lighter: at 9px a bold uppercase run fills in, and
+    // the strip is read for WHAT a branch does, not for its emphasis.
+    const activeWeight = exactSize ? '600' : '700';
+    const idleWeight = exactSize ? '500' : '600';
+    const fittedLabel = this.fitText(label, Math.max(0, width - labelInset * 2), {
+      size: labelSize, weight: activeWeight, exactSize,
     });
-    const labelLeft = Math.max(11, (width - this.measureText(fittedLabel, { size: labelSize, weight: '700' })) / 2);
+    const labelLeft = Math.max(
+      labelInset,
+      (width - this.measureText(fittedLabel, { size: labelSize, weight: activeWeight, exactSize })) / 2
+    );
     const labelText = this.text(container, fittedLabel, labelLeft, Math.max(3, (height - labelBox) / 2), {
       // Built BRIGHT and tinted down, never re-coloured through the style —
       // the style is shared, so `style.fill = …` recolours every label using it.
       size: labelSize,
       color: GPU_COLORS.text,
-      weight: active ? '700' : '600',
+      weight: active ? activeWeight : idleWeight,
+      exactSize,
     });
     labelText.eventMode = 'none';
 
@@ -3689,7 +3778,8 @@ export class GpuRenderer {
       if (!prefersReducedMotion()) elapsed += ticker.deltaMS;
       const entrance = reduced ? 1 : Math.max(0, Math.min(1, elapsed / 260));
       const easedEntrance = 1 - (1 - entrance) ** 3;
-      const targetScale = pressed ? 0.955 : hovered ? 1.035 : 1;
+      // A segment never grows on hover: it shares its edges with the next one.
+      const targetScale = segment ? (pressed ? 0.975 : 1) : pressed ? 0.955 : hovered ? 1.035 : 1;
       const scale = easedEntrance * targetScale;
       container.alpha = easedEntrance;
       container.scale.set(scale);
@@ -3715,7 +3805,7 @@ export class GpuRenderer {
       if (!active && !pressed && insetDepth < 0.001) insetDepth = 0;
       insetShadow.alpha = insetDepth;
       insetShadow.visible = insetDepth > 0.02;
-      dropShadow.alpha = 1 - insetDepth;
+      if (dropShadow) dropShadow.alpha = 1 - insetDepth;
       const nextLabelTint = pressed || hovered || active ? NO_TINT : idleTint;
       if (nextLabelTint !== currentLabelTint) {
         currentLabelTint = nextLabelTint;
@@ -3932,7 +4022,7 @@ export class GpuRenderer {
       if (!active && !pressed && insetDepth < 0.001) insetDepth = 0;
       insetShadow.alpha = insetDepth;
       insetShadow.visible = insetDepth > 0.02;
-      dropShadow.alpha = 1 - insetDepth;
+      if (dropShadow) dropShadow.alpha = 1 - insetDepth;
       const nextLabelTint = pressed || hovered || active ? NO_TINT : BUTTON_LABEL_IDLE_TINT;
       if (labelText && nextLabelTint !== currentLabelTint) {
         currentLabelTint = nextLabelTint;
@@ -4209,7 +4299,7 @@ export class GpuRenderer {
       if (!active && !pressed && insetDepth < 0.001) insetDepth = 0;
       insetShadow.alpha = insetDepth;
       insetShadow.visible = insetDepth > 0.02;
-      dropShadow.alpha = 1 - insetDepth;
+      if (dropShadow) dropShadow.alpha = 1 - insetDepth;
       nucleus.scale.set(active ? 1 + pulse * 0.25 : hovered ? 1.15 : 1);
       orbit.rotation = elapsed * (tier % 2 ? 0.0012 : -0.001);
       orbit.alpha = active ? 0.75 : hovered ? 0.5 : 0.28;

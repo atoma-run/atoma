@@ -43,7 +43,10 @@ import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import {
   FILTER_BLOCK_GAP,
+  FILTER_BUTTON_HEIGHT_DENSE,
+  FILTER_BUTTON_LABEL_SIZE,
   FILTER_BUTTON_LABEL_SIZE_COMPACT,
+  FILTER_BUTTON_LABEL_SIZE_DENSE,
   layoutAtomLaneBlocks,
   layoutFilterChipBlock,
   layoutRunFilterBlocks,
@@ -106,6 +109,8 @@ export const RUN_STATUS_COLOR: Record<RunStatus, number> = {
   abandoned: GPU_COLORS.warning,
 };
 
+/** Characters of a branch title shown on its dense filter segment. */
+const BRANCH_CHIP_TITLE_LENGTH = 72;
 const RUN_ACTION_MAX_WIDTH = 180;
 const RUN_ACTION_HEIGHT = 30;
 const RUN_ACTION_ROW_PITCH = 40;
@@ -604,6 +609,9 @@ export function drawRuns(
           label: role === 'all' ? snapshot.t('filters.allRoles').toUpperCase() : eventRoleLabel(role, snapshot.t).toUpperCase(),
         }))
       : null,
+    // PROPOSAL (2026-10-15): one `<ALL|LLM|JEV|…>` strip per row instead of
+    // spaced pills — the row keeps its chips and colours in a third less width.
+    segmented: true,
   });
   ctx.filterBlockFrame(ctx.root, filterLayout.kinds);
   if (filterLayout.roles) ctx.filterBlockFrame(ctx.root, filterLayout.roles);
@@ -624,7 +632,9 @@ export function drawRuns(
       snapshot.onActivate,
       // The chip wears the colour of the cards it selects — the control and
       // its result were previously unrelated, every chip falling back to blue.
-      eventKindColor(chip.id.slice('run.filter.kind.'.length))
+      eventKindColor(chip.id.slice('run.filter.kind.'.length)),
+      FILTER_BUTTON_LABEL_SIZE,
+      { joint: chip.joint, segmented: true }
     );
   }
   if (filterLayout.roles) {
@@ -642,7 +652,8 @@ export function drawRuns(
         snapshot.onActivate,
         // Role chips ride the same yellow→orange ramp their LLM cards do.
         role === 'all' ? LLM_FAMILY_COLOR : llmRoleColor(role),
-        FILTER_BUTTON_LABEL_SIZE_COMPACT
+        FILTER_BUTTON_LABEL_SIZE_COMPACT,
+        { joint: chip.joint, segmented: true }
       );
     }
   }
@@ -726,18 +737,25 @@ export function drawRuns(
             branchId === 'all'
               ? snapshot.t('timeline.allBranches').toUpperCase()
               : branch
-                ? timelineBranchLabel(branch, snapshot.t).toUpperCase()
+                // The dense 8px face shows a title far longer than the
+                // 28-character cut the 12px face needed.
+                ? timelineBranchLabel(branch, snapshot.t, BRANCH_CHIP_TITLE_LENGTH).toUpperCase()
                 : `⑂ ${branchId.slice(0, 6)}`,
         };
       }),
       {
-        // Branch labels are the longest chip copy in the client; the compact
-        // face keeps a six-branch run's filter row from eating the timeline.
+        // Branch labels are the longest chip copy in the client; the dense
+        // segmented strip keeps a six-branch run's filter row from eating the
+        // timeline while showing what each branch does.
         size: 'compact',
+        segmented: true,
+        buttonHeight: FILTER_BUTTON_HEIGHT_DENSE,
         // Measured through the style the chips draw with — the bold (active)
         // weight, so selecting a chip never outgrows its measured box.
         measure: (label) =>
-          ctx.measureText(label, { size: FILTER_BUTTON_LABEL_SIZE_COMPACT, weight: '700' }),
+          ctx.measureText(label, {
+            size: FILTER_BUTTON_LABEL_SIZE_DENSE, weight: '600', exactSize: true,
+          }),
       }
     );
     ctx.filterBlockFrame(lowerControlsLayer, branchBlock);
@@ -754,7 +772,8 @@ export function drawRuns(
         runFilters.branchId === chip.id.slice('run.filter.branch.'.length),
         snapshot.onActivate,
         undefined,
-        FILTER_BUTTON_LABEL_SIZE_COMPACT
+        FILTER_BUTTON_LABEL_SIZE_DENSE,
+        { joint: chip.joint, segmented: true, exactSize: true }
       );
     }
     controlsBottom = branchBlock.y + branchBlock.height + FILTER_BLOCK_GAP;
@@ -883,7 +902,11 @@ export function drawRuns(
   // started" at the bottom. They are rows like any other, so they scroll,
   // cull and project with the rest.
   const rowOffset = TIMELINE_ROW_OFFSET;
-  const totalRows = timeline.items.length + rowOffset + 1;
+  // A filter that matches nothing still shows the two bookends, and its
+  // message takes the ONE row between them: drawn at the list's top it sat on
+  // the "run ended" card (owner report, 2026-10-15).
+  const emptyRows = timeline.items.length === 0 ? 1 : 0;
+  const totalRows = timeline.items.length + rowOffset + emptyRows + 1;
   const displayRow = (row: number) => row + rowOffset;
   ctx.scrollMax.runs = Math.max(
     0,
@@ -955,11 +978,13 @@ export function drawRuns(
     rowOffset,
     eventIds: timeline.items.map(item => item.event.id),
   };
-  if (timeline.items.length === 0) {
-    ctx.text(listLayer, snapshot.t('filters.noMatch'), leftX + 24, listY + 22, {
+  if (emptyRows) {
+    const emptyY = listY + contentTopPadding + rowOffset * rowHeight - scrollY;
+    ctx.text(listLayer, snapshot.t('filters.noMatch'), cardBaseX + EVENT_TITLE_X, emptyY + EVENT_TITLE_TOP, {
       size: 11,
       color: GPU_COLORS.muted,
-      width: leftWidth - 48,
+      width: cardBaseWidth - EVENT_TITLE_X * 2,
+      singleLine: true,
     });
   }
   const graph = new Graphics();
