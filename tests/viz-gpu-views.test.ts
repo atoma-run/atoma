@@ -686,6 +686,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     acceptHandheld: noop,
     handheldBlocked: false,
     accountMenuOpen: false,
+    settingsTab: 'general',
     localeMenuOpen: false,
     notificationsMenuOpen: false,
     tuningPanelOpen: false,
@@ -708,6 +709,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     toggleTuningPanel: noop,
     activateView: noop,
     setView: noop,
+    openSettings: noop,
     setLocale: noop,
     selectRun: noop,
     selectResult: noop,
@@ -3981,6 +3983,9 @@ describe('GPU account menu', () => {
     expect(ids).toContain('org.switch.org-b');
     expect(ids).not.toContain('org.switch.org-a');
     expect(ids).toContain('account.settings');
+    // Where the account stands commercially is one row under its settings.
+    expect(ids).toContain('account.plan');
+    expect(ids.indexOf('account.plan')).toBe(ids.indexOf('account.settings') + 1);
     expect(ids).toContain('auth.switchAccount');
     const switchAccount = ctx.buttons.find((button) => button.id === 'auth.switchAccount');
     switchAccount?.onActivate?.(switchAccount.id);

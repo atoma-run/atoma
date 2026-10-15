@@ -371,6 +371,16 @@ npm run viz:mark-turn:analyze
   before the `maxNodes` slice, never an array, and drops an entry with NO
   content (`stderr: ''`). `detail-layout.ts` packs adjacent fields up to THREE
   per row, at the narrowest count any MEASURES into: 2+2, not 3+1.
+- YOUR PLAN (`PlanPanel.tsx`, Settings' second tab, and an `account.plan` row
+  under Settings in the account menu) is where an account stands commercially.
+  ONE plan is real during the beta: the server names it on `/api/org`
+  (`contracts/accountPlan.ts`, `plan.current = 'free'`) with the limits THIS
+  instance enforces, read from the platform settings — never numbers typed
+  into the client, so the screen cannot promise a budget the run path refuses.
+  The paid plans are PREVIEWS: greyed, `aria-disabled`, no button at all and
+  no price. A disabled Upgrade would promise a flow that does not exist.
+  Both entrances route through `openSettings(tab)` in the store, so the Pixi
+  menu and its DOM mirror land on the same tab.
 - Project Settings holds the optional deployment preference (none, Atoma, external).
   GPU and accessible controls share the choice model, explicit save and errors.
   It never redirects preview to local Docker installation or claims hosting is

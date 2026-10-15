@@ -257,7 +257,7 @@ function AccountBridge({
   const themeDropdownOpen = useGpuStore((state) => state.themeDropdownOpen);
   const toggleThemeDropdown = useGpuStore((state) => state.toggleThemeDropdown);
   const setAppearanceTheme = useGpuStore((state) => state.setAppearanceTheme);
-  const setView = useGpuStore((state) => state.setView);
+  const openSettings = useGpuStore((state) => state.openSettings);
   const roleKey = `auth.role.${viewer.role}`;
   const role = t(roleKey);
   return (
@@ -311,8 +311,11 @@ function AccountBridge({
               ))}
             </div>
           ) : null}
-          <button type="button" onClick={() => setView('settings')}><ButtonIcon kind="settings" />
+          <button type="button" onClick={() => openSettings('general')}><ButtonIcon kind="settings" />
             {t('nav.settings')}
+          </button>
+          <button type="button" onClick={() => openSettings('plan')}><ButtonIcon kind="user" />
+            {t('nav.plan')}
           </button>
           <button
             type="button"

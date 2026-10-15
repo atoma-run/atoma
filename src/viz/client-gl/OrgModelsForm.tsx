@@ -34,17 +34,18 @@ import type {
 } from '../client/types.js';
 import { useAccountSubscriptions } from './queries.js';
 import { PlatformLimitsForm } from './PlatformLimitsForm.js';
+import { PlanPanel } from './PlanPanel.js';
+import { SETTINGS_TABS, type SettingsTab } from './store.js';
 
-/** Settings sections in tab order; platform limits are visible only to platform admins. */
 /**
- * Tab ORDER is the reading order of a first setup: who you are, then what pays
- * for a run (a subscription, else a key), then the models those choices make
- * available, and last the MCP address. Models sits after the two credential
- * tabs because an empty account arms its tiers from the subscription it just
- * connected, so the pins are already filled by the time it is reached.
+ * Tab ORDER is the reading order of a first setup: who you are, what plan you
+ * are on, then what pays for a run (a subscription, else a key), then the
+ * models those choices make available, and last the MCP address. Models sits
+ * after the two credential tabs because an empty account arms its tiers from
+ * the subscription it just connected, so the pins are already filled by the
+ * time it is reached. The list itself lives in the store, which routes to it.
  */
-export const SETTINGS_TABS = ['general', 'subscriptions', 'keys', 'models', 'mcp', 'limits'] as const;
-export type SettingsTab = (typeof SETTINGS_TABS)[number];
+export { SETTINGS_TABS, type SettingsTab } from './store.js';
 
 /**
  * SETTINGS BODY — ONE DOM scroll inside the Settings frame, split into tabs:
@@ -413,6 +414,10 @@ export function OrgModelsForm({
             </ul>
           </section>
         ) : null}
+      </section>
+
+      <section {...panelProps('plan')}>
+        <PlanPanel t={t} locale={locale} plan={organisation?.plan ?? null} />
       </section>
 
       <section {...panelProps('models')}>

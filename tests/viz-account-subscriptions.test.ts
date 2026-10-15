@@ -102,6 +102,11 @@ function organisation(viewerRole: string): VizOrganisation {
     ],
     projectCount: 0,
     pendingInvitations: null,
+    plan: {
+      current: 'free',
+      beta: true,
+      limits: { concurrentRuns: 1, runTimeoutMs: 3_600_000, runCostMaxUsd: 2.5, runTokenMax: 0 },
+    },
   };
 }
 
@@ -279,7 +284,7 @@ describe('personal subscription settings', () => {
     }
   );
 
-  it('splits the body into five tabs and keeps every panel mounted, hidden', async () => {
+  it('splits the body into six tabs and keeps every panel mounted, hidden', async () => {
     const adminSettings = vi.spyOn(api, 'adminSettings');
     vi.spyOn(api, 'accountModels').mockResolvedValue(ACCOUNT_MODELS);
     vi.spyOn(api, 'orgModels').mockResolvedValue(ORG_MODELS);
@@ -292,10 +297,11 @@ describe('personal subscription settings', () => {
     );
 
     const tabs = await screen.findAllByRole('tab');
-    // Reading order of a first setup: identity, then what pays, then the
-    // models those choices unlock, then the MCP address.
+    // Reading order of a first setup: identity, the plan it is on, then what
+    // pays, then the models those choices unlock, then the MCP address.
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'General',
+      'Your plan',
       'Your AI subscriptions',
       'Your AI API keys',
       'LLM models',
@@ -306,7 +312,7 @@ describe('personal subscription settings', () => {
     // Every panel is in the DOM (a minted MCP token must survive a tab
     // switch); only the active one is visible.
     const panels = container.querySelectorAll('[role="tabpanel"]');
-    expect(panels).toHaveLength(5);
+    expect(panels).toHaveLength(6);
     expect(Array.from(panels).filter((panel) => !panel.hasAttribute('hidden'))).toHaveLength(1);
     // Children land in the MCP tab, hidden until it is selected.
     const child = screen.getByTestId('settings-child');
@@ -391,6 +397,38 @@ describe('personal subscription settings', () => {
     // The raw ISO slice ("2026-09-01") is what shipped; a date is expected.
     expect(screen.getByText(/joined September 1, 2026/)).toBeInTheDocument();
     expect(screen.queryByText(/2026-09-01/)).not.toBeInTheDocument();
+  });
+
+  // BETA: one real plan, the paid ones previewed. The numbers come from the
+  // server's plan projection, never from the component.
+  it('shows the Free plan as current with the enforced limits, and the paid plans greyed', async () => {
+    vi.spyOn(api, 'accountModels').mockResolvedValue(ACCOUNT_MODELS);
+    vi.spyOn(api, 'orgModels').mockResolvedValue(ORG_MODELS);
+    vi.spyOn(api, 'accountSubscriptions').mockResolvedValue(DISCONNECTED);
+    const user = userEvent.setup();
+    orgModelsForm('org:member');
+
+    await user.click(await screen.findByRole('tab', { name: 'Your plan' }));
+    const panel = screen.getByRole('tabpanel');
+    expect(panel).toHaveAttribute('id', 'settings-panel-plan');
+    const free = within(panel).getByRole('region', { name: 'Free' });
+    expect(free).toHaveAttribute('data-current', 'true');
+    expect(free).not.toHaveAttribute('aria-disabled');
+    expect(within(free).getByText('Current plan')).toBeInTheDocument();
+    expect(within(free).getByText('Beta')).toBeInTheDocument();
+    expect(within(free).getByText('1 at a time per organisation')).toBeInTheDocument();
+    expect(within(free).getByText('up to 1 hour per run')).toBeInTheDocument();
+    expect(within(free).getByText('$2.50 per run')).toBeInTheDocument();
+    expect(within(free).getByText('No cap set')).toBeInTheDocument();
+
+    for (const name of ['Pro', 'Team']) {
+      const card = within(panel).getByRole('region', { name });
+      expect(card).toHaveAttribute('aria-disabled', 'true');
+      expect(within(card).getByText('Coming soon')).toBeInTheDocument();
+      expect(within(card).queryByRole('button')).toBeNull();
+    }
+    expect(within(panel).getByText('Run queue priority')).toBeInTheDocument();
+    expect(screen.getByText(/every organisation is on the Free plan/)).toBeInTheDocument();
   });
 
   it('orders personal pins before the organisation defaults, greyed for a plain member', async () => {

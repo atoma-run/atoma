@@ -39,6 +39,7 @@ export type AccountMenuItemKind =
   | 'switch'
   | 'divider'
   | 'settings'
+  | 'plan'
   | 'themeDropdown'
   | 'themeOption'
   | 'switchAccount'
@@ -110,6 +111,9 @@ export function accountMenuLayout(
   }
   push({ kind: 'divider', height: DIVIDER_HEIGHT });
   push({ kind: 'settings', id: 'account.settings', height: ACTION_HEIGHT });
+  // Where the account stands commercially, one row under its settings: the
+  // plan is the question a client asks of their account, not of a project.
+  push({ kind: 'plan', id: 'account.plan', height: ACTION_HEIGHT });
   push({ kind: 'switchAccount', id: 'auth.switchAccount', height: ACTION_HEIGHT });
   push({ kind: 'signOut', id: 'auth.signOut', height: ACTION_HEIGHT });
   if (auth.failure) push({ kind: 'failure', height: FAILURE_HEIGHT });
@@ -245,17 +249,18 @@ export function drawAccountMenu(
       ctx.root.addChild(rule);
       continue;
     }
-    if (item.kind === 'settings' && item.id) {
+    if ((item.kind === 'settings' || item.kind === 'plan') && item.id) {
+      const plan = item.kind === 'plan';
       ctx.button(
         ctx.root,
         item.id,
         'menuitem',
-        snapshot.t('nav.settings'),
+        snapshot.t(plan ? 'nav.plan' : 'nav.settings'),
         innerX,
         y,
         innerWidth,
         ACTION_HEIGHT - ACTION_GAP,
-        snapshot.state.view === 'settings',
+        snapshot.state.view === 'settings' && (snapshot.state.settingsTab === 'plan') === plan,
         snapshot.onActivate,
         GPU_COLORS.primary
       );

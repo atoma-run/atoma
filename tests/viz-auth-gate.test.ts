@@ -21,6 +21,7 @@ import { SkillRegistry } from '../src/skills/registry.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { appendLedger } from '../src/core/ledger.js';
+import { DEFAULT_PLATFORM_LIMITS } from '../src/contracts/platformSettings.js';
 
 /**
  * Process-level contract: real viz server, real SQLite and a local OAuth app.
@@ -1373,8 +1374,22 @@ describe('viz auth gate (process level)', () => {
       members: Array<{ principalId: string; displayName: string; role: string; avatarUrl: string | null }>;
       projectCount: number;
       pendingInvitations: number | null;
+      plan: { current: string; beta: boolean; limits: Record<string, number> };
     };
     expect(orgBody.viewerRole).toBe('org:owner');
+    // BETA: every organisation is on the Free plan, and the card carries the
+    // limits THIS instance enforces — the shipped defaults here, since no
+    // admin stated a row — rather than numbers typed into the client.
+    expect(orgBody.plan).toEqual({
+      current: 'free',
+      beta: true,
+      limits: {
+        concurrentRuns: 1,
+        runTimeoutMs: DEFAULT_PLATFORM_LIMITS['run.timeoutDefaultMs'],
+        runCostMaxUsd: DEFAULT_PLATFORM_LIMITS['run.costMaxUsd'],
+        runTokenMax: DEFAULT_PLATFORM_LIMITS['run.tokenMaxTotal'],
+      },
+    });
     expect(orgBody.members).toHaveLength(1);
     expect(orgBody.members[0]).toMatchObject({
       principalId: whoami.principalId,

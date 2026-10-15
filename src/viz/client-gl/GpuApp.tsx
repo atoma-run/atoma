@@ -37,7 +37,7 @@ import { AuthControls } from './AuthControls.js';
 import { useAuthController } from './session-controller.js';
 import { GpuDomBridge, SettingsProfileForm } from './DomBridge.js';
 import { McpAccess } from './McpAccessPanel.js';
-import { OrgModelsForm, type SettingsTab } from './OrgModelsForm.js';
+import { OrgModelsForm } from './OrgModelsForm.js';
 import { EntryVeilLayer } from './EntryVeilLayer.js';
 import { HandheldVeilLayer } from './HandheldVeilLayer.js';
 import { AppearanceVeilLayer, useAppearanceTransition } from './appearance-transition.js';
@@ -178,7 +178,6 @@ function GpuAppContent({
   const githubRecovery = useGpuStore(state => state.githubRecovery);
   const setGitHubRecovery = useGpuStore(state => state.setGitHubRecovery);
   const githubRecoveryLock = useRef(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general');
   const [cameraRevision, setCameraRevision] = useState(0);
   const cameraSettled = useCallback(
     () => setCameraRevision((revision) => revision + 1),
@@ -782,8 +781,11 @@ function GpuAppContent({
       return;
     }
     if (id === 'account.settings') {
-      setSettingsInitialTab('general');
-      store.setView('settings');
+      store.openSettings('general');
+      return;
+    }
+    if (id === 'account.plan') {
+      store.openSettings('plan');
       return;
     }
     if (id.startsWith('auth.')) {
@@ -1432,7 +1434,7 @@ function GpuAppContent({
             scopeKey={`${authSnapshot.viewer.principalId}:${activeOrgId}`}
             projectId={state.selectedProjectId} locale={state.locale} t={t} externalAgentGuide={externalAgentGuide}
             heading={heading} collapsed={!state.selectedProjectId && state.projectMcpCollapsed}
-            onSettings={tab => { setSettingsInitialTab(tab); state.setView('settings'); }}
+            onSettings={tab => state.openSettings(tab)}
             onScopeChange={id => { state.selectProject(id); useGpuStore.setState({ projectMcpCollapsed: false }); }}
             onProject={id => { state.selectProject(id); state.selectProjectSection('runs'); }}
             onRun={(run, traceId) => {
@@ -1445,10 +1447,7 @@ function GpuAppContent({
           onRenameAddress={deployment.renameAddress}
           workspace={workspace}
           mcpAccessState={mcpAccessState}
-          onOpenMcp={() => {
-            setSettingsInitialTab('mcp');
-            useGpuStore.getState().setView('settings');
-          }}
+          onOpenMcp={() => useGpuStore.getState().openSettings('mcp')}
           pushPrompt={pushPrompt}
           onEnablePush={() => { void enablePush(); }}
           onDismissPush={dismissPush}
@@ -1461,7 +1460,7 @@ function GpuAppContent({
               <OrgModelsForm
                 t={t}
                 locale={state.locale}
-                initialTab={settingsInitialTab}
+                initialTab={state.settingsTab}
                 enabled={true}
                 canManageOrg={
                   authSnapshot.viewer.platformAdmin ||

@@ -425,6 +425,11 @@ function gatedStubs() {
       }],
       projectCount: 1,
       pendingInvitations: 0,
+      plan: {
+        current: 'free',
+        beta: true,
+        limits: { concurrentRuns: 1, runTimeoutMs: 3_600_000, runCostMaxUsd: 0, runTokenMax: 0 },
+      },
     },
     '/api/account/models': {
       pins: { l1: null, l2: null, l3: null },

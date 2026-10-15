@@ -9,6 +9,16 @@ import { isHandheldDevice } from './handheld.js';
 import { isAppearanceTheme, type AppearanceTheme } from './theme.js';
 import { prefersReducedMotion } from './renderer/motion.js';
 
+/**
+ * Settings sections in tab order — the reading order of a first setup: who
+ * you are, what you are on, what pays for a run (a subscription, else a key),
+ * the models those choices make available, the MCP address, and for the
+ * platform admin alone the instance's run limits. Declared here, not in the
+ * form, because the store routes to one.
+ */
+export const SETTINGS_TABS = ['general', 'plan', 'subscriptions', 'keys', 'models', 'mcp', 'limits'] as const;
+export type SettingsTab = (typeof SETTINGS_TABS)[number];
+
 export { DOC_THEMES, type DocsThemeKey } from './docs-content.js';
 
 export type ViewName =
@@ -271,6 +281,12 @@ export interface GpuUiState {
    * screen it was opened from.
    */
   accountMenuOpen: boolean;
+  /**
+   * The Settings section the next entry opens on. Both entrances — the Pixi
+   * account menu and its DOM mirror — set it through `openSettings`, so a
+   * canvas click and a keyboard activation land on the same tab.
+   */
+  settingsTab: SettingsTab;
   /** Endonym picker opened from the compact locale code control. */
   localeMenuOpen: boolean;
   /**
@@ -306,6 +322,8 @@ export interface GpuUiState {
   activateView: (view: ViewName) => void;
   /** Programmatic/cross-view navigation always lands on focused content. */
   setView: (view: ViewName) => void;
+  /** Route to Settings on a named section. */
+  openSettings: (tab: SettingsTab) => void;
   setLocale: (locale: Locale) => void;
   selectRun: (id: string | null) => void;
   selectResult: (id: string | null) => void;
@@ -516,6 +534,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   },
   handheldBlocked: false,
   accountMenuOpen: false,
+  settingsTab: 'general',
   localeMenuOpen: false,
   notificationsMenuOpen: false,
   tuningPanelOpen: initialTuningPanelOpen(),
@@ -631,6 +650,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
       // Even an idempotent route setter keeps its destination in focus.
       'focus'
     )),
+  openSettings: (tab) =>
+    set((state) => ({ ...viewChange(state, 'settings', 'focus'), settingsTab: tab })),
   setLocale: (locale) => {
     try {
       if (typeof localStorage !== 'undefined') {

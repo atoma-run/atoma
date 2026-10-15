@@ -375,6 +375,12 @@ export interface VizOrganisationMember {
  */
 export interface VizOrganisation {
   runCapacity?: import('../../contracts/projects.js').OrgRunCapacity | null;
+  /**
+   * The plan this organisation is on and the limits it experiences, decided
+   * server-side from the instance's enforced settings. Absent on an older
+   * server; the plan screen then shows the catalogue without numbers.
+   */
+  plan?: import('../../contracts/accountPlan.js').AccountPlan | null;
   id: string;
   name: string;
   createdAt: string;

@@ -1504,6 +1504,82 @@ html.atoma-cursor-active * {
   }
 }
 
+/* YOUR PLAN — one card per plan, the current one lit, the previews greyed.
+   Reuses the subscription badge pill for "Current plan" / "Coming soon"; a
+   preview card has no control at all, so greying is `aria-disabled` plus
+   opacity, never a disabled button that promises a flow. */
+.gpu-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gpu-plan-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(110, 168, 255, .22);
+  border-radius: 8px;
+  background: rgba(12, 23, 38, .72);
+}
+
+.gpu-plan-card[data-current='true'] {
+  border-color: rgba(52, 211, 153, .55);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, .18) inset;
+}
+
+.gpu-plan-card[aria-disabled='true'] {
+  opacity: .55;
+}
+
+.gpu-plan-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gpu-plan-name {
+  color: #e6edf7;
+  font: 700 15px/1.3 ui-sans-serif, system-ui, sans-serif;
+}
+
+.gpu-plan-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gpu-plan-card p {
+  margin: 7px 0 0;
+  color: #9fb0c7;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+}
+
+.gpu-plan-limits {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 10px 0 2px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(110, 168, 255, .16);
+}
+
+.gpu-plan-features {
+  margin: 8px 0 0;
+  padding: 0 0 0 16px;
+  color: #c6d2e4;
+  font: 12px/1.5 ui-sans-serif, system-ui, sans-serif;
+}
+
+.gpu-plan-unavailable {
+  font-style: italic;
+}
+
+@media (max-width: 720px) {
+  .gpu-plan-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* The announcement composer: real DOM for text entry, the language review and
    the segment select. It IS the Announcements view, so it fills that view's
    frame rather than claiming a slice at the foot of another one. Top and

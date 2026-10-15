@@ -184,9 +184,11 @@ import {
   PLATFORM_SETTING_KEYS,
   PLATFORM_SETTING_SPECS,
   platformSettingsUpdateSchema,
+  resolvePlatformLimits,
   type PlatformLimits,
   type PlatformSettingSpec,
 } from '../contracts/platformSettings.js';
+import { accountPlan } from '../contracts/accountPlan.js';
 import {
   PlatformSettingsStore,
   type PlatformSettingRow,
@@ -3816,12 +3818,19 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         return;
       }
       const canSeeInvitations = viewer.role === 'org:owner' || viewer.role === 'org:admin';
+      const runCapacity = PROJECTS_RUNTIME?.store.runCapacity(viewer.orgId) ?? null;
       sendJson(res, 200, {
         id: organisation.orgId,
         name: organisation.name,
         createdAt: organisation.createdAt,
         viewerRole: viewer.role,
-        runCapacity: PROJECTS_RUNTIME?.store.runCapacity(viewer.orgId) ?? null,
+        runCapacity,
+        // BETA: one plan for every organisation, with THIS instance's enforced
+        // limits — never a brochure number the run path would refuse.
+        plan: accountPlan(
+          SETTINGS?.limits() ?? resolvePlatformLimits(),
+          runCapacity?.maxConcurrent ?? 1
+        ),
         members: organisation.members.map((member) => ({
           principalId: member.principalId,
           displayName: member.displayName,
