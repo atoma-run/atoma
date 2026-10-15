@@ -233,7 +233,7 @@ function gatedStubs() {
     tools: ['read_file'], elements: [{ tool: 'read_file', number: 3, name: 'Lithium', symbol: 'Li' }], params: {},
     createdBy: 'bootstrap', createdAt: '2026-09-15T00:00:00.000Z', version: 1, successes: 3, failures: 0, history: [],
   };
-  // L1 executes, L2 validates, L3 plans; Jev is priced apart from the run total.
+  // L1 executes, L2 validates, L3 plans; Decision is priced apart from the run total.
   const stubSlice = (costUsd, calls, model, roles) => ({ calls, costUsd, inputTokens: calls * 1800, outputTokens: calls * 420,
     cacheReadInputTokens: calls * 900, cacheCreationInputTokens: 0, models: [{ model, calls, costUsd }],
     roles: roles.map(([role, share]) => ({ role, calls: Math.max(1, Math.round(calls * share)), costUsd: costUsd * share })) });
@@ -1637,7 +1637,7 @@ try {
           await page.mouse.move(point.x, point.y);
           await new Promise(resolveWait => setTimeout(resolveWait, 420));
           const shown = await page.evaluate(() => globalThis.__ATOMA_GPU__.tooltip());
-          if (shown.visible && /^(L[123]|Jev) /.test(shown.text ?? '')) slice = shown.text.split('\n')[0];
+          if (shown.visible && /^(L[123]|Decision) /.test(shown.text ?? '')) slice = shown.text.split('\n')[0];
         }
       }
       if (!slice) throw new Error('No donut slice opened its bubble');

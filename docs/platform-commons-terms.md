@@ -57,7 +57,7 @@ history do not guarantee correctness or suitability.
 
 ## Decisions taken by TypeSafe
 
-Every run uses TypeSafe's Jev decision model ([typesafe.ai](https://typesafe.ai)),
+Every run uses Decision, TypeSafe's Jev model ([typesafe.ai](https://typesafe.ai)),
 under the operator's account and at the operator's cost, for bounded decisions:
 which agent or learned recipe takes a step, whether a plan or a result can be
 approved without a model review, and whether a newly learned recipe duplicates

@@ -42,7 +42,7 @@ text:
 It never goes to a child that declares file `outputs`, and only the root decides: a nested plan's
 own `delivery` field is still not read.
 
-**What each reader sees.** `taskContextLines` shows the line before the inputs, because Jev caps
+**What each reader sees.** `taskContextLines` shows the line before the inputs, because Decision caps
 its context head-first:
 - **Executors** (L1 plan and execute, L2 and L3 self plan and execute) get
   `TEXT_DELIVERY_GUIDANCE`:
@@ -87,7 +87,7 @@ An independent review of the first version found:
 7. **Fixed:** the tests now cover the real paths.
    - `l3.handle` (the production root) dispatches the mark to the last of two phases only.
    - The SHORT cell path runs the molecule and its validator.
-8. **Fixed:** the line now precedes the inputs that Jev's head-first cap cuts.
+8. **Fixed:** the line now precedes the inputs that Decision's head-first cap cuts.
 9. **Accepted:** some checks go quiet or slow down on text phases.
    - With `output.probes` and `output.files` gone, the `reportedWebProbes` manifest cross-check
      and structured file claims no longer fire there. Transport witnesses remain the primary

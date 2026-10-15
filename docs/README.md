@@ -9,7 +9,7 @@ time they were written, not the state of today's release.
 | I want to… | Read |
 | --- | --- |
 | Discover the product and use cases | [Project README](../README.md) |
-| Understand the architecture and Jev | [How it works](how-it-works.md) |
+| Understand the architecture and Decision | [How it works](how-it-works.md) |
 | Develop locally | [Development setup](development-setup.md) · [Contributing](../CONTRIBUTING.md) |
 | Understand what organisations share | [Service terms](platform-commons-terms.md) · [Hosted architecture boundary](saas-architecture.md) |
 | Connect an agent | [MCP authorization and diagnostics](mcp-oauth.md) |
@@ -20,7 +20,7 @@ time they were written, not the state of today's release.
 | Task | Guide |
 | --- | --- |
 | Run the reference container stack | [Packaged stack](packaged-stack.md) · [Launcher service](launcher-service.md) |
-| Deploy from CI and configure Jev or run limits | [Automatic deployment](automatic-deployment.md) · [Environment reference](../.env.example) |
+| Deploy from CI and configure Decision or run limits | [Automatic deployment](automatic-deployment.md) · [Environment reference](../.env.example) |
 | Import repositories and publish results | [GitHub App setup](github-app-setup.md) |
 | Enable result previews | [Preview deployment](preview-deployment.md) |
 | Configure project-document search | [Haystack setup](project-retrieval-haystack-only-2026-09-09.md) |
@@ -38,7 +38,7 @@ current subsystem rules.
 
 | Area | Records |
 | --- | --- |
-| Jev | [Decision and calibration](decisions/jev-decisions-2026-09-28.md) · [Policy corrections](decisions/jev-policy-2026-10-01.md) |
+| Decision | [Decision and calibration](decisions/jev-decisions-2026-09-28.md) · [Policy corrections](decisions/jev-policy-2026-10-01.md) |
 | Acceptance and continuation | [Acceptance proposal](decisions/acceptance-contract-2026-09-14.md) · [Checklist](decisions/acceptance-checklist-2026-09-25.md) · [Continuation](decisions/run-continuation-design-2026-09-24.md) |
 | Existing projects | [Seed inheritance](decisions/seed-inheritance-2026-09-25.md) · [Browser regression checks](decisions/inherited-checks-replay-2026-10-01.md) · [Comparison reruns](decisions/comparison-reruns-2026-09-25.md) |
 | Learning and trust | [Platform commons](decisions/platform-trust-2026-09-15.md) · [Recoverable trust](decisions/recoverable-trust-2026-09-15.md) · [Compile at learn](decisions/compile-at-learn-2026-09-26.md) · [Registry ownership history](decisions/project-registry-ownership-2026-09-09.md) |

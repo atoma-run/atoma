@@ -8,7 +8,7 @@ Ask for a drawing, a sound, a report, a data study, a proof or a piece of
 software. atoma coordinates AI agents to produce it, checks the result against
 what you asked for, and lets you inspect every step. The bounded decisions
 along the way, such as which agent takes a task or whether a plan is approved,
-are taken by TypeSafe's [Jev](#jev-handles-bounded-decisions).
+are taken by [Decision](#decision-handles-bounded-decisions), TypeSafe's Jev model.
 
 **[Open atoma.run →](https://atoma.run)**
 
@@ -167,27 +167,27 @@ to the final review, which distinguishes requested changes from lost behaviour.
 Read-only phases restore the files they changed, and workers read existing
 files before editing them. See [inherited browser checks](docs/decisions/inherited-checks-replay-2026-10-01.md).
 
-### Jev handles bounded decisions
+### Decision handles bounded decisions
 
-TypeSafe's **Jev** helps choose an agent or recipe, approve intermediate plans
+**Decision**, TypeSafe's Jev model, helps choose an agent or recipe, approve intermediate plans
 and results when the evidence permits it, and avoid learning equivalent
 recipes twice. It answers structured questions; the run's models still plan,
 write code and explain refusals. Uncertain or unavailable answers go back to
-those models, and final delivery acceptance stays independent of Jev.
+those models, and final delivery acceptance stays independent of Decision.
 
-The initial goal and starting repository guide the root tissue choice. Jev
+The initial goal and starting repository guide the root tissue choice. Decision
 selects a suitable registered L3; if the choice is uncertain or no tissue fits,
 a bounded model call reuses one or requests a new capability. New tissue prompts
 are authored by the platform's pinned L3 model using the platform's credentials.
 The legacy `run:build` command also accepts analysis and explanation tasks.
 
-Jev is enabled for every organisation when the host has `TYPESAFE_API_KEY`,
+Decision is enabled for every organisation when the host has `TYPESAFE_API_KEY`,
 unless the operator sets `ATOMA_JEV=0`. Decision context, including task text
 and evidence excerpts, is sent to TypeSafe as described in the
 [service terms](docs/platform-commons-terms.md#decisions-taken-by-typesafe).
 The timeline records its decisions, latency and separate cost; a sample of
 approvals is reviewed by the model for comparison. See the
-[architecture guide](docs/how-it-works.md#jev-bounded-decisions-beside-the-model-tiers).
+[architecture guide](docs/how-it-works.md#decision-bounded-decisions-beside-the-model-tiers).
 
 ### Adjust run limits without redeploying
 
@@ -350,7 +350,7 @@ Browse the [documentation index](docs/README.md) for current guides and the
 | I want to… | Read |
 | --- | --- |
 | Understand the architecture | [How it works](docs/how-it-works.md) |
-| Understand Jev and its evaluation | [Architecture](docs/how-it-works.md#jev-bounded-decisions-beside-the-model-tiers) · [Decision record](docs/decisions/jev-decisions-2026-09-28.md) · [Latest policy corrections](docs/decisions/jev-policy-2026-10-01.md) |
+| Understand Decision and its evaluation | [Architecture](docs/how-it-works.md#decision-bounded-decisions-beside-the-model-tiers) · [Decision record](docs/decisions/jev-decisions-2026-09-28.md) · [Latest policy corrections](docs/decisions/jev-policy-2026-10-01.md) |
 | Know what runs share with each other | [Shared-learning terms](docs/platform-commons-terms.md) |
 | Use your own ChatGPT account | [Personal model discovery](docs/personal-model-discovery.md) |
 | Develop locally or contribute | [Development setup](docs/development-setup.md) · [Contributing](CONTRIBUTING.md) |

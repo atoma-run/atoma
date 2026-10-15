@@ -109,7 +109,7 @@ Neighbours:
 - Effort is pinned where the work is known: strategy calls `medium`
   ([src/atoms](../atoms/AGENTS.md)), compilation per
   [src/skills](../skills/AGENTS.md), the tissue author `high`. The molecule's
-  EXECUTE call is the one place it varies per task, and Jev sets it (below,
+  EXECUTE call is the one place it varies per task, and Decision sets it (below,
   owner decision 2026-10-06). Validators and prefilters never carry one: they
   are deterministic and cheap. Each transport answers `honoursEffort(model)`
   from the gate its `complete` applies, and every decorator and `forkBranch`
@@ -253,16 +253,16 @@ Neighbours:
 - The log is memory only. It is not a store, and cross-run proof reuse is out
   of scope by construction.
 
-## Jev decisions
+## Decision
 
-- `src/core/jev.ts` is the ONE Jev (TypeSafe) client and the `JevDecider` built
-  on it ([owner decision](../../docs/decisions/jev-decisions-2026-09-28.md)). Jev answers
+- `src/core/jev.ts` is the ONE Decision (TypeSafe Jev) client and the `JevDecider` built
+  on it ([owner decision](../../docs/decisions/jev-decisions-2026-09-28.md)). Decision answers
   typed questions and generates no text: it is not a tier model and is never
   routed through `LlmClient`. Routing/validation follow
   [src/atoms](../atoms/AGENTS.md), compilation follows
   [src/skills](../skills/AGENTS.md); a `null` from the decider always means
   "the model decides".
-- EVERY run holding the key lets Jev decide, whatever its organisation, unless
+- EVERY run holding the key lets Decision decide, whatever its organisation, unless
   the platform switch `ATOMA_JEV=0` is set (owner decision 2026-09-30):
   `jevEnabled` is the host's test, `jevDeciderFromEnv` the run's. How the key
   reaches a project run is stated in [src/projects](../projects/AGENTS.md).
@@ -288,7 +288,7 @@ Neighbours:
   and absolute-fit thresholds even if the caller attributes it to tier 3.
   The weaker L3 child-routing hint is never used to select a root tissue.
   Its bounded repository context and scope are included in the policy key.
-- A recipe pick Jev hands to the model may not land on a recipe it reads
+- A recipe pick Decision hands to the model may not land on a recipe it reads
   below `recipeOffer` (0.5): that reuse becomes no recipe, fresh or cached,
   and with nothing reusable left the model is not asked. Measured 2026-10-06
   against same-job/misroute judgements of 116 credited matches, not against
@@ -313,7 +313,7 @@ Neighbours:
   [the `high` bar](../../docs/decisions/jev-decisions-2026-09-28.md#the-high-bar-2026-10-13)).
 - `forkBranch` forwards every `JevDecider` method, optional ones included;
   until 2026-10-06 it listed four and dropped `compilable` in every fork.
-- The AUDIT keeps Jev measured once the model no longer sees its approvals:
+- The AUDIT keeps Decision measured once the model no longer sees its approvals:
   `JEV_AUDIT_RATE` (10%) of plans and `JEV_RESULT_AUDIT_RATE` (100%) of results
   are also judged by the model validator in the
   background (`createJevAudit`, carried as `RunContext.jevAudit` and forwarded
@@ -329,12 +329,12 @@ Neighbours:
   account client: it answers no server-initiated request and serves personal
   profiles only. The supervisor's session carries mender and analyst policy.
 
-- Jev in `modelCatalog.json`: refused. Its vendor in `MODEL_SELECTOR_VENDORS`
+- Decision in `modelCatalog.json`: refused. Its vendor in `MODEL_SELECTOR_VENDORS`
   would make `api:typesafe:*` a routable tier selector that no transport
   serves; its one price stays beside its one client. A first-class evaluator
   would enter the catalogue through a typed evaluation operation.
-- The Jev event's `error` field: refused, it is `failure`. The analyst's
-  digest reads any event carrying `error` as a RUN error, so a Jev outage
+- The Decision event's `error` field: refused, it is `failure`. The analyst's
+  digest reads any event carrying `error` as a RUN error, so a Decision outage
   would have become defect verdicts and mender pull requests against a run
   that did nothing wrong.
 - `DEFAULT_LIMITS.maxExecIterations` and its comparison are pinned by tests;

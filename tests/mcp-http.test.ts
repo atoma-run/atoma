@@ -1734,7 +1734,7 @@ it('calibrates Jev over MCP on every organisation, and reads its answers again f
     vi.stubEnv('ATOMA_JEV', '0');
     const refused = await client.callTool({ name: 'atoma_jev_calibrate', arguments: {} });
     expect(refused.isError).toBe(true);
-    expect(JSON.stringify(refused.content)).toContain('Jev is off on this host');
+    expect(JSON.stringify(refused.content)).toContain('Decision is off on this host');
     // The audit sample reads without the key and sends nothing.
     const audits = await client.callTool({ name: 'atoma_jev_calibrate', arguments: { auditsOnly: true, since: '2026-09-26' } });
     expect(audits.isError).not.toBe(true);

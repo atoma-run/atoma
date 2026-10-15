@@ -1,4 +1,4 @@
-# Jev policy and evidence corrections — 2026-10-01
+# Decision policy and evidence corrections — 2026-10-01
 
 Implementation follows the review of TypeSafe's [state guidance](https://docs.typesafe.ai/concepts/state),
 [confidence](https://docs.typesafe.ai/confidence), [model limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13),
@@ -39,9 +39,9 @@ Implementation follows the review of TypeSafe's [state guidance](https://docs.ty
   run and 25 references per signal; counts identify omitted run/approval detail.
 - Exact fallback caching now includes a SHA-256 identity of model, thresholds,
   actual questions, candidate bodies, task inputs, tier and selection mode.
-  Model-only entries cannot bypass Jev. Only successfully examined, parsed
+  Model-only entries cannot bypass Decision. Only successfully examined, parsed
   model fallbacks enter the guarded cache; outages and unknown custom deciders
-  cannot populate it. A warm guarded entry requires no additional Jev call.
+  cannot populate it. A warm guarded entry requires no additional Decision call.
   JSON framing also removes delimiter ambiguity from the exact input key.
 
 ## Adversarial review and validation boundaries
@@ -66,7 +66,7 @@ No lexical evidence matcher, new paid drafting call, or semantic cache is added.
 
 ## Local verification
 
-The seven Jev/cache test files pass: 115 tests, including eight new policy
+The seven Decision/cache test files pass: 115 tests, including eight new policy
 regressions. Both TypeScript configurations, ESLint and the production build
 pass. No provider was called.
 
@@ -80,4 +80,4 @@ its verified test process tree was terminated. No complete-suite pass is claimed
 `viz:smoke` passes browser OAuth and reports no WebGPU errors or diagnostics,
 but fails rendering/scroll timing bounds (welcome P95 50.30 ms; scroll rebuild
 P95 64.7 ms). No timing threshold was changed. This is local implementation
-verification, not release readiness or evidence of a measured Jev quality gain.
+verification, not release readiness or evidence of a measured Decision quality gain.

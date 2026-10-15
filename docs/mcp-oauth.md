@@ -165,7 +165,7 @@ since server startup. The repository's [server.json](../server.json) describes
 the hosted endpoint for MCP Registry publication. See the
 [two-protocol contract](decisions/mcp-two-eras-2026-09-30.md) for wire details.
 
-### Trace evidence and Jev
+### Trace evidence and Decision
 
 `atoma_run_trace` accepts the project `runId` (or an operator `file` at the
 platform tier). Its default summary pages events with `offset`, `limit` and
@@ -196,13 +196,13 @@ and platform. A missing receipt/checkout is unknown. Old traces are never
 backfilled with the revision of the server reading them today. Provenance
 identifies the runner, not the generated application's publication commit.
 
-Jev decisions appear in trace summaries with their outcome and any fallback or
+Decision answers appear in trace summaries with their outcome and any fallback or
 failure; use the full event for recorded distributions, coverage,
-latency and separate cost. The runner log states whether Jev is enabled.
+latency and separate cost. The runner log states whether Decision is enabled.
 Platform admins can read sampled model comparisons with
 `atoma_jev_calibrate` and `auditsOnly: true`, which sends nothing to TypeSafe.
 Ordinary calibration makes paid decision requests using the host's key and
-recorded run context. See [Jev's evaluation boundary](how-it-works.md#jev-bounded-decisions-beside-the-model-tiers).
+recorded run context. See [Decision's evaluation boundary](how-it-works.md#decision-bounded-decisions-beside-the-model-tiers).
 
 ## Wire contract
 

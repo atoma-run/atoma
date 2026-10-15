@@ -74,11 +74,11 @@ export const JEV_CALIBRATE_INPUT = {
   includeJevRuns: z
     .boolean()
     .optional()
-    .describe('Also read runs in which Jev decided; there the model decisions are a sample Jev chose.'),
+    .describe('Also read runs in which Decision decided; there the model decisions are a sample Decision chose.'),
   auditsOnly: z
     .boolean()
     .optional()
-    .describe('Only read the audit sample — the model validator judging a share of Jev approvals — for the window; nothing is sent to TypeSafe.'),
+    .describe('Only read the audit sample — the model validator judging a share of Decision approvals — for the window; nothing is sent to TypeSafe.'),
   twins: z
     .object({
       recipes: z.record(z.string().min(1).max(200), recipeInput),
@@ -201,7 +201,7 @@ export async function jevCalibrateCall(
   const env = input.env ?? process.env;
   // Reading the audit sample asks TypeSafe nothing, so it needs no key.
   if (!args.auditsOnly && !jevEnabled(env)) {
-    throw new ProjectHttpError(503, `Jev is off on this host (${JEV_ENV}=0, or ${JEV_KEY_ENV} is absent)`);
+    throw new ProjectHttpError(503, `Decision is off on this host (${JEV_ENV}=0, or ${JEV_KEY_ENV} is absent)`);
   }
   if (args.compilations) {
     // Labels are held locally; Jev never sees the expected answer. No corpus
@@ -260,7 +260,7 @@ export async function jevCalibrateCall(
       audits,
         outcomeRuns: corpus.outcomes.length,
         outcomes: corpus.outcomes.slice(-25),
-      note: 'Each audit is the model validator judging a plan or result Jev had approved; the model is the reference, not ground truth.',
+      note: 'Each audit is the model validator judging a plan or result Decision had approved; the model is the reference, not ground truth.',
     };
   }
   const offset = args.offset ?? 0;

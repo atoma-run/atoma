@@ -34,7 +34,7 @@ Neighbours:
   library seam is `opts.seedCatalog`, which replaces the seeding step.
 - `selectTissue` (`tissueRouting.ts`) selects the root from the task and a
   bounded host-read starting repository (`routingRepository.ts`), after the
-  trace and run context exist. Jev makes a binding Choice with the existing
+  trace and run context exist. Decision makes a binding Choice with the existing
   confidence/fit thresholds; uncertainty, absence or outage uses one bounded
   tier-1 model call. That call may reuse an offered identity or request a new
   capability; only `platform-tissue-author` writes its reusable method, using

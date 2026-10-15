@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Jev decision routing and audits, inherited browser regression checks, live
+Decision routing and audits, inherited browser regression checks, live
 platform run limits, two MCP protocol generations, acceptance criteria approved
 before launch, incomplete runs kept and explained, and comparison reruns.
 
@@ -32,7 +32,7 @@ before launch, incomplete runs kept and explained, and comparison reruns.
   files, publication receipts and cancellation; text clients keep their
   existing response shapes. All file reads enforce the saved manifest and
   organisation permissions.
-- TypeSafe Jev for bounded agent/recipe selection, eligible intermediate
+- Decision (TypeSafe's Jev model) for bounded agent/recipe selection, eligible intermediate
   approvals and semantic recipe deduplication. Enabled for every organisation
   when the host has `TYPESAFE_API_KEY`, with the global `ATOMA_JEV=0` switch.
   Uncertain or unavailable decisions fall back to the model; final delivery
@@ -138,7 +138,7 @@ before launch, incomplete runs kept and explained, and comparison reruns.
   names the newest runs, and the compiled release smoke covers the era.
   OAuth: frozen endpoints answer temporarily_unavailable, registrations follow
   their grants and refusals use RFC 7591 codes.
-- Jev approval questions include task constraints and scoped proof obligations;
+- Decision approval questions include task constraints and scoped proof obligations;
   model fallback caching is bound to the decision policy and candidate bodies.
   Recipe twin comparisons cover the catalogue in bounded batches. Cost reports
   distinguish audit costs and unavailable baselines; experimental two-stage

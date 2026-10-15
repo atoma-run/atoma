@@ -54,7 +54,7 @@ switch. Direct library use of the L2 hooks stays opt-in (`=== '1'`), like
 learning.
 
 Update, 2026-10-01: the lifetime `failures > 0` compilation veto is removed.
-Jev assesses the current recipe at each eligible opportunity; its refusal is
+Decision assesses the current recipe at each eligible opportunity; its refusal is
 temporary, and an uncertain/unavailable answer falls back to the compiler.
 Demotions instead stamp the generation that produced the failed script.
 The owner authorised deployment followed by live MCP calibration. See the
@@ -67,7 +67,7 @@ giving compiled scripts a browser were examined and rejected. See the
 [compiled-script limits decision](compiled-script-limits-2026-10-03.md).
 
 Update, 2026-10-06: item 1 below is answered. A dispatched script's result is
-validated like a molecule's (gates, ground truth, Jev, then the model), after
+validated like a molecule's (gates, ground truth, Decision, then the model), after
 the one production script's replay of the probe manifest was delivered twice
 for phases that asked for more. A script set aside in a phase is no longer
 handed back to the L1 to run. See the

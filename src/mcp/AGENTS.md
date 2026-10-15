@@ -53,7 +53,7 @@ Neighbours:
   platform-admin flag, or the operator on the ungated loopback — everything
   above plus operator runs, skill analytics (`stats`, `review`), the four
   writes, ledger, the operator corpus, friction, the journal, every
-  organisation, the Jev calibration (below), and who may spend the host's own
+  organisation, the Decision calibration (below), and who may spend the host's own
   login (`atoma_subscription_delegates`, the third door onto
   [src/auth](../auth/AGENTS.md)'s one body). A platform admin READS every
   organisation and WRITES only in its active one, exactly as the HTTP routes.
@@ -400,10 +400,10 @@ Neighbours:
   verbs) only to hand the decision back to the person; it must never instruct
   the host to perform the write.
 
-## The Jev calibration (`jevCalibrate.ts`)
+## The Decision calibration (`jevCalibrate.ts`)
 
 - `compilations` measures only caller-supplied recipes (at most 20, repeated
-  at most 5 times) through the LIVE compilation prompt and Jev questions.
+  at most 5 times) through the LIVE compilation prompt and Decision questions.
   Independent expected labels stay local; `null` is unlabelled. It generates
   and executes no script, reads no run corpus, and mutates no skill. It is
   exclusive with trace windows, twins and audits. The same bounded client,
@@ -413,13 +413,13 @@ Neighbours:
   onto `src/atoms/jevCalibration.ts`
   ([decision record](../../docs/decisions/jev-decisions-2026-09-28.md)): it reads the
   MODEL's prefilter and validation decisions out of every organisation's runs
-  — Jev decides in all of them since 2026-09-30 — asks TypeSafe both question
+  — Decision decides in all of them since 2026-09-30 — asks TypeSafe both question
   designs on them, and reports each against the model's decision. Each
   foreign organisation is journaled once per call as an `mcp.trace`
-  cross-organisation read. With Jev off on the host (`ATOMA_JEV=0`, or no
+  cross-organisation read. With Decision off on the host (`ATOMA_JEV=0`, or no
   key) it answers 503, as a host without previews does. Every answer also
   carries the AUDIT sample of the window (`jev-audit` events: the model
-  judging a share of Jev's approvals), and `auditsOnly` reads just that — no
+  judging a share of Decision's approvals), and `auditsOnly` reads just that — no
   key needed, nothing sent to TypeSafe.
 - It is registered `readOnlyHint: true` although it spends cents: it writes
   nothing of Atoma's but the audit row, and a deployment's write freeze has no

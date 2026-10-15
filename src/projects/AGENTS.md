@@ -77,9 +77,9 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   own issuer, the host's gateway applies to the host's own credential only.
 - Shared tissue authorship captures the HOST's `ATOMA_MODEL_L3` and credential
   before customer overrides; [contract](../../docs/decisions/tissue-routing-2026-10-02.md) owns authority, the envelope and subprocess isolation.
-- Jev's `TYPESAFE_API_KEY` and `ATOMA_JEV=1` cross into EVERY organisation's runs;
+- Decision's `TYPESAFE_API_KEY` and `ATOMA_JEV=1` cross into EVERY organisation's runs;
   host `ATOMA_JEV=0` forwards only that switch, so logs explain the refusal.
-  Jev receives task, catalog, plan and result text as a third party, as the service
+  Decision receives task, catalog, plan and result text as a third party, as the service
   terms state ([owner decision](../../docs/decisions/jev-decisions-2026-09-28.md)).
 - `api:openai` is OpenAI's API with function tools, admissible on every tier
   from the org's or the host's `OPENAI_API_KEY`. `sub:openai`/`own:openai`

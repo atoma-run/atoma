@@ -36,7 +36,7 @@ hybrid embedding models and the source-checkout mender are not included.
 Do not enable subscription selectors until deploying an explicitly extended,
 pinned image and verifying the corresponding login/run flow.
 
-Jev's TypeSafe client is part of the compiled runtime and needs no additional
+Decision's TypeSafe client is part of the compiled runtime and needs no additional
 container or subscription CLI. With `TYPESAFE_API_KEY` in web's environment,
 the coordinator forwards it to every organisation's run; `ATOMA_JEV=0`
 disables it globally. Decision requests use host-side HTTPS to
@@ -98,12 +98,12 @@ Configure API model selectors and organisation BYO keys through Settings, or
 provide explicit host tier pins and credentials as described in
 [.env.example](../.env.example). Do not put secrets in image build arguments.
 
-For Jev, add `TYPESAFE_API_KEY=<key>` to private `web.env`. No organisation
+For Decision, add `TYPESAFE_API_KEY=<key>` to private `web.env`. No organisation
 allowlist is needed; the former `ATOMA_JEV_ORGS` is ignored. On subsequent
 environment changes, use preflight and recreate web through Compose so the
 container receives the new values; a plain container restart retains its old
-environment. The server and runner logs state whether Jev is active. See
-[configuration and diagnostics](automatic-deployment.md#jev-decisions-for-every-organisation).
+environment. The server and runner logs state whether Decision is active. See
+[configuration and diagnostics](automatic-deployment.md#decision-for-every-organisation).
 
 Point DNS for the public host and `*.<preview-domain>` to this host. Provision
 `web.crt`, `web.key`, `preview.crt`, `preview.key` under `/srv/atoma/certs`; the

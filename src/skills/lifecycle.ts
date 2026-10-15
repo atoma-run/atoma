@@ -783,7 +783,7 @@ export class SkillLifecycle {
       );
       if (twinOf) {
         args.ctx.logger.info(
-          `[${this.host.name}] skill draft "${draft.id}" not learned: Jev judged it a twin of "${twinOf}"`
+          `[${this.host.name}] skill draft "${draft.id}" not learned: Decision judged it a twin of "${twinOf}"`
         );
         continue;
       }
@@ -978,7 +978,7 @@ export class SkillLifecycle {
     );
     if (twinOf) {
       args.ctx.logger.info(
-        `[${this.host.name}] event skill draft "${draft.id}" not learned: Jev judged it a twin of "${twinOf}"`
+        `[${this.host.name}] event skill draft "${draft.id}" not learned: Decision judged it a twin of "${twinOf}"`
       );
       return;
     }
@@ -1177,7 +1177,7 @@ export class SkillLifecycle {
         });
         if (decision?.compilable === false) {
           args.ctx.logger.info(
-            `[${this.host.name}] skill "${args.skillId}" compile postponed by Jev (${decision.obstacles.join(', ')}); reconsidering at the next credited success`
+            `[${this.host.name}] skill "${args.skillId}" compile postponed by Decision (${decision.obstacles.join(', ')}); reconsidering at the next credited success`
           );
           // A Jev no is never a promotion-refusal stamp. It is inexpensive to
           // ask again, even with identical input, and a false no must recover.

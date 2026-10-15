@@ -115,7 +115,7 @@ graph TB
         VERD["<b>Verdict engine</b><br/>approve / reject<br/>+ scope"]
     end
 
-    JEV["<b>TypeSafe Jev</b><br/>typed routing · intermediate approvals<br/>recipe equivalence · model fallback"]
+    JEV["<b>Decision</b> (TypeSafe Jev)<br/>typed routing · intermediate approvals<br/>recipe equivalence · model fallback"]
 
     subgraph EXEC[" 🔒 Execution and isolation "]
         direction LR
@@ -212,10 +212,10 @@ development step.
 | **Runtime** | Runner | Provider choice, sandbox, budget, abort signals, watchdog, trace, post-mortem |
 | | Run setup | Workspace prep, canonical seed agents, the supervision depth contract |
 | | Provider routing | API, host subscription and personal subscription transports; each tier has its own required model selector. Codex supports all tiers through the host-side action loop |
-| | Jev decider | TypeSafe's typed decision API beside the tier models: routing, eligible intermediate approvals and recipe equivalence, with model fallback |
+| | Decision decider | TypeSafe's typed decision API beside the tier models: routing, eligible intermediate approvals and recipe equivalence, with model fallback |
 | **Orchestration** | L3 tissues / L2 cells / L1 molecules | Decompose · route and judge · execute |
 | | Supervise loop | The single plan→judge→execute→judge protocol, shared by both hand-offs |
-| | Prefilter | Exact cached model fallback, then Jev when enabled, then a cheap-model scan answering "does something we already have fit this?" |
+| | Prefilter | Exact cached model fallback, then Decision when enabled, then a cheap-model scan answering "does something we already have fit this?" |
 | | Verdict engine | Approve or reject, and at what scope: tweak this instance, amend the stored type, or branch a variant |
 | **Memory** | Agent registry | SQLite table of agent types with full version history and trust counters |
 | | Skill library | On-disk recipes and compiled scripts, with their own counters |
@@ -240,7 +240,7 @@ development step.
 ## 3. Flow — a task, end to end
 
 The default path selects an L3 tissue from the goal and starting repository.
-Jev chooses among registered capabilities; an uncertain or missing match falls
+Decision chooses among registered capabilities; an uncertain or missing match falls
 back to a bounded tier-1 call that can reuse a tissue or request a new capability.
 Only the platform's pinned `ATOMA_MODEL_L3` authors a new tissue's reusable method,
 using platform credentials through a separate client. The customer's model and
@@ -259,7 +259,7 @@ sequenceDiagram
 
     U->>R: npm run run:build -- "<goal>"
     R->>R: pick provider · open stores · prepare workspace<br/>seed the standard agents · set budget + watchdog
-    R->>R: goal + repository context → Jev tissue choice<br/>model reuse or creation when needed
+    R->>R: goal + repository context → Decision tissue choice<br/>model reuse or creation when needed
     R->>L3: handle(task)
 
     Note over L3: cheap scan first — used only as a hint
@@ -309,9 +309,9 @@ lives:
    internal marker cannot be supplied by the model. A second model verdict on
    the same bounded routing choice would add cost without new evidence.
 3. A child with a clean track record is **approved with no model call**.
-4. Where the approval fast path is admissible, **Jev may approve**; a refusal,
+4. Where the approval fast path is admissible, **Decision may approve**; a refusal,
    uncertain answer or unavailable decision falls through to the cheap-model
-   verdict. Jev does not write rejection guidance.
+   verdict. Decision does not write rejection guidance.
 
 On the *result* side, trusted approval is deliberately **not blind**: the zero-token reality probe runs
 first, and a hard contradiction — a claimed file missing or empty, a page that will not load —
@@ -324,15 +324,15 @@ instructions is created and given exactly one clean attempt, and if that also fa
 uses the L1 model route to do the work itself — with the result explicitly stamped as fallback-produced so nobody
 mistakes it for a normal delivery.
 
-### Jev: bounded decisions beside the model tiers
+### Decision: bounded decisions beside the model tiers
 
-Jev is TypeSafe's typed decision model, pinned in `src/core/jev.ts` to
+Decision is TypeSafe's typed decision model, pinned in `src/core/jev.ts` to
 `jev-1.13.0`. It is not a fourth agent tier or an `ATOMA_MODEL_L*` selector.
 It chooses among existing agents or recipes, can approve intermediate plans
 and results after the mechanical gates permit it, and checks whether a newly
 learned recipe duplicates one already held. Planning, execution, rejection
 guidance and root delivery acceptance remain with the existing model paths.
-A Jev-only approval does not trigger recipe distillation or compilation.
+A Decision-only approval does not trigger recipe distillation or compilation.
 
 `TYPESAFE_API_KEY` enables it for every run and organisation by default;
 `ATOMA_JEV=0` is the global off switch. Decision state sent to TypeSafe includes
@@ -344,15 +344,15 @@ decisions in a run the decider stops making further requests.
 
 When a recipe conflicts with whether the task must change files, it is withheld
 from the model's fallback catalogue. Cached fallback decisions are exact and
-bound to the Jev model, thresholds, questions, candidate bodies, inputs and
-selection mode; older model-only entries cannot bypass Jev. An experimental
+bound to the Decision model, thresholds, questions, candidate bodies, inputs and
+selection mode; older model-only entries cannot bypass Decision. An experimental
 `ATOMA_JEV_PROGRESSIVE_RECIPES=1` setting first ranks recipe groups and then
 examines a shortlist within the same deadline. It is off by default and has
 no measured quality advantage established by the policy change.
 
 Each `jev` trace event records the decision, fallback or failure, latency,
-usage and separate cost. A random 10% of eligible Jev plan approvals and all
-eligible Jev result approvals also receive
+usage and separate cost. A random 10% of eligible Decision plan approvals and all
+eligible Decision result approvals also receive
 the ordinary model verdict in the background (`jev-audit`). This audit does
 not overturn the approval; it measures disagreement with the model, which is
 not independent ground truth. Pending audits may take up to 60 seconds to
@@ -630,9 +630,9 @@ Typical roles in the measured normal path; counts are not hard limits or current
 | Slot | Model tier | Typical count | Note |
 |---|---|---|---|
 | Top-level plan | frontier | **1 on the default path** | Runs enter at L3 by default; explicit short runs skip it unless they deepen. Replanning or synthesis can add calls |
-| Routing scans | Jev, then cheap-model fallback | Varies by phase and reuse | Exact cache hits and decisive Jev answers avoid the model scan |
+| Routing scans | Decision, then cheap-model fallback | Varies by phase and reuse | Exact cache hits and decisive Decision answers avoid the model scan |
 | Mid-tier plans | mid | **0 on the happy path** | Skipped entirely when the routing scan finds a clear match |
-| Reviews | Jev or cheap model | Varies with trust, gates and audits | Mechanical probes remain; root acceptance stays independent of Jev |
+| Reviews | Decision or cheap model | Varies with trust, gates and audits | Mechanical probes remain; root acceptance stays independent of Decision |
 | Execution | cheap | the bulk of tokens | Long tool loops; prompt caching is monitored live in every run summary |
 | Compiled phases | — | **0 calls**, but rare | Two tool calls and a strict JSON parse. Present in 45 of 156 corpus runs; across the historical controlled-run rows it fired once in 54 build runs and 13 times in 30 maintenance runs |
 
@@ -641,10 +641,10 @@ enough to clear the provider's minimum cacheable size; trimming it below that th
 disables caching with no error. The cache-read column in the run summary is the operator's live
 check that it is still working.
 
-**Jev has its own accounting.** Its usage and estimated cost live on `jev`
+**Decision has its own accounting.** Its usage and estimated cost live on `jev`
 events, outside the run's LLM totals and LLM token/spend ceilings. Sampled
 model audits are LLM calls and do count there. Include both when comparing
-whole-run cost; a model-only total is not the whole bill when Jev is active.
+whole-run cost; a model-only total is not the whole bill when Decision is active.
 The calibration report's savings estimates use same-run model samples and
 remain unknown when no reference sample exists.
 
@@ -694,7 +694,7 @@ Recorded so nobody has to discover it in a demo:
 | Question | Where |
 |---|---|
 | Why does mechanism X exist? | `AGENTS.md` for the active contract, then its linked engineering-record entry |
-| Where does Jev decide, and how is it evaluated? | [Decision record](decisions/jev-decisions-2026-09-28.md) · [Policy and evidence corrections](decisions/jev-policy-2026-10-01.md) |
+| Where does Decision decide, and how is it evaluated? | [Decision record](decisions/jev-decisions-2026-09-28.md) · [Policy and evidence corrections](decisions/jev-policy-2026-10-01.md) |
 | What was tried and rejected? | `records/incidents/engineering-record-2026-08-14.md` § *Considered and rejected* |
 | What would a hosted deployment require? | [`saas-architecture.md`](saas-architecture.md) Layer 2 invariants and Layer 3 remaining work (W1–W14) |
 | What does a real run look like? | `npm run viz` for existing traces; `npm run viz:demo` writes a mocked run, and `npm run preview:demo` opens a seeded authenticated preview without paid inference |

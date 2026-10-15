@@ -190,21 +190,21 @@ load-bearing.
   review), through `jevApproval`, which hands it the model validator's own
   transport-observed evidence lines (`renderTransportEvidence`), never the
   child's declared probes. A no, an unsure answer or a silence is the model's
-  decision, as before. Root delivery acceptance is never Jev's.
+  decision, as before. Root delivery acceptance is never Decision's.
 - THE JEV AUDIT: every `jevApproval` call site hands it `audit`, the very model
-  verdict it runs without Jev (one `modelVerdict` function per validation, so
+  verdict it runs without Decision (one `modelVerdict` function per validation, so
   the audit cannot drift from the real verdict). The subject's audit rate
   defers it, under the `jev-audit` role, off the run's path. It
-  decides NOTHING — Jev's approval stands whatever the model says — and its
+  decides NOTHING — Decision's approval stands whatever the model says — and its
   role keeps it out of every reader that counts validations.
-- The Jev calibration (`jevCalibration.ts`) reads prefilter and validation
+- The Decision calibration (`jevCalibration.ts`) reads prefilter and validation
   prompts back out of traces: their LAYOUT is a contract with it (`tests/jev-calibration.test.ts`);
   a recipe's opening steps come from the deferring `jev` event's `details`.
 - Atom trust fast paths require the configured consecutive approved-result
   threshold (default 3), read through `trustThreshold()`; historical failures do
   not permanently disqualify a type. Script dispatch retains its separate
   zero-failure rule, and a script's result never takes its molecule's trust
-  fast path: `validateResult(…, { scriptDispatch })` runs gates, probe, Jev and
+  fast path: `validateResult(…, { scriptDispatch })` runs gates, probe, Decision and
   model on it (owner decision 2026-10-06, [src/skills](../skills/AGENTS.md));
   recipe compilation follows the skills contract. Invalid or non-positive threshold values
   fall back to the default. Result approval still runs the zero-token ground-truth
@@ -221,7 +221,7 @@ load-bearing.
   last-resort tool-bearing self-execution must use `modelForTier(1)` while
   retaining supervisor provenance.
 - Strategy calls use `STRATEGY_MAX_TOKENS` and medium effort. A molecule's execute
-  effort is Jev's (`L1Atom.executionEffort`, [src/core](../core/AGENTS.md#jev-decisions)),
+  effort is Decision's (`L1Atom.executionEffort`, [src/core](../core/AGENTS.md#decision)),
   and a type's own effort pin wins over it. The cap includes
   adaptive thinking. Defaults in `planSchema` protect against truncation;
   omitted L3 aggregation defaults to `sequential`.
@@ -410,7 +410,7 @@ load-bearing.
   a truncation fact stay unknown. Earlier incomplete reads must not consume
   the source budget again after a complete read is visible (resolver run
   0a4a3e55). Sixteen is an I/O cap; the source-character budget is unchanged.
-  Jev and the model receive the same current bytes, never new execution credit;
+  Decision and the model receive the same current bytes, never new execution credit;
   unavailable content stays unknown. Reservation run 8d819d66 repeated coverage
   refusals while only a 400-character head survived beside retired reads.
 - Inputs that only EXERCISE the artefact go under `.atoma-scratch/`, which
@@ -559,7 +559,7 @@ load-bearing.
   a table row with a stated disposition, never a new inline `if`.
 - The same table applies envelope and explicit validation failures to L2 results at L3 before trust
   (`appliesToDelegatedResult`); a reporting one (`read-only-validation-failed`, `tool-budget-exhausted`, `unvalidated-fallback` for the cell's own fallback) takes
-  L3's trust and Jev paths away as at L2 (run dfa20873). Leaf action, disk and proof checks stay at L2.
+  L3's trust and Decision paths away as at L2 (run dfa20873). Leaf action, disk and proof checks stay at L2.
 - `declared-unverified` reads a molecule's own summary admitting its checks did
   not run (`DECLARED_UNVERIFIED_RE`) and forces review, at the cell over that
   molecule only: the summary travels up into every aggregate, and a tier above
@@ -625,16 +625,16 @@ Read the archived sections before changing something that merely looks odd.
   worth the one top-tier strategy call.
 - Do not add semantic prefilter caching. It removes exactness directly below an
   unvalidated fast path.
-- Jev on that unvalidated fast path, and a Jev approval without the earned
+- Decision on that unvalidated fast path, and a Decision approval without the earned
   counter the trust fast path needs: taken by the OWNER on 2026-09-28, against
   both rules above, knowing a wrong pick costs about 60 decisions' savings.
-  Every decision is a `jev` event. A Jev-only approval (`viaJev`) distils no
+  Every decision is a `jev` event. A Decision-only approval (`viaJev`) distils no
   new recipe: compile-at-learn would make it a validator-free script. A skill
-  pick Jev hands to the model reaches it without the recipes Jev read as
+  pick Decision hands to the model reaches it without the recipes Decision read as
   contradicting the task on files: offered one, the model injected a
   verify-only recipe into a build phase (run 0a989a58, one of the two such
-  deferrals measured), and when nothing left fits Jev escalates itself. A
-  model reuse of a recipe Jev read below `recipeOffer` (src/core) becomes no
+  deferrals measured), and when nothing left fits Decision escalates itself. A
+  model reuse of a recipe Decision read below `recipeOffer` (src/core) becomes no
   recipe: 24 of the model's 42 credited picks were misroutes, 19 under 0.5.
 - Do not introduce plan templating until a typed instantiation/validation layer
   exists; free-form substitution is another unvalidated router.

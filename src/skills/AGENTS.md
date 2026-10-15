@@ -110,16 +110,16 @@ by owner decision on 2026-09-26
   sibling. The transport witness includes expected nonzero exits and survives
   the bounded tool-call list; model prose cannot supply it. Reused LLM build
   recipes take only this extraction path. Learning, approval and read-only
-  phase gates still apply, as do toolset, exact-id and Jev twin guards. No probe
+  phase gates still apply, as do toolset, exact-id and Decision twin guards. No probe
   means no extra call; extraction failure preserves the primary and a later
-  approved build may retry. This is one L2 call, not a free Jev evaluation.
+  approved build may retry. This is one L2 call, not a free Decision evaluation.
 - A recipe that CAN be compiled IS compiled, the moment it is learned:
   `learnSkillFromRun` saves every draft, then runs `tryPromoteSkill` on each,
   with the run it was distilled from as the compile example. The promote
   threshold (`ATOMA_PROMOTE_THRESHOLD`) defaults to ZERO; an uncompiled
   recipe (learned while promotion was off, or under a raised threshold)
   is reconsidered at its next credited success. Historical `failures` do NOT
-  veto compilation (owner decision 2026-10-01): Jev assesses the current recipe
+  veto compilation (owner decision 2026-10-01): Decision assesses the current recipe
   against the complete compile request and runtime contract. A confident
   obstacle postpones this attempt only; it writes no refusal stamp and is
   rechecked at the next learning/credit opportunity, without a cooldown or
@@ -129,7 +129,7 @@ by owner decision on 2026-09-26
   Compiler/scan refusals retain their generation-scoped stamps. Every
   `demoteToLlm` stamps the generation that produced the failed script, for
   both supervised and deterministic failures; a body/compiler change or an
-  operator reset permits another attempt. Jev never authorizes execution.
+  operator reset permits another attempt. Decision never authorizes execution.
 - Promotion is ON by default for every run, seeded or from scratch. Only
   `ATOMA_SKILL_PROMOTE=1` counts as an explicit opt-in; any other explicit
   value disables it, and `--no-promote-skills` is the final veto over the env.
@@ -141,10 +141,10 @@ by owner decision on 2026-09-26
   threshold). Every preflight gate still applies. An untrusted script runs
   through the normal L1 tool loop.
 - A dispatched script's result is VALIDATED like a molecule's — result gates,
-  ground-truth probe, Jev, then the model — less the type's trust fast path,
+  ground-truth probe, Decision, then the model — less the type's trust fast path,
   whose counter the molecule's model earned (`validateScriptDispatch`, owner
   decision 2026-10-06, [record](../../docs/decisions/script-dispatch-validation-2026-10-06.md)).
-  Jev approving keeps the dispatch free of model calls; otherwise one
+  Decision approving keeps the dispatch free of model calls; otherwise one
   validation call is paid. Its evidence is the script's own attested write and
   run, picked by scratch filename, which is the dispatch's own
   (`_skill_<id>.<namespace>.<dispatch>`: the lane and workspace are shared
@@ -171,7 +171,7 @@ by owner decision on 2026-09-26
   `scriptTargets.ts` is the FALLBACK for legacy plans/scripts — never grow it
   a new clause for a phrasing the declared field would have carried.
   Without output paths, the skill prefilter supplies semantic `fileEffect`:
-  Jev reuses its existing decisive `task_changes_files` answer; model fallback
+  Decision reuses its existing decisive `task_changes_files` answer; model fallback
   supplies the same shared contract. Capability filtering waits for this answer
   before applying lexical intent, and direct dispatch uses the same resolved
   Task. Declared output paths always win. Semantic intent never sets the host's
@@ -197,7 +197,7 @@ by owner decision on 2026-09-26
   for every match, splitting the credit and failure evidence of one pattern.
   Measured 2026-08-21: one 6-task batch learned 11 skills, 6 of them three
   twin pairs.
-- THE TWIN GUARD: when `ctx.jev` is present, Jev compares each draft with the
+- THE TWIN GUARD: when `ctx.jev` is present, Decision compares each draft with the
   recipes it would compete with — the visible catalog for a task recipe, the
   namespace's recovery recipes for an event one — and a draft it names a twin
   is NOT saved ([owner decision](../../docs/decisions/jev-decisions-2026-09-28.md)). No
@@ -209,7 +209,7 @@ by owner decision on 2026-09-26
   [record](../../docs/decisions/skill-trigger-eval-2026-10-15.md), `triggerEval.ts`):
   after the twin guard and before the save, a task draft's matching surface
   is judged by the PRODUCTION selector — `prefilterStrategy` with the skill
-  prompt, Jev first where present — over the catalog it would join, on
+  prompt, Decision first where present — over the catalog it would join, on
   held-out cases: its lesson's task, one author call's paraphrases and near
   misses, and the siblings' CREDITED tasks from `skill_trigger_samples`, the
   trigger corpus `recordSuccess`/`recordFailure` fill in the counter's own

@@ -99,7 +99,7 @@ export async function selectTissue(args: {
       ctx.signal.throwIfAborted();
       if (decision && 'target' in decision && decision.target !== null && decision.confidence >= JEV_THRESHOLDS.pickConfidence) {
         const selected = types.find((type) => type.name === decision.target);
-        if (selected) return finish(selected, 'Jev');
+        if (selected) return finish(selected, 'Decision');
       }
     } catch (error) {
       ctx.signal.throwIfAborted();

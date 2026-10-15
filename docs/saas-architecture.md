@@ -33,13 +33,13 @@
 These source changes extend the product described below; they do not establish
 a new hosted acceptance run or change the shared-learning boundary:
 
-- **Jev decisions across all organisations.** The host's `TYPESAFE_API_KEY`
+- **Decision across all organisations.** The host's `TYPESAFE_API_KEY`
   enables TypeSafe's decision service for every run, unless `ATOMA_JEV=0`.
   Task, catalogue, plan/result and evidence excerpts cross that third-party
-  boundary. Jev handles bounded routing, eligible intermediate approvals and
+  boundary. Decision handles bounded routing, eligible intermediate approvals and
   recipe equivalence; final delivery acceptance stays independent. Decisions,
   separate costs and sampled model audits are traced. See the
-  [current design](how-it-works.md#jev-bounded-decisions-beside-the-model-tiers)
+  [current design](how-it-works.md#decision-bounded-decisions-beside-the-model-tiers)
   and [service terms](platform-commons-terms.md#decisions-taken-by-typesafe).
 - **Platform-wide run limits.** Audited numeric overrides in the primary
   store apply at the next run without redeployment. Settings and the compiled

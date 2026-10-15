@@ -18,7 +18,7 @@ tool executors, closures or workspace snapshots enter the job. Recipe
 authoring and compilation need only the recorded evidence and the catalog.
 
 Delivery waits for that insert, not for model calls. A separate Node process
-uses the existing `SkillLifecycle`, provider construction, Jev decisions,
+uses the existing `SkillLifecycle`, provider construction, Decision,
 metrics and tracing. It has no tools. One learner owns the product-store claim
 at a time, with different namespaces processed in parallel inside its batch.
 Compile-at-learn, exact-id and semantic-twin guards remain in the same engine.

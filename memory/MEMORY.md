@@ -14,7 +14,7 @@
 - [Property scraping priority](property-scraping-priority.md) — 2026-10-14: xe.gr first, Spitogatos paused; build the product through Atoma runs
 - [Spitogatos VPN probe](spitogatos-vpn-probe.md) — 2026-10-14: works only via reverse SOCKS + real Chrome + one human hCaptcha; NordVPN still 403
 - [Supervisor mender state](supervisor-mender-state.md) — no mender PR since #20: analyst drops proposedFix; p8 citation pass shipped, cite-only proposal open
-- [Jev calibration 2026-10-10](jev-calibration-2026-10-10.md) — threshold readings, effort bar 0.6 shipped, holdout reading ≈10-27
+- [Decision calibration 2026-10-10](jev-calibration-2026-10-10.md) — threshold readings, effort bar 0.6 shipped, holdout reading ≈10-27
 - [Edge compression state](edge-compression-state.md) — 2026-10-14: nginx gzip+brotli live, MCP stays identity, ETag/304 on polled lists
 
 ## Machines and hosts
@@ -28,7 +28,8 @@
 ## Owner decisions and their state
 - [Supervisor replay exception](supervisor-replay-exception.md) — supervisor replays inherited web checks of static pages at root acceptance
 - [Read-only phases](read-only-phases.md) — outputless root phases are photographed and restored by the host
-- [Jev decisions state](jev-decisions-state.md) — Jev decides in every run; ATOMA_JEV=0 is the off switch
+- [Decision state](jev-decisions-state.md) — Decision decides in every run; ATOMA_JEV=0 is the off switch
+- [Decision naming](decision-naming.md) — 2026-10-15: readers see "Decision" (TypeSafe Jev); code/env/MCP/traces keep `jev`
 - [Project chat acceptance](project-chat-acceptance.md) — the conversation is the one acceptance surface; L3 cost open
 - [read_file absence answer](read-file-absence-answer.md) — an absent path/dir is an answer, not an error
 - [Skill eval quota ok](skill-eval-quota-ok.md) — 2026-10-15: trigger eval + assayer (execution comparison) shipped; check prod banner for the assayer

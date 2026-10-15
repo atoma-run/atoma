@@ -66,7 +66,7 @@ judges content:
   script kept the invocation of the task it was learned on; a later
   Caesar-cipher CLI shipped a README whose examples printed the usage
   message, and every validator approved it.
-- Matching is probabilistic. In run 822bb4fe (2026-10-02), Jev picked the one
+- Matching is probabilistic. In run 822bb4fe (2026-10-02), Decision picked the one
   script at confidence 0.50 for a phase that then made nine file writes. The
   script failed its contract after about 2 s and the model loop took over.
 

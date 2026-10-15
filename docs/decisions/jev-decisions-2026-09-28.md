@@ -1,6 +1,6 @@
-# Jev takes the bounded decisions — owner decision 2026-09-28
+# Decision takes the bounded decisions — owner decision 2026-09-28
 
-The owner's words: "trust Jev, and we will see". TypeSafe's Jev — a typed
+The owner's words: "trust Jev, and we will see". Decision, TypeSafe's Jev model — a typed
 decision model that answers Choice and yes/no (Noul) questions over a state,
 far faster and cheaper than a model call — TAKES the bounded decisions of a
 run wherever it can. It may be wrong; that is accepted. This record states
@@ -23,44 +23,44 @@ in flight:
 | skill | 0.5 % | 21 |
 | draft-checklist | 0.2 % | 5 |
 
-The decisions Jev can take are at most about 6 % of a run's wall time. One
+The decisions Decision can take are at most about 6 % of a run's wall time. One
 execution lasts about 320 s on average, so a wrong pick that costs an
 execution costs some 60 prefilter decisions' worth of savings. The owner took
 the decision with these numbers in hand.
 
-## Where Jev decides
+## Where Decision decides
 
 - **The prefilter** (`prefilterStrategy`): the L2 child catalog, the L3
   catalog (a routing hint to the strategy call there) and the skill catalog.
-  After a cache miss, Jev picks a candidate — taken as a high-confidence reuse,
+  After a cache miss, Decision picks a candidate — taken as a high-confidence reuse,
   with a `decomposable` flag from a second question on the agent catalog — or
   `none_of_these`, taken as an escalate. No model call then. Since the switch
-  of 2026-09-29 (below) a pick Jev is unsure of — a lukewarm Choice, or a pick
+  of 2026-09-29 (below) a pick Decision is unsure of — a lukewarm Choice, or a pick
   whose own `fits` question does not say yes — is the model's; at L3 it is no
   hint rather than a model call. When the model decides a skill pick, it is
-  not offered the recipes Jev read as contradicting the task on files (below,
+  not offered the recipes Decision read as contradicting the task on files (below,
   2026-09-30). The mechanical
   guards the callers apply afterwards still apply: the L2 browser redirect,
-  exclusions of children that already failed the task. Jev decisions are never
+  exclusions of children that already failed the task. Decision answers are never
   cached: the cache holds model decisions only, and a cached model decision is
-  still served before Jev is asked — save one made on a catalog Jev narrowed,
-  which is looked up after Jev withholds the same recipes again.
+  still served before Decision is asked — save one made on a catalog Decision narrowed,
+  which is looked up after Decision withholds the same recipes again.
 - **The approval half of plan and result validation** (L2 and L3,
-  `jevApproval`). Jev is asked only where a fast path is already admissible:
+  `jevApproval`). Decision is asked only where a fast path is already admissible:
   after the mechanical gates, with no gate finding, no uncovered proof
   obligation, and a ground-truth probe that requires no review — the trust fast
   path's eligibility without its earned counter. A yes approves with no model
   call. A no, or no answer, runs the model validator exactly as before, and it
   is the model that writes the remediation a refusal needs. Since the switch
-  Jev reads the model validator's own evidence lines — transport-observed
+  Decision reads the model validator's own evidence lines — transport-observed
   only, never the child's declared probes — and a yes means every requirement
   shown (or, for a plan, covered) and no flag raised.
 
 - **The twin guard at learn time** (`SkillLifecycle.jevTwinOf`): before a
-  distilled recipe is saved, Jev is asked whether it duplicates one it would
+  distilled recipe is saved, Decision is asked whether it duplicates one it would
   compete with — the visible catalog for a task recipe, the molecule's recovery
   recipes for an event one — since the switch, one pairwise Score per existing
-  recipe. A twin is not saved. This is the one Jev decision
+  recipe. A twin is not saved. This is the one Decision answer
   whose error is cheap by construction: a wrong "twin" costs a lesson, a
   missed twin costs what the catalog already pays today. The production
   catalog held three recovery twins on Glucose on 2026-09-28, and the lexical
@@ -75,27 +75,27 @@ the decision with these numbers in hand.
 - **Root delivery acceptance.** Its contract forces a semantic review (a user
   list is always read, a profile without a floor is always reviewed), and a
   delivery is published to the customer's repository automatically. It stays
-  the model's, and it is the net under every Jev approval below it.
+  the model's, and it is the net under every Decision approval below it.
 - **Anything that writes text**: plans, execution, recipes, the acceptance
-  checklist, remediation. Jev generates none; for an execution it sets the
+  checklist, remediation. Decision generates none; for an execution it sets the
   effort the model is given, never what the model writes.
 
 ## Rules this overrides, on purpose
 
 - src/atoms: "never introduce fuzzy matching without first adding validation
-  above the prefilter fast path". A Jev reuse at L2 synthesises the same
+  above the prefilter fast path". A Decision reuse at L2 synthesises the same
   one-subtask plan as a model reuse, and that plan skips plan validation.
 - src/atoms: "atom trust fast paths require the configured consecutive
-  approved-result threshold". The Jev fast path requires no earned counter.
-- A Jev approval is an ordinary approval: it credits atom trust, and a skill
+  approved-result threshold". The Decision fast path requires no earned counter.
+- A Decision approval is an ordinary approval: it credits atom trust, and a skill
   that drove the run, exactly like the trust fast path — which has no
   adherence signal either. A wrong approval therefore also inflates trust,
   which can later open the counter-based trust fast path. That compounding is
   part of what "we will see" watches.
-- ONE consequence is withheld (`PositiveVerdict.viaJev`): a run only Jev
+- ONE consequence is withheld (`PositiveVerdict.viaJev`): a run only Decision
   approved does not distil a NEW recipe. Compile-at-learn makes a learned
   script dispatchable from its first match, platform-wide and with no
-  validator, so without this a single wrong Jev yes on a first run would have
+  validator, so without this a single wrong Decision yes on a first run would have
   become a validator-free script in every organisation's runs. Recovery recipes
   are learned only after a model validator's refusal, so they keep one. This
   is a line drawn beside the owner's decision, not inside it: removing the
@@ -103,7 +103,7 @@ the decision with these numbers in hand.
 
 ## Failure behaviour
 
-- A decision waits at most `JEV_DECISION_TIMEOUT_MS` (2 s) for Jev, then the
+- A decision waits at most `JEV_DECISION_TIMEOUT_MS` (2 s) for Decision, then the
   model takes it. A 408, 429 or 5xx is retried once when the wait the service
   asks for (`retry-after-ms`, `retry-after`) still fits that budget, as
   TypeSafe's API reference asks for 429 and 529; a request retried into an
@@ -111,7 +111,7 @@ the decision with these numbers in hand.
   run, never reset by a success, so neither parallel lanes nor a flapping
   service escape it — the run stops asking and records `skipped`. The worst
   case is three timeouts per run. A slow service that still answers under 2 s
-  costs up to 2 s per decision, and on a Jev "no" that wait precedes the model
+  costs up to 2 s per decision, and on a Decision "no" that wait precedes the model
   call.
 - A cancelled run sends nothing. A recorder or a decider that throws leaves
   the decision to the model.
@@ -120,7 +120,7 @@ the decision with these numbers in hand.
 
 One `jev` trace event per decision asked, answered or not: the role
 (`prefilter`, `validate-plan`, `validate-result`, `learn-skill`,
-`learn-event-skill`), the candidates, Jev's choice
+`learn-event-skill`), the candidates, Decision's choice
 with its distribution, its yes-probabilities by question (an approval's
 `acceptable` is its weakest requirement or flag) and a twin check's pairwise
 scores, the OUTCOME (`picked <t>`, `picked none_of_these`, `approved`,
@@ -128,7 +128,7 @@ scores, the OUTCOME (`picked <t>`, `picked none_of_these`, `approved`,
 (<why>)`, `not saved: twin of <id>`, `saved: new recipe`, `saved as before`),
 a `failure` when there was no usable answer, TypeSafe's `x-typesafe-request-id`
 (what its support asks for), duration, usage and cost. A
-prefilter outcome is what Jev PICKED, not the route: the L2 browser redirect
+prefilter outcome is what Decision PICKED, not the route: the L2 browser redirect
 may still change the child, and at L3 a pick is only a hint — the route taken
 is the child whose `plan` llm event follows in the same lane. The field is
 `failure`, never `error`: the analyst's digest reads any event `error` as a run
@@ -140,7 +140,7 @@ kept out of the run's LLM totals. Requests name the versioned model
 a release, and its models page says to pin the version once thresholds are
 tuned against it. `servedModel` on each event is what answered.
 
-In the run view each event is a near-white `Jev · <role>` card with its own
+In the run view each event is a near-white `Decision · <role>` card with its own
 `JEV` filter chip, shown only on a run that holds one (2026-09-29; until then
 the card fell to the generic branch: title `jev`, no body, a bare clock). The
 body is the outcome and any failure; the badge is read FROM the outcome
@@ -151,9 +151,9 @@ so rewording one in `src/core/jevQuestions.ts` fails
 `tests/jev-decisions.test.ts`, which renders cards from the real decider
 through the real recorder.
 
-## Who lets Jev decide, and what leaves the platform
+## Who lets Decision decide, and what leaves the platform
 
-- EVERY run lets Jev decide — every organisation's project runs, existing or
+- EVERY run lets Decision decide — every organisation's project runs, existing or
   new, operator runs, local runs, benchmark attempts — whenever its
   environment holds `TYPESAFE_API_KEY`, unless the PLATFORM switch
   `ATOMA_JEV=0` is set on the host (owner decision of 2026-09-30, below). The
@@ -186,18 +186,18 @@ On the host, in `/home/atoma/config/atoma.env`:
 
 ```dotenv
 TYPESAFE_API_KEY=<key>
-# ATOMA_JEV=0   # the platform switch: uncomment to turn Jev off for every run
+# ATOMA_JEV=0   # the platform switch: uncomment to turn Decision off for every run
 ```
 
 `ATOMA_JEV_ORGS` is no longer read; the boot line says so while it is still
 there. A change takes effect when the service next starts, which a deployment
 does after its preflight. `ATOMA_JEV=0` (or removing the key) and a restart
 hand every NEW decision back to the model without a code change. It does not
-undo what Jev's decisions already earned: trust counters credited on Jev
+undo what Decision's answers already earned: trust counters credited on Decision
 approvals are platform-wide and carry no provenance. Reverting them means
 reconstructing them from the traces (a `jev` event with outcome `approved`
 followed by that child's `recordSuccess`) and correcting the counters by hand.
-The server says at boot whether Jev decides (`describeJevAdmission`: "jev:
+The server says at boot whether Decision decides (`describeJevAdmission`: "jev:
 deciding in every run", or why it is off), and every run writes to its log
 either `[atoma runner] jev: deciding` or why not (`ATOMA_JEV=0`, or the key
 absent) — readable through `atoma_run_trace` with `section: log`. The service
@@ -209,29 +209,29 @@ for the next deployment or a restart.
 - `455a4f43` (revision `e461fb6`): no `jev` event. The host line had been
   added after the service's last start, and nothing said so — hence the boot
   and run-log lines above.
-- `a5e5f2a1` (short, notes API, `a4265d0`): Jev took both prefilter decisions,
+- `a5e5f2a1` (short, notes API, `a4265d0`): Decision took both prefilter decisions,
   Methane at 0.81 in 433 ms and `build-in-memory-json-api` at 0.64 in 263 ms,
   where the model had taken 4.7 s and 6.0 s on the previous run of the same
   project. 4 model calls, delivered. Methane is trusted, so no approval was
-  Jev's.
-- `3e4aaed1` (deep, static page, new project): eight Jev decisions, 214–433 ms
+  Decision's.
+- `3e4aaed1` (deep, static page, new project): eight Decision answers, 214–433 ms
   each — the L3 hint, two child and two recipe picks, one plan and two result
   approvals (p = 0.73 and 0.87) — then root acceptance approved the delivery.
-  7 model calls. Tracheid's third consecutive success came from a Jev
+  7 model calls. Tracheid's third consecutive success came from a Decision
   approval, so its next result took the trust fast path: the compounding
   named above, observed on the first deep run. One literal pick: the README
   phase went to Benzene (0.92, "project documentation" in its description)
   over Ammonia (0.04); it did the work, with one needless documentation search.
 - `45d27925` / `235a1935` (CLI, new project): Ammonia picked, no recipe fit
   (`none_of_these`), the twin guard judged the distilled recipe new, and the
-  next run of the project had Jev pick that recipe at 0.86 — learn, check,
+  next run of the project had Decision pick that recipe at 0.86 — learn, check,
   reuse, end to end.
-- `46d8e11e` (deep, full-stack guestbook): thirteen Jev decisions, seven of
-  them approvals; Protoplast became trusted on Jev approvals alone. The
+- `46d8e11e` (deep, full-stack guestbook): thirteen Decision answers, seven of
+  them approvals; Protoplast became trusted on Decision approvals alone. The
   README phase went to Benzene again, the second time in two, so the agent
   question now asks for the candidate with the FEWEST capabilities the task
   does not use. The child pick was Ethanol, an untrusted clone whose
-  description is identical to CarbonDioxide's: Jev cannot tell them apart any
+  description is identical to CarbonDioxide's: Decision cannot tell them apart any
   more than the model could — the open catalogue question of 2026-09-16.
 - `dbfaf275` (deep, guestbook DELETE): the child pick had a raw confidence of
   0.15 — four full-stack clones at 0.19–0.23 — and "decomposable" at 0.6 bought
@@ -250,7 +250,7 @@ for the next deployment or a restart.
   confusion the skills contract names — so the recipe question now asks first
   whether the task must change files. The README went to Benzene a third
   time, 0.75 over Ammonia at 0.24 (0.92 against 0.04 before the
-  fewest-capabilities wording): the wording moves Jev, not past the line.
+  fewest-capabilities wording): the wording moves Decision, not past the line.
   Benzene is trusted now and does the work; left as it is.
 
 ## TypeSafe's documentation, read in full — 2026-09-29
@@ -292,18 +292,18 @@ nothing until two measurements had set its questions and thresholds.
 
 **How it is measured.** `atoma_jev_calibrate` (platform tier, on the host,
 with the host's key) reads the model's prefilter and validation decisions out
-of the runs of the organisations Jev decides for — on 2026-09-29 the two
+of the runs of the organisations Decision decides for — on 2026-09-29 the two
 `ATOMA_JEV_ORGS` named, since 2026-09-30 all of them — rebuilds from each prompt the request the
 decider would send, asks TypeSafe both designs, and reports each against the
-model's decision: false approvals (Jev yes where the model refused, the error
+model's decision: false approvals (Decision yes where the model refused, the error
 that compounds trust), the share of the model's approvals each design takes,
 what blocked the rest, prefilter agreement per catalog and tier, and a sweep of
 neighbouring thresholds; twin cases labelled by a person go with it. Runs in
-which Jev already decided are left out: there the model judged only what Jev
+which Decision already decided are left out: there the model judged only what Decision
 handed it. The corpus is therefore the admitted organisations' runs of
-2026-09-26 to 2026-09-29, before Jev decided.
+2026-09-26 to 2026-09-29, before Decision decided.
 
-**First measurement, 2026-09-29** (50 traces, 9 left out because Jev decided
+**First measurement, 2026-09-29** (50 traces, 9 left out because Decision decided
 in them; 170 model decisions and 6 labelled twin cases; 0.034 USD; median
 262 ms, p95 564 ms; no failed request). The model decision is the reference:
 
@@ -343,7 +343,7 @@ asked again, took 18 of the model's approvals where it had taken 20: its
 boundary at 0.5 is where the drift is.
 
 - `needs_undeclared_tool` does not work: it read 0.48 on the plan it was meant
-  to catch and 0.75–0.92 on thirteen plans the model approved — Jev sees tool
+  to catch and 0.75–0.92 on thirteen plans the model approved — Decision sees tool
   NAMES, not what they do. It is not asked; the one false plan approval stays,
   and the 2026-09-28 question makes it too.
 - Without `contradicted_by_evidence` the result questions took 35 % of the
@@ -363,7 +363,7 @@ boundary at 0.5 is where the drift is.
 | `noFit` | 0.2 | above |
 | `twin` | 1.5 | right on all six cases from 1.0 to 1.75 |
 
-What it trades, on these decisions: Jev takes about half the prefilter picks
+What it trades, on these decisions: Decision takes about half the prefilter picks
 it took (the rest go to the model, about 6 s each) and disagrees with the
 model on 16 % of the agent picks it takes instead of 33 %; it approves 84 % of
 the plans the model approves (78 % before) with one false approval instead of
@@ -382,9 +382,9 @@ not been told about — the owner chose every organisation, knowing the service
 terms must name TypeSafe.
 
 - `ATOMA_JEV_ORGS` is no longer read. A host holding `TYPESAFE_API_KEY` lets
-  Jev decide in every run it launches; `ATOMA_JEV=0` on the host is the one
+  Decision decide in every run it launches; `ATOMA_JEV=0` on the host is the one
   platform switch, and it reaches every run (`jevEnabled`, `jevDeciderFromEnv`).
-- Benchmark attempts are runs too, so their atoma arms now decide with Jev.
+- Benchmark attempts are runs too, so their atoma arms now decide with Decision.
   Rounds registered before 2026-09-30 ran without it; a round after it is a
   different system, and its write-up says so.
 - The calibration reads every organisation's model decisions, each foreign
@@ -399,15 +399,15 @@ The [October 7 review](../../records/measurements/jev-calibration-2026-10-07.md)
 plan sample and changed result approvals to a 100% audit census. The text
 below records the original shared-rate policy.
 
-Once Jev decides, the model judges only what Jev hands it, so nothing in a
-trace says whether a Jev APPROVAL was right: TypeSafe's guidance is to test
+Once Decision decides, the model judges only what Decision hands it, so nothing in a
+trace says whether a Decision APPROVAL was right: TypeSafe's guidance is to test
 thresholds against your own data, and after the switch there was none for
-Jev's yes. So a share of Jev's approvals, `JEV_AUDIT_RATE` (10 %), is also
+Decision's yes. So a share of Decision's approvals, `JEV_AUDIT_RATE` (10 %), is also
 judged by the model validator — the very verdict each call site runs without
-Jev — in the background, and recorded as a `jev-audit` llm event.
+Decision — in the background, and recorded as a `jev-audit` llm event.
 
-- It decides nothing. Jev's approval stands whatever the model says; a model
-  refusal is counted as a Jev false approval, measured against the model.
+- It decides nothing. Decision's approval stands whatever the model says; a model
+  refusal is counted as a Decision false approval, measured against the model.
 - Its own role keeps it out of every reader that counts validations (friction,
   the run report, the calibration corpus), and tells the analyst what it is.
 - It costs one model validation per audited approval, on the run's bill, and
@@ -419,53 +419,53 @@ Jev — in the background, and recorded as a `jev-audit` llm event.
 
 ## What the model is offered after a deferral, 2026-09-30
 
-Jev refuses its own recipe pick when the recipe and the task read decisively
+Decision refuses its own recipe pick when the recipe and the task read decisively
 opposite on files: `task_changes_files` at or above `changesFiles` (0.7) and
 the recipe's `changes_files` below `keepsFiles` (0.3), or the reverse. It then
 handed the pick to the model with the whole catalog, and the model, never told
-why, could take the very recipe Jev had refused.
+why, could take the very recipe Decision had refused.
 
 Measured on every recipe deferral recorded since the files question was first
 asked: 14 runs from 2026-09-29 to 2026-09-30, read from their `jev` events.
 Three recipe picks went to the model; two had a contradicting recipe, both
-times the verify-only `serve-and-validate-static-page` that Jev itself ranked
+times the verify-only `serve-and-validate-static-page` that Decision itself ranked
 first (`changes_files` 0.16 and 0.17 against a task at 0.97). The model
 injected it in 0a989a58, into a phase that had to change the page, and it
 earned that phase's success credit; in 8606cf38 it chose the build recipe.
 Every other recipe offered read between 0.92 and 0.96, so the same decisions
 follow from any threshold pair across that gap. (Run fd64b07e of 2026-09-29
-predates the question: Jev picked that recipe itself.)
+predates the question: Decision picked that recipe itself.)
 
 The same reading now withholds every such recipe from the model's catalog
 whenever the model decides a skill pick (`JevChoiceDeferral`): on those three
 deferrals it changes the one wrong pick and nothing else. The trace outcome
 names them (`…; not offered: <ids>`) and the `jev` event carries them as
-`withheld`. Nothing changes when Jev picks, at L3, for agent catalogs, or for a
+`withheld`. Nothing changes when Decision picks, at L3, for agent catalogs, or for a
 recipe or task read in the middle band. When nothing left fits — every
-remaining recipe below `noFit`, or none remaining — Jev escalates itself,
+remaining recipe below `noFit`, or none remaining — Decision escalates itself,
 `picked none_of_these (…; nothing else fits)`, badged as an escalation: the
 worker runs unguided, which the prefilter prompt calls safe, rather than the
-model being handed a catalog Jev reads as fitting nothing. A wrong withhold
+model being handed a catalog Decision reads as fitting nothing. A wrong withhold
 therefore costs the model a narrower choice or the phase its guidance; a
 wrong injection misleads the worker and credits the recipe for a run it did
 not drive.
 
 Known limit: a model decision cached for the whole catalog (up to seven days,
-`src/atoms/prefilterCache.ts`) is still served before Jev is asked, so a
-byte-identical subtask can still be handed a recipe Jev would withhold. The
+`src/atoms/prefilterCache.ts`) is still served before Decision is asked, so a
+byte-identical subtask can still be handed a recipe Decision would withhold. The
 runs that showed the rest: [production runs, 2026-09-30](../../records/incidents/production-runs-2026-09-30.md).
 
 ## Compilation eligibility: owner decision 2026-10-01
 
 The owner explicitly asked to replace the lifetime `failures > 0` veto with
-Jev and to retry frequently: Jev's cost is not a reason to park a recipe.
+Decision and to retry frequently: Decision's cost is not a reason to park a recipe.
 The production investigation found four LLM recipes blocked by this counter:
 `build-in-memory-json-api`, `build-node-network-dashboard`,
 `build-responsive-static-multipage-site`, and `patch-verified-static-ui`.
 Those counters describe executions, sometimes of earlier recipe bodies; they
 do not establish whether the current recipe can be encoded as a program.
 
-`tryPromoteSkill` now asks Jev with the COMPLETE prompt it would send to the
+`tryPromoteSkill` now asks Decision with the COMPLETE prompt it would send to the
 compiler, plus the host's network capability. Three atomic Nouls ask about
 execution-time semantic judgment, unavailable runtime capabilities, and
 inputs/expectations left to invention. The runtime has no L1 tool RPC and
@@ -482,7 +482,7 @@ inherit the accuracy measured for routing or validation. This checkout has no
 `TYPESAFE_API_KEY`; the owner explicitly authorised deployment followed by
 testing in production, with a calibration MCP extension if useful. The
 existing `atoma_jev_calibrate` now accepts `compilations`: up to 20 supplied
-recipes, each repeated 1–5 times, using the live compiler prompt and Jev
+recipes, each repeated 1–5 times, using the live compiler prompt and Decision
 question builder. It reads no run corpus in this mode, generates and executes
 no script, and mutates no recipe. Expected labels stay local. `details` gives
 the exact request hash and scores per sample; `resultIds` rereads them against
@@ -506,7 +506,7 @@ the accepted call was `details.limit: 100 → 50`, the MCP pagination maximum;
 the cases and labels did not change. No illustrative run result was invented.
 
 The [saved MCP results](../../records/measurements/jev-compilation-results-2026-10-01.json) contain every
-request hash, provider request ID, score, label and outcome. Jev served
+request hash, provider request ID, score, label and outcome. Decision served
 `jev-1.13.0`: **42 answers, zero request failures, $0.006614**, median 258 ms,
 p95 340 ms per request. Six positive recipes were allowed on all repeats
 (18 evaluations). The existing browser-harness wrapper fell in the middle
@@ -532,13 +532,13 @@ that compilation saves money on production tasks.
 
 ### Retry and failure behavior
 
-A Jev no is never cached or saved as `promotionRefusedAt`. The next
+A Decision no is never cached or saved as `promotionRefusedAt`. The next
 learning/credited-success opportunity asks again, without resetting counters,
-waiting for a new body, or earning a streak. No key, disabled Jev, timeout,
+waiting for a new body, or earning a streak. No key, disabled Decision, timeout,
 invalid answer, circuit breaker, or a custom decider throwing leaves the
 compiler in charge. An aborted run does not start a compile. Each evaluation
-records a `compile-skill` Jev event with scores, outcome, latency and cost.
-Jev generates no script and its yes changes none of the compiler, static-scan,
+records a `compile-skill` Decision event with scores, outcome, latency and cost.
+Decision generates no script and its yes changes none of the compiler, static-scan,
 dispatch or deliverable checks.
 
 Compiler/scan refusals still wait for a body/compiler change or operator reset;
@@ -559,12 +559,12 @@ Adversarial review against the recorded failure mechanisms:
 | Arbitrary UI design or semantic documentation rewriting | Assess reusable execution, not whether the compiler can hardcode one example |
 | Markdown verifier and manifest replay; spawn-only HTTP harness | Tool names alone must not cause rejection; structured inputs can remove judgment |
 | Browser interaction without an executable harness | Do not assume the compiled Node script can invoke L1 browser tools |
-| Task-specific documentation literals, quoted commands, scoped markdown counts | Preserve the full compile contract; Jev's yes is not proof the generated program is correct |
+| Task-specific documentation literals, quoted commands, scoped markdown counts | Preserve the full compile contract; Decision's yes is not proof the generated program is correct |
 | A failed script compiled by the current versus an older compiler | Park only the current generation; never resurrect the lifetime counter veto |
-| Jev false no, middle-band answer, malformed response, outage or cancellation | Retry the no next time; other uncertainty falls back; cancellation starts no compile |
+| Decision false no, middle-band answer, malformed response, outage or cancellation | Retry the no next time; other uncertainty falls back; cancellation starts no compile |
 
 Mocked tests cross the actual L2 learning/credit/demotion hooks, the bounded
-Jev client and recorded client-facing trace. They prove control flow and
+Decision client and recorded client-facing trace. They prove control flow and
 accounting only; they do not measure the semantic rows of this table.
 
 ### Executable verification pilot, 2026-10-02
@@ -573,7 +573,7 @@ Production now contains a learned, compiled and directly reused Node recipe:
 `Ammonia/recheck-recorded-command-probes`. The
 [saved evidence](../../records/measurements/skill-subrecipe-pilot-2026-10-02.json) contains all five launch
 results, four complete trace summaries, the distillation and compilation
-responses, Jev decisions, execution evidence, fixture sources and local checks.
+responses, Decision answers, execution evidence, fixture sources and local checks.
 The four trace-producing runs occurred on 2026-10-01 UTC, under release
 `3de709e3`; the record is dated in the operator's local timezone. No recipe was manually installed and no
 production counters were reset.
@@ -585,7 +585,7 @@ input. Their recorded exit codes are `[0, 1, 1]`; an expected nonzero exit is
 a successful comparison, not a broken recipe. Build distillation omitted the
 optional verification draft and the whole build recipe was refused by the
 compiler. A separate verification request then learned a sibling recipe while
-preserving the build recipe. Jev allowed compilation (obstacle scores
+preserving the build recipe. Decision allowed compilation (obstacle scores
 `0.12 / 0.18 / 0.17`, 244 ms, $0.000174048), and L2 produced the Node script.
 
 The first reuse ran that script through the supervised L1 path. The lexical
@@ -599,7 +599,7 @@ zero failures and zero direct failures.
 
 That final run took 14 seconds wall time. The recipe execution made **zero L1
 plan/execute calls**; the whole run still made three LLM calls for its checklist,
-routing and root acceptance ($0.0026863), plus two Jev evaluations ($0.00026901).
+routing and root acceptance ($0.0026863), plus two Decision evaluations ($0.00026901).
 This is one recipe on one fixture workspace, not a controlled performance or
 cost comparison. The script uses the existing compiler contract's trailing
 newline tolerance for recorded streams; it does not promise arbitrary strict
@@ -625,7 +625,7 @@ passed before the successful runs.
 
 Remaining work is explicit: optional extraction during a broad build is still
 unreliable, and a valid verification request can still hit the lexical mutation
-fallback. This pilot proves the learn → Jev → compile → direct-execution chain
+fallback. This pilot proves the learn → Decision → compile → direct-execution chain
 when verification is its own task. Generalizing it needs reliable extraction
 and structured verification intent, not additional vocabulary in the fallback.
 
@@ -640,14 +640,14 @@ build recipe can teach the sibling without being distilled again. Primary
 parse errors or temporary failures do not lose the verification opportunity;
 extraction errors do not lose the primary. There is no permanent refusal or
 retry cooldown here. This costs one extra L2 call per eligible omission;
-Jev still handles twin detection and compilation eligibility. It does not
+Decision still handles twin detection and compilation eligibility. It does not
 guarantee that every build contains a useful compilable subrecipe.
 
 For dispatch, the shared `fileEffect` contract carries the task's semantic
 file intent from the existing recipe prefilter to both capability filtering
-and direct execution. Jev's existing file-change question already supplied
+and direct execution. Decision's existing file-change question already supplied
 this information; decisive answers now survive decoding. The model fallback
-returns the same field. There are no new Jev questions or threshold changes.
+returns the same field. There are no new Decision questions or threshold changes.
 The old lexical fallback remains for absent or uncertain answers, but cannot
 veto a confident semantic reading of negated build verbs. Declared output
 paths remain authoritative; this field is not the host's `readOnly` snapshot
@@ -658,8 +658,8 @@ phantom-success/output-gate cases, August recipe twins, September build versus
 verify misrouting, read-only restoration and the five-attempt pilot above.
 The production-path regressions exercise L1 observation and L2 approval,
 late and negative-exit probes, forged summary claims, primary/extractor
-failures, reused builds, exact-id preservation, Jev twins and toolset refusal.
-The original negated production request dispatches through both real Jev
+failures, reused builds, exact-id preservation, Decision twins and toolset refusal.
+The original negated production request dispatches through both real Decision
 decoding with mocked HTTP and model-prefilter fallback. Boundary tests keep
 the uncertainty band and declared-output precedence intact. Existing output,
 credit, visibility, read-only restoration and prefilter regressions also pass.
@@ -675,7 +675,7 @@ succeeded after a live preview released the preflight. This task did not
 interrupt that preview or alter production recipes/counters manually.
 
 - `2026-10-01T23-55-23-079-666962e1.json` repeats the original negated
-  verification request unchanged. Jev read `task_changes_files=0.06`; the
+  verification request unchanged. Decision read `task_changes_files=0.06`; the
   trace records match, direct dispatch and success, all three comparisons
   passed, and no L1 plan/execute call or fallback. The whole run still used
   two LLM calls for checklist and acceptance; this is not a zero-LLM run.
@@ -708,8 +708,8 @@ rules were scored on it
 its "153 credited matches" means 153 subtasks, of which 116 are credited
 matches).
 
-Of the 116: Jev picked 56 (51 same job, 5 misroutes), the model decided 42
-(18 same job, 24 misroutes), and 18 predate Jev. The model's misroutes follow
+Of the 116: Decision picked 56 (51 same job, 5 misroutes), the model decided 42
+(18 same job, 24 misroutes), and 18 predate Decision. The model's misroutes follow
 its prompt, which matches on workflow shape: a word-count recipe for an
 NDJSON redactor (fit 0.05), build recipes for four constraint solvers.
 
@@ -719,15 +719,15 @@ NDJSON redactor (fit 0.05), build recipes for four constraint solvers.
 | **R1(0.5)** | **19** | **6** | **76%** |
 | R1(0.6) | 21 | 13 | 62% |
 | `noFit` 0.5 (escalate when every recipe is below) | 13 | 3 | 81% |
-| no model call after Jev's `none_of_these` | 4 | 0 | 100% |
+| no model call after Decision's `none_of_these` | 4 | 0 | 100% |
 
 The pre-registered bar (at least half the misroutes, at least three removed
 per same-job match lost) admits 0.4 and 0.5; 0.5 removes more.
 `recipeOffer` = 0.5 ships R1 exactly as scored: the model is shown the
 catalog it was shown before (file clashes still withheld), and a reuse of a
-recipe Jev read below 0.5 becomes no recipe, fresh or served from the
+recipe Decision read below 0.5 becomes no recipe, fresh or served from the
 prefilter cache; when every recipe it could reuse is below, it is not asked.
-Jev's own picks (`fit` 0.7) and agent catalogs are unchanged. None of the six
+Decision's own picks (`fit` 0.7) and agent catalogs are unchanged. None of the six
 same-job matches lost had a reusable alternative: all six run unguided.
 
 The labels were checked once more, blind: a second judge labelled the 25
@@ -746,7 +746,7 @@ The floor acts in the band `JEV_THRESHOLDS` calls noise, deliberately and
 only in the safe direction (a recipe refused, never one picked); the decisions
 near 0.5 have not been asked twice.
 
-Not addressed, and not measured: the 5 misroutes Jev picked itself, all
+Not addressed, and not measured: the 5 misroutes Decision picked itself, all
 documentation phases (a README, a report, an analysis) given a build recipe
 that has a README step (`fits` 0.77–0.83); the 5 misroutes the model picked
 at or above 0.5; compiled scripts (none was in the labelled set) and catalogs
@@ -759,7 +759,7 @@ Follow-up: item 5 of "Reading we will see" below.
 
 ## Execution effort: owner decision 2026-10-06
 
-The owner's words, answering a proposal to first record Jev's reading without
+The owner's words, answering a proposal to first record Decision's reading without
 applying it: "Change la règle et applique". The rule changed was src/core's
 "effort settings belong on strategy calls only". What was on the table:
 
@@ -767,11 +767,11 @@ applying it: "Change la règle et applique". The rule changed was src/core's
   39 runs measured above, against 4.0 % for planning. It was the one LLM call
   of a run with no effort set, so it ran at each transport's default: `high`
   on Opus 5 and Sonnet 5 (API and Claude CLI), the `medium` floor on Codex.
-  On the first, Jev can therefore only lower the effort; on Codex it moves
+  On the first, Decision can therefore only lower the effort; on Codex it moves
   both ways.
 - The L1 of the six newest operator runs (2026-10-01), `api:zai:glm-4.5-air`,
   is served on the Anthropic wire, whose gate sends an effort to `claude-*`
-  ids only. There Jev is not asked at all: a transport answers
+  ids only. There Decision is not asked at all: a transport answers
   `honoursEffort(model)` from the gate its `complete` applies. The pins of
   organisation runs were not read.
 - No calibration was possible: every recorded execution ran at one effort per
@@ -792,17 +792,17 @@ judgement TypeSafe's guidance warns against. Read in the compilation band:
 
 `low` is the costly error — a starved execution loses a whole attempt, a
 generous one costs tokens — so it never lands on a retry: the refusal is
-evidence the task was not as simple as it read. `high` still does. Jev never
+evidence the task was not as simple as it read. `high` still does. Decision never
 picks `medium`; on Codex that is what "as before" already is.
 
 Recorded: one `jev` event per decision asked (role `execute-effort`, both
-probabilities under `answer.yes`, what Jev read under `answer.choice`, outcome
+probabilities under `answer.yes`, what Decision read under `answer.choice`, outcome
 `effort low`, `effort high` or `default effort (…)`), and every `llm` event
 carries the `effort` its call requested. That field was added the same
 evening: the first version of this record said the execute event's `params`
 carried it, and no `llm` event recorded `params` at all. Each decision costs
 up to `JEV_DECISION_TIMEOUT_MS` before the execute call, and its failures
-count toward the run's `JEV_MAX_FAILURES_PER_RUN` with every other Jev
+count toward the run's `JEV_MAX_FAILURES_PER_RUN` with every other Decision
 decision.
 
 Not measured, and not claimed: whether `low` costs refused attempts, whether
@@ -812,12 +812,12 @@ between execute calls. Follow-up: item 6 below.
 ### The holdout, 2026-10-06
 
 Comparing applied readings with undecided ones would credit `low` with the
-ease of the tasks Jev reads as simple. So until the measurement is written
+ease of the tasks Decision reads as simple. So until the measurement is written
 up, `JEV_EFFORT_HOLDOUT_RATE` (0.5) of the decisive readings are left at the
 call's own effort, at random, with outcome `default effort (held out from
 <level>; …)` and the reading still under `answer.choice`. The comparison is
 then between readings alike, applied or not. `atoma_jev_calibrate` with
-`auditsOnly` returns one row per decision in `outcomes[].effort` (what Jev
+`auditsOnly` returns one row per decision in `outcomes[].effort` (what Decision
 read, the arm, the effort the execute call requested, its duration and
 output tokens, and whether the molecule was then credited, blamed or run
 again in its lane). The protocol, fixed before the first row:
@@ -826,7 +826,7 @@ again in its lane). The protocol, fixed before the first row:
 ### The batch, 2026-10-07: inconclusive
 
 Twelve pre-registered goals ran on the holdout revision, each in a project
-kept off the public showcase. Jev was decisive on 4 of 13 executions (`low`
+kept off the public showcase. Decision was decisive on 4 of 13 executions (`low`
 three times, all applied by the draw; `high` once, held out), and no
 execution was refused, so the refusal comparison had nothing to compare:
 both levels are inconclusive under the pre-registered rules, and the holdout
@@ -868,7 +868,7 @@ holdout stays at 0.5 and the comparison restarts on the revision that adds
 [benchmark/jev-effort-2026-10-13/PREREGISTRATION.md](../../benchmark/jev-effort-2026-10-13/PREREGISTRATION.md);
 the 2026-10-06 protocol keeps its rows and its rules for the old bar.
 
-Limits: one L1 (`gpt-5.6-luna` on Codex), Jev's drift (up to 0.17 measured
+Limits: one L1 (`gpt-5.6-luna` on Codex), Decision's drift (up to 0.17 measured
 on other questions) makes readings near 0.6 decisive by chance, and refusals
 by band are confounded with molecule type (the browser and full-stack
 molecules read highest). About 27 runs' readings were transcribed from trace
@@ -879,11 +879,11 @@ five values against the events.
 
 `atoma_jev_calibrate` over the 191 project traces of October 1–9 (six
 organisations, `includeJevRuns`, 0.19 USD): 563 decisions asked, 21 refused
-by Jev as carrying too many independent requirements, 125 results ineligible
-for any fast path. With Jev deciding in every run, the sample is the band Jev
+by Decision as carrying too many independent requirements, 125 results ineligible
+for any fast path. With Decision deciding in every run, the sample is the band Decision
 DEFERRED, never its live take rate (108 of 211 plans and 16 of 112 results
 in the October 1–7 corpus): the right band for a threshold question, since
-a lower threshold acts on it alone, and no measure of Jev's accuracy.
+a lower threshold acts on it alone, and no measure of Decision's accuracy.
 
 - **Plans** (86, 11 refused by the model): at `requirementCovered` 0.8 no
   false approval; at 0.7 one appears, at every `flag`, as the 0.61 + 0.17
@@ -916,7 +916,7 @@ Read on the recorded probabilities, without a new call:
 | top two both fit ≥ 0.7 and share ≥ 0.5 of the mass → the first | 22 | 12 | 10 |
 | Benzene and Ammonia one option (mass summed, fit the larger) | 27 | 26 | 1 |
 
-The first rule buys decisions at 45 % disagreement: Jev leans Benzene where
+The first rule buys decisions at 45 % disagreement: Decision leans Benzene where
 the model takes Ammonia, both fitting above 0.75. The second's one miss is a
 three-way split the model escalated at confidence 0.23, and it turns the four
 standing disagreements into agreements. Owner decision 2026-10-10:
@@ -933,20 +933,20 @@ reading apart from the fold cannot tell the two apart.
 Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if
 runs degrade, from the `jev` events and what followed them in the same traces;
 the runs before the switch measured the 2026-09-28 questions. After it, the
-model decides only what Jev hands it, so `atoma_jev_calibrate` with
-`includeJevRuns` measures that sample — the deferrals — never Jev's own yes:
+model decides only what Decision hands it, so `atoma_jev_calibrate` with
+`includeJevRuns` measures that sample — the deferrals — never Decision's own yes:
 
 1. **Prefilter picks later refused**: a reuse whose child's plan or result the
    supervisor then rejected, escalated, or deepened — against the same rate on
    the model's picks before the change.
-2. **Jev approvals refused above**: an L2 approval whose phase root acceptance
+2. **Decision approvals refused above**: an L2 approval whose phase root acceptance
    then refused, and an approval followed by a run that did not deliver — and,
    directly, the audit sample: the share of audited approvals the model
    refused (`atoma_jev_calibrate` with `auditsOnly: true`).
 3. **Wall time and spend** per run against the 2026-09-26/28 baseline above,
-   and Jev's own latency and failures from the host.
+   and Decision's own latency and failures from the host.
 4. **Trust inflation**: atom types whose consecutive-success counter was
-   earned on Jev approvals.
+   earned on Decision approvals.
 5. **Recipes the offer floor refused** (since 2026-10-06): phases left with no
    recipe by `recipeOffer`, and, among those approved, learn calls whose twin
    check names the recipe the floor refused — a false refusal, directly.
@@ -956,5 +956,5 @@ model decides only what Jev hands it, so `atoma_jev_calibrate` with
 
 If (1) or (2) rises past what the saved seconds pay for, set the platform
 switch `ATOMA_JEV=0` on the host and restart.
-If it is ever worth making Jev a first-class evaluator, it enters
+If it is ever worth making Decision a first-class evaluator, it enters
 `modelCatalog.json` through a typed evaluation operation first.

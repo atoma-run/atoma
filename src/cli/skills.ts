@@ -200,7 +200,7 @@ function cmdShow(registry: SkillRegistry, l1: string, id: string): void {
     } else if (s.promotionRefusedAt) {
       next.push('will RETRY compilation (stamp predates the current compiler)');
     } else if (s.successes >= promoteThreshold()) {
-      next.push('eligible NOW — Jev/compiler reconsiders at its next credited run');
+      next.push('eligible NOW — Decision/compiler reconsiders at its next credited run');
     } else {
       next.push(`${promoteThreshold() - s.successes} more credited success(es) → compilation assessment`);
     }

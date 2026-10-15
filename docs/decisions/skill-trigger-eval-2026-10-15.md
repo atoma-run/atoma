@@ -30,7 +30,7 @@ judge and no person in the loop.
   on day one and fills with every credited match.
 - `triggerEval.ts`: `qualifyDraft` builds the cases, evaluates them through
   `prefilterStrategy` with `SKILL_PREFILTER_SYSTEM_PROMPT` over the catalog the
-  draft would join (Jev first where present, exactly as a run), revises the
+  draft would join (Decision first where present, exactly as a run), revises the
   description and `when_to_use` from the failures with one author call per
   round, at most `TRIGGER_EVAL_MAX_REVISIONS = 2` rounds, and returns a
   verdict.
@@ -101,11 +101,11 @@ recovery twins on Glucose never matched (2026-09-28). The attacks considered:
    key is the exact catalog lines and task; identical inputs are the cache's
    contract. The evaluation's catalog is the draft's visible namespaces, which
    is what the next match in that home sees.
-4. **Jev decides the evaluation.** Where Jev is present it decides first in a
+4. **Decision decides the evaluation.** Where Decision is present it decides first in a
    run, so it decides first here; evaluating with the model alone would judge
-   a surface no run uses. A Jev that escalates on everything it has not seen
+   a surface no run uses. A Decision that escalates on everything it has not seen
    rejects every draft as "never picked": the run stat shows it, and the
-   remedy is Jev's calibration, not a bypass here.
+   remedy is Decision's calibration, not a bypass here.
 5. **Rejecting a draft that was really a twin.** The twin guard runs first and
    is unchanged. A draft that steals a sibling's credited task after two
    revisions is either a twin the guard missed or a surface that cannot be

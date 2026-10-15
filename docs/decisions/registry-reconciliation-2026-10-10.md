@@ -31,10 +31,10 @@ verify a dependency-free browser orbital mechanics lab" (Chlorophyll),
 "Compose and arithmetically audit a self-contained fictional decision brief"
 (DNA) — and three of those are trusted.
 
-What it costs is measured on the Jev reading of the same day
+What it costs is measured on the Decision reading of the same day
 ([jev-decisions-2026-09-28.md](jev-decisions-2026-09-28.md), "twin agents"):
 of 256 agent picks at L2, 119 were deferred to the model on confidence,
-because the catalogue showed Jev several lines it had no reason to tell
+because the catalogue showed Decision several lines it had no reason to tell
 apart — the Benzene/Ammonia pair in 44, Chlorophyll against CarbonDioxide,
 Ethanol or Water in most of the rest. Every deferral is a model call of
 about six seconds.
@@ -113,7 +113,7 @@ code, as it does for canonicals. Concretely:
   label — and `createOrReuse` then finds Ammonia.
 - **Labels by signature.** A seed description is honoured only when no type
   at that tier has the signature yet; on a known signature the canonical
-  label applies, so the catalogue shows one line per capability and Jev's
+  label applies, so the catalogue shows one line per capability and Decision's
   identical-description fold does the rest. The 150–190 character exception
   survives for novel signatures, which is where it was needed.
 - **The existing clones** are an operator arbitration: `registry dedupe`
@@ -288,7 +288,7 @@ A fusion at the bootstrap would put the docs-first prompt — consult the
 snapshot before editing, cite digests and line spans — on every file write,
 including the many without a project snapshot; Benzene searches the docs
 twice per task where Ammonia writes at once, and the model itself takes
-Ammonia 66 times to Benzene's 12. The Jev fold of the same day removes the
+Ammonia 66 times to Benzene's 12. The Decision fold of the same day removes the
 mass-splitting that was the measured cost of the pair, and `createOrRefresh`
 keeps both current. Revisit if a reading shows deliveries that needed the
 snapshot going to Ammonia.

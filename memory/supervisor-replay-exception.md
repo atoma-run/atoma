@@ -91,7 +91,7 @@ The first production run is being verified by an agent (pomodoro L shortcut).
   - A seed from a landed run (PREVIOUS_LANDING_ENV) marks nothing.
   - The write is temp + rename before the gate opens. A deepening re-applies the marks through runtime.reseeded().
   - This is the manifest's one stamp; the exception is recorded in src/contracts/AGENTS.md.
-- The prefilter says a recipe that BUILDS (writes or rewrites its code) does not fit a doc-only or verify-only task. Gap: Jev's own recipe picks are not covered.
+- The prefilter says a recipe that BUILDS (writes or rewrites its code) does not fit a doc-only or verify-only task. Gap: Decision's own recipe picks are not covered.
 - File scribe step 1: write_file for a NEW file, edit_file for an existing one, record_probe for the manifest. This resets canonical Ammonia's trust once.
 - Container arm in CI's Docker job, with a positive control: a molecule-mode WebSocket reaches the port, while host mode is refused.
 - Not pruned: value-changed stale checks, entries whose file is gone, and marked checks once 40 or more live ones exist.

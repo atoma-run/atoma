@@ -42,15 +42,15 @@ statistic, so the record read zero deterministic phases.
 
 1. **The result is validated.** `L2Atom.validateScriptDispatch` runs
    `validateResult(…, { scriptDispatch: true })`: the result gates, the
-   ground-truth probe, proof coverage, Jev, then the model — everything a
+   ground-truth probe, proof coverage, Decision, then the model — everything a
    molecule's result faces except the type's trust fast path, whose counter
    the molecule's model earned. The direct `Result` carries
-   `executorEvidence` from just before the script was written, so Jev and the
+   `executorEvidence` from just before the script was written, so Decision and the
    model read what the transport observed, not only the envelope: the
    script's own write and run, picked by scratch filename because sibling
    dispatches share a lane, while the host's reads and cleanup run on the
    base executor. Its gates read the run's one-shots without spending them.
-   Jev approving keeps the phase free of model calls; otherwise it costs one
+   Decision approving keeps the phase free of model calls; otherwise it costs one
    validation call. A validation that throws sets the result aside; a
    deadline or budget abort is rethrown.
 2. **A script set aside is not run again.** When the script ran in the phase
@@ -75,13 +75,13 @@ kill switch.
 
 ## What it costs, what it gives up
 
-- A direct dispatch is no longer free when Jev does not approve: one
+- A direct dispatch is no longer free when Decision does not approve: one
   validation call on the cheapest tier. The pilot's direct phase cost
   $0.0022 for the whole run against $0.0101 through the model loop; one
   validation stays well inside that gap.
 - A refused result leaves the phase to the model loop. When the refusal is
   wrong, the phase pays the loop a correct replay would have saved.
-- Jev's approval of a script's result is the same question it answers for a
+- Decision's approval of a script's result is the same question it answers for a
   molecule's. Its accuracy on script results is not measured; the audit
   (`JEV_AUDIT_RATE`) samples these approvals like every other.
 - The compile prompt still says "There is NO validator downstream of a

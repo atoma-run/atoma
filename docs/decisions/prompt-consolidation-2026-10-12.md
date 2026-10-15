@@ -10,7 +10,7 @@ outcomes; none alone establishes a measured improvement in delivery quality.
 
 With the existing `ATOMA_SKILL_LEARN=1` policy, molecule and cell method-credit
 hooks collect bounded lessons after their existing proof/restoration guards.
-Jev-only approval does not teach a method. Root approval collects the executing
+Decision-only approval does not teach a method. Root approval collects the executing
 root's lesson; an uncovered proof floor or damaged read-only phase withholds it.
 Rejected/remediated passes discard their new lessons. The approved pass retains
 at most one candidate per rank, preferring candidates with corrective feedback.

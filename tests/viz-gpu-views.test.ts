@@ -3304,7 +3304,7 @@ describe('drawProjects', () => {
       expect(slices.map(tip => tip.text.split('\n')[0])).toEqual([
         'L1 · Molecules › small', 'L1 · Molecules — $0.25 (23.8%)',
         'L3 · Tissues › big', 'L3 · Tissues — $0.75 (71.4%)',
-        'Jev › jev', 'Jev — $0.05 (4.8%)',
+        'Decision › jev', 'Decision — $0.05 (4.8%)',
       ]);
       expect(ctx.tooltips.some(tip => tip.text.startsWith('Ada Lovelace'))).toBe(true);
       expect(ctx.texts.some(text => text.value === '$1.05')).toBe(true);
@@ -3775,8 +3775,8 @@ describe('drawProjects', () => {
         720
       );
       const card = ctx.buttons.find(button => button.id === 'project.run.trace-1')!;
-      const metrics = ctx.texts.find(text => String(text.value).includes('Jev API calls:'))!;
-      expect(metrics.value).toContain(lowerBound ? 'Jev API calls: ≥ 9' : 'Jev API calls: 9');
+      const metrics = ctx.texts.find(text => String(text.value).includes('Decision API calls:'))!;
+      expect(metrics.value).toContain(lowerBound ? 'Decision API calls: ≥ 9' : 'Decision API calls: 9');
       if (lowerBound) expect(ctx.tooltips.some(tooltip => tooltip.text.includes('Minimum confirmed'))).toBe(true);
       expect(metrics.value).toContain('Tokens: 12,500');
       expect(metrics.value).toContain('LLM calls: 7');

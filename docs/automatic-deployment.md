@@ -159,7 +159,7 @@ ATOMA_SUPERVISOR_DIR=/home/atoma/state/supervisor
 ATOMA_BACKUP_OPTIONAL_TIERS=archive
 ```
 
-### Jev decisions for every organisation
+### Decision for every organisation
 
 Add the host's TypeSafe credential to the same private `atoma.env` file:
 
@@ -169,7 +169,7 @@ TYPESAFE_API_KEY=<key>
 ```
 
 Every organisation's runs receive this decision service by default, including
-new organisations. `ATOMA_JEV_ORGS` is retired and ignored. Jev is separate from
+new organisations. `ATOMA_JEV_ORGS` is retired and ignored. Decision is separate from
 the three tier selectors and uses the host credential, not an organisation's
 model key. Its outbound HTTPS request goes from the run host to
 `api.typesafe.ai`; enabling worker or preview egress is not required.
@@ -178,16 +178,16 @@ Decision context reaches TypeSafe as described in the
 
 The service reads this file at startup. Apply changes through the normal
 deployment/preflight lifecycle, preserving work in flight. At boot it reports
-`jev: deciding in every run` or why Jev is off; each runner log also records
+`jev: deciding in every run` or why Decision is off; each runner log also records
 admission, readable through `atoma_run_trace` with `section: "log"`. No key,
 `ATOMA_JEV=0`, uncertain answers and unavailable decisions leave the relevant
-decision to the run's model. Disabling Jev does not undo trust already earned.
+decision to the run's model. Disabling Decision does not undo trust already earned.
 
-Jev's costs are recorded on `jev` trace events outside LLM totals and LLM
+Decision's costs are recorded on `jev` trace events outside LLM totals and LLM
 spend ceilings. Sampled model audits (`jev-audit`) do count as LLM calls.
 Platform MCP `atoma_jev_calibrate` with `auditsOnly: true` reads existing audit
 and cost reports without contacting TypeSafe; other calibration requests send
-recorded decision context and incur cost. See [how Jev works](how-it-works.md#jev-bounded-decisions-beside-the-model-tiers).
+recorded decision context and incur cost. See [how Decision works](how-it-works.md#decision-bounded-decisions-beside-the-model-tiers).
 
 ### Run limits without a redeployment
 

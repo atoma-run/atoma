@@ -7,7 +7,7 @@ is the architecture. Items marked **beta**, **opt-in** or **experimental** are
 called out where they appear.
 
 Contents: [Runs](#runs) · [Verification](#verification) ·
-[Models and payers](#models-and-payers) · [Jev decisions](#jev-decisions) ·
+[Models and payers](#models-and-payers) · [Decision](#decision) ·
 [Learning](#learning-agents-skills-and-trust) · [Projects](#projects) ·
 [GitHub](#github) · [Previews](#previews) · [Web console](#web-console) ·
 [Integrated assistant](#integrated-assistant) · [MCP](#mcp-server) ·
@@ -115,20 +115,20 @@ Contents: [Runs](#runs) · [Verification](#verification) ·
   and the models the provider actually served, with tokens, cache use and cost
   per call under one cost formula.
 
-## Jev decisions
+## Decision
 
-TypeSafe's Jev takes bounded, structured decisions beside the model tiers
-([architecture](docs/how-it-works.md#jev-bounded-decisions-beside-the-model-tiers)).
+Decision, TypeSafe's Jev model, takes bounded, structured decisions beside the model tiers
+([architecture](docs/how-it-works.md#decision-bounded-decisions-beside-the-model-tiers)).
 
 - Chooses the root planner, the worker for a task, and the recipe to apply.
 - Approves eligible intermediate plans and results once the mechanical gates
-  allow it; final delivery acceptance stays independent of Jev.
+  allow it; final delivery acceptance stays independent of Decision.
 - Keeps semantically equivalent recipes and agents out of the catalogue.
 - Sets the reasoning effort of a worker's execution.
 - Uncertain or unavailable answers fall back to the model; each decision has a
   short deadline and a per-run failure cut-off.
 - Decisions, latency and their separate cost appear in the trace and the
-  console. A sample of Jev approvals is re-checked by the model in the
+  console. A sample of Decision approvals is re-checked by the model in the
   background, and platform admins can calibrate thresholds against recorded
   decisions (`atoma_jev_calibrate`).
 - On for every organisation when the host has `TYPESAFE_API_KEY`; `ATOMA_JEV=0`
@@ -266,7 +266,7 @@ One HTTP MCP endpoint at `/mcp` ([authorization guide](docs/mcp-oauth.md)).
   - *Platform*: operator runs, retrieval benchmarks, skill statistics, review
     and lifecycle (reset, drop, merge), registry rollback and merge, ledger,
     costs, friction, post-mortem verdicts, sentinel and MCP health, the
-    platform journal, all organisations, Jev calibration and subscription
+    platform journal, all organisations, Decision calibration and subscription
     delegates.
 - **Long runs as tasks.** A run start survives a client reconnect; re-sending
   the same call re-attaches to the live run.
