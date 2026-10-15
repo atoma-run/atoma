@@ -206,5 +206,10 @@ hash-verified control.html differs only by removal of target=_blank and noopener
 100 other files unchanged, both criteria met, 10 offline hosted/history tests
 and 2 Chromium tests passed. Manifest
 996704b1aede08656eeb1b238da2b18c4c6d6dafcc82c3fa9f911aa4048d8601.
-Client acceptance requested before publishing/redeploying this new version.
+Client explicitly accepted 7b126338 on 2026-10-15 after reproducing the popup
+failure. MCP acceptance published 33498eae68bf9e481b045fb62b5f3f0b9d8cde27.
+Stopped the previous application with data retained, deployed that accepted
+version through Project settings, and verified Application online at 33498eae.
+Real Chrome click on the delivered link navigated in the same tab, desktop
+reported Connected, and Back to application restored all 68 collected offers.
 Existing local pilot/profile/68 offers untouched.
