@@ -1976,5 +1976,15 @@
   "detail.batch.nextProbe": "Nächste Prüfung",
   "detail.batch.probes": "Prüfungen in diesem Batch",
   "detail.batch.commands": "Befehle",
-  "hosting.address": "Adresse"
+  "hosting.address": "Adresse",
+  "hosting.rename": "Adresse ändern",
+  "hosting.renameTitle": "Anwendungsadresse ändern",
+  "hosting.renameLabel": "Neue Adresse",
+  "hosting.renameRule": "Ein bis drei Wörter aus Kleinbuchstaben von a bis z, verbunden durch einzelne Bindestriche.",
+  "hosting.renameRedirect": "Die aktuelle Adresse wird dauerhaft auf die neue weitergeleitet und kann nie wieder verwendet werden.",
+  "hosting.renameSave": "Adresse speichern",
+  "hosting.renameCancel": "Abbrechen",
+  "hosting.rename.invalid": "Diese Adresse ist nicht zulässig. Verwenden Sie ein bis drei Wörter aus den Buchstaben a bis z, verbunden durch Bindestriche.",
+  "hosting.rename.conflict": "Diese Adresse ist bereits vergeben oder wurde zwischenzeitlich geändert. Wählen Sie eine andere oder laden Sie die Seite neu.",
+  "hosting.rename.failed": "Die Adresse konnte nicht gespeichert werden. Versuchen Sie es erneut."
 }

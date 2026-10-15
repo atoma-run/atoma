@@ -1976,5 +1976,15 @@
   "detail.batch.nextProbe": "下一个探测",
   "detail.batch.probes": "此批次中的探测",
   "detail.batch.commands": "命令",
-  "hosting.address": "地址"
+  "hosting.address": "地址",
+  "hosting.rename": "更改地址",
+  "hosting.renameTitle": "更改应用地址",
+  "hosting.renameLabel": "新地址",
+  "hosting.renameRule": "由一至三个仅含小写字母a到z的单词组成，并以单个连字符连接。",
+  "hosting.renameRedirect": "当前地址将永久重定向到新地址，且以后无法再次使用。",
+  "hosting.renameSave": "保存地址",
+  "hosting.renameCancel": "取消",
+  "hosting.rename.invalid": "不允许使用此地址。请使用一至三个仅含字母a到z的单词，并以连字符连接。",
+  "hosting.rename.conflict": "此地址已被占用，或地址已在此期间更改。请选择其他地址或重新加载。",
+  "hosting.rename.failed": "无法保存地址。请重试。"
 }

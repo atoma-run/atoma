@@ -1976,5 +1976,15 @@
   "detail.batch.nextProbe": "Probe berikutnya",
   "detail.batch.probes": "Probe dalam batch ini",
   "detail.batch.commands": "Perintah",
-  "hosting.address": "Alamat"
+  "hosting.address": "Alamat",
+  "hosting.rename": "Ubah alamat",
+  "hosting.renameTitle": "Ubah alamat aplikasi",
+  "hosting.renameLabel": "Alamat baru",
+  "hosting.renameRule": "Satu hingga tiga kata dengan huruf kecil a sampai z, dipisahkan oleh satu tanda hubung.",
+  "hosting.renameRedirect": "Alamat saat ini akan dialihkan secara permanen ke alamat baru dan tidak dapat digunakan lagi.",
+  "hosting.renameSave": "Simpan alamat",
+  "hosting.renameCancel": "Batal",
+  "hosting.rename.invalid": "Alamat ini tidak diizinkan. Gunakan satu hingga tiga kata dengan huruf a sampai z yang dipisahkan oleh tanda hubung.",
+  "hosting.rename.conflict": "Alamat ini sudah digunakan, atau alamat telah berubah. Pilih alamat lain atau muat ulang.",
+  "hosting.rename.failed": "Alamat tidak dapat disimpan. Coba lagi."
 }

@@ -1976,5 +1976,15 @@
   "detail.batch.nextProbe": "अगली जाँच",
   "detail.batch.probes": "इस बैच की जाँचें",
   "detail.batch.commands": "कमांड",
-  "hosting.address": "पता"
+  "hosting.address": "पता",
+  "hosting.rename": "पता बदलें",
+  "hosting.renameTitle": "एप्लिकेशन का पता बदलें",
+  "hosting.renameLabel": "नया पता",
+  "hosting.renameRule": "a से z तक के छोटे अक्षरों वाले एक से तीन शब्द, जिन्हें एकल हाइफ़न से जोड़ा गया हो।",
+  "hosting.renameRedirect": "वर्तमान पता स्थायी रूप से नए पते पर रीडायरेक्ट होगा और इसे फिर कभी इस्तेमाल नहीं किया जा सकेगा।",
+  "hosting.renameSave": "पता सहेजें",
+  "hosting.renameCancel": "रद्द करें",
+  "hosting.rename.invalid": "इस पते की अनुमति नहीं है। a से z तक के अक्षरों वाले एक से तीन शब्दों को हाइफ़न से जोड़कर इस्तेमाल करें।",
+  "hosting.rename.conflict": "यह पता पहले से उपयोग में है या इस बीच पता बदल गया है। कोई दूसरा पता चुनें या फिर से लोड करें।",
+  "hosting.rename.failed": "पता सहेजा नहीं जा सका। फिर से कोशिश करें।"
 }

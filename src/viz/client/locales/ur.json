@@ -1976,5 +1976,15 @@
   "detail.batch.nextProbe": "اگلی جانچ",
   "detail.batch.probes": "اس بیچ کی جانچیں",
   "detail.batch.commands": "کمانڈز",
-  "hosting.address": "پتا"
+  "hosting.address": "پتا",
+  "hosting.rename": "پتہ تبدیل کریں",
+  "hosting.renameTitle": "ایپلیکیشن کا پتہ تبدیل کریں",
+  "hosting.renameLabel": "نیا پتہ",
+  "hosting.renameRule": "a سے z تک کے چھوٹے انگریزی حروف پر مشتمل ایک سے تین الفاظ، جو ایک ایک ہائفن سے جڑے ہوں۔",
+  "hosting.renameRedirect": "موجودہ پتہ مستقل طور پر نئے پتے پر ری ڈائریکٹ ہو جائے گا اور دوبارہ کبھی استعمال نہیں ہو سکے گا۔",
+  "hosting.renameSave": "پتہ محفوظ کریں",
+  "hosting.renameCancel": "منسوخ کریں",
+  "hosting.rename.invalid": "اس پتے کی اجازت نہیں ہے۔ a سے z تک کے حروف پر مشتمل ایک سے تین الفاظ استعمال کریں، جنہیں ہائفن سے جوڑا گیا ہو۔",
+  "hosting.rename.conflict": "یہ پتہ پہلے سے استعمال میں ہے، یا اس دوران پتہ تبدیل ہو چکا ہے۔ کوئی دوسرا پتہ منتخب کریں یا دوبارہ لوڈ کریں۔",
+  "hosting.rename.failed": "پتہ محفوظ نہیں ہو سکا۔ دوبارہ کوشش کریں۔"
 }

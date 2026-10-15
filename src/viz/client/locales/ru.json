@@ -1976,5 +1976,15 @@
   "detail.batch.nextProbe": "Следующая проверка",
   "detail.batch.probes": "Проверки в этом пакете",
   "detail.batch.commands": "Команды",
-  "hosting.address": "Адрес"
+  "hosting.address": "Адрес",
+  "hosting.rename": "Изменить адрес",
+  "hosting.renameTitle": "Изменить адрес приложения",
+  "hosting.renameLabel": "Новый адрес",
+  "hosting.renameRule": "От одного до трёх слов из строчных латинских букв a–z, разделённых одиночными дефисами.",
+  "hosting.renameRedirect": "Текущий адрес будет постоянно перенаправлять на новый, и его больше нельзя будет использовать.",
+  "hosting.renameSave": "Сохранить адрес",
+  "hosting.renameCancel": "Отмена",
+  "hosting.rename.invalid": "Этот адрес недопустим. Используйте от одного до трёх слов из латинских букв a–z, разделённых дефисами.",
+  "hosting.rename.conflict": "Этот адрес занят или был изменён. Выберите другой или перезагрузите страницу.",
+  "hosting.rename.failed": "Не удалось сохранить адрес. Повторите попытку."
 }

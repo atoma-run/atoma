@@ -1976,5 +1976,15 @@
   "detail.batch.nextProbe": "الفحص التالي",
   "detail.batch.probes": "الفحوصات في هذه الدفعة",
   "detail.batch.commands": "الأوامر",
-  "hosting.address": "العنوان"
+  "hosting.address": "العنوان",
+  "hosting.rename": "تغيير العنوان",
+  "hosting.renameTitle": "تغيير عنوان التطبيق",
+  "hosting.renameLabel": "العنوان الجديد",
+  "hosting.renameRule": "كلمة إلى ثلاث كلمات من الأحرف الإنجليزية الصغيرة من a إلى z، تفصل بينها شُرط مفردة.",
+  "hosting.renameRedirect": "سيُعاد توجيه العنوان الحالي نهائيًا إلى العنوان الجديد، ولن يكون من الممكن استخدامه مجددًا.",
+  "hosting.renameSave": "حفظ العنوان",
+  "hosting.renameCancel": "إلغاء",
+  "hosting.rename.invalid": "هذا العنوان غير مسموح به. استخدم كلمة إلى ثلاث كلمات من الأحرف من a إلى z تفصل بينها شُرط.",
+  "hosting.rename.conflict": "هذا العنوان مستخدم، أو تغيّر العنوان في هذه الأثناء. اختر عنوانًا آخر أو أعد التحميل.",
+  "hosting.rename.failed": "تعذّر حفظ العنوان. حاول مرة أخرى."
 }

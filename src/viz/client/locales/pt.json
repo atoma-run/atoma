@@ -1976,5 +1976,15 @@
   "detail.batch.nextProbe": "Sondagem seguinte",
   "detail.batch.probes": "Sondagens neste lote",
   "detail.batch.commands": "Comandos",
-  "hosting.address": "Endereço"
+  "hosting.address": "Endereço",
+  "hosting.rename": "Alterar endereço",
+  "hosting.renameTitle": "Alterar o endereço da aplicação",
+  "hosting.renameLabel": "Novo endereço",
+  "hosting.renameRule": "Uma a três palavras com letras minúsculas de a a z, unidas por hífenes simples.",
+  "hosting.renameRedirect": "O endereço atual redirecionará permanentemente para o novo e nunca mais poderá ser utilizado.",
+  "hosting.renameSave": "Guardar endereço",
+  "hosting.renameCancel": "Cancelar",
+  "hosting.rename.invalid": "Este endereço não é permitido. Utilize uma a três palavras com letras de a a z, unidas por hífenes.",
+  "hosting.rename.conflict": "Este endereço já está em uso ou foi entretanto alterado. Escolha outro ou recarregue.",
+  "hosting.rename.failed": "Não foi possível guardar o endereço. Tente novamente."
 }

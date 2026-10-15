@@ -1976,5 +1976,15 @@
   "detail.batch.nextProbe": "Sonde suivante",
   "detail.batch.probes": "Sondes de ce lot",
   "detail.batch.commands": "Commandes",
-  "hosting.address": "Adresse"
+  "hosting.address": "Adresse",
+  "hosting.rename": "Changer l’adresse",
+  "hosting.renameTitle": "Changer l’adresse de l’application",
+  "hosting.renameLabel": "Nouvelle adresse",
+  "hosting.renameRule": "Un à trois mots composés de lettres minuscules de a à z, séparés par des tirets simples.",
+  "hosting.renameRedirect": "L’adresse actuelle redirigera définitivement vers la nouvelle et ne pourra plus jamais être utilisée.",
+  "hosting.renameSave": "Enregistrer l’adresse",
+  "hosting.renameCancel": "Annuler",
+  "hosting.rename.invalid": "Cette adresse n’est pas autorisée. Utilise un à trois mots composés de lettres de a à z et séparés par des tirets.",
+  "hosting.rename.conflict": "Cette adresse est déjà prise, ou l’adresse a changé entre-temps. Choisis-en une autre ou recharge la page.",
+  "hosting.rename.failed": "L’adresse n’a pas pu être enregistrée. Réessaie."
 }

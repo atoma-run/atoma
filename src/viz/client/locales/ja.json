@@ -1976,5 +1976,15 @@
   "detail.batch.nextProbe": "次のプローブ",
   "detail.batch.probes": "このバッチのプローブ",
   "detail.batch.commands": "コマンド",
-  "hosting.address": "アドレス"
+  "hosting.address": "アドレス",
+  "hosting.rename": "アドレスを変更",
+  "hosting.renameTitle": "アプリケーションのアドレスを変更",
+  "hosting.renameLabel": "新しいアドレス",
+  "hosting.renameRule": "小文字のa～zからなる1～3個の単語を、単一のハイフンでつないでください。",
+  "hosting.renameRedirect": "現在のアドレスは新しいアドレスへ恒久的にリダイレクトされ、今後は使用できません。",
+  "hosting.renameSave": "アドレスを保存",
+  "hosting.renameCancel": "キャンセル",
+  "hosting.rename.invalid": "このアドレスは使用できません。a～zの文字からなる1～3個の単語をハイフンでつないでください。",
+  "hosting.rename.conflict": "このアドレスは使用済みか、その間にアドレスが変更されました。別のアドレスを選択するか、再読み込みしてください。",
+  "hosting.rename.failed": "アドレスを保存できませんでした。もう一度お試しください。"
 }
