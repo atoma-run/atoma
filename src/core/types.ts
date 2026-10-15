@@ -364,6 +364,7 @@ export type Verdict = PositiveVerdict | NegativeVerdict;
 export interface TraceEntry {
   kind:
     | 'plan'
+    | 'plan-unparseable'
     | 'verdict-plan'
     | 'execute'
     | 'verdict-result'

@@ -17,6 +17,7 @@ import {
   type SupervisionHooks,
 } from '../src/core/supervisor.js';
 import { makeCtx } from './helpers.js';
+import { L1Atom } from '../src/atoms/L1Atom.js';
 import { makePlan } from './helpers/factories.js';
 
 class FakeChild extends Atom {
@@ -206,6 +207,70 @@ describe('superviseLoop', () => {
     expect(parent.selfExecs).toBe(1);
     expect(result.producedBy.viaFallback).toBe(true);
     expect(result.output).toBe('parent-output');
+  });
+
+  describe('an unparseable plan reply (run 12bdcf19, 2026-10-15)', () => {
+    // The production reply: raw newlines AND unescaped quotes inside the
+    // "reasoning" string. json.ts cannot repair it without guessing, and the
+    // ValidationError used to leave the loop and end the whole run.
+    const BROKEN = '```json\n{\n  "reasoning": "Plan:\n\n(d) Remove all \\"409 || 400\\" disjunctions.\n- Search and remove all "409 || 400" disjunctions.\n",\n  "proposedAction": "1. Read the tests.",\n  "expectedOutput": "green"\n}\n```'.replace(/\\\\"/g, '"');
+    const GOOD = JSON.stringify({ reasoning: 'r', proposedAction: 'read then edit', expectedOutput: 'green' });
+
+    class RealPlanL1 extends L1Atom {
+      execCount = 0;
+      override async execute(): Promise<Result> {
+        this.execCount++;
+        return { output: 'child-output', summary: 's', trace: [], producedBy: { tier: 1, name: this.name, viaFallback: false } };
+      }
+    }
+    const makeChild = (): RealPlanL1 => new RealPlanL1({ name: 'Urea', ordinal: 1, systemPrompt: 's', tools: [], params: {} });
+    const approve: Verdict = { approved: true, reasoning: 'ok' };
+
+    it('asks the real L1 plan again, records the parser message, and neither blames nor branches', async () => {
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(BROKEN);
+      ctx.llm.enqueueText(GOOD);
+      const parent = new FakeParent();
+      parent.queuePlanVerdict(approve);
+      parent.queueResultVerdict(approve);
+      const child = makeChild();
+      let branched = 0;
+      let failed = 0;
+      const hooks = {
+        applyByScope: async (c: RealPlanL1) => c,
+        branchOnEscalation: async () => { branched++; },
+        onFailed: async () => { failed++; },
+      };
+      const result = await superviseLoop(parent as never, child as never, { description: 'go' }, ctx, hooks as never);
+      expect(result.output).toBe('child-output');
+      expect(result.producedBy.viaFallback).toBe(false);
+      expect(branched).toBe(0);
+      expect(failed).toBe(0);
+      const unparseable = result.trace.filter((t) => t.kind === 'plan-unparseable');
+      expect(unparseable).toHaveLength(1);
+      expect(String((unparseable[0]!.payload as { error: string }).error)).toMatch(/JSON parse failed/);
+    });
+
+    it('escalates once the plan budget is spent on unparseable replies', async () => {
+      const ctx = makeCtx({ limits: { maxPlanIterations: 2, maxExecIterations: 3 } });
+      ctx.llm.enqueueText(BROKEN);
+      ctx.llm.enqueueText(BROKEN);
+      const parent = new FakeParent();
+      let branched = 0;
+      const hooks = { applyByScope: async (c: RealPlanL1) => c, branchOnEscalation: async () => { branched++; } };
+      const result = await superviseLoop(parent as never, makeChild() as never, { description: 'go' }, ctx, hooks as never);
+      expect(branched).toBe(1);
+      expect(result.producedBy.viaFallback).toBe(true);
+      expect(result.output).toBe('parent-output');
+    });
+  });
+
+  it('a non-validation plan failure still ends the loop', async () => {
+    const parent = new FakeParent();
+    class BrokenChild extends FakeChild {
+      override async plan(): Promise<Plan> { throw new Error('transport down'); }
+    }
+    await expect(superviseLoop(parent, new BrokenChild('A'), { description: 'go' }, makeCtx(), makeHooks())).rejects.toThrow(/transport down/);
   });
 
   it('escalates when maxExecIterations is exhausted on result rejections', async () => {

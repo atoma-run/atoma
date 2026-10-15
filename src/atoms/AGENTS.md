@@ -599,6 +599,9 @@ load-bearing.
   on parse failure; never guess a structure. After tool work, one tool-free
   formatting turn may repair it (24,000 chars, 60s, with 60s run time left).
   Preserve witnesses, validation, raw failures and fence-aware tests; never replay tools for formatting.
+- An unparseable molecule PLAN is asked again inside the plan budget, which then
+  escalates (`plan-unparseable` trace entry, parser message kept); it neither
+  blames trust nor branches on one slip. It used to end the run (12bdcf19).
 
 ## Intentional choices and rejected shortcuts
 

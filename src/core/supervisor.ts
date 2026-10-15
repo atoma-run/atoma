@@ -1,4 +1,4 @@
-import { EscalationSignal } from './errors.js';
+import { EscalationSignal, ValidationError } from './errors.js';
 import type { Atom, Supervisor } from './atom.js';
 import type {
   NegativeVerdict,
@@ -282,7 +282,21 @@ export async function superviseLoop<C extends Atom>(
 
         if (ctx.signal.aborted) throw ctx.signal.reason ?? new Error('aborted');
 
-        const plan = await current.plan(task, ctx);
+        let plan;
+        try {
+          plan = await current.plan(task, ctx);
+        } catch (error) {
+          // An unparseable plan reply is asked again within the plan budget,
+          // which escalates when it runs out. Rethrown, it ended run 12bdcf19
+          // (2026-10-15) over one reply with unescaped quotes in a string;
+          // escalating at once would blame the child's trust and its recipe
+          // and branch a type for one formatting slip. The raw reply stays
+          // in the llm event; the parser's message is kept here.
+          if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
+          ctx.logger.warn(`[${current.name}] plan reply unparseable; asking again (${error.message.slice(0, 200)})`);
+          trace.push({ kind: 'plan-unparseable', ts: now(), atom: current.name, payload: { error: error.message } });
+          continue;
+        }
         trace.push({ kind: 'plan', ts: now(), atom: current.name, payload: plan });
 
         const v1 = await parent.validatePlan(current, plan, task, ctx);
