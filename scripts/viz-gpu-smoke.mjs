@@ -2299,7 +2299,7 @@ try {
         if (/^\/api\/projects\/[^/]+\/hosting$/.test(path) && request.method() === 'GET') {
           void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({
             available: false, state: 'not-deployed', deploymentId: null, runId: null, commitSha: null,
-            url: null, error: null, candidate: null,
+            url: null, error: null, address: null, candidate: null,
           }) });
           return;
         }

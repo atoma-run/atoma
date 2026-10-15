@@ -66,10 +66,10 @@ describe('assigning a project its address', () => {
     expect(proposals).toHaveBeenCalledTimes(2); expect(events).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps an address for good: the store refuses to rewrite it and the index refuses to share it', async () => {
+  it('keeps an address unless renamed: the store refuses a silent rewrite and the index refuses to share it', async () => {
     const first = project('Weather Lab', 'weather-lab'); const second = project('Other', 'other');
     await ensureHostingSubdomain({ store: projects }, orgId, first);
-    expect(() => db.prepare('UPDATE projects SET hosting_subdomain = ? WHERE project_id = ?').run('renamed', first)).toThrow(/immutable/);
+    expect(() => db.prepare('UPDATE projects SET hosting_subdomain = ? WHERE project_id = ?').run('renamed', first)).toThrow(/keep redirecting/);
     expect(() => db.prepare('UPDATE projects SET hosting_subdomain = ? WHERE project_id = ?').run('weather-lab', second)).toThrow(/UNIQUE/);
     expect(projects.assignHostingSubdomain(orgId, first, ['new-name'], null)).toEqual({ subdomain: 'weather-lab', assigned: false });
   });
@@ -119,5 +119,35 @@ describe('hostingSubdomainNamerFor', () => {
   });
   it('answers null when nothing was spent', async () => {
     expect(await hostingSubdomainNamerFor(fakeLlm(new Error('rate limited')).llm, 'api:zai:glm-4.5-air')({ name: 'A', brief: '' })).toBeNull();
+  });
+});
+
+describe('renaming a project address', () => {
+  it('retires the old label: it points at the current address, is never reused, and only CAS writes succeed', async () => {
+    const id = project('Weather Lab', 'weather-lab'); const other = project('Other', 'other');
+    await ensureHostingSubdomain({ store: projects }, orgId, id);
+    expect(() => projects.renameHostingSubdomain(orgId, id, { subdomain: 'sky-board', expectedSubdomain: null })).toThrow(/changed/);
+    expect(projects.renameHostingSubdomain(orgId, id, { subdomain: 'sky-board', expectedSubdomain: 'weather-lab' }))
+      .toMatchObject({ previous: 'weather-lab', project: { hostingSubdomain: 'sky-board' } });
+    expect(projects.hostingAliasTarget('weather-lab')).toBe('sky-board');
+    projects.renameHostingSubdomain(orgId, id, { subdomain: 'cloud-desk', expectedSubdomain: 'sky-board' });
+    // One hop from any former address, straight to the current one.
+    expect(projects.hostingAliasTarget('weather-lab')).toBe('cloud-desk');
+    expect(projects.hostingAliasTarget('sky-board')).toBe('cloud-desk');
+    expect(projects.hostingAliasTarget('cloud-desk')).toBeNull();
+    // Retired labels are never handed out again, to the owner or anyone else.
+    expect(() => projects.renameHostingSubdomain(orgId, id, { subdomain: 'weather-lab', expectedSubdomain: 'cloud-desk' })).toThrow(/taken/);
+    expect(() => projects.renameHostingSubdomain(orgId, other, { subdomain: 'sky-board', expectedSubdomain: null })).toThrow(/taken/);
+    expect(await ensureHostingSubdomain({ store: projects, namer: namer(['weather-lab', 'sky-board']) }, orgId, other)).toBe('other');
+    expect(() => projects.renameHostingSubdomain(orgId, other, { subdomain: 'admin', expectedSubdomain: 'other' })).toThrow(/reserved/);
+  });
+
+  it('refuses at the database any rename that would drop a redirect', async () => {
+    const id = project('Weather Lab', 'weather-lab');
+    await ensureHostingSubdomain({ store: projects }, orgId, id);
+    expect(() => db.prepare("UPDATE projects SET hosting_subdomain = 'renamed' WHERE project_id = ?").run(id)).toThrow(/keep redirecting/);
+    expect(() => db.prepare('UPDATE projects SET hosting_subdomain = NULL WHERE project_id = ?').run(id)).toThrow(/keep redirecting/);
+    projects.renameHostingSubdomain(orgId, id, { subdomain: 'sky-board', expectedSubdomain: 'weather-lab' });
+    expect(() => db.prepare("UPDATE project_hosting_aliases SET project_id = 'x'").run()).toThrow(/immutable/);
   });
 });

@@ -187,6 +187,7 @@ export function DomBridge({
   projectRuns = [], githubRecovery = null, auth = null,
   workspace,
   deploymentSettings,
+  onRenameAddress,
   onOpenMcp,
   mcpAccessState = 'unknown',
   projectGuideEnabled = true,
@@ -231,6 +232,7 @@ export function DomBridge({
   projectGuideEnabled?: boolean;
   workspace?: WorkspaceBrowserData;
   deploymentSettings?: import('./project-deployment.js').DeploymentSettingsView;
+  onRenameAddress?: (subdomain: string) => void;
   projectAdmin?: boolean;
   /** Notification offer (first live run for members, login for platform
    *  admins); real DOM buttons because the browser permission request needs a
@@ -509,7 +511,8 @@ export function DomBridge({
           </nav>
         ) : null}
         {view === 'projects' && selectedProjectId && projectSection === 'settings' && deploymentSettings && onActivate ?
-          <ProjectSettingsAccessible view={deploymentSettings} t={t} onActivate={onActivate} /> : null}
+          <ProjectSettingsAccessible view={deploymentSettings} t={t} onActivate={onActivate}
+            {...(onRenameAddress ? { onRenameAddress } : {})} /> : null}
         {view === 'projects' && selectedProjectId && (projectSection === 'conversation' || projectSection === 'runs') ?
           <ProjectOverviewAccessible runs={projectRuns.filter(run => run.projectId === selectedProjectId)} t={t} /> : null}
         {view === 'projects' && selectedProjectId && projectSection === 'runs' && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && run.checkpoint && run.checkpoint.state !== 'unavailable').map(run =>

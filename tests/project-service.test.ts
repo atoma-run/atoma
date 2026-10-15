@@ -735,6 +735,25 @@ describe('deployment preference', () => {
       orgId: alice.orgId, projectId: project.projectId, detail: { from: 'external', to: 'none' } }));
   });
 
+  it('lets an admin rename the hosting address, journaled, and maps refusals to HTTP', async () => {
+    const events = vi.fn();
+    const { svc } = service(events);
+    const project = projects.createProject({ orgId: alice.orgId, principalId: alice.principalId, project: payload('1') });
+    await svc.setDeploymentDestination(jsonReq({ destination: 'atoma', expectedDestination: 'none' }), alice, project.projectId);
+    const current = projects.getProject(alice.orgId, project.projectId)!.hostingSubdomain!;
+    const rename = { subdomain: 'storm-desk', expectedSubdomain: current };
+    await expect(svc.setHostingSubdomain(jsonReq(rename), { ...alice, role: 'org:member' }, project.projectId)).rejects.toMatchObject({ status: 403 });
+    await expect(svc.setHostingSubdomain(jsonReq(rename), bob, project.projectId)).rejects.toMatchObject({ status: 404 });
+    for (const body of [{ ...rename, subdomain: 'Storm Desk' }, { ...rename, subdomain: 'a-b-c-d' }, { ...rename, subdomain: 'admin' }, { subdomain: 'storm-desk' }]) {
+      await expect(svc.setHostingSubdomain(jsonReq(body), alice, project.projectId)).rejects.toMatchObject({ status: 400 });
+    }
+    await expect(svc.setHostingSubdomain(jsonReq({ ...rename, expectedSubdomain: 'stale-label' }), alice, project.projectId)).rejects.toMatchObject({ status: 409 });
+    expect(await svc.setHostingSubdomain(jsonReq(rename), alice, project.projectId)).toMatchObject({ hostingSubdomain: 'storm-desk' });
+    expect(events).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'project.hosting_address_assigned', actorId: alice.principalId,
+      detail: { subdomain: 'storm-desk', previous: current, source: 'admin' } }));
+    await expect(svc.setHostingSubdomain(jsonReq({ subdomain: current, expectedSubdomain: 'storm-desk' }), alice, project.projectId)).rejects.toMatchObject({ status: 409 });
+  });
+
   it('refuses foreign organisations, non-admins, stale updates and malformed settings', async () => {
     const { svc } = service();
     const project = projects.createProject({ orgId: alice.orgId, principalId: alice.principalId, project: payload('1') });

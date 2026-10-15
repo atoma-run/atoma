@@ -27,6 +27,7 @@ export const BUTTON_ICON_PATHS = {
   send: 'M3 3L22 12L3 21L7 12Z M7 12H22',
   key: 'M11 8A5 5 0 1 1 1 8A5 5 0 1 1 11 8 M10 11L20 21 M16 17L19 14 M19 20L22 17',
   down: 'M5 9L12 16L19 9',
+  edit: 'M4 20H8L19 9L15 5L4 16Z M13 7L17 11',
 } as const;
 export type ButtonIconKind = keyof typeof BUTTON_ICON_PATHS;
 export const BUTTON_ICON_SIZE = 14;
@@ -55,6 +56,7 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'hosting.deploy') return 'globe';
   if (id === 'hosting.open') return 'link';
   if (id === 'hosting.stop') return 'close';
+  if (id === 'hosting.rename') return 'edit';
   if (id === 'deployment.save') return 'check';
   if (/^(result|workspace|activity)\.close$|^run.event.close$|^activity.files$|^workspace.parent$|^runs\.project\.back\./.test(id)) return 'back';
   if (/^activity.source\./.test(id)) return 'code';

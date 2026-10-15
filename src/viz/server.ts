@@ -4722,6 +4722,19 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
+    const hostingAddress = pathname.match(/^\/api\/projects\/([^/]+)\/hosting-address$/);
+    if (hostingAddress) {
+      if (!methodAllowed(req, res, 'PUT') || !sameOrigin(req, res)) return;
+      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
+      try {
+        sendJson(res, 200, await PROJECTS_RUNTIME.projects.setHostingSubdomain(req, viewer, hostingAddress[1]!));
+      } catch (error) {
+        if (!(error instanceof ProjectHttpError)) throw error;
+        sendJson(res, error.status, { error: error.message });
+      }
+      return;
+    }
+
     const upstreamSetting = pathname.match(/^\/api\/projects\/([^/]+)\/upstream$/);
     if (upstreamSetting) {
       if (!methodAllowed(req, res, 'PUT') || !sameOrigin(req, res)) return;

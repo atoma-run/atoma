@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { ButtonIcon } from './ButtonIcon.js';
+import { buttonIconKind } from './button-icons.js';
+import { HOSTING_SUBDOMAIN_MAX } from '../../contracts/projectDeployment.js';
 import { deploymentCopy, hostingCopy, type DeploymentSettingsView } from './project-deployment.js';
 
-export function ProjectSettingsAccessible({ view, t, onActivate }: {
+export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress }: {
   view: DeploymentSettingsView; t: (key: string) => string; onActivate: (id: string) => void;
+  onRenameAddress?: (subdomain: string) => void;
 }) {
   const copy = deploymentCopy(view);
   const hosted = hostingCopy(view);
@@ -32,7 +36,36 @@ export function ProjectSettingsAccessible({ view, t, onActivate }: {
       {hosted.candidateVersion ? <p>{t('hosting.candidateVersion')}: {hosted.candidateVersion}</p> : null}
       <p>{t('hosting.updateNotice')}</p>
       {hosted.buttons.map(button => <button key={button.id} type="button" disabled={Boolean(button.disabled)}
-        onClick={() => onActivate(button.id)}><ButtonIcon kind={button.id === 'hosting.deploy' ? 'globe' : button.id === 'hosting.open' ? 'link' : 'close'} />{t(button.id)}</button>)}
+        onClick={() => onActivate(button.id)}><ButtonIcon kind={buttonIconKind(button.id)} />{t(button.id)}</button>)}
+      {view.renaming && hosted.label && hosted.domain && onRenameAddress ?
+        <AddressForm key={hosted.label} label={hosted.label} domain={hosted.domain} view={view} t={t}
+          onSave={onRenameAddress} onCancel={() => onActivate('hosting.renameCancel')} /> : null}
     </section> : null}
   </section>;
+}
+
+/**
+ * The address field. It lives in the accessibility bridge, which becomes the
+ * visible keyboard palette while it holds focus: the canvas draws no text
+ * input, and a second framed overlay is what the overlay stack forbids.
+ */
+function AddressForm({ label, domain, view, t, onSave, onCancel }: {
+  label: string; domain: string; view: DeploymentSettingsView; t: (key: string) => string;
+  onSave: (subdomain: string) => void; onCancel: () => void;
+}) {
+  const [value, setValue] = useState(label);
+  return <form className="gpu-address-form" aria-label={t('hosting.renameTitle')} onSubmit={event => { event.preventDefault(); onSave(value); }}
+    onKeyDown={event => { if (event.key === 'Escape') onCancel(); }}>
+    <label>{t('hosting.renameLabel')}
+      <input autoFocus type="text" value={value} maxLength={HOSTING_SUBDOMAIN_MAX} spellCheck={false} autoCapitalize="none" autoComplete="off"
+        aria-describedby="hosting-rename-rule" aria-invalid={view.renameError === 'invalid'} disabled={view.renameBusy}
+        onChange={event => setValue(event.target.value)} />
+      <span>.{domain}</span>
+    </label>
+    <p id="hosting-rename-rule">{t('hosting.renameRule')}</p>
+    <p>{t('hosting.renameRedirect')}</p>
+    {view.renameError ? <p role="alert">{t(`hosting.rename.${view.renameError}`)}</p> : null}
+    <button type="submit" disabled={view.renameBusy || value.trim().toLowerCase() === label}><ButtonIcon kind="save" />{t('hosting.renameSave')}</button>
+    <button type="button" onClick={onCancel}><ButtonIcon kind="close" />{t('hosting.renameCancel')}</button>
+  </form>;
 }

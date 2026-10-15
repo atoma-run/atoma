@@ -213,3 +213,20 @@ version through Project settings, and verified Application online at 33498eae.
 Real Chrome click on the delivered link navigated in the same tab, desktop
 reported Connected, and Back to application restored all 68 collected offers.
 Existing local pilot/profile/68 offers untouched.
+
+## Model-chosen hosting address — 2026-10-15
+
+Owner request: the `xxx` in `xxx.app.atoma.run` is AI-generated and saved in
+project settings, letters and hyphens only, at most three words. Shipped in
+`c7b17bda`: `projects.hosting_subdomain` (immutable trigger, global unique
+index), proposed by the host `api:` tier-1 model (same payer as run titles,
+receipt kept), assigned when the destination is saved as Atoma or at first
+deploy. A slug/name/random-word fallback means deployment never waits on a model.
+Projects without a label keep `p-<uuid>` until one is assigned. The gateway
+answers unknown and private addresses identically (readable labels are
+guessable). Owner follow-up the same day: an admin may rename it, and the old
+address must answer with a PERMANENT redirect. Built: `project_hosting_aliases`
+retires old labels forever (never reusable, so cached 308s cannot go stale),
+the gateway sends 308 to the CURRENT label (one hop), and DB triggers refuse a
+rename that drops a redirect. The field lives in the a11y palette (canvas has
+no text input); `viz:shot --project-settings` drives it from the canvas button.

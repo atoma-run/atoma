@@ -19,6 +19,16 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
   async function handler(req: IncomingMessage, res: ServerResponse) {
     const host = req.headers.host?.toLowerCase();
     if (!host || req.headers['service-worker']) { respond(res, 404); return; }
+    // A renamed project's old address redirects permanently, path and query
+    // kept; 308 keeps the method. Labels are never reused, so a cached
+    // redirect cannot go stale. It does reveal that the old address existed.
+    const moved = service.movedHost(host);
+    if (moved) {
+      // Only the parsed path and query cross: an absolute-form request target
+      // must not choose the redirect's host.
+      const target = new URL(req.url ?? '/', `https://${moved}`);
+      res.writeHead(308, { ...policy, location: `https://${moved}${target.pathname}${target.search}` }); res.end(); return;
+    }
     // Addresses are readable words, so they are guessable: an unknown address
     // and a private one must answer alike, or the gateway tells strangers
     // which projects exist and are online.

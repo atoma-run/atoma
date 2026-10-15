@@ -76,6 +76,12 @@ it('gives a project its model-proposed address before the first deployment and s
   expect(projects.getProject(viewer.orgId, projectId)!.hostingSubdomain).toBe('acme-site');
   expect(named.status(viewer, projectId)).toMatchObject({ state: 'ready', address: 'https://acme-site.app.atoma.run/', url: 'https://acme-site.app.atoma.run/' });
   expect(named.host(named.deps.store.list()[0]!)).toBe('acme-site.app.atoma.run');
+  // Renamed while online: served at the new address, the old one redirects there.
+  projects.renameHostingSubdomain(viewer.orgId, projectId, { subdomain: 'acme-shop', expectedSubdomain: 'acme-site' });
+  expect(named.status(viewer, projectId)).toMatchObject({ address: 'https://acme-shop.app.atoma.run/', url: 'https://acme-shop.app.atoma.run/' });
+  expect(named.movedHost('acme-site.app.atoma.run')).toBe('acme-shop.app.atoma.run');
+  expect(named.movedHost('acme-shop.app.atoma.run')).toBeNull();
+  expect(named.movedHost('acme-site.elsewhere.test')).toBeNull();
 });
 it('refuses foreign organisations, members, stale requests and a concurrent start', async () => {
   publish();

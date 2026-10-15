@@ -1423,6 +1423,7 @@ function GpuAppContent({
             }}
           /> : null}
           deploymentSettings={deployment.view}
+          onRenameAddress={deployment.renameAddress}
           workspace={workspace}
           mcpAccessState={mcpAccessState}
           onOpenMcp={() => {

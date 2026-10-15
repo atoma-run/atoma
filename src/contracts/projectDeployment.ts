@@ -23,3 +23,9 @@ export type HostingSubdomain = z.infer<typeof hostingSubdomainSchema>;
 export const RESERVED_HOSTING_SUBDOMAINS: ReadonlySet<string> = new Set([
   'www', 'api', 'app', 'apps', 'admin', 'atoma', 'auth', 'login', 'mail', 'mcp', 'preview', 'status', 'static', 'cdn',
 ]);
+
+/** An administrator's address change; `expectedSubdomain` rejects a stale write. */
+export const hostingAddressInputSchema = z.object({
+  subdomain: hostingSubdomainSchema,
+  expectedSubdomain: hostingSubdomainSchema.nullable(),
+}).strict();

@@ -93,7 +93,7 @@ mutation occurs when a project is deployed.
 
 A project's address is `<label>.app.atoma.run`. The label is chosen once, when
 the destination is first saved as Atoma (or at the first deployment of a
-project saved earlier), and stored on the project; it never changes after.
+project saved earlier), and stored on the project.
 The host's `api:` tier-1 model proposes candidates from the project's name and
 brief, on the platform's credential like run titles, and its receipt is kept.
 Only one to three words of `a-z` joined by single hyphens are accepted, and
@@ -103,8 +103,17 @@ then the slug's first words plus a random word. A model outage never blocks a
 deployment. A project deployed before labels existed keeps `p-<project UUID>`
 until it receives one, then moves to it; reopen it from Atoma.
 
+An organisation administrator can change the address in Project settings. The
+previous address then answers with a permanent redirect (308, path and query
+kept) to the project's current address, for good: a retired label is never
+assigned again, to that project or any other, because browsers cache permanent
+redirects without expiry. Renaming twice still redirects in one hop. The
+database refuses any rename that would drop a redirect.
+
 Readable labels are guessable, so the gateway answers an unknown address and a
-private one identically: the address does not reveal whether a project exists. TLS uses a wildcard certificate obtained with
+private one identically: the address does not reveal whether a project exists.
+A retired address is the exception by design: its redirect reveals that it
+existed and names the current address, never the application behind it. TLS uses a wildcard certificate obtained with
 DNS-01. An operator-scoped Gandi PAT belongs only in the certificate-renewal
 service, never in Atoma, the product DB, a project or its runtime.
 

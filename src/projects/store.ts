@@ -1,4 +1,4 @@
-import { deploymentSettingInputSchema, hostingSubdomainSchema, RESERVED_HOSTING_SUBDOMAINS } from '../contracts/projectDeployment.js';
+import { deploymentSettingInputSchema, hostingAddressInputSchema, hostingSubdomainSchema, RESERVED_HOSTING_SUBDOMAINS } from '../contracts/projectDeployment.js';
 import { readProjectLearning } from './learningRead.js';
 import type { ProjectLearningInput, ProjectLearningCursor } from '../contracts/projectLearning.js';
 import { initializeProjectContext, readProjectContext, projectContextHistory, updateProjectContext } from './context.js';
@@ -426,6 +426,14 @@ const PUBLICATION_TRANSITIONS: Readonly<Record<PublicationStatus, readonly Publi
   published: [],
   failed: ['publishing'],
 };
+
+/** A requested hosting address outside the grammar, or reserved by the platform. */
+export class HostingAddressInvalid extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HostingAddressInvalid';
+  }
+}
 
 export class ProjectStateConflict extends Error {
   constructor(message: string) {
@@ -882,11 +890,35 @@ export class ProjectStore {
       // recorded is a fact about the past.
       this.db.exec(`
 CREATE UNIQUE INDEX IF NOT EXISTS projects_hosting_subdomain ON projects(hosting_subdomain) WHERE hosting_subdomain IS NOT NULL;
-CREATE TRIGGER IF NOT EXISTS projects_hosting_subdomain_immutable
+-- A renamed address keeps answering with a permanent redirect, forever: its
+-- label is retained here and never given to anyone again, the owner included,
+-- because browsers cache a permanent redirect without expiry.
+CREATE TABLE IF NOT EXISTS project_hosting_aliases (
+  subdomain   TEXT PRIMARY KEY,
+  org_id      TEXT NOT NULL,
+  project_id  TEXT NOT NULL REFERENCES projects(project_id),
+  replaced_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS project_hosting_aliases_project ON project_hosting_aliases(project_id);
+CREATE TRIGGER IF NOT EXISTS project_hosting_aliases_immutable BEFORE UPDATE ON project_hosting_aliases
+BEGIN SELECT RAISE(ABORT, 'a retired hosting address is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS project_hosting_aliases_own BEFORE INSERT ON project_hosting_aliases
+WHEN NOT EXISTS (SELECT 1 FROM projects WHERE project_id = NEW.project_id AND org_id = NEW.org_id AND hosting_subdomain = NEW.subdomain)
+BEGIN SELECT RAISE(ABORT, 'only a project''s current hosting address can be retired'); END;
+DROP TRIGGER IF EXISTS projects_hosting_subdomain_immutable;
+CREATE TRIGGER IF NOT EXISTS projects_hosting_subdomain_retained
 BEFORE UPDATE OF hosting_subdomain, hosting_subdomain_receipt_json ON projects
-WHEN OLD.hosting_subdomain IS NOT NULL
-  AND (NEW.hosting_subdomain IS NOT OLD.hosting_subdomain OR NEW.hosting_subdomain_receipt_json IS NOT OLD.hosting_subdomain_receipt_json)
-BEGIN SELECT RAISE(ABORT, 'a project hosting address is immutable'); END;
+WHEN OLD.hosting_subdomain IS NOT NULL AND (
+  NEW.hosting_subdomain IS NULL
+  OR NEW.hosting_subdomain_receipt_json IS NOT OLD.hosting_subdomain_receipt_json
+  OR (NEW.hosting_subdomain IS NOT OLD.hosting_subdomain AND NOT EXISTS (
+    SELECT 1 FROM project_hosting_aliases WHERE subdomain = OLD.hosting_subdomain AND project_id = OLD.project_id)))
+BEGIN SELECT RAISE(ABORT, 'a replaced hosting address must keep redirecting'); END;
+CREATE TRIGGER IF NOT EXISTS projects_hosting_subdomain_unretired
+BEFORE UPDATE OF hosting_subdomain ON projects
+WHEN NEW.hosting_subdomain IS NOT OLD.hosting_subdomain
+  AND EXISTS (SELECT 1 FROM project_hosting_aliases WHERE subdomain = NEW.hosting_subdomain)
+BEGIN SELECT RAISE(ABORT, 'a retired hosting address is never reused'); END;
 CREATE TRIGGER IF NOT EXISTS project_runs_base_immutable BEFORE UPDATE OF base_run_id ON project_runs
 WHEN NEW.base_run_id IS NOT OLD.base_run_id
 BEGIN SELECT RAISE(ABORT, 'iteration base is immutable'); END;
@@ -2483,16 +2515,57 @@ END;
       const before = this.getProject(orgId, projectId);
       if (!before) return null;
       if (before.hostingSubdomain) return { subdomain: before.hostingSubdomain, assigned: false };
-      const taken = this.db.prepare('SELECT 1 FROM projects WHERE hosting_subdomain = ?');
       for (const candidate of candidates) {
         const parsed = hostingSubdomainSchema.safeParse(candidate);
-        if (!parsed.success || RESERVED_HOSTING_SUBDOMAINS.has(parsed.data) || taken.get(parsed.data)) continue;
+        if (!parsed.success || RESERVED_HOSTING_SUBDOMAINS.has(parsed.data) || this.hostingLabelTaken(parsed.data)) continue;
         this.db.prepare(`UPDATE projects SET hosting_subdomain = ?, hosting_subdomain_receipt_json = ?
           WHERE org_id = ? AND project_id = ? AND hosting_subdomain IS NULL`).run(parsed.data, stored, orgId, projectId);
         return { subdomain: parsed.data, assigned: true };
       }
       return null;
     }).immediate();
+  }
+
+  /** Held now as a current address, or once held and still redirecting. */
+  private hostingLabelTaken(label: string): boolean {
+    return !!this.db.prepare(`SELECT 1 FROM projects WHERE hosting_subdomain = ?
+      UNION ALL SELECT 1 FROM project_hosting_aliases WHERE subdomain = ? LIMIT 1`).get(label, label);
+  }
+
+  /**
+   * An administrator's choice of address. Compare-and-set on the address the
+   * client saw. The address it replaces is retired, not freed: it redirects to
+   * the project's current address for good, and no project may take it again.
+   * Throws `ProjectStateConflict` for a stale write or a taken label, and
+   * `HostingAddressInvalid` for a label outside the grammar or reserved.
+   */
+  renameHostingSubdomain(orgIdInput: string, projectIdInput: string, input: unknown): { project: Project; previous: string | null } | null {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const projectId = projectIdSchema.parse(projectIdInput);
+    const { subdomain, expectedSubdomain } = hostingAddressInputSchema.parse(input);
+    return this.db.transaction(() => {
+      const before = this.getProject(orgId, projectId);
+      if (!before) return null;
+      if (before.hostingSubdomain !== expectedSubdomain) throw new ProjectStateConflict('hosting address changed; reload before saving');
+      if (subdomain === before.hostingSubdomain) return { project: before, previous: before.hostingSubdomain };
+      if (RESERVED_HOSTING_SUBDOMAINS.has(subdomain)) throw new HostingAddressInvalid('this address is reserved');
+      if (this.hostingLabelTaken(subdomain)) throw new ProjectStateConflict('this address is taken');
+      const now = new Date().toISOString();
+      if (before.hostingSubdomain) {
+        this.db.prepare('INSERT INTO project_hosting_aliases (subdomain, org_id, project_id, replaced_at) VALUES (?, ?, ?, ?)')
+          .run(before.hostingSubdomain, orgId, projectId, now);
+      }
+      this.db.prepare('UPDATE projects SET hosting_subdomain = ?, updated_at = ? WHERE org_id = ? AND project_id = ?')
+        .run(subdomain, now, orgId, projectId);
+      return { project: this.getProject(orgId, projectId)!, previous: before.hostingSubdomain };
+    }).immediate();
+  }
+
+  /** The current address of the project that once held `label`; null when no project ever retired it. */
+  hostingAliasTarget(label: string): string | null {
+    const row = this.db.prepare(`SELECT p.hosting_subdomain AS current FROM project_hosting_aliases a
+      JOIN projects p ON p.project_id = a.project_id AND p.org_id = a.org_id WHERE a.subdomain = ?`).get(label) as { current: string | null } | undefined;
+    return row?.current ?? null;
   }
 
   /** What choosing this project's hosting label cost; null when no model was paid. */

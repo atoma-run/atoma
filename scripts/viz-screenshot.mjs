@@ -925,11 +925,20 @@ try {
           if (has('--project-settings') && /^\/api\/projects\/[^/]+\/hosting(?:\/deploy)?$/.test(path)) {
             const key = path.replace(/\/deploy$/, '');
             const state = stubs[key] ?? { available: true, state: 'not-deployed', deploymentId: null, runId: null,
-              commitSha: null, url: null, error: null, candidate: { runId: '11111111-1111-4111-8111-111111111111', manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40) } };
+              commitSha: null, url: null, error: null, address: 'https://fixture.app.atoma.run/', candidate: { runId: '11111111-1111-4111-8111-111111111111', manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40) } };
             if (request.method() === 'POST') Object.assign(state, { state: 'ready', deploymentId: '22222222-2222-4222-8222-222222222222',
-              runId: state.candidate.runId, commitSha: state.candidate.commitSha, url: 'https://fixture.app.atoma.run/' });
+              runId: state.candidate.runId, commitSha: state.candidate.commitSha, url: state.address });
             stubs[key] = state;
             void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(state) }); return;
+          }
+          if (has('--project-settings') && /^\/api\/projects\/[^/]+\/hosting-address$/.test(path) && request.method() === 'PUT') {
+            const body = JSON.parse(request.postData() ?? '{}');
+            const hosting = stubs[path.replace(/\/hosting-address$/, '/hosting')];
+            const project = stubs['/api/projects'].find(row => row.projectId === path.split('/')[3]);
+            if (hosting) Object.assign(hosting, { address: `https://${body.subdomain}.app.atoma.run/`, url: hosting.url ? `https://${body.subdomain}.app.atoma.run/` : null });
+            if (project) project.hostingSubdomain = body.subdomain;
+            stubs.renamedAddress = body;
+            void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(project ?? {}) }); return;
           }
           if (has('--project-settings') && /^\/api\/projects\/[^/]+\/deployment$/.test(path) && request.method() === 'PUT') {
             const project = stubs['/api/projects'].find(row => row.projectId === path.split('/')[3]);
@@ -1223,7 +1232,22 @@ try {
       await click('hosting.deploy');
       await page.waitForFunction(() => document.body.textContent.includes('Application online'));
       if (!Object.entries(stubs).some(([key, value]) => key.endsWith('/hosting') && value.state === 'ready')) throw new Error('Deployment action missing');
-      console.log('Project settings: explicit preference save, separate deployment action, online version and access controls');
+      // Renaming starts on the canvas control and edits in the revealed keyboard palette.
+      for (const project of stubs['/api/projects']) project.hostingSubdomain = 'fixture';
+      await click('hosting.rename');
+      const field = await page.waitForSelector('.gpu-a11y-bridge input[type="text"]', { visible: true });
+      const palette = await page.evaluate(() => { const rect = document.querySelector('.gpu-a11y-bridge').getBoundingClientRect();
+        const input = document.querySelector('.gpu-a11y-bridge input[type="text"]');
+        return { width: rect.width, height: rect.height, focused: document.activeElement === input, value: input.value }; });
+      if (!palette.focused || palette.value !== 'fixture' || palette.width < 200 || palette.height < 40) throw new Error(`Address field not shown: ${JSON.stringify(palette)}`);
+      await page.screenshot({ path: outPath.replace(/\.png$/, '-rename.png') });
+      await field.evaluate(input => input.select()); await field.type('fixture-shop'); await page.keyboard.press('Enter');
+      await page.waitForFunction(() => document.body.textContent.includes('https://fixture-shop.app.atoma.run/')).catch(async error => {
+        throw new Error(`Rename did not land: ${JSON.stringify({ sent: stubs.renamedAddress ?? null,
+          text: await page.evaluate(() => document.querySelector('.gpu-a11y-bridge')?.textContent?.slice(-600)) })}`, { cause: error });
+      });
+      if (stubs.renamedAddress?.subdomain !== 'fixture-shop' || stubs.renamedAddress?.expectedSubdomain !== 'fixture') throw new Error(`Rename not sent: ${JSON.stringify(stubs.renamedAddress)}`);
+      console.log('Project settings: explicit preference save, separate deployment action, online version, access controls and address rename');
     }
 
     if (view === 'Projects' && selectFirst && (projectRunCards || githubAccessProbe || has('--github-access') || showResult || has('--touch-probe'))) {

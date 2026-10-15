@@ -42,6 +42,17 @@ export class HostingService {
     return `${label ?? `p-${projectId}`}.${this.deps.domain}`;
   }
   host(row: HostedDeployment): string { return this.hostOf(row.orgId, row.projectId); }
+  /**
+   * Where a retired address now lives: the project's CURRENT address, never
+   * the next hop, so a twice-renamed project still answers in one redirect.
+   * Null for anything that is not a retired label under this domain.
+   */
+  movedHost(host: string): string | null {
+    const suffix = `.${this.deps.domain}`;
+    if (!host.endsWith(suffix)) return null;
+    const current = this.deps.projects.hostingAliasTarget(host.slice(0, -suffix.length));
+    return current ? `${current}${suffix}` : null;
+  }
   status(viewer: Viewer, projectId: string): HostingSummary {
     const project = this.project(viewer, projectId);
     const rows = this.deps.store.list(viewer.orgId, projectId); const row = rows[0];

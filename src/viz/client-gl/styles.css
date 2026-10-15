@@ -865,7 +865,8 @@ html.atoma-cursor-active * {
 
 .gpu-a11y-bridge:focus-within button,
 .gpu-a11y-bridge:focus-within a,
-.gpu-a11y-bridge:focus-within select {
+.gpu-a11y-bridge:focus-within select,
+.gpu-a11y-bridge:focus-within input[type="text"] {
   border: 1px solid rgba(110, 168, 255, .62);
   border-radius: 6px;
   padding: 6px 9px;
@@ -879,6 +880,12 @@ html.atoma-cursor-active * {
   gap: 8px;
   margin-block: 0 8px;
 }
+
+/* The address field takes the palette's whole width and wraps: the fixed
+   domain suffix drops below the input rather than past the palette edge. */
+.gpu-a11y-bridge:focus-within .gpu-address-form { flex: 1 1 100%; min-width: 0; }
+.gpu-a11y-bridge:focus-within .gpu-address-form label { flex-wrap: wrap; }
+.gpu-a11y-bridge:focus-within .gpu-address-form input { flex: 1 1 8em; min-width: 0; }
 
 /* Docs is content as well as navigation. The canvas is aria-hidden, so this
    article is the complete semantic twin of the Pixi field guide. It shares

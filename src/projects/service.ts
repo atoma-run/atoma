@@ -1,4 +1,4 @@
-import { deploymentSettingInputSchema } from '../contracts/projectDeployment.js';
+import { deploymentSettingInputSchema, hostingAddressInputSchema } from '../contracts/projectDeployment.js';
 import { projectLearningInputSchema, projectLearningCursorSchema } from '../contracts/projectLearning.js';
 import { projectRetrievalRequestSchema } from '../contracts/projectRetrieval.js';
 import { searchSavedProjectCode } from './retrievalRead.js';
@@ -36,7 +36,7 @@ import {
 import { eventLabel, type CrossOrgRead, type CrossOrgReadSink, type PlatformEventSink } from '../contracts/platformEvents.js';
 import { GitHubStore } from '../github/store.js';
 import { GitHubAccessRequiredError, PublicationSupersededError, type GitHubPublisher } from './publisher.js';
-import { ProjectStateConflict, resolveProjectRunTraceFile } from './store.js';
+import { HostingAddressInvalid, ProjectStateConflict, resolveProjectRunTraceFile } from './store.js';
 import { projectRunHostRedactions, redactHostPaths } from './hostPaths.js';
 import type { RunPayerLedger } from '../contracts/runPayers.js';
 import {
@@ -512,6 +512,33 @@ export class ProjectService {
       void ensureHostingSubdomain({ store: this.store, namer: this.hostingNamer, events: this.events }, viewer.orgId, projectId)
         .catch((error: unknown) => process.stderr.write(`[atoma projects] hosting address not assigned: ${error instanceof Error ? error.message : String(error)}\n`));
     }
+    return publicProject(project, undefined, this.showcaseViews()(viewer.orgId, projectId));
+  }
+
+  /**
+   * An administrator renames the project's hosting address. The previous
+   * address answers with a permanent redirect to the new one, for good.
+   */
+  async setHostingSubdomain(req: IncomingMessage, viewer: Viewer, projectId: string): Promise<unknown> {
+    projectId = clientInput(projectIdSchema, projectId);
+    if (!roleAtLeast(viewer.role, 'org:admin')) throw new ProjectHttpError(403, 'org:admin role or above is required');
+    const parsed = hostingAddressInputSchema.safeParse(await readJsonBody(req));
+    if (!parsed.success) throw new ProjectHttpError(400, 'invalid hosting address');
+    let renamed;
+    try { renamed = this.store.renameHostingSubdomain(viewer.orgId, projectId, parsed.data); }
+    catch (error) {
+      if (error instanceof ProjectStateConflict) throw new ProjectHttpError(409, error.message);
+      if (error instanceof HostingAddressInvalid) throw new ProjectHttpError(400, error.message);
+      throw error;
+    }
+    if (!renamed) throw new ProjectHttpError(404, 'project not found');
+    const { project, previous } = renamed;
+    if (previous !== project.hostingSubdomain) this.events({
+      kind: 'project.hosting_address_assigned', actorType: 'principal', actorId: viewer.principalId,
+      orgId: viewer.orgId, projectId, summary: `Hosting address changed for ${eventLabel(project.name, 80)}`,
+      // Both labels passed `hostingSubdomainSchema`: letters and hyphens only.
+      detail: { subdomain: project.hostingSubdomain, previous, source: 'admin' },
+    });
     return publicProject(project, undefined, this.showcaseViews()(viewer.orgId, projectId));
   }
 

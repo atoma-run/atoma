@@ -1,7 +1,7 @@
 import { hostingSummarySchema, type HostingSummary } from '../../contracts/projectHosting.js';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { deploymentDestinationSchema, type DeploymentDestination } from '../../contracts/projectDeployment.js';
+import { deploymentDestinationSchema, hostingSubdomainSchema, RESERVED_HOSTING_SUBDOMAINS, type DeploymentDestination } from '../../contracts/projectDeployment.js';
 import type { VizProject } from '../client/types.js';
 
 export interface DeploymentSettingsView {
@@ -13,6 +13,10 @@ export interface DeploymentSettingsView {
   canEdit: boolean;
   busy: boolean;
   status: 'idle' | 'saved' | 'failed' | 'conflict';
+  /** The administrator is choosing a new hosting address. */
+  renaming?: boolean;
+  renameBusy?: boolean;
+  renameError?: 'invalid' | 'conflict' | 'failed' | null;
 }
 
 export function useProjectDeployment(project: VizProject | null | undefined, canEdit: boolean) {
@@ -23,6 +27,7 @@ export function useProjectDeployment(project: VizProject | null | undefined, can
   const saved = project?.deploymentDestination ?? 'none';
   const [hostingBusy, setHostingBusy] = useState(false);
   const [hostingError, setHostingError] = useState(false);
+  const [rename, setRename] = useState<{ projectId: string; busy: boolean; error: DeploymentSettingsView['renameError'] }>();
   const hosting = useQuery({ queryKey: ['hosting', project?.projectId], enabled: !!project,
     retry: false, refetchInterval: project ? 5000 : false,
     queryFn: async () => {
@@ -35,9 +40,16 @@ export function useProjectDeployment(project: VizProject | null | undefined, can
   const key = `${project?.projectId}:${saved}`;
   const view = useMemo<DeploymentSettingsView>(() => ({ destination: edit?.key === key ? edit.destination : saved,
     hosting: hosting.data, hostingBusy, hostingError: hostingError || hosting.isError, saved, canEdit, busy: saving === project?.projectId && saving !== undefined,
-    status: edit?.key === key ? edit.status : 'idle' }), [edit, key, saved, canEdit, saving, project?.projectId, hosting.data, hostingBusy, hostingError, hosting.isError]);
+    status: edit?.key === key ? edit.status : 'idle',
+    renaming: rename?.projectId === project?.projectId && rename !== undefined, renameBusy: rename?.busy ?? false, renameError: rename?.error ?? null }),
+  [edit, key, saved, canEdit, saving, project?.projectId, hosting.data, hostingBusy, hostingError, hosting.isError, rename]);
   const activate = useCallback((id: string) => {
     if (!project || inFlight.current) return;
+    if (id === 'hosting.rename') {
+      if (canEdit && hosting.data?.address) setRename({ projectId: project.projectId, busy: false, error: null });
+      return;
+    }
+    if (id === 'hosting.renameCancel') { setRename(undefined); return; }
     if (id.startsWith('hosting.')) {
       const action = id.slice('hosting.'.length);
       if (!['deploy', 'stop', 'open'].includes(action) || !hosting.data || hostingBusy || (action !== 'open' && !canEdit)) return;
@@ -93,7 +105,35 @@ export function useProjectDeployment(project: VizProject | null | undefined, can
       })();
     }
   }, [project, canEdit, key, saved, view.destination, client, hosting, hostingBusy]);
-  return useMemo(() => ({ view, activate }), [view, activate]);
+  /** Save a new address; the previous one keeps redirecting to it. */
+  const renameAddress = useCallback((value: string) => {
+    if (!project || !canEdit || rename?.busy) return;
+    const subdomain = value.trim().toLowerCase();
+    const parsed = hostingSubdomainSchema.safeParse(subdomain);
+    if (!parsed.success || RESERVED_HOSTING_SUBDOMAINS.has(subdomain)) {
+      setRename({ projectId: project.projectId, busy: false, error: 'invalid' }); return;
+    }
+    const projectId = project.projectId;
+    setRename({ projectId, busy: true, error: null });
+    void (async () => {
+      try {
+        const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/hosting-address`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          // The address the administrator is looking at, so a rename elsewhere meanwhile is a conflict, not an overwrite.
+          body: JSON.stringify({ subdomain, expectedSubdomain: addressParts(hosting.data?.address ?? null).label ?? project.hostingSubdomain ?? null }),
+        });
+        if (!response.ok) {
+          setRename({ projectId, busy: false, error: response.status === 400 ? 'invalid' : response.status === 409 ? 'conflict' : 'failed' });
+          return;
+        }
+        client.setQueryData<VizProject[]>(['viz', 'projects'], rows => rows?.map(row =>
+          row.projectId === projectId ? { ...row, hostingSubdomain: subdomain } : row));
+        setRename(undefined);
+        await Promise.all([client.invalidateQueries({ queryKey: ['viz', 'projects'] }), hosting.refetch()]);
+      } catch { setRename({ projectId, busy: false, error: 'failed' }); }
+    })();
+  }, [project, canEdit, rename?.busy, client, hosting]);
+  return useMemo(() => ({ view, activate, renameAddress }), [view, activate, renameAddress]);
 }
 
 export function deploymentCopy(view: DeploymentSettingsView) {
@@ -113,9 +153,18 @@ export function hostingCopy(view: DeploymentSettingsView) {
     version: hosting?.commitSha?.slice(0, 8), candidateVersion: hosting?.candidate?.commitSha.slice(0, 8),
     // The stored address; a deployment still served at its pre-address `p-<uuid>` host shows that host too.
     address: hosting?.address ?? null, url: hosting?.url && hosting.url !== hosting.address ? hosting.url : null,
+    ...addressParts(hosting?.address ?? null),
     buttons: [
       { id: 'hosting.deploy', disabled: !view.canEdit || !hosting?.candidate || view.hostingBusy || hosting.state === 'starting' || !!hosting.url },
       { id: 'hosting.open', disabled: !hosting?.url || view.hostingBusy },
       { id: 'hosting.stop', disabled: !view.canEdit || !hosting?.deploymentId || view.hostingBusy || hosting.state === 'starting' || hosting.state === 'stopped' },
+      ...(hosting?.address && view.canEdit ? [{ id: 'hosting.rename', disabled: view.hostingBusy || !!view.renameBusy }] : []),
     ] };
+}
+
+/** `https://<label>.<domain>/` split for the rename field: the label is edited, the domain is fixed. */
+function addressParts(address: string | null): { label: string | null; domain: string | null } {
+  if (!address) return { label: null, domain: null };
+  const host = new URL(address).hostname; const dot = host.indexOf('.');
+  return dot > 0 ? { label: host.slice(0, dot), domain: host.slice(dot + 1) } : { label: null, domain: null };
 }

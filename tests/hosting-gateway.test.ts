@@ -20,7 +20,7 @@ it('exchanges a one-time private claim, strips credentials, and refuses cross-or
   const upstreamPort = await listen(createServer((req, res) => { received = req.headers; res.setHeader('Set-Cookie', 'evil=1; Domain=atoma.run'); res.end('offers'); }));
   const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'node', entry: 'server.js', createdAt: new Date().toISOString(), error: null, hostPort: upstreamPort, image: 'image' };
   const host = `p-${row.projectId}.app.atoma.run`;
-  const service = { deps: { store: { list: () => [row] } }, host: () => host, status: vi.fn() } as unknown as HostingService;
+  const service = { deps: { store: { list: () => [row] } }, host: () => host, movedHost: () => null, status: vi.fn() } as unknown as HostingService;
   const viewer = { orgId: row.orgId, principalId: randomUUID() } as Viewer;
   let allowed = true;
   const gateway = createHostingGateway(service, 'https://atoma.run', () => allowed);
@@ -41,7 +41,7 @@ it('exchanges a one-time private claim, strips credentials, and refuses cross-or
 it('answers an unknown address exactly as a private one, so readable addresses cannot be enumerated', async () => {
   const upstreamPort = await listen(createServer((_req, res) => res.end('offers')));
   const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'static', entry: 'index.js', createdAt: new Date().toISOString(), error: null, hostPort: upstreamPort, image: 'image' };
-  const service = { deps: { store: { list: () => [row] } }, host: () => 'weather-lab.app.atoma.run', status: vi.fn() } as unknown as HostingService;
+  const service = { deps: { store: { list: () => [row] } }, host: () => 'weather-lab.app.atoma.run', movedHost: () => null, status: vi.fn() } as unknown as HostingService;
   const port = await listen(createHostingGateway(service, 'https://atoma.run', () => true).server);
   for (const path of ['/', '/.atoma/open']) {
     const known = await call(port, 'weather-lab.app.atoma.run', path); const unknown = await call(port, 'weather-lob.app.atoma.run', path);
@@ -49,6 +49,16 @@ it('answers an unknown address exactly as a private one, so readable addresses c
   }
   const claim = (host: string) => call(port, host, '/.atoma/claim', { origin: `https://${host}` }, JSON.stringify({ token: 'guess' }));
   expect((await claim('weather-lob.app.atoma.run')).status).toBe((await claim('weather-lab.app.atoma.run')).status);
+});
+it('redirects a retired address permanently to the current one, keeping path and query but never the request host', async () => {
+  const service = { deps: { store: { list: () => [] } }, host: () => 'none', status: vi.fn(),
+    movedHost: (host: string) => host === 'weather-lab.app.atoma.run' ? 'cloud-desk.app.atoma.run' : null } as unknown as HostingService;
+  const port = await listen(createHostingGateway(service, 'https://atoma.run', () => true).server);
+  const moved = await call(port, 'weather-lab.app.atoma.run', '/offers?page=2');
+  expect(moved.status).toBe(308);
+  expect(moved.headers.location).toBe('https://cloud-desk.app.atoma.run/offers?page=2');
+  expect((await call(port, 'weather-lab.app.atoma.run', 'http://evil.test/steal')).headers.location).toBe('https://cloud-desk.app.atoma.run/steal');
+  expect((await call(port, 'unknown.app.atoma.run', '/')).status).toBe(404);
 });
 it('does not confuse a relay 502 with application readiness', async () => {
   let status = 502; const port = await listen(createServer((_req, res) => { res.writeHead(status); res.end(); }));
@@ -66,7 +76,7 @@ it('protects desktop HTTP and WebSocket and revokes an established tunnel after 
   });
   const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'node', browser: true, entry: 'server.js', createdAt: new Date().toISOString(), error: null, hostPort: await listen(upstream), image: 'image' };
   const host = `p-${row.projectId}.app.atoma.run`;
-  const service = { deps: { store: { list: () => [row] } }, host: () => host, status: vi.fn() } as unknown as HostingService;
+  const service = { deps: { store: { list: () => [row] } }, host: () => host, movedHost: () => null, status: vi.fn() } as unknown as HostingService;
   let allowed = true;
   const gateway = createHostingGateway(service, 'https://atoma.run', () => allowed);
   const port = await listen(gateway.server);
