@@ -281,14 +281,15 @@ const MAX_COPY_DEPTH = 64;
  * Streamed rather than `readFileSync`'d because the per-copy budget is 512 MiB
  * and a copy must not need that much resident memory to move it.
  */
-function copyRegularFileNoFollow(source: string, destination: string): number {
+function copyRegularFileNoFollow(source: string, destination: string, preserveExecutable = false): number {
   const from = openSync(source, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const opened = fstatSync(from);
     if (!opened.isFile()) {
       throw new PreviewPolicyError('special', 'source stopped being a regular file mid-copy');
     }
-    const to = openSync(destination, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+    const mode = preserveExecutable && (opened.mode & 0o111) !== 0 ? 0o700 : 0o600;
+    const to = openSync(destination, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, mode);
     try {
       const buffer = Buffer.allocUnsafe(64 * 1024);
       let copied = 0;
@@ -390,6 +391,8 @@ function containedLinkTarget(
 export function materializePreviewWorkspace(input: {
   readonly sourceRoot: string;
   readonly destinationRoot: string;
+  /** Hosting revalidates accepted executable bits as part of its manifest. */
+  readonly preserveExecutable?: boolean;
   readonly limits?: Partial<PreviewCopyLimits>;
   /** Set only where the caller is root; see `PreviewCopyOwnership`. */
   readonly ownership?: PreviewCopyOwnership;
@@ -507,7 +510,7 @@ export function materializePreviewWorkspace(input: {
       // that grew between the two would otherwise let the copy exceed a cap
       // the caller was told it respected.
       const written = path.join(destination, ...childRelative.split('/'));
-      const copied = copyRegularFileNoFollow(childSource, written);
+      const copied = copyRegularFileNoFollow(childSource, written, input.preserveExecutable);
       if (input.ownership) chownSync(written, input.ownership.uid, input.ownership.gid);
       count(copied);
     }

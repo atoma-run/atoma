@@ -175,3 +175,18 @@ Fix creates only its parent, lets cp create workspace, then resolves its path.
 Fresh container regression and compiled PTY tests passed (five tests). No
 isolation flag or overwrite protection was removed. Browser hosting itself
 was already healthy; activation of the Playwright image awaits this release.
+
+d7e08571 passed release:check (6541/10 skipped), CI 38660664931 and production
+deployment 38661173630. Final Playwright image was activated under the drain
+guard. Exact accepted Attica source passed a real gVisor/Chromium fixture test:
+pause, premature resume refused, synthetic human approval, 2 unique offers,
+JSONL export and full container restart, without xe.gr traffic.
+The first actual deployment 1ae25e75-7882-4bef-97f3-11f003c658e6 failed before
+launch: preview materialization made executable docker-entrypoint.sh mode 600,
+so immutable manifest revalidation correctly refused the copy. Hosting now opts
+into preserving executable identity from the opened source fd (700, never
+setuid or group/world rights); preview defaults remain unchanged. Regression
+covers successful deployment and refusal after the accepted source mode changes.
+36 copy/hosting tests, both typechecks and targeted lint pass; awaiting CI.
+SSH had intermittent pre-auth closure; a persistent connection at
+/tmp/atoma-hosted-ssh worked. No server access protections were changed.

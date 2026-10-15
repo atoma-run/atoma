@@ -1,6 +1,6 @@
 import { runStatsSchema } from '../src/contracts/runStats.js';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -113,6 +113,8 @@ it('does not resurrect a stopped application from an in-flight health probe', as
 });
 it('deploys a declared hosted browser application without requiring a static preview classification', async () => {
   writeFileSync(join(source, 'server.js'), 'console.log("application")');
+  writeFileSync(join(source, 'start.sh'), '#!/bin/sh\necho application\n');
+  chmodSync(join(source, 'start.sh'), 0o755);
   writeFileSync(join(source, 'atoma.hosting.json'), JSON.stringify({ version: 1, runtime: 'node-browser', entry: 'server.js' }));
   const prior = projects.getProjectRun(viewer.orgId, runId)!;
   runId = projects.createProjectRun({ orgId: viewer.orgId, principalId: viewer.principalId, projectId, request: { goal: 'Hosted browser', idempotencyKey: 'browser' }, hostPaths: prior.hostPaths })!.run.projectRunId;
@@ -126,4 +128,11 @@ it('deploys a declared hosted browser application without requiring a static pre
   await service.deploy(viewer, projectId, input()); await service.idle();
   expect(service.status(viewer, projectId).state).toBe('ready');
   expect(launcher.startHosting).toHaveBeenCalledWith(expect.objectContaining({ browser: true, kind: 'node', entry: 'server.js' }));
+  const deployed = service.status(viewer, projectId);
+  expect(statSync(join(root, deployed.deploymentId!, 'start.sh')).mode & 0o777).toBe(0o700);
+  await service.stop(viewer, projectId, deployed.deploymentId);
+  chmodSync(join(source, 'start.sh'), 0o644);
+  await service.deploy(viewer, projectId, { ...input(), expectedDeploymentId: deployed.deploymentId }); await service.idle();
+  expect(service.status(viewer, projectId).state).toBe('failed');
+  expect(launcher.startHosting).toHaveBeenCalledTimes(1);
 });

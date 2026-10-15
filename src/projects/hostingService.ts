@@ -77,7 +77,7 @@ export class HostingService {
     const job = (async () => {
       try {
         const destination = await this.deps.launcher.prepareHosting(identity(row));
-        materializePreviewWorkspace({ sourceRoot: run.hostPaths.workspacePath, destinationRoot: destination,
+        materializePreviewWorkspace({ sourceRoot: run.hostPaths.workspacePath, destinationRoot: destination, preserveExecutable: true,
           ...(this.deps.copyOwnership ? { ownership: this.deps.copyOwnership } : {}) });
         revalidateArtifactManifest({ workspaceRoot: destination, manifest: run.artifactManifest!, expectedHash: row.manifestHash });
         const handle = await this.deps.launcher.startHosting({ orgId: row.orgId, projectId, deploymentId: row.deploymentId, kind: row.kind, entry: row.entry, browser: row.browser });
