@@ -292,3 +292,83 @@ describe('phase current file evidence', () => {
     expect(calls).toHaveLength(count);
   });
 });
+
+// Attica runs 85cc4e83 and f74c140a (2026-10-15): four root refusals said the
+// executed suites were "test titles only". The acceptor read the record_probe
+// outputs naming every passing test, but tests/attica-durability.test.js was
+// only EXECUTED — no criterion named it and no truncated read referenced it —
+// so its assertions never reached root acceptance; and the test files read
+// late in the attempt fell past the sixteen-read cap behind docs and sources.
+describe('root acceptance reads the test files the attempt ran', () => {
+  const suite = (name: string, size: number) =>
+    `test('${name}', () => {\n${'  assert.ok(setup);\n'.repeat(Math.ceil(size / 20))}  assert.equal(${name}.afterRestart, 2);\n});\n`;
+  const sources: Record<string, number> = {
+    'RAPPORT.md': 5181, 'ATTICA-GUIDE-FR.md': 5793, 'browser/control-server.js': 11771, 'browser/attica-store.js': 3697,
+    'browser/collect-xe-browser.js': 18162, 'README.browser.md': 5474, 'browser/local-security.js': 3672, 'browser/control.html': 15369,
+    'browser/xe-browser-session.js': 1491, 'browser/session.js': 2691, 'browser/attica-scheduler.js': 3619,
+    'browser/checkpoint.js': 1331, 'fixtures/xe-browser-server.js': 2635, 'collectors/xe.js': 10875,
+  };
+  const suites: Record<string, number> = {
+    'tests/attica-acceptance-boundaries.test.js': 7861, 'tests/attica-durability.test.js': 11716, 'tests/attica-hosted-ui.test.js': 13192,
+    'tests/attica-scheduler.test.js': 2278, 'tests/xe-browser-hosting-integration.test.js': 6906,
+  };
+
+  function attica() {
+    const files: Record<string, string> = {};
+    for (const [path, size] of Object.entries(sources)) files[path] = `// ${path}\n`.padEnd(size, ' ');
+    for (const [path, size] of Object.entries(suites)) files[path] = suite(path.replace(/\W/g, '_'), size);
+    files['tests/decoy.test.js'] = 'DECOY_NAMED_ONLY_IN_A_NOTE';
+    const reads: string[] = [];
+    const base: ToolExecutor = {
+      has: name => ['read_file', 'record_probe'].includes(name),
+      execute: async (name, args) => {
+        if (name === 'record_probe') return { exitCode: 0, stdout: '✔ forced child interruption replays only the unfinished suffix\nℹ pass 11', stderr: '' };
+        const path = String(args['path']);
+        reads.push(path);
+        if (!(path in files)) throw Error('unavailable');
+        return { content: files[path] };
+      },
+    };
+    const ctx = { ...makeCtx(), tools: base, attempt: 1, attestations: createAttestationLog() };
+    return { ctx, branch: forkBranch(ctx, 'phase'), files, reads };
+  }
+
+  it('shows every executed suite whole, read before the docs and sources that crowded them out', async () => {
+    const { ctx, branch, files, reads } = attica();
+    // The attempt's own reading order: docs and sources first, most tests late.
+    for (const path of [...Object.keys(sources), 'tests/attica-hosted-ui.test.js', 'tests/xe-browser-hosting-integration.test.js',
+      'tests/attica-scheduler.test.js', 'tests/attica-acceptance-boundaries.test.js']) await branch.tools!.execute('read_file', { path });
+    await branch.tools!.execute('record_probe', {
+      cmd: 'node --test tests/attica-acceptance-boundaries.test.js tests/attica-durability.test.js',
+      note: 'see tests/decoy.test.js' });
+    await branch.tools!.execute('record_probe', {
+      cmd: 'node --test tests/attica-scheduler.test.js tests/attica-hosted-ui.test.js tests/xe-browser-hosting-integration.test.js' });
+    const evidence = executorEvidence({}, branch), count = reads.length;
+    const records = JSON.stringify(ctx.attestations.forAttempt(1));
+    const verdict = { approved: false, scope: 'ephemeral', reasoning: 'fixture remains the model decision',
+      criteria: [{ id: 'c2', met: false, reason: 'fixture' }] };
+    ctx.llm.enqueueText(jsonText(verdict)); ctx.llm.enqueueText(jsonText(verdict));
+    const result = await acceptRootResult({ actor: child, task: { description: 'Finish the durable Attica collection.' },
+      result: { output: 'done', summary: 'done', trace: [], evidence, producedBy: { tier: 1, name: 'Adrenaline', viaFallback: false } },
+      ctx: branch, floor: [], phaseCoverage: [],
+      checklist: [{ id: 'c2', behaviour: 'Forced mid-page process death and restart preserve old and new listings.', check: { kind: 'review' } }],
+      checklistOrigin: { source: 'user' } });
+    expect(ctx.llm.calls).toHaveLength(2);
+    for (const request of ctx.llm.calls) {
+      for (const path of Object.keys(suites)) expect(request.userContent, path).toContain(JSON.stringify(files[path]));
+      expect(request.userContent).toContain('- tests/attica-durability.test.js (');
+      expect(request.userContent).toContain('named by a shell command of this attempt');
+      expect(request.userContent).toContain('OR THAT SHELL COMMANDS NAMED');
+      expect(request.userContent).not.toContain('DECOY_NAMED_ONLY_IN_A_NOTE');
+    }
+    const readBack = reads.slice(count);
+    expect(readBack).toHaveLength(16);
+    // Command-named suites newest command first, then the refreshed suite, then everything else.
+    expect(readBack.slice(0, 5)).toEqual(['tests/attica-scheduler.test.js', 'tests/attica-hosted-ui.test.js',
+      'tests/xe-browser-hosting-integration.test.js', 'tests/attica-acceptance-boundaries.test.js', 'tests/attica-durability.test.js']);
+    expect(readBack).not.toContain('tests/decoy.test.js');
+    // Evidence selection only: the verdict stays the model's, and no observation is added.
+    expect(result.approved).toBe(false);
+    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(records);
+  });
+});

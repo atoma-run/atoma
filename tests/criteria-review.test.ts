@@ -61,7 +61,7 @@ describe('focused criterion review', () => {
 
   it.each([false, true])('shares the bounded readback across files without losing assertions (over budget=%s)', async overBudget => {
     const paths = ['stock-reconcile.js', 'test/stock-reconcile.test.js'];
-    const files = new Map(paths.map(path => [path, overBudget ? (path.startsWith('test/') ? 't' : 's').repeat(30_000)
+    const files = new Map(paths.map(path => [path, overBudget ? (path.startsWith('test/') ? 't' : 's').repeat(60_000)
       : readFileSync(new URL(`../benchmark/warehouse-repair-2026-10-05/artifact/${path.replace('/', '-')}.txt`, import.meta.url), 'utf8')]));
     const ctx = { ...makeCtx(), tools: {
       has: (name: string) => name === 'read_file',
@@ -73,8 +73,8 @@ describe('focused criterion review', () => {
       if (overBudget) {
         expect(req.userContent).toContain(JSON.stringify(files.get(paths[1]!)!));
         expect(req.userContent).not.toContain(JSON.stringify(files.get(paths[0]!)!));
-        // Complete assertions borrow 6k; implementation keeps 18k, within 48k total.
-        expect(req.userContent).toContain('cut at 18000 of 30000 chars');
+        // Complete assertions borrow 12k; implementation keeps 36k, within 96k total.
+        expect(req.userContent).toContain('cut at 36000 of 60000 chars');
       } else for (const content of files.values()) expect(req.userContent).toContain(JSON.stringify(content));
       return reply(judgments);
     });

@@ -9,7 +9,7 @@ import { establishesDomInteraction, fileReadsNeedingReadback, renderBrowserInput
 import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contracts/depthRouting.js';
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
 import { checkGroundTruth } from './groundTruth.js';
-import { criteriaFilesBlock, ROOT_CRITERIA_SOURCE_CHARS } from './fileEvidence.js';
+import { commandTestScripts, criteriaFilesBlock, ROOT_CRITERIA_SOURCE_CHARS } from './fileEvidence.js';
 import { llmVerdict, renderTransportEvidence } from './verdict.js';
 import { reviewAcceptanceCriteria } from './criteriaReview.js';
 import { textReviewReference } from './textReview.js';
@@ -531,7 +531,8 @@ export async function acceptRootResult(args: {
   const reviewing = review && !gates.rejection;
   const transport = renderTransportEvidence(evidence);
   const namedFilesBlock = reviewing ? await criteriaFilesBlock(ctx, judgementsAsked ? checklist : [],
-    [...new Set(fileReadsNeedingReadback(records, transport.eventIds).values())], task.description, ROOT_CRITERIA_SOURCE_CHARS) : '';
+    [...new Set(fileReadsNeedingReadback(records, transport.eventIds).values())], task.description, ROOT_CRITERIA_SOURCE_CHARS,
+    commandTestScripts(records)) : '';
   const startingBlock = reviewing ? renderStartingWorkspace(comparison ?? startingComparison(ctx)) : '';
   const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';
   const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems, earlier) : '';

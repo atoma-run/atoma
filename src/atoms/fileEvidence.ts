@@ -2,6 +2,7 @@ import type { RunContext } from '../core/types.js';
 import { posix } from 'node:path';
 import { baseExecutorOf } from '../core/attestation.js';
 import type { AcceptanceChecklist } from '../contracts/acceptanceChecklist.js';
+import type { AttestationRecord } from '../contracts/attestation.js';
 import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 
 const NAMED_PATH = /(?<![\w./-])(\.?[\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
@@ -9,12 +10,17 @@ const CRITERIA_FILES_MAX = 16;
 /** A phase judge's read-back budget; root acceptance passes `ROOT_CRITERIA_SOURCE_CHARS`. */
 export const CRITERIA_SOURCE_CHARS = 24_000;
 /**
- * Root acceptance reads twice as much: it is one call per pass, its refusal
- * costs a whole replan, and three of the eight first refusals measured as cut
- * evidence judged a long page or calendar past 24,000 characters
- * (docs/incidents/first-refusals-2026-10-10.md).
+ * Root acceptance reads four times as much: it is one call per pass, its
+ * refusal costs a whole replan, and three of the eight first refusals measured
+ * as cut evidence judged a long page or calendar past 24,000 characters
+ * (docs/incidents/first-refusals-2026-10-10.md). 48,000 until 2026-10-15:
+ * Attica runs 85cc4e83 and f74c140a were refused four times on test files the
+ * acceptor saw as titles only. Their five executed suites total 41,953
+ * characters, and measured on that shape 96,000 is the first budget that shows
+ * all five whole while every other file keeps its share
+ * (docs/run-duration-plan-2026-10-15.md, item A).
  */
-export const ROOT_CRITERIA_SOURCE_CHARS = 48_000;
+export const ROOT_CRITERIA_SOURCE_CHARS = 96_000;
 const CRITERIA_FILE_MATCHED_BLOCKS = 15;
 const CRITERIA_BLOCK_LINES = 25;
 const CRITERIA_LINE_CHARS = 300;
@@ -33,6 +39,48 @@ const REFERENCED_FILE_CHARS = 3_000;
 const REFERENCED_TOTAL_CHARS = 6_000;
 
 const indentOf = (line: string) => line.length - line.trimStart().length;
+
+/** A test script a command line names: a workspace-relative path, never a glob. */
+const COMMAND_SCRIPT_PATH = /(?<![\w./*-])((?:\.\/)?[\w-][\w.-]*(?:\/[\w.-]+)*\.(?:m?js|cjs|ts|py|sh))(?![\w/*-])/g;
+
+/** The command line of a shell observation's request; its free-text `note` never counts. */
+function commandLine(request: string): string {
+  try {
+    const parsed: unknown = JSON.parse(request);
+    if (!parsed || typeof parsed !== 'object') return '';
+    const args = parsed as Record<string, unknown>;
+    return [args['cmd'], args['command'], ...(Array.isArray(args['args']) ? args['args'] : [])]
+      .filter((part): part is string => typeof part === 'string').join(' ');
+  } catch {
+    // An excerpt cut by its 800-character bound: everything before the note.
+    return request.split('"note"')[0]!;
+  }
+}
+
+/**
+ * The test scripts the attempt's shell commands NAME, newest command first.
+ * The acceptor reads those commands' outputs (test names, pass counts) and is
+ * told an executed requirement needs "the relevant assertions AND their
+ * execution": showing the execution without the file that holds the
+ * assertions made it refuse on "titles do not establish assertions".
+ * Attica run f74c140a (2026-10-15) ran `node --test tests/attica-durability.test.js`
+ * through record_probe; no criterion named the file and no truncated read
+ * referenced it, so its assertions never reached root acceptance and c2 was
+ * refused twice. A command that only printed the file names it too; either
+ * way these are paths the host reads back like every other file here, so
+ * they grant no execution credit and approve nothing.
+ */
+export function commandTestScripts(records: readonly AttestationRecord[]): string[] {
+  const scripts: string[] = [];
+  for (const record of [...records].reverse()) {
+    if ((record.tool !== 'record_probe' && record.tool !== 'run_shell') || record.observation.kind !== 'execution') continue;
+    for (const match of commandLine(record.observation.request).matchAll(COMMAND_SCRIPT_PATH)) {
+      const path = posix.normalize(match[1]!);
+      if (TEST_SCRIPT.test(path) && !scripts.includes(path)) scripts.push(path);
+    }
+  }
+  return scripts;
+}
 
 /**
  * The line holding a criterion's word and the block it opens: the lines after
@@ -106,9 +154,9 @@ function namedFileExcerpt(content: string, words: ReadonlySet<string>, allowance
  */
 export async function criteriaFilesBlock(
   ctx: RunContext, checklist: AcceptanceChecklist, refreshPaths: readonly string[], taskDescription: string,
-  sourceChars: number = CRITERIA_SOURCE_CHARS,
+  sourceChars: number = CRITERIA_SOURCE_CHARS, commandTests: readonly string[] = [],
 ): Promise<string> {
-  if (!ctx.tools?.has('read_file') || (checklist.length === 0 && refreshPaths.length === 0)) return '';
+  if (!ctx.tools?.has('read_file') || (checklist.length === 0 && refreshPaths.length === 0 && commandTests.length === 0)) return '';
   const tools = baseExecutorOf(ctx.tools);
   const text = checklist.map((item) => item.behaviour).join('\n');
   const wanted: string[] = [...text.matchAll(NAMED_PATH)].map((match) => match[1]!);
@@ -126,9 +174,20 @@ export async function criteriaFilesBlock(
   // The ground-truth probe already owns the manifest's schema and recorded
   // observations. Its append-only bytes must not crowd source/test bodies out
   // of this separate read-back. An explicitly named criterion still gets it.
-  wanted.push(...refreshPaths.filter(path => path !== PROBE_MANIFEST_FILENAME));
+  // The sixteen-read cap keeps the FIRST paths, and refresh paths arrive in
+  // the order the attempt read them: run f74c140a's acceptor got docs and
+  // sources while test files read late fell past the cap. Test scripts go
+  // first after the criteria's own names — those the commands ran, then
+  // refreshed ones — because an executed requirement is judged on their
+  // assertions. Order within each group is kept. A command can name any
+  // number of files (`cat a.test.js b.test.js …`): those it names take at
+  // most half the cap, so they never evict every source a criterion needs.
+  const isTest = (path: string) => SCRIPT_PATH.test(path) && TEST_SCRIPT.test(path);
+  const refreshed = refreshPaths.filter(path => path !== PROBE_MANIFEST_FILENAME);
+  const commandNamed = commandTests.slice(0, CRITERIA_FILES_MAX / 2);
+  wanted.push(...commandNamed, ...refreshed.filter(isTest), ...refreshed.filter(path => !isTest(path)));
   const lines: string[] = [];
-  const files: Array<{ label: string; content: string; words: ReadonlySet<string>; referencedBy?: string }> = [];
+  const files: Array<{ label: string; content: string; words: ReadonlySet<string>; referencedBy?: string; ranByCommand?: boolean }> = [];
   const paths = [...new Set(wanted)].filter((path) => !path.split('/').includes('..') && !/^(?:\/|[a-z]:)/i.test(path));
   let attempted = 0;
   for (const path of paths) {
@@ -136,7 +195,7 @@ export async function criteriaFilesBlock(
     attempted++;
     const stem = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toLowerCase();
     const naming = checklist.filter((item) => item.behaviour.toLowerCase().includes(stem)).map((item) => item.behaviour.toLowerCase());
-    if (refreshPaths.includes(path)) naming.push(taskDescription.toLowerCase(), text.toLowerCase());
+    if (refreshPaths.includes(path) || commandNamed.includes(path)) naming.push(taskDescription.toLowerCase(), text.toLowerCase());
     const words = new Set(naming.flatMap((text) => [...text.matchAll(CRITERIA_TOKEN)].map((match) => match[0]))
       .filter((word) => !COMMON_WORDS.has(word) && word !== stem));
     try {
@@ -145,7 +204,7 @@ export async function criteriaFilesBlock(
         'content' in read && typeof read.content === 'string' ? read.content : undefined;
       if (content === undefined) throw new Error('read returned no content');
       const label = /^[\w./-]+$/.test(path) ? path : JSON.stringify(path);
-      files.push({ label, content, words });
+      files.push({ label, content, words, ...(commandNamed.includes(path) ? { ranByCommand: true } : {}) });
     } catch {
       // Silent, never refuting: "saves quote.txt" names a download, not a workspace file.
       if (refreshPaths.includes(path)) lines.push(`- ${JSON.stringify(path)}: current read unavailable; superseded contents remain omitted. This establishes no current content or absence.`);
@@ -221,11 +280,13 @@ export async function criteriaFilesBlock(
     transferred -= transfer;
     capacity -= available;
   }
-  lines.push(...files.map(({ label, content, words, referencedBy }) =>
-    `- ${label} (${content.length} chars${referencedBy ? `, referenced by a string literal in ${referencedBy}` : ''}): ${namedFileExcerpt(content, words, allowances.get(label)!, Math.floor(sourceChars / 4))}`));
+  lines.push(...files.map(({ label, content, words, referencedBy, ranByCommand }) =>
+    `- ${label} (${content.length} chars${referencedBy ? `, referenced by a string literal in ${referencedBy}` : ''}${ranByCommand ? ', named by a shell command of this attempt' : ''}): ${namedFileExcerpt(content, words, allowances.get(label)!, Math.floor(sourceChars / 4))}`));
   if (attempted < paths.length) lines.push(`${paths.length - attempted} further file reads omitted by the bound or cancellation; their current contents are unknown.`);
+  const sources = [refreshPaths.length ? 'WHOSE READS WERE SUPERSEDED OR TRUNCATED' : '', commandNamed.length ? 'THAT SHELL COMMANDS NAMED' : '']
+    .filter(Boolean).join(' OR ');
   return lines.length > 0
-    ? [`FILES THE CRITERIA NAME${refreshPaths.length ? ' OR WHOSE READS WERE SUPERSEDED OR TRUNCATED' : ''}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,
+    ? [`FILES THE CRITERIA NAME${sources ? ` OR ${sources}` : ''}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,
       'does not show: never judge a criterion unmet on a part of the file you were not shown.',
       'These are current file contents, not executed checks. Historical command outcomes remain separate; a later edit is not proved by an earlier execution.', ...lines].join('\n')
     : '';

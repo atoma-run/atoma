@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { criteriaFilesBlock, ROOT_CRITERIA_SOURCE_CHARS } from '../src/atoms/fileEvidence.js';
+import { commandTestScripts, criteriaFilesBlock, ROOT_CRITERIA_SOURCE_CHARS } from '../src/atoms/fileEvidence.js';
 import type { AcceptanceChecklist } from '../src/contracts/acceptanceChecklist.js';
+import { parseExecutionObservation, type AttestationRecord } from '../src/contracts/attestation.js';
 import { makeCtx } from './helpers.js';
 
 /**
@@ -147,7 +148,7 @@ describe('read-back blocks stay inside the allowance', () => {
   });
 });
 
-describe('root acceptance reads twice the phase budget', () => {
+describe('root acceptance reads four times the phase budget', () => {
   it('a 40,000-character page is whole for the root and cut for a phase judge', async () => {
     const page = `<main>${'<p>row</p>'.repeat(4_000)}</main>`;
     const { ctx } = workspace({ 'index.html': page });
@@ -155,5 +156,50 @@ describe('root acceptance reads twice the phase budget', () => {
     const root = await criteriaFilesBlock(ctx, [], ['index.html'], '', ROOT_CRITERIA_SOURCE_CHARS);
     expect(phase).toContain('…(cut at 24000 of');
     expect(root).toContain(JSON.stringify(page));
+  });
+});
+
+describe('test scripts a shell command names (Attica runs 85cc4e83, f74c140a)', () => {
+  let id = 0;
+  const record = (tool: string, args: Record<string, unknown>): AttestationRecord =>
+    ({ eventId: `e${id++}`, attempt: 1, tool, observation: parseExecutionObservation(tool, args, { exitCode: 0, stdout: 'ok' })! });
+
+  it('reads command lines only, newest first, never a note, a glob, a non-test script or an absolute path', () => {
+    const records = [
+      record('record_probe', { cmd: 'node --test tests/a.test.js ./tests/b.test.js', note: 'also see tests/note-only.test.js' }),
+      record('run_shell', { command: 'node', args: ['--test', 'test/c.spec.mjs'] }),
+      record('run_shell', { cmd: 'node --test tests/*.test.js browser/control-server.js /workspace/tests/abs.test.js' }),
+      record('read_file', { path: 'tests/read.test.js' }),
+      record('record_probe', { cmd: 'node --test tests/a.test.js' }),
+    ];
+    expect(commandTestScripts(records)).toEqual(['tests/a.test.js', 'test/c.spec.mjs', 'tests/b.test.js']);
+  });
+
+  it('keeps the command half of a request cut by its excerpt bound and drops the note', () => {
+    const records = [record('record_probe', { cmd: `node --test tests/kept.test.js ${'x'.repeat(900)}`, note: 'tests/dropped.test.js' })];
+    expect(records[0]!.observation.kind === 'execution' && records[0]!.observation.request).toContain('[truncated]');
+    expect(commandTestScripts(records)).toEqual(['tests/kept.test.js']);
+  });
+
+  it('lets command-named tests take at most half of the sixteen reads', async () => {
+    const files: Record<string, string> = {};
+    const named = Array.from({ length: 12 }, (_, i) => `tests/n${i}.test.js`);
+    const refreshed = Array.from({ length: 6 }, (_, i) => `src/s${i}.js`);
+    for (const path of [...named, ...refreshed]) files[path] = path;
+    const { ctx, reads } = workspace(files);
+    await criteriaFilesBlock(ctx, [], refreshed, '', ROOT_CRITERIA_SOURCE_CHARS, named);
+    expect(reads.filter((path) => path.startsWith('tests/'))).toEqual(named.slice(0, 8));
+    expect(reads.filter((path) => path.startsWith('src/'))).toEqual(refreshed);
+  });
+
+  it('reads refreshed test scripts before other refreshed files when the cap bites', async () => {
+    const files: Record<string, string> = {};
+    const docs = Array.from({ length: 16 }, (_, i) => `docs/d${i}.md`);
+    for (const path of [...docs, 'tests/late.test.js']) files[path] = path;
+    const { ctx, reads } = workspace(files);
+    const block = await criteriaFilesBlock(ctx, [], [...docs, 'tests/late.test.js'], '');
+    expect(reads[0]).toBe('tests/late.test.js');
+    expect(block).toContain('1 further file reads omitted');
+    expect(block).not.toContain('named by a shell command');
   });
 });

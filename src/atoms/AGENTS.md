@@ -374,9 +374,18 @@ load-bearing.
   together without importing new obligations from earlier validator coaching.
   No mutation execution or extra model call is authorised. Invoice counterexample
   and paired replay: `benchmark/evidence-discrimination-2026-10-05/`.
-  Phase file read-back shares 24,000 source characters, root acceptance 48,000
+  Phase file read-back shares 24,000 source characters, root acceptance 96,000
   (one call per pass, a refusal costs a replan; three first refusals judged a
-  page cut past 24,000), across at most sixteen files: unused shares from small files go to larger files; a batch that fits
+  page cut past 24,000; 48,000 until Attica runs 85cc4e83 and f74c140a, whose
+  five executed suites, 41,953 characters, were refused four times as titles
+  only). Root acceptance also reads the test scripts its attempt's shell
+  commands NAMED (`commandTestScripts`, at most eight, command lines only,
+  never a note or glob): those runs executed tests/attica-durability.test.js,
+  which no criterion named and no truncated read referenced, so the acceptor
+  saw its passing names and never its assertions. The sixteen reads take the
+  criteria's names, then those scripts, then refreshed test scripts, then
+  the other refreshed files: the attempt's reading order had put late tests
+  past the cap. Selection only — no credit, no approval. Across at most sixteen files: unused shares from small files go to larger files; a batch that fits
   stays complete. Complete test scripts, smallest first, may borrow their missing
   bytes from truncated non-test files, each retaining at least half its initial
   fair share; complete small files stay whole. This avoids dropping a whole suite when test sizes cross half
