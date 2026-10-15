@@ -95,6 +95,12 @@ export const runStatsSchema = z.object({
    */
   discardedLessons: countSchema.default(0),
   /**
+   * Skill drafts the trigger evaluation refused to save (owner decision
+   * 2026-10-15): still picked on a sibling's task, or never picked on their
+   * own, after their `when_to_use` revisions. Defaulted like its neighbours.
+   */
+  triggerRejections: countSchema.default(0),
+  /**
    * WHY a `partial` run did not deliver, in the words `landingReasons` builds
    * from the typed fields (`src/contracts/runLanding.ts`). Empty on every other
    * outcome.
@@ -128,7 +134,8 @@ export type RunStatSignal =
   | 'uncovered-obligation'
   | 'deepening'
   | 'root-remediation'
-  | 'discarded-lesson';
+  | 'discarded-lesson'
+  | 'skill-trigger-rejected';
 
 export function formatRunStatsEpilogue(stats: RunStats): string {
   // The trace retains full descriptions; the epilogue is a bounded projection.

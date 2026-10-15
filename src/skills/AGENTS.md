@@ -203,6 +203,24 @@ by owner decision on 2026-09-26
   Measured 2026-09-28 on the production catalog: three recovery twins on
   Glucose, never matched, and lexical overlap separates twins from
   look-alikes no better than in August.
+- THE TRIGGER EVALUATION (owner decision 2026-10-15,
+  [record](../../docs/skill-trigger-eval-2026-10-15.md), `triggerEval.ts`):
+  after the twin guard and before the save, a task draft's matching surface
+  is judged by the PRODUCTION selector — `prefilterStrategy` with the skill
+  prompt, Jev first where present — over the catalog it would join, on
+  held-out cases: its lesson's task, one author call's paraphrases and near
+  misses, and the siblings' CREDITED tasks from `skill_trigger_samples`, the
+  trigger corpus `recordSuccess`/`recordFailure` fill in the counter's own
+  transaction (20 per recipe). A draft picked on a negative, or never on a
+  positive, gets `when_to_use` and the description rewritten from the
+  failures, at most twice; still failing, it is NOT saved
+  (`skill-trigger-rejected` in the run stats). The body is never revised
+  here. The summary lives in the recipe's provenance (`evaluation`). An error
+  anywhere saves the draft as drafted (`skipped`), like the twin guard. The
+  switch is `ATOMA_SKILL_TRIGGER_EVAL` (runner: on under learning, `0` to
+  disable; carried to the learner in the job's `policy`; library use opt-in).
+  Bounded spend per draft: one generation call, two revision calls, and at
+  most 12 cases × 3 rounds of cheapest-tier selections.
 - `validateProbeManifest` gates malformed machine input before dispatch.
 - Anti-redispatch state is run-scoped and keyed on a digest of the output AND
   summary: a new output under an old summary is new work, validated as such. A
@@ -277,6 +295,13 @@ already changed the commons. See [checkpoints](../../docs/run-checkpoints-2026-1
   it true again. It is part of `COMPILE_PROMPT_GENERATION`, so any edit
   re-opens every current refusal stamp for one more compile call, and the
   instruction it carries — fail loudly, exit non-zero — is still the right one.
+- Do NOT turn the trigger evaluation's negatives into a hard sibling test.
+  Its negatives are a generator's near misses until the corpus fills, and a
+  wrong `expect` would refuse a good draft; so a sibling or an escalate both
+  HOLD, and only the draft being picked where it should not fails it. The
+  skill-creator's with/without EXECUTION comparison is not built yet: when it
+  is, it is a separate evaluation job on its own budget, never a supervisor
+  replay, and until then the outcome evidence is the credit counters.
 - Do NOT lower the `skills stats --sim` default to catch semantic twins.
   Measured 2026-08-21 against three known pairs: they score 0.41, 0.39 and
   0.26 while a build-vs-probe FALSE positive scores 0.31, so no threshold on

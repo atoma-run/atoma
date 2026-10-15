@@ -29,6 +29,9 @@ import {
   deleteMetaRow,
   deleteNamespaceRows,
   ensureSkillMetaSchema,
+  recordTriggerSample,
+  triggerSamplesFor,
+  type TriggerSample,
   readMetaRow,
   readMetaRows,
   skillMetaTableExists,
@@ -1249,21 +1252,43 @@ export class SkillRegistry {
    * auditable ("who supplied the 3 successes"); inert for `ledger check`,
    * which only projects counters.
    */
-  recordSuccess(l1Name: string, skillId: string, opts?: { via?: string }): void {
+  recordSuccess(l1Name: string, skillId: string, opts?: { via?: string; task?: string }): void {
     this.bump(l1Name, skillId, 'success', {
       kind: 'skill-success',
       entity: `${l1Name}/${skillId}`,
       ...(opts?.via && opts.via !== l1Name ? { detail: { via: opts.via } } : {}),
-    });
+    }, opts?.task);
   }
 
   /** Bump the failure counter for a known skill (no-op if not found). */
-  recordFailure(l1Name: string, skillId: string, opts?: { via?: string }): void {
+  recordFailure(l1Name: string, skillId: string, opts?: { via?: string; task?: string }): void {
     this.bump(l1Name, skillId, 'failure', {
       kind: 'skill-failure',
       entity: `${l1Name}/${skillId}`,
       ...(opts?.via && opts.via !== l1Name ? { detail: { via: opts.via } } : {}),
-    });
+    }, opts?.task);
+  }
+
+  /**
+   * THE TRIGGER CORPUS: the subtask texts the recipes of `namespaces` were
+   * credited or blamed on (`skill_trigger_samples`, newest first, bounded per
+   * recipe). Read at learn time as held-out selection cases; `excludeId`
+   * keeps the draft's own id out when a same-id recipe exists elsewhere.
+   */
+  triggerSamples(
+    namespaces: readonly string[],
+    opts?: { excludeId?: string; perSkill?: number }
+  ): TriggerSample[] {
+    const db = this.readStore();
+    if (!db) return [];
+    const out: TriggerSample[] = [];
+    for (const ns of namespaces) {
+      for (const skill of this.loadFor(ns)) {
+        if (skill.trigger || skill.id === opts?.excludeId) continue;
+        out.push(...triggerSamplesFor(db, ns, skill.id, opts?.perSkill));
+      }
+    }
+    return out;
   }
 
   /**
@@ -1283,7 +1308,9 @@ export class SkillRegistry {
     l1Name: string,
     skillId: string,
     kind: 'success' | 'failure',
-    event: Omit<LedgerEvent, 'at'>
+    event: Omit<LedgerEvent, 'at'>,
+    /** The subtask text this outcome was earned on — the trigger corpus row. */
+    task?: string
   ): boolean {
     const dir = this.skillDir(l1Name, skillId);
     // No skill on disk at all — no SKILL.md, no skill folder. The
@@ -1301,8 +1328,12 @@ export class SkillRegistry {
       // not a record at zero: refusing costs one uncounted run, preserves
       // the torn bytes, and writes no event.
       if (this.seedRow(db, l1Name, skillId, afterCommit) === null) return false;
-      if (!bumpMetaRow(db, l1Name, skillId, kind, nowIso())) return false;
+      const at = nowIso();
+      if (!bumpMetaRow(db, l1Name, skillId, kind, at)) return false;
       this.recordEvent(event, db);
+      // Same transaction as the counter: a sample is evidence of a credited
+      // or blamed match, and it exists exactly when the counter moved.
+      if (task) recordTriggerSample(db, { namespace: l1Name, skillId, task, outcome: kind, at });
       return true;
     }).immediate();
     if (bumped) for (const run of afterCommit) run();

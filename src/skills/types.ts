@@ -44,6 +44,13 @@ export interface SkillProvenance {
   readonly at?: string;
   /** The approved lesson that wrote this body; retained with its metadata commit. */
   readonly learning?: import('../contracts/skillLearning.js').LearningSource;
+  /**
+   * The trigger evaluation this body passed before it was saved
+   * (`triggerEval.ts`, 2026-10-15): how the real skill prefilter chose on
+   * held-out cases, and how many `when_to_use` revisions it took. Absent on
+   * a body saved while the evaluation was off or could not run.
+   */
+  readonly evaluation?: import('./triggerEval.js').TriggerEvalSummary;
 }
 
 /**

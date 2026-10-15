@@ -30,6 +30,7 @@
 - [Jev decisions state](jev-decisions-state.md) — Jev decides in every run; ATOMA_JEV=0 is the off switch
 - [Project chat acceptance](project-chat-acceptance.md) — the conversation is the one acceptance surface; L3 cost open
 - [read_file absence answer](read-file-absence-answer.md) — an absent path/dir is an answer, not an error
+- [Skill eval quota ok](skill-eval-quota-ok.md) — 2026-10-15: quota OK for automatic skill eval; trigger eval shipped, execution comparison open
 - [Compiled skills prod state](compiled-skills-prod-state.md) — 1 script / 30 recipes; forced compilation and browser-for-scripts closed
 - [Showcase curation](showcase-curation.md) — opt-in since 2026-10-10; 2 projects left to the owner
 - [Viz frame cost measurement](viz-frame-cost-measurement.md) — how to measure GPU frame cost; MSAA decision open

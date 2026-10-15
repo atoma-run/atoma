@@ -56,7 +56,7 @@ export const learningJobSchema = z.object({
   skillsPath: z.string(), runsPath: z.string(),
   scope: z.object({ orgId: z.string(), projectId: z.string(), principalId: z.string() }).optional(),
   model: z.string(),
-  policy: z.object({ promote: z.string().optional(), threshold: z.string().optional() }),
+  policy: z.object({ promote: z.string().optional(), threshold: z.string().optional(), triggerEval: z.string().optional() }),
   budget: z.object({ tokens: z.number().nullable(), costUsd: z.number().nullable() }),
   lessons: z.array(approvedLessonSchema).min(1),
 });

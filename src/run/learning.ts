@@ -67,6 +67,9 @@ export async function executeApprovedLearning(dbPath: string, runId: string, env
       actorType: 'principal' as const, actorId: job.scope.principalId } : { actorType: 'cli' as const };
     setLedgerScope({ ...scope, runId });
     process.env['ATOMA_SKILL_PROMOTE'] = job.policy.promote ?? '0';
+    // The run's own switch, carried by the job like promotion: the learner's
+    // environment is the coordinator's, not the run's.
+    process.env['ATOMA_SKILL_TRIGGER_EVAL'] = job.policy.triggerEval ?? '0';
     if (job.policy.threshold === undefined) delete process.env['ATOMA_PROMOTE_THRESHOLD'];
     else process.env['ATOMA_PROMOTE_THRESHOLD'] = job.policy.threshold;
     const registry = new RecordingRegistry(db, recorder);

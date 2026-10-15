@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { createHash } from 'node:crypto';
 import type { SkillMeta, SkillProvenance } from './types.js';
 
 /**
@@ -53,7 +54,75 @@ CREATE TABLE IF NOT EXISTS skill_meta (
   declared_writes              TEXT,
   PRIMARY KEY (namespace, skill_id)
 );
+-- The TRIGGER CORPUS (2026-10-15): the subtask texts a recipe was credited or
+-- blamed on. Written in the same transaction as the counter it belongs to
+-- and read at learn time as held-out selection cases for a new draft (its
+-- siblings' credited tasks are the hard negatives). Bounded per recipe.
+CREATE TABLE IF NOT EXISTS skill_trigger_samples (
+  namespace   TEXT NOT NULL,
+  skill_id    TEXT NOT NULL,
+  task_digest TEXT NOT NULL,
+  task        TEXT NOT NULL,
+  outcome     TEXT NOT NULL CHECK (outcome IN ('success', 'failure')),
+  at          TEXT NOT NULL,
+  PRIMARY KEY (namespace, skill_id, task_digest)
+);
 `;
+
+/** Samples kept per recipe; the newest win. */
+export const TRIGGER_SAMPLES_PER_SKILL = 20;
+/** The task text kept for a sample; the prefilter never reads more than this. */
+export const TRIGGER_SAMPLE_MAX_CHARS = 1200;
+
+export interface TriggerSample {
+  readonly namespace: string;
+  readonly skillId: string;
+  readonly task: string;
+  readonly outcome: 'success' | 'failure';
+  readonly at: string;
+}
+
+/**
+ * Record one credited or blamed subtask on a recipe. Idempotent on the task
+ * text; a repeat updates the outcome and the stamp. Prunes past the cap.
+ * Runs on the CALLER's transaction: the bump that moved the counter.
+ */
+export function recordTriggerSample(
+  db: Database.Database,
+  sample: { namespace: string; skillId: string; task: string; outcome: 'success' | 'failure'; at: string }
+): void {
+  const task = sample.task.trim().slice(0, TRIGGER_SAMPLE_MAX_CHARS);
+  if (task.length === 0) return;
+  const digest = createHash('sha256').update(task).digest('hex');
+  db.prepare(
+    `INSERT INTO skill_trigger_samples (namespace, skill_id, task_digest, task, outcome, at)
+     VALUES (@namespace, @skill_id, @task_digest, @task, @outcome, @at)
+     ON CONFLICT(namespace, skill_id, task_digest) DO UPDATE SET outcome = excluded.outcome, at = excluded.at`
+  ).run({ namespace: sample.namespace, skill_id: sample.skillId, task_digest: digest, task, outcome: sample.outcome, at: sample.at });
+  db.prepare(
+    `DELETE FROM skill_trigger_samples WHERE namespace = ? AND skill_id = ? AND task_digest NOT IN (
+       SELECT task_digest FROM skill_trigger_samples WHERE namespace = ? AND skill_id = ?
+       ORDER BY at DESC, task_digest LIMIT ?)`
+  ).run(sample.namespace, sample.skillId, sample.namespace, sample.skillId, TRIGGER_SAMPLES_PER_SKILL);
+}
+
+/** Newest first. A store without the table (read-only snapshot) reads as empty. */
+export function triggerSamplesFor(
+  db: Database.Database,
+  namespace: string,
+  skillId: string,
+  limit = TRIGGER_SAMPLES_PER_SKILL
+): TriggerSample[] {
+  if (!triggerSamplesTableExists(db)) return [];
+  return (db.prepare(
+    `SELECT namespace, skill_id AS skillId, task, outcome, at FROM skill_trigger_samples
+     WHERE namespace = ? AND skill_id = ? ORDER BY at DESC, task_digest LIMIT ?`
+  ).all(namespace, skillId, limit) as TriggerSample[]);
+}
+
+export function triggerSamplesTableExists(db: Database.Database): boolean {
+  return db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'skill_trigger_samples'`).get() !== undefined;
+}
 
 /** Sidecar name after import: still evidence, never a source again. */
 export const IMPORTED_META_FILENAME = '_meta.imported.json';

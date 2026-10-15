@@ -419,6 +419,14 @@ under the owning molecule's id, and skill credit requires evidence that the reci
 attempt. Plans declare `outputs`; compilation declares `writes`. Those structured fields are
 checked before dispatch, with lexical matching retained for legacy records.
 
+**A learned recipe is matched before it is kept.** Since 2026-10-15 every task draft's
+`when_to_use` is judged by the same selector a run uses, over the catalog it would join, on
+held-out cases: the subtask it was learned from, a few paraphrases and near misses, and the
+tasks its siblings were actually credited on. A draft that takes a sibling's task, or is never
+picked on its own, has its matching line rewritten from the failures, twice at most; still
+failing, it is not kept. The body is never touched by this step, and an evaluation that cannot
+run keeps the draft as drafted. `ATOMA_SKILL_TRIGGER_EVAL=0` turns it off.
+
 **Splitting build from verify is what makes anything compilable at all.** A monolithic
 "build and check it" recipe always gets refused, because the build half is irreducible
 reasoning. Distilling the verification half separately is where most compiled scripts come from —

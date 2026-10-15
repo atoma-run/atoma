@@ -248,6 +248,7 @@ function machineRunStats(
     deepenings: signals.deepening,
     rootRemediations: signals['root-remediation'],
     discardedLessons: signals['discarded-lesson'],
+    triggerRejections: signals['skill-trigger-rejected'],
     landingReasons: [...landing],
   };
 }
@@ -490,6 +491,16 @@ export function resolveSkillLearning(
   return { enabled: true, source: 'default-enable' };
 }
 
+/** Trigger evaluation of learned drafts: a kill switch under learning's. Pure. */
+export function resolveTriggerEval(
+  learningEnabled: boolean,
+  hostValue: string | undefined
+): LifecycleToggleDecision {
+  if (!learningEnabled) return { enabled: false, source: 'cli-disable' };
+  if (hostValue === '0') return { enabled: false, source: 'environment-disable' };
+  return { enabled: true, source: 'default-enable' };
+}
+
 /** Trusted direct dispatch: a kill switch, not an opt-in. Pure. */
 export function resolveDirectDispatch(
   noDirectSkills: boolean,
@@ -511,6 +522,7 @@ export function resolveDirectDispatch(
  */
 interface HostLifecycleEnv {
   readonly learn: string | undefined;
+  readonly triggerEval: string | undefined;
   readonly promote: string | undefined;
   readonly direct: string | undefined;
   readonly modelL1: string | undefined;
@@ -523,6 +535,7 @@ let hostLifecycleEnv: HostLifecycleEnv | null = null;
 export function hostLifecycleSnapshot(): HostLifecycleEnv {
   hostLifecycleEnv ??= {
     learn: process.env['ATOMA_SKILL_LEARN'],
+    triggerEval: process.env['ATOMA_SKILL_TRIGGER_EVAL'],
     promote: process.env['ATOMA_SKILL_PROMOTE'],
     direct: process.env['ATOMA_SKILL_DIRECT'],
     modelL1: process.env['ATOMA_MODEL_L1'],
@@ -831,6 +844,18 @@ async function startTaskInternal(
   } else {
     console.log('skill auto-distillation: ON (default — pass --no-learn-skills to disable)');
   }
+  // TRIGGER EVALUATION of every learned draft (owner decision 2026-10-15,
+  // src/skills/triggerEval.ts): the production selector judges the draft's
+  // `when_to_use` on held-out cases before it is saved, and revises it. A
+  // kill switch like learning's: only an explicit '0' turns it off, and it
+  // is moot when learning is off. The learner process inherits the env.
+  const triggerEval = resolveTriggerEval(learning.enabled, hostEnv.triggerEval);
+  process.env['ATOMA_SKILL_TRIGGER_EVAL'] = triggerEval.enabled ? '1' : '0';
+  if (learning.enabled) {
+    console.log(triggerEval.enabled
+      ? 'skill trigger evaluation: ON (default — ATOMA_SKILL_TRIGGER_EVAL=0 to disable)'
+      : 'skill trigger evaluation: off (ATOMA_SKILL_TRIGGER_EVAL=0)');
+  }
   // Skill llm→script PROMOTION (#C2c). The L2 assesses each learned recipe
   // with Jev (and an uncompiled kind:llm recipe at its next credited success)
   // before asking the compiler to turn its body into a deterministic Node
@@ -961,6 +986,7 @@ async function startTaskInternal(
     deepening: 0,
     'root-remediation': 0,
     'discarded-lesson': 0,
+    'skill-trigger-rejected': 0,
   };
   // ONE construction switch per transport, shared with curriculum and the viz
   // server (review §3.9): only the transports the three selectors reach are
@@ -1270,7 +1296,7 @@ async function startTaskInternal(
         ...(tenantRun && runScope.orgId && runScope.projectId && runScope.actorId ? {
           scope: { orgId: runScope.orgId, projectId: runScope.projectId, principalId: runScope.actorId },
         } : {}),
-        model: formatModelSelector(selectors[2]), policy: { promote: process.env['ATOMA_SKILL_PROMOTE'], threshold: process.env['ATOMA_PROMOTE_THRESHOLD'] },
+        model: formatModelSelector(selectors[2]), policy: { promote: process.env['ATOMA_SKILL_PROMOTE'], threshold: process.env['ATOMA_PROMOTE_THRESHOLD'], triggerEval: process.env['ATOMA_SKILL_TRIGGER_EVAL'] },
         // Do not authorize spend until the final audit usage has settled.
         budget: { tokens: 0, costUsd: 0 },
         lessons: [...lessons],

@@ -30,6 +30,7 @@ import {
 import { hostAllowsLoopbackNetwork, scanScriptBody } from './scriptScan.js';
 import { LEARNED_CONTENT_TRUST_BOUNDARY_LINES, RECIPE_STEP_LIMITS } from './events.js';
 import { REFUSAL_GENERATION, refusalStampIsCurrent } from './generations.js';
+import { qualifyDraft, triggerEvalEnabled, type TriggerEvalSummary } from './triggerEval.js';
 import { undeclaredToolMentions } from '../atoms/verdict.js';
 import { namespaceOf, skillEventExecutor, type SkillNamespace } from './namespace.js';
 import { transportOf, tryParseModelSelector } from '../contracts/modelSelector.js';
@@ -786,14 +787,51 @@ export class SkillLifecycle {
         );
         continue;
       }
+      // TRIGGER EVALUATION (owner decision 2026-10-15, `triggerEval.ts`): the
+      // draft's matching surface is judged by the production selector on
+      // held-out cases — its lesson, paraphrases, near misses and the
+      // siblings' credited tasks — and revised up to twice before the
+      // verdict. A draft that still takes its siblings' tasks, or is never
+      // picked on its own, is NOT saved. The body is never revised here.
+      let qualified = draft;
+      let evaluation: TriggerEvalSummary | undefined;
+      if (triggerEvalEnabled()) {
+        const competing = guardNamespaces
+          .flatMap((ns) => this.skills.loadFor(ns))
+          .filter((skill) => !skill.trigger)
+          .map((skill) => ({ id: skill.id, description: skill.description, whenToUse: skill.whenToUse, body: skill.body }));
+        const outcome = await qualifyDraft({
+          host: this.host, ctx: args.ctx, draft, lessonTask: args.subTask.description, competing,
+          corpus: this.skills.triggerSamples(guardNamespaces, { excludeId: draft.id }),
+        });
+        evaluation = outcome.summary;
+        if (outcome.summary.verdict === 'rejected') {
+          args.ctx.logger.info(
+            `[${this.host.name}] skill draft "${draft.id}" not learned: trigger evaluation ${outcome.summary.reason ?? 'failed'} after ${outcome.summary.revisions} revision(s)`
+          );
+          args.ctx.recordRunStat?.('skill-trigger-rejected');
+          continue;
+        }
+        if (outcome.summary.verdict === 'skipped') {
+          args.ctx.logger.warn(
+            `[${this.host.name}] skill draft "${draft.id}" trigger evaluation skipped: ${outcome.summary.reason ?? 'unknown'}; saving as drafted`
+          );
+        } else if (outcome.summary.revisions > 0) {
+          args.ctx.logger.info(
+            `[${this.host.name}] skill draft "${draft.id}" when_to_use revised ${outcome.summary.revisions} time(s) by trigger evaluation`
+          );
+        }
+        qualified = { ...draft, description: outcome.draft.description, whenToUse: outcome.draft.whenToUse };
+      }
       this.skills.save(args.l1Name, {
-        id: draft.id,
-        description: draft.description,
-        whenToUse: draft.whenToUse,
+        id: qualified.id,
+        description: qualified.description,
+        whenToUse: qualified.whenToUse,
         kind: 'llm',
-        body: draft.body,
+        body: qualified.body,
       }, { mechanism: 'distilled', model: this.host.model,
-        ...(args.ctx.learningSource ? { learning: args.ctx.learningSource } : {}) });
+        ...(args.ctx.learningSource ? { learning: args.ctx.learningSource } : {}),
+        ...(evaluation ? { evaluation } : {}) });
       args.ctx.logger.info(
         `[${this.host.name}] learned new skill "${draft.id}" for ${args.l1Name}`
       );

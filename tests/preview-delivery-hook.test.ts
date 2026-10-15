@@ -51,6 +51,7 @@ const DELIVERED_STATS: RunStats = {
   deepenings: 0,
   rootRemediations: 0,
   discardedLessons: 0,
+  triggerRejections: 0,
   landingReasons: [],
   escalations: 0,
   learnedSkills: 0,

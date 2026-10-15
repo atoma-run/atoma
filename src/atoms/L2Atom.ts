@@ -98,6 +98,7 @@ import {
   FALLBACK_VERIFICATION_GUIDANCE,
   FALLBACK_SYSTEM_PROMPT,
   EXISTING_FILE_GUIDANCE,
+  READABLE_SOURCE_GUIDANCE,
   WEB_DELIVERY_GUIDANCE,
   KEYBOARD_EVIDENCE_GUIDANCE,
   STATEFUL_EVIDENCE_GUIDANCE,
@@ -1959,7 +1960,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
             reasoning: 'success NOT credited — the validator observed that the run did not follow the recipe',
           });
         } else if (skillId && this.skillRegistry) {
-          this.skillRegistry.recordSuccess(skillNs, skillId, { via: child.name });
+          this.skillRegistry.recordSuccess(skillNs, skillId, { via: child.name, task: skillCtx.subTask.description });
           ctx.recordSkill?.({
             op: 'success',
             l1Name: this.displayNameForNamespace(skillNs),
@@ -2086,7 +2087,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
             reasoning: 'failure NOT attributed — the validator observed that the run did not follow the recipe',
           });
         } else if (skillId && this.skillRegistry) {
-          this.skillRegistry.recordFailure(blameNs, skillId, { via: child.name });
+          this.skillRegistry.recordFailure(blameNs, skillId, { via: child.name, task: skillCtx.subTask.description });
           ctx.recordSkill?.({
             op: 'failure',
             l1Name: this.displayNameForNamespace(blameNs),
@@ -2323,6 +2324,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       FALLBACK_VERIFICATION_GUIDANCE,
       hasTools ? STATEFUL_EVIDENCE_GUIDANCE : '',
       hasTools ? READER_FACING_DOC_GUIDANCE : '',
+      hasTools ? READABLE_SOURCE_GUIDANCE : '',
       hasTools && this.tools.some((tool) => tool.name === 'edit_file') ? EXISTING_FILE_GUIDANCE : '',
       hasValidator ? TEST_ONLY_ELEMENT_GUIDANCE : '',
       hasValidator ? WEB_DELIVERY_GUIDANCE + '\n' + KEYBOARD_EVIDENCE_GUIDANCE : '',
