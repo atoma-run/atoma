@@ -11,6 +11,7 @@
 ## Current work
 - [Account plan screen](account-plan-screen.md) — 2026-10-15: Settings → Your plan; Free current, Pro/Team greyed previews, no prices
 - [Project deployment](project-deployment.md) — optional, mutable project setting: none (default), Atoma, or external; hosted address = model-chosen label, admin rename → permanent 308 (2026-10-15)
+- [Attica run delegation](attica-run-delegation.md) — 2026-10-15: I draft and start Attica runs myself and fix Atoma defects found
 - [Property scraping priority](property-scraping-priority.md) — 2026-10-14: xe.gr first, Spitogatos paused; build the product through Atoma runs
 - [Spitogatos VPN probe](spitogatos-vpn-probe.md) — 2026-10-14: works only via reverse SOCKS + real Chrome + one human hCaptcha; NordVPN still 403
 - [Supervisor mender state](supervisor-mender-state.md) — no mender PR since #20: analyst drops proposedFix; p8 citation pass shipped, cite-only proposal open
