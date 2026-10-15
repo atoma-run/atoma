@@ -6246,6 +6246,16 @@ describe('drawRuns behavior', () => {
     expect(allRoles!.label).toBe('ALL ROLES');
   });
 
+  it('labels the Decision kind chip from the i18n catalog, never the trace kind', () => {
+    const ctx = createRecordingCtx();
+    const decision = { id: 'decision-1', ts: 1_000, kind: 'jev', role: 'prefilter', evaluator: 'jev-1.13.0',
+      outcome: 'picked Meristem', durationMs: 469, usage: { inputTokens: 1, outputTokens: 1 }, costUsd: 0.001 } as unknown as VizEvent;
+    drawRuns(ctx, makeSnapshot({}, { run: makeRun([...eventsWithRoles(), decision]) }), WIDTH, HEIGHT);
+    const chip = ctx.filterButtons.find((button) => button.id === 'run.filter.kind.jev');
+    expect(chip?.label).toBe(I18N_CATALOGS.en['filters.jev']!.toUpperCase());
+    expect(chip?.label).toBe('DECISION');
+  });
+
   it('offers only the kind filters present in the trace', () => {
     const ctx = createRecordingCtx();
     drawRuns(ctx, makeSnapshot({}, { run: makeRun(eventsWithRoles()) }), WIDTH, HEIGHT);

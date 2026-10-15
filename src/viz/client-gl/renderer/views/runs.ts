@@ -601,6 +601,8 @@ export function drawRuns(
             ? snapshot.t('filters.context').toUpperCase()
             : kind === 'topology' || kind === 'acceptance'
               ? snapshot.t(`depth.${kind}`).toUpperCase()
+            : kind === 'jev'
+              ? snapshot.t('filters.jev').toUpperCase()
             : kind.toUpperCase(),
     })),
     roles: roleNames.length
