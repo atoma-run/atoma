@@ -2034,5 +2034,10 @@
   "plan.feature.manyConcurrentRuns": "Большое число параллельных run на организацию",
   "plan.feature.organisationBilling": "Единый счёт для организации",
   "plan.feature.usageReports": "Отчёты об использовании и расходах по проектам",
-  "plan.feature.dedicatedSupport": "Персональная поддержка"
+  "plan.feature.dedicatedSupport": "Персональная поддержка",
+  "detail.batch.callPosition": "Вызов {{position}} из {{n}} в этом пакете",
+  "detail.batch.previousCall": "Предыдущий вызов",
+  "detail.batch.nextCall": "Следующий вызов",
+  "detail.batch.calls": "Вызовы в этом пакете",
+  "detail.batch.arguments": "Аргументы"
 }

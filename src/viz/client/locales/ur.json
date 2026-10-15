@@ -2034,5 +2034,10 @@
   "plan.feature.manyConcurrentRuns": "فی ادارہ بیک وقت بہت سے run",
   "plan.feature.organisationBilling": "ادارے کے لیے ایک انوائس",
   "plan.feature.usageReports": "فی پروجیکٹ استعمال اور لاگت کی رپورٹس",
-  "plan.feature.dedicatedSupport": "مختص معاونت"
+  "plan.feature.dedicatedSupport": "مختص معاونت",
+  "detail.batch.callPosition": "اس بیچ میں {{n}} میں سے کال {{position}}",
+  "detail.batch.previousCall": "پچھلی کال",
+  "detail.batch.nextCall": "اگلی کال",
+  "detail.batch.calls": "اس بیچ کی کالز",
+  "detail.batch.arguments": "آرگیومنٹس"
 }

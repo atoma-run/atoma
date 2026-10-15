@@ -2034,5 +2034,10 @@
   "plan.feature.manyConcurrentRuns": "প্রতি প্রতিষ্ঠানে একসঙ্গে অনেক run",
   "plan.feature.organisationBilling": "প্রতিষ্ঠানের জন্য একটি ইনভয়েস",
   "plan.feature.usageReports": "প্রতি প্রজেক্টের ব্যবহার ও ব্যয়ের প্রতিবেদন",
-  "plan.feature.dedicatedSupport": "নিবেদিত সহায়তা"
+  "plan.feature.dedicatedSupport": "নিবেদিত সহায়তা",
+  "detail.batch.callPosition": "এই ব্যাচে {{n}}টির মধ্যে {{position}} নম্বর কল",
+  "detail.batch.previousCall": "আগের কল",
+  "detail.batch.nextCall": "পরের কল",
+  "detail.batch.calls": "এই ব্যাচের কলসমূহ",
+  "detail.batch.arguments": "আর্গুমেন্টসমূহ"
 }

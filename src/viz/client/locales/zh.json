@@ -2034,5 +2034,10 @@
   "plan.feature.manyConcurrentRuns": "每个组织可并发大量run",
   "plan.feature.organisationBilling": "组织统一开具一张账单",
   "plan.feature.usageReports": "按项目提供用量和成本报告",
-  "plan.feature.dedicatedSupport": "专属支持"
+  "plan.feature.dedicatedSupport": "专属支持",
+  "detail.batch.callPosition": "本批次第{{position}}个调用，共{{n}}个",
+  "detail.batch.previousCall": "上一个调用",
+  "detail.batch.nextCall": "下一个调用",
+  "detail.batch.calls": "本批次中的调用",
+  "detail.batch.arguments": "参数"
 }

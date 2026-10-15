@@ -2034,5 +2034,10 @@
   "plan.feature.manyConcurrentRuns": "Banyak run serentak per organisasi",
   "plan.feature.organisationBilling": "Satu faktur untuk organisasi",
   "plan.feature.usageReports": "Laporan penggunaan dan biaya per proyek",
-  "plan.feature.dedicatedSupport": "Dukungan khusus"
+  "plan.feature.dedicatedSupport": "Dukungan khusus",
+  "detail.batch.callPosition": "Panggilan {{position}} dari {{n}} dalam batch ini",
+  "detail.batch.previousCall": "Panggilan sebelumnya",
+  "detail.batch.nextCall": "Panggilan berikutnya",
+  "detail.batch.calls": "Panggilan dalam batch ini",
+  "detail.batch.arguments": "Argumen"
 }

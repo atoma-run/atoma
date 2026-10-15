@@ -2034,5 +2034,10 @@
   "plan.feature.manyConcurrentRuns": "प्रति संगठन बहुत-से समवर्ती run",
   "plan.feature.organisationBilling": "संगठन के लिए एक इनवॉइस",
   "plan.feature.usageReports": "प्रति प्रोजेक्ट उपयोग और लागत रिपोर्ट",
-  "plan.feature.dedicatedSupport": "समर्पित सहायता"
+  "plan.feature.dedicatedSupport": "समर्पित सहायता",
+  "detail.batch.callPosition": "इस बैच में {{n}} में से कॉल {{position}}",
+  "detail.batch.previousCall": "पिछली कॉल",
+  "detail.batch.nextCall": "अगली कॉल",
+  "detail.batch.calls": "इस बैच की कॉल",
+  "detail.batch.arguments": "आर्ग्युमेंट"
 }

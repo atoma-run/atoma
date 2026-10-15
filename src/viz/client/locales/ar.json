@@ -2034,5 +2034,10 @@
   "plan.feature.manyConcurrentRuns": "العديد من عمليات run المتزامنة لكل مؤسسة",
   "plan.feature.organisationBilling": "فاتورة واحدة للمؤسسة",
   "plan.feature.usageReports": "تقارير الاستخدام والتكلفة لكل مشروع",
-  "plan.feature.dedicatedSupport": "دعم مخصص"
+  "plan.feature.dedicatedSupport": "دعم مخصص",
+  "detail.batch.callPosition": "الاستدعاء {{position}} من {{n}} في هذه الدفعة",
+  "detail.batch.previousCall": "الاستدعاء السابق",
+  "detail.batch.nextCall": "الاستدعاء التالي",
+  "detail.batch.calls": "الاستدعاءات في هذه الدفعة",
+  "detail.batch.arguments": "الوسائط"
 }

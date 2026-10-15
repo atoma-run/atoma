@@ -2034,5 +2034,10 @@
   "plan.feature.manyConcurrentRuns": "組織あたり多数の同時run",
   "plan.feature.organisationBilling": "組織単位で請求書を一本化",
   "plan.feature.usageReports": "プロジェクトごとの使用状況とコストレポート",
-  "plan.feature.dedicatedSupport": "専任サポート"
+  "plan.feature.dedicatedSupport": "専任サポート",
+  "detail.batch.callPosition": "このバッチの呼び出し{{n}}件中{{position}}件目",
+  "detail.batch.previousCall": "前の呼び出し",
+  "detail.batch.nextCall": "次の呼び出し",
+  "detail.batch.calls": "このバッチの呼び出し",
+  "detail.batch.arguments": "引数"
 }

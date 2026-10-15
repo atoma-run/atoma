@@ -2034,5 +2034,10 @@
   "plan.feature.manyConcurrentRuns": "Numerosos runs simultáneos por organización",
   "plan.feature.organisationBilling": "Una sola factura para la organización",
   "plan.feature.usageReports": "Informes de uso y costes por proyecto",
-  "plan.feature.dedicatedSupport": "Soporte dedicado"
+  "plan.feature.dedicatedSupport": "Soporte dedicado",
+  "detail.batch.callPosition": "Llamada {{position}} de {{n}} en este lote",
+  "detail.batch.previousCall": "Llamada anterior",
+  "detail.batch.nextCall": "Llamada siguiente",
+  "detail.batch.calls": "Llamadas en este lote",
+  "detail.batch.arguments": "Argumentos"
 }
