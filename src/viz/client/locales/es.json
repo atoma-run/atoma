@@ -1922,7 +1922,7 @@
   "detail.batch.files": "Lecturas en este lote",
   "detail.batch.paths": "Rutas",
   "projects.settings": "Configuración del proyecto",
-  "deployment.title": "",
+  "deployment.title": "Destino",
   "deployment.journey": "Crea tu proyecto con runs, prueba el resultado en Vista previa y apruébalo para publicarlo en GitHub. El despliegue es un paso siguiente opcional.",
   "deployment.none": "Sin despliegue",
   "deployment.noneDescription": "Conserva los archivos y resultados entregados. Adecuado para documentos, análisis, scripts o una aplicación que aún no quieras publicar en línea.",
@@ -1940,7 +1940,7 @@
   "deployment.failed": "No se pudo confirmar que se guardó. Vuelve a cargar la página para comprobar la preferencia guardada e inténtalo de nuevo.",
   "deployment.conflict": "Esta configuración cambió en otra sesión. Vuelve a cargar la página antes de guardar.",
   "hosting.title": "Aplicación alojada",
-  "hosting.private": "",
+  "hosting.private": "Privada para su organización: los miembros la abren desde esta página, sin instalar nada.",
   "hosting.unconfigured": "El operador de Atoma está configurando el alojamiento. Su destino está guardado.",
   "hosting.not-deployed": "Aún no se ha desplegado ninguna aplicación. Despliegue una versión aceptada publicada en GitHub.",
   "hosting.starting": "Iniciando la aplicación y comprobando que responde…",
@@ -1986,5 +1986,11 @@
   "hosting.renameCancel": "Cancelar",
   "hosting.rename.invalid": "Esta dirección no está permitida. Usa de una a tres palabras con letras de la a a la z unidas por guiones.",
   "hosting.rename.conflict": "Esta dirección ya está en uso o ha cambiado mientras tanto. Elige otra o vuelve a cargar.",
-  "hosting.rename.failed": "No se pudo guardar la dirección. Inténtalo de nuevo."
+  "hosting.rename.failed": "No se pudo guardar la dirección. Inténtalo de nuevo.",
+  "deployment.intro": "Dónde se ejecuta la aplicación de este proyecto. Cambiar la opción no despliega, mueve ni detiene nada.",
+  "hosting.versionShort": "versión {{version}}",
+  "hosting.updateTitle": "Actualizar",
+  "hosting.update.ready": "La versión {{version}} aceptada está lista para desplegarse.",
+  "hosting.update.stopFirst": "La versión {{version}} aceptada es más reciente que la que está en línea. Detenga la aplicación y luego despliéguela; no estará disponible durante el proceso.",
+  "hosting.update.none": "Acepte una versión entregada y publíquela en GitHub para desplegarla aquí."
 }

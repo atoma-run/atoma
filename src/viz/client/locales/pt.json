@@ -1922,7 +1922,7 @@
   "detail.batch.files": "Leituras neste lote",
   "detail.batch.paths": "Caminhos",
   "projects.settings": "Definições do projeto",
-  "deployment.title": "",
+  "deployment.title": "Destino",
   "deployment.journey": "Crie o seu projeto com runs, teste o resultado na Pré-visualização e aprove-o para publicação no GitHub. A implementação é um passo seguinte opcional.",
   "deployment.none": "Sem implementação",
   "deployment.noneDescription": "Mantenha os ficheiros e resultados entregues. Adequado para documentos, análises, scripts ou uma aplicação que ainda não queira disponibilizar online.",
@@ -1940,7 +1940,7 @@
   "deployment.failed": "Não foi possível confirmar que foi guardada. Recarregue para verificar a preferência guardada e tente novamente.",
   "deployment.conflict": "Esta definição foi alterada noutra sessão. Recarregue a página antes de guardar.",
   "hosting.title": "Aplicação alojada",
-  "hosting.private": "",
+  "hosting.private": "Privada para a sua organização: os membros abrem-na nesta página, sem instalar nada.",
   "hosting.unconfigured": "O alojamento está a ser configurado pelo operador da atoma. O seu destino foi guardado.",
   "hosting.not-deployed": "Ainda não foi disponibilizada nenhuma aplicação. Disponibilize uma versão aprovada publicada no GitHub.",
   "hosting.starting": "A iniciar a aplicação e a verificar se responde…",
@@ -1986,5 +1986,11 @@
   "hosting.renameCancel": "Cancelar",
   "hosting.rename.invalid": "Este endereço não é permitido. Utilize uma a três palavras com letras de a a z, unidas por hífenes.",
   "hosting.rename.conflict": "Este endereço já está em uso ou foi entretanto alterado. Escolha outro ou recarregue.",
-  "hosting.rename.failed": "Não foi possível guardar o endereço. Tente novamente."
+  "hosting.rename.failed": "Não foi possível guardar o endereço. Tente novamente.",
+  "deployment.intro": "Onde é executada a aplicação deste projeto. Alterar a opção não implementa, move nem para nada.",
+  "hosting.versionShort": "versão {{version}}",
+  "hosting.updateTitle": "Atualização",
+  "hosting.update.ready": "A versão {{version}} aceite está pronta para ser implementada.",
+  "hosting.update.stopFirst": "A versão {{version}} aceite é mais recente do que a que está online. Pare a aplicação e, em seguida, implemente-a; ficará indisponível nesse intervalo.",
+  "hosting.update.none": "Aceite uma versão entregue e publique-a no GitHub para a implementar aqui."
 }

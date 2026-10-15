@@ -1922,7 +1922,7 @@
   "detail.batch.files": "Lesevorgänge in diesem Batch",
   "detail.batch.paths": "Pfade",
   "projects.settings": "Projekteinstellungen",
-  "deployment.title": "",
+  "deployment.title": "Ziel",
   "deployment.journey": "Erstellen Sie Ihr Projekt mit runs, testen Sie das Ergebnis in der Vorschau und geben Sie es dann zur Veröffentlichung auf GitHub frei. Die Bereitstellung ist ein optionaler nächster Schritt.",
   "deployment.none": "Keine Bereitstellung",
   "deployment.noneDescription": "Behalten Sie die bereitgestellten Dateien und Ergebnisse. Geeignet für Dokumente, Analysen, Skripte oder eine Anwendung, die Sie noch nicht online stellen möchten.",
@@ -1940,7 +1940,7 @@
   "deployment.failed": "Das Speichern konnte nicht bestätigt werden. Laden Sie die Seite neu, um die gespeicherte Einstellung zu prüfen, und versuchen Sie es dann erneut.",
   "deployment.conflict": "Diese Einstellung wurde in einer anderen Sitzung geändert. Laden Sie die Seite vor dem Speichern neu.",
   "hosting.title": "Gehostete Anwendung",
-  "hosting.private": "",
+  "hosting.private": "Privat für Ihre Organisation: Mitglieder öffnen die Anwendung über diese Seite, ohne etwas installieren zu müssen.",
   "hosting.unconfigured": "Das Hosting wird vom Atoma-Betreiber eingerichtet. Ihr Ziel wurde gespeichert.",
   "hosting.not-deployed": "Noch keine Anwendung bereitgestellt. Stellen Sie eine akzeptierte, auf GitHub veröffentlichte Version bereit.",
   "hosting.starting": "Die Anwendung wird gestartet und ihre Erreichbarkeit geprüft…",
@@ -1986,5 +1986,11 @@
   "hosting.renameCancel": "Abbrechen",
   "hosting.rename.invalid": "Diese Adresse ist nicht zulässig. Verwenden Sie ein bis drei Wörter aus den Buchstaben a bis z, verbunden durch Bindestriche.",
   "hosting.rename.conflict": "Diese Adresse ist bereits vergeben oder wurde zwischenzeitlich geändert. Wählen Sie eine andere oder laden Sie die Seite neu.",
-  "hosting.rename.failed": "Die Adresse konnte nicht gespeichert werden. Versuchen Sie es erneut."
+  "hosting.rename.failed": "Die Adresse konnte nicht gespeichert werden. Versuchen Sie es erneut.",
+  "deployment.intro": "Wo die Anwendung dieses Projekts ausgeführt wird. Eine Änderung der Auswahl stellt nichts bereit, verschiebt nichts und stoppt nichts.",
+  "hosting.versionShort": "Version {{version}}",
+  "hosting.updateTitle": "Aktualisieren",
+  "hosting.update.ready": "Die akzeptierte Version {{version}} kann bereitgestellt werden.",
+  "hosting.update.stopFirst": "Die akzeptierte Version {{version}} ist neuer als die derzeit online verfügbare. Stoppen Sie die Anwendung und stellen Sie sie dann bereit; dazwischen ist sie nicht verfügbar.",
+  "hosting.update.none": "Akzeptieren Sie eine ausgelieferte Version und veröffentlichen Sie sie auf GitHub, um sie hier bereitzustellen."
 }

@@ -1922,7 +1922,7 @@
   "detail.batch.files": "此批次中的读取",
   "detail.batch.paths": "路径",
   "projects.settings": "项目设置",
-  "deployment.title": "",
+  "deployment.title": "目标位置",
   "deployment.journey": "使用 run 构建项目，在预览中测试结果，然后批准发布到 GitHub。部署是可选的后续步骤。",
   "deployment.none": "不部署",
   "deployment.noneDescription": "保留交付的文件和结果。适用于文档、分析、脚本，或暂时不想上线的应用。",
@@ -1940,7 +1940,7 @@
   "deployment.failed": "无法确认是否保存成功。请重新加载以检查已保存的偏好设置，然后重试。",
   "deployment.conflict": "此设置已在另一个会话中更改。请重新加载页面后再保存。",
   "hosting.title": "托管应用",
-  "hosting.private": "",
+  "hosting.private": "仅限你的组织：成员可从此页面打开，无需安装任何内容。",
   "hosting.unconfigured": "Atoma 操作员正在设置托管服务。已保存您的目标地址。",
   "hosting.not-deployed": "尚未部署应用。请部署已发布到 GitHub 的获准版本。",
   "hosting.starting": "正在启动应用并检查其是否正常响应…",
@@ -1986,5 +1986,11 @@
   "hosting.renameCancel": "取消",
   "hosting.rename.invalid": "不允许使用此地址。请使用一至三个仅含字母a到z的单词，并以连字符连接。",
   "hosting.rename.conflict": "此地址已被占用，或地址已在此期间更改。请选择其他地址或重新加载。",
-  "hosting.rename.failed": "无法保存地址。请重试。"
+  "hosting.rename.failed": "无法保存地址。请重试。",
+  "deployment.intro": "此项目的应用程序运行的位置。更改此选项不会部署、迁移或停止任何内容。",
+  "hosting.versionShort": "版本 {{version}}",
+  "hosting.updateTitle": "更新",
+  "hosting.update.ready": "已接受的版本 {{version}} 已可部署。",
+  "hosting.update.stopFirst": "已接受的版本 {{version}} 比线上版本新。请先停止应用程序，再进行部署；期间应用程序将不可用。",
+  "hosting.update.none": "接受已交付的版本并将其发布到 GitHub，即可在此处部署。"
 }

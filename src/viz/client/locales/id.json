@@ -1922,7 +1922,7 @@
   "detail.batch.files": "Pembacaan dalam batch ini",
   "detail.batch.paths": "Jalur",
   "projects.settings": "Pengaturan proyek",
-  "deployment.title": "",
+  "deployment.title": "Tujuan",
   "deployment.journey": "Bangun proyek Anda dengan run, uji hasilnya di Pratinjau, lalu setujui untuk dipublikasikan ke GitHub. Penerapan adalah langkah lanjutan yang opsional.",
   "deployment.none": "Tanpa penerapan",
   "deployment.noneDescription": "Simpan file dan hasil yang diberikan. Cocok untuk dokumen, analisis, skrip, atau aplikasi yang belum ingin Anda tayangkan secara online.",
@@ -1940,7 +1940,7 @@
   "deployment.failed": "Penyimpanan tidak dapat dikonfirmasi. Muat ulang untuk memeriksa preferensi yang tersimpan, lalu coba lagi.",
   "deployment.conflict": "Pengaturan ini telah diubah dalam sesi lain. Muat ulang halaman sebelum menyimpan.",
   "hosting.title": "Aplikasi yang dihosting",
-  "hosting.private": "",
+  "hosting.private": "Privat untuk organisasi Anda: anggota membukanya dari halaman ini tanpa perlu menginstal apa pun.",
   "hosting.unconfigured": "Hosting sedang disiapkan oleh operator Atoma. Tujuan Anda telah disimpan.",
   "hosting.not-deployed": "Belum ada aplikasi yang di-deploy. Deploy versi yang disetujui dan dipublikasikan ke GitHub.",
   "hosting.starting": "Memulai aplikasi dan memeriksa responsnya…",
@@ -1986,5 +1986,11 @@
   "hosting.renameCancel": "Batal",
   "hosting.rename.invalid": "Alamat ini tidak diizinkan. Gunakan satu hingga tiga kata dengan huruf a sampai z yang dipisahkan oleh tanda hubung.",
   "hosting.rename.conflict": "Alamat ini sudah digunakan, atau alamat telah berubah. Pilih alamat lain atau muat ulang.",
-  "hosting.rename.failed": "Alamat tidak dapat disimpan. Coba lagi."
+  "hosting.rename.failed": "Alamat tidak dapat disimpan. Coba lagi.",
+  "deployment.intro": "Tempat aplikasi proyek ini dijalankan. Mengubah pilihan tidak akan menerapkan, memindahkan, atau menghentikan apa pun.",
+  "hosting.versionShort": "versi {{version}}",
+  "hosting.updateTitle": "Perbarui",
+  "hosting.update.ready": "Versi {{version}} yang diterima siap diterapkan.",
+  "hosting.update.stopFirst": "Versi {{version}} yang diterima lebih baru daripada versi yang sedang online. Hentikan aplikasi, lalu terapkan versi tersebut; aplikasi tidak tersedia selama proses ini.",
+  "hosting.update.none": "Terima versi yang dikirimkan dan publikasikan ke GitHub untuk menerapkannya di sini."
 }

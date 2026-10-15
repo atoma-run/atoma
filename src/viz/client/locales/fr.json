@@ -1922,7 +1922,7 @@
   "detail.batch.files": "Lectures dans ce lot",
   "detail.batch.paths": "Chemins",
   "projects.settings": "Paramètres du projet",
-  "deployment.title": "",
+  "deployment.title": "Destination",
   "deployment.journey": "Construis ton projet avec des runs, teste le résultat dans l’aperçu, puis approuve-le pour publication sur GitHub. Le déploiement est une étape suivante facultative.",
   "deployment.none": "Aucun déploiement",
   "deployment.noneDescription": "Conserve les fichiers livrés et les résultats. Convient aux documents, analyses, scripts ou à une application que tu ne souhaites pas encore mettre en ligne.",
@@ -1940,7 +1940,7 @@
   "deployment.failed": "Impossible de confirmer l’enregistrement. Recharge la page pour vérifier la préférence enregistrée, puis réessaie.",
   "deployment.conflict": "Ce paramètre a été modifié dans une autre session. Recharge la page avant d’enregistrer.",
   "hosting.title": "Application hébergée",
-  "hosting.private": "",
+  "hosting.private": "Privée au sein de ton organisation : les membres l’ouvrent depuis cette page, sans rien installer.",
   "hosting.unconfigured": "L’opérateur atoma configure l’hébergement. Ta destination est enregistrée.",
   "hosting.not-deployed": "Aucune application n’est encore déployée. Déploie une version acceptée publiée sur GitHub.",
   "hosting.starting": "Démarrage de l’application et vérification de sa réponse…",
@@ -1986,5 +1986,11 @@
   "hosting.renameCancel": "Annuler",
   "hosting.rename.invalid": "Cette adresse n’est pas autorisée. Utilise un à trois mots composés de lettres de a à z et séparés par des tirets.",
   "hosting.rename.conflict": "Cette adresse est déjà prise, ou l’adresse a changé entre-temps. Choisis-en une autre ou recharge la page.",
-  "hosting.rename.failed": "L’adresse n’a pas pu être enregistrée. Réessaie."
+  "hosting.rename.failed": "L’adresse n’a pas pu être enregistrée. Réessaie.",
+  "deployment.intro": "Emplacement où s’exécute l’application de ce projet. Modifier ce choix ne déploie, ne déplace et n’arrête rien.",
+  "hosting.versionShort": "version {{version}}",
+  "hosting.updateTitle": "Mise à jour",
+  "hosting.update.ready": "La version acceptée {{version}} est prête à être déployée.",
+  "hosting.update.stopFirst": "La version acceptée {{version}} est plus récente que celle en ligne. Arrête l’application, puis déploie-la ; elle sera indisponible entre-temps.",
+  "hosting.update.none": "Accepte une version livrée et publie-la sur GitHub pour la déployer ici."
 }

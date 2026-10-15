@@ -1922,7 +1922,7 @@
   "detail.batch.files": "このバッチの読み取り",
   "detail.batch.paths": "パス",
   "projects.settings": "プロジェクト設定",
-  "deployment.title": "",
+  "deployment.title": "実行先",
   "deployment.journey": "runでプロジェクトを構築し、プレビューで結果をテストしてから、GitHubへの公開を承認します。デプロイは任意の次のステップです。",
   "deployment.none": "デプロイしない",
   "deployment.noneDescription": "提供されたファイルと結果を保持します。ドキュメント、分析、スクリプト、またはまだオンラインで公開したくないアプリケーションに適しています。",
@@ -1940,7 +1940,7 @@
   "deployment.failed": "保存を確認できませんでした。再読み込みして保存済みの設定を確認してから、もう一度お試しください。",
   "deployment.conflict": "この設定は別のセッションで変更されました。保存する前にページを再読み込みしてください。",
   "hosting.title": "ホスト済みアプリケーション",
-  "hosting.private": "",
+  "hosting.private": "組織内限定：メンバーは何もインストールせずに、このページから開けます。",
   "hosting.unconfigured": "Atomaのオペレーターがホスティングを設定中です。デプロイ先は保存されています。",
   "hosting.not-deployed": "アプリケーションはまだデプロイされていません。GitHubに公開された承認済みバージョンをデプロイしてください。",
   "hosting.starting": "アプリケーションを起動し、応答を確認しています…",
@@ -1986,5 +1986,11 @@
   "hosting.renameCancel": "キャンセル",
   "hosting.rename.invalid": "このアドレスは使用できません。a～zの文字からなる1～3個の単語をハイフンでつないでください。",
   "hosting.rename.conflict": "このアドレスは使用済みか、その間にアドレスが変更されました。別のアドレスを選択するか、再読み込みしてください。",
-  "hosting.rename.failed": "アドレスを保存できませんでした。もう一度お試しください。"
+  "hosting.rename.failed": "アドレスを保存できませんでした。もう一度お試しください。",
+  "deployment.intro": "このプロジェクトのアプリケーションを実行する場所です。選択を変更しても、デプロイ、移動、停止は行われません。",
+  "hosting.versionShort": "バージョン {{version}}",
+  "hosting.updateTitle": "更新",
+  "hosting.update.ready": "承認済みバージョン {{version}} をデプロイできます。",
+  "hosting.update.stopFirst": "承認済みバージョン {{version}} は現在公開中のものより新しいバージョンです。アプリケーションを停止してからデプロイしてください。その間は利用できません。",
+  "hosting.update.none": "提供されたバージョンを承認してGitHubに公開すると、ここにデプロイできます。"
 }
