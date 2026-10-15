@@ -323,3 +323,127 @@ The run was NOT paused or cancelled. It remains active; do not assume a
 deepened sequential plan exposes a resumable checkpoint. Cancellation skips
 artifact finalization in projects/coordinator.ts, so it would not provide
 the ordinary artifact API needed for local verification.
+
+### 2026-10-14 09:34 UTC — local browser pilot completed
+
+Owner explicitly approved cancellation of looping run 7d3373ba and completing
+its local pilot. MCP confirmed cancellation at 09:18:49.092 UTC; all 1,423
+summary events were read to the end. Reported subscription-equivalent cost was
+$1.8543 (89 calls), not a claim of an extra API invoice. Cancellation did not
+produce an accepted artifact manifest. After MCP established that limitation,
+a read-only SSH allowlist snapshot recovered source files from this exact run;
+no browser profiles, cookies or runtime state were copied. Final source snapshot
+and the rejected generated verifier documents are retained as evidence.
+
+Installed a clearly labelled local derivative under
+`/Users/mgtf/Atoma/attica-property-flipping/releases/browser-20261014-v2`;
+`browser-current` selects it, while the previous HTTP `current` stays unchanged.
+Image `xe-browser:local-20261014-v2` (ARM64) has ID
+`sha256:50662e1b057d5d87162c8a65d9be54c276efc10e7f8724d743bc3db8611b2fb0`.
+Root launchers: `Start xe browser.command`, `Start demo.command`,
+`Stop browser.command`. Control http://127.0.0.1:3300/; controlled browser
+http://127.0.0.1:6081/vnc.html?autoconnect=1 . Both ports bind host loopback.
+The container runs as 501:20 with read-only root and only a private state mount.
+Live and demo profiles/exports are separate. The final service is LIVE and IDLE;
+no real xe.gr collection was automatically started during this handoff.
+
+Atoma supplied the browser collector core. Local integration repaired guarded
+noVNC HTTP/WebSocket access, checkpoint location, per-page exports, durable
+request reservation before navigation, active cancellation on resume, per-batch
+budget reset/archive, refusal/Retry-After persistence, explicit recovery after
+aborted navigation, target scope and human challenge subframes. Playwright is
+locked to 1.55.1 with system Chromium; dependency audit passed. This pilot is
+not an accepted Atoma delivery or a general Atoma paired-device service.
+
+Final image verification: 17 browser tests and all six original offline scripts
+passed in network-none Docker. All 95 installed source/data files match the
+local manifest; all 45 historical data/evidence files match d49796f8. Seven HTTP
+boundary cases passed. Actual noVNC UI demonstration proved pause -> premature
+resume stays paused -> synthetic human approval in the same Chromium session
+-> explicit resume completes two unique rows, with four consumed navigations.
+CSV and JSONL both contain those two rows. Restart/container replacement kept
+the paused row and budget without automatically fetching another page. Earlier
+batch archiving and foreign/wrong-port WebSocket Origin rejection were verified.
+Receipts and logs: `receipts/browser-20261014/` under the installation root,
+including `final-validation.json`, `demo-complete-v2.json`, `live-ready.json`.
+No real xe.gr CAPTCHA was solved or validated; that is the next product test.
+
+Atoma improvement already shipped: record_probe Node syntax-check fix 3e9f35ca,
+62 regression tests, delivered in 9b54ac14 (CI 38530437018 and deployment
+38531295274 succeeded; corrective run provenance confirms that revision).
+Remaining observed platform issues: pause unavailable after short-run deepening,
+private runtime/profile artifacts admitted to run1's manifest, repeated verifier
+loops and baseline assumptions, and generated integrity verification that rejects
+intentionally changed implementation files. Do not claim those issues fixed.
+No new browser-pilot GitHub publication and no further paid run were started.
+Spitogatos stays paused; future product iterations should continue through Atoma.
+
+### 2026-10-14 — real post-CAPTCHA parser defect fixed in local v3
+
+Owner completed the real xe.gr CAPTCHA, then reported `xe.gr search payload
+missing or malformed`. The controlled browser showed the actual search page.
+Cause reproduced offline through real Chromium with the authentic archived HTML:
+`page.content()` serializes double-quoted attributes with literal apostrophes,
+but both xe parsers used a regex that terminated on either quote. The earlier
+non-fixture test passed archived bytes directly through a fake browser, missing
+this serialization boundary. Fixed the shared attribute extraction to honor its
+matching delimiter and decode entities in one pass (preserves literal &lt; etc).
+Regression first failed with the user's exact error, then passed with the fix.
+19 browser tests and all six original offline scripts pass, network disabled.
+
+Installed local `browser-20261014-v3`; image
+`sha256:c58d6e5193092d6b37b014a1105193fc9fb0e7d24979e855392319c12b43152b`.
+Same private browser profile retained; stopped state backed up locally under
+`browser-state-backups/before-parser-v3`, never sent to Atoma or published.
+Resumed the existing two-page batch: COMPLETE, 68 unique real xe.gr listings,
+68 CSV and 68 JSONL rows, two additional navigations (budget 4 -> 6).
+No new CAPTCHA required; the agent did not solve any real CAPTCHA. All 45
+historical data/evidence files remain unchanged. Live exports are in
+`/Users/mgtf/Atoma/attica-property-flipping/browser-state/output/`.
+Receipts: `receipts/browser-parser-20261014/manifest.json`, `offline-tests.log`,
+`live-validation.json`. This supersedes the prior 'real CAPTCHA untested' limit:
+the user-solved verification and subsequent collection now have live evidence.
+The parser patch is local product code, not an Atoma platform patch or a new
+accepted/published Atoma run. Carry the missing real-browser serialization test
+into subsequent Atoma product iterations instead of trusting fake DOM evidence.
+
+
+### 2026-10-14 — portable installer integration run
+
+Owner approved completing Attica integration into the new Atoma Docker guide
+("Ok fait le"). Production run `1a4dd9b1-e6a7-4729-bba7-7af623c8fec8`,
+key `attica-portable-installation-20261014-v1`, admitted 10:37:37 UTC. It uses
+ordinary repository synchronization, not an explicit obsolete run base. Private
+project main `bd66fbb` adds `integration/attica-local-v3-source.json`: only 32
+reviewed code/configuration files, no data/evidence contents, profiles, cookies
+or current exports. Full 98-file payload was rejected by automatic approval
+review for possible sensitive evidence; narrowed source-only transfer passed.
+Run must apply/hash-check sources, remove integration input/generated profiles,
+finish portable descriptor/Compose and customer docs, and run offline regressions.
+Caller verifies actual downloaded ZIP and Docker afterward. Existing Mac pilot
+on 3300/6081 and its 68 live rows remain untouched; candidate uses 3310/6082.
+The guide requires delivered status; client acceptance/publication is distinct.
+
+Run 1a4dd9b1 delivered at 10:46:54 UTC, all 3/3 criteria met, manifest
+`1448d7af37bd39bfa783604c73c7312e9cf211da9fd9974590d498e6b894d340`.
+All 80 trace summary events were read; production record_probe confirms 19
+real Chromium browser regressions plus six historical offline suites. Saved
+comparison against d49796f8: 26 added, 2 modified (README and xe parser), 70
+unchanged, no removals; all historical data/evidence unchanged. Generated
+.local-browser files and the consumed integration input are absent.
+
+Production Atoma Files now displays the Docker guide for Attica. Downloaded
+actual UI ZIP: 22 sources + 5 platform launcher/help files, 37,531 bytes, SHA-256
+`d8c1e8937a820c2188d43e5ecda1f1e4d4912eb1baced2cf703c7ebcea00a9c9`.
+All source bytes verified. Exact Start.command built a healthy ARM64 service,
+501:20/read-only root/loopback3310+6082; UI idle and noVNC HTTP200. Exact
+Stop/Start preserved a synthetic state marker; marker removed and new service
+stopped. Original pilot on3300/6081 remains complete with68 real rows. No new
+collection or CAPTCHA trial. Native Windows unverified. Stable downloaded
+package: `/Users/mgtf/Atoma/attica-property-flipping/releases/portable-1a4dd9b1`.
+Receipts: `receipts/portable-1a4dd9b1/validation.json` under installation root.
+
+This is now an Atoma DELIVERED snapshot available for installation. No client
+acceptance/publication was recorded: that is distinct from model validation;
+acceptedReference remains7ab2c661. GitHub main contains source integration input
+bd66fbb, not yet the completed snapshot. Never claim GitHub publication here.
