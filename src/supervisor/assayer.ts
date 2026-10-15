@@ -87,8 +87,18 @@ export interface ArmLaunch {
   readonly logPath: string;
   readonly cwd: string;
   readonly timeoutMs: number;
+  /** The run's isolation: the runner's `--container --egress`, or the host's own tools. */
+  readonly isolation: ArmIsolation;
   readonly signal?: AbortSignal;
 }
+
+/**
+ * `container-egress` is what every project run on a shared host gets, and
+ * what the resident host uses: an arm executes model-authored commands and
+ * must not do so on the deployment's own filesystem. `host` is the CLI's
+ * default on a developer machine without Docker.
+ */
+export type ArmIsolation = 'host' | 'container-egress';
 
 /** Resolves to the run's log text; rejects on a spawn failure. */
 export type ArmLauncher = (launch: ArmLaunch) => Promise<string>;
@@ -105,6 +115,7 @@ export interface AssayerOptions {
   readonly leasePath: string;
   readonly timeoutMs: number;
   readonly maxCases: number;
+  readonly isolation: ArmIsolation;
   readonly dryRun: boolean;
   readonly journal: PlatformEventSink | null;
   readonly launch?: ArmLauncher;
@@ -249,7 +260,7 @@ export async function runAssay(target: AssayTarget, cases: readonly AssayCase[],
   const assayDir = join(assaysDir, assayDirName(target));
   const launch = options.launch ?? defaultLauncher;
   if (options.dryRun) {
-    options.log(`dry-run: would assay ${target.namespace}/${target.skillId} on ${cases.length} case(s), ${cases.length * 2} run(s) under ${relative(options.repoRoot, assayDir) || assayDir}`);
+    options.log(`dry-run: would assay ${target.namespace}/${target.skillId} on ${cases.length} case(s), ${cases.length * 2} run(s) (${options.isolation}) under ${relative(options.repoRoot, assayDir) || assayDir}`);
     for (const [index, c] of cases.entries()) options.log(`dry-run: case ${index}: ${c.task.slice(0, 160)}`);
     return { outcome: 'dry-run', target, recordPath: null, judgement: null };
   }
@@ -286,7 +297,8 @@ export async function runAssay(target: AssayTarget, cases: readonly AssayCase[],
         options.log(`assay ${target.skillId}: case ${index} arm ${arm} starting (${options.timeoutMs / 1000}s ceiling)`);
         let stats: RunStats | null = null;
         try {
-          const log = await launch({ arm, caseIndex: index, goal: c.task, env, logPath, cwd: options.repoRoot, timeoutMs: options.timeoutMs, ...(options.signal ? { signal: options.signal } : {}) });
+          const log = await launch({ arm, caseIndex: index, goal: c.task, env, logPath, cwd: options.repoRoot, timeoutMs: options.timeoutMs,
+            isolation: options.isolation, ...(options.signal ? { signal: options.signal } : {}) });
           stats = statsOf(log);
         } catch (error) {
           if (options.signal?.aborted) return { outcome: 'preempted', target, recordPath: null, judgement: null };
@@ -396,6 +408,7 @@ const defaultLauncher: ArmLauncher = async (launch) => {
     timeoutMs: launch.timeoutMs,
     logPath: launch.logPath,
     extraEnv: launch.env,
+    ...(launch.isolation === 'container-egress' ? { extraArgs: ['--container', '--egress'] } : {}),
     cwd: launch.cwd,
     npmScript: source ? 'run:build:dev' : 'run:build',
     // The arm's learning is off, so there is nothing to wait for; the flag keeps the runner's accounting inside the run.

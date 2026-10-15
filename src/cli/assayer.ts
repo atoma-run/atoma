@@ -62,6 +62,7 @@ flags:
   --max <n>              recipes per --once (default 1)
   --skill <ns>/<id>      assay this recipe now, judged or not
   --dry-run              name the cases and the runs; spend nothing
+  --container            run the arms as --container --egress (the resident host always does)
   --cases <n>            credited tasks per recipe (default ${ASSAY_MAX_CASES})
   --timeout-ms <ms>      wall clock per arm run (default ${ASSAY_DEFAULT_TIMEOUT_MS})
   --poll-ms <ms>         watch-mode poll (default ${ASSAYER_DEFAULT_POLL_MS})
@@ -86,7 +87,7 @@ function positiveNumber(raw: string | undefined, label: string, fallback: number
 async function main(): Promise<void> {
   applyCheckoutDotenvForSourceEntry();
   const args = parseCliArgs(process.argv, {
-    booleanFlags: ['help', 'once', 'dry-run'],
+    booleanFlags: ['help', 'once', 'dry-run', 'container'],
     valueFlags: ['max', 'skill', 'cases', 'timeout-ms', 'poll-ms', 'runs', 'skills-dir', 'supervisor-dir', 'db'],
     undeclared: 'discard',
   });
@@ -114,6 +115,7 @@ async function main(): Promise<void> {
     leasePath: mcpRunLockPath(),
     timeoutMs: positiveNumber(args.flags['timeout-ms'], '--timeout-ms', ASSAY_DEFAULT_TIMEOUT_MS),
     maxCases: Math.max(1, Math.trunc(positiveNumber(args.flags['cases'], '--cases', ASSAY_MAX_CASES))),
+    isolation: args.flags['container'] === 'true' ? 'container-egress' : 'host',
     dryRun: args.flags['dry-run'] === 'true',
     journal: (input) => void journal.append(input),
     signal: controller.signal,

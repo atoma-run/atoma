@@ -136,30 +136,62 @@ export function useProjectDeployment(project: VizProject | null | undefined, can
   return useMemo(() => ({ view, activate, renameAddress }), [view, activate, renameAddress]);
 }
 
+/**
+ * The destination card. Only the chosen option's description is shown, the
+ * save control exists only while a draft differs from the saved choice, and
+ * the notice never repeats what the hosted-application card already says.
+ */
 export function deploymentCopy(view: DeploymentSettingsView) {
+  const dirty = view.destination !== view.saved;
   return {
     choices: deploymentDestinationSchema.options.map(destination => ({ destination,
       id: `deployment.choose.${destination}`, label: `deployment.${destination}`, description: `deployment.${destination}Description` })),
-    notice: view.destination === 'none' ? 'deployment.optional' : view.destination === 'atoma' && view.hosting ? 'hosting.private' : 'deployment.unavailable',
+    description: `deployment.${view.destination}Description`,
+    notice: view.destination === 'none' ? 'deployment.optional'
+      : view.destination === 'external' || !view.hosting ? 'deployment.unavailable' : null,
     status: view.busy ? 'deployment.saving' : view.status !== 'idle' ? `deployment.${view.status}` : null,
-    saveDisabled: !view.canEdit || view.busy || view.destination === view.saved,
+    showSave: view.canEdit && (dirty || view.busy),
+    saveDisabled: !view.canEdit || view.busy || !dirty,
   };
 }
 
+export type HostingTone = 'success' | 'warning' | 'error' | 'muted';
+
+/**
+ * The hosted-application card, top of the settings: what is online, where,
+ * and only the actions that apply now. An update block appears only when an
+ * accepted version differs from the online one, or nothing is online yet.
+ */
 export function hostingCopy(view: DeploymentSettingsView) {
   if (view.saved !== 'atoma' && !view.hosting?.deploymentId) return null;
   const hosting = view.hosting;
-  return { status: view.hostingError ? 'hosting.error' : view.hostingBusy ? 'hosting.busy' : hosting ? `hosting.${hosting.state}` : 'hosting.unconfigured',
-    version: hosting?.commitSha?.slice(0, 8), candidateVersion: hosting?.candidate?.commitSha.slice(0, 8),
-    // The stored address; a deployment still served at its pre-address `p-<uuid>` host shows that host too.
-    address: hosting?.address ?? null, url: hosting?.url && hosting.url !== hosting.address ? hosting.url : null,
+  const state = hosting?.state;
+  const tone: HostingTone = view.hostingError || state === 'failed' ? 'error'
+    : state === 'ready' ? 'success' : state === 'starting' || view.hostingBusy ? 'warning' : 'muted';
+  const version = hosting?.commitSha?.slice(0, 8) ?? null;
+  const candidateVersion = hosting?.candidate?.commitSha.slice(0, 8) ?? null;
+  const online = state === 'ready' && !!hosting?.url;
+  const busy = !!view.hostingBusy || state === 'starting';
+  // The project's address; a deployment from before addresses existed is still served at its `p-<uuid>` host.
+  const shownAddress = hosting?.address ?? hosting?.url ?? null;
+  const update = !hosting?.candidate ? (online ? null : 'hosting.update.none')
+    : online && candidateVersion === version ? null
+    : online ? 'hosting.update.stopFirst' : 'hosting.update.ready';
+  const actions = [
+    ...(online ? [{ id: 'hosting.open', disabled: !!view.hostingBusy }] : []),
+    ...(hosting?.address && view.canEdit ? [{ id: 'hosting.rename', disabled: !!view.hostingBusy || !!view.renameBusy }] : []),
+  ];
+  return {
+    status: view.hostingError ? 'hosting.error' : view.hostingBusy ? 'hosting.busy' : hosting ? `hosting.${hosting.state}` : 'hosting.unconfigured',
+    tone, version, candidateVersion, address: shownAddress,
     ...addressParts(hosting?.address ?? null),
-    buttons: [
-      { id: 'hosting.deploy', disabled: !view.canEdit || !hosting?.candidate || view.hostingBusy || hosting.state === 'starting' || !!hosting.url },
-      { id: 'hosting.open', disabled: !hosting?.url || view.hostingBusy },
-      { id: 'hosting.stop', disabled: !view.canEdit || !hosting?.deploymentId || view.hostingBusy || hosting.state === 'starting' || hosting.state === 'stopped' },
-      ...(hosting?.address && view.canEdit ? [{ id: 'hosting.rename', disabled: view.hostingBusy || !!view.renameBusy }] : []),
-    ] };
+    actions,
+    update,
+    deploy: update && hosting?.candidate && view.canEdit
+      ? { id: 'hosting.deploy', disabled: busy || online } : null,
+    stop: view.canEdit && hosting?.deploymentId && state !== 'stopped'
+      ? { id: 'hosting.stop', disabled: busy } : null,
+  };
 }
 
 /** `https://<label>.<domain>/` split for the rename field: the label is edited, the domain is fixed. */

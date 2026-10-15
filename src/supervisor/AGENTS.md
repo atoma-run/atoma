@@ -318,8 +318,11 @@ Neighbours:
   the recipe and a copy without its folder, each run on its own copy of the
   store (one online snapshot, settled to rollback mode, copied per arm), its
   own workspace and its own runs directory, with learning, promotion, event
-  skills and the trigger evaluation OFF (`armEnvironment`). Nothing an arm
-  does reaches the commons. The judge is the runner's machine epilogue
+  skills and the trigger evaluation OFF (`armEnvironment`), and on the
+  resident host as `--container --egress` (`isolation`), what a project run
+  gets there: an arm executes model-authored commands and never does so on
+  the deployment's own filesystem; the CLI's `--container` asks the same.
+  Nothing an arm does reaches the commons. The judge is the runner's machine epilogue
   (`parseRunStatsEpilogue`): delivered or not, after the same root acceptance
   every product run gets; "matched" is a runtime `skill` event (`match` or
   `direct`) in the arm's trace, never log text, which the goal is echoed into.

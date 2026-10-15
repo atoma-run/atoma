@@ -124,7 +124,7 @@ function fixture(): Fixture {
   const launches: ArmLaunch[] = [];
   const base: Omit<AssayerOptions, 'launch'> = {
     repoRoot: root, dbPath, skillsDir, skills, runsDir: join(root, 'runs'), supervisorDir: join(root, 'supervisor'),
-    leasePath: join(root, 'lease.db'), timeoutMs: 1000, maxCases: 2, dryRun: false,
+    leasePath: join(root, 'lease.db'), timeoutMs: 1000, maxCases: 2, isolation: 'container-egress', dryRun: false,
     journal: (input) => void journal.append(input), log: () => {}, warn: () => {},
   };
   const f: Fixture = { root, dbPath, skillsDir, skills, journal, launches, options: (overrides = {}) => ({ ...base, ...overrides }) };
@@ -145,7 +145,9 @@ describe('pendingAssays / assayCases', () => {
     f.skills.save(NS, { id: 'probe-api', description: 'probes a JSON API', whenToUse: 'when asked to VERIFY an API; not to build one', kind: 'llm', body: '1. fetch each route.' });
     expect(pendingAssays(f.skills).map((t) => t.skillId)).toContain('probe-api');
     expect(pendingAssays(f.skills, { only: { namespace: NS, skillId: 'build-api' } }).map((t) => t.skillId)).toEqual(['build-api']);
-    expect(assayCases(f.skills, NS, 'probe-api', 5).map((c) => c.task.slice(0, 7))).toEqual(['Confirm', 'Verify ']);
+    // Two credits in one millisecond tie on `at`; the set is what matters here.
+    expect(assayCases(f.skills, NS, 'probe-api', 5).map((c) => c.task.slice(0, 7)).sort()).toEqual(['Confirm', 'Verify ']);
+    expect(assayCases(f.skills, NS, 'probe-api', 1)).toHaveLength(1);
   });
 });
 
@@ -165,6 +167,7 @@ describe('runAssay', () => {
       expect(l.env['ATOMA_SKILL_TRIGGER_EVAL']).toBe('0');
       expect(l.env['ATOMA_RUNS_DIR']).not.toBe(f.options().runsDir);
       expect(l.cwd).toBe(f.root);
+      expect(l.isolation).toBe('container-egress');
       expect(l.goal.length).toBeGreaterThan(10);
     }
     // Observed while the copies existed: the fake kept the directory listing.

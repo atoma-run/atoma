@@ -5,42 +5,46 @@ import { HOSTING_SUBDOMAIN_MAX } from '../../contracts/projectDeployment.js';
 import { deploymentCopy, hostingCopy, type DeploymentSettingsView } from './project-deployment.js';
 
 export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress }: {
-  view: DeploymentSettingsView; t: (key: string) => string; onActivate: (id: string) => void;
+  view: DeploymentSettingsView; t: (key: string, vars?: Record<string, unknown>) => string; onActivate: (id: string) => void;
   onRenameAddress?: (subdomain: string) => void;
 }) {
   const copy = deploymentCopy(view);
   const hosted = hostingCopy(view);
+  const control = (button: { id: string; disabled?: boolean }) => <button key={button.id} type="button" disabled={Boolean(button.disabled)}
+    onClick={() => onActivate(button.id)}><ButtonIcon kind={buttonIconKind(button.id)} />{t(button.id)}</button>;
   return <section aria-label={t('projects.settings')} aria-busy={view.busy}>
-    <h2>{t('deployment.title')}</h2><p>{t('deployment.journey')}</p>
+    {hosted ? <section aria-label={t('hosting.title')}>
+      <h3>{t('hosting.title')}</h3>
+      <p role="status">{t(hosted.status)}{hosted.version && hosted.tone === 'success' ? ` · ${t('hosting.versionShort', { version: hosted.version })}` : ''}</p>
+      {hosted.address ? <p>{t('hosting.address')}: {hosted.address}</p> : null}
+      {hosted.actions.map(control)}
+      {view.renaming && hosted.label && hosted.domain && onRenameAddress ?
+        <AddressForm key={hosted.label} label={hosted.label} domain={hosted.domain} view={view} t={t}
+          onSave={onRenameAddress} onCancel={() => onActivate('hosting.renameCancel')} /> : null}
+      {hosted.update ? <>
+        <h4>{t('hosting.updateTitle')}</h4>
+        <p>{t(hosted.update, { version: hosted.candidateVersion })}</p>
+        {hosted.deploy ? control(hosted.deploy) : null}
+      </> : null}
+      {hosted.stop ? control(hosted.stop) : null}
+      <p>{t('hosting.private')}</p>
+    </section> : null}
+    <h2>{t('deployment.title')}</h2><p>{t('deployment.intro')}</p>
     <fieldset disabled={!view.canEdit || view.busy}>
       <legend>{t('deployment.title')}</legend>
       {copy.choices.map(choice => <div key={choice.destination}>
         <label><input type="radio" name="deployment-destination" checked={choice.destination === view.destination}
           aria-describedby={`deployment-description-${choice.destination}`}
           onChange={() => onActivate(choice.id)} />{t(choice.label)}</label>
-        <p id={`deployment-description-${choice.destination}`}>{t(choice.description)}</p>
+        <p id={`deployment-description-${choice.destination}`} hidden={choice.destination !== view.destination}>{t(choice.description)}</p>
       </div>)}
     </fieldset>
-    <p>{t(copy.notice)}</p><p>{t('deployment.noSideEffects')}</p>
+    {copy.notice ? <p>{t(copy.notice)}</p> : null}
     {!view.canEdit ? <p>{t('deployment.adminOnly')}</p> : null}
     <p role={view.status === 'failed' || view.status === 'conflict' ? 'alert' : 'status'}>{copy.status ? t(copy.status) : ''}</p>
-    <button type="button" disabled={copy.saveDisabled} onClick={() => onActivate('deployment.save')}>
+    {copy.showSave ? <button type="button" disabled={copy.saveDisabled} onClick={() => onActivate('deployment.save')}>
       <ButtonIcon kind="check" />{t('deployment.save')}
-    </button>
-    {hosted ? <section aria-label={t('hosting.title')}>
-      <h3>{t('hosting.title')}</h3><p>{t('hosting.private')}</p>
-      <p role="status">{t(hosted.status)}</p>
-      {hosted.version ? <p>{t('hosting.version')}: {hosted.version}</p> : null}
-      {hosted.address ? <p>{t('hosting.address')}: {hosted.address}</p> : null}
-      {hosted.url ? <p>{hosted.url}</p> : null}
-      {hosted.candidateVersion ? <p>{t('hosting.candidateVersion')}: {hosted.candidateVersion}</p> : null}
-      <p>{t('hosting.updateNotice')}</p>
-      {hosted.buttons.map(button => <button key={button.id} type="button" disabled={Boolean(button.disabled)}
-        onClick={() => onActivate(button.id)}><ButtonIcon kind={buttonIconKind(button.id)} />{t(button.id)}</button>)}
-      {view.renaming && hosted.label && hosted.domain && onRenameAddress ?
-        <AddressForm key={hosted.label} label={hosted.label} domain={hosted.domain} view={view} t={t}
-          onSave={onRenameAddress} onCancel={() => onActivate('hosting.renameCancel')} /> : null}
-    </section> : null}
+    </button> : null}
   </section>;
 }
 
@@ -50,7 +54,7 @@ export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress
  * input, and a second framed overlay is what the overlay stack forbids.
  */
 function AddressForm({ label, domain, view, t, onSave, onCancel }: {
-  label: string; domain: string; view: DeploymentSettingsView; t: (key: string) => string;
+  label: string; domain: string; view: DeploymentSettingsView; t: (key: string, vars?: Record<string, unknown>) => string;
   onSave: (subdomain: string) => void; onCancel: () => void;
 }) {
   const [value, setValue] = useState(label);

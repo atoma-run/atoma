@@ -29,7 +29,7 @@ built beside it, in `src/supervisor/assayer.ts`.
 | target | a task recipe whose current surface (kind, `when_to_use`, body) has no `skill_assays` row and has at least one credited task |
 | cases | up to 2 of its credited tasks, newest first, from `skill_trigger_samples`; the lesson it was distilled from is recorded there at learn time |
 | arms | each case runs twice through `npm run run:build`: on a catalog copy holding the recipe, and on a copy without its folder |
-| isolation | one online snapshot of the store, copied per arm; own workspace, own runs directory; learning, promotion, event skills and the trigger evaluation off |
+| isolation | one online snapshot of the store, copied per arm; own workspace, own runs directory; learning, promotion, event skills and the trigger evaluation off; `--container --egress` on the resident host (the CLI's `--container`) |
 | judge | the runner's machine epilogue (delivered / partial / failed / error) after the same root acceptance every product run gets; `matched` is a runtime `skill` event in the arm's trace |
 | record | `supervisor/assays/<ns>__<id>__<digest>/assay.json`, the arms' logs and traces beside it; one `skill_assays` row; one `supervisor.assay` journal row |
 

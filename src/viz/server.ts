@@ -1419,6 +1419,9 @@ const ASSAYER: ResidentAssayer | null = (() => {
     leasePath: mcpRunLockPath(),
     timeoutMs: ASSAY_DEFAULT_TIMEOUT_MS,
     maxCases: ASSAY_MAX_CASES,
+    // The host's own filesystem is not an arm's sandbox: what a project run
+    // gets on this host, an assay arm gets.
+    isolation: 'container-egress',
     dryRun: false,
     journal: (input) => void journal.append(input),
     log,
