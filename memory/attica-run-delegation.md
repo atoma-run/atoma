@@ -56,3 +56,23 @@ in `viz-dev-orphan-reaping.test.ts`; 6,618 other tests passed). Deployment
 `38725393781` succeeded; `/home/atoma/current` resolves to the exact full
 `86c1030171aa8fa9f1c543c70d598168bc0c02eb` release. No new Attica run,
 acceptance, publication or real collection occurred in this continuation.
+
+## Autonomous session — 2026-10-15 evening (Claude Code, owner away 5 h)
+
+- c9227ed9 (partial, $4.86): independent offline review proved the tests targeted
+  `collect-xe-live.js`, which the server never calls; the production path is
+  `browser/control-server.js` → `browser/collect-xe-browser.js`. Earlier goals
+  said "the real collect()" without naming the module — name files in goals.
+- f144718c (partial, $7.28, base c9227ed9): production now correct for Retry-After,
+  detail CAPTCHA, in-process concurrency and cancel-during-run (repro with the real
+  createServer + fake session, `scratchpad/repro/repro2.js` of that session). Gap:
+  idle cancel after a complete/error checkpoint → 400, none → 500. Tests still weak
+  (no navigation counts, no restart, seeded state, real Chromium). Root acceptor
+  (Haiku, by design for file runs) wrongly claimed deleted test files remained.
+- e72cc17b failed in 5 s before any model call: `docker network create` →
+  "all predefined address pools have been fully subnetted" on prod. The in-process
+  egress path (`src/tools/egressSidecar.ts`) has no boot sweep; only the separate
+  launcher service reconciles orphans. Host inspection needs the owner (SSH denied
+  to the agent). Relaunched as key attica-control-proofs-idle-cancel-20261015-v2.
+- Atoma fixes: 8d4b0e4c (claude-cli rethrows the caller's abort reason instead of
+  "aborted by user"; deployed), d822ae99 (strip "Name:" from run titles).
