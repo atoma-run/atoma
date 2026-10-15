@@ -58,6 +58,7 @@ import {
   type DetailMeasure,
 } from '../detail-layout.js';
 import {
+  batchDetailCopyKeys,
   batchDetailNodes,
   buildLlmStartDetail,
   detailToneColor,
@@ -1795,19 +1796,19 @@ function drawEventDetail(
     // One card stands for the whole batch; the pane steps through its calls
     // one at a time, each with its own full result and arguments.
     const index = batch.findIndex((member) => member.id === event.id);
+    const labels = batchDetailCopyKeys(batch[0]?.name);
     const previous = batch[index - 1];
     const next = batch[index + 1];
     headerBottom += ctx.text(ctx.root,
-      snapshot.t(batch[0]?.name === 'fetch_url' ? 'detail.batch.requestPosition' : 'detail.batch.position',
-        { position: index + 1, n: batch.length }),
+      snapshot.t(labels.position, { position: index + 1, n: batch.length }),
       x + 18, headerBottom, { size: 10, color: GPU_COLORS.muted, width: width - 36 }).height + 4;
     const half = (width - 36 - 8) / 2;
     ctx.button(controls, `run.batch.prev.${(previous ?? event).id}`, 'button',
-      snapshot.t(batch[0]?.name === 'fetch_url' ? 'detail.batch.previousRequest' : 'detail.batch.previous'),
+      snapshot.t(labels.previous),
       x + 18, headerBottom, half, 30, false, snapshot.onActivate,
       undefined, false, false, undefined, undefined, undefined, !previous, 'back');
     ctx.button(controls, `run.batch.next.${(next ?? event).id}`, 'button',
-      snapshot.t(batch[0]?.name === 'fetch_url' ? 'detail.batch.nextRequest' : 'detail.batch.next'),
+      snapshot.t(labels.next),
       x + 26 + half, headerBottom, half, 30, false, snapshot.onActivate,
       undefined, false, false, undefined, undefined, undefined, !next, 'forward');
     headerBottom += 40;

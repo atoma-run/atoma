@@ -481,4 +481,21 @@ describe('Runs timeline layout — newest-first and subtree rails', () => {
     expect(timelineItemHolds(layout.items[0]!, 'fetch-b')).toBe(true);
     expect(layout.branches[0]!.eventCount).toBe(6);
   });
+
+  it('batches consecutive recorded probes without merging different tools or turns', () => {
+    const probe = (id: string, ts: number, llmEventId = 'turn') =>
+      event(id, ts, {
+        kind: 'tool', name: 'record_probe', branchId: 'task', llmEventId,
+        actor: { name: 'RNA', tier: 1 }, args: { cmd: `node ${id}.js` },
+      });
+    const layout = buildTimelineLayout([
+      probe('a', 1), probe('b', 2),
+      event('fetch', 3, { kind: 'tool', name: 'fetch_url', branchId: 'task', llmEventId: 'turn' }),
+      probe('c', 4), probe('d', 5, 'next-turn'), probe('e', 6, 'next-turn'),
+    ], all);
+    expect(layout.items.map(item => item.batch?.map(member => member.id) ?? item.event.id))
+      .toEqual([['a', 'b'], 'fetch', 'c', ['d', 'e']]);
+    expect(timelineItemHolds(layout.items[0]!, 'b')).toBe(true);
+    expect(layout.branches[0]!.eventCount).toBe(6);
+  });
 });

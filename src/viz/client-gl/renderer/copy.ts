@@ -398,7 +398,7 @@ export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCard
 
 /**
  * One card for a batch of tool calls (`TimelineItem.batch`): the tool named
- * once with its count, the paths or URLs as the body, and summed duration.
+ * once with its count, the paths, URLs or commands as the body, and summed duration.
  * Failed members are counted rather than tinting the whole row.
  */
 export function gpuBatchCardCopy(batch: readonly VizEvent[], t: GpuTranslate): GpuEventCardCopy {
@@ -411,39 +411,64 @@ export function gpuBatchCardCopy(batch: readonly VizEvent[], t: GpuTranslate): G
   return {
     title: t('card.batch.title', { tool: toolDisplayName(first.name ?? 'tool', t), n: batch.length }),
     meta: gpuEventCardCopy(first, t).meta,
-    body: batch.map((member) => toolArgSummary(member.args)).filter(Boolean).join(' · '),
+    body: batch.map(batchArgumentSummary).filter(Boolean).join(' · '),
     footer: [fmtMs(durationMs), clockTime(first.ts)].filter(Boolean).join(' · '),
     decision: failed ? t('card.batch.failed', { n: failed }) : '',
   };
 }
 
+function batchArgumentSummary(event: VizEvent): string {
+  const args = event.args;
+  if (event.name !== 'record_probe' || !args) return toolArgSummary(args);
+  if (typeof args['cmd'] === 'string') return toolArgSummary(args);
+  const command = typeof args['command'] === 'string' ? args['command'] : '';
+  const argv = Array.isArray(args['args']) ? args['args'].filter((arg): arg is string => typeof arg === 'string') : [];
+  return [command, ...argv].filter(Boolean).join(' ').slice(-64);
+}
+
+/** Tool-specific labels for the shared batch detail and pager. */
+export function batchDetailCopyKeys(name: string | undefined) {
+  if (name === 'fetch_url') return {
+    position: 'detail.batch.requestPosition', previous: 'detail.batch.previousRequest',
+    next: 'detail.batch.nextRequest', list: 'detail.batch.requests', items: 'detail.batch.urls',
+  };
+  if (name === 'record_probe') return {
+    position: 'detail.batch.probePosition', previous: 'detail.batch.previousProbe',
+    next: 'detail.batch.nextProbe', list: 'detail.batch.probes', items: 'detail.batch.commands',
+  };
+  return {
+    position: 'detail.batch.position', previous: 'detail.batch.previous',
+    next: 'detail.batch.next', list: 'detail.batch.files', items: 'detail.batch.paths',
+  };
+}
+
 /**
  * The batch's index in the detail pane, above the selected call's own result:
- * every path or URL in order, the selected one marked, failures flagged.
+ * every path, URL or command in order, the selected one marked, failures flagged.
  */
 export function batchDetailNodes(
   batch: readonly VizEvent[],
   selectedId: string,
   t: GpuTranslate
 ): StructuredDetailNode[] {
-  const requests = batch[0]?.name === 'fetch_url';
+  const labels = batchDetailCopyKeys(batch[0]?.name);
   const lines = batch.map((member, index) =>
     [
       member.id === selectedId ? '▸' : ' ',
       `${index + 1}.`,
-      toolArgSummary(member.args) || '?',
+      batchArgumentSummary(member) || '?',
       typeof member.error === 'string' ? '✕' : '',
     ].filter(Boolean).join(' ')
   );
   return [{
     kind: 'section',
     key: 'batch',
-    label: t(requests ? 'detail.batch.requests' : 'detail.batch.files'),
+    label: t(labels.list),
     count: batch.length,
     children: [{
       kind: 'field',
       key: 'batchPaths',
-      label: t(requests ? 'detail.batch.urls' : 'detail.batch.paths'),
+      label: t(labels.items),
       value: lines.join('\n'),
       tone: batch.some((member) => typeof member.error === 'string') ? 'warning' : 'neutral',
       presentation: 'code',

@@ -6080,6 +6080,32 @@ describe('drawRuns behavior', () => {
     ]);
   });
 
+  it('draws recorded probes as one card and pages through commands and results', () => {
+    const probe = (id: string, ts: number, args: Record<string, unknown>, extra: Partial<VizEvent> = {}): VizEvent => ({
+      id, kind: 'tool', name: 'record_probe', ts, branchId: 'task', llmEventId: 'turn',
+      actor: { name: 'RNA', tier: 1 }, args, result: { exitCode: 0, recorded: true }, durationMs: 3, ...extra,
+    });
+    const run = makeRun([
+      probe('a', 1, { cmd: 'node check.js first' }),
+      probe('b', 2, { command: 'node', args: ['check.js', 'second'] }, { result: { exitCode: 1, recorded: true } }),
+      probe('c', 3, { cmd: 'node check.js third' }, { error: 'timeout' }),
+    ]);
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, makeSnapshot({ selectedEventId: 'b' }, { run }), WIDTH, HEIGHT);
+    expect(ctx.eventCards.map(card => [card.id, card.selected])).toEqual([['a', true]]);
+    const texts = ctx.texts.map(text => text.value);
+    expect(texts).toContain('Record probe × 3');
+    expect(texts).toContain('✕ 1 failed');
+    expect(texts).toContain('Probe 2 of 3 in this batch');
+    expect(texts.some(text => text.includes('▸ 2. node check.js second'))).toBe(true);
+    expect(texts.some(text => text.includes('3. node check.js third ✕'))).toBe(true);
+    expect(ctx.buttons.filter(button => button.id.startsWith('run.batch.'))
+      .map(button => [button.id, button.label])).toEqual([
+      ['run.batch.prev.a', 'Previous probe'],
+      ['run.batch.next.c', 'Next probe'],
+    ]);
+  });
+
   it('renders skill context and simple plan lists as prose without nested item cards', () => {
     const preview = '# Verification\n\n- Read the entry file.\n- Start the local server.';
     const event: VizEvent = {
