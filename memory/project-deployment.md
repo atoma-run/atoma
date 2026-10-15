@@ -190,3 +190,21 @@ covers successful deployment and refusal after the accepted source mode changes.
 36 copy/hosting tests, both typechecks and targeted lint pass; awaiting CI.
 SSH had intermittent pre-auth closure; a persistent connection at
 /tmp/atoma-hosted-ssh worked. No server access protections were changed.
+
+a01d8d7d passed CI 38662993559 and production deploy 38663676469. The exact
+Attica manifest also passed corrected materialization in an isolated host test.
+Attica 30e53f08 was then deployed successfully through Project settings.
+URL: https://p-07864f7c-d8f2-4023-9fca-afd8a7a51e52.app.atoma.run/ (open from
+Atoma to obtain the private grant). A real 2-page xe.gr collection completed
+2026-10-15T01:10:16Z with 68 distinct IDs, 68 JSONL records and 68 CSV rows under
+the persistent hosting data directory. No CAPTCHA was requested or solved.
+The hosted desktop rendered xe.gr over the authenticated WebSocket.
+The app's target=_blank desktop link failed with Chromium ERR_BLOCKED_BY_RESPONSE;
+same-tab navigation and Back to application worked. Atoma run
+7b126338-d494-4edb-b793-de6298669eeb (base 30e53f08) delivered that minimal fix:
+hash-verified control.html differs only by removal of target=_blank and noopener;
+100 other files unchanged, both criteria met, 10 offline hosted/history tests
+and 2 Chromium tests passed. Manifest
+996704b1aede08656eeb1b238da2b18c4c6d6dafcc82c3fa9f911aa4048d8601.
+Client acceptance requested before publishing/redeploying this new version.
+Existing local pilot/profile/68 offers untouched.
