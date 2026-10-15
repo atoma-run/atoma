@@ -135,6 +135,26 @@ describe('a wedged call cannot hang forever', () => {
     await expect(p).rejects.toThrow(/user interrupt/);
   });
 
+  it("surfaces the caller's abort reason, not the SDK's generic \"aborted by user\"", async () => {
+    // The real SDK rejects with its own message whatever the reason: run
+    // c9227ed9 (2026-10-15) traced the client-question gate's own 90 s bound
+    // as "Claude Code process aborted by user".
+    queryMock.mockImplementation((opts?: { options?: { abortController?: AbortController } }) => ({
+      async *[Symbol.asyncIterator]() {
+        await new Promise<never>((_, reject) => {
+          opts?.options?.abortController?.signal.addEventListener('abort', () => {
+            reject(new Error('Claude Code process aborted by user'));
+          });
+        });
+        yield undefined as never;
+      },
+    }));
+    const client = new ClaudeCliLlmClient({ callTimeoutMs: 10_000 });
+    const err = await client.complete({ ...REQ, signal: AbortSignal.timeout(30) }).catch((e: unknown) => e);
+    expect((err as Error).name).toBe('TimeoutError');
+    expect(String((err as Error).message)).not.toMatch(/aborted by user/);
+  });
+
   it('a LONG but ACTIVE call survives: the clock measures silence, not duration', async () => {
     // The regression this design exists for. Total elapsed (5 × 40ms =
     // 200ms) far exceeds the 60ms deadline, but no single gap does — a

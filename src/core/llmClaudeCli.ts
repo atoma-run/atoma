@@ -427,6 +427,9 @@ export class ClaudeCliLlmClient implements LlmClient {
           `claude-cli call produced no output for ${this.callTimeoutMs}ms (idle — dropped connection?)`
         );
       }
+      // The SDK rejects a caller's abort as "Claude Code process aborted by
+      // user" whatever its cause; a caller's own deadline is not a user.
+      if (req.signal?.aborted && req.signal.reason instanceof Error) throw req.signal.reason;
       throw err;
     } finally {
       clearTimeout(timer);
