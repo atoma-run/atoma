@@ -188,6 +188,9 @@ describe('sanitizeRunTitle keeps one plain visible line', () => {
     ['"SOS sound file for a Morse exhibit."', 'SOS sound file for a Morse exhibit'],
     ['Title: Museum plate drawing', 'Museum plate drawing'],
     ['**Titre :** Dossier sur un objet disparu', 'Dossier sur un objet disparu'],
+    // Run f144718c (2026-10-15) was stored as "Name: Fix Attica collection control defects".
+    ['Name: Fix Attica collection control defects', 'Fix Attica collection control defects'],
+    ['Nom : Collecte xe.gr durable', 'Collecte xe.gr durable'],
     ['\n\n  Sensor data check  \nsecond line ignored', 'Sensor data check'],
     ['Guest\u202ebook\u200b search', 'Guest book search'],
     ['# Workshop schedule', 'Workshop schedule'],

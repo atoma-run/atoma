@@ -73,13 +73,13 @@ const EDGE_MARKS = /^[\s"'`*_#>\u00ab\u00bb\u201c\u201d\u201e\u2018\u2019-]+|[\s
 
 /**
  * One plain line, or null. The first non-empty line of the reply, without a
- * `Title:` prefix, wrapping quotes or markdown, invisible characters, or a
+ * `Title:` or `Name:` prefix, wrapping quotes or markdown, invisible characters, or a
  * final period; cut at a word boundary under `RUN_TITLE_MAX`.
  */
 export function sanitizeRunTitle(reply: string): string | null {
   const line = reply.split(/\r?\n/).map((part) => part.trim()).find((part) => part.length > 0) ?? '';
   let title = line.replace(INVISIBLE, ' ').replace(/\s+/g, ' ').trim();
-  title = title.replace(/^\**\s*(?:title|titre)\s*\**\s*[:：]\s*/iu, '');
+  title = title.replace(/^\**\s*(?:title|titre|name|nom)\s*\**\s*[:：]\s*/iu, '');
   title = title.replace(EDGE_MARKS, '').replace(/[.。]+$/u, '').trim();
   if (!title) return null;
   if (title.length <= RUN_TITLE_MAX) return title;
