@@ -146,3 +146,21 @@ Full viz:smoke passed, including MCP OAuth and real GPU client checks. The
 browser UI smoke additionally exercises Back to application before reconnecting
 and revoking the grant. Root/progress validation of Attica is still in flight;
 its old 1/3 criterion snapshot is not a final delivery verdict.
+
+Production activation: source 6ff6d144 passed CI and deployed. The browser image
+and nginx WebSocket configuration were activated under the deployment drain
+guard; all services and the private gateway passed health checks.
+Attica bec269a3 finished partial: its three functional criteria passed, but its
+guide exposed the internal CDP endpoint. Follow-up 30e53f08-120b-4526-a90a-8f03c178065c
+delivered with both criteria met; only README.browser.md changed (100 files
+unchanged). Manifest a7b8f4cf41837b9dd51f3ee1bc6ccfc2d59e0bd1c34bffd9a0f1b0f15d2ed53d
+awaits client acceptance. No new Attica publication/deployment is claimed.
+A proposed global validator clarification was blocked by automatic approval
+review as broader than the integration and reverted; it is not in this release.
+
+Packaging review caught a missing app dependency. The runtime now supplies
+locked Playwright 1.55.1 through NODE_PATH, without npm installation at startup.
+The Linux gVisor smoke attaches via Playwright from the app before testing
+desktop, restart persistence and network isolation; all passed with image
+sha256:bc60dc463b22155cdbdc444bc446ab23152afc9f24545b24077e2e1d703b5867.
+This newer image still requires activation after packaging release checks.

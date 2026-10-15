@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends chromium xvfb o
     && rm -rf /var/lib/apt/lists/* \
     && useradd -m -u 10002 app
 COPY docker/hosting/browser.mjs /opt/atoma-hosting/
+COPY docker/hosting/package*.json /opt/atoma-hosting/
+RUN cd /opt/atoma-hosting && npm ci --omit=dev --ignore-scripts && npm cache clean --force
+ENV NODE_PATH=/opt/atoma-hosting/node_modules
 COPY --from=desktop-copy /build/desktop.html /opt/atoma-hosting/browser-desktop.html
 USER app
 WORKDIR /workspace

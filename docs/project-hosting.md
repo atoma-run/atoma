@@ -124,6 +124,8 @@ The fixed runtime owns headed Chromium, its persistent `/data/browser-profile`,
 and the remote desktop. The application listens on supplied `HOST`/`PORT`, writes
 checkpoints and exports beneath `ATOMA_DATA_DIR`, and connects to the existing
 browser via `ATOMA_BROWSER_URL` (Playwright `connectOverCDP`, existing context).
+The browser image supplies pinned Playwright through `NODE_PATH` for CommonJS
+applications; no dependency installation runs when a deployment starts.
 It must not launch or close that browser. `ATOMA_BROWSER_DESKTOP_URL` is the
 same-origin desktop link; open it in a separate tab. The application owns its
 pause/checkpoint/recheck state and user-facing explanation. Manual verification

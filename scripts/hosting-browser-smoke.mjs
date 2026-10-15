@@ -13,6 +13,7 @@ const launcher = new DockerHosting({ root, image: process.env.ATOMA_HOSTING_IMAG
 const app = `
 const http = require('node:http');
 const fs = require('node:fs');
+const { chromium } = require('playwright');
 async function cdp(method, params={}) {
   const pages = await (await fetch(process.env.ATOMA_BROWSER_URL+'/json/list')).json();
   const ws = new WebSocket(pages.find(p=>p.type==='page').webSocketDebuggerUrl);
@@ -25,6 +26,7 @@ async function cdp(method, params={}) {
 }
 http.createServer(async(req,res)=>{
  try {
+  if(req.url==='/playwright') { const browser=await chromium.connectOverCDP(process.env.ATOMA_BROWSER_URL); const count=browser.contexts()[0].pages().length; await browser.close();res.end(String(count));return; }
   if(req.url==='/fixture') {res.end('<title>Human verification fixture</title><button onclick="localStorage.verified=1">Continue fixture</button>');return;}
   if(req.url==='/navigate') {await cdp('Page.navigate',{url:'http://127.0.0.1:8082/fixture'}); res.end('ok');return;}
   if(req.url==='/verify-fixture') {await cdp('Runtime.evaluate',{expression:'document.querySelector("button").click()'});fs.writeFileSync('/data/offers.json','[{"id":"fixture-1"}]');res.end('ok');return;}
@@ -46,6 +48,7 @@ try {
   const source = await launcher.prepareHosting(id); mkdirSync(source,{recursive:true}); writeFileSync(join(source,'server.cjs'),app);
   handle = await launcher.startHosting({...id,kind:'node',browser:true,entry:'server.cjs'});
   await waitFor(async()=> (await get()).ok);
+  assert.ok(Number(await (await get('/playwright')).text()) > 0, 'Packaged app can attach through Playwright');
   assert.equal((await get('/.atoma/browser/vnc.html')).status,200);
   assert.equal((await get('/json/version')).status,200); // App's ordinary route, never CDP JSON.
   assert.equal(await (await get('/json/version')).text(),'Hosted browser fixture ready');
