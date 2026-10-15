@@ -7,12 +7,19 @@ import hashlib
 import platform
 import queue
 import threading
+import base64
+import math
+import struct
 from importlib.metadata import distributions
 
 os.environ["HAYSTACK_TELEMETRY_ENABLED"] = "False"
 os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+
+
+class CacheRejected(Exception):
+    pass
 
 
 def runtime_identity():
@@ -45,6 +52,8 @@ def main():
     store = None
     pipeline = None
     mode = None
+    documents_by_id = {}
+    computed_ids = set()
     # Redirect all dependency chatter; the protocol channel has one writer.
     with contextlib.redirect_stdout(sys.stderr):
         for line in lines:
@@ -55,6 +64,8 @@ def main():
                     settings = request["settings"]
                     mode = settings["mode"]
                     documents = [Document(id=d["id"], content=d["content"], meta=d.get("meta", {})) for d in request["documents"]]
+                    if len({d.id for d in documents}) != len(documents):
+                        raise ValueError("duplicate document id")
                     store = InMemoryDocumentStore(shared=False, bm25_algorithm="BM25Okapi", embedding_similarity_function="cosine")
                     pipeline = Pipeline()
                     pipeline.add_component("bm25", InMemoryBM25Retriever(store))
@@ -73,7 +84,37 @@ def main():
                                                                          device=ComponentDevice.from_str("cpu"),
                                                                          local_files_only=True, trust_remote_code=False)
                         embedder.warm_up()
-                        documents = embedder.run(documents)["documents"]
+                        probe = embedder.run([Document(content="atoma dimension probe")])["documents"][0]
+                        dimension = len(probe.embedding)
+                        if not 1 <= dimension <= 4096:
+                            raise ValueError("unsupported embedding dimension")
+                        missing = []
+                        for raw, document in zip(request["documents"], documents):
+                            cached = raw.get("cachedEmbedding")
+                            if cached is None:
+                                missing.append(Document(id=document.id, content=raw["embeddingText"]))
+                                continue
+                            vector = base64.b64decode(cached, validate=True)
+                            if len(vector) != dimension * 4:
+                                raise CacheRejected()
+                            embedding = struct.unpack("<" + "f" * dimension, vector)
+                            if not all(math.isfinite(value) for value in embedding):
+                                raise CacheRejected()
+                            document.embedding = list(embedding)
+                        if missing:
+                            computed = embedder.run(missing)["documents"]
+                            if len(computed) != len(missing):
+                                raise ValueError("incomplete document embeddings")
+                            computed_by_id = {d.id: d.embedding for d in computed}
+                            if len(computed_by_id) != len(missing):
+                                raise ValueError("duplicate computed embedding")
+                            for document in documents:
+                                if document.embedding is None:
+                                    embedding = computed_by_id.get(document.id)
+                                    if embedding is None or len(embedding) != dimension or not all(math.isfinite(v) for v in embedding):
+                                        raise ValueError("invalid computed embedding")
+                                    document.embedding = embedding
+                                    computed_ids.add(document.id)
                         query_embedder = SentenceTransformersTextEmbedder(model=settings["embeddingPath"], progress_bar=False,
                                                                          device=ComponentDevice.from_str("cpu"), prefix=settings["queryPrefix"],
                                                                          local_files_only=True, trust_remote_code=False)
@@ -92,7 +133,18 @@ def main():
                     elif mode != "bm25":
                         raise ValueError("unsupported mode")
                     store.write_documents(documents)
+                    documents_by_id = {d.id: d for d in documents}
                     response = {"kind": "ready", "id": request_id, "version": __version__, "documents": len(documents), "runtimeSha256": runtime_identity()["sha256"]}
+                    if mode == "hybrid-rerank":
+                        response.update({"dimension": dimension, "computed": len(computed_ids)})
+                elif request["op"] == "embedding" and pipeline is not None and mode == "hybrid-rerank":
+                    document_id = request["documentId"]
+                    if document_id not in computed_ids:
+                        raise ValueError("embedding was not computed by this process")
+                    document = documents_by_id[document_id]
+                    vector = struct.pack("<" + "f" * len(document.embedding), *document.embedding)
+                    response = {"kind": "embedding", "id": request_id, "documentId": document_id,
+                                "dimension": len(document.embedding), "vector": base64.b64encode(vector).decode("ascii")}
                 elif request["op"] == "search" and pipeline is not None:
                     query, limit = request["query"], request["limit"]
                     inputs = {"bm25": {"query": request["lexicalQuery"], "top_k": limit, "filters": request.get("filters")}}
@@ -108,6 +160,10 @@ def main():
                     raise ValueError("unsupported operation")
                 output.write(json.dumps(response, allow_nan=False) + "\n")
                 output.flush()
+            except CacheRejected:
+                output.write(json.dumps({"kind": "cache-rejected", "id": request_id}) + "\n")
+                output.flush()
+                break
             except Exception:
                 output.write(json.dumps({"kind": "error", "id": request_id}) + "\n")
                 output.flush()

@@ -64,6 +64,13 @@ export function retrievalPassageContext(manifest: ProjectRetrievalManifest, pass
     manifest.snapshotSha256, passage.sha256].join('\n');
 }
 
+/** Dense input excludes run and whole-file identities so unchanged passages can reuse vectors. */
+export function retrievalEmbeddingText(passage: ProjectRetrievalPassage): string {
+  return [passage.path, ...(passage.code ? [passage.code.symbol, passage.code.signature,
+    passage.code.symbol.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')] : []),
+    ...passage.headingContext, passage.excerpt].join('\n');
+}
+
 export interface PreparedProjectRetrievalCorpus {
   readonly manifest: ProjectRetrievalManifest;
   readonly config: ProjectRetrievalIndexConfig;

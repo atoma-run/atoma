@@ -4,11 +4,14 @@ import { fileURLToPath } from 'node:url';
 import { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHaystackRetrievalBinding } from '../src/projects/retrievalHaystack.js';
 import { haystackModelRevision } from '../src/projects/retrievalModelFiles.js';
 import { createProjectRetrievalTool, type ProjectRetrievalBinding } from '../src/tools/projectRetrieval.js';
 import { corpusScope, prepareTestCorpus, retrievalContext } from './helpers/projectRetrievalCorpus.js';
+import { prepareProjectRetrievalCorpus, projectRetrievalHash, retrievalEmbeddingText } from '../src/projects/retrievalCorpus.js';
+import { ProjectEmbeddingCache, retrievalEncoderKey } from '../src/projects/retrievalEmbeddingCache.js';
 import { matchesProjectRetrievalFilters } from '../src/contracts/projectRetrieval.js';
 import type { HaystackSettings } from '../src/contracts/retrievalHaystack.js';
 
@@ -32,14 +35,37 @@ fs.writeFileSync(${JSON.stringify(join(root, 'pid'))}, String(process.pid));
 const mode = ${JSON.stringify(behavior)};
 const reply = value => process.stdout.write(JSON.stringify(value) + '\\n');
 let documents;
+const computed = new Map();
 require('node:readline').createInterface({input:process.stdin}).on('line', line => {
  const request = JSON.parse(line);
  if(request.op === 'search') fs.writeFileSync(${JSON.stringify(join(root, 'query.json'))}, JSON.stringify(request));
  if(request.op === 'init') {
    documents = request.documents;
+   if(mode === 'cache' || mode === 'cache-reject') {
+     if(mode === 'cache-reject' && documents.some(d => !!d.cachedEmbedding)) {
+       fs.appendFileSync(${JSON.stringify(join(root, 'cache-rejections'))}, 'rejected\\n');
+       reply({kind:'cache-rejected',id:0});
+       return;
+     }
+     for(const doc of documents) if(!doc.cachedEmbedding) {
+       const value = Buffer.alloc(8);
+       value.writeFloatLE(doc.embeddingText.length, 0);
+       value.writeFloatLE(doc.embeddingText.charCodeAt(0), 4);
+       computed.set(doc.id, value.toString('base64'));
+     }
+     fs.appendFileSync(${JSON.stringify(join(root, 'cache-calls.jsonl'))}, JSON.stringify({
+       computed:computed.size, cached:documents.filter(d => !!d.cachedEmbedding).length,
+       inputs:documents.map(d => d.embeddingText)}) + '\\n');
+   }
    if(mode === 'env' && (process.env.OPENAI_API_KEY || process.env.HOME || process.env.PYTHONPATH || process.env.HF_HUB_OFFLINE !== '1')) process.exit(2);
-   reply({kind:'ready',id:0,version:mode === 'version' ? '0.0.0' : '3.1.1',documents:documents.length});
+   reply({kind:'ready',id:0,version:mode === 'version' ? '0.0.0' : '3.1.1',documents:documents.length,
+     ...(mode === 'cache' || mode === 'cache-reject' ? {runtimeSha256:'f'.repeat(64),dimension:2,computed:computed.size} : {})});
  } else if(mode === 'hang') { /* keep stdin open until cancellation */ }
+ else if((mode === 'cache' || mode === 'cache-reject') && request.op === 'embedding') {
+   const vector = computed.get(request.documentId);
+   if(!vector) process.exit(2);
+   reply({kind:'embedding',id:request.id,documentId:request.documentId,dimension:2,vector});
+ }
  else if(mode === 'malformed') process.stdout.write('not json\\n');
  else if(mode === 'oversized') process.stdout.write('x'.repeat(33 * 1024 * 1024));
  else if(mode === 'unknown') reply({kind:'result',id:request.id,hits:[{id:'f'.repeat(64),score:1}]});
@@ -57,6 +83,77 @@ async function bind(behavior = 'valid') {
 }
 
 describe('experimental Haystack host boundary', () => {
+  it('reuses unchanged fragments across fresh processes and keeps projects separate', async () => {
+    const embeddingPath = join(root, 'embedding');
+    const rerankerPath = join(root, 'reranker');
+    mkdirSync(embeddingPath); mkdirSync(rerankerPath);
+    writeFileSync(join(embeddingPath, 'weights'), 'embedding-v1');
+    writeFileSync(join(rerankerPath, 'weights'), 'reranker-v1');
+    const settings: HaystackSettings = { mode: 'hybrid-rerank', embeddingPath, rerankerPath, queryPrefix: '',
+      embeddingRevision: await haystackModelRevision(embeddingPath, retrievalContext()),
+      rerankerRevision: await haystackModelRevision(rerankerPath, retrievalContext()) };
+    const dbPath = join(root, 'product.db');
+    const python = executable('cache');
+    const bindCorpus = async (files: Record<string, string>, snapshotId: string, projectId = 'project-a',
+      child = python) => {
+      const first = await prepareTestCorpus(root, files);
+      const corpus = await prepareProjectRetrievalCorpus(root, { ...first.manifest, snapshotId }, retrievalContext());
+      const scope = corpusScope(corpus, { runId: snapshotId, projectId, snapshotId, generation: corpus.generation });
+      const authority: ProjectRetrievalBinding = { scope, service: {
+        authorize: async () => true, search: async () => ({ ok: false, status: 'unavailable' }), dispose: async () => {},
+      } };
+      const binding = await createHaystackRetrievalBinding({ authority, corpus, python: child, settings,
+        runtimeSha256: 'f'.repeat(64), cacheDbPath: dbPath, context: retrievalContext() });
+      owned.push(binding);
+      return { corpus, binding };
+    };
+    const first = await bindCorpus({ 'price.md': 'Annual price is 190 euros.\n', 'support.md': 'Contact the desk.\n' }, 'snapshot-a');
+    await first.binding.service.dispose();
+    const second = await bindCorpus({ 'price.md': 'Annual price is 190 euros.\n', 'support.md': 'Contact the desk.\n' }, 'snapshot-b');
+    expect(await createProjectRetrievalTool(second.binding, retrievalContext()).execute({ query: 'price' })).toMatchObject({ ok: true });
+    await second.binding.service.dispose();
+    const third = await bindCorpus({ 'price.md': 'Annual price is 191 euros.\n', 'support.md': 'Contact the desk.\n' }, 'snapshot-c');
+    await third.binding.service.dispose();
+    const otherProject = await bindCorpus({ 'price.md': 'Annual price is 190 euros.\n', 'support.md': 'Contact the desk.\n' }, 'snapshot-d', 'project-b');
+    await otherProject.binding.service.dispose();
+    const originalGet = ProjectEmbeddingCache.prototype.get;
+    let reads = 0;
+    const fault = vi.spyOn(ProjectEmbeddingCache.prototype, 'get').mockImplementation(function (this: ProjectEmbeddingCache, hash) {
+      if (++reads === 2) throw new Error('cache read failed');
+      return originalGet.call(this, hash);
+    });
+    try {
+      const recovered = await bindCorpus({ 'price.md': 'Annual price is 190 euros.\n', 'support.md': 'Contact the desk.\n' }, 'snapshot-f');
+      await recovered.binding.service.dispose();
+    } finally { fault.mockRestore(); }
+    const rejected = await bindCorpus({ 'price.md': 'Annual price is 190 euros.\n', 'support.md': 'Contact the desk.\n' },
+      'snapshot-e', 'project-a', executable('cache-reject'));
+    await rejected.binding.service.dispose();
+    const calls = readFileSync(join(root, 'cache-calls.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    expect(calls.map(call => [call.computed, call.cached])).toEqual([[2, 0], [0, 2], [1, 1], [2, 0], [2, 0], [2, 0]]);
+    expect(readFileSync(join(root, 'cache-rejections'), 'utf8')).toBe('rejected\n');
+    expect(calls[0].inputs).toEqual(calls[1].inputs);
+    expect(calls[1].inputs).toContain(retrievalEmbeddingText(second.corpus.passages[0]!));
+    const cache = new ProjectEmbeddingCache(dbPath, 'org-a', 'project-a',
+      retrievalEncoderKey(settings.embeddingRevision, 'f'.repeat(64)));
+    try { expect(cache.get(projectRetrievalHash(calls[0].inputs[0]))?.dimension).toBe(2); }
+    finally { cache.close(); }
+  });
+  it('discards damaged vectors and repairs the same content key', () => {
+    const dbPath = join(root, 'product.db');
+    const cache = new ProjectEmbeddingCache(dbPath, 'org-a', 'project-a', 'encoder-a');
+    const vector = Buffer.alloc(8);
+    vector.writeFloatLE(1.5, 0); vector.writeFloatLE(2.5, 4);
+    cache.putMany([{ inputHash: 'input-a', dimension: 2, vector }]);
+    expect(cache.get('input-a')?.vector).toEqual(vector);
+    const db = new Database(dbPath);
+    try { db.prepare('UPDATE project_embedding_cache SET vector_sha256 = ? WHERE input_hash = ?').run('invalid', 'input-a'); }
+    finally { db.close(); }
+    expect(cache.get('input-a')).toBeNull();
+    cache.putMany([{ inputHash: 'input-a', dimension: 2, vector }]);
+    expect(cache.get('input-a')?.vector).toEqual(vector);
+    cache.close();
+  });
   it('combines filter fields and respects directory boundaries', () => {
     const filters = { directories: ['docs'], paths: ['docs/nested/a.md', 'docs/a.txt'] };
     expect(matchesProjectRetrievalFilters('docs/nested/a.md', filters)).toBe(true);

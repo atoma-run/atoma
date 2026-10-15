@@ -35,6 +35,7 @@
 - [Viz frame cost measurement](viz-frame-cost-measurement.md) — how to measure GPU frame cost; MSAA decision open
 
 ## Measurements with open items
+- [Attica Haystack startup](attica-haystack-startup.md) — 2026-10-15: 6m29–6m53 before agents; 1,424 passages re-embedded on one CPU; cache implementation underway, production gain unmeasured
 - [First refusals 2026-10-10](first-refusals-2026-10-10.md) — 118/275 first root refusals classified; E3 and false approvals open
 - [edit_file manifest fix 2026-10-11](edit-file-manifest-2026-10-11.md) — 171/1198 failures; manifest loop fixed, other categories open
 - [Production runs 2026-09-26/27](production-runs-2026-09-26.md) — hard width refusal undecided; MCP/WSL/heredoc gotchas

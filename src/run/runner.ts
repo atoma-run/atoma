@@ -1470,7 +1470,15 @@ async function startTaskInternal(
   let retrievalPrepared = !prepareRetrieval;
   const settled = (async (): Promise<RunOutcome> => {
     try {
-      if (prepareRetrieval) await prepareRetrieval({ signal, deadlineAt });
+      if (prepareRetrieval) {
+        // Persist the empty live trace before the CPU-bound Python preparation.
+        // Progress readers can then report "preparing" instead of "unknown".
+        try { recorder.flushPartial(); } catch { /* Observability cannot block a run. */ }
+        console.log('[atoma retrieval] preparation started');
+        const retrievalStarted = Date.now();
+        await prepareRetrieval({ signal, deadlineAt });
+        console.log(`[atoma retrieval] preparation ready in ${Date.now() - retrievalStarted}ms`);
+      }
       retrievalPrepared = true;
       const result = await handle(task, ctx);
       clearTimeout(watchdog);

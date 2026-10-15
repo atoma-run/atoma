@@ -36,7 +36,8 @@ export function openProjectRunHaystack(input: Parameters<typeof openProjectRunRe
         assertRetrievalTime(context);
         if (closed || await authority.service.authorize(authority.scope, context) !== true) throw new Error('project retrieval denied');
         const corpus = await prepareProjectRetrievalCorpus(source.sourceRoot, source.manifest, context);
-        delegate = await createHaystackRetrievalBinding({ authority, corpus, ...launch, context });
+        delegate = await createHaystackRetrievalBinding({ authority, corpus, ...launch, context, cacheDbPath: input.dbPath,
+          onPreparationStats: stats => console.error(`[atoma retrieval] documents=${stats.documents} cacheHits=${stats.cacheHits} computed=${stats.computed} pythonInitMs=${stats.pythonInitMs} cacheExportMs=${stats.cacheExportMs}`) });
         if (closed) { await delegate.service.dispose(); throw new Error('project retrieval closed'); }
       } catch { throw new Error('project retrieval preparation is unavailable or denied'); }
     })();

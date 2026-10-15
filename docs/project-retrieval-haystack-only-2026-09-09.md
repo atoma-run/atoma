@@ -19,7 +19,24 @@ SQLite remains Atoma's primary product store for identity, receipts, history
 and other existing state. No product store is added. Existing FTS cache tables
 are neither consulted nor silently migrated or deleted; source archives and
 historical evidence are preserved. New runs create no FTS tables. Haystack's
-current index is in memory and reconstructed for each run.
+current index is in memory and reconstructed for each run. Hybrid runs may
+reuse content-derived document embeddings from a bounded, disposable table in
+the existing product store. This is not a second retrieval index: Haystack
+still owns document admission, the live search store, ranking and teardown.
+
+The embedding key includes the organisation, project, pinned model revision,
+Python package identity and the exact document-embedding input. That input
+contains stable path/code context and excerpt text, but excludes the run and
+snapshot identifiers and whole-file digest; changing one source fragment
+therefore recomputes that fragment without invalidating unchanged neighbours.
+Cached vectors are checked for length, finite values and checksum before use;
+the Python process checks the actual model dimension. A rejected cache batch
+is retried once without cached vectors. A cache open/write failure leaves the
+run able to build embeddings from the admitted source. Per-project and global
+byte limits evict oldest entries; the table may be deleted and regenerated.
+The run trace records preparation time and logs cache hits versus computed
+vectors, so a warm run can be compared with a cold one without attributing
+the entire startup gap to embedding work.
 
 ## Activation
 

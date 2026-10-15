@@ -19,8 +19,13 @@ export const haystackLaunchSchema = z.object({ python: localPath, settings: hays
 export type HaystackLaunch = z.infer<typeof haystackLaunchSchema>;
 export type HaystackSettings = z.infer<typeof haystackSettingsSchema>;
 export const haystackReplySchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('cache-rejected'), id: z.literal(0) }).strict(),
   z.object({ kind: z.literal('ready'), id: z.literal(0), version: z.literal(HAYSTACK_VERSION),
-    documents: z.number().int().nonnegative(), runtimeSha256: projectDocumentDigestSchema.optional() }).strict(),
+    documents: z.number().int().nonnegative(), runtimeSha256: projectDocumentDigestSchema.optional(),
+    dimension: z.number().int().min(1).max(4096).optional(), computed: z.number().int().nonnegative().optional() }).strict(),
+  z.object({ kind: z.literal('embedding'), id: z.number().int().positive(),
+    documentId: projectDocumentDigestSchema, dimension: z.number().int().min(1).max(4096),
+    vector: z.string().max(22000) }).strict(),
   z.object({ kind: z.literal('result'), id: z.number().int().positive(),
     hits: z.array(z.object({ id: projectDocumentDigestSchema, score: z.number().finite() }).strict()).max(100) }).strict(),
   z.object({ kind: z.literal('error'), id: z.number().int().nonnegative() }).strict(),

@@ -10,7 +10,8 @@ import { haystackModelRevision } from './retrievalModelFiles.js';
 import { validateProjectRetrievalBinding, type ProjectRetrievalBinding,
   type ProjectRetrievalCallContext } from '../tools/projectRetrieval.js';
 import { assertRetrievalTime, canonicalRetrievalManifest, projectRetrievalHash,
-  retrievalDocumentId, retrievalGeneration, retrievalPassageContext, type PreparedProjectRetrievalCorpus } from './retrievalCorpus.js';
+  retrievalDocumentId, retrievalEmbeddingText, retrievalGeneration, retrievalPassageContext, type PreparedProjectRetrievalCorpus } from './retrievalCorpus.js';
+import { ProjectEmbeddingCache, retrievalEncoderKey } from './retrievalEmbeddingCache.js';
 
 /** Run-owned Python backend. Only admitted text enters; only IDs and scores return. */
 class HaystackProcess {
@@ -89,6 +90,9 @@ class HaystackProcess {
 export async function createHaystackRetrievalBinding(input: {
   authority: ProjectRetrievalBinding; corpus: PreparedProjectRetrievalCorpus;
   python: string; settings: HaystackSettings; runtimeSha256?: string; context: ProjectRetrievalCallContext;
+  cacheDbPath?: string;
+  onPreparationStats?: (stats: { documents: number; cacheHits: number; computed: number;
+    pythonInitMs: number; cacheExportMs: number }) => void;
 }): Promise<ProjectRetrievalBinding> {
   const binding = validateProjectRetrievalBinding(input.authority);
   const { scope } = binding;
@@ -109,6 +113,8 @@ export async function createHaystackRetrievalBinding(input: {
   }));
   if (passages.size !== input.corpus.passages.length) throw new Error('Haystack duplicate passage');
   let child: HaystackProcess | undefined;
+  let cache: ProjectEmbeddingCache | undefined;
+  const closeCache = (): void => { try { cache?.close(); } catch { /* Disposable cache. */ } cache = undefined; };
   try {
     if (await binding.service.authorize(scope, input.context) !== true) throw new Error('Haystack source denied');
     if (settings.mode === 'hybrid-rerank' && (
@@ -116,18 +122,94 @@ export async function createHaystackRetrievalBinding(input: {
       await haystackModelRevision(settings.rerankerPath, input.context) !== settings.rerankerRevision)) {
       throw new Error('Haystack model files changed');
     }
+    if (settings.mode === 'hybrid-rerank' && scope.kind === 'tenant' && input.cacheDbPath && input.runtimeSha256) {
+      try { cache = new ProjectEmbeddingCache(input.cacheDbPath, scope.orgId, scope.projectId,
+        retrievalEncoderKey(settings.embeddingRevision, input.runtimeSha256)); }
+      catch { /* A cache fault never removes project search. */ }
+    }
+    const prepared = [...passages].map(([id, p]) => {
+      const embeddingText = retrievalEmbeddingText(p);
+      return { id, embeddingText, inputHash: projectRetrievalHash(embeddingText),
+        content: retrievalPassageContext(manifest, p) + '\n' + p.excerpt,
+        meta: { path: p.path, ...(p.code ? { symbol: p.code.symbol, kind: p.code.kind } : {}),
+          format: projectDocumentFormat(p.path), snapshotId: manifest.snapshotId, snapshotSha256: manifest.snapshotSha256 } };
+    });
+    const cachedByInput = new Map<string, Buffer>();
+    const cachedById = new Set<string>();
+    const documents = prepared.map(({ inputHash, ...document }) => {
+      if (!cache || settings.mode !== 'hybrid-rerank') return document;
+      try {
+        const stored = cache.get(inputHash);
+        if (!stored) return document;
+        cachedByInput.set(inputHash, stored.vector);
+        cachedById.add(document.id);
+        return { ...document, cachedEmbedding: stored.vector.toString('base64') };
+      } catch { closeCache(); cachedByInput.clear(); cachedById.clear(); return document; }
+    });
+    if (!cache) for (const document of documents) {
+      delete (document as { cachedEmbedding?: string }).cachedEmbedding;
+    }
+    // Keep the existing 32 MiB protocol bound even for a corpus with many cached vectors.
+    let frameBytes = Buffer.byteLength(JSON.stringify({ op: 'init', settings, documents, id: 0 })) + 1;
+    for (let i = documents.length - 1; frameBytes > HAYSTACK_FRAME_BYTES && i >= 0; i--) {
+      const document = documents[i];
+      if (!document || !('cachedEmbedding' in document)) continue;
+      frameBytes -= Buffer.byteLength(JSON.stringify({ cachedEmbedding: document.cachedEmbedding })) - 2 + 1;
+      cachedById.delete(document.id);
+      delete (document as { cachedEmbedding?: string }).cachedEmbedding;
+    }
     assertRetrievalTime(input.context);
     child = new HaystackProcess(input.python);
-    const ready = await child.send({ op: 'init', settings, documents: [...passages].map(([id, p]) => ({
-      id, content: retrievalPassageContext(manifest, p) + '\n' + p.excerpt,
-      meta: { path: p.path, ...(p.code ? { symbol: p.code.symbol, kind: p.code.kind } : {}), format: projectDocumentFormat(p.path),
-        snapshotId: manifest.snapshotId, snapshotSha256: manifest.snapshotSha256 },
-    })) }, input.context, true);
+    const pythonStarted = Date.now();
+    let ready = await child.send({ op: 'init', settings, documents }, input.context, true);
+    if (ready.kind === 'cache-rejected' && cachedById.size) {
+      await child.close();
+      closeCache(); cachedByInput.clear(); cachedById.clear();
+      for (const document of documents) delete (document as { cachedEmbedding?: string }).cachedEmbedding;
+      child = new HaystackProcess(input.python);
+      ready = await child.send({ op: 'init', settings, documents }, input.context, true);
+    }
+    const pythonInitMs = Date.now() - pythonStarted;
     if (ready.kind !== 'ready' || (input.runtimeSha256 !== undefined && ready.runtimeSha256 !== input.runtimeSha256) ||
         ready.documents !== passages.size || await binding.service.authorize(scope, input.context) !== true) {
       throw new Error('Haystack initialization refused');
     }
+    if (settings.mode === 'hybrid-rerank' && cache) {
+      if (!ready.dimension || ready.computed !== documents.length - cachedById.size) {
+        throw new Error('Haystack embedding accounting mismatch');
+      }
+      let learned: { inputHash: string; vector: Buffer; dimension: number }[] = [];
+      let exportedBytes = 0;
+      for (const document of prepared) {
+        if (cachedById.has(document.id) || cachedByInput.has(document.inputHash)) continue;
+        if (exportedBytes >= 64 * 1024 * 1024) break;
+        const response = await child.send({ op: 'embedding', documentId: document.id }, input.context);
+        if (response.kind !== 'embedding' || response.documentId !== document.id || response.dimension !== ready.dimension) {
+          throw new Error('Haystack embedding export mismatch');
+        }
+        const vector = Buffer.from(response.vector, 'base64');
+        if (vector.toString('base64') !== response.vector || vector.length !== ready.dimension * 4) {
+          throw new Error('Haystack invalid embedding export');
+        }
+        for (let i = 0; i < vector.length; i += 4) if (!Number.isFinite(vector.readFloatLE(i))) {
+          throw new Error('Haystack non-finite embedding export');
+        }
+        cachedByInput.set(document.inputHash, vector);
+        exportedBytes += vector.length;
+        learned.push({ inputHash: document.inputHash, vector, dimension: ready.dimension });
+        if (learned.length >= 32) {
+          try { cache.putMany(learned); } catch { closeCache(); break; }
+          learned = [];
+        }
+      }
+      if (cache && learned.length) try { cache.putMany(learned); } catch { /* Safe to recompute. */ }
+    }
+    const cacheExportMs = Date.now() - pythonStarted - pythonInitMs;
+    closeCache();
     assertRetrievalTime(input.context);
+    try { input.onPreparationStats?.({ documents: documents.length, cacheHits: cachedById.size,
+      computed: ready.kind === 'ready' ? ready.computed ?? 0 : 0, pythonInitMs, cacheExportMs }); }
+    catch { /* A reporting failure cannot invalidate a ready backend. */ }
     const process = child;
     let closed = false;
     return { scope, limits: binding.limits, service: {
@@ -174,6 +256,7 @@ export async function createHaystackRetrievalBinding(input: {
       },
     } };
   } catch (error) {
+    closeCache();
     try { await child?.close(); } finally { await binding.service.dispose(); }
     throw error;
   }
