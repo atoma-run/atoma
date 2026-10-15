@@ -14,7 +14,7 @@ function run(entry: string, args: string[], env: NodeJS.ProcessEnv = process.env
   return spawnSync('npx', ['tsx', entry, ...args], { cwd: process.cwd(), encoding: 'utf8', env, shell: process.platform === 'win32' });
 }
 
-describe.each(['src/cli/analyst.ts', 'src/cli/mender.ts'])('%s', (entry) => {
+describe.each(['src/cli/analyst.ts', 'src/cli/mender.ts', 'src/cli/assayer.ts'])('%s', (entry) => {
   it('prints help and exits zero', () => {
     const child = run(entry, ['--help']);
     expect(child.status, child.stderr).toBe(0);

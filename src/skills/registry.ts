@@ -32,6 +32,9 @@ import {
   recordTriggerSample,
   triggerSamplesFor,
   type TriggerSample,
+  recordAssayRow,
+  assayRowFor,
+  type SkillAssayRow,
   readMetaRow,
   readMetaRows,
   skillMetaTableExists,
@@ -1267,6 +1270,28 @@ export class SkillRegistry {
       entity: `${l1Name}/${skillId}`,
       ...(opts?.via && opts.via !== l1Name ? { detail: { via: opts.via } } : {}),
     }, opts?.task);
+  }
+
+  /**
+   * The lesson a recipe was DISTILLED from is its first credited task: the
+   * run it came from was approved, and no counter moved for it. Recorded at
+   * learn time so a new recipe has one real selection case and one real
+   * assay case before its first match.
+   */
+  recordLessonSample(l1Name: string, skillId: string, task: string): void {
+    if (!existsSync(join(this.skillDir(l1Name, skillId), 'SKILL.md'))) return;
+    const db = this.writeStore();
+    recordTriggerSample(db, { namespace: l1Name, skillId, task, outcome: 'success', at: nowIso() });
+  }
+
+  /** The assay ledger (`skill_assays`): what the assayer judged, per recipe surface. */
+  recordAssay(row: SkillAssayRow): void {
+    recordAssayRow(this.writeStore(), row);
+  }
+
+  assayFor(l1Name: string, skillId: string, surfaceDigest: string): SkillAssayRow | null {
+    const db = this.readStore();
+    return db ? assayRowFor(db, l1Name, skillId, surfaceDigest) : null;
   }
 
   /**

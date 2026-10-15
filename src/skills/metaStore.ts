@@ -67,7 +67,52 @@ CREATE TABLE IF NOT EXISTS skill_trigger_samples (
   at          TEXT NOT NULL,
   PRIMARY KEY (namespace, skill_id, task_digest)
 );
+-- THE ASSAY LEDGER (2026-10-15): one row per recipe SURFACE the assayer has
+-- judged by execution (src/supervisor/assayer.ts). A recipe whose current
+-- surface has no row is pending; the record itself lives under supervisor/.
+CREATE TABLE IF NOT EXISTS skill_assays (
+  namespace      TEXT NOT NULL,
+  skill_id       TEXT NOT NULL,
+  surface_digest TEXT NOT NULL,
+  at             TEXT NOT NULL,
+  verdict        TEXT NOT NULL,
+  decision       TEXT NOT NULL,
+  record_path    TEXT NOT NULL,
+  cost_usd       REAL,
+  PRIMARY KEY (namespace, skill_id, surface_digest)
+);
 `;
+
+export interface SkillAssayRow {
+  readonly namespace: string;
+  readonly skillId: string;
+  readonly surfaceDigest: string;
+  readonly at: string;
+  readonly verdict: string;
+  readonly decision: string;
+  readonly recordPath: string;
+  readonly costUsd: number | null;
+}
+
+export function recordAssayRow(db: Database.Database, row: SkillAssayRow): void {
+  db.prepare(
+    `INSERT INTO skill_assays (namespace, skill_id, surface_digest, at, verdict, decision, record_path, cost_usd)
+     VALUES (@namespace, @skill_id, @surface_digest, @at, @verdict, @decision, @record_path, @cost_usd)
+     ON CONFLICT(namespace, skill_id, surface_digest) DO UPDATE SET
+       at = excluded.at, verdict = excluded.verdict, decision = excluded.decision,
+       record_path = excluded.record_path, cost_usd = excluded.cost_usd`
+  ).run({ namespace: row.namespace, skill_id: row.skillId, surface_digest: row.surfaceDigest, at: row.at,
+    verdict: row.verdict, decision: row.decision, record_path: row.recordPath, cost_usd: row.costUsd });
+}
+
+export function assayRowFor(db: Database.Database, namespace: string, skillId: string, surfaceDigest: string): SkillAssayRow | null {
+  if (db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'skill_assays'`).get() === undefined) return null;
+  const row = db.prepare(
+    `SELECT namespace, skill_id AS skillId, surface_digest AS surfaceDigest, at, verdict, decision, record_path AS recordPath, cost_usd AS costUsd
+     FROM skill_assays WHERE namespace = ? AND skill_id = ? AND surface_digest = ?`
+  ).get(namespace, skillId, surfaceDigest) as SkillAssayRow | undefined;
+  return row ?? null;
+}
 
 /** Samples kept per recipe; the newest win. */
 export const TRIGGER_SAMPLES_PER_SKILL = 20;

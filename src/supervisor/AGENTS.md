@@ -1,10 +1,13 @@
 # Supervisor — AGENTS.md
 
-`src/supervisor/` owns the two supervisor stages that spend model quota: the
-ANALYST (post-mortem verdicts on finished runs) and the MENDER (a cited
-defect verdict becomes a pull request on `main`). Stages 2 and 3 of
-[`docs/supervisor-design.md`](../../docs/supervisor-design.md); stage 1, the
-sentinel, is its own subsystem because it holds no LLM and no power.
+`src/supervisor/` owns the three supervisor stages that spend model quota:
+the ANALYST (post-mortem verdicts on finished runs), the MENDER (a cited
+defect verdict becomes a pull request on `main`) and the ASSAYER (a learned
+recipe judged by two ordinary runs per credited task, with and without it).
+Stages 2 and 3 of [`docs/supervisor-design.md`](../../docs/supervisor-design.md)
+and stage 4 of [the assay record](../../docs/skill-assay-2026-10-15.md);
+stage 1, the sentinel, is its own subsystem because it holds no LLM and no
+power.
 
 Read [`AGENTS.md`](../../AGENTS.md) first: it holds the cross-cutting rules.
 Everything below is stated once, here, and is not repeated at the root.
@@ -303,6 +306,50 @@ Neighbours:
   that left the run slot held by a dead process (2026-09-27). A run still
   never preempts a mend.
 
+## The assayer
+
+- WHAT IT JUDGES: a recipe SURFACE (kind, `when_to_use`, body; `surfaceDigestOf`)
+  that has no `skill_assays` row, with at least one credited task in the
+  trigger corpus (`skill_trigger_samples`, [src/skills](../skills/AGENTS.md));
+  newest surfaces first, event recipes never. A revision re-opens the assay;
+  `--skill <ns>/<id>` re-judges on demand.
+- HOW: up to `ASSAY_MAX_CASES` credited tasks, each run TWICE through the
+  shared runner (`spawnRun`, `run:build`), on a copy of the catalog holding
+  the recipe and a copy without its folder, each run on its own copy of the
+  store (one online snapshot, settled to rollback mode, copied per arm), its
+  own workspace and its own runs directory, with learning, promotion, event
+  skills and the trigger evaluation OFF (`armEnvironment`). Nothing an arm
+  does reaches the commons. The judge is the runner's machine epilogue
+  (`parseRunStatsEpilogue`): delivered or not, after the same root acceptance
+  every product run gets; "matched" is a runtime `skill` event (`match` or
+  `direct`) in the arm's trace, never log text, which the goal is echoed into.
+- THE PRE-REGISTERED RULE (`judgeAssay`, pure): cases the `with` arm never
+  matched say nothing (`not-reached`); over matched cases more deliveries
+  with the recipe is `helpful`, fewer `harmful`, equal `neutral`, costs
+  recorded beside; RETIRE only when harmful, two or more matched cases, and
+  the recipe delivered on none of them. Retirement is the ONE power: the
+  registry's own `drop` (folder, then row and `skill-drop` event). Everything
+  else is a record. Do not add a decision without re-registering the rule in
+  the record and reviewing it adversarially.
+- WHERE: `supervisor/assays/<ns>__<id>__<digest>/assay.json`
+  (`contracts/skillAssay.ts`), the arms' logs and traces beside it, scratch
+  removed; one `skill_assays` row closes the surface; one `supervisor.assay`
+  journal row carries counts, verdict, decision and cost, never a task text.
+- UNDER THE SAME GATE AS THE ANALYST: `anyRunActive` before, the machine-global
+  lease (`assayer:<id>`, no stale recovery) during; a product run preempts it
+  through `yieldBackground` (both residents are asked), the arm's process
+  group is killed, nothing is recorded, the recipe stays pending. A run that
+  could not be launched is an `error` arm, never a thrown assay; an assay that
+  FAILS pauses the resident host `ASSAYER_FAILURE_PAUSE_MS`.
+- HOSTS: `npm run assayer` (`--once`, `--skill`, `--dry-run`, watch) and the
+  resident shell in the viz server (`residentAssayer.ts`), ON BY DEFAULT where
+  the server holds the three `ATOMA_MODEL_L*` pins — the owner asked for no
+  configuration (2026-10-15) — and off on `ATOMA_VIZ_ASSAYER=0`. A server
+  without the pins says so in its banner and runs no assay.
+- SPEND: `2 × cases` ordinary runs per recipe, each under `ASSAY_DEFAULT_TIMEOUT_MS`;
+  authorised by the owner. A member's run is refused behind an arm as behind
+  an analysis, or preempts it; nothing here changes product admission.
+
 ## The journal
 
 - Kinds: `supervisor.verdict`, `mender.started`, `mender.declined`,
@@ -340,6 +387,17 @@ Neighbours:
   environment variable that silently disabled a safety gate on a developer's
   machine would be the exact silence the run-host contract exists to end.
 - The legacy optional dispatch API remains available for external integrations; the production deployment does not configure it and ships no Mender Actions workflow.
+- The assayer runs WHOLE goals through the ordinary runner, not a molecule
+  alone: a recipe is picked by a cell's prefilter inside a plan, so the only
+  honest "with" arm is one where the plan, the match and root acceptance all
+  happen as they do in production. A harness that injected the recipe into
+  one molecule would measure a path no run takes. The price is `not-reached`
+  cases, which are themselves the finding the trigger evaluation cannot make.
+- The assayer never judges the recipe's PROSE and never replays its steps:
+  the two arms are two runs, the evidence is what each delivered, and the
+  supervisor's read-only rule stands. A judge model over the two deliveries
+  was refused: root acceptance already is one, and the same one every run
+  gets.
 - Prompts are TypeScript constants (`analystPrompt.ts`, `menderPrompt.ts`),
   not Markdown assets: `tsc` ships nothing but `.js`, and a prompt the
   compiled CLI cannot find is a release-path failure typecheck never sees.

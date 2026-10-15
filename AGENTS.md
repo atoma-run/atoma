@@ -43,7 +43,7 @@ Use it when a rule's rationale matters, not as default session context.
 | `src/platform/` | [src/platform/AGENTS.md](src/platform/AGENTS.md) | the control-plane audit journal, the one source of notifications, the admin-settable run limits |
 | `src/cli/` | [src/cli/AGENTS.md](src/cli/AGENTS.md) | operator commands, doctor, burn-in and friction reporting |
 | `src/sentinel/` | [src/sentinel/AGENTS.md](src/sentinel/AGENTS.md) | mechanical live watch over runs in flight: rules, sources, hosts |
-| `src/supervisor/` | [src/supervisor/AGENTS.md](src/supervisor/AGENTS.md) | post-mortem analyst and the mender: verdicts, idle gate, worktree, pull requests |
+| `src/supervisor/` | [src/supervisor/AGENTS.md](src/supervisor/AGENTS.md) | post-mortem analyst, the mender and the assayer: verdicts, idle gate, worktree, pull requests, recipes judged by execution |
 
 Every subsystem file names its own neighbours, so one hop is usually enough.
 `npm run docs:check` enforces the shape: each subsystem `AGENTS.md` is listed
@@ -141,9 +141,9 @@ npm run projects:dev -- list
 npm run sentinel -- --once          # the viz server already hosts this watch
 npm run sentinel:dev -- --cost-alert 2.50
 npm run analyst -- --once --backfill 2   # post-mortem verdicts; never beside a run
-npm run analyst:dev -- --run <id>
 npm run mender -- --once                 # cited defect verdicts → a PR on main; a person merges
-npm run mender:dev -- --dry-run --once
+npm run assayer -- --once                # a recipe judged by two ordinary runs per credited task; retires on the pre-registered rule
+npm run assayer:dev -- --dry-run --once
 npm run run:build -- "<goal>"
 npm run run:build:dev -- "<goal>"
 ```
@@ -221,7 +221,7 @@ separately billed `OPENAI_API_KEY`. The full contract is in
 - `release:check` is the release-readiness definition: full check, audit,
   build, the compiled MCP smoke, the compiled auth end-to-end smoke
   (`auth-release-smoke.mjs`: founder login, CLI invite, member admission),
-  and the auth/doctor/analyst/mender/backup help smokes. It is ONE definition,
+  and the auth/doctor/analyst/mender/assayer/backup help smokes. It is ONE definition,
   `release:check:static && npm test`; CI runs the two halves side by side, and
   the required `Hermetic checks` job passes only when both did. `npm run backup` is
   compiled (`node dist/cli/backup.js`) because the host installs with

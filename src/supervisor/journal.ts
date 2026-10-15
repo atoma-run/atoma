@@ -55,6 +55,44 @@ export function verdictEvent(facts: VerdictJournalFacts): PlatformEventInput {
   };
 }
 
+export interface AssayJournalFacts {
+  readonly namespace: string;
+  readonly skillId: string;
+  readonly surfaceDigest: string;
+  readonly verdict: string;
+  readonly decision: string;
+  readonly applied: boolean;
+  readonly cases: number;
+  readonly matchedCases: number;
+  readonly deliveries: { readonly with: number; readonly without: number };
+  readonly totalCostUsd: number | null;
+  readonly recordPath: string;
+}
+
+/** The assayer judged a recipe by execution. Facts only; the record holds the rest. */
+export function assayEvent(facts: AssayJournalFacts): PlatformEventInput {
+  const applied = facts.decision === 'retire' ? (facts.applied ? ', retired from the catalog' : ', retirement not applied (dry run)') : '';
+  return {
+    kind: 'supervisor.assay',
+    actorType: 'system',
+    summary: `Assayer judged recipe ${facts.skillId} ${facts.verdict} on ${facts.matchedCases} of ${facts.cases} case(s)${applied}`,
+    detail: {
+      stage: 'assayer',
+      namespace: facts.namespace,
+      skillId: facts.skillId,
+      surfaceDigest: facts.surfaceDigest,
+      verdict: facts.verdict,
+      decision: facts.decision,
+      applied: facts.applied,
+      cases: facts.cases,
+      matchedCases: facts.matchedCases,
+      deliveries: facts.deliveries,
+      totalCostUsd: facts.totalCostUsd,
+      recordPath: facts.recordPath,
+    },
+  };
+}
+
 export interface MendJournalFacts {
   readonly runId: string;
   readonly findingIndex: number;

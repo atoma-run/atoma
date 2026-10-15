@@ -159,7 +159,7 @@
       "id": "supervisor",
       "type": "backend",
       "label": "Supervisor",
-      "sublabel": "post-mortem analyst and the m…",
+      "sublabel": "post-mortem analyst",
       "row": 5,
       "col": 2
     }

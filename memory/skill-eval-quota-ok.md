@@ -16,9 +16,15 @@ at most, rejects what still steals a sibling's task. Switch
 `ATOMA_SKILL_TRIGGER_EVAL`. The corpus `skill_trigger_samples` fills from
 credited matches after deployment.
 
-Not built: the skill-creator's with/without EXECUTION comparison. Owner is fine
-with its quota; design it as a separate evaluation job (own budget and
-workspace), never a supervisor replay.
+Also shipped 2026-10-15: THE ASSAYER, stage 4 of the supervisor
+(`src/supervisor/assayer.ts`, record `docs/skill-assay-2026-10-15.md`): the
+with/without execution comparison. Two ordinary runs per credited task on
+copies of store and catalog, judged on the runner's epilogue; retires a recipe
+only on the pre-registered rule (harmful, 2+ matched cases, zero deliveries).
+Hosts: `npm run assayer`, and the viz server resident ON by default when the
+server env holds the three ATOMA_MODEL_L* pins (`ATOMA_VIZ_ASSAYER=0` off).
+Open: confirm the production viz service env carries the pins (banner says
+"assayer: on/off"); first measurement after ten assays (not-reached share).
 
 **Why:** the owner rejected an operator-curated skill workshop; Anthropic's
 skill-creator is adapted as an automatic loop in TypeScript (no Python in

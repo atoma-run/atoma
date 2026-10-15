@@ -159,6 +159,7 @@ describe('PUSH_ROUTES', () => {
       // The supervisor's bookkeeping: only the PR waiting for review, and a
       // refusal or failure that left a worktree behind, reach a person.
       'supervisor.verdict',
+      'supervisor.assay',
       'mender.dispatched',
       'mender.started',
       'mender.declined',

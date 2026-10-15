@@ -303,9 +303,11 @@ already changed the commons. See [checkpoints](../../docs/decisions/run-checkpoi
   Its negatives are a generator's near misses until the corpus fills, and a
   wrong `expect` would refuse a good draft; so a sibling or an escalate both
   HOLD, and only the draft being picked where it should not fails it. The
-  skill-creator's with/without EXECUTION comparison is not built yet: when it
-  is, it is a separate evaluation job on its own budget, never a supervisor
-  replay, and until then the outcome evidence is the credit counters.
+  skill-creator's with/without EXECUTION comparison is the ASSAYER
+  ([src/supervisor](../supervisor/AGENTS.md#the-assayer)), a separate stage
+  on its own lease and budget, never a supervisor replay: it reads the
+  lesson sample `recordLessonSample` writes at learn time and the credited
+  tasks of the corpus, and its one power is `drop` through `skill_assays`.
 - Do NOT lower the `skills stats --sim` default to catch semantic twins.
   Measured 2026-08-21 against three known pairs: they score 0.41, 0.39 and
   0.26 while a build-vs-probe FALSE positive scores 0.31, so no threshold on

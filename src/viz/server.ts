@@ -224,6 +224,9 @@ import {
 import { peekSentinelWatch } from '../sentinel/lease.js';
 import { analyseTarget, pendingTargets, resolveTarget, type AnalystOptions } from '../supervisor/analyst.js';
 import { anyRunActive } from '../supervisor/activity.js';
+import { ASSAY_DEFAULT_TIMEOUT_MS, ASSAY_MAX_CASES, assayNext, type AssayerOptions } from '../supervisor/assayer.js';
+import { startResidentAssayer, vizAssayerEnabled, type ResidentAssayer } from '../supervisor/residentAssayer.js';
+import { readTierSelectors } from '../contracts/modelSelector.js';
 import { dispatchConfigFromEnv } from '../supervisor/dispatch.js';
 import {
   analystBudgetFromEnv,
@@ -867,7 +870,13 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     skillsDir: SKILLS_DIR,
     // A member's run preempts this host's post-run analysis (owner decision
     // 2026-09-27). Read at call time: the analyst is armed further down.
-    yieldBackground: () => ANALYST?.yieldForRun() ?? Promise.resolve(false),
+    yieldBackground: async () => {
+      const [analyst, assayer] = await Promise.all([
+        ANALYST?.yieldForRun() ?? Promise.resolve(false),
+        ASSAYER?.yieldForRun() ?? Promise.resolve(false),
+      ]);
+      return analyst || assayer;
+    },
     ...(publisher ? { publisher } : {}),
     // Describe the deliverable while the workspace is still this run's. The
     // adapter stays one call wide; `src/preview/service.ts` owns what a
@@ -1376,6 +1385,50 @@ const ANALYST: ResidentAnalyst | null = (() => {
     resident.enqueue(target.runId, Date.parse(target.endedAt ?? '') || Date.now());
   }
   return resident;
+})();
+
+/**
+ * THE RESIDENT ASSAYER — stage 4 (`src/supervisor/assayer.ts`): recipes
+ * judged by execution, two ordinary runs per credited task, hosted here
+ * because this is the one process a deployment always runs. On by default
+ * wherever this server could launch a run at all (the three `ATOMA_MODEL_L*`
+ * pins in its environment), since the owner asked for the mechanism to need
+ * no configuration (2026-10-15); `ATOMA_VIZ_ASSAYER=0` turns it off. Idle
+ * gate, lease and preemption are the analyst's.
+ */
+let ASSAYER_REFUSED: string | null = null;
+const ASSAYER: ResidentAssayer | null = (() => {
+  if (!EVENTS || !PROJECTS_RUNTIME) return null;
+  if (!vizAssayerEnabled()) return null;
+  try {
+    readTierSelectors(process.env);
+  } catch (error) {
+    ASSAYER_REFUSED = error instanceof Error ? error.message : String(error);
+    console.error(`[assayer] ${ASSAYER_REFUSED} — assayer OFF`);
+    return null;
+  }
+  const journal = EVENTS;
+  const log = (line: string): void => console.error(`[assayer] ${line}`);
+  const options: AssayerOptions = {
+    repoRoot: process.cwd(),
+    dbPath: DBS[0]!.path,
+    skillsDir: SKILLS_DIR,
+    skills: skillRegistry,
+    runsDir: RUNS_DIR,
+    supervisorDir: supervisorDirPath(),
+    leasePath: mcpRunLockPath(),
+    timeoutMs: ASSAY_DEFAULT_TIMEOUT_MS,
+    maxCases: ASSAY_MAX_CASES,
+    dryRun: false,
+    journal: (input) => void journal.append(input),
+    log,
+    warn: log,
+  };
+  return startResidentAssayer({
+    assay: (signal) => assayNext({ ...options, signal }),
+    isActive: () => anyRunActive({ runsDir: RUNS_DIR, leasePath: mcpRunLockPath() }),
+    logger: log,
+  });
 })();
 
 /**
@@ -5295,6 +5348,11 @@ server.listen(cli.port, cli.host, () => {
       ? `mcp: ${new URL('/mcp', AUTH_RUNTIME.publicOrigin).href} (bearer API token from /api/tokens or npm run auth -- token)`
       : `mcp: http://${cli.host}:${cli.port}/mcp (operator, loopback, no token)`
   );
+  if (ASSAYER) {
+    console.log('assayer: on (recipes judged by execution when the machine is idle; ATOMA_VIZ_ASSAYER=0 to disable)');
+  } else if (ASSAYER_REFUSED) {
+    console.log(`assayer: off (${ASSAYER_REFUSED})`);
+  }
   if (PROJECTS_RUNTIME?.githubConfig) {
     console.log(`github app: ${PROJECTS_RUNTIME.githubConfig.appSlug}`);
   } else if (PROJECTS_RUNTIME) {

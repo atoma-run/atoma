@@ -832,6 +832,10 @@ export class SkillLifecycle {
       }, { mechanism: 'distilled', model: this.host.model,
         ...(args.ctx.learningSource ? { learning: args.ctx.learningSource } : {}),
         ...(evaluation ? { evaluation } : {}) });
+      // The lesson is the recipe's first credited task: one real case for the
+      // next draft's trigger evaluation and for the assayer, before any match.
+      try { this.skills.recordLessonSample(args.l1Name, qualified.id, args.subTask.description); }
+      catch (err) { args.ctx.logger.debug(`[${this.host.name}] lesson sample not recorded for "${qualified.id}": ${(err as Error).message}`); }
       args.ctx.logger.info(
         `[${this.host.name}] learned new skill "${draft.id}" for ${args.l1Name}`
       );

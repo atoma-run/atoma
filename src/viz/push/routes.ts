@@ -214,6 +214,7 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   // until 2026-09-28: three weeks in which no mend could pass the harness's
   // check, and nobody was told. Bodies name refs, never model-authored text.
   'supervisor.verdict': null,
+  'supervisor.assay': null,
   'mender.dispatched': null,
   'mender.started': null,
   'mender.declined': null,

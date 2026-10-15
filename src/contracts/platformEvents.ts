@@ -104,6 +104,13 @@ export const platformEventKindSchema = z.enum([
    * opens them knowing what they are.
    */
   'supervisor.verdict',
+  /**
+   * The ASSAYER judged a recipe by execution: two ordinary runs per credited
+   * task, with and without the recipe, and a decision applied to the catalog
+   * (`src/supervisor/assayer.ts`). Facts only: namespace, recipe id, surface
+   * digest, counts, verdict, decision, cost.
+   */
+  'supervisor.assay',
   'mender.dispatched',
   'mender.started',
   'mender.declined',
@@ -387,6 +394,8 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'security.flagged': 'security',
   // A verdict is a fact about a finished run; what it FOUND is in detail.
   'supervisor.verdict': 'info',
+  // A recipe judged, and at most retired from the catalog: a fact, never an alarm.
+  'supervisor.assay': 'info',
   // The analyst handed a cited defect to a mender elsewhere (the CI workflow).
   'mender.dispatched': 'info',
   'mender.started': 'info',
