@@ -1975,5 +1975,6 @@
   "detail.batch.previousProbe": "Probe sebelumnya",
   "detail.batch.nextProbe": "Probe berikutnya",
   "detail.batch.probes": "Probe dalam batch ini",
-  "detail.batch.commands": "Perintah"
+  "detail.batch.commands": "Perintah",
+  "hosting.address": "Alamat"
 }

@@ -1975,5 +1975,6 @@
   "detail.batch.previousProbe": "پچھلی جانچ",
   "detail.batch.nextProbe": "اگلی جانچ",
   "detail.batch.probes": "اس بیچ کی جانچیں",
-  "detail.batch.commands": "کمانڈز"
+  "detail.batch.commands": "کمانڈز",
+  "hosting.address": "پتا"
 }

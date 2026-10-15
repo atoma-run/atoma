@@ -1975,5 +1975,6 @@
   "detail.batch.previousProbe": "আগের প্রোব",
   "detail.batch.nextProbe": "পরের প্রোব",
   "detail.batch.probes": "এই ব্যাচের প্রোবসমূহ",
-  "detail.batch.commands": "কমান্ডসমূহ"
+  "detail.batch.commands": "কমান্ডসমূহ",
+  "hosting.address": "ঠিকানা"
 }

@@ -1975,5 +1975,6 @@
   "detail.batch.previousProbe": "上一个探测",
   "detail.batch.nextProbe": "下一个探测",
   "detail.batch.probes": "此批次中的探测",
-  "detail.batch.commands": "命令"
+  "detail.batch.commands": "命令",
+  "hosting.address": "地址"
 }

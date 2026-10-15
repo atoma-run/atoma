@@ -1975,5 +1975,6 @@
   "detail.batch.previousProbe": "Vorherige Prüfung",
   "detail.batch.nextProbe": "Nächste Prüfung",
   "detail.batch.probes": "Prüfungen in diesem Batch",
-  "detail.batch.commands": "Befehle"
+  "detail.batch.commands": "Befehle",
+  "hosting.address": "Adresse"
 }

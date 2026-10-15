@@ -1975,5 +1975,6 @@
   "detail.batch.previousProbe": "前のプローブ",
   "detail.batch.nextProbe": "次のプローブ",
   "detail.batch.probes": "このバッチのプローブ",
-  "detail.batch.commands": "コマンド"
+  "detail.batch.commands": "コマンド",
+  "hosting.address": "アドレス"
 }

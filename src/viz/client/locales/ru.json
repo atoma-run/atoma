@@ -1975,5 +1975,6 @@
   "detail.batch.previousProbe": "Предыдущая проверка",
   "detail.batch.nextProbe": "Следующая проверка",
   "detail.batch.probes": "Проверки в этом пакете",
-  "detail.batch.commands": "Команды"
+  "detail.batch.commands": "Команды",
+  "hosting.address": "Адрес"
 }

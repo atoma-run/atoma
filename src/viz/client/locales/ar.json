@@ -1975,5 +1975,6 @@
   "detail.batch.previousProbe": "الفحص السابق",
   "detail.batch.nextProbe": "الفحص التالي",
   "detail.batch.probes": "الفحوصات في هذه الدفعة",
-  "detail.batch.commands": "الأوامر"
+  "detail.batch.commands": "الأوامر",
+  "hosting.address": "العنوان"
 }

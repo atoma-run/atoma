@@ -1975,5 +1975,6 @@
   "detail.batch.previousProbe": "Sonde précédente",
   "detail.batch.nextProbe": "Sonde suivante",
   "detail.batch.probes": "Sondes de ce lot",
-  "detail.batch.commands": "Commandes"
+  "detail.batch.commands": "Commandes",
+  "hosting.address": "Adresse"
 }

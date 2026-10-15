@@ -1975,5 +1975,6 @@
   "detail.batch.previousProbe": "पिछली जाँच",
   "detail.batch.nextProbe": "अगली जाँच",
   "detail.batch.probes": "इस बैच की जाँचें",
-  "detail.batch.commands": "कमांड"
+  "detail.batch.commands": "कमांड",
+  "hosting.address": "पता"
 }
