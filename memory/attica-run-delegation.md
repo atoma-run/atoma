@@ -83,3 +83,10 @@ acceptance, publication or real collection occurred in this continuation.
   the exhaustion was NOT confirmed on the host (no host access); if it recurs,
   list `docker network ls` by `dev.atoma.owner` and consider /24
   `default-address-pools` — hosting networks are permanent by design.
+- 6b6b1952 (partial, $9.76, base f144718c): independent repro confirms c1–c4 correct
+  in production incl. idle cancel and restarts (`scratchpad/repro/repro3.js` of the
+  session). New regression: /api/resume takes the lock before reading the checkpoint
+  without try/finally (corrupt checkpoint → every later start 409). Tests now use a
+  fake page, but restart ticks run a disabled scheduler; 27 debug scripts left at root.
+  Final polish run started with key attica-control-polish-20261015-v1 (base 6b6b1952).
+  Nothing accepted or published; acceptedReference still 7b126338.
