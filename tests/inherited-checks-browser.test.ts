@@ -12,7 +12,7 @@ import type { ToolExecutor } from '../src/core/types.js';
 /**
  * The host's replay across the real boundary: python's static server and
  * Chrome, through the same builtin tools every molecule uses
- * (docs/inherited-checks-replay-2026-10-01.md). The first half pins the host
+ * (docs/decisions/inherited-checks-replay-2026-10-01.md). The first half pins the host
  * mode of `validate_html`, the second the b9dc4d0b catch end to end.
  */
 

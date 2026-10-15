@@ -167,7 +167,7 @@ Neighbours:
   `tests/smoke-two-call-coverage.test.ts` feeds both calls to the guards and
   through the attestation seam to `checkProofCoverage`. Why, and the measured
   cost of teaching the self-driving shape alone:
-  [incident](../../docs/incidents/verification-replay-2026-09-15.md).
+  [incident](../../records/incidents/verification-replay-2026-09-15.md).
 - A SYNCHRONOUS `getComputedStyle`
   read on a TRANSITIONED property returns the pre-transition value (verified
   in Chrome, 2026-08-21): assert the class/inline marker the source toggles,
@@ -210,7 +210,7 @@ Neighbours:
   repeats in streaks (15, 9 and 7 calls in one run), because the molecule had
   written prose labels where a smoke belongs, then tried to repair them, and
   the old message pointed at `record_probe`, a tool web molecules do not hold
-  ([measurement](../../docs/incidents/edit-file-failures-2026-10-11.md)).
+  ([measurement](../../records/incidents/edit-file-failures-2026-10-11.md)).
 - `validate_html` records a PASSING check bound to its document
   (`appendWebProbe`, replay identity `webEntryIdentity`): the interactions as
   sent, the viewport and waitMs only when the caller gave them (a defaulted
@@ -295,7 +295,7 @@ Neighbours:
   dependency chain.
 - `validate_html`'s HOST REPLAY mode (`hostReplay: true`) replays a check an
   earlier run recorded, for root acceptance
-  ([docs/inherited-checks-replay-2026-10-01.md](../../docs/inherited-checks-replay-2026-10-01.md)).
+  ([docs/decisions/inherited-checks-replay-2026-10-01.md](../../docs/decisions/inherited-checks-replay-2026-10-01.md)).
   Each call opens a fresh browser context whose proxy is dead for everything
   but the page's own origin, which covers what request interception never
   sees (a WebSocket handshake, a service worker's own fetches, a popup); a
@@ -315,9 +315,9 @@ Neighbours:
   offset-matched bytes, including multiple possible regions, and apply no
   edit. Missing `new_string` is invalid; an explicit empty string deletes.
   The resolver's repeated edits and adversarial cases are recorded in
-  [the 2026-10-05 incident](../../docs/incidents/dependency-resolver-2026-10-05.md);
+  [the 2026-10-05 incident](../../records/incidents/dependency-resolver-2026-10-05.md);
   the bounded recovery and its exclusions are in
-  [the 2026-10-06 follow-up](../../docs/incidents/edit-file-token-recovery-2026-10-06.md).
+  [the 2026-10-06 follow-up](../../records/incidents/edit-file-token-recovery-2026-10-06.md).
   A serialized read result whose path and content equal the current file gets
   a specific wrapper diagnostic, never automatic unwrapping. Missing or
   aliased edit arguments get the required names; no alias is executed.
@@ -347,7 +347,7 @@ Neighbours:
   self-driving smoke can never receive the erased-state refusal. Consulting
   all three keeps the report order-independent. Closing the hole itself would
   change a disposition and is NOT done here — see
-  [`docs/archive/designs/decided-not-built-2026-08-23.md`](../../docs/archive/designs/decided-not-built-2026-08-23.md).
+  [`records/designs/decided-not-built-2026-08-23.md`](../../records/designs/decided-not-built-2026-08-23.md).
 - A refused call is still ATTESTED. The pre-flight early return carries
   `requestedInteractions`, `ignoredInteractions` and the discard warning,
   because a refusal reporting none of them is indistinguishable from a call

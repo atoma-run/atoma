@@ -14,7 +14,7 @@ import { OLLAMA_PINS } from './tier-pins.js';
 /**
  * The host's replay of the browser checks earlier runs recorded, through the
  * real runner: a seeded static page, the local tool backend, python's static
- * server and Chrome (docs/inherited-checks-replay-2026-10-01.md). Where the
+ * server and Chrome (docs/decisions/inherited-checks-replay-2026-10-01.md). Where the
  * machine has neither, the replay stops at its server and the order of the
  * gate is still what is asserted.
  */

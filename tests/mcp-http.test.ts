@@ -792,7 +792,7 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
     const dbPath = join(dir, 'atoma.db');
     process.env['ATOMA_DB_PATH'] = dbPath;
     process.env['ATOMA_SKILLS_DIR'] = join(dir, 'skills');
-    // ONE platform registry (docs/platform-trust-2026-09-15.md): one molecule
+    // ONE platform registry (docs/decisions/platform-trust-2026-09-15.md): one molecule
     // with a recipe under it, read by whoever asks.
     const seed = { tools: [], params: {}, createdBy: 'seed' };
     const shared = (() => {

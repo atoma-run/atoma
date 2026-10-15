@@ -15,7 +15,7 @@ import { assertProjectRunAuthority } from '../src/projects/runAuthority.js';
 
 /**
  * ONE skills catalog, ONE trust, for every run on the platform
- * (`docs/platform-trust-2026-09-15.md`). What these hold:
+ * (`docs/decisions/platform-trust-2026-09-15.md`). What these hold:
  *   - two writers on one catalog share bodies AND counters;
  *   - a tenant run still proves it is the run the host registered, on the
  *     host's recorded catalog path;

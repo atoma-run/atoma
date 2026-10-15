@@ -143,7 +143,7 @@ before launch, incomplete runs kept and explained, and comparison reruns.
   Recipe twin comparisons cover the catalogue in bounded batches. Cost reports
   distinguish audit costs and unavailable baselines; experimental two-stage
   recipe selection remains off by default. See the
-  [policy correction record](docs/jev-policy-2026-10-01.md).
+  [policy correction record](docs/decisions/jev-policy-2026-10-01.md).
 - Read-only phases restore workspace files changed by their tools or shell
   commands, with live-database and concurrent-writer exceptions. Verification
   observations stay out of delivered documentation, and build recipes are
@@ -311,7 +311,7 @@ trust for the whole platform. Everything landed since v0.3.0.
   dated pilot records — Anthropic agentic retrieval, the paired BM25 negative
   result, the Haystack comparison and agent pilot, the invocation-policy arms,
   the ten-minute diagnostics — are consolidated verbatim into one archive
-  under `docs/incidents/`.
+  under `records/incidents/`.
 - GitHub repository imports and document extraction. Delivered workspaces are
   published complete, and an interrupted upload is recovered rather than
   leaving a partial repository.
@@ -324,7 +324,7 @@ trust for the whole platform. Everything landed since v0.3.0.
   and to the process holding its port. Build runs now default to short-first
   supervision with safe deepening.
 - Trajectory drift journaling in the sentinel — stage A of
-  `docs/archive/experiments/trajectory-predictability-design-2026-09-09.md`: observe, journal,
+  `records/experiments/trajectory-predictability-design-2026-09-09.md`: observe, journal,
   decide nothing. `src/contracts/trajectory.ts` owns the signature, key and
   score shapes and the pure derivation over trace events; the score is a
   length-normalised edit distance over element names, never args or results.
@@ -341,7 +341,7 @@ trust for the whole platform. Everything landed since v0.3.0.
 ### Changed
 
 - ONE registry, ONE skill catalog, ONE trust for the whole platform — a run is
-  a run (`docs/platform-trust-2026-09-15.md`). `atom_types` loses its owner
+  a run (`docs/decisions/platform-trust-2026-09-15.md`). `atom_types` loses its owner
   column; `openDb` folds a partitioned store back with a whole-file backup,
   absorbing same-name project rows into the platform row with their counters
   added (`atom_id_merges` records the identities) and keeping every other
@@ -464,7 +464,7 @@ pages served by a Node API. Everything landed since v0.2.0.
   and `validate_html` in one L1, without a static server, seeded only when the
   executor offers the combined capability. A phase that serves a page from a
   Node API and proves it in a browser now has a home in the catalog instead
-  of being routed to a web-only cell (`docs/incidents/notes-app-browser-phase-2026-09-07.md`).
+  of being routed to a web-only cell (`records/incidents/notes-app-browser-phase-2026-09-07.md`).
 - ChatGPT subscriptions (`sub:openai`, `own:openai`) serve L1 too. Codex stays
   a text-only subprocess: tool-bearing calls run through a host-side JSON
   action loop where only declared tools reach the sandbox executor, results
@@ -632,7 +632,7 @@ This version gathers everything landed since v0.1.4.
   follows the caller's role (viewer, member, admin, platform), sessions bound
   to one bearer token. The stdio server and `npm run mcp` are removed.
   Operator run tools are `atoma_operator_run_*`; `atoma_run_*` are project
-  runs. Decision record: `docs/mcp-one-surface-2026-09-05.md`.
+  runs. Decision record: `docs/decisions/mcp-one-surface-2026-09-05.md`.
 - The GPU visualizer isolates every per-frame animation in its own retained
   render group, so a pulsing chip no longer re-uploads the whole view each
   frame; the frame is measured by `viz:smoke`.
@@ -1105,7 +1105,7 @@ MCP cancellation from the published v0.1.1 archive.
 - The broader first HTTP attempt exhausted its 600-second budget despite a
   correct final artefact; it remains recorded as a failed diagnostic, not an
   acceptance success.
-- Full evidence: [`docs/archive/releases/release-acceptance-v0.1.1.md`](docs/archive/releases/release-acceptance-v0.1.1.md).
+- Full evidence: [`records/releases/release-acceptance-v0.1.1.md`](records/releases/release-acceptance-v0.1.1.md).
 
 ## v0.1.1 — 2026-08-12
 

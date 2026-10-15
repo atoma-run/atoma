@@ -1,0 +1,515 @@
+# Revue critique externe — fenêtre 2026-08-04 → 2026-08-14 (296 commits)
+
+Date : 2026-08-14.
+Méthode : 8 relecteurs spécialisés (supervision core, skills, tools/sandbox/container,
+MCP, providers, viz, runner/harness/release, processus) ont lu le code actuel et
+l'historique git de la fenêtre ; les bugs les plus graves ont ensuite été re-vérifiés
+manuellement par lecture directe du code à HEAD (a56ee0c + working tree).
+Convention : **✓ = vérifié manuellement dans le code actuel** ; les findings sans ✓
+viennent des relecteurs, sont précis (file:line) mais n'ont pas été re-tracés à la main.
+
+Ce document est un instantané : les numéros de ligne référencent l'état du 2026-08-14.
+
+## Vue d'ensemble de la fenêtre
+
+~33 « live iterations » de durcissement du pipeline de validation (le 12/08 surtout :
+64 commits, session continue d'~18h finissant à 3h du matin), le serveur MCP stdio,
+l'isolation conteneur + egress, les providers Codex/Z.ai avec routage par tier, les
+benchmarks rounds 2-8, la consolidation du store, la release v0.1.0→0.1.3, et trois
+réécritures complètes du visualiseur (DOM→MUI→full-GPU, les deux dernières le même
+après-midi du 13/08).
+
+> **Statut 2026-08-14 (après-midi)** : la priorité n°1 (§5) est appliquée — les
+> correctifs 1.1, 1.3, 1.4, 1.9 et 1.6 sont dans le working tree avec leurs tests
+> de régression (`tests/branch-ctx-propagation.test.ts`, `tests/run-pgid-guard.test.ts`,
+> cas `./`-spelling dans `tests/tools.test.ts`, cas release-throw dans
+> `tests/mcp-server.test.ts`, describe `ensureBurninCsvHeader` dans
+> `tests/burnin.test.ts`). Le CSV compare est réparé (17 champs partout, arm=atoma)
+> et les DEUX writers refusent désormais un en-tête étranger. Suite complète :
+> 1433 passed / 8 skipped, typecheck + lint verts.
+
+> **Statut 2026-08-14 (soir)** : le refactoring 3.7 est appliqué. Les règles
+> actives tiennent désormais dans un `AGENTS.md` de ~500 lignes ; les 5 452
+> lignes antérieures sont préservées sous `records/incidents/` et chargées seulement
+> à la demande. `npm run docs:check`, intégré au check et à l'archive de release,
+> borne la taille, vérifie l'import Claude unique et refuse les liens cassés.
+
+> **Statut 2026-08-14 (batch runtime 2)** : les correctifs 1.2, 1.5, 1.7, 1.8,
+> 1.10, 1.11 et 1.12 sont appliqués avec leurs régressions. Le signal 1.13
+> `decodeURIComponent` est également fermé : les trois routes paramétrées du
+> serveur viz répondent 400 aux URI malformées et le processus reste disponible.
+> Le registre de skills route désormais toutes les mutations de `_meta.json` par
+> une lecture stricte et un remplacement atomique ; le benchmark exige un nouveau
+> chemin `--result` par round au lieu de réécrire une preuve existante.
+
+> **Statut 2026-08-14 (batch runtime 3)** : le refactoring 3.6 est appliqué —
+> le runner émet un épilogue machine `ATOMA_RUN_STATS {json}`
+> (`src/contracts/runStats.ts`, signaux comptés via `ctx.recordRunStat`) que le
+> burn-in préfère au parsing regex, gardé en fallback pour les runs interrompus ;
+> la classe `/escalat/gi` (1.13) est retirée avec lui. La priorité 5.3 est
+> appliquée : la promotion de skills est gelée par défaut sur les runs
+> from-scratch (`resolveSkillPromotion` — seed = signal maintenance, opt-in exact
+> `ATOMA_SKILL_PROMOTE=1`, veto CLI final ; le MCP mappe `promoteSkills:true`
+> sur le même opt-in). Le lease MCP porte des empreintes de naissance de
+> processus (boot id + start ticks, fallback `ps lstart`) contre la
+> réutilisation de PID/PGID après reboot. L'egress exige Docker Engine 28+
+> (gateways `isolated` ; un `--internal` nu atteint l'hôte par l'adresse de la
+> passerelle — doctor échoue en mode egress sur un moteur plus vieux).
+> `compare-frontier` isole chaque round : snapshot SQLite online-backup du store
+> mature + copie déréférencée des skills, le bras treatment ne mute plus la
+> production (1.6 clos en entier). Aussi : routage L3 cross-bucket par CAPACITÉ
+> du preferredChild (plus d'égalité de nom, plus de réécriture forcée de
+> l'aggregation), ABI d'invocation script unifiée (`scriptInvocationArgv`
+> consommée par les deux chemins de dispatch), le compile prompt interdit toute
+> installation de paquets à l'exécution, vocabulaire de mutation étendu dans
+> `scriptTargets`. Suite complète : 1501 passed / 8 skipped, typecheck + lint
+> verts.
+
+> **Statut 2026-08-14 (batch runtime 4)** : les refactorings 3.1, 3.2 et 3.4
+> sont appliqués. Les sept gates mécaniques de `validateResult` vivent dans UNE
+> table déclarative (`src/atoms/resultGates.ts`) avec une disposition explicite
+> par gate : `reject` (échecs auto-déclarés par le résultat — witness transport,
+> préfixes NON_JSON / INTERNAL VALIDATION FAILED), `reject-once` (preuves disque
+> — manifeste de commande requis, docs HTTP portables : un rejet mécanique coaché
+> par tâche, mémo run-scoped `ctx.mechanicalResultRejections` partagé au fork,
+> puis la répétition identique passe au LLM avec les faits), `requires-review`
+> (déclencheurs prose — styling web, forme du conteneur JSON : ne rejettent plus
+> jamais seuls, ils court-circuitent le trust fast-path et attachent un bloc
+> `MECHANICAL GATE FINDINGS` au verdict complet — l'architecture checkGroundTruth,
+> §3.2 appliqué). Les lectures workspace sont mises en cache par cycle (le
+> manifeste n'est plus lu deux fois par les gates commande + forme JSON). Le
+> merge du manifeste a UNE définition (§3.4) : identité d'entrée par shape et
+> politiques d'entrée corrompue documentées côte à côte dans
+> `src/contracts/probeManifest.ts`, les trois écrivains (write_file,
+> record_probe, fetch_url) consomment le même module, divergences délibérées
+> épinglées par tests. Suite complète : 1514 passed / 8 skipped, typecheck +
+> lint + docs:check verts.
+
+> **Statut 2026-08-14 (batch runtime 5)** : le refactoring 3.3 est appliqué —
+> l'intention de sortie voyage STRUCTURÉE. Côté plan : `subtaskSpecSchema` et
+> `Task` portent `outputs` (chemins que la sous-tâche crée/modifie, tolérant
+> null/blancs, `[]` = non déclaré jamais read-only), threadé sur la Task enfant
+> par L2/L3, enseigné par `MUTATING_SUBTASK_FILE_GUIDANCE` et les deux formes
+> JSON de plan. `subtaskOutputIntent` (scriptTargets.ts) rend la liste déclarée
+> autoritaire pour la classification mutation + cibles du gate de dispatch ; la
+> grammaire lexicale reste le fallback des plans legacy et ne doit plus gagner
+> de clause. Côté compilateur : l'enveloppe de promotion déclare `writes`,
+> cross-checkée une fois à la promotion contre le résolveur statique (union en
+> cas de sous-déclaration, avertissement loggé), persistée dans `_meta.json`
+> (`declaredWrites`), consommée par `scriptCanServeSubtask` comme liste EXACTE
+> (sans échappatoire opaque) — le scan statique reste le fallback des scripts
+> legacy. Le hash `COMPILE_PROMPT_GENERATION` change avec le template : les
+> stamps de refus de la génération précédente expirent et offrent un retry,
+> par design. Suite complète : 1521 passed / 8 skipped, typecheck + lint +
+> docs:check verts.
+
+> **Statut 2026-08-15 (batch runtime 6)** : les refactorings 3.5 et 3.9 sont
+> appliqués. §3.5 — `startTask(profile, argv)` retourne un
+> `RunHandle {settled, shutdown}` : plus de park-forever ni de `process.exit`
+> ni de handlers de signaux dans la bibliothèque (erreurs de config typées
+> `RunnerConfigError`), `runTask` reste le shell CLI qui possède la mort du
+> processus (exit 2/1, park, SIGINT/SIGTERM), stdout octet-identique (les
+> tests sous-processus le prouvent). L'env lifecycle se résout contre un
+> snapshot HÔTE — le sticky-off documenté (run 1 `--no-learn-skills`
+> contaminant run 2) est fermé et testé. Le pin Codex L1 est refusé au
+> LANCEMENT (plus seulement dans doctor). §3.9 — `servedModel` sur la réponse
+> transport : metrics et recorder facturent le modèle SERVI
+> (`codex:claude-opus-5` → prix gpt-5.6-sol, plus jamais la ligne /opus/i) ;
+> parité `partialUsage` sur les trois transports (Ollama et claude-cli
+> n'avalent plus les tokens payés, trace et CSV ne se contredisent plus) ;
+> `splitProviderModel` rejette un modèle vide après préfixe connu et
+> `referencedProviderNames` lui délègue le parse ; `makeBaseClient` est
+> l'unique switch de construction (runner + curriculum) ; bannière stderr sur
+> `ATOMA_CODEX_MODEL`. Reste explicitement hors batch : l'unification
+> `parseCliArgs`/`parseRunnerArgs` (déclaration de flags booléens) — reportée
+> plutôt que précipitée en fin de session. Suite complète : 1549 passed /
+> 8 skipped, typecheck + lint + docs:check verts.
+
+> **Statut 2026-08-15 (batch runtime 7)** : la priorité 5.3 (« mettre les
+> preuves à l'abri ») et le polish MCP sont appliqués. Sauvegarde —
+> `npm run backup -- --dest <montage hors machine>` : snapshot daté
+> `atoma-state-<stamp>/` contenant `store.db` (backup SQLite EN LIGNE,
+> WAL-safe — `snapshotSqliteStore` extrait en une-définition dans
+> `src/core/sqliteBackup.ts`, partagé avec le harnais compare),
+> `skills.tar.gz`, `runs.tar.gz`, `archive.tar.gz` et `manifest.json` ;
+> prune keep-N qui ne touche que son propre préfixe ; destination DANS le
+> dépôt refusée (un « backup » same-tree ne protège rien) ; entrypoint
+> import-safe. MCP — les cinq bornes : `atoma_run_trace` pagine ses événements
+> (`offset`/`limit` ≤ 1000, `totalEvents`/`nextOffset`) et tronque les chaînes
+> d'erreur ; `goal` plafonné à 4 000 caractères ; la récupération de lease
+> périmé est VISIBLE (`recovered {runId, childPgid}` sur startRun, ligne
+> cross-process sur runStatus au lieu d'amnésie) ; sortie de run / corps de
+> skill / texte de trace marqués données modèle NON FIABLES (INSTRUCTIONS +
+> `caveat`) ; le hard-timeout du burn-in écrit un marqueur synthétique
+> `TIMEOUT after <N>s` dans le log au lieu d'un faux silence. Suite complète :
+> 1567 passed / 8 skipped, typecheck + lint + docs:check verts.
+
+> **Statut 2026-08-15 (batch runtime 8)** : le refactoring 3.8 (viz) est
+> appliqué. `gpu-renderer.ts` passe de 4 456 à ~2 050 lignes : layout pur,
+> copy d'événements, shaders, motion et le ScrollPane partagé vivent sous
+> `client-gl/renderer/` ; les cinq vues sont des fonctions libres dans
+> `renderer/views/` sur `RendererCtx` (un Pick sur la classe — source unique
+> de signatures ; `drawAtomDetail` unifié en un module partagé runs/registry).
+> Les quatre bugs GPU de §1 sont fermés : le wheel FAIL CLOSED sur `scrollMax`
+> (fini le scroll dans le vide — Registry/Skills ne déclaraient jamais leur
+> max), listes et panneaux de détail multi-Ko dans des ScrollPane masqués et
+> bornés (le culling avance le curseur au lieu de casser la boucle, donc le
+> max couvre les lignes non dessinées), `eventDecision`/`ALL ROLES` passent
+> par les catalogues (`outcome.*`, `filters.allRoles` ; clé `burnin.chartLabel`
+> ajoutée en/fr), et `prefersReducedMotion()` (une définition, MediaQueryList
+> cachée) est honoré par TOUS les systèmes d'animation : entrées de widgets
+> sautées, temps gelé, dissolutions/particules de sortie non créées,
+> transition de vue supprimée, lumière pointeur en suivi instantané. Les
+> panneaux de détail sont scrollables sur toutes les vues (routage wheel
+> `detailBounds` généralisé, reset au changement de sélection). Le test-grep
+> de ~80 regex est remplacé : 24 tests de comportement sur un ctx enregistreur
+> typé (`tests/viz-gpu-views.test.ts`) qui échouent si les correctifs
+> régressent ; ne survivent en grep que les présences architecturales
+> (contrats HMR/shaders GLSL+WGSL/deux contextes GPU), reciblées sur les
+> modules réels. Le client MUI est GELÉ (bugfixes only, `ATOMA_VIZ_UI=mui`) ;
+> ses modules partagés importés par le client GL restent vivants — consigné
+> dans AGENTS.md avec les nouvelles règles ScrollPane/motion/RendererCtx.
+> Résidus assumés : pas de scrollbar visuelle sur les panes registry/skills
+> (les panes runs en ont une), pager burnin ancré viewport sans masque, hauteur
+> des paragraphes wrappés de launch non mesurée. Suite complète : 1591 passed /
+> 8 skipped (154 fichiers), typecheck ×2 + lint + docs:check + build Vite verts.
+
+> **Statut 2026-08-15 (batch runtime 9)** : les derniers items de la revue sont
+> traités. (a) Résidus viz fermés : `drawScrollbarThumb` est LA définition du
+> thumb (géométrie historique de la vue runs), dessinée automatiquement par
+> `createScrollPane.finish()` — registry/skills/détails l'ont gagnée sans code
+> par vue, les deux thumbs main-rolled de runs et du run-picker migrés ; le
+> contenu burnin scrolle dans UN pane masqué avec bande pager réservée
+> (`PAGER_RESERVE` borne aussi `availableRows`, pagination scroll-free par
+> construction) ; launch est UNE passe de layout mesurée (`.height` des
+> paragraphes wrappés) qui pilote positions ET `scrollMax`. (b) Parseurs CLI
+> unifiés : un tokenizer dans `args.ts` (grammaire déclarée booleanFlags /
+> negatableFlags opt-in / valueFlags, mode `discard` + `undeclaredFlags`),
+> `parseRunnerArgs` en adaptateur mince — équivalence prouvée par fuzz
+> différentiel (43 470 cas argv×env, 0 divergence) ; au passage `skills drop
+> --force <l1> <id>` et `registry --apply dedupe`/`--clear cache` n'avalent
+> plus leur positionnelle (classe silent-help). (c) Règle de REFROIDISSEMENT
+> dans AGENTS.md : plus de gate mécanique conçue dans la session live qui a
+> produit l'incident. (d) Wedging instruit puis corrigé : les « 2 lignes
+> error » de l'overnight du 14/08 étaient deux SIGTERM opérateur dont le
+> teardown n'émettait PAS l'épilogue machine — trace ($0.377/13 appels) et CSV
+> (error/null) se contredisaient. Fix : outcome `cancelled` first-class dans
+> `runStatsSchema`, teardown émet l'épilogue avec les totaux réels (motif du
+> chemin watchdog), `looksLikeConfigFailure` ignore les kills délibérés, le
+> hint MCP lit l'outcome au lieu de deviner ; test de régression qui tue un
+> VRAI child en vol via `terminateRunProcessGroup` (stub ollama local : 1
+> appel payé, 1 en vol) et vérifie l'accord trace/CSV. Trous résiduels nommés,
+> non traités faute d'instance vécue post-batch-7 : pas d'horloge d'inactivité
+> par appel sur le transport Ollama (seul des trois), pas de backstop sur le
+> settle-forever du burn-in (le MCP en a un). Suite complète : 1612 passed /
+> 8 skipped, typecheck ×2 + lint + docs:check verts.
+
+> **Statut 2026-08-15 (batch runtime 10)** : les deux trous résiduels de la
+> couche B sont fermés dans la foulée. (a) `OllamaLlmClient` a désormais
+> l'horloge d'inactivité par appel que les deux autres transports avaient
+> déjà — même bouton (`ATOMA_CLI_CALL_TIMEOUT_MS`, défaut 10 min, via
+> `cliCallTimeoutMs()`), helper `fetchChat` unique pour les deux sites
+> /api/chat, cleanup explicite des listeners en `finally`, erreur attribuée
+> qui préserve le `partialUsage` payé ; le signal extérieur garde la
+> précédence et sa raison survit verbatim (testé). (b) La boucle burn-in a
+> son backstop `withUnkillableBackstop` : quand un groupe de processus
+> survit au SIGKILL, `spawnRun` reste volontairement pendant (correct sous
+> le serveur MCP qui a son hard-exit) mais `npm run burnin` attendait pour
+> toujours sans timer armé — le wrapper jette désormais avec attribution à
+> `timeout + marge hard-kill (constante partagée DEFAULT_HARD_KILL_MARGIN_MS)
+> + 60 s` et le batch avorte au lieu d'empiler du travail sur une machine
+> empoisonnée. L'invariant « a transport cannot outlive its deadline » est
+> maintenant vrai sur les trois transports. Suite complète : 1616 passed /
+> 8 skipped, typecheck ×2 + lint + docs:check verts.
+
+> **Validation live 2026-08-15** (deux runs réels, `ATOMA_LLM=claude-cli`,
+> état sauvegardé avant). (1) Run livré — goal CLI, `--clean-workspace <goal>`
+> comme le harnais : le goal complet arrive intact (le parseur réécrit tient
+> sur le chemin de production, classe du goal avalé fermée), épilogue
+> `delivered` **0,3141 $ / 10 appels = 1 Opus + 9 Haiku, zéro Sonnet** (un seul
+> appel top-tier pour la décomposition, L2 court-circuitées par prefilters à
+> haute confiance), deux skills LLM réutilisées, promotion gelée. Artefact
+> vérifié À LA MAIN, pas via la bannière : 3 clés/exit 0, usage/exit 1,
+> erreur/exit 1. Le cross-check `outputs`/`writes` du batch 5 filtre en vrai —
+> deux skills écartées parce qu'elles écrivent `.atoma-probes.json` quand le
+> subtask déclare `jsonkeycount.js`. (2) Run annulé — SIGTERM au groupe via
+> `terminateRunProcessGroup` après le premier appel outil L1 : épilogue
+> `cancelled` **0,0939 $ / 6 appels**, trace `cancelled:true` à 6 appels /
+> $0.0939315, **accord trace/CSV : OUI**. Avant le fix ce scénario donnait
+> `error` + coût null : les deux lignes de l'overnight du 14/08 sont
+> reproduites et fermées. Index viz correct (`cancelled` + `endedAt`, plus de
+> « ● LIVE » fantôme), `ledger check` sans compteur impossible.
+> `release:check` vert de bout en bout, dont le smoke GPU compilé : 2 canvases,
+> WebGPU + repli WebGL, **cinq vues** décomposées, 490 objets, lumière pointeur
+> 16,67 ms moyenne / 17,60 ms P95.
+
+## 1. Bugs confirmés (par gravité)
+
+### 1.1 ✓ HIGH — La gate anti-fabrication est inerte en production
+`src/core/branchCtx.ts:60`. `forkBranch` reconstruit le `RunContext` par énumération
+de champs et **omet `requireObservedToolAction`**. Le runner ne le pose que sur le ctx
+racine (`src/run/runner.ts:353`), mais `validateResult` le lit depuis un double fork
+(L3 fork à `L3Atom.ts:649`, L2 re-fork à `L2Atom.ts:1071`). La gate de la 5e itération
+(« zéro action outillée observée → rejet mécanique avant trust ») ne se déclenche donc
+jamais sur un vrai run — un L1 faible peut à nouveau fabriquer un livrable narratif et
+passer le fast-path de confiance. Les tests passent parce qu'ils construisent le ctx à
+la main sans fork. Même cause probable pour `dispatchedScriptSignatures` et
+`mechanicalPlanRejections`, documentés « run-scoped » (`types.ts:398-418`) mais en
+réalité branch-scoped : le mémo anti-redispatch ne traverse pas deux phases L3.
+
+### 1.2 ✓ HIGH — Le bloc `== LITERAL CONTRACTS ==` fuit dans 6 gates sur 7
+`src/atoms/prompts.ts:216`. `stripLiteralContractBlock` n'a **qu'un seul consommateur**
+(`L2Atom.ts:368`, le correctif de l'itération 32 pour le routage). Toutes les autres
+gates qui sniffent la description — `checkRequiredCommandManifest`,
+`checkRecordedJsonShape`, `checkRequiredPortableHttpDocs`, `webStylingEvidenceMissing`,
+et surtout `subtaskMutatesFiles`/`scriptCanServeSubtask` dans le dispatch des skills
+(`lifecycle.ts:1099, 1166-1174`) — scannent la description **brute**, bloc inclus.
+Conséquences : une phase de build hérite des exigences de harnais de la phase 2
+(rejet mécanique identique à chaque retry → cascade 3-rejets→escalade), et une phase
+de re-vérification read-only se classe « mutante » à cause d'une phrase du but global
+— ce qui re-casse silencieusement le gain de dispatch déterministe de la 7e itération.
+
+### 1.3 ✓ HIGH — `./.atoma-probes.json` contourne le merge et le refus d'édition
+`src/tools/builtin.ts:72` et `:200`. Les deux protections comparent le chemin **brut**
+au littéral `'.atoma-probes.json'`, alors que `sandbox.resolve()` normalise pour
+l'écriture réelle. Un `write_file({path:'./.atoma-probes.json'})` — préfixe que les
+modèles ajoutent couramment — saute le merge et écrase le manifeste des phases
+précédentes : exactement la perte de données inter-phases que le merge structurel de
+l'itération 33 devait empêcher. Même contournement pour le refus d'`edit_file`.
+
+### 1.4 ✓ HIGH — `child_pgid` non borné = primitive de kill massif
+`src/mcp/runLock.ts:180` + `src/cli/burnin.ts:336`. `processExists` (owner) garde
+`pid <= 0`, mais la récupération de bail appelle
+`runProcessGroupExists`/`terminateRunProcessGroup` avec le `child_pgid` lu de
+`~/.atoma/mcp-run-lock.db` **sans aucune borne**. Un pgid de 1 (corruption, ou écrit
+par le run lui-même — le modèle de menace du projet dit « l'adversaire est le run »,
+et les chemins absolus atteignent `~/.atoma`) donne `process.kill(-1, SIGTERM)` puis
+SIGKILL : tous les processus de l'utilisateur. Fix d'une ligne (`pgid > 1`). S'ajoute
+la réutilisation de PID/PGID après reboot (aucune comparaison avec l'uptime ni
+`acquiredAt`) : kill d'un groupe innocent ou faux-occupé permanent.
+
+### 1.5 ✓ HIGH — La garde anti-`_meta.json` déchiré ne couvre que `bump()`
+`src/skills/registry.ts`. `readMetaChecked` n'est appelé qu'en un point (ligne ~655) ;
+`markMatched`, `markDirectFailure`, `markPromotionRefused`, `merge` et `save` lisent
+via `readMeta` (catch → `{successes:0, failures:0}`) **et réécrivent ce défaut**.
+`markMatched` écrivant à chaque match de prefilter — avant tout bump — un sidecar
+déchiré d'un skill à 16✓ est ressuscité en 0/0 valide avant que la garde de d547729
+ne le voie. Fix structurel : écritures atomiques (tmp+rename) + un unique
+`mutateMeta()` routé sur `readMetaChecked`.
+
+### 1.6 ✓ HIGH — L'artefact de mesure à HEAD est corrompu
+`burnin/results-compare-opus.csv` : l'en-tête déclare 17 colonnes avec `arm` en
+position 2 ; les trois lignes de données ont 22 champs au format burn-in standard avec
+un `task_id` dans le slot `arm`. Tout parseur par en-tête lit des colonnes décalées et
+la distinction des bras est irrécupérable. Cause : l'en-tête vient de
+`burnin/compare-frontier.ts`, les lignes du writer standard de burnin. À noter aussi :
+`envFor('treatment')` ne pinne ni `ATOMA_DB_PATH` ni `ATOMA_SKILLS_DIR` — l'expérience
+overnight mute le store de production (peut-être voulu « mature store », mais un run
+wedgé y laisse des compteurs fantômes — la classe d'incident viz:demo).
+
+### 1.7 ✓ HIGH — `ATOMA_BASELINE`/`ATOMA_SEED` exportés polluent silencieusement la courbe
+`src/run/runner.ts:75-76` lit ces variables d'env ; burnin spawn avec
+`{...process.env}` (`burnin.ts:434`). Un `export ATOMA_BASELINE=1` oublié après une
+session benchmark transforme chaque run burn-in en run contrôle sans tiering, et le
+CSV n'a pas de colonne `arm` — rien ne le signale.
+
+### 1.8 ✓ HIGH — Le driver benchmark écrase `RESULT.md` à chaque round
+`src/cli/benchmark.ts:361` : `writeFileSync` inconditionnel, alors que le protocole
+déclare les résultats immuables par round. Déjà arrivé (deux commits de restauration,
+dont 53a55cd) — les données ont été réparées deux fois, le mécanisme zéro fois.
+
+### 1.9 ✓ MEDIUM — `finishRun` peut bloquer le slot MCP pour toujours
+`src/mcp/run.ts:238`. `record.lease.release()` (DELETE SQLite qui peut throw)
+s'exécute avant `inFlight = null`, sans try/catch, dans un `void driven.then(...)` :
+un throw laisse le slot occupé à vie et crashe le serveur par unhandledRejection.
+
+### 1.10 ✓ MEDIUM — Le fallback sampling-400 ne couvre que l'itération 0
+`src/core/llm.ts:145`. `samplingOk` est `const` et le retry est gardé par
+`iter === 0` : un modèle absent de la deny-list qui rejette `temperature` survit au
+round 0 puis meurt au round 2 de chaque boucle d'outils — le commentaire du code
+promet l'inverse.
+
+### 1.11 ✓ MEDIUM — Garde serveur de `record_probe` contournable
+`src/tools/builtin.ts:2528` : ne couvre que `node <fichier.js>` exactement
+(`argv.length === 1`). `node server.js --port 3000` ou `python3 app.py` passent →
+30s de blocage, serveur sain tué, `exitCode:1` persisté.
+
+### 1.12 ✓ LOW — Fuite de listeners abort dans claude-cli
+`src/core/llmClaudeCli.ts:171` : `addEventListener('abort', {once:true})` jamais
+retiré (le `finally` ne fait que `clearTimeout`), un par appel LLM sur le signal du
+run entier ; masqué par le `setMaxListeners(0)` du runner. Le transport Codex écrit
+la même semaine le fait correctement (add + remove dans le finally).
+
+### 1.13 Signalés par les relecteurs, non re-vérifiés manuellement
+- **viz server crash** : `decodeURIComponent` non gardé (`/api/runs/%`) tue le
+  processus (`src/viz/server.ts:596`) — grave car « l'adversaire est le run ».
+- **Colonne `escalations` du CSV** : `/escalat/gi` sur tout le log compte les
+  `prefilter ➜ escalate` de routine et la prose des verdicts (`burnin.ts:136`) —
+  les chiffres cités dans AGENTS.md conflatent routage et échec.
+- **Coût calculé sur le pin, pas le modèle servi** : `codex:claude-opus-5` facturé
+  prix Claude pour des tokens GPT-5.6-sol (`metrics.ts:74` + `resolveCodexModel`) ;
+  `ATOMA_CODEX_MODEL` réécrit tous les slugs sans bannière.
+- **Tokens partiels sur erreur** : conservés seulement dans le client Anthropic
+  (e15d810) ; Ollama et claude-cli les perdent, et `RecordingLlmClient` écrit $0 là
+  où `MetricsLlmClient` écrit le partiel — trace et CSV se contredisent.
+- **Refus structurel Codex L1 tardif** : les prefilters/validateurs (sans tools)
+  passent, la première exécution L1 détonne en plein run ; le check existe dans
+  doctor mais pas dans `runTask`.
+- **GPU viz** : scroll non borné/non masqué sur Registry/Skills
+  (`gpu-renderer.ts:993`), panneaux de détail multi-Ko sans masque ni scroll,
+  chaînes anglaises en dur contournant l'i18n (`eventDecision`),
+  `prefers-reduced-motion` honoré par 1 système d'animation sur 8.
+- **`webStylingEvidenceMissing`** fige le vocabulaire d'un widget
+  (`streak-3/afterIncrement`, `L2Atom.ts:234`) alors que son détecteur frère dans
+  builtin.ts a été étendu (`goalReached/after4`) — dérive un-concept-deux-définitions ;
+  trigger `\bclass\b` qui matche « implement a Counter class ».
+- **`routeCrossBucketVerification`** : redirige par égalité de nom vers le PREMIER L2
+  web et force `aggregation: sequential` même sur un plan `concat`/`llm-synthesize`
+  explicite (`L3Atom.ts:167-174`).
+- **Egress proxy** : écoute sur 0.0.0.0 avec une patte sur le bridge partagé —
+  joignable au-delà de son run ; pas de bornes ressources ; le cleanup synchrone
+  hard-exit n'a pas le retry de suppression réseau du chemin async (8e bug de
+  lifecycle du même motif).
+- **Vocabulaire mutation incomplet** : `modify/change/remove/rename/extend` absents
+  de `MUTATING_ACTION_SOURCE` (`scriptTargets.ts:84`) alors que la liste de négation
+  voisine contient `modify` ; « don't » strippé par un vocabulaire de négation et pas
+  par l'autre dans le même fichier.
+- **Anti-redispatch crédite avant de jeter** : `runScriptSkillDirect` bump le succès
+  et émet les événements avant que le mémo du caller ne rejette la sortie
+  (`lifecycle.ts:1286` / `L2Atom.ts:983`) — successes non gagnés à chaque cycle de
+  rejet de contenu.
+- **Compile prompt** : « install via npm at runtime » contredit son propre bloc
+  NETWORK POLICY — `spawnSync('npm', ['install', …])` est invisible au scan
+  (child_process délibérément non flaggé) et échoue sous `--network none`.
+- **`scriptArgv` (abi.ts) est mort** : les deux chemins de dispatch écrivent l'argv
+  à la main — la dérive que le module existe pour empêcher.
+
+## 2. Erreurs de conception
+
+**A. La pile de gates est un moteur de règles sans propriétaire, avec deux
+philosophies contradictoires.** L'ancienne génération (ground truth, quoted spans,
+manifest health) applique « une heuristique ne fait jamais échouer un run à elle
+seule » (contradiction → verdict LLM). Les gates du 12/08 rejettent directement,
+avant trust, sans LLM et sans protection one-shot — tout faux positif se répète à
+l'identique et déclenche la cascade 3-rejets→escalade (la leçon `types.ts:404-418`
+du côté plan n'a pas été héritée). `L2Atom.ts` est repassé de ~1 590 à 2 369 lignes
+en une semaine ; le record affiche toujours « ~1 590 ».
+
+**B. L'intention de sortie voyage en prose puis est récupérée par regex — alors que
+le système contrôle les deux bouts du canal.** Le prompt de plan exige déjà de nommer
+les chemins de sortie exacts ; `scriptTargets.ts` les ré-extrait avec une grammaire
+anglaise cultivée incident par incident (6 familles de regex, 3 vocabulaires de
+négation qui divergent déjà entre fonctions adjacentes). Chaque paraphrase inédite
+coûte un run live + un post-mortem, au seul point du pipeline sans validateur en
+dessous. Un champ structuré `outputs?: string[]` dans `subtaskSpecSchema` rend la
+grammaire un fallback héritage.
+
+**C. Whack-a-mole sous fatigue.** Le contrat smoke inversé deux fois en 24h
+(« tout booléen false est une assertion » falsifié 86 minutes plus tard) ; ~12
+commits pour converger vers le contrat final qu'une passe de design du type
+hybrid-skills aurait plausiblement atteint en 2-3 itérations ; le classificateur de
+mutation corrigé 3 fois en un après-midi ; ≥10 chaînes fix-of-fix (~13 % de la
+fenêtre). La règle POST-RUN ERROR CLOSURE court-circuite structurellement la règle de
+refroidissement two-consecutive-batch. La revue adversariale pré-construction n'est
+appliquée qu'aux idées **rejetées** — les mécanismes acceptés croissent par accrétion
+n=1. Le framework accumule les littéraux spécifiques-à-la-tâche que ses propres
+règles interdisent aux skills (`afterFour`, `goalReached`, `streak-3` dans le code du
+harnais).
+
+**D. Chemin compilation/zero-token : ~17 % des commits contre la propre conclusion du
+record.** « Stop spending rounds on it » est écrit depuis le 11/08 (plafond
+~0,03 $/run, dispatches 10-cassés/1/1/0 sur les rounds 5-8) — 8+ commits
+post-conclusion continuent d'affiner. Non chiffré dans le record : chaque fix de body
+reset 0/0 (quatre resets dans la fenêtre, dont un 24✓) et l'intervalle de correction
+est plus court que la re-maturation (3✓) — l'état trusted est structurellement
+transitoire, duty cycle du dispatch ≈ 0 par construction. Promotion toujours ON par
+défaut pour toutes les familles.
+
+**E. Outils génériques couplés au domaine.** `write_file` merge structurellement un
+nom de fichier précis ; il existe trois implémentations de merge du manifeste aux
+sémantiques divergentes (`builtin.ts:82`, `:2344`, `:2373` — corruption gérée
+différemment dans les trois), en contradiction avec la règle une-définition de
+`src/contracts/`. Le merge est append-only : le chemin de réparation que le message
+d'`edit_file` recommande (« réécrivez le document entier ») ne fonctionne pas.
+Coût concret au bord conteneur : l'image worker embarque `dist/contracts` + zod
+uniquement parce que les outils fichiers traînent le contrat dans leur graphe.
+
+**F. Viz : trois réécritures en dix jours, deux clients maintenus, et le rendu GPU a
+perdu ce que le client MUI avait gagné.** Le renderer détruit et reconstruit toute la
+scène Pixi à chaque notification Zustand (subscription sans sélecteur) — chaque tick
+de molette, chaque frappe, chaque poll 1s — et une identité instable
+(`useSkillLists`) le fait deux fois par scroll. Le gain audité « −96 % de churn,
+rendu incrémental par id » a survécu sur le fil, pas dans le rendu. ~100 assertions
+de test greppent le source (`let x = 160`, noms de méthodes privées) : elles
+punissent le refactoring dont le fichier de 4 300 lignes a besoin, tout en laissant
+passer les vraies régressions (le grep de clamp passe alors que 4 vues sur 5 ne sont
+pas clampées). Accessibilité quasi nulle (canvas aria-hidden, pas de sélection de
+texte — dans un outil dont le métier est de lire des prompts) ; `hitTargets` existe
+déjà et pourrait alimenter le DOM bridge (~100 lignes). Pendant ce temps, la classe
+d'échec réelle (wedging silencieux ; 2 lignes `error` dans le batch overnight du
+14/08) ne recevait aucun commit.
+
+**G. Bus factor 1 avec les preuves non versionnées.** Les ~40 traces citées
+nommément comme justification des gates du 12/08, le store de trust et les bodies de
+skills vivent non versionnés sur une machine (classe déjà payée : 19 traces du round
+2 détruites). AGENTS.md à 5 406 lignes (~90k tokens) est chargé dans chaque session
+d'agent — la moitié d'une fenêtre de contexte — et ses métadonnées rotent en 48h
+(« ~4500 lines », « four rounds » au-dessus d'un record à huit rounds). 103 des 297
+commits (35 %) maintiennent le record plutôt que le produit.
+
+## 3. Refactorings suggérés (par ordre de rendement)
+
+1. **`resultGates.ts` déclaratif** : chaque gate = `{id, trigger, check, disposition:
+   'reject-once'|'requires-review'|'reject', vocabulary}`, préprocessing partagé
+   appliqué une fois (strip du bloc contrats — corrige 1.2 en gros ; fenêtre de
+   négation commune ; une seule lecture manifeste/README au lieu de trois par cycle),
+   one-shot par défaut. Un nouvel incident ajoute une ligne, pas une philosophie.
+2. **Rétrograder les gates déclenchées par la prose en `requiresReview` → verdict
+   LLM** (l'architecture `checkGroundTruth` existe et override déjà le trust). Les
+   préfixes durs (`NON_JSON`, `INTERNAL VALIDATION FAILED`) restent des rejets directs.
+3. **`outputs: string[]` structuré dans le schéma de plan** ; grammaire lexicale en
+   fallback. Côté compilateur : champ `writes: string[]` déclaré à la compilation,
+   cross-checké une fois à la promotion — remplace ~150 lignes d'analyse statique.
+4. **Un seul merge de manifeste** dans `src/contracts/probeManifest.ts` ; normaliser
+   le chemin avant le test d'égalité ; écritures `_meta.json` atomiques (tmp+rename)
+   via un unique `mutateMeta()` sur `readMetaChecked`.
+5. **`runTask` retourne un handle** `{result: Promise, shutdown()}` ; park-forever et
+   `process.exit` remontent dans le shell CLI. Le serveur MCP a déjà payé le prix
+   complet de ce défaut ; le prochain intégrateur le repaiera.
+6. **Épilogue machine `ATOMA_RUN_STATS {json}`** émis par le runner, préféré par
+   `parseRunLog` — retire la classe `/escalat/gi`, la fragilité stdout-as-API et le
+   risque d'abort de batch sur texte modèle. La leçon record_probe (« le markdown
+   modèle n'est pas une interface parsable ») appliquée à la propre sortie du runner.
+7. **✓ Scinder AGENTS.md** : invariants + commandes + pointeurs (~1 500 lignes) /
+   `records/incidents/` append-only, avec test de parité map↔sections. Récupère ~60k
+   tokens par session.
+8. **Geler un des deux clients viz**, décomposer `gpu-renderer.ts` (shaders / widgets
+   / vues sur un petit contexte, `ScrollPane` partagé), remplacer les greps de source
+   par des tests de comportement sur un ctx enregistreur.
+9. Divers une-définition : `makeBaseClient()` partagé runner/curriculum ;
+   `capabilities()` sur `LlmClient` (supportsTools, effortPolicy, servedModel) —
+   fait converger trois findings providers ; `parseCliArgs` avec déclaration des
+   flags booléens pour supprimer le fork `parseRunnerArgs`.
+
+## 4. Ce qui est remarquablement bien
+
+Culture de mesure exceptionnelle : benchmarks pré-enregistrés avec conditions de
+falsification, réfutations de ses propres designs le jour même (hybrid-skills),
+rétractations conservées, tests d'incidents vérifiés « échouent sans le fix ».
+L'isolation conteneur/egress est argumentée et prouvée aux deux polarités ; le claim
+stdout du MCP avant le graphe d'imports est soigné ; `record_probe` (la machine
+écrit, le modèle choisit) est la bonne division du travail ; la série des huit rounds
+qui dégrade honnêtement son propre headline (4,69× → 2,05×) est rare.
+
+## 5. Trois priorités pour les 10 prochains jours
+
+1. **Corriger les bugs à une ligne d'abord** : forkBranch (1.1), borne pgid (1.4),
+   normalisation du chemin manifeste (1.3), garde sur `release()` (1.9),
+   réparer/quarantiner le CSV compare (1.6). Rendement maximal, risque nul.
+2. **Protocole de refroidissement** : plus de gate mécanique nouvelle en session
+   live ; grouper les incidents d'une session, dessiner le contrat une fois contre
+   tous, un commit. Appliquer la revue adversariale pré-construction aux mécanismes
+   acceptés, pas seulement aux idées rejetées.
+3. **Mettre les preuves à l'abri** : sync nocturne hors machine de `atoma.db` +
+   `skills/` + `runs/` + archives ; geler le chemin compilation (promotion OFF hors
+   familles maintenance) ; rediriger l'effort vers le wedging silencieux.

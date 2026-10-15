@@ -50,7 +50,7 @@ if (process.argv.includes('--child')) {
   const registryDb = openDb(env.ATOMA_DB_PATH);
   try {
     // ONE platform registry: what this run creates and earns is what every
-    // other handle on the store reads (docs/platform-trust-2026-09-15.md).
+    // other handle on the store reads (docs/decisions/platform-trust-2026-09-15.md).
     const registry = new AtomRegistry(registryDb);
     const type = registry.create(1, { description: SOURCE, systemPrompt: SOURCE, tools: [], params: {}, createdBy: 'compiled-smoke' });
     registry.patch(type.name, { systemPromptAppend: 'Shared coaching' }, 'compiled-smoke');

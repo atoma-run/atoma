@@ -15,7 +15,7 @@ import { closeStoreHandles } from '../src/core/stores.js';
 
 /**
  * ONE registry, ONE trust, for every run on the platform
- * (`docs/platform-trust-2026-09-15.md`). What these hold:
+ * (`docs/decisions/platform-trust-2026-09-15.md`). What these hold:
  *   - two registries opened on one store see and bump the same rows, in one
  *     process and across processes;
  *   - a store still partitioned by owner (2026-09-09 layout) is folded back:

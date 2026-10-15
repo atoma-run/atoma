@@ -163,7 +163,7 @@ change subscriptions appropriate to each protocol.
 Platform admins can call `atoma_mcp_health` to inspect client/protocol counts
 since server startup. The repository's [server.json](../server.json) describes
 the hosted endpoint for MCP Registry publication. See the
-[two-protocol contract](mcp-two-eras-2026-09-30.md) for wire details.
+[two-protocol contract](decisions/mcp-two-eras-2026-09-30.md) for wire details.
 
 ### Trace evidence and Jev
 

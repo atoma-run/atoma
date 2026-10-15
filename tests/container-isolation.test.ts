@@ -308,7 +308,7 @@ describeDocker('a containerised run cannot reach the stores', () => {
   }, 90_000);
 
   it('replays an inherited check in the host mode, on the worker image\'s own browser', async () => {
-    // docs/inherited-checks-replay-2026-10-01.md: the worker drives Debian's
+    // docs/decisions/inherited-checks-replay-2026-10-01.md: the worker drives Debian's
     // chromium, not Puppeteer's Chrome, and root acceptance depends on its
     // host mode: the smoke's verdict, a throw, the status, the dead proxy.
     await exec.execute('write_file', { path: 'replay.html', content: '<!doctype html><title>t</title><p id="mode">Long break</p>' });

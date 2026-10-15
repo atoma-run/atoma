@@ -15,7 +15,7 @@ import {
  * coordinator → child transport. It lives outside `src/contracts/` because the
  * browser imports that directory and `node:crypto` does not exist there.
  *
- * docs/acceptance-contract-2026-09-14.md: the host validates and captures the
+ * docs/decisions/acceptance-contract-2026-09-14.md: the host validates and captures the
  * specification before paid work, and the captured version is the
  * authoritative one. Everything here REFUSES rather than repairs, because a
  * criterion the user approved and the run silently lost is the one failure

@@ -1494,7 +1494,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       strategy.seed ?? ({ tools: [], params: {} });
     // The seed narrows this cell's tools, never adds to them: until
     // 2026-10-10 a union gave every created molecule the cell's whole
-    // signature (docs/registry-reconciliation-2026-10-10.md).
+    // signature (docs/decisions/registry-reconciliation-2026-10-10.md).
     const childTools = scopeTools(this.tools, seed.tools ?? []);
     // IMPORTANT: the registry description is the prefilter key on future
     // runs. Early versions echoed the full task narrative here ("L1 for
@@ -2653,7 +2653,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         `[${this.name}] trust fast-path OVERRIDDEN for ${child.name} (${type.successes}✓/${type.failures}✗): ${reviewReason} — falling through to a full verdict`
       );
     }
-    // JEV FAST PATH (docs/jev-decisions-2026-09-28.md): admissible exactly where
+    // JEV FAST PATH (docs/decisions/jev-decisions-2026-09-28.md): admissible exactly where
     // the trust fast path is, save the earned counter — no gate finding, no
     // uncovered obligation, a probe that requires no review. The probe it needs
     // is handed on to the model verdict so it never runs twice — probed on

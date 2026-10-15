@@ -251,7 +251,7 @@ function dropLeftoverSkillNamespaces(skills: SkillRegistry, atomIds: readonly st
  * `merge <winner> <losers…>`: the identity merge `dedupe` cannot find (it
  * groups by display name) and would do wrong (it drops the losers' skill
  * namespaces). Dry run by default; `--apply` archives the store and the
- * touched namespaces, then merges (docs/registry-reconciliation-2026-10-10.md).
+ * touched namespaces, then merges (docs/decisions/registry-reconciliation-2026-10-10.md).
  */
 async function cmdMerge(
   registry: AtomRegistry,

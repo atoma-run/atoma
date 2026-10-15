@@ -8,7 +8,7 @@ metadata:
   modified: 2026-10-01T18:04:03.524Z
 ---
 
-Owner decision 2026-09-28: Jev (TypeSafe typed decision model, api.typesafe.ai/v1/systemone, pinned `jev-1.13.0`) DECIDES, not just shadows. Record: docs/jev-decisions-2026-09-28.md (holds every measurement below).
+Owner decision 2026-09-28: Jev (TypeSafe typed decision model, api.typesafe.ai/v1/systemone, pinned `jev-1.13.0`) DECIDES, not just shadows. Record: docs/decisions/jev-decisions-2026-09-28.md (holds every measurement below).
 
 - Decides: prefilter pick (L2 child, L3 hint, recipe); APPROVAL half of plan/result validation at L2/L3 only where a fast path is admissible; twin guard before saving a learned recipe. Never root acceptance.
 - A Jev-only approval sets `viaJev` → credits trust but distils no new recipe — my line beside the owner's decision.
@@ -19,7 +19,7 @@ Owner decision 2026-09-28: Jev (TypeSafe typed decision model, api.typesafe.ai/v
 - Measured and REMOVED: `contradicted_by_evidence` (no signal), `needs_undeclared_tool` (Jev sees tool names, not semantics).
 - Calibrating: the MCP tool list is cached per Claude Code session — after a deploy that ADDS a tool the user must `/mcp` → atoma → Reconnect. Big `details` pages spill to tool-results files; analyse them with a local node script.
 
-2026-09-30 loop (see docs/incidents/production-runs-2026-09-30.md): 4f686a7 audit sample (10 % of Jev approvals re-judged by the model in background, role `jev-audit`); first real Jev approvals + first audit came only once a prompt patch reset Ammonia's trust (trusted types never reach Jev); the first audit AGREED. ff7242b: when Jev hands a SKILL pick to the model, recipes it reads as contradicting the task on files are withheld (`JevChoiceDeferral`, jev event `withheld`); measured 3 recipe deferrals in 14 runs, 2 with a clash, model wrong once (0a989a58). Known limit: whole-catalog prefilter cache is still served before Jev.
+2026-09-30 loop (see records/incidents/production-runs-2026-09-30.md): 4f686a7 audit sample (10 % of Jev approvals re-judged by the model in background, role `jev-audit`); first real Jev approvals + first audit came only once a prompt patch reset Ammonia's trust (trusted types never reach Jev); the first audit AGREED. ff7242b: when Jev hands a SKILL pick to the model, recipes it reads as contradicting the task on files are withheld (`JevChoiceDeferral`, jev event `withheld`); measured 3 recipe deferrals in 14 runs, 2 with a clash, model wrong once (0a989a58). Known limit: whole-catalog prefilter cache is still served before Jev.
 
 Working constraint learned 2026-09-30: in auto mode the classifier denies, as "Data Exfiltration", every step of a change that sends third-party orgs' data to TypeSafe — even commands covered by allow rules (a `git add` was denied) — and editing .claude settings as "Self-Modification". The owner had to commit/push it. Committed `.claude/settings.json` must hold no `Bash(...)` rules (tests/claude-settings-security.test.ts fails CI); shell approvals go in the ignored `.claude/settings.local.json`.
 

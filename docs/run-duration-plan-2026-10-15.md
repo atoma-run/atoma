@@ -120,7 +120,7 @@ Where the limits are today:
   `FILE_PROBE_EXCERPT_CHARS = 400`.
 - The Attica test files were 7,861 / 9,925 / 11,716 bytes. With ~10 named
   files sharing 24,000 characters, each got ~2,400 and lost its bodies.
-- `docs/incidents/first-refusals-2026-10-10.md` already classified "cut
+- `records/incidents/first-refusals-2026-10-10.md` already classified "cut
   evidence" refusals; read it first.
 
 Steps:
@@ -385,7 +385,7 @@ scratch. Its goal had five numbered findings.
 
 Steps:
 
-1. Read `docs/seed-inheritance-2026-09-25.md` (the deepening restart) and
+1. Read `docs/decisions/seed-inheritance-2026-09-25.md` (the deepening restart) and
    `src/run/AGENTS.md`. Find who chooses `short` for project runs today:
    the MCP client passes it; check whether the `atoma_goal` prompt or the
    coordinator ever defaults to it.

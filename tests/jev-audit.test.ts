@@ -15,7 +15,7 @@ import { makeCtx } from './helpers.js';
 import { FALLBACK_OPUS } from './tier-pins.js';
 
 /**
- * THE JEV AUDIT (docs/jev-decisions-2026-09-28.md): once Jev decides, the
+ * THE JEV AUDIT (docs/decisions/jev-decisions-2026-09-28.md): once Jev decides, the
  * model sees only what Jev hands it, so a share of Jev's approvals is also
  * judged by the model validator, off the run's path, to keep Jev's false
  * approvals measured. These pin that it measures and never decides: Jev's

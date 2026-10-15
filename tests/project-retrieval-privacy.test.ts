@@ -151,7 +151,7 @@ function enqueueAttempt(ctx: ReturnType<typeof makeCtx>): void {
 }
 
 /**
- * Since 2026-09-15 (`docs/platform-trust-2026-09-15.md`) there is ONE registry
+ * Since 2026-09-15 (`docs/decisions/platform-trust-2026-09-15.md`) there is ONE registry
  * for every run on the platform. These tests CHARACTERISE what that means for
  * text a run derives from its private retrieval corpus: the corpus itself
  * stays the run's (`ownPassages` is 0 for every other project), while what a

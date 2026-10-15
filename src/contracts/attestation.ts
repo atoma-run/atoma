@@ -17,8 +17,8 @@ import { pathHeldNoFile } from './toolOutput.js';
  * clicks were all filtered away was approved on its own narration, and the
  * skill distilled from it taught the next run to drive state through
  * `window.__*` hooks. See
- * `docs/archive/reviews/supervisor-attestation-a1-review-2026-08-22.md` for the contract and
- * `docs/incidents/supervisor-attestation-evidence-2026-08-22.md` for the
+ * `records/reviews/supervisor-attestation-a1-review-2026-08-22.md` for the contract and
+ * `records/incidents/supervisor-attestation-evidence-2026-08-22.md` for the
  * evidence.
  *
  * The invariant: an observation is only ever OBSERVED here, never claimed. A
@@ -118,7 +118,7 @@ export const SMOKE_PREFLIGHT_REFUSAL_PREFIX = 'smoke rejected pre-flight: ';
  * `start_static_server` bind OS-assigned ports and never the protocol
  * default, so `http://localhost/` is a shape error, not an observation of a
  * dead service. Measured on project run `d3098d25` (2026-09-21,
- * docs/incidents/progressive-runs-2026-09-21.md): the final review probed the
+ * records/incidents/progressive-runs-2026-09-21.md): the final review probed the
  * bare origin, read the connection refusal as a dead service although the
  * bound origin was serving, and replayed near-duplicate executions into the
  * 1800 s deadline — $3.50 recorded, nothing delivered.

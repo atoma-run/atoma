@@ -438,7 +438,7 @@ All gameplay controls wired up. No console errors.`;
 
   /**
    * The seeded counter, 2026-09-14 (trace `6f81b406`, kept under
-   * docs/incidents/recovery-live-2026-09-14/). The L1 observed index.html OK
+   * records/incidents/recovery-live-2026-09-14/). The L1 observed index.html OK
    * twice — a self-driving smoke proving 0→3→0→1, then three real clicks —
    * and the document digest never moved. It then sent the same impossible
    * interaction shape again and was refused PRE-FLIGHT: no browser ran. The

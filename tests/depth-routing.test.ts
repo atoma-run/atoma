@@ -892,7 +892,7 @@ describe('depth transition through the production supervision loop', () => {
   });
 
   it('keeps the user-approved list through a remediation, on the task and on every acceptance', async () => {
-    // docs/acceptance-contract-2026-09-14.md: the planner cannot delete a
+    // docs/decisions/acceptance-contract-2026-09-14.md: the planner cannot delete a
     // criterion, and the acceptor reads the HOST-held list, not task inputs.
     const ctx = context();
     const checklist = [{ id: 'c1', behaviour: 'the page shows the monthly total', check: { kind: 'review' as const } }];
@@ -1045,7 +1045,7 @@ describe('depth transition through the production supervision loop', () => {
       checklist, checklistOrigin: origin });
     expect(half.llm.calls[0]!.userContent).toContain('375 px: NOT LAID OUT, 1280 px: laid out, passed');
     // A fact beside the judgement: making it a refusal is an owner decision
-    // (docs/incidents/production-runs-2026-09-27.md).
+    // (records/incidents/production-runs-2026-09-27.md).
     expect(shown.approved).toBe(true);
     expect(shown.checklist?.[0]).toMatchObject({
       judgement: { met: true, reason: 'media queries cover both' },

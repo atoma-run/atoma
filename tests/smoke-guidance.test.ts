@@ -107,7 +107,7 @@ describe('SMOKE_DESIGN_GUIDANCE ↔ validate_html pre-flight guards', () => {
     }
   });
 
-  // MEASURED 2026-09-15 (docs/incidents/verification-replay-2026-09-15.md):
+  // MEASURED 2026-09-15 (records/incidents/verification-replay-2026-09-15.md):
   // the guidance taught the self-driving shape as THE canonical one and never
   // said it executes no real interaction, so a phase carrying the
   // dom-interaction obligation earned no credit and the L3 planned a second

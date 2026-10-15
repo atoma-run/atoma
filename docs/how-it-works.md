@@ -7,7 +7,7 @@ diligence — enough depth to judge the design, not enough to need the source op
 [← back to the README](../README.md) · for the multi-tenant target state, see
 [`saas-architecture.md`](saas-architecture.md) · for the engineering rationale behind
 individual mechanisms, start with `AGENTS.md`; dated rationale is routed from
-there to `docs/incidents/` so it is loaded only when needed.
+there to `records/incidents/` so it is loaded only when needed.
 
 ---
 
@@ -362,8 +362,8 @@ Platform administrators can use `atoma_jev_calibrate` to compare questions and
 thresholds against recorded model decisions. `auditsOnly: true` reads the
 existing audit sample and bounded cost/outcome report without a TypeSafe call;
 ordinary calibration sends recorded decision context and incurs TypeSafe cost.
-See the [decision record](jev-decisions-2026-09-28.md),
-[October policy corrections](jev-policy-2026-10-01.md) and
+See the [decision record](decisions/jev-decisions-2026-09-28.md),
+[October policy corrections](decisions/jev-policy-2026-10-01.md) and
 [service terms](platform-commons-terms.md#decisions-taken-by-typesafe).
 
 ---
@@ -374,7 +374,7 @@ Historical evidence, not a current-release performance claim: across the first e
 controlled rounds the compiled path fired 14 times, 11 of them in a single round whose
 deliverables turned out wrong. The lifecycle below has guarded promotion and dispatch; what is
 missing is demand for it on the task families measured so far. See
-[`hybrid-skills-design.md`](archive/experiments/hybrid-skills-design.md) for the most recent attempt to change
+[`hybrid-skills-design.md`](../records/experiments/hybrid-skills-design.md) for the most recent attempt to change
 that — designed, measured and refused.
 
 ```mermaid
@@ -396,7 +396,7 @@ graph LR
 ```
 
 **Compile at learn, dispatch at first match** (owner decision, 2026-09-26 —
-[`compile-at-learn-2026-09-26.md`](compile-at-learn-2026-09-26.md)). A recipe that can be
+[`compile-at-learn-2026-09-26.md`](decisions/compile-at-learn-2026-09-26.md)). A recipe that can be
 compiled is compiled the moment it is learned, from the run it was distilled from, on every run
 — seeded or from scratch. The script it produces dispatches on its first match, with no clean
 runs required first. Until that date, promotion had to be earned twice: three credited runs for
@@ -506,7 +506,7 @@ After remediation, an incomplete recheck cannot silently clear the earlier
 refusal. Missing hooks are marked and only pruned on a later qualifying run,
 alongside a passing check of the same page. This is bounded browser replay,
 not general command replay; its observations earn no checklist or learning
-credit. See [the replay contract](inherited-checks-replay-2026-10-01.md).
+credit. See [the replay contract](decisions/inherited-checks-replay-2026-10-01.md).
 
 **Verification phases preserve the deliverable.** A read-only phase snapshots
 the workspace and restores changes made by file tools or shell commands, with
@@ -553,7 +553,7 @@ tooling verbatim. Sidecars carry skill counters and provenance. Project workspac
 live below `orgs/<orgId>/projects/<projectId>/`; the registry and the skills
 catalog are the platform's, one of each, and every run — the operator's or an
 organisation's — reads them and earns trust on them alike
-([`platform-trust-2026-09-15.md`](platform-trust-2026-09-15.md)).
+([`platform-trust-2026-09-15.md`](decisions/platform-trust-2026-09-15.md)).
 
 The machine-global MCP run lease uses `~/.atoma/mcp-run-lock.db`; private subscription
 profiles and their locks have their own operational storage. Supervisor verdicts
@@ -694,8 +694,8 @@ Recorded so nobody has to discover it in a demo:
 | Question | Where |
 |---|---|
 | Why does mechanism X exist? | `AGENTS.md` for the active contract, then its linked engineering-record entry |
-| Where does Jev decide, and how is it evaluated? | [Decision record](jev-decisions-2026-09-28.md) · [Policy and evidence corrections](jev-policy-2026-10-01.md) |
-| What was tried and rejected? | `docs/incidents/engineering-record-2026-08-14.md` § *Considered and rejected* |
+| Where does Jev decide, and how is it evaluated? | [Decision record](decisions/jev-decisions-2026-09-28.md) · [Policy and evidence corrections](decisions/jev-policy-2026-10-01.md) |
+| What was tried and rejected? | `records/incidents/engineering-record-2026-08-14.md` § *Considered and rejected* |
 | What would a hosted deployment require? | [`saas-architecture.md`](saas-architecture.md) Layer 2 invariants and Layer 3 remaining work (W1–W14) |
 | What does a real run look like? | `npm run viz` for existing traces; `npm run viz:demo` writes a mocked run, and `npm run preview:demo` opens a seeded authenticated preview without paid inference |
 | How does another agent drive atoma? | Claude Code: `claude mcp add --transport http --scope user atoma <origin>/mcp`, then sign in through `/mcp` (OAuth; a bearer API token from Settings also works). Codex: an `[mcp_servers.atoma]` table in `~/.codex/config.toml` with `url` and `tool_timeout_sec = 10800` (Codex otherwise cuts a run start at 300 s), then `codex mcp login atoma`. One MCP, the tools your role admits, plus a goal-template prompt and reader prompts at the platform tier ([MCP authorization](mcp-oauth.md)) |

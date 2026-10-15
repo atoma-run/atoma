@@ -14,7 +14,7 @@
  * element, a shell, a compiled script or a fallback. Refusing the writes
  * instead was built and reviewed first; a verifier that found a real defect
  * then looped between a gate asking for the fix and a fence refusing it, and a
- * fallback wrote the page anyway (docs/incidents/production-runs-2026-09-30.md).
+ * fallback wrote the page anyway (records/incidents/production-runs-2026-09-30.md).
  *
  * What such a phase OBSERVED while its changes stood is no proof of the files
  * as they were put back: when a restoration matters, its attestations count

@@ -454,7 +454,7 @@ const skillRegistry = new SkillRegistry(SKILLS_DIR, { db: openLedgerHandle(DBS[0
  * FOLD BEFORE SERVING.
  *
  * `openDb` is what migrates a store still partitioned by the 2026-09-09 owner
- * key into the one platform registry (`docs/platform-trust-2026-09-15.md`).
+ * key into the one platform registry (`docs/decisions/platform-trust-2026-09-15.md`).
  * This server never called it: every store access below is a READ-ONLY handle,
  * so on a deployed host — where the server is the only process that always
  * runs — the fold waited for the next run that never came, while the readers,
@@ -3141,7 +3141,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     // grant read access to operator-level state (review 2026-08-20 §2.2).
     // The registry readers left this list on 2026-09-15, as the skill readers
     // did: there is ONE registry and ONE trust for every run on the platform
-    // (`docs/platform-trust-2026-09-15.md`), so what a member reads here is
+    // (`docs/decisions/platform-trust-2026-09-15.md`), so what a member reads here is
     // exactly what their own runs read and earn on. `registrySummaryFor`
     // redacts the store's host path for non-admins.
     const operatorApi = pathname === '/api/burnin';
@@ -5274,7 +5274,7 @@ server.listen(cli.port, cli.host, () => {
   } else if (EVENTS && PROJECTS_RUNTIME) {
     console.log('analyst: off (ATOMA_VIZ_ANALYST=1 to analyse finished runs on this host)');
   }
-  // docs/jev-decisions-2026-09-28.md: Jev is on by default for every run, so
+  // docs/decisions/jev-decisions-2026-09-28.md: Jev is on by default for every run, so
   // without this line a missing key would turn it off with nothing saying so.
   console.log(describeJevAdmission(process.env));
   console.log(

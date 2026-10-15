@@ -828,7 +828,7 @@ export function projectRunEnvironment(input: {
     // in the env would only mislead about where the OTHER tiers went.
     delete environment['ANTHROPIC_BASE_URL'];
   }
-  // JEV'S CREDENTIAL (docs/jev-decisions-2026-09-28.md) crosses into EVERY
+  // JEV'S CREDENTIAL (docs/decisions/jev-decisions-2026-09-28.md) crosses into EVERY
   // organisation's runs, unless the platform switch is off (owner decision
   // 2026-09-30): Jev receives each decision's state — the task text, the
   // catalog, a plan or a result — as a third party, which the service terms
@@ -859,7 +859,7 @@ export function projectRunEnvironment(input: {
     // 0`, nothing carried into the next run.
     ATOMA_SKILL_LEARN: '1',
     ATOMA_EVENT_SKILLS: '1',
-    // A RUN IS A RUN (docs/platform-trust-2026-09-15.md): promotion,
+    // A RUN IS A RUN (docs/decisions/platform-trust-2026-09-15.md): promotion,
     // deterministic dispatch and the prefilter cache follow the same defaults
     // as any run on this host — promotion is on unless the host says
     // otherwise, direct dispatch is on unless it says ATOMA_SKILL_DIRECT=0, and the cache
@@ -896,7 +896,7 @@ export function projectRunEnvironment(input: {
  * Order is "most recent first" from the store, and the first usable one wins —
  * a landed run is not ranked below an older complete one, because it is the
  * later state of the same evolving corpus (the project-continuity contract in
- * docs/incidents/progressive-runs-2026-09-21.md).
+ * records/incidents/progressive-runs-2026-09-21.md).
  */
 export function previousSeedRun(
   store: ProjectStore,
@@ -1108,7 +1108,7 @@ export function landedRunDetail(stats: Pick<RunStats, 'landingReasons'>, log: st
  * advised raising a variable that could not be raised.
  *
  * The default is 60 minutes. It was 30, and two production runs of 2026-09-21
- * (`cc894dad`, `d3098d25`, docs/incidents/progressive-runs-2026-09-21.md) both
+ * (`cc894dad`, `d3098d25`, records/incidents/progressive-runs-2026-09-21.md) both
  * died at exactly that wall clock having spent $2.83 and $3.50. Raising it is
  * the smaller half of the answer and not the interesting one: a bigger budget
  * only moves the cliff. What stops the loss is that reaching the deadline now
@@ -1888,7 +1888,7 @@ export class ProjectRunCoordinator {
         extraArgs: [
           // Container isolation is the one thing a tenant launch insists on.
           // No lifecycle veto travels: a project run promotes, dispatches and
-          // caches like any run (docs/platform-trust-2026-09-15.md).
+          // caches like any run (docs/decisions/platform-trust-2026-09-15.md).
           '--container',
           ...(continuation ? ['--resume', continuation.projectRunId] : seedFrom ? ['--seed', seedFrom] : []),
           ...(!run.rerunOf && (run.depth ?? 'deep') === 'deep' ? ['--checkpoint'] : []),

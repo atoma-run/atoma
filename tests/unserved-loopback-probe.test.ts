@@ -19,7 +19,7 @@ import {
 
 /**
  * Production run `d3098d25` (2026-09-21,
- * docs/incidents/progressive-runs-2026-09-21.md): the final review probed
+ * records/incidents/progressive-runs-2026-09-21.md): the final review probed
  * bare `http://localhost/` while the run's own server was bound to an
  * OS-assigned port, read `ERR_CONNECTION_REFUSED` as a dead service, and
  * replayed near-duplicate executions into the 1800 s deadline — $3.50

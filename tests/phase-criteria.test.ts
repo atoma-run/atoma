@@ -12,7 +12,7 @@ import { makeCtx, jsonText, jsonTextPair } from './helpers.js';
 
 /**
  * A phase hears the criteria it must prove, word for word
- * (docs/incidents/first-refusals-2026-10-10.md). Runs 50be47bf and ebc60ee4
+ * (records/incidents/first-refusals-2026-10-10.md). Runs 50be47bf and ebc60ee4
  * clicked before a keyboard journey their criterion said had "no mouse": the
  * molecule writing the check saw its phase description, never the criterion.
  */

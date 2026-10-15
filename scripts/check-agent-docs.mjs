@@ -9,7 +9,7 @@ import { hasIntentionalChoices, INTENTIONAL_CHOICES_HEADING, repoRelativeIfInsid
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const agentsPath = resolve(repoRoot, 'AGENTS.md');
 const claudePath = resolve(repoRoot, 'CLAUDE.md');
-const archivePath = resolve(repoRoot, 'docs/incidents/engineering-record-2026-08-14.md');
+const archivePath = resolve(repoRoot, 'records/incidents/engineering-record-2026-08-14.md');
 
 // The root file is loaded into every session; subsystem files are loaded only
 // when an agent opens that subtree. Both budgets exist to keep the split from

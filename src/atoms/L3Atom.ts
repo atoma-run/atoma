@@ -502,7 +502,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       // step consuming all 3" has no direct spelling at this tier: the only
       // correct mode is "sequential", and the parallelism has to come from
       // the L2 that receives one grouped phase and fans it out itself.
-      // Measured 2026-08-16 (docs/incidents/parallel-fanin-2026-08-16.md):
+      // Measured 2026-08-16 (records/incidents/parallel-fanin-2026-08-16.md):
       // on three fan-out+join tasks, the ONE run that grouped its orthogonal
       // work into a single phase is the only live run in this repo's history
       // — 247 traces — whose lanes ever genuinely overlapped. The two runs
@@ -575,7 +575,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `phantom schema and the real one).`,
       // A DOCUMENTATION PHASE DOCUMENTS EVIDENCE THAT ALREADY EXISTS. Measured
       // 2026-08-16 across two consecutive batches on the same task
-      // (docs/incidents/parallel-fanin-2026-08-16.md): a phase told to "re-run
+      // (records/incidents/parallel-fanin-2026-08-16.md): a phase told to "re-run
       // each command to capture its actual output if needed, and make sure all
       // three out.json files still exist at the end" spent ONE 567s execute
       // loop re-running every generator, staging the failure case by moving an

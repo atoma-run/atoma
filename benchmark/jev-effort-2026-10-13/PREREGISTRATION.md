@@ -3,7 +3,7 @@
 Fixed before any decision at the new bar is read. The revision that adds this
 file is the one that lowers `high` from `open_problem` ≥ 0.8 to
 `effortOpen` = 0.6 (`src/core/jevQuestions.ts`); no run had started on it.
-Why the bar moved: [decision record](../../docs/jev-decisions-2026-09-28.md#the-high-bar-2026-10-13),
+Why the bar moved: [decision record](../../docs/decisions/jev-decisions-2026-09-28.md#the-high-bar-2026-10-13),
 from the 159 readings in `baseline.json` (2026-10-07→12, all at the old bar).
 
 The 2026-10-06 protocol ([`../jev-effort-2026-10-06/`](../jev-effort-2026-10-06/PREREGISTRATION.md))

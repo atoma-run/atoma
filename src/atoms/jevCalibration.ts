@@ -31,7 +31,7 @@ import type { JevApprovalRequest, JevChoiceRequest, JevCompilationRequest, JevTw
 /**
  * JEV CALIBRATION — the documented questions (`src/core/jevQuestions.ts`)
  * measured on the decisions the MODEL recorded, before they decide anything
- * (docs/jev-decisions-2026-09-28.md).
+ * (docs/decisions/jev-decisions-2026-09-28.md).
  *
  * Every prefilter and phase validation a run's model took is in its trace: the
  * prompt it read and the answer it gave. This module reads such a prompt back

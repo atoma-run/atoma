@@ -29,7 +29,7 @@ import { makeCtx } from './helpers.js';
 import type { RunContext, ToolExecutor } from '../src/core/types.js';
 
 /**
- * MEASURED 2026-09-15, seeded counter (docs/incidents/verification-replay-2026-09-15.md,
+ * MEASURED 2026-09-15, seeded counter (records/incidents/verification-replay-2026-09-15.md,
  * events 24–25 and 52–54): the erased-intermediate-state refusal fired, the
  * model adopted the ONE accepted shape it was handed — a self-driving IIFE with
  * `interactions: []` — which passed, executed zero real interactions, left the

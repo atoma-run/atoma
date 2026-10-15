@@ -17,7 +17,7 @@ import { makeCtx, jsonText, silentLogger } from './helpers.js';
 import type { Result, Tool } from '../src/core/types.js';
 
 /**
- * What a seeded run inherits — docs/seed-inheritance-2026-09-25.md.
+ * What a seeded run inherits — docs/decisions/seed-inheritance-2026-09-25.md.
  *
  * The manifest below is the SHAPE of the one run `d677d824` inherited on
  * 2026-09-24: real machine-recorded HTTP entries, followed by prose entries a

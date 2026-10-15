@@ -3,7 +3,7 @@ import type { Viewer } from '../auth/store.js';
 /**
  * WHO IS CALLING THE MCP, and what tier of the catalogue they may see.
  *
- * One MCP for everyone (decision 2026-09-05, `docs/mcp-one-surface-2026-09-05.md`):
+ * One MCP for everyone (decision 2026-09-05, `docs/decisions/mcp-one-surface-2026-09-05.md`):
  * the same server, the same tool names, and a catalogue whose visibility is
  * decided by the caller's tier. `tools/list` shows a caller only the tools
  * their tier admits, and every `tools/call` re-checks the tier, so hiding a

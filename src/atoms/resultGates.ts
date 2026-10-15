@@ -18,7 +18,7 @@ import { resultHasSuccessfulToolAction } from '../skills/lifecycle.js';
  * The mechanical RESULT gates, as ONE declarative table.
  *
  * Every gate here was born from a dated live incident (AGENTS.md engineering
- * record / docs/incidents/), and until 2026-08-14 each lived as its own
+ * record / records/incidents/), and until 2026-08-14 each lived as its own
  * inline `if` inside L2.validateResult with its own tool reads and its own
  * ad-hoc disposition. That accretion held two contradictory safety doctrines
  * in one function: the ground-truth layer's invariant is "a heuristic must

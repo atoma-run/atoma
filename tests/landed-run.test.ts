@@ -24,7 +24,7 @@ import { haystackTestEnvironment } from './helpers/haystack.js';
  * THE RUN DEADLINE NO LONGER DISCARDS COMPLETED PHASES.
  *
  * Regression cover for the defect measured twice in production on 2026-09-21
- * (`cc894dad`, `d3098d25` — docs/incidents/progressive-runs-2026-09-21.md):
+ * (`cc894dad`, `d3098d25` — records/incidents/progressive-runs-2026-09-21.md):
  * three of four phases finished, validated and CREDITED, the fourth aborted
  * mid-flight by the 1800 s deadline, and the run recorded `failed` with no
  * manifest and no publication. 2.83 USD and 3.50 USD bought nothing.

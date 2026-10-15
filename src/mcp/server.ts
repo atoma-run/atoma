@@ -11,7 +11,7 @@
  * The host pays one tool call; atoma does the tiering.
  *
  * THE STDIO TRANSPORT IS GONE (decision 2026-09-05,
- * `docs/mcp-one-surface-2026-09-05.md`). Its safety argument — "no socket the
+ * `docs/decisions/mcp-one-surface-2026-09-05.md`). Its safety argument — "no socket the
  * run could reach" — described a product installed on the operator's machine.
  * The product is a deployed server with organisations, principals and a
  * journal, and the identity layer is what neutralises a reachable port there,

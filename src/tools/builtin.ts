@@ -1503,7 +1503,7 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
         // whose process still holds the port — the kernel is asked, not the
         // registry alone. It is what lets the host attribute an HTTP
         // observation to THIS run's server (the acceptance checklist,
-        // docs/acceptance-checklist-2026-09-25.md): an explicit unregistered
+        // docs/decisions/acceptance-checklist-2026-09-25.md): an explicit unregistered
         // port stays probeable, but is nobody's evidence. A redirected
         // response is not an observation of the requested route.
         let servedBy: { kind: 'static' | 'node'; entry?: string; codeDigest?: string } | undefined;
@@ -2106,7 +2106,7 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
           : DEFAULT_WAIT_MS;
       const waitMs = Math.min(requestedWaitMs, MAX_WAIT_MS);
       // THE HOST'S REPLAY of a check an earlier run recorded
-      // (docs/inherited-checks-replay-2026-10-01.md). Undeclared, and stripped
+      // (docs/decisions/inherited-checks-replay-2026-10-01.md). Undeclared, and stripped
       // from every call a model makes: it reads and writes no stuck tracker.
       const hostReplay = Object.prototype.hasOwnProperty.call(args, HOST_REPLAY_ARG) && args[HOST_REPLAY_ARG] === true;
       const viewport = parseViewport(args['viewport']);
@@ -3094,7 +3094,7 @@ export const CDP_PROTOCOL_TIMEOUT_MS = 30_000;
  * This NAMES the predicate's real requirement, which is a requirement on HOW
  * the aggregate is spelled. It does not widen it: widening
  * `smokeOkIncludesStyling` changes a disposition and is recorded in
- * `docs/archive/designs/decided-not-built-2026-08-23.md`, not built here.
+ * `records/designs/decided-not-built-2026-08-23.md`, not built here.
  */
 export function renderStylingAggregateOverride(
   smoke: string,

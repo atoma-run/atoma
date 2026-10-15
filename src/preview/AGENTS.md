@@ -15,9 +15,9 @@ Neighbours:
 - [`src/viz`](../viz/AGENTS.md) — the HTTP adapter and the GPU surface
 
 Design of record:
-[`docs/archive/designs/result-preview-design-2026-08-28.md`](../../docs/archive/designs/result-preview-design-2026-08-28.md),
+[`records/designs/result-preview-design-2026-08-28.md`](../../records/designs/result-preview-design-2026-08-28.md),
 under the deployment shape fixed in
-[`docs/archive/designs/deployment-docker-launcher-2026-08-28.md`](../../docs/archive/designs/deployment-docker-launcher-2026-08-28.md).
+[`records/designs/deployment-docker-launcher-2026-08-28.md`](../../records/designs/deployment-docker-launcher-2026-08-28.md).
 Built: classification, byte policy, instance state, the container runtime, the
 claim and origin model, the gateway, the manager that orders them, the
 gated HTTP surface and the GPU client. The Node path's isolation is
@@ -55,7 +55,7 @@ unfinished work — and readiness already filters what matters: no runnable
 entry, a server that will not start, a marker that never arrives, a probe that
 goes unanswered. What survives all four starts and answers, and that it is
 incomplete is the information asked for. Design and rejected alternatives:
-[`docs/in-flight-preview-2026-09-02.md`](../../docs/in-flight-preview-2026-09-02.md).
+[`docs/decisions/in-flight-preview-2026-09-02.md`](../../docs/decisions/in-flight-preview-2026-09-02.md).
 
 **WHICH of the two a request gets is the HOST's decision, from the run's own
 status.** `inFlight` is a willingness to accept a snapshot, never an assertion
@@ -129,7 +129,7 @@ very directory EMPTY before copying from it.
   renamed, cleaned or deleted Node servers `static`, and the replay then
   removed their checks as dead (review 2026-10-01).
   The static HTTP recorder loss and its archived operator repair are recorded
-  in [the Reading log incident](../../docs/incidents/reading-log-preview-2026-10-12.md).
+  in [the Reading log incident](../../records/incidents/reading-log-preview-2026-10-12.md).
 - The node entry resolves in one order and stops at the first hit: the `entry`
   stamped on the newest http probe, then `package.json.main`, then `server.js`
   → `index.js` → `app.js`. Each candidate must be a regular non-symlinked file
@@ -544,7 +544,7 @@ born extracted rather than added to `src/viz/server.ts`, which already composes
 almost the whole control plane while still describing itself as tiny — the
 concrete gap the Lovable review named, whose remedy is to strangle it one
 coherent group at a time
-([`docs/archive/reviews/lovable-lessons-atoma-2026-08-26.md`](../../docs/archive/reviews/lovable-lessons-atoma-2026-08-26.md)).
+([`records/reviews/lovable-lessons-atoma-2026-08-26.md`](../../records/reviews/lovable-lessons-atoma-2026-08-26.md)).
 A new preview route belongs in the adapter as one call; new preview BEHAVIOUR
 belongs here.
 
@@ -561,7 +561,7 @@ belongs here.
 - **Live preview of a run in flight.** It races L1 on the same workspace and
   ports. The compatible shape is a snapshot contract at phase boundaries, which
   is deferred and has its own review
-  ([`docs/archive/designs/live-preview-direction-2026-08-31.md`](../../docs/archive/designs/live-preview-direction-2026-08-31.md)).
+  ([`records/designs/live-preview-direction-2026-08-31.md`](../../records/designs/live-preview-direction-2026-08-31.md)).
 - **A reusable or shareable preview URL.** v1 mints a one-time claim.
 - **`npm install` at open time.** A missing `node_modules` is a bounded failure,
   not a network operation on a member's click.

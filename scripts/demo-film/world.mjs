@@ -6,7 +6,7 @@
  * SAMPLE DATA, SHAPED LIKE THE REAL THING. Every payload below is the shape
  * the server returns (the same contracts `scripts/viz-screenshot.mjs` stubs),
  * and the featured run follows the goal and outcome of a real project run
- * (`flags-service` 29b5dd57, docs/incidents/checklist-first-runs-2026-09-25.md).
+ * (`flags-service` 29b5dd57, records/incidents/checklist-first-runs-2026-09-25.md).
  * Its per-call costs are not typed in: they come from the product's own cost
  * formula over the recorded token counts, so the tiles add up the way a real
  * run's do.

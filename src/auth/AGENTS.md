@@ -79,7 +79,7 @@ Loopback HTTP keeps its development cookie names and paths.
   `AUTH_TABLE_NAMES`: a read-only open of an older product DB answers "no
   delegates" instead of refusing the whole schema.
 - Design and the owner's decision:
-  [docs/subscription-delegation-2026-09-22.md](../../docs/subscription-delegation-2026-09-22.md).
+  [docs/decisions/subscription-delegation-2026-09-22.md](../../docs/decisions/subscription-delegation-2026-09-22.md).
 
 ## Personal provider subscriptions
 
@@ -128,7 +128,7 @@ Loopback HTTP keeps its development cookie names and paths.
   as a new pin and before a launch spends. Discovering the host's list through
   `model/list`, as for personal logins, is the open follow-up.
 - Personal Claude Code login is a PASTED TOKEN, in beta (owner decision
-  2026-10-08, [docs/personal-claude-beta-2026-10-08.md](../../docs/personal-claude-beta-2026-10-08.md)):
+  2026-10-08, [docs/decisions/personal-claude-beta-2026-10-08.md](../../docs/decisions/personal-claude-beta-2026-10-08.md)):
   the member runs `claude setup-token` where Claude Code is signed in and
   pastes the long-lived token; `connectClaude` refuses it by spelling, probes
   `claude auth status --json` with the token in the environment (local, no

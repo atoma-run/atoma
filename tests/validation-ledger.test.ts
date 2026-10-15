@@ -12,7 +12,7 @@ import {
 /**
  * The L1 validation ledger, exercised with the RESULT SHAPES the seeded
  * counter run produced on 2026-09-14 (trace `6f81b406`, preserved under
- * docs/incidents/recovery-live-2026-09-14/). The document digest is the one
+ * records/incidents/recovery-live-2026-09-14/). The document digest is the one
  * the tool bound to index.html; it never moved after the edit phase, and the
  * run still replayed its verification twice because the LAST call was a
  * pre-flight refusal. Every disposition that failed a result before still

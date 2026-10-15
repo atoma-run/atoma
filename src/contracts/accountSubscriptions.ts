@@ -29,7 +29,7 @@ export const codexDeviceUserCodeSchema = z
  * member. BETA, owner decision 2026-10-08: Anthropic's third-party approval
  * for routing claude.ai subscriptions has not been granted, and the product
  * offers the connection anyway while in beta
- * (`docs/personal-claude-beta-2026-10-08.md`). The shape is the one Claude
+ * (`docs/decisions/personal-claude-beta-2026-10-08.md`). The shape is the one Claude
  * Code mints — an `sk-ant-oat` prefix, a two-digit generation, then printable
  * ASCII — so a pasted API key (`sk-ant-api…`) or a device code is refused by
  * spelling before any subprocess sees it. The value never crosses back over

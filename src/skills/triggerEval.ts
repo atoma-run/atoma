@@ -1,6 +1,6 @@
 /**
  * TRIGGER EVALUATION AT LEARN TIME (owner decision 2026-10-15,
- * docs/skill-trigger-eval-2026-10-15.md).
+ * docs/decisions/skill-trigger-eval-2026-10-15.md).
  *
  * `when_to_use` is the only thing that decides whether a learned recipe is
  * ever picked, and until now nothing measured it before the save: a recipe

@@ -306,7 +306,7 @@ export interface VizCacheEvent {
 }
 
 /**
- * A decision asked of Jev (docs/jev-decisions-2026-09-28.md): the prefilter's
+ * A decision asked of Jev (docs/decisions/jev-decisions-2026-09-28.md): the prefilter's
  * pick, or the approval half of a plan or result validation. `outcome` is what
  * Atoma did with the answer — including 'model decides' / 'deferred to the
  * model' when Jev declined or did not answer. Its cost is its own: it is NOT

@@ -12,7 +12,7 @@ metadata:
 
 Root cause of the loop: the web canonical told molecules to write_file the manifest by hand; they wrote prose labels as smokes, then "repaired" them with edit_file; the refusal pointed at record_probe (web molecules don't hold it) or a whole rewrite (forbidden by the existing-file rule in the same prompt).
 
-Fix 4cf75d87: validate_html = third recorder (appendWebProbe by webEntryIdentity; only a check — interactions or a page-reading smoke — bound to a workspace file; host replay/failing/unbound → nothing, unbound gets a warning); write_file AND edit_file refuse the manifest (`manifestHandWriteRefusal`); canonical + EXISTING_FILE_RULE + runtime browserProofLines updated. Adversarial review applied. Record: docs/incidents/edit-file-failures-2026-10-11.md.
+Fix 4cf75d87: validate_html = third recorder (appendWebProbe by webEntryIdentity; only a check — interactions or a page-reading smoke — bound to a workspace file; host replay/failing/unbound → nothing, unbound gets a warning); write_file AND edit_file refuse the manifest (`manifestHandWriteRefusal`); canonical + EXISTING_FILE_RULE + runtime browserProofLines updated. Adversarial review applied. Record: records/incidents/edit-file-failures-2026-10-11.md.
 
 Known limits: document binding fails on this Windows machine (tests/document-binding and my recording tests skip/fail locally; CI Linux is the gate). Stored web prompts still say "ALSO write_file" → one refused call each until repaired.
 
@@ -29,5 +29,5 @@ Implemented one model-facing file-text formatter across all seven transport
 loops, preserving raw structured observations and paging metadata, plus
 specific non-mutating edit argument/wrapper diagnostics. Never automatically
 unwrap or unescape replacement arguments. Details and production event IDs:
-`docs/incidents/edit-file-failures-2026-10-13.md`. Production benefit remains
+`records/incidents/edit-file-failures-2026-10-13.md`. Production benefit remains
 unmeasured; mocked transport regressions establish the byte contract.

@@ -1,7 +1,7 @@
 # Packaged Linux stack (W7)
 
 Implemented on 2026-09-19. Web and launcher image builds and compiled help
-smokes passed on 2026-09-20, followed by [W13 deterministic stack acceptance](archive/releases/saas-stack-acceptance-2026-09-20.md). See the [evidence receipt](archive/releases/saas-acceptance-2026-09-20.md). This is a reference deployment definition,
+smokes passed on 2026-09-20, followed by [W13 deterministic stack acceptance](../records/releases/saas-stack-acceptance-2026-09-20.md). See the [evidence receipt](../records/releases/saas-acceptance-2026-09-20.md). This is a reference deployment definition,
 not evidence that the instance is ready to admit mutually distrusting tenants.
 
 ## Runtime boundary
@@ -141,7 +141,7 @@ product directory, workspaces, launcher state and separately escrowed secrets.
 Backups run with `ATOMA_LAUNCHER_WORKSPACE_ROOT` also capture its `projects/`
 projection as a mandatory `workspaces.tar.gz` tier (manifest layout version 2).
 Restore with `scripts/restore-drill.py`; an absent projection fails the drill.
-The [hosted backup/restore drill](archive/releases/saas-hosted-recovery-2026-09-20.md) passed W8-b
+The [hosted backup/restore drill](../records/releases/saas-hosted-recovery-2026-09-20.md) passed W8-b
 with separately recovered key material and measured offline timings. Never copy live SQLite files without the supported
 backup procedure, and do not restore launcher state over a running daemon.
 
@@ -154,8 +154,8 @@ protocol. Follow [launcher-service.md](launcher-service.md) for lease recovery.
 
 W13 passed for the deterministic assembled boundary on 2026-09-20. Hosted
 restore (W8-b) subsequently passed. W14 corpus/trace isolation also
-passed on this stack; see [shared-learning acceptance](archive/releases/shared-learning-acceptance.md).
-See the [measured scope](archive/releases/saas-stack-acceptance-2026-09-20.md); no production
+passed on this stack; see [shared-learning acceptance](../records/releases/shared-learning-acceptance.md).
+See the [measured scope](../records/releases/saas-stack-acceptance-2026-09-20.md); no production
 migration or process-crash recovery is inferred from a graceful restart.
 
 Compose syntax: [Docker service reference](https://docs.docker.com/reference/compose-file/services/).

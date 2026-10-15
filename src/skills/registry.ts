@@ -138,7 +138,7 @@ export class SkillRegistry {
   /**
    * ONE catalog, ONE trust, for every run on the platform: bodies, counters
    * and lifecycle are shared by the operator's runs and every organisation's
-   * project runs alike (`docs/platform-trust-2026-09-15.md`). The per-project
+   * project runs alike (`docs/decisions/platform-trust-2026-09-15.md`). The per-project
    * trust scope of 2026-09-15 morning is folded back by
    * `foldScopedSkillTrust` in `migratePlatform.ts`.
    */
@@ -825,7 +825,7 @@ export class SkillRegistry {
 
   /**
    * Move every recipe of one namespace under another — an identity merge
-   * (`registry merge`, docs/registry-reconciliation-2026-10-10.md), where
+   * (`registry merge`, docs/decisions/registry-reconciliation-2026-10-10.md), where
    * the loser's knowledge follows its counters to the winner instead of
    * dying with the row as `dropNamespace` makes it.
    *
@@ -986,7 +986,7 @@ export class SkillRegistry {
    * runs THROUGH the validated loop before it was trusted to run unwatched.
    * Since 2026-09-26 `shouldTrustSkill` asks for no clean runs, so a freshly
    * promoted script dispatches on its first match by owner decision
-   * (docs/compile-at-learn-2026-09-26.md). The reset still matters: the
+   * (docs/decisions/compile-at-learn-2026-09-26.md). The reset still matters: the
    * script's record is its own, and a failure on it is what stops dispatch.
    *
    * Refuses (throws) if the skill on disk is already `kind: 'script'`.

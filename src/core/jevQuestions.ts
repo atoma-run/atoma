@@ -14,7 +14,7 @@ import type {
 
 /**
  * THE QUESTIONS TYPESAFE'S DOCUMENTATION PRESCRIBES, AND THE THRESHOLDS THEY
- * ARE READ AGAINST (docs/jev-decisions-2026-09-28.md).
+ * ARE READ AGAINST (docs/decisions/jev-decisions-2026-09-28.md).
  * =========================================================================
  *
  * Read in full on 2026-09-29 (docs.typesafe.ai, llms-full.txt): ATOMIC
@@ -374,7 +374,7 @@ function describedTools(description: string): { readonly prose: string; readonly
  * Ammonia: as two options they split the mass in 82 of 256 agent picks, 44
  * of the 119 deferred on confidence; as one, 27 of those decide with one
  * disagreement against the model's 39 Ammonia and 3 Benzene
- * (docs/jev-decisions-2026-09-28.md, "twin agents — 2026-10-10").
+ * (docs/decisions/jev-decisions-2026-09-28.md, "twin agents — 2026-10-10").
  */
 function isWiderTwin(narrow: { prose: string; tools: readonly string[] }, wide: { prose: string; tools: readonly string[] }): boolean {
   if (narrow.tools.length === 0 || wide.tools.length <= narrow.tools.length) return false;

@@ -49,7 +49,7 @@ Neighbours:
   Repository excerpts are untrusted context, never persisted agent prompts.
   `tissues.ts` seeds the existing builder as a candidate, not a default route;
   bootstrap recognizes its provenance so a custom Meristem is never replaced.
-  See [routing decision and review](../../docs/tissue-routing-2026-10-02.md).
+  See [routing decision and review](../../docs/decisions/tissue-routing-2026-10-02.md).
 - The three `ATOMA_MODEL_L*` selectors are REQUIRED and parsed at LAUNCH
   (`tierSelectors`, a `RunnerConfigError` on a missing or malformed pin), AFTER
   `applyTierPins` so a snapshot-only pin is what the run sees and an ambient
@@ -71,7 +71,7 @@ Neighbours:
   injected only by the coordinator after its host-authority or exact-principal
   check. The same authority applies to Codex L1. See
   [src/projects](../projects/AGENTS.md) for who may arm a tier, and
-  `docs/archive/designs/subscription-per-tier-design-2026-08-28.md` for why.
+  `records/designs/subscription-per-tier-design-2026-08-28.md` for why.
 
 ## Run host
 
@@ -111,7 +111,7 @@ Neighbours:
   so the refusal hands the untouched source back and finishes the successor in
   one transaction (code review 2026-10-09, 1.4).
   Short/parallel/comparison runs keep their ordinary lifecycle. Contract and tests:
-  [durable checkpoints](../../docs/run-checkpoints-2026-10-08.md).
+  [durable checkpoints](../../docs/decisions/run-checkpoints-2026-10-08.md).
 
 - `src/run/platform.ts` is the ONE definition of where a run may execute:
   `darwin` and `linux`. It is not a preference — the run is a detached process
@@ -158,7 +158,7 @@ Neighbours:
   2026-09-30).
 - A seeded static-page run replays the browser checks it inherited on the
   UNTOUCHED seed as soon as its backend exists (`inheritedChecksFor`,
-  [docs/inherited-checks-replay-2026-10-01.md](../../docs/inherited-checks-replay-2026-10-01.md)),
+  [docs/decisions/inherited-checks-replay-2026-10-01.md](../../docs/decisions/inherited-checks-replay-2026-10-01.md)),
   and `gatedExecutor` makes every tool call of the run wait for it; a
   deepening waits for it before archiving. `runTools` also strips the
   host-replay argument from every call. The replay's own calls go to the
@@ -210,7 +210,7 @@ Neighbours:
   spend allowance, and writes a separate receipt and trace. A separate process
   group survives the run launcher's reap. Serial measurements can explicitly
   retain inline learning with `ATOMA_DEFER_LEARNING=0`.
-  [Lifetime, recovery and review](../../docs/approved-learning-2026-10-11.md).
+  [Lifetime, recovery and review](../../docs/decisions/approved-learning-2026-10-11.md).
 
 - New ordinary runs default to deep supervision through the selected tissue.
   `--depth short` explicitly retains direct L2 entry and selects an L3 only
@@ -291,7 +291,7 @@ Neighbours:
   replacement; container removal is confirmed by the engine before egress
   teardown. An unavailable engine or remaining worker prevents replacement.
 - Design and remaining measurement protocol:
-  [depth experiment](../../docs/archive/experiments/depth-routing-experiment-2026-09-13.md).
+  [depth experiment](../../records/experiments/depth-routing-experiment-2026-09-13.md).
 - `seedWorkspace` is the ONE seed copy, at launch and at the deepening
   restart: a seeded run's "fresh" state is its seed, not an empty directory.
   The 2026-09-13 decision to restart empty predates seeded runs being
@@ -332,7 +332,7 @@ Neighbours:
 
 ## Intentional choices and rejected shortcuts
 
-- Approved learning includes at most one prompt candidate per rank, on the saved L2 author and L1 reviewer models/payers. [Contract](../../docs/prompt-consolidation-2026-10-12.md).
+- Approved learning includes at most one prompt candidate per rank, on the saved L2 author and L1 reviewer models/payers. [Contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 - Replaying from the last checkpoint after an interrupted phase is refused:
   external effects and phase credits are not rolled back with files. Persist

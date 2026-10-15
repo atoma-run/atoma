@@ -30,7 +30,7 @@ it. Failures are shown to the root acceptor and never refuse the run by themselv
 
 Related: [[read-only-phases]], [[reader-facing-docs]].
 
-**Design review 2026-10-01 (verdict: keep the policy, rethink the mechanism).** v1 design (docs/inherited-checks-replay-2026-10-01.md, untracked) staged the seed into .atoma-scratch at acceptance — REJECTED:
+**Design review 2026-10-01 (verdict: keep the policy, rethink the mechanism).** v1 design (docs/decisions/inherited-checks-replay-2026-10-01.md, untracked) staged the seed into .atoma-scratch at acceptance — REJECTED:
 - host writes into a container-writable tree (symlink race);
 - `ok` judges the page (console errors, fonts) and not the smoke;
 - cdc34023 itself would have listed dozens of checks for a rebuild the task asked for.

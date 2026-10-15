@@ -23,7 +23,7 @@ export function mergeTools(parentTools: readonly Tool[], seedTools: Tool[]): Too
  * said so since 2026-09-07, and until 2026-10-10 the code unioned anyway, so
  * every created molecule carried its creator's full signature (six
  * full-stack clones, three eleven-tool molecules under eleven-tool cells;
- * docs/registry-reconciliation-2026-10-10.md).
+ * docs/decisions/registry-reconciliation-2026-10-10.md).
  */
 export function scopeTools(parentTools: readonly Tool[], seedToolNames: readonly string[]): Tool[] {
   const asked = new Set(seedToolNames);

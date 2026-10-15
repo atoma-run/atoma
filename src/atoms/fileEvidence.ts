@@ -13,7 +13,7 @@ export const CRITERIA_SOURCE_CHARS = 24_000;
  * Root acceptance reads four times as much: it is one call per pass, its
  * refusal costs a whole replan, and three of the eight first refusals measured
  * as cut evidence judged a long page or calendar past 24,000 characters
- * (docs/incidents/first-refusals-2026-10-10.md). 48,000 until 2026-10-15:
+ * (records/incidents/first-refusals-2026-10-10.md). 48,000 until 2026-10-15:
  * Attica runs 85cc4e83 and f74c140a were refused four times on test files the
  * acceptor saw as titles only. Their five executed suites total 41,953
  * characters, and measured on that shape 96,000 is the first budget that shows

@@ -111,7 +111,7 @@ export function attestingExecutor(
 /**
  * The executor a MODEL's tool calls go through: it never forwards an argument
  * only the host may pass. `hostReplay` is the supervisor's replay mode of
- * `validate_html` (docs/inherited-checks-replay-2026-10-01.md), which reads
+ * `validate_html` (docs/decisions/inherited-checks-replay-2026-10-01.md), which reads
  * and writes no stuck tracker. A molecule, a fallback executor or the
  * benchmark baseline agent that passed it would otherwise get the host's
  * mode.

@@ -70,10 +70,10 @@ Neighbours:
   universal `index.html` floor: APIs and CLIs are first-class deliverables.
   File deliveries with covered floors and no findings retain mechanical acceptance.
   Text review derives a bounded L2 reference blinded to the current answer, plan and remediation (`textReview.ts`).
-  A root plan's declared TEXT delivery is stamped on the root task (`withPlannedDelivery`) and handed only to the tasks whose output is that text (`delegatedDelivery`: last sequential phase, every concat part, never a child declaring `outputs`). Executors read `TEXT_DELIVERY_GUIDANCE` (answer in `output` as Markdown, evidence after the marker in the summary); planners and validators read `TEXT_DELIVERY_CONTEXT` (judge it wherever placed, never persist its shape). Runtime text only. Free-text URL extraction is loopback-only, so a cited link is never probed. [Design and review](../../docs/text-delivery-answer-2026-10-13.md).
+  A root plan's declared TEXT delivery is stamped on the root task (`withPlannedDelivery`) and handed only to the tasks whose output is that text (`delegatedDelivery`: last sequential phase, every concat part, never a child declaring `outputs`). Executors read `TEXT_DELIVERY_GUIDANCE` (answer in `output` as Markdown, evidence after the marker in the summary); planners and validators read `TEXT_DELIVERY_CONTEXT` (judge it wherever placed, never persist its shape). Runtime text only. Free-text URL extraction is loopback-only, so a cited link is never probed. [Design and review](../../docs/decisions/text-delivery-answer-2026-10-13.md).
   One extra tool-free call per text acceptance; no effort override, automatic vote or proof credit.
-  The reviewer judges the whole task; references remain fallible model text. [Review](../../docs/text-review-and-history-2026-10-03.md).
-  The root changes no phase credits; a pass's new skill lessons wait for its approval and a refusal drops them (owner decision 2026-10-09, run fc2a68cf); after it, the runner commits the lessons for separate processing ([lifetime](../../docs/approved-learning-2026-10-11.md)); library/serial paths retain `saveLessons`. The probe receives only `output` and `summary`, as at L3; internal plan/verdict/fallback trace quotes are not delivery claims. Phase coverage is collected with its original attempt and branch, never reevaluated against the root floor. The floor is not inherited by phases. The review
+  The reviewer judges the whole task; references remain fallible model text. [Review](../../docs/decisions/text-review-and-history-2026-10-03.md).
+  The root changes no phase credits; a pass's new skill lessons wait for its approval and a refusal drops them (owner decision 2026-10-09, run fc2a68cf); after it, the runner commits the lessons for separate processing ([lifetime](../../docs/decisions/approved-learning-2026-10-11.md)); library/serial paths retain `saveLessons`. The probe receives only `output` and `summary`, as at L3; internal plan/verdict/fallback trace quotes are not delivery claims. Phase coverage is collected with its original attempt and branch, never reevaluated against the root floor. The floor is not inherited by phases. The review
   reads one mechanical line naming the sizes the attempt's pages were laid
   out at (`observedLayoutsBlock`): run 134d916a was accepted on "no overflow
   at 375 and 1280 pixels" with every check at 800x600. That line alone did
@@ -87,7 +87,7 @@ Neighbours:
   It is a fact beside the judgement and overrides none: a detector that
   refused on its own reading would fail as a wrong gate, which the declared
   obligations below forbid. Making an unlaid width a hard refusal is an owner
-  decision (docs/incidents/production-runs-2026-09-27.md). When criteria are shown, the acceptor also
+  decision (records/incidents/production-runs-2026-09-27.md). When criteria are shown, the acceptor also
   judges EACH one (`criteria`, kept on the checklist items as `judgement`); a
   USER list is always read, never approved mechanically past, and an approval
   that judges one of its criteria unmet is the acceptor contradicting itself,
@@ -108,7 +108,7 @@ Neighbours:
   the same evidence. Its complete checklist replaces the disputed judgments
   and its verdict retains unrelated defects; an incomplete or failed reread preserves the refusal, and cancellation
   propagates. No vote, repeated tools, or automatic override. See
-  [Reading Log counterexamples](../../docs/incidents/reading-log-review-2026-10-11.md).
+  [Reading Log counterexamples](../../records/incidents/reading-log-review-2026-10-11.md).
   Run 715ffc74 otherwise spent its one repair on an expiry example before
   learning that schema and successful-receipt tests were missing. This adds
   at most six tool-free calls for twelve user criteria, no tool replay or phase credit. The incident and adversarial
@@ -137,7 +137,7 @@ Neighbours:
   past it, the lines holding the criterion's words; a cut excerpt is silent
   about the rest, and a name that resolves to no file is silent — "saves
   quote.txt" names a download. Both are read only for a validation call.
-  Superseded reads also get bounded current excerpts; unknown stays unknown, old bytes stay out. [Contract and review](../../docs/stale-file-evidence-2026-10-03.md).
+  Superseded reads also get bounded current excerpts; unknown stays unknown, old bytes stay out. [Contract and review](../../docs/decisions/stale-file-evidence-2026-10-03.md).
 - A LANDED result carries `LANDED_RESULT_GUIDANCE` to that validator, and
   nothing else does. A landed run stopped before it could prove the floor, so
   `floorCoverage` is uncovered BY CONSTRUCTION and the verdict is always a
@@ -148,7 +148,7 @@ Neighbours:
   wording follows the analyst's on purpose: one definition of a landing, served
   to both judges. A phase supervisor never receives it — landing is a property
   of the whole run.
-- THE ACCEPTANCE CHECKLIST ([design](../../docs/acceptance-checklist-2026-09-25.md))
+- THE ACCEPTANCE CHECKLIST ([design](../../docs/decisions/acceptance-checklist-2026-09-25.md))
   is drafted once per depth-routed run by `draftAcceptanceChecklist`
   (cheapest tier, role `draft-checklist`, actor `run-checklist`), reaches the
   root planner through `inputs.acceptanceChecklist`, and is covered at the
@@ -157,7 +157,7 @@ Neighbours:
   model-drafted list may only add what the acceptor looks for. Rendered only
   when it holds an http item; a landed result is told NOT OBSERVED is
   expected for its unfinished phases.
-- A USER-APPROVED list ([contract](../../docs/acceptance-contract-2026-09-14.md#built-the-user-approved-list-2026-09-25))
+- A USER-APPROVED list ([contract](../../docs/decisions/acceptance-contract-2026-09-14.md#built-the-user-approved-list-2026-09-25))
   replaces the draft: no drafting call, `checklistOrigin: {source: 'user',
   digest}` held by `runDepthTask` and passed to every `acceptRootResult`,
   never re-read from `task.inputs`. It always renders, review items included,
@@ -183,7 +183,7 @@ load-bearing.
 - `viaPrefilter` is internal and omitted from `planSchema`; an LLM must not be
   able to spoof validator bypass.
 - JEV DECIDES FIRST when `ctx.jev` is present
-  ([owner decision](../../docs/jev-decisions-2026-09-28.md)): after a prefilter
+  ([owner decision](../../docs/decisions/jev-decisions-2026-09-28.md)): after a prefilter
   cache miss its pick is a high-confidence reuse and `none_of_these` an
   escalate, never cached; and it may APPROVE a plan or result only where a
   fast path is admissible (no gate finding, proof covered, probe not requiring
@@ -240,7 +240,7 @@ load-bearing.
   phase's requirement, a drafted one adds nothing. An id no subtask names is
   CONTEXT for the last sequential phase only; a script dispatch is judged
   without criteria. 60 of 118 first root refusals named a clause no
-  phase had seen ([measurement](../../docs/incidents/first-refusals-2026-10-10.md)).
+  phase had seen ([measurement](../../records/incidents/first-refusals-2026-10-10.md)).
   Current constraints reach execution.
   Sequential handover also carries bounded transport observations from completed
   phases, with event IDs, omission counts and a separate file-change inventory.
@@ -249,8 +249,8 @@ load-bearing.
   Run 2311d446's report made 53 tool calls searching a manifest for browser
   observations that only the runtime trace held.
   Declared reasoning mode disables tools/skills through descendants and fallbacks; only its observed-action gate
-  is skipped, and the plan parse drops it on a subtask declaring outputs or proof obligations (review 2026-10-09 2.6). [Contract and review](../../docs/incidents/text-delivery-2026-10-02.md).
-  Runtime planning keeps the current phase's scope and scales reusable workflows to the task, without a phase-count gate ([review](../../docs/incidents/planning-scope-2026-10-03.md)).
+  is skipped, and the plan parse drops it on a subtask declaring outputs or proof obligations (review 2026-10-09 2.6). [Contract and review](../../records/incidents/text-delivery-2026-10-02.md).
+  Runtime planning keeps the current phase's scope and scales reusable workflows to the task, without a phase-count gate ([review](../../records/incidents/planning-scope-2026-10-03.md)).
   Validation retains that host-owned scope too: original facts remain binding,
   but tests assigned to a forthcoming phase are not current-phase prerequisites.
   Current defects/checks and final root acceptance stay strict. A child cannot
@@ -266,7 +266,7 @@ load-bearing.
   at a single tier: L3 emits ONE phase per orthogonal GROUP and the L2 that
   receives it fans the group out. One L3 phase per orthogonal artefact
   serialises work that shares no file — see
-  [parallel fan-in 2026-08-16](../../docs/incidents/parallel-fanin-2026-08-16.md).
+  [parallel fan-in 2026-08-16](../../records/incidents/parallel-fanin-2026-08-16.md).
 - A phase of a SEQUENTIAL root plan the PLANNER wrote with two phases or more
   (counted before `routeCrossBucketVerification` splits one) that declares no
   `outputs` is READ-ONLY (`Task.readOnly`) — the tissue's plan, or a root
@@ -313,7 +313,7 @@ load-bearing.
   landing reported) and the runner turns that into the `partial` outcome. Never
   infer a landing from the summary text: `markLanded` prefixes it, but it then
   continues into model-authored prose. Measured twice on 2026-09-21:
-  [progressive runs](../../docs/incidents/progressive-runs-2026-09-21.md).
+  [progressive runs](../../records/incidents/progressive-runs-2026-09-21.md).
 - `llm-synthesize` aggregation on a LANDED parallel dispatch rides
   `landingSignal(ctx.deadlineAt)`, not `ctx.signal` — which is already aborted by then, so the
   synthesis would throw before its first token and discard the branches the
@@ -467,7 +467,7 @@ load-bearing.
   function and test on one line, while the same model wrote the habit
   tracker's server normally. Dense source is what edit_file pays for, 27 of
   310 calls there, a leading space recalled where none exists and spans that
-  repeat ([measurement](../../docs/incidents/edit-file-failures-2026-10-15.md)).
+  repeat ([measurement](../../records/incidents/edit-file-failures-2026-10-15.md)).
   Prompt text, not a gate: a density detector would refuse a vendored
   minified asset or a data file, and the measured failures recover in one
   retry each.
@@ -505,7 +505,7 @@ load-bearing.
   retry's re-runs), then the execution suffix. Excerpts and omissions establish no coverage of unseen assertions.
 - ROOT ACCEPTANCE REPLAYS THE BROWSER CHECKS EARLIER RUNS RECORDED, the one
   exception to "supervisors never replay" (owner decision 2026-10-01,
-  [docs/inherited-checks-replay-2026-10-01.md](../../docs/inherited-checks-replay-2026-10-01.md)).
+  [docs/decisions/inherited-checks-replay-2026-10-01.md](../../docs/decisions/inherited-checks-replay-2026-10-01.md)).
   Run b9dc4d0b turned the `Long break` line an earlier run asked for into
   `Mode: Long Break` while the smoke asserting it sat in its inherited
   manifest. The host replays a seeded static page's web entries twice before
@@ -543,7 +543,7 @@ load-bearing.
   2026-09-14: the last-call bit fired on a refusal over three standing
   observations of an unchanged document and the run replayed its entire
   verification twice before the deadline
-  ([incident](../../docs/incidents/verification-replay-2026-09-15.md)).
+  ([incident](../../records/incidents/verification-replay-2026-09-15.md)).
 - Keep `VALIDATION_SYSTEM_PROMPT` explicit that L1 plans should contain concrete
   tool-oriented proposed actions while L2/L3 must delegate.
 
@@ -602,7 +602,7 @@ load-bearing.
 
 ## Intentional choices and rejected shortcuts
 
-- Approved method hooks collect version-bound prompt lessons for all three ranks; root refusal discards them. Fixed author/reviewer prompts, bounded evidence and preservation rules: [prompt consolidation](../../docs/prompt-consolidation-2026-10-12.md).
+- Approved method hooks collect version-bound prompt lessons for all three ranks; root refusal discards them. Fixed author/reviewer prompts, bounded evidence and preservation rules: [prompt consolidation](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 Read the archived sections before changing something that merely looks odd.
 

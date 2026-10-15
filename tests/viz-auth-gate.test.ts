@@ -769,7 +769,7 @@ describe('viz auth gate (process level)', () => {
     const invitation = randomBytes(32).toString('base64url');
     createInvitation(instance.dbPath, invitation, 'org:viewer');
     // ONE registry for every run on the platform: what a member reads here is
-    // what their own runs read and earn on (docs/platform-trust-2026-09-15.md).
+    // what their own runs read and earn on (docs/decisions/platform-trust-2026-09-15.md).
     const seed = { tools: [], params: {}, createdBy: 'seed' };
     const db = openDb(instance.dbPath);
     try {

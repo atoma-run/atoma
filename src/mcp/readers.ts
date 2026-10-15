@@ -672,7 +672,7 @@ export function runTraceFile(
         // spans and line-numbered file contexts) — bounded like every other
         // model-authored string this module returns.
         error: typeof any.error === 'string' ? truncate(any.error) : any.error,
-        // A `jev` decision (docs/jev-decisions-2026-09-28.md): what Atoma did
+        // A `jev` decision (docs/decisions/jev-decisions-2026-09-28.md): what Atoma did
         // with Jev's answer, and why there was none. Both can name recipe ids
         // or echo a service error, so both are bounded.
         outcome: typeof any.outcome === 'string' ? truncate(any.outcome) : undefined,

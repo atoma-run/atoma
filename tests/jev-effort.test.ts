@@ -33,7 +33,7 @@ import { makePlan } from './helpers/factories.js';
 
 /**
  * Jev sets a molecule execution's reasoning effort (owner decision
- * 2026-10-06, docs/jev-decisions-2026-09-28.md#execution-effort-owner-decision-2026-10-06).
+ * 2026-10-06, docs/decisions/jev-decisions-2026-09-28.md#execution-effort-owner-decision-2026-10-06).
  * These pin what makes that safe: only a decisive, consistent pair of answers
  * acts; `low` never lands on a retry; a type's own pin and a transport that
  * would drop the answer mean Jev is not asked; the decision reaches the

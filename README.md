@@ -165,7 +165,7 @@ For an existing static page, the host also replays browser checks recorded by
 earlier runs before editing begins and again before delivery. Regressions go
 to the final review, which distinguishes requested changes from lost behaviour.
 Read-only phases restore the files they changed, and workers read existing
-files before editing them. See [inherited browser checks](docs/inherited-checks-replay-2026-10-01.md).
+files before editing them. See [inherited browser checks](docs/decisions/inherited-checks-replay-2026-10-01.md).
 
 ### Jev handles bounded decisions
 
@@ -345,19 +345,19 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 ## Documentation
 
 Browse the [documentation index](docs/README.md) for current guides and the
-[archive](docs/archive/README.md) for historical designs, reviews and release evidence.
+[archive](records/README.md) for historical designs, reviews and release evidence.
 
 | I want to… | Read |
 | --- | --- |
 | Understand the architecture | [How it works](docs/how-it-works.md) |
-| Understand Jev and its evaluation | [Architecture](docs/how-it-works.md#jev-bounded-decisions-beside-the-model-tiers) · [Decision record](docs/jev-decisions-2026-09-28.md) · [Latest policy corrections](docs/jev-policy-2026-10-01.md) |
+| Understand Jev and its evaluation | [Architecture](docs/how-it-works.md#jev-bounded-decisions-beside-the-model-tiers) · [Decision record](docs/decisions/jev-decisions-2026-09-28.md) · [Latest policy corrections](docs/decisions/jev-policy-2026-10-01.md) |
 | Know what runs share with each other | [Shared-learning terms](docs/platform-commons-terms.md) |
 | Use your own ChatGPT account | [Personal model discovery](docs/personal-model-discovery.md) |
 | Develop locally or contribute | [Development setup](docs/development-setup.md) · [Contributing](CONTRIBUTING.md) |
 | Operate a hosted instance | [Packaged stack](docs/packaged-stack.md) · [Deployment](docs/automatic-deployment.md) · [Maintenance](docs/project-maintenance.md) · [Configuration](.env.example) |
 | Publish results or enable previews | [GitHub App](docs/github-app-setup.md) · [Preview deployment](docs/preview-deployment.md) |
 | Connect an MCP client | [MCP authorization](docs/mcp-oauth.md) |
-| Review changes | [Changelog](CHANGELOG.md) · [Code reviews](docs/code-reviews.md) |
+| Review changes | [Changelog](CHANGELOG.md) · [Code reviews](records/code-reviews.md) |
 | Report a vulnerability | [Security policy](SECURITY.md) |
 
 ## Historical measurements

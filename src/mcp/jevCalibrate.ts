@@ -22,7 +22,7 @@ import { readBoundedRunFile } from '../viz/runIndex.js';
 
 /**
  * `atoma_jev_calibrate` — the door onto `src/atoms/jevCalibration.ts`
- * (docs/jev-decisions-2026-09-28.md). It exists because the key lives in THIS
+ * (docs/decisions/jev-decisions-2026-09-28.md). It exists because the key lives in THIS
  * process's environment on the host, and nowhere else: the calibration reads
  * the model decisions of every organisation's runs — Jev decides in all of
  * them since 2026-09-30 — sends them to the same service those runs reach,

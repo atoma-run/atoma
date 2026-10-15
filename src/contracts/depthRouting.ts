@@ -38,13 +38,13 @@ export const acceptanceSchema = z.object({
     status: z.enum(['covered', 'uncovered']), observationRefs: z.array(z.string()),
   })),
   phaseCoverage: z.array(phaseCoverageSchema),
-  /** The run's acceptance checklist, covered from this attempt (docs/acceptance-checklist-2026-09-25.md). */
+  /** The run's acceptance checklist, covered from this attempt (docs/decisions/acceptance-checklist-2026-09-25.md). */
   checklist: z.array(checklistCoverageSchema).optional(),
   /** Who wrote that checklist; absent on a trace recorded before approved lists existed. */
   checklistSource: checklistSourceSchema.optional(),
   /** The host's digest of a USER list, the same one the project store holds for the run. */
   checklistDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-  /** The host's replay of the checks earlier runs recorded (docs/inherited-checks-replay-2026-10-01.md). */
+  /** The host's replay of the checks earlier runs recorded (docs/decisions/inherited-checks-replay-2026-10-01.md). */
   inheritedChecks: inheritedChecksSummarySchema.optional(),
   basis: z.enum(['mechanical', 'validation-call']),
 });

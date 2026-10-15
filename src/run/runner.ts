@@ -173,7 +173,7 @@ export interface RunnerArgs {
    * carried `probes: []` and published anyway. The depth design had already
    * settled the intent: "The default is resolved inside `startTask`, so CLI,
    * MCP and project launches all inherit it"
-   * (`docs/archive/experiments/depth-routing-experiment-2026-09-13.md`).
+   * (`records/experiments/depth-routing-experiment-2026-09-13.md`).
    */
   comparison: boolean;
   /** Optional immutable worker identity, used by registered experiments. */
@@ -376,7 +376,7 @@ export function parseRunnerArgs(argv: readonly string[]): RunnerArgs {
  * Resolve the llm→script compilation policy without starting a run.
  *
  * ON by default for every run, seeded or from scratch (owner decision
- * 2026-09-26, docs/compile-at-learn-2026-09-26.md): a recipe that can be
+ * 2026-09-26, docs/decisions/compile-at-learn-2026-09-26.md): a recipe that can be
  * compiled is compiled when it is learned. Until then a from-scratch run
  * kept compilation frozen and only a seeded workspace enabled it. The CLI
  * kill switch is a veto, including over `ATOMA_SKILL_PROMOTE=1`; an explicit
@@ -409,7 +409,7 @@ export function resolveSkillPromotion(
  * fixed. Reading those two as one is what removed root delivery acceptance
  * from every project run after a project's first; the depth design had already
  * settled it ("CLI, MCP and project launches all inherit it",
- * `docs/archive/experiments/depth-routing-experiment-2026-09-13.md`).
+ * `records/experiments/depth-routing-experiment-2026-09-13.md`).
  */
 export function resolveSupervisionDepth(
   args: Pick<RunnerArgs, 'depth' | 'baseline' | 'comparison'>,
@@ -703,7 +703,7 @@ async function startTaskInternal(
     throw new RunnerConfigError('A continuation needs a fresh trace id; unset ATOMA_RUN_ID');
   }
   // THE USER'S APPROVED ACCEPTANCE LIST, captured by the project host before
-  // this process existed (docs/acceptance-contract-2026-09-14.md). Read and
+  // this process existed (docs/decisions/acceptance-contract-2026-09-14.md). Read and
   // re-digested HERE, at launch, so a list that cannot be read fails the run
   // before any model call; and refused outside depth routing, the only path
   // that reads a checklist, so no approved criterion is silently ignored.
@@ -938,7 +938,7 @@ async function startTaskInternal(
   if (tenantRun) {
     // Container isolation is the one precondition of a tenant launch. The
     // lifecycle — learning, promotion, dispatch, the prefilter cache — is the
-    // same as any run's (docs/platform-trust-2026-09-15.md).
+    // same as any run's (docs/decisions/platform-trust-2026-09-15.md).
     if (!args.container) throw new RunnerConfigError('project run requires container isolation');
     // The registry and the skills catalog are the platform's, shared by every
     // run; what a tenant run still has to prove is that it IS the registered
@@ -1130,7 +1130,7 @@ async function startTaskInternal(
   };
   let backend = await makeBackend();
   checkpoint?.backendReady();
-  // THE INHERITED CHECKS (docs/inherited-checks-replay-2026-10-01.md): a
+  // THE INHERITED CHECKS (docs/decisions/inherited-checks-replay-2026-10-01.md): a
   // seeded static-page run replays, now, the browser checks earlier runs
   // recorded, on the untouched seed. Every tool call of the run waits for
   // that replay, and root acceptance compares the delivered page against the
@@ -1205,7 +1205,7 @@ async function startTaskInternal(
 
     if (args.depth) {
       // The acceptance checklist is drafted ONCE, here, before the attempt
-      // loop: a deepening keeps it (docs/acceptance-checklist-2026-09-25.md).
+      // loop: a deepening keeps it (docs/decisions/acceptance-checklist-2026-09-25.md).
       // A list the user approved REPLACES the draft, and no drafting call is
       // made: the model's reading of the goal never overrides the person's.
       handle = async (t, c) => {
@@ -1264,7 +1264,7 @@ async function startTaskInternal(
     }
   }
 
-  // Jev (docs/jev-decisions-2026-09-28.md) reads the run's SNAPSHOT, like every
+  // Jev (docs/decisions/jev-decisions-2026-09-28.md) reads the run's SNAPSHOT, like every
   // credential: a project run's environment is the one its coordinator built.
   // Every run holding the key lets Jev decide unless the switch it inherited
   // is `0`, the platform's off position.
@@ -1276,7 +1276,7 @@ async function startTaskInternal(
   else if (providerEnv[JEV_ENV] === '0') process.stderr.write(`[atoma runner] jev: off (${JEV_ENV}=0)\n`);
   else process.stderr.write(`[atoma runner] jev: off (${JEV_KEY_ENV} is absent)\n`);
   // A share of Jev's approvals is also judged by the model, off the run's path,
-  // so its false approvals stay measured (docs/jev-decisions-2026-09-28.md).
+  // so its false approvals stay measured (docs/decisions/jev-decisions-2026-09-28.md).
   const jevAudit = jev ? createJevAudit() : undefined;
 
   let learningEnqueued = false;

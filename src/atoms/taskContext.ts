@@ -30,7 +30,7 @@ export const DELEGATED_SCOPE_GUIDANCE = 'Task scope: This is a delegated phase, 
  * delivery (2026-09-20 → 10-10); 60 of those refusals named a criterion clause
  * no check exercised — a click before a "no mouse" journey, one width of two,
  * a boundary value never asserted — while every phase validator had approved,
- * because no phase saw the criterion's text (docs/incidents/first-refusals-2026-10-10.md).
+ * because no phase saw the criterion's text (records/incidents/first-refusals-2026-10-10.md).
  */
 export function phaseCriteriaLines(task: Task): string[] {
   // The root planner reads the whole list through inputs.acceptanceChecklist.

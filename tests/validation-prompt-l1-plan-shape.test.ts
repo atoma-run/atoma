@@ -43,7 +43,7 @@ describe('VALIDATION_SYSTEM_PROMPT — L1 plan shape clause (#10)', () => {
   });
 
   it('does not read a declared tool as callable once — the two-call proof is the taught shape', () => {
-    // MEASURED 2026-09-15, seeded counter (docs/incidents/verification-replay-2026-09-15.md,
+    // MEASURED 2026-09-15, seeded counter (records/incidents/verification-replay-2026-09-15.md,
     // second campaign, event 16): the L1 planned exactly the taught two-call
     // verification and the L2 plan validator rejected it — "proposes TWO
     // separate validate_html calls, but the child's only declared tools are

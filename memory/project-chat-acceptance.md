@@ -21,7 +21,7 @@ Shipped and deployed the same day:
 **How to apply:** acceptance still always publishes file deliveries. The owner asked about "accept without GitHub" and did not decide; offer it as a product decision, don't build it unasked.
 
 Owner questions raised that day:
-- RESOLVED 2026-10-13: text answers no longer show the evidence block. a05ea10f fixed the reader; 8fb53702 fixed the source. A declared text delivery reaches the tasks that write it, and the answer goes in output while the evidence goes in the summary. It was verified on prod run 9e69b923. Design: docs/text-delivery-answer-2026-10-13.md.
+- RESOLVED 2026-10-13: text answers no longer show the evidence block. a05ea10f fixed the reader; 8fb53702 fixed the source. A declared text delivery reaches the tasks that write it, and the answer goes in output while the evidence goes in the summary. It was verified on prod run 9e69b923. Design: docs/decisions/text-delivery-answer-2026-10-13.md.
 - L3 `gpt-6-astra` planning costs $0.12–0.25 per run. One comparison rerun on terra delivered at $0.085 vs $0.20, but its server served its data file and its source. Settling this needs a pre-registered measurement, not one sample.
 
 Also learned: `viz:smoke` (outside CI) had rotted since ~2026-10-08 and was repaired in 6e203043. Run it before every viz push, as AGENTS.md says. Related: [[mcp-review-2026-10-03]], [[verification-speed]].

@@ -111,7 +111,7 @@ can only report that it cannot be.
   workspace and the MCP lease — and it excludes `node_modules`, recorded in
   the manifest under `excluded`. The supervisor tier follows
   `supervisorDirPath`. Both were missing until 2026-09-14, when the
-  [value audit](../../docs/archive/reviews/value-audit-2026-09-14.md) found the corpus it had
+  [value audit](../../records/reviews/value-audit-2026-09-14.md) found the corpus it had
   to reconcile outside every captured tier.
 - With `ATOMA_LAUNCHER_WORKSPACE_ROOT`, it also captures the `projects/`
   projection as mandatory `workspaces.tar.gz` (layout version 2). Older snapshots
@@ -145,7 +145,7 @@ can only report that it cannot be.
   --dest <new-directory>`, not a service start or a compiled product command.
   It verifies hashes, extracts regular files into an isolated destination and
   checks SQLite plus project-file correspondence without migrations or writes
-  to the source. Scope and exit dispositions: [recovery exercise](../../docs/archive/releases/recovery-drill-2026-09-14.md).
+  to the source. Scope and exit dispositions: [recovery exercise](../../records/releases/recovery-drill-2026-09-14.md).
 
 ## Burn-in and friction
 
@@ -154,7 +154,7 @@ can only report that it cannot be.
   it. `skills learning [run-id]` reads the separate receipts; `--retry` explicitly
   requeues interrupted/blocked work and may spend again. Project retries wait
   for the coordinator's next wake/delivery/restart and recheck its authority.
-  [Contract](../../docs/approved-learning-2026-10-11.md).
+  [Contract](../../docs/decisions/approved-learning-2026-10-11.md).
 
 - Burn-in CSVs belong to exactly one writer/schema. Refuse foreign headers
   before append. Measurements committed to the repo must remain parseable.
@@ -221,7 +221,7 @@ can only report that it cannot be.
 - This makes forging the banner USELESS, not impossible. Nothing in a text
   stream can be unforgeable; the durable fix is a receipt the tenant cannot
   write, which is registered in
-  [`docs/archive/designs/decided-not-built-2026-08-23.md`](../../docs/archive/designs/decided-not-built-2026-08-23.md).
+  [`records/designs/decided-not-built-2026-08-23.md`](../../records/designs/decided-not-built-2026-08-23.md).
 
 ## Sentinel
 

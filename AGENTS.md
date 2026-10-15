@@ -15,11 +15,11 @@ sibling `CLAUDE.md` on its own when it opens a file there; Codex merges
 per-file discovery is guaranteed by neither. The map is an instruction, not a
 convenience.
 
-Incident narratives, measurements and dated rationale live under
-`docs/incidents/` and are linked, never copied into the prompt. The former
-5,452-line engineering record is preserved verbatim (apart from its archive
-banner) in
-[`docs/incidents/engineering-record-2026-08-14.md`](docs/incidents/engineering-record-2026-08-14.md).
+`docs/` holds only what developers and users read; incident narratives,
+measurements and reviews live under `records/`, linked, never copied in.
+The former 5,452-line engineering record is preserved verbatim (apart from
+its archive banner) in
+[`records/incidents/engineering-record-2026-08-14.md`](records/incidents/engineering-record-2026-08-14.md).
 Use it when a rule's rationale matters, not as default session context.
 
 ## Subsystem map
@@ -58,16 +58,16 @@ mender-eligible defect, because the analyst must cite the section it read.
 
 | Need | Read here | Deeper evidence |
 |---|---|---|
-| Run, test, release, backup | [Commands and workflow](#commands-and-workflow) | [Commands / Testing record](docs/incidents/engineering-record-2026-08-14.md#commands) |
-| Tier names and persisted identities | [Domain taxonomy](#domain-taxonomy) | [Taxonomy record](docs/incidents/engineering-record-2026-08-14.md#domain-taxonomy) |
-| Change an LLM call or validator | [src/atoms](src/atoms/AGENTS.md), [src/core](src/core/AGENTS.md) | [Cost record](docs/incidents/engineering-record-2026-08-14.md#cost-discipline-load-bearing--read-before-changing-any-llm-call-site) |
-| Change supervision, routing, trust | [src/atoms](src/atoms/AGENTS.md), [src/registry](src/registry/AGENTS.md) | [Architecture record](docs/incidents/engineering-record-2026-08-14.md#architecture-invariants-dont-violate-these) |
-| Change learn/compile/dispatch | [src/skills](src/skills/AGENTS.md) | [Skills record](docs/incidents/engineering-record-2026-08-14.md#skills-persistent-task-patterns) |
-| Change tools, worker, sandbox | [src/tools](src/tools/AGENTS.md) | [Tools record](docs/incidents/engineering-record-2026-08-14.md#tools-l1-side-effects) |
-| Change MCP lifecycle | [src/mcp](src/mcp/AGENTS.md) | [MCP record](docs/incidents/engineering-record-2026-08-14.md#atoma-as-an-mcp-server-stdio--srcmcp) |
-| Change metrics, traces, viz | [src/viz](src/viz/AGENTS.md), [src/core](src/core/AGENTS.md) | [Observability record](docs/incidents/engineering-record-2026-08-14.md#observability) |
-| Understand an odd choice | the subsystem file's own intentional-choices section | [Rejected-design record](docs/incidents/engineering-record-2026-08-14.md#considered-and-rejected-do-not-re-propose-naively) |
-| Interpret benchmark claims | [Benchmark discipline](#benchmark-and-documentation-discipline) | [Benchmark record](docs/incidents/engineering-record-2026-08-14.md#the-controlled-benchmark-benchmark--four-rounds-and-what-they-settled) |
+| Run, test, release, backup | [Commands and workflow](#commands-and-workflow) | [Commands / Testing record](records/incidents/engineering-record-2026-08-14.md#commands) |
+| Tier names and persisted identities | [Domain taxonomy](#domain-taxonomy) | [Taxonomy record](records/incidents/engineering-record-2026-08-14.md#domain-taxonomy) |
+| Change an LLM call or validator | [src/atoms](src/atoms/AGENTS.md), [src/core](src/core/AGENTS.md) | [Cost record](records/incidents/engineering-record-2026-08-14.md#cost-discipline-load-bearing--read-before-changing-any-llm-call-site) |
+| Change supervision, routing, trust | [src/atoms](src/atoms/AGENTS.md), [src/registry](src/registry/AGENTS.md) | [Architecture record](records/incidents/engineering-record-2026-08-14.md#architecture-invariants-dont-violate-these) |
+| Change learn/compile/dispatch | [src/skills](src/skills/AGENTS.md) | [Skills record](records/incidents/engineering-record-2026-08-14.md#skills-persistent-task-patterns) |
+| Change tools, worker, sandbox | [src/tools](src/tools/AGENTS.md) | [Tools record](records/incidents/engineering-record-2026-08-14.md#tools-l1-side-effects) |
+| Change MCP lifecycle | [src/mcp](src/mcp/AGENTS.md) | [MCP record](records/incidents/engineering-record-2026-08-14.md#atoma-as-an-mcp-server-stdio--srcmcp) |
+| Change metrics, traces, viz | [src/viz](src/viz/AGENTS.md), [src/core](src/core/AGENTS.md) | [Observability record](records/incidents/engineering-record-2026-08-14.md#observability) |
+| Understand an odd choice | the subsystem file's own intentional-choices section | [Rejected-design record](records/incidents/engineering-record-2026-08-14.md#considered-and-rejected-do-not-re-propose-naively) |
+| Interpret benchmark claims | [Benchmark discipline](#benchmark-and-documentation-discipline) | [Benchmark record](records/incidents/engineering-record-2026-08-14.md#the-controlled-benchmark-benchmark--four-rounds-and-what-they-settled) |
 
 ## What this is
 
@@ -352,7 +352,7 @@ credit, under owner namespaces keyed by atom id (`skills/<atom-id>/`). A
 recipe that can be compiled is compiled when it is learned, on every run, and
 a compiled script dispatches from its first match until it fails (owner
 decision 2026-09-26,
-[docs/compile-at-learn-2026-09-26.md](docs/compile-at-learn-2026-09-26.md)).
+[docs/decisions/compile-at-learn-2026-09-26.md](docs/decisions/compile-at-learn-2026-09-26.md)).
 Compilation's measured value is still maintenance verification, not
 from-scratch builds, and every operator lifecycle action is attributable.
 
@@ -360,7 +360,7 @@ Skills and the registry are a platform commons: a RUN IS A RUN. The operator's
 runs and every organisation's runs read the same catalog and the same registry
 and earn trust on the same counters; the organisation bounds projects,
 workspaces, traces and retrieval corpora, never knowledge or trust (owner
-decision 2026-09-15, [docs/platform-trust-2026-09-15.md](docs/platform-trust-2026-09-15.md)).
+decision 2026-09-15, [docs/decisions/platform-trust-2026-09-15.md](docs/decisions/platform-trust-2026-09-15.md)).
 The earlier premise and its threat model are in
 [docs/saas-architecture.md](docs/saas-architecture.md#skills-are-a-commons).
 
@@ -379,7 +379,7 @@ If tools are not exposed, check MCP discovery/configuration and report the exact
 Never start a run or spend model quota merely to test connectivity.
 
 The server contract lives in [src/mcp](src/mcp/AGENTS.md): ONE HTTP MCP on `/mcp`, protocols 2025-11-25 and 2026-07-28, a role-tiered catalogue, bearer API tokens, and SQLite admission for project runs (10 by default), one per organisation. Operator work stays exclusive.
-The catalogue is a compatibility contract for every registered client. Decisions: [one surface](docs/mcp-one-surface-2026-09-05.md), [two eras](docs/mcp-two-eras-2026-09-30.md).
+The catalogue is a compatibility contract for every registered client. Decisions: [one surface](docs/decisions/mcp-one-surface-2026-09-05.md), [two eras](docs/decisions/mcp-two-eras-2026-09-30.md).
 
 ## Testing and linting
 
@@ -449,48 +449,48 @@ Read the archived sections before changing something that merely looks odd.
   `scripts/architecture-ir.mjs`. Rendering it needs a third-party Archify
   checkout and is development tooling — `docs:check` never renders, and CI
   never clones it. Full rationale:
-  [`docs/archive/designs/documentation-freshness-2026-09-04.md`](docs/archive/designs/documentation-freshness-2026-09-04.md).
+  [`records/designs/documentation-freshness-2026-09-04.md`](records/designs/documentation-freshness-2026-09-04.md).
 
 ## Historical evidence
 
 The frozen record contains the full dated reasoning behind these rules:
 
-- [engineering record through 2026-08-14](docs/incidents/engineering-record-2026-08-14.md)
-- [fan-out + join, first live parallel lanes 2026-08-16](docs/incidents/parallel-fanin-2026-08-16.md)
-- [burn-in session 2026-08-21: four batches, 20 runs, six defects](docs/incidents/burn-in-2026-08-21.md)
-- [the sentinel's blind spot, measured on a real run 2026-08-23](docs/incidents/sentinel-blind-spot-2026-08-23.md)
-- [GPU frame cost on an integrated GPU, measured 2026-09-06](docs/incidents/gpu-frame-cost-2026-09-06.md), and [watching a live run on it, 2026-09-30](docs/incidents/gpu-fps-2026-09-30.md)
-- [a browser-verification phase on a Node server, twice — 2026-09-07](docs/incidents/notes-app-browser-phase-2026-09-07.md)
-- [verification replays on standing proof, the seeded counter — 2026-09-15](docs/incidents/verification-replay-2026-09-15.md)
-- [one registry, one trust: a run is a run — owner decision 2026-09-15](docs/platform-trust-2026-09-15.md)
-- [recoverable atom trust and equivalent creation — 2026-09-15](docs/recoverable-trust-2026-09-15.md)
-- [the production catalogue, measured — 2026-09-16](docs/incidents/registry-catalogue-2026-09-16.md)
-- [run → fix → run on the local corpus: same goals, $0.25 deliveries, every publication blocked by GitHub configuration — 2026-09-24](docs/incidents/run-fix-loop-2026-09-24.md)
-- [what a seeded run inherits: the probe manifest and the deepening restart — 2026-09-25](docs/seed-inheritance-2026-09-25.md)
-- [the acceptance checklist: a run says what it will prove — 2026-09-25](docs/acceptance-checklist-2026-09-25.md)
-- [the acceptance checklist on its first real runs: stale local builds, compound items — 2026-09-25](docs/incidents/checklist-first-runs-2026-09-25.md)
-- [production runs over the README use cases: seven runs, seven incidents — 2026-09-26](docs/incidents/production-runs-2026-09-26.md)
-- [production runs, second day: criteria widths never laid out, form controls that could not be chosen — 2026-09-27](docs/incidents/production-runs-2026-09-27.md)
-- [production runs, third day: a restored store refilled by its own server, and why the mender never opened a PR — 2026-09-28](docs/incidents/production-runs-2026-09-28.md)
-- [compile at learn, dispatch at first match — owner decision 2026-09-26](docs/compile-at-learn-2026-09-26.md)
-- [external code review](docs/archive/reviews/code-review-2026-08-14.md)
-- [code review 2026-08-18](docs/archive/reviews/code-review-2026-08-18.md)
-- [supervisor-held proof attestation (A1) design review 2026-08-22](docs/archive/reviews/supervisor-attestation-a1-review-2026-08-22.md)
-- [offering a skill to the platform catalog, design review 2026-08-23](docs/archive/reviews/platform-skill-offer-review-2026-08-23.md)
-- [decided, not built — session snapshot 2026-08-23](docs/archive/designs/decided-not-built-2026-08-23.md)
-- [lessons from Lovable — internal architecture review 2026-08-26](docs/archive/reviews/lovable-lessons-atoma-2026-08-26.md)
-- [per-tier host subscription — design and implementation record 2026-08-28](docs/archive/designs/subscription-per-tier-design-2026-08-28.md)
-- [presenting the app under development — Lovable UI study and adopted direction 2026-08-31](docs/archive/designs/live-preview-direction-2026-08-31.md)
-- [previewing a run in flight — decision and contract 2026-09-02](docs/in-flight-preview-2026-09-02.md)
-- [public release — licence, protections and remaining steps 2026-09-06](docs/archive/releases/public-release-2026-09-06.md)
-- [trajectory predictability as a trust regulariser — design proposal 2026-09-09](docs/archive/experiments/trajectory-predictability-design-2026-09-09.md)
-- [value audit and local evidence coverage 2026-09-14](docs/archive/reviews/value-audit-2026-09-14.md)
-- [user acceptance contract proposal 2026-09-14](docs/acceptance-contract-2026-09-14.md)
-- [offline recovery exercise and regression evidence 2026-09-14](docs/archive/releases/recovery-drill-2026-09-14.md)
-- [release soak v0.1.0](docs/archive/releases/release-soak-v0.1.0.md)
-- [release acceptance v0.1.1](docs/archive/releases/release-acceptance-v0.1.1.md)
-- [release acceptance v0.1.3](docs/archive/releases/release-acceptance-v0.1.3.md)
-- [hybrid skills design](docs/archive/experiments/hybrid-skills-design.md)
+- [engineering record through 2026-08-14](records/incidents/engineering-record-2026-08-14.md)
+- [fan-out + join, first live parallel lanes 2026-08-16](records/incidents/parallel-fanin-2026-08-16.md)
+- [burn-in session 2026-08-21: four batches, 20 runs, six defects](records/incidents/burn-in-2026-08-21.md)
+- [the sentinel's blind spot, measured on a real run 2026-08-23](records/incidents/sentinel-blind-spot-2026-08-23.md)
+- [GPU frame cost on an integrated GPU, measured 2026-09-06](records/incidents/gpu-frame-cost-2026-09-06.md), and [watching a live run on it, 2026-09-30](records/incidents/gpu-fps-2026-09-30.md)
+- [a browser-verification phase on a Node server, twice — 2026-09-07](records/incidents/notes-app-browser-phase-2026-09-07.md)
+- [verification replays on standing proof, the seeded counter — 2026-09-15](records/incidents/verification-replay-2026-09-15.md)
+- [one registry, one trust: a run is a run — owner decision 2026-09-15](docs/decisions/platform-trust-2026-09-15.md)
+- [recoverable atom trust and equivalent creation — 2026-09-15](docs/decisions/recoverable-trust-2026-09-15.md)
+- [the production catalogue, measured — 2026-09-16](records/incidents/registry-catalogue-2026-09-16.md)
+- [run → fix → run on the local corpus: same goals, $0.25 deliveries, every publication blocked by GitHub configuration — 2026-09-24](records/incidents/run-fix-loop-2026-09-24.md)
+- [what a seeded run inherits: the probe manifest and the deepening restart — 2026-09-25](docs/decisions/seed-inheritance-2026-09-25.md)
+- [the acceptance checklist: a run says what it will prove — 2026-09-25](docs/decisions/acceptance-checklist-2026-09-25.md)
+- [the acceptance checklist on its first real runs: stale local builds, compound items — 2026-09-25](records/incidents/checklist-first-runs-2026-09-25.md)
+- [production runs over the README use cases: seven runs, seven incidents — 2026-09-26](records/incidents/production-runs-2026-09-26.md)
+- [production runs, second day: criteria widths never laid out, form controls that could not be chosen — 2026-09-27](records/incidents/production-runs-2026-09-27.md)
+- [production runs, third day: a restored store refilled by its own server, and why the mender never opened a PR — 2026-09-28](records/incidents/production-runs-2026-09-28.md)
+- [compile at learn, dispatch at first match — owner decision 2026-09-26](docs/decisions/compile-at-learn-2026-09-26.md)
+- [external code review](records/reviews/code-review-2026-08-14.md)
+- [code review 2026-08-18](records/reviews/code-review-2026-08-18.md)
+- [supervisor-held proof attestation (A1) design review 2026-08-22](records/reviews/supervisor-attestation-a1-review-2026-08-22.md)
+- [offering a skill to the platform catalog, design review 2026-08-23](records/reviews/platform-skill-offer-review-2026-08-23.md)
+- [decided, not built — session snapshot 2026-08-23](records/designs/decided-not-built-2026-08-23.md)
+- [lessons from Lovable — internal architecture review 2026-08-26](records/reviews/lovable-lessons-atoma-2026-08-26.md)
+- [per-tier host subscription — design and implementation record 2026-08-28](records/designs/subscription-per-tier-design-2026-08-28.md)
+- [presenting the app under development — Lovable UI study and adopted direction 2026-08-31](records/designs/live-preview-direction-2026-08-31.md)
+- [previewing a run in flight — decision and contract 2026-09-02](docs/decisions/in-flight-preview-2026-09-02.md)
+- [public release — licence, protections and remaining steps 2026-09-06](records/releases/public-release-2026-09-06.md)
+- [trajectory predictability as a trust regulariser — design proposal 2026-09-09](records/experiments/trajectory-predictability-design-2026-09-09.md)
+- [value audit and local evidence coverage 2026-09-14](records/reviews/value-audit-2026-09-14.md)
+- [user acceptance contract proposal 2026-09-14](docs/decisions/acceptance-contract-2026-09-14.md)
+- [offline recovery exercise and regression evidence 2026-09-14](records/releases/recovery-drill-2026-09-14.md)
+- [release soak v0.1.0](records/releases/release-soak-v0.1.0.md)
+- [release acceptance v0.1.1](records/releases/release-acceptance-v0.1.1.md)
+- [release acceptance v0.1.3](records/releases/release-acceptance-v0.1.3.md)
+- [hybrid skills design](records/experiments/hybrid-skills-design.md)
 - [SaaS architecture boundary](docs/saas-architecture.md)
 
 Archive files are evidence, not normative imports. Never use an unquoted

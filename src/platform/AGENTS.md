@@ -76,7 +76,7 @@ is per principal and target org across HTTP/MCP, never a permission cache.
 Polling hits read the journal; misses recheck and insert under an immediate
 transaction. Publish only after commit, through the existing notification
 router to org owners. Domains receive `CrossOrgReadSink`, not the store.
-Design, polling basis and deferred tests: [W11](../../docs/cross-org-read-audit.md).
+Design, polling basis and deferred tests: [W11](../../docs/decisions/cross-org-read-audit.md).
 ## Platform settings — the run limits an admin may re-state
 
 - PLATFORM SETTINGS are a CLOSED CATALOG of bounded numeric run limits

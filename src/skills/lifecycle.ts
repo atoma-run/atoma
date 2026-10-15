@@ -773,7 +773,7 @@ export class SkillLifecycle {
         );
         continue;
       }
-      // THE TWIN GUARD (docs/jev-decisions-2026-09-28.md): the id guard above
+      // THE TWIN GUARD (docs/decisions/jev-decisions-2026-09-28.md): the id guard above
       // sees an exact id only, and a semantic twin under a fresh name is the
       // failure this contract designs against. Jev compares the draft with the
       // visible catalog, re-read per draft so a sibling saved just before
@@ -848,7 +848,7 @@ export class SkillLifecycle {
       learned.push(draft.id);
     }
     // COMPILE AT LEARN (owner decision 2026-09-26,
-    // docs/compile-at-learn-2026-09-26.md). A recipe that can be compiled is
+    // docs/decisions/compile-at-learn-2026-09-26.md). A recipe that can be compiled is
     // compiled now, from the run it was distilled from, rather than after it
     // has earned credit. Every draft is SAVED before any compile starts, so a
     // compile that errors or times out cannot cost a sibling draft its body.

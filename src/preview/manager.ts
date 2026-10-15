@@ -340,7 +340,7 @@ export class PreviewManager {
    *
    * A snapshot taken at the moment it is asked for, and labelled with that
    * moment — nothing more, and nothing that pretends to be more. The design
-   * and the reasons are in `docs/in-flight-preview-2026-09-02.md`; three of
+   * and the reasons are in `docs/decisions/in-flight-preview-2026-09-02.md`; three of
    * them decide the shape of this method:
    *
    * 1. THE RUN'S WORKSPACE IS ONLY EVER READ. The copy is the same filtered,

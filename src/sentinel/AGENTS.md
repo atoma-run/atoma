@@ -58,7 +58,7 @@ Neighbours:
   so the journal collects what calibration needs; `off` disarms it. The
   derivation and score live in `src/contracts/trajectory.ts` because the
   analyst's digest reads them too. Design, pilot and the two stages this row
-  gates: [trajectory predictability, 2026-09-09](../../docs/archive/experiments/trajectory-predictability-design-2026-09-09.md).
+  gates: [trajectory predictability, 2026-09-09](../../records/experiments/trajectory-predictability-design-2026-09-09.md).
 
 ## The watch and the loop
 
@@ -181,7 +181,7 @@ Neighbours:
   browser validation and a file read share no scale.
 - Adding a rule is adding a mechanism: it is designed against the incidents
   collected so far and reviewed adversarially before it lands. The pile so far:
-  [the blind spot measured 2026-08-23](../../docs/incidents/sentinel-blind-spot-2026-08-23.md)
+  [the blind spot measured 2026-08-23](../../records/incidents/sentinel-blind-spot-2026-08-23.md)
   — every content rule keys on IDENTITY (same args, same error, same tool's
   median), so a model that keeps VARYING a failing attempt is invisible: 25
   validations, 14 failures, 3 escalations, $1.10, zero findings.

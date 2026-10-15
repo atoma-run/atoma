@@ -6,7 +6,7 @@ import type { SkillRegistry } from '../skills/registry.js';
 
 /**
  * MERGING IDENTITIES — `registry merge <winner> <losers…>` and
- * `atoma_registry_merge` (docs/registry-reconciliation-2026-10-10.md).
+ * `atoma_registry_merge` (docs/decisions/registry-reconciliation-2026-10-10.md).
  *
  * `registry dedupe` groups by display NAME and never finds the clones the
  * catalogue actually holds (Water, Glucose, Sucrose: one signature, three

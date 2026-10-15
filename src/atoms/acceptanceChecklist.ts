@@ -10,7 +10,7 @@ import {
 } from '../contracts/acceptanceChecklist.js';
 
 /**
- * Drafting the acceptance checklist — docs/acceptance-checklist-2026-09-25.md.
+ * Drafting the acceptance checklist — docs/decisions/acceptance-checklist-2026-09-25.md.
  *
  * ONE call per run, on the cheapest tier, before the attempt loop (a
  * deepening does not redraft it). The system prompt is fixed but far below

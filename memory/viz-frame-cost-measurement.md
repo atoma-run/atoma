@@ -8,7 +8,7 @@ metadata:
   modified: 2026-09-30T20:09:21.762Z
 ---
 
-Two fps sessions on the Ryzen 5 5500U / Radeon Vega 7 laptop (1920×1080 panel, 100 % scaling → owner geometry 1920×970 CSS, DPR 1). Findings live in the repo: `docs/incidents/gpu-frame-cost-2026-09-06.md` and `docs/incidents/gpu-fps-2026-09-30.md`; the tool is `npm run viz:frame-probe` (needs `npm run build`, writes `.atoma-frame-probe/`). Scratch scenario scripts from 2026-09-30 (live run, sustained sweep, subtree attribution, carrier A/B) were in that session's scratchpad, not the repo.
+Two fps sessions on the Ryzen 5 5500U / Radeon Vega 7 laptop (1920×1080 panel, 100 % scaling → owner geometry 1920×970 CSS, DPR 1). Findings live in the repo: `records/incidents/gpu-frame-cost-2026-09-06.md` and `records/incidents/gpu-fps-2026-09-30.md`; the tool is `npm run viz:frame-probe` (needs `npm run build`, writes `.atoma-frame-probe/`). Scratch scenario scripts from 2026-09-30 (live run, sustained sweep, subtree attribution, carrier A/B) were in that session's scratchpad, not the repo.
 
 What the repo docs cannot tell a future session:
 - The owner's own Chrome tab cannot be driven: no browser-control tool, and Chrome runs without a debugging port. Reproduce with Puppeteer's Chrome, or the installed Chrome via `PUPPETEER_EXECUTABLE_PATH="C:/Program Files/Google/Chrome/Application/chrome.exe"` (same numbers). Production traces are small (7–21 LLM calls ≈ 16–200 events), so the 80-event fixture is realistic.

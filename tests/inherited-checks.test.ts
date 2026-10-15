@@ -38,7 +38,7 @@ import { makePlan, makeTools } from './helpers/factories.js';
 
 /**
  * The browser checks earlier runs recorded, replayed by the host (owner
- * decision 2026-10-01, docs/inherited-checks-replay-2026-10-01.md). Run
+ * decision 2026-10-01, docs/decisions/inherited-checks-replay-2026-10-01.md). Run
  * b9dc4d0b changed the mode line `Long break`, which run 8606cf38 had been
  * asked for, into `Mode: Long Break`, while the smoke asserting it sat in the
  * manifest it started from and nothing ran it again.

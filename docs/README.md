@@ -31,35 +31,32 @@ time they were written, not the state of today's release.
 
 ## Decisions and implementation context
 
-These records explain accepted choices, proposals and their implementation
-limits. Read each record's status; a proposal is not a shipped capability.
+These records, kept under [`decisions/`](decisions/), explain accepted
+choices, proposals and their implementation limits. Read each record's status; a proposal is not a shipped capability.
 The [root engineering contract](../AGENTS.md) routes contributors to the
 current subsystem rules.
 
 | Area | Records |
 | --- | --- |
-| Jev | [Decision and calibration](jev-decisions-2026-09-28.md) · [Policy corrections](jev-policy-2026-10-01.md) |
-| Acceptance and continuation | [Acceptance proposal](acceptance-contract-2026-09-14.md) · [Checklist](acceptance-checklist-2026-09-25.md) · [Continuation](run-continuation-design-2026-09-24.md) |
-| Existing projects | [Seed inheritance](seed-inheritance-2026-09-25.md) · [Browser regression checks](inherited-checks-replay-2026-10-01.md) · [Comparison reruns](comparison-reruns-2026-09-25.md) |
-| Learning and trust | [Platform commons](platform-trust-2026-09-15.md) · [Recoverable trust](recoverable-trust-2026-09-15.md) · [Compile at learn](compile-at-learn-2026-09-26.md) · [Registry ownership history](project-registry-ownership-2026-09-09.md) |
-| Control plane | [Platform events](platform-events-design.md) · [Cross-organisation read audit](cross-org-read-audit.md) · [Subscription delegation](subscription-delegation-2026-09-22.md) |
-| MCP | [One endpoint](mcp-one-surface-2026-09-05.md) · [Two protocol generations](mcp-two-eras-2026-09-30.md) |
-| Preview and supervision | [In-flight preview](in-flight-preview-2026-09-02.md) · [Supervisor design](supervisor-design.md) |
+| Jev | [Decision and calibration](decisions/jev-decisions-2026-09-28.md) · [Policy corrections](decisions/jev-policy-2026-10-01.md) |
+| Acceptance and continuation | [Acceptance proposal](decisions/acceptance-contract-2026-09-14.md) · [Checklist](decisions/acceptance-checklist-2026-09-25.md) · [Continuation](decisions/run-continuation-design-2026-09-24.md) |
+| Existing projects | [Seed inheritance](decisions/seed-inheritance-2026-09-25.md) · [Browser regression checks](decisions/inherited-checks-replay-2026-10-01.md) · [Comparison reruns](decisions/comparison-reruns-2026-09-25.md) |
+| Learning and trust | [Platform commons](decisions/platform-trust-2026-09-15.md) · [Recoverable trust](decisions/recoverable-trust-2026-09-15.md) · [Compile at learn](decisions/compile-at-learn-2026-09-26.md) · [Registry ownership history](decisions/project-registry-ownership-2026-09-09.md) |
+| Control plane | [Platform events](platform-events-design.md) · [Cross-organisation read audit](decisions/cross-org-read-audit.md) · [Subscription delegation](decisions/subscription-delegation-2026-09-22.md) |
+| MCP | [One endpoint](decisions/mcp-one-surface-2026-09-05.md) · [Two protocol generations](decisions/mcp-two-eras-2026-09-30.md) |
+| Preview and supervision | [In-flight preview](decisions/in-flight-preview-2026-09-02.md) · [Supervisor design](supervisor-design.md) |
 
 ## History and evidence
 
-- [Archive index](archive/README.md): older designs, experiments, reviews,
-  release acceptance reports and their machine-readable receipts.
-- [Code review index](code-reviews.md): reviewed revisions and correction
-  windows, including reports now in the archive.
-- [Incidents](incidents/): dated run evidence and failure investigations.
+Internal records live outside `docs/`, under [`records/`](../records/README.md):
+incident investigations, measurements, code reviews, older designs and
+experiments, and release acceptance receipts.
+
 - [Changelog](../CHANGELOG.md): product changes by release.
 - [Benchmark protocol and results](../benchmark/PROTOCOL.md): controlled
   measurements with their scope and historical limits.
 
-Keep setup and operating guides here. Put historical reviews, experiments and
-release evidence under `archive/`, retaining their dates and updating inbound
-links when moving a file. Incidents keep their existing home. Preserve the
-frozen engineering record verbatim; its historical paths can be located by
-filename in the archive index. Archiving a record does not revoke an accepted
-decision or turn a past successful check into current release evidence.
+Keep here only what a developer or a user of Atoma reads: setup and operating
+guides, architecture, and the accepted decisions under `decisions/`. Run
+evidence, measurements, reviews and release receipts go under `records/`,
+retaining their dates and updating inbound links when moving a file.

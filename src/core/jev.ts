@@ -50,7 +50,7 @@ export { NEW_RECIPE, NO_CANDIDATE, type JevAnswer, type JevAnswers, type JevQues
  * JEV (TypeSafe) TAKES THE BOUNDED DECISIONS IT CAN TAKE.
  * =======================================================
  *
- * Owner decision of 2026-09-28 (docs/jev-decisions-2026-09-28.md): "trust Jev,
+ * Owner decision of 2026-09-28 (docs/decisions/jev-decisions-2026-09-28.md): "trust Jev,
  * and we will see". Jev is a typed decision model — it answers Choice, Score
  * and yes/no (Noul) questions over a state, far faster and cheaper than a
  * model call — so it takes the prefilter's pick and the APPROVAL half of plan

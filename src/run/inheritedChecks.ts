@@ -25,7 +25,7 @@ import {
 
 /**
  * THE HOST'S REPLAY OF THE CHECKS EARLIER RUNS RECORDED
- * (docs/inherited-checks-replay-2026-10-01.md, owner decision 2026-10-01).
+ * (docs/decisions/inherited-checks-replay-2026-10-01.md, owner decision 2026-10-01).
  *
  * When a seeded static-page run starts, its workspace is the page an earlier
  * run delivered, and its `.atoma-probes.json` holds the browser checks earlier

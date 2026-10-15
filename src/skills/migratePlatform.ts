@@ -7,7 +7,7 @@ import { ProjectStore } from '../projects/store.js';
 import { LEGACY_META_FILENAME, SkillRegistry, parseFrontmatter, readMetaChecked } from './registry.js';
 
 /**
- * ONE catalog, ONE trust (`docs/platform-trust-2026-09-15.md`). The folds
+ * ONE catalog, ONE trust (`docs/decisions/platform-trust-2026-09-15.md`). The folds
  * below bring every earlier partition into it, each one idempotent and each
  * one keeping what it displaces beside the catalog rather than deleting it:
  *   - `migratePlatformSkills` — the per-project skill trees of the 2026-09-09

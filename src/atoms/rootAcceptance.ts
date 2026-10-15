@@ -158,7 +158,7 @@ function startingComparison(ctx: RunContext): StartingWorkspaceComparison | unde
 
 /**
  * The host's replay of the checks earlier runs recorded, on the page this run
- * delivers (docs/inherited-checks-replay-2026-10-01.md). Only a run that
+ * delivers (docs/decisions/inherited-checks-replay-2026-10-01.md). Only a run that
  * changed a file has something to regress, and a result a gate already
  * refused is not replayed.
  */

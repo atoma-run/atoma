@@ -10,7 +10,7 @@ may spend model quota (held-out trials, candidate vs current comparison) as
 long as it improves the product globally. No operator review step.
 
 State: the TRIGGER evaluation shipped the same day (`src/skills/triggerEval.ts`,
-record `docs/skill-trigger-eval-2026-10-15.md`): the production selector
+record `docs/decisions/skill-trigger-eval-2026-10-15.md`): the production selector
 judges each learned draft's `when_to_use` on held-out cases, revises it twice
 at most, rejects what still steals a sibling's task. Switch
 `ATOMA_SKILL_TRIGGER_EVAL`. The corpus `skill_trigger_samples` fills from

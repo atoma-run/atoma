@@ -18,7 +18,7 @@ stamp, and historical failures vetoed compilation until 2026-10-01).
 `thresholdsInForce.promote` is 0: there is NO trust wait.
 
 CLOSED, owner decision 2026-10-03 ("Clôture cela"), recorded in
-`docs/compiled-script-limits-2026-10-03.md` and as two rejected shortcuts in
+`docs/decisions/compiled-script-limits-2026-10-03.md` and as two rejected shortcuts in
 `src/skills/AGENTS.md` (commit 913c159a, pushed to main):
 - no forcing compilation past a refusal — a trusted script runs with no
   validator and is credited at dispatch, so the refusal is the last content

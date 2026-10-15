@@ -8,7 +8,7 @@ metadata:
   modified: 2026-10-10T19:30:13.740Z
 ---
 
-2026-10-10, read-only on prod MCP: 316 runs, 275 reached root acceptance, **118 first refusals (43 %)**, 43 rescued by remediation, 75 landed partial; 22.7 % of wall time is after a first refusal. Classified (one reader): E1 browser clause not exercised 34, E2 test assertion missing/not run 26, E3 evidence cut 8, E4 no renderer 1, D real defect 32, I incomplete pass 11, R report contradicts probes 3, M criteria review incomplete 3. Record + run lists: docs/incidents/first-refusals-2026-10-10.md.
+2026-10-10, read-only on prod MCP: 316 runs, 275 reached root acceptance, **118 first refusals (43 %)**, 43 rescued by remediation, 75 landed partial; 22.7 % of wall time is after a first refusal. Classified (one reader): E1 browser clause not exercised 34, E2 test assertion missing/not run 26, E3 evidence cut 8, E4 no renderer 1, D real defect 32, I incomplete pass 11, R report contradicts probes 3, M criteria review incomplete 3. Record + run lists: records/incidents/first-refusals-2026-10-10.md.
 
 Cause of E1/E2: the checklist reached only the root planner and acceptor; phases never saw criterion text. Fix shipped 11f4d837: `Task.criteria`, subtask `criteria` ids, `delegatedCriteria` (unassigned ids = CONTEXT on last sequential phase only, none on parallel lanes), script dispatch judged without criteria, remediation keeps only unmet criteria. Adversarial review done before push.
 

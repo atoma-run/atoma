@@ -60,7 +60,7 @@ what it does:
   For each analyst verdict carrying a \`defect\` or \`mechanism_candidate\`
   finding at or above the confidence floor with a cited proposedFix: cut a
   worktree at the tip of the base branch, install, run ONE restricted model
-  session that may edit src/, tests/ and docs/incidents/ and run the checks,
+  session that may edit src/, tests/ and records/incidents/ and run the checks,
   then VERIFY on its own — the new test must fail without the source change
   and \`npm run check:changed\` (docs, types, the changed files' lint and
   tests) must pass with it — and only then commit, push and open the PR with

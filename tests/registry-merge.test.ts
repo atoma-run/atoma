@@ -12,7 +12,7 @@ import { makeTools } from './helpers/factories.js';
 import type Db from 'better-sqlite3';
 
 /**
- * `registry merge` (docs/registry-reconciliation-2026-10-10.md): the identity
+ * `registry merge` (docs/decisions/registry-reconciliation-2026-10-10.md): the identity
  * merge `dedupe` cannot find — it groups by display name — and would do
  * wrong — it drops the losers' skill namespaces. Here the recipes follow
  * their counters, the ledger projects them where they now are, and the

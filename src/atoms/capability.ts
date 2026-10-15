@@ -294,7 +294,7 @@ export function resolveCreationDescription(
      * the signature's, so the catalogue shows one line per capability and
      * the lexical filter below is not the only guard (owner decision
      * 2026-10-10: it let "Derive and present an exact-fraction Bayesian urn
-     * analysis" through; docs/registry-reconciliation-2026-10-10.md).
+     * analysis" through; docs/decisions/registry-reconciliation-2026-10-10.md).
      */
     readonly signatureKnown?: boolean;
   } = {}

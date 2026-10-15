@@ -13,7 +13,7 @@ import {
  *
  * A result preview is an authenticated organisation member opening the
  * application a DELIVERED project run produced, inside an isolated iframe, and
- * USING it. Design: `docs/archive/designs/result-preview-design-2026-08-28.md`.
+ * USING it. Design: `records/designs/result-preview-design-2026-08-28.md`.
  *
  * "Sandbox" is deliberately not this feature's word: it belongs to
  * `ToolSandbox`, which is in-process L1 tool confinement and NOT an isolation
@@ -279,7 +279,7 @@ export const previewRuntimeSchema = z.enum(['runsc', 'runc']);
  * once by its descriptor. `in-flight` is a SNAPSHOT of a run still building,
  * taken at the moment it was opened — a different thing, and a surface that
  * could not tell them apart would let a member read unfinished work as
- * finished. See `docs/in-flight-preview-2026-09-02.md`.
+ * finished. See `docs/decisions/in-flight-preview-2026-09-02.md`.
  */
 export const previewSourceSchema = z.enum(['delivered', 'in-flight']);
 
@@ -297,7 +297,7 @@ export { previewImageDigestSchema };
  * applied here rather than deferred: the review of 2026-08-26 measured that
  * `atoma-worker:latest` gives "ni artefact immuable ni rollback attribuable",
  * and asked every unit of work to persist the exact runtime that served it
- * (`docs/archive/reviews/lovable-lessons-atoma-2026-08-26.md` §2). Without `imageDigest` and
+ * (`records/reviews/lovable-lessons-atoma-2026-08-26.md` §2). Without `imageDigest` and
  * `runtime` on the row, an operator can roll a preview image back but cannot
  * say what served the generation a member is complaining about. Both stay
  * server-side: `previewSummarySchema` deliberately does not carry them.

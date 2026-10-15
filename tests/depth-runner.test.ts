@@ -284,7 +284,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     }
   }, 20000);
 
-  // docs/acceptance-checklist-2026-09-25.md. The checklist is drafted once,
+  // docs/decisions/acceptance-checklist-2026-09-25.md. The checklist is drafted once,
   // reaches the planner through the root task's inputs, and is covered at the
   // root from the HOST's observation of a request to the server this run
   // started — the real tools, the real attesting executor, only the LLM mocked.
@@ -358,7 +358,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     }
   }, 20000);
 
-  // docs/acceptance-contract-2026-09-14.md. The list the USER approved, carried
+  // docs/decisions/acceptance-contract-2026-09-14.md. The list the USER approved, carried
   // by the host in the environment, replaces the draft: no drafting call, the
   // planner is told who wrote it, the root reads the host-held list including
   // its review items, and the acceptance record names the source and digest.
@@ -474,7 +474,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     }
   });
 
-  // docs/seed-inheritance-2026-09-25.md, incident 3. A seeded run that deepens
+  // docs/decisions/seed-inheritance-2026-09-25.md, incident 3. A seeded run that deepens
   // restarts from its SEED — it used to restart over an empty directory,
   // rebuilding the project's corpus from nothing and seeding the next run
   // from that. A seed that cannot be copied at restart fails the run and

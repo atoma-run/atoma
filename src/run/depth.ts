@@ -153,7 +153,7 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
       ...focusedScope,
       // Checks earlier runs recorded that held when this run began and fail
       // on its delivery, minus the ones the acceptor said the task asked to
-      // change (docs/inherited-checks-replay-2026-10-01.md).
+      // change (docs/decisions/inherited-checks-replay-2026-10-01.md).
       ...inheritedChecksInput(acceptance),
     },
   };

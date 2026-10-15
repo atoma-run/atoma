@@ -70,7 +70,7 @@ export function demoteAfter(): number {
  * Credited SUCCESSES a `kind: 'llm'` skill needs before the supervisor
  * assesses it with Jev and attempts to PROMOTE it to a deterministic
  * `kind: 'script'` body via one compile call. ZERO since 2026-09-26 (owner
- * decision, docs/compile-at-learn-2026-09-26.md): a recipe that CAN be
+ * decision, docs/decisions/compile-at-learn-2026-09-26.md): a recipe that CAN be
  * compiled is compiled the moment it is learned, from the very run it was
  * distilled from, instead of waiting for credit. The compiler either
  * produces a script or refuses with a reason, and the refusal is stamped.
@@ -293,7 +293,7 @@ export function shouldTrustType(type: AtomType): boolean {
  * approves, one validation call otherwise.
  *
  * A script is trusted from its first match unless a failure is on record
- * (owner decision 2026-09-26, docs/compile-at-learn-2026-09-26.md). Until
+ * (owner decision 2026-09-26, docs/decisions/compile-at-learn-2026-09-26.md). Until
  * then a freshly compiled script — its counters reset by promotion — had to
  * earn `trustThreshold()` clean runs through the validated LLM loop first.
  * What stands in for those runs is the envelope contract, the before/after
@@ -301,7 +301,7 @@ export function shouldTrustType(type: AtomType): boolean {
  * demotion streak back to the script's fallback recipe, and — since
  * 2026-10-06 — the validation of every result it returns. Until that date
  * none of them judged CONTENT, and a replay that ignored what its phase asked
- * was delivered twice (docs/script-dispatch-validation-2026-10-06.md).
+ * was delivered twice (docs/decisions/script-dispatch-validation-2026-10-06.md).
  *
  * THE FALLBACK IS PART OF TRUST. A script without a non-empty `_fallback.md`
  * — a hand-authored one; every compiled script gets one from
@@ -326,7 +326,7 @@ export function trustedApproval(type: AtomType): PositiveVerdict {
 }
 
 /**
- * THE APPROVAL HALF OF VALIDATION, TAKEN BY JEV (docs/jev-decisions-2026-09-28.md).
+ * THE APPROVAL HALF OF VALIDATION, TAKEN BY JEV (docs/decisions/jev-decisions-2026-09-28.md).
  *
  * Asked ONLY where a fast path is already admissible — after the mechanical
  * gates, with no gate finding, no uncovered proof obligation and a
@@ -752,7 +752,7 @@ export async function prefilterStrategy(args: {
   const cached = !args.ctx.jev ? prefilterCacheGet(whole.cacheKey) : null;
   if (cached) return served(cached);
 
-  // JEV DECIDES FIRST (docs/jev-decisions-2026-09-28.md, owner decision
+  // JEV DECIDES FIRST (docs/decisions/jev-decisions-2026-09-28.md, owner decision
   // 2026-09-28). Its pick is taken as a high-confidence reuse and its "none of
   // them" as an escalate; the mechanical guards the callers apply afterwards
   // (the L2 browser redirect, exclusions) still apply. It is never cached —
@@ -797,7 +797,7 @@ export async function prefilterStrategy(args: {
     return { kind: 'escalate', reasoning: `jev: every recipe contradicts the task on files (${[...withheld].join(', ')})` };
   }
   const { names: offeredNames, userContent, cacheKey } = offered.length === filtered.length ? whole : modelInputs(offered);
-  // THE OFFER FLOOR (`recipeOffer`, docs/jev-decisions-2026-09-28.md): a model
+  // THE OFFER FLOOR (`recipeOffer`, docs/decisions/jev-decisions-2026-09-28.md): a model
   // reuse of a recipe Jev read below it becomes no recipe — the rule measured
   // on 2026-10-06, applied after the cache, which holds the model's own
   // answer while the floor is this call's reading of Jev.

@@ -393,13 +393,13 @@ export const PROOF_OBLIGATION_GUIDANCE = [
 
 /**
  * RECORDED PROOF IS STANDING PROOF, at plan grain. Run `cc894dad`
- * (2026-09-21, docs/incidents/progressive-runs-2026-09-21.md) planned
+ * (2026-09-21, records/incidents/progressive-runs-2026-09-21.md) planned
  * implement → comprehensive re-audit → README as three sequential phases: the
  * re-audit re-proved what the build phase had already recorded (~$2.51 and
  * ~1573 s of an 1800 s deadline across three executions of one molecule) and
  * the README phase timed out before its first tool call, so three credited
  * phases delivered nothing. The within-phase half of this rule is the
- * validation ledger (docs/incidents/verification-replay-2026-09-15.md); this
+ * validation ledger (records/incidents/verification-replay-2026-09-15.md); this
  * is the between-phases half. Landed on the operator's 2026-09-21 decision
  * against the collected backlog set, not against a single run.
  */
@@ -527,7 +527,7 @@ export const EXISTING_FILE_GUIDANCE = EXISTING_FILE_RULE.join('\n');
  * signature it no longer has. Lines the molecule does not otherwise change
  * stay as they are: a reformat would reach the host's file comparison and
  * every edit after it. Measured in
- * docs/incidents/edit-file-failures-2026-10-15.md.
+ * records/incidents/edit-file-failures-2026-10-15.md.
  */
 export const READABLE_SOURCE_RULE: readonly string[] = [
   `Source you write is for a reader: one statement per line, the file's own indentation where it has one`,

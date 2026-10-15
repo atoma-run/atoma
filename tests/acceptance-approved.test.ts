@@ -23,7 +23,7 @@ import { ProjectRunCoordinator } from '../src/projects/coordinator.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 
 /**
- * USER-APPROVED ACCEPTANCE CRITERIA — docs/acceptance-contract-2026-09-14.md.
+ * USER-APPROVED ACCEPTANCE CRITERIA — docs/decisions/acceptance-contract-2026-09-14.md.
  *
  * The list crosses THREE boundaries before a model sees it: the API schema,
  * the project store's reservation transaction, and the coordinator → child

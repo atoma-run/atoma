@@ -104,7 +104,7 @@ export function timelineBranchLabel(
 
 /**
  * A Jev decision's badge, read from the `outcome` `src/core/jev.ts` records
- * (docs/jev-decisions-2026-09-28.md). The card fell to the generic branch —
+ * (docs/decisions/jev-decisions-2026-09-28.md). The card fell to the generic branch —
  * title `jev`, no body, a bare clock — so a run Jev had decided for looked
  * like one it never touched (owner report, 2026-09-29). `saved as before` is
  * Jev NOT answering a twin question, which is not a decision and gets none.

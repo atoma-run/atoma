@@ -41,7 +41,7 @@ export const DEFAULT_LIMITS: Limits = {
 
 /**
  * Conservative floor for one tool-loop iteration on the CLI transport that
- * exposed the mismatch (`docs/incidents/parallel-fanin-2026-08-16.md`):
+ * exposed the mismatch (`records/incidents/parallel-fanin-2026-08-16.md`):
  * ~26 s. Used only to CAP an already-declared iteration budget against the
  * run deadline — never as a new reject gate.
  */

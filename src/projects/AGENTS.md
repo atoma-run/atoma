@@ -75,11 +75,11 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   (`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, …): a tenant's key belongs to its
   own issuer, the host's gateway applies to the host's own credential only.
 - Shared tissue authorship captures the HOST's `ATOMA_MODEL_L3` and credential
-  before customer overrides; [contract](../../docs/tissue-routing-2026-10-02.md) owns authority, the envelope and subprocess isolation.
+  before customer overrides; [contract](../../docs/decisions/tissue-routing-2026-10-02.md) owns authority, the envelope and subprocess isolation.
 - Jev's `TYPESAFE_API_KEY` and `ATOMA_JEV=1` cross into EVERY organisation's runs;
   host `ATOMA_JEV=0` forwards only that switch, so logs explain the refusal.
   Jev receives task, catalog, plan and result text as a third party, as the service
-  terms state ([owner decision](../../docs/jev-decisions-2026-09-28.md)).
+  terms state ([owner decision](../../docs/decisions/jev-decisions-2026-09-28.md)).
 - `api:openai` is OpenAI's API with function tools, admissible on every tier
   from the org's or the host's `OPENAI_API_KEY`. `sub:openai`/`own:openai`
   are the Codex CLI on a ChatGPT login; L1 actions pass through Atoma's
@@ -125,7 +125,7 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   and the child refuses any `sub:`/`own:` tier its parent did not list. The
   stored value is data; the two authority checks are what make it a transport.
 - Design and the owner's decisions:
-  [docs/archive/designs/subscription-per-tier-design-2026-08-28.md](../../docs/archive/designs/subscription-per-tier-design-2026-08-28.md)
+  [records/designs/subscription-per-tier-design-2026-08-28.md](../../records/designs/subscription-per-tier-design-2026-08-28.md)
   (its `host-subscription:` / `claude-cli:` spellings predate the selector
   grammar of 2026-09-07).
 
@@ -243,7 +243,7 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   rechecks membership and the original selectors/payer; it never saves keys or
   permission to spend. `ProjectRun.learning` reports its separate costs/status.
   Active learning also holds the requesting principal's profile-change guard.
-  [Recovery and accounting](../../docs/approved-learning-2026-10-11.md).
+  [Recovery and accounting](../../docs/decisions/approved-learning-2026-10-11.md).
 
 - SKILL LEARNING IS ON (`ATOMA_SKILL_LEARN=1`, `ATOMA_EVENT_SKILLS=1`). It is
   the point of the platform: a tenant's runs get cheaper as their project
@@ -251,7 +251,7 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   $0.59 spent, `learnedSkills: 0`, nothing carried forward.
 - `ATOMA_SKILLS_DIR` points at the host's ONE catalog, and `ATOMA_DB_PATH` at
   the host's ONE registry: a tenant run reads and earns exactly what every
-  other run does ([platform trust record](../../docs/platform-trust-2026-09-15.md)).
+  other run does ([platform trust record](../../docs/decisions/platform-trust-2026-09-15.md)).
   New run receipts persist the selected skills path, and launch authority
   (`assertProjectRunAuthority`) compares workspace, runs and skills paths to
   that receipt before any writable handle — it gates the launch, never the
@@ -260,7 +260,7 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   ([skill storage contract](../skills/AGENTS.md)).
 - PROMOTION, DETERMINISTIC DISPATCH and the PREFILTER CACHE follow the same
   defaults as any run on the host (a run is a run,
-  [platform trust record](../../docs/platform-trust-2026-09-15.md)): promotion
+  [platform trust record](../../docs/decisions/platform-trust-2026-09-15.md)): promotion
   is on unless the host env turns it off, dispatch is on unless it says
   `ATOMA_SKILL_DIRECT=0`, and the cache is the platform's. The coordinator
   pins none of them and sends no veto flag; the one thing a tenant launch
@@ -281,8 +281,8 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
 - Declared text deliveries retain their answer in the trace and may have an empty
   inventory; they never preview or publish, even with input files. Empty partials
   remain partial; ordinary empty file deliveries still fail. Legacy hashes stay.
-  [Contract and evidence](../../docs/incidents/text-delivery-2026-10-02.md).
-  `previousResultsFor` carries text from at most three actual seed hops as bounded untrusted context, oldest first, preserving status and marking truncation/unavailability. Comparisons use their origin's seed; fresh imports inherit none. No new store or publication decision. [Review](../../docs/text-review-and-history-2026-10-03.md).
+  [Contract and evidence](../../records/incidents/text-delivery-2026-10-02.md).
+  `previousResultsFor` carries text from at most three actual seed hops as bounded untrusted context, oldest first, preserving status and marking truncation/unavailability. Comparisons use their origin's seed; fresh imports inherit none. No new store or publication decision. [Review](../../docs/decisions/text-review-and-history-2026-10-03.md).
 
 - New delivery manifests inventory every publishable regular file in the
   finished workspace, including files child work added after the root plan.
@@ -483,7 +483,7 @@ or published ones do. GitHub divergence, byte, lease and scope checks remain.
   Published runs owe only tombstones; other runs owe their difference from BASE.
   Hard-linked seeds replace by unlink/create and pass the delivery inventory.
   Unavailable sync fails open; unresolved debt refuses publication. See
-  [design and measurements](../../docs/repository-sync-2026-10-07.md).
+  [design and measurements](../../docs/decisions/repository-sync-2026-10-07.md).
 - Materialised seeds retain landing/text history but invalidate standing HTTP
   evidence across their boundary. Comparison reruns reuse the recorded seed
   directory, including reruns of reruns; an expired directory refuses comparison.
@@ -535,7 +535,7 @@ Explicit `baseRunId` selects a retained delivered/partial non-comparison workspa
 request identity is immutable and launch rechecks bytes. Its BASE/corpus follow it,
 without GitHub refresh. Default seeding stays. `acceptedReferenceRunId` exposes the
 newest accepted run by creation order; retention holds it and active iteration bases.
-Selection never grants publication. Review cases: [checkpoint contract](../../docs/run-checkpoints-2026-10-08.md).
+Selection never grants publication. Review cases: [checkpoint contract](../../docs/decisions/run-checkpoints-2026-10-08.md).
 
 ## Comparison reruns
 - File comparisons are a separate read: `compareRuns` shares workspace
@@ -553,7 +553,7 @@ Selection never grants publication. Review cases: [checkpoint contract](../../do
   (`storedRunTierModelsSchema`), the catalogue asked at the door and at launch.
   An unrecoverable drafted list is refused; an origin judged without one reruns
   without one. A rerun never seeds (`previousSeedRun`) and never publishes.
-  Imported projects are refused. [Contract](../../docs/comparison-reruns-2026-09-25.md).
+  Imported projects are refused. [Contract](../../docs/decisions/comparison-reruns-2026-09-25.md).
 
 ## Pausing and continuing validated work
 
@@ -572,11 +572,11 @@ or a source needed by queued/running continuations. A failed pre-launch attempt
 can retry while the source is still ready. Failed interrupted runs may recover
 from a sealed snapshot when the journal permits it; blocked reasons are projected
 to the requester. Their retrieval corpus stays the recorded starting corpus.
-See [checkpoints](../../docs/run-checkpoints-2026-10-08.md) and [client questions](../../docs/client-questions.md).
+See [checkpoints](../../docs/decisions/run-checkpoints-2026-10-08.md) and [client questions](../../docs/client-questions.md).
 
 ## Intentional choices and rejected shortcuts
 
-- The project learning reader shares one org-authorized body across HTTP/MCP, including deferred-worker ledger provenance. Read-only, bounded and explicit about coverage: [contract](../../docs/prompt-consolidation-2026-10-12.md).
+- The project learning reader shares one org-authorized body across HTTP/MCP, including deferred-worker ledger provenance. Read-only, bounded and explicit about coverage: [contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 - Reading egress settings, or an ollama destination, from a tenant prompt:
   refused. They come from the HOST snapshot. An organisation picks ollama

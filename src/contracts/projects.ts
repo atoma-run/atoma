@@ -307,7 +307,7 @@ export const createProjectRunInputSchema = z
     /**
      * The acceptance criteria the user approved before launch. Optional:
      * without it the run drafts its own checklist. Strict — one malformed
-     * criterion refuses the request (docs/acceptance-contract-2026-09-14.md).
+     * criterion refuses the request (docs/decisions/acceptance-contract-2026-09-14.md).
      */
     acceptanceChecklist: approvedChecklistInputSchema.optional(),
     /**

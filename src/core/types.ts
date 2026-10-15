@@ -327,7 +327,7 @@ export type PositiveVerdict = {
   proofUncovered?: boolean;
   /**
    * Set by the supervisor — never by a model — when Jev, not the model
-   * validator, approved (docs/jev-decisions-2026-09-28.md). It withholds ONE
+   * validator, approved (docs/decisions/jev-decisions-2026-09-28.md). It withholds ONE
    * consequence: distilling a NEW recipe from the run. Compile-at-learn makes a
    * learned script dispatchable from its first match, platform-wide, its
    * results judged by Jev first, so a recipe must come from a run a model
@@ -568,7 +568,7 @@ export interface CacheHitInfo {
 }
 
 /**
- * JEV DECISIONS (docs/jev-decisions-2026-09-28.md, owner decision 2026-09-28):
+ * JEV DECISIONS (docs/decisions/jev-decisions-2026-09-28.md, owner decision 2026-09-28):
  * a typed decision model TAKES the bounded choices it can take — the prefilter's
  * pick, and the approval half of plan and result validation. It never writes
  * text, so a refusal still goes to the model validator, which writes the
@@ -984,7 +984,7 @@ export interface RunContext {
   /**
    * The host's replay of the browser checks earlier runs recorded, for a
    * seeded static-page run (`src/run/inheritedChecks.ts`,
-   * docs/inherited-checks-replay-2026-10-01.md). Root acceptance compares the
+   * docs/decisions/inherited-checks-replay-2026-10-01.md). Root acceptance compares the
    * delivered page against the checks that held when the run began. Absent
    * for every other run.
    */
@@ -1009,7 +1009,7 @@ export interface RunContext {
    */
   readonly jev?: JevDecider;
   /**
-   * The Jev audit (docs/jev-decisions-2026-09-28.md): a `rate` share of Jev's
+   * The Jev audit (docs/decisions/jev-decisions-2026-09-28.md): a `rate` share of Jev's
    * plan approvals (and `resultRate ?? rate` of result approvals) is also
    * judged by the model validator, off the run's path, so
    * how often the model would refuse what Jev approves stays measured once

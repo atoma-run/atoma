@@ -389,7 +389,7 @@ export class L1Atom extends Atom {
 
   /**
    * The execution's reasoning effort, when Jev sets one (owner decision
-   * 2026-10-06, docs/jev-decisions-2026-09-28.md). Not asked when the type
+   * 2026-10-06, docs/decisions/jev-decisions-2026-09-28.md). Not asked when the type
    * pins its own effort — an explicit pin is intent, not absence — nor when
    * the transport would drop the answer: a decision that cannot land is not
    * a decision. `undefined` keeps the call exactly as it was before Jev.

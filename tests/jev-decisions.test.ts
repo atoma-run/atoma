@@ -49,7 +49,7 @@ import { jsonText, makeCtx, nsOf } from './helpers.js';
 import { ANTHROPIC_PINS, FALLBACK_OPUS } from './tier-pins.js';
 
 /**
- * Jev takes the bounded decisions (docs/jev-decisions-2026-09-28.md): the
+ * Jev takes the bounded decisions (docs/decisions/jev-decisions-2026-09-28.md): the
  * prefilter's pick, and the APPROVAL half of plan and result validation. These
  * pin what makes that safe to run: Jev only acts where it is asked, and only
  * on answers the questions' thresholds read as clear; a refusal, an uncertain

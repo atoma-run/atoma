@@ -8,8 +8,8 @@ metadata:
   modified: 2026-09-27T00:21:12.879Z
 ---
 
-2026-09-26: every README use case delivered on prod (record docs/incidents/production-runs-2026-09-26.md); owner decisions I2a/I4/O1/O4/O5 then shipped (64fb516).
-2026-09-27: runs R13–R20 (docs/incidents/production-runs-2026-09-27.md). Fix 78c3fff on main: criteria screen widths shown as LAID OUT/NOT LAID OUT + told to planner/molecule (fact only, no refusal), validate_html `select` interaction, keyboard focus by selector, byte counts. Worktree C:\Users\mgf\dev\atoma-fixes, branch fix/runs-2026-09-27.
+2026-09-26: every README use case delivered on prod (record records/incidents/production-runs-2026-09-26.md); owner decisions I2a/I4/O1/O4/O5 then shipped (64fb516).
+2026-09-27: runs R13–R20 (records/incidents/production-runs-2026-09-27.md). Fix 78c3fff on main: criteria screen widths shown as LAID OUT/NOT LAID OUT + told to planner/molecule (fact only, no refusal), validate_html `select` interaction, keyboard focus by selector, byte counts. Worktree C:\Users\mgf\dev\atoma-fixes, branch fix/runs-2026-09-27.
 
 **Why:** the user wants runs → analyse → fix → rerun until every README use case works, autonomously.
 

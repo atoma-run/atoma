@@ -63,7 +63,7 @@ Neighbours:
   usage propagate across the complete loop. No Codex-native tools are enabled.
   Every transport's loop marks a text written on that finalization turn `toolBudgetExhausted`;
   the executor carries it onto its `Result`, where a result gate keeps it off every fast path.
-  Acceptance evidence: [codex-all-tiers-2026-09-08](../../docs/incidents/codex-all-tiers-2026-09-08.md).
+  Acceptance evidence: [codex-all-tiers-2026-09-08](../../records/incidents/codex-all-tiers-2026-09-08.md).
 - Since 2026-10-04 a tool-bearing Codex call first runs as ONE `codex app-server`
   thread (`codexAppServerToolLoop.ts`). The declared tools are its dynamic tools;
   each `item/tool/call` reaches `req.executor` only, one at a time, in arrival
@@ -229,7 +229,7 @@ Neighbours:
   metadata outside; missing paths/directories keep their structured answers.
   Observers, attestations and host readers always receive the original object.
   Do not JSON-encode file text again or change the element's return contract
-  to solve a presentation problem ([incident](../../docs/incidents/edit-file-failures-2026-10-13.md)).
+  to solve a presentation problem ([incident](../../records/incidents/edit-file-failures-2026-10-13.md)).
 - `InMemoryMetrics` and `MetricsLlmClient` wrap calls; traces record requested
   model, served model, usage, cost, cache, decisions, and tool actions.
 - `RecordingLlmClient` preserves partial and failed attempts. A failure after
@@ -256,7 +256,7 @@ Neighbours:
 ## Jev decisions
 
 - `src/core/jev.ts` is the ONE Jev (TypeSafe) client and the `JevDecider` built
-  on it ([owner decision](../../docs/jev-decisions-2026-09-28.md)). Jev answers
+  on it ([owner decision](../../docs/decisions/jev-decisions-2026-09-28.md)). Jev answers
   typed questions and generates no text: it is not a tier model and is never
   routed through `LlmClient`. Routing/validation follow
   [src/atoms](../atoms/AGENTS.md), compilation follows
@@ -293,13 +293,13 @@ Neighbours:
   and with nothing reusable left the model is not asked. Measured 2026-10-06
   against same-job/misroute judgements of 116 credited matches, not against
   the model's own picks; shipped exactly as scored
-  ([record](../../docs/jev-decisions-2026-09-28.md#recipe-offer-floor-2026-10-06)).
+  ([record](../../docs/decisions/jev-decisions-2026-09-28.md#recipe-offer-floor-2026-10-06)).
 - The `compile-skill` questions use the same bounded client, cost accounting
   and trace events. Their 0.2/0.8 band was retained after the 2026-10-01
   production sample: 14 labelled recipes, 3 evaluations each, no observed
   false postponement, and 3 deferrals. Labels are reviewer judgments, not
   executed-script proof; mock tests establish retry/fallback behavior
-  ([measurement](../../docs/jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01)).
+  ([measurement](../../docs/decisions/jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01)).
 - `execute-effort` (owner decision 2026-10-06): before a molecule's execute
   call, two Nouls — `spelled_out`, `open_problem` — set `low` (0.8/0.2) or
   `high` (`open_problem` ≥ 0.6, `spelled_out` ≤ 0.2: at 0.8 it decided 3 of
@@ -309,8 +309,8 @@ Neighbours:
   band is UNMEASURED; until its pre-registered measurement is written up,
   `JEV_EFFORT_HOLDOUT_RATE` of the decisive readings are held out at random,
   and `jevOutcomeReport` pairs each decision with its execution
-  ([record](../../docs/jev-decisions-2026-09-28.md#execution-effort-owner-decision-2026-10-06),
-  [the `high` bar](../../docs/jev-decisions-2026-09-28.md#the-high-bar-2026-10-13)).
+  ([record](../../docs/decisions/jev-decisions-2026-09-28.md#execution-effort-owner-decision-2026-10-06),
+  [the `high` bar](../../docs/decisions/jev-decisions-2026-09-28.md#the-high-bar-2026-10-13)).
 - `forkBranch` forwards every `JevDecider` method, optional ones included;
   until 2026-10-06 it listed four and dropped `compilable` in every fork.
 - The AUDIT keeps Jev measured once the model no longer sees its approvals:
@@ -321,7 +321,7 @@ Neighbours:
   `JEV_AUDIT_SETTLE_MS`, before it closes the trace; one that fails or
   outlasts the bound is dropped. Each audit is one model call on the run's
   bill, and it never changes a decision.
-  The result census follows the [October 7 review](../../docs/jev-calibration-2026-10-07.md).
+  The result census follows the [October 7 review](../../records/measurements/jev-calibration-2026-10-07.md).
 
 ## Intentional choices and rejected shortcuts
 

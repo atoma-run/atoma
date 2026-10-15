@@ -107,7 +107,7 @@ export const httpEntrySchema = z
  * `"web"`. The child followed the prompt, so the supervisor's web-manifest
  * health check never activated even though a manifest was on disk, and the
  * RESULT was approved on the child's own narration. See
- * `docs/incidents/supervisor-attestation-evidence-2026-08-22.md`.
+ * `records/incidents/supervisor-attestation-evidence-2026-08-22.md`.
  */
 export const WEB_PROBE_DISCRIMINANT = 'web' as const;
 
@@ -260,7 +260,7 @@ export const EXAMPLE_WEB_ENTRY: WebEntry = webEntrySchema.parse({
  * executes nothing, so it never covers a declared `dom-interaction`
  * obligation.
  *
- * MEASURED (docs/incidents/verification-replay-2026-09-15.md, the one home of
+ * MEASURED (records/incidents/verification-replay-2026-09-15.md, the one home of
  * the figures): after each erased-state refusal the model adopted the
  * self-driving shape on its next call; the phase was approved with credit
  * WITHHELD, and the L3 planned a second verification phase whose whole

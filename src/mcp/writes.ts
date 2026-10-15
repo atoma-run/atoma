@@ -176,7 +176,7 @@ export function skillMerge(input: { l1: string; keep: string; absorb: string; fo
 /**
  * `registry merge`: absorb named losers into a winner — counters and history
  * through `mergeInto`, recipes moved under the winner, the store and the
- * touched namespaces archived first (docs/registry-reconciliation-2026-10-10.md).
+ * touched namespaces archived first (docs/decisions/registry-reconciliation-2026-10-10.md).
  * `dryRun` answers with the plan and writes nothing.
  */
 export async function registryMerge(input: {

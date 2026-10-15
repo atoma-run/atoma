@@ -6,7 +6,7 @@ import { makeCtx } from './helpers.js';
 
 /**
  * What the acceptor reads of a long file past its head
- * (docs/incidents/first-refusals-2026-10-10.md, E3): a test's title line
+ * (records/incidents/first-refusals-2026-10-10.md, E3): a test's title line
  * names the behaviour, its assertions are the lines below it, and four first
  * refusals said "only the title is visible". Run cb53b09d's diamond test named
  * fixture files the acceptor was never shown.

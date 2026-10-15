@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-Decided by the user on 2026-09-05: ONE MCP for everyone, tiered by role (viewer / member / admin / platform), and the "stdio-only, no HTTP port" rule is broken on purpose. Built the same day: `src/mcp/{identity,tools,http}.ts`, `/mcp` route on the viz server (Streamable HTTP, JSON responses, DNS-rebinding host pinning), bearer API tokens (`auth_api_tokens`, `/api/tokens`, `npm run auth -- token`), journal kinds `token.created/revoked`, 24 catalogue tools (operator run tools renamed `atoma_operator_run_*`; `atoma_run_*` are now PROJECT runs). Stdio entrypoint, `npm run mcp`, `mcp:dev` deleted; release smoke proves the MCP through the compiled viz server. Decision record: `docs/mcp-one-surface-2026-09-05.md`; contract: `src/mcp/AGENTS.md`.
+Decided by the user on 2026-09-05: ONE MCP for everyone, tiered by role (viewer / member / admin / platform), and the "stdio-only, no HTTP port" rule is broken on purpose. Built the same day: `src/mcp/{identity,tools,http}.ts`, `/mcp` route on the viz server (Streamable HTTP, JSON responses, DNS-rebinding host pinning), bearer API tokens (`auth_api_tokens`, `/api/tokens`, `npm run auth -- token`), journal kinds `token.created/revoked`, 24 catalogue tools (operator run tools renamed `atoma_operator_run_*`; `atoma_run_*` are now PROJECT runs). Stdio entrypoint, `npm run mcp`, `mcp:dev` deleted; release smoke proves the MCP through the compiled viz server. Decision record: `docs/decisions/mcp-one-surface-2026-09-05.md`; contract: `src/mcp/AGENTS.md`.
 
 **Why:** customers plug Claude Code / Codex into the deployed instance and need the prod viz; the stdio argument described the old on-machine product. The user wants docs and rules to evolve with the product, not be treated as fixed.
 

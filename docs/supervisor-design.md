@@ -1,4 +1,4 @@
-> Deployment update, 2026-09-06: the operator selected a separate mender service on the VPS, with a dedicated clone and the shared run lease held throughout maintenance. The earlier CI and phase-boundary-only design below is historical. Current setup: [production guide](supervisor-codex-production.md). The stdio MCP references below are historical too: the current control plane serves HTTP `/mcp`, as recorded in [the MCP decision](mcp-one-surface-2026-09-05.md).
+> Deployment update, 2026-09-06: the operator selected a separate mender service on the VPS, with a dedicated clone and the shared run lease held throughout maintenance. The earlier CI and phase-boundary-only design below is historical. Current setup: [production guide](supervisor-codex-production.md). The stdio MCP references below are historical too: the current control plane serves HTTP `/mcp`, as recorded in [the MCP decision](decisions/mcp-one-surface-2026-09-05.md).
 
 # Run supervision and the self-improvement loop — design
 
@@ -19,7 +19,7 @@ judgment:
   that is burning budget on an unreachable check, looping on identical tool
   calls, or ingesting web content that carries prompt-injection payloads.
 - **Post-mortem**: the burn-in sessions (e.g.
-  [2026-08-21](incidents/burn-in-2026-08-21.md)) are manual Claude sessions:
+  [2026-08-21](../records/incidents/burn-in-2026-08-21.md)) are manual Claude sessions:
   run → analyse traces → fix → measure on the next batch. The loop works —
   six defects closed in one day — but a human drives every step.
 - **Self-improvement**: fixes reach later runs only when the operator
@@ -207,7 +207,7 @@ $1.4396 over 52 turns and 797s, against $1.3322 for the three runs examined
 (108%). The separate subscription removes quota contention, not the economics:
 failed/cancelled runs remain automatic, while delivered runs remain batch-end
 or sampled. The exact committed measurement rows are
-[`incidents/supervisor-glm-calibration-2026-08-22.csv`](incidents/supervisor-glm-calibration-2026-08-22.csv).
+[`incidents/supervisor-glm-calibration-2026-08-22.csv`](../records/incidents/supervisor-glm-calibration-2026-08-22.csv).
 
 **Result, measured 2026-08-22: 2/5 — Haiku is not viable, for any run
 class.** (1) FAIL: on the failed run it stopped at the surface (smoke-test
@@ -273,7 +273,7 @@ the design below, both settling an open decision:
   (owner decision 2026-09-27 — until then candidates only reached a backlog).
   `security_incident` stays an alert.
 - **What may be shipped**: changes under `src/`, `tests/` and
-  `docs/incidents/` only, at least one test file, at least one source file,
+  `records/incidents/` only, at least one test file, at least one source file,
   at most 600 changed lines. Workflows, deploy scripts, hooks, dependencies
   and the supervisor's own scripts are a person's decision. Anything else is
   `refused` with the worktree kept for inspection and no push.

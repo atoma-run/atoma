@@ -22,14 +22,14 @@ Neighbours:
   nothing else. The stdio server is gone: its argument ("no socket the run
   could reach") described a product installed on the operator's machine, and
   the product is a deployed server with organisations, principals and a
-  journal ([`docs/mcp-one-surface-2026-09-05.md`](../../docs/mcp-one-surface-2026-09-05.md)).
+  journal ([`docs/decisions/mcp-one-surface-2026-09-05.md`](../../docs/decisions/mcp-one-surface-2026-09-05.md)).
   Since 2026-09-30 the route answers protocol 2025-11-25 (a session per
   `initialize`) AND 2026-07-28 (no session, a server per request through the
   SDK's `createMcpHandler`); `isLegacyRequest` decides, and a request naming a
   session is 2025. The 2025 era stays whole — sessions, replay, tasks,
   subscriptions, the run log — because the clients in use still speak it
   (`health().clients` counts who speaks what; `atoma_mcp_health` reads it): see
-  [`docs/mcp-two-eras-2026-09-30.md`](../../docs/mcp-two-eras-2026-09-30.md).
+  [`docs/decisions/mcp-two-eras-2026-09-30.md`](../../docs/decisions/mcp-two-eras-2026-09-30.md).
   Do not add a second transport for a special case; make the case a tier.
 - THE CATALOGUE IS ONE TABLE (`tools.ts#MCP_TOOLS`): every tool names its
   MINIMUM TIER and what it NEEDS from the host. `tools/list` for a caller,
@@ -411,7 +411,7 @@ Neighbours:
   request hashes, raw scores and false postponements (owner decision 2026-10-01).
 - `atoma_jev_calibrate` (platform, `needs: ['auth', 'projects']`) is the door
   onto `src/atoms/jevCalibration.ts`
-  ([decision record](../../docs/jev-decisions-2026-09-28.md)): it reads the
+  ([decision record](../../docs/decisions/jev-decisions-2026-09-28.md)): it reads the
   MODEL's prefilter and validation decisions out of every organisation's runs
   — Jev decides in all of them since 2026-09-30 — asks TypeSafe both question
   designs on them, and reports each against the model's decision. Each
@@ -520,7 +520,7 @@ runner, implicit project-memory update or whole-chat export belongs here.
 
 ## Intentional choices and rejected shortcuts
 
-- `atoma_project_learning` pages project-wide trace/ledger evidence and deferred-learning receipts through ProjectService; fixed run/ledger ceilings, explicit missing/omitted evidence. [Contract](../../docs/prompt-consolidation-2026-10-12.md).
+- `atoma_project_learning` pages project-wide trace/ledger evidence and deferred-learning receipts through ProjectService; fixed run/ledger ceilings, explicit missing/omitted evidence. [Contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 - A separate lock file per client bypasses the global capacity and deployment
   drain: refused. All reservations and the pending deployment share one

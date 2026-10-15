@@ -10,7 +10,7 @@ export { REPLAY_CAUSES, REPLAY_STOPS, inheritedChecksSummarySchema, type ReplayC
 /**
  * INHERITED BROWSER CHECKS: the web entries a seeded run inherits in
  * `.atoma-probes.json`, recorded by earlier runs of the same project (owner
- * decision 2026-10-01, docs/inherited-checks-replay-2026-10-01.md).
+ * decision 2026-10-01, docs/decisions/inherited-checks-replay-2026-10-01.md).
  *
  * Run b9dc4d0b (2026-09-30) changed the mode line `Long break`, which run
  * 8606cf38 had been asked for, into `Mode: Long Break`. The smoke asserting
@@ -495,7 +495,7 @@ export function inheritedChecksItems(report: InheritedChecksReport, rewritten: R
  * 14 calls) and matched the expected judgements LESS often on 495c20ef
  * (74% of items against 95%), with no gain on 5dff35b0. The model judges
  * whether the checked behaviour is required, not what changed; no wording
- * tried here moved that (docs/incidents/production-runs-2026-09-30.md).
+ * tried here moved that (records/incidents/production-runs-2026-09-30.md).
  */
 export const INHERITED_JUDGEMENT_REQUEST =
   'ALSO emit "inherited" in your verdict JSON: one entry per item above, ' +

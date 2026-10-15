@@ -921,7 +921,7 @@ describe('ProjectRunCoordinator', () => {
     expect(finished.artifactManifest?.files.map((file) => file.path)).toEqual(['index.html']);
     expect(driver.mock.calls[0]?.[0].extraArgs).toContain('--container');
     // No lifecycle veto travels: a project run promotes, dispatches and learns
-    // like any run (docs/platform-trust-2026-09-15.md).
+    // like any run (docs/decisions/platform-trust-2026-09-15.md).
     for (const veto of ['--no-promote-skills', '--no-direct-skills', '--no-learn-skills']) {
       expect(driver.mock.calls[0]?.[0].extraArgs).not.toContain(veto);
     }

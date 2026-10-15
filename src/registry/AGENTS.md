@@ -18,7 +18,7 @@ Neighbours:
 ## One registry, one trust
 
 - A RUN IS A RUN (owner decision 2026-09-15,
-  [platform trust record](../../docs/platform-trust-2026-09-15.md)). The
+  [platform trust record](../../docs/decisions/platform-trust-2026-09-15.md)). The
   operator's runs, every organisation's project runs and the benchmarks read
   the same rows and bump the same counters. `AtomRegistry` takes a database
   and nothing else; there is no owner, no per-caller predicate, no fallback.
@@ -44,7 +44,7 @@ Neighbours:
   project rows kept whole with a fresh ordinal or `-<n>` suffix only on
   collision. One immediate transaction; a failed fold leaves the store as it
   was beside its backup. Superseded record, kept as evidence:
-  [ownership record](../../docs/project-registry-ownership-2026-09-09.md).
+  [ownership record](../../docs/decisions/project-registry-ownership-2026-09-09.md).
 
 ## Descriptions and bootstrap
 
@@ -57,9 +57,9 @@ Neighbours:
   and a validator patch splits an equivalent group permanently. `createOrReuse`
   bounds the creation rate, not the catalogue. Evidence and the refuted
   credit-loss hypothesis:
-  [the production catalogue, measured](../../docs/incidents/registry-catalogue-2026-09-16.md).
+  [the production catalogue, measured](../../records/incidents/registry-catalogue-2026-09-16.md).
   The reconciliation is designed from that record and
-  [the clone engine, measured 2026-10-10](../../docs/registry-reconciliation-2026-10-10.md)
+  [the clone engine, measured 2026-10-10](../../docs/decisions/registry-reconciliation-2026-10-10.md)
   (18 molecules, a prompt revision mints a generation of clones), under
   adversarial review — the deferral the record asked for was the
   cooling-off rule, removed 2026-09-27.
@@ -90,7 +90,7 @@ Neighbours:
   streak kept, version recorded as `template refresh` — as the bootstrap
   refreshes canonicals. Before 2026-10-10 each template revision made every
   earlier type non-equivalent and the next creation a clone
-  ([the clone engine](../../docs/registry-reconciliation-2026-10-10.md)).
+  ([the clone engine](../../docs/decisions/registry-reconciliation-2026-10-10.md)).
   The clones that exist are merged by a PERSON naming the winner:
   `registry merge` / `atoma_registry_merge` (`mergeIdentities.ts`) archive
   the store and the touched namespaces, move the losers' recipes under the
@@ -100,7 +100,7 @@ Neighbours:
   excludes an entire equivalent group if any member is excluded. It never
   deletes history, moves skill namespaces or transfers trust between identities.
   Explicit `create` / `branch` remain allocation APIs for deliberate new identities.
-  Design and adversarial cases: [recoverable trust](../../docs/recoverable-trust-2026-09-15.md).
+  Design and adversarial cases: [recoverable trust](../../docs/decisions/recoverable-trust-2026-09-15.md).
 
 ## Names and allocation
 
@@ -122,10 +122,10 @@ Neighbours:
 
 Registry writes carry an async-scoped recovery barrier on the same SQLite
 connection, before the mutation. Rollback also rolls back that barrier; no crash
-recovery rolls back shared trust. See [checkpoints](../../docs/run-checkpoints-2026-10-08.md).
+recovery rolls back shared trust. See [checkpoints](../../docs/decisions/run-checkpoints-2026-10-08.md).
 
 ## Intentional choices and rejected shortcuts
 
-- Host template baselines preserve learned suffixes; unknown replacements stay intact. Prompt amendments use transactional CAS/history/receipts and reset streaks. [Contract](../../docs/prompt-consolidation-2026-10-12.md).
+- Host template baselines preserve learned suffixes; unknown replacements stay intact. Prompt amendments use transactional CAS/history/receipts and reset streaks. [Contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 - Registry rollback is roll-forward-to-old-content and resets the trust streak.

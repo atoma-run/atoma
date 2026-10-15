@@ -56,7 +56,7 @@ export function eligibleFindings(
 }
 
 /** Repository paths the mender may quote verbatim to the model. */
-const SOURCE_REF = /^(src|tests|docs|scripts|benchmark|deploy|docker)\//;
+const SOURCE_REF = /^(src|tests|docs|records|scripts|benchmark|deploy|docker)\//;
 export { WITHHELD_QUOTE };
 export type { SanitisedFinding };
 
@@ -137,7 +137,7 @@ export function branchName(runId: string, findingIndex: number, finding: Pick<Ve
 /**
  * WHAT THE MODEL MAY HAVE CHANGED. An allowlist, not a denylist: a fix for a
  * run-time defect lives in `src/` with its regression test in `tests/`, and a
- * dated note may land under `docs/incidents/`. Workflows, deploy scripts,
+ * dated note may land under `records/incidents/`. Workflows, deploy scripts,
  * hooks, dependencies and the supervisor's own code are a person's decision,
  * and a "fix" that needs one is not a fix the mender may ship. The cap on
  * changed lines is the same idea by size.
@@ -149,7 +149,7 @@ export function branchName(runId: string, findingIndex: number, finding: Pick<Ve
  * only candidate mended in production was refused the instant its session
  * ended (2026-09-27).
  */
-export const MENDABLE_ROOTS = ['src/', 'tests/', 'docs/incidents/'] as const;
+export const MENDABLE_ROOTS = ['src/', 'tests/', 'records/incidents/'] as const;
 /** Prefixes, matched as such: `src/contracts/supervisor` covers both of its schema files. */
 export const PROTECTED_ROOTS = ['src/supervisor/', 'src/cli/', 'src/contracts/supervisor'] as const;
 /** Refused at any depth: every agent that works here reads them as instructions. */

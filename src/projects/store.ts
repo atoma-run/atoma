@@ -276,7 +276,7 @@ END;
 
 /*
  * THE ACCEPTANCE CRITERIA A USER APPROVED for one run, captured by the host
- * before the run existed (docs/acceptance-contract-2026-09-14.md). One row
+ * before the run existed (docs/decisions/acceptance-contract-2026-09-14.md). One row
  * per run that carried a list, written in the SAME transaction as the run
  * reservation, so a queued run is never observable without the list it was
  * launched with. Immutable: it is what the run was asked to show, and a list

@@ -81,7 +81,7 @@ describe('viz full-GL build contract', () => {
       /preference:\s*forceWebGl\s*\?\s*\['webgl'\]\s*:\s*\['webgpu', 'webgl'\]/
     );
     // MSAA stays the default; `?atomaQuality=performance` is the one session
-    // switch that turns it off (docs/incidents/gpu-frame-cost-2026-09-06.md).
+    // switch that turns it off (records/incidents/gpu-frame-cost-2026-09-06.md).
     expect(gpuRenderer).toMatch(/antialias = params\.get\('atomaQuality'\) !== 'performance'/);
     expect(gpuRenderer).not.toMatch(/antialias:\s*(true|false)[,\s]/);
     expect(gpuStore).toMatch(/create<GpuUiState>/);

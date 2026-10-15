@@ -18,10 +18,10 @@ Neighbours:
 Skills follow learn → compile → match → deterministic dispatch or inject →
 credit. Compilation happens AT LEARN TIME and dispatch needs no earned runs,
 by owner decision on 2026-09-26
-([compile-at-learn record](../../docs/compile-at-learn-2026-09-26.md)).
+([compile-at-learn record](../../docs/decisions/compile-at-learn-2026-09-26.md)).
 
 - ONE catalog, ONE trust, for every run on the platform — a run is a run
-  ([platform trust record](../../docs/platform-trust-2026-09-15.md)). BODIES
+  ([platform trust record](../../docs/decisions/platform-trust-2026-09-15.md)). BODIES
   live in the platform `ATOMA_SKILLS_DIR`, under stable atom-id namespaces
   (`skills/<atom-id>/`); TRUST (counters, stamps, matches, provenance) is one
   row per recipe in the product store, `skill_meta`, since 2026-09-18 (W4,
@@ -100,7 +100,7 @@ by owner decision on 2026-09-26
   `skill_learning_jobs` is in the product store. Jobs carry evidence and policy,
   never credentials or tools. One learner owns its claim; owner namespaces
   remain serial within a batch. Its receipts, interruption/retry policy and
-  adversarial cases are in [approved learning](../../docs/approved-learning-2026-10-11.md).
+  adversarial cases are in [approved learning](../../docs/decisions/approved-learning-2026-10-11.md).
 - Updates after failure are opportunistic. Invalid skill JSON must not fail an
   otherwise valid run, and an unchanged body is not a revision.
 - Auto-created/revised skill bodies must stay within the owner's toolset and
@@ -125,7 +125,7 @@ by owner decision on 2026-09-26
   rechecked at the next learning/credit opportunity, without a cooldown or
   earned-success streak. No answer or uncertainty lets the compiler decide.
   The owner authorised deployment then live MCP calibration on 2026-10-01; see the
-  [decision record](../../docs/jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01).
+  [decision record](../../docs/decisions/jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01).
   Compiler/scan refusals retain their generation-scoped stamps. Every
   `demoteToLlm` stamps the generation that produced the failed script, for
   both supervised and deterministic failures; a body/compiler change or an
@@ -143,7 +143,7 @@ by owner decision on 2026-09-26
 - A dispatched script's result is VALIDATED like a molecule's — result gates,
   ground-truth probe, Jev, then the model — less the type's trust fast path,
   whose counter the molecule's model earned (`validateScriptDispatch`, owner
-  decision 2026-10-06, [record](../../docs/script-dispatch-validation-2026-10-06.md)).
+  decision 2026-10-06, [record](../../docs/decisions/script-dispatch-validation-2026-10-06.md)).
   Jev approving keeps the dispatch free of model calls; otherwise one
   validation call is paid. Its evidence is the script's own attested write and
   run, picked by scratch filename, which is the dispatch's own
@@ -200,13 +200,13 @@ by owner decision on 2026-09-26
 - THE TWIN GUARD: when `ctx.jev` is present, Jev compares each draft with the
   recipes it would compete with — the visible catalog for a task recipe, the
   namespace's recovery recipes for an event one — and a draft it names a twin
-  is NOT saved ([owner decision](../../docs/jev-decisions-2026-09-28.md)). No
+  is NOT saved ([owner decision](../../docs/decisions/jev-decisions-2026-09-28.md)). No
   answer saves as before: a wrong "twin" costs one lesson, never a recipe.
   Measured 2026-09-28 on the production catalog: three recovery twins on
   Glucose, never matched, and lexical overlap separates twins from
   look-alikes no better than in August.
 - THE TRIGGER EVALUATION (owner decision 2026-10-15,
-  [record](../../docs/skill-trigger-eval-2026-10-15.md), `triggerEval.ts`):
+  [record](../../docs/decisions/skill-trigger-eval-2026-10-15.md), `triggerEval.ts`):
   after the twin guard and before the save, a task draft's matching surface
   is judged by the PRODUCTION selector — `prefilterStrategy` with the skill
   prompt, Jev first where present — over the catalog it would join, on
@@ -270,7 +270,7 @@ by owner decision on 2026-09-26
 
 Checkpointed runs journal a recovery barrier before metadata or body mutations.
 This does not disable learning or matching; it refuses replay of a phase that
-already changed the commons. See [checkpoints](../../docs/run-checkpoints-2026-10-08.md).
+already changed the commons. See [checkpoints](../../docs/decisions/run-checkpoints-2026-10-08.md).
 
 ## Intentional choices and rejected shortcuts
 
@@ -321,7 +321,7 @@ already changed the commons. See [checkpoints](../../docs/run-checkpoints-2026-1
   re-dispatch within the run, so the refusal is still the step that judges
   the script itself. On that date production held one script
   among 30 task recipes, and the 24 refusals cited task interpretation or
-  browser tooling ([record](../../docs/compiled-script-limits-2026-10-03.md)).
+  browser tooling ([record](../../docs/decisions/compiled-script-limits-2026-10-03.md)).
 - Do NOT give compiled scripts a browser (same decision). Only a
   `validate_html` call through the attesting executor is browser evidence, so
   what a script's own browser reports proves nothing. Recorded web checks go

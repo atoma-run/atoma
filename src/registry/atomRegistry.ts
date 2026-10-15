@@ -307,7 +307,7 @@ export function compactAtomCatalog(
 /**
  * ONE registry for every run on the platform. There is no owner: the
  * operator's runs, an organisation's project runs and a benchmark all read
- * the same rows and bump the same counters (`docs/platform-trust-2026-09-15.md`).
+ * the same rows and bump the same counters (`docs/decisions/platform-trust-2026-09-15.md`).
  */
 export class AtomRegistry {
   constructor(private readonly db: DB) {
@@ -486,7 +486,7 @@ export class AtomRegistry {
    * Until then each revision of the template made every earlier type
    * non-equivalent and the next creation a clone (Dopamine 2026-09-27 and
    * DNA 2026-10-07: same tools, two added sentences;
-   * docs/registry-reconciliation-2026-10-10.md). A prompt a validator wrote
+   * docs/decisions/registry-reconciliation-2026-10-10.md). A prompt a validator wrote
    * is not a template and keeps its own identity.
    */
   createOrRefresh(tier: Tier, seed: CreateSeed, isTemplate: (systemPrompt: string) => boolean): AtomType {

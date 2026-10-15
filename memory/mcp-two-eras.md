@@ -10,7 +10,7 @@ metadata:
 
 Pushed to main on 2026-09-30 (70d80ec..937b8b2, user ran the push — the auto-mode classifier refuses `git push origin main` from me, see [[readme-video-upload]]).
 
-- Both protocol eras on `/mcp`: 2025-11-25 keeps sessions/replay/tasks/subscriptions/run log (tests drive it with the real v1 client); 2026-07-28 is stateless via `createMcpHandler`. Decision record `docs/mcp-two-eras-2026-09-30.md`.
+- Both protocol eras on `/mcp`: 2025-11-25 keeps sessions/replay/tasks/subscriptions/run log (tests drive it with the real v1 client); 2026-07-28 is stateless via `createMcpHandler`. Decision record `docs/decisions/mcp-two-eras-2026-09-30.md`.
 - SDK v2 has NO task runtime on either era: tasks are ours (`src/mcp/tasks.ts` model, `taskWire.ts` wires). The task path wraps the SDK's internal `_requestHandlers` 'tools/call'; 2026 `tasks/*` are answered by the host because the SDK refuses them (-32601).
 - `@modelcontextprotocol/sdk` v1 stays only for the Claude Agent SDK (llmClaudeCli) and 2025 tests.
 - `health().clients` counts `<version> <client>` — the evidence to decide when 2025 support can be dropped. Nobody had checked which version production clients speak.

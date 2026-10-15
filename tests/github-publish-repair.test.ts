@@ -17,7 +17,7 @@ import { FakeGitHub } from './github-api-fake.js';
 
 /**
  * Two publication blockers measured on 2026-09-24
- * (docs/incidents/run-fix-loop-2026-09-24.md), both GitHub configuration and
+ * (records/incidents/run-fix-loop-2026-09-24.md), both GitHub configuration and
  * neither reachable from the product before this:
  *
  * - an installation whose repository selection was NARROWED still minted

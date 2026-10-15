@@ -35,7 +35,7 @@ Contents: [Runs](#runs) · [Verification](#verification) ·
   deadline, accounting and starting workspace.
 - **Task-driven root agent.** The goal and the starting repository choose the
   root planner; a run can build, maintain, analyse or explain a repository
-  ([tissue routing](docs/tissue-routing-2026-10-02.md)).
+  ([tissue routing](docs/decisions/tissue-routing-2026-10-02.md)).
 - **Sequential and parallel phases.** Sequential plans thread each phase's
   summary and outputs into the next; orthogonal work fans out in parallel, with
   concatenation or model synthesis as the join.
@@ -44,7 +44,7 @@ Contents: [Runs](#runs) · [Verification](#verification) ·
   `GET /api/items` becomes an HTTP check; other lines are judged by review.
   Criteria are stored immutably before planning. Without them, the run drafts a
   checklist with one call to the cheapest tier
-  ([acceptance checklist](docs/acceptance-checklist-2026-09-25.md)).
+  ([acceptance checklist](docs/decisions/acceptance-checklist-2026-09-25.md)).
 - **Incomplete runs are kept.** A run cut by its budget or refused at delivery
   after one remediation pass lands as *incomplete* (`partial`): finished phases
   stay, the console explains why it stopped and what to do next, and the next
@@ -52,7 +52,7 @@ Contents: [Runs](#runs) · [Verification](#verification) ·
 - **Pause and resume.** Deep project runs checkpoint after each validated phase.
   “Pause after the current phase” and “Resume saved work” continue the saved
   plan in a new process with the remaining budget
-  ([checkpoints](docs/run-checkpoints-2026-10-08.md)).
+  ([checkpoints](docs/decisions/run-checkpoints-2026-10-08.md)).
 - **Client questions mid-run.** A sequential project run can stop at a phase
   boundary on a blocking choice; the requester answers through MCP and resumes
   ([client decisions](docs/client-questions.md)).
@@ -81,7 +81,7 @@ Contents: [Runs](#runs) · [Verification](#verification) ·
 - **Inherited regression checks.** For an existing static page, browser checks
   recorded by earlier runs are replayed before editing and again before
   delivery; the final review separates requested changes from lost behaviour
-  ([replay contract](docs/inherited-checks-replay-2026-10-01.md)).
+  ([replay contract](docs/decisions/inherited-checks-replay-2026-10-01.md)).
 - **Independent delivery review.** A final check judges the result against the
   goal and each acceptance criterion; an approval that finds a criterion unmet
   is refused. The judgements are kept with the run.
@@ -100,12 +100,12 @@ Contents: [Runs](#runs) · [Verification](#verification) ·
 - **Three ways to pay.** `api:` bills an API key (the organisation's own key or
   the host's); `sub:` uses the host's Claude or ChatGPT subscription; `own:`
   uses the member's own ChatGPT account, or their own Claude Code token
-  (**beta**, [decision](docs/personal-claude-beta-2026-10-08.md)).
+  (**beta**, [decision](docs/decisions/personal-claude-beta-2026-10-08.md)).
 - **Personal model discovery.** Settings lists the models the member's own
   ChatGPT account actually offers ([guide](docs/personal-model-discovery.md)).
 - **Host subscription delegation.** The operator can let named members spend
   the host subscription without making them administrators
-  ([contract](docs/subscription-delegation-2026-09-22.md)).
+  ([contract](docs/decisions/subscription-delegation-2026-09-22.md)).
 - **Organisation model defaults.** Admins set per-tier defaults and bring their
   own provider keys.
 - **Versioned price catalogue.** Offered models and per-token prices live in
@@ -149,10 +149,10 @@ TypeSafe's Jev takes bounded, structured decisions beside the model tiers
   as soon as it is learned. The script runs on its first match with zero model
   calls, is checked against a strict output envelope and the files it must
   change, and is demoted back to its recipe after two contract failures
-  ([decision](docs/compile-at-learn-2026-09-26.md)).
+  ([decision](docs/decisions/compile-at-learn-2026-09-26.md)).
 - **Learning after approval.** Lessons are saved only after root approval, and
   outside the delivery path so they do not delay it
-  ([approved learning](docs/approved-learning-2026-10-11.md)).
+  ([approved learning](docs/decisions/approved-learning-2026-10-11.md)).
 - **One commons.** Every run on an instance, whichever organisation started
   it, reads and earns trust on the same registry and skill catalogue
   ([shared-learning terms](docs/platform-commons-terms.md)).

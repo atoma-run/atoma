@@ -27,7 +27,7 @@ Two things worth knowing before editing any AGENTS.md:
     of that shape is backticked today; keep it that way.
   - HTML comments like this one are stripped before the content reaches the
     model, so notes for human maintainers cost zero context tokens.
-  - Historical evidence belongs under docs/incidents as an ordinary Markdown
+  - Historical evidence belongs under records/incidents as an ordinary Markdown
     link, never as an @ import; recursive imports would restore the old context
     cost on every session.
 -->

@@ -85,7 +85,7 @@ describe('L3 fallback execute — tool access', () => {
     expect(call.model).toBe(modelForTier(1));
     expect(call.tools).toEqual([sampleTool]);
     // The model's executor reaches ctx.tools, never with the host's replay
-    // argument (docs/inherited-checks-replay-2026-10-01.md).
+    // argument (docs/decisions/inherited-checks-replay-2026-10-01.md).
     await call.executor!.execute('validate_html', { url: 'http://localhost:1/', hostReplay: true });
     expect(executor.calls.at(-1)).toEqual({ name: 'validate_html', args: { url: 'http://localhost:1/' } });
   });

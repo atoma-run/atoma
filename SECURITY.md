@@ -37,7 +37,7 @@ Out of scope: the cost or behaviour of third-party models; findings that require
 an operator to have already granted the attacker platform-admin; and the shared
 agent registry, skill catalogue, trust counters and lifecycle ledger, which
 every organisation's runs read and write by design
-([One registry, one trust](docs/platform-trust-2026-09-15.md)). Wording a
+([One registry, one trust](docs/decisions/platform-trust-2026-09-15.md)). Wording a
 supervisor derived from one organisation's documents can reach another
 organisation's runs through a shared prompt or recipe; that consequence is
 documented, not a vulnerability report.

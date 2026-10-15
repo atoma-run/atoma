@@ -45,7 +45,7 @@ export interface DispatchOutcome {
  * LANDING ON THE RUN DEADLINE. Reaching the deadline used to discard every
  * completed phase: `out` lived on the stack and left with it. Measured twice
  * on production runs of 2026-09-21 (`cc894dad`, `d3098d25` —
- * docs/incidents/progressive-runs-2026-09-21.md), where three of four phases
+ * records/incidents/progressive-runs-2026-09-21.md), where three of four phases
  * were finished, validated and CREDITED before the fourth was aborted
  * mid-flight; 2.83 USD and 3.50 USD bought nothing, and a run that completed
  * three phases delivered exactly as much as one that completed none. Both

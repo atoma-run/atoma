@@ -43,7 +43,7 @@ Neighbours:
   is built on it. Do not stamp provenance into entries: web entries and
   compiled verifiers rewrite them whole, so a stamp depends on its writers.
   Attempt-scoped observation is the witness channel
-  ([seed inheritance](../../docs/seed-inheritance-2026-09-25.md)). The ONE
+  ([seed inheritance](../../docs/decisions/seed-inheritance-2026-09-25.md)). The ONE
   stamp is the host's dead mark (`deadSince`, `deadReason`, `deadCheck`),
   and it is written so its writers cannot make it lie. It is honoured only
   on the check its `deadCheck` digest names, and only when every entry of
@@ -217,7 +217,7 @@ Neighbours:
   ordinary tier call carries its full selector. Shared catalog authorship is a
   separate platform operation: its `platform-tissue-author` trace actor names
   host-paid calls independently of the customer's three tier rows
-  ([contract](../../docs/tissue-routing-2026-10-02.md)).
+  ([contract](../../docs/decisions/tissue-routing-2026-10-02.md)).
 - THE PAYER IS THE SELECTOR'S FIRST SEGMENT (`payerForSelector`): `sub:` is
   `host-subscription`, `own:` is `principal-subscription`, `api:` is `org-key`
   when the organisation brought the vendor's key, else `host-key`, or

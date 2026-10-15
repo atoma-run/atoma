@@ -3,7 +3,7 @@ import { MAX_VIEWPORT_PX, MIN_VIEWPORT_PX, type httpObservationSchema } from './
 
 /**
  * THE ACCEPTANCE CHECKLIST — what a run says, before planning, it will prove.
- * docs/acceptance-checklist-2026-09-25.md.
+ * docs/decisions/acceptance-checklist-2026-09-25.md.
  *
  * Drafted once per run from the goal by the cheapest tier, handed to the
  * planner through the root task's `inputs`, and covered at root acceptance
@@ -83,7 +83,7 @@ export function phaseCriteriaOf(checklist: AcceptanceChecklist, source: Checklis
 }
 
 /**
- * THE USER-APPROVED LIST, as a caller submits it — docs/acceptance-contract-2026-09-14.md.
+ * THE USER-APPROVED LIST, as a caller submits it — docs/decisions/acceptance-contract-2026-09-14.md.
  *
  * STRICT where the drafted parse is lenient: an unknown key, a malformed item
  * or a thirteenth item refuses the whole request instead of being dropped,

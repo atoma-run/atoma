@@ -9,7 +9,7 @@ export type DB = Database.Database;
 /**
  * ONE registry for the whole platform. A run is a run: the operator's, an
  * organisation's, anyone's — they all read the same rows and earn trust on
- * the same counters (decision 2026-09-15, `docs/platform-trust-2026-09-15.md`).
+ * the same counters (decision 2026-09-15, `docs/decisions/platform-trust-2026-09-15.md`).
  * The per-owner partition of 2026-09-09 is folded back by
  * `migrateRegistryToPlatform` below.
  */

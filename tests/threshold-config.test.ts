@@ -50,7 +50,7 @@ describe('lifecycle thresholds are operator-configurable', () => {
   });
 
   it('skill dispatch trust reads no threshold: a script with a fallback is trusted until it fails', () => {
-    // Owner decision 2026-09-26 (docs/compile-at-learn-2026-09-26.md).
+    // Owner decision 2026-09-26 (docs/decisions/compile-at-learn-2026-09-26.md).
     process.env['ATOMA_TRUST_THRESHOLD'] = '5';
     expect(shouldTrustSkill({ failures: 0, fallbackBody: '1. recipe' })).toBe(true);
     expect(shouldTrustSkill({ failures: 1, fallbackBody: '1. recipe' })).toBe(false);

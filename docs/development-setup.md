@@ -34,7 +34,7 @@ Node is pinned to **24.20.0** (`.nvmrc`), the runtime production runs;
 driver needs Node-API 10 (22.14+), and keeping a second supported line meant a
 second full CI arm for a version nothing deploys. Every CI job, the release
 job and the mender image use the pin. The
-[native SQLite incident](incidents/sqlite-node24-2026-09-06.md) records the
+[native SQLite incident](../records/incidents/sqlite-node24-2026-09-06.md) records the
 runtime evidence behind the driver requirement.
 
 ```bash

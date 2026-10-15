@@ -189,7 +189,7 @@ Neighbours:
   on 2026-09-23 against a backlog that had held 17 candidates and zero defects
   since 2026-09-06, one of them a probe defect fixed in `src/tools/builtin.ts`
   with a regression test the day after it was filed as a candidate
-  ([incident](../../docs/incidents/progressive-runs-2026-09-21.md)). Omitting a
+  ([incident](../../records/incidents/progressive-runs-2026-09-21.md)). Omitting a
   `proposedFix` is a decision about the proposal, never a reason to downgrade
   the kind.
 - An invalid verdict is kept raw beside the verdicts and journals NOTHING: a
@@ -236,7 +236,7 @@ Neighbours:
   the whole-tree type-aware lint aborted at the 1536 MiB heap after 191 s
   (3.5 GiB resident unbounded), so every mend reaching the old full check
   would have been refused
-  ([incident](../../docs/incidents/mender-never-opened-2026-09-28.md)). The MODEL runs less still: each of its commands
+  ([incident](../../records/incidents/mender-never-opened-2026-09-28.md)). The MODEL runs less still: each of its commands
   is bounded (`MENDER_COMMAND_BOUND_MS`, 120 s), so the prompt names the
   checks that fit. Prompt `m2` made a green full check its condition for
   `fixed`.
@@ -261,7 +261,7 @@ Neighbours:
   through the list API, which does not lag like search. GitHub unable to
   answer HOLDS the gate, like a torn index. Explicit commands are not bounded.
 - WHAT MAY BE SHIPPED (`checkDiffPolicy`): an allowlist — `src/`, `tests/`,
-  `docs/incidents/` — at least one test file, at least one source file, at
+  `records/incidents/` — at least one test file, at least one source file, at
   most `DEFAULT_MAX_DIFF_LINES` changed lines. Workflows, deploy scripts,
   hooks, dependencies and this subsystem's own code are a person's decision.
   Anything else is `refused`, nothing is pushed, and the worktree is KEPT for

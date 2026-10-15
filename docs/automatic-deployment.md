@@ -329,7 +329,7 @@ binary on the service account's `PATH` for the connect probe
 approval before a third-party product routes `claude.ai` subscription
 credentials, and that approval has not been granted: the owner chose to ship
 the connection as a beta anyway
-([decision](personal-claude-beta-2026-10-08.md)). See Anthropic's
+([decision](decisions/personal-claude-beta-2026-10-08.md)). See Anthropic's
 [Agent SDK authentication boundary](https://code.claude.com/docs/en/agent-sdk#authentication)
 and [legal and compliance guidance](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use).
 

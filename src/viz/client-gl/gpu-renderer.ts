@@ -1361,7 +1361,7 @@ export class GpuRenderer {
     // MSAA is the single largest cost of a frame on an integrated GPU: the
     // 4-sample colour and stencil targets at 2560×1600 cost 2.5–3× the rest of
     // the frame put together, whatever the view draws (measured 2026-09-06,
-    // docs/incidents/gpu-frame-cost-2026-09-06.md). `?atomaQuality=performance`
+    // records/incidents/gpu-frame-cost-2026-09-06.md). `?atomaQuality=performance`
     // trades edge antialiasing for that headroom for ONE session — a
     // diagnostic switch beside `?renderer=webgl`, never the default.
     const antialias = params.get('atomaQuality') !== 'performance';
