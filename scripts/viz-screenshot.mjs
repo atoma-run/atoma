@@ -54,6 +54,7 @@
  *                        overview. Overview re-activates the selected menu,
  *                        exercising the real return transition.
  *   --tuning             Open the floating Scene Tuning window.
+ *   --activate <ids>     Click comma-separated canvas hit target IDs before capture.
  *   --handheld           A phone (390x844, touch as the only pointer): the
  *                        mobile notice then login or authenticated entry
  *                        (-gate, -notice and -projects PNGs beside --out).
@@ -1880,6 +1881,22 @@ try {
         .find(entry => entry.id === 'run.filter.branch.c1').label);
       if (label !== 'TASK 1.1 · EXECUTION OF PHASE 1') throw new Error(`Unexpected task chip: ${label}`);
       console.log('Branch headings: distinct phase and delegated execution selected through canvas controls');
+    }
+    if (has('--activate')) {
+      // Click canvas hit targets in order (comma-separated ids), then shoot:
+      // a generic way to reach a state no dedicated probe covers.
+      const ids = String(arg('--activate') ?? '').split(',').map(entry => entry.trim()).filter(Boolean);
+      for (const id of ids) {
+        await page.waitForFunction(targetId => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === targetId),
+          { timeout: READY_TIMEOUT_MS }, id);
+        const point = await page.evaluate(targetId => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === targetId);
+          return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+        }, id);
+        await page.mouse.click(point.x, point.y);
+        await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 400)));
+      }
     }
     if (has('--live-runs-probe')) {
       if (!authed || !platformAdmin || view !== 'Live runs') throw new Error('--live-runs-probe requires --auth --platform-admin --view "Live runs"');

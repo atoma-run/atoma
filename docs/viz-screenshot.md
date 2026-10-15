@@ -26,6 +26,7 @@ npm run viz:shot -- --auth --select-first --github-access --github-access-probe 
 npm run viz:shot -- --auth --view Runs              # any nav tab by its label
 npm run viz:shot -- --auth --view Runs --timeline-probe # hover preview and canvas navigation through the mini timeline
 npm run viz:shot -- --auth --view Runs --branch-heading-probe # inherited brief: phase and execution headings through canvas clicks
+npm run viz:shot -- --auth --view Runs --activate run.filter.branch.p1 # click a canvas target before capture; comma-separate IDs for a sequence
 npm run viz:shot -- --auth --view Runs --event-participants-probe # tiered initiator/target controls and atom navigation
 npm run viz:shot -- --auth --view Runs --planning-detail-probe # task and plan first; readable skill and raw context toggle
 npm run viz:shot -- --auth --view Runs --skill-context-probe # readable skill recipe and recorded-context toggle through canvas clicks
