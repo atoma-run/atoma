@@ -164,6 +164,8 @@ const TIMELINE_ROW_OFFSET = 1;
  * reservation that fitted neither.
  */
 const EVENT_TITLE_X = 11;
+/** The 14px live crystal plus its gap, ahead of a bookend title. */
+const LIVE_CRYSTAL_ADVANCE = 18;
 const EVENT_COLUMN_GAP = 10;
 const EVENT_ACTOR_MIN_WIDTH = 64;
 /** Enough for `L1 CarbonDioxide`, the longest molecule name plus its tier. */
@@ -781,29 +783,6 @@ export function drawRuns(
     controlsBottom = branchBlock.y + branchBlock.height + FILTER_BLOCK_GAP;
   }
 
-  if (isRunLive(run) && inFlight.length) {
-    const liveY = controlsBottom + 5;
-    ctx.panel(lowerControlsLayer, leftX + 14, liveY, leftWidth - 28, 52, 0x10263b, GPU_COLORS.cyan);
-    const current = inFlight.at(-1)!;
-    const tools = run.events.filter(
-      (event) => event.kind === 'tool' && event.llmEventId === current.llmEventId
-    );
-    ctx.text(
-      lowerControlsLayer,
-      `${snapshot.t('now.title')} · ${(current.role ?? 'LLM').toUpperCase()} · ${current.actor?.name ?? '?'} · ${snapshot.t('now.elementCount', { count: tools.length })}`,
-      leftX + 24,
-      liveY + 11,
-      { size: 10, color: GPU_COLORS.cyan, weight: '700' }
-    );
-    ctx.text(
-      lowerControlsLayer,
-      truncate(nowDescription(snapshot.t, current), 130),
-      leftX + 24,
-      liveY + 29,
-      { size: RUNS_FACTS_SIZE, color: GPU_COLORS.muted, width: leftWidth - 48 }
-    );
-    controlsBottom = liveY + 57;
-  }
 
   if (runFilters.branchId !== 'all') {
     const selectedBranch = overviewById.get(runFilters.branchId);
@@ -1120,7 +1099,8 @@ export function drawRuns(
     accent: number,
     title: string,
     prose: string,
-    facts: string
+    facts: string,
+    crystalColor?: number
   ): void => {
     const y =
       listY + contentTopPadding + row * rowHeight - scrollY;
@@ -1132,15 +1112,19 @@ export function drawRuns(
     panel.stroke({ color: accent, width: 1.2, alpha: 0.75 });
     panel.eventMode = 'none';
     listLayer.addChild(panel);
+    const titleX = cardBaseX + EVENT_TITLE_X + (crystalColor === undefined ? 0 : LIVE_CRYSTAL_ADVANCE);
+    if (crystalColor !== undefined) {
+      attachLiveAtomaMark(ctx.animatedLayer(listLayer, 'run-now-crystal'),
+        callback => ctx.addTicker(callback), cardBaseX + EVENT_TITLE_X, y + (cardHeight - 14) / 2, crystalColor);
+    }
     const titleLabel = ctx.text(
       listLayer,
       title,
-      cardBaseX + EVENT_TITLE_X,
+      titleX,
       y + EVENT_TITLE_TOP,
       { size: EVENT_TITLE_SIZE, weight: '700', color: accent, singleLine: true }
     );
-    const detailX =
-      cardBaseX + EVENT_TITLE_X + titleLabel.width + EVENT_COLUMN_GAP;
+    const detailX = titleX + titleLabel.width + EVENT_COLUMN_GAP;
     const detailWidth = Math.max(
       0,
       cardBaseX + cardBaseWidth - EVENT_TITLE_X - detailX
@@ -1169,20 +1153,40 @@ export function drawRuns(
 
   const endedMs = run.endedAt ? Date.parse(run.endedAt) : NaN;
   const runOver = status !== 'live' && status !== 'abandoned';
-  bookend(
-    0,
-    statusColor,
-    `${runOver ? snapshot.t('timeline.runEnded') : snapshot.t('timeline.runUnfinished')} · ${statusLabel}`,
-    run.error ?? '',
-    [
-      fmtMs(run.durationMs),
-      snapshot.t('runs.calls', { count: run.totals?.calls ?? 0 }),
-      fmtCost(run.totals?.costUsd),
-      clockTime(endedMs),
-    ]
-      .filter(Boolean)
-      .join(' · ')
-  );
+  const endFacts = [
+    fmtMs(run.durationMs),
+    snapshot.t('runs.calls', { count: run.totals?.calls ?? 0 }),
+    fmtCost(run.totals?.costUsd),
+    clockTime(endedMs),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  // A live run's top row says what is happening RIGHT NOW. It used to be a
+  // separate 52px banner above the timeline, on top of a "Run not finished"
+  // row that said nothing new — two rows of height for one fact (owner,
+  // 2026-10-15). The live crystal stands for the status the old title spelled.
+  const current = isRunLive(run) ? inFlight.at(-1) : undefined;
+  if (current) {
+    const tools = run.events.filter(
+      (event) => event.kind === 'tool' && event.llmEventId === current.llmEventId
+    );
+    bookend(
+      0,
+      GPU_COLORS.cyan,
+      `${snapshot.t('now.title')} · ${(current.role ?? 'LLM').toUpperCase()} · ${current.actor?.name ?? '?'} · ${snapshot.t('now.elementCount', { count: tools.length })}`,
+      nowDescription(snapshot.t, current),
+      endFacts,
+      statusColor
+    );
+  } else {
+    bookend(
+      0,
+      statusColor,
+      `${runOver ? snapshot.t('timeline.runEnded') : snapshot.t('timeline.runUnfinished')} · ${statusLabel}`,
+      run.error ?? '',
+      endFacts
+    );
+  }
   bookend(
     totalRows - 1,
     GPU_COLORS.primary,

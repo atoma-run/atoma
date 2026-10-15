@@ -6744,6 +6744,32 @@ describe('drawRuns — run status and timeline bookends', () => {
     expect(texts.some((value) => value.startsWith(t('timeline.runEnded')))).toBe(false);
   });
 
+  it('puts "right now" in the live run\'s top row, with the live crystal, instead of a banner above it', () => {
+    const ctx = createRecordingCtx();
+    const live = makeRun([
+      makeLlmEvent('a', { ts: Date.now() }),
+      makeLlmEvent('b-start', {
+        ts: Date.now(),
+        kind: 'llm-start',
+        llmEventId: 'b',
+        role: 'execute',
+        actor: { tier: 1, name: 'Sucrose' },
+        response: undefined,
+      }),
+    ]);
+    delete (live as { endedAt?: string }).endedAt;
+    drawRuns(ctx, makeSnapshot({}, { run: live }), WIDTH, HEIGHT);
+    const now = ctx.texts.filter((entry) => entry.value.startsWith(t('now.title')));
+    const started = ctx.texts.find((entry) => entry.value === t('timeline.runStarted'));
+    // ONE row says it: the banner is gone and the unfinished bookend with it.
+    expect(now).toHaveLength(1);
+    expect(now[0]!.value).toContain('Sucrose');
+    expect(now[0]!.y).toBeLessThan(started!.y);
+    expect(textsOf(ctx).some((value) => value.startsWith(t('timeline.runUnfinished')))).toBe(false);
+    const crystal = findByLabel(ctx.root, 'run-now-crystal');
+    expect(crystal && findByLabel(crystal, 'live-atoma-crystal')).toBeTruthy();
+  });
+
   /**
    * Rail continuity, 2026-08-15: on a real run every branch END was drawn as a
    * hook hanging half a row above its own rail, because the join connector
