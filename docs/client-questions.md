@@ -13,8 +13,13 @@ with consequences. Free-text answers remain possible.
 This is a model judgment, not a keyword detector. The first implementation has
 no live accuracy or unnecessary-question-rate claim. Its call is recorded as
 `plan` by `run-client-question`, uses the run's resolved L1 model, is capped at
-1,536 output tokens and shares the ordinary run budget. Invalid/truncated
-assessments fail rather than fabricate a question or authorization. There is
+1,536 output tokens and 90 seconds, and shares the ordinary run budget.
+Invalid, truncated, failed or timed-out assessments never fabricate a question
+or an authorization: since 2026-10-15 they ask nothing and the run goes on, as
+a run without automatic checkpoints does, with a warning in its log. They used
+to fail the run, and run c89a3cc7 died before its first phase when its L1, on
+a transport that does not enforce `maxTokens`, wrote 60,257 tokens of code for
+484 seconds. Cancellation still propagates. There is
 no polling or model call while the run waits for its client.
 
 ## MCP workflow

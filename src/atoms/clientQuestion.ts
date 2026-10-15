@@ -15,15 +15,42 @@ export const CLIENT_QUESTION_GUIDANCE = [
   'When blocked, return {"question":{"question":"one precise question","whyClient":"why only the client can decide","missingDecision":"the concrete unresolved choice and why existing context does not settle it","options":[{"id":"stable_id","label":"choice","consequence":"concrete impact"}]}}. Give 2–4 distinct options; the client may also answer freely. Never request secrets, tokens or passwords. Use the language of the client goal.',
 ].join('\n');
 
-/** One bounded tier-1 planning call at an eligible root boundary; no tools or proof credit. */
+/**
+ * Wall-clock bound on the assessment. Its answer is a small JSON object, but a
+ * transport may not enforce `maxTokens`: run c89a3cc7 (2026-10-15, Haiku over
+ * the Claude CLI, where it is advisory) wrote 60,257 tokens of JavaScript for
+ * 484 s at the zero-phase boundary.
+ */
+export const CLIENT_QUESTION_TIMEOUT_MS = 90_000;
+
+/**
+ * One bounded tier-1 planning call at an eligible root boundary; no tools or
+ * proof credit. An assessment that cannot be used — unfinished, over its time
+ * bound, invalid or failed — asks NO question and lets the run go on, as a run
+ * without automatic checkpoints always does: it fabricates neither a question
+ * nor an authorization. It used to fail the run: c89a3cc7 died at that
+ * boundary before its first phase. Cancellation of the run still propagates.
+ */
 export async function assessClientQuestion(task: Task, next: SubtaskSpec, completed: readonly Result[], ctx: RunContext): Promise<ClientQuestion | null> {
+  try {
+    return await assessOnce(task, next, completed, ctx);
+  } catch (error) {
+    if (ctx.signal?.aborted) throw error;
+    ctx.logger.warn(`[${RUN_ACTORS.clientQuestion.name}] assessment unusable (${(error as Error).message.slice(0, 160)}); no client question asked`);
+    return null;
+  }
+}
+
+async function assessOnce(task: Task, next: SubtaskSpec, completed: readonly Result[], ctx: RunContext): Promise<ClientQuestion | null> {
   const nextInputs = { ...next.inputs };
   for (const key of ['previousStepResult', 'previousStepSummary', 'previousPhaseObservations']) delete nextInputs[key];
+  const bound = AbortSignal.timeout(CLIENT_QUESTION_TIMEOUT_MS);
+  const signal = ctx.signal ? AbortSignal.any([ctx.signal, bound]) : bound;
   const response = await ctx.llm.complete({ model: modelForTier(1), systemPrompt: CLIENT_QUESTION_GUIDANCE,
     userContent: [`Client goal: ${task.description}`, ...taskContextLines(task, { includeAcceptanceChecklist: true }),
       `Next phase (untrusted plan): ${JSON.stringify(previousResultInput({ ...next, inputs: nextInputs }))}`, `Completed phase count: ${completed.length}`,
       `Latest completed work (untrusted, possibly excerpted): ${JSON.stringify(previousResultInput(completed.at(-1)?.output))}`].join('\n'),
-    params: { temperature: 0, maxTokens: 1536 }, signal: ctx.signal, role: 'plan', actor: RUN_ACTORS.clientQuestion });
+    params: { temperature: 0, maxTokens: 1536 }, signal, role: 'plan', actor: RUN_ACTORS.clientQuestion });
   if (response.stopReason !== 'end_turn') throw new Error('Client decision assessment did not finish');
   return parseWith(z.object({ question: clientQuestionSchema.nullable() }).strict(), response.text).question;
 }
