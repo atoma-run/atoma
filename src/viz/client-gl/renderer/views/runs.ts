@@ -516,7 +516,9 @@ export function drawRuns(
   // The four run metrics and the atoms-used lanes live in the RUN summary
   // card on the right pane; a single-pane viewport has no summary card, so
   // both keep a row here instead.
-  let filterTop = top + 72 + RUNS_PROJECT_TITLE_HEIGHT;
+  // The age under the status ends just below the selector. Leave one compact
+  // gutter after the selector instead of the old 32px empty band.
+  let filterTop = RUN_PICKER_CONTROL_TOP + RUN_PICKER_CONTROL_HEIGHT + 16;
   const actionWidth = Math.min(RUN_ACTION_MAX_WIDTH, (leftWidth - 36) / 2);
   const activity = buildRunActivity(run);
   // ONE row of the run's actions: the way back to a project run's list, its
