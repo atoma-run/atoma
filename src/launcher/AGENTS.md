@@ -272,7 +272,13 @@ teardown must share ONE deadline, not each get a fresh budget.
   durable and still need the fallback.
 - **Recovering an owner id from an object name.** Names carry a hash, so they
   cannot be reversed. A reconciler only needs to remove the object; a caller
-  that needs the original owner holds it already.
+  that needs the original owner holds it already. The one exception is
+  `reapDeadRunEgress` (in-process egress, 2026-10-15, when production ran out
+  of Docker address pools): it never reverses a name. It forms the candidate
+  owner `run-<pid>` from the label, keeps it only when the label's hash proves
+  it, and reaps it only when that pid no longer exists. Egress networks carry
+  their creator's pid namespace (`dev.atoma.pidns`) and only a sweeper in that
+  namespace judges them; unlabelled legacy ones only on Linux.
 - **A second copy of the naming rule.** `networkName` and `unitName` are on the
   contract so a failure path with no handle can still name what it must
   remove, instead of rebuilding the rule at the call site.

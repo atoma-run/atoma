@@ -4,8 +4,8 @@ export { launcherObjectId } from './names.js';
 import { execFile, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
-import { chownSync, mkdirSync, rmSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { chownSync, mkdirSync, readlinkSync, rmSync } from 'node:fs';
+import { homedir, hostname } from 'node:os';
 import { isIPv4 } from 'node:net';
 import path from 'node:path';
 import type {
@@ -60,6 +60,8 @@ const DOCKER_EXIT_COMMAND_TIMEOUT_MS = 250;
 /** The label every object carries, so orphans are findable by one query. */
 export const LAUNCHER_OWNER_LABEL = 'dev.atoma.owner';
 export const LAUNCHER_RUN_LABEL = 'dev.atoma.run';
+/** The pid namespace whose runner created an egress network: pids mean nothing outside it. */
+export const LAUNCHER_PIDNS_LABEL = 'dev.atoma.pidns';
 export const LAUNCHER_PREVIEW_LABEL = 'dev.atoma.preview';
 
 /**
@@ -141,6 +143,21 @@ async function defaultDocker(args: string[]): Promise<string> {
       : DOCKER_COMMAND_TIMEOUT_MS,
   });
   return stdout.trim();
+}
+
+/** This process's pid namespace: the kernel's id on Linux, else the host name. */
+export function pidNamespace(): string {
+  try { return readlinkSync('/proc/self/ns/pid'); } catch { return `host:${hostname()}`; }
+}
+
+/** Whether a pid names a process in this pid namespace; one this process may not signal is live. */
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
 }
 
 async function quiet(runDocker: AsyncDockerRunner, args: string[]): Promise<void> {
@@ -494,10 +511,9 @@ export class DockerLauncher implements ContainerLauncher {
   }
 
   /** Service-side counterpart of hard-exit cleanup, scoped to one dead caller. */
-  async reapDisconnectedOwner(family: LauncherFamily, ownerId: LauncherOwnerId): Promise<void> {
+  async reapDisconnectedOwner(family: LauncherFamily, ownerId: LauncherOwnerId, deadline = this.cleanupDeadline()): Promise<void> {
     const owned = this.ownedObjects(family, ownerId);
     for (const container of owned.containers) await quiet(this.runDocker, ['rm', '-f', container]);
-    const deadline = this.cleanupDeadline();
     let gone = true;
     for (const network of owned.networks) {
       try {
@@ -516,6 +532,50 @@ export class DockerLauncher implements ContainerLauncher {
     if (!gone) throw new Error('Disconnected owner cleanup incomplete');
     this.disarmHardExitCleanup(family, ownerId);
   }
+  /**
+   * Reap the egress objects of runner processes that no longer exist.
+   *
+   * A run killed with SIGKILL after its SIGTERM grace never reaches the exit
+   * registry, and this in-process path has no launcher service to reconcile
+   * at boot: on 2026-10-15 every production run failed at `network create`
+   * with "all predefined address pools have been fully subnetted". A runner
+   * owner is `run-<pid>` (or a bare pid); the label is only trusted when its
+   * hash proves that exact owner, and a pid that exists — or that this process
+   * may not signal — is live. Only networks labelled with this process's
+   * pid namespace are judged (legacy unlabelled ones by a Linux sweeper
+   * only), and one deadline bounds the whole sweep; a recycled pid only
+   * defers a reap. Returns the owners reaped.
+   */
+  async reapDeadRunEgress(isAlive: (pid: number) => boolean = processAlive): Promise<number> {
+    const stdout = await this.runDocker([
+      'network', 'ls', '--filter', `label=${LAUNCHER_OWNER_LABEL}=egress`,
+      '--format', `{{.Label "${LAUNCHER_RUN_LABEL}"}}\t{{.Label "${LAUNCHER_PIDNS_LABEL}"}}`,
+    ]);
+    const namespace = pidNamespace();
+    // Networks from before the namespace label: production's runners are all
+    // Linux host processes, so only a Linux sweeper may judge those.
+    const legacyJudged = process.platform === 'linux';
+    const deadline = this.cleanupDeadline();
+    let reaped = 0;
+    const ids = new Set<string>();
+    for (const row of stdout.split('\n')) {
+      const [id = '', ns = ''] = row.trim().split('\t');
+      if (id && (ns === namespace || (ns === '' && legacyJudged))) ids.add(id);
+    }
+    for (const id of ids) {
+      const match = /^(run-)?(\d+)-[0-9a-f]{10}$/.exec(id);
+      if (!match) continue;
+      const pid = Number(match[2]);
+      const ownerId = `${match[1] ?? ''}${match[2]}`;
+      if (launcherObjectId(ownerId) !== id || pid === process.pid || isAlive(pid)) continue;
+      try {
+        await this.reapDisconnectedOwner('egress', ownerId, deadline);
+        reaped += 1;
+      } catch { /* left for the next run's sweep */ }
+    }
+    return reaped;
+  }
+
   armHardExitCleanup(family: LauncherFamily, ownerId: LauncherOwnerId): void {
     exitRegistry.track(`${family}:${ownerId}`, this.ownedObjects(family, ownerId));
   }
@@ -535,6 +595,7 @@ export class DockerLauncher implements ContainerLauncher {
   async createNetwork(spec: LauncherNetworkSpec): Promise<LauncherNetworkHandle> {
     const name = this.networkName(spec);
     const labels = this.labels(spec.family, spec.ownerId);
+    if (spec.family === 'egress') labels.push('--label', `${LAUNCHER_PIDNS_LABEL}=${pidNamespace()}`);
     if (spec.kind === 'internal') {
       // `--internal` alone still assigns the bridge a host gateway address;
       // Docker explicitly documents that containers can reach host services

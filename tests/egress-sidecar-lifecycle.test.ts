@@ -1,3 +1,4 @@
+import { pidNamespace } from '../src/launcher/docker.js';
 import { describe, it, expect } from 'vitest';
 import {
   EGRESS_ASYNC_CLEANUP_BUDGET_MS,
@@ -135,6 +136,8 @@ describe('egress sidecar Docker topology', () => {
         'dev.atoma.owner=egress',
         '--label',
         `dev.atoma.run=${id}`,
+        '--label',
+        `dev.atoma.pidns=${pidNamespace()}`,
         '--opt',
         'com.docker.network.bridge.gateway_mode_ipv4=isolated',
         '--opt',
@@ -148,6 +151,8 @@ describe('egress sidecar Docker topology', () => {
         'dev.atoma.owner=egress',
         '--label',
         `dev.atoma.run=${id}`,
+        '--label',
+        `dev.atoma.pidns=${pidNamespace()}`,
         sidecar.uplinkNetwork,
       ]);
       expect(calls).toContainEqual([

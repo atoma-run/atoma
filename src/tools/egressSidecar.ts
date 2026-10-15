@@ -119,6 +119,9 @@ export async function startEgressSidecar(
   // creating: `docker network create` fails on an existing name, and the
   // failure would be reported as "egress unavailable" for a stale object.
   try {
+    // Every earlier runner killed past its exit handler left two networks
+    // behind; the engine's address pools run out long before its disk does.
+    await launcher.reapDeadRunEgress?.().catch(() => 0);
     await launcher.purgeOwner('egress', ownerId);
 
     // Arm hard-exit cleanup before creation too: if stale-object removal raced

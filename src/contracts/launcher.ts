@@ -375,6 +375,13 @@ export interface ContainerLauncher {
    * rather than reaping silently.
    */
   reconcileOrphans(): Promise<number>;
+
+  /**
+   * In-process backend only: remove the egress objects of runner processes
+   * on this host that no longer exist, never a live one. A service launcher
+   * reaps its disconnected owners itself and omits it.
+   */
+  reapDeadRunEgress?(): Promise<number>;
 }
 
 /** Parsed at module load, like every contract example in this directory. */

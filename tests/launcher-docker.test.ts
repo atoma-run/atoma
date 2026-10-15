@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
+import { pidNamespace } from '../src/launcher/docker.js';
 import {
   type ContainerLauncher,
   EXAMPLE_EGRESS_PROXY_SPEC,
@@ -103,6 +104,8 @@ describe('launcher network creation', () => {
         `${LAUNCHER_OWNER_LABEL}=egress`,
         '--label',
         `dev.atoma.run=${id}`,
+        '--label',
+        `dev.atoma.pidns=${pidNamespace()}`,
         '--opt',
         'com.docker.network.bridge.gateway_mode_ipv4=isolated',
         '--opt',
