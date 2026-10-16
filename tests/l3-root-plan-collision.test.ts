@@ -1,3 +1,4 @@
+import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { describe, it, expect } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
@@ -199,7 +200,7 @@ describe('acceptL3RootPlan', () => {
   });
 });
 
-describe('L3.handle — root plan has no parent validator', () => {
+describe('L3.handle — collision coaching precedes contract review', () => {
   function seed(): { l3: L3Atom } {
     const reg = new AtomRegistry(openDb(':memory:'));
     reg.create(3, { description: 'tissue', systemPrompt: 'l3', tools: [], params: {}, createdBy: 't' });
@@ -231,6 +232,8 @@ describe('L3.handle — root plan has no parent validator', () => {
         }
       )
     );
+    ctx.llm.enqueue(req => ({ text: JSON.stringify({ approved: true, reasoning: 'Fixture reviewed', ...mockOtherProofReview(req) }),
+      stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } }));
     let executed: Plan | undefined;
     l3.execute = async (_task, p) => {
       executed = p;
@@ -274,6 +277,8 @@ describe('L3.handle — root plan has no parent validator', () => {
         }
       )
     );
+    ctx.llm.enqueue(req => ({ text: JSON.stringify({ approved: true, reasoning: 'Fixture reviewed', ...mockOtherProofReview(req) }),
+      stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } }));
     let executed: Plan | undefined;
     l3.execute = async (_task, p) => {
       executed = p;
@@ -312,6 +317,8 @@ describe('L3.handle — root plan has no parent validator', () => {
     ctx.llm.enqueueText(
       jsonTextPair({ strategy: 'create', reasoning: 'r' }, { reasoning: 'r' })
     );
+    ctx.llm.enqueue(req => ({ text: JSON.stringify({ approved: true, reasoning: 'Fixture reviewed', ...mockOtherProofReview(req) }),
+      stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } }));
     let executed: Plan | undefined;
     let consumedStrategy: { strategy?: string; target?: string } | null = null;
     l3.execute = async (_task, p) => {
@@ -350,6 +357,8 @@ describe('L3.handle — root plan has no parent validator', () => {
     ctx.llm.enqueue(() => {
       throw new Error('aborted: deadline exceeded');
     });
+    ctx.llm.enqueue(req => ({ text: JSON.stringify({ approved: true, reasoning: 'Fixture reviewed', ...mockOtherProofReview(req) }),
+      stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } }));
     let executed: Plan | undefined;
     l3.execute = async (_task, p) => {
       executed = p;

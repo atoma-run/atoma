@@ -10,4 +10,10 @@ Implementation contract: [decision](../docs/decisions/parent-owned-tests-2026-10
 Typed `acceptanceTests` and earlier-index `dependsOn` extend the existing plans
 and shared supervision/dispatch. The fixed Node Vitest runner uses disposable
 copies. Non-code, real-browser and subprocess checks retain appropriate probes.
-Attica remains explicitly stopped; this change does not authorize its restart.
+Attica test `fec4ef6a-e0a1-4227-ae5b-21cdd307da63` exposed root plans without
+executable tests and a fictional prose-only post-inspection replan. Cancelled
+before implementation, 0.3236 USD subscription equivalent. Owner explicitly asked
+to fix, push/deploy, start a new Attica run and follow it. The correction adds
+mandatory classified root review, structural checks on required suites and
+parallelism, and one host-driven read-only discovery/replan. See
+[review](../records/reviews/attica-delegation-contract-2026-10-16.md).

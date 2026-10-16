@@ -5,19 +5,21 @@ import type { Plan, RunContext, Task } from '../core/types.js';
  * L3 root-plan check: declared-output collision on a PARALLEL plan.
  *
  * Why this is not a `validatePlan` call. `superviseLoop` validates the
- * CHILD's plan. The L3 root has no parent (`L3Atom.handle` is plan →
- * execute), so the FAN-OUT artefact-collision rule in `verdict.ts` never
- * sees this plan. Coercing `concat` → `sequential` is also forbidden:
+ * CHILD's plan. This separate zero-token collision coaching predates the
+ * mandatory root delegation review. L3.handle now runs that review AFTER
+ * this helper; fail-open here never bypasses the contract review. Coercing
+ * `concat` → `sequential` is also forbidden:
  * an explicit concat is honoured (`L3Atom` routeCrossBucket comment;
  * `l3-truncated-plan-aggregation`). The remaining actor who can fix the
  * plan is Opus itself.
  *
  * Disposition: reject-once-then-honour. The first collision coaches one
  * replan (constraints, same task description). Whatever comes back is
- * executed — a second look would be a validator we do not have, or an
- * unbounded loop. Memoised on `ctx.mechanicalPlanRejections` under a
+ * returned to the caller for contract review — this helper itself never
+ * adds an unbounded collision-coaching loop. Memoised on
+ * `ctx.mechanicalPlanRejections` under a
  * single class key so a repeat cannot spend another strategy call. The
- * replan is FAIL-OPEN: if it throws, the original plan runs, because a
+ * replan is FAIL-OPEN: if it throws, the original plan reaches review: a
  * race that still delivers beats a run that never starts.
  *
  * Channel: DECLARED `outputs` only. The lexical grammar is a fallback

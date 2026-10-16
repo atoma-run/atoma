@@ -1068,6 +1068,7 @@ export const planSchema = z.preprocess(
   },
   z.object({
     reasoning: z.string(),
+    replanAfter: z.boolean().nullish().transform(v => v ?? undefined),
     delivery: deliveryKindSchema.nullish().transform((value) => value ?? undefined),
     acceptanceTests: parentTestSuiteSchema.nullish().transform(v => v ?? undefined),
     subtasks: z.array(subtaskSpecSchema).min(1).superRefine((tasks, ctx) => {

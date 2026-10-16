@@ -50,3 +50,30 @@ worker's policy; suites must mock external services. Browser interactions and CL
 process behavior still use their existing probes. Project dependencies must
 already be installed. A snapshot over 100,000 files or 512 MiB is unavailable,
 not a pass. Generated harness files exist only in the disposable copy.
+
+## Mandatory planning review and discovery
+
+The first Attica trial exposed a missing admission boundary: a root plan could
+promise later tests and review in prose while its actual implementation branch
+carried no executable suite. L3 root plans now receive a mandatory tool-free
+review using the validation model before dispatch. The reviewer classifies every
+subtask and integration as Vitest-testable, inspection, or another proof method,
+and states whether useful independent work exists. The host requires complete,
+unique indices and refuses missing classified suites or a serial plan when the
+review identifies independent work, even beside an affirmative verdict. Scope
+classification and test quality remain semantic judgments, not file-extension or
+keyword detectors. Non-code work and browser/process checks retain their own proof.
+
+A rejected root plan gets bounded planning repair (three candidates total), not
+unreviewed execution or direct fallback. L2 plans under parent suites receive the
+same contract check within the existing L3 review, including trusted cells. Exact
+approved-plan reuse remains; changed contracts are reviewed again.
+
+When interfaces are unknown, L3 may emit `replanAfter: true` on an inspection-only
+plan without outputs. The host executes it read-only, then asks L3 for a new plan
+with bounded discovery observations and the original task. Only one discovery
+round is allowed. It is not registered as a completed implementation checkpoint,
+so the new plan never skips its first branch. Saved sequential plans are reviewed
+for remaining work on resume; DAG checkpoint support is unchanged.
+
+Incident and adversarial controls: [Attica planning review](../../records/reviews/attica-delegation-contract-2026-10-16.md).

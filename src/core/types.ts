@@ -151,6 +151,8 @@ export interface AggregationSpec {
  * child run when N=1.
  */
 export interface Plan {
+  /** L3-only read-only discovery, followed by one host-driven fresh plan. */
+  readonly replanAfter?: boolean;
   readonly acceptanceTests?: import('../contracts/parentTests.js').ParentTestSuite;
   readonly reasoning: string;
   readonly delivery?: import('../contracts/taskExecution.js').DeliveryKind;

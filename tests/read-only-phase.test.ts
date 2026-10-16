@@ -1,3 +1,4 @@
+import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   chmodSync,
@@ -475,9 +476,9 @@ function roleLlm(opts: { l2: string; l1: string; l3Plan?: unknown; l2Prefilter: 
         }
         case 'validate-result':
           validations.push(req.userContent);
-          return reply({ approved: true, reasoning: 'ok' });
+          return reply({ approved: true, reasoning: 'ok', ...mockOtherProofReview(req) });
         default:
-          return reply({ approved: true, reasoning: 'ok' });
+          return reply({ approved: true, reasoning: 'ok', ...mockOtherProofReview(req) });
       }
     },
   };

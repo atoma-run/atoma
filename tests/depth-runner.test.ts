@@ -1,3 +1,4 @@
+import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { mkdtempSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -77,7 +78,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         kind: 'reuse', target: recipe.id, confidence: 'high', reasoning: 'Match the recipe' };
       else if (req.role === 'prefilter') reply = { kind: 'reuse', target: req.actor?.tier === 3 ? cellName : leafName,
         confidence: deadline ? 'low' : 'high', reasoning: 'Reuse the canonical executor' };
-      else if (req.role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
+      else if (req.role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved', ...mockOtherProofReview(req) };
       else if (req.role === 'validate-result') {
         if (req.actor?.name === 'run-root') {
           // Credits must already be durable BEFORE the root's verdict; a new
@@ -218,7 +219,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       }
       if (req.actor?.name === 'run-router') reply = { action: 'reuse', name: 'Meristem', reasoning: 'Build fixture' };
       else if (role === 'prefilter') reply = { outcome: 'escalate', reasoning: 'Exercise decomposition' };
-      else if (role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
+      else if (role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved', ...mockOtherProofReview(req) };
       else if (role === 'validate-result') reply = { approved: false, reasoning: 'Fixture rejects output', scope: 'ephemeral', modifications: {} };
       else if (role === 'plan' && req.actor?.tier !== 1) reply = [
         { strategy: 'create', reasoning: 'One phase' },
@@ -315,7 +316,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         { behaviour: 'unknown note is 404', check: { kind: 'http', method: 'GET', path: '/api/notes/:id', status: 404 } },
       ] };
       else if (req.role === 'prefilter') reply = { kind: 'reuse', target: leafName, confidence: 'high', reasoning: 'Reuse the canonical executor' };
-      else if (req.role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
+      else if (req.role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved', ...mockOtherProofReview(req) };
       else if (req.role === 'validate-result') reply = { approved: true, reasoning: 'Accepted' };
       else if (req.role === 'plan' && req.actor?.tier !== 1) reply = [
         { strategy: 'reuse', target: leafName, reasoning: 'One server phase' },
@@ -393,7 +394,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       calls.push(req);
       let reply: unknown;
       if (req.role === 'prefilter') reply = { kind: 'reuse', target: leafName, confidence: 'high', reasoning: 'Reuse the canonical executor' };
-      else if (req.role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
+      else if (req.role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved', ...mockOtherProofReview(req) };
       else if (req.role === 'validate-result') reply = { approved: true, reasoning: 'Accepted', criteria: [
         { id: 'c1', met: true, reason: 'Observed GET /api/notes returns 200 with an empty list.' },
         { id: 'c2', met: true, reason: 'README contains the node server.cjs start command.' },
@@ -516,7 +517,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       }
       if (req.actor?.name === 'run-router') reply = { action: 'reuse', name: 'Meristem', reasoning: 'Build fixture' };
       else if (role === 'prefilter') reply = { outcome: 'escalate', reasoning: 'Exercise decomposition' };
-      else if (role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
+      else if (role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved', ...mockOtherProofReview(req) };
       else if (role === 'validate-result') reply = { approved: false, reasoning: 'Fixture rejects output', scope: 'ephemeral', modifications: {} };
       else if (role === 'plan' && req.actor?.tier !== 1) reply = [
         { strategy: 'create', reasoning: 'One phase' },

@@ -1,3 +1,4 @@
+import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { describe, expect, it, vi } from 'vitest';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
@@ -73,6 +74,8 @@ describe('a declared text delivery reaches the tasks that write the answer', () 
         reasoning: 'observe, then answer', delivery: 'text', aggregation: { mode: 'sequential' },
         subtasks: cells.map(cell => ({ description: cell.description, preferredChild: cell.name })),
       }));
+      ctx.llm.enqueue(req => ({ text: JSON.stringify({ approved: true, reasoning: 'Text scope reviewed', ...mockOtherProofReview(req) }),
+        stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } }));
       const received: Array<[string, Task['delivery']]> = [];
       vi.spyOn(L2Atom.prototype, 'plan').mockResolvedValue(makePlan());
       vi.spyOn(l3, 'validatePlan').mockResolvedValue({ approved: true, reasoning: 'valid' });

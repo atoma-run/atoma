@@ -1,3 +1,4 @@
+import { mockOtherProofReview } from '../helpers/delegationReview.js';
 import { clientQuestionFixture } from '../helpers/clientQuestion.js';
 // Separate process: only the provider is mocked; runner, supervision, tools,
 // registry credit, checkpoint persistence and final acceptance are production code.
@@ -37,7 +38,7 @@ const complete = async (req: LlmCompletionRequest) => {
   } else if (req.role === 'prefilter') {
     reply = { kind: 'reuse', target: req.actor?.tier === 3 ? cellName : leafName, confidence: 'high', reasoning: 'Reuse' };
   } else if (req.role === 'validate-plan' || req.role === 'validate-result') {
-    reply = { approved: true, reasoning: 'Fixture approved', activeSkillFollowed: true };
+    reply = { approved: true, reasoning: 'Fixture approved', activeSkillFollowed: true, ...mockOtherProofReview(req) };
   } else if (req.role === 'plan' && req.actor?.tier === 3) {
     const questionPhase = process.env['CHECKPOINT_TEST_QUESTION_PHASE'];
     const answering = process.env['CHECKPOINT_TEST_EXPECT_ANSWER'] === '1';

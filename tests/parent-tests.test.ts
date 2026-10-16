@@ -152,7 +152,7 @@ it('L3 reviews even a trusted L2, reuses unchanged approval, and reviews changed
   const cell=L2Atom.fromType(reg.getByName('Tracheid')!,reg);
   const plan=makePlan({subtasks:[{description:'addition',acceptanceTests:suite()}]});
   const ctx=makeCtx();const task={description:'addition'};
-  ctx.llm.enqueueText(JSON.stringify({approved:true,reasoning:'Tests cover signed addition and import the actual module.'}));
+  ctx.llm.enqueueText(JSON.stringify({approved:true,reasoning:'Tests cover signed addition and import the actual module.',delegationReview:{subtasks:[{index:0,kind:'vitest',reason:'addition'}],integration:{kind:'other',reason:'single module'},independentWork:false,parallelReason:'single addition module'}}));
   expect((await tissue.validatePlan(cell,plan,task,ctx)).approved).toBe(true);
   expect((await tissue.validatePlan(cell,plan,task,ctx)).approved).toBe(true);
   expect(ctx.llm.calls).toHaveLength(1);

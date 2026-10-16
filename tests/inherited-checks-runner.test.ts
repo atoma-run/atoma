@@ -1,3 +1,4 @@
+import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -68,7 +69,7 @@ describe('a seeded static-page run', () => {
       const role = req.role;
       if (req.actor?.name === 'run-router') reply = { action: 'reuse', name: 'Meristem', reasoning: 'Build fixture' };
       else if (role === 'prefilter') reply = { outcome: 'escalate', reasoning: 'Exercise decomposition' };
-      else if (role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
+      else if (role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved', ...mockOtherProofReview(req) };
       else if (role === 'validate-result') {
         if (req.actor?.name === 'run-root') rootPrompt = req.userContent;
         reply = { approved: true, reasoning: 'Fixture approves' };

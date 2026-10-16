@@ -1,3 +1,4 @@
+import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -788,7 +789,7 @@ describe('an obligation declared at L3 reaches the supervisor that watches the t
           return reply({ reasoning: 'r', proposedAction: 'write and verify', expectedOutput: 'e' });
         case 'validate-plan':
         case 'validate-result':
-          return reply({ approved: true, reasoning: 'ok' });
+          return reply({ approved: true, reasoning: 'ok', ...mockOtherProofReview(req) });
         case 'execute': {
           // The child drives the browser through the executor the runtime
           // handed it — the attesting wrapper installed by forkBranch.
@@ -805,7 +806,7 @@ describe('an obligation declared at L3 reaches the supervisor that watches the t
           });
         }
         default:
-          return reply({ approved: true, reasoning: 'ok' });
+          return reply({ approved: true, reasoning: 'ok', ...mockOtherProofReview(req) });
       }
     }
   }

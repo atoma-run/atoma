@@ -1,4 +1,5 @@
-import type { GenerationParams, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
+import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
+import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceDelegationReview } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { transportWitnesses } from '../contracts/witness.js';
@@ -32,6 +33,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
   'You validate agent outputs in a three-tier LLM orchestration system.',
   'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check coverage, boundary/negative cases, actual application imports, absence of trivial assertions or mocks replacing the subject, and ability to fail on wrong behavior. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. Passing tests only prove their assertions; assess integration and uncovered requirements separately. Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies.',
   'Your ONLY job: emit a single Verdict JSON. No prose, no markdown, no tool calls.',
+  'When REQUIRED DELEGATION CONTRACT REVIEW is requested, an approval must also include its complete delegationReview object; routing alone is insufficient.',
   TEXT_VERIFICATION_GUIDANCE,
   '',
   '== VALIDATION SCOPE ==',
@@ -164,13 +166,14 @@ export const VALIDATION_SYSTEM_PROMPT = [
   '    - If Plan kind is DELEGATION (child tier 2 or 3, routing to a lower tier):',
   '      the plan is a ROUTING decision. The visible-deliverables checklist does',
   '      NOT apply here — enumerating per-affordance UX detail is the downstream',
-  '      L1\'s responsibility, not the delegator\'s. APPROVE the plan when (a) the',
+  '      L1\'s responsibility, not the delegator\'s. After required test and parallel',
+  '      contracts pass, approve when (a) the',
   '      plan routes to a capable existing lower-tier child OR creates a new',
   '      child from the delegator\'s inherited toolset, AND (b) the',
   '      expectedOutput is present and preserves the task\'s intent. An',
   '      expectedOutput that restates the task verbatim is ACCEPTABLE — the task',
   '      itself already carries the implicit requirements that the downstream L1',
-  '      will unpack. Reject ONLY if the delegation target is structurally wrong',
+  '      will unpack. Reject if the required contracts fail, the delegation target is wrong',
   '      OR the expectedOutput drops critical task constraints explicitly listed',
   '      in the task statement (e.g. task says "with a 10x10 grid" and',
   '      expectedOutput says "any grid").',
@@ -874,6 +877,8 @@ export function renderTransportEvidence(
 }
 
 export async function llmVerdict(args: {
+  /** Mandatory scope classification and executable-test check, never a trust shortcut. */
+  delegationContract?: { plan: Plan; allowDiscovery: boolean };
   ctx: RunContext;
   model: string;
   supervisorName: string;
@@ -1045,6 +1050,8 @@ export async function llmVerdict(args: {
       ? renderActiveSkillBlock(args.activeSkill)
       : '',
     args.independentTextReference !== undefined ? ROOT_TEXT_REVIEW_REQUEST : '',
+    args.delegationContract ? DELEGATION_REVIEW_REQUEST : '',
+    args.delegationContract ? `Discovery allowed here: ${args.delegationContract.allowDiscovery}` : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -1062,7 +1069,12 @@ export async function llmVerdict(args: {
   });
 
   if (args.requireComplete && resp.stopReason !== 'end_turn') throw new Error('Incomplete root review reconciliation');
+  if (args.delegationContract && resp.stopReason !== 'end_turn') return delegationRefusal('Delegation contract review did not finish; do not execute an unreviewed plan.');
   const raw = parseVerdict(resp.text);
+  if (raw.approved && args.delegationContract) {
+    const refusal = enforceDelegationReview(args.delegationContract.plan, resp.text, args.delegationContract.allowDiscovery);
+    if (refusal) return refusal;
+  }
   // Normalise `null` (an LLM emission quirk nullish() tolerates) to
   // `undefined` at the parse boundary — same treatment as branchName —
   // so downstream consumers only ever see `boolean | undefined`.

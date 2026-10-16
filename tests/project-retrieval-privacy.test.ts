@@ -1,3 +1,4 @@
+import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -296,6 +297,8 @@ describe('tenant retrieval downstream: what the platform registry shares', () =>
       ? { strategy: 'create', seed: { description: FACT, systemPrompt: FACT, tools: [privateTool], params: {} }, reasoning: 'new reader' }
       : { strategy: 'reuse', target: f.supervisor.name, reasoning: 'reader' },
     { reasoning: 'read', subtasks: [{ description: 'Find annual price' }], aggregation: { mode: 'concat' }, expectedOutput: 'source' }));
+    ctx.llm.enqueue(req => ({ text: JSON.stringify({ approved: true, reasoning: 'Retrieval scope reviewed', ...mockOtherProofReview(req) }),
+      stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } }));
     // L2 execution still reads the real host retrieval element; only provider responses are mocked.
     const reuse = () => ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: f.child.name, confidence: 'high', reasoning: 'reader' }));
     reuse();

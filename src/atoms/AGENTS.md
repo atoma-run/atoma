@@ -19,16 +19,16 @@ Neighbours:
   (`phaseBudgetSpent`, `src/core/phaseBudget.ts`) and `phase-budget-spent`
   forces root review. Run bad74240 ran a spent ladder twice. A per-phase
   execution counter was refused in review: it starved multi-subtask phases.
-- `superviseLoop` is the only plan → validate → execute → validate protocol.
-  L2 and L3 reuse it for children; never duplicate that loop in concrete
-  atoms. The L3 root `handle` is plan → execute (no parent). A parallel
-  L3 plan whose declared `outputs` collide earns one coached Opus replan
-  (`acceptL3RootPlan`); a repeat is honoured, and so is a replan that
-  THROWS — the coaching may not turn a racy-but-executable plan into no
-  run at all. Both planning prompts demand `outputs` on file-mutating
-  subtasks, so the collision channel exists. Do not copy this rule onto
-  L2 — child plans already go through FAN-OUT validation. Do not coerce
-  an explicit L3 `concat` into `sequential`.
+- `superviseLoop` is the only child plan → validate → execute → validate loop.
+  L3 root plans additionally receive mandatory tool-free contract review on the
+  validation model. The reviewer classifies testable branches and integration;
+  missing suites or missing required parallel branches block dispatch, even
+  beside approved:true. Up to three planning attempts; no unreviewed fallback.
+  L2 plans under a parent suite use the same classification before L1 execution.
+  An L3 `replanAfter:true` plan performs read-only discovery only, once, then
+  the host replans from its observations. Discovery is not a checkpoint prefix.
+  The existing declared-output collision coaching still runs before review;
+  its fail-open result must pass contract review. Never coerce concat to sequential.
 - Escalation branches a type and toggles parent fallback in a `try/finally`.
   Persist capability prompts only; task text, seed instructions and diagnostics
   belong to the current instance. Validator diagnostics are fallible evidence.

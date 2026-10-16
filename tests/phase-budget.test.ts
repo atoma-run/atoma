@@ -1,3 +1,4 @@
+import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
@@ -44,7 +45,7 @@ describe('one ladder per root phase', () => {
       if (req.role === 'plan' || req.role === 'fallback-plan') return ok(jsonText({ reasoning: 'r', proposedAction: 'write it', expectedOutput: 'page' }));
       // A molecule's execution and a supervisor's fallback both count.
       if (req.role === 'execute' || req.role === 'fallback-execute') { executions++; return ok(jsonText({ output: `attempt ${executions}`, summary: `attempt ${executions}` })); }
-      if (req.role === 'validate-plan') return ok(jsonText({ approved: true, reasoning: 'fine' }));
+      if (req.role === 'validate-plan') return ok(jsonText({ approved: true, reasoning: 'fine', ...mockOtherProofReview(req) }));
       return ok(jsonText({ approved: false, reasoning: `still missing ${executions}`, scope: 'ephemeral', modifications: { additionalContext: 'fix it' } }));
     };
     for (let i = 0; i < 400; i++) ctx.llm.enqueue(respond);

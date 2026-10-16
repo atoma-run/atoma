@@ -1,3 +1,4 @@
+import { mockOtherProofReview } from './helpers/delegationReview.js';
 import * as jevModule from '../src/core/jev.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { TraceRecorder } from '../src/viz/trace.js';
@@ -63,7 +64,7 @@ describe('task-driven tissue selection through the real runner', () => {
           : { action: 'create', reasoning: 'Missing a repository explanation method.' };
       } else if (req.role === 'draft-checklist') reply = { items: [{ behaviour: 'Explains authentication without changing files', check: { kind: 'review' } }] };
       else if (req.role === 'prefilter') reply = { kind: 'reuse', target: req.actor?.tier === 3 ? cell : molecule, confidence: 'high', reasoning: 'Read existing evidence' };
-      else if (req.role === 'validate-plan' || req.role === 'validate-result') reply = { approved: true, reasoning: 'The explanation matches the observed README.' };
+      else if (req.role === 'validate-plan' || req.role === 'validate-result') reply = { approved: true, reasoning: 'The explanation matches the observed README.', ...mockOtherProofReview(req) };
       else if (req.role === 'plan' && req.actor?.tier !== 1) {
         if (req.actor?.tier === 3) tissue = req.actor.name;
         reply = [
