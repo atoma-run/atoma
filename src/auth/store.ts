@@ -12,6 +12,7 @@ import {
   accountSubscriptionProviderSchema,
   type AccountSubscriptionProvider,
 } from '../contracts/accountSubscriptions.js';
+import { BETA_PLAN, planIdSchema, type PlanId } from '../contracts/accountPlan.js';
 import { principalIdSchema } from '../contracts/projects.js';
 import { MODEL_SELECTOR_VENDORS, type ModelSelectorVendor } from '../contracts/modelSelector.js';
 import {
@@ -232,6 +233,11 @@ CREATE TABLE IF NOT EXISTS auth_org_tier_models (
   model_l1   TEXT,
   model_l2   TEXT,
   model_l3   TEXT,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS auth_org_plans (
+  org_id     TEXT PRIMARY KEY REFERENCES auth_organisations(org_id),
+  plan       TEXT NOT NULL CHECK (plan IN ('pro', 'team')),
   updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS auth_org_provider_keys (
@@ -2013,6 +2019,55 @@ export class AuthStore {
       )
       .run(orgId, parsed.l1, parsed.l2, parsed.l3, new Date().toISOString());
     return parsed;
+  }
+
+  /**
+   * The plan an organisation is on. NO ROW IS FREE: the table holds only the
+   * organisations the operator placed on a paid plan, so every organisation
+   * that existed before it — and every one created since — is on `free`
+   * without a migration. It post-dates the first stores and is deliberately
+   * absent from `AUTH_TABLE_NAMES`, like the delegation table: a read-only
+   * open of an older product DB answers `free` instead of refusing.
+   */
+  organisationPlan(orgId: string): PlanId {
+    const present = this.db
+      .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'auth_org_plans'`)
+      .get();
+    if (!present) return BETA_PLAN;
+    const row = this.db.prepare('SELECT plan FROM auth_org_plans WHERE org_id = ?').get(orgId) as
+      | { plan: string }
+      | undefined;
+    const parsed = planIdSchema.safeParse(row?.plan);
+    return parsed.success ? parsed.data : BETA_PLAN;
+  }
+
+  /**
+   * Place an organisation on a plan. An OPERATOR act during the beta — no
+   * billing exists, so nothing a member does may reach this — and the CLI is
+   * its one door. `free` deletes the row rather than storing it, keeping
+   * "no row" the single spelling of the default.
+   */
+  setOrganisationPlan(orgId: string, plan: PlanId): { orgId: string; name: string; previous: PlanId; plan: PlanId } {
+    const organisation = this.db
+      .prepare('SELECT org_id, name FROM auth_organisations WHERE org_id = ?')
+      .get(orgId) as { org_id: string; name: string } | undefined;
+    if (!organisation) throw new Error('organisation not found');
+    const parsed = planIdSchema.parse(plan);
+    const change = this.db.transaction(() => {
+      const previous = this.organisationPlan(orgId);
+      if (parsed === BETA_PLAN) {
+        this.db.prepare('DELETE FROM auth_org_plans WHERE org_id = ?').run(orgId);
+      } else {
+        this.db
+          .prepare(
+            `INSERT INTO auth_org_plans (org_id, plan, updated_at) VALUES (?, ?, ?)
+             ON CONFLICT(org_id) DO UPDATE SET plan = excluded.plan, updated_at = excluded.updated_at`
+          )
+          .run(orgId, parsed, new Date().toISOString());
+      }
+      return previous;
+    });
+    return { orgId: organisation.org_id, name: organisation.name, previous: change.immediate(), plan: parsed };
   }
 
   /** Every organisation a principal may activate, in deterministic order. */

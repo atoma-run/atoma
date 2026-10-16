@@ -69,6 +69,8 @@ export interface PreviewRuntimeDeps {
 
 export interface StartPreviewInput {
   readonly mode?: 'terminal';
+  /** A terminal for a paid plan prints no Atoma banner; only ever `false`. */
+  readonly attribution?: false;
   /** Opaque per-generation identity; every engine object is named from it. */
   readonly ownerId: string;
   /**
@@ -272,6 +274,7 @@ export async function startPreview(
         ...(egress ? { egress: true } : {}),
         ownerId: input.ownerId,
         ...(input.mode === 'terminal' ? { mode: 'terminal' as const } : { entry: input.entry }),
+        ...(input.mode === 'terminal' && input.attribution === false ? { attribution: false as const } : {}),
         workspace: { ownerId: created.workspace.ownerId, id: created.workspace.id },
       },
       [internal]

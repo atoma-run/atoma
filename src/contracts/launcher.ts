@@ -147,11 +147,19 @@ export const previewAppUnitSpecSchema = z
     entry: z.string().min(1).max(512).optional(),
     /** Fixed terminal service inside the isolate; never a caller command. */
     mode: z.literal('terminal').optional(),
+    /**
+     * A paid plan's terminal prints no Atoma banner. Only ever `false`, and
+     * sent only then, so a launcher one release older keeps accepting every
+     * spec a free organisation produces.
+     */
+    attribution: z.literal(false).optional(),
     workspace: z.object({ ownerId: launcherOwnerIdSchema, id: z.string().min(1).max(255) }).strict(),
   })
   .strict()
   .refine((spec) => spec.mode === 'terminal' ? spec.entry === undefined && !spec.egress : spec.entry !== undefined,
-    'terminal profiles take no entry or egress; applications require an entry');
+    'terminal profiles take no entry or egress; applications require an entry')
+  .refine((spec) => spec.attribution === undefined || spec.mode === 'terminal',
+    'only a terminal profile takes an attribution choice');
 
 /**
  * The relay in front of that application. It takes nothing but the identity of

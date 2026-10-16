@@ -53,6 +53,40 @@ describe('auth operator CLI', () => {
     expect(error.mock.calls.flat().join('\n')).toMatch(/unknown auth command|unknown flag/);
   });
 
+  it('places an organisation on a plan, journals the change once, and refuses what it cannot apply', () => {
+    const dbPath = tempDb();
+    const orgId = seedOrganisation(dbPath);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    expect(runAuthCli(['node', 'auth', 'set-plan', '--db', dbPath, '--org', orgId], {})).toBe(1);
+    expect(runAuthCli(['node', 'auth', 'set-plan', '--db', dbPath, '--org', orgId, '--plan', 'gold'], {})).toBe(1);
+    expect(runAuthCli(['node', 'auth', 'set-plan', '--db', dbPath, '--org', 'nope', '--plan', 'pro'], {})).toBe(1);
+    expect(runAuthCli(['node', 'auth', 'list', '--db', dbPath, '--plan', 'pro'], {})).toBe(1);
+    expect(error.mock.calls.flat().join('\n')).toMatch(/invalid plan: gold/);
+
+    expect(runAuthCli(['node', 'auth', 'set-plan', '--db', dbPath, '--org', orgId, '--plan', 'pro'], {})).toBe(0);
+    expect(runAuthCli(['node', 'auth', 'set-plan', '--db', dbPath, '--org', orgId, '--plan', 'pro'], {})).toBe(0);
+    expect(AuthStore.open(dbPath).organisationPlan(orgId)).toBe('pro');
+    expect(runAuthCli(['node', 'auth', 'set-plan', '--db', dbPath, '--org', orgId, '--plan', 'free'], {})).toBe(0);
+    expect(AuthStore.open(dbPath).organisationPlan(orgId)).toBe('free');
+
+    const db = new Database(dbPath, { readonly: true });
+    try {
+      // "No row" is the one spelling of Free.
+      expect(db.prepare('SELECT COUNT(*) AS n FROM auth_org_plans').get()).toEqual({ n: 0 });
+      const rows = db.prepare(`SELECT org_id, detail FROM platform_events WHERE kind = 'org.plan_changed' ORDER BY seq`).all() as
+        Array<{ org_id: string; detail: string }>;
+      // The no-op second call journaled nothing.
+      expect(rows.map((row) => [row.org_id, JSON.parse(row.detail)])).toEqual([
+        [orgId, { previous: 'free', plan: 'pro' }],
+        [orgId, { previous: 'pro', plan: 'free' }],
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
   it('lists a missing store without creating it', () => {
     const dbPath = tempDb();
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);

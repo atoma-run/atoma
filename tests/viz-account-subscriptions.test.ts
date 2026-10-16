@@ -428,7 +428,7 @@ describe('personal subscription settings', () => {
       expect(within(card).queryByRole('button')).toBeNull();
     }
     expect(within(panel).getByText('Run queue priority')).toBeInTheDocument();
-    expect(screen.getByText(/every organisation is on the Free plan/)).toBeInTheDocument();
+    expect(screen.getByText(/the paid plans are shown so you know what is coming/)).toBeInTheDocument();
   });
 
   it('orders personal pins before the organisation defaults, greyed for a plain member', async () => {
@@ -727,5 +727,27 @@ describe('discovered model picker', () => {
     expect(screen.queryByRole('option', { name: 'GPT-5.4 Mini' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Refresh ChatGPT models' }));
     await waitFor(() => expect(api.accountModels).toHaveBeenCalledWith(true));
+  });
+});
+
+describe('plan screen for an organisation the operator placed on a paid plan', () => {
+  it('marks Pro current, never calls Free "coming soon", and names the removed mark', async () => {
+    const { PlanPanel } = await import('../src/viz/client-gl/PlanPanel.js');
+    render(createElement(PlanPanel, {
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+      locale: 'en',
+      plan: {
+        current: 'pro',
+        beta: true,
+        limits: { concurrentRuns: 2, runTimeoutMs: 3_600_000, runCostMaxUsd: 0, runTokenMax: 0 },
+      },
+    }));
+    const pro = screen.getByRole('region', { name: 'Pro' });
+    expect(pro).toHaveAttribute('data-current', 'true');
+    expect(within(pro).getByText('No “Powered by Atoma” mark on what your runs produce')).toBeInTheDocument();
+    const free = screen.getByRole('region', { name: 'Free' });
+    expect(within(free).queryByText('Coming soon')).toBeNull();
+    expect(within(free).getByText(/A small “Powered by Atoma” mark/)).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Team' })).getByText('Coming soon')).toBeInTheDocument();
   });
 });

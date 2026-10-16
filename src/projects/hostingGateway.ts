@@ -9,7 +9,9 @@ import type { Viewer } from '../auth/store.js';
 const COOKIE = '__Host-AtomaHosted';
 const PRIVATE = 'Open this private application from its Atoma project.';
 /** Private applications: platform credentials never cross to generated code. */
-export function createHostingGateway(service: HostingService, controlOrigin: string, member: (org: string, principal: string) => boolean) {
+export function createHostingGateway(service: HostingService, controlOrigin: string, member: (org: string, principal: string) => boolean,
+  /** The organisation's plan carries the Atoma mark; asked per navigation. */
+  attribution: (org: string) => boolean = () => true) {
   const claims = new PreviewClaimRegistry();
   const sweep = setInterval(() => claims.sweep(), 60_000); sweep.unref();
   const policy: Record<string, string> = { ...previewResponseHeaders({ visualizerOrigin: controlOrigin, allowedHosts: [] }),
@@ -66,7 +68,7 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
     for (const name of ['authorization', 'connection', 'upgrade', 'proxy-authorization', 'proxy-authenticate', 'keep-alive', 'te', 'trailer', 'transfer-encoding', ...(req.headers.connection ?? '').split(',').map(x => x.trim().toLowerCase())]) delete headers[name];
     headers.host = host;
     // `/.atoma/browser/` is the platform's desktop, not the application.
-    const attribute = !pathname.startsWith('/.atoma/') && isAttributableRequest(req.method, req.headers);
+    const attribute = !pathname.startsWith('/.atoma/') && isAttributableRequest(req.method, req.headers) && attribution(row.orgId);
     if (attribute) headers['accept-encoding'] = 'identity';
     const upstream = request({ host: '127.0.0.1', port: row.hostPort!, path: req.url, method: req.method, headers, timeout: 30_000 }, incoming => {
       if (incoming.headers.location && !isSamePreviewRedirect(incoming.headers.location, origin)) { incoming.destroy(); respond(res, 502); return; }

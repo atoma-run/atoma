@@ -5,6 +5,7 @@ import {
   EXAMPLE_EGRESS_PROXY_SPEC,
   launcherNetworkSpecSchema,
   launcherUnitSpecSchema,
+  previewAppUnitSpecSchema,
 } from '../src/contracts/launcher.js';
 import {
   createContainerLauncher,
@@ -266,6 +267,22 @@ describe('launcher preview profiles', () => {
     expect(args[args.indexOf('--runtime') + 1]).toBe('runsc');
     expect(args[args.indexOf('--memory') + 1]).toBe('1g');
     expect(args.some((value) => value.startsWith('HTTP_PROXY='))).toBe(false);
+    // A free organisation's terminal keeps the banner: nothing is passed.
+    expect(args).not.toContain('ATOMA_TERMINAL_ATTRIBUTION=0');
+  });
+
+  it('tells a paid plan\'s terminal to omit the banner, and admits that choice for terminals only', async () => {
+    const { launcher, calls } = previewLauncher();
+    const net = await launcher.createNetwork({ family: 'preview', kind: 'internal', ownerId: 'paid' });
+    calls.length = 0;
+    const spec = { kind: 'preview-app' as const, mode: 'terminal' as const, attribution: false as const, ownerId: 'paid',
+      workspace: { ownerId: 'paid', id: launcherObjectId('paid') } };
+    expect(previewAppUnitSpecSchema.safeParse(spec).success).toBe(true);
+    expect(previewAppUnitSpecSchema.safeParse({ ...spec, mode: undefined, entry: 'server.js' }).success).toBe(false);
+    expect(previewAppUnitSpecSchema.safeParse({ ...spec, attribution: true }).success).toBe(false);
+    await launcher.startUnit(spec, [net]);
+    const args = calls[0]!;
+    expect(args[args.indexOf('ATOMA_TERMINAL_ATTRIBUTION=0') - 1]).toBe('-e');
   });
 
   it('labels preview objects as previews, never as egress', async () => {

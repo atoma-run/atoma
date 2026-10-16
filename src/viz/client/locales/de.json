@@ -1996,7 +1996,7 @@
   "nav.plan": "Ihr Tarif",
   "settings.tab.plan": "Ihr Tarif",
   "plan.title": "Ihr Tarif",
-  "plan.hintBeta": "Atoma befindet sich in der Betaphase: Jede Organisation nutzt den kostenlosen Tarif. Die kostenpflichtigen Tarife werden als Vorschau angezeigt; sie sind noch nicht auswählbar und es wird nichts abgerechnet.",
+  "plan.hintBeta": "",
   "plan.hint": "Der Tarif Ihrer Organisation und die darin enthaltenen Leistungen.",
   "plan.current": "Aktueller Tarif",
   "plan.beta": "Beta",

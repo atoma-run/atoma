@@ -1996,7 +1996,7 @@
   "nav.plan": "Ton forfait",
   "settings.tab.plan": "Ton forfait",
   "plan.title": "Ton forfait",
-  "plan.hintBeta": "Atoma est en bêta : toutes les organisations utilisent le forfait Free. Les forfaits payants sont affichés pour te montrer ce qui arrive ; aucun ne peut encore être choisi et rien n’est facturé.",
+  "plan.hintBeta": "",
   "plan.hint": "Le forfait de ton organisation et ce qu’il inclut.",
   "plan.current": "Forfait actuel",
   "plan.beta": "Bêta",

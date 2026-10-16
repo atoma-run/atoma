@@ -6,7 +6,7 @@ inside Atoma without adding a web interface to the project.
 Open **Latest delivered results** or a delivered run and choose **Test in
 terminal** when its delivery has no web preview. The terminal provides Node.js, bash, a real PTY, interactive
 stdin, Ctrl+C, terminal resizing and command exit status in the prompt.
-The session opens with a one-line "Powered by Atoma" banner above the first prompt.
+On the Free plan the session opens with a one-line "Powered by Atoma" banner above the first prompt.
 **Import test file** writes a file of at most 1 MiB into the initial working
 directory. Shell commands can edit inputs, run tests and inspect outputs.
 **Restart** recreates the entire preview from the delivered bytes.

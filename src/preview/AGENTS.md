@@ -560,6 +560,10 @@ be appended to. Fragments, XHTML, UTF-16, 206/304, the terminal page and
 with `pointer-events: none`: nothing fetched, no script, nothing to click — the
 CSP sandbox has no `allow-popups`. The terminal prints one banner line before
 the shell starts, and repositories Atoma creates get a description.
+Free organisations only (`planShowsAttribution`, [plan](../auth/AGENTS.md#organisation-plan)):
+gateways ask per navigation, a paid terminal gets `attribution: false` in
+its closed launcher spec (`ATOMA_TERMINAL_ATTRIBUTION=0`), a failed lookup
+shows the mark.
 
 ## Intentional choices and rejected shortcuts
 

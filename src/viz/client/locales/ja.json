@@ -1996,7 +1996,7 @@
   "nav.plan": "ご利用プラン",
   "settings.tab.plan": "ご利用プラン",
   "plan.title": "ご利用プラン",
-  "plan.hintBeta": "Atomaはベータ版です。すべての組織にFreeプランが適用されています。有料プランは今後の予定をお知らせするために表示されていますが、現時点では選択できず、料金も請求されません。",
+  "plan.hintBeta": "",
   "plan.hint": "組織が利用中のプランと、その内容です。",
   "plan.current": "現在のプラン",
   "plan.beta": "ベータ版",

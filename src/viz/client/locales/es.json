@@ -1996,7 +1996,7 @@
   "nav.plan": "Tu plan",
   "settings.tab.plan": "Tu plan",
   "plan.title": "Tu plan",
-  "plan.hintBeta": "Atoma está en beta: todas las organizaciones tienen el plan Gratuito. Los planes de pago se muestran para que sepas lo que está por venir; todavía no se puede elegir ninguno y no se factura nada.",
+  "plan.hintBeta": "",
   "plan.hint": "El plan de tu organización y lo que incluye.",
   "plan.current": "Plan actual",
   "plan.beta": "Beta",

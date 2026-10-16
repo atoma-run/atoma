@@ -53,7 +53,8 @@ afterEach(async () => {
 
 async function gateway(
   route: Parameters<PreviewRouteTable['set']>[1],
-  claims = new PreviewClaimRegistry()
+  claims = new PreviewClaimRegistry(),
+  attribution?: (orgId: string) => boolean
 ): Promise<{ port: number; claims: PreviewClaimRegistry }> {
   const routes = new PreviewRouteTable();
   routes.set(HOST, route);
@@ -63,6 +64,7 @@ async function gateway(
     routes,
     claims,
     visualizerOrigin: VISUALIZER,
+    ...(attribution ? { attribution } : {}),
     log: () => undefined,
   });
   return { port: running.port, claims };
@@ -257,6 +259,18 @@ describe('preview gateway static serving', () => {
     // A script is not a page, and a fetch of the page is not a navigation.
     expect((await call(port, '/app.js', { headers: navigate })).body).toBe('export {};');
     expect((await call(port, '/', { headers: { cookie, 'sec-fetch-dest': 'empty' } })).body).toBe('<h1>delivered</h1>');
+  });
+
+  it('serves a paid plan\'s page without the badge, asking per navigation', async () => {
+    let paid = true;
+    const asked: string[] = [];
+    const { port, claims } = await gateway(staticRoute(), new PreviewClaimRegistry(), (orgId) => { asked.push(orgId); return !paid; });
+    const cookie = await grantCookie(port, claims);
+    const navigate = { cookie, 'sec-fetch-dest': 'iframe' };
+    expect((await call(port, '/', { headers: navigate })).body).toBe('<h1>delivered</h1>');
+    paid = false;
+    expect((await call(port, '/', { headers: navigate })).body).toBe(`<h1>delivered</h1>${ATTRIBUTION_BADGE_HTML}`);
+    expect(asked).toEqual([ORG, ORG]);
   });
 
   it('refuses what publication refuses, and the dependency tree too', async () => {

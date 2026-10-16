@@ -1996,7 +1996,7 @@
   "nav.plan": "Paket Anda",
   "settings.tab.plan": "Paket Anda",
   "plan.title": "Paket Anda",
-  "plan.hintBeta": "Atoma masih dalam versi beta: setiap organisasi menggunakan paket Gratis. Paket berbayar ditampilkan agar Anda mengetahui apa yang akan tersedia; paket tersebut belum dapat dipilih dan tidak ada biaya yang ditagihkan.",
+  "plan.hintBeta": "",
   "plan.hint": "Paket yang digunakan organisasi Anda beserta semua yang disertakan.",
   "plan.current": "Paket saat ini",
   "plan.beta": "Beta",

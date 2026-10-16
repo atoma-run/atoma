@@ -4,8 +4,9 @@ import type { PlatformLimits } from './platformSettings.js';
 /**
  * THE ACCOUNT PLAN — what an organisation is on, and what that gives it.
  *
- * ONE plan exists during the beta: every organisation is on `free`, and the
- * paid plans below are SHOWN, never chosen — the client greys them so a
+ * ONE plan is offered during the beta: an organisation is on `free` unless
+ * the operator placed it on a paid plan, and the paid plans below are SHOWN,
+ * never chosen — the client greys them so a
  * person knows what is coming and where they stand today. Keeping the ids
  * here, not in the client, means the day a second plan becomes selectable
  * the server names it and the client already knows how to draw it.
@@ -21,8 +22,18 @@ export const PLAN_IDS = ['free', 'pro', 'team'] as const;
 export const planIdSchema = z.enum(PLAN_IDS);
 export type PlanId = z.infer<typeof planIdSchema>;
 
-/** The one plan every organisation is on while Atoma is in beta. */
+/** The plan of an organisation nobody has placed on another one. */
 export const BETA_PLAN: PlanId = 'free';
+
+/**
+ * Does what this organisation's runs produce carry the "Powered by Atoma"
+ * mark? Free does; the paid plans do not (owner decision 2026-10-16). One
+ * rule for every surface that shows it — both gateways, the CLI terminal,
+ * the repository description — so none of them can disagree.
+ */
+export function planShowsAttribution(plan: PlanId): boolean {
+  return plan === 'free';
+}
 
 export const accountPlanLimitsSchema = z.object({
   /** Simultaneous runs this organisation may hold; 0 means admission is suspended. */
@@ -45,14 +56,17 @@ export const accountPlanSchema = z.object({
 export type AccountPlan = z.infer<typeof accountPlanSchema>;
 
 /**
- * Project the instance's enforced limits onto the viewer's plan. `orgConcurrent`
+ * Project the instance's enforced limits onto the viewer's plan. `current` is
+ * the organisation's stored plan: during the beta only the operator places an
+ * organisation on a paid plan (`npm run auth -- set-plan`), nobody can choose
+ * one in the client, so `beta` stays true whatever it is. `orgConcurrent`
  * is the organisation's own admission limit (the run lease's per-organisation
  * slot), which is what a member experiences; the host-wide ceiling is an
  * operator fact and stays in the admin plane.
  */
-export function accountPlan(limits: PlatformLimits, orgConcurrent: number): AccountPlan {
+export function accountPlan(limits: PlatformLimits, orgConcurrent: number, current: PlanId = BETA_PLAN): AccountPlan {
   return {
-    current: BETA_PLAN,
+    current,
     beta: true,
     limits: {
       concurrentRuns: orgConcurrent,

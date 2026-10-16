@@ -188,7 +188,7 @@ import {
   type PlatformLimits,
   type PlatformSettingSpec,
 } from '../contracts/platformSettings.js';
-import { accountPlan } from '../contracts/accountPlan.js';
+import { accountPlan, planShowsAttribution } from '../contracts/accountPlan.js';
 import {
   PlatformSettingsStore,
   type PlatformSettingRow,
@@ -537,6 +537,20 @@ const AUTH_RUNTIME: VizAuthRuntime | null = (() => {
 const AUTH = AUTH_RUNTIME?.gate ?? null;
 
 /**
+ * Does what this organisation's runs produce carry the Atoma mark? Its plan
+ * decides; a lookup that fails shows the mark, the default every
+ * organisation starts from, rather than failing the page being served.
+ */
+function organisationShowsAttribution(orgId: string): boolean {
+  try {
+    const store = AUTH?.store;
+    return store ? planShowsAttribution(store.organisationPlan(orgId)) : true;
+  } catch {
+    return true;
+  }
+}
+
+/**
  * THE OPERATOR'S SECRET-ENCRYPTION CONTEXT for organisation provider keys.
  * Resolved ONCE at boot from host env — the same launch-time,
  * host-sourced-policy pattern as the auth gate itself. `context` is null
@@ -862,6 +876,7 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
         store: projectStore,
         events: emit,
         ...(resolveUserAccessToken ? { resolveUserAccessToken } : {}),
+        attribution: organisationShowsAttribution,
       })
     : undefined;
   // Same consolidated product store, opened through its own DDL constant.
@@ -1156,6 +1171,7 @@ const PREVIEW_RUNTIME_PROMISE: Promise<PreviewRuntime | null> = (async () => {
     // read-only accessor: a deployment waiting for work to finish must not
     // watch a new preview start in front of it.
     deploymentPending: () => peekDeploymentPending(mcpRunLockPath()) !== null,
+    attribution: organisationShowsAttribution,
     log: (line) => console.error(line),
   });
   const gateway = await startPreviewGateway({
@@ -1167,6 +1183,7 @@ const PREVIEW_RUNTIME_PROMISE: Promise<PreviewRuntime | null> = (async () => {
     // One resolution of the scheme, shared with the URL the claim is minted
     // into: two computations from the same environment could disagree.
     publicScheme: config.publicScheme,
+    attribution: organisationShowsAttribution,
     log: (line) => console.error(line),
   });
   // Idle and hard bounds are enforced HERE rather than in the gateway, because
@@ -1202,7 +1219,8 @@ const HOSTING_RUNTIME_PROMISE = (async () => {
     events: emit, namer: HOSTING_NAMER, copyOwnership: ownership, probe: probeHostedApplication });
   await service.recover();
   const gateway = createHostingGateway(service, AUTH_RUNTIME.publicOrigin.origin,
-    (org, principal) => AUTH!.store!.listOrganisationsForPrincipal(principal).some(m => m.orgId === org));
+    (org, principal) => AUTH!.store!.listOrganisationsForPrincipal(principal).some(m => m.orgId === org),
+    organisationShowsAttribution);
   await new Promise<void>((resolve, reject) => { gateway.server.once('error', reject); gateway.server.listen(config.port, '127.0.0.1', resolve); });
   const health = setInterval(() => { void service.refreshHealth().catch(() => undefined); }, 15_000); health.unref();
   gateway.server.once('close', () => clearInterval(health));
@@ -3845,11 +3863,13 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         createdAt: organisation.createdAt,
         viewerRole: viewer.role,
         runCapacity,
-        // BETA: one plan for every organisation, with THIS instance's enforced
-        // limits — never a brochure number the run path would refuse.
+        // BETA: the organisation's plan (free unless the operator placed it on
+        // another), with THIS instance's enforced limits — never a brochure
+        // number the run path would refuse.
         plan: accountPlan(
           SETTINGS?.limits() ?? resolvePlatformLimits(),
-          runCapacity?.maxConcurrent ?? 1
+          runCapacity?.maxConcurrent ?? 1,
+          authStore.organisationPlan(viewer.orgId)
         ),
         members: organisation.members.map((member) => ({
           principalId: member.principalId,

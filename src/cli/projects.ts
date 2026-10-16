@@ -19,6 +19,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { AuthStore } from '../auth/store.js';
+import { planShowsAttribution } from '../contracts/accountPlan.js';
 import { snapshotProviderRegistry } from '../auth/providers.js';
 import {
   resolveSecretEncryption,
@@ -517,6 +518,7 @@ async function main(): Promise<void> {
           github: githubStore,
           store: projects,
           events: (input) => events.append(input),
+          attribution: (orgId) => planShowsAttribution(auth.organisationPlan(orgId)),
           ...(githubProvider
             ? {
                 resolveUserAccessToken: (principalId: string) =>

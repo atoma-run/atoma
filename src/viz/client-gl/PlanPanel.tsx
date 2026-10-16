@@ -17,8 +17,8 @@ import { PLAN_IDS, type AccountPlan, type PlanId } from '../../contracts/account
 
 /** What each plan offers, as catalog keys under `plan.feature.*`. */
 const PLAN_FEATURES: Readonly<Record<PlanId, readonly string[]>> = {
-  free: ['ownSubscriptions', 'sharedCatalogue', 'projectsAndMcp', 'standardQueue'],
-  pro: ['queuePriority', 'moreConcurrentRuns', 'longerRuns', 'higherSpendCap', 'prioritySupport'],
+  free: ['ownSubscriptions', 'sharedCatalogue', 'projectsAndMcp', 'standardQueue', 'attribution'],
+  pro: ['queuePriority', 'moreConcurrentRuns', 'longerRuns', 'higherSpendCap', 'noAttribution', 'prioritySupport'],
   team: ['everythingInPro', 'manyConcurrentRuns', 'organisationBilling', 'usageReports', 'dedicatedSupport'],
 };
 
@@ -62,9 +62,11 @@ export function PlanPanel({ t, locale, plan }: PlanPanelProps) {
                 <span className="gpu-plan-badges">
                   {isCurrent ? (
                     <span className="gpu-subscription-state" data-state="connected">{t('plan.current')}</span>
-                  ) : (
+                  ) : id !== 'free' ? (
+                    // Free is never "coming": an organisation the operator
+                    // placed on a paid plan simply is not on it.
                     <span className="gpu-subscription-state">{t('plan.comingSoon')}</span>
-                  )}
+                  ) : null}
                   {isCurrent && plan?.beta !== false ? (
                     <span className="gpu-subscription-state" data-state="connecting">{t('plan.beta')}</span>
                   ) : null}

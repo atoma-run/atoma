@@ -210,6 +210,7 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   'org.models_updated': null,
   'org.provider_key_set': null,
   'org.provider_key_removed': null,
+  'org.plan_changed': null,
   // Operator catalogue actions taken over the MCP: audit rows, never a
   // notification — the actor is the one person who would receive it.
   'skill.reset': null,

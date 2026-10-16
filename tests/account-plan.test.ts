@@ -4,7 +4,10 @@ import {
   accountPlanSchema,
   BETA_PLAN,
   PLAN_IDS,
+  planShowsAttribution,
 } from '../src/contracts/accountPlan.js';
+import Database from 'better-sqlite3';
+import { AuthStore } from '../src/auth/store.js';
 import { DEFAULT_PLATFORM_LIMITS, resolvePlatformLimits } from '../src/contracts/platformSettings.js';
 
 describe('account plan', () => {
@@ -27,6 +30,34 @@ describe('account plan', () => {
     expect(plan.limits.runTimeoutMs).toBe(600_000);
     // Admission suspended is a fact the plan reports, not a value it hides.
     expect(plan.limits.concurrentRuns).toBe(0);
+  });
+
+  it('reports the stored plan, still in beta since nobody can choose one', () => {
+    const plan = accountPlan(DEFAULT_PLATFORM_LIMITS, 1, 'team');
+    expect(plan.current).toBe('team');
+    expect(plan.beta).toBe(true);
+  });
+
+  it('carries the Atoma mark on Free only', () => {
+    expect(PLAN_IDS.filter(planShowsAttribution)).toEqual(['free']);
+  });
+
+  it('stores only paid plans: an organisation with no row, or an older store, is Free', () => {
+    const store = new AuthStore(new Database(':memory:'));
+    const orgId = store.completeLogin(
+      { provider: 'github', subject: 'owner', displayName: 'Owner', email: null, emailVerified: false }, null
+    )!.viewer.orgId;
+    expect(store.organisationPlan(orgId)).toBe('free');
+    expect(store.setOrganisationPlan(orgId, 'pro')).toMatchObject({ orgId, previous: 'free', plan: 'pro' });
+    expect(store.organisationPlan(orgId)).toBe('pro');
+    expect(() => store.setOrganisationPlan('missing', 'pro')).toThrow(/organisation not found/);
+    expect(store.setOrganisationPlan(orgId, 'free')).toMatchObject({ previous: 'pro', plan: 'free' });
+    expect(store.organisationPlan(orgId)).toBe('free');
+
+    const legacy = new Database(':memory:');
+    const older = new AuthStore(legacy);
+    legacy.exec('DROP TABLE auth_org_plans');
+    expect(older.organisationPlan(orgId)).toBe('free');
   });
 
   it('lists Free first: the catalogue order is the screen order', () => {

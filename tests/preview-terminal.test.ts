@@ -20,6 +20,29 @@ it('bounds retained output and explicitly reports overwritten history to slow re
   expect(history.read(TERMINAL_HISTORY_BYTES + 12).data).toBe('');
 });
 
+it('prints no banner for a paid plan', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'atoma-terminal-paid-'));
+  const assets = join(root, 'runtime');
+  execFileSync(process.execPath, ['scripts/build-preview-terminal.mjs', assets], { cwd: resolve('.'), stdio: 'pipe' });
+  mkdirSync(join(root, 'source'));
+  const module = await import(pathToFileURL(join(assets, 'server.mjs')).href) as { startTerminalServer: typeof startTerminalServer };
+  const running = await module.startTerminalServer({ sourceRoot: join(root, 'source'), dataRoot: join(root, 'data'),
+    assetsRoot: assets, bridge: join(assets, 'pty.py'), host: '127.0.0.1', port: 0, attribution: false });
+  try {
+    let output = '';
+    for (let attempt = 0; attempt < 100 && !output.includes('[exit:0]'); attempt++) {
+      const result = await (await fetch(`http://127.0.0.1:${running.port}/output?after=0`)).json() as { data: string };
+      output = stripVTControlCharacters(Buffer.from(result.data, 'base64').toString('utf8'));
+      if (!output.includes('[exit:0]')) await new Promise((done) => setTimeout(done, 25));
+    }
+    expect(output).toContain('[exit:0]');
+    expect(output).not.toContain('Powered by Atoma');
+  } finally {
+    await running.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+}, 30_000);
+
 describe('compiled terminal runtime and real PTY', () => {
   let root: string;
   let running: Awaited<ReturnType<typeof startTerminalServer>>;

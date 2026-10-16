@@ -44,6 +44,19 @@ Loopback HTTP keeps its development cookie names and paths.
   What the flag unlocks is a routing question, answered in
   [`src/viz`](../viz/AGENTS.md).
 
+## Organisation plan
+
+- `auth_org_plans` holds ONLY organisations on a paid plan (`pro`, `team`);
+  no row is `free`, so every existing organisation is Free without a
+  migration, and setting Free deletes the row. Like the delegation table it
+  is absent from `AUTH_TABLE_NAMES`: an older store reads Free.
+- During the beta there is no billing, so the plan is an OPERATOR act with
+  one door: `npm run auth -- set-plan --org <id> --plan <free|pro|team>`,
+  journaled `org.plan_changed` (info, journal-only; a no-op journals
+  nothing). No HTTP or MCP route writes it. `/api/org` reports it through
+  `accountPlan()`; `planShowsAttribution` turns it into the Atoma mark rule
+  ([src/preview](../preview/AGENTS.md#the-atoma-mark)).
+
 ## Host-subscription delegation
 
 - ONE ROW, ONE ORGANISATION (`auth_subscription_delegates`,

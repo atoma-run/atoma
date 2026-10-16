@@ -796,6 +796,8 @@ export class DockerLauncher implements ContainerLauncher {
         'HOME=/tmp',
         '-e',
         'ATOMA_DATA_DIR=/data',
+        // A fixed boolean from the host's plan lookup, never a caller's value.
+        ...(terminal && spec.attribution === false ? ['-e', 'ATOMA_TERMINAL_ATTRIBUTION=0'] : []),
         ...(spec.egress ? [
           '-e', `HTTP_PROXY=http://${proxyAddress}:${PROXY_PORT}`,
           '-e', `HTTPS_PROXY=http://${proxyAddress}:${PROXY_PORT}`,

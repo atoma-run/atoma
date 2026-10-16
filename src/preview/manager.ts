@@ -46,6 +46,8 @@ export interface PreviewManagerDeps {
    * ready one keeps serving and minting claims. Absent reads as never.
    */
   readonly deploymentPending?: () => boolean;
+  /** The organisation's plan carries the Atoma mark (the terminal banner). Absent reads as yes. */
+  readonly attribution?: (orgId: string) => boolean;
   readonly now?: () => number;
   readonly log?: (line: string) => void;
 }
@@ -290,6 +292,7 @@ export class PreviewManager {
             ),
             entry: descriptor?.entry ?? '',
             ...(terminal ? { mode: 'terminal' as const } : {}),
+            ...(terminal && this.deps.attribution?.(input.orgId) === false ? { attribution: false as const } : {}),
             allowedHosts: allowed,
           }
         );

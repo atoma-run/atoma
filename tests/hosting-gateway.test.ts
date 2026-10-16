@@ -57,6 +57,14 @@ it('appends the Atoma badge to hosted pages but not to the platform desktop', as
   expect(page.body).toBe(`<p>x</p>${ATTRIBUTION_BADGE_HTML}`); expect(page.headers['content-length']).toBeUndefined(); expect(encoding).toBe('identity');
   expect((await call(port, host, '/.atoma/browser/', { cookie, 'sec-fetch-dest': 'document' })).body).toBe('<p>x</p>');
   expect((await call(port, host, '/', { cookie, 'sec-fetch-dest': 'empty' })).body).toBe('<p>x</p>');
+  // A paid organisation: same gateway shape, no mark, and the page's encoding left alone.
+  const paid = createHostingGateway(service, 'https://atoma.run', () => true, org => org !== row.orgId);
+  const paidPort = await listen(paid.server);
+  const paidUrl = new URL(paid.open({ orgId: row.orgId, principalId: randomUUID() } as Viewer, row.projectId));
+  const paidClaim = await call(paidPort, host, '/.atoma/claim', { origin: `https://${host}` }, JSON.stringify({ token: paidUrl.hash.slice(1) }));
+  const paidCookie = paidClaim.headers['set-cookie']![0]!.split(';')[0]!;
+  expect((await call(paidPort, host, '/', { cookie: paidCookie, 'sec-fetch-dest': 'document', 'accept-encoding': 'br' })).body).toBe('<p>x</p>');
+  expect(encoding).toBe('br');
 });
 it('answers an unknown address exactly as a private one, so readable addresses cannot be enumerated', async () => {
   const upstreamPort = await listen(createServer((_req, res) => res.end('offers')));

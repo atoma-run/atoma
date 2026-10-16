@@ -52,6 +52,8 @@ async function body(req: IncomingMessage, limit: number): Promise<Buffer> {
 export async function startTerminalServer(options: {
   sourceRoot: string; dataRoot: string; assetsRoot: string; bridge: string;
   host: string; port: number;
+  /** False for a paid plan: no Atoma banner. */
+  attribution?: boolean;
 }) {
   // /workspace is mounted read-only. All writes are charged to /data's tmpfs.
   const destination = join(options.dataRoot, 'workspace');
@@ -68,7 +70,7 @@ export async function startTerminalServer(options: {
   ]);
   const output = new TerminalOutput();
   // Written before the shell exists, so it always precedes the first prompt.
-  output.append(Buffer.from(ATTRIBUTION_TERMINAL_BANNER, 'utf8'));
+  if (options.attribution !== false) output.append(Buffer.from(ATTRIBUTION_TERMINAL_BANNER, 'utf8'));
   let exitCode: number | null = null;
   let pendingPtyInput = 0;
   const child = spawn('python3', ['-I', options.bridge], {
@@ -169,7 +171,8 @@ export async function startTerminalServer(options: {
 if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
   const directory = dirname(fileURLToPath(import.meta.url));
   void startTerminalServer({ sourceRoot: '/workspace', dataRoot: '/data', assetsRoot: directory,
-    bridge: join(directory, 'pty.py'), host: '0.0.0.0', port: 8080 }).then((running) => {
+    bridge: join(directory, 'pty.py'), host: '0.0.0.0', port: 8080,
+    attribution: process.env['ATOMA_TERMINAL_ATTRIBUTION'] !== '0' }).then((running) => {
     process.stdout.write('LISTENING_ON_PORT=8080\n');
     for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, () => { void running.close().finally(() => process.exit(0)); });
   }).catch(() => { process.stderr.write('terminal startup failed\n'); process.exitCode = 1; });

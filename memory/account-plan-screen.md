@@ -1,6 +1,6 @@
 ---
 name: account-plan-screen
-description: Settings → Your plan shipped 2026-10-15 — beta means one Free plan, Pro/Team previewed greyed, no prices; limits come from the server
+description: Settings → Your plan shipped 2026-10-15 — Pro/Team greyed, no prices; since 2026-10-16 an operator can place an org on Pro/Team (auth set-plan), which removes the Atoma mark
 metadata:
   type: project
 ---
@@ -21,3 +21,10 @@ beta; nothing is priced yet, and a number on that screen reads as a quote.
 `BETA_PLAN`/`accountPlan()` server-side and the feature lists in
 `PlanPanel.tsx`; keep the limits derived from platform settings. Related:
 [[project-deployment]], [[push-to-prod-authorized]].
+
+Since 2026-10-16 the plan is stored per organisation (`auth_org_plans`, no
+row = Free) and set only by the operator: `npm run auth -- set-plan --org
+<id> --plan <free|pro|team>`, journaled `org.plan_changed`. The one effect so
+far: Pro/Team remove the "Powered by Atoma" mark (web badge on previews and
+hosted apps, terminal banner, new repo description) — owner request
+2026-10-16. Nothing else is plan-dependent yet; limits stay instance-wide.

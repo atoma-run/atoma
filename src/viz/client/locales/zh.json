@@ -1996,7 +1996,7 @@
   "nav.plan": "您的套餐",
   "settings.tab.plan": "您的套餐",
   "plan.title": "您的套餐",
-  "plan.hintBeta": "Atoma目前处于测试阶段：所有组织均使用Free套餐。付费套餐仅用于展示即将推出的内容，目前均不可选择，也不会产生任何费用。",
+  "plan.hintBeta": "",
   "plan.hint": "您的组织当前使用的套餐及其包含的内容。",
   "plan.current": "当前套餐",
   "plan.beta": "测试版",

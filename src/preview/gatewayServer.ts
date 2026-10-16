@@ -102,6 +102,11 @@ export interface PreviewGatewayOptions {
    * which `snapshotPreviewConfig` refuses to resolve without four conditions.
    */
   readonly publicScheme?: 'https' | 'http';
+  /**
+   * Does this organisation's plan carry the Atoma mark? Asked per navigation,
+   * so a plan change applies from the next page load. Absent reads as yes.
+   */
+  readonly attribution?: (orgId: string) => boolean;
   readonly log?: (line: string) => void;
 }
 
@@ -304,7 +309,8 @@ export function startPreviewGateway(
 
     // The terminal page is Atoma's own interface, not the application; its
     // attribution is the banner the shell prints.
-    const attribute = route.mode !== 'terminal' && isAttributableRequest(req.method, req.headers);
+    const attribute = route.mode !== 'terminal' && isAttributableRequest(req.method, req.headers) &&
+      (opts.attribution?.(route.orgId) ?? true);
     if (route.kind === 'static') return serveStatic(route, pathname, policy, res, attribute);
     return proxyToRelay(route, req, res, policy, requestOrigin, attribute);
   }

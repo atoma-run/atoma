@@ -252,6 +252,20 @@ describe('GitHubPublisher token split', () => {
     );
   });
 
+  it('creates a paid organisation\'s repository without the Atoma description', async () => {
+    const owner = actor('Org');
+    const { project, run, workspace, hash } = await deliveredRun(owner, 'Organization', 'atoma-org');
+    const client = mockClient();
+    const attribution = vi.fn(() => false);
+    const publisher = new GitHubPublisher({ client, github, store, attribution });
+
+    await publisher.publish({ project, run, workspaceRoot: workspace, manifestHash: hash });
+
+    expect(attribution).toHaveBeenCalledWith(project.orgId);
+    const input = (client.createOrganisationRepository as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]![2];
+    expect(input).toEqual({ name: 'weather-lab', private: true });
+  });
+
   it('creates an organisation repository with the installation token and never asks for a user token', async () => {
     const owner = actor('Org');
     const { project, run, workspace, hash } = await deliveredRun(owner, 'Organization', 'atoma-org');

@@ -81,6 +81,8 @@ export interface GitHubPublisherDeps {
    * publication existed solely as a column on a row nobody watched.
    */
   readonly events?: PlatformEventSink;
+  /** The organisation's plan carries the Atoma mark. Absent reads as yes. */
+  readonly attribution?: (orgId: string) => boolean;
 }
 
 function errorMessage(error: unknown): string {
@@ -112,6 +114,8 @@ async function ensureRepository(
     owner: string;
     name: string;
     visibility: 'private' | 'public';
+    /** Only a repository Atoma CREATES; an existing one keeps its own. */
+    description?: string;
   },
   tokens: { readonly createToken: string; readonly lookupToken: string }
 ): Promise<{ repositoryId: string; fullName: string; url: string; defaultBranch: string }> {
@@ -120,12 +124,12 @@ async function ensureRepository(
       input.targetType === 'Organization'
         ? await client.createOrganisationRepository(tokens.createToken, input.owner, {
             name: input.name,
-            description: ATTRIBUTION_REPOSITORY_DESCRIPTION,
+            ...(input.description ? { description: input.description } : {}),
             private: input.visibility === 'private',
           })
         : await client.createUserRepository(tokens.createToken, {
             name: input.name,
-            description: ATTRIBUTION_REPOSITORY_DESCRIPTION,
+            ...(input.description ? { description: input.description } : {}),
             private: input.visibility === 'private',
           });
     return {
@@ -183,6 +187,7 @@ export class GitHubPublisher {
   private readonly store: ProjectStore;
   private readonly resolveUserAccessToken?: (principalId: string) => Promise<string>;
   private readonly events: PlatformEventSink;
+  private readonly attribution: (orgId: string) => boolean;
 
   constructor(deps: GitHubPublisherDeps) {
     this.client = deps.client;
@@ -190,6 +195,7 @@ export class GitHubPublisher {
     this.store = deps.store;
     this.resolveUserAccessToken = deps.resolveUserAccessToken;
     this.events = deps.events ?? (() => undefined);
+    this.attribution = deps.attribution ?? (() => true);
   }
 
   /**
@@ -657,6 +663,7 @@ export class GitHubPublisher {
             owner: project.repositoryTarget.owner,
             name: project.repositoryTarget.name,
             visibility: project.repositoryTarget.visibility,
+            ...(this.attribution(project.orgId) ? { description: ATTRIBUTION_REPOSITORY_DESCRIPTION } : {}),
           },
           {
             createToken,

@@ -15,6 +15,7 @@ import { existsSync } from 'node:fs';
 import { authPublicOrigin, VIZ_PUBLIC_ORIGIN_ENV } from '../auth/gate.js';
 import { AuthStore, ORG_ROLES, type OrgRole } from '../auth/store.js';
 import { declaredHostSubscriptionOrg, setSubscriptionDelegate } from '../auth/subscriptionDelegates.js';
+import { PLAN_IDS, type PlanId } from '../contracts/accountPlan.js';
 import { eventLabel } from '../contracts/platformEvents.js';
 import { storeDbPath } from '../core/stores.js';
 import { PlatformEventLog } from '../platform/events.js';
@@ -34,6 +35,7 @@ usage:
   npm run auth -- grant-subscription --principal <id-or-email> [--org <org-id>] [--db path]
   npm run auth -- revoke-subscription --principal <id-or-email> [--org <org-id>] [--db path]
   npm run auth -- token --principal <id-or-email> --org <org-id-or-name> [--label <text>] [--db path]
+  npm run auth -- set-plan --org <org-id> --plan <free|pro|team> [--db path]
 
 roles:
   org:owner | org:admin | org:member | org:viewer
@@ -52,6 +54,12 @@ host subscription:
   belong to that organisation. Revoking leaves their pins in place; the
   next run refuses them by name.
 
+plan:
+  set-plan places ONE organisation on a plan. There is no billing during
+  the beta, so only this CLI can do it. Pro and Team remove the "Powered by
+  Atoma" mark from what the organisation's runs serve, from the next page
+  load, terminal or repository on. Journaled as org.plan_changed.
+
 token:
   Mints a principal's bearer for the MCP (<origin>/mcp), bound to ONE
   organisation the principal belongs to. Shown once, never stored in clear;
@@ -61,6 +69,7 @@ token:
 flags:
   --db <path>              use this product store
   --label <text>           what this token is for (token)
+  --plan <plan>            free | pro | team (set-plan)
   --org <org-id>           target organisation (required for invite;
                            host-subscription commands default to the
                            declared ATOMA_HOST_SUBSCRIPTION_ORG)
@@ -145,7 +154,7 @@ export function runAuthCli(
 ): number {
   const parsed = parseCliArgs(argv, {
     booleanFlags: ['help'],
-    valueFlags: ['db', 'org', 'role', 'ttl-hours', 'principal', 'label'],
+    valueFlags: ['db', 'org', 'role', 'ttl-hours', 'principal', 'label', 'plan'],
     undeclared: 'discard',
   });
   const command = parsed.command ?? 'list';
@@ -167,13 +176,14 @@ export function runAuthCli(
     'grant-subscription',
     'revoke-subscription',
     'token',
+    'set-plan',
   ];
   if (parsed.positional.length > 0 || !KNOWN_COMMANDS.includes(command)) {
     console.error(`unknown auth command or argument: ${safeTerminal(parsed.positional[0] ?? command)}`);
     console.error(USAGE);
     return 1;
   }
-  const missingValue = ['db', 'org', 'role', 'ttl-hours', 'principal', 'label'].find(
+  const missingValue = ['db', 'org', 'role', 'ttl-hours', 'principal', 'label', 'plan'].find(
     (flag) => parsed.flags[flag] !== undefined && parsed.flags[flag].trim().length === 0
   );
   if (missingValue) {
@@ -182,6 +192,55 @@ export function runAuthCli(
   }
   const delegationCommand =
     command === 'grant-subscription' || command === 'revoke-subscription';
+  if (command !== 'set-plan' && parsed.flags['plan'] !== undefined) {
+    console.error('--plan is valid only with auth set-plan');
+    return 1;
+  }
+  if (command === 'set-plan') {
+    const planOrg = parsed.flags['org']?.trim() ?? '';
+    const plan = parsed.flags['plan']?.trim() ?? '';
+    if (parsed.flags['principal'] !== undefined || parsed.flags['role'] !== undefined ||
+        parsed.flags['ttl-hours'] !== undefined || parsed.flags['label'] !== undefined) {
+      console.error('auth set-plan takes only --org, --plan and --db');
+      return 1;
+    }
+    if (!planOrg || !plan) {
+      console.error('--org and --plan are required with auth set-plan');
+      return 1;
+    }
+    if (!PLAN_IDS.includes(plan as PlanId)) {
+      console.error(`invalid plan: ${safeTerminal(plan)} (expected ${PLAN_IDS.join(' | ')})`);
+      return 1;
+    }
+    const planDbPath = storeDbPath(parsed.flags['db'], env);
+    if (!existsSync(planDbPath)) {
+      console.error(`no store at ${planDbPath} — the organisation must exist first`);
+      return 1;
+    }
+    const store = AuthStore.open(planDbPath);
+    try {
+      const result = store.setOrganisationPlan(planOrg, plan as PlanId);
+      // A no-op journals nothing: nothing changed.
+      if (result.previous !== result.plan) {
+        PlatformEventLog.open(planDbPath).append({
+          kind: 'org.plan_changed',
+          actorType: 'cli',
+          orgId: result.orgId,
+          summary: `${eventLabel(result.name)} moved from ${result.previous} to ${result.plan}`,
+          detail: { previous: result.previous, plan: result.plan },
+        });
+        console.log(`${safeTerminal(result.name)} (${result.orgId}) is now on ${result.plan} (was ${result.previous}).`);
+      } else {
+        console.log(`${safeTerminal(result.name)} (${result.orgId}) is already on ${result.plan}.`);
+      }
+      return 0;
+    } catch (error) {
+      console.error(`auth set-plan failed: ${safeTerminal(error instanceof Error ? error.message : String(error))}`);
+      return 1;
+    } finally {
+      store.close();
+    }
+  }
   if (command !== 'invite' && command !== 'token' && !delegationCommand && (
     parsed.flags['org'] !== undefined ||
     parsed.flags['role'] !== undefined ||

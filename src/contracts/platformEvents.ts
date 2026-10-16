@@ -191,6 +191,11 @@ export const platformEventKindSchema = z.enum([
   'org.provider_key_set',
   'org.provider_key_removed',
   /**
+   * The operator placed an organisation on another plan (`auth set-plan`).
+   * The detail carries the two plan ids and nothing else.
+   */
+  'org.plan_changed',
+  /**
    * An operator lifecycle action over the skill catalogue or the agent
    * registry taken THROUGH THE MCP (the CLI writes the lifecycle ledger only;
    * it has no principal). The skills contract requires every such action to
@@ -433,6 +438,8 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'org.models_updated': 'info',
   'org.provider_key_set': 'info',
   'org.provider_key_removed': 'info',
+  // A commercial fact set by the operator: worth the audit trail, nothing crossed a gate.
+  'org.plan_changed': 'info',
   // Catalogue hygiene is routine; a rollback or a drop of PROVEN knowledge
   // is what an operator will want to find again, so the whole family is a
   // warning rather than info — and never security: nothing crossed a gate.
