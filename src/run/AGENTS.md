@@ -316,8 +316,9 @@ Neighbours:
 - A run has THREE success-side outcomes, not two. `partial` is a run that ended
   with real work and did NOT deliver, for either of TWO typed reasons, and they
   COMPOSE: `Result.unfinishedPhases` (the deadline landed the dispatch before
-  some phases ran) and `Result.refusal` (root delivery acceptance did not
-  accept the result). `isLanded` in
+  some phases ran, or a phase failed its typed checks and its dependents were
+  never started — `blockedPhases`) and `Result.refusal` (root delivery
+  acceptance did not accept the result). `isLanded` in
   [src/contracts/runLanding.ts](../contracts/runLanding.ts) is the ONE
   derivation — the runner, the viz client and the supervisor digest each read a
   different type carrying the same two fields, and were three unlinked copies

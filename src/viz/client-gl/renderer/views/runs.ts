@@ -93,6 +93,7 @@ import { drawRunActivity } from './run-activity.js';
 import { buildRunActivity } from '../../run-activity.js';
 import {
   PARTIAL_CONTINUE_PREFIX,
+  partialCauseKeys,
   partialRunGuidance,
   type PartialRunGuidance,
 } from '../../partial-run.js';
@@ -1622,7 +1623,7 @@ function drawRunSummaryCard(
       ? partialRunGuidance(run, snapshot.data.runs, snapshot.data.projects)
       : null;
   if (guidance) {
-    const cause = ctx.text(block, snapshot.t(`run.partial.cause.${guidance.cause}`), padX, cursor - 8, {
+    const cause = ctx.text(block, partialCauseKeys(guidance).map((key) => snapshot.t(key)).join(' '), padX, cursor - 8, {
       size: RUNS_FACTS_SIZE + 1,
       color: GPU_COLORS.text,
       width: innerWidth,

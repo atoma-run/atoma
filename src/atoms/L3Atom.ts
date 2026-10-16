@@ -805,7 +805,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         dispatched.results,
         this.name
       ),
-      dispatched.unfinished
+      dispatched.unfinished,
+      dispatched.blocked
     );
     return plan.acceptanceTests
       ? verifyParentTests({ ...task, acceptanceTests: plan.acceptanceTests }, result, ctx) : result;
@@ -870,7 +871,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // siblings wrote.
         undeclaredIsReadOnly: plan.aggregation.mode === 'sequential' && plannedPhases >= 2,
       });
-    }, ctx.currentBranchId === undefined ? ctx.rootCheckpoint : undefined);
+    }, { dispatcher: this.name, ...(ctx.currentBranchId === undefined && ctx.rootCheckpoint ? { checkpoint: ctx.rootCheckpoint } : {}) });
   }
 
   private async runSubtask(args: {
@@ -1199,8 +1200,12 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // landed short is a fact about this aggregate's completeness, and an
     // aggregate that dropped it would report more coverage than it has.
     const unfinishedBelow = subResults.flatMap((result) => result.unfinishedPhases ?? []);
-    const unfinishedField =
-      unfinishedBelow.length > 0 ? { unfinishedPhases: unfinishedBelow } : {};
+    // Dependents a failed prerequisite held back below stay named as such.
+    const blockedBelow = subResults.flatMap((result) => result.blockedPhases ?? []);
+    const unfinishedField = {
+      ...(unfinishedBelow.length > 0 ? { unfinishedPhases: unfinishedBelow } : {}),
+      ...(blockedBelow.length > 0 ? { blockedPhases: blockedBelow } : {}),
+    };
     // A phase that spent its execution budget went up unjudged: the tier that
     // judges this aggregate must know it (`phase-budget-spent`).
     const spentField = subResults.some((result) => result.phaseBudgetSpent) ? { phaseBudgetSpent: true as const } : {};

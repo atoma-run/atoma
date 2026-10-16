@@ -14,11 +14,11 @@ Neighbours:
 
 ## Supervision protocol
 - ONE LADDER PER ROOT PHASE (owner decision 2026-10-10, judge what exists): a
-  tissue that refuses its root phase's result when that result is the cell's own
-  fallback does not re-run the phase; `handUpRefused` hands it up marked
-  (`phaseBudgetSpent`, `src/core/phaseBudget.ts`) and `phase-budget-spent`
-  forces root review. Run bad74240 ran a spent ladder twice. A per-phase
-  execution counter was refused in review: it starved multi-subtask phases.
+  tissue that refuses its root phase's result when the cell's own fallback made
+  it, or held back a dependent (`ownFallbackBlockedBy`), does not re-run the
+  phase; `handUpRefused` hands it up marked (`phaseBudgetSpent`) and
+  `phase-budget-spent` forces root review. Run bad74240 ran a spent ladder
+  twice; a per-phase counter starved multi-subtask phases.
 - `superviseLoop` is the only child plan → validate → execute → validate loop.
   L3 root plans additionally receive mandatory tool-free contract review on the
   validation model. The reviewer classifies testable branches and integration;
@@ -138,16 +138,16 @@ Neighbours:
   about the rest, and a name that resolves to no file is silent — "saves
   quote.txt" names a download. Both are read only for a validation call.
   Superseded reads also get bounded current excerpts; unknown stays unknown, old bytes stay out. [Contract and review](../../docs/decisions/stale-file-evidence-2026-10-03.md).
-- A LANDED result carries `LANDED_RESULT_GUIDANCE` to that validator, and
-  nothing else does. A landed run stopped before it could prove the floor, so
-  `floorCoverage` is uncovered BY CONSTRUCTION and the verdict is always a
-  validation call — never the mechanical path. Until 2026-09-24 the judge was
-  told nothing about landings while the prompt's only statement on
-  incompleteness was a rejection ("a visually-incomplete artefact is a failed
-  deliverable"), so an honest landing's fate rested on model prose alone. The
-  wording follows the analyst's on purpose: one definition of a landing, served
-  to both judges. A phase supervisor never receives it — landing is a property
-  of the whole run.
+- A BUDGET landing carries `LANDED_RESULT_GUIDANCE` to that validator; a
+  DEPENDENCY landing (`blockedPhases`) carries `DEPENDENCY_LANDING_GUIDANCE`
+  and is never approved mechanically; a result that is both carries both. A
+  budget landing is usually a validation call (its floor is usually uncovered),
+  but a covered floor with no finding still approves it mechanically. Until
+  2026-09-24 the judge was told nothing about landings and decided on model
+  prose alone. The wording follows the analyst's on purpose: one definition of
+  a landing, served to both judges. A phase supervisor never receives it —
+  landing is a property of the whole run.
+  [Dependency landing](../../docs/decisions/parent-owned-tests-2026-10-16.md).
 - THE ACCEPTANCE CHECKLIST ([design](../../docs/decisions/acceptance-checklist-2026-09-25.md))
   is drafted once per depth-routed run by `draftAcceptanceChecklist`
   (cheapest tier, role `draft-checklist`, actor `run-checklist`), reaches the
@@ -265,10 +265,10 @@ load-bearing.
   phase's `outputs` — skill/promotion gates read the current phase only.
   Do not parallelize coupled filesystem work.
 - Independent work MUST fan out, including multiple L2 branches at L3.
-  Parallel aggregation accepts `dependsOn` with earlier subtask indices: ready
-  branches start immediately and integration joins declare their producers.
-  Coupled writers require dependencies. No global wave barrier; no inference
-  from prose. Existing sequential checkpoint limitations remain.
+  `dependsOn` (earlier indices) starts a branch once its producers settle;
+  joins name producers, coupled writers need dependencies; no wave barrier, no
+  prose inference. A producer with a typed failure is KEPT and its dependents
+  land unstarted (`blockedPhases`); a throw still fails the dispatch.
 - A phase of a SEQUENTIAL root plan the PLANNER wrote with two phases or more
   (counted before `routeCrossBucketVerification` splits one) that declares no
   `outputs` is READ-ONLY (`Task.readOnly`) — the tissue's plan, or a root
@@ -304,15 +304,15 @@ load-bearing.
   nothing included, and never approves past them mechanically: no read-only
   phase can fix the defect it finds.
 - REACHING THE RUN DEADLINE LANDS A DISPATCH; it does not discard it.
-  `dispatchWithAggregation` returns `{results, unfinished}`: sequential refuses
+  `dispatchWithAggregation` returns `{results, unfinished, blocked}`: sequential refuses
   to OPEN a phase under `MIN_PHASE_LANDING_MS` of remaining wall clock and keeps
   the earlier phases when a phase that was opened is aborted, and parallel keeps
   the branches that settled when the deadline cut their siblings. A dispatch
   that completed NO phase still throws (the run's first pass then lands, src/run), and a rejection that is not the deadline
   keeps its meaning whatever else settled — `ctx.signal` is the deadline and
   nothing else, since cancellation reaches a run as process teardown. `markLanded`
-  stamps the aggregate (`Result.unfinishedPhases`, unioned with what a nested
-  landing reported) and the runner turns that into the `partial` outcome. Never
+  stamps the aggregate (`Result.unfinishedPhases`, unioned from below; held-back
+  dependents also in `blockedPhases`), and the runner makes it `partial`. Never
   infer a landing from the summary text: `markLanded` prefixes it, but it then
   continues into model-authored prose. Measured twice on 2026-09-21:
   [progressive runs](../../records/incidents/progressive-runs-2026-09-21.md).

@@ -8,8 +8,77 @@ import { previousResultInput } from './taskContext.js';
 import { renderTransportEvidence } from './verdict.js';
 import { transportWitnesses } from '../contracts/witness.js';
 import { PhaseBoundaryPause, type RootPhaseCheckpoint } from '../contracts/runCheckpoint.js';
+import { parentTestConsequence, parentTestsGrantNothing, parentTestSuperseded } from '../core/parentTests.js';
 
 type Subtask = Plan['subtasks'][number];
+
+/**
+ * Why a settled branch holds back the branches that declared a dependency on
+ * it (`dependsOn`). Typed facts only — never `refusal`, never the summary,
+ * never the `[PHASE LADDER SPENT` prefix:
+ *
+ *  - `failed-suite` — its parent-owned suite failed, or the code under test
+ *    kept it from finishing (`parentTestConsequence` is `reject`), and no
+ *    later pass of the same suite superseded it;
+ *  - `landed` — it carries unfinished phases of its own;
+ *  - `unverified` — it was not approved (the dispatcher's OWN fallback, or a
+ *    root phase handed up spent) and a suite it carries did not pass.
+ */
+export type DependencyBlock = 'failed-suite' | 'landed' | 'unverified';
+
+/**
+ * THE DEPENDENCY PREDICATE (review 2026-10-16, group B). It enforces typed
+ * failure, not acceptance:
+ *
+ *  - an APPROVED predecessor blocks only on a rejecting suite; one whose suite
+ *    did not run for a host cause was weighed by its approver (group A);
+ *  - an UNAPPROVED one blocks on any suite that did not pass. Unapproved means
+ *    `phaseBudgetSpent`, or `viaFallback` under the DISPATCHER's own name:
+ *    a plain `viaFallback` is not enough, because an approved N=1
+ *    pass-through of a cell's fallback carries it too;
+ *  - an unapproved predecessor with a passed suite, or none, does not block:
+ *    its dependents run, as in sequential mode, and the root judges the whole.
+ */
+export function dependencyBlocker(result: Result, dispatcher: string): DependencyBlock | undefined {
+  // Judged or not: an approval past a rejecting suite is overruled
+  // (`withParentTestConsequences`), so none should exist, and if one did the
+  // safe reading is the failure.
+  const observations = result.parentTests ?? [];
+  if (observations.some((observation, index) =>
+    parentTestConsequence(observation) === 'reject' && !parentTestSuperseded(observations, index))) return 'failed-suite';
+  if (result.unfinishedPhases?.length) return 'landed';
+  const unapproved = result.phaseBudgetSpent === true || ownFallback(result, dispatcher);
+  return unapproved && parentTestsGrantNothing(result, 'unjudged') ? 'unverified' : undefined;
+}
+
+/** The criterion `withOwnFallbackLoopFacts` uses: the dispatcher's own, unvalidated fallback. */
+function ownFallback(result: Result, dispatcher: string): boolean {
+  return result.producedBy.viaFallback && result.producedBy.name === dispatcher;
+}
+
+const BLOCK_CAUSE: Readonly<Record<DependencyBlock, string>> = {
+  'failed-suite': 'failed its parent-owned acceptance suite',
+  landed: 'landed with unfinished work',
+  unverified: 'was not approved and its parent-owned suite did not pass',
+};
+
+/** A settled branch that holds back its dependents, as they name it. */
+export interface DependencyRefusal {
+  readonly index: number;
+  readonly description: string;
+  readonly cause: DependencyBlock;
+  /** The dispatcher, when the refusing branch is its own fallback. */
+  readonly ownFallbackOf?: string;
+}
+
+/** A branch never started because a branch it depends on, directly or not, failed its typed checks. */
+export interface BlockedSubtask {
+  readonly subtask: Subtask;
+  readonly index: number;
+  /** What `unfinishedPhases` and `blockedPhases` name: descriptions, never bare indices. */
+  readonly entry: string;
+  readonly rootCauses: readonly DependencyRefusal[];
+}
 
 /**
  * What a dispatch produced, and what it did not.
@@ -20,10 +89,60 @@ type Subtask = Plan['subtasks'][number];
  * indistinguishable from a complete dispatch of fewer phases, and the caller
  * would aggregate it into something that looks exactly like a delivery. A
  * landed dispatch must be able to say so; see `Result.unfinishedPhases`.
+ *
+ * `blocked` is the other way a parallel dispatch lands, with the clock still
+ * running: branches never started because a branch they depend on failed its
+ * typed checks (`dependencyBlocker`). That branch is KEPT among `results` —
+ * so a non-empty `blocked` implies non-empty `results` — and it is judged
+ * like any work in hand. Sequential dispatch never blocks.
  */
 export interface DispatchOutcome {
   readonly results: Result[];
   readonly unfinished: readonly Subtask[];
+  readonly blocked: readonly BlockedSubtask[];
+}
+
+/** The sentinel a held-back branch settles with: never started, never a rejection. */
+class Blocked {
+  constructor(readonly rootCauses: readonly DependencyRefusal[], readonly entry: string) {}
+}
+
+const cut = (description: string): string => description.length > 120 ? `${description.slice(0, 119)}…` : description;
+
+/**
+ * The decision of one dependent once its own producers settled, or undefined
+ * when it may start. Transitive: a producer that was itself held back holds
+ * this one back behind the same root causes.
+ */
+function blockedBehind(
+  subtask: Subtask,
+  dependencies: readonly number[],
+  predecessors: readonly (Result | Blocked)[],
+  subtasks: readonly Subtask[],
+  dispatcher: string
+): Blocked | undefined {
+  const causes = new Map<number, DependencyRefusal>();
+  const parts: string[] = [];
+  predecessors.forEach((predecessor, k) => {
+    const index = dependencies[k]!;
+    const prerequisite = cut(subtasks[index]!.description);
+    if (predecessor instanceof Blocked) {
+      for (const root of predecessor.rootCauses) {
+        causes.set(root.index, root);
+        parts.push(`its prerequisite "${prerequisite}" was not started either, behind "${cut(root.description)}", which ${BLOCK_CAUSE[root.cause]}`);
+      }
+      return;
+    }
+    const cause = dependencyBlocker(predecessor, dispatcher);
+    if (!cause) return;
+    causes.set(index, {
+      index, description: subtasks[index]!.description, cause,
+      ...(ownFallback(predecessor, dispatcher) ? { ownFallbackOf: dispatcher } : {}),
+    });
+    parts.push(`its prerequisite "${prerequisite}" ${BLOCK_CAUSE[cause]}`);
+  });
+  if (causes.size === 0) return undefined;
+  return new Blocked([...causes.values()], `${cut(subtask.description)} (not started: ${[...new Set(parts)].join('; ')})`);
 }
 
 /**
@@ -66,14 +185,26 @@ export interface DispatchOutcome {
  * Operator cancellation reaches a run as process teardown, not as an abort on
  * this signal (`runTask`). So `signal.aborted` unambiguously means "a budget
  * ran out", which is what makes the distinction below safe to draw.
+ *
+ * A FAILED BRANCH LANDS TOO (review 2026-10-16, group B). A dependent whose
+ * producer failed its typed checks (`dependencyBlocker`) used to throw, and
+ * `allSettled` rethrew it: the whole dispatch failed and every completed
+ * sibling went with it, the 2026-09-21 loss again, mid-run. The producer is
+ * now kept and judged like any work in hand, and its dependents, transitively,
+ * are reported `blocked` and never started. A predecessor that THREW still
+ * fails its dependents and the dispatch, as before.
+ *
+ * `options.dispatcher` names the atom dispatching, so the predicate can tell
+ * its own unvalidated fallback from an approved pass-through.
  */
 export async function dispatchWithAggregation(
   subtasks: readonly Subtask[],
   plan: Plan,
   ctx: RunContext,
   runOne: (subtask: Subtask, idx: number) => Promise<Result>,
-  checkpoint?: RootPhaseCheckpoint
+  options: { readonly dispatcher: string; readonly checkpoint?: RootPhaseCheckpoint }
 ): Promise<DispatchOutcome> {
+  const checkpoint = options.checkpoint;
   if (plan.aggregation.mode === 'sequential') {
     const out: Result[] = [...(checkpoint?.completed ?? [])];
     if (out.length > subtasks.length) throw new Error('Checkpoint has more completed phases than the plan');
@@ -88,7 +219,7 @@ export async function dispatchWithAggregation(
         ctx.logger.warn(
           `[dispatch] landing on ${out.length}/${subtasks.length} phase(s): too little run budget left to open the next one`
         );
-        return { results: out, unfinished: subtasks.slice(idx) };
+        return { results: out, unfinished: subtasks.slice(idx), blocked: [] };
       }
       const baseSubtask = subtasks[idx]!;
       const subtask =
@@ -128,7 +259,7 @@ export async function dispatchWithAggregation(
           ctx.logger.warn(
             `[dispatch] landing on ${out.length}/${subtasks.length} phase(s): the run budget (deadline or ceiling) aborted phase #${idx + 1}`
           );
-          return { results: out, unfinished: subtasks.slice(idx) };
+          return { results: out, unfinished: subtasks.slice(idx), blocked: [] };
         }
         throw err;
       }
@@ -144,11 +275,11 @@ export async function dispatchWithAggregation(
       // must keep reading the current phase only.
       previousOutputs = baseSubtask.outputs;
     }
-    return { results: out, unfinished: [] };
+    return { results: out, unfinished: [], blocked: [] };
   }
   // Earlier-index dependencies form a DAG by construction. Start every ready
   // branch immediately, not in waves: a slow sibling cannot block a ready join.
-  const pending: Promise<Result>[] = [];
+  const pending: Promise<Result | Blocked>[] = [];
   for (const [idx, subtask] of subtasks.entries()) {
     const dependencies = [...new Set(subtask.dependsOn ?? [])];
     if (dependencies.some(i => !Number.isInteger(i) || i < 0 || i >= idx)) {
@@ -160,11 +291,13 @@ export async function dispatchWithAggregation(
     const dependencies = [...new Set(subtask.dependsOn ?? [])];
     if (dependencies.length === 0) { pending.push(runOne(subtask, idx)); return; }
     pending.push((async () => {
-      const predecessors = await Promise.all(dependencies.map(i => pending[i]!));
+      // A producer that threw rejects this branch with it, as before.
+      const settledPredecessors = await Promise.all(dependencies.map(i => pending[i]!));
       if (ctx.signal.aborted) throw ctx.signal.reason ?? new Error('aborted');
-      if (predecessors.some(result => result.refusal || result.unfinishedPhases?.length || result.parentTests?.some(check => check.status !== 'passed'))) {
-        throw new Error('Dependency did not complete with accepted evidence');
-      }
+      // Decided as soon as THIS branch's producers settle: no wave barrier.
+      const blocked = blockedBehind(subtask, dependencies, settledPredecessors, subtasks, options.dispatcher);
+      if (blocked) return blocked;
+      const predecessors = settledPredecessors as Result[];
       const inputs = predecessors.length ? { ...subtask.inputs,
         dependencyResults: predecessors.map((result, i) => ({
           index: dependencies[i], summary: result.summary, output: previousResultInput(result.output),
@@ -185,12 +318,17 @@ export async function dispatchWithAggregation(
   const settled = await Promise.allSettled(pending);
   const fulfilled: Result[] = [];
   const unfinished: Subtask[] = [];
+  const blocked: BlockedSubtask[] = [];
   let failure: unknown;
   let failed = false;
   for (let idx = 0; idx < settled.length; idx++) {
     const item = settled[idx]!;
     if (item.status === 'fulfilled') {
-      fulfilled.push(item.value);
+      if (item.value instanceof Blocked) {
+        blocked.push({ subtask: subtasks[idx]!, index: idx, entry: item.value.entry, rootCauses: item.value.rootCauses });
+      } else {
+        fulfilled.push(item.value);
+      }
       continue;
     }
     unfinished.push(subtasks[idx]!);
@@ -199,14 +337,24 @@ export async function dispatchWithAggregation(
       failure = item.reason;
     }
   }
-  if (!failed) return { results: fulfilled, unfinished: [] };
+  const reportBlocked = () => {
+    if (blocked.length === 0) return;
+    ctx.logger.warn(
+      `[dispatch] ${blocked.length} branch(es) not started: a branch they depend on failed its typed checks`
+    );
+  };
+  if (!failed) {
+    reportBlocked();
+    return { results: fulfilled, unfinished: [], blocked };
+  }
   // A rejection that is NOT the deadline is a real failure and keeps its
   // original meaning, whatever else settled. Only the deadline lands.
   if (!ctx.signal.aborted || fulfilled.length === 0) throw failure;
+  reportBlocked();
   ctx.logger.warn(
     `[dispatch] landing on ${fulfilled.length}/${subtasks.length} branch(es): the run budget (deadline or ceiling) cut the rest`
   );
-  return { results: fulfilled, unfinished };
+  return { results: fulfilled, unfinished, blocked };
 }
 
 /**
@@ -330,20 +478,35 @@ async function stopServersStarted(ctx: RunContext, records: readonly Attestation
  * all read that string, and the previous behaviour's whole defect was that
  * nothing distinguished "three phases of four" from "four of four".
  *
+ * Branches held back behind a failed prerequisite (`blocked`) are named too,
+ * in their own clause and in `blockedPhases`, and are always also in
+ * `unfinishedPhases`: ONE landing field, read by every existing reader. A
+ * budget-only landing is byte-identical to what it was.
+ *
  * A complete dispatch passes through untouched, so call sites need no branch.
  */
-export function markLanded(result: Result, unfinished: readonly Subtask[]): Result {
-  if (unfinished.length === 0) return result;
+export function markLanded(result: Result, unfinished: readonly Subtask[], blocked: readonly BlockedSubtask[] = []): Result {
+  if (unfinished.length === 0 && blocked.length === 0) return result;
   const phases = unfinished.map((subtask) => subtask.description);
+  const entries = blocked.map((item) => item.entry);
+  const clauses = [
+    ...(phases.length > 0
+      ? [`the run deadline landed this plan with ${phases.length} unfinished phase(s) that did not complete with an accepted result: ${phases.join(' | ')}`]
+      : []),
+    ...(entries.length > 0
+      ? [`${entries.length} phase(s) were not started because a phase they depend on failed its typed checks: ${entries.join(' | ')}`]
+      : []),
+  ];
+  const ownFallbackBlockedBy = blocked.flatMap((item) => item.rootCauses).find((cause) => cause.ownFallbackOf)?.ownFallbackOf;
   return {
     ...result,
-    summary:
-      `INCOMPLETE — the run deadline landed this plan with ${phases.length} unfinished phase(s) that did not complete with an accepted result: ` +
-      `${phases.join(' | ')}. Delivered so far: ${result.summary}`,
+    summary: `INCOMPLETE — ${clauses.join('; ')}. Delivered so far: ${result.summary}`,
     // Union with what came from below: an L2 that landed inside one L3 phase
     // makes the whole run partial, and its unfinished phases must survive the
     // aggregate that wraps it.
-    unfinishedPhases: [...(result.unfinishedPhases ?? []), ...phases],
+    unfinishedPhases: [...(result.unfinishedPhases ?? []), ...phases, ...entries],
+    ...(entries.length > 0 ? { blockedPhases: [...(result.blockedPhases ?? []), ...entries] } : {}),
+    ...(ownFallbackBlockedBy ? { ownFallbackBlockedBy } : {}),
   };
 }
 
@@ -409,5 +572,10 @@ export function keptWithoutSynthesis(
       ...subResults.flatMap((result) => result.unfinishedPhases ?? []),
       `synthesis of ${subResults.length} sub-results (${why})`,
     ],
+    // What the aggregates carry, kept here too: a spent phase must still
+    // force the root's review, and held-back phases stay named as such.
+    ...(subResults.some((result) => result.phaseBudgetSpent) ? { phaseBudgetSpent: true as const } : {}),
+    ...(subResults.some((result) => result.blockedPhases?.length)
+      ? { blockedPhases: subResults.flatMap((result) => result.blockedPhases ?? []) } : {}),
   };
 }

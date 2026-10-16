@@ -18,9 +18,17 @@ import type { Result } from './types.js';
  */
 export const PHASE_BUDGET_SPENT_PREFIX = '[PHASE LADDER SPENT';
 
-/** True when the cell answering this root phase already used its own fallback. */
+/**
+ * True when the cell answering this root phase already used its own fallback:
+ * its result IS that fallback, or its dispatch landed with dependents held
+ * back behind it (`ownFallbackBlockedBy`, review 2026-10-16). In the second
+ * case only an aggregate goes up, so `producedBy` cannot say it; without the
+ * typed fact a plan `[A, C, B dependsOn A]` re-ran the whole cell ladder and
+ * `[A, B dependsOn A]` did not.
+ */
 export function ladderSpent(result: Result, cellName: string): boolean {
-  return result.producedBy.viaFallback && result.producedBy.tier === 2 && result.producedBy.name === cellName;
+  return (result.producedBy.viaFallback && result.producedBy.tier === 2 && result.producedBy.name === cellName) ||
+    result.ownFallbackBlockedBy === cellName;
 }
 
 /** The refused phase result, unjudged, for root acceptance to judge. */

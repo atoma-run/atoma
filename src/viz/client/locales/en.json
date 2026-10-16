@@ -1159,6 +1159,8 @@
   "run.partial.cause.budget": "This run reached its time limit before finishing every step.",
   "run.partial.cause.refused": "The work was done, but the final check found that part of your request is not met yet.",
   "run.partial.cause.both": "This run reached its time limit, and the final check found that part of your request is not met yet.",
+  "run.partial.cause.refusedAfter": "The final check found that part of your request is not met yet.",
+  "run.partial.blocked": "A step of this run did not pass its checks, so the steps that depend on it were not started.",
   "run.partial.next.continue": "Nothing is lost and nothing has been published yet. Ask your agent to continue this project; the next run picks up from here and is told what is still missing.",
   "run.partial.next.imported": "This project starts every run from its GitHub repository, and these changes were not published there. Ask your agent to try again from GitHub.",
   "run.partial.next.rerun": "This comparison rerun stays beside the project for comparison: the project's next run continues the project's own work, not this one.",

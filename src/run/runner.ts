@@ -1590,6 +1590,8 @@ async function startTaskInternal(
           output: result.output,
           producedBy: result.producedBy,
           ...(unfinishedPhases.length > 0 ? { unfinishedPhases } : {}),
+          // Which of those a failed prerequisite held back: explains, never decides.
+          ...(result.blockedPhases?.length ? { blockedPhases: result.blockedPhases } : {}),
           ...(result.refusal ? { refusal: result.refusal } : {}),
           // Typed and source-free: what viz, MCP readers and the analyst read
           // of the suites, instead of a summary prefix.

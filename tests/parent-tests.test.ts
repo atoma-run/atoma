@@ -118,7 +118,7 @@ describe('dependency-aware parallel branches',()=>{
     const plan=makePlan({subtasks:[{description:'A'},{description:'B'},{description:'A consumer',dependsOn:[0]},{description:'join',dependsOn:[1,2]}]});
     const starts:number[]=[]; const resolvers=new Map<number,(r:Result)=>void>();
     const run=vi.fn((task:typeof plan.subtasks[number],index:number)=>{starts.push(index);if(index===2){expect(task.inputs?.['dependencyResults']).toEqual([expect.objectContaining({index:0,summary:'A'})]);return Promise.resolve(result('C'));} if(index===3)return Promise.resolve(result('join')); return new Promise<Result>(resolve=>resolvers.set(index,resolve));});
-    const completion=dispatchWithAggregation(plan.subtasks,plan,makeCtx(),run);
+    const completion=dispatchWithAggregation(plan.subtasks,plan,makeCtx(),run, { dispatcher: 'Dispatcher' });
     await vi.waitFor(()=>expect(starts).toEqual([0,1]));
     resolvers.get(0)!(result('A'));
     await vi.waitFor(()=>expect(starts).toEqual([0,1,2]));
@@ -131,12 +131,12 @@ describe('dependency-aware parallel branches',()=>{
     expect(parallelDeclaredOutputCollision(plan)).toBeNull();
     const invalid={...plan,subtasks:[{description:'cycle',dependsOn:[0]}]}; const run=vi.fn();
     expect(planSchema.safeParse(invalid).success).toBe(false);
-    await expect(dispatchWithAggregation(invalid.subtasks,invalid,makeCtx(),run)).rejects.toThrow('earlier');
+    await expect(dispatchWithAggregation(invalid.subtasks,invalid,makeCtx(),run, { dispatcher: 'Dispatcher' })).rejects.toThrow('earlier');
     expect(run).not.toHaveBeenCalled();
   });
   it('settles siblings and never starts a consumer of a failed dependency',async()=>{
     const plan=makePlan({subtasks:[{description:'A'},{description:'B'},{description:'join',dependsOn:[0,1]}]});const run=vi.fn(async(_task,index)=>{if(index===0)throw new Error('failed dependency');return result();});
-    await expect(dispatchWithAggregation(plan.subtasks,plan,makeCtx(),run)).rejects.toThrow('failed dependency');
+    await expect(dispatchWithAggregation(plan.subtasks,plan,makeCtx(),run, { dispatcher: 'Dispatcher' })).rejects.toThrow('failed dependency');
     expect(run.mock.calls.map(call=>call[1])).toEqual([0,1]);
   });
 });

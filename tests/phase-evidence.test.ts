@@ -58,7 +58,7 @@ describe('sequential phase observations', () => {
         expect(result.evidence ?? []).toHaveLength(0);
       }
       return result;
-    });
+    }, { dispatcher: 'Dispatcher' });
   });
 
   it('preserves enclosing and local observations across nested sequential delegation with labelled bounds', () => {
@@ -88,6 +88,6 @@ describe('sequential phase observations', () => {
         }
       }
       return result;
-    });
+    }, { dispatcher: 'Dispatcher' });
   });
 });

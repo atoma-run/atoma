@@ -198,7 +198,7 @@ named), `tests/parent-tests-runner.test.ts` (the real runner boundary through
   the marker.
 - Until group B changes the dependency predicate in `src/atoms/dispatch.ts`, an
   approved predecessor carrying a judged host-caused `unavailable` observation
-  still blocks its dependents; B's predicate is `parentTestFindings(r).reject`.
+  still blocks its dependents. Group B (below) changed it.
 
 ### Token cost
 
@@ -216,3 +216,191 @@ The decision document's earlier sentence "failed or unavailable tests cannot
 grant acceptance" now reads differently for host causes: semantic review can
 approve a delivery whose suite did not run, and it can be published. It is
 recorded there as a new reading awaiting owner confirmation.
+
+## Group B — a refused dependency lands
+
+### Finding
+
+`src/atoms/dispatch.ts` (`8b9d990b`, lines 165-166) threw for a dependent
+whose predecessor carried a refusal, unfinished phases or a non-passed suite:
+
+```ts
+if (predecessors.some(result => result.refusal || result.unfinishedPhases?.length || result.parentTests?.some(check => check.status !== 'passed'))) {
+  throw new Error('Dependency did not complete with accepted evidence');
+}
+```
+
+After `allSettled`, line 205 rethrew any rejection that was not the deadline,
+so every completed sibling was discarded with the dispatch:
+
+- **At the root.** `L3Atom.execute` rejected and the run recorded `failed`.
+  `previousSeedRun` skips failed runs, so nothing seeded the next run: the
+  shape of `6ab0ae3b`.
+- **Under a root phase.** The throw escaped the tissue's `superviseLoop`,
+  which catches only escalations, and the run failed the same way.
+
+Under the owner decision "one ladder per root phase, judge what exists", a
+refused branch is kept and judged, and its dependents must not start.
+
+### Mechanism
+
+- **The predicate.** `dependencyBlocker(result, dispatcher)` returns one of:
+  - `failed-suite`: a rejecting observation that no later pass of the same
+    suite superseded, judged or not;
+  - `landed`: the predecessor has unfinished phases of its own;
+  - `unverified`: the predecessor is unapproved (the dispatcher's own fallback,
+    or `phaseBudgetSpent`) and carries an unjudged observation that did not
+    pass.
+
+  An approved predecessor whose suite did not run for a host cause does not
+  block. It reads typed fields only.
+- **The dispatch.** Dependents block transitively, each as soon as its own
+  producers settle, through a `Blocked` sentinel that is never a rejection.
+  `dispatchWithAggregation` returns `{results, unfinished, blocked}`:
+  - `unfinished` stays budget-only;
+  - a throw keeps its meaning;
+  - a dependent decided after the deadline is unfinished, not blocked;
+  - sequential dispatch never blocks.
+
+  The signature takes `{ dispatcher, checkpoint? }`.
+- **One landing field.** `markLanded(result, unfinished, blocked)` adds the
+  held-back entries to `unfinishedPhases` and to `blockedPhases`, and adds a
+  summary clause. A budget-only landing is byte-identical to before. It sets
+  `ownFallbackBlockedBy` when a root cause is the dispatcher's own fallback.
+  `ownFallbackBlockedBy` is runtime-only. Entries name their prerequisite by
+  description, cut to 120 characters, never by index.
+- **Aggregates.** Both aggregates and `keptWithoutSynthesis` carry
+  `blockedPhases` up. `keptWithoutSynthesis` now also carries `phaseBudgetSpent`,
+  which it used to drop.
+- **The ladder.** `ladderSpent` also reads `ownFallbackBlockedBy`, so a cell
+  whose branch landed behind its own fallback hands its whole phase up once,
+  whatever the plan shape.
+- **Root acceptance.**
+  - `DEPENDENCY_LANDING_GUIDANCE` is the block for a dependency landing;
+    `LANDED_RESULT_GUIDANCE` stays byte-identical, and a result that is both
+    carries both.
+  - A dependency landing always takes a validation call. A budget landing on a
+    covered floor with no finding is still approved mechanically.
+  - The comments that claimed every landing takes a validation call were
+    false and are corrected.
+- **Depth.** `remediationTask` adds `inputs.rootDependencyLanding`, built from
+  typed fields only:
+  - the phases that never started (at most 16, 500 characters each);
+  - the suites that did not pass (at most 8, with status, cause, requirement
+    and details up to 2,000 characters);
+  - a fixed instruction.
+
+  Without a run deadline, only a budget landing is capped by the landing
+  window.
+- **Explanation readers.**
+  - `landingReasons` subtracts held-back entries from the budget reason as a
+    multiset and adds its own reason.
+  - The runner persists `blockedPhases`; viz types and the run index project
+    it.
+  - The partial-run card composes one sentence per fact, with new EN keys
+    `run.partial.blocked` and `run.partial.cause.refusedAfter`.
+  - The analyst's definition of `partial` names the case, and its prompt
+    version is bumped.
+
+### Countercases checked
+
+| Record | Outcome |
+|---|---|
+| `progressive-runs-2026-09-21.md` (`cc894dad`, `d3098d25`) | Settled branches are kept. |
+| `phaseBudget.ts`, `bad74240` and the refused per-phase counter | The cell ladder never runs twice. The whole phase goes up, not a fragment. |
+| `6ab0ae3b` (a failed run seeds nothing) | The outcome is `partial`, and the next run is seeded. |
+| `dfa20873` (the zero-phase invariant) | The refusing producer is always among the results. |
+| The 2026-08-16 fan-in | No wave barrier. |
+| 2026-09-25 review 1.2c (the synthesis signal) | The synthesis signal stays deadline-only. A synthesis error during a dependency landing stays an error. |
+| `runLanding.ts`, 2026-09-24 (one `isLanded`) | Untouched. |
+| `depth-routing.test.ts` at the covered-floor and landed-guidance pins | Unchanged. |
+| The 2026-08-14 drift review | Typed fields only. |
+| `5dff35b0` (remediation) | Unchanged; the pass gains a typed input. |
+| 2026-10-09 lessons rule | An approval saves its lessons and a refusal drops them, as before. |
+
+### Rejected alternatives
+
+- **A second landing field** beside `unfinishedPhases`. A dozen readers would
+  each need it. `blockedPhases` is a subset and never a signal on its own.
+- **Parsing the `[PHASE LADDER SPENT` prefix or `refusal` prose.** Both
+  continue into model-authored text.
+- **`phaseBudgetSpent` as a blocker by default.** A spent semantic refusal
+  whose suites passed feeds its dependents on `HEAD` and in sequential mode.
+  This is owner decision (a).
+- **An L3 retry of landed branches.** That is the `bad74240` re-run.
+- **Forcing review on every landing.** It would change every covered budget
+  landing. The forced review is narrowed to `blockedPhases`.
+- **Blocking in sequential mode.** Sequential mode keeps its contract: each
+  phase reads the previous one.
+
+### Deviation from the design
+
+The design's `failed-suite` test was "some observation has status `failed`".
+The implementation uses group A's one mapping: a non-superseded observation
+whose consequence is `reject`. That covers a failed suite and the subject
+causes (a full-window timeout, a rewritten suite file, an oversized report),
+and lets a later passing run supersede an earlier failure. The `unverified`
+test reads `parentTestsGrantNothing(result, 'unjudged')`. An unapproved
+aggregate can hold observations that the supervisor directly above approved,
+and those were already weighed.
+
+### Tests
+
+All tests use mocked models.
+
+- **`tests/landed-run.test.ts`.**
+  - The predicate cases.
+  - Plan `[A, B, C dependsOn 0, D dependsOn 2, E dependsOn 1]` with A's own
+    fallback failing: no throw, started `[0, 1, 4]`, blocked `[2, 3]`, entries
+    by description.
+  - A throw still fails the dispatch.
+  - Abort ordering: cut, held back, and decided after the deadline.
+  - Sequential mode never blocks.
+  - `markLanded`: the budget-only string pinned byte for byte, the blocked and
+    mixed cases, and the subset invariant.
+  - `keptWithoutSynthesis`, `ladderSpent`, and `landingReasons` with its
+    multiset subtraction and the `PREVIOUS_LANDING_ENV` round trip.
+  - A coordinator-boundary run that records `partial`, seeds the next run and
+    hands it the held-back reason.
+- **`tests/dependency-landing.test.ts`, the real tissue, cell and molecules.**
+  - The cell shapes `[A, B dependsOn A]` and `[A, C, B dependsOn A]`: B never
+    runs, the cell plans once and falls back once, the phase goes up spent
+    with B's entry, and the tissue makes no result-validation model call.
+    Without the `ladderSpent` change the second shape planned six times.
+  - A root plan `[P1, P2 dependsOn P1]` with a root suite: P2 never starts and
+    the root suite is "Not run".
+  - Through `runDepthTask`: two mechanical refusals, and a remediation pass
+    carrying `rootDependencyLanding` with P2's entry and the failed assertion,
+    then `partial`.
+  - Root acceptance carries the new block and never approves mechanically; a
+    mixed landing carries both blocks.
+  - Without a deadline, a spent landing window does not cut a dependency
+    landing's acceptance but still refuses a budget landing's.
+- **`tests/depth-routing.test.ts`.** On a covered floor, a budget landing is
+  approved mechanically and a dependency landing takes a validation call.
+- **`tests/dependency-landing-runner.test.ts`, the real runner boundary.**
+  It drives `startTask` without depth, with the real fixed Vitest runner on
+  the real workspace. The run ends `partial` (it was `failed` on `HEAD`), the
+  persisted result carries `blockedPhases`, and the epilogue carries the
+  held-back reason.
+- **Viz.** `tests/viz-gpu-views.test.ts` covers `landingCause` and the composed
+  copy keys, and the card draws "blocked + refused after".
+  `tests/viz-run-index.test.ts` checks that a held-back landing is a landing.
+
+### Limits
+
+- **A root suite that did not run because the plan landed** has cause
+  `landing`, which group A maps to review. The mechanical refusal comes from
+  the held-back producer's own failed suite. A dependency landing whose only
+  observations are host-caused reaches the root's validation call instead.
+- **An L2 `[A, C]` with no dependencies.** When its own fallback fails, L3
+  still re-runs it: nothing lands, so `ladderSpent` is false. This existed
+  before and is out of scope.
+- **A mutualized peer's fallback** carries another name, so it does not mark
+  the ladder spent.
+- **A held-back discovery plan** is returned as the root result
+  (`L3Atom.ts`, discovery): group C.
+- **`llm-synthesize` prose** can overstate what landed. Only the prefix and the
+  typed fields correct it.
+- **Unmeasured live.** The partial-run card copy needs `viz:smoke` on a real
+  machine before shipping.

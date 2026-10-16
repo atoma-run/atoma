@@ -94,6 +94,95 @@ already be installed. A snapshot over 100,000 files or 512 MiB is unavailable,
 not a pass, and so are the other host causes above. Generated harness files
 exist only in the disposable copy.
 
+## A failed branch lands; its dependents do not start
+
+A branch that declares `dependsOn` starts once its own producers settle. Until
+the 2026-10-16 review, a producer that failed its checks made its dependent
+throw, the parallel dispatch rethrew that error once its siblings settled, and
+the whole run failed: completed branches were discarded and the workspace seeded
+nothing. That was the 2026-09-21 loss again, this time with the clock still
+running. Under "one ladder per root phase, judge what exists", the producer is
+now kept and judged like any work in hand, and its dependents land unstarted.
+
+`dependencyBlocker` (`src/atoms/dispatch.ts`) reads typed fields only. It never
+reads `refusal`, the summary or the `[PHASE LADDER SPENT` prefix. It enforces
+typed failure, not acceptance:
+
+- **Any producer whose suite rejects** blocks its dependents. Rejecting means
+  `parentTestConsequence` is `reject` (a failed suite, or one the code under
+  test kept from finishing) and no later pass of that suite superseded it.
+- **A producer that landed** with unfinished work of its own blocks its
+  dependents.
+- **An unapproved producer with any unjudged suite that did not pass** blocks
+  its dependents. Unapproved means the dispatcher's own fallback (`viaFallback`
+  under the dispatcher's name) or a root phase handed up spent.
+- **An approved producer whose suite did not run for a host cause** does not
+  block. Its approver weighed that suite.
+- **An unapproved producer with a passed suite, or no suite,** does not block.
+  This matches sequential mode, and the root judges the whole result.
+
+Blocking is transitive and has no wave barrier: each dependent decides as soon
+as its own producers settle. A dependent behind a held-back branch is held back
+behind the same root causes. Held-back branches are listed in `blocked` with
+an entry naming their prerequisite by description. `markLanded` adds each entry
+to `unfinishedPhases`, so `isLanded` and every existing reader see a landing,
+and to `blockedPhases`, so readers that explain a landing can tell a held-back
+phase from one the clock cut. A budget-only landing is byte-identical to
+before. A producer that threw still fails its dependents and the dispatch. The
+deadline keeps its own semantics: a dependent decided after the deadline is
+unfinished, not blocked. The refusing producer is always among the results, so
+a dispatch that completed no phase still never lands. Sequential dispatch is
+unchanged and never blocks.
+
+**Under a root phase.** At L2, every possible blocker is the cell's own
+fallback: an approved molecule cannot carry a rejecting suite. A cell whose
+branch landed behind its own fallback therefore sets `ownFallbackBlockedBy`,
+and `ladderSpent` reads it. The tissue that refuses that phase hands the whole
+phase up once (`phaseBudgetSpent`), whatever the plan shape: `[A, B dependsOn
+A]` and `[A, C, B dependsOn A]` alike, with no second run of the cell's ladder.
+In short mode a tier-2 fallback deepens before it runs, so no cell lands this
+way there.
+
+**At the root.** Every dependency landing carries an observation that did not
+pass, and the refusing producer is kept, so the root's reject gate usually
+refuses the landing mechanically. Depth then opens its one remediation pass.
+That pass carries `inputs.rootDependencyLanding`, built from typed fields
+only:
+
+- the phases that never started;
+- the suites that did not pass;
+- a fixed instruction to repair the failed phase against its suite and then
+  complete the phases that never started.
+
+If no remediation is left, or the wall clock cannot pay for one, the run is
+refused and ends `partial`, and its workspace seeds the next run. A dependency
+landing that reaches a validation call hears `DEPENDENCY_LANDING_GUIDANCE`
+instead of the budget-landing block, and it is never approved mechanically.
+Without a run deadline, a pure dependency landing is not capped by the landing
+window, because it happened with the clock running. Lessons follow the root's
+verdict as before. Parallel root plans keep no durable checkpoint, so the next
+run continues from the workspace and from the landing reasons.
+
+**Owner decisions recorded with this change:**
+
+- **(a)** A spent semantic refusal whose suites passed, or which has no suites,
+  feeds its dependents, as before and as in sequential mode. The alternative is
+  to block it. That would need a matching depth rule: open the remediation pass
+  for any approved result with `blockedPhases` while a pass and budget remain.
+- **(b)** An approved dependency landing ends `partial` and forfeits the
+  remaining budget, like an approved budget landing. Today the reject gate
+  refuses every dependency landing, so this is reachable only when every
+  observation that did not pass was weighed and approved above.
+- **(c)** An unapproved producer with no suite does not block.
+- **(d)** Customer copy: "A step of this run did not pass its checks, so the
+  steps that depend on it were not started." It is written in English only;
+  CI translates it.
+- **(e)** The analyst's definition of `partial` now names this case (prompt
+  version `p9-2026-10-16-dependency-landing`).
+
+Review:
+[parent-test fixes, group B](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#group-b--a-refused-dependency-lands).
+
 ## Mandatory planning review and discovery
 
 The first Attica trial exposed a missing admission boundary: a root plan could

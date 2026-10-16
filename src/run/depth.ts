@@ -11,7 +11,7 @@ import { outOfPhaseBudget } from '../core/limits.js';
 import type { AcceptanceInfo, DepthMode, PhaseCoverageRecord, ProofFloor, TopologyInfo } from '../contracts/depthRouting.js';
 import { checklistPlanningLines, phaseCriteriaOf, type AcceptanceChecklist, type ChecklistSource } from '../contracts/acceptanceChecklist.js';
 import { PhaseBoundaryPause } from '../contracts/runCheckpoint.js';
-import { parentTestFindings, parentTestRejection, parentTestReviewFinding, parentTestsGrantNothing, parentTestWorkspaceFinding } from '../core/parentTests.js';
+import { parentTestFindings, parentTestRejection, parentTestReviewFinding, parentTestsGrantNothing, parentTestSuperseded, parentTestWorkspaceFinding } from '../core/parentTests.js';
 
 export class DeepeningSignal extends Error {
   constructor() { super('Entry cell exhausted supervision; deepen once.'); this.name = 'DeepeningSignal'; }
@@ -138,7 +138,40 @@ function inheritedChecksInput(acceptance: AcceptanceInfo): Record<string, unknow
   };
 }
 
-export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
+/** The input a remediation pass reads when its refused pass was a dependency landing. */
+export const DEPENDENCY_LANDING_INPUT = 'rootDependencyLanding';
+
+/**
+ * What a dependency landing tells its remediation pass, from typed fields
+ * only (review 2026-10-16, group B): the phases a failed phase held back and
+ * the suites that did not pass. The gate that refused it says nothing of
+ * either, so without this the pass heard a fixed sentence and no facts.
+ */
+function dependencyLandingInput(result: Result | undefined): Record<string, unknown> {
+  const blocked = result?.blockedPhases ?? [];
+  if (blocked.length === 0) return {};
+  const observations = result?.parentTests ?? [];
+  const checks = observations
+    .filter((observation, index) => observation.status !== 'passed' && !parentTestSuperseded(observations, index))
+    .slice(0, 8)
+    .map((observation) => ({
+      status: observation.status,
+      ...(observation.cause ? { cause: observation.cause } : {}),
+      ...(observation.suite ? { requirement: observation.suite.requirement } : {}),
+      details: observation.details.slice(0, 2000),
+    }));
+  return {
+    [DEPENDENCY_LANDING_INPUT]: {
+      notStarted: blocked.slice(0, 16).map((entry) => entry.slice(0, 500)),
+      checks,
+      instruction:
+        'These phases were not started because a phase they depend on failed its typed checks. Repair that phase against its ' +
+        'parent-owned suite, then complete the phases that never started. Do not edit or bypass the suites.',
+    },
+  };
+}
+
+export function remediationTask(task: Task, acceptance: AcceptanceInfo, result?: Result): Task {
   // A single criterion rejected by the root is a narrow, structured finding.
   // Show that fact to the planner so it can repair the claim without treating
   // the original goal as a fresh build. Do not infer scope from free-form
@@ -160,7 +193,8 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
     },
   } : {};
   // The listing is the LATEST acceptance's: an earlier pass's never rides on.
-  const { [EARLIER_LISTED_INPUT]: _stale, ...inputs } = task.inputs ?? {};
+  // So is a dependency landing's: it describes the refused pass, never an earlier one.
+  const { [EARLIER_LISTED_INPUT]: _stale, [DEPENDENCY_LANDING_INPUT]: _staleLanding, ...inputs } = task.inputs ?? {};
   // A criterion the acceptor judged met keeps its evidence (metCriteria):
   // the phases of this pass hear only the ones it did not.
   const met = new Set((acceptance.checklist ?? []).filter((item) => item.judgement?.met === true).map((item) => item.id));
@@ -178,6 +212,7 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
       // on its delivery, minus the ones the acceptor said the task asked to
       // change (docs/decisions/inherited-checks-replay-2026-10-01.md).
       ...inheritedChecksInput(acceptance),
+      ...dependencyLandingInput(result),
     },
   };
 }
@@ -383,9 +418,12 @@ export async function runDepthTask(args: {
             if (!abortedForLanding(ctx)) explicitCancellation.abort(ctx.signal.reason);
           };
           ctx.signal.addEventListener('abort', forwardCancellation, { once: true });
-          // Deadline + grace, absolute. Without a run deadline a landed result keeps
-          // the post-approval cap and a complete one only its cancellations.
-          const bound = finalizationSignal(ctx.deadlineAt) ?? (landed ? landingSignal() : undefined);
+          // Deadline + grace, absolute. Without a run deadline a BUDGET landing keeps
+          // the post-approval cap and a complete one only its cancellations; a
+          // pure dependency landing happened with the clock running, so it is
+          // judged like a complete result (review 2026-10-16, group B).
+          const budgetLanded = (result.unfinishedPhases?.length ?? 0) > (result.blockedPhases?.length ?? 0);
+          const bound = finalizationSignal(ctx.deadlineAt) ?? (budgetLanded ? landingSignal() : undefined);
           const acceptanceCtx: RunContext = { ...attemptCtx,
             signal: AbortSignal.any([...(bound ? [bound] : []), cancellation.signal, explicitCancellation.signal]),
           };
@@ -462,7 +500,7 @@ export async function runDepthTask(args: {
           ctx.logger.warn(
             `[root] delivery refused; one more pass with the acceptor's reasons (${remediations}/${MAX_ROOT_REMEDIATIONS})`
           );
-          currentTask = remediationTask(currentTask, acceptance);
+          currentTask = remediationTask(currentTask, acceptance, result);
         } finally {
           if (!lessonsSaved) discardLessons(lessons.splice(0), ctx, 'the root did not approve this pass');
         }

@@ -408,9 +408,11 @@ export const PROOF_OBLIGATION_GUIDANCE = [
  *
  * A run that reaches its budget with phases already accepted reports those
  * instead of discarding them (`markLanded`, `src/atoms/dispatch.ts`), and its
- * summary opens with INCOMPLETE. Root acceptance then judges it — always
- * through a validation call, because a landed run stopped before it could
- * prove the delivery floor, so `floorCoverage` is uncovered by construction.
+ * summary opens with INCOMPLETE. Root acceptance then judges it — usually
+ * through a validation call, because a landed run usually stopped before it
+ * could prove the delivery floor; a covered floor with no finding still
+ * approves a budget landing mechanically. A DEPENDENCY landing (below) is
+ * never approved mechanically.
  *
  * Until 2026-09-24 that judge was told nothing about landings. Everything it
  * knew came from the executor's own summary, while the only statement the host
@@ -430,6 +432,23 @@ export const LANDED_RESULT_GUIDANCE: string = [
   'reject it for being incomplete, and do not approve it for having landed.',
   'Reject it only if the work it DOES claim fails on its own evidence, or if',
   'the phases it reports as accepted were not in fact accepted.',
+].join('\n');
+
+/**
+ * WHAT A DEPENDENCY LANDING IS (review 2026-10-16, group B). A parallel phase
+ * failed its typed checks; it is kept, and the phases that declared a
+ * dependency on it were never started (`Result.blockedPhases`). It is not a
+ * budget landing, so `LANDED_RESULT_GUIDANCE` would tell the judge something
+ * false; a result can carry both, and then both blocks are shown.
+ */
+export const DEPENDENCY_LANDING_GUIDANCE: string = [
+  '== PHASES NOT STARTED BEHIND A FAILED PHASE ==',
+  'A phase of this plan failed its typed checks (its parent-owned suite failed,',
+  'or it was not approved and its suite did not pass). Its result is kept and',
+  'shown; the phases declared to depend on it were not started and are named',
+  'unfinished. Judge the failed phase on its own evidence, approve only what',
+  'that evidence establishes; do not reject for the missing dependents, and do',
+  'not approve for having landed.',
 ].join('\n');
 
 export const STANDING_PROOF_PLANNING_GUIDANCE = [

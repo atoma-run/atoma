@@ -399,7 +399,8 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
 ## A landed run: `partial`
 
 - `partial` is TERMINAL and is not a failure: the run reached its budget with
-  phases already accepted and reported those. It reaches the store through the
+  phases already accepted and reported those, or a phase failed its typed
+  checks and its dependents were never started (`blockedPhases`). It reaches the store through the
   same `completeProjectRun` transaction as a delivery — same trace bar, same
   workspace manifest, same atomicity — and differs on exactly three points.
   It may carry an error string, because the phases it never ran are worth

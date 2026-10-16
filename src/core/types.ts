@@ -220,6 +220,10 @@ export interface Result {
    *
    * It is no longer the ONLY route to `partial`: see `refusal` below, and
    * `landedResult()` in `src/run/runner.ts` for the one derivation both feed.
+   *
+   * Since 2026-10-16 it also names the phases a parallel dispatch never
+   * started because a phase they depend on failed its typed checks; those
+   * entries are repeated in `blockedPhases`.
    */
   readonly unfinishedPhases?: readonly string[];
   /**
@@ -288,6 +292,27 @@ export interface Result {
    * aggregates; the `phase-budget-spent` gate forces root review.
    */
   readonly phaseBudgetSpent?: true;
+  /**
+   * The subset of `unfinishedPhases` that never STARTED because a phase they
+   * declared a dependency on (`dependsOn`) failed its typed checks: its
+   * parent-owned suite failed, or it was not approved and its suite did not
+   * pass (`dependencyBlocker`, src/atoms/dispatch.ts). That phase's result is
+   * kept; its dependents land unstarted instead of failing the run.
+   *
+   * Never a landing signal by itself: every entry is also in
+   * `unfinishedPhases`, which is what `isLanded` reads. It tells the readers
+   * that explain a landing which of its phases the clock cut and which a
+   * failed prerequisite held back. Carried up by aggregates.
+   */
+  readonly blockedPhases?: readonly string[];
+  /**
+   * RUNTIME ONLY, never persisted: the atom whose OWN fallback result held
+   * back dependents in the dispatch that produced this result. Its direct
+   * supervisor reads it (`ladderSpent`, src/core/phaseBudget.ts): a cell
+   * whose branch landed behind its own fallback has spent its ladder on that
+   * root phase, whatever the plan shape. The name check keeps it inert above.
+   */
+  readonly ownFallbackBlockedBy?: string;
 }
 
 export type MutationScope = 'ephemeral' | 'branch' | 'patch';

@@ -753,7 +753,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         dispatched.results,
         this.name
       ),
-      dispatched.unfinished
+      dispatched.unfinished,
+      dispatched.blocked
     );
     return plan.acceptanceTests
       ? verifyParentTests({ ...task, acceptanceTests: plan.acceptanceTests }, result, ctx) : result;
@@ -807,7 +808,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         undeclaredIsReadOnly:
           ctx.currentBranchId === undefined && !plan.viaPrefilter &&
           plan.aggregation.mode === 'sequential' && plan.subtasks.length >= 2,
-      })
+      }),
+      { dispatcher: this.name }
     );
   }
 
@@ -2179,8 +2181,12 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     };
     // Carried up like `evidence`; see L3Atom.aggregate for why.
     const unfinishedBelow = subResults.flatMap((result) => result.unfinishedPhases ?? []);
-    const unfinishedField =
-      unfinishedBelow.length > 0 ? { unfinishedPhases: unfinishedBelow } : {};
+    // Dependents a failed prerequisite held back below stay named as such.
+    const blockedBelow = subResults.flatMap((result) => result.blockedPhases ?? []);
+    const unfinishedField = {
+      ...(unfinishedBelow.length > 0 ? { unfinishedPhases: unfinishedBelow } : {}),
+      ...(blockedBelow.length > 0 ? { blockedPhases: blockedBelow } : {}),
+    };
     // A phase that spent its execution budget went up unjudged: the tier that
     // judges this aggregate must know it (`phase-budget-spent`).
     const spentField = subResults.some((result) => result.phaseBudgetSpent) ? { phaseBudgetSpent: true as const } : {};

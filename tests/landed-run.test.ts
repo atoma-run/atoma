@@ -5,7 +5,9 @@ import { execFileSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
-import { dispatchWithAggregation, markLanded } from '../src/atoms/dispatch.js';
+import { dependencyBlocker, dispatchWithAggregation, keptWithoutSynthesis, markLanded, type BlockedSubtask } from '../src/atoms/dispatch.js';
+import { ladderSpent } from '../src/core/phaseBudget.js';
+import { parentTestSuiteDigest, type HeldParentTestObservation } from '../src/contracts/parentTests.js';
 import { MIN_PHASE_LANDING_MS, outOfPhaseBudget } from '../src/core/limits.js';
 import { PhaseBoundaryPause } from '../src/contracts/runCheckpoint.js';
 import { AuthStore } from '../src/auth/store.js';
@@ -13,7 +15,7 @@ import { ProjectStore, PROJECT_TABLES_DDL } from '../src/projects/store.js';
 import { ProjectRunCoordinator, previousSeedRun } from '../src/projects/coordinator.js';
 import { previousResultsFor } from '../src/projects/previousResults.js';
 import { formatRunStatsEpilogue } from '../src/contracts/runStats.js';
-import { decodePreviousLanding, PREVIOUS_LANDING_ENV } from '../src/contracts/runLanding.js';
+import { decodePreviousLanding, encodePreviousLanding, isLanded, landingReasons, PREVIOUS_LANDING_ENV } from '../src/contracts/runLanding.js';
 import { decodePreviousResults, PREVIOUS_RESULTS_ENV } from '../src/contracts/previousRunResults.js';
 import type { RunStats } from '../src/contracts/runStats.js';
 import type { Plan, Result, RunContext } from '../src/core/types.js';
@@ -133,7 +135,8 @@ describe('a sequential dispatch landing on the run deadline', () => {
       async (_subtask, idx) => {
         ran.push(idx);
         return result(`phase ${idx + 1}`);
-      }
+      },
+      { dispatcher: 'Dispatcher' }
     );
     // Phase 1 runs whatever the clock says — a dispatch with nothing accepted
     // has nothing to land on, so it spends what it has left trying. Phases 2
@@ -158,7 +161,8 @@ describe('a sequential dispatch landing on the run deadline', () => {
       async (_subtask, idx) => {
         if (idx === 3) throw new Error('The operation was aborted due to timeout');
         return result(`phase ${idx + 1}`);
-      }
+      },
+      { dispatcher: 'Dispatcher' }
     );
     expect(outcome.results).toHaveLength(3);
     expect(outcome.unfinished.map((s) => s.description)).toEqual(['package']);
@@ -176,7 +180,8 @@ describe('a sequential dispatch landing on the run deadline', () => {
         ctx,
         async () => {
           throw new Error('The operation was aborted due to timeout');
-        }
+        },
+        { dispatcher: 'Dispatcher' }
       )
     ).rejects.toThrow(/aborted/);
   });
@@ -194,13 +199,13 @@ describe('a sequential dispatch landing on the run deadline', () => {
       plan('sequential', subtasks),
       ctx,
       async (_subtask, idx) => { ran.push(idx); return result(`phase ${idx + 1}`); },
-      { completed: [], finalizing: () => {}, afterPhase: async () => {},
+      { dispatcher: 'Dispatcher', checkpoint: { completed: [], finalizing: () => {}, afterPhase: async () => {},
         beforePhase: (idx: number) => {
           if (idx < 2) return;
           const reason = new DOMException('The operation timed out.', 'TimeoutError');
           controller.abort(reason);
           throw reason;
-        } } as never
+        } } as never }
     );
     expect(ran).toEqual([0, 1]);
     expect(outcome.results.map((r) => r.summary)).toEqual(['phase 1', 'phase 2']);
@@ -216,8 +221,8 @@ describe('a sequential dispatch landing on the run deadline', () => {
         plan('sequential', ['implement', 'document']),
         ctx,
         async (_subtask, idx) => result(`phase ${idx + 1}`),
-        { completed: [], finalizing: () => {}, afterPhase: async () => {},
-          beforePhase: (idx: number) => { if (idx === 1) throw pause; } } as never
+        { dispatcher: 'Dispatcher', checkpoint: { completed: [], finalizing: () => {}, afterPhase: async () => {},
+          beforePhase: (idx: number) => { if (idx === 1) throw pause; } } as never }
       )
     ).rejects.toBe(pause);
   });
@@ -234,7 +239,8 @@ describe('a sequential dispatch landing on the run deadline', () => {
         async (_subtask, idx) => {
           if (idx === 1) throw new Error('validator rejected the result');
           return result('phase 1');
-        }
+        },
+        { dispatcher: 'Dispatcher' }
       )
     ).rejects.toThrow('validator rejected the result');
   });
@@ -251,7 +257,8 @@ describe('a parallel dispatch landing on the run deadline', () => {
       async (_subtask, idx) => {
         if (idx === 1) throw new Error('The operation was aborted due to timeout');
         return result(`branch ${idx + 1}`);
-      }
+      },
+      { dispatcher: 'Dispatcher' }
     );
     expect(outcome.results.map((r) => r.summary)).toEqual(['branch 1', 'branch 3']);
     expect(outcome.unfinished.map((s) => s.description)).toEqual(['cli']);
@@ -267,7 +274,8 @@ describe('a parallel dispatch landing on the run deadline', () => {
         async (_subtask, idx) => {
           if (idx === 1) throw new Error('sandbox refused the write');
           return result('branch 1');
-        }
+        },
+        { dispatcher: 'Dispatcher' }
       )
     ).rejects.toThrow('sandbox refused the write');
   });
@@ -284,7 +292,8 @@ describe('a parallel dispatch landing on the run deadline', () => {
         await new Promise((resolve) => setTimeout(resolve, 20));
         drained.push('slow');
         return result('slow');
-      }
+      },
+      { dispatcher: 'Dispatcher' }
     );
     expect(drained).toEqual(['slow']);
   });
@@ -310,6 +319,260 @@ describe('what a landed result says about itself', () => {
   it('leaves a complete dispatch untouched', () => {
     const complete = result('done');
     expect(markLanded(complete, [])).toBe(complete);
+  });
+});
+
+/**
+ * A FAILED BRANCH LANDS; ITS DEPENDENTS DO NOT START (review 2026-10-16,
+ * group B). A dependent whose producer failed its typed checks used to throw
+ * "Dependency did not complete with accepted evidence", and `allSettled`
+ * rethrew it: every completed sibling was discarded with the run, the
+ * 2026-09-21 loss again, mid-run and with the clock still running.
+ */
+const SUITE = { requirement: 'add returns the sum', cwd: '.', source: "import { test } from 'vitest';\ntest('adds', () => {});" };
+
+function check(status: HeldParentTestObservation['status'], extra: Partial<HeldParentTestObservation> = {}): HeldParentTestObservation {
+  return {
+    suiteDigest: parentTestSuiteDigest(SUITE),
+    suite: SUITE,
+    workspaceDigest: 'w',
+    status,
+    cause: status === 'unavailable' ? 'runner-error' : 'ran',
+    passed: status === 'passed' ? 1 : 0,
+    failed: status === 'failed' ? 1 : 0,
+    skipped: 0,
+    details: status === 'failed' ? 'expected 5 to be 4' : 'host detail',
+    ...extra,
+  };
+}
+
+const DISPATCHER = 'Tracheid';
+
+/** The dispatcher's own unvalidated fallback, as `superviseLoop` returns it. */
+function ownFallback(summary: string, extra: Partial<Result> = {}): Result {
+  return { ...result(summary), producedBy: { tier: 2, name: DISPATCHER, viaFallback: true }, ...extra };
+}
+
+function parallel(subtasks: Plan['subtasks']): Plan {
+  return { reasoning: 'r', subtasks, aggregation: { mode: 'concat' }, expectedOutput: 'anything' };
+}
+
+describe('the dependency predicate', () => {
+  it('blocks on a failed suite, approved or not', () => {
+    expect(dependencyBlocker({ ...result('approved'), parentTests: [check('failed', { judged: true })] }, DISPATCHER)).toBe('failed-suite');
+    expect(dependencyBlocker({ ...result('approved'), parentTests: [check('failed')] }, DISPATCHER)).toBe('failed-suite');
+    expect(dependencyBlocker({ ...result('approved'), parentTests: [check('unavailable', { cause: 'timeout' })] }, DISPATCHER)).toBe('failed-suite');
+    expect(dependencyBlocker(ownFallback('own', { parentTests: [check('failed')] }), DISPATCHER)).toBe('failed-suite');
+  });
+
+  it('lets an approved result whose suite did not run for a host cause feed its dependents', () => {
+    const approved: Result = { ...result('approved'), parentTests: [check('unavailable', { judged: true })] };
+
+    expect(dependencyBlocker(approved, DISPATCHER)).toBeUndefined();
+  });
+
+  it('blocks on any suite that did not pass when the result was never approved', () => {
+    expect(dependencyBlocker(ownFallback('own', { parentTests: [check('unavailable')] }), DISPATCHER)).toBe('unverified');
+    expect(dependencyBlocker({ ...result('spent'), phaseBudgetSpent: true, parentTests: [check('unavailable')] }, DISPATCHER)).toBe('unverified');
+  });
+
+  it('never reads viaFallback under another name as unapproved', () => {
+    const passThrough: Result = {
+      ...result('a cell fallback the tissue approved'),
+      producedBy: { tier: 2, name: 'Phloem', viaFallback: true },
+      parentTests: [check('unavailable')],
+    };
+
+    expect(dependencyBlocker(passThrough, DISPATCHER)).toBeUndefined();
+  });
+
+  it('lets a spent phase with a passed suite, or none, feed its dependents, as on HEAD and in sequential mode', () => {
+    expect(dependencyBlocker({ ...result('spent'), phaseBudgetSpent: true, parentTests: [check('passed')] }, DISPATCHER)).toBeUndefined();
+    expect(dependencyBlocker({ ...result('spent'), phaseBudgetSpent: true }, DISPATCHER)).toBeUndefined();
+    expect(dependencyBlocker(ownFallback('own, no suite'), DISPATCHER)).toBeUndefined();
+  });
+
+  it('reads typed facts only: a refusal stamp alone does not block, unfinished work does', () => {
+    expect(dependencyBlocker({ ...result('stamped'), refusal: 'prose' }, DISPATCHER)).toBeUndefined();
+    expect(dependencyBlocker({ ...result('landed below'), unfinishedPhases: ['x'] }, DISPATCHER)).toBe('landed');
+  });
+
+  it('ignores a failure a later pass of the same suite superseded', () => {
+    const superseded = ownFallback('own', { parentTests: [check('failed'), check('passed')] });
+
+    expect(dependencyBlocker(superseded, DISPATCHER)).toBeUndefined();
+  });
+});
+
+describe('a parallel dispatch with a branch that failed its typed checks', () => {
+  const subtasks: Plan['subtasks'] = [
+    { description: 'write add.ts' },
+    { description: 'write sub.ts' },
+    { description: 'wire add into the CLI', dependsOn: [0] },
+    { description: 'document the CLI', dependsOn: [2] },
+    { description: 'wire sub into the CLI', dependsOn: [1] },
+  ];
+
+  it('keeps every settled branch and lands the dependents, transitively, without starting them', async () => {
+    const started: number[] = [];
+
+    const outcome = await dispatchWithAggregation(subtasks, parallel(subtasks), makeCtx(), async (_subtask, idx) => {
+      started.push(idx);
+      if (idx === 0) return ownFallback('add.ts written, suite red', { parentTests: [check('failed')] });
+      return result(`branch ${idx}`);
+    }, { dispatcher: DISPATCHER });
+
+    expect(started.sort()).toEqual([0, 1, 4]);
+    expect(outcome.results.map((r) => r.summary)).toEqual(['add.ts written, suite red', 'branch 1', 'branch 4']);
+    expect(outcome.unfinished).toEqual([]);
+    expect(outcome.blocked.map((item) => item.index)).toEqual([2, 3]);
+    expect(outcome.blocked[0]!.entry).toBe(
+      'wire add into the CLI (not started: its prerequisite "write add.ts" failed its parent-owned acceptance suite)');
+    expect(outcome.blocked[1]!.entry).toBe(
+      'document the CLI (not started: its prerequisite "wire add into the CLI" was not started either, ' +
+      'behind "write add.ts", which failed its parent-owned acceptance suite)');
+    expect(outcome.blocked[1]!.rootCauses).toEqual([
+      { index: 0, description: 'write add.ts', cause: 'failed-suite', ownFallbackOf: DISPATCHER },
+    ]);
+  });
+
+  it('still fails the dispatch when a branch threw', async () => {
+    const run = vi.fn(async (_subtask: Plan['subtasks'][number], idx: number) => {
+      if (idx === 1) throw new Error('sandbox refused the write');
+      if (idx === 0) return ownFallback('red', { parentTests: [check('failed')] });
+      return result(`branch ${idx}`);
+    });
+
+    await expect(dispatchWithAggregation(subtasks, parallel(subtasks), makeCtx(), run, { dispatcher: DISPATCHER }))
+      .rejects.toThrow('sandbox refused the write');
+  });
+
+  it('reports a cut branch unfinished, a held-back one blocked, and a dependent decided after the deadline unfinished', async () => {
+    const controller = new AbortController();
+    const ctx: RunContext = { ...makeCtx(), signal: controller.signal, deadlineAt: Date.now() + 30 * 60_000 };
+    let releaseSlow!: () => void;
+    const slow = new Promise<void>((resolve) => { releaseSlow = resolve; });
+    const shape: Plan['subtasks'] = [
+      { description: 'red producer' },
+      { description: 'held back', dependsOn: [0] },
+      { description: 'slow producer' },
+      { description: 'decided after the deadline', dependsOn: [2] },
+      { description: 'cut mid-flight' },
+    ];
+
+    const outcome = dispatchWithAggregation(shape, parallel(shape), ctx, async (_subtask, idx) => {
+      if (idx === 0) return ownFallback('red', { parentTests: [check('failed')] });
+      if (idx === 2) {
+        await slow;
+        return result('slow');
+      }
+      if (idx === 4) {
+        await slow;
+        throw new Error('The operation was aborted due to timeout');
+      }
+      return result(`branch ${idx}`);
+    }, { dispatcher: DISPATCHER });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    controller.abort(new Error('The operation was aborted due to timeout'));
+    releaseSlow();
+    const landed = await outcome;
+
+    expect(landed.results.map((r) => r.summary)).toEqual(['red', 'slow']);
+    expect(landed.blocked.map((item) => item.subtask.description)).toEqual(['held back']);
+    expect(landed.unfinished.map((subtask) => subtask.description)).toEqual(['decided after the deadline', 'cut mid-flight']);
+  });
+
+  it('never blocks in sequential mode', async () => {
+    const shape: Plan['subtasks'] = [{ description: 'red' }, { description: 'next' }];
+
+    const outcome = await dispatchWithAggregation(shape, { ...parallel(shape), aggregation: { mode: 'sequential' } }, makeCtx(),
+      async (_subtask, idx) => idx === 0 ? ownFallback('red', { parentTests: [check('failed')] }) : result('next'),
+      { dispatcher: DISPATCHER });
+
+    expect(outcome.results.map((r) => r.summary)).toEqual(['red', 'next']);
+    expect(outcome.blocked).toEqual([]);
+  });
+});
+
+describe('what a dependency landing says about itself', () => {
+  const blocked = (entry: string, ownFallbackOf?: string): BlockedSubtask => ({
+    subtask: { description: entry.split(' (')[0]! },
+    index: 1,
+    entry,
+    rootCauses: [{ index: 0, description: 'write add.ts', cause: 'failed-suite', ...(ownFallbackOf ? { ownFallbackOf } : {}) }],
+  });
+
+  it('keeps a budget-only landing byte for byte', () => {
+    const marked = markLanded(result('wrote index.html'), [{ description: 'write the README' }] as Plan['subtasks'], []);
+
+    expect(marked.summary).toBe(
+      'INCOMPLETE — the run deadline landed this plan with 1 unfinished phase(s) that did not complete with an accepted result: ' +
+      'write the README. Delivered so far: wrote index.html');
+    expect(marked).not.toHaveProperty('blockedPhases');
+    expect(marked).not.toHaveProperty('ownFallbackBlockedBy');
+  });
+
+  it('names the held-back phases in their own clause, in both fields', () => {
+    const entry = 'wire add (not started: its prerequisite "write add.ts" failed its parent-owned acceptance suite)';
+
+    const marked = markLanded(result('add.ts written'), [], [blocked(entry, DISPATCHER)]);
+
+    expect(marked.summary).toBe(
+      `INCOMPLETE — 1 phase(s) were not started because a phase they depend on failed its typed checks: ${entry}. ` +
+      'Delivered so far: add.ts written');
+    expect(marked.unfinishedPhases).toEqual([entry]);
+    expect(marked.blockedPhases).toEqual([entry]);
+    expect(marked.ownFallbackBlockedBy).toBe(DISPATCHER);
+    expect(isLanded(marked)).toBe(true);
+  });
+
+  it('composes with a budget landing and with what came from below', () => {
+    const below: Result = { ...result('from below'), unfinishedPhases: ['nested'], blockedPhases: ['nested'] };
+
+    const marked = markLanded(below, [{ description: 'package' }] as Plan['subtasks'], [blocked('docs (not started: …)')]);
+
+    expect(marked.summary).toMatch(/^INCOMPLETE — the run deadline landed this plan with 1 unfinished phase\(s\).*: package; 1 phase\(s\) were not started because/);
+    expect(marked.unfinishedPhases).toEqual(['nested', 'package', 'docs (not started: …)']);
+    expect(marked.blockedPhases).toEqual(['nested', 'docs (not started: …)']);
+    expect(marked.blockedPhases!.every((entry) => marked.unfinishedPhases!.includes(entry))).toBe(true);
+    expect(marked).not.toHaveProperty('ownFallbackBlockedBy');
+  });
+
+  it('keeps the spent mark and the held-back phases when a synthesis could not finish', () => {
+    const kept = keptWithoutSynthesis([
+      { ...result('spent'), phaseBudgetSpent: true },
+      { ...result('landed'), unfinishedPhases: ['b'], blockedPhases: ['b'] },
+    ], { tier: 3, name: 'Meristem', viaFallback: false }, 'its landing window closed');
+
+    expect(kept.phaseBudgetSpent).toBe(true);
+    expect(kept.blockedPhases).toEqual(['b']);
+    expect(kept.unfinishedPhases).toEqual(['b', 'synthesis of 2 sub-results (its landing window closed)']);
+  });
+
+  it('spends the cell\'s ladder when its own fallback held dependents back, whatever the plan shape', () => {
+    const aggregate: Result = { ...result('two branches'), producedBy: { tier: 2, name: DISPATCHER, viaFallback: false } };
+
+    expect(ladderSpent(aggregate, DISPATCHER)).toBe(false);
+    expect(ladderSpent({ ...aggregate, ownFallbackBlockedBy: DISPATCHER }, DISPATCHER)).toBe(true);
+    expect(ladderSpent({ ...aggregate, ownFallbackBlockedBy: 'Phloem' }, DISPATCHER)).toBe(false);
+  });
+
+  it('explains a landing with the budget phases and the held-back ones apart, for the next run too', () => {
+    const reasons = landingReasons({
+      unfinishedPhases: ['package', 'docs (not started)', 'package'],
+      blockedPhases: ['package'],
+      refusal: 'the suite failed',
+    });
+
+    expect(reasons).toEqual([
+      'reached its budget with 2 unfinished phase(s) that did not complete with an accepted result: docs (not started) | package',
+      'did not start 1 phase(s) behind a phase that failed its typed checks: package',
+      'refused at delivery: the suite failed',
+    ]);
+    expect(landingReasons({ unfinishedPhases: ['docs'], blockedPhases: ['docs'] })).toEqual([
+      'did not start 1 phase(s) behind a phase that failed its typed checks: docs',
+    ]);
+    expect(decodePreviousLanding(encodePreviousLanding(reasons) ?? undefined)).toEqual(reasons);
   });
 });
 
@@ -701,6 +964,86 @@ describe('a landed run, across the coordinator boundary', () => {
     // nicer label on the same loss.
     const seed = previousSeedRun(f.store, f.viewer.orgId, f.project.projectId);
     expect(seed?.projectRunId).toBe(first.projectRunId);
+  });
+});
+
+/**
+ * A child whose plan landed behind a phase that failed its typed checks. Its
+ * trace and epilogue carry exactly what src/run/runner.ts writes for such a
+ * result: the typed fields, and `landingReasons` of that result.
+ */
+function blockedDriver() {
+  const entry = 'write the README (not started: its prerequisite "build the API" failed its parent-owned acceptance suite)';
+  const landed = { summary: 'INCOMPLETE — …', unfinishedPhases: [entry], blockedPhases: [entry], refusal: 'the API suite failed' };
+  return vi.fn(async (options: { env?: Record<string, string | undefined>; onSpawn?: (pid: number) => void; extraArgs?: readonly string[] }) => {
+    const env = options.env ?? {};
+    const workspace = env['ATOMA_BUILD_WORKSPACE']!;
+    const runs = env['ATOMA_RUNS_DIR']!;
+    const runId = env['ATOMA_RUN_ID']!;
+    const declarations = env['ATOMA_ARTIFACT_MANIFEST_PATH']!;
+    mkdirSync(workspace, { recursive: true });
+    mkdirSync(runs, { recursive: true });
+    mkdirSync(join(declarations, '..'), { recursive: true });
+    writeFileSync(join(workspace, 'api.mjs'), 'export const ok = false;\n', 'utf8');
+    writeFileSync(declarations, JSON.stringify({ version: 1, runId, generatedAt: new Date().toISOString(), outputs: ['api.mjs', 'README.md'] }), 'utf8');
+    writeFileSync(join(runs, `${runId}.json`), JSON.stringify({ id: runId, endedAt: new Date().toISOString(), result: landed }), 'utf8');
+    options.onSpawn?.(4242);
+    const reasons = landingReasons(landed);
+    return (
+      formatRunStatsEpilogue({ ...PARTIAL_STATS, landingReasons: reasons }) +
+      '\n◐ build LANDED — the work is in the workspace and was NOT delivered.\n' +
+      reasons.map((reason) => `  ${reason}\n`).join('')
+    );
+  });
+}
+
+describe('a run landed behind a failed phase, across the coordinator boundary', () => {
+  it('records partial, seeds the next run, and tells it which phase never started and why', async () => {
+    const f = fixture();
+    const coordinatorFor = (driver: ReturnType<typeof blockedDriver>) => new ProjectRunCoordinator({
+      store: f.store,
+      dbPath: f.dbPath,
+      projectsRoot: f.root,
+      hostEnv: {
+        ...haystackTestEnvironment(f.root),
+        PATH: process.env['PATH'],
+        ATOMA_MODEL_L3: 'api:anthropic:claude-opus-5',
+        ATOMA_MODEL_L2: 'api:anthropic:claude-sonnet-5',
+        ATOMA_MODEL_L1: 'api:anthropic:claude-haiku-4-5',
+        ANTHROPIC_API_KEY: 'model-key',
+      },
+      driver,
+      acquireLease: async () => ({ path: '/test/lease', attachChild: vi.fn(), release: vi.fn() }),
+    });
+
+    const first = coordinatorFor(blockedDriver());
+    const started = await first.start({
+      orgId: f.viewer.orgId,
+      principalId: f.viewer.principalId,
+      projectId: f.project.projectId,
+      request: { idempotencyKey: 'blocked-1', goal: 'Build a notes service.' },
+    });
+    await first.waitForIdle();
+    const landed = f.store.getProjectRun(f.viewer.orgId, started.projectRunId)!;
+    expect(landed.status).toBe('partial');
+    expect(landed.error).toContain('did not start 1 phase(s) behind a phase that failed its typed checks');
+    expect(previousSeedRun(f.store, f.viewer.orgId, f.project.projectId)?.projectRunId).toBe(started.projectRunId);
+
+    const driver = blockedDriver();
+    const second = coordinatorFor(driver);
+    await second.start({
+      orgId: f.viewer.orgId,
+      principalId: f.viewer.principalId,
+      projectId: f.project.projectId,
+      request: { idempotencyKey: 'blocked-2', goal: 'Finish the notes service.' },
+    });
+    await second.waitForIdle();
+    const reasons = decodePreviousLanding(driver.mock.calls[0]?.[0].env?.[PREVIOUS_LANDING_ENV]);
+    expect(reasons).toEqual([
+      'did not start 1 phase(s) behind a phase that failed its typed checks: ' +
+        'write the README (not started: its prerequisite "build the API" failed its parent-owned acceptance suite)',
+      'refused at delivery: the API suite failed',
+    ]);
   });
 });
 

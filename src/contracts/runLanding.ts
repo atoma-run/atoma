@@ -6,7 +6,9 @@
  * the root judges what it did report:
  *
  *   - `unfinishedPhases` — the deadline landed the dispatch before some phases
- *     ran (`markLanded`, `src/atoms/dispatch.ts`);
+ *     ran, or a phase failed its typed checks and the phases depending on it
+ *     were never started (`markLanded`, `src/atoms/dispatch.ts`; the second
+ *     kind is repeated in `blockedPhases`, which explains and never decides);
  *   - `refusal` — root delivery acceptance did not accept the result
  *     (`markRefused`, `src/run/depth.ts`).
  *
@@ -29,7 +31,25 @@
  */
 export interface LandingSignals {
   readonly unfinishedPhases?: readonly string[] | undefined;
+  /** The subset of `unfinishedPhases` a failed prerequisite held back. Never a landing signal by itself. */
+  readonly blockedPhases?: readonly string[] | undefined;
   readonly refusal?: string | undefined;
+}
+
+/**
+ * The phases the BUDGET left unfinished: `unfinishedPhases` minus the
+ * held-back entries, as a multiset, so a description that is both is counted
+ * once on each side.
+ */
+export function budgetUnfinishedPhases(result: LandingSignals): string[] {
+  const held = new Map<string, number>();
+  for (const entry of result.blockedPhases ?? []) held.set(entry, (held.get(entry) ?? 0) + 1);
+  return (result.unfinishedPhases ?? []).filter((entry) => {
+    const left = held.get(entry) ?? 0;
+    if (left === 0) return true;
+    held.set(entry, left - 1);
+    return false;
+  });
 }
 
 /** True when the result is real work that is NOT a delivery. */
@@ -51,11 +71,17 @@ export function isLanded(result: LandingSignals | null | undefined): boolean {
 export function landingReasons(result: LandingSignals | null | undefined): string[] {
   if (!result) return [];
   const reasons: string[] = [];
-  const phases = result.unfinishedPhases ?? [];
+  const phases = budgetUnfinishedPhases(result);
   if (phases.length > 0) {
     reasons.push(
       // The words markLanded uses (#8): a phase cut mid-flight did run.
       `reached its budget with ${phases.length} unfinished phase(s) that did not complete with an accepted result: ${phases.join(' | ')}`
+    );
+  }
+  const blocked = result.blockedPhases ?? [];
+  if (blocked.length > 0) {
+    reasons.push(
+      `did not start ${blocked.length} phase(s) behind a phase that failed its typed checks: ${blocked.join(' | ')}`
     );
   }
   if (result.refusal) reasons.push(`refused at delivery: ${result.refusal}`);

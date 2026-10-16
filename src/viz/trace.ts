@@ -601,6 +601,12 @@ export interface VizRun {
      */
     unfinishedPhases?: readonly string[];
     /**
+     * The subset of `unfinishedPhases` never started because a phase they
+     * depend on failed its typed checks (`Result.blockedPhases`). It explains
+     * a landing; `isLanded` never reads it.
+     */
+    blockedPhases?: readonly string[];
+    /**
      * Why root delivery acceptance refused this result (`Result.refusal`).
      * The SECOND reason a trace is partial rather than delivered, and it
      * composes with the first — a run can land on its budget and then be
