@@ -1996,7 +1996,7 @@
   "nav.plan": "Paket Anda",
   "settings.tab.plan": "Paket Anda",
   "plan.title": "Paket Anda",
-  "plan.hintBeta": "",
+  "plan.hintBeta": "Atoma masih dalam versi beta: paket berbayar ditampilkan agar Anda tahu apa yang akan hadir; belum ada yang dapat dipilih dan tidak ada biaya yang ditagihkan.",
   "plan.hint": "Paket yang digunakan organisasi Anda beserta semua yang disertakan.",
   "plan.current": "Paket saat ini",
   "plan.beta": "Beta",
@@ -2046,5 +2046,7 @@
   "push.pressure.storeSlow_one": "Penyimpanan: {{count}} transaksi lambat, terlama {{slowestMs}} md",
   "push.pressure.storeSlow_other": "Penyimpanan: {{count}} transaksi lambat, terlama {{slowestMs}} md",
   "push.pressure.memoryLow": "Memori: {{availableMb}} MiB tersedia; run aktif: {{activeRuns}}; cadangan: {{reserveMb}} MiB",
-  "push.pressure.unknown": "Tekanan sumber daya host terdeteksi"
+  "push.pressure.unknown": "Tekanan sumber daya host terdeteksi",
+  "plan.feature.attribution": "Label kecil “Didukung oleh Atoma” pada aplikasi, terminal, dan repositori yang dihasilkan oleh run Anda",
+  "plan.feature.noAttribution": "Tanpa label “Didukung oleh Atoma” pada hasil run Anda"
 }

@@ -1996,7 +1996,7 @@
   "nav.plan": "您的套餐",
   "settings.tab.plan": "您的套餐",
   "plan.title": "您的套餐",
-  "plan.hintBeta": "",
+  "plan.hintBeta": "Atoma 目前处于测试阶段：付费套餐仅用于展示即将推出的内容；暂时无法选择，也不会产生任何费用。",
   "plan.hint": "您的组织当前使用的套餐及其包含的内容。",
   "plan.current": "当前套餐",
   "plan.beta": "测试版",
@@ -2046,5 +2046,7 @@
   "push.pressure.storeSlow_one": "存储：{{count}}个慢事务，最长{{slowestMs}}毫秒",
   "push.pressure.storeSlow_other": "存储：{{count}}个慢事务，最长{{slowestMs}}毫秒",
   "push.pressure.memoryLow": "内存：可用{{availableMb}} MiB；活跃run数：{{activeRuns}}；预留：{{reserveMb}} MiB",
-  "push.pressure.unknown": "检测到主机资源压力"
+  "push.pressure.unknown": "检测到主机资源压力",
+  "plan.feature.attribution": "run 生成的应用、终端和代码仓库上会显示一个小型“Powered by Atoma”标识",
+  "plan.feature.noAttribution": "run 生成的内容上不显示“Powered by Atoma”标识"
 }

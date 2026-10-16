@@ -1996,7 +1996,7 @@
   "nav.plan": "Tu plan",
   "settings.tab.plan": "Tu plan",
   "plan.title": "Tu plan",
-  "plan.hintBeta": "",
+  "plan.hintBeta": "Atoma está en beta: los planes de pago se muestran para que sepas lo que viene; aún no se puede elegir ninguno y no se factura nada.",
   "plan.hint": "El plan de tu organización y lo que incluye.",
   "plan.current": "Plan actual",
   "plan.beta": "Beta",
@@ -2046,5 +2046,7 @@
   "push.pressure.storeSlow_one": "Almacén: {{count}} transacción lenta, la más larga: {{slowestMs}} ms",
   "push.pressure.storeSlow_other": "Almacén: {{count}} transacciones lentas, la más larga: {{slowestMs}} ms",
   "push.pressure.memoryLow": "Memoria: {{availableMb}} MiB disponibles; runs activos: {{activeRuns}}; reserva: {{reserveMb}} MiB",
-  "push.pressure.unknown": "Se detectó presión sobre los recursos del host"
+  "push.pressure.unknown": "Se detectó presión sobre los recursos del host",
+  "plan.feature.attribution": "Una pequeña marca «Con la tecnología de Atoma» en las aplicaciones, terminales y repositorios que producen tus runs",
+  "plan.feature.noAttribution": "Sin la marca «Con la tecnología de Atoma» en lo que producen tus runs"
 }

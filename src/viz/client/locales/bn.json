@@ -1996,7 +1996,7 @@
   "nav.plan": "আপনার প্ল্যান",
   "settings.tab.plan": "আপনার প্ল্যান",
   "plan.title": "আপনার প্ল্যান",
-  "plan.hintBeta": "",
+  "plan.hintBeta": "Atoma বিটা পর্যায়ে আছে: সামনে কী আসছে তা জানানোর জন্য পেইড প্ল্যানগুলো দেখানো হয়েছে; এখনো কোনোটিই বেছে নেওয়া যাবে না এবং কোনো বিলও করা হবে না।",
   "plan.hint": "আপনার প্রতিষ্ঠান যে প্ল্যানে আছে এবং তাতে যা অন্তর্ভুক্ত।",
   "plan.current": "বর্তমান প্ল্যান",
   "plan.beta": "বেটা",
@@ -2046,5 +2046,7 @@
   "push.pressure.storeSlow_one": "স্টোর: {{count}}টি ধীর ট্রানজ্যাকশন, দীর্ঘতম {{slowestMs}} ms",
   "push.pressure.storeSlow_other": "স্টোর: {{count}}টি ধীর ট্রানজ্যাকশন, দীর্ঘতম {{slowestMs}} ms",
   "push.pressure.memoryLow": "মেমোরি: {{availableMb}} MiB উপলভ্য; সক্রিয় run: {{activeRuns}}; রিজার্ভ: {{reserveMb}} MiB",
-  "push.pressure.unknown": "হোস্টের রিসোর্সে চাপ শনাক্ত হয়েছে"
+  "push.pressure.unknown": "হোস্টের রিসোর্সে চাপ শনাক্ত হয়েছে",
+  "plan.feature.attribution": "আপনার run থেকে তৈরি অ্যাপ্লিকেশন, টার্মিনাল ও রিপোজিটরিতে একটি ছোট “Powered by Atoma” চিহ্ন",
+  "plan.feature.noAttribution": "আপনার run থেকে তৈরি কোনো কিছুতে “Powered by Atoma” চিহ্ন থাকবে না"
 }

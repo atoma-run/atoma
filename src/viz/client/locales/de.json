@@ -1996,7 +1996,7 @@
   "nav.plan": "Ihr Tarif",
   "settings.tab.plan": "Ihr Tarif",
   "plan.title": "Ihr Tarif",
-  "plan.hintBeta": "",
+  "plan.hintBeta": "Atoma befindet sich in der Betaphase: Die kostenpflichtigen Tarife werden angezeigt, damit klar ist, was kommt; sie können noch nicht ausgewählt werden und es wird nichts berechnet.",
   "plan.hint": "Der Tarif Ihrer Organisation und die darin enthaltenen Leistungen.",
   "plan.current": "Aktueller Tarif",
   "plan.beta": "Beta",
@@ -2046,5 +2046,7 @@
   "push.pressure.storeSlow_one": "Speicher: {{count}} langsame Transaktion, längste {{slowestMs}} ms",
   "push.pressure.storeSlow_other": "Speicher: {{count}} langsame Transaktionen, längste {{slowestMs}} ms",
   "push.pressure.memoryLow": "Arbeitsspeicher: {{availableMb}} MiB verfügbar; aktive runs: {{activeRuns}}; Reserve: {{reserveMb}} MiB",
-  "push.pressure.unknown": "Ressourcenengpass auf dem Host erkannt"
+  "push.pressure.unknown": "Ressourcenengpass auf dem Host erkannt",
+  "plan.feature.attribution": "Eine kleine „Powered by Atoma“-Kennzeichnung auf den Anwendungen, Terminals und Repositorys, die Ihre runs erzeugen",
+  "plan.feature.noAttribution": "Keine „Powered by Atoma“-Kennzeichnung auf dem, was Ihre runs erzeugen"
 }

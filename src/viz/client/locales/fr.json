@@ -1996,7 +1996,7 @@
   "nav.plan": "Ton forfait",
   "settings.tab.plan": "Ton forfait",
   "plan.title": "Ton forfait",
-  "plan.hintBeta": "",
+  "plan.hintBeta": "atoma est en version bêta : les forfaits payants sont affichés pour que tu saches ce qui est prévu ; aucun ne peut encore être choisi et rien n’est facturé.",
   "plan.hint": "Le forfait de ton organisation et ce qu’il inclut.",
   "plan.current": "Forfait actuel",
   "plan.beta": "Bêta",
@@ -2046,5 +2046,7 @@
   "push.pressure.storeSlow_one": "Stockage : {{count}} transaction lente, la plus longue : {{slowestMs}} ms",
   "push.pressure.storeSlow_other": "Stockage : {{count}} transactions lentes, la plus longue : {{slowestMs}} ms",
   "push.pressure.memoryLow": "Mémoire : {{availableMb}} Mio disponibles ; runs actifs : {{activeRuns}} ; réserve : {{reserveMb}} Mio",
-  "push.pressure.unknown": "Pression détectée sur les ressources de l’hôte"
+  "push.pressure.unknown": "Pression détectée sur les ressources de l’hôte",
+  "plan.feature.attribution": "Une petite mention « Powered by atoma » sur les applications, terminaux et dépôts produits par tes runs",
+  "plan.feature.noAttribution": "Aucune mention « Powered by atoma » sur ce que produisent tes runs"
 }

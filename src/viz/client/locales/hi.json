@@ -1996,7 +1996,7 @@
   "nav.plan": "आपका प्लान",
   "settings.tab.plan": "आपका प्लान",
   "plan.title": "आपका प्लान",
-  "plan.hintBeta": "",
+  "plan.hintBeta": "Atoma अभी बीटा में है: सशुल्क प्लान इसलिए दिखाए गए हैं ताकि आपको पता रहे कि आगे क्या आने वाला है; अभी कोई भी प्लान नहीं चुना जा सकता और कोई शुल्क नहीं लिया जाता।",
   "plan.hint": "आपके संगठन का प्लान और उसमें शामिल सुविधाएँ।",
   "plan.current": "मौजूदा प्लान",
   "plan.beta": "बीटा",
@@ -2046,5 +2046,7 @@
   "push.pressure.storeSlow_one": "स्टोर: {{count}} धीमा ट्रांज़ैक्शन, सबसे लंबा {{slowestMs}} ms",
   "push.pressure.storeSlow_other": "स्टोर: {{count}} धीमे ट्रांज़ैक्शन, सबसे लंबा {{slowestMs}} ms",
   "push.pressure.memoryLow": "मेमोरी: {{availableMb}} MiB उपलब्ध; सक्रिय run: {{activeRuns}}; आरक्षित: {{reserveMb}} MiB",
-  "push.pressure.unknown": "होस्ट संसाधनों पर दबाव का पता चला"
+  "push.pressure.unknown": "होस्ट संसाधनों पर दबाव का पता चला",
+  "plan.feature.attribution": "आपके run द्वारा बनाए गए ऐप्लिकेशन, टर्मिनल और रिपॉज़िटरी पर एक छोटा “Powered by Atoma” चिह्न",
+  "plan.feature.noAttribution": "आपके run द्वारा बनाई गई चीज़ों पर कोई “Powered by Atoma” चिह्न नहीं"
 }

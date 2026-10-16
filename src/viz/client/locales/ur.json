@@ -1996,7 +1996,7 @@
   "nav.plan": "آپ کا پلان",
   "settings.tab.plan": "آپ کا پلان",
   "plan.title": "آپ کا پلان",
-  "plan.hintBeta": "",
+  "plan.hintBeta": "Atoma بیٹا مرحلے میں ہے: بامعاوضہ پلان اس لیے دکھائے گئے ہیں تاکہ آپ جان سکیں کہ آگے کیا آنے والا ہے؛ فی الحال کوئی پلان منتخب نہیں کیا جا سکتا اور کوئی رقم وصول نہیں کی جاتی۔",
   "plan.hint": "آپ کے ادارے کا پلان اور اس میں شامل سہولیات۔",
   "plan.current": "موجودہ پلان",
   "plan.beta": "بیٹا",
@@ -2046,5 +2046,7 @@
   "push.pressure.storeSlow_one": "اسٹور: {{count}} سست ٹرانزیکشن، طویل ترین {{slowestMs}} ms",
   "push.pressure.storeSlow_other": "اسٹور: {{count}} سست ٹرانزیکشنز، طویل ترین {{slowestMs}} ms",
   "push.pressure.memoryLow": "میموری: {{availableMb}} MiB دستیاب؛ فعال run: {{activeRuns}}؛ ریزرو: {{reserveMb}} MiB",
-  "push.pressure.unknown": "میزبان کے وسائل پر دباؤ کا پتا چلا ہے"
+  "push.pressure.unknown": "میزبان کے وسائل پر دباؤ کا پتا چلا ہے",
+  "plan.feature.attribution": "آپ کے run سے بننے والی ایپلیکیشنز، ٹرمینلز اور ریپوزٹریز پر “Powered by Atoma” کا ایک چھوٹا نشان",
+  "plan.feature.noAttribution": "آپ کے run سے بننے والی چیزوں پر “Powered by Atoma” کا کوئی نشان نہیں"
 }

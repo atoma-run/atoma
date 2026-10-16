@@ -1996,7 +1996,7 @@
   "nav.plan": "ご利用プラン",
   "settings.tab.plan": "ご利用プラン",
   "plan.title": "ご利用プラン",
-  "plan.hintBeta": "",
+  "plan.hintBeta": "Atomaはベータ版です。有料プランは今後の予定をお知らせするために表示されています。現時点では選択できず、料金も請求されません。",
   "plan.hint": "組織が利用中のプランと、その内容です。",
   "plan.current": "現在のプラン",
   "plan.beta": "ベータ版",
@@ -2046,5 +2046,7 @@
   "push.pressure.storeSlow_one": "ストア：遅いトランザクション{{count}}件、最長{{slowestMs}}ミリ秒",
   "push.pressure.storeSlow_other": "ストア：遅いトランザクション{{count}}件、最長{{slowestMs}}ミリ秒",
   "push.pressure.memoryLow": "メモリ：利用可能{{availableMb}} MiB、アクティブなrun：{{activeRuns}}、予約：{{reserveMb}} MiB",
-  "push.pressure.unknown": "ホストのリソース負荷を検出しました"
+  "push.pressure.unknown": "ホストのリソース負荷を検出しました",
+  "plan.feature.attribution": "runが生成するアプリケーション、ターミナル、リポジトリに小さな「Powered by Atoma」マークを表示",
+  "plan.feature.noAttribution": "runが生成するものに「Powered by Atoma」マークを表示しない"
 }

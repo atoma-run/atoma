@@ -1996,7 +1996,7 @@
   "nav.plan": "خطتك",
   "settings.tab.plan": "خطتك",
   "plan.title": "خطتك",
-  "plan.hintBeta": "",
+  "plan.hintBeta": "Atoma في مرحلة تجريبية: تُعرض الخطط المدفوعة لتعرف ما هو قادم؛ ولا يمكن اختيار أي منها بعد، ولن تُفرض أي رسوم.",
   "plan.hint": "الخطة التي تستخدمها مؤسستك وما تتضمنه.",
   "plan.current": "الخطة الحالية",
   "plan.beta": "تجريبي",
@@ -2046,5 +2046,7 @@
   "push.pressure.storeSlow_one": "المخزن: {{count}} معاملة بطيئة، الأطول {{slowestMs}} مللي ثانية",
   "push.pressure.storeSlow_other": "المخزن: المعاملات البطيئة: {{count}}، الأطول {{slowestMs}} مللي ثانية",
   "push.pressure.memoryLow": "الذاكرة: المتاح {{availableMb}} MiB؛ عمليات run النشطة: {{activeRuns}}؛ الاحتياطي: {{reserveMb}} MiB",
-  "push.pressure.unknown": "تم اكتشاف ضغط على موارد المضيف"
+  "push.pressure.unknown": "تم اكتشاف ضغط على موارد المضيف",
+  "plan.feature.attribution": "علامة صغيرة «Powered by Atoma» على التطبيقات ووحدات التحكم والمستودعات التي تنتجها عمليات run الخاصة بك",
+  "plan.feature.noAttribution": "من دون علامة «Powered by Atoma» على ما تنتجه عمليات run الخاصة بك"
 }
