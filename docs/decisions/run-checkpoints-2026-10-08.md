@@ -132,7 +132,7 @@ into the new process. Runtime endpoints may have disappeared. Remaining phases
 and the final root acceptor must establish the evidence they need normally;
 a checkpoint is never a delivery approval.
 
-The root delegation approval record (2026-10-16, owner confirmation requested) is
+The root delegation approval record (2026-10-16, decided under the owner's delegation) is
 the single pre-execution judgement a resume restores. It is bound by digest to the
 exact plan, inputs, task, root actor, review contract and reviewing model; it
 judges plan bytes before execution, like the saved plan and strategy beside it,

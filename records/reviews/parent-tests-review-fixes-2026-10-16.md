@@ -215,8 +215,8 @@ hop. The validation system prompt gained one sentence: one cache miss.
 
 The decision document's earlier sentence "failed or unavailable tests cannot
 grant acceptance" now reads differently for host causes: semantic review can
-approve a delivery whose suite did not run, and it can be published. It is
-recorded there as a new reading awaiting owner confirmation.
+approve a delivery whose suite did not run, and it can be published. On 2026-10-16 the
+owner delegated the choice; it was decided as recorded there.
 
 ## Group B — a refused dependency lands
 
@@ -942,7 +942,7 @@ Deviation from the design: a `preferredChild` naming a type of another tier is
 not treated as unregistered. The dispatcher throws on it rather than creating a
 cell, so routing keeps treating it as lacking every cell capability, as before.
 
-Pending owner confirmation: this reverses "Routing cannot split a node holding tests
+Decided 2026-10-16 under the owner's delegation: this reverses "Routing cannot split a node holding tests
 or dependency references" (parent-owned-tests record, line 13) for checkpoints in
 DAG plans; suite nodes are still never split. "Routing does not own dispatch
 topology" now admits one host edge inside a split checkpoint in parallel modes.

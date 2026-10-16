@@ -66,7 +66,8 @@ no longer write `Result.refusal`; a landing keeps its unfinished phase. Durable
 resume does not carry observations: completed phases are historical context.
 The persisted run result keeps them without source or child output.
 
-**New reading awaiting owner confirmation.** This document first said "failed or
+**New reading, decided 2026-10-16.** The owner delegated this choice and it
+was taken on the evidence below. This document first said "failed or
 unavailable tests cannot grant acceptance". A suite that did not run for a host
 cause now leaves the decision to semantic review: root acceptance can approve
 the delivery on its other evidence, and it can then be published. Rejecting a
@@ -186,7 +187,8 @@ window, because it happened with the clock running. Lessons follow the root's
 verdict as before. Parallel root plans keep no durable checkpoint, so the next
 run continues from the workspace and from the landing reasons.
 
-**Owner decisions recorded with this change:**
+**Choices recorded with this change** (decided 2026-10-16 under the owner's
+delegation; (b) is revisited by the follow-up below if one lands):
 
 - **(a)** A spent semantic refusal whose suites passed, or which has no suites,
   feeds its dependents, as before and as in sequential mode. The alternative is
@@ -276,7 +278,9 @@ with bounded discovery observations and the original task. Only one discovery
 round is allowed. It is not registered as a completed implementation checkpoint,
 so the new plan never skips its first branch. DAG checkpoint support is unchanged.
 
-**Resume does not re-judge a recorded approval** (owner confirmation requested).
+**Resume does not re-judge a recorded approval** (decided 2026-10-16 under the
+owner's delegation; older binaries read a checkpoint carrying the record as
+incomplete, which destroys nothing and is accepted).
 The approval is saved with the checkpoint's root plan, in the same write:
 `{ digest, from, review }`. The digest binds the review contract text, a hash of
 the validation system prompt, the reviewing model selector, `from` (the first
