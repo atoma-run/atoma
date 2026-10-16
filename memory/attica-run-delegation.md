@@ -188,3 +188,14 @@ acceptance, publication or real collection occurred in this continuation.
 - Atoma fix 00f35f22: reviewers no longer refuse a one-subtask plan for using
   "sequential" (five full replans on 2026-10-16; replay 08792716 old refused,
   new approved 2/2).
+- 2e6bdcfc (restore v1, partial, $4.58): c2 (test:browser loads, CommonJS) and c3
+  (clean-copy npm ci + check) met; c1 unmet because a run cannot read another
+  run's files: "restore to the bytes of run 50019ee0" was impossible. Relaunched
+  as attica-ts-stage1-restore-20261017-v2 (stage1g-goal.txt) with the exact
+  original lines and the target sha256 values (collect-xe-browser.js a7616f21…,
+  control-server.js 442785c6…, xe-browser-integration.test.js 37293c9f…).
+- Atoma candidates, not built: (1) no way for a run to read a retained file of
+  another run of the same project (only its seed); (2) a planner-authored suite
+  with an over-escaped regex (/\\s+/ needing a literal backslash) was
+  unsatisfiable, rejected the work 5 times and exhausted a ladder; no reviewer
+  noticed. A suite that fails identically on every attempt could be flagged.
