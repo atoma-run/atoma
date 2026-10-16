@@ -69,6 +69,33 @@ describe('the Vite bundle boundary', () => {
       logLevel: 'silent',
     })).resolves.toHaveProperty('errors', []);
   });
+  // G6 (2026-10-16): the parent-test record shape moved to a zod-only module
+  // because `contracts/parentTests.ts` imports node:crypto. The REAL client
+  // consumers are bundled, so a later import through the old home fails here.
+  it.each([
+    'src/contracts/parentTestRecord.ts',
+    'src/viz/client-gl/run-result.ts',
+    'src/viz/client-gl/renderer/views/result.ts',
+    'src/viz/client-gl/AssistantRunResult.tsx',
+  ])('bundles %s for the browser without the Node-only parent-test module', async (entry) => {
+    const result = await build({
+      entryPoints: [entry],
+      bundle: true,
+      platform: 'browser',
+      format: 'esm',
+      treeShaking: false,
+      write: false,
+      metafile: true,
+      logLevel: 'silent',
+      loader: { '.glb': 'file', '.png': 'file', '.svg': 'file', '.css': 'empty' },
+      outdir: 'out',
+    });
+    expect(result.errors).toEqual([]);
+    const inputs = Object.keys(result.metafile.inputs).map(path => path.replace(/\\/g, '/'));
+    expect(inputs.some(path => path.endsWith('contracts/parentTestRecord.ts'))).toBe(true);
+    expect(inputs.filter(path => path.endsWith('contracts/parentTests.ts'))).toEqual([]);
+  });
+
   it('bundles the push catalogs into a server closure with no client runtime imports or React', async () => {
     const result = await build({
       entryPoints: ['src/viz/push/routes.ts'], bundle: true, packages: 'external',

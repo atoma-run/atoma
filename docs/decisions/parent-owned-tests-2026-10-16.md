@@ -69,7 +69,9 @@ judges them once and marks them judged; tiers above see them as context. A
 later passing run of the same suite supersedes an earlier failure. Parent tests
 no longer write `Result.refusal`; a landing keeps its unfinished phase. Durable
 resume does not carry observations: completed phases are historical context.
-The persisted run result keeps them without source or child output.
+The persisted run result keeps them without source or child output. Every
+display reads them through one projection, whose contract lives in
+[src/contracts](../../src/contracts/AGENTS.md#parent-test-records).
 
 **New reading, decided 2026-10-16.** The owner delegated this choice and it
 was taken on the evidence below. This document first said "failed or

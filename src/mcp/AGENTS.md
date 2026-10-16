@@ -448,6 +448,12 @@ Neighbours:
   GET `/api/projects/:project/runs/:run/review`. It returns bounded saved evidence
   and links to the existing readers; it runs no test, opens no preview, and
   grants no client approval. Missing/expired evidence remains explicit.
+  Its additive `parentTests` field (2026-10-16) is the shared projection
+  ([src/contracts](../contracts/AGENTS.md#parent-test-records)), at most 12
+  records and under 16 KiB serialised, which the text block repeats. It stays
+  out of `atoma_run_status`, the final result of every run-start task and a
+  polled path, and is validated apart: a fault reads `unavailable`, never a
+  failed review.
 
 - `atoma_run_start.baseRunId` selects the exact retained project delivery for
   a new goal. Status/readiness expose `acceptedReferenceRunId`; absent selection

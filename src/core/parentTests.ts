@@ -7,6 +7,7 @@ import {
   type ParentTestCause,
   type ParentTestObservation,
 } from '../contracts/parentTests.js';
+import { parentTestSuperseded } from '../contracts/parentTestRecord.js';
 import { abortedForLanding } from './limits.js';
 import { baseExecutorOf } from './attestation.js';
 import type { Logger, Result, RunContext, Task, Verdict } from './types.js';
@@ -113,12 +114,9 @@ export function parentTestConsequence(observation: ParentTestObservation): Paren
   return 'review';
 }
 
-/** A non-passed observation that a later (higher index) PASSED run of the same suite replaced. */
-export function parentTestSuperseded(observations: readonly ParentTestObservation[], index: number): boolean {
-  const observation = observations[index];
-  if (!observation || observation.status === 'passed') return false;
-  return observations.some((later, at) => at > index && later.status === 'passed' && later.suiteDigest === observation.suiteDigest);
-}
+// THE superseded rule (record order, suite digest only) lives in the
+// browser-safe contract so every display reads the gate's own rule.
+export { parentTestSuperseded };
 
 export interface ParentTestFindings {
   readonly reject: readonly HeldParentTestObservation[];

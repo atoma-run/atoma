@@ -10,9 +10,9 @@ import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { artifactPageInputSchema, artifactReadInputSchema, pageCursorSchema, projectPageInputSchema, runPageInputSchema,
-  runComparisonInputSchema, type RunComparisonResult, runReviewSchema, type RunReview,
+  runComparisonInputSchema, type RunComparisonResult, runParentTestsSchema, runReviewSchema, type RunReview,
   serviceProblem, type ServiceProblem, type ProjectPageInput, type RunPageInput, type PageCursor } from '../contracts/clientExperience.js';
-import { POLLED_PROGRESS_REUSE_MS, projectRunProgress } from './runProgress.js';
+import { POLLED_PROGRESS_REUSE_MS, projectRunEvidence, projectRunProgress, unavailableParentTests } from './runProgress.js';
 import { artifactMime } from './artifactMedia.js';
 import { summarizeTraceFile, summarizeTraceFileWithCost } from '../viz/runIndex.js';
 import { isUtf8 } from 'node:buffer';
@@ -793,17 +793,24 @@ export class ProjectService {
     if (comparison) nextSteps.push({ tool: 'atoma_run_compare', purpose: 'Continue the comparison using its baseRunId, snapshot and nextOffset; counts cover saved inventories, not a GitHub diff.' });
     nextSteps.push({ tool: 'atoma_run_status', purpose: 'Read publication details and the current lifecycle; publication does not establish deployment or PR merge.' });
     if (canRequestAcceptance) nextSteps.push({ tool: 'atoma_run_accept', purpose: 'Only after the client tests/reviews and explicitly accepts: pass this artifactManifestHash and their review summary. Reading this review grants no consent.' });
+    // One evidence read for both, so they describe the same trace snapshot.
+    const { progress, parentTests: projected } = projectRunEvidence(run);
+    // The additive field is validated on its own: a projection fault reads as
+    // unavailable evidence and never fails the review it rides on.
+    const checked = runParentTestsSchema.safeParse(projected);
+    if (!checked.success) console.warn(`[review] parent-test records of run ${run.projectRunId} failed their schema; served as unavailable`);
+    const parentTests = checked.success ? checked.data : unavailableParentTests();
     return runReviewSchema.parse({
       run, acceptedReferenceRunId: this.store.acceptedReference(orgId, projectId)?.projectRunId ?? null,
       delivery: run.artifactManifest ? run.artifactManifest.delivery ?? 'files' : 'unknown',
-      files, filesState, comparison, comparisonState, verification: projectRunProgress(run),
+      files, filesState, comparison, comparisonState, verification: progress, parentTests,
       clientAcceptance, publicationStatus: publication?.status ?? null, canRequestAcceptance,
       canRetryPublication: orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member') &&
         run.status === 'delivered' && !run.rerunOf && !run.bytesExpiredAt && !!clientAcceptance &&
         run.artifactManifest?.delivery !== 'text' && !!run.artifactManifest?.files.length &&
         publication?.status !== 'published' && publication?.status !== 'publishing',
       untrusted: true, bytes: 'not-revalidated', nextSteps,
-      note: 'Saved evidence only: no tests, model calls, preview allocation or GitHub checks were performed. Recorded model judgements are not client acceptance. Missing evidence is unknown, not passed. Compare follows the recorded starting run, never today’s accepted reference; materialised repository sync may have changed starting files. Use trace evidence for those changes. Legacy inventories may be incomplete. Text answers are read through the trace reader, not compared as files.',
+      note: 'Saved evidence only: no tests, model calls, preview allocation or GitHub checks were performed. Recorded model judgements are not client acceptance. Missing evidence is unknown, not passed. Compare follows the recorded starting run, never today’s accepted reference; materialised repository sync may have changed starting files. Use trace evidence for those changes. Legacy inventories may be incomplete. Text answers are read through the trace reader, not compared as files. Parent acceptance test records are host observations from the run, not a fresh test.',
     });
   }
 

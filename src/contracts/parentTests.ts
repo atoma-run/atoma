@@ -1,5 +1,27 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import {
+  PERSISTED_DETAILS_CHARS,
+  PERSISTED_REQUIREMENT_CHARS,
+  parentTestCauseSchema,
+  parentTestStatusSchema,
+  type PersistedParentTestObservation,
+} from './parentTestRecord.js';
+
+// The persisted shape, the cause vocabulary and the superseded rule live in the
+// browser-safe `parentTestRecord.ts`; server code keeps importing them here.
+// Client code imports `parentTestRecord.js` only: this module needs node:crypto.
+export {
+  PERSISTED_DETAILS_CHARS,
+  PERSISTED_REQUIREMENT_CHARS,
+  parentTestCauseSchema,
+  parentTestStatusSchema,
+  parentTestSuperseded,
+  persistedParentTestSchema,
+  type ParentTestCause,
+  type ParentTestStatus,
+  type PersistedParentTestObservation,
+} from './parentTestRecord.js';
 
 /**
  * The Vitest child's own window. Only a hang that had all of it is the code's:
@@ -51,33 +73,6 @@ export function parentTestSuiteDigest(suite: ParentTestSuite): string {
   return createHash('sha256').update(JSON.stringify(suite)).digest('hex');
 }
 
-/**
- * Why an observation is what it is, typed by the code that saw it, so no
- * reader classifies blame from text the code under test printed.
- * `src/core/parentTests.ts` maps each cause to one consequence.
- */
-export const parentTestCauseSchema = z.enum([
-  'ran', // the runner produced a valid report (passed or failed)
-  'timeout', // tools: the runner was killed by its timer
-  'exited-without-report', // tools: the runner exited on its own and wrote no report
-  'source-changed', // tools: the suite file differs, or vanished, after the run
-  'report-oversize', // tools: the report exceeds 8 MiB
-  'report-invalid', // tools: the report is not JSON or not the expected shape
-  'report-tampered', // tools: the report path is not a regular file after the run; the host cleared it before
-  'snapshot-link', // tools: a link resolves outside the project
-  'snapshot-bounds', // tools: more than 100,000 entries, depth 128 or 512 MiB
-  'snapshot-timeout', // tools: the window ended while the project was being copied
-  'snapshot-special-file', // tools: a FIFO, socket or device in the project
-  'worker-missing', // tools: the compiled acceptance worker is not installed
-  'assertions-tampered', // tools: a host-tagged assertion-integrity violation during the run
-  'runner-error', // tools: any other host failure
-  'no-executor', // core: no shell executor in this context
-  'invalid-observation', // core: the executor returned no valid observation for this suite
-  'executor-error', // core: the executor threw
-  'landing', // core: the run budget ended first
-  'deadline-timeout', // core: a timeout in a child window below PARENT_TEST_TIMEOUT_MS (the run deadline or the copy cut it)
-]);
-export type ParentTestCause = z.infer<typeof parentTestCauseSchema>;
 
 /**
  * Every function-valued own key of `chai.Assertion.prototype` under the pinned
@@ -113,7 +108,7 @@ export const parentTestObservationSchema = z.object({
   suiteDigest: z.string(),
   suite: parentTestSuiteSchema.optional(),
   workspaceDigest: z.string(),
-  status: z.enum(['passed', 'failed', 'unavailable']),
+  status: parentTestStatusSchema,
   /** Absent from an older worker; read as a host cause. */
   cause: parentTestCauseSchema.optional(),
   passed: z.number().int().nonnegative(),
@@ -146,19 +141,6 @@ export type ParentTestObservation = z.infer<typeof parentTestObservationSchema>;
 export type HeldParentTestObservation = ParentTestObservation & { readonly judged?: true };
 
 /** What a persisted run keeps of an observation: no suite source, no child output. */
-export interface PersistedParentTestObservation {
-  readonly suiteDigest: string;
-  readonly workspaceDigest: string;
-  readonly status: ParentTestObservation['status'];
-  readonly cause?: ParentTestCause;
-  readonly passed: number;
-  readonly failed: number;
-  readonly skipped: number;
-  readonly judged?: true;
-  readonly requirement?: string;
-  readonly details: string;
-}
-
 export function persistedParentTests(observations: readonly HeldParentTestObservation[]): PersistedParentTestObservation[] {
   return observations.map((observation) => ({
     suiteDigest: observation.suiteDigest,
@@ -169,8 +151,8 @@ export function persistedParentTests(observations: readonly HeldParentTestObserv
     failed: observation.failed,
     skipped: observation.skipped,
     ...(observation.judged ? { judged: true as const } : {}),
-    ...(observation.suite ? { requirement: observation.suite.requirement.slice(0, 600) } : {}),
-    details: observation.details.slice(0, 1500),
+    ...(observation.suite ? { requirement: observation.suite.requirement.slice(0, PERSISTED_REQUIREMENT_CHARS) } : {}),
+    details: observation.details.slice(0, PERSISTED_DETAILS_CHARS),
   }));
 }
 

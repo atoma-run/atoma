@@ -2769,7 +2769,14 @@ it('serves saved file preview bytes as authenticated, non-executable attachments
     const review = await fetch(`${runBase}/review`, { headers });
     expect(review.status).toBe(200);
     expect(await review.json()).toMatchObject({ run: { projectRunId: runId }, filesState: 'available',
-      comparisonState: 'no_recorded_base', clientAcceptance: null, bytes: 'not-revalidated' });
+      comparisonState: 'no_recorded_base', clientAcceptance: null, bytes: 'not-revalidated',
+      parentTests: { state: 'unavailable' } });
+    // The receipt card polls the review: an unchanged one is an empty 304.
+    const validator = review.headers.get('etag');
+    expect(validator).toMatch(/^W\//);
+    const unchanged = await fetch(`${runBase}/review`, { headers: { ...headers, 'if-none-match': validator! } });
+    expect(unchanged.status).toBe(304);
+    expect(await unchanged.text()).toBe('');
     expect((await fetch(`${runBase}/compare?baseRunId=${runId}`)).status).toBe(401);
     expect(await (await fetch(`${runBase}/compare?baseRunId=${runId}`, { headers })).json())
       .toMatchObject({ evidence: 'saved_manifests', counts: { unchanged: 1 }, files: [], nextOffset: null });

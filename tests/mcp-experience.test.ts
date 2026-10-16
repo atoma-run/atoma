@@ -33,12 +33,28 @@ import { RunCheckpointStore, checkpointWorkspaceDigest } from '../src/run/checkp
 import type { RunCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { ProjectService } from '../src/projects/service.js';
 import { POLLED_PROGRESS_REUSE_MS } from '../src/projects/runProgress.js';
+import { parentTestRowSchema } from '../src/contracts/parentTestRecord.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 import { ANTHROPIC_PINS } from './tier-pins.js';
 
+// One switch, off by default: corrupts the parent-test projection the review
+// reads, to prove that field can never fail the review it rides on.
+const projection = vi.hoisted(() => ({ corrupt: false }));
+vi.mock('../src/projects/runProgress.js', async (original) => {
+  const actual = await original<typeof import('../src/projects/runProgress.js')>();
+  return {
+    ...actual,
+    projectRunEvidence: (...args: Parameters<typeof actual.projectRunEvidence>) => {
+      const value = actual.projectRunEvidence(...args);
+      if (!projection.corrupt) return value;
+      return { ...value, parentTests: { ...value.parentTests, observations: [{ suiteDigest: 7 }] } };
+    },
+  };
+});
+
 const cleanups: Array<() => Promise<void>> = [];
-afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); closeStoreHandles(); });
+afterEach(async () => { projection.corrupt = false; for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); closeStoreHandles(); });
 
 async function fixture(legacy = false, publisherFor?: (f: ReturnType<typeof projectRetrievalFixture>) => ProjectRunPublisher) {
   const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-experience-'));
@@ -547,6 +563,88 @@ it.each([false, true])('reviews a delivery with bounded evidence without accepti
   expect(viewerReview.nextSteps.map(step => step.tool)).not.toContain('atoma_run_accept');
   f.setViewer({ ...f.viewer, orgId: randomUUID(), platformAdmin: false });
   expect((await f.client.callTool({ name: 'atoma_run_review', arguments: ref })).isError).toBe(true);
+});
+
+const persisted = (overrides: Record<string, unknown>) => ({
+  suiteDigest: 'a'.repeat(64), workspaceDigest: 'b'.repeat(64), status: 'failed', cause: 'ran',
+  passed: 1, failed: 1, skipped: 0, requirement: 'the total is computed', details: '[{"title":"totals","status":"failed"}]',
+  ...overrides,
+});
+
+it.each([false, true])('serves host-observed parent acceptance tests in the review only, bounded and isolated (legacy=%s)', async legacy => {
+  const f = await fixture(legacy);
+  const writeTrace = (runId: string, trace: Record<string, unknown>) => {
+    const run = f.projects.getProjectRun(f.viewer.orgId, runId)!;
+    mkdirSync(run.hostPaths.runsPath, { recursive: true });
+    writeFileSync(join(run.hostPaths.runsPath, `${runId}.json`), typeof trace['raw'] === 'string' ? trace['raw'] : JSON.stringify(trace));
+  };
+  const review = async (runId: string) => {
+    const result = await f.call('atoma_run_review', { projectId: f.project.projectId, runId });
+    return { structured: result.structuredContent as Record<string, unknown>, parsed: runReviewSchema.parse(result.structuredContent) };
+  };
+
+  const mixed = f.makeRun({ 'app.ts': 'export {}' }).run;
+  writeTrace(mixed.projectRunId, { id: mixed.projectRunId, endedAt: new Date().toISOString(), events: [], result: { summary: 'Done', parentTests: [
+    persisted({ suiteDigest: 'c'.repeat(64), requirement: 'superseded failure' }),
+    persisted({ suiteDigest: 'c'.repeat(64), status: 'passed', failed: 0, requirement: 'superseded failure, passing later' }),
+    persisted({ suiteDigest: 'd'.repeat(64), status: 'unavailable', cause: 'worker-missing', passed: 0, failed: 0, judged: true,
+      requirement: 'the host could not run it', details: 'worker missing' }),
+    persisted({ suiteDigest: 'e'.repeat(64), status: 'passed', failed: 0, requirement: 'passing suite' }),
+    { suiteDigest: 'broken' },
+    persisted({ requirement: 'the open failure' }),
+  ] } });
+  const { structured, parsed } = await review(mixed.projectRunId);
+  const tests = parsed.parentTests!;
+  expect(tests.state).toBe('recorded');
+  expect(tests.suites).toEqual({ total: 4, passed: 2, failed: 1, unavailable: 1 });
+  expect(tests.records).toMatchObject({ total: 6, invalid: 1, distinct: 5, listed: 5, omitted: 0, supersededFailures: 1 });
+  expect(tests.observations.map(row => row.requirement)).toEqual(['the open failure', 'the host could not run it',
+    'superseded failure', 'passing suite', 'superseded failure, passing later']);
+  expect(tests.observations[1]).toMatchObject({ status: 'unavailable', cause: 'worker-missing', judged: true });
+  expect(tests.observations[0]!.details).toContain('totals');
+  expect(tests.observations[3]!.details).toBeNull();
+  for (const row of tests.observations) expect(parentTestRowSchema.strict().safeParse(row).success).toBe(true);
+  expect(tests.note).toContain('UNTRUSTED');
+  expect(JSON.stringify(structured['parentTests'])).not.toContain('import ');
+  expect(parsed.note).toContain('not a fresh test');
+
+  // The status payload is also every run start's final task result: it stays out of it.
+  const status = (await f.call('atoma_run_status', { projectId: f.project.projectId, runId: mixed.projectRunId })).structuredContent as Record<string, unknown>;
+  expect(status).not.toHaveProperty('parentTests');
+  expect(status['progress']).not.toHaveProperty('parentTests');
+
+  // Thirty escape-heavy records stay under the serialised bound: quotes are
+  // the worst case (each serialises as two), the mix covers the rest.
+  const heavy = f.makeRun({ 'app.ts': 'export {}' }).run;
+  const quotes = '"'.repeat(1500);
+  const noisy = '"\\\u0001\u0007😀\ud800<b>{{count}}</b>'.repeat(200);
+  writeTrace(heavy.projectRunId, { id: heavy.projectRunId, endedAt: new Date().toISOString(), events: [], result: {
+    parentTests: Array.from({ length: 30 }, (_, n) => persisted({ suiteDigest: n.toString(16).padStart(64, '0'),
+      requirement: (n % 2 ? noisy : quotes).slice(0, 600), details: (n % 2 ? noisy : quotes).slice(0, 1500) })) } });
+  const bounded = (await review(heavy.projectRunId)).parsed.parentTests!;
+  expect(bounded.observations).toHaveLength(12);
+  expect(bounded.records.omitted).toBe(bounded.records.distinct - 12);
+  expect(bounded.observations.filter(row => row.details !== null).length).toBeLessThanOrEqual(6);
+  expect(JSON.stringify(bounded).length).toBeLessThanOrEqual(16_384);
+
+  // Every other state is explicit, never a pass.
+  const unended = f.makeRun({ 'app.ts': 'export {}' }).run;
+  writeTrace(unended.projectRunId, { id: unended.projectRunId, events: [] });
+  expect((await review(unended.projectRunId)).parsed.parentTests!.state).toBe('not_recorded');
+  const historical = f.makeRun({ 'app.ts': 'export {}' }).run;
+  writeTrace(historical.projectRunId, { id: historical.projectRunId, events: [], result: { summary: 'PARENT ACCEPTANCE TESTS (1 failed)' } });
+  expect((await review(historical.projectRunId)).parsed.parentTests!.state).toBe('none');
+  const unreadable = f.makeRun({ 'app.ts': 'export {}' }).run;
+  writeTrace(unreadable.projectRunId, { raw: '{unfinished' });
+  expect((await review(unreadable.projectRunId)).parsed.parentTests!.state).toBe('unavailable');
+
+  // A projection fault reads as unavailable; the rest of the review stands.
+  projection.corrupt = true;
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const isolated = (await review(mixed.projectRunId)).parsed;
+  expect(isolated.parentTests!.state).toBe('unavailable');
+  expect(isolated.files!.total).toBe(1);
+  expect(isolated.verification.evidence).toBe('available');
 });
 
 it('keeps missing bases, partial results and expired evidence explicit in delivery review', async () => {

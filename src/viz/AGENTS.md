@@ -605,6 +605,13 @@ npm run viz:mark-turn:analyze
   explicit platform API model; an unavailable selection never changes payer.
   Its model-context reads and proposal confirmations use the HTTP MCP. The terminal run card reads the project review route and uses the existing acceptance/publication routes after explicit client review, without model calls or rewriting the conversation journal;
   see [contract and limits](../../docs/integrated-assistant.md).
+  The card adds one line when a parent acceptance suite failed or did not run,
+  a record was unreadable, or the records were unavailable; the review route
+  revalidates (weak ETag, empty 304) because the card polls it every 5 s.
+- Parent-test records (`summarizeParentTests`, contract in
+  [src/contracts](../contracts/AGENTS.md#parent-test-records)): the result view
+  draws counts and open records after the answer, every record in the details,
+  as plain `text()` — model prose never through `readableBlocks` or `t()`.
   The `atoma_goal` MCP prompt and server tool guidance own the agent-facing
   instructions. `/api/goal-guidance` remains a read-only compatibility route;
   it has no browser launch power.

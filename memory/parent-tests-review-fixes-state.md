@@ -30,7 +30,7 @@ State on 2026-10-16 ~13:00. The branch was PUSHED to main around 13:00 (see git 
 5. Plans with many suites can exceed STRATEGY_MAX_TOKENS → three truncations end the run; bound suite size or raise the root cap.
 6. Child plan review: a repeated reviewer-fault refusal branches a type; an unparseable child verdict still throws.
 7. Split verification parts: browser part can land on a web cell without a server; criteria copied to both parts (read-only in parallel plans is likely infeasible — say why).
-8. parentTests not shown in viz or the MCP; run viz:smoke on a real machine for the new "partial run" card copy.
+8. HALF DONE (G6, committed on the worktree branch, not pushed): parentTests shown in the viz result view, the receipt card and `atoma_run_review.parentTests` (one projection, `summarizeParentTests` in `src/contracts/parentTestRecord.ts`; the review route revalidates). STILL OPEN: run viz:smoke on a real machine for the new "partial run" card copy and the acceptance-test block. Open questions recorded: cross-workspace supersession in core (gate change, needs its own adversarial review), a dedicated trace event kind. Record: review file, section "Follow-up: Parent-test observations visible…".
 9. Hard runner exit leaves `atoma-acceptance-*` temp copies.
 10. A suite importing a tsconfig alias stays red; apply the same alias resolution to the suite.
 11. DONE with item 1: decision doc choice (b) marked reversed, (a) and (e) updated.

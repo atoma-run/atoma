@@ -10,6 +10,8 @@ import { closeStoreHandles } from '../src/core/stores.js';
 import type { LlmCompletionRequest } from '../src/core/types.js';
 import type { VizRun } from '../src/viz/trace.js';
 import { makePlan } from './helpers/factories.js';
+import { summarizeParentTests } from '../src/contracts/parentTestRecord.js';
+import { MCP_PARENT_TEST_LIMITS } from '../src/projects/runProgress.js';
 import { OLLAMA_PINS } from './tier-pins.js';
 
 vi.mock('../src/run/providers.js', async (original) => ({
@@ -80,6 +82,13 @@ describe('a run without root acceptance and a host-run integration suite', () =>
       expect(trace.events.some((event) => event.kind === 'acceptance')).toBe(false);
       expect(trace.result?.parentTests).toMatchObject([{ status, requirement: integration.requirement }]);
       expect(JSON.stringify(trace.result?.parentTests)).not.toContain('expect(1)');
+      // G6: the shared reader reads what the real runner persisted.
+      const summary = summarizeParentTests(trace.result, MCP_PARENT_TEST_LIMITS);
+      expect(summary.state).toBe('recorded');
+      expect(summary.records.invalid).toBe(0);
+      expect(summary.observations).toHaveLength(1);
+      expect(summary.observations[0]).toMatchObject({ status, cause: 'ran', requirement: integration.requirement });
+      expect(summary.suites[status]).toBe(1);
       if (status === 'failed') {
         expect(trace.result?.summary).toMatch(/^REFUSED AT DELIVERY — no root acceptance ran and the host-run parent-owned suite failed: /);
         expect(trace.result?.refusal).toContain('joined');

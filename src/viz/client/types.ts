@@ -122,6 +122,8 @@ export interface VizRun {
     blockedPhases?: readonly string[];
     /** Set when root delivery acceptance refused the result. Composes with the above. */
     refusal?: string;
+    /** Persisted parent-test records; read only through `summarizeParentTests`, which takes any value. */
+    parentTests?: unknown;
   };
   totals?: {
     calls?: number;

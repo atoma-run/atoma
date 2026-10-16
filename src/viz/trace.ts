@@ -8,7 +8,7 @@ import type { AtomType } from '../registry/atomRegistry.js';
 import type { JevDecisionInfo, Task, Tier } from '../core/types.js';
 import type { AcceptanceInfo, TopologyInfo } from '../contracts/depthRouting.js';
 import { isLanded } from '../contracts/runLanding.js';
-import type { PersistedParentTestObservation } from '../contracts/parentTests.js';
+import type { PersistedParentTestObservation } from '../contracts/parentTestRecord.js';
 
 /**
  * Minimal structured event log for the web visualizer. One run corresponds to
@@ -626,7 +626,9 @@ export interface VizRun {
      * The parent-owned acceptance suites the delivery carries, typed and
      * without source (`persistedParentTests`). Informational: `isLanded`
      * never reads it, because the runner already turned an unjudged suite
-     * that did not pass into `refusal` where no root acceptance ran.
+     * that did not pass into `refusal` where no root acceptance ran. Every
+     * display reads it through `summarizeParentTests`
+     * (`src/contracts/parentTestRecord.ts`), never directly.
      */
     parentTests?: readonly PersistedParentTestObservation[];
   };

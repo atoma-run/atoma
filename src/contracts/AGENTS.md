@@ -146,6 +146,24 @@ Neighbours:
   module stays browser-safe: the digest and the env transport live in
   `src/run/acceptanceSpec.ts`, because the client imports this directory.
 
+## Parent-test records
+
+- `parentTestRecord.ts` is the browser-safe home of the persisted parent-test
+  record (`persistedParentTestSchema`, written by `persistedParentTests`), the
+  superseded rule core's gates use, and `summarizeParentTests`, the ONE
+  projection the viz result view, the receipt card and `atoma_run_review` read
+  (decision: [parent-owned tests](../../docs/decisions/parent-owned-tests-2026-10-16.md)).
+  Four states: `recorded`; `none` (no field: NOT a pass); `not_recorded` (no
+  result); `unavailable`, added by the server for a trace it could not read.
+- It follows core's superseded rule unchanged: record order, keyed on the suite
+  digest alone, across workspaces; a display never disagrees with the gate.
+  It never parses `details` or summary prose and carries no suite source. The
+  reader schema is derived from the writer's without its maxes: readers slice
+  and replace control characters and lone surrogates, never reject.
+- The suite digest stays in `parentTests.ts` (`node:crypto`), which re-exports
+  the record names for the server; client code imports `parentTestRecord.js`
+  only (`tests/viz-client-bundle-boundary.test.ts` bundles the consumers).
+
 ## Reading a trace without holding it
 
 - `previousRunResults.ts` owns the bounded text-history environment envelope:

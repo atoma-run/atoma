@@ -4992,7 +4992,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
             : clientRunRead![3] === 'compare' ? service.compareRuns(viewer, clientRunRead![1]!, clientRunRead![2]!, query)
             : clientRunRead![3] === 'artifacts' ? service.artifacts(viewer, clientRunRead![1]!, clientRunRead![2]!, query)
               : service.artifactFile(viewer, clientRunRead![1]!, clientRunRead![2]!, query);
-        sendJson(res, 200, payload);
+        // The receipt card polls the review every 5 s while a run is delivered:
+        // an unchanged review answers an empty 304, like the polled lists.
+        if (clientRunRead?.[3] === 'review') sendJsonRevalidated(req, res, payload);
+        else sendJson(res, 200, payload);
       } catch (error) {
         if (!(error instanceof ProjectHttpError)) throw error;
         sendJson(res, error.status, { error: error.message, problem: error.problem });

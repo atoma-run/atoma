@@ -1,4 +1,14 @@
 import { GROUND_TRUTH_MARKER } from '../../contracts/scriptEnvelope.js';
+// The browser-safe record module ONLY: `contracts/parentTests.ts` needs node:crypto.
+import {
+  summarizeParentTests,
+  type ParentTestCause,
+  type ParentTestLimits,
+  type ParentTestRow,
+  type ParentTestStatus,
+  type ParentTestSummary,
+} from '../../contracts/parentTestRecord.js';
+import type { RunParentTests } from '../../contracts/clientExperience.js';
 import type { VizProjectRun, VizRun } from '../client/types.js';
 
 /**
@@ -123,4 +133,145 @@ export function resultFileUrl(run: VizProjectRun, path: string): string | null {
 export function latestDeliveredResult(runs: readonly VizProjectRun[]): VizProjectRun | undefined {
   return runs.filter(run => run.status === 'delivered' && !run.rerunOf && run.traceId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+}
+
+type Translate = (key: string, vars?: Record<string, unknown>) => string;
+
+/** What the result view lists: every record a person may want, bounded. */
+export const VIZ_PARENT_TEST_LIMITS: ParentTestLimits = { rows: 24, requirementChars: 600, detailsChars: 600, detailRows: 24 };
+
+const NO_RESULT = summarizeParentTests(undefined, VIZ_PARENT_TEST_LIMITS);
+const parentTestSummaries = new WeakMap<object, ParentTestSummary>();
+
+/** The shared projection of this run's records, computed once per result object (the view redraws often). */
+export function resultParentTests(run: VizRun): ParentTestSummary {
+  const result = run.result;
+  if (!result) return NO_RESULT;
+  const held = parentTestSummaries.get(result);
+  if (held) return held;
+  const summary = summarizeParentTests(result, VIZ_PARENT_TEST_LIMITS);
+  parentTestSummaries.set(result, summary);
+  return summary;
+}
+
+/** Typed tables: a new status or cause does not compile without its copy. */
+export const PARENT_TEST_STATUS_KEYS: Record<ParentTestStatus, string> = {
+  passed: 'result.tests.status.passed',
+  failed: 'result.tests.status.failed',
+  unavailable: 'result.tests.status.unavailable',
+};
+export const PARENT_TEST_CAUSE_KEYS: Record<ParentTestCause | 'unknown', string> = {
+  'ran': 'result.tests.cause.ran',
+  'timeout': 'result.tests.cause.timeout',
+  'exited-without-report': 'result.tests.cause.exited-without-report',
+  'source-changed': 'result.tests.cause.source-changed',
+  'report-oversize': 'result.tests.cause.report-oversize',
+  'report-invalid': 'result.tests.cause.report-invalid',
+  'report-tampered': 'result.tests.cause.report-tampered',
+  'snapshot-link': 'result.tests.cause.snapshot-link',
+  'snapshot-bounds': 'result.tests.cause.snapshot-bounds',
+  'snapshot-timeout': 'result.tests.cause.snapshot-timeout',
+  'snapshot-special-file': 'result.tests.cause.snapshot-special-file',
+  'worker-missing': 'result.tests.cause.worker-missing',
+  'assertions-tampered': 'result.tests.cause.assertions-tampered',
+  'runner-error': 'result.tests.cause.runner-error',
+  'no-executor': 'result.tests.cause.no-executor',
+  'invalid-observation': 'result.tests.cause.invalid-observation',
+  'executor-error': 'result.tests.cause.executor-error',
+  'landing': 'result.tests.cause.landing',
+  'deadline-timeout': 'result.tests.cause.deadline-timeout',
+  'unknown': 'result.tests.cause.unknown',
+};
+
+/** Suite counts that are not zero, failures first, and the records no reader could read. */
+export function parentTestCountFragments(summary: Pick<ParentTestSummary, 'suites' | 'records'>): { key: string; count: number }[] {
+  const fragments = [
+    { key: 'result.tests.suitesFailed', count: summary.suites.failed },
+    { key: 'result.tests.suitesUnavailable', count: summary.suites.unavailable },
+    { key: 'result.tests.suitesPassed', count: summary.suites.passed },
+    { key: 'result.tests.unreadable', count: summary.records.invalid },
+  ];
+  return fragments.filter(fragment => fragment.count > 0);
+}
+
+export interface ParentTestLine {
+  readonly text: string;
+  readonly heading?: boolean;
+  readonly muted?: boolean;
+}
+
+// The requirement is plan prose and drawn as text: it never goes through t(),
+// whose interpolation and nesting would read `{{x}}` or `$t(x)` inside it.
+function rowTitle(row: ParentTestRow, t: Translate): string {
+  return `${t(PARENT_TEST_STATUS_KEYS[row.status])} · ${row.requirement ?? t('result.tests.noRequirement')}`;
+}
+
+function rowNote(row: ParentTestRow, t: Translate): string {
+  const counts = [
+    row.failed > 0 ? t('result.tests.testsFailed', { count: row.failed }) : null,
+    row.passed > 0 ? t('result.tests.testsPassed', { count: row.passed }) : null,
+    row.skipped > 0 ? t('result.tests.testsSkipped', { count: row.skipped }) : null,
+  ].filter((part): part is string => part !== null);
+  const outcome = row.status !== 'unavailable' && counts.length > 0
+    ? counts.join(' · ')
+    : t(PARENT_TEST_CAUSE_KEYS[row.cause ?? 'unknown']);
+  const flags = [
+    row.judged ? t('result.tests.judged') : null,
+    row.superseded ? t('result.tests.superseded') : null,
+  ].filter((part): part is string => part !== null);
+  return [outcome, ...flags].join(' ');
+}
+
+const MAIN_VIEW_ROWS = 5;
+
+/**
+ * The result view's main block: counts, then the open records (not passed
+ * and not superseded), at most five. Nothing at all when the result records
+ * none: absence is not drawn as a pass.
+ */
+export function parentTestLines(summary: ParentTestSummary, t: Translate, detailsOpen: boolean): ParentTestLine[] {
+  if (summary.state !== 'recorded') return [];
+  const lines: ParentTestLine[] = [{ text: t('result.tests.title'), heading: true }];
+  const fragments = parentTestCountFragments(summary).map(fragment => t(fragment.key, { count: fragment.count }));
+  if (fragments.length > 0) lines.push({ text: fragments.join(' · ') });
+  lines.push({ text: t('result.tests.hint'), muted: true });
+  const open = summary.observations.filter(row => row.status !== 'passed' && !row.superseded).slice(0, MAIN_VIEW_ROWS);
+  for (const row of open) {
+    lines.push({ text: rowTitle(row, t) });
+    lines.push({ text: rowNote(row, t), muted: true });
+  }
+  const more = summary.records.distinct - open.length;
+  if (more > 0 && !detailsOpen) lines.push({ text: t('result.tests.more', { count: more }), muted: true });
+  return lines;
+}
+
+const shortDigest = (digest: string, t: Translate): string =>
+  /^[0-9a-f]+$/i.test(digest) ? digest.slice(0, 12) : t('result.tests.notRecorded');
+
+/** Every listed record, for the technical details: counts, flags, digests and the raw bounded details. */
+export function parentTestRecordLines(summary: ParentTestSummary, t: Translate): ParentTestLine[] {
+  if (summary.state !== 'recorded') return [];
+  const lines: ParentTestLine[] = [{ text: t('result.tests.records'), heading: true }];
+  for (const row of summary.observations) {
+    lines.push({ text: rowTitle(row, t) });
+    lines.push({ text: rowNote(row, t), muted: true });
+    lines.push({ text: t('result.tests.digests', { suite: shortDigest(row.suiteDigest, t), workspace: shortDigest(row.workspaceDigest, t) }), muted: true });
+    // Child-controlled and often cut mid-JSON: shown as raw text, never parsed.
+    if (row.details !== null) lines.push({ text: row.detailsTruncated ? `${row.details}…` : row.details });
+  }
+  if (summary.records.omitted > 0) lines.push({ text: t('result.tests.omitted', { count: summary.records.omitted }), muted: true });
+  if (summary.records.invalid > 0) lines.push({ text: t('result.tests.unreadable', { count: summary.records.invalid }), muted: true });
+  return lines;
+}
+
+/**
+ * The receipt card's one line at the acceptance moment: only when a suite
+ * failed or did not run, a record could not be read, or the trace itself
+ * could not be. An all-passed or absent record set adds nothing.
+ */
+export function parentTestCardLine(parentTests: RunParentTests | undefined, t: Translate): string | null {
+  if (!parentTests) return null;
+  if (parentTests.state === 'unavailable') return t('result.tests.recordsUnavailable');
+  if (parentTests.suites.failed + parentTests.suites.unavailable + parentTests.records.invalid === 0) return null;
+  return parentTestCountFragments(parentTests).map(fragment => t(fragment.key, { count: fragment.count })).join(' · ');
 }

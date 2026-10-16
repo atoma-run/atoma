@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AssistantRun, AssistantView } from '../../contracts/assistant.js';
 import { api } from '../client/data-api.js';
 import { ButtonIcon } from './ButtonIcon.js';
+import { parentTestCardLine } from './run-result.js';
 
 /** Current host receipts, not a generated reply or a rewrite of the conversation journal. */
 export function AssistantRunResult({ scopeKey, target, run, t, onRun }: {
@@ -17,6 +18,7 @@ export function AssistantRunResult({ scopeKey, target, run, t, onRun }: {
     enabled: run.status === 'delivered', retry: false, refetchInterval: 5000,
   });
   const review = query.data;
+  const parentTestsLine = parentTestCardLine(review?.parentTests, t);
   const [reviewText, setReviewText] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -50,6 +52,7 @@ export function AssistantRunResult({ scopeKey, target, run, t, onRun }: {
       {run.costUsd !== null ? ` · $${run.costUsd.toFixed(2)}` : ''}</p>
     {run.error ? <p>{run.error}</p> : null}
     {review?.verification.acceptanceApproved === true ? <p>{t('assistant.checksApproved')}</p> : null}
+    {parentTestsLine ? <p>{parentTestsLine}</p> : null}
     {review?.publicationStatus === 'published' ? <p>{t('assistant.deliveryPublished')}</p>
       : review?.publicationStatus === 'publishing' ? <p role="status">{t('assistant.deliveryPublishing')}</p>
       : review?.clientAcceptance ? <p>{t(publishFiles ? 'assistant.deliveryAcceptedPending' : 'assistant.deliveryAccepted')}</p>

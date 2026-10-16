@@ -123,8 +123,10 @@ If host messaging is unsupported or refused, the exact request remains copyable.
 
 `atoma_run_review` takes `projectId` and `runId` and assembles a bounded review:
 the delivery hash, first 30 saved files, first 30 changed files against the
-recorded starting run, latest recorded criteria judgements, client acceptance,
-and publication status. `nextSteps` points to existing readers to continue;
+recorded starting run, latest recorded criteria judgements, the host-observed
+outcomes of the parent-owned acceptance test suites (`parentTests`: suite
+counts and up to 12 records, never test source), client acceptance, and
+publication status. `nextSteps` points to existing readers to continue;
 file/comparison `nextOffset` and comparison `snapshot` retain their ordinary
 paging contracts. Reads work for viewers; permission to request acceptance is
 project/org/member-scoped and is not an approval recommendation.

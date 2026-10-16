@@ -3,7 +3,8 @@ import { Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
-import { readableBlocks, resultNarrative, resultSections, resultText, splitSummary } from '../../run-result.js';
+import { parentTestLines, parentTestRecordLines, readableBlocks, resultNarrative, resultParentTests, resultSections,
+  resultText, splitSummary } from '../../run-result.js';
 import { runStatus } from '../../../client/run-utils.js';
 import { formatDateTime } from '../../../client/date-format.js';
 import { drawPreviewControl } from '../preview-control.js';
@@ -156,6 +157,10 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
     if (output === null) text(snapshot.t('result.noOutput'));
     else if (narrative.length > 0) action('result.copy', 'result.copy');
     if (snapshot.state.resultActionStatus) text(snapshot.t(`result.${snapshot.state.resultActionStatus}`));
+    // Host-observed acceptance tests: plain text only, model prose never
+    // through readableBlocks or t().
+    const parentTests = resultParentTests(run);
+    for (const line of parentTestLines(parentTests, snapshot.t, details)) text(line.text, line.heading, line.muted);
 
     if (details) {
       cursor += 16;
@@ -167,6 +172,7 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
         text(checks.slice(0, 12000));
         if (checks.length > 12000) text(snapshot.t('result.truncated'), false, true);
       }
+      for (const line of parentTestRecordLines(parentTests, snapshot.t)) text(line.text, line.heading, line.muted);
       text(snapshot.t('result.request'), true);
       const goal = run.task?.description ?? run.label;
       text(goal.slice(0, 12000));

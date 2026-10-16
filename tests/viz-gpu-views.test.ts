@@ -5682,6 +5682,66 @@ describe('the shared final result panel', () => {
     expect(expanded.buttons.find(button => button.id === 'result.details')!.active).toBe(true);
   });
 
+  describe('host-observed acceptance tests', () => {
+    const observation = (overrides: Record<string, unknown>) => ({
+      suiteDigest: 'a'.repeat(64), workspaceDigest: 'b'.repeat(64), status: 'failed', cause: 'ran',
+      passed: 2, failed: 1, skipped: 0, requirement: 'requirement', details: 'details', ...overrides,
+    });
+    // Plan prose a model wrote, with Markdown, HTML and i18next syntax in it.
+    const failedRequirement = 'refunds **x** <b> {{count}} $t(result.title)';
+    const parentTests = [
+      observation({ status: 'passed', failed: 0, requirement: 'PASSED REQUIREMENT', details: 'PASSED DETAILS' }),
+      observation({ suiteDigest: 'c'.repeat(64), status: 'unavailable', cause: 'worker-missing', passed: 0, failed: 0,
+        workspaceDigest: '', requirement: 'host could not run it', details: 'WORKER DETAILS' }),
+      observation({ suiteDigest: 'd'.repeat(64), requirement: failedRequirement, details: '[{"title":"refunds","status":"fail' }),
+    ];
+    const run = makeRun([], { result: { output: 'The refund module is ready.', summary: 'Done.', parentTests } });
+
+    it.each([390, 1200])('draws counts and open records verbatim below the answer at width %i', width => {
+      const ctx = createRecordingCtx();
+      drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id }, { resultRun: run }), 10, 100, width - 20, 600);
+      const values = ctx.texts.map(text => text.value);
+      const heading = ctx.texts.find(text => text.value === t('result.tests.title'))!;
+      expect(heading).toBeDefined();
+      expect(heading.y).toBeGreaterThan(ctx.texts.find(text => text.value === 'The refund module is ready.')!.y);
+      const counts = [t('result.tests.suitesFailed', { count: 1 }), t('result.tests.suitesUnavailable', { count: 1 }),
+        t('result.tests.suitesPassed', { count: 1 })].join(' · ');
+      expect(values).toContain(counts);
+      expect(values).toContain(`${t('result.tests.status.failed')} · ${failedRequirement}`);
+      expect(values).toContain(`${t('result.tests.status.unavailable')} · host could not run it`);
+      expect(values).toContain(t('result.tests.cause.worker-missing'));
+      expect(values.some(value => value.includes('PASSED REQUIREMENT'))).toBe(false);
+      expect(values.some(value => value.includes('DETAILS') || value.includes('"title"'))).toBe(false);
+      const contentWidth = Math.min(960, width - 20 - 44);
+      const block = ctx.texts.filter(text => text.y >= heading.y);
+      const drawnWidth = (text: RecordedText) => (text.options as { width?: number } | undefined)?.width ?? Infinity;
+      expect(block.every(text => text.x === 4 && drawnWidth(text) <= contentWidth)).toBe(true);
+    });
+
+    it('lists every record with digests and raw details in the technical details', () => {
+      const ctx = createRecordingCtx();
+      drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id, resultDetailsOpen: true }, { resultRun: run }), 10, 100, 1180, 600);
+      const values = ctx.texts.map(text => text.value);
+      expect(values).toContain(t('result.tests.records'));
+      expect(values).toContain(`${t('result.tests.status.passed')} · PASSED REQUIREMENT`);
+      expect(values).toContain(t('result.tests.digests', { suite: 'd'.repeat(12), workspace: 'b'.repeat(12) }));
+      expect(values).toContain(t('result.tests.digests', { suite: 'c'.repeat(12), workspace: t('result.tests.notRecorded') }));
+      expect(values).toContain('[{"title":"refunds","status":"fail');
+      expect(values).toContain('WORKER DETAILS');
+      expect(values.some(value => value.includes('PASSED DETAILS'))).toBe(false);
+    });
+
+    it('draws nothing for a result without records, and an unreadable line for a malformed field', () => {
+      const none = createRecordingCtx();
+      drawResultPanel(none, makeSnapshot({ resultRunId: run.id }, { resultRun: makeRun([], { result: { output: 'ok' } }) }), 10, 100, 1180, 600);
+      expect(none.texts.some(text => text.value === t('result.tests.title'))).toBe(false);
+      const malformed = createRecordingCtx();
+      const broken = makeRun([], { result: { output: 'ok', parentTests: 'x' } });
+      expect(() => drawResultPanel(malformed, makeSnapshot({ resultRunId: broken.id }, { resultRun: broken }), 10, 100, 1180, 600)).not.toThrow();
+      expect(malformed.texts.some(text => text.value === t('result.tests.unreadable', { count: 1 }))).toBe(true);
+    });
+  });
+
   it('waits on a result with the loading crystal beside what is loading', () => {
     const ctx = createRecordingCtx();
     drawResultPanel(ctx, makeSnapshot({ resultRunId: 'not-yet-read' }, {}), 10, 100, 1180, 600);

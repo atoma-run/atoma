@@ -2455,3 +2455,155 @@ restoration; the old L2 redirect): every one failed under its mutation.
   `effectiveObligations`; `fullStackFor` takes the first superset by ordinal;
   marks on a continuation replan index the continuation planner's subtasks
   (the criteria behaviour depends only on the mark).
+
+## Follow-up: Parent-test observations visible in viz and the MCP
+
+Follow-up group G6, decided under the owner's delegation
+(`memory/beta-rules-not-fixed.md`). It closes the client-view half of item 8
+and supersedes "A dedicated event kind and client view are a follow-up" in
+"Persisted evidence" above for the client view only; the event kind stays
+open. Code and mocked tests only: no run was started and the production MCP
+was not called.
+
+### Defect
+
+`Result.parentTests` has been persisted without source since group A
+(`persistedParentTests`, `VizRun['result'].parentTests`), but nothing a person
+reads showed it: no viz view drew it, the client type did not declare it, and
+no MCP projection carried it. A delivery whose acceptance suite failed or did
+not run read, on the receipt card, exactly like one whose suites passed.
+
+### Mechanism
+
+- **One browser-safe module** (`src/contracts/parentTestRecord.ts`, zod only)
+  holds the cause and status vocabularies, the writer schema, a reader schema
+  derived from it, core's superseded rule (moved verbatim; core imports and
+  re-exports it) and `summarizeParentTests`, the one projection. It returns a
+  state (`recorded`, `none`, `not_recorded`; the server adds `unavailable`),
+  suite counts by last record, record counters
+  (`total`, `invalid`, `distinct`, `listed`, `omitted`, `supersededFailures`)
+  and ranked rows: open, then superseded, then passed, later records first.
+  `parentTests.ts` keeps the digest (`node:crypto`) and re-exports the moved
+  names, so no server importer changed.
+- **MCP:** `atoma_run_review` gains an optional `parentTests` field
+  (`runParentTestsSchema`). `projectRunEvidence` reads progress and the
+  projection from ONE `evidence()` parse, which caches only the bounded
+  projection. `reviewRun` validates the field apart and falls back to
+  `unavailable`, so it can never fail the review. `atoma_run_status` is
+  untouched: it is every run start's final task result and a polled path.
+  The tool description gains one clause; nothing is renamed.
+- **Viz:** the result view draws a heading, the suite counts, a hint, up to
+  five open records and a "more" line after the answer, and every listed
+  record with counts, flags, 12-character digests and the raw bounded details
+  inside the technical details, all through plain `text()`. The requirement
+  is appended after a translated status with a neutral " · " and never goes
+  through `t()` or `readableBlocks`. The receipt card adds one line when a
+  suite failed or did not run, a record was unreadable, or the records were
+  unavailable. Copy is EN only, from typed key tables per status and cause.
+- **Poll cost:** the review GET now answers through `sendJsonRevalidated`
+  and `api.runReview` through `fetchRevalidatedJson`, so the card's 5 s poll
+  of an unchanged review is an empty 304.
+
+### Deviations from the design
+
+- **MCP limits are 240/500, not 300/600.** The design asserted a 16 KiB
+  serialised bound with an escape-heavy input; the true worst case is a
+  string of quotes (each serialises as two). Measured with hex digests and
+  the note: 17,895 characters at 300/600, 15,255 at 240/500. The test now
+  includes that worst case.
+- **Lone surrogates are replaced too,** not only control characters: one
+  serialises as a six-character escape and would break the same bound. The
+  projection cuts first and cleans after, so a cut through a pair is cleaned.
+- **A digest that is not 1–64 hex characters reads as empty** ("not
+  recorded"), instead of a 64-character slice: digests are host hex, and a
+  malformed one is not a digest. Superseding and deduplication still use the
+  raw value, as core does.
+- **Two line builders** (`parentTestLines` for the main view,
+  `parentTestRecordLines` for the details) instead of one with a flag: they
+  are drawn at two places in the panel. The "more" line is dropped when the
+  details are open.
+- **`assertions-tampered`** (added by group G2 after the design was written)
+  has its own copy: "The code under test changed how the tests check their
+  results, so their result was not trusted."
+- The card's line is built by `parentTestCardLine` in `run-result.ts`, so the
+  React component holds no counting logic.
+
+### Countercases checked
+
+- D0 and group A point 2 (the summary prefix hid the gates): only the typed
+  field is read; a historical trace whose summary carries the old prefix
+  reads `none` (unit and MCP tests).
+- 2026-08-14 drift review: one superseded rule, shared by core and the
+  projection; the reader schema is derived from the writer schema; core's
+  consequence mapping is not repeated (the copy is per cause).
+- Run `2857a579` (a size cap recorded a delivered run as failed): an
+  unreadable or oversized trace is `unavailable`, shown on the card, never a
+  pass, and never changes delivery.
+- Review 2.15 of 2026-10-09: nothing added to status or `RunProgress`; one
+  parse per review; card polls get 304.
+- Attica `85cc4e83` and `f74c140a`: the requirement is shown as plan prose
+  under "A passing test proves only what it checks".
+- Second review (details cut mid-JSON): details are raw bounded text, never
+  parsed.
+- MCP two eras and `looseObject`: one optional additive field, isolated from
+  failure; the MCP test runs on both eras.
+- depthRouting `node:vm`: the bundle test bundles the real consumers with
+  tree shaking off and fails when any of them reaches `contracts/parentTests.ts`
+  (checked by mutation: all three consumers fail).
+- Locale contract: EN only, true `_one`/`_other` pairs, computed keys proven.
+
+### Tests
+
+- `tests/parent-test-record.test.ts` (new): states, ranking, suite status by
+  last record, deduplication counters, superseded before deduplication, an
+  invalid pass between a failure and a pass, cross-workspace supersession as
+  the gate does it, unknown cause kept, slicing instead of refusal, control
+  characters and lone surrogates, details only on open rows, digests; and
+  every cause, judged or not, through `persistedParentTests` into the strict
+  writer schema and the reader.
+- `tests/parent-tests-runner.test.ts`: the real runner's persisted trace reads
+  as `recorded` through the shared projection.
+- `tests/mcp-experience.test.ts`: both eras through the real HTTP MCP and the
+  SDK `outputSchema`: counts, rank order, cause and `judged`, one invalid
+  entry, strict rows, the note; no `parentTests` in status; thirty
+  escape-heavy records give 12 rows, at most 6 with details, under 16,384
+  characters; `not_recorded`, `none`, `unavailable`; a corrupted projection
+  reads `unavailable` with files and verification intact.
+- `tests/viz-gpu-views.test.ts`: the shared result panel at 390 and 1200
+  wide; verbatim model text with `**x** <b> {{count}} $t(result.title)`; no
+  passed requirement or details in the main view; digests, "not recorded" and
+  raw details in the details; nothing for a result without records; the
+  unreadable line for a malformed field.
+- `tests/locales-contract.test.ts`: every status and cause key and the
+  plural pairs exist in EN.
+- `tests/viz-client-bundle-boundary.test.ts`: the three real consumers and
+  the record module bundle for the browser without `contracts/parentTests.ts`.
+- `tests/viz-assistant-run-result.test.ts` (new): the card says when a suite
+  did not run, a record was unreadable, or the records were unavailable, and
+  adds nothing on an all-passed run.
+- `tests/viz-auth-gate.test.ts` and `tests/viz-polled-lists.test.ts`: the
+  review route answers 304 to its own validator, and `api.runReview` hands
+  back the held object.
+
+### Remaining risks and open questions
+
+- **Supersession across workspaces (open gate question).** Core keys
+  supersession on the suite digest alone, so a byte-identical suite passing
+  in another branch hides a failure; the display inherits it on purpose so it
+  never disagrees with the gate. Changing it is a gate change and needs its
+  own adversarial review.
+- **Dedicated trace event kind (open).** The records still exist only in the
+  final result; a live run shows nothing until it ends.
+- **Restored and seeded phases** contribute no observations, so a resumed run
+  can show partial counts or `none`; the note says so.
+- **Traces over 32 MiB:** the review reports `unavailable` while the GPU
+  client, which streams the trace, may still draw the records.
+- **A delivered run whose trace is missing** shows "could not be read" on its
+  card. That is the honest reading; it is also new copy on old runs.
+- **Payload:** the field is carried twice in an MCP response (structured and
+  text). Bounded, documented.
+- **Client memory:** `fetchRevalidatedJson` holds the last body per path for
+  the tab's life, so each review a person opened stays held, as each polled
+  list already does. Bounded by the runs opened in one tab.
+- **Not seen in a real browser:** `viz:smoke` still fails before any view on
+  main ("focused view frame composite is invalid").

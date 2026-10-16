@@ -15,6 +15,7 @@ import {
   translate,
 } from '../src/viz/client/i18n-catalog.js';
 import { PUSH_LOCALES, PUSH_ROUTES } from '../src/viz/push/routes.js';
+import { PARENT_TEST_CAUSE_KEYS, PARENT_TEST_STATUS_KEYS, parentTestCountFragments } from '../src/viz/client-gl/run-result.js';
 // THE SAME predicates the pipeline gates on. `scripts/i18n.mjs` dispatches at
 // module scope, so it cannot be imported here — which is why these two rules
 // were hand-copied into this file and drifted (2026-08-27, 2.6 and 3.12). They
@@ -227,5 +228,35 @@ describe('the GPU client asks only for keys EN defines', () => {
     expect(asked.has('settings.keyReplace') && asked.has('settings.keySave'), 'ternary branches are read').toBe(true);
     const missing = [...asked].filter(([key]) => !(key in en) && !(`${key}_other` in en));
     expect(missing).toEqual([]);
+  });
+});
+
+/**
+ * The acceptance-test copy is asked for by COMPUTED keys (a typed table per
+ * status and cause, count fragments), which the literal scan above cannot
+ * read. These assertions read the tables themselves (G6, 2026-10-16).
+ */
+describe('the acceptance-test copy behind computed keys', () => {
+  const en = I18N_CATALOGS.en;
+
+  it('has EN copy for every status, every cause and the unrecorded cause', () => {
+    const keys = [...Object.values(PARENT_TEST_STATUS_KEYS), ...Object.values(PARENT_TEST_CAUSE_KEYS),
+      'result.tests.notRecorded', 'result.tests.recordsUnavailable'];
+    const missing = keys.filter(key => !(key in en) || isBlankValue(en[key]));
+    expect(missing).toEqual([]);
+  });
+
+  it('gives every counted phrase a true singular and plural', () => {
+    const counted = parentTestCountFragments({
+      suites: { total: 3, passed: 1, failed: 1, unavailable: 1 },
+      records: { total: 4, invalid: 1, distinct: 3, listed: 3, omitted: 0, supersededFailures: 0 },
+    }).map(fragment => fragment.key);
+    const keys = [...counted, 'result.tests.testsPassed', 'result.tests.testsFailed', 'result.tests.testsSkipped',
+      'result.tests.more', 'result.tests.omitted'];
+    expect(counted).toHaveLength(4);
+    const missing = keys.filter(key => !(`${key}_one` in en) || !(`${key}_other` in en));
+    expect(missing).toEqual([]);
+    expect(translate('en', 'result.tests.suitesFailed', { count: 1 })).toBe('1 test suite failed');
+    expect(translate('en', 'result.tests.suitesFailed', { count: 2 })).toBe('2 test suites failed');
   });
 });

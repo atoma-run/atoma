@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parentTestSummarySchema } from './parentTestRecord.js';
 import { projectRunStatusSchema, projectRunPublicSchema, deliveryAcceptanceSchema, publicationStatusSchema, publicationSchema } from './projects.js';
 
 /** Opt-in paging keeps the original no-argument list responses compatible. */
@@ -114,6 +115,17 @@ export const runViewSchema = z.object({
 
 
 /** Bounded review of saved evidence, never a fresh test or a client approval. */
+/**
+ * Host-observed parent acceptance test outcomes, as `atoma_run_review`
+ * serves them: the shared projection (`summarizeParentTests`), plus the
+ * `unavailable` state for a trace the reader could not read, and a fixed note.
+ */
+export const runParentTestsSchema = parentTestSummarySchema.extend({
+  state: z.enum(['recorded', 'none', 'not_recorded', 'unavailable']),
+  note: z.string(),
+});
+export type RunParentTests = z.infer<typeof runParentTestsSchema>;
+
 export const runReviewSchema = z.object({
   run: projectRunPublicSchema.pick({ projectId: true, projectRunId: true, goal: true, status: true,
     artifactManifestHash: true, baseRunId: true, contextVersion: true, seed: true, bytesExpiredAt: true }),
@@ -124,6 +136,8 @@ export const runReviewSchema = z.object({
   comparison: runComparisonResultSchema.nullable(),
   comparisonState: z.enum(['available', 'no_recorded_base', 'base_unavailable', 'text_only', 'delivery_unavailable']),
   verification: runProgressSchema,
+  /** Additive (2026-10-16): optional so an older payload still parses; the service always sends it. */
+  parentTests: runParentTestsSchema.optional(),
   clientAcceptance: deliveryAcceptanceSchema.nullable(),
   publicationStatus: publicationStatusSchema.nullable(),
   canRequestAcceptance: z.boolean(),

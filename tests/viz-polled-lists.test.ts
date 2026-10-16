@@ -148,6 +148,23 @@ describe('revalidated list reads', () => {
     expect(calls).toEqual([null, 'W/"one"', 'W/"one"', null, null]);
   });
 
+  it('revalidates the delivery review the receipt card polls every 5 s', async () => {
+    const review = { run: { projectRunId: 'run-1' }, parentTests: { state: 'recorded' } };
+    const calls: (string | null)[] = [];
+    const responses = [
+      new Response(JSON.stringify(review), { status: 200, headers: { etag: 'W/"review"' } }),
+      new Response(null, { status: 304, headers: { etag: 'W/"review"' } }),
+    ];
+    vi.stubGlobal('fetch', vi.fn(async (_path: string, init?: RequestInit) => {
+      calls.push(new Headers(init?.headers).get('if-none-match'));
+      return responses.shift()!;
+    }));
+    const first = await api.runReview('project-1', 'run-1');
+    const second = await api.runReview('project-1', 'run-1');
+    expect(second).toBe(first);
+    expect(calls).toEqual([null, 'W/"review"']);
+  });
+
   it('keeps one validator per path', async () => {
     const calls: [string, string | null][] = [];
     vi.stubGlobal('fetch', vi.fn(async (path: string, init?: RequestInit) => {
