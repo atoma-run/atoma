@@ -197,11 +197,11 @@ load-bearing.
   defers it, under the `jev-audit` role, off the run's path. It
   decides NOTHING — Decision's approval stands whatever the model says — and its
   role keeps it out of every reader that counts validations.
-- The Decision calibration (`jevCalibration.ts`) reads prefilter and validation
-  prompts back out of traces: their LAYOUT is a contract with it (`tests/jev-calibration.test.ts`);
-  validation uses `TASK_CONTEXT_HEADER` to separate multiline task text from
-  runtime guidance; the reader also supports historical traces without it.
-  A recipe's opening steps come from the deferring `jev` event's `details`.
+- The Decision calibration (`jevCalibration.ts`) reads prefilter and validation prompts back out of
+  traces: their LAYOUT is a contract with it (`tests/jev-calibration.test.ts`); `TASK_CONTEXT_HEADER`
+  separates multiline task text from runtime guidance (historical traces lack it). A recipe's opening
+  steps come from the deferring `jev` event's `details`. Calls stamped `jevExcluded` (delegation
+  reviews, parent-suite results: Decision takes none) are counted apart and never asked.
 - Atom trust fast paths require the configured consecutive approved-result
   threshold (default 3), read through `trustThreshold()`; historical failures do
   not permanently disqualify a type. Script dispatch retains its separate
@@ -263,12 +263,13 @@ load-bearing.
   and threads `previousStepSummary` plus declared `outputs` as
   `inputs.previousStepOutputs`. Do not merge prior writes into the next
   phase's `outputs` — skill/promotion gates read the current phase only. Do not parallelize coupled filesystem work.
-- Independent work MUST fan out, including multiple L2 branches at L3.
-  `dependsOn` (earlier indices) starts a branch once its producers settle;
-  joins name producers, coupled writers need dependencies; no wave barrier, no
-  prose inference. A producer with a typed failure is KEPT and its dependents
-  land unstarted (`blockedPhases`); a throw still fails the dispatch. Routing
-  splits only output-less checkpoints, remapping `dependsOn` ([why](../../records/reviews/parent-tests-review-fixes-2026-10-16.md)).
+- Independent work MUST fan out, including multiple L2 branches at L3: a branch starts once its
+  `dependsOn` producers (earlier indices) settle; joins name producers, coupled writers declare
+  dependencies; no wave barrier, no prose inference. A producer with a typed failure is KEPT and its
+  dependents land unstarted (`blockedPhases`); a throw still fails the dispatch. Routing splits only
+  output-less checkpoints, remapping `dependsOn` ([why](../../records/reviews/parent-tests-review-fixes-2026-10-16.md)).
+  This DAG answers [2026-08-16](../../records/incidents/parallel-fanin-2026-08-16.md), where per-artefact phases
+  serialised independent work, though fan-out was not always cheaper; no live run has exercised it yet.
 - A phase of a SEQUENTIAL root plan the PLANNER wrote with two phases or more
   (counted before `routeCrossBucketVerification` splits one) that declares no
   `outputs` is READ-ONLY (`Task.readOnly`) — the tissue's plan, or a root
@@ -344,16 +345,14 @@ load-bearing.
   reach validators only as a host block, and are judged once. Green still needs
   semantic review. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
 
-- All JavaScript-runtime applications use strict TypeScript, including existing
-  projects, browser/server logic and maintained tests. Application changes
-  include migration where needed. `APPLICATION_TYPESCRIPT_GUIDANCE` in
-  `taskContext.ts` is the runtime rule shared by planners, executors and
-  reviewers, including old stored types and fallbacks. Final review requires
-  observed `check` (typecheck, lint, tests) and `build` success and effective configuration/source coverage;
-  transpilation or a script name is not proof. Compilation goes to a shell
-  molecule before browser verification, without widening static-web tools.
-  Generated JavaScript, vendor assets and necessary tooling glue remain valid.
-  No extension-based rejection or supervisor command replay.
+- All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
+  logic and maintained tests. Application changes include migration where needed.
+  `APPLICATION_TYPESCRIPT_GUIDANCE` in `taskContext.ts` is the runtime rule shared by tool-mode planners,
+  executors and reviewers, including old stored types and fallbacks; reasoning tasks hold no tools and skip it.
+  Final review requires observed `check` (typecheck, lint, tests) and `build` success and effective
+  configuration/source coverage; transpilation or a script name is not proof. Compilation goes to a shell
+  molecule before browser verification, without widening static-web tools. Generated JavaScript, vendor
+  assets and necessary tooling glue remain valid. No extension-based rejection or supervisor command replay.
   [Decision and review](../../docs/decisions/typescript-applications-2026-10-16.md).
   Apps also adopt the [versioned application skeleton](../../docs/decisions/application-skeleton-2026-10-16.md):
   ESLint/typescript-eslint, Vitest, Vite for browser assets, and uniform scripts.

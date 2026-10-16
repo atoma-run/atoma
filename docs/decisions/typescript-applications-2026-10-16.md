@@ -17,7 +17,8 @@ Planning, execution and validation share the runtime guidance in
 `src/atoms/taskContext.ts`, so catalog entries created earlier receive the same
 rule. Compilation must be assigned to a molecule with shell tools; a static
 browser molecule verifies the built output. No new shell access is granted to
-that narrower molecule.
+that narrower molecule. The guidance reaches tool-mode tasks; reasoning-mode
+tasks hold no tools, build nothing and do not receive it.
 
 Final application acceptance requires observed successful typechecking of the
 final source and review of effective configuration and command coverage.

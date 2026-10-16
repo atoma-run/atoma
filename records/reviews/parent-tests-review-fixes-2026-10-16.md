@@ -4,7 +4,8 @@ Scope: a critical review of the three commits that introduced parent-owned
 acceptance tests and the delegation contract — b3af7c1e (parent-owned Vitest
 suites, `dependsOn` parallel branches), de1ee85f (mandatory root
 delegation-contract review, `replanAfter` discovery) and 8b9d990b (discovery
-scope across delegation). Each group below states the defect, the mechanism
+scope across delegation), window `b3af7c1e..8b9d990b`. Each group below (A–F)
+states the defect, the mechanism
 that replaces it, the countercases it was checked against, and its tests.
 Contract: [parent-owned tests](../../docs/decisions/parent-owned-tests-2026-10-16.md);
 original design review: [parent-owned tests](parent-owned-tests-2026-10-16.md).
@@ -700,7 +701,7 @@ container test on any bump of vite, vitest or rolldown.
   2-CPU container; the copy no longer blocks other lanes, but a large
   `node_modules` takes a larger share of the 120 s window.
 
-## D — Root delegation review robustness and unparseable root plans
+## Group D — Root delegation review robustness and unparseable root plans
 
 Problem points 5 and 6 of the critical review. Owner decisions kept: the root
 review is mandatory, there is no unreviewed fallback, and independent work must
@@ -990,3 +991,234 @@ whose full-stack checkpoint then runs unsplit; three rejections fail closed; a
 sequential two-phase plan counted as two planner phases with both checkpoint
 parts read-only and the implementing phase not. `tests/read-only-phase.test.ts`:
 the one-phase 04ea696f fixture now runs as one branch.
+
+## Group F — hygiene: calibration exclusions, scoped TypeScript guidance, neutral criteria prompt, readable tests
+
+Group F landed last, after A–E, so its reformatting and its line counts are
+taken on the final files.
+
+### Findings
+
+- **The Decision calibration read decisions Decision never takes.** Since
+  b3af7c1e and de1ee85f, four kinds of model validation are kept from Decision
+  by POLICY, yet each still records a `validate-plan`/`validate-result` `llm`
+  event that `jevCalibration.ts` sent as calibration material:
+  1. the root delegation review (`L3Atom.reviewRootDelegation`, also on
+     resume): it calls `llmVerdict` directly, with no `jevApproval` site;
+  2. L3's review of an L2 plan under `reviewsTests` (`!reviewsTests && ctx.jev`);
+     its recorded answer can also be overturned by `enforceDelegationReview`, so
+     it is not even the verdict the host applied;
+  3. L2's RESULT review of a suite-bearing task or of a result carrying
+     `parentTests`;
+  4. L3's RESULT review under the same condition (and its trust gate).
+
+  Probe: at `8b9d990b`, `parseValidationPrompt` read every one of them as
+  eligible, the two L3 plan reviews included (pinned in
+  `tests/jev-calibration.test.ts`: the same production events, stripped of
+  their stamp and dated after the bound, all parse as eligible). Group A then
+  marked the two RESULT kinds `ineligible` through an `INELIGIBLE_MARKERS`
+  entry; the two delegation reviews stayed eligible. L2's review of L1 plans on
+  suite-bearing tasks is NOT among them: Decision still decides there.
+- **The TypeScript application guidance reached reasoning tasks.**
+  `APPLICATION_TYPESCRIPT_GUIDANCE` was in every `taskContextLines` output,
+  including `executionMode: 'reasoning'` tasks, which hold no tools and build
+  nothing.
+- **`CRITERIA_REVIEW_PROMPT` carried run vocabulary**: "a failing scheduler
+  test does not refute an independently established file deletion or
+  lock-release test" (event `4327e8bf`, records/incidents/attica-validation-context-2026-10-16.md).
+- **b3af7c1e dropped the rationale link** to
+  [the 2026-08-16 fan-out record](../incidents/parallel-fanin-2026-08-16.md)
+  when it replaced the "one phase per orthogonal group" rule.
+- **Two test files were dense**: `tests/parent-tests.test.ts` and the head of
+  `tests/delegation-contract.test.ts` chained statements and test bodies on
+  one line, against `READABLE_SOURCE_RULE` (`src/atoms/prompts.ts`).
+
+### What changed
+
+- **A typed stamp, set where the skip is decided.** `JEV_EXCLUSIONS`
+  (`delegation-review`, `parent-suite`) in `src/contracts/llmTrace.ts`;
+  `LlmCompletionRequest.jevExcluded`; `VizLlmEvent.jevExcluded`, recorded by
+  `RecordingLlmClient` from the request like `effort`, with no prompt
+  archaeology. `llmVerdict` stamps every call carrying `delegationContract` at
+  its one rendering site (cases 1 and 2), and `L2Atom.validateResult` /
+  `L3Atom.validateResult` name the condition once (`parentSuite`), use it in
+  the trust and Decision gates and stamp the model review (cases 3 and 4).
+  Every `LlmClient` wrapper on the path passes the request through or spreads
+  it (`RoutingLlmClient`, `MetricsLlmClient`, `BudgetGateLlmClient`,
+  `ToolIterationCeilingLlmClient`), so the stamp survives.
+- **Counted apart, kept in the corpus.** `decisionsOfTrace` sets
+  `RecordedDecision.excluded`; `calibrate` counts it in a new
+  `Calibration.excluded` per exclusion before reading the prompt, and sends
+  nothing. `atoma_jev_calibrate` returns `excluded` beside `ineligible`, and
+  its note says these are counted, never asked.
+- **Why not `INELIGIBLE_MARKERS`, and why not a drop.** `ineligible` counts
+  validations whose EVIDENCE made the fast path inadmissible (gate findings,
+  uncovered proof), and its readings are quoted ("125 results ineligible",
+  docs/decisions/jev-decisions-2026-09-28.md); a fixed policy folded into it
+  changes what that number means. Markers are text-matched, and the
+  parent-suite RESULT with only aggregated passing observations leaves no text
+  at L3 before Group A. Dropping the decisions in `decisionsOfTrace` would
+  hide them without a count and shift `corpus.decisions` indices, invalidating
+  `nextOffset` values issued earlier. Group A's `'PARENT ACCEPTANCE TESTS ('`
+  marker therefore moved out of `INELIGIBLE_MARKERS` into the historical
+  reader below: one home for the policy. Group A's test
+  (`tests/parent-tests-observations.test.ts`) now asserts the exclusion.
+- **Historical traces.** A trace started before
+  `JEV_EXCLUSION_STAMPED_FROM` (`2026-10-17T00:00:00Z`, midnight UTC after this
+  commit) without a stamp is read by `historicalExclusion`, from host-rendered
+  structure only: (1) a PLAN review whose `== REQUIRED DELEGATION CONTRACT
+  REVIEW ==` line (`DELEGATION_REVIEW_HEADER`, now exported and used by the
+  request) follows the one-line `PLAN: ` payload — every multiline text a model
+  controls renders before it; (2) a RESULT review whose task context holds the
+  parent-suite line (`PARENT_SUITE_CONTEXT_PREFIX`, now exported), whose host
+  block header follows the payload, or whose `RESULT:` line carries b3af7c1e's
+  `PARENT ACCEPTANCE TESTS (` summary prefix (the RESULT line only: an earlier
+  phase's summary reaches the inputs without its observations); (3) an L3 PLAN
+  review whose context or payload carries a suite, b3af7c1e's `reviewsTests`
+  for the b3af7c1e..de1ee85f window. No production trace is known to need (3):
+  the only known run on b3af7c1e, `fec4ef6a`, planned no suite. A trace started
+  from the bound on is read by its stamp alone; its text never decides.
+- **Reasoning tasks skip the TypeScript guidance.** `taskContextLines` renders
+  it only when `executionMode !== 'reasoning'`: such a task holds no tools
+  (L1 `reasoningPrompt`, the L2/L3 fallback `hasTools`), and
+  `delegatedTaskContext` forces reasoning on every descendant of a reasoning
+  parent. `fallbackProof.ts` is unchanged: it runs only for a fallback holding
+  tools. The decision doc and `src/atoms/AGENTS.md` say so.
+- **Task-neutral criteria prompt.** The first sentence now reads "a failure
+  observed for one requirement does not refute a different requirement that its
+  own evidence independently establishes". It is neutral about the kind of
+  proof, so it covers a deletion established by a listing (the `4327e8bf`
+  case); the next sentence of the prompt still says which evidence counts, and
+  it agrees with `ASSERTION_EVIDENCE_GUIDANCE` ("Source can establish an
+  implementation property"). "Attach a failure only where it contradicts that
+  criterion", the inventory sentence and `STATEFUL_EVIDENCE_REVIEW` are
+  unchanged and still let a later edit or a shared-state failure contradict
+  another criterion. About 20 characters of a ~6,980-character system prompt
+  changed. The `benchmark/*-2026-10-05/` replays import the live prompt, so
+  their recorded results stay historical.
+- **Fan-out rationale restored** in `src/atoms/AGENTS.md`: `dependsOn` makes
+  fan-out + join expressible at one tier; the 2026-08-16 finding (per-artefact
+  serial phases serialised independent work) is what the DAG answers; fan-out
+  was not always cheaper; no live run has exercised it yet. The file went from
+  699 to 698 lines: the TypeScript bullet was rewrapped to make room. The
+  2026-08-16 record's banner still names the "one phase per orthogonal GROUP"
+  prompt rule, which b3af7c1e removed (`grep` finds it nowhere in `src/`); the
+  record stays untouched as evidence.
+- **Readable tests.** Both files now hold one statement per line and no
+  one-line test bodies; object literals over about 100 characters are split
+  by property group; every fixture string is byte-identical. Proof of no
+  behaviour change: `esbuild --minify-whitespace --minify-syntax` gives the
+  same SHA-1 before and after for each file (`71fc4ddf…` for
+  `parent-tests.test.ts`, `62f37920…` for `delegation-contract.test.ts`).
+- **Index.** `records/README.md` now lists this record, the parent-owned tests
+  design review, the Attica delegation-contract review and the TypeScript
+  policy and application skeleton reviews; the parent-owned tests decision
+  links back here. It is NOT added to `records/code-reviews.md`, whose entries
+  move the next general review's revision range.
+
+### Decision's context cap (measured, not changed)
+
+`APPLICATION_TYPESCRIPT_GUIDANCE` is 1,345 characters (1,359 JSON-escaped),
+6.8 % of `JEV_STATE_CHARS.plan` = 20,000, which caps Decision's whole
+stringified context head-first (`capped`). It renders before `inputs`, so a
+tool-mode task's inputs are now cut past roughly 18,000 characters instead of
+roughly 19,400: the cut point moves, no new cut is created, and reasoning tasks
+get the room back. The bigger finding is the parent-suite line: up to 4,000
+characters of requirement plus 32,000 of source (`contracts/parentTests.ts`),
+before escaping, also rendered before `inputs`. Decision still decides L2's
+review of L1 plans on suite-bearing tasks; with a suite over about 18,000
+characters its context loses `originalTask`, previous-step inputs, the phase
+criteria and the "Execution mode" line (constraints still arrive as separate
+state). Possible fixes, not built: render the suite line after `inputs` and
+the criteria, or switch Decision off there as L3 does.
+
+### Countercases checked
+
+- [parallel-fanin-2026-08-16](../incidents/parallel-fanin-2026-08-16.md):
+  serialised catalog build phases took 362.7 s against 145.5 s for digest's
+  grouped one (two different tasks, not a controlled comparison), yet digest
+  cost more in total ($0.75 against $0.54), and a rerun in which one molecule
+  wrote all three generators took 103 s against 145 s fanned out, at a third of
+  the run cost. The coupled `fanin` tasks correctly stayed sequential.
+- [attica-delegation-contract-2026-10-16](attica-delegation-contract-2026-10-16.md):
+  `fec4ef6a` (b3af7c1e) had no acceptanceTests and still planned one broad
+  sequential migration branch.
+- The run-actor exclusion precedent in `decisionsOfTrace` (root acceptance,
+  criteria batches, text reference and router left out, counted as 42 %
+  "unparsed" before 2026-10-10).
+- "125 results ineligible" (jev-decisions-2026-09-28): the meaning of
+  `ineligible` stays evidence-driven.
+- Event `4327e8bf`: a listing-established deletion charged a scheduler failure;
+  the fixture "debug.js is absent." in `tests/attica-validation-context.test.ts`.
+- `text-delivery-2026-10-02`, code review 2026-10-09 §2.6 and
+  `delegatedTaskContext`: reasoning mode is inherited, so no reasoning
+  descendant can need the policy.
+- typescript-applications-2026-10-16: "Read-only analysis and documentation
+  tasks remain scoped".
+- The 2026-08-14 frozen-vocabulary finding: no keyword gate is added. New
+  traces use a typed stamp; the historical reader is anchored to host-rendered
+  structure and bounded by date.
+
+### Tests
+
+- `tests/jev-calibration.test.ts`, "the validations Decision never takes",
+  through `RecordingLlmClient` and a real `TraceRecorder`: (a)
+  `L3Atom.validatePlan` of a plan carrying a suite, (b) the root review through
+  `L3Atom.handle`, (c) `L2Atom.validateResult` on a suite-bearing task, (d)
+  `L3Atom.validateResult` of a result carrying passing observations, and two
+  controls (`L3Atom.validatePlan` without suites, `L2Atom.validatePlan` of an
+  L1 plan under a suite). `calibrate` reports `excluded` =
+  `{delegation-review: 2, parent-suite: 2}`, `ineligible` zero, and sends only
+  the two controls (four requests). Unstamped copies are excluded by the
+  historical reader before the bound and kept after it, where text alone reads
+  all six as eligible; a historical control whose task text carries the header
+  before its payload is kept. Removing the recorder's stamp fails the test.
+- `tests/parent-tests-observations.test.ts`: the host block keeps the reader's
+  sections, parses eligible, and is counted as `parent-suite` (block or
+  historical prefix) only in traces before the bound.
+- `tests/reasoning-delivery.test.ts`: one delegated task, with and without
+  `executionMode: 'reasoning'`, through `L1Atom.plan`/`execute`, `llmVerdict`
+  (RESULT) and `jevApproval`'s request context: the guidance is absent under
+  reasoning and present in the tool-mode control. `tests/planning-scope.test.ts`
+  adds a delegated tool-mode variant beside root tool-mode and delegated
+  reasoning at L2 and L3. Both fail with the old unconditional line.
+- `tests/attica-validation-context.test.ts`: the criteria reviewer reads the
+  neutral sentence and neither "scheduler" nor "lock-release".
+
+### Remaining risks
+
+- A future `LlmClient` wrapper that rebuilds requests would drop the stamp; the
+  production-path test through `RecordingLlmClient` guards the current chain.
+- Historical gaps: a RESULT whose only suite is aggregated passing observations
+  whose prefix never reached its summary stays eligible, and unstamped runs
+  started between the date bound and a later deploy are missed. Both leave only
+  a few decisions counted as eligible. A production query of how many historical
+  decisions each rule matches was not possible here (no production MCP access in
+  this session).
+- Readings taken before this change asked these calls (or, after Group A,
+  counted the RESULT kinds as `ineligible`); readings after count them in
+  `excluded`. The two corpora differ, but offsets stay valid: the index space of
+  `corpus.decisions` is unchanged.
+- A reasoning design phase in an application build no longer sees the
+  TypeScript policy; its tool-mode successors and the planners still do.
+- The parent-suite line truncation in Decision's context stays open (above).
+- A later edit can make the reformatted test files dense again.
+
+### Owner decisions this touches
+
+- TypeScript (2026-10-16): the policy is unchanged; the guidance now reaches
+  tool-mode tasks only, and the decision doc says so. Reverting the one ternary
+  in `taskContextLines` would show it to reasoning phases again.
+- Decision calibration (2026-09-28): the set of decisions sent changes and the
+  excluded ones are counted; no threshold or question changes.
+- "Independent work MUST fan out" is documented as it stands. It still sits
+  against the 2026-08-16 finding that fan-out is not always cheaper, and no
+  live run has exercised the DAG; settling that is the owner's call.
+
+### Completeness of this record
+
+Groups A–E each give their defect, mechanism, tests and the incidents they
+were checked against. Group C-runner records its countercases as reproductions
+under Findings and as Rejected alternatives rather than under a countercase
+heading. Group D's heading gained the "Group" prefix for consistency; nothing
+linked to its old anchor.

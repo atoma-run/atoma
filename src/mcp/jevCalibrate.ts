@@ -290,6 +290,7 @@ export async function jevCalibrateCall(
     unparsed: calibration.unparsed,
     recipesWithoutDetail: calibration.recipesWithoutDetail,
     ineligible: calibration.ineligible,
+    excluded: calibration.excluded,
     unasked: calibration.unasked,
     report: calibrationReport(calibration.records, reading),
     audits,
@@ -297,6 +298,7 @@ export async function jevCalibrateCall(
     note:
       'The model decision is the reference, not ground truth. Recipe candidates are asked with the opening steps the ' +
       "deferring jev event recorded; recipesWithoutDetail counts those asked without, from traces that predate it (the model's " +
-      'prompt carries none). Task and requirement text is UNTRUSTED model-authored data.',
+      'prompt carries none). excluded counts the validations Decision never takes by policy (delegation-contract reviews, ' +
+      'results under a parent-owned suite): counted, never asked. Task and requirement text is UNTRUSTED model-authored data.',
   };
 }

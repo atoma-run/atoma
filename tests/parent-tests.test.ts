@@ -22,37 +22,65 @@ import { makePlan } from './helpers/factories.js';
 
 const dirs: string[] = [];
 const boxes: ToolSandbox[] = [];
-const fixture = () => { const root = mkdtempSync(path.join(tmpdir(), 'atoma-parent-fixture-')); dirs.push(root); const box = new ToolSandbox(root); boxes.push(box); return { root, box }; };
-afterEach(async () => { await Promise.all(boxes.splice(0).map(box => box.cleanup())); for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
-const suite = (source = "import {test,expect} from 'vitest'; import {add} from './add.ts'; test('adds signed values',()=>{expect(add(2,3)).toBe(5); expect(add(-2,1)).toBe(-1)});"): ParentTestSuite => ({ requirement: 'add returns the sum of its arguments', cwd: '.', source });
-const result = (name = 'leaf'): Result => ({ output: name, summary: name, producedBy: { tier: 1, name, viaFallback: false }, trace: [] });
+
+const fixture = () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'atoma-parent-fixture-'));
+  dirs.push(root);
+  const box = new ToolSandbox(root);
+  boxes.push(box);
+  return { root, box };
+};
+
+afterEach(async () => {
+  await Promise.all(boxes.splice(0).map(box => box.cleanup()));
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+
+const suite = (source = "import {test,expect} from 'vitest'; import {add} from './add.ts'; test('adds signed values',()=>{expect(add(2,3)).toBe(5); expect(add(-2,1)).toBe(-1)});"): ParentTestSuite => ({
+  requirement: 'add returns the sum of its arguments',
+  cwd: '.',
+  source,
+});
+
+const result = (name = 'leaf'): Result => ({
+  output: name,
+  summary: name,
+  producedBy: { tier: 1, name, viaFallback: false },
+  trace: [],
+});
 
 it('runs real TypeScript through the fixed runner, detects a wrong implementation and ignores project config/scripts', async () => {
-  const {root,box} = fixture();
-  writeFileSync(path.join(root,'add.ts'), 'export const add=(a:number,b:number)=>a+b;');
-  writeFileSync(path.join(root,'package.json'), JSON.stringify({ type:'module', scripts:{ test:'exit 0' } }));
-  writeFileSync(path.join(root,'vitest.config.ts'), "throw new Error('project config must not execute');");
-  const tools = new InMemoryToolRegistry(); tools.registerAll(defaultBuiltinTools({sandbox:box,logger:silentLogger()}));
+  const { root, box } = fixture();
+  writeFileSync(path.join(root, 'add.ts'), 'export const add=(a:number,b:number)=>a+b;');
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ type: 'module', scripts: { test: 'exit 0' } }));
+  writeFileSync(path.join(root, 'vitest.config.ts'), "throw new Error('project config must not execute');");
+  const tools = new InMemoryToolRegistry();
+  tools.registerAll(defaultBuiltinTools({ sandbox: box, logger: silentLogger() }));
   const ctx: RunContext = { ...makeCtx(), tools };
-  const approved = await verifyParentTests({description:'add',acceptanceTests:suite()}, result(), forkBranch(forkBranch(ctx,'l2'),'l1'));
-  expect(approved.parentTests?.[0], approved.summary).toMatchObject({status:'passed',passed:1});
+
+  const approved = await verifyParentTests({ description: 'add', acceptanceTests: suite() }, result(), forkBranch(forkBranch(ctx, 'l2'), 'l1'));
+
+  expect(approved.parentTests?.[0], approved.summary).toMatchObject({ status: 'passed', passed: 1 });
   expect(parentTestRejection(approved)).toBeNull();
-  writeFileSync(path.join(root,'add.ts'), 'export const add=(_a:number,_b:number)=>5;');
-  const rejected = await verifyParentTests({description:'add',acceptanceTests:suite()}, result(), ctx);
-  expect(rejected.parentTests?.[0], rejected.summary).toMatchObject({status:'failed',failed:1});
+  writeFileSync(path.join(root, 'add.ts'), 'export const add=(_a:number,_b:number)=>5;');
+  const rejected = await verifyParentTests({ description: 'add', acceptanceTests: suite() }, result(), ctx);
+  expect(rejected.parentTests?.[0], rejected.summary).toMatchObject({ status: 'failed', failed: 1 });
   expect(rejected.parentTests?.[0]?.workspaceDigest).not.toBe(approved.parentTests?.[0]?.workspaceDigest);
   expect(parentTestConsequence(rejected.parentTests![0]!)).toBe('reject');
   expect(rejected.summary).toBe('leaf');
   expect(rejected.refusal).toBeUndefined();
-  expect(() => readFileSync(path.join(root,'atoma.acceptance.test.ts'))).toThrow();
+  expect(() => readFileSync(path.join(root, 'atoma.acceptance.test.ts'))).toThrow();
 }, 60_000);
 
 it('isolates test writes and refuses access to the live workspace', async () => {
-  const {root,box} = fixture(); writeFileSync(path.join(root,'add.ts'),'original');
+  const { root, box } = fixture();
+  writeFileSync(path.join(root, 'add.ts'), 'original');
   const source = `import {test,expect} from 'vitest'; import {writeFileSync,readFileSync,symlinkSync} from 'node:fs'; import {Worker} from 'node:worker_threads'; import {spawnSync} from 'node:child_process'; test('snapshot',()=>{writeFileSync('./add.ts','temporary'); expect(readFileSync('./add.ts','utf8')).toBe('temporary'); expect(()=>new Worker('0',{eval:true,execArgv:[]})).toThrow(); expect(()=>spawnSync(process.execPath,['-e','0'])).toThrow(); expect(()=>writeFileSync(${JSON.stringify(path.join(root,'add.ts'))},'bad')).toThrow(); expect(()=>{symlinkSync(${JSON.stringify(path.join(root,'add.ts'))},'./escape');writeFileSync('./escape','bad');}).toThrow();});`;
-  const observation = await runParentTests(box,[JSON.stringify(suite(source))],30_000);
-  expect(observation, observation.details).toMatchObject({status:'passed'});
-  expect(readFileSync(path.join(root,'add.ts'),'utf8')).toBe('original');
+
+  const observation = await runParentTests(box, [JSON.stringify(suite(source))], 30_000);
+
+  expect(observation, observation.details).toMatchObject({ status: 'passed' });
+  expect(readFileSync(path.join(root, 'add.ts'), 'utf8')).toBe('original');
 }, 45_000);
 
 it.each([
@@ -60,120 +88,245 @@ it.each([
   "import {test} from 'vitest'; test.only('focused',()=>{});",
   "export const noTests = true;",
 ])('never approves an incomplete suite: %s', async source => {
-  const {box} = fixture(); const observation = await runParentTests(box,[JSON.stringify(suite(source))],30_000);
+  const { box } = fixture();
+
+  const observation = await runParentTests(box, [JSON.stringify(suite(source))], 30_000);
+
   expect(observation.status).not.toBe('passed');
-},45_000);
+}, 45_000);
 
 it('bounds a hung runner and rejects escaping links without executing them', async () => {
-  const {root,box} = fixture();
-  const observation = await runParentTests(box,[JSON.stringify(suite("while(true){}"))],500);
+  const { root, box } = fixture();
+
+  const observation = await runParentTests(box, [JSON.stringify(suite("while(true){}"))], 500);
+
   expect(observation.status).not.toBe('passed');
-  const outside=fixture(); writeFileSync(path.join(outside.root,'secret'),'hidden');
-  symlinkSync(path.join(outside.root,'secret'),path.join(root,'escape'));
-  expect((await runParentTests(box,[JSON.stringify(suite())],1000)).details).toContain('outside the project');
-},15_000);
+  const outside = fixture();
+  writeFileSync(path.join(outside.root, 'secret'), 'hidden');
+  symlinkSync(path.join(outside.root, 'secret'), path.join(root, 'escape'));
+  expect((await runParentTests(box, [JSON.stringify(suite())], 1000)).details).toContain('outside the project');
+}, 15_000);
 
 it('does not trust a child result or a mismatched suite receipt', async () => {
-  expect(resultPayloadSchema.parse({...result(),parentTests:[{status:'passed'}]})).not.toHaveProperty('parentTests');
-  const tools = { has: () => true, execute: vi.fn(async () => ({suiteDigest:'other',workspaceDigest:'x',status:'passed',passed:1,failed:0,skipped:0,details:''})) };
-  const observed = await verifyParentTests({description:'x',acceptanceTests:suite()},result(),{...makeCtx(),tools});
+  expect(resultPayloadSchema.parse({ ...result(), parentTests: [{ status: 'passed' }] })).not.toHaveProperty('parentTests');
+  const tools = {
+    has: () => true,
+    execute: vi.fn(async () => ({
+      suiteDigest: 'other',
+      workspaceDigest: 'x',
+      status: 'passed',
+      passed: 1,
+      failed: 0,
+      skipped: 0,
+      details: '',
+    })),
+  };
+
+  const observed = await verifyParentTests({ description: 'x', acceptanceTests: suite() }, result(), { ...makeCtx(), tools });
+
   expect(observed.parentTests?.[0]?.status).toBe('unavailable');
-  expect((await verifyParentTests({description:'text'},result(),makeCtx())).parentTests).toBeUndefined();
-  expect(parentTestSuiteSchema.safeParse({...suite(),cwd:'../outside'}).success).toBe(false);
+  expect((await verifyParentTests({ description: 'text' }, result(), makeCtx())).parentTests).toBeUndefined();
+  expect(parentTestSuiteSchema.safeParse({ ...suite(), cwd: '../outside' }).success).toBe(false);
 });
 
 it('delegates only the reviewed child suite, freezing its bytes instead of inheriting integration tests', () => {
-  const parent = {description:'integration',acceptanceTests:suite('integration')};
-  expect(delegatedTaskContext(parent,{description:'inspect'}).acceptanceTests).toBeUndefined();
-  const subtask = {description:'module',acceptanceTests:suite()};
-  const delegated = delegatedTaskContext(parent,subtask);
+  const parent = { description: 'integration', acceptanceTests: suite('integration') };
+  expect(delegatedTaskContext(parent, { description: 'inspect' }).acceptanceTests).toBeUndefined();
+  const subtask = { description: 'module', acceptanceTests: suite() };
+
+  const delegated = delegatedTaskContext(parent, subtask);
   subtask.acceptanceTests.source = 'weakened';
+
   expect(delegated.acceptanceTests?.source).not.toBe('weakened');
   expect(Object.isFrozen(delegated.acceptanceTests)).toBe(true);
 });
 
 class Worker extends Atom {
   readonly model = 'mock';
-  constructor(readonly tier: Tier) { super({name:`tier${tier}`,ordinal:0,systemPrompt:'',tools:[],params:{}}); }
-  async plan() { return makePlan(); }
-  async execute() { return result(this.name); }
-  async validatePlan() { return {approved:true as const,reasoning:'plan reviewed'}; }
-  async validateResult() { return {approved:true as const,reasoning:'semantic review'}; }
+
+  constructor(readonly tier: Tier) {
+    super({ name: `tier${tier}`, ordinal: 0, systemPrompt: '', tools: [], params: {} });
+  }
+
+  async plan() {
+    return makePlan();
+  }
+
+  async execute() {
+    return result(this.name);
+  }
+
+  async validatePlan() {
+    return { approved: true as const, reasoning: 'plan reviewed' };
+  }
+
+  async validateResult() {
+    return { approved: true as const, reasoning: 'semantic review' };
+  }
 }
 
-it('the shared supervision loop verifies before credit and verifies fallback too',async()=>{
-  const parent=new Worker(2),child=new Worker(1);const credit=vi.fn();
-  const task:Task={description:'add',acceptanceTests:suite()};
-  const digest=createHash('sha256').update(JSON.stringify(task.acceptanceTests)).digest('hex');
-  const execute=vi.fn(async()=>({suiteDigest:digest,workspaceDigest:'x',status:'failed',passed:0,failed:1,skipped:0,details:'bad sum'}));
-  const ctx:RunContext={...makeCtx(),tools:{has:()=>true,execute},limits:{...makeCtx().limits,maxExecIterations:1}};
-  const delivered=await superviseLoop(parent,child,task,ctx,{applyByScope:async c=>c,branchOnEscalation:async()=>{},onApproved:credit});
-  expect(credit).not.toHaveBeenCalled(); expect(execute).toHaveBeenCalledTimes(2);
+it('the shared supervision loop verifies before credit and verifies fallback too', async () => {
+  const parent = new Worker(2);
+  const child = new Worker(1);
+  const credit = vi.fn();
+  const task: Task = { description: 'add', acceptanceTests: suite() };
+  const digest = createHash('sha256').update(JSON.stringify(task.acceptanceTests)).digest('hex');
+  const execute = vi.fn(async () => ({
+    suiteDigest: digest,
+    workspaceDigest: 'x',
+    status: 'failed',
+    passed: 0,
+    failed: 1,
+    skipped: 0,
+    details: 'bad sum',
+  }));
+  const ctx: RunContext = {
+    ...makeCtx(),
+    tools: { has: () => true, execute },
+    limits: { ...makeCtx().limits, maxExecIterations: 1 },
+  };
+
+  const delivered = await superviseLoop(parent, child, task, ctx, {
+    applyByScope: async c => c,
+    branchOnEscalation: async () => {},
+    onApproved: credit,
+  });
+
+  expect(credit).not.toHaveBeenCalled();
+  expect(execute).toHaveBeenCalledTimes(2);
   expect(delivered.producedBy.viaFallback).toBe(true);
   expect(parentTestRejection(delivered)).not.toBeNull();
 });
 
-describe('dependency-aware parallel branches',()=>{
-  it('runs independent L2-shaped branches concurrently and starts a dependent branch without a global barrier',async()=>{
-    const plan=makePlan({subtasks:[{description:'A'},{description:'B'},{description:'A consumer',dependsOn:[0]},{description:'join',dependsOn:[1,2]}]});
-    const starts:number[]=[]; const resolvers=new Map<number,(r:Result)=>void>();
-    const run=vi.fn((task:typeof plan.subtasks[number],index:number)=>{starts.push(index);if(index===2){expect(task.inputs?.['dependencyResults']).toEqual([expect.objectContaining({index:0,summary:'A'})]);return Promise.resolve(result('C'));} if(index===3)return Promise.resolve(result('join')); return new Promise<Result>(resolve=>resolvers.set(index,resolve));});
-    const completion=dispatchWithAggregation(plan.subtasks,plan,makeCtx(),run, { dispatcher: 'Dispatcher' });
-    await vi.waitFor(()=>expect(starts).toEqual([0,1]));
+describe('dependency-aware parallel branches', () => {
+  it('runs independent L2-shaped branches concurrently and starts a dependent branch without a global barrier', async () => {
+    const plan = makePlan({
+      subtasks: [
+        { description: 'A' },
+        { description: 'B' },
+        { description: 'A consumer', dependsOn: [0] },
+        { description: 'join', dependsOn: [1, 2] },
+      ],
+    });
+    const starts: number[] = [];
+    const resolvers = new Map<number, (r: Result) => void>();
+    const run = vi.fn((task: typeof plan.subtasks[number], index: number) => {
+      starts.push(index);
+      if (index === 2) {
+        expect(task.inputs?.['dependencyResults']).toEqual([expect.objectContaining({ index: 0, summary: 'A' })]);
+        return Promise.resolve(result('C'));
+      }
+      if (index === 3) return Promise.resolve(result('join'));
+      return new Promise<Result>(resolve => resolvers.set(index, resolve));
+    });
+
+    const completion = dispatchWithAggregation(plan.subtasks, plan, makeCtx(), run, { dispatcher: 'Dispatcher' });
+
+    await vi.waitFor(() => expect(starts).toEqual([0, 1]));
     resolvers.get(0)!(result('A'));
-    await vi.waitFor(()=>expect(starts).toEqual([0,1,2]));
+    await vi.waitFor(() => expect(starts).toEqual([0, 1, 2]));
     resolvers.get(1)!(result('B'));
-    const outcome=await completion;
-    expect(starts).toEqual([0,1,2,3]);expect(outcome.results.map(r=>r.summary)).toEqual(['A','B','C','join']);
+    const outcome = await completion;
+    expect(starts).toEqual([0, 1, 2, 3]);
+    expect(outcome.results.map(r => r.summary)).toEqual(['A', 'B', 'C', 'join']);
   });
-  it('rejects malformed dependencies before work and ignores ordered output overlap',async()=>{
-    const plan=makePlan({subtasks:[{description:'A',outputs:['x.ts']},{description:'join',outputs:['x.ts'],dependsOn:[0]}]});
+
+  it('rejects malformed dependencies before work and ignores ordered output overlap', async () => {
+    const plan = makePlan({
+      subtasks: [
+        { description: 'A', outputs: ['x.ts'] },
+        { description: 'join', outputs: ['x.ts'], dependsOn: [0] },
+      ],
+    });
     expect(parallelDeclaredOutputCollision(plan)).toBeNull();
-    const invalid={...plan,subtasks:[{description:'cycle',dependsOn:[0]}]}; const run=vi.fn();
+    const invalid = { ...plan, subtasks: [{ description: 'cycle', dependsOn: [0] }] };
+    const run = vi.fn();
+
     expect(planSchema.safeParse(invalid).success).toBe(false);
-    await expect(dispatchWithAggregation(invalid.subtasks,invalid,makeCtx(),run, { dispatcher: 'Dispatcher' })).rejects.toThrow('earlier');
+    await expect(dispatchWithAggregation(invalid.subtasks, invalid, makeCtx(), run, { dispatcher: 'Dispatcher' })).rejects.toThrow('earlier');
     expect(run).not.toHaveBeenCalled();
   });
-  it('settles siblings and never starts a consumer of a failed dependency',async()=>{
-    const plan=makePlan({subtasks:[{description:'A'},{description:'B'},{description:'join',dependsOn:[0,1]}]});const run=vi.fn(async(_task,index)=>{if(index===0)throw new Error('failed dependency');return result();});
-    await expect(dispatchWithAggregation(plan.subtasks,plan,makeCtx(),run, { dispatcher: 'Dispatcher' })).rejects.toThrow('failed dependency');
-    expect(run.mock.calls.map(call=>call[1])).toEqual([0,1]);
+
+  it('settles siblings and never starts a consumer of a failed dependency', async () => {
+    const plan = makePlan({
+      subtasks: [
+        { description: 'A' },
+        { description: 'B' },
+        { description: 'join', dependsOn: [0, 1] },
+      ],
+    });
+    const run = vi.fn(async (_task, index) => {
+      if (index === 0) throw new Error('failed dependency');
+      return result();
+    });
+
+    await expect(dispatchWithAggregation(plan.subtasks, plan, makeCtx(), run, { dispatcher: 'Dispatcher' })).rejects.toThrow('failed dependency');
+
+    expect(run.mock.calls.map(call => call[1])).toEqual([0, 1]);
   });
 });
 
-it('L3 reviews even a trusted L2, reuses unchanged approval, and reviews changed test bytes again',async()=>{
-  const {AtomRegistry}=await import('../src/registry/atomRegistry.js');
-  const {openDb}=await import('../src/registry/db.js');
-  const {L3Atom}=await import('../src/atoms/L3Atom.js');
-  const {L2Atom}=await import('../src/atoms/L2Atom.js');
-  const db=openDb(':memory:'); const reg=new AtomRegistry(db);
-  const seed={description:'test',systemPrompt:'supervisor',tools:[],params:{},createdBy:'test'};
-  reg.create(3,seed);reg.create(2,seed);
-  for(let i=0;i<10;i++)reg.recordSuccess('Tracheid');
-  const tissue=L3Atom.buildWithModel(reg.getByName('Meristem')!,reg,'mock');
-  const cell=L2Atom.fromType(reg.getByName('Tracheid')!,reg);
-  const plan=makePlan({subtasks:[{description:'addition',acceptanceTests:suite()}]});
-  const ctx=makeCtx();const task={description:'addition'};
-  ctx.llm.enqueueText(JSON.stringify({approved:true,reasoning:'Tests cover signed addition and import the actual module.',delegationReview:{subtasks:[{index:0,kind:'vitest',reason:'addition'}],integration:{kind:'other',reason:'single module'},independentWork:false,parallelReason:'single addition module'}}));
-  expect((await tissue.validatePlan(cell,plan,task,ctx)).approved).toBe(true);
-  expect((await tissue.validatePlan(cell,plan,task,ctx)).approved).toBe(true);
+it('L3 reviews even a trusted L2, reuses unchanged approval, and reviews changed test bytes again', async () => {
+  const { AtomRegistry } = await import('../src/registry/atomRegistry.js');
+  const { openDb } = await import('../src/registry/db.js');
+  const { L3Atom } = await import('../src/atoms/L3Atom.js');
+  const { L2Atom } = await import('../src/atoms/L2Atom.js');
+  const db = openDb(':memory:');
+  const reg = new AtomRegistry(db);
+  const seed = { description: 'test', systemPrompt: 'supervisor', tools: [], params: {}, createdBy: 'test' };
+  reg.create(3, seed);
+  reg.create(2, seed);
+  for (let i = 0; i < 10; i++) reg.recordSuccess('Tracheid');
+  const tissue = L3Atom.buildWithModel(reg.getByName('Meristem')!, reg, 'mock');
+  const cell = L2Atom.fromType(reg.getByName('Tracheid')!, reg);
+  const plan = makePlan({ subtasks: [{ description: 'addition', acceptanceTests: suite() }] });
+  const ctx = makeCtx();
+  const task = { description: 'addition' };
+  ctx.llm.enqueueText(JSON.stringify({
+    approved: true,
+    reasoning: 'Tests cover signed addition and import the actual module.',
+    delegationReview: {
+      subtasks: [{ index: 0, kind: 'vitest', reason: 'addition' }],
+      integration: { kind: 'other', reason: 'single module' },
+      independentWork: false,
+      parallelReason: 'single addition module',
+    },
+  }));
+
+  expect((await tissue.validatePlan(cell, plan, task, ctx)).approved).toBe(true);
+  expect((await tissue.validatePlan(cell, plan, task, ctx)).approved).toBe(true);
   expect(ctx.llm.calls).toHaveLength(1);
-  ctx.llm.enqueueText(JSON.stringify({approved:false,reasoning:'The replacement assertion is trivial.',scope:'ephemeral',modifications:{additionalContext:'Exercise actual addition.'}}));
-  const altered={...plan,subtasks:[{description:'addition',acceptanceTests:suite("import {test,expect} from 'vitest'; test('trivial',()=>expect(true).toBe(true));")}]};
-  expect((await tissue.validatePlan(cell,altered,task,ctx)).approved).toBe(false);
+
+  ctx.llm.enqueueText(JSON.stringify({
+    approved: false,
+    reasoning: 'The replacement assertion is trivial.',
+    scope: 'ephemeral',
+    modifications: { additionalContext: 'Exercise actual addition.' },
+  }));
+  const altered = {
+    ...plan,
+    subtasks: [{ description: 'addition', acceptanceTests: suite("import {test,expect} from 'vitest'; test('trivial',()=>expect(true).toBe(true));") }],
+  };
+  expect((await tissue.validatePlan(cell, altered, task, ctx)).approved).toBe(false);
   expect(ctx.llm.calls).toHaveLength(2);
   db.close();
 });
 
-it('preserves completed work when the budget prevents integration tests, while cancellation still aborts',async()=>{
-  const controller=new AbortController();controller.abort(new DOMException('deadline','TimeoutError'));
-  const tools={has:()=>true,execute:vi.fn()};
-  const ctx:RunContext={...makeCtx(),tools,signal:controller.signal,deadlineAt:Date.now()-1};
-  const kept=await verifyParentTests({description:'integration',acceptanceTests:suite()},result('completed modules'),ctx);
-  expect(kept.output).toBe('completed modules');expect(kept.unfinishedPhases).toContain('acceptance tests: integration');
-  expect(kept.parentTests?.[0]?.status).toBe('unavailable');expect(tools.execute).not.toHaveBeenCalled();
+it('preserves completed work when the budget prevents integration tests, while cancellation still aborts', async () => {
+  const controller = new AbortController();
+  controller.abort(new DOMException('deadline', 'TimeoutError'));
+  const tools = { has: () => true, execute: vi.fn() };
+  const ctx: RunContext = { ...makeCtx(), tools, signal: controller.signal, deadlineAt: Date.now() - 1 };
+
+  const kept = await verifyParentTests({ description: 'integration', acceptanceTests: suite() }, result('completed modules'), ctx);
+
+  expect(kept.output).toBe('completed modules');
+  expect(kept.unfinishedPhases).toContain('acceptance tests: integration');
+  expect(kept.parentTests?.[0]?.status).toBe('unavailable');
+  expect(tools.execute).not.toHaveBeenCalled();
   expect(kept.parentTests?.[0]?.cause).toBe('landing');
   expect(kept.refusal).toBeUndefined();
-  const cancel=new AbortController();cancel.abort(new Error('user cancelled'));
-  await expect(verifyParentTests({description:'integration',acceptanceTests:suite()},result(),{...ctx,signal:cancel.signal})).rejects.toThrow('user cancelled');
+  const cancel = new AbortController();
+  cancel.abort(new Error('user cancelled'));
+  await expect(verifyParentTests({ description: 'integration', acceptanceTests: suite() }, result(), { ...ctx, signal: cancel.signal })).rejects.toThrow('user cancelled');
 });

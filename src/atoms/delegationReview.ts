@@ -6,7 +6,10 @@ import { VALIDATION_SYSTEM_PROMPT } from './verdict.js';
 
 export type { DelegationRefusalKind } from '../core/types.js';
 
-export const DELEGATION_REVIEW_REQUEST = `== REQUIRED DELEGATION CONTRACT REVIEW ==
+/** The review request's first line; the calibration's historical reader anchors on it. */
+export const DELEGATION_REVIEW_HEADER = '== REQUIRED DELEGATION CONTRACT REVIEW ==';
+
+export const DELEGATION_REVIEW_REQUEST = `${DELEGATION_REVIEW_HEADER}
 Review the entire current task and this plan before dispatch. This is mandatory even for trusted types.
 An approval MUST additionally contain delegationReview:
 {"subtasks":[{"index":0,"kind":"vitest|inspection|other","reason":"scope-specific justification"}],"integration":{"kind":"vitest|inspection|other","reason":"justification"},"independentWork":true,"parallelReason":"actual dependencies or independent work"}.

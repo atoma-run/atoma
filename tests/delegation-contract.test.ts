@@ -19,77 +19,138 @@ import { makeCtx } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
 
 const databases: ReturnType<typeof openDb>[] = [];
-afterEach(() => { for (const db of databases.splice(0)) db.close(); });
+
+afterEach(() => {
+  for (const db of databases.splice(0)) db.close();
+});
+
 function actors() {
-  const db = openDb(':memory:'); databases.push(db);
+  const db = openDb(':memory:');
+  databases.push(db);
   const registry = new AtomRegistry(db);
   const seed = { description: 'module author', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' };
-  const tissue = registry.create(3, seed), cell = registry.create(2, seed);
+  const tissue = registry.create(3, seed);
+  const cell = registry.create(2, seed);
   for (let i = 0; i < 10; i++) registry.recordSuccess(cell.name);
-  return { tissue: L3Atom.buildWithModel(tissue, registry, 'mock'), cell: L2Atom.fromType(registry.getByName(cell.name)!, registry) };
+  return {
+    tissue: L3Atom.buildWithModel(tissue, registry, 'mock'),
+    cell: L2Atom.fromType(registry.getByName(cell.name)!, registry),
+  };
 }
-const suite = { requirement: 'signed addition', cwd: '.', source: "import {test,expect} from 'vitest';import {add} from './add.ts';test('signed sums',()=>{expect(add(2,3)).toBe(5);expect(add(-2,1)).toBe(-1)});" };
-const result: Result = { output: { exports: ['add(a,b)'] }, summary: 'Observed add export', trace: [], producedBy: { name: 'cell', tier: 2, viaFallback: false } };
+
+const suite = {
+  requirement: 'signed addition',
+  cwd: '.',
+  source: "import {test,expect} from 'vitest';import {add} from './add.ts';test('signed sums',()=>{expect(add(2,3)).toBe(5);expect(add(-2,1)).toBe(-1)});",
+};
+
+const result: Result = {
+  output: { exports: ['add(a,b)'] },
+  summary: 'Observed add export',
+  trace: [],
+  producedBy: { name: 'cell', tier: 2, viaFallback: false },
+};
+
 function review(kinds: ('vitest' | 'inspection' | 'other')[], independentWork = false, integration: 'vitest' | 'inspection' | 'other' = 'other') {
-  return { approved: true, reasoning: 'scope reviewed', delegationReview: {
-    subtasks: kinds.map((kind, index) => ({ index, kind, reason: 'actual assigned scope' })),
-    integration: { kind: integration, reason: 'integration scope' }, independentWork, parallelReason: 'actual dependency analysis',
-  } };
+  return {
+    approved: true,
+    reasoning: 'scope reviewed',
+    delegationReview: {
+      subtasks: kinds.map((kind, index) => ({ index, kind, reason: 'actual assigned scope' })),
+      integration: { kind: integration, reason: 'integration scope' },
+      independentWork,
+      parallelReason: 'actual dependency analysis',
+    },
+  };
 }
+
 const runnable = () => makePlan({ subtasks: [{ description: 'Implement signed addition', outputs: ['add.ts'], acceptanceTests: suite }] });
 
 describe('mandatory delegation contracts', () => {
   it('blocks the observed deferred-tests migration plan even when a reviewer says approved', async () => {
-    const { tissue } = actors(); const ctx = makeCtx();
-    const observed = makePlan({ aggregation: { mode: 'sequential' }, subtasks: [
-      { description: 'Inspect and obtain parent approval later' },
-      { description: 'Migrate all application modules after that review', outputs: ['server.ts', 'ui.ts'] },
-      { description: 'Check the built app' },
-    ] });
+    const { tissue } = actors();
+    const ctx = makeCtx();
+    const observed = makePlan({
+      aggregation: { mode: 'sequential' },
+      subtasks: [
+        { description: 'Inspect and obtain parent approval later' },
+        { description: 'Migrate all application modules after that review', outputs: ['server.ts', 'ui.ts'] },
+        { description: 'Check the built app' },
+      ],
+    });
     const plan = vi.spyOn(tissue, 'plan').mockResolvedValue(observed);
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
     for (let i = 0; i < 3; i++) ctx.llm.enqueueText(JSON.stringify(review(['inspection', 'vitest', 'other'], true, 'vitest')));
+
     await expect(tissue.handle({ description: 'Migrate Attica to TypeScript' }, ctx)).rejects.toThrow('Missing parent-owned');
-    expect(plan).toHaveBeenCalledTimes(3); expect(execute).not.toHaveBeenCalled();
+
+    expect(plan).toHaveBeenCalledTimes(3);
+    expect(execute).not.toHaveBeenCalled();
     expect(ctx.llm.calls.every(c => c.role === 'validate-plan' && !c.tools && !c.executor)).toBe(true);
   });
 
   it('rejects linear or grouped plans when the review identifies independent work', () => {
     expect(enforceDelegationReview(runnable(), JSON.stringify(review(['vitest'], true)), false)?.approved).toBe(false);
-    const chain = makePlan({ subtasks: [{ description: 'A', acceptanceTests: suite }, { description: 'B', acceptanceTests: suite, dependsOn: [0] }] });
+    const chain = makePlan({
+      subtasks: [
+        { description: 'A', acceptanceTests: suite },
+        { description: 'B', acceptanceTests: suite, dependsOn: [0] },
+      ],
+    });
     expect(enforceDelegationReview(chain, JSON.stringify(review(['vitest', 'vitest'], true)), false)?.approved).toBe(false);
     const parallel = { ...chain, subtasks: chain.subtasks.map(s => ({ ...s, dependsOn: undefined })) };
     expect(enforceDelegationReview(parallel, JSON.stringify(review(['vitest', 'vitest'], true)), false)).toBeUndefined();
   });
 
   it('permits a reviewed non-code task and does not invent Vitest requirements', async () => {
-    const { tissue } = actors(); const ctx = makeCtx();
+    const { tissue } = actors();
+    const ctx = makeCtx();
     vi.spyOn(tissue, 'plan').mockResolvedValue(makePlan({ subtasks: [{ description: 'Write usage documentation', outputs: ['README.md'] }] }));
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
     ctx.llm.enqueueText(JSON.stringify(review(['other'])));
+
     await expect(tissue.handle({ description: 'Document the existing API' }, ctx)).resolves.toBe(result);
+
     expect(execute).toHaveBeenCalledOnce();
   });
 
   it('executes only the repaired plan after rejecting missing tests', async () => {
-    const { tissue } = actors(); const ctx = makeCtx();
-    vi.spyOn(tissue, 'plan').mockResolvedValueOnce(makePlan({ subtasks: [{ description: 'Implement add' }] })).mockResolvedValueOnce(runnable());
+    const { tissue } = actors();
+    const ctx = makeCtx();
+    vi.spyOn(tissue, 'plan')
+      .mockResolvedValueOnce(makePlan({ subtasks: [{ description: 'Implement add' }] }))
+      .mockResolvedValueOnce(runnable());
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
-    ctx.llm.enqueueText(JSON.stringify(review(['vitest']))); ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
+    ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
+    ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
+
     await tissue.handle({ description: 'Implement signed addition' }, ctx);
-    expect(execute).toHaveBeenCalledOnce(); expect(execute.mock.calls[0]?.[1].subtasks[0]?.acceptanceTests).toEqual(suite);
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(execute.mock.calls[0]?.[1].subtasks[0]?.acceptanceTests).toEqual(suite);
   });
 
   it('performs read-only discovery then replans from observed interfaces before implementation', async () => {
-    const { tissue } = actors(); const ctx = { ...makeCtx(), rootCheckpoint: {
-      restore: () => null, completed: [], planned: vi.fn<RootPhaseCheckpoint['planned']>(), beforePhase: vi.fn(), afterPhase: vi.fn(async () => {}), finalizing: vi.fn(),
-    } };
+    const { tissue } = actors();
+    const ctx = {
+      ...makeCtx(),
+      rootCheckpoint: {
+        restore: () => null,
+        completed: [],
+        planned: vi.fn<RootPhaseCheckpoint['planned']>(),
+        beforePhase: vi.fn(),
+        afterPhase: vi.fn(async () => {}),
+        finalizing: vi.fn(),
+      },
+    };
     const discovery = planSchema.parse({ ...makePlan({ subtasks: [{ description: 'Inspect exports' }] }), replanAfter: true });
     const plan = vi.spyOn(tissue, 'plan').mockResolvedValueOnce(discovery).mockResolvedValueOnce(runnable());
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
     ctx.llm.enqueueText(JSON.stringify(review(['inspection'], false, 'inspection')));
     ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
+
     await tissue.handle({ description: 'Migrate the real application' }, ctx);
+
     expect(execute.mock.calls[0]?.[0].readOnly).toBe(true);
     expect(execute.mock.calls[0]?.[2].rootCheckpoint).toBeUndefined();
     expect(plan.mock.calls[1]?.[0].inputs?.['repositoryDiscovery']).toMatchObject({ summary: result.summary });
@@ -101,17 +162,28 @@ describe('mandatory delegation contracts', () => {
   });
 
   it('never turns a failed discovery into implementation', async () => {
-    const { tissue } = actors(); const ctx = makeCtx();
+    const { tissue } = actors();
+    const ctx = makeCtx();
     const plan = vi.spyOn(tissue, 'plan').mockResolvedValue({ ...makePlan({ subtasks: [{ description: 'inspect' }] }), replanAfter: true });
     vi.spyOn(tissue, 'execute').mockResolvedValue({ ...result, refusal: 'inspection failed' });
     ctx.llm.enqueueText(JSON.stringify(review(['inspection'], false, 'inspection')));
+
     expect((await tissue.handle({ description: 'Migrate' }, ctx)).refusal).toBe('inspection failed');
+
     expect(plan).toHaveBeenCalledOnce();
   });
 
   it('does not accept missing, duplicate or out-of-range classifications', () => {
     const p = runnable();
-    for (const r of [{ approved: true }, review([]), review(['vitest', 'vitest']), { ...review(['vitest']), delegationReview: { ...review(['vitest']).delegationReview, subtasks: [{ index: 1, kind: 'vitest', reason: 'wrong' }] } }]) {
+    for (const r of [
+      { approved: true },
+      review([]),
+      review(['vitest', 'vitest']),
+      {
+        ...review(['vitest']),
+        delegationReview: { ...review(['vitest']).delegationReview, subtasks: [{ index: 1, kind: 'vitest', reason: 'wrong' }] },
+      },
+    ]) {
       expect(enforceDelegationReview(p, JSON.stringify(r), false)?.approved).toBe(false);
     }
   });
@@ -125,10 +197,14 @@ describe('mandatory delegation contracts', () => {
   });
 
   it('makes L3 reject a trusted L2 omitting L1 suites before leaf execution', async () => {
-    const { tissue, cell } = actors(); const ctx = makeCtx();
+    const { tissue, cell } = actors();
+    const ctx = makeCtx();
     ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
+
     const verdict = await tissue.validatePlan(cell, makePlan({ subtasks: [{ description: 'Implement add' }] }), { description: 'add', acceptanceTests: suite }, ctx);
-    expect(verdict.approved).toBe(false); expect(verdict.reasoning).toContain('Missing parent-owned');
+
+    expect(verdict.approved).toBe(false);
+    expect(verdict.reasoning).toContain('Missing parent-owned');
     expect(ctx.llm.calls).toHaveLength(1);
   });
 });
@@ -153,22 +229,35 @@ describe('root delegation review robustness', () => {
   }
 
   /** Routes by role: the real L3.plan (prefilter, plan) and the root review. */
-  function routedLlm(cellName: string, plans: { text: string; stopReason?: string }[], reviews: { text: string; stopReason?: string }[]): MockLlmClient {
+  function routedLlm(
+    cellName: string,
+    plans: { text: string; stopReason?: string }[],
+    reviews: { text: string; stopReason?: string }[],
+  ): MockLlmClient {
     const llm = new MockLlmClient();
     const route = (req: LlmCompletionRequest): LlmCompletionResponse => {
       let next: { text: string; stopReason?: string } | undefined;
-      if (req.role === 'prefilter') next = { text: JSON.stringify({ kind: 'reuse', target: cellName, confidence: 'high', reasoning: 'fits' }) };
-      else if (req.role === 'plan') next = plans.shift();
-      else if (req.role === 'validate-plan') next = reviews.shift();
+      if (req.role === 'prefilter') {
+        next = { text: JSON.stringify({ kind: 'reuse', target: cellName, confidence: 'high', reasoning: 'fits' }) };
+      } else if (req.role === 'plan') {
+        next = plans.shift();
+      } else if (req.role === 'validate-plan') {
+        next = reviews.shift();
+      }
       if (!next) throw new Error(`Unexpected ${req.role} call`);
-      return { text: next.text, stopReason: next.stopReason ?? 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
+      return {
+        text: next.text,
+        stopReason: next.stopReason ?? 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 10 },
+      };
     };
     for (let i = 0; i < 40; i++) llm.enqueue(route);
     return llm;
   }
 
   function routedActors() {
-    const db = openDb(':memory:'); databases.push(db);
+    const db = openDb(':memory:');
+    databases.push(db);
     const registry = new AtomRegistry(db);
     const seed = { description: 'module author', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' };
     const tissue = registry.create(3, seed);
@@ -210,8 +299,15 @@ describe('root delegation review robustness', () => {
     ['an unfinished review', { text: '{"approved": true, "reasoning": "cut', stopReason: 'max_tokens' }],
     ['a non-JSON review', { text: 'I approve this plan.' }],
     ['an approval without its classification', { text: JSON.stringify({ approved: true, reasoning: 'fine' }) }],
-    ['duplicate indices', { text: JSON.stringify({ ...review(['vitest']), delegationReview: { ...review(['vitest']).delegationReview,
-      subtasks: [{ index: 0, kind: 'vitest', reason: 'a' }, { index: 0, kind: 'vitest', reason: 'b' }] } }) }],
+    ['duplicate indices', {
+      text: JSON.stringify({
+        ...review(['vitest']),
+        delegationReview: {
+          ...review(['vitest']).delegationReview,
+          subtasks: [{ index: 0, kind: 'vitest', reason: 'a' }, { index: 0, kind: 'vitest', reason: 'b' }],
+        },
+      }),
+    }],
   ];
 
   it.each(faults)('reviews the same plan again on the validation model after %s', async (_, fault) => {
@@ -219,7 +315,11 @@ describe('root delegation review robustness', () => {
     const ctx = makeCtx();
     const plan = vi.spyOn(tissue, 'plan').mockResolvedValue(runnable());
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
-    ctx.llm.enqueue({ text: fault.text, stopReason: fault.stopReason ?? 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } });
+    ctx.llm.enqueue({
+      text: fault.text,
+      stopReason: fault.stopReason ?? 'end_turn',
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
     ctx.llm.enqueueText(approval);
     await tissue.handle({ description: 'Implement signed addition' }, ctx);
     expect(plan).toHaveBeenCalledOnce();
@@ -313,19 +413,36 @@ describe('root delegation review robustness', () => {
     const criteria = [{ id: 'c1', behaviour: 'Signed sums are correct', source: 'user' as const }];
 
     function savedRoot(tissue: L3Atom, task: Task, plan: Plan) {
-      const review = { subtasks: [{ index: 0, kind: 'vitest' as const, reason: 'module' }],
-        integration: { kind: 'other' as const, reason: 'one module' }, independentWork: false, parallelReason: 'one module' };
+      const review = {
+        subtasks: [{ index: 0, kind: 'vitest' as const, reason: 'module' }],
+        integration: { kind: 'other' as const, reason: 'one module' },
+        independentWork: false,
+        parallelReason: 'one module',
+      };
       const actor = { name: tissue.name, atomId: tissue.atomId, version: tissue.registryVersion() };
       const digest = approvalDigest({ plan, from: 0, task, actor, model: modelForTier(2) });
-      return { plan: JSON.parse(JSON.stringify(plan)), strategy: { strategy: 'reuse', target: 'cell', reasoning: 'r' },
-        plannedPhases: 1, inputs: task.inputs, approval: { digest, from: 0, review } };
+      return {
+        plan: JSON.parse(JSON.stringify(plan)),
+        strategy: { strategy: 'reuse', target: 'cell', reasoning: 'r' },
+        plannedPhases: 1,
+        inputs: task.inputs,
+        approval: { digest, from: 0, review },
+      };
     }
 
     function resumingCtx(root: ReturnType<typeof savedRoot>) {
       const planned = vi.fn<RootPhaseCheckpoint['planned']>();
-      const ctx = { ...makeCtx(), rootCheckpoint: {
-        restore: () => root, completed: [], planned, beforePhase: vi.fn(), afterPhase: vi.fn(async () => {}), finalizing: vi.fn(),
-      } };
+      const ctx = {
+        ...makeCtx(),
+        rootCheckpoint: {
+          restore: () => root,
+          completed: [],
+          planned,
+          beforePhase: vi.fn(),
+          afterPhase: vi.fn(async () => {}),
+          finalizing: vi.fn(),
+        },
+      };
       return { ctx, planned };
     }
 
@@ -359,7 +476,10 @@ describe('root delegation review robustness', () => {
       const { tissue } = actors();
       const task: Task = { description: 'Implement signed addition', inputs: { a: 1 } };
       const root = savedRoot(tissue, task, sequential());
-      const { ctx } = resumingCtx({ ...root, approval: { ...root.approval, review: { ...root.approval.review, subtasks: [] } } });
+      const { ctx } = resumingCtx({
+        ...root,
+        approval: { ...root.approval, review: { ...root.approval.review, subtasks: [] } },
+      });
       vi.spyOn(tissue, 'execute').mockResolvedValue(result);
       ctx.llm.enqueueText(approval);
       await tissue.handle(task, ctx);
@@ -385,7 +505,13 @@ describe('capability routing under the root review', () => {
     const db = openDb(':memory:');
     databases.push(db);
     const registry = new AtomRegistry(db);
-    const seed = { description: 'orchestrator', systemPrompt: 'You orchestrate.', tools: [] as Tool[], params: {}, createdBy: 'test' };
+    const seed = {
+      description: 'orchestrator',
+      systemPrompt: 'You orchestrate.',
+      tools: [] as Tool[],
+      params: {},
+      createdBy: 'test',
+    };
     const tissue = registry.create(3, seed);
     const shell = registry.create(2, { ...seed, tools: [tool('run_shell'), tool('start_node_server')] });
     const web = registry.create(2, { ...seed, tools: [tool('validate_html')] });
@@ -463,7 +589,12 @@ describe('capability routing under the root review', () => {
           return ok([{ strategy: 'reuse', target: args.cell, reasoning: 'fits' }, plan]);
         }
         if (req.role === 'plan' && tier === 2) {
-          const plan = { reasoning: 'one molecule', subtasks: [{ description: 'do it', preferredChild: args.molecule }], aggregation: { mode: 'concat' }, expectedOutput: 'done' };
+          const plan = {
+            reasoning: 'one molecule',
+            subtasks: [{ description: 'do it', preferredChild: args.molecule }],
+            aggregation: { mode: 'concat' },
+            expectedOutput: 'done',
+          };
           return ok([{ strategy: 'reuse', target: args.molecule, reasoning: 'fits' }, plan]);
         }
         if (req.role === 'plan' || req.role === 'fallback-plan') {
@@ -496,8 +627,14 @@ describe('capability routing under the root review', () => {
         const suite = JSON.parse((args['args'] as string[])[0]!) as ParentTestSuite;
         suites.push(suite.requirement);
         return {
-          suiteDigest: parentTestSuiteDigest(suite), workspaceDigest: 'w'.repeat(64), status: 'passed', cause: 'ran',
-          passed: 1, failed: 0, skipped: 0, details: JSON.stringify(['', { name: 'renders', status: 'passed', failures: [] }]),
+          suiteDigest: parentTestSuiteDigest(suite),
+          workspaceDigest: 'w'.repeat(64),
+          status: 'passed',
+          cause: 'ran',
+          passed: 1,
+          failed: 0,
+          skipped: 0,
+          details: JSON.stringify(['', { name: 'renders', status: 'passed', failures: [] }]),
         };
       },
     };
@@ -505,7 +642,12 @@ describe('capability routing under the root review', () => {
 
   it('reviews exactly the routed plan it dispatches, and orders the split checkpoint', async () => {
     const actors = routingRegistry();
-    const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [dagPlan(actors)], review: classify });
+    const model = routingModel({
+      cell: actors.shell,
+      molecule: actors.molecule,
+      rootPlans: [dagPlan(actors)],
+      review: classify,
+    });
     const tools = passingSuites();
     const branches: BranchEventInfo[] = [];
     const recorded: Plan[] = [];
@@ -542,9 +684,17 @@ describe('capability routing under the root review', () => {
     const actors = routingRegistry();
     const plannerCount = (plan: Plan) => {
       const verdict = classify(plan);
-      return { ...verdict, delegationReview: { ...verdict.delegationReview, subtasks: verdict.delegationReview.subtasks.slice(0, 5) } };
+      return {
+        ...verdict,
+        delegationReview: { ...verdict.delegationReview, subtasks: verdict.delegationReview.subtasks.slice(0, 5) },
+      };
     };
-    const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [dagPlan(actors)], review: plannerCount });
+    const model = routingModel({
+      cell: actors.shell,
+      molecule: actors.molecule,
+      rootPlans: [dagPlan(actors)],
+      review: plannerCount,
+    });
     const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites() };
     const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
     const execute = vi.spyOn(tissue, 'execute');
@@ -557,7 +707,12 @@ describe('capability routing under the root review', () => {
 
   it('maps a rejection citing a routed index back to the planner, who keeps the checkpoint whole', async () => {
     const actors = routingRegistry({ fullStack: true });
-    const rejection = { approved: false, reasoning: 'subtask 4 cannot start the server it must probe.', scope: 'ephemeral', modifications: {} };
+    const rejection = {
+      approved: false,
+      reasoning: 'subtask 4 cannot start the server it must probe.',
+      scope: 'ephemeral',
+      modifications: {},
+    };
     let reviews = 0;
     const model = routingModel({
       cell: actors.shell,
@@ -585,8 +740,18 @@ describe('capability routing under the root review', () => {
 
   it('fails closed when every review rejects a host split', async () => {
     const actors = routingRegistry();
-    const rejection = { approved: false, reasoning: 'subtask 3 cannot start the server it must probe.', scope: 'ephemeral', modifications: {} };
-    const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [dagPlan(actors)], review: () => rejection });
+    const rejection = {
+      approved: false,
+      reasoning: 'subtask 3 cannot start the server it must probe.',
+      scope: 'ephemeral',
+      modifications: {},
+    };
+    const model = routingModel({
+      cell: actors.shell,
+      molecule: actors.molecule,
+      rootPlans: [dagPlan(actors)],
+      review: () => rejection,
+    });
     const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites() };
     const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
     const execute = vi.spyOn(tissue, 'execute');
@@ -609,10 +774,20 @@ describe('capability routing under the root review', () => {
       aggregation: { mode: 'sequential' },
       expectedOutput: 'a verified notes page',
     };
-    const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [twoPhases], review: classify });
+    const model = routingModel({
+      cell: actors.shell,
+      molecule: actors.molecule,
+      rootPlans: [twoPhases],
+      review: classify,
+    });
     const planned = vi.fn<RootPhaseCheckpoint['planned']>();
     const checkpoint: RootPhaseCheckpoint = {
-      restore: () => null, completed: [], planned, beforePhase: vi.fn(), afterPhase: vi.fn(async () => {}), finalizing: vi.fn(),
+      restore: () => null,
+      completed: [],
+      planned,
+      beforePhase: vi.fn(),
+      afterPhase: vi.fn(async () => {}),
+      finalizing: vi.fn(),
     };
     const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites(), rootCheckpoint: checkpoint };
 

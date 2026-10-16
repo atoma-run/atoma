@@ -965,6 +965,12 @@ export async function llmVerdict(args: {
   requireComplete?: boolean;
   /** Blinded, model-authored analysis; never a ground-truth probe. Root text review only. */
   independentTextReference?: string;
+  /**
+   * A RESULT review Decision is never asked about because a parent-owned suite
+   * governs it. Stamped on the call for the calibration, never read here; a
+   * delegation-contract review is stamped from `delegationContract` itself.
+   */
+  jevExcluded?: 'parent-suite';
 }): Promise<Verdict> {
   // `Subject kind` is repeated as its own field so the validator cannot miss
   // the PLAN-vs-RESULT distinction — the bar is different between the two and
@@ -1068,6 +1074,9 @@ export async function llmVerdict(args: {
     .filter(Boolean)
     .join('\n');
 
+  // Every delegation-contract review is stamped here, at its one rendering
+  // site: the root review and an L3 review of a plan carrying suites.
+  const jevExcluded = args.delegationContract ? 'delegation-review' as const : args.jevExcluded;
   const resp = await args.ctx.llm.complete({
     model: args.model,
     systemPrompt: VALIDATION_SYSTEM_PROMPT,
@@ -1078,6 +1087,7 @@ export async function llmVerdict(args: {
     actor: { name: args.supervisorName, tier: args.supervisorTier },
     child: { name: args.child.name, tier: args.child.tier },
     subject: args.subject,
+    ...(jevExcluded ? { jevExcluded } : {}),
   });
 
   if (args.requireComplete && resp.stopReason !== 'end_turn') throw new Error('Incomplete root review reconciliation');

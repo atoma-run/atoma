@@ -3,7 +3,7 @@ import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import type { ContextCitation, ContextSource } from '../contracts/llmTrace.js';
+import type { ContextCitation, ContextSource, JevExclusion } from '../contracts/llmTrace.js';
 import type { AtomType } from '../registry/atomRegistry.js';
 import type { JevDecisionInfo, Task, Tier } from '../core/types.js';
 import type { AcceptanceInfo, TopologyInfo } from '../contracts/depthRouting.js';
@@ -58,6 +58,12 @@ export interface VizLlmEvent {
    * sets an execution's effort only where it is honoured. Since 2026-10-06.
    */
   effort?: 'low' | 'medium' | 'high';
+  /**
+   * A validation Decision is never asked about by policy (a delegation-contract
+   * review, a RESULT under a parent-owned suite), from the request stamp. The
+   * calibration counts it apart. Since 2026-10-16.
+   */
+  jevExcluded?: JevExclusion;
   systemPrompt: string;
   userContent: string;
   response: string;

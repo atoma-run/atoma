@@ -55,6 +55,11 @@ name `docs/` locations from before 2026-10-15.
 - [Code review — September 25](reviews/code-review-2026-09-25.md)
 - [Code review — October 2](reviews/code-review-2026-10-02.md)
 - [Code review — October 9](reviews/code-review-2026-10-09.md)
+- [TypeScript policy review — October 16](reviews/typescript-policy-2026-10-16.md)
+- [Application skeleton review — October 16](reviews/application-skeleton-2026-10-16.md)
+- [Parent-owned tests design review — October 16](reviews/parent-owned-tests-2026-10-16.md)
+- [Attica delegation contract — October 16](reviews/attica-delegation-contract-2026-10-16.md)
+- [Parent-owned tests review fixes — October 16](reviews/parent-tests-review-fixes-2026-10-16.md)
 
 ## Release and recovery evidence
 

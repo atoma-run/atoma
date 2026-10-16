@@ -34,6 +34,18 @@ export const LLM_CALL_ROLES = [
 export type LlmCallRole = (typeof LLM_CALL_ROLES)[number];
 
 /**
+ * Validations Decision is never asked about BY POLICY, stamped at the call
+ * site so the calibration counts them apart instead of reading their prompt
+ * (review 2026-10-16, group F): a delegation-contract review (the root review
+ * and an L3 review of a plan carrying parent-owned suites, whose recorded
+ * answer the host may still overturn) and a RESULT review under a
+ * parent-owned suite.
+ */
+export const JEV_EXCLUSIONS = ['delegation-review', 'parent-suite'] as const;
+
+export type JevExclusion = (typeof JEV_EXCLUSIONS)[number];
+
+/**
  * How much of a context block the citation carries. 160 characters made the
  * viz pane's `context` step unreadable — a 1,167-character skill recipe was
  * cut mid-sentence, and the step exists precisely so a viewer can see what

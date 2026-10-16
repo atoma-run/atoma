@@ -294,4 +294,5 @@ checkpoints are sequential, so replanning cannot satisfy it. Every resumed branc
 records the plan before executing it, so phase counting and
 `--pause-after-phase` are unchanged.
 
-Incident and adversarial controls: [Attica planning review](../../records/reviews/attica-delegation-contract-2026-10-16.md).
+Incident and adversarial controls: [Attica planning review](../../records/reviews/attica-delegation-contract-2026-10-16.md);
+critical review and fixes: [parent-test review fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).

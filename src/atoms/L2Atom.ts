@@ -2644,10 +2644,14 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // A gate finding disqualifies the trust fast-path outright: llmVerdict
     // runs its own ground-truth probe internally, so the trusted branch's
     // probe would be a duplicate on that path.
+    // A parent-owned suite governs this result (its task's own, or one a
+    // descendant ran): neither fast path decides it, and its model review is
+    // stamped so the Decision calibration counts it apart.
+    const parentSuite = !!task.acceptanceTests || !!result.parentTests?.length;
     let trustedProbe: GroundTruthCheck | null = null;
     if (
       !options.scriptDispatch &&
-      !task.acceptanceTests && !result.parentTests?.length && type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered
+      !parentSuite && type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered
     ) {
       trustedProbe = await checkGroundTruth({
         ctx,
@@ -2719,9 +2723,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         task,
         payload: { output: result.output, summary: result.summary },
         ...(result.evidence ? { evidence: result.evidence } : {}),
+        ...(parentSuite ? { jevExcluded: 'parent-suite' as const } : {}),
         ...(audit ? { audit: true } : {}),
       });
-    if (!task.acceptanceTests && !result.parentTests?.length && ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
+    if (!parentSuite && ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
       groundTruth ??= await checkGroundTruth({
         ctx,
         taskDescription: task.description,

@@ -1755,8 +1755,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // validator (with the block passed along so the probe doesn't run twice),
     // never to an outright reject.
     const payload = { output: result.output, summary: result.summary };
+    // As at L2: a parent-owned suite takes the result off both fast paths, and
+    // its model review is stamped for the Decision calibration.
+    const parentSuite = !!task.acceptanceTests || !!result.parentTests?.length;
     let trustedProbe: GroundTruthCheck | null = null;
-    if (!task.acceptanceTests && !result.parentTests?.length && type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered) {
+    if (!parentSuite && type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered) {
       trustedProbe = await checkGroundTruth({
         ctx,
         taskDescription: task.description,
@@ -1818,9 +1821,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         ...(gateFindingsBlock !== undefined ? { mechanicalFindingsBlock: gateFindingsBlock } : {}),
         ...(fallbackCoverage.length > 0 ? { proofCoverageBlock: renderProofCoverage(fallbackCoverage) } : {}),
         ...(parentTestsBlock ? { parentTestsBlock } : {}),
+        ...(parentSuite ? { jevExcluded: 'parent-suite' as const } : {}),
         ...(audit ? { audit: true } : {}),
       });
-    if (!task.acceptanceTests && !result.parentTests?.length && ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
+    if (!parentSuite && ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
       groundTruth ??= await checkGroundTruth({
         ctx,
         taskDescription: task.description,

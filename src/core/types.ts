@@ -478,6 +478,11 @@ export interface LlmCompletionRequest {
   child?: { name: string; tier: Tier };
   subject?: 'PLAN' | 'RESULT';
   /**
+   * A validation Decision is never asked about, by policy; the calibration
+   * counts it apart (`jevCalibration.ts`). Stamped by `llmVerdict` only.
+   */
+  jevExcluded?: import('../contracts/llmTrace.js').JevExclusion;
+  /**
    * Typed injects folded into `systemPrompt`. The recorder cites these on
    * the llm event; they are the join between injectContext and complete().
    */

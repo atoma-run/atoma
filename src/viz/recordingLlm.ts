@@ -14,9 +14,9 @@ import {
 import { citeContext } from '../contracts/llmTrace.js';
 import type { TraceRecorder, VizLlmEvent } from './trace.js';
 
-type Classification = Pick<VizLlmEvent, 'role' | 'actor' | 'child' | 'subject' | 'effort'>;
+type Classification = Pick<VizLlmEvent, 'role' | 'actor' | 'child' | 'subject' | 'effort' | 'jevExcluded'>;
 
-/** Role/actor/child/subject/effort come from the request stamp. No prompt archaeology. */
+/** Role/actor/child/subject/effort/jevExcluded come from the request stamp. No prompt archaeology. */
 function stamped(req: LlmCompletionRequest): Classification {
   return {
     role: req.role ?? 'unknown',
@@ -24,6 +24,7 @@ function stamped(req: LlmCompletionRequest): Classification {
     ...(req.child ? { child: req.child } : {}),
     ...(req.subject ? { subject: req.subject } : {}),
     ...(req.params?.effort !== undefined ? { effort: req.params.effort } : {}),
+    ...(req.jevExcluded ? { jevExcluded: req.jevExcluded } : {}),
   };
 }
 

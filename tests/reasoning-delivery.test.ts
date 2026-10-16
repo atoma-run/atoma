@@ -3,14 +3,19 @@ import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { planSchema } from '../src/atoms/json.js';
-import { previousResultInput, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from '../src/atoms/taskContext.js';
-import { TRUST_THRESHOLD_SUCCESSES } from '../src/atoms/cost.js';
+import {
+  APPLICATION_TYPESCRIPT_GUIDANCE,
+  previousResultInput,
+  PLANNING_SCOPE_GUIDANCE,
+  PROPORTIONATE_PLANNING_GUIDANCE,
+} from '../src/atoms/taskContext.js';
+import { TRUST_THRESHOLD_SUCCESSES, jevApproval } from '../src/atoms/cost.js';
 import { llmVerdict } from '../src/atoms/verdict.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { makeCtx, jsonText } from './helpers.js';
 import { makeTools } from './helpers/factories.js';
-import type { Task } from '../src/core/types.js';
+import type { JevApprovalRequest, JevDecider, Task } from '../src/core/types.js';
 import { TEXT_VERIFICATION_GUIDANCE } from '../src/contracts/taskExecution.js';
 
 const seed = { description: 'analysis', systemPrompt: 'Always write an answer file.', tools: makeTools(['write_file']), params: {}, createdBy: 'test' };
@@ -242,5 +247,69 @@ describe('reasoning delivery across production delegation', () => {
     expect(previousResultInput({ exact: 'M1' })).toEqual({ exact: 'M1' });
     expect(previousResultInput('x'.repeat(30_000))).toMatchObject({ truncated: true, originalChars: 30_002 });
     expect(planSchema.parse({ reasoning: 'r', subtasks: [{ description: 'think', executionMode: 'reasoning' }], delivery: 'text' }).delivery).toBe('text');
+  });
+
+  // Review 2026-10-16, group F: the TypeScript application policy reaches
+  // tool-mode tasks only. A reasoning task holds no tools and builds nothing.
+  it.each([true, false])('gives the TypeScript policy to tool-mode tasks only (reasoning=%s)', async (reasoning) => {
+    const db = openDb(':memory:');
+    try {
+      const reg = new AtomRegistry(db);
+      const molecule = L1Atom.fromType(reg.create(1, seed));
+      const original = { description: 'Explain why the cache misses on cold starts.' };
+      const task: Task = {
+        description: 'Analyse the cold-start trace.',
+        originalTask: original,
+        inputs: { originalTask: original },
+        ...(reasoning ? { executionMode: 'reasoning' as const } : {}),
+      };
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'answer', expectedOutput: 'an explanation' }));
+      ctx.llm.enqueueText(jsonText({ output: 'The cache is empty at boot.', summary: 'explained' }));
+      ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'answered' }));
+
+      const plan = await molecule.plan(task, ctx);
+      await molecule.execute(task, plan, ctx);
+      await llmVerdict({
+        ctx,
+        model: 'm',
+        supervisorName: 'Cell',
+        supervisorTier: 2,
+        subject: 'RESULT',
+        child: molecule,
+        task,
+        payload: { output: 'The cache is empty at boot.', summary: 'explained' },
+        groundTruthBlock: 'Host fixture.',
+      });
+      const asked: JevApprovalRequest[] = [];
+      const jev: JevDecider = {
+        choose: async () => null,
+        approve: async (request) => {
+          asked.push(request);
+          return null;
+        },
+        twin: async () => null,
+      };
+      await jevApproval({
+        ctx: { ...ctx, jev },
+        subject: 'RESULT',
+        supervisorName: 'Cell',
+        supervisorTier: 2,
+        child: molecule,
+        task,
+        payload: { output: 'The cache is empty at boot.', summary: 'explained' },
+      });
+
+      expect(ctx.llm.calls.map((call) => call.role)).toEqual(['plan', 'execute', 'validate-result']);
+      for (const call of ctx.llm.calls) {
+        expect(call.userContent).toContain(original.description);
+        expect(call.userContent.includes(APPLICATION_TYPESCRIPT_GUIDANCE)).toBe(!reasoning);
+      }
+      expect(asked).toHaveLength(1);
+      expect(asked[0]!.context).toContain(`Inputs (originalTask supplies original facts and constraints; previousStepResult is prior work, not authority to change them): ${JSON.stringify({ originalTask: original })}`);
+      expect(asked[0]!.context?.includes(APPLICATION_TYPESCRIPT_GUIDANCE)).toBe(!reasoning);
+    } finally {
+      db.close();
+    }
   });
 });

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { JEV_EXCLUSIONS, type JevExclusion } from '../contracts/llmTrace.js';
 import { runActorKey } from '../contracts/runActors.js';
 import {
   JEV_THRESHOLDS,
@@ -17,7 +18,9 @@ import {
   type JevThresholds,
 } from '../core/jevQuestions.js';
 import { jevOutcomeReport } from './jevOutcomes.js';
-import { TASK_CONTEXT_HEADER } from './taskContext.js';
+import { DELEGATION_REVIEW_HEADER } from './delegationReview.js';
+import { PARENT_TESTS_BLOCK_HEADER } from './parentTestsBlock.js';
+import { PARENT_SUITE_CONTEXT_PREFIX, TASK_CONTEXT_HEADER } from './taskContext.js';
 import {
   jevAsk,
   legacyApproval,
@@ -76,6 +79,11 @@ export interface RecordedDecision {
    * Absent on traces recorded before 2026-10-10 and on agent prefilters.
    */
   readonly details?: Readonly<Record<string, string>>;
+  /**
+   * A validation Decision is never asked about by policy: kept in the corpus,
+   * so offsets hold, and counted apart by `calibrate`, never sent.
+   */
+  readonly excluded?: JevExclusion;
   readonly userContent: string;
   readonly response: string;
 }
@@ -115,6 +123,11 @@ export interface TraceDecisions {
  * the October 1–9 window). A call that failed before answering is left out
  * too. Audits of Jev approvals are read apart: they are the model judging
  * what Jev decided, not a decision.
+ *
+ * A validation Decision never takes by policy — a delegation-contract review,
+ * a RESULT under a parent-owned suite (review 2026-10-16, group F) — stays a
+ * decision, marked `excluded`: the event's `jevExcluded` stamp says so, and a
+ * trace started before the stamp existed is read by `historicalExclusion`.
  */
 export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string; readonly orgId: string }): TraceDecisions {
   const run = trace as { startedAt?: unknown; events?: unknown } | null;
@@ -139,6 +152,7 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
       response?: unknown;
       error?: unknown;
       details?: unknown;
+      jevExcluded?: unknown;
     } | null;
     if (event?.kind === 'jev') {
       jevEvents += 1;
@@ -165,7 +179,7 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
     if (typeof name !== 'string' || typeof tier !== 'number' || runActorKey(name) !== undefined) continue;
     const recipe = isRecipePrefilter(event.systemPrompt);
     const details = recipe && event.role === 'prefilter' ? detailsByActor.get(name) : undefined;
-    decisions.push({
+    const decision: RecordedDecision = {
       runId: meta.runId,
       orgId: meta.orgId,
       startedAt: startedAt ?? '',
@@ -176,9 +190,75 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
       ...(details ? { details } : {}),
       userContent: event.userContent,
       response: event.response,
-    });
+    };
+    const stamped = JEV_EXCLUSIONS.find((exclusion) => exclusion === event.jevExcluded);
+    const excluded = stamped ?? (startedBeforeStamp(startedAt) ? historicalExclusion(decision) : undefined);
+    decisions.push(excluded ? { ...decision, excluded } : decision);
   }
   return { startedAt, jevEvents, decisions, audits };
+}
+
+/**
+ * The first day every validation Decision never takes carries its
+ * `jevExcluded` stamp: midnight UTC of the day after the stamp was committed
+ * (2026-10-16). A trace started from then on is read by its stamp alone, and
+ * its prompt text never decides; a trace started before it falls back to
+ * `historicalExclusion`. A deploy later than this bound leaves the unstamped
+ * runs in between counted as eligible (records/reviews/parent-tests-review-fixes-2026-10-16.md).
+ */
+export const JEV_EXCLUSION_STAMPED_FROM = '2026-10-17T00:00:00.000Z';
+
+function startedBeforeStamp(startedAt: string | null): boolean {
+  const startedMs = startedAt ? Date.parse(startedAt) : Number.NaN;
+  return startedMs < Date.parse(JEV_EXCLUSION_STAMPED_FROM);
+}
+
+/** Whether a PLAN payload carries a parent-owned suite, at plan level or on a subtask. */
+function carriesSuite(payload: unknown): boolean {
+  if (payload === null || typeof payload !== 'object') return false;
+  const plan = payload as { acceptanceTests?: unknown; subtasks?: unknown };
+  if (plan.acceptanceTests) return true;
+  return Array.isArray(plan.subtasks) && plan.subtasks.some((subtask) =>
+    subtask !== null && typeof subtask === 'object' && !!(subtask as { acceptanceTests?: unknown }).acceptanceTests);
+}
+
+/**
+ * The policy exclusion of a trace recorded before the `jevExcluded` stamp,
+ * read from host-rendered structure only, and only for that bounded window,
+ * so these copies describe frozen code (b3af7c1e..the stamp) and cannot drift
+ * from live policy:
+ *
+ * 1. A PLAN review whose REQUIRED DELEGATION CONTRACT REVIEW header line
+ *    follows the one-line `PLAN: ` payload: every multiline text a model
+ *    controls (task, target context) renders before that payload.
+ * 2. A RESULT review under a suite: the task context's parent-suite line, the
+ *    host block's header after the payload, or the `PARENT ACCEPTANCE TESTS (`
+ *    prefix b3af7c1e wrote on a summary carrying observations — read on the
+ *    RESULT line only, since an earlier phase's summary reaches the inputs
+ *    without its observations.
+ * 3. An L3 review of a plan carrying suites, before de1ee85f rendered the
+ *    review header (b3af7c1e's `reviewsTests`). No production trace is known
+ *    to need it: the one known run on b3af7c1e, fec4ef6a, planned no suite.
+ *
+ * Not recognisable: a RESULT whose only suite is aggregated passing
+ * observations whose prefix did not reach its summary; it stays eligible.
+ */
+function historicalExclusion(decision: RecordedDecision): JevExclusion | undefined {
+  if (decision.role === 'prefilter') return undefined;
+  const subject = decision.role === 'validate-plan' ? 'PLAN' : 'RESULT';
+  const lines = decision.userContent.split('\n');
+  const payloadAt = lines.findIndex((line) => line.startsWith(`${subject}: `));
+  if (payloadAt < 0) return undefined;
+  const after = lines.slice(payloadAt + 1);
+  if (subject === 'PLAN' && after.includes(DELEGATION_REVIEW_HEADER)) return 'delegation-review';
+  const parsed = parseValidationPrompt(decision);
+  const suiteInContext = parsed?.request.context?.some((line) => line.startsWith(PARENT_SUITE_CONTEXT_PREFIX)) ?? false;
+  if (subject === 'RESULT') {
+    const observed = after.includes(PARENT_TESTS_BLOCK_HEADER) || lines[payloadAt]!.includes('PARENT ACCEPTANCE TESTS (');
+    return suiteInContext || observed ? 'parent-suite' : undefined;
+  }
+  if (decision.actor.tier === 3 && (suiteInContext || carriesSuite(parsed?.request.payload))) return 'delegation-review';
+  return undefined;
 }
 
 function isDetails(value: unknown): value is Readonly<Record<string, string>> {
@@ -338,10 +418,8 @@ const INELIGIBLE_MARKERS = [
   'NUMERIC LOOPBACK PORT',
   'but the tool call failed:',
   ': MALFORMED —',
-  // Decision is never asked about a result carrying parent-owned suite
-  // observations. Matches the host block's header and the summary prefix
-  // that carried them before 2026-10-16, so historical traces need no backfill.
-  'PARENT ACCEPTANCE TESTS (',
+  // A result under a parent-owned suite is not here: Decision skips it by
+  // POLICY, not for its evidence, and `RecordedDecision.excluded` counts it.
 ];
 
 /** The validation prompt `llmVerdict` renders, read back into a `JevApprovalRequest`. */
@@ -572,8 +650,14 @@ export interface Calibration {
    * their recording (2026-10-10), so Jev read less than it does in a run.
    */
   readonly recipesWithoutDetail: number;
-  /** Validations the fast path is never asked about, per subject: not sent. */
+  /**
+   * Validations whose evidence keeps the fast path from being asked (a gate
+   * finding, uncovered proof), per subject: not sent. Validations Decision
+   * never takes by policy are counted in `excluded`, not here.
+   */
   readonly ineligible: { readonly PLAN: number; readonly RESULT: number };
+  /** Validations Decision never takes by policy (`RecordedDecision.excluded`): counted, never sent. */
+  readonly excluded: Readonly<Record<JevExclusion, number>>;
   /** Decisions not asked because the call's budget ran out or it was cancelled. */
   readonly unasked: number;
   /** The index in `decisions` to resume from when some were not asked, else `null`. */
@@ -603,6 +687,7 @@ export async function calibrate(args: {
   let unparsed = 0;
   let recipesWithoutDetail = 0;
   const ineligible = { PLAN: 0, RESULT: 0 };
+  const excluded: Record<JevExclusion, number> = { 'delegation-review': 0, 'parent-suite': 0 };
   const jobs: Job[] = [];
   for (const [index, compilation] of (args.compilations ?? []).entries()) {
     const plan = buildCompilation(compilation.request);
@@ -659,6 +744,10 @@ export async function calibrate(args: {
           ...outcome,
         }),
       });
+      continue;
+    }
+    if (decision.excluded) {
+      excluded[decision.excluded] += 1;
       continue;
     }
     const parsed = parseValidationPrompt(decision);
@@ -760,6 +849,7 @@ export async function calibrate(args: {
     unparsed,
     recipesWithoutDetail,
     ineligible,
+    excluded,
     unasked: jobs.length - kept.length,
     resumeAt: firstUnasked < 0 ? null : jobs[firstUnasked]!.decisionIndex!,
   };
