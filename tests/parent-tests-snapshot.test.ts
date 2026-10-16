@@ -357,6 +357,39 @@ describe('no project code runs in the coordinator', () => {
     const observation = await verify(box, ADD_SUITE);
     expect(observation.status, observation.details).toBe('failed');
   });
+
+  // Second review 2026-10-16: the stub read the SPECIFIER's extension, so a
+  // stylesheet reached through a name without one went to `vite:css`, which
+  // loaded the project's forging preprocessor and turned a wrong `add` green.
+  const forgingPreprocessors = (root: string): void => {
+    for (const name of ['sass-embedded', 'sass']) {
+      write(root, `node_modules/${name}/package.json`, JSON.stringify({ name, main: 'index.js' }));
+      write(root, `node_modules/${name}/index.js`, `${FORGE}\nmodule.exports = {};`);
+    }
+  };
+
+  it('never loads the project preprocessor for a tsconfig paths alias naming a stylesheet', async () => {
+    const { root, box } = workspace();
+    write(root, 'tsconfig.json', JSON.stringify({ compilerOptions: { paths: { '@theme': ['./t.scss'] } } }));
+    write(root, 't.scss', '$c: red; body { color: $c; }');
+    write(root, 'add.ts', `import '@theme';\n${WRONG_ADD}`);
+    forgingPreprocessors(root);
+    const observation = await verify(box, ADD_SUITE);
+    expect(observation.status, observation.details).toBe('failed');
+  });
+
+  it.each([
+    ['main', { main: 't.scss' }, 't.scss'],
+    ['exports', { exports: { '.': './styles/t.scss' } }, 'styles/t.scss'],
+  ])('never loads the project preprocessor for a package whose %s is a stylesheet', async (_kind, entry, file) => {
+    const { root, box } = workspace();
+    write(root, 'node_modules/theme/package.json', JSON.stringify({ name: 'theme', ...entry }));
+    write(root, `node_modules/theme/${file}`, 'body { color: red; }');
+    write(root, 'add.ts', `import 'theme';\n${WRONG_ADD}`);
+    forgingPreprocessors(root);
+    const observation = await verify(box, ADD_SUITE);
+    expect(observation.status, observation.details).toBe('failed');
+  });
 });
 
 describe('tsconfig paths and stylesheets', () => {

@@ -3,7 +3,7 @@ import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
-import { approvalDigest, enforceDelegationReview, routingIndexNote } from '../src/atoms/delegationReview.js';
+import { DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, routingIndexNote } from '../src/atoms/delegationReview.js';
 import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { planSchema } from '../src/atoms/json.js';
 import type { BranchEventInfo, LlmCompletionRequest, LlmCompletionResponse, Plan, Result, RunContext, Task, Tool, ToolExecutor } from '../src/core/types.js';
@@ -14,8 +14,10 @@ import { MockLlmClient } from '../src/core/llm.js';
 import { modelForTier } from '../src/core/models.js';
 import { ValidationError } from '../src/core/errors.js';
 import { ROOT_DELEGATION_REVIEW_PARAMS } from '../src/atoms/cost.js';
-import { VALIDATION_PARAMS } from '../src/atoms/verdict.js';
+import { VALIDATION_PARAMS, VALIDATION_SYSTEM_PROMPT } from '../src/atoms/verdict.js';
+import { createHash } from 'node:crypto';
 import { makeCtx } from './helpers.js';
+import { superviseLoop } from '../src/core/supervisor.js';
 import { makePlan } from './helpers/factories.js';
 
 const databases: ReturnType<typeof openDb>[] = [];
@@ -297,6 +299,10 @@ describe('root delegation review robustness', () => {
 
   const faults: [string, { text: string; stopReason?: string }][] = [
     ['an unfinished review', { text: '{"approved": true, "reasoning": "cut', stopReason: 'max_tokens' }],
+    // Second review 2026-10-16: an allowlist on end_turn. The Claude CLI hands
+    // back its error subtypes with salvaged text that jsonrepair would close
+    // into a complete approval.
+    ['a review the transport ended on an error subtype', { text: approval.slice(0, -12), stopReason: 'error_during_execution' }],
     ['a non-JSON review', { text: 'I approve this plan.' }],
     ['an approval without its classification', { text: JSON.stringify({ approved: true, reasoning: 'fine' }) }],
     ['duplicate indices', {
@@ -329,6 +335,40 @@ describe('root delegation review robustness', () => {
     expect(reviews[1]?.model).toBe(modelForTier(1));
     expect(reviews[1]?.params).toEqual(VALIDATION_PARAMS);
     expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it.each(faults)('reviews a child plan again on the root review model after %s, never handing the fault to its planner', async (_, fault) => {
+    const { tissue, cell } = actors();
+    const ctx = makeCtx();
+    ctx.llm.enqueue({ text: fault.text, stopReason: fault.stopReason ?? 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } });
+    ctx.llm.enqueueText(approval);
+    const verdict = await tissue.validatePlan(cell, runnable(), { description: 'add', acceptanceTests: suite }, ctx);
+    expect(verdict.approved).toBe(true);
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews.map(call => [call.model, call.params])).toEqual([
+      [modelForTier(1), VALIDATION_PARAMS],
+      [modelForTier(2), ROOT_DELEGATION_REVIEW_PARAMS],
+    ]);
+  });
+
+  it('fails a child plan review that faults twice as the reviewer\'s, never as a rejection the loop repeats', async () => {
+    const { tissue, cell } = actors();
+    const ctx = makeCtx();
+    const plan = vi.spyOn(cell, 'plan').mockResolvedValue(runnable());
+    const execute = vi.spyOn(cell, 'execute').mockResolvedValue(result);
+    for (let i = 0; i < 2; i++) ctx.llm.enqueue({ text: '{"approved": true, "reasoning": "cut', stopReason: 'max_tokens', usage: { inputTokens: 1, outputTokens: 1 } });
+    const onFailed = vi.fn(async () => {});
+    const branchOnEscalation = vi.fn(async () => undefined);
+    const applyByScope = vi.fn(async (child: L2Atom) => child);
+    await expect(superviseLoop(tissue, cell, { description: 'add', acceptanceTests: suite }, ctx, { applyByScope, onFailed, branchOnEscalation }))
+      .rejects.toThrow(/Delegation contract review of .* plan failed twice/);
+    // One plan, two reviews of it, nothing executed, nobody coached or blamed.
+    expect(plan).toHaveBeenCalledOnce();
+    expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(2);
+    expect(execute).not.toHaveBeenCalled();
+    expect(applyByScope).not.toHaveBeenCalled();
+    expect(onFailed).not.toHaveBeenCalled();
+    expect(branchOnEscalation).not.toHaveBeenCalled();
   });
 
   it('ends the run after three reviewer faults without executing', async () => {
@@ -412,15 +452,19 @@ describe('root delegation review robustness', () => {
   describe('resuming a saved root plan', () => {
     const criteria = [{ id: 'c1', behaviour: 'Signed sums are correct', source: 'user' as const }];
 
-    function savedRoot(tissue: L3Atom, task: Task, plan: Plan) {
+    type Actor = { name: string; atomId?: string; version: number | null };
+    function savedRoot(tissue: L3Atom, task: Task, plan: Plan, bound: {
+      model?: string; actor?: (actor: Actor) => Actor; digest?: (args: Parameters<typeof approvalDigest>[0]) => string;
+    } = {}) {
       const review = {
         subtasks: [{ index: 0, kind: 'vitest' as const, reason: 'module' }],
         integration: { kind: 'other' as const, reason: 'one module' },
         independentWork: false,
         parallelReason: 'one module',
       };
-      const actor = { name: tissue.name, atomId: tissue.atomId, version: tissue.registryVersion() };
-      const digest = approvalDigest({ plan, from: 0, task, actor, model: modelForTier(2) });
+      const current = { name: tissue.name, atomId: tissue.atomId, version: tissue.registryVersion() };
+      const args = { plan, from: 0, task, actor: bound.actor?.(current) ?? current, model: bound.model ?? modelForTier(2) };
+      const digest = (bound.digest ?? approvalDigest)(args);
       return {
         plan: JSON.parse(JSON.stringify(plan)),
         strategy: { strategy: 'reuse', target: 'cell', reasoning: 'r' },
@@ -430,13 +474,14 @@ describe('root delegation review robustness', () => {
       };
     }
 
-    function resumingCtx(root: ReturnType<typeof savedRoot>) {
+    function resumingCtx(root: ReturnType<typeof savedRoot>, at: { completed?: Result[]; replanAfterAnswer?: boolean } = {}) {
       const planned = vi.fn<RootPhaseCheckpoint['planned']>();
       const ctx = {
         ...makeCtx(),
         rootCheckpoint: {
           restore: () => root,
-          completed: [],
+          completed: at.completed ?? [],
+          ...(at.replanAfterAnswer ? { replanAfterAnswer: true } : {}),
           planned,
           beforePhase: vi.fn(),
           afterPhase: vi.fn(async () => {}),
@@ -470,6 +515,81 @@ describe('root delegation review robustness', () => {
       await tissue.handle({ ...task, criteria: [{ ...criteria[0]!, behaviour: 'Signed sums are correct and fast' }] }, ctx);
       expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
       expect(planned.mock.calls[0]?.[4]?.digest).not.toBe(root.approval.digest);
+    });
+
+    // Second review 2026-10-16: the digest binds the contract, the system
+    // prompt, the reviewing model and the root actor; each is changed alone.
+    const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+    const digestOver = (contract: string, prompt: string) => (args: Parameters<typeof approvalDigest>[0]) => sha(JSON.stringify([
+      contract, sha(prompt), args.model, args.from, planSchema.parse(JSON.parse(JSON.stringify(args.plan))),
+      ...(JSON.parse(JSON.stringify(delegationReviewTaskKey(args.task))) as unknown[]),
+      { name: args.actor.name, atomId: args.actor.atomId ?? null, version: args.actor.version },
+    ]));
+
+    it('binds the recorded approval exactly as this replica computes it', () => {
+      const { tissue } = actors();
+      const task: Task = { description: 'Implement signed addition', inputs: { a: 1 } };
+      const actor = { name: tissue.name, atomId: tissue.atomId, version: tissue.registryVersion() };
+      const args = { plan: sequential(), from: 0, task, actor, model: modelForTier(2) };
+      expect(digestOver(DELEGATION_REVIEW_REQUEST, VALIDATION_SYSTEM_PROMPT)(args)).toBe(approvalDigest(args));
+    });
+
+    it.each([
+      ['another reviewing model', { model: 'api:anthropic:claude-other-model' }],
+      ['another version of the root actor', { actor: (actor: Actor) => ({ ...actor, version: (actor.version ?? 0) + 1 }) }],
+      ['another root actor id', { actor: (actor: Actor) => ({ ...actor, atomId: 'another-atom' }) }],
+      ['another review contract', { digest: digestOver(`${DELEGATION_REVIEW_REQUEST}\nOne more rule.`, VALIDATION_SYSTEM_PROMPT) }],
+      ['another validation system prompt', { digest: digestOver(DELEGATION_REVIEW_REQUEST, `${VALIDATION_SYSTEM_PROMPT} `) }],
+    ])('reviews again when the approval was recorded under %s', async (_, bound) => {
+      const { tissue } = actors();
+      const task: Task = { description: 'Implement signed addition', inputs: { a: 1 } };
+      const root = savedRoot(tissue, task, sequential(), bound);
+      const { ctx, planned } = resumingCtx(root);
+      vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+      ctx.llm.enqueueText(approval);
+      await tissue.handle(task, ctx);
+      expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
+      expect(planned.mock.calls[0]?.[4]?.digest).not.toBe(root.approval.digest);
+    });
+
+    // Second review 2026-10-16: a resumed non-sequential remaining plan spends
+    // an attempt before any review; dispatched, it would run the completed
+    // prefix again in parallel.
+    describe('a remaining plan that is not sequential', () => {
+      const prefixPhase = { description: 'Write the shared types', outputs: ['types.ts'] };
+      const twoPhases = () => planSchema.parse({ ...makePlan({ subtasks: [prefixPhase, runnable().subtasks[0]!] }), aggregation: { mode: 'sequential' } });
+      const concat = () => planSchema.parse({ ...runnable(), aggregation: { mode: 'concat' } });
+      const done: Result = { ...result, summary: 'types written' };
+
+      it('is asked for again with the reason, never reviewed, and the prefix is kept in a sequential plan', async () => {
+        const { tissue } = actors();
+        const task: Task = { description: 'Implement signed addition', inputs: { a: 1 } };
+        const { ctx } = resumingCtx(savedRoot(tissue, task, twoPhases()), { completed: [done], replanAfterAnswer: true });
+        const plan = vi.spyOn(tissue, 'plan')
+          .mockResolvedValueOnce(concat())
+          .mockResolvedValueOnce(planSchema.parse({ ...runnable(), aggregation: { mode: 'sequential' } }));
+        const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+        ctx.llm.enqueueText(approval);
+        await tissue.handle(task, ctx);
+        expect(plan).toHaveBeenCalledTimes(2);
+        expect(plan.mock.calls[0]?.[0].constraints ?? []).toEqual([]);
+        expect(plan.mock.calls[1]?.[0].constraints?.at(-1)).toContain('a resumed run executes sequentially');
+        expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
+        const executed = execute.mock.calls[0]?.[1];
+        expect(executed?.aggregation.mode).toBe('sequential');
+        expect(executed?.subtasks.map(subtask => subtask.description)).toEqual([prefixPhase.description, 'Implement signed addition']);
+      });
+
+      it('ends the run after three, without a review or an execution', async () => {
+        const { tissue } = actors();
+        const task: Task = { description: 'Implement signed addition', inputs: { a: 1 } };
+        const { ctx } = resumingCtx(savedRoot(tissue, task, twoPhases()), { completed: [done], replanAfterAnswer: true });
+        vi.spyOn(tissue, 'plan').mockResolvedValue(concat());
+        const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+        await expect(tissue.handle(task, ctx)).rejects.toThrow(/^Saved delegation plan requires a new run: Remaining plan rejected before review/);
+        expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(0);
+        expect(execute).not.toHaveBeenCalled();
+      });
     });
 
     it('reviews again when the recorded classification no longer holds mechanically', async () => {

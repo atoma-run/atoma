@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { z } from 'zod';
-import { parentTestSuiteDigest, parentTestSuiteSchema, type ParentTestCause, type ParentTestObservation } from '../contracts/parentTests.js';
+import { PARENT_TEST_TIMEOUT_MS, parentTestSuiteDigest, parentTestSuiteSchema, type ParentTestCause, type ParentTestObservation } from '../contracts/parentTests.js';
 import type { Logger } from '../core/types.js';
 import { OutsideRootError, ToolSandbox, containedIn, kernelRealpathAsync, openContained, sandboxChildEnv } from './sandbox.js';
 
@@ -299,6 +299,65 @@ class VerificationStop extends Error {
   constructor(readonly why: 'deadline' | 'cleanup') { super(why); }
 }
 
+/** One test as the runner's details list it. */
+export interface RunnerTestOutcome {
+  readonly name: string;
+  readonly status: string;
+  readonly failures: readonly string[];
+}
+
+/** The longest `details` a runner observation carries. */
+export const RUNNER_DETAILS_MAX_CHARS = 8000;
+
+const cut = (text: string, chars: number): string => text.length > chars ? `${text.slice(0, chars - 1)}…` : text;
+
+/**
+ * The runner's outcome as ONE valid JSON array of at most
+ * RUNNER_DETAILS_MAX_CHARS. Cut mid-string, it stopped parsing, and the
+ * repeat key read the array's head instead of the failing set: two different
+ * failing sets became one key (second review 2026-10-16). Failure messages
+ * shrink first, then passing tests leave, then failing tests past the budget;
+ * every omission is a counted host note.
+ */
+export function runnerDetails(notes: readonly string[], modules: readonly { readonly message: string; readonly tests: readonly RunnerTestOutcome[] }[]): string {
+  const render = (failureChars: number, moduleChars: number, keepPassing: boolean): { entries: unknown[]; dropped: number } => {
+    const entries: unknown[] = [...notes];
+    let dropped = 0;
+    for (const module of modules) {
+      entries.push(cut(module.message, moduleChars));
+      for (const test of module.tests) {
+        if (!keepPassing && test.status !== 'failed') { dropped += 1; continue; }
+        const failures = failureChars === Infinity ? [...test.failures] : test.failures.slice(0, 1).map(failure => cut(failure, failureChars));
+        entries.push({ name: cut(test.name, 300), status: test.status, failures });
+      }
+    }
+    return { entries, dropped };
+  };
+  const length = (entries: readonly unknown[]): number => JSON.stringify(entries).length;
+  for (const [failureChars, moduleChars] of [[Infinity, Infinity], [1000, 1000]] as const) {
+    const { entries } = render(failureChars, moduleChars, true);
+    if (length(entries) <= RUNNER_DETAILS_MAX_CHARS) return JSON.stringify(entries);
+  }
+  const { entries, dropped } = render(200, 300, false);
+  const passingNote = dropped > 0 ? [`Host: ${dropped} tests that did not fail are not listed`] : [];
+  if (length([...passingNote, ...entries]) <= RUNNER_DETAILS_MAX_CHARS) return JSON.stringify([...passingNote, ...entries]);
+  // Room for the closing note, at its longest.
+  const budget = RUNNER_DETAILS_MAX_CHARS - 2 - 120;
+  const kept: unknown[] = [...passingNote];
+  let used = kept.reduce<number>((total, entry) => total + JSON.stringify(entry).length + 1, 0);
+  let omitted = 0;
+  for (const entry of entries) {
+    const size = JSON.stringify(entry).length + 1;
+    if (used + size > budget) { omitted += 1; continue; }
+    kept.push(entry);
+    used += size;
+  }
+  if (omitted > 0) kept.push(`Host: ${omitted} more entries (failing tests or module messages) are not listed`);
+  return JSON.stringify(kept);
+}
+
+const statOf = (file: string) => lstatSync(file, { throwIfNoEntry: false });
+
 /** Fixed harness through run_shell; it never executes package scripts or project config. */
 export async function runParentTests(sandbox: ToolSandbox, argv: readonly string[], timeoutMs: number, logger?: Logger): Promise<ParentTestObservation> {
   if (argv.length !== 1) throw new Error('atoma-verify requires one JSON suite');
@@ -336,13 +395,16 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
       skipped: receipt.skipped, unstable: receipt.unstable, ms: receipt.ms,
     } };
     // From here to `spawn`, no await: the checks below see the state the spawn sees.
-    // Stop Vite's workspace discovery at this disposable project.
-    writeFileSync(path.join(project, 'pnpm-workspace.yaml'), 'packages: []\n');
-    if (!existsSync(path.join(project, 'package.json'))) writeFileSync(path.join(project, 'package.json'), '{"type":"module"}');
+    const workspaceFile = path.join(project, 'pnpm-workspace.yaml');
     const source = path.join(project, 'atoma.acceptance.test.ts');
     const report = path.join(project, 'atoma.report.json');
-    // The copy may carry old lookalike files. Their bytes are never authoritative.
-    rmSync(source, { force: true }); rmSync(report, { force: true });
+    // The copy may carry lookalikes of the host's files, directories included:
+    // their bytes are never authoritative, and a directory under one of these
+    // names must not turn a red suite into a runner error (second review).
+    for (const reserved of [workspaceFile, source, report]) rmSync(reserved, { recursive: true, force: true });
+    // Stop Vite's workspace discovery at this disposable project.
+    writeFileSync(workspaceFile, 'packages: []\n', { flag: 'wx' });
+    if (!existsSync(path.join(project, 'package.json'))) writeFileSync(path.join(project, 'package.json'), '{"type":"module"}');
     writeFileSync(source, suite.source, { flag: 'wx' });
     const worker = fileURLToPath(new URL(import.meta.url.endsWith('.ts') ? './parentTestWorker.ts' : './parentTestWorker.js', import.meta.url));
     if (!existsSync(worker)) throw new TypedFailure('worker-missing', 'Compiled acceptance worker is unavailable; build the tool runtime first');
@@ -351,7 +413,10 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     // it knew about; a child spawned after it would outlive the sandbox.
     if (sandbox.cleanupGeneration !== generation) throw stopFailure(new VerificationStop('cleanup'), copied, Date.now() - copyStarted);
     if (controller.signal.aborted) throw stopFailure(controller.signal.reason as VerificationStop, copied, Date.now() - copyStarted);
-    const childWindowMs = Math.max(1, deadline - Date.now());
+    // The child never gets more than its own window, and gets less when the
+    // copy or the caller's deadline left less: the observation says which.
+    const childWindowMs = Math.max(1, Math.min(PARENT_TEST_TIMEOUT_MS, deadline - Date.now()));
+    observation = { ...observation, windowMs: childWindowMs };
     let timedOut = false;
     const outcome = await new Promise<{ code: number | null; details: string; spawnError?: string }>(resolve => {
       // Node permissions complement the existing container boundary: no child
@@ -386,15 +451,20 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
       return { ...observation, ...withOutput, cause: 'runner-error', details: `The runner could not start: ${normalize(outcome.spawnError).slice(0, 1000)}` };
     }
     // Checked before the report: code that rewrites the suite owns whatever report follows.
-    if (!existsSync(source) || readFileSync(source, 'utf8') !== suite.source) {
+    if (!statOf(source)?.isFile() || readFileSync(source, 'utf8') !== suite.source) {
       return { ...observation, ...withOutput, cause: 'source-changed', details: 'The acceptance source changed or vanished during verification' };
     }
-    if (!existsSync(report)) {
+    const reportStat = statOf(report);
+    if (!reportStat) {
       return timedOut
-        ? { ...observation, ...withOutput, cause: 'timeout', details: `The runner was killed after ${timeoutMs} ms` }
+        ? { ...observation, ...withOutput, cause: 'timeout', details: `The runner was killed at the end of its ${childWindowMs} ms window` }
         : { ...observation, ...withOutput, cause: 'exited-without-report', details: `The runner exited with code ${String(outcome.code)} and wrote no report` };
     }
-    if (lstatSync(report).size > 8 * 1024 * 1024) {
+    // The host removed this path before the spawn: only code under test made it something else.
+    if (!reportStat.isFile()) {
+      return { ...observation, ...withOutput, cause: 'report-tampered', details: 'The report path is not a regular file: code under test replaced atoma.report.json' };
+    }
+    if (reportStat.size > 8 * 1024 * 1024) {
       return { ...observation, ...withOutput, cause: 'report-oversize', details: 'The verification report exceeds 8 MiB' };
     }
     let parsed: z.infer<typeof reportSchema>;
@@ -417,9 +487,11 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     // A report carries the assertion outcomes; the raw tail would only repeat them.
     return { ...observation, status: passed ? 'passed' : 'failed', cause: 'ran', passed: parsed.numPassedTests,
       failed: parsed.numFailedTests, skipped,
-      details: normalize(JSON.stringify([...notes, ...parsed.testResults.flatMap(module => [module.message ?? '',
-        ...module.assertionResults.map(test => ({ name: test.fullName, status: test.status, failures: test.failureMessages })),
-      ])])).slice(0, 8000),
+      // Each string is normalized before it is encoded, so the array stays valid JSON.
+      details: runnerDetails(notes.map(normalize), parsed.testResults.map(module => ({
+        message: normalize(module.message ?? ''),
+        tests: module.assertionResults.map(test => ({ name: normalize(test.fullName), status: test.status, failures: test.failureMessages.map(normalize) })),
+      }))),
     };
   } catch (error) {
     return error instanceof TypedFailure

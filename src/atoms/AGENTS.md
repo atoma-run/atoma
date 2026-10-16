@@ -23,7 +23,8 @@ Neighbours:
   Root L3 plans also get mandatory tool-free contract review on `modelForTier(2)`
   (own cap and effort, src/core; a refusal costs a top-tier replan); a reviewer
   fault (unfinished, unparseable, unclassified) re-reviews the same plan on the
-  validation model. L2 plans under a parent suite get the same check there.
+  validation model. L2 plans under a parent suite get the same check there; their
+  reviewer fault re-reviews once on tier 2, then throws, never a rejection.
   Missing classified suites or parallel branches block dispatch even beside
   approved:true. Three root attempts (a plan parse failure counts); no unreviewed
   fallback. L3 `replanAfter:true` is read-only discovery, once, then the host
@@ -201,7 +202,8 @@ load-bearing.
   traces: their LAYOUT is a contract with it (`tests/jev-calibration.test.ts`); `TASK_CONTEXT_HEADER`
   separates multiline task text from runtime guidance (historical traces lack it). A recipe's opening
   steps come from the deferring `jev` event's `details`. Calls stamped `jevExcluded` (delegation
-  reviews, parent-suite results: Decision takes none) are counted apart and never asked.
+  reviews, parent-suite results: Decision takes none) are counted apart and never asked; a trace
+  without `jevExclusionStamps` predates the stamp and is read by structure, whatever its date.
 - Atom trust fast paths require the configured consecutive approved-result
   threshold (default 3), read through `trustThreshold()`; historical failures do
   not permanently disqualify a type. Script dispatch retains its separate

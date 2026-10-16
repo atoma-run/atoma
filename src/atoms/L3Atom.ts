@@ -1679,10 +1679,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       return approval;
     }
     // ONE model verdict, whether it decides or audits a Jev approval.
-    const modelVerdict = (audit: boolean) =>
+    const modelVerdict = (audit: boolean, review?: { model: string; params: GenerationParams }) =>
       llmVerdict({
         ctx,
-        model: this.validationModel,
+        model: review?.model ?? this.validationModel,
+        ...(review ? { params: review.params } : {}),
         supervisorName: this.name,
         supervisorTier: 3,
         subject: 'PLAN',
@@ -1709,9 +1710,40 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         })
       : null;
     if (jevApproved) return jevApproved;
-    const verdict = await modelVerdict(false);
+    const verdict = reviewsTests ? await this.reviewChildDelegation(child, modelVerdict, ctx) : await modelVerdict(false);
     if (reviewKey && verdict.approved) this.reviewedTestPlans.set(reviewKey, verdict);
     return verdict;
+  }
+
+  /**
+   * The delegation-contract review of a child plan carrying suites. A reviewer
+   * fault (unfinished, unparseable, unclassified) is the reviewer's, not the
+   * plan's: the SAME plan is reviewed once more on the root review's model and
+   * cap, as the root does. A second fault throws a ValidationError, never a
+   * rejection: returned to the loop, its fixed text coached the child's
+   * planner and, repeated, escalated and branched the child's type over a
+   * reviewer failure (second review 2026-10-16). No unreviewed plan executes.
+   */
+  private async reviewChildDelegation(
+    child: L2Atom,
+    modelVerdict: (audit: boolean, review?: { model: string; params: GenerationParams }) => Promise<Verdict>,
+    ctx: RunContext,
+  ): Promise<Verdict> {
+    const attempt = async (review?: { model: string; params: GenerationParams }): Promise<Verdict> => {
+      try {
+        return await modelVerdict(false, review);
+      } catch (error) {
+        if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
+        return delegationRefusal(`Delegation contract review was unparseable: ${error.message.slice(0, 300)}`, 'reviewer');
+      }
+    };
+    const first = await attempt();
+    if (first.approved || first.delegationRefusal !== 'reviewer') return first;
+    const model = this.rootReviewModel();
+    ctx.logger.warn(`[l3] delegation reviewer failed on ${child.name}'s plan (${first.reasoning.slice(0, 200)}); reviewing the same plan on ${model}`);
+    const second = await attempt({ model, params: ROOT_DELEGATION_REVIEW_PARAMS });
+    if (second.approved || second.delegationRefusal !== 'reviewer') return second;
+    throw new ValidationError(`Delegation contract review of ${child.name}'s plan failed twice; no unreviewed plan executes: ${second.reasoning.slice(0, 300)}`);
   }
 
   async validateResult(child: L2Atom, result: Result, task: Task, ctx: RunContext): Promise<Verdict> {

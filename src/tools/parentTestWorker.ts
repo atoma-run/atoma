@@ -13,6 +13,9 @@ import type { Plugin } from 'vite';
  * stylesheet that resolves loads as an empty stub; one that does not stays
  * Vite's own resolution failure, so a missing file never passes. The virtual
  * id carries no stylesheet extension, or `vite:css` would claim it anyway.
+ * The stub is decided on the RESOLVED id, never the specifier: a tsconfig
+ * `paths` alias or a package `main` naming a `.scss` file has no stylesheet
+ * extension to read, and both loaded a forging `sass` (second review).
  */
 const STYLESHEET = /\.(?:css|less|sass|scss|styl|stylus|pcss|postcss|sss)(?:$|\?)/;
 const RAW_OR_URL = /[?&](?:raw|url)\b/;
@@ -21,9 +24,9 @@ const cssStub: Plugin = {
   name: 'atoma:css-stub',
   enforce: 'pre',
   async resolveId(source, importer) {
-    if (!STYLESHEET.test(source) || RAW_OR_URL.test(source)) return null;
+    if (source.startsWith('\0') || RAW_OR_URL.test(source)) return null;
     const resolved = await this.resolve(source, importer, { skipSelf: true });
-    if (!resolved) return null;
+    if (!resolved || !STYLESHEET.test(resolved.id) || RAW_OR_URL.test(resolved.id)) return null;
     const kind = /\.module\.[a-z]+(?:$|\?)/.test(resolved.id) ? 'module' : 'plain';
     return `${STUB}${kind}:${Buffer.from(resolved.id).toString('hex')}`;
   },

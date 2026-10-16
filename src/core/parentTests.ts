@@ -1,4 +1,5 @@
 import {
+  PARENT_TEST_SNAPSHOT_ALLOWANCE_MS,
   PARENT_TEST_TIMEOUT_MS,
   parentTestObservationSchema,
   parentTestSuiteDigest,
@@ -30,15 +31,19 @@ export async function verifyParentTests(task: Task, result: Result, ctx: RunCont
     observation = { ...observation, cause: 'landing', details: 'Not run: the plan landed with unfinished work or exhausted its run budget.' };
   } else if (ctx.tools?.has('run_shell')) {
     try {
-      const timeoutMs = Math.max(1, Math.min(PARENT_TEST_TIMEOUT_MS, (ctx.deadlineAt ?? Date.now() + PARENT_TEST_TIMEOUT_MS) - Date.now()));
+      // The child's window plus the copy's allowance, under one deadline the run's clamps.
+      const granted = PARENT_TEST_TIMEOUT_MS + PARENT_TEST_SNAPSHOT_ALLOWANCE_MS;
+      const timeoutMs = Math.max(1, Math.min(granted, (ctx.deadlineAt ?? Date.now() + granted) - Date.now()));
       const raw = await baseExecutorOf(ctx.tools).execute('run_shell', {
         command: 'atoma-verify', args: [JSON.stringify(suite)], timeoutMs,
       });
       const parsed = parentTestObservationSchema.safeParse(raw);
       if (parsed.success && parsed.data.suiteDigest === suiteDigest) {
-        // A window the run deadline cut short is the host's, not the code's.
-        const clamped = parsed.data.cause === 'timeout' && timeoutMs < PARENT_TEST_TIMEOUT_MS;
-        observation = { ...parsed.data, suite, ...(clamped ? { cause: 'deadline-timeout' as const } : {}) };
+        // Only a hang that had the child's whole window is the code's. One the
+        // run deadline or a slow copy cut short is the host's; a worker that
+        // reported no window is read the same way.
+        const shortened = parsed.data.cause === 'timeout' && (parsed.data.windowMs ?? 0) < PARENT_TEST_TIMEOUT_MS;
+        observation = { ...parsed.data, suite, ...(shortened ? { cause: 'deadline-timeout' as const } : {}) };
       } else {
         observation = { ...observation, cause: 'invalid-observation', details: 'The verification worker returned no valid observation for this suite.' };
       }
@@ -58,14 +63,18 @@ export async function verifyParentTests(task: Task, result: Result, ctx: RunCont
  * What a non-passed observation does to the result carrying it:
  *
  *  - `reject` — executed and independent of content: the suite failed, or the
- *    code under test stopped it from finishing (a hang the whole window could
- *    not interrupt, a rewritten suite file, a runaway report).
- *  - `reject-once` — the workspace content kept the suite from being copied
- *    (an escaping link, a special file): the child can fix it once, coached;
- *    a repeat is reviewed, like every `reject-once` result gate.
- *  - `review` — a host cause, or one nobody can attribute: the child cannot
- *    act on it, so rejecting would be the wrong gate. The suite established
- *    nothing; a full review decides on the other evidence.
+ *    code under test stopped it from finishing (a hang the child's whole
+ *    window could not interrupt, a rewritten suite file, a replaced or
+ *    runaway report).
+ *  - `reject-once` — content the child controls may have kept the suite from
+ *    a result: the workspace could not be copied (an escaping link, a special
+ *    file), or the runner ended without a valid report, which code under test
+ *    can cause (exiting or killing the process) as well as a host crash. The
+ *    child is coached once; a repeat is reviewed, like every `reject-once`
+ *    result gate (second review 2026-10-16).
+ *  - `review` — a cause only the host owns: the child cannot act on it, so
+ *    rejecting would be the wrong gate. The suite established nothing; a full
+ *    review decides on the other evidence.
  *
  * None of them grants trust, skill credit, distillation or promotion.
  */
@@ -75,15 +84,30 @@ const SUBJECT_CAUSES: ReadonlyMap<ParentTestCause, string> = new Map([
   ['timeout', `the suite did not finish within ${PARENT_TEST_TIMEOUT_MS / 1000} s; make every path it exercises terminate`],
   ['source-changed', 'the code under test changed the suite file; never write atoma.acceptance.test.ts'],
   ['report-oversize', 'the failure/print output exceeded 8 MiB'],
+  ['report-tampered', 'the code under test replaced the runner report; never write atoma.report.json'],
 ] as const);
-const WORKSPACE_CAUSES: ReadonlySet<ParentTestCause> = new Set(['snapshot-link', 'snapshot-special-file']);
+
+const COPY_COACHING =
+  'Remove the link or special file named above and keep the dependencies inside the project ' +
+  '(install them there rather than linking a shared store), or explain in your result why that is impossible.';
+const REPORT_COACHING =
+  'The runner ended without a valid report. Code the suite imports must not exit, kill or signal the process, ' +
+  'nor write atoma.report.json: keep entry-point side effects (process.exit, argv parsing, listening servers) out of ' +
+  'the modules the suite imports, or explain in your result why the runner could not report.';
+/** Content the child controls may be the cause: coached once, then reviewed. */
+const ONCE_CAUSES: ReadonlyMap<ParentTestCause, { readonly what: string; readonly coaching: string }> = new Map([
+  ['snapshot-link', { what: 'could not be copied', coaching: COPY_COACHING }],
+  ['snapshot-special-file', { what: 'could not be copied', coaching: COPY_COACHING }],
+  ['exited-without-report', { what: 'produced no valid report', coaching: REPORT_COACHING }],
+  ['report-invalid', { what: 'produced no valid report', coaching: REPORT_COACHING }],
+] as const);
 
 /** THE one mapping from a typed observation to its consequence. */
 export function parentTestConsequence(observation: ParentTestObservation): ParentTestConsequence | null {
   if (observation.status === 'passed') return null;
   if (observation.status === 'failed') return 'reject';
   if (observation.cause && SUBJECT_CAUSES.has(observation.cause)) return 'reject';
-  if (observation.cause && WORKSPACE_CAUSES.has(observation.cause)) return 'reject-once';
+  if (observation.cause && ONCE_CAUSES.has(observation.cause)) return 'reject-once';
   return 'review';
 }
 
@@ -132,6 +156,8 @@ const short = (observation: ParentTestObservation): string => observation.suiteD
 /**
  * The failing set, sorted, first failure line each. Keyed on WHAT fails, so
  * the repeat tracker escalates three identical failures and never progress.
+ * Host notes (snapshot counts, omissions) vary between runs and are no part
+ * of the key; the runner keeps `details` one valid JSON array for this.
  */
 function failingExcerpt(details: string): string {
   let entries: unknown;
@@ -144,7 +170,7 @@ function failingExcerpt(details: string): string {
   const failing: { name: string; failure: string }[] = [];
   for (const entry of entries) {
     if (typeof entry === 'string') {
-      if (entry.trim()) failing.push({ name: '(module)', failure: entry.split('\n')[0]!.slice(0, 200) });
+      if (entry.trim() && !entry.startsWith('Host: ')) failing.push({ name: '(module)', failure: entry.split('\n')[0]!.slice(0, 200) });
       continue;
     }
     if (!entry || typeof entry !== 'object') continue;
@@ -178,16 +204,15 @@ export function parentTestRejection(result: Pick<Result, 'parentTests'>): Parent
   return { reasoning, coaching: `${REPAIR_COACHING}\nHost observation:\n${details.slice(0, 6000)}` };
 }
 
-/** A suite the workspace content kept from being copied: coached once, then reviewed. */
+/** A suite content the child controls may have kept from a result: coached once, then reviewed. */
 export function parentTestWorkspaceFinding(result: Pick<Result, 'parentTests'>): ParentTestFinding | null {
   const { rejectOnce } = parentTestFindings(result);
   if (rejectOnce.length === 0) return null;
+  const once = rejectOnce.map((observation) => ({ observation, ...ONCE_CAUSES.get(observation.cause!)! }));
   return {
-    reasoning: rejectOnce.map((observation) =>
-      `the parent-owned suite ${short(observation)} could not be copied: ${observation.cause} (${observation.details.slice(0, 300)})`).join(' '),
-    coaching:
-      'Remove the link or special file named above and keep the dependencies inside the project ' +
-      '(install them there rather than linking a shared store), or explain in your result why that is impossible.',
+    reasoning: once.map(({ observation, what }) =>
+      `the parent-owned suite ${short(observation)} ${what}: ${observation.cause} (${observation.details.slice(0, 300)})`).join(' '),
+    coaching: [...new Set(once.map(({ coaching }) => coaching))].join('\n'),
   };
 }
 

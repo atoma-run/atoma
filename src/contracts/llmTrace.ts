@@ -46,6 +46,15 @@ export const JEV_EXCLUSIONS = ['delegation-review', 'parent-suite'] as const;
 export type JevExclusion = (typeof JEV_EXCLUSIONS)[number];
 
 /**
+ * Written on a trace by the code that stamps `jevExcluded` (`VizRun`), so a
+ * reader knows the stamps are authoritative there. A trace without it was
+ * written before the stamp existed, whatever its date: a calendar cutover
+ * counted the unstamped runs between it and a later deploy as eligible
+ * (second review 2026-10-16).
+ */
+export const JEV_EXCLUSION_STAMPS = 1;
+
+/**
  * How much of a context block the citation carries. 160 characters made the
  * viz pane's `context` step unreadable — a 1,167-character skill recipe was
  * cut mid-sentence, and the step exists precisely so a viewer can see what

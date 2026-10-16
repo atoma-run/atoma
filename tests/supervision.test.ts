@@ -17,6 +17,7 @@ import {
   type SupervisionHooks,
 } from '../src/core/supervisor.js';
 import { makeCtx } from './helpers.js';
+import { PlanParseError } from '../src/core/errors.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
@@ -256,7 +257,7 @@ describe('superviseLoop', () => {
 
     // Group D, review 2026-10-16: an L2 plan pair threw SyntaxError or
     // ZodError, which the loop's ValidationError retry did not cover.
-    it('asks a real L2 cell again after an unparseable plan pair, keeping only the parsed reply\'s strategy', async () => {
+    it('asks a real L2 cell again after an unparseable plan pair', async () => {
       const db = openDb(':memory:');
       const registry = new AtomRegistry(db);
       const type = registry.create(2, { description: 'cell', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' });
@@ -285,6 +286,28 @@ describe('superviseLoop', () => {
       expect(unparseable).toHaveLength(1);
       expect(String((unparseable[0]!.payload as { error: string }).error)).toMatch(/plan reply unparseable: Bad escaped character/);
       expect(strategyAtExecute).toMatchObject({ strategy: 'reuse', target: 'Urea' });
+    });
+
+    // Second review 2026-10-16: the retry's plan overwrites whatever a failed
+    // reply left, so only a check right after the failing call can see a leak.
+    it('leaves the previous strategy in place when a reply\'s strategy parses and its plan does not', async () => {
+      const db = openDb(':memory:');
+      const registry = new AtomRegistry(db);
+      const type = registry.create(2, { description: 'cell', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' });
+      const cell = L2Atom.fromType(type, registry);
+      const pending = () => (cell as unknown as { pendingStrategy: unknown }).pendingStrategy;
+      const plan = { reasoning: 'r', subtasks: [{ description: 'Implement' }], aggregation: { mode: 'sequential' }, expectedOutput: 'o' };
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'parsed' }, plan]));
+      ctx.llm.enqueueText(JSON.stringify([{ strategy: 'create', reasoning: 'its plan is broken' }, { ...plan, aggregation: { mode: 'bogus' } }]));
+      try {
+        await cell.plan({ description: 'go' }, ctx);
+        expect(pending()).toMatchObject({ strategy: 'reuse', target: 'Urea' });
+        await expect(cell.plan({ description: 'go' }, ctx)).rejects.toBeInstanceOf(PlanParseError);
+        expect(pending()).toMatchObject({ strategy: 'reuse', target: 'Urea' });
+      } finally {
+        db.close();
+      }
     });
 
     it('escalates once the plan budget is spent on unparseable replies', async () => {

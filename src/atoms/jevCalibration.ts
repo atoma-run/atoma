@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { JEV_EXCLUSIONS, type JevExclusion } from '../contracts/llmTrace.js';
+import { JEV_EXCLUSION_STAMPS, JEV_EXCLUSIONS, type JevExclusion } from '../contracts/llmTrace.js';
 import { runActorKey } from '../contracts/runActors.js';
 import {
   JEV_THRESHOLDS,
@@ -126,12 +126,14 @@ export interface TraceDecisions {
  *
  * A validation Decision never takes by policy — a delegation-contract review,
  * a RESULT under a parent-owned suite (review 2026-10-16, group F) — stays a
- * decision, marked `excluded`: the event's `jevExcluded` stamp says so, and a
- * trace started before the stamp existed is read by `historicalExclusion`.
+ * decision, marked `excluded`: the event's `jevExcluded` stamp says so on a
+ * trace whose writer stamps (`jevExclusionStamps`), and a trace written
+ * before the stamp existed is read by `historicalExclusion`.
  */
 export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string; readonly orgId: string }): TraceDecisions {
-  const run = trace as { startedAt?: unknown; events?: unknown } | null;
+  const run = trace as { startedAt?: unknown; events?: unknown; jevExclusionStamps?: unknown } | null;
   const startedAt = typeof run?.startedAt === 'string' ? run.startedAt : null;
+  const stampsWritten = typeof run?.jevExclusionStamps === 'number' && run.jevExclusionStamps >= JEV_EXCLUSION_STAMPS;
   const events = Array.isArray(run?.events) ? (run.events as unknown[]) : [];
   const decisions: RecordedDecision[] = [];
   const audits: RecordedAudit[] = [];
@@ -192,25 +194,10 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
       response: event.response,
     };
     const stamped = JEV_EXCLUSIONS.find((exclusion) => exclusion === event.jevExcluded);
-    const excluded = stamped ?? (startedBeforeStamp(startedAt) ? historicalExclusion(decision) : undefined);
+    const excluded = stamped ?? (stampsWritten ? undefined : historicalExclusion(decision));
     decisions.push(excluded ? { ...decision, excluded } : decision);
   }
   return { startedAt, jevEvents, decisions, audits };
-}
-
-/**
- * The first day every validation Decision never takes carries its
- * `jevExcluded` stamp: midnight UTC of the day after the stamp was committed
- * (2026-10-16). A trace started from then on is read by its stamp alone, and
- * its prompt text never decides; a trace started before it falls back to
- * `historicalExclusion`. A deploy later than this bound leaves the unstamped
- * runs in between counted as eligible (records/reviews/parent-tests-review-fixes-2026-10-16.md).
- */
-export const JEV_EXCLUSION_STAMPED_FROM = '2026-10-17T00:00:00.000Z';
-
-function startedBeforeStamp(startedAt: string | null): boolean {
-  const startedMs = startedAt ? Date.parse(startedAt) : Number.NaN;
-  return startedMs < Date.parse(JEV_EXCLUSION_STAMPED_FROM);
 }
 
 /** Whether a PLAN payload carries a parent-owned suite, at plan level or on a subtask. */
@@ -224,8 +211,9 @@ function carriesSuite(payload: unknown): boolean {
 
 /**
  * The policy exclusion of a trace recorded before the `jevExcluded` stamp,
- * read from host-rendered structure only, and only for that bounded window,
- * so these copies describe frozen code (b3af7c1e..the stamp) and cannot drift
+ * read from host-rendered structure only, and only on a trace whose writer
+ * predates the stamp (no `jevExclusionStamps`), so these copies describe
+ * frozen code (b3af7c1e..the stamp) and cannot drift
  * from live policy:
  *
  * 1. A PLAN review whose REQUIRED DELEGATION CONTRACT REVIEW header line

@@ -1091,9 +1091,11 @@ export async function llmVerdict(args: {
   });
 
   if (args.requireComplete && resp.stopReason !== 'end_turn') throw new Error('Incomplete root review reconciliation');
-  // A cut reply is the reviewer's failure, not the plan's. Only a real cut:
-  // every transport maps its finish reason onto this vocabulary (llmOllama).
-  if (args.delegationContract && (resp.stopReason === 'max_tokens' || resp.stopReason === 'pause_turn')) {
+  // A review that did not finish normally is the reviewer's failure, not the
+  // plan's. An allowlist, as `requireComplete`: the Claude CLI returns its
+  // error subtypes with salvaged partial text, which jsonrepair would close
+  // into an approval (second review 2026-10-16).
+  if (args.delegationContract && resp.stopReason !== 'end_turn') {
     return delegationRefusal('Delegation contract review did not finish; do not execute an unreviewed plan.', 'reviewer');
   }
   const raw = parseVerdict(resp.text);

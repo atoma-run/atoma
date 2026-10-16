@@ -1222,3 +1222,110 @@ were checked against. Group C-runner records its countercases as reproductions
 under Findings and as Rejected alternatives rather than under a countercase
 heading. Group D's heading gained the "Group" prefix for consistency; nothing
 linked to its old anchor.
+
+## Second review
+
+A second adversarial review of this branch confirmed fifteen findings (each
+verified twice, several reproduced on the branch). All were applied; where a
+finding's suggested fix was narrowed, the reason is given. This section
+supersedes the earlier text it contradicts: the `report-invalid` and
+`exited-without-report` limit in Group A, the child-review open item in Group
+D and the calibration date gap in Group F.
+
+### What changed
+
+- **A timeout in a window the copy shortened was blamed on the code.** One
+  deadline covered the copy and the child, so the child got what the copy
+  left, while core relabelled a timeout as the host's only when the run
+  deadline had clamped the request, and the text said "killed after 120000
+  ms". Now core grants `PARENT_TEST_TIMEOUT_MS` plus a 60 s copy allowance
+  (`PARENT_TEST_SNAPSHOT_ALLOWANCE_MS`) under the same one deadline; the runner
+  caps the child at 120 s and reports the window it had (`windowMs`); core reads
+  `timeout` as the code's only when that window was the full 120 s, and any
+  other as `deadline-timeout` (review). The details name the real window. A
+  hang now costs up to 120 s plus the copy, not 120 s in total. Four findings
+  (two on each file) described this one defect.
+- **Details cut mid-JSON keyed the repeat tracker on the array's head.** The
+  runner sliced the serialised outcome at 8,000 characters; `failingExcerpt`
+  then fell back to the first 300 characters, and failing sets {a, c} and
+  {a, e} produced one key. `runnerDetails` now keeps one valid JSON array
+  within the bound: failure messages shrink first, then tests that did not
+  fail leave, then failing tests past the budget, each omission a counted
+  `Host:` note. Host notes are no part of the key. Strings are normalised
+  before encoding, not after.
+- **The stylesheet stub read the specifier.** A tsconfig `paths` alias or a
+  package `main`/`exports` naming a `.scss` file reached `vite:css`, which
+  loaded the project's forging `sass` into the coordinator and turned a wrong
+  `add` green. The stub is decided on the resolved id. The three new forger
+  tests fail on the previous worker and pass now.
+- **A directory under a name the host writes turned a red suite into a host
+  fault.** `rmSync` without `recursive` threw EISDIR, which became
+  `runner-error` (review). The host now removes `pnpm-workspace.yaml`, the suite
+  file and the report path whole before writing them with `wx`. A report path
+  that is not a regular file after the run is the new subject cause
+  `report-tampered` (reject): the host cleared it, so only code under test made
+  it a directory or a link. A suite file replaced by a directory is
+  `source-changed`, no longer a thrown `runner-error`.
+- **Causes the child can provoke were reviewed as host causes.** Code under
+  test can kill the coordinator (`process.kill(process.pid)` is not confined by
+  the permission model), which yields `exited-without-report`; an imported CLI
+  entry calling `process.exit` is the ordinary, non-adversarial case.
+  `exited-without-report` and `report-invalid` are now `reject-once`, coached
+  to keep entry-point side effects out of imported modules, then reviewed.
+  Narrowed: `snapshot-bounds` stays review, since a legitimate `node_modules`
+  can exceed 100,000 entries and a rejection would be the wrong gate. The
+  "awaiting owner confirmation" half of that finding was already settled by
+  2b0629ff (decided under the owner's delegation), so only the classification
+  of child-provokable causes changed.
+- **A child-plan reviewer fault coached the planner and escalated.** The L3
+  review of an L2 plan carrying suites ran on the 2,048-token validation cap
+  and returned reviewer faults as rejections, so their fixed text coached the
+  planner and three of them escalated and branched the child's type. A fault
+  (unfinished, unparseable, unclassified) now re-reviews the same plan once on
+  the root review's model and parameters; a second fault throws a
+  `ValidationError`, never a rejection. The dispatch fails, as the root fails
+  after three reviewer faults; nobody is coached or blamed.
+- **The delegation review's completeness guard became a denylist.** Only
+  `max_tokens` and `pause_turn` refused; the Claude CLI returns
+  `error_during_execution` with salvaged text, which jsonrepair closed into an
+  approval. The guard is again `stopReason !== 'end_turn'`, now a `reviewer`
+  fault (a re-review, not a replan). src/core/AGENTS.md no longer claims every
+  transport speaks the Anthropic vocabulary.
+- **The calibration cutover was a calendar date.** Unstamped traces written by
+  the deployed code after 2026-10-17 would have been counted eligible. The
+  trace now carries `jevExclusionStamps` from the code that stamps; a trace
+  without it is read by `historicalExclusion`, whatever its date.
+  `JEV_EXCLUSION_STAMPED_FROM` is gone.
+
+### Tests
+
+- The consequence of every cause is pinned against a literal table
+  (`Record<ParentTestCause, …>`, so a new cause fails to compile until it is
+  decided), beside the existing agreement check between the gates and the
+  safety net.
+- Runner: the child's whole window with the allowance; a hang in a shorter
+  window reports it and core reviews it; a directory under each reserved name
+  keeps a failing suite failed; a replaced report path rejects; long failures
+  stay valid JSON. Details unit tests reproduce the {a, c} / {a, e} collision.
+- Root resume: the recorded approval is checked against a replica of the
+  digest, then re-reviewed when the reviewing model, the root actor's version
+  or id, the contract or the system prompt changed; a non-sequential remaining
+  plan is asked for again with its reason, never reviewed, and three end the
+  run. Each was confirmed by mutation (digest bindings removed, precheck
+  always passing).
+- L2 planning: a reply whose strategy parses and whose plan does not leaves
+  the previous strategy in place, checked right after the failing call
+  (confirmed by re-introducing the early commit). The earlier test no longer
+  claims to show it.
+- Delegation review: an `error_during_execution` reply is a reviewer fault at
+  the root and at the child; a child fault is re-reviewed on tier 2; two
+  faults throw from `superviseLoop` with no coaching, failure hook or branch.
+
+### Remaining risks
+
+- A child-plan reviewer that faults twice now fails the dispatch instead of
+  costing the child a ladder; how often that happens is unmeasured.
+- `reject-once` for an exit without a report spends one retry when the cause
+  was the host's (an OOM kill, a runner crash); the repeat is reviewed.
+- Traces from a deploy of this branch onward carry the marker; nothing
+  backfills older ones, which keep the structural reader.

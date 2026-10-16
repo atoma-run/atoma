@@ -1,8 +1,19 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
-/** The runner's own window. Core clamps it to the run deadline; tools never hardcode a copy. */
+/**
+ * The Vitest child's own window. Only a hang that had all of it is the code's:
+ * the runner caps the child at this, and core reads a timeout in a shorter
+ * window (the run deadline or the copy cut it) as the host's.
+ */
 export const PARENT_TEST_TIMEOUT_MS = 120_000;
+
+/**
+ * What core grants the snapshot copy on top of the child's window, under the
+ * same one deadline: a copy that takes longer leaves the child a shorter
+ * window, and its timeout is then the host's (second review 2026-10-16).
+ */
+export const PARENT_TEST_SNAPSHOT_ALLOWANCE_MS = 60_000;
 
 /** Parent-authored checks; never parsed from a child's result or workspace. */
 export const parentTestSuiteSchema = z.object({
@@ -29,6 +40,7 @@ export const parentTestCauseSchema = z.enum([
   'source-changed', // tools: the suite file differs, or vanished, after the run
   'report-oversize', // tools: the report exceeds 8 MiB
   'report-invalid', // tools: the report is not JSON or not the expected shape
+  'report-tampered', // tools: the report path is not a regular file after the run; the host cleared it before
   'snapshot-link', // tools: a link resolves outside the project
   'snapshot-bounds', // tools: more than 100,000 entries, depth 128 or 512 MiB
   'snapshot-timeout', // tools: the window ended while the project was being copied
@@ -39,7 +51,7 @@ export const parentTestCauseSchema = z.enum([
   'invalid-observation', // core: the executor returned no valid observation for this suite
   'executor-error', // core: the executor threw
   'landing', // core: the run budget ended first
-  'deadline-timeout', // core: a timeout while the window was clamped below PARENT_TEST_TIMEOUT_MS
+  'deadline-timeout', // core: a timeout in a child window below PARENT_TEST_TIMEOUT_MS (the run deadline or the copy cut it)
 ]);
 export type ParentTestCause = z.infer<typeof parentTestCauseSchema>;
 
@@ -53,8 +65,10 @@ export const parentTestObservationSchema = z.object({
   passed: z.number().int().nonnegative(),
   failed: z.number().int().nonnegative(),
   skipped: z.number().int().nonnegative(),
-  /** Host text, plus the runner's assertion outcomes when it reported. */
+  /** Host text, plus the runner's assertion outcomes when it reported: one valid JSON array then. */
   details: z.string(),
+  /** The Vitest child's actual window, set once it is spawned. Absent: a timeout is read as the host's. */
+  windowMs: z.number().int().nonnegative().optional(),
   /** The runner's stdout/stderr tail: CHILD-CONTROLLED text, never host fact. */
   output: z.string().max(6000).optional(),
   /** What the host copied before the run. Absent from an older worker and before a copy finished. */

@@ -15,7 +15,6 @@ import {
   calibrationReport,
   collectCorpus,
   decisionsOfTrace,
-  JEV_EXCLUSION_STAMPED_FROM,
   isRecipePrefilter,
   parsePrefilterPrompt,
   parseValidationPrompt,
@@ -24,6 +23,7 @@ import {
   type RecordedDecision,
 } from '../src/atoms/jevCalibration.js';
 import { JEV_ENDPOINT } from '../src/core/jev.js';
+import { JEV_EXCLUSION_STAMPS } from '../src/contracts/llmTrace.js';
 import { JEV_THRESHOLDS, buildCompilation } from '../src/core/jevQuestions.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
@@ -480,13 +480,15 @@ describe('the corpus: model decisions, in the window, from runs Jev did not deci
       await cell.validatePlan(molecule, makePlan(), { description: 'Implement add', acceptanceTests: SUITE }, ctx);
       ids['l2-plan-of-l1-under-suite'] = last();
 
-      const events = JSON.parse(JSON.stringify(recorder.endRun()!.events)) as Record<string, unknown>[];
-      return { events, ids };
+      const run = JSON.parse(JSON.stringify(recorder.endRun()!)) as { startedAt: string; jevExclusionStamps?: unknown; events: Record<string, unknown>[] };
+      return { run, events: run.events, ids };
     }
 
     it('counts apart the validations Decision never takes, stamped by production', async () => {
-      const { events, ids } = await recordedRun();
-      const found = decisionsOfTrace({ startedAt: JEV_EXCLUSION_STAMPED_FROM, events }, { runId: 'r', orgId: 'o' });
+      const { run, ids } = await recordedRun();
+      // The recorder marks the trace as written by code that stamps.
+      expect(run.jevExclusionStamps).toBe(JEV_EXCLUSION_STAMPS);
+      const found = decisionsOfTrace(run, { runId: 'r', orgId: 'o' });
       const excludedOf = (key: string) => found.decisions.find((decision) => decision.eventId === ids[key])?.excluded;
 
       expect(found.decisions.map((decision) => decision.eventId)).toEqual(Object.values(ids));
@@ -509,30 +511,33 @@ describe('the corpus: model decisions, in the window, from runs Jev did not deci
       expect(bodies).toHaveLength(4);
     });
 
-    it('reads unstamped traces by their host-rendered structure only before the stamp existed', async () => {
+    it('reads a trace by its host-rendered structure only when its writer predates the stamp, whatever its date', async () => {
       const { events, ids } = await recordedRun();
       const unstamped = events.map((event) => {
         const { jevExcluded: _stamp, ...rest } = event;
         return rest;
       });
-      const excludedAt = (startedAt: string) => {
-        const found = decisionsOfTrace({ startedAt, events: unstamped }, { runId: 'r', orgId: 'o' });
+      const excludedIn = (marker: boolean, startedAt = '2026-10-16T06:00:00.000Z') => {
+        const found = decisionsOfTrace({ startedAt, events: unstamped, ...(marker ? { jevExclusionStamps: JEV_EXCLUSION_STAMPS } : {}) }, { runId: 'r', orgId: 'o' });
         return Object.fromEntries(Object.entries(ids).map(([key, id]) => [key, found.decisions.find((decision) => decision.eventId === id)?.excluded]));
       };
-
-      expect(excludedAt('2026-10-16T06:00:00.000Z')).toEqual({
+      const historical = {
         'l3-plan-with-suite': 'delegation-review',
         'root-review': 'delegation-review',
         'l2-result-under-suite': 'parent-suite',
         'l3-result-with-observations': 'parent-suite',
         'l3-plan-without-suite': undefined,
         'l2-plan-of-l1-under-suite': undefined,
-      });
-      // From the stamp on, the text never decides.
-      expect(Object.values(excludedAt(JEV_EXCLUSION_STAMPED_FROM)).every((excluded) => excluded === undefined)).toBe(true);
+      };
+      expect(excludedIn(false)).toEqual(historical);
+      // A trace an older deploy wrote AFTER any calendar cutover is still read
+      // by its structure: the writer decides, never the date (second review).
+      expect(excludedIn(false, '2026-10-20T06:00:00.000Z')).toEqual(historical);
+      // A writer that stamps: the text never decides.
+      expect(Object.values(excludedIn(true)).every((excluded) => excluded === undefined)).toBe(true);
       // Read as text alone, every one of them looks eligible: before the stamp,
       // the calibration sent all six.
-      const recent = decisionsOfTrace({ startedAt: JEV_EXCLUSION_STAMPED_FROM, events: unstamped }, { runId: 'r', orgId: 'o' });
+      const recent = decisionsOfTrace({ startedAt: '2026-10-20T06:00:00.000Z', events: unstamped, jevExclusionStamps: JEV_EXCLUSION_STAMPS }, { runId: 'r', orgId: 'o' });
       for (const decision of recent.decisions) expect(parseValidationPrompt(decision)?.eligible).toBe(true);
     });
 

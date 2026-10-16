@@ -213,8 +213,13 @@ Neighbours:
   is recreated inside the copy, an escaping one refuses. A file is consistent
   on its own, not with its siblings. ONE deadline covers the copy and the run;
   cleanup, the deadline and a shutdown during the copy stop it before a spawn.
+  The child gets at most `PARENT_TEST_TIMEOUT_MS` and reports what it had
+  (`windowMs`): a timeout in less is the host's, never the code's (second
+  review 2026-10-16). Paths the host writes in the copy are removed whole
+  first, directories included; `details` is one valid JSON array, bounded.
 - No project code runs in the coordinator, which holds `--allow-addons` and
-  writes the report: an inline PostCSS config, a stylesheet stub that keeps a
+  writes the report: an inline PostCSS config, a stylesheet stub decided on the
+  RESOLVED id (an alias or a package `main` hides the extension) that keeps a
   missing file red, `config: false`. tsconfig `paths` are read by Vite's native
   resolver, which Node permissions do not confine. Code the suite imports can
   still redefine matchers: semantic review of imported modules remains the

@@ -39,16 +39,20 @@ alone maps them to a consequence; the result-gate rows and the loop's safety net
 for any other supervisor are projections of that one mapping:
 
 - A failed suite, and one the code under test kept from finishing (a hang that
-  used the full 120-second window, a rewritten suite file, a report over 8 MiB),
+  used the child's full 120-second window, a rewritten suite file, a report
+  path replaced by something other than a file, a report over 8 MiB),
   rejects mechanically at every tier, at compiled dispatch and at root acceptance.
   The rejection names the failing assertions, so identical failures escalate and
   progress does not.
-- A suite the workspace content kept from being copied (a link leaving the
-  project, a special file) is coached once with the path, then reviewed.
-- A suite that did not run for a host cause (no executor, a missing worker, a
-  runner error, an exit without a report, an invalid report, a snapshot over its
-  bounds or one that outlived the window, a window the run deadline cut, a
-  landing) never rejects: it forces a
+- A suite content the child controls may have kept from a result is coached
+  once, then reviewed: the workspace could not be copied (a link leaving the
+  project, a special file), or the runner ended without a valid report (an exit
+  without a report, an invalid report), which code under test can cause by
+  exiting or killing the process as well as a host crash can (second review).
+- A suite that did not run for a cause only the host owns (no executor, a
+  missing worker, a runner error, a snapshot over its bounds or one that
+  outlived the window, a child window the run deadline or a slow copy cut
+  below 120 seconds, a landing) never rejects: it forces a
   full review, which decides on the other host evidence.
 - No suite that did not pass grants atom trust, skill credit, distillation,
   promotion or durable continuation.
@@ -97,7 +101,10 @@ their existing probes. Project dependencies must already be installed.
 
 The copy is a bounded, asynchronous snapshot: at most 100,000 entries, depth
 128 and 512 MiB, links recreated inside the copy and never followed, and one
-deadline for the copy and the run together. Over its bounds, or past the
+deadline for the copy and the run together. Core grants that deadline the
+child's 120 seconds plus 60 for the copy; the child never gets more than 120
+and reports the window it had (`windowMs`), so a hang is blamed on the code
+only when it had all of it. Over its bounds, or past the
 window, it is unavailable, not a pass. Unreachable links are skipped and files
 that kept changing are copied as last read; both are counted in the details.
 Generated harness files exist only in the disposable copy.

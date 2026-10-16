@@ -3,7 +3,7 @@ import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import type { ContextCitation, ContextSource, JevExclusion } from '../contracts/llmTrace.js';
+import { JEV_EXCLUSION_STAMPS, type ContextCitation, type ContextSource, type JevExclusion } from '../contracts/llmTrace.js';
 import type { AtomType } from '../registry/atomRegistry.js';
 import type { JevDecisionInfo, Task, Tier } from '../core/types.js';
 import type { AcceptanceInfo, TopologyInfo } from '../contracts/depthRouting.js';
@@ -576,6 +576,8 @@ export function executionProvenance(root = fileURLToPath(new URL('../../', impor
 
 export interface VizRun {
   provenance?: ReturnType<typeof executionProvenance>;
+  /** `JEV_EXCLUSION_STAMPS`: this writer stamps `jevExcluded`. Absent on older traces. */
+  jevExclusionStamps?: number;
   /** Absent on traces written before 2026-09-25. See `VizTierModels`. */
   tierModels?: VizTierModels;
   /** Resolves floor/phase coverage references, including abandoned attempts. */
@@ -696,6 +698,7 @@ export class TraceRecorder {
       task,
       startedAt: new Date().toISOString(),
       provenance: executionProvenance(),
+      jevExclusionStamps: JEV_EXCLUSION_STAMPS,
       ...(opts?.tierModels ? { tierModels: { ...opts.tierModels } } : {}),
       events: [],
     };

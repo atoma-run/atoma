@@ -164,9 +164,11 @@ Neighbours:
   through ONE class, `ChatCompletionsLlmClient`, built once per vendor. What
   a vendor IS — key variable, endpoint, wire, listing URL — is code in
   `providerCatalog.ts`; per-vendor protocol quirks are `CHAT_COMPLETIONS_DIALECTS`
-  beside the client, and nowhere else. Every transport returns `stopReason` in
-  the Anthropic vocabulary (`end_turn`, `max_tokens`, `tool_use`); Ollama's raw
-  `stop` read as "unfinished" to every `end_turn` check until 2026-10-16.
+  beside the client, and nowhere else. Every transport reports a normal finish
+  as `end_turn` and a cut as `max_tokens` (Ollama's raw `stop` read as
+  "unfinished" until 2026-10-16), but not every outcome is in that vocabulary:
+  the Claude CLI returns its error subtypes with salvaged text, Ollama
+  `tool_budget_exhausted`. A completeness check is an allowlist on `end_turn`.
 - The Chat Completions loop echoes the assistant turn VERBATIM. DeepSeek, Kimi,
   GLM and Qwen thinking models require their `reasoning_content` back inside a
   tool loop, and Gemini 3 its per-call `thought_signature`; a rebuilt message
