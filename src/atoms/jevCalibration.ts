@@ -17,6 +17,7 @@ import {
   type JevThresholds,
 } from '../core/jevQuestions.js';
 import { jevOutcomeReport } from './jevOutcomes.js';
+import { TASK_CONTEXT_HEADER } from './taskContext.js';
 import {
   jevAsk,
   legacyApproval,
@@ -360,9 +361,12 @@ export function parseValidationPrompt(
   if (!child || taskAt < 0 || payloadAt < taskAt) return null;
   const taskEnd = lines.findIndex((line, index) => index > taskAt && line.startsWith('Delegation target(s):'));
   const taskLines = lines.slice(taskAt + 1, taskEnd > taskAt ? taskEnd : payloadAt);
+  // Current traces delimit runtime guidance explicitly. Keep the old reader
+  // for historical traces; new policy prose must never become task text.
+  const contextAt = taskLines.lastIndexOf(TASK_CONTEXT_HEADER);
   const isContext = (line: string) => line.startsWith('Inputs (originalTask ') || line.startsWith('Constraints: ') || line.startsWith('Execution mode: ') || line.startsWith('Task scope: ');
-  const context = taskLines.filter(isContext);
-  const description = [lines[taskAt]!.slice('Task: '.length), ...taskLines.filter((line) => !isContext(line))]
+  const context = contextAt >= 0 ? taskLines.slice(contextAt + 1).filter(Boolean) : taskLines.filter(isContext);
+  const description = [lines[taskAt]!.slice('Task: '.length), ...(contextAt >= 0 ? taskLines.slice(0, contextAt) : taskLines.filter((line) => !isContext(line)))]
     .join('\n')
     .trim();
   let constraints: string[] | undefined;

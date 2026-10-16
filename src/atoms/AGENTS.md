@@ -199,7 +199,9 @@ load-bearing.
   role keeps it out of every reader that counts validations.
 - The Decision calibration (`jevCalibration.ts`) reads prefilter and validation
   prompts back out of traces: their LAYOUT is a contract with it (`tests/jev-calibration.test.ts`);
-  a recipe's opening steps come from the deferring `jev` event's `details`.
+  validation uses `TASK_CONTEXT_HEADER` to separate multiline task text from
+  runtime guidance; the reader also supports historical traces without it.
+  A recipe's opening steps come from the deferring `jev` event's `details`.
 - Atom trust fast paths require the configured consecutive approved-result
   threshold (default 3), read through `trustThreshold()`; historical failures do
   not permanently disqualify a type. Script dispatch retains its separate

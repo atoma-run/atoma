@@ -44,3 +44,12 @@ to classify every repository or identify a deceptive typecheck command.
 No additional LLM call, vocabulary classifier or automatic migration is added.
 Production depth routing already reviews files through its empty proof floor;
 the library's explicit covered-floor mechanical path is unchanged.
+
+## CI regression and correction
+
+CI run 38839568370 caught six calibration failures missed by the targeted
+policy tests. The historical validation-prompt reader classified the new
+multiline policy as task description text. Validation prompts now delimit
+runtime guidance with `TASK_CONTEXT_HEADER`; the reader preserves support for
+historical traces. Regression coverage runs the production `llmVerdict` path
+through the reader, including multiline descriptions with a literal heading.

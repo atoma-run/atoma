@@ -4,7 +4,7 @@ import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { resetPrefilterCacheForTests } from '../src/atoms/prefilterCache.js';
 import { llmVerdict, renderTransportEvidence } from '../src/atoms/verdict.js';
-import { DELEGATED_SCOPE_GUIDANCE, delegatedTaskContext } from '../src/atoms/taskContext.js';
+import { APPLICATION_TYPESCRIPT_GUIDANCE, TASK_CONTEXT_HEADER, DELEGATED_SCOPE_GUIDANCE, delegatedTaskContext } from '../src/atoms/taskContext.js';
 import {
   calibrate,
   calibrationDetails,
@@ -146,6 +146,29 @@ describe('reading the model prefilter prompt back', () => {
 });
 
 describe('reading the model validation prompt back', () => {
+  it.each(['current', 'historical'] as const)('keeps multiline task text separate from runtime guidance in %s traces', async format => {
+    const { l1 } = atoms();
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'fixture' }));
+    const description = `Build the application.\n${TASK_CONTEXT_HEADER}\nThis literal heading is part of the requested UI.`;
+    await llmVerdict({ ctx, model: 'm', supervisorName: 'Cell', supervisorTier: 2,
+      subject: 'RESULT', child: l1, task: { description, constraints: ['Preserve data'] },
+      payload: { output: 'fixture', summary: 'fixture' }, groundTruthBlock: 'Host fixture.' });
+    let prompt = ctx.llm.calls[0]!.userContent;
+    if (format === 'historical') {
+      // Before the explicit boundary and TypeScript policy were introduced.
+      prompt = prompt.replace(`${TASK_CONTEXT_HEADER}\n${APPLICATION_TYPESCRIPT_GUIDANCE}\n`, '')
+        .replace(`${TASK_CONTEXT_HEADER}\n`, '');
+    }
+    const parsed = parseValidationPrompt(decision('validate-result', prompt));
+    expect(parsed?.request.task).toEqual({
+      description: format === 'current' ? description : description.replace(`${TASK_CONTEXT_HEADER}\n`, ''),
+      constraints: ['Preserve data'],
+    });
+    expect(parsed?.request.context?.join('\n')).toContain('Constraints: ["Preserve data"]');
+    if (format === 'current') expect(parsed?.request.context?.join('\n')).toContain(APPLICATION_TYPESCRIPT_GUIDANCE);
+  });
+
   it('recovers the result, the evidence lines the model read and the ground truth', async () => {
     const { l1 } = atoms();
     const ctx = makeCtx();

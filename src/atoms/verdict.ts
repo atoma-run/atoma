@@ -5,7 +5,7 @@ import { transportWitnesses } from '../contracts/witness.js';
 import { probeGroundTruth } from './groundTruth.js';
 import { BUILTIN_TOOL_NAMES, HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
 import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
-import { taskContextLines } from './taskContext.js';
+import { TASK_CONTEXT_HEADER, taskContextLines } from './taskContext.js';
 import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 import { TEXT_VERIFICATION_GUIDANCE } from '../contracts/taskExecution.js';
 import { renderTextLayouts } from './textLayout.js';
@@ -1026,6 +1026,7 @@ export async function llmVerdict(args: {
     args.subject === 'PLAN' && planKind === 'DIRECT'
       ? 'Plan representation: the host normalizes direct plans into subtasks and aggregation, including a one-entry subtasks array with concat. These fields do not imply delegation or parallel tool execution and are not a structural defect. Judge the proposed actions, not removal of this host-normalized wrapper.' : '',
     `Task: ${args.task.description}`,
+    TASK_CONTEXT_HEADER,
     ...taskContextLines(args.task),
     args.task.readOnly ? READ_ONLY_TASK_LINE : '',
     args.targetContext ? `Delegation target(s):\n${args.targetContext}` : '',
