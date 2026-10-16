@@ -52,6 +52,32 @@ describe('runCostBreakdown', () => {
     expect(breakdown.other.costUsd).toBe(16);
   });
 
+  it('names an unanswered call by what its pin was served as, not as a second $0 model', () => {
+    // Production 2026-10-16: a claude-cli call aborted before any response and
+    // seven Jev decisions never sent recorded no servedModel, and the overview
+    // drew `own:anthropic:haiku` and `typesafe:jev-1.13.0` as $0 models of their own.
+    const breakdown = runCostBreakdown(trace([
+      { kind: 'llm', role: 'execute', model: 'own:anthropic:haiku', servedModel: 'haiku', actor: { tier: 1 }, usage: usage(100, 10), costUsd: 0.5 },
+      { kind: 'llm', role: 'plan', model: 'own:anthropic:haiku', actor: { tier: 1 }, usage: usage(0, 0), costUsd: 0, error: 'Claude Code process aborted by user' },
+      { kind: 'llm', role: 'plan', model: 'own:anthropic:sonnet', actor: { tier: 2 }, usage: usage(0, 0), costUsd: 0, error: 'aborted' },
+      { kind: 'jev', role: 'prefilter', evaluator: 'typesafe:jev-1.13.0', servedModel: 'jev-1.13.0', usage: { inputTokens: 5, outputTokens: 0 }, costUsd: 0.001, requestCount: 1 },
+      { kind: 'jev', role: 'validate-plan', evaluator: 'typesafe:jev-1.13.0', usage: { inputTokens: 0, outputTokens: 0 }, costUsd: 0, requestCount: 0, failure: 'model review required' },
+    ], { l1: 'own:anthropic:haiku', l2: 'own:anthropic:sonnet', l3: 'own:anthropic:opus' }));
+    expect(breakdown.l1.models).toEqual([{ model: 'haiku', calls: 2, costUsd: 0.5 }]);
+    // No answered call to borrow a name from: the pin stays the honest name.
+    expect(breakdown.l2.models).toEqual([{ model: 'own:anthropic:sonnet', calls: 1, costUsd: 0 }]);
+    expect(breakdown.jev.models).toEqual([{ model: 'jev-1.13.0', calls: 2, costUsd: 0.001 }]);
+  });
+
+  it('keeps the request as the name when its answered calls disagree', () => {
+    const breakdown = runCostBreakdown(trace([
+      { kind: 'llm', role: 'execute', model: 'api:openai:m', servedModel: 'm-2026-01', actor: { tier: 1 }, usage: usage(1, 1), costUsd: 1 },
+      { kind: 'llm', role: 'execute', model: 'api:openai:m', servedModel: 'm-2026-02', actor: { tier: 1 }, usage: usage(1, 1), costUsd: 2 },
+      { kind: 'llm', role: 'plan', model: 'api:openai:m', actor: { tier: 1 }, usage: usage(0, 0), costUsd: 0, error: 'boom' },
+    ], { l1: 'api:openai:m', l2: 'api:openai:m', l3: 'api:openai:m' }));
+    expect(breakdown.l1.models.map(model => model.model)).toEqual(['m-2026-02', 'm-2026-01', 'api:openai:m']);
+  });
+
   it('is computed from the same bounded read as the run row', () => {
     const dir = mkdtempSync(join(tmpdir(), 'atoma-cost-'));
     const file = join(dir, 'run.json');

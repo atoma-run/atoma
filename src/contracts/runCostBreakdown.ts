@@ -113,6 +113,29 @@ function tierOfCall(model: string, rank: unknown, pins: ReadonlyMap<string, Read
   return own ?? 'other';
 }
 
+/**
+ * What each requested identity — an LLM event's pin, a Jev event's evaluator —
+ * was served as in this trace, when every answered call agrees. A call that
+ * never got an answer (a transport error before any response, a decision Jev
+ * declined to send) records no `servedModel`, and naming it by its request
+ * split one model into two legend rows, the second always $0: `haiku` beside
+ * `own:anthropic:haiku`, `jev-1.13.0` beside `typesafe:jev-1.13.0` (project
+ * 07864f7c, 2026-10-16). With no answer, or several, the request stays the name.
+ */
+function servedAs(events: readonly unknown[]): (kind: 'llm' | 'jev', requested: string) => string | undefined {
+  const served = new Map<string, string | null>();
+  for (const raw of events) {
+    const event = object(raw);
+    const requested = event['kind'] === 'llm' ? event['model'] : event['kind'] === 'jev' ? event['evaluator'] : undefined;
+    const answer = event['servedModel'];
+    if (typeof requested !== 'string' || !requested || typeof answer !== 'string' || !answer) continue;
+    const key = `${String(event['kind'])}\u0000${requested}`;
+    const known = served.get(key);
+    served.set(key, known === undefined || known === answer ? answer : null);
+  }
+  return (kind, requested) => served.get(`${kind}\u0000${requested}`) ?? undefined;
+}
+
 /** Attribute every priced call of one parsed trace document. */
 export function runCostBreakdown(trace: unknown): RunCostBreakdown {
   const run = object(trace);
@@ -126,7 +149,8 @@ export function runCostBreakdown(trace: unknown): RunCostBreakdown {
     }
   }
   const slices = Object.fromEntries(COST_SLICE_KEYS.map(key => [key, emptyAccumulator()])) as Record<CostSliceKey, SliceAccumulator>;
-  const events = Array.isArray(run['events']) ? run['events'] : [];
+  const events: readonly unknown[] = Array.isArray(run['events']) ? run['events'] : [];
+  const servedFor = servedAs(events);
   let requests = 0;
   for (const raw of events) {
     const event = object(raw);
@@ -135,11 +159,13 @@ export function runCostBreakdown(trace: unknown): RunCostBreakdown {
       const model = typeof event['model'] === 'string' && event['model'] ? event['model'] : 'unknown';
       const key = tierOfCall(model, object(event['actor'])['tier'], pins);
       // The served model is what the call was priced on; the pin stays the attribution.
-      const served = typeof event['servedModel'] === 'string' && event['servedModel'] ? event['servedModel'] : model;
+      const served = typeof event['servedModel'] === 'string' && event['servedModel'] ? event['servedModel']
+        : servedFor('llm', model) ?? model;
       add(slices[key], served, role, amount(event['costUsd']), object(event['usage']));
     } else if (event['kind'] === 'jev') {
+      const evaluator = typeof event['evaluator'] === 'string' && event['evaluator'] ? event['evaluator'] : 'jev';
       const model = typeof event['servedModel'] === 'string' && event['servedModel'] ? event['servedModel']
-        : typeof event['evaluator'] === 'string' && event['evaluator'] ? event['evaluator'] : 'jev';
+        : servedFor('jev', evaluator) ?? evaluator;
       add(slices.jev, model, role, amount(event['costUsd']), object(event['usage']));
       const count = event['requestCount'];
       if (typeof count === 'number' && Number.isInteger(count) && count >= 0) requests += count;
