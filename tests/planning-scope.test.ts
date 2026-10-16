@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
-import { PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from '../src/atoms/taskContext.js';
+import { APPLICATION_TYPESCRIPT_GUIDANCE, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from '../src/atoms/taskContext.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { makeCtx, jsonTextPair, jsonText } from './helpers.js';
@@ -32,6 +32,7 @@ describe('runtime planning scope for existing catalog agents', () => {
         expect(req.userContent).toContain(`Task: ${task.description}`);
         expect(req.userContent).toContain(PLANNING_SCOPE_GUIDANCE);
         expect(req.userContent).toContain(PROPORTIONATE_PLANNING_GUIDANCE);
+        expect(req.userContent).toContain(APPLICATION_TYPESCRIPT_GUIDANCE);
         expect(req.userContent.includes('ROOT_CHECKLIST')).toBe(!delegated);
         if (delegated) {
           expect(req.userContent).toContain(original.description);

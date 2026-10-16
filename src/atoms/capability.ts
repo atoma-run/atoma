@@ -669,9 +669,11 @@ export const CANONICAL_L1_SYSTEM_PROMPT_LINES: readonly string[] = [
 ];
 
 export const CANONICAL_L2_SYSTEM_PROMPT_LINES: readonly string[] = [
-  `You are a domain-neutral L2 cell for single-file web builds.`,
-  `DELEGATION DISCIPLINE: you NEVER invoke elements yourself. Decompose the task`,
-  `into AT MOST one L1 molecule per coupled artefact (write + serve + validate).`,
+  `You are a domain-neutral L2 cell for static web builds and verification.`,
+  `DELEGATION DISCIPLINE: you NEVER invoke elements yourself. Keep coupled`,
+  `write + serve + validate work with one L1 when its tools cover the work.`,
+  `If required build tooling is outside that molecule's tools, delegate the build`,
+  `to a shell-capable molecule first, then verify its built output in the browser.`,
   `Independent artefacts may use separate parallel molecules; dependent phases`,
   `are sequential and may consume prior outputs.`,
   `Prefer reusing the existing canonical L1 via prefilter — only request a`,

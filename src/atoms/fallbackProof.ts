@@ -3,6 +3,7 @@ import type { RunContext, Task } from '../core/types.js';
 import { proofObligationLines } from './L1Atom.js';
 import { WEB_DELIVERY_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, READABLE_SOURCE_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
 import { anyUncovered, checkProofCoverage, type ProofCoverage } from './proofCoverage.js';
+import { APPLICATION_TYPESCRIPT_GUIDANCE } from './taskContext.js';
 
 /**
  * A FALLBACK EXECUTOR'S PROOF OBLIGATIONS (owner decision 2026-10-01).
@@ -62,6 +63,7 @@ export function fallbackProofTurnContent(args: {
     STATEFUL_EVIDENCE_GUIDANCE,
     EXISTING_FILE_GUIDANCE,
     READABLE_SOURCE_GUIDANCE,
+    APPLICATION_TYPESCRIPT_GUIDANCE,
     ``,
     `Run ONLY the missing proof now, on the files as they are: validate_html with real "interactions"`,
     `(click, type, keypress, select by selector) and a smoke that only READS the state they produced.`,

@@ -5,6 +5,7 @@ import { L3Atom } from '../src/atoms/L3Atom.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { READABLE_SOURCE_GUIDANCE, READABLE_SOURCE_RULE } from '../src/atoms/prompts.js';
+import { APPLICATION_TYPESCRIPT_GUIDANCE } from '../src/atoms/taskContext.js';
 import { fallbackProofTurnContent } from '../src/atoms/fallbackProof.js';
 import { RECIPE_STEP_LIMITS, eventSkillBlock } from '../src/skills/events.js';
 import { FALLBACK_OPUS } from './tier-pins.js';
@@ -62,6 +63,7 @@ describe('readable source rule', () => {
       const plan = await molecule.plan({ description: 'Add a scheduler module' }, ctx);
       await molecule.execute({ description: 'Add a scheduler module' }, plan, ctx);
       expect(ctx.llm.calls.map((call) => call.userContent.includes(READABLE_SOURCE_GUIDANCE))).toEqual([reads, reads]);
+      for (const call of ctx.llm.calls) expect(call.userContent).toContain(APPLICATION_TYPESCRIPT_GUIDANCE);
     }
   });
 
@@ -81,7 +83,10 @@ describe('readable source rule', () => {
         { ...makeCtx(), llm: tissueLlm.llm, ...(withTools ? { tools: executor } : {}) });
       for (const calls of [cellLlm.byRole.get('fallback-execute') ?? [], tissueLlm.byRole.get('fallback-execute') ?? []]) {
         expect(calls.length).toBeGreaterThan(0);
-        for (const content of calls) expect(content.includes(READABLE_SOURCE_GUIDANCE)).toBe(withTools);
+        for (const content of calls) {
+          expect(content.includes(READABLE_SOURCE_GUIDANCE)).toBe(withTools);
+          expect(content).toContain(APPLICATION_TYPESCRIPT_GUIDANCE);
+        }
       }
     }
   });
@@ -89,6 +94,7 @@ describe('readable source rule', () => {
   it('reaches the proof turn and the recipe limits', () => {
     const turn = fallbackProofTurnContent({ task: { description: 'prove the page' }, coverage: [], previousSummary: 'built', servedUrl: null });
     expect(turn).toContain(READABLE_SOURCE_GUIDANCE);
+    expect(turn).toContain(APPLICATION_TYPESCRIPT_GUIDANCE);
     expect(RECIPE_STEP_LIMITS.join('\n')).toContain(READABLE_SOURCE_RULE[0]);
     expect(RECIPE_STEP_LIMITS[0]).toBe('Three things no recipe step changes.');
     expect(eventSkillBlock({ id: 'e', body: 'steps', trigger: 'edit_file-not-found' })).toContain(READABLE_SOURCE_RULE[0]);

@@ -24,6 +24,7 @@ import { acceptanceSchema, type AcceptanceInfo, type PhaseCoverageRecord, type T
 import { makeCtx, jsonText } from './helpers.js';
 import { makePlan, makeTools } from './helpers/factories.js';
 import { serverCodeDigest } from '../src/contracts/serverDigest.js';
+import { APPLICATION_TYPESCRIPT_GUIDANCE } from '../src/atoms/taskContext.js';
 
 const task: Task = { description: 'Build the page' };
 const floor = [{ obligation: 'dom-interaction' as const, deliverable: 'index.html' }];
@@ -345,6 +346,35 @@ describe('root delivery coverage', () => {
 });
 
 describe('one common root acceptance, independent of phase credit', () => {
+  it('reviews the runtime TypeScript policy beside observed compiler failures, without replaying the command', async () => {
+    const calls: string[] = [];
+    const base: ToolExecutor = {
+      has: name => name === 'run_shell',
+      execute: async (name) => {
+        calls.push(name);
+        return { stdout: 'src/app.ts(1,7): error TS2322: Type string is not assignable to number.', stderr: '', exitCode: 2 };
+      },
+    };
+    const ctx = { ...makeCtx(), tools: base, attempt: 1, attestations: createAttestationLog() };
+    const branch = forkBranch(ctx, 'build');
+    await branch.tools!.execute('run_shell', { command: 'npm run typecheck' });
+    ctx.llm.enqueue(req => {
+      expect(req.userContent).toContain(APPLICATION_TYPESCRIPT_GUIDANCE);
+      expect(req.userContent).toContain('TS2322');
+      expect(req.userContent).toContain('npm run typecheck');
+      return { text: jsonText({ approved: false, reasoning: 'The final typecheck failed with TS2322.',
+        scope: 'ephemeral', modifications: { additionalContext: 'Fix the type error and rerun the typecheck.' } }),
+      stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    const accepted = await acceptRootResult({ actor: new Actor(3, false, []),
+      task: { description: 'Build a new browser application.' },
+      result: { ...result, evidence: executorEvidence({}, branch) }, delivery: 'files',
+      ctx, floor: [], phaseCoverage: [] });
+    expect(accepted).toMatchObject({ approved: false, basis: 'validation-call' });
+    expect(calls).toEqual(['run_shell']);
+    expect(ctx.llm.calls).toHaveLength(1);
+  });
+
   it('derives a blinded text reference before judging the complete candidate and checklist', async () => {
     const ctx = context();
     const codingTask: Task = { description: 'Define Hamming distance and compare 0111010 with 1001011.',
