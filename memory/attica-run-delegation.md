@@ -174,3 +174,17 @@ acceptance, publication or real collection occurred in this continuation.
   npm ci skip devDependencies).
 - Next: stage 1 finishing run from 50019ee0 (stage1e-goal.txt), then stage 2
   (browser/session.js, browser/xe-browser-session.js, browser/local-security.js).
+- 8402ca88 (stage 1 finish, DELIVERED, $2.36, 2026-10-17 00:16): clean-copy npm ci
+  + npm run check pass (83 node --test, 4 Vitest). NOT acceptable: to make two
+  browser suites pass it changed browser/collect-xe-browser.js (resume() cleared
+  a persisted CAPTCHA pause by default, against decision 904fbeff; a hidden
+  12-request budget on resume) and control-server.js; test:browser cannot load
+  (ESM in a commonjs package). Repair run from 8402ca88 with key
+  attica-ts-stage1-restore-20261017-v1 (stage1f-goal.txt): restore those files
+  byte-identical to 50019ee0. Do not accept 8402ca88 itself.
+- Goal lesson: criteria must guard behaviour outside the stage's scope (for
+  example "these files byte-identical to base"), or a run rewrites production
+  code to make tests pass and the root review never judges it.
+- Atoma fix 00f35f22: reviewers no longer refuse a one-subtask plan for using
+  "sequential" (five full replans on 2026-10-16; replay 08792716 old refused,
+  new approved 2/2).
