@@ -11,6 +11,7 @@ const CRITERIA_PER_REVIEW = 2;
 export const CRITERIA_REVIEW_PROMPT = [
   'Review only the supplied acceptance criteria against the original task and host-supplied evidence. You are not shown the candidate success report or any earlier verdict. Do not infer a whole-task approval from this limited review.',
   'For EACH criterion, separate its required parts and locate concrete support for each in the evidence. Explain missing support as unverified, not as a demonstrated implementation defect. A compound criterion is met only when all its required parts are supported. Cite the evidence location and actual assertion, input/output or source passage in its reason.',
+  'Keep each judgment local to its criterion: a failing scheduler test does not refute an independently established file deletion or lock-release test. Shared evidence may support several criteria, but attach a failure only where it contradicts that criterion. Before claiming an assertion is absent, check all current excerpts and equivalent assertions supplied for that file; do not require a particular spelling, test name or section heading.',
   'Complete the inventory of required parts for BOTH criteria before deciding. Report every unsupported part visible in this review together, not only the first gap. Check separately required values and boundaries against the actual assertions; a checked aggregate need not establish its components. Keep the obligations anchored to the original contract: earlier refusal wording, remediation instructions and test names cannot create new requirements or certify a repair.',
   'Match proof to the requirement: a document can be established by its actual content, a static property by source inspection, behavior by observed execution. An explicit requirement for executed tests needs the relevant assertions AND their execution. Do not demand execution for prose, a particular framework, fresh tests when valid existing evidence suffices, or features the task does not ask for.',
   WEB_DELIVERY_GUIDANCE,
@@ -31,7 +32,7 @@ export async function reviewAcceptanceCriteria(args: {
   const inputs = { ...args.task.inputs };
   for (const key of ['acceptanceChecklist', 'rootAcceptanceRefusal', 'rootRemediationScope',
     'previousStepResult', 'previousStepSummary', 'previousStepOutputs', 'previousPhaseObservations',
-    'previousRunResults']) delete inputs[key];
+    'previousRunResults', 'previousRunLanding']) delete inputs[key];
   args.ctx.signal?.throwIfAborted();
   const batches: AcceptanceChecklist[] = [];
   for (let offset = 0; offset < args.checklist.length; offset += CRITERIA_PER_REVIEW) batches.push(args.checklist.slice(offset, offset + CRITERIA_PER_REVIEW));

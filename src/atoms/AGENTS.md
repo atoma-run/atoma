@@ -546,6 +546,10 @@ load-bearing.
   ([incident](../../records/incidents/verification-replay-2026-09-15.md)).
 - Keep `VALIDATION_SYSTEM_PROMPT` explicit that L1 plans should contain concrete
   tool-oriented proposed actions while L2/L3 must delegate.
+  Direct plans carry the parser's `subtasks`/`aggregation` wrapper; validation
+  names it as host normalization, never a reason to replan. Phase criteria
+  distinguish planned checks, static evidence and executed behavior. Focused
+  review excludes prior landing diagnoses and judges each criterion separately.
 
 ## Mechanical result gates
 

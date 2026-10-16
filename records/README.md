@@ -20,6 +20,7 @@ record in [`incidents/`](incidents/) retains its original inline paths, which
 name `docs/` locations from before 2026-10-15.
 
 - [Incidents](incidents/): dated run evidence and failure investigations.
+- [Attica validation context — October 16](incidents/attica-validation-context-2026-10-16.md): conflicting proof instructions, normalized plans, and retained test evidence.
 - [Measurements](measurements/): calibration readings and measured proposals.
 - [Plans](plans/): working plans whose items are being delivered.
 - [Code review index](code-reviews.md): reviewed revisions and correction windows.

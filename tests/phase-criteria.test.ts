@@ -127,7 +127,7 @@ describe('acceptance criteria reach the phase that proves them', () => {
     const delegated: Task = { description: 'p', originalTask: original, criteria: root.criteria };
     const lines = taskContextLines(delegated).join('\n');
     expect(lines).toContain('Acceptance criteria this phase must prove');
-    expect(lines).toContain('Prove each part with an executed check');
+    expect(lines).toContain('required behavior needs observed execution and the relevant assertions');
     const reasoning = taskContextLines({ ...delegated, executionMode: 'reasoning' }).join('\n');
     expect(reasoning).toContain('answer every one explicitly');
     expect(reasoning).not.toContain('Prove each part with an executed check');
