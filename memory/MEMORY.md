@@ -6,7 +6,7 @@
 - [Verification speed](verification-speed.md) — targeted tests + checks before an ordinary push; CI gates the deploy
 - [No cooling-off](no-cooling-off.md) — fix incidents in-session, but adversarially review every gate/prompt rule/parser salvage first
 - [Beta rules not fixed](beta-rules-not-fixed.md) — 2026-10-16: I decide owner-level design choices myself; documented rules and AGENTS.md can change if evidence says so
-- [Shared checkout staging](shared-checkout-staging.md) — never stage from a status listing; never reset --hard/stash the shared tree; a peer can sweep my hunk into their push (2026-10-15)
+- [Shared checkout staging](shared-checkout-staging.md) — never stage from a status listing; never reset --hard/stash/pull --rebase the shared tree; push only when origin/main..HEAD is mine (2026-10-16)
 - [Worktree junction hazard](worktree-junction-hazard.md) — remove node_modules junctions before `git worktree remove --force`
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
@@ -20,6 +20,8 @@
 - [Supervisor mender state](supervisor-mender-state.md) — no mender PR since #20: analyst drops proposedFix; p8 citation pass shipped, cite-only proposal open
 - [Decision calibration 2026-10-10](jev-calibration-2026-10-10.md) — threshold readings, effort bar 0.6 shipped, holdout reading ≈10-27
 - [Edge compression state](edge-compression-state.md) — 2026-10-14: nginx gzip+brotli live, MCP stays identity, ETag/304 on polled lists
+
+- [Directory submission state](directory-submission-state.md) — 2026-10-16: legal pages + domain route live; owner owes reviewer account, OpenAI verification, token, demo, legal review
 
 ## Machines and hosts
 - [Machine setup](machine-setup.md) — the Windows machine: WSL2/Debian, Node 24 at ~/.local/node24, disk-space rule

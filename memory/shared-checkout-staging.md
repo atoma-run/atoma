@@ -1,11 +1,11 @@
 ---
 name: shared-checkout-staging
-description: "Shared checkout with peer sessions (Codex too): never stage from a git status listing, never reset --hard/stash the tree; a peer can sweep MY hunk into THEIR push too (2026-10-01, 2026-10-04, 2026-10-15)"
+description: "Shared checkout with peer sessions (Codex too): never stage from a git status listing, never reset --hard/stash the tree; a peer can sweep MY hunk into THEIR push too (2026-10-01, 2026-10-04, 2026-10-15, 2026-10-16)"
 metadata:
   node_type: memory
   type: feedback
   originSessionId: e82e9669-4aba-430d-ba86-145d0c444324
-  modified: 2026-10-15T04:40:00.000Z
+  modified: 2026-10-16T13:00:00.000Z
 ---
 
 On 2026-10-01 I staged with `git add -- $(git status --porcelain | awk '{print $2}')`. The checkout C:\Users\mgf\dev\atoma is shared with the peer session (atoma-e4), so that command swept four of the peer's uncommitted viz files into my commit: src/viz/client-gl/{GpuApp,OrgModelsForm,PlatformLimitsForm}.tsx and the en.json locale. I caught it before pushing. I ran `git reset --soft HEAD~1` and `git restore --staged <their files>`, then recommitted. Their working tree was untouched.
@@ -67,3 +67,15 @@ The index is shared too (2026-10-15, second incident). I ran `git add <my paths>
 - Commit my paths with `git commit --only -- <paths>`: it takes exactly those paths and leaves a peer's staged entries staged.
 - If a mixed commit is local only, run `git reset --soft HEAD~1` (the index stays as it was) and recommit with `--only`.
 - After a peer's reset, find a dropped local commit with `git reflog`. Check its diff is still in the working tree before recommitting.
+
+Fifth, 2026-10-16: I broke the "never pull --rebase on the shared tree" rule
+above. The `pull --rebase` rewrote a peer's UNPUSHED commit (21235e1f, the
+loading crystal, with two red viz-mcp-access tests) into 816307e8, and my next
+local commit landed on top of it, so pushing HEAD would have shipped their
+unfinished work. A clean-worktree `npm test` caught the red tests. I
+cherry-picked my commit alone onto origin/main in a scratch worktree and pushed
+that (945ded5c). The shared tree still holds their commit plus my duplicate,
+which their own rebase drops as already upstream.
+
+- Before any push from the shared tree, `git log --oneline origin/main..HEAD`
+  must list only my commits; otherwise push from a scratch worktree.
