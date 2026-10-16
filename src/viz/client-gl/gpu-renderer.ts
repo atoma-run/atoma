@@ -226,6 +226,8 @@ export interface GpuDataSnapshot {
     notice: string | null;
     /** Provider whose OAuth redirect is in flight; that button shows a spinner. */
     pendingProvider?: string | null;
+    /** The server serves the operator's privacy, terms and support pages. */
+    legal?: boolean;
   } | null;
   loading: boolean;
   error: string | null;

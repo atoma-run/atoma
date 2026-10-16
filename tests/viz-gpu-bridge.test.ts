@@ -268,6 +268,25 @@ describe('full-GL minimal DOM bridge', () => {
     expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
   });
 
+  it('mirrors the legal links as real anchors only when the server serves them', () => {
+    useGpuStore.setState({ entered: false });
+    const props = {
+      authSnapshot: null,
+      runs,
+      releaseVersion: '9.8.7',
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+      onSelectRun: vi.fn(),
+      loginLinks: [{ id: 'github', label: 'GitHub', href: '/auth/login?provider=github' }],
+    };
+    const { unmount } = render(createElement(GpuDomBridge, { ...props, legalLinks: true }));
+    const legal = screen.getByRole('navigation', { name: 'Legal' });
+    expect([...legal.querySelectorAll('a')].map((anchor) => [anchor.textContent, anchor.getAttribute('href')]))
+      .toEqual([['Privacy', '/privacy'], ['Terms', '/terms'], ['Support', '/support']]);
+    unmount();
+    render(createElement(GpuDomBridge, props));
+    expect(screen.queryByRole('link', { name: 'Privacy' })).not.toBeInTheDocument();
+  });
+
   it('replaces the provider label with a spinner when that login starts', async () => {
     const user = userEvent.setup();
     const onLoginStart = vi.fn();

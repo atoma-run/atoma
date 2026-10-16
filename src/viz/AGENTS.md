@@ -800,6 +800,12 @@ npm run viz:mark-turn:analyze
   (`LegalFacts`), and a test pins the contact, address and run retention to
   `docs/platform-commons-terms.md`. They are what the plugin directories cite
   (the Codex manifest's support, privacy and terms URLs).
+- The arrival gate links them below the login, on the canvas
+  (`welcome.legal.*` link regions, navigated by GpuApp) and as anchors in the
+  DOM bridge, only when an anonymous `/auth/whoami` says `legal: true` — the
+  same `servesLegalPages` rule. The list lives in the renderer-free
+  `client-gl/legal-links.ts` so the eager bundle never imports Pixi for it.
+  `viz:shot -- --login-gate` draws that gate and taps the canvas Privacy link.
 
 ## Intentional choices and rejected shortcuts
 

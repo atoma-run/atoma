@@ -1200,6 +1200,7 @@ describe('the legal pages', () => {
     const sitemap = await (await fetch(`${loopback}/sitemap.xml`)).text();
     for (const path of LEGAL_PATHS) expect(sitemap).toContain(`<loc>https://atoma.run${path}</loc>`);
     expect(await (await fetch(`${loopback}/`)).text()).toContain('href="/privacy"');
+    expect(await (await fetch(`${loopback}/auth/whoami`)).json()).toMatchObject({ authenticated: false, legal: true });
   });
 
   it('answer 404 on any other deployment, which must not publish this operator as its own', async () => {
@@ -1209,6 +1210,7 @@ describe('the legal pages', () => {
     for (const path of LEGAL_PATHS) expect((await fetch(`${origin}${path}`)).status, path).toBe(404);
     expect(await (await fetch(`${origin}/sitemap.xml`)).text()).not.toContain('/privacy');
     expect(await (await fetch(`${origin}/`)).text()).not.toContain('href="/privacy"');
+    expect(await (await fetch(`${origin}/auth/whoami`)).json()).toMatchObject({ authenticated: false, legal: false });
   });
 
   it('state the retention the code applies, and the contact the service terms publish', () => {

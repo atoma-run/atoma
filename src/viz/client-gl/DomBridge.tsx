@@ -1,5 +1,6 @@
 import { ProjectSettingsAccessible } from './ProjectSettingsAccessible.js';
 import { ButtonIcon } from './ButtonIcon.js';
+import { WELCOME_LEGAL_LINKS } from './legal-links.js';
 import { previewControlLabel } from './renderer/preview-control.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
@@ -179,6 +180,7 @@ export function DomBridge({
   loginLinks = null,
   pendingLoginProvider = null,
   onLoginStart,
+  legalLinks = false,
   t,
   onSelectRun,
   onEnter,
@@ -215,6 +217,8 @@ export function DomBridge({
   /** Provider whose OAuth redirect is in flight — that anchor shows a spinner. */
   pendingLoginProvider?: string | null;
   onLoginStart?: (providerId: string) => void;
+  /** The arrival gate's privacy, terms and support anchors, where the server serves them. */
+  legalLinks?: boolean;
   t: (key: string, vars?: Record<string, unknown>) => string;
   onSelectRun: (id: string) => void;
   onEnter?: () => void;
@@ -420,6 +424,11 @@ export function DomBridge({
         ) : (
           <button onClick={() => (onEnter ?? enter)()}><ButtonIcon kind="forward" />{t('welcome.continue')}</button>
         )}
+        {legalLinks ? (
+          <nav aria-label={t('welcome.legal.label')}>
+            {WELCOME_LEGAL_LINKS.map((link) => <a key={link.id} href={link.href}>{t(link.id)}</a>)}
+          </nav>
+        ) : null}
       </div>
     );
   }

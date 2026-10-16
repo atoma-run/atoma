@@ -3054,6 +3054,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
             id: provider.id,
             label: provider.label,
           })),
+          // The arrival gate links the operator's legal pages only where
+          // they are served, so no other deployment shows a dead link.
+          legal: servesLegalPages(AUTH_RUNTIME.publicOrigin),
         });
         return;
       }

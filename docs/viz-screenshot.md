@@ -60,6 +60,7 @@ npm run viz:shot -- --debug                         # page console + failed requ
 npm run viz:shot -- --width 528 --height 800        # narrow/compact layouts
 npm run viz:shot -- --auth --select-first --touch-probe  # native mobile swipe regression
 npm run viz:shot -- --handheld                      # phone: notice, acknowledgement, then login
+npm run viz:shot -- --login-gate                    # anonymous gated arrival with the legal links (whoami stubbed)
 ```
 
 PNGs default to `screenshots/<view>-<auth-mode>-<camera>.png` (git-ignored). Viewport

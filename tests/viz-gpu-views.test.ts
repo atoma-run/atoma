@@ -125,6 +125,7 @@ import {
   interpolateAtomaMarkPlacement,
 } from '../src/viz/client-gl/renderer/atoma-mark.js';
 import { drawWelcome, welcomeLayout, WELCOME_SHOW_INSPECT } from '../src/viz/client-gl/renderer/views/welcome.js';
+import { WELCOME_LEGAL_LINKS } from '../src/viz/client-gl/legal-links.js';
 import {
   pinMarkElapsedMs,
   setMarkBeadVisible,
@@ -1128,6 +1129,38 @@ describe('drawWelcome as the login gate', () => {
     expect(
       ctx.texts.some((text) => text.value === I18N_CATALOGS.en['login.noProviders'])
     ).toBe(true);
+  });
+});
+
+describe('drawWelcome legal links', () => {
+  const LOGIN = { providers: [{ id: 'github', label: 'GitHub' }], notice: null };
+
+  it('draws Privacy, Terms and Support as centred links above the version, below the login', () => {
+    for (const [width, height, handheld] of [[1280, 800, false], [390, 844, true], [1280, 560, false]] as const) {
+      const ctx = createRecordingCtx();
+      drawWelcome(ctx, makeSnapshot({ entered: false, handheld }, { login: { ...LOGIN, legal: true } }), width, height);
+      const links = ctx.links.filter((link) => link.id.startsWith('welcome.legal.'));
+      expect(links.map((link) => link.id)).toEqual(WELCOME_LEGAL_LINKS.map((link) => link.id));
+      expect(links.map((link) => link.label)).toEqual(['Privacy', 'Terms', 'Support']);
+      const layout = welcomeLayout(width, height, handheld, true);
+      const left = links[0]!.x;
+      const right = links[2]!.x + links[2]!.width;
+      expect(Math.abs((left + right) / 2 - width / 2)).toBeLessThanOrEqual(1);
+      expect(left).toBeGreaterThan(0);
+      expect(right).toBeLessThan(width);
+      for (const link of links) {
+        expect(link.y).toBe(layout.legalY);
+        expect(link.y + link.height).toBeLessThan(layout.versionY - layout.versionHeight);
+      }
+      const lowestControl = Math.max(...ctx.buttons.map((button) => button.y + button.height));
+      expect(lowestControl).toBeLessThan(layout.legalY);
+    }
+  });
+
+  it('draws none where the server does not serve the pages', () => {
+    const ctx = createRecordingCtx();
+    drawWelcome(ctx, makeSnapshot({ entered: false }, { login: LOGIN }), 1280, 800);
+    expect(ctx.links.filter((link) => link.id.startsWith('welcome.legal.'))).toEqual([]);
   });
 });
 

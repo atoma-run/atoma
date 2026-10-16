@@ -1,4 +1,5 @@
 import { useProjectDeployment } from './project-deployment.js';
+import { WELCOME_LEGAL_LINKS } from './legal-links.js';
 import { useProjectConnectors } from './project-connectors.js';
 import { FilePreview } from './FilePreview.js';
 import { CHEVRON_CSS_VARS } from './button-icons.js';
@@ -156,6 +157,7 @@ function GpuAppContent({
     snapshot: authSnapshot,
     gate: authGate,
     providers: authProviders,
+    legal: authLegal,
     activate: activateAuth,
   } = useAuthController();
   // The arrival gate doubles as the login when the server says the gate is
@@ -377,9 +379,10 @@ function GpuAppContent({
             providers: authProviders,
             notice: loginParams.notice,
             pendingProvider: pendingLoginProvider,
+            legal: authLegal,
           }
         : null,
-    [authProviders, gateBlocked, loginParams.notice, pendingLoginProvider]
+    [authLegal, authProviders, gateBlocked, loginParams.notice, pendingLoginProvider]
   );
 
   useEffect(() => {
@@ -1119,6 +1122,11 @@ function GpuAppContent({
       store.selectDocsTheme(id.slice('docs.theme.'.length) as DocsThemeKey);
       return;
     }
+    const legalLink = WELCOME_LEGAL_LINKS.find((link) => link.id === id);
+    if (legalLink) {
+      window.location.assign(legalLink.href);
+      return;
+    }
     if (id.startsWith('login.provider.')) {
       if (pendingLoginProvider) return;
       setPendingLoginProvider(id.slice('login.provider.'.length));
@@ -1429,6 +1437,7 @@ function GpuAppContent({
           }
           pendingLoginProvider={pendingLoginProvider}
           onLoginStart={setPendingLoginProvider}
+          legalLinks={login?.legal === true}
           t={t}
           onSelectRun={state.selectRun}
           onEnter={arrive}

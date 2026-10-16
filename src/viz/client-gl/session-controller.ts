@@ -55,6 +55,8 @@ export interface AuthController {
   snapshot: AuthUiSnapshot | null;
   gate: AuthGateStatus;
   providers: AuthProviderOption[];
+  /** The server serves its operator's privacy, terms and support pages. */
+  legal: boolean;
   activate: (id: string) => void;
 }
 
