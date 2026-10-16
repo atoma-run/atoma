@@ -122,6 +122,14 @@ it('keeps a healthy replacement when retiring its predecessor fails', async () =
   expect(service.status(viewer, projectId).state).toBe('ready');
   expect(service.deps.store.list().find(row => row.deploymentId === prior.deploymentId)?.error).toBe('cleanup-failed');
 });
+it('follows a relay republished on a new port while the application stays healthy', async () => {
+  // A Docker restart (2026-10-16) republishes the relay's loopback port;
+  // a ready row kept the old one and the gateway proxied to nothing.
+  publish(); await service.deploy(viewer, projectId, input()); await service.idle();
+  launcher.inspectHosting.mockResolvedValueOnce({ hostPort: 23456, image: 'runtime@sha256:abc' });
+  await service.refreshHealth();
+  expect(service.deps.store.list().find(r => r.state === 'ready')?.hostPort).toBe(23456);
+});
 it('does not resurrect a stopped application from an in-flight health probe', async () => {
   publish(); await service.deploy(viewer, projectId, input()); await service.idle();
   let complete!: (value: boolean) => void;

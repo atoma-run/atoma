@@ -186,7 +186,10 @@ export class HostingService {
         if (this.mutating.has(row.projectId) || current?.state !== row.state) continue;
         const next = healthy ? { ...row, ...handle, state: 'ready' as const, error: null }
           : { ...row, state: 'failed' as const, error: 'runtime-unavailable' as const, hostPort: null };
+        // A restarted engine republishes the relay on a new loopback port while
+        // the application stays healthy: the gateway proxies to row.hostPort.
         if (next.state !== row.state) { this.deps.store.update(next, row.state); this.event(next); }
+        else if (healthy && next.hostPort !== row.hostPort) this.deps.store.update(next, row.state);
       }
     } finally { this.healthBusy = false; }
   }
