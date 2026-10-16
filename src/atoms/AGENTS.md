@@ -14,11 +14,15 @@ Neighbours:
 
 ## Supervision protocol
 - ONE LADDER PER ROOT PHASE (owner decision 2026-10-10, judge what exists): a
-  tissue that refuses its root phase's result when the cell's own fallback made
-  it, or held back a dependent (`ownFallbackBlockedBy`), does not re-run the
-  phase; `handUpRefused` hands it up marked (`phaseBudgetSpent`) and
-  `phase-budget-spent` forces root review. Run bad74240 ran a spent ladder
-  twice; a per-phase counter starved multi-subtask phases.
+  tissue that refuses a root phase whose cell's ladder ended in its last-resort
+  fallback — for the phase or any subtask, or in a mutualized peer's
+  (`spentLadder`, written by superviseLoop's fallback return, carried by
+  `withSpentLadder`, relayed by `relayPeerLadder`) — does not re-run it when
+  root acceptance will judge the run (`ctx.rootAcceptance`); `handUpRefused`
+  hands the whole phase up marked (`phaseBudgetSpent`) and `phase-budget-spent`
+  forces root review. Run bad74240 ran a spent ladder twice; a per-phase
+  counter starved multi-subtask phases, a spent rung does not; without a root
+  judge the tissue retries. `isOwnFallback` is the one provenance predicate.
 - `superviseLoop` is the only child plan → validate → execute → validate loop.
   Root L3 plans also get mandatory tool-free contract review on `modelForTier(2)`
   (own cap and effort, src/core; a refusal costs a top-tier replan); a reviewer
@@ -675,6 +679,16 @@ Read the archived sections before changing something that merely looks odd.
   recipe: 24 of the model's 42 credited picks were misroutes, 19 under 0.5.
 - Do not introduce plan templating until a typed instantiation/validation layer
   exists; free-form substitution is another unvalidated router.
+- A spent ladder is a STAMP written where a ladder ends, never derived (G3,
+  review 2026-10-16). Refused: deriving it from `viaFallback` (`selfExecute`
+  stamps it on a null-strategy or in-flight peer path that walked no ladder);
+  counting fallbacks or one more tissue retry (the refused counter);
+  re-dispatching only the subtasks that did not fall back (a fragment);
+  attributing the tissue's refusal to one part (prose); `ladderSpent` reading
+  `cell.peers` (a peer never used for this phase); rewriting a mutualized
+  `producedBy` (false provenance); a hand-up without root acceptance (delivered
+  unread). The `[A, C]` reach lands by analogy, with a pre-registered count:
+  [record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-spent-ladders-that-are-not-recognised).
 - A read-only phase is RESTORED when it ends, never refused its writes. The
   refusal was built and reviewed first (2026-09-30): a verifier that found a
   real defect was coached by the internal-validation gate to fix what the

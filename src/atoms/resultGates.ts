@@ -14,6 +14,7 @@ import { extractRecordedProbes, recordedProbesFromWitnesses } from '../contracts
 import { pathHeldNoFile } from '../contracts/toolOutput.js';
 import { resultHasSuccessfulToolAction } from '../skills/lifecycle.js';
 import { parentTestRejection, parentTestReviewFinding, parentTestWorkspaceFinding } from '../core/parentTests.js';
+import { isOwnFallback, spentOn } from '../core/phaseBudget.js';
 
 /**
  * The mechanical RESULT gates, as ONE declarative table.
@@ -462,7 +463,10 @@ const RESULT_GATES: readonly ResultGate[] = [
         // unvalidated, so the tier judging it is the first to read it. Run
         // 1d42ac2a (2026-10-03): a cell's fallback answered "Unverified and
         // incomplete" and the tissue's trust fast path approved the phase.
-        env.result.producedBy.viaFallback && env.result.producedBy.name === env.childName
+        // Since G3 (review 2026-10-16) also when the fallback is only PART of
+        // the result — an aggregate, or a peer's relayed through a
+        // mutualization — read from the typed stamp the ladder's end wrote.
+        isOwnFallback(env.result, env.childName)
           ? {
               reasoning:
                 `this is ${env.childName}'s own last-resort fallback, which no supervisor has validated: ` +
@@ -471,7 +475,17 @@ const RESULT_GATES: readonly ResultGate[] = [
                 'the fallback result shows every requirement of its task met in its recorded evidence; ' +
                 'anything it reports as unverified or incomplete is a reason to reject',
             }
-          : null
+          : env.result.spentLadder?.by === env.childName
+            ? {
+                reasoning:
+                  `part of this result (${spentOn(env.result.spentLadder.on)}) is ${env.childName}'s own last-resort fallback` +
+                  `${env.result.spentLadder.via !== undefined ? `, run in ${env.result.spentLadder.via}` : ''}, ` +
+                  'which no supervisor has validated',
+                coaching:
+                  'judge that part against its task on its recorded evidence; ' +
+                  'anything it reports as unverified or incomplete is a reason to reject',
+              }
+            : null
       ),
   },
   {
@@ -649,8 +663,7 @@ export function withoutExecutorLoopFacts(result: Result): Result {
  * its loop, and the tier above must (review of 5f66437b).
  */
 export function withOwnFallbackLoopFacts(aggregate: Result, subResults: readonly Result[], atomName: string): Result {
-  const own = subResults.some((result) =>
-    result.toolBudgetExhausted && result.producedBy.viaFallback && result.producedBy.name === atomName);
+  const own = subResults.some((result) => result.toolBudgetExhausted && isOwnFallback(result, atomName));
   return own && !aggregate.toolBudgetExhausted ? { ...aggregate, toolBudgetExhausted: true } : aggregate;
 }
 

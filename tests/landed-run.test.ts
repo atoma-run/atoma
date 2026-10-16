@@ -6,7 +6,7 @@ import Database from 'better-sqlite3';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
 import { dependencyBlocker, dispatchWithAggregation, keptWithoutSynthesis, markLanded, type BlockedSubtask } from '../src/atoms/dispatch.js';
-import { ladderSpent } from '../src/core/phaseBudget.js';
+import { ladderSpent, withSpentLadder } from '../src/core/phaseBudget.js';
 import { parentTestSuiteDigest, type HeldParentTestObservation } from '../src/contracts/parentTests.js';
 import { MIN_PHASE_LANDING_MS, outOfPhaseBudget } from '../src/core/limits.js';
 import { PhaseBoundaryPause } from '../src/contracts/runCheckpoint.js';
@@ -434,7 +434,7 @@ describe('a parallel dispatch with a branch that failed its typed checks', () =>
       'document the CLI (not started: its prerequisite "wire add into the CLI" was not started either, ' +
       'behind "write add.ts", which failed its parent-owned acceptance suite)');
     expect(outcome.blocked[1]!.rootCauses).toEqual([
-      { index: 0, description: 'write add.ts', cause: 'failed-suite', ownFallbackOf: DISPATCHER },
+      { index: 0, description: 'write add.ts', cause: 'failed-suite' },
     ]);
   });
 
@@ -497,11 +497,11 @@ describe('a parallel dispatch with a branch that failed its typed checks', () =>
 });
 
 describe('what a dependency landing says about itself', () => {
-  const blocked = (entry: string, ownFallbackOf?: string): BlockedSubtask => ({
+  const blocked = (entry: string): BlockedSubtask => ({
     subtask: { description: entry.split(' (')[0]! },
     index: 1,
     entry,
-    rootCauses: [{ index: 0, description: 'write add.ts', cause: 'failed-suite', ...(ownFallbackOf ? { ownFallbackOf } : {}) }],
+    rootCauses: [{ index: 0, description: 'write add.ts', cause: 'failed-suite' }],
   });
 
   it('keeps a budget-only landing byte for byte', () => {
@@ -511,20 +511,21 @@ describe('what a dependency landing says about itself', () => {
       'INCOMPLETE — the run deadline landed this plan with 1 unfinished phase(s) that did not complete with an accepted result: ' +
       'write the README. Delivered so far: wrote index.html');
     expect(marked).not.toHaveProperty('blockedPhases');
-    expect(marked).not.toHaveProperty('ownFallbackBlockedBy');
+    expect(marked).not.toHaveProperty('spentLadder');
   });
 
   it('names the held-back phases in their own clause, in both fields', () => {
     const entry = 'wire add (not started: its prerequisite "write add.ts" failed its parent-owned acceptance suite)';
 
-    const marked = markLanded(result('add.ts written'), [], [blocked(entry, DISPATCHER)]);
+    const marked = markLanded(result('add.ts written'), [], [blocked(entry)]);
 
     expect(marked.summary).toBe(
       `INCOMPLETE — 1 phase(s) were not started because a phase they depend on failed its typed checks: ${entry}. ` +
       'Delivered so far: add.ts written');
     expect(marked.unfinishedPhases).toEqual([entry]);
     expect(marked.blockedPhases).toEqual([entry]);
-    expect(marked.ownFallbackBlockedBy).toBe(DISPATCHER);
+    // The ladder fact is the supervise loop's, carried by `withSpentLadder`: a landing never derives it.
+    expect(marked).not.toHaveProperty('spentLadder');
     expect(isLanded(marked)).toBe(true);
   });
 
@@ -537,7 +538,7 @@ describe('what a dependency landing says about itself', () => {
     expect(marked.unfinishedPhases).toEqual(['nested', 'package', 'docs (not started: …)']);
     expect(marked.blockedPhases).toEqual(['nested', 'docs (not started: …)']);
     expect(marked.blockedPhases!.every((entry) => marked.unfinishedPhases!.includes(entry))).toBe(true);
-    expect(marked).not.toHaveProperty('ownFallbackBlockedBy');
+    expect(marked).not.toHaveProperty('spentLadder');
   });
 
   it('keeps the spent mark and the held-back phases when a synthesis could not finish', () => {
@@ -551,12 +552,15 @@ describe('what a dependency landing says about itself', () => {
     expect(kept.unfinishedPhases).toEqual(['b', 'synthesis of 2 sub-results (its landing window closed)']);
   });
 
-  it('spends the cell\'s ladder when its own fallback held dependents back, whatever the plan shape', () => {
+  it('spends the cell\'s ladder when a sub-result is its own spent fallback, whatever the plan shape', () => {
+    const fallback: Result = { ...ownFallback('add.ts written, suite red'), spentLadder: { by: DISPATCHER, on: ['write add.ts'] } };
     const aggregate: Result = { ...result('two branches'), producedBy: { tier: 2, name: DISPATCHER, viaFallback: false } };
 
+    const carried = withSpentLadder(aggregate, [fallback, result('changelog')], DISPATCHER);
+
     expect(ladderSpent(aggregate, DISPATCHER)).toBe(false);
-    expect(ladderSpent({ ...aggregate, ownFallbackBlockedBy: DISPATCHER }, DISPATCHER)).toBe(true);
-    expect(ladderSpent({ ...aggregate, ownFallbackBlockedBy: 'Phloem' }, DISPATCHER)).toBe(false);
+    expect(ladderSpent(carried, DISPATCHER)).toBe(true);
+    expect(ladderSpent(carried, 'Phloem')).toBe(false);
   });
 
   it('explains a landing with the budget phases and the held-back ones apart, for the next run too', () => {

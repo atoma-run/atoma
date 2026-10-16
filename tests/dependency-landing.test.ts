@@ -153,7 +153,7 @@ describe('a cell whose own fallback failed its suite, under a root phase', () =>
   ] as const)('%s: B never runs, the cell ladder runs once, and the whole phase goes up spent', async (_shape, subtasks) => {
     const tissue = L3Atom.buildWithModel(reg.listByTier(3)[0]!, reg, FALLBACK_OPUS);
     const tools = failingSuites();
-    const ctx = { ...makeCtx(), tools };
+    const ctx = { ...makeCtx(), tools, rootAcceptance: true as const };
     const fixture = model({
       rootPlan: { reasoning: 'one phase', subtasks: [{ description: phase, preferredChild: 'Tracheid' }], aggregation: { mode: 'sequential' }, expectedOutput: 'adder' },
       cellPlans: { [phase]: { reasoning: 'branches', subtasks: [...subtasks], aggregation: { mode: 'concat' }, expectedOutput: 'adder' } },
@@ -204,7 +204,7 @@ describe('a root plan whose first phase failed its typed checks', () => {
   it('keeps the phase, never starts its dependent, and does not run the root suite', async () => {
     const tissue = L3Atom.buildWithModel(reg.listByTier(3)[0]!, reg, FALLBACK_OPUS);
     const tools = failingSuites();
-    const ctx = { ...makeCtx(), tools };
+    const ctx = { ...makeCtx(), tools, rootAcceptance: true as const };
     const fixture = model({ rootPlan, cellPlans });
     for (let i = 0; i < 400; i++) ctx.llm.enqueue(fixture.respond);
 

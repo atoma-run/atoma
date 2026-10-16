@@ -276,6 +276,8 @@ refused branch is kept and judged, and its dependents must not start.
 - **The ladder.** `ladderSpent` also reads `ownFallbackBlockedBy`, so a cell
   whose branch landed behind its own fallback hands its whole phase up once,
   whatever the plan shape.
+  (Historical: G3 replaced `ownFallbackBlockedBy` with the `spentLadder`
+  stamp, written by the supervise loop rather than derived by `markLanded`.)
 - **Root acceptance.**
   - `DEPENDENCY_LANDING_GUIDANCE` is the block for a dependency landing;
     `LANDED_RESULT_GUIDANCE` stays byte-identical, and a result that is both
@@ -396,9 +398,10 @@ All tests use mocked models.
   observations are host-caused reaches the root's validation call instead.
 - **An L2 `[A, C]` with no dependencies.** When its own fallback fails, L3
   still re-runs it: nothing lands, so `ladderSpent` is false. This existed
-  before and is out of scope.
+  before and is out of scope. *Closed by G3* (see "Follow-up: Spent ladders
+  that are not recognised").
 - **A mutualized peer's fallback** carries another name, so it does not mark
-  the ladder spent.
+  the ladder spent. *Closed by G3.*
 - **A held-back discovery plan** is returned as the root result
   (`L3Atom.ts`, discovery): group C.
 - **`llm-synthesize` prose** can overstate what landed. Only the prefix and the
@@ -1778,3 +1781,202 @@ Each full runner process stays about 0.3 s on these fixtures.
 - **On every vitest, vite or rolldown bump**, re-run
   `tests/parent-tests-integrity.test.ts` and the matcher-list drift test, and
   re-derive the watched set (D9).
+
+## Follow-up: Spent ladders that are not recognised
+
+Follow-up item 4 (G3), decided under the owner's delegation
+(`memory/beta-rules-not-fixed.md`). It closes the two Limits of group B on
+the ladder.
+
+### Finding
+
+The ONE LADDER PER ROOT PHASE rule (aa6b2956, run bad74240) read
+`producedBy` and, since group B, the landing-only `ownFallbackBlockedBy`.
+Two shapes slipped through, both already recorded under group B's Limits:
+
+1. **`[A, C]` with no dependencies.** The cell's supervise loop over A spends
+   its retries and its branch, then returns the cell's own fallback, which
+   nothing validates. C is approved. Nothing lands, the aggregate is rebuilt
+   as `producedBy {tier 2, cell, viaFallback: false}`, `ladderSpent` was
+   false, and the tissue re-ran the whole phase, A's ladder included.
+   `[A, B dependsOn A]` and `[A, C, B dependsOn A]` handed up after one ladder;
+   `[A, C]` did not. The ladder that ran was the same.
+2. **A mutualized peer.** `X.execute` returns `peer.handleDirect(task)` as it
+   is. The peer's ladder and fallback run, and the result names the peer, so
+   the tissue retried X, X mutualized again, and the peer's ladder ran twice.
+
+**Evidence status.** bad74240 is an N=1 shape. No incident has been observed
+on `[A, C]` or on a mutualized peer: the `[A, C]` reach lands by analogy, and
+a count is pre-registered with a revert rule (below). The relay widens
+nothing: it applies whichever rule already governs the peer's own result.
+
+### Mechanism
+
+- **One writer.** `superviseLoop`'s fallback return (`src/core/supervisor.ts`)
+  stamps `spentLadder: { by: parent.name, on: [task.description] }`. It is the
+  only point that proves a ladder ended. `producedBy.viaFallback` does not:
+  `selfExecute` stamps it on every path, including `execute()` with a null
+  `pendingStrategy` and `execute()` while `fallbackMode` is set — which an
+  in-flight peer can be, since `l2Peers` holds instances still running in
+  parallel root lanes.
+- **Carried.** `withSpentLadder(aggregate, subResults, atomName)` puts the
+  union of the sub-results' stamps naming the aggregating atom back on an
+  aggregate that the sequential, concat and `llm-synthesize` modes and
+  `keptWithoutSynthesis` rebuild. The N=1 pass-through keeps it by itself.
+  Applied in L2 and L3 `execute`, beside `withOwnFallbackLoopFacts`, before
+  `markLanded` and `verifyParentTests`, which spread it through.
+- **Relayed.** `relayPeerLadder(result, peer, relay)` re-addresses a stamp
+  naming the peer to the mutualizing cell, keeping the first peer in `via`.
+  Applied on the mutualize branch of `L2Atom.execute` and in `mutualize()`.
+- **Read.** `ladderSpent(result, cell)` is `result.spentLadder?.by === cell`:
+  N=1, `[A, C]`, a landing and a relay read one fact.
+- **Only under root acceptance.** `RunContext.rootAcceptance`, set by
+  `runDepthTask` on the attempt context and forwarded by `forkBranch`, is the
+  condition for installing `handUpRefused`. A run without depth (the baseline
+  and comparison arms) has no judge, and a phase handed up there was delivered
+  as if successful; it now retries as before aa6b2956.
+- **The clause** is rendered from the stamp: `<by>'s ladder ended in its
+  last-resort fallback on "<on…>"` (each item cut at 120 characters, three at
+  most, then "and N more"), `(in <via>, to which <by> delegated this phase)`
+  when relayed. It no longer claims "retries, branch" when no branch existed.
+- **One provenance predicate.** `isOwnFallback(result, atom)`
+  (`viaFallback` under that atom's name) replaces the copies in
+  `dependencyBlocker`, `withOwnFallbackLoopFacts`, the `unvalidated-fallback`
+  gate and the tissue's DIRECT framing. `verdict.ts` (DIRECT framing on any
+  `viaFallback`, deciding the plan kind) and `L2Atom`'s "never learn from any
+  fallback" are different concepts and stay.
+- **The gate.** `unvalidated-fallback` also fires on a stamp naming the child,
+  with its own text: `part of this result (<on>) is <child>'s own last-resort
+  fallback[, run in <via>], which no supervisor has validated`. A fast path
+  could otherwise approve an unvalidated fallback because it was only part of
+  a larger result (1d42ac2a's hole, for aggregates and relays).
+- **Removed.** `ownFallbackBlockedBy`, `DependencyRefusal.ownFallbackOf` and
+  `markLanded`'s derivation. A blocked root cause is always kept among the
+  dispatch's results (dfa20873) and carries the supervisor's stamp, so the
+  stamp covers what the old derivation did.
+- **Never persisted.** The runner persists an explicit field list and the
+  checkpoint stores `output`, `summary` and `producedBy` only.
+
+### Why this does not starve a healthy phase
+
+The counter refused in aa6b2956 stopped work before any rung was spent,
+handed up a fragment and left lanes running after its throw. This rule counts
+nothing — every subtask keeps its whole ladder — fires only after a fallback
+rung ran, hands up the whole aggregate, and is read in `handUpRefused`, after
+the dispatch settled.
+
+### Countercases checked
+
+| Record | Outcome |
+|---|---|
+| bad74240 / aa6b2956, N=1 | One ladder under depth; the stamp replaces the `producedBy` check. |
+| The refused counter | A phase whose subtasks were approved and that the tissue refused once runs again (test). The whole phase goes up; nothing throws. |
+| Group B landing shapes | Unchanged: `[A, B dependsOn A]` and `[A, C, B dependsOn A]` still hand up once. |
+| 1d42ac2a | The gate now also reviews a fallback that is part of an aggregate or a relay. |
+| Depth short mode | A tier-2 fallback (a peer's included) deepens before it runs, so no stamp is written. |
+| `trust-fastpath.test.ts` loop facts | Not relayed; unchanged. |
+| Comparison and baseline arms | The pre-aa6b2956 tissue retry is back; that is their registered protocol. `dependency-landing-runner.test.ts` (a comparison run) still ends `partial` with the same held-back entry, now after the tissue's retries. |
+
+### Adversarial review
+
+- **The tissue's refusal may be about C**, whose ladder never ran out. It
+  goes to root review and the depth remediation pass, and later root phases
+  build on it first, as they already do for N=1. A quality risk, not only an
+  unproven gain: the pre-registered count and its revert rule cover it.
+- **Root dependents are held back more often** only where the predecessor
+  also carries a suite that did not pass: group B's predicate.
+- **The widened gate** is requires-review: one validator call where a trust
+  fast path would have skipped it, only when a fallback contributed.
+- **The prompt text** (the clause and the gate's partial reasoning) is
+  rendered from typed data, true in every case, and bounded.
+- **Provenance** is never rewritten: a relayed result still names the peer.
+- **An in-flight peer** answering in `fallbackMode` walks no ladder and is
+  never relayed as spent (test).
+
+### Rejected alternatives
+
+- Counting fallbacks, or one more tissue retry: the refused counter.
+- Recognising only a suite-failed fallback: bad74240 had no suite.
+- Re-dispatching only the subtasks that did not fall back: a fragment.
+- Attributing the tissue's refusal to one part: parsing prose.
+- `ladderSpent` reading `cell.peers`: a peer never used for this phase.
+- Rewriting the mutualized `producedBy`: false provenance.
+- Deriving the stamp from `viaFallback`: false positives on the null-strategy
+  and in-flight peer paths.
+- Refusing a spent phase in the no-depth epilogue: removes the retry for
+  nothing in return.
+- Reusing `deferredLearning` as the root-judge signal: one field, two concepts.
+- Making the cell validate its own fallback: a protocol change.
+
+### Deviations from the design
+
+- **A's executions are counted as tier-1 executions not by C's molecule.**
+  The cell's escalation branch is a new type with a new name, so counting by
+  A's molecule name would miss the branch's three executions.
+- **The no-root-acceptance tests let the tissue approve its second verdict**,
+  so the retry is bounded; the mutation (dropping the condition) fails both.
+- **`forkBranch` forwards `rootAcceptance`**, with a propagation test:
+  forkBranch enumerates fields, and an unforwarded flag is silently absent.
+- **The runner test is a new file** (`tests/spent-ladder-runner.test.ts`)
+  driving `startTask --depth deep`: short mode's root is a cell and deepens at
+  a tier-2 fallback. The in-memory stamp is read from a spy on
+  `L3Atom.prototype.handle`, because `startTask` owns the executor.
+- **`spentOn` is exported** so the clause and the gate render `on` the same way.
+
+### Tests
+
+- `tests/phase-budget.test.ts`:
+  - `[C, A]` without dependencies, A ending in the cell fallback, the tissue
+    refusing, under `rootAcceptance`, for sequential, concat and
+    `llm-synthesize`: one cell plan, one cell fallback-plan, six executions of
+    A and one fallback, one of C, one synthesis only in `llm-synthesize`, one
+    tissue verdict, `phaseBudgetSpent`, the clause naming A, both parts in the
+    summary. Without `withSpentLadder` in L2 all three fail.
+  - Starvation: both subtasks approved, the tissue refuses once — two cell
+    plans, no fallback, no `phaseBudgetSpent`.
+  - No root acceptance, `[C, A]` and N=1: the tissue retries. Installing the
+    hook without the condition fails both.
+  - A mutualized peer: sequential root plan (asserted by call order), cell #1
+    mutualizes P2 to cell #2, whose fallback runs once; the clause names the
+    peer. Without the relay, cell #2's fallback-plan on P2 runs three times.
+  - An in-flight peer in `fallbackMode`: no stamp, `ladderSpent` false.
+  - Units: `withSpentLadder`, `relayPeerLadder` (a two-hop chain keeps `via`),
+    `ladderSpent`, the clause in its own, relayed and bounded forms, and the
+    gate's partial, foreign and whole cases.
+- `tests/landed-run.test.ts`: rewritten to the stamp; `markLanded` never
+  derives it.
+- `tests/dependency-landing.test.ts`: the hand-up fixtures set
+  `rootAcceptance`; the `runDepthTask` one does not, so depth sets it.
+- `tests/spent-ladder-runner.test.ts`: `startTask --depth deep`, one root
+  phase whose cell is `[CHANGELOG, add.js]` with add.js falling back. One cell
+  plan, one fallback, one tissue verdict, `delivered` after the root review;
+  the in-memory result carries `spentLadder`, the persisted one the prefix and
+  never the stamp. Without `rootAcceptance` in `runDepthTask` the cell plans
+  six times.
+- `tests/branch-ctx-propagation.test.ts`: `rootAcceptance` through a double fork.
+
+### Measurement (pre-registered, not run here)
+
+This workflow may not call the production MCP; the count falls to the owner
+or a session allowed to. Over production deep attempts since 2026-10-10,
+count root phases where the cell plan had more than one subtask, a tier-2
+`fallback-plan` ran, and the tissue then refused and retried. For each, record
+whether the retry was approved and its wall time. Count mutualize strategies
+separately.
+
+**Rule.** If at least one in three such retries was approved, narrow
+`withSpentLadder` back to an N=1 pass-through and a dispatch that landed with
+dependents held back — the old reach. The relay and the root-acceptance
+condition stay. Record the numbers here either way.
+
+### Limits
+
+- **`[A, C]` is unmeasured live**; the count above is pre-registered.
+- **Mutualizing to a peer still in flight** is a pre-existing race:
+  `handleDirect` overwrites `pendingStrategy` or inherits `fallbackMode`. It
+  can no longer hand a phase up, but the wrong strategy can still be consumed.
+- **Mutualize recursion is unbounded**, and the mutualize branch returns
+  before `verifyParentTests`, so X's `plan.acceptanceTests` never run there.
+  Both pre-existing.
+- **The stamp can appear in the in-memory trace's `execute` payloads**, as
+  `ownFallbackBlockedBy` could. It is never persisted.

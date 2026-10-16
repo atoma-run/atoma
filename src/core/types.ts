@@ -320,13 +320,21 @@ export interface Result {
    */
   readonly blockedPhases?: readonly string[];
   /**
-   * RUNTIME ONLY, never persisted: the atom whose OWN fallback result held
-   * back dependents in the dispatch that produced this result. Its direct
-   * supervisor reads it (`ladderSpent`, src/core/phaseBudget.ts): a cell
-   * whose branch landed behind its own fallback has spent its ladder on that
-   * root phase, whatever the plan shape. The name check keeps it inert above.
+   * RUNTIME ONLY, never persisted (the runner and the checkpoint persist an
+   * explicit field list): a supervise ladder inside this result ended in its
+   * last-resort fallback. Written by ONE place, `superviseLoop`'s fallback
+   * return, because that is the only point that proves a ladder ran out: a
+   * `viaFallback` stamp alone does not (`selfExecute` stamps it on a
+   * null-strategy or in-flight peer path that walked no ladder). Carried onto
+   * an aggregate by `withSpentLadder` and through a mutualization by
+   * `relayPeerLadder` (src/core/phaseBudget.ts).
+   *
+   *  - `by` — the atom whose ladder this result spends; only its direct
+   *    supervisor reads it (`ladderSpent`), so the name keeps it inert above;
+   *  - `on` — the task descriptions whose ladder ended in that fallback;
+   *  - `via` — the peer whose fallback ran, when `by` mutualized the task.
    */
-  readonly ownFallbackBlockedBy?: string;
+  readonly spentLadder?: { readonly by: string; readonly on: readonly string[]; readonly via?: string };
 }
 
 export type MutationScope = 'ephemeral' | 'branch' | 'patch';
@@ -955,6 +963,13 @@ export interface RunContext {
   readonly recordPhaseCoverage?: (record: import('../contracts/depthRouting.js').PhaseCoverageRecord) => void;
   /** Set where a root acceptance judges the run (depth routing); shared by every fork. */
   readonly deferredLearning?: DeferredLearning;
+  /**
+   * Root acceptance will judge this run (`runDepthTask`); forwarded by every
+   * fork. Only then does a tissue hand a refused root phase whose ladder is
+   * spent up instead of retrying it (`handUpRefused`, src/core/phaseBudget.ts):
+   * without a root judge the hand-up would be delivered unread.
+   */
+  readonly rootAcceptance?: true;
   /** Root approval commits serializable lessons before delivery; the host processes them separately. */
   readonly enqueueApprovedLessons?: (lessons: readonly import('../contracts/skillLearning.js').ApprovedLesson[]) => void;
   readonly learningSource?: import('../contracts/skillLearning.js').LearningSource;

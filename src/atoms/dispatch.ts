@@ -1,4 +1,5 @@
 import { outOfPhaseBudget } from '../core/limits.js';
+import { isOwnFallback } from '../core/phaseBudget.js';
 import type { LlmCompletionResponse, Plan, Result, RunContext, Task } from '../core/types.js';
 import { renderRestorationPrefix, restorationMatters } from '../contracts/readOnlyPhase.js';
 import type { AttestationRecord } from '../contracts/attestation.js';
@@ -47,13 +48,8 @@ export function dependencyBlocker(result: Result, dispatcher: string): Dependenc
   if (observations.some((observation, index) =>
     parentTestConsequence(observation) === 'reject' && !parentTestSuperseded(observations, index))) return 'failed-suite';
   if (result.unfinishedPhases?.length) return 'landed';
-  const unapproved = result.phaseBudgetSpent === true || ownFallback(result, dispatcher);
+  const unapproved = result.phaseBudgetSpent === true || isOwnFallback(result, dispatcher);
   return unapproved && parentTestsGrantNothing(result, 'unjudged') ? 'unverified' : undefined;
-}
-
-/** The criterion `withOwnFallbackLoopFacts` uses: the dispatcher's own, unvalidated fallback. */
-function ownFallback(result: Result, dispatcher: string): boolean {
-  return result.producedBy.viaFallback && result.producedBy.name === dispatcher;
 }
 
 const BLOCK_CAUSE: Readonly<Record<DependencyBlock, string>> = {
@@ -67,8 +63,6 @@ export interface DependencyRefusal {
   readonly index: number;
   readonly description: string;
   readonly cause: DependencyBlock;
-  /** The dispatcher, when the refusing branch is its own fallback. */
-  readonly ownFallbackOf?: string;
 }
 
 /** A branch never started because a branch it depends on, directly or not, failed its typed checks. */
@@ -135,10 +129,7 @@ function blockedBehind(
     }
     const cause = dependencyBlocker(predecessor, dispatcher);
     if (!cause) return;
-    causes.set(index, {
-      index, description: subtasks[index]!.description, cause,
-      ...(ownFallback(predecessor, dispatcher) ? { ownFallbackOf: dispatcher } : {}),
-    });
+    causes.set(index, { index, description: subtasks[index]!.description, cause });
     parts.push(`its prerequisite "${prerequisite}" ${BLOCK_CAUSE[cause]}`);
   });
   if (causes.size === 0) return undefined;
@@ -497,7 +488,6 @@ export function markLanded(result: Result, unfinished: readonly Subtask[], block
       ? [`${entries.length} phase(s) were not started because a phase they depend on failed its typed checks: ${entries.join(' | ')}`]
       : []),
   ];
-  const ownFallbackBlockedBy = blocked.flatMap((item) => item.rootCauses).find((cause) => cause.ownFallbackOf)?.ownFallbackOf;
   return {
     ...result,
     summary: `INCOMPLETE — ${clauses.join('; ')}. Delivered so far: ${result.summary}`,
@@ -506,7 +496,6 @@ export function markLanded(result: Result, unfinished: readonly Subtask[], block
     // aggregate that wraps it.
     unfinishedPhases: [...(result.unfinishedPhases ?? []), ...phases, ...entries],
     ...(entries.length > 0 ? { blockedPhases: [...(result.blockedPhases ?? []), ...entries] } : {}),
-    ...(ownFallbackBlockedBy ? { ownFallbackBlockedBy } : {}),
   };
 }
 

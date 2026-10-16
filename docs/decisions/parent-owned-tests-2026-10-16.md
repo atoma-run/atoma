@@ -238,13 +238,19 @@ a dispatch that completed no phase still never lands. Sequential dispatch is
 unchanged and never blocks.
 
 **Under a root phase.** At L2, every possible blocker is the cell's own
-fallback: an approved molecule cannot carry a rejecting suite. A cell whose
-branch landed behind its own fallback therefore sets `ownFallbackBlockedBy`,
-and `ladderSpent` reads it. The tissue that refuses that phase hands the whole
-phase up once (`phaseBudgetSpent`), whatever the plan shape: `[A, B dependsOn
-A]` and `[A, C, B dependsOn A]` alike, with no second run of the cell's ladder.
-In short mode a tier-2 fallback deepens before it runs, so no cell lands this
-way there.
+fallback: an approved molecule cannot carry a rejecting suite. That fallback
+carries the stamp the supervise loop writes where a ladder ends
+(`spentLadder`), and the cell's aggregate keeps it (`withSpentLadder`), so
+`ladderSpent` reads it. Since G3 (same day; the field was first
+`ownFallbackBlockedBy`, derived from the landing) the plan's shape no longer
+matters, a landing included or not: `[A, B dependsOn A]`, `[A, C, B dependsOn
+A]` and `[A, C]` alike, and a phase the cell mutualized to a peer whose
+fallback ran (`relayPeerLadder`). The tissue that refuses that phase hands the
+whole phase up once (`phaseBudgetSpent`), with no second run of the cell's
+ladder — when, and only when, root acceptance will judge the run
+(`RunContext.rootAcceptance`, set by depth routing); without a root judge it
+retries the phase as before. In short mode a tier-2 fallback deepens before it
+runs, so no cell lands this way there.
 
 **At the root.** Every dependency landing carries an observation that did not
 pass, and the refusing producer is kept, so the root's reject gate usually

@@ -431,6 +431,9 @@ export async function runDepthTask(args: {
     let requested = false;
     const attemptCtx: RunContext = {
       ...ctx, attempt, attestations,
+      // Root acceptance judges every pass of this attempt: a tissue may hand a
+      // refused, spent root phase up instead of re-running it (phaseBudget.ts).
+      rootAcceptance: true,
       signal: attemptSignal,
       // A fresh workspace gets fresh coaching; forks within this attempt
       // share these same sets through supervisor replans and branch retries.

@@ -488,6 +488,9 @@ export async function superviseLoop<C extends Atom>(
           ...result,
           trace,
           producedBy: { ...result.producedBy, viaFallback: true },
+          // THE ONE WRITER of a fresh stamp: only here has a ladder provably
+          // ended in its last resort (src/core/phaseBudget.ts).
+          spentLadder: { by: parent.name, on: [task.description] },
         };
       } finally {
         parent.setFallbackMode(false);

@@ -51,7 +51,7 @@ import {
 } from './json.js';
 import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
-import { ladderSpent, spentPhaseResult } from '../core/phaseBudget.js';
+import { isOwnFallback, ladderSpent, spentPhaseResult, withSpentLadder } from '../core/phaseBudget.js';
 import { effectiveObligations, anyUncovered, renderProofCoverage } from './proofCoverage.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, withPlannedDelivery, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
@@ -1009,8 +1009,12 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     const dispatched = await this.dispatchSubtasks(subtasks, plan, strategy, task, ctx, plannedPhases);
     const landed = dispatched.unfinished.length > 0;
     const result = markLanded(
-      withOwnFallbackLoopFacts(
-        await this.aggregate(dispatched.results, plan.aggregation, task, ctx, landed),
+      withSpentLadder(
+        withOwnFallbackLoopFacts(
+          await this.aggregate(dispatched.results, plan.aggregation, task, ctx, landed),
+          dispatched.results,
+          this.name
+        ),
         dispatched.results,
         this.name
       ),
@@ -1169,10 +1173,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       ? { ...hooks, aroundExecute: (execute) => withinReadOnlyPhase(ctx, subTask, execute) }
       : hooks;
     try {
-      // A root phase gets one ladder: its cell's own fallback, refused here,
-      // goes up for root acceptance to judge instead of a re-run.
+      // A root phase gets one ladder: once its cell's ladder ended in a
+      // last-resort fallback (`spentLadder`), a refusal here sends the whole
+      // phase up for root acceptance to judge instead of a re-run. Only when
+      // that judge exists: without one the hand-up would be delivered unread,
+      // so the tissue retries as before.
       const rootPhase = ctx.currentBranchId === undefined;
-      return await superviseLoop<L2Atom>(this, l2, subTask, branchCtx, rootPhase ? {
+      return await superviseLoop<L2Atom>(this, l2, subTask, branchCtx, rootPhase && ctx.rootAcceptance ? {
         ...phaseHooks,
         handUpRefused: (cell, result, verdict) => {
           if (!ladderSpent(result, cell.name)) return undefined;
@@ -1848,7 +1855,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         ...(result.evidence ? { evidence: result.evidence } : {}),
         // The payload above drops `producedBy`. The cell's OWN fallback is
         // DIRECT; a peer's result, mutualized, still carries the peer's name.
-        ...(result.producedBy?.viaFallback && result.producedBy.name === child.name ? { viaFallback: true } : {}),
+        ...(result.producedBy && isOwnFallback(result, child.name) ? { viaFallback: true } : {}),
         ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
         ...(gateFindingsBlock !== undefined ? { mechanicalFindingsBlock: gateFindingsBlock } : {}),
         ...(fallbackCoverage.length > 0 ? { proofCoverageBlock: renderProofCoverage(fallbackCoverage) } : {}),

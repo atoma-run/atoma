@@ -139,6 +139,7 @@ import {
   withOwnFallbackLoopFacts,
   withoutExecutorLoopFacts,
 } from './resultGates.js';
+import { relayPeerLadder, withSpentLadder } from '../core/phaseBudget.js';
 import type { Skill } from '../skills/types.js';
 import type { SkillRegistry } from '../skills/registry.js';
 import { visibleSkillNamespaces } from '../skills/visibility.js';
@@ -744,15 +745,21 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     if (strategy.strategy === 'mutualize') {
       const peer = this.peers.find((p) => p.name === strategy.target);
       if (!peer) throw new RegistryNotFoundError(strategy.target ?? 'unknown peer');
-      return peer.handleDirect(task, ctx);
+      // The peer's ladder is what ran for this task: its spent stamp, if any,
+      // is re-addressed to this cell for the tissue that judges it.
+      return relayPeerLadder(await peer.handleDirect(task, ctx), peer.name, this.name);
     }
 
     const subtasks = plan.subtasks;
     const dispatched = await this.dispatchSubtasks(subtasks, plan, strategy, task, ctx);
     const landed = dispatched.unfinished.length > 0;
     const result = markLanded(
-      withOwnFallbackLoopFacts(
-        await this.aggregate(dispatched.results, plan.aggregation, task, ctx, landed),
+      withSpentLadder(
+        withOwnFallbackLoopFacts(
+          await this.aggregate(dispatched.results, plan.aggregation, task, ctx, landed),
+          dispatched.results,
+          this.name
+        ),
         dispatched.results,
         this.name
       ),
@@ -2276,7 +2283,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
   async mutualize(task: Task, ctx: RunContext): Promise<Result> {
     if (this.peers.length === 0) throw new Error('no peers to mutualize with');
     const peer = this.peers[0]!;
-    return peer.handleDirect(task, ctx);
+    return relayPeerLadder(await peer.handleDirect(task, ctx), peer.name, this.name);
   }
 
   /**

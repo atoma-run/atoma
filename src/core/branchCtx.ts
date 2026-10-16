@@ -114,6 +114,7 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
     ...(ctx.beforeFallback ? { beforeFallback: ctx.beforeFallback } : {}),
     ...(ctx.recordPhaseCoverage ? { recordPhaseCoverage: ctx.recordPhaseCoverage } : {}),
     ...(ctx.deferredLearning ? { deferredLearning: ctx.deferredLearning } : {}),
+    ...(ctx.rootAcceptance ? { rootAcceptance: ctx.rootAcceptance } : {}),
     logger: ctx.logger,
     signal: ctx.signal,
     ...(ctx.deadlineAt !== undefined ? { deadlineAt: ctx.deadlineAt } : {}),

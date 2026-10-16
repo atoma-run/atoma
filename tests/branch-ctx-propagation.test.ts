@@ -60,6 +60,13 @@ describe('forkBranch — field propagation', () => {
     expect(root.mechanicalResultRejections?.has('required-command-manifest|task')).toBe(true);
   });
 
+  it('propagates rootAcceptance through a double fork, and leaves it absent when unset', () => {
+    const root = { ...makeCtx(), rootAcceptance: true as const };
+    const level2 = forkBranch(forkBranch(root, 'branch-1'), 'branch-2');
+    expect(level2.rootAcceptance).toBe(true);
+    expect(forkBranch(makeCtx(), 'branch-1').rootAcceptance).toBeUndefined();
+  });
+
   it('propagates deadlineAt through a double fork', () => {
     const deadlineAt = Date.now() + 60_000;
     const root = { ...makeCtx(), deadlineAt };
