@@ -30,6 +30,11 @@ import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GU
  * identical call-to-call, which lets prompt caching short-circuit the input
  * bill on repeat verdicts — critical since validations dominate the loop.
  */
+// The SEQUENTIAL rule below once told reviewers to refuse a one-subtask
+// sequential plan ("use concat instead", 2026-04-26, when it pushed L3 to
+// decompose; the delegation contract review now owns that pressure). Both
+// modes return the single result unchanged (aggregate's N=1 path in L2Atom and
+// L3Atom), and on 2026-10-16 the rule refused five plans, each a full replan.
 export const VALIDATION_SYSTEM_PROMPT = [
   'You validate agent outputs in a three-tier LLM orchestration system.',
   'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check actual application imports, boundary/negative cases, absence of trivial assertions or mocks replacing the subject, and ability to fail on the behaviour the task or its criteria name, by the sufficiency standard and blocking suite defects the review request states. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. Passing tests only prove their assertions; assess integration and uncovered requirements separately. ' +
@@ -359,8 +364,9 @@ export const VALIDATION_SYSTEM_PROMPT = [
   '    EXPECTED and CORRECT. The whole point is step N consumes step N-1\'s',
   '    state via the shared workspace + previousStepSummary. Do NOT reject for',
   '    "subtask 2 reads the file from subtask 1" — that is the contract. DO',
-  '    reject if a sequential plan has only one subtask (use concat instead) or',
-  '    if a phase\'s description is too vague to produce a checkable artefact.',
+  '    reject if a phase\'s description is too vague to produce a checkable',
+  '    artefact. A one-subtask plan runs identically in either mode: never',
+  '    reject it for its aggregation mode.',
   '  - for N>1, each subtask SHOULD carry "preferredChild". A missing or',
   '    invented "preferredChild" (a name not present in the "Delegation',
   '    target(s):" block) will force the supervisor to auto-create a fresh',

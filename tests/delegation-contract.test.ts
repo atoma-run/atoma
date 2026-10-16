@@ -1509,6 +1509,15 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
     expect(execute).toHaveBeenCalledOnce();
   });
 
+  // On 2026-10-16 the shared validation prompt refused five one-subtask plans for
+  // using "sequential" (each a full replan), although aggregate() returns the
+  // single result unchanged in either mode. Offline replay of event 08792716:
+  // refused under the old rule, approved 2/2 under this one.
+  it('never asks a reviewer to refuse a one-subtask plan for its aggregation mode', () => {
+    expect(VALIDATION_SYSTEM_PROMPT).not.toContain('only one subtask (use concat instead)');
+    expect(VALIDATION_SYSTEM_PROMPT).toContain('A one-subtask plan runs identically in either mode: never');
+  });
+
   it('caps each listed refusal and marks the cut; a first review carries no note', () => {
     expect(previousRefusalsNote([])).toBe('');
     const note = previousRefusalsNote(['x'.repeat(5000)]);
