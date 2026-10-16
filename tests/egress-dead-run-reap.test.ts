@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createContainerLauncher, launcherObjectId, pidNamespace } from '../src/launcher/docker.js';
+import { createContainerLauncher, DEAD_RUN_SWEEP_BUDGET_MS, launcherObjectId, pidNamespace } from '../src/launcher/docker.js';
 import { startEgressSidecar } from '../src/tools/egressSidecar.js';
 
 /**
@@ -50,6 +50,32 @@ describe('reapDeadRunEgress', () => {
     for (const id of [live, own, forged, operator, elsewhere]) {
       expect(gone.some((name) => name.includes(id))).toBe(false);
     }
+  });
+
+  it('reaps every dead owner when each docker call takes a second, within the sweep bound', async () => {
+    // 2026-10-16 on the host: one shared 3.5 s deadline let a sweep reap two
+    // to four owners; every later removal returned false without trying.
+    let clock = 0;
+    const owners = [101, 102, 103, 104, 105].map((pid) => launcherObjectId(`run-${pid}`));
+    const { calls, runDocker } = fakeDocker(owners.map((id) => row(id)));
+    const slow = async (args: string[]): Promise<string> => { clock += 1_000; return runDocker(args); };
+    const launcher = createContainerLauncher({ image: 'worker-image', runDocker: slow, sleep: async () => undefined, now: () => clock });
+    const concrete = launcher as unknown as { reapDeadRunEgress(isAlive: (pid: number) => boolean): Promise<number> };
+    expect(await concrete.reapDeadRunEgress(() => false)).toBe(5);
+    for (const id of owners) expect(removed(calls)).toContain(`atoma-uplink-${id}`);
+  });
+
+  it('stops the sweep at its bound so stuck owners cannot stall every run start', async () => {
+    let clock = 0;
+    const owners = Array.from({ length: 40 }, (_, i) => launcherObjectId(`run-${1000 + i}`));
+    const { runDocker } = fakeDocker(owners.map((id) => row(id)));
+    const slow = async (args: string[]): Promise<string> => { clock += 1_000; return runDocker(args); };
+    const launcher = createContainerLauncher({ image: 'worker-image', runDocker: slow, sleep: async () => undefined, now: () => clock });
+    const concrete = launcher as unknown as { reapDeadRunEgress(isAlive: (pid: number) => boolean): Promise<number> };
+    const reaped = await concrete.reapDeadRunEgress(() => false);
+    expect(reaped).toBeGreaterThan(4);
+    expect(reaped).toBeLessThan(40);
+    expect(clock).toBeLessThanOrEqual(DEAD_RUN_SWEEP_BUDGET_MS + 10_000);
   });
 
   it('judges networks without a namespace label only on a Linux sweeper', async () => {

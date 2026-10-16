@@ -50,6 +50,8 @@ const PROXY_PIDS = '64';
 export const EGRESS_NETWORK_REMOVE_ATTEMPTS = 25;
 export const EGRESS_NETWORK_REMOVE_RETRY_MS = 200;
 export const EGRESS_ASYNC_CLEANUP_BUDGET_MS = 3_500;
+/** Bound on one dead-run sweep before a run creates its networks. */
+export const DEAD_RUN_SWEEP_BUDGET_MS = 30_000;
 export const EGRESS_EXIT_REMOVE_ATTEMPTS = 2;
 export const EGRESS_EXIT_REMOVE_RETRY_MS = 100;
 
@@ -511,9 +513,10 @@ export class DockerLauncher implements ContainerLauncher {
   }
 
   /** Service-side counterpart of hard-exit cleanup, scoped to one dead caller. */
-  async reapDisconnectedOwner(family: LauncherFamily, ownerId: LauncherOwnerId, deadline = this.cleanupDeadline()): Promise<void> {
+  async reapDisconnectedOwner(family: LauncherFamily, ownerId: LauncherOwnerId): Promise<void> {
     const owned = this.ownedObjects(family, ownerId);
     for (const container of owned.containers) await quiet(this.runDocker, ['rm', '-f', container]);
+    const deadline = this.cleanupDeadline();
     let gone = true;
     for (const network of owned.networks) {
       try {
@@ -543,8 +546,8 @@ export class DockerLauncher implements ContainerLauncher {
    * hash proves that exact owner, and a pid that exists — or that this process
    * may not signal — is live. Only networks labelled with this process's
    * pid namespace are judged (legacy unlabelled ones by a Linux sweeper
-   * only), and one deadline bounds the whole sweep; a recycled pid only
-   * defers a reap. Returns the owners reaped.
+   * only). Each owner has the cleanup budget and the sweep at most
+   * `DEAD_RUN_SWEEP_BUDGET_MS`; a recycled pid only defers a reap. Returns the owners reaped.
    */
   async reapDeadRunEgress(isAlive: (pid: number) => boolean = processAlive): Promise<number> {
     const stdout = await this.runDocker([
@@ -555,7 +558,10 @@ export class DockerLauncher implements ContainerLauncher {
     // Networks from before the namespace label: production's runners are all
     // Linux host processes, so only a Linux sweeper may judge those.
     const legacyJudged = process.platform === 'linux';
-    const deadline = this.cleanupDeadline();
+    // Each owner gets the ordinary cleanup budget; this bound stops the sweep
+    // itself. One shared 3.5 s deadline left most of 2026-10-15's orphans in
+    // place: once spent, every later removal returned without trying.
+    const sweepDeadline = this.now() + DEAD_RUN_SWEEP_BUDGET_MS;
     let reaped = 0;
     const ids = new Set<string>();
     for (const row of stdout.split('\n')) {
@@ -563,13 +569,14 @@ export class DockerLauncher implements ContainerLauncher {
       if (id && (ns === namespace || (ns === '' && legacyJudged))) ids.add(id);
     }
     for (const id of ids) {
+      if (this.now() >= sweepDeadline) break;
       const match = /^(run-)?(\d+)-[0-9a-f]{10}$/.exec(id);
       if (!match) continue;
       const pid = Number(match[2]);
       const ownerId = `${match[1] ?? ''}${match[2]}`;
       if (launcherObjectId(ownerId) !== id || pid === process.pid || isAlive(pid)) continue;
       try {
-        await this.reapDisconnectedOwner('egress', ownerId, deadline);
+        await this.reapDisconnectedOwner('egress', ownerId);
         reaped += 1;
       } catch { /* left for the next run's sweep */ }
     }
