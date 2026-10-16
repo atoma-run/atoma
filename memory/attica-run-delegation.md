@@ -143,3 +143,17 @@ acceptance, publication or real collection occurred in this continuation.
 - The planner reproduced helper-only suites in 4 of 9 plans; a host precheck
   (each code-producing branch suite must import a production module directly)
   is a candidate gate, not built.
+- d37d2f8f (stage 1b, $1.84) was the first run on 8059f2ac: requests reached the
+  planner and the three refusals were sound and narrowing, but it failed one
+  round short. Fixed: d15167f0 (five root planning attempts) and ef93a5a6 (a
+  replanAfter discovery is joined on the host and each branch's own report
+  reaches the replan; the L3 synthesis had dropped AtticaScheduler's real
+  interface, so plans tested invented adapters).
+- Goal defects found by that run: two existing node --test suites launch
+  Chromium (tests/xe-browser-integration.test.js, tests/xe-browser-local-hardening.test.js;
+  3 of 85 baseline tests fail in the sandbox), so "npm test runs the existing
+  suites" + "no Chromium" made npm run check impossible; and only 24 root
+  debug scripts match the patterns, not 27. The corrected goal (stage1c-goal.txt
+  in the session scratchpad) moves those suites to npm run test:browser and
+  names the real interfaces (AtticaScheduler(dir,{now,onDue}).configure/tick,
+  loadCheckpoint(file), recoverAndLoad(file), AtticaStore(dir).savePause/loadState).
