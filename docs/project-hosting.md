@@ -15,6 +15,10 @@ must already be present in the delivery; no install command runs on deployment.
 Node applications listen on `HOST`/`PORT` and keep persistent state beneath
 `ATOMA_DATA_DIR` (`/data`). Writing beside source files fails deliberately.
 
+Pages a browser opens carry a small "Powered by Atoma" mark in the bottom-right
+corner. Atoma adds it as it serves the page; your published code does not contain
+it. Clicks pass through the mark to your application.
+
 Applications run under gVisor, non-root, with dropped capabilities, read-only
 root, CPU/memory/process limits and isolated per-deployment networks. Ingress
 is a fixed relay published on loopback only. The runtime has no direct internet

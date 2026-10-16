@@ -5,6 +5,7 @@ import { createHostingGateway } from '../src/projects/hostingGateway.js';
 import { probeHostedApplication, type HostingService } from '../src/projects/hostingService.js';
 import type { HostedDeployment } from '../src/contracts/projectHosting.js';
 import type { Viewer } from '../src/auth/store.js';
+import { ATTRIBUTION_BADGE_HTML } from '../src/preview/attribution.js';
 const servers: Server[] = [];
 afterEach(async () => { await Promise.all(servers.splice(0).map(s => new Promise<void>(resolve => { s.closeAllConnections(); s.close(() => resolve()); }))); });
 async function listen(server: Server) { servers.push(server); await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); return (server.address() as { port: number }).port; }
@@ -37,6 +38,25 @@ it('exchanges a one-time private claim, strips credentials, and refuses cross-or
   expect(served.headers['content-security-policy']).toContain("worker-src 'none'");
   expect((await call(port, host, '/', { cookie, origin: 'https://evil.test' }, '{}')).status).toBe(403);
   allowed = false; expect((await call(port, host, '/', { cookie })).status).toBe(404);
+});
+it('appends the Atoma badge to hosted pages but not to the platform desktop', async () => {
+  let encoding: string | undefined;
+  const upstreamPort = await listen(createServer((req, res) => {
+    encoding = req.headers['accept-encoding'];
+    res.writeHead(200, { 'content-type': 'text/html', 'content-length': '8' }); res.end('<p>x</p>');
+  }));
+  const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'node', entry: 'server.js', createdAt: new Date().toISOString(), error: null, hostPort: upstreamPort, image: 'image', browser: true };
+  const host = 'weather-lab.app.atoma.run';
+  const service = { deps: { store: { list: () => [row] } }, host: () => host, movedHost: () => null, status: vi.fn() } as unknown as HostingService;
+  const gateway = createHostingGateway(service, 'https://atoma.run', () => true);
+  const port = await listen(gateway.server);
+  const url = new URL(gateway.open({ orgId: row.orgId, principalId: randomUUID() } as Viewer, row.projectId));
+  const redeemed = await call(port, host, '/.atoma/claim', { origin: `https://${host}` }, JSON.stringify({ token: url.hash.slice(1) }));
+  const cookie = redeemed.headers['set-cookie']![0]!.split(';')[0]!;
+  const page = await call(port, host, '/', { cookie, 'sec-fetch-dest': 'document', 'accept-encoding': 'br' });
+  expect(page.body).toBe(`<p>x</p>${ATTRIBUTION_BADGE_HTML}`); expect(page.headers['content-length']).toBeUndefined(); expect(encoding).toBe('identity');
+  expect((await call(port, host, '/.atoma/browser/', { cookie, 'sec-fetch-dest': 'document' })).body).toBe('<p>x</p>');
+  expect((await call(port, host, '/', { cookie, 'sec-fetch-dest': 'empty' })).body).toBe('<p>x</p>');
 });
 it('answers an unknown address exactly as a private one, so readable addresses cannot be enumerated', async () => {
   const upstreamPort = await listen(createServer((_req, res) => res.end('offers')));

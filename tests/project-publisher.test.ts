@@ -27,6 +27,7 @@ import { FakeGitHub } from './github-api-fake.js';
 import { formatRunStatsEpilogue, type RunStats } from '../src/contracts/runStats.js';
 import { PreviewStore } from '../src/preview/store.js';
 import { recordDeliveredPreview } from '../src/preview/service.js';
+import { ATTRIBUTION_REPOSITORY_DESCRIPTION } from '../src/preview/attribution.js';
 
 let root: string;
 let db: Database.Database;
@@ -235,7 +236,7 @@ describe('GitHubPublisher token split', () => {
     expect(resolveUserAccessToken).toHaveBeenCalledWith(owner.principalId);
     expect(client.createUserRepository).toHaveBeenCalledWith(
       'ghu_user-token',
-      expect.objectContaining({ name: 'weather-lab', private: true })
+      expect.objectContaining({ name: 'weather-lab', private: true, description: ATTRIBUTION_REPOSITORY_DESCRIPTION })
     );
     expect(client.createOrganisationRepository).not.toHaveBeenCalled();
     expect(client.publishManifestCommit).toHaveBeenCalledWith(
@@ -266,7 +267,7 @@ describe('GitHubPublisher token split', () => {
     expect(client.createOrganisationRepository).toHaveBeenCalledWith(
       'ghs_install-token',
       'atoma-org',
-      expect.objectContaining({ name: 'weather-lab' })
+      expect.objectContaining({ name: 'weather-lab', description: ATTRIBUTION_REPOSITORY_DESCRIPTION })
     );
     expect(client.createUserRepository).not.toHaveBeenCalled();
   });

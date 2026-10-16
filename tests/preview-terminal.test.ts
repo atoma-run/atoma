@@ -55,6 +55,12 @@ describe('compiled terminal runtime and real PTY', () => {
     }
     throw new Error(`terminal did not emit ${text}: ${output}`);
   }
+  it('prints the Atoma banner before the first prompt', async () => {
+    await waitFor('[exit:0]');
+    const plain = stripVTControlCharacters(output);
+    expect(plain.startsWith('◆ Powered by Atoma · atoma.run')).toBe(true);
+    expect(plain.indexOf('Powered by Atoma')).toBeLessThan(plain.indexOf('[exit:0]'));
+  });
   it('serves packaged assets and executes the delivered CLI on editable data', async () => {
     expect((await fetch(base + '/')).status).toBe(200);
     expect((await fetch(base + '/client.js')).status).toBe(200);

@@ -2,6 +2,7 @@ import { createServer, request, type IncomingMessage, type ServerResponse } from
 import { randomBytes } from 'node:crypto';
 import { PreviewClaimRegistry, mintPreviewClaim } from '../preview/claims.js';
 import { previewResponseHeaders, sanitizeRequestHeaders, sanitizeResponseHeaders, isSamePreviewRedirect } from '../preview/gateway.js';
+import { attributionAppender, isAttributableRequest, isAttributableResponse } from '../preview/attribution.js';
 import type { HostingService } from './hostingService.js';
 import type { Viewer } from '../auth/store.js';
 
@@ -64,11 +65,18 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
     // Hop-by-hop headers, including extension headers nominated by Connection, never cross.
     for (const name of ['authorization', 'connection', 'upgrade', 'proxy-authorization', 'proxy-authenticate', 'keep-alive', 'te', 'trailer', 'transfer-encoding', ...(req.headers.connection ?? '').split(',').map(x => x.trim().toLowerCase())]) delete headers[name];
     headers.host = host;
+    // `/.atoma/browser/` is the platform's desktop, not the application.
+    const attribute = !pathname.startsWith('/.atoma/') && isAttributableRequest(req.method, req.headers);
+    if (attribute) headers['accept-encoding'] = 'identity';
     const upstream = request({ host: '127.0.0.1', port: row.hostPort!, path: req.url, method: req.method, headers, timeout: 30_000 }, incoming => {
       if (incoming.headers.location && !isSamePreviewRedirect(incoming.headers.location, origin)) { incoming.destroy(); respond(res, 502); return; }
       const output = sanitizeResponseHeaders(incoming.headers);
       for (const name of ['connection', 'upgrade', 'transfer-encoding', ...(incoming.headers.connection ?? '').split(',').map(x => x.trim().toLowerCase())]) delete output[name];
       const responsePolicy = row.browser ? { ...policy, 'content-security-policy': policy['content-security-policy']!.replace('sandbox ', 'sandbox allow-popups ').replace("connect-src 'self'", `connect-src 'self' wss://${host}`) } : policy;
+      if (attribute && isAttributableResponse(incoming.statusCode, incoming.headers)) {
+        delete output['content-length'];
+        res.writeHead(200, { ...output, ...responsePolicy }); incoming.pipe(attributionAppender()).pipe(res); return;
+      }
       res.writeHead(incoming.statusCode ?? 502, { ...output, ...responsePolicy }); incoming.pipe(res);
     });
     upstream.on('timeout', () => upstream.destroy());

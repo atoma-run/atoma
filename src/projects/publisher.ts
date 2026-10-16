@@ -8,6 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { GitHubApiError, type GitHubAppClient } from '../github/client.js';
 import { GitHubStore } from '../github/store.js';
 import { publicationCommitMessage } from './commitMessage.js';
+import { ATTRIBUTION_REPOSITORY_DESCRIPTION } from '../preview/attribution.js';
 import { ProjectStateConflict, type ProjectStore } from './store.js';
 import {
   revalidateArtifactManifest,
@@ -119,10 +120,12 @@ async function ensureRepository(
       input.targetType === 'Organization'
         ? await client.createOrganisationRepository(tokens.createToken, input.owner, {
             name: input.name,
+            description: ATTRIBUTION_REPOSITORY_DESCRIPTION,
             private: input.visibility === 'private',
           })
         : await client.createUserRepository(tokens.createToken, {
             name: input.name,
+            description: ATTRIBUTION_REPOSITORY_DESCRIPTION,
             private: input.visibility === 'private',
           });
     return {

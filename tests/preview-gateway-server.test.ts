@@ -11,6 +11,7 @@ import {
 } from '../src/preview/gatewayServer.js';
 import { mintPreviewClaim, PreviewClaimRegistry } from '../src/preview/claims.js';
 import { PREVIEW_GRANT_COOKIE } from '../src/preview/gateway.js';
+import { ATTRIBUTION_BADGE_HTML } from '../src/preview/attribution.js';
 
 /**
  * The gateway is the only thing between an unauthenticated caller and a
@@ -244,6 +245,20 @@ describe('preview gateway static serving', () => {
     expect(header(reply, 'x-content-type-options')).toBe('nosniff');
   });
 
+  it('appends the Atoma badge to a page the browser navigates to, and only to that', async () => {
+    writeFileSync(join(workspace, 'app.js'), 'export {};');
+    const { port, claims } = await gateway(staticRoute());
+    const cookie = await grantCookie(port, claims);
+    const navigate = { cookie, 'sec-fetch-dest': 'iframe' };
+
+    const page = await call(port, '/', { headers: navigate });
+    expect(page.body).toBe(`<h1>delivered</h1>${ATTRIBUTION_BADGE_HTML}`);
+    expect(header(page, 'content-length')).toBe(String(Buffer.byteLength(page.body)));
+    // A script is not a page, and a fetch of the page is not a navigation.
+    expect((await call(port, '/app.js', { headers: navigate })).body).toBe('export {};');
+    expect((await call(port, '/', { headers: { cookie, 'sec-fetch-dest': 'empty' } })).body).toBe('<h1>delivered</h1>');
+  });
+
   it('refuses what publication refuses, and the dependency tree too', async () => {
     const { port, claims } = await gateway(staticRoute());
     const cookie = await grantCookie(port, claims);
@@ -309,6 +324,44 @@ describe('preview gateway proxying', () => {
     // Its own headers still come through.
     expect(header(reply, 'x-app-header')).toBe('kept');
     expect(header(reply, 'content-security-policy')).toContain('https://api.example.org');
+  });
+
+  it('appends the badge to an application page, uncompressed, and leaves the rest byte-identical', async () => {
+    const encodings: Array<string | undefined> = [];
+    const port = await upstream((req, res) => {
+      encodings.push(req.headers['accept-encoding']);
+      if (req.url === '/api') {
+        res.writeHead(200, { 'content-type': 'application/json', 'content-length': '2' });
+        res.end('{}');
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': '10' });
+      res.end('<p>app</p>');
+    });
+    const route = { orgId: ORG, projectRunId: RUN, generation: 1, kind: 'node' as const, upstreamPort: port, allowedHosts: [] };
+    const { port: gatewayPort, claims } = await gateway(route);
+    const cookie = await grantCookie(gatewayPort, claims);
+    const navigate = { cookie, 'sec-fetch-dest': 'iframe', 'accept-encoding': 'gzip, br' };
+
+    const page = await call(gatewayPort, '/', { headers: navigate });
+    expect(page.body).toBe(`<p>app</p>${ATTRIBUTION_BADGE_HTML}`);
+    expect(header(page, 'content-length')).toBeNull();
+    expect(encodings.at(-1)).toBe('identity');
+    expect((await call(gatewayPort, '/api', { headers: navigate })).body).toBe('{}');
+    expect((await call(gatewayPort, '/', { headers: { cookie, 'accept-encoding': 'gzip' } })).body).toBe('<p>app</p>');
+    expect(encodings.at(-1)).toBe('gzip');
+  });
+
+  it('never badges the terminal page, which is Atoma’s interface rather than the application', async () => {
+    const port = await upstream((_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<main id="terminal"></main>');
+    });
+    const { port: gatewayPort, claims } = await gateway({ orgId: ORG, projectRunId: RUN, generation: 1,
+      kind: 'node', mode: 'terminal', upstreamPort: port, allowedHosts: [] });
+    const cookie = await grantCookie(gatewayPort, claims);
+    expect((await call(gatewayPort, '/', { headers: { cookie, 'sec-fetch-dest': 'iframe' } })).body)
+      .toBe('<main id="terminal"></main>');
   });
 
   it('never hands the member’s cookie or address to the application', async () => {

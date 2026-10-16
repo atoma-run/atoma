@@ -5,6 +5,7 @@ import { closeSync, constants, cpSync, mkdirSync, openSync, readFileSync, realpa
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
+import { ATTRIBUTION_TERMINAL_BANNER } from '../attribution.js';
 import { TERMINAL_HISTORY_BYTES, TERMINAL_INPUT_BYTES, TERMINAL_UPLOAD_BYTES, terminalResizeSchema } from '../../contracts/previewTerminal.js';
 
 const OUTPUT_CAP = TERMINAL_HISTORY_BYTES;
@@ -66,6 +67,8 @@ export async function startTerminalServer(options: {
     ['/labels.json', { mime: 'application/json', bytes: readFileSync(join(options.assetsRoot, 'labels.json')) }],
   ]);
   const output = new TerminalOutput();
+  // Written before the shell exists, so it always precedes the first prompt.
+  output.append(Buffer.from(ATTRIBUTION_TERMINAL_BANNER, 'utf8'));
   let exitCode: number | null = null;
   let pendingPtyInput = 0;
   const child = spawn('python3', ['-I', options.bridge], {

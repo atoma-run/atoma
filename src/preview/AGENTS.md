@@ -548,6 +548,19 @@ coherent group at a time
 A new preview route belongs in the adapter as one call; new preview BEHAVIOUR
 belongs here.
 
+## The Atoma mark
+
+Owner decision 2026-10-16: what Atoma serves from a delivery says so.
+[`attribution.ts`](attribution.ts) is its one home. Both gateways (preview and
+[hosting](../projects/hostingGateway.ts)) append a "Powered by Atoma" corner
+badge to a 200 `text/html` body when `Sec-Fetch-Dest` is `document`/`iframe`;
+they ask the app for `identity` encoding then, since a compressed body cannot
+be appended to. Fragments, XHTML, UTF-16, 206/304, the terminal page and
+`/.atoma/` pass through byte-identical. The badge is a declarative shadow root
+with `pointer-events: none`: nothing fetched, no script, nothing to click — the
+CSP sandbox has no `allow-popups`. The terminal prints one banner line before
+the shell starts, and repositories Atoma creates get a description.
+
 ## Intentional choices and rejected shortcuts
 
 - **Serving the artifact manifest as the file allowlist.** Measured incomplete
@@ -563,5 +576,8 @@ belongs here.
   is deferred and has its own review
   ([`records/designs/live-preview-direction-2026-08-31.md`](../../records/designs/live-preview-direction-2026-08-31.md)).
 - **A reusable or shareable preview URL.** v1 mints a one-time claim.
+- **Writing the Atoma footer into the deliverable.** That is a change no run
+  verified, it would reach the tenant's repository, and the next run could
+  delete or duplicate it. The gateways add the mark to what they serve.
 - **`npm install` at open time.** A missing `node_modules` is a bounded failure,
   not a network operation on a member's click.

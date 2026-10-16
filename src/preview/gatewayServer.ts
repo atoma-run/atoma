@@ -21,6 +21,12 @@ import {
   sanitizeRequestHeaders,
   sanitizeResponseHeaders,
 } from './gateway.js';
+import {
+  ATTRIBUTION_BADGE_HTML,
+  attributionAppender,
+  isAttributableRequest,
+  isAttributableResponse,
+} from './attribution.js';
 
 /**
  * THE PREVIEW GATEWAY.
@@ -296,15 +302,19 @@ export function startPreviewGateway(
       allowedHosts: route.allowedHosts,
     });
 
-    if (route.kind === 'static') return serveStatic(route, pathname, policy, res);
-    return proxyToRelay(route, req, res, policy, requestOrigin);
+    // The terminal page is Atoma's own interface, not the application; its
+    // attribution is the banner the shell prints.
+    const attribute = route.mode !== 'terminal' && isAttributableRequest(req.method, req.headers);
+    if (route.kind === 'static') return serveStatic(route, pathname, policy, res, attribute);
+    return proxyToRelay(route, req, res, policy, requestOrigin, attribute);
   }
 
   function serveStatic(
     route: PreviewRoute,
     pathname: string,
     policy: Record<string, string>,
-    res: ServerResponse
+    res: ServerResponse,
+    attribute: boolean
   ): void {
     const root = route.workspaceRoot;
     if (!root) return refuse(res);
@@ -320,12 +330,15 @@ export function startPreviewGateway(
         // honest answer today is the same 404 everything else gets.
         return refuse(res);
       }
-      res.writeHead(200, {
+      const headers = {
         ...policy,
         'content-type': CONTENT_TYPES[extname(candidate).toLowerCase()] ?? 'application/octet-stream',
-        'content-length': String(read.length),
-      });
-      res.end(read);
+      };
+      const body = attribute && isAttributableResponse(200, headers)
+        ? Buffer.concat([read, Buffer.from(ATTRIBUTION_BADGE_HTML, 'utf8')])
+        : read;
+      res.writeHead(200, { ...headers, 'content-length': String(body.length) });
+      res.end(body);
     } catch (error) {
       if (error instanceof ArtifactPolicyError && error.code === 'limit') {
         res.writeHead(413, { ...policy, 'content-type': 'text/plain; charset=utf-8' });
@@ -342,17 +355,22 @@ export function startPreviewGateway(
     res: ServerResponse,
     policy: Record<string, string>,
     /** The full origin the browser asked for; see `requestOrigin` above. */
-    requestOrigin: string
+    requestOrigin: string,
+    attribute: boolean
   ): void {
     const port = route.upstreamPort;
     if (port === undefined) return refuse(res);
+    const headers = sanitizeRequestHeaders(req.headers);
+    // A page must arrive uncompressed for the badge to be appended to it; the
+    // public proxy compresses what leaves the gateway anyway.
+    if (attribute) headers['accept-encoding'] = 'identity';
     const upstream = httpRequest(
       {
         host: '127.0.0.1',
         port,
         method: req.method ?? 'GET',
         path: req.url ?? '/',
-        headers: sanitizeRequestHeaders(req.headers),
+        headers,
       },
       (up) => {
         const returned = sanitizeResponseHeaders(up.headers);
@@ -364,6 +382,12 @@ export function startPreviewGateway(
           res.writeHead(502, { ...policy, 'content-type': 'text/plain; charset=utf-8' });
           res.end('the preview tried to navigate away from itself\n');
           up.resume();
+          return;
+        }
+        if (attribute && isAttributableResponse(up.statusCode, up.headers)) {
+          delete returned['content-length'];
+          res.writeHead(200, { ...returned, ...policy });
+          up.pipe(attributionAppender()).pipe(res);
           return;
         }
         res.writeHead(up.statusCode ?? 502, { ...returned, ...policy });
