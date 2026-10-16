@@ -5,11 +5,13 @@
 - [Prod SSH authorized](prod-ssh-authorized.md) — ssh mgf@atoma.run + sudo for diagnosis; ask before restarting Docker/services
 - [Verification speed](verification-speed.md) — targeted tests + checks before an ordinary push; CI gates the deploy
 - [No cooling-off](no-cooling-off.md) — fix incidents in-session, but adversarially review every gate/prompt rule/parser salvage first
+- [Beta rules not fixed](beta-rules-not-fixed.md) — 2026-10-16: I decide owner-level design choices myself; documented rules and AGENTS.md can change if evidence says so
 - [Shared checkout staging](shared-checkout-staging.md) — never stage from a status listing; never reset --hard/stash the shared tree; a peer can sweep my hunk into their push (2026-10-15)
 - [Worktree junction hazard](worktree-junction-hazard.md) — remove node_modules junctions before `git worktree remove --force`
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Parent-tests review fixes state](parent-tests-review-fixes-state.md) — 2026-10-16: review fixes pushed; 11 follow-ups and a second review round still to do
 - [Account plan screen](account-plan-screen.md) — Your plan screen; org plan set by operator `auth set-plan` (2026-10-16); Pro/Team drop the Atoma mark
 - [Project deployment](project-deployment.md) — optional, mutable project setting: none (default), Atoma, or external; hosted address = model-chosen label, admin rename → permanent 308 (2026-10-15)
 - [Attica run delegation](attica-run-delegation.md) — 2026-10-15: I draft and start Attica runs myself and fix Atoma defects found
