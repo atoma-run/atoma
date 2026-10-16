@@ -46,6 +46,9 @@ describe('the real runner', () => {
   const dirs: string[] = [];
   const boxes: ToolSandbox[] = [];
   let savedTmp: string | undefined;
+  // TMPDIR may be unset (CI): restoring only a defined value left it pointing
+  // at a deleted directory for every later test file in the worker.
+  let tmpOverridden = false;
   const fixture = (files: Record<string, string>) => {
     const root = mkdtempSync(path.join(savedTmp ?? tmpdir(), 'atoma-third-review-'));
     dirs.push(root);
@@ -59,7 +62,11 @@ describe('the real runner', () => {
   };
   const run = (box: ToolSandbox, source = ADDS) => runParentTests(box, [JSON.stringify(suite(source))], 30_000);
   afterEach(async () => {
-    if (savedTmp !== undefined) process.env['TMPDIR'] = savedTmp;
+    if (tmpOverridden) {
+      if (savedTmp === undefined) delete process.env['TMPDIR'];
+      else process.env['TMPDIR'] = savedTmp;
+    }
+    tmpOverridden = false;
     savedTmp = undefined;
     await Promise.all(boxes.splice(0).map((box) => box.cleanup()));
     for (const dir of dirs.splice(0)) {
@@ -147,6 +154,7 @@ describe('the real runner', () => {
       dirs.push(privateTmp);
       const add = "import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';\nmkdirSync('./locked');\nwriteFileSync('./locked/x', 'x');\nchmodSync('./locked', 0o555);\nexport const add = (a: number, b: number) => a + b;\n";
       const { box } = fixture({ 'add.ts': add });
+      tmpOverridden = true;
       process.env['TMPDIR'] = privateTmp;
       const observed = await run(box);
       expect(observed.status).toBe('passed');
