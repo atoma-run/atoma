@@ -221,12 +221,27 @@ Neighbours:
   writes the report: an inline PostCSS config, a stylesheet stub decided on the
   RESOLVED id (an alias or a package `main` hides the extension) that keeps a
   missing file red, `config: false`. tsconfig `paths` are read by Vite's native
-  resolver, which Node permissions do not confine. Code the suite imports can
-  still redefine matchers: semantic review of imported modules remains the
-  defence. The LLM-facing capability text has one home, `PARENT_TEST_PLANNING`.
-  The runner entrypoint and its Vite/rolldown pins belong in image-closure
-  tests. See the [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md)
-  and the [C-runner record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#group-c-runner--asynchronous-snapshot-no-project-code-in-the-coordinator).
+  resolver, which Node permissions do not confine; the suite's own bare imports
+  resolve as the modules it imports do, then through root `tsconfig*.json` as
+  data, inside the copy only. The LLM-facing capability text has one home,
+  `PARENT_TEST_PLANNING`. The runner entrypoint, the setup file and their
+  Vite/rolldown pins belong in image-closure tests. See the
+  [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md) and the
+  [C-runner record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#group-c-runner--asynchronous-snapshot-no-project-code-in-the-coordinator).
+- `parentTestSetup.ts` is the assertion-integrity guard (G2, 2026-10-16): a
+  setup file, loaded before the suite, that locks Vitest's objects and checks
+  the built-ins of `src/contracts/assertionIntegrity.ts` and the values around
+  every matcher. Its tag is `assertions-tampered`, a rejection; two nonces ride
+  the coordinator's stdin, and a run whose guard never reported ready is a
+  `runner-error`, never a pass. It narrows forging, it does not close it: the
+  residual list lives once, in the
+  [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md). The guard
+  and its contract load without their compiled source maps, which name `src/`
+  files the thread cannot read: mapped through them, a failing assertion left
+  its test `pending` on the packaged runner. The coordinator exits when the
+  runner's stdin pipe ends; copies carry the runner's pid, and a later
+  verification removes a dead owner's copy once it is 10 minutes old.
+  [G2 record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-matcher-forging-leftover-copies-suite-aliases).
 
 ## Generated artefact conventions
 
@@ -412,6 +427,15 @@ Neighbours:
   ([src/contracts](../contracts/AGENTS.md)), which is how the L1 validation
   ledger tells a refusal from a failed observation of the page; keep the
   wording behind the prefix free to change, never the prefix.
+- The integrity guard's rejected shortcuts (G2, 2026-10-16): Node's
+  `--frozen-intrinsics` (the measured runner crashed under it); a check only
+  after the run (a self-restoring `Object.is` passes it, F6d); freezing the
+  built-ins themselves (fake timers, spies and polyfills write them); naming
+  the caller of `expect.extend` from its stack; a tally of assertion failures
+  (`expect.poll` and `vi.waitFor` retry failing assertions by design);
+  removing copies by age alone (a live run's copy is old too); watching the
+  global `Date` binding or `JSON` (fake timers and `vi.spyOn` replace them);
+  a nonce in argv or env (`ps` and `/proc/<pid>/cmdline` show both).
 - Moving smoke guidance closer to the call site is NOT the untried variable.
   The erased-intermediate-state rule already sits in the `smoke` PARAMETER
   description and the model still violated it six times across two batches.

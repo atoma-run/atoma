@@ -1536,3 +1536,245 @@ reviewer list fails the report-blind one.
   adversarial pass above; neither is measured in production.
 - The root-pass floor is unmeasured; `unjudgedRemediations` is how it gets
   measured.
+
+## Follow-up: Matcher forging, leftover copies, suite aliases
+
+Follow-up group G2, decided under the owner's delegation
+(`memory/beta-rules-not-fixed.md`). It narrows F6 (group C-runner), bounds the
+leftover copies, and closes the suite alias item from that group's limits.
+
+### Findings
+
+- **F6, restated.** Code under test runs in the suite's Vitest thread. Each
+  of these turned a wrong implementation into `passed` on the runner at
+  `522d79a2` (shown again in the tests below through a host-only seam that
+  replaces the guard with a setup that only reports ready):
+  - `expect.extend({ toBe: () => ({ pass: true }) })` at import (F6a);
+  - a returned object with an `asymmetricMatch` method (F6b);
+  - `Object.is` replaced, and `Object.is` replaced so that it restores itself
+    after its first call (F6d), which a check after the run cannot see;
+  - `Object.hasOwn` replaced (equality lists keys through it);
+  - `Function.prototype.call` replaced so that a custom tester answers "equal";
+  - the Map iterator's `next` replaced so that the next Map walked looks
+    empty, on two Maps of the same size;
+  - **expected-side and prototype forgery**: `Array.prototype.asymmetricMatch`
+    makes every array in the EXPECTED value a matcher, against a primitive
+    actual value (`expect(3).toEqual([5])`) or nested (`{ v: [5] }`);
+  - `test.each` or `vi.fn` replaced (`test.each` is a writable data property:
+    `createChainable` runs `Object.assign(chain, fn)`);
+  - a matcher name the suite defines, re-registered by the code under test
+    after the suite's own `extend`.
+- **F6c** (`afterEach(ctx => { ctx.task.result.state = 'pass' })`) rewrites
+  the runner's own record, below any assertion: not addressed, a residual.
+- **Snapshots were written.** Vitest resolves `updateSnapshot` to `'new'`
+  outside CI and the coordinator passed no `update`: a first run wrote the
+  snapshot, and a child-written `__snapshots__` file supplied the expected
+  bytes.
+- **Leftover copies.** The runner's SIGKILL timer lives in the runner. A hard
+  exit of the runner (SIGKILL, OOM) left its `atoma-acceptance-*` copy and its
+  coordinator, `detached`, running until its Vitest finished.
+- **Suite aliases.** A suite importing a tsconfig `paths` alias stayed red
+  ("the suite module did not load") while the modules it imported resolved
+  the same alias.
+- **Found while testing on the packaged runner:** importing `sandbox.ts` into
+  the coordinator failed under `--permission` on Linux (its module-level probe
+  of `/proc/self/fd` is refused), and the compiled guard's source map names
+  `src/` files the thread may not read: Vitest, mapping a failing assertion's
+  stack through it, reported the test `pending` with no failure. Neither shows
+  on macOS from source; both were caught by the container test before commit.
+
+### Mechanism
+
+- **`src/tools/parentTestSetup.ts`**, a Vitest `setupFiles` entry the
+  coordinator adds. It runs in the test thread before the suite module, so
+  before any code under test, and:
+  - saves every built-in it uses and calls them through the saved
+    `Reflect.apply`, never `.call`;
+  - reads both nonces from the provided context and deletes them there;
+  - records the watched (object, key) pairs, present (data value or getter
+    identity) or absent: the built-ins of `src/contracts/assertionIntegrity.ts`
+    by owner, the symbol-keyed iterators, the iterator prototypes' `next`,
+    selected global bindings, `asymmetricMatch` absent from every intrinsic
+    prototype, `Symbol.hasInstance` absent from the watched constructors and
+    `Symbol.toStringTag` at its baseline;
+  - registers the prototypes of Vitest's own asymmetric matchers (from samples
+    and from each factory in the asymmetric table) and freezes them;
+  - wraps every function-valued member of `chai.Assertion.prototype` but
+    `constructor` and `assert`, each chainable method's behaviour, and every
+    property getter: a sticky violation rethrows; the wrapper scans the actual
+    value (any asymmetric node is a violation) and the arguments (an
+    asymmetric node Vitest did not make is a violation), checks the watched
+    pairs, runs the matcher, and checks them again. Identity and type matchers
+    and Vitest's own `withTest`/`withContext` are not scanned; getters are
+    checked, never scanned;
+  - guards `expect.extend`: a built-in name is dropped silently, a taken name
+    is tagged unless its matcher has the same source text (a re-registration),
+    a new name is wrapped, locked and its matcher prototype registered;
+  - refuses `addEqualityTesters` and `addSnapshotSerializer` with the tag and
+    freezes the testers list;
+  - locks (non-writable, non-configurable, never `preventExtensions`) the
+    Assertion prototype, the chainable table, the matcher tables, `expect`,
+    `expect.not`, `chai.expect`, the four `Symbol.for` slots, `test`, `it`,
+    `describe`, `suite` and `vi`, and each test's own `expect` in a setup
+    `beforeEach`;
+  - writes the tag to stderr when it first fires, through Node's primordials,
+    because a forgery that breaks Vitest's runner can lose the report's copy,
+    and rethrows it from an `afterAll` when the code under test swallowed it;
+  - reports `[atoma-integrity-ready:<setup nonce>]` on stderr once installed.
+- **Nonces.** The runner draws two (`randomBytes(16)`) and writes them with
+  the window on the coordinator's stdin, one JSON line; the coordinator
+  passes them as `provide`. Neither appears in argv or env.
+- **Host reading**, after the report checks and before `passed`: the guard tag
+  anywhere (a module message, a failure, the coordinator's output, the raw
+  report) gives `unavailable` / `assertions-tampered` with the report's
+  counts and a host note naming the first tagged line; the setup tag gives
+  `runner-error` only in a module message with zero tests; a run whose guard
+  never reported ready (watched as the stream arrives, so flooding the output
+  cannot hide it) gives `runner-error`. Both tags and the ready marker are
+  normalised to fixed strings: the repeat key stays byte-identical.
+- **Consequence.** `assertions-tampered` joins `SUBJECT_CAUSES` (reject) with
+  coaching that names patched built-ins, extended or replaced matchers and
+  `asymmetricMatch` objects.
+- **Plan-time suite check** (`src/atoms/parentSuiteCheck.ts`, called from
+  `enforceParsedDelegationReview`): a TypeScript parse of every suite; a
+  refusal of kind `plan` names custom equality testers, snapshot serializers,
+  file snapshots, hand-made `asymmetricMatch` members, an `expect.extend` of a
+  built-in name (`VITEST_BUILTIN_MATCHERS`, pinned and compared with the live
+  prototype by a test) or of one name twice, and `vi.spyOn` on a watched
+  built-in (the same contract list the guard reads). Resumed roots re-run it.
+- **Coordinator.** `update: 'none'`; `__snapshots__` joins the reserved paths
+  the host removes; the guard and its contract load without their compiled
+  source maps; the coordinator exits on its stdin's end and at its window
+  plus 5 s.
+- **Copies.** `atoma-acceptance-<pid>-<suffix>`. The first verification per
+  process and temporary directory starts `sweepStaleCopies` after its own copy
+  is gone, unawaited: matching names only, real directories owned by this
+  user, owner dead (`kill(pid, 0)` gives ESRCH) and 10 minutes old, inside
+  the snapshot slots, at most 32, errors logged.
+- **Suite aliases** (`atoma:suite-aliases`, the coordinator): for a bare
+  specifier imported by the suite, project source found through the suite's
+  relative imports wins over a different direct resolution (TypeScript's rule
+  that `paths` beat packages, the subject's own); otherwise the direct
+  resolution; otherwise each root `tsconfig*.json`, `tsconfig.json` first,
+  read as data by rolldown's resolver, with a host note when another one
+  decided or two disagreed. Every candidate found this way must lie inside
+  the copy (`containedIn`, now in side-effect-free `containment.ts`), and goes
+  back through Vite so the stylesheet stub still applies.
+
+### Measurements
+
+Measured on macOS from source, the same suite with the guard and with the
+unguarded seam, two runs each:
+
+| Assertion | Guarded | Unguarded |
+|---|---|---|
+| `toBe` | 22 µs | 4 µs |
+| `toEqual`, 3,000 nodes | 0.79 ms | 0.37 ms |
+| `toEqual`, one key | 17 µs | 4 µs |
+
+Each full runner process stays about 0.3 s on these fixtures.
+
+### Deviations from the design
+
+- **A ready marker.** Not in the design. Without it, a guard that failed to
+  load untagged (a missing nonce, a Vitest bump) made the suite module fail
+  and read as the child's `failed`, and a guard that silently did not run
+  passed everything unwatched. A missing marker is now `runner-error`. It is
+  watched as the stream arrives, so a subject flooding its output cannot push
+  it out of the kept tail and launder a rejection into a review.
+- **A re-registration with the same text is not tagged.** The design tagged
+  every taken non-built-in name, which tags an honest suite that calls
+  `expect.extend` in `beforeEach` or inside each test. The cost is a residual:
+  a subject that reads the suite file and registers its matcher's exact text
+  first is read as a re-registration.
+- **The actual value's scan is stricter than the expected side's.** Any
+  asymmetric node in the actual value is a violation, Vitest-made or not: the
+  design accepted registered function identities, and a subject can return
+  `expect.anything()` itself, or `{ asymmetricMatch: Anything.prototype.asymmetricMatch }`.
+  Genuine is decided by prototype, never by function identity.
+- **Hand-made `asymmetricMatch` objects are refused at plan time.** The
+  runtime cannot tell the parent's from a forgery, and would have blamed the
+  child.
+- **Property getters and chainable methods are wrapped too** (`.to.be.empty`,
+  `.to.include`): they run assertions outside the function-valued members.
+- **The watched lists live in `src/contracts/assertionIntegrity.ts`**, read
+  by both the guard and the plan check, so the refusal and the detection
+  cannot drift. The thread is granted read access to that one file.
+- **`containedIn` moved to `src/tools/containment.ts`** and is re-exported by
+  `sandbox.ts`: one home, importable under `--permission`.
+- **The guard's compiled source maps are dropped** by a coordinator `load`
+  hook (found on the packaged runner, above).
+
+### Adversarial review of the new gates
+
+- **Plan check.** A false positive needs an honest suite that uses an API
+  which cannot work in this runner anyway, or a `vi.spyOn` on a watched
+  built-in, which the guard would report. Names in strings and comments are
+  never read, a key passed as a variable is read as unknown and refused only
+  on a watched owner, and a source that does not parse is never refused. A
+  false negative is obfuscated access (`expect['add' + 'EqualityTesters']`),
+  which the runtime tags. A resumed plan that uses a refused API is refused on
+  resume: acceptable in beta.
+- **Setup tag.** Only the setup's block knows its nonce, no closure keeps it,
+  and it counts only with zero tests; a subject that extracts the guard nonce
+  and forges the setup tag is still `assertions-tampered` (tested).
+- **Tags in output.** A subject can print the guard tag: it can only reject
+  itself. It cannot print the ready marker without the setup nonce.
+- **Locks.** Every honest suite in the matrix (`test.each`, `describe.each`,
+  `test.for`, `vi.spyOn`, fake timers, `expect.poll`, `expect.soft`, inline
+  snapshots, a context `expect`, custom matchers positive and negated) passes
+  with the locks in place.
+- **False alarms that remain:** a forced polyfill replacing a watched built-in,
+  and a value under test that is itself an asymmetric matcher unless checked
+  with an identity matcher. The details name the property.
+
+### Tests
+
+- `tests/parent-tests-integrity.test.ts`, through the real runner: three
+  honest suites pass (the broad matrix, fake timers with spies on `Date.now`
+  and `JSON.parse`, a Proxy over a Map and a 20 MB typed array); ten forgers
+  pass unguarded and are `assertions-tampered` guarded, each naming its
+  property; a forged setup tag stays tampering; `test.each` and `vi.fn`
+  replacements pass unguarded and fail honestly guarded; an extend of `toBe`,
+  caught lock errors and a child-written `__snapshots__` stay honest reds;
+  tampering repeats byte for byte without a nonce; neither nonce reaches the
+  suite; the seam's setup tag and a silent setup are `runner-error`.
+- `tests/parent-suite-check.test.ts`: each refusal, the admitted APIs, strings
+  and comments, a parse failure, the pinned matcher list against the live
+  prototype, the delegation review's `plan` refusal for a subtask and a plan
+  suite, and a root plan replanned three times before any child runs.
+- `tests/parent-tests-observations.test.ts`: `'assertions-tampered': 'reject'`
+  in the compile-enforced table, and its coaching.
+- `tests/parent-tests-snapshot.test.ts`: the sweep matrix (a dead old copy
+  removed; an alive owner, a fresh copy, this pid, old-style and `-image-`
+  names, a matching link with its target and a matching file kept; 32 per
+  sweep), a hard exit (a forked runner killed while its suite spins: the
+  coordinator is gone within 20 s, and the aged copy is removed by a later
+  verification), and six suite alias cases (include-scoped, solution-style
+  with its host note, a nested package through a proxy, project source over a
+  same-named package, an alias leaving the project, a stylesheet alias with a
+  forging `sass`). Run against the runner at `HEAD` before this change, the
+  four resolving alias cases and the hard exit fail, and the two refusing
+  alias cases pass; nineteen of the integrity tests fail there and the four
+  that pass are the three honest suites and the nonce check.
+- `tests/container-isolation.test.ts`, on the packaged image (dedicated tag):
+  a forged `Object.is` is `assertions-tampered`; the existing two cases pass.
+- `tests/container-image-closure.test.ts`: the setup file is an entry, and
+  the guard's contract and `containment.ts` are reached.
+
+### Limits
+
+- **F6 is narrowed, not closed.** The residual list lives once, in
+  [the protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md):
+  runner records (F6c), stateful evasion, mocks passed into the subject,
+  values a matcher obtains itself (a thrown error), expected values taken from
+  the subject, built-ins outside the watched set, a copied matcher text, a
+  leaked guard nonce.
+- **Leftover copies are bounded:** a later verification in a process sharing
+  the temporary directory removes a copy whose owner is dead and which is at
+  least 10 minutes old. A machine that never verifies again keeps it.
+- **Suite aliases are closed** for tsconfig `paths`; aliases defined only in
+  `vite.config` stay unsupported.
+- **On every vitest, vite or rolldown bump**, re-run
+  `tests/parent-tests-integrity.test.ts` and the matcher-list drift test, and
+  re-derive the watched set (D9).

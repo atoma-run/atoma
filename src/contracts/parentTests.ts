@@ -46,6 +46,7 @@ export const parentTestCauseSchema = z.enum([
   'snapshot-timeout', // tools: the window ended while the project was being copied
   'snapshot-special-file', // tools: a FIFO, socket or device in the project
   'worker-missing', // tools: the compiled acceptance worker is not installed
+  'assertions-tampered', // tools: a host-tagged assertion-integrity violation during the run
   'runner-error', // tools: any other host failure
   'no-executor', // core: no shell executor in this context
   'invalid-observation', // core: the executor returned no valid observation for this suite
@@ -54,6 +55,36 @@ export const parentTestCauseSchema = z.enum([
   'deadline-timeout', // core: a timeout in a child window below PARENT_TEST_TIMEOUT_MS (the run deadline or the copy cut it)
 ]);
 export type ParentTestCause = z.infer<typeof parentTestCauseSchema>;
+
+/**
+ * Every function-valued own key of `chai.Assertion.prototype` under the pinned
+ * Vitest, `constructor` excepted: the matcher names a suite's `expect.extend`
+ * must not redefine. A suite that tries is refused at plan time
+ * (`src/atoms/parentSuiteCheck.ts`); at run time the redefinition is ignored.
+ * `tests/parent-suite-check.test.ts` compares it with the live prototype, so a
+ * Vitest bump that adds a matcher fails there first.
+ */
+export const VITEST_BUILTIN_MATCHERS: readonly string[] = [
+  'Throw', 'above', 'approximately', 'assert', 'below', 'by', 'callCount', 'calledAfter', 'calledBefore',
+  'calledOnceWith', 'calledWith', 'change', 'changes', 'closeTo', 'containSubset', 'decrease', 'decreases',
+  'eq', 'eql', 'eqls', 'equal', 'equals', 'greaterThan', 'greaterThanOrEqual', 'gt', 'gte',
+  'haveOwnProperty', 'haveOwnPropertyDescriptor', 'increase', 'increases', 'instanceOf', 'instanceof', 'key',
+  'keys', 'lastCalledWith', 'lastReturnedWith', 'least', 'lessThan', 'lessThanOrEqual', 'lt', 'lte', 'match',
+  'matchSnapshot', 'matches', 'members', 'most', 'nthCalledWith', 'nthReturnedWith', 'oneOf', 'ownProperty',
+  'ownPropertyDescriptor', 'property', 'respondTo', 'respondsTo', 'returned', 'returnedTimes',
+  'returnedWith', 'satisfies', 'satisfy', 'string', 'throw', 'throws', 'toBe', 'toBeCalled',
+  'toBeCalledTimes', 'toBeCalledWith', 'toBeCloseTo', 'toBeDefined', 'toBeFalsy', 'toBeGreaterThan',
+  'toBeGreaterThanOrEqual', 'toBeInstanceOf', 'toBeLessThan', 'toBeLessThanOrEqual', 'toBeNaN', 'toBeNull',
+  'toBeNullable', 'toBeOneOf', 'toBeTruthy', 'toBeTypeOf', 'toBeUndefined', 'toContain', 'toContainEqual',
+  'toEqual', 'toHaveBeenCalled', 'toHaveBeenCalledAfter', 'toHaveBeenCalledBefore',
+  'toHaveBeenCalledExactlyOnceWith', 'toHaveBeenCalledOnce', 'toHaveBeenCalledTimes', 'toHaveBeenCalledWith',
+  'toHaveBeenLastCalledWith', 'toHaveBeenNthCalledWith', 'toHaveLastResolvedWith', 'toHaveLastReturnedWith',
+  'toHaveLength', 'toHaveNthResolvedWith', 'toHaveNthReturnedWith', 'toHaveProperty', 'toHaveResolved',
+  'toHaveResolvedTimes', 'toHaveResolvedWith', 'toHaveReturned', 'toHaveReturnedTimes', 'toHaveReturnedWith',
+  'toMatch', 'toMatchFileSnapshot', 'toMatchInlineSnapshot', 'toMatchObject', 'toMatchSnapshot', 'toReturn',
+  'toReturnTimes', 'toReturnWith', 'toSatisfy', 'toStrictEqual', 'toThrow', 'toThrowError',
+  'toThrowErrorMatchingInlineSnapshot', 'toThrowErrorMatchingSnapshot', 'withContext', 'withTest', 'within',
+];
 
 export const parentTestObservationSchema = z.object({
   suiteDigest: z.string(),
@@ -139,7 +170,8 @@ export const PARENT_TEST_PLANNING = `PARENT-OWNED ACCEPTANCE TESTS:
 For TypeScript application work, define acceptanceTests on each implementation subtask BEFORE execution:
 {"requirement":"the assigned behavior and its observable interface","cwd":".","source":"import { test, expect } from 'vitest'; import { add } from './src/add.ts'; test('adds', () => { expect(add(2, 3)).toBe(5); });"}.
 The acceptanceTests source is a JSON string: write every backslash as \\\\ (a regex \\d becomes \\\\d in JSON) and escape double quotes and newlines; prefer single-quoted TypeScript strings in test code.
-The source is one TypeScript Vitest file placed at the project root in a disposable workspace copy. Use relative imports of real application modules. Node environment only; subprocesses, nested workers and native addons are unavailable inside assertions. tsconfig \`paths\` aliases resolve only inside application modules their tsconfig includes; CSS imports load as empty stubs (CSS-module class names map to themselves and are not checked). Test importable modules and in-process APIs; real browser and CLI process checks remain separate.
+The source is one TypeScript Vitest file placed at the project root in a disposable workspace copy. Use relative imports of real application modules. Node environment only; subprocesses, nested workers and native addons are unavailable inside assertions. tsconfig \`paths\` aliases resolve in the suite as in the application modules it imports; CSS imports load as empty stubs (CSS-module class names map to themselves and are not checked). Test importable modules and in-process APIs; real browser and CLI process checks remain separate.
+Use Vitest's built-in matchers; expect.extend may only add new names; custom equality testers, snapshot serializers and file snapshots are unavailable (inline snapshots work).
 L3 assigns criteria, interfaces and tests to EACH L2 branch. L2 proposes contract tests for EACH L1; L3 reviews them with the L2 plan before any L1 starts. Specify branch contracts before parallel implementation.
 Plan-level acceptanceTests run after the branches join: L3 owns integration tests in addition to its per-L2 tests. Do not require future branches' behavior in a leaf suite.
 Tests must exercise actual code and observable behavior, including relevant negative/boundary cases. Mock external services only; no trivial assertions, implementation replacement, skip/todo/only, hidden requirements or real external traffic.

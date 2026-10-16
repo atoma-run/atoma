@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { DelegationRefusalKind, NegativeVerdict, Plan, Task } from '../core/types.js';
 import { delegationReviewEnvelopeSchema, type DelegationReview } from '../contracts/parentTests.js';
 import { parseWith, planSchema } from './json.js';
+import { parentSuiteRefusal } from './parentSuiteCheck.js';
 import { VALIDATION_SYSTEM_PROMPT } from './verdict.js';
 
 export type { DelegationRefusalKind } from '../core/types.js';
@@ -78,8 +79,9 @@ export function enforceDelegationReview(plan: Plan, response: string, allowDisco
 
 /**
  * The mechanical half of the review, at zero tokens: the host checks that every
- * classified requirement has executable bytes and that independent work fans
- * out. A resumed root re-runs it over a recorded approval instead of asking a
+ * classified requirement has executable bytes, that no suite uses an API the
+ * runner's integrity guard refuses (`parentSuiteCheck.ts`), and that
+ * independent work fans out. A resumed root re-runs it over a recorded approval instead of asking a
  * model again.
  */
 export function enforceParsedDelegationReview(plan: Plan, review: DelegationReview, allowDiscovery: boolean): NegativeVerdict | undefined {
@@ -98,6 +100,15 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
       ...missing.map(s => `subtask ${s.index} (${s.reason})`),
       ...(review.integration.kind === 'vitest' && !plan.acceptanceTests ? ['plan integration'] : []),
     ].join('; ')}. Supply executable suites before implementation, or request a genuine inspection-only discovery plan at L3.`, 'plan');
+  }
+  // APIs the runner's integrity guard refuses: the parent's choice, refused before a child is blamed for it.
+  const suites = [
+    ...plan.subtasks.map((subtask, index) => ({ label: `on subtask ${index}`, suite: subtask.acceptanceTests })),
+    { label: 'for the plan integration', suite: plan.acceptanceTests },
+  ];
+  for (const { label, suite } of suites) {
+    const refusal = suite ? parentSuiteRefusal(label, suite.source) : undefined;
+    if (refusal) return delegationRefusal(refusal, 'plan');
   }
   const depends = (a: number, b: number): boolean =>
     (plan.subtasks[a]?.dependsOn ?? []).some(i => i < a && (i === b || depends(i, b)));

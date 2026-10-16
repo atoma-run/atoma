@@ -65,7 +65,7 @@ export async function verifyParentTests(task: Task, result: Result, ctx: RunCont
  *  - `reject` — executed and independent of content: the suite failed, or the
  *    code under test stopped it from finishing (a hang the child's whole
  *    window could not interrupt, a rewritten suite file, a replaced or
- *    runaway report).
+ *    runaway report, a changed assertion machinery).
  *  - `reject-once` — content the child controls may have kept the suite from
  *    a result: the workspace could not be copied (an escaping link, a special
  *    file), or the runner ended without a valid report, which code under test
@@ -85,6 +85,8 @@ const SUBJECT_CAUSES: ReadonlyMap<ParentTestCause, string> = new Map([
   ['source-changed', 'the code under test changed the suite file; never write atoma.acceptance.test.ts'],
   ['report-oversize', 'the failure/print output exceeded 8 MiB'],
   ['report-tampered', 'the code under test replaced the runner report; never write atoma.report.json'],
+  ['assertions-tampered', 'the code under test changed Vitest\'s assertion machinery (named in the details): never patch built-ins such as ' +
+    'Object.is or iterator methods, extend or replace expect matchers, or return objects with an asymmetricMatch method from application code'],
 ] as const);
 
 const COPY_COACHING =

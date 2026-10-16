@@ -326,6 +326,7 @@ describe('one mapping, three rows', () => {
     'source-changed': 'reject',
     'report-oversize': 'reject',
     'report-tampered': 'reject',
+    'assertions-tampered': 'reject',
     // Content the child controls may be the cause: coached once, then reviewed.
     'snapshot-link': 'reject-once',
     'snapshot-special-file': 'reject-once',
@@ -352,6 +353,18 @@ describe('one mapping, three rows', () => {
     ...parentTestCauseSchema.options.map((cause) => ['unavailable', cause] as [ParentTestObservation['status'], ParentTestCause]),
     ['unavailable', undefined],
   ];
+
+  it('coaches a tampered assertion machinery with the property the host named', () => {
+    const held = observation({
+      status: 'unavailable',
+      cause: 'assertions-tampered',
+      details: JSON.stringify(['Host: the code under test changed the assertion machinery: [atoma-integrity] Object.is changed']),
+    });
+    const rejection = parentTestRejection(leafResult('done', { parentTests: [held] }))!;
+    expect(rejection.reasoning).toContain('could not finish: assertions-tampered');
+    expect(rejection.reasoning).toContain('never patch built-ins such as Object.is');
+    expect(rejection.coaching).toContain('Object.is changed');
+  });
 
   it('pins the parent rows ahead of every other gate', () => {
     expect(RESULT_GATE_IDS.slice(0, 3)).toEqual(['parent-acceptance-tests', 'parent-acceptance-tests-workspace', 'parent-acceptance-tests-unavailable']);

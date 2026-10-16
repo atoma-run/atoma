@@ -475,6 +475,28 @@ describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('c
     }
   },90_000);
 
+  it('reads a forged Object.is as tampering in the packaged runner', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-acceptance-image-'));
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    try {
+      await executor.start();
+      writeFileSync(join(workspace, 'sum.ts'), ['Object.is = () => true;', 'export const sum = (_a: number, _b: number): number => 5;'].join('\n'));
+      const suite = { requirement: 'sum adds', cwd: '.', source: [
+        "import { test, expect } from 'vitest';",
+        "import { sum } from './sum.ts';",
+        "test('sum', () => {",
+        '  expect(sum(-2, 1)).toBe(-1);',
+        '});',
+      ].join('\n') };
+      const observation = await executor.execute('run_shell', { command: 'atoma-verify', args: [JSON.stringify(suite)], timeoutMs: 60_000 });
+      expect(observation, JSON.stringify(observation)).toMatchObject({ status: 'unavailable', cause: 'assertions-tampered' });
+    } finally {
+      await executor.drain();
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }, 90_000);
+
   it('copies without stalling sibling reads and runs no project code in the coordinator', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'atoma-acceptance-image-'));
     const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,

@@ -3,6 +3,9 @@ import { open, readlink, realpath, stat, type FileHandle } from 'node:fs/promise
 import { resolve, relative, isAbsolute, join, dirname, basename, sep } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import { containedIn } from './containment.js';
+
+export { containedIn };
 
 /**
  * Environment variables a sandboxed child process is allowed to inherit.
@@ -210,13 +213,6 @@ export class OutsideRootError extends Error {}
 
 const PROC_FD = process.platform === 'linux' && existsSync('/proc/self/fd');
 
-/** `real` is `root` or lies below it; byte-wise, so a non-UTF-8 name cannot read as inside. */
-export function containedIn(real: Buffer, root: Buffer): boolean {
-  if (real.equals(root)) return true;
-  if (real.length <= root.length || !real.subarray(0, root.length).equals(root)) return false;
-  return root[root.length - 1] === SEP_BYTE || real[root.length] === SEP_BYTE;
-}
-const SEP_BYTE = sep.charCodeAt(0);
 
 /**
  * Open `path` without following its last component, then prove the opened

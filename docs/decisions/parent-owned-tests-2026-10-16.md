@@ -40,7 +40,8 @@ for any other supervisor are projections of that one mapping:
 
 - A failed suite, and one the code under test kept from finishing (a hang that
   used the child's full 120-second window, a rewritten suite file, a report
-  path replaced by something other than a file, a report over 8 MiB),
+  path replaced by something other than a file, a report over 8 MiB, a changed
+  assertion machinery),
   rejects mechanically at every tier, at compiled dispatch and at root acceptance.
   The rejection names the failing assertions, so identical failures escalate and
   progress does not.
@@ -110,20 +111,91 @@ that kept changing are copied as last read; both are counted in the details.
 Generated harness files exist only in the disposable copy.
 
 No project code runs in the coordinator, the process that loads Atoma's native
-compiler and writes the report. Test-thread code can still redefine matchers,
-so semantic review of the imported modules remains the defence against a
-forged pass. Unsupported, each an honest red rather than a pass:
+compiler and writes the report.
+
+**The assertion-integrity guard (G2, 2026-10-16).** Code under test runs in
+the same Vitest thread as the suite, so it could forge a pass: replace a
+matcher, patch `Object.is` or an iterator, return an object with an
+`asymmetricMatch` method, or plant one on `Array.prototype` (review F6). A
+host-written Vitest setup file, `src/tools/parentTestSetup.ts`, loads before
+the suite module and therefore before any code under test. It locks the
+framework objects (the Assertion prototype, the matcher tables, `expect`,
+`test`, `describe`, `vi`, each test's own `expect`), wraps every matcher, and
+before and after each one checks the built-ins equality reads
+(`src/contracts/assertionIntegrity.ts`, present or absent) and scans the
+actual value and the arguments for asymmetric matchers Vitest did not make.
+`expect.extend` ignores a built-in name, tags a new name taken first with
+different text, and refuses custom equality testers and snapshot serializers.
+A violation throws a tag carrying a per-run nonce; the host reads it, from
+the report or the coordinator's stderr, as `assertions-tampered`, which
+rejects. The flag is sticky: a violation the code catches still fails the
+file. Two nonces travel on the coordinator's stdin, never argv or env, and
+leave the thread's provided context before the suite loads: only the setup's
+own nonce, which no closure keeps, can produce `runner-error`, and only with
+zero tests; a run whose guard never reported ready is a `runner-error` too,
+never a pass. The cost, measured: `toBe` 22 µs against 4 µs unguarded,
+`toEqual` on 3,000 nodes 0.79 ms against 0.37 ms.
+
+The parent's own use of what the guard refuses is refused earlier, at plan
+time and zero tokens, by the mechanical half of the delegation review
+(`src/atoms/parentSuiteCheck.ts`): custom equality testers, snapshot
+serializers, file snapshots, hand-made `asymmetricMatch` objects, an
+`expect.extend` of a built-in name or of one name twice, and `vi.spyOn` on a
+watched built-in. The child is never rejected for the parent's choice. Vitest
+runs with `update: 'none'`, so a missing inline snapshot fails and none is
+written, and the host removes a child-written `__snapshots__` before the run.
+
+What a determined adversary can still do (the one list; other documents link
+here):
+
+- Rewrite the runner's records: `afterEach(ctx => ctx.task.result.state =
+  'pass')`, `__vitest_worker__.rpc`, or Vitest's own modules imported by path
+  (`@vitest/runner`, `@vitest/snapshot`).
+- Stateful evasion: a Proxy, getter or iterable that shows the scan an honest
+  value and `equals` a matcher; a forgery installed and removed inside one
+  `equals` call; a node past the scan budget of 10,000 keys and nodes.
+- Mutate a mock passed into the code under test, for example its `mock`
+  record.
+- A value a matcher obtains itself and the scan never sees: the error
+  `toThrow` catches from the function under test.
+- Expected values taken from the code under test (`toEqual(app.DEFAULTS)`)
+  that are honest objects of the wrong value: semantic, not mechanical.
+- Built-ins outside the watched set, re-derived on each Vitest bump.
+- Read the suite file and register its custom matcher's exact text first: the
+  guard reads the same text as a re-registration.
+- Leak the guard nonce: that can only produce a rejection.
+
+False alarms that remain: a forced polyfill replacing a watched built-in, and
+a value under test that is itself an asymmetric matcher, unless it is checked
+with the identity matchers (`toBe`, `toBeDefined`, …). The details name the
+property in both cases. The container and semantic review of the imported
+modules remain the real defence: F6 is narrowed, not closed.
+
+A runner killed hard (`SIGKILL`, an OOM) used to leave its copy and its
+coordinator behind. The coordinator now exits when its stdin pipe from the
+runner ends, or at its window plus 5 s. Copies are named
+`atoma-acceptance-<pid>-…`; the first verification in a process sharing the
+temporary directory removes, in the background and at most 32 at a time,
+copies this user owns whose process is dead and which are at least 10 minutes
+old. Bounded, not closed: a copy waits for a later verification.
+
+Unsupported, each an honest red rather than a pass:
 
 - Vite or Vitest configuration, plugins, `setupFiles`/`globalSetup`, jsdom or
   browser environments.
 - CSS processing and hashed class names: stylesheets load as empty stubs.
 - `?worker` imports, native addons and subprocesses inside tests.
-- Aliases defined only in `vite.config`, a suite that imports an alias itself,
-  and a tsconfig whose `extends` leaves the project.
+- Aliases defined only in `vite.config`, and a tsconfig whose `extends` leaves
+  the project. A suite's own bare imports resolve as the application modules it
+  imports resolve them (project source named by a tsconfig `paths` alias beats
+  a package of the same name), then through each root `tsconfig*.json` as data,
+  `tsconfig.json` first, with a host note when another one decided. A
+  resolution outside the copy is refused.
 - Hard links to files outside the project are still copied as bytes; inside
   the container none can be created (`EXDEV` across the workspace mount).
 
-Review: [group C-runner](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#group-c-runner--asynchronous-snapshot-no-project-code-in-the-coordinator).
+Review: [group C-runner](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#group-c-runner--asynchronous-snapshot-no-project-code-in-the-coordinator),
+[G2](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-matcher-forging-leftover-copies-suite-aliases).
 
 ## A failed branch lands; its dependents do not start
 

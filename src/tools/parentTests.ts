@@ -1,9 +1,9 @@
 import { constants, existsSync, lstatSync, readFileSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
-import { mkdir, mkdtemp, open, readdir, rm, stat, symlink, type FileHandle } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, open, readdir, rm, stat, symlink, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { z } from 'zod';
@@ -358,8 +358,20 @@ export function runnerDetails(notes: readonly string[], modules: readonly { read
 
 const statOf = (file: string) => lstatSync(file, { throwIfNoEntry: false });
 
+/** Host-only test seams: never reachable from `run_shell` arguments. */
+export interface ParentTestSeams {
+  /** A setup file relative to the copy, written by the host into the coordinator's stdin header. */
+  readonly setupFile?: string;
+}
+
+/** The tags the integrity guard throws; both nonces are fresh per run and never leave the host's header. */
+const integrityTag = (nonce: string): string => `[atoma-integrity:${nonce}]`;
+const setupTag = (nonce: string): string => `[atoma-integrity-setup:${nonce}]`;
+const readyTag = (nonce: string): string => `[atoma-integrity-ready:${nonce}]`;
+
 /** Fixed harness through run_shell; it never executes package scripts or project config. */
-export async function runParentTests(sandbox: ToolSandbox, argv: readonly string[], timeoutMs: number, logger?: Logger): Promise<ParentTestObservation> {
+export async function runParentTests(sandbox: ToolSandbox, argv: readonly string[], timeoutMs: number, logger?: Logger,
+  seams?: ParentTestSeams): Promise<ParentTestObservation> {
   if (argv.length !== 1) throw new Error('atoma-verify requires one JSON suite');
   const suite = parentTestSuiteSchema.parse(JSON.parse(argv[0]!));
   const suiteDigest = parentTestSuiteDigest(suite);
@@ -367,7 +379,8 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
   const deadline = Date.now() + timeoutMs;
   const generation = sandbox.cleanupGeneration;
   const root = (await kernelRealpathAsync(sandbox.resolve(suite.cwd))).toString();
-  const temp = (await kernelRealpathAsync(await mkdtemp(path.join(tmpdir(), 'atoma-acceptance-')))).toString();
+  // Named by this process: a later sweep removes it only once this process is dead.
+  const temp = (await kernelRealpathAsync(await mkdtemp(path.join(tmpdir(), `${COPY_PREFIX}${process.pid}-`)))).toString();
   const controller = new AbortController();
   const deadlineTimer = setTimeout(() => controller.abort(new VerificationStop('deadline')), Math.max(1, deadline - Date.now()));
   deadlineTimer.unref();
@@ -376,7 +389,12 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
   const project = path.join(temp, 'project');
   // The snapshot path is random per run: failure text keeps it out, so the
   // same failure repeats byte-identically and the repeat tracker can see it.
-  const normalize = (text: string): string => text.split(project).join('.').split(temp).join('.');
+  const setupNonce = randomBytes(16).toString('hex');
+  const guardNonce = randomBytes(16).toString('hex');
+  // The nonces never reach `details`: the same tampering repeats byte-identically.
+  const normalize = (text: string): string => text.split(project).join('.').split(temp).join('.')
+    .split(integrityTag(guardNonce)).join('[atoma-integrity]').split(setupTag(setupNonce)).join('[atoma-integrity-setup]')
+    .split(readyTag(setupNonce)).join('[atoma-integrity-ready]');
   let observation: ParentTestObservation = { suiteDigest, workspaceDigest: '', status: 'unavailable', passed: 0, failed: 0, skipped: 0, details: '' };
   const copyStarted = Date.now();
   let copied = 0;
@@ -401,7 +419,8 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     // The copy may carry lookalikes of the host's files, directories included:
     // their bytes are never authoritative, and a directory under one of these
     // names must not turn a red suite into a runner error (second review).
-    for (const reserved of [workspaceFile, source, report]) rmSync(reserved, { recursive: true, force: true });
+    // A child-written `__snapshots__` would carry the expected bytes of a snapshot matcher.
+    for (const reserved of [workspaceFile, source, report, path.join(project, '__snapshots__')]) rmSync(reserved, { recursive: true, force: true });
     // Stop Vite's workspace discovery at this disposable project.
     writeFileSync(workspaceFile, 'packages: []\n', { flag: 'wx' });
     if (!existsSync(path.join(project, 'package.json'))) writeFileSync(path.join(project, 'package.json'), '{"type":"module"}');
@@ -418,6 +437,8 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     const childWindowMs = Math.max(1, Math.min(PARENT_TEST_TIMEOUT_MS, deadline - Date.now()));
     observation = { ...observation, windowMs: childWindowMs };
     let timedOut = false;
+    // Seen as it streams, not in the kept tail: output flooding cannot hide it.
+    let guardReady = false;
     const outcome = await new Promise<{ code: number | null; details: string; spawnError?: string }>(resolve => {
       // Node permissions complement the existing container boundary: no child
       // processes, live workspace reads/writes, or parent environment. Vitest
@@ -427,23 +448,38 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
       const child = spawn(process.execPath, [
         '--permission', `--allow-fs-read=${project}`, `--allow-fs-read=${modules}`,
         `--allow-fs-read=${path.dirname(worker)}`,
+        // The guard's one contract import, shared with the plan-time suite check.
+        `--allow-fs-read=${path.resolve(path.dirname(worker), '../contracts', `assertionIntegrity${path.extname(worker)}`)}`,
         `--allow-fs-read=${path.resolve(path.dirname(worker), '../../node_modules')}`,
         `--allow-fs-read=${path.resolve(path.dirname(worker), '../../package.json')}`,
         `--allow-fs-write=${project}`,
         '--allow-worker', '--allow-addons', worker, project,
       ], { cwd: project, env: sandboxChildEnv({ HOME: project, TMPDIR: project, NODE_ENV: 'test' }),
-        detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+        detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
       sandbox.trackChild(child);
+      // The nonces travel on stdin, never argv or env; the pipe stays open, and
+      // its end tells an orphaned coordinator that this process died.
+      child.stdin?.on('error', () => undefined);
+      child.stdin?.write(`${JSON.stringify({ setupNonce, guardNonce, windowMs: childWindowMs,
+        ...(seams?.setupFile ? { setupFile: path.join(project, seams.setupFile) } : {}) })}\n`);
       let output = '';
+      let carry = '';
+      const ready = readyTag(setupNonce);
       const collect = (data: Buffer) => { output = (output + data.toString()).slice(-6000); };
-      child.stdout?.on('data', collect); child.stderr?.on('data', collect);
+      child.stdout?.on('data', collect);
+      child.stderr?.on('data', (data: Buffer) => {
+        collect(data);
+        const text = carry + data.toString();
+        if (text.includes(ready)) guardReady = true;
+        carry = text.slice(-ready.length);
+      });
       const kill = () => {
         try { if (child.pid && child.pid > 1) process.kill(-child.pid, 'SIGKILL'); } catch { /* already exited / Windows */ }
         child.kill('SIGKILL');
       };
       const timer = setTimeout(() => { timedOut = true; kill(); }, childWindowMs);
-      child.once('error', error => { clearTimeout(timer); kill(); resolve({ code: null, details: output, spawnError: error.message }); });
-      child.once('close', code => { clearTimeout(timer); kill(); resolve({ code, details: output }); });
+      child.once('error', error => { clearTimeout(timer); kill(); child.stdin?.destroy(); resolve({ code: null, details: output, spawnError: error.message }); });
+      child.once('close', code => { clearTimeout(timer); kill(); child.stdin?.destroy(); resolve({ code, details: output }); });
     });
     const tail = normalize(outcome.details).slice(-6000);
     const withOutput = tail ? { output: tail } : {};
@@ -468,12 +504,37 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
       return { ...observation, ...withOutput, cause: 'report-oversize', details: 'The verification report exceeds 8 MiB' };
     }
     let parsed: z.infer<typeof reportSchema>;
+    let reportText: string;
     try {
-      parsed = reportSchema.parse(JSON.parse(readFileSync(report, 'utf8')));
+      reportText = readFileSync(report, 'utf8');
+      parsed = reportSchema.parse(JSON.parse(reportText));
     } catch (error) {
       return { ...observation, ...withOutput, cause: 'report-invalid', details: `The verification report is not the expected shape: ${normalize(String(error)).slice(0, 1000)}` };
     }
     const skipped = parsed.numPendingTests + parsed.numTodoTests;
+    const outcomes = parsed.testResults.map(module => ({
+      message: normalize(module.message ?? ''),
+      tests: module.assertionResults.map(test => ({ name: normalize(test.fullName), status: test.status, failures: test.failureMessages.map(normalize) })),
+    }));
+    // The guard's tag anywhere, report or output, is the code under test's
+    // doing: only a violation throws it, and its nonce left the host on stdin.
+    const tag = integrityTag(guardNonce);
+    const texts = [...parsed.testResults.flatMap(module => [module.message ?? '', ...module.assertionResults.flatMap(test => test.failureMessages)]),
+      outcome.details, reportText];
+    const tagged = texts.flatMap(text => text.split('\n')).find(line => line.includes(tag));
+    if (tagged !== undefined) {
+      return { ...observation, ...withOutput, status: 'unavailable', cause: 'assertions-tampered', passed: parsed.numPassedTests,
+        failed: parsed.numFailedTests, skipped,
+        details: runnerDetails([`Host: the code under test changed the assertion machinery: ${normalize(tagged).trim().slice(0, 300)}`], outcomes) };
+    }
+    // The setup tag counts only where setup failed: a module that never loaded a test.
+    if (parsed.numTotalTests === 0 && parsed.testResults.some(module => module.message?.includes(setupTag(setupNonce)))) {
+      return { ...observation, ...withOutput, cause: 'runner-error', details: runnerDetails(['Host: the assertion-integrity guard could not be installed'], outcomes) };
+    }
+    // A run the guard did not watch establishes nothing, and blames nobody.
+    if (!guardReady) {
+      return { ...observation, ...withOutput, cause: 'runner-error', details: runnerDetails(['Host: the assertion-integrity guard did not report ready'], outcomes) };
+    }
     const passed = outcome.code === 0 && parsed.success && parsed.numTotalTests > 0 &&
       parsed.numPassedTests === parsed.numTotalTests && parsed.numFailedTests === 0 && skipped === 0;
     // Host notes are array elements, so the details stay one JSON array.
@@ -484,14 +545,15 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     if (parsed.numTotalTests === 0 && parsed.testResults.some(module => module.message?.trim())) {
       notes.push('Host: the suite module did not load; no test ran.');
     }
+    // The coordinator's note on a suite alias only a non-default tsconfig resolved.
+    for (const line of outcome.details.split('\n')) {
+      if (/^Host: suite alias '.{1,200}' resolved via tsconfig[\w.-]*\.json$/.test(line) && notes.length < 8) notes.push(line);
+    }
     // A report carries the assertion outcomes; the raw tail would only repeat them.
     return { ...observation, status: passed ? 'passed' : 'failed', cause: 'ran', passed: parsed.numPassedTests,
       failed: parsed.numFailedTests, skipped,
       // Each string is normalized before it is encoded, so the array stays valid JSON.
-      details: runnerDetails(notes.map(normalize), parsed.testResults.map(module => ({
-        message: normalize(module.message ?? ''),
-        tests: module.assertionResults.map(test => ({ name: normalize(test.fullName), status: test.status, failures: test.failureMessages.map(normalize) })),
-      }))),
+      details: runnerDetails(notes.map(normalize), outcomes),
     };
   } catch (error) {
     return error instanceof TypedFailure
@@ -505,7 +567,72 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     } catch (error) {
       logger?.warn(`[tool:atoma-verify] the verification copy could not be removed: ${String(error).slice(0, 300)}`);
     }
+    // Once per process and temporary directory, after this run's own copy is
+    // gone, never awaited by a verification.
+    const directory = tmpdir();
+    if (!swept.has(directory)) {
+      swept.add(directory);
+      void sweepStaleCopies(directory, { logger });
+    }
   }
+}
+
+const COPY_PREFIX = 'atoma-acceptance-';
+/** `atoma-acceptance-<pid>-<mkdtemp suffix>`: the only names a sweep may remove. */
+const COPY_NAME = /^atoma-acceptance-(\d{1,10})-[A-Za-z0-9]{6}$/;
+/** A dead owner's coordinator exits within its window plus 5 s; ten minutes is far past both. */
+export const STALE_COPY_AGE_MS = 10 * 60 * 1000;
+const SWEEP_MAX = 32;
+const swept = new Set<string>();
+
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM: alive, owned by someone else. Only ESRCH proves it gone.
+    return errno(error) !== 'ESRCH';
+  }
+}
+
+/**
+ * Removes copies a hard-exited runner left behind: only names this runner
+ * writes, only real directories (never a link) owned by this user, only when
+ * the owning process is dead AND the copy is at least STALE_COPY_AGE_MS old.
+ * A reused pid that makes a dead owner look alive keeps the copy, the safe
+ * direction. Removals share the snapshot slots, one at a time, at most 32 per
+ * sweep. Errors are logged, never thrown.
+ */
+export async function sweepStaleCopies(directory: string, options: {
+  now?: number; alive?: (pid: number) => boolean; logger?: Logger;
+} = {}): Promise<number> {
+  const now = options.now ?? Date.now();
+  const alive = options.alive ?? pidAlive;
+  let removed = 0;
+  try {
+    for (const name of await readdir(directory)) {
+      if (removed >= SWEEP_MAX) break;
+      const match = COPY_NAME.exec(name);
+      if (!match) continue;
+      const pid = Number(match[1]);
+      if (pid === process.pid || pid <= 0) continue;
+      const entry = path.join(directory, name);
+      try {
+        const info = await lstat(entry);
+        if (!info.isDirectory() || info.isSymbolicLink()) continue;
+        if (typeof process.getuid === 'function' && info.uid !== process.getuid()) continue;
+        if (now - info.mtimeMs < STALE_COPY_AGE_MS || alive(pid)) continue;
+        await slots.run(() => rm(entry, { recursive: true, force: true }));
+        removed += 1;
+      } catch (error) {
+        options.logger?.warn(`[tool:atoma-verify] a stale verification copy could not be removed: ${String(error).slice(0, 300)}`);
+      }
+    }
+  } catch (error) {
+    options.logger?.warn(`[tool:atoma-verify] stale verification copies could not be listed: ${String(error).slice(0, 300)}`);
+  }
+  if (removed > 0) options.logger?.info(`[tool:atoma-verify] removed ${removed} stale verification copies`);
+  return removed;
 }
 
 function stopFailure(stop: VerificationStop, entries: number, ms: number): TypedFailure {

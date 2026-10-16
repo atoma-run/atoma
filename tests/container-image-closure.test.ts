@@ -48,6 +48,8 @@ const SRC = resolve(REPO, 'src');
 const ENTRIES = [
   resolve(SRC, 'tools/worker.ts'),
   resolve(SRC, 'tools/parentTestWorker.ts'),
+  // Loaded by the coordinator's Vitest as a setup file, by path: no import reaches it.
+  resolve(SRC, 'tools/parentTestSetup.ts'),
   resolve(SRC, 'tools/egressProxy.ts'),
   resolve(SRC, 'tools/previewIngress.ts'),
 ];
@@ -149,6 +151,11 @@ describe('worker image closure — everything the worker imports must be in the 
     // worker's graph never reaches.
     expect(closure.files.has(resolve(SRC, 'tools/egressProxy.ts'))).toBe(true);
     expect(closure.files.has(resolve(SRC, 'tools/previewIngress.ts'))).toBe(true);
+    // The integrity guard and its one contract import, which the runner grants the thread by path.
+    expect(closure.files.has(resolve(SRC, 'tools/parentTestSetup.ts'))).toBe(true);
+    expect(closure.files.has(resolve(SRC, 'contracts/assertionIntegrity.ts'))).toBe(true);
+    // The coordinator's computed import of the containment check.
+    expect(closure.files.has(resolve(SRC, 'tools/containment.ts'))).toBe(true);
   });
 
   it('COPYs every src/ directory the worker imports', () => {

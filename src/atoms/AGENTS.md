@@ -346,7 +346,9 @@ load-bearing.
   check integration. `core/parentTests.ts` alone maps typed status/cause to reject,
   reject-once or review; none grants credit. Observations survive aggregation typed,
   reach validators only as a host block, and are judged once. Green still needs
-  semantic review. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
+  semantic review. The mechanical half of the delegation review owns the suite
+  API check (`parentSuiteCheck.ts`): what the runner's integrity guard refuses
+  is refused in the parent's plan, so no child is rejected for it. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
 
 - All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
   logic and maintained tests. Application changes include migration where needed.

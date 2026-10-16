@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execFileSync, fork, type ChildProcess } from 'node:child_process';
-import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, lutimesSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer, type Server, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { ToolSandbox } from '../src/tools/sandbox.js';
-import { runParentTests, snapshotProject } from '../src/tools/parentTests.js';
+import { STALE_COPY_AGE_MS, runParentTests, snapshotProject, sweepStaleCopies } from '../src/tools/parentTests.js';
 import { parentTestObservationSchema, type ParentTestSuite } from '../src/contracts/parentTests.js';
 
 /**
@@ -423,23 +423,94 @@ describe('tsconfig paths and stylesheets', () => {
     expect(observation.status, observation.details).toBe('passed');
   });
 
-  it('scopes aliases to the files a tsconfig includes: application code resolves, the suite does not', async () => {
+  it('resolves an alias the suite imports itself, as the application code would', async () => {
     const scoped = workspace();
     write(scoped.root, 'tsconfig.json', '{"compilerOptions":{"paths":{"@/*":["./src/*"]}},"include":["src"]}');
     write(scoped.root, 'src/x.ts', 'export const add=(a:number,b:number)=>a+b;');
     write(scoped.root, 'src/use.ts', "export { add } from '@/x';");
     const application = await verify(scoped.box, "import {test,expect} from 'vitest'; import {add} from './src/use.ts'; test('adds',()=>{expect(add(2,3)).toBe(5);});");
     expect(application.status, application.details).toBe('passed');
+    // Until G2 this stayed red: "the suite module did not load".
     const suiteAlias = await verify(scoped.box, "import {test,expect} from 'vitest'; import {add} from '@/x'; test('adds',()=>{expect(add(2,3)).toBe(5);});");
-    expect(suiteAlias.status).toBe('failed');
-    expect(suiteAlias.details).toContain('did not load');
+    expect(suiteAlias.status, suiteAlias.details).toBe('passed');
+  }, 45_000);
+
+  it('resolves a solution-style alias and says which tsconfig decided', async () => {
     const solution = workspace();
     write(solution.root, 'tsconfig.json', '{"files":[],"references":[{"path":"./tsconfig.app.json"}]}');
     write(solution.root, 'tsconfig.app.json', '{"compilerOptions":{"paths":{"@/*":["./src/*"]}},"include":["src"]}');
     write(solution.root, 'src/x.ts', 'export const add=(a:number,b:number)=>a+b;');
-    write(solution.root, 'src/use.ts', "export { add } from '@/x';");
-    const referenced = await verify(solution.box, "import {test,expect} from 'vitest'; import {add} from './src/use.ts'; test('adds',()=>{expect(add(2,3)).toBe(5);});");
-    expect(referenced.status, referenced.details).toBe('passed');
+    const observation = await verify(solution.box, "import {test,expect} from 'vitest'; import {add} from '@/x'; test('adds',()=>{expect(add(2,3)).toBe(5);});");
+    expect(observation.status, observation.details).toBe('passed');
+    expect(JSON.parse(observation.details)).toContain("Host: suite alias '@/x' resolved via tsconfig.app.json");
+  }, 45_000);
+
+  it('resolves a nested package alias through the module the suite imports', async () => {
+    const { root, box } = workspace();
+    write(root, 'packages/app/tsconfig.json', '{"compilerOptions":{"paths":{"@app/*":["./src/*"]}},"include":["src"]}');
+    write(root, 'packages/app/src/x.ts', 'export const add=(a:number,b:number)=>a+b;');
+    write(root, 'packages/app/src/use.ts', "export { add } from '@app/x';");
+    const source = [
+      "import {test,expect} from 'vitest';",
+      "import {add as viaUse} from './packages/app/src/use.ts';",
+      "import {add} from '@app/x';",
+      "test('adds',()=>{",
+      '  expect(add(2,3)).toBe(5);',
+      '  expect(viaUse).toBe(add);',
+      '});',
+    ].join('\n');
+    const observation = await verify(box, source);
+    expect(observation.status, observation.details).toBe('passed');
+  }, 45_000);
+
+  it('lets a paths alias to project source beat a package of the same name, for the suite as for the subject', async () => {
+    const { root, box } = workspace();
+    write(root, 'tsconfig.json', '{"compilerOptions":{"paths":{"lib":["./src/lib.ts"]}},"include":["src"]}');
+    write(root, 'src/lib.ts', "export const source = 'project';");
+    write(root, 'src/use.ts', "export { source } from 'lib';");
+    write(root, 'node_modules/lib/package.json', '{"name":"lib","main":"index.js"}');
+    write(root, 'node_modules/lib/index.js', "exports.source = 'package';");
+    const source = [
+      "import {test,expect} from 'vitest';",
+      "import {source as viaUse} from './src/use.ts';",
+      "import {source} from 'lib';",
+      "test('agree',()=>{",
+      "  expect(viaUse).toBe('project');",
+      "  expect(source).toBe('project');",
+      '});',
+    ].join('\n');
+    const observation = await verify(box, source);
+    expect(observation.status, observation.details).toBe('passed');
+  }, 45_000);
+
+  it('never loads the project preprocessor for a stylesheet alias the suite imports', async () => {
+    const { root, box } = workspace();
+    write(root, 'tsconfig.json', JSON.stringify({ compilerOptions: { paths: { '@theme': ['./t.scss'] } }, include: ['src'] }));
+    write(root, 't.scss', '$c: red; body { color: $c; }');
+    write(root, 'add.ts', 'export const add=(_a:number,_b:number)=>5;');
+    for (const name of ['sass-embedded', 'sass']) {
+      write(root, `node_modules/${name}/package.json`, JSON.stringify({ name, main: 'index.js' }));
+      write(root, `node_modules/${name}/index.js`, [
+        "const { writeFileSync } = require('node:fs');",
+        "process.on('exit', () => {",
+        "  writeFileSync(process.cwd() + '/atoma.report.json', JSON.stringify({ success: true, numPassedTests: 1, numFailedTests: 0, numPendingTests: 0, numTodoTests: 0, numTotalTests: 1, testResults: [{ assertionResults: [{ fullName: 'adds', status: 'passed', failureMessages: [] }] }] }));",
+        '  process.exitCode = 0;',
+        '});',
+        'module.exports = {};',
+      ].join('\n'));
+    }
+    const observation = await verify(box, "import {test,expect} from 'vitest'; import '@theme'; import {add} from './add.ts'; test('adds',()=>{expect(add(-2,1)).toBe(-1);});");
+    expect(observation.status, observation.details).toBe('failed');
+  }, 45_000);
+
+  it('never passes on a suite alias that leaves the project, and shows none of its bytes', async () => {
+    const { root, box } = workspace();
+    const outside = workspace();
+    write(outside.root, 'secret.ts', "export const secret = 'OUTSIDE_BYTES';");
+    write(root, 'tsconfig.json', JSON.stringify({ compilerOptions: { paths: { '@out/*': [`${outside.root}/*`] } }, include: ['src'] }));
+    const observation = await verify(box, "import {test,expect} from 'vitest'; import {secret} from '@out/secret'; test('reads',()=>{expect(secret).toBe('OUTSIDE_BYTES');});");
+    expect(observation.status).not.toBe('passed');
+    expect(JSON.stringify(observation)).not.toContain('export const secret');
   }, 45_000);
 
   it('never passes on an alias that leaves the project, and shows none of its bytes', async () => {
@@ -507,4 +578,105 @@ describe('snapshot isolation', () => {
       clearInterval(unlinker);
     }
   }, 60_000);
+});
+
+describe('copies a hard exit left behind', () => {
+  const DEAD = 999_999;
+  const ALIVE = 888_888;
+  const hourAgo = (Date.now() - 60 * 60 * 1000) / 1000;
+
+  function copy(name: string, aged = true): string {
+    const directory = path.join(privateTmp, name);
+    mkdirSync(path.join(directory, 'project'), { recursive: true });
+    if (aged) utimesSync(directory, hourAgo, hourAgo);
+    return directory;
+  }
+
+  it('removes only a dead owner\'s copy at least ten minutes old, of this runner\'s own name', async () => {
+    const removable = copy(`atoma-acceptance-${DEAD}-a1B2c3`);
+    const kept = [
+      copy(`atoma-acceptance-${ALIVE}-a1B2c3`),
+      copy(`atoma-acceptance-${DEAD}-fresh1`, false),
+      copy(`atoma-acceptance-${process.pid}-a1B2c3`),
+      copy('atoma-acceptance-a1B2c3'),
+      copy('atoma-acceptance-image-a1B2c3'),
+    ];
+    const target = copy('link-target');
+    writeFileSync(path.join(target, 'kept.txt'), 'kept');
+    const link = path.join(privateTmp, `atoma-acceptance-${DEAD}-link12`);
+    symlinkSync(target, link);
+    lutimesSync(link, hourAgo, hourAgo);
+    const file = path.join(privateTmp, `atoma-acceptance-${DEAD}-file12`);
+    writeFileSync(file, 'a file, not a copy');
+    utimesSync(file, hourAgo, hourAgo);
+
+    const removed = await sweepStaleCopies(privateTmp, { alive: (pid) => pid === ALIVE });
+
+    expect(removed).toBe(1);
+    expect(existsSync(removable)).toBe(false);
+    for (const directory of kept) expect(existsSync(directory), directory).toBe(true);
+    expect(readFileSync(path.join(target, 'kept.txt'), 'utf8')).toBe('kept');
+    expect(existsSync(link)).toBe(true);
+    expect(existsSync(file)).toBe(true);
+    expect(STALE_COPY_AGE_MS).toBe(10 * 60 * 1000);
+  });
+
+  it('removes at most 32 copies per sweep', async () => {
+    for (let index = 0; index < 40; index++) copy(`atoma-acceptance-${DEAD}-n${String(index).padStart(5, '0')}`);
+    const removed = await sweepStaleCopies(privateTmp, { alive: () => false });
+    expect(removed).toBe(32);
+    expect(acceptanceCopies()).toHaveLength(8);
+  });
+
+  it.skipIf(!POSIX)('ends the orphaned coordinator and removes the copy on a later verification', async () => {
+    const { root, box } = workspace();
+    write(root, 'add.ts', 'export const add=(a:number,b:number)=>a+b;');
+    const busy = [
+      "import {test} from 'vitest';",
+      "test('spins', () => {",
+      '  const end = Date.now() + 60_000;',
+      '  while (Date.now() < end) {',
+      '    // the test thread is busy; the coordinator is not',
+      '  }',
+      '});',
+    ].join('\n');
+    const script = path.join(privateTmp, 'hard-exit-runner.mts');
+    writeFileSync(script, [
+      "const { ToolSandbox } = await import(process.env['SANDBOX_MODULE']!);",
+      "const { runParentTests } = await import(process.env['RUNNER_MODULE']!);",
+      "await runParentTests(new ToolSandbox(process.env['FIXTURE_ROOT']!), [process.env['SUITE']!], 90_000);",
+    ].join('\n'));
+    const runner = fork(script, [], {
+      execArgv: ['--import', 'tsx'],
+      env: {
+        PATH: process.env['PATH'],
+        TMPDIR: privateTmp,
+        FIXTURE_ROOT: root,
+        SUITE: JSON.stringify(suite(busy)),
+        SANDBOX_MODULE: new URL('../src/tools/sandbox.ts', import.meta.url).href,
+        RUNNER_MODULE: new URL('../src/tools/parentTests.ts', import.meta.url).href,
+      },
+      stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    });
+    children.push(runner);
+    const prefix = `atoma-acceptance-${runner.pid}-`;
+    const coordinators = (): string[] => execFileSync('ps', ['-A', '-o', 'pid=,args='], { encoding: 'utf8' })
+      .split('\n')
+      .filter(line => line.includes(prefix) && line.includes('parentTestWorker'));
+    await until(() => coordinators().length > 0, 60_000);
+    const copyName = acceptanceCopies().find(name => name.startsWith(prefix))!;
+    expect(copyName).toMatch(/^atoma-acceptance-\d+-[A-Za-z0-9]{6}$/);
+
+    runner.kill('SIGKILL');
+    await new Promise(resolve => runner.once('exit', resolve));
+    // The pipe's end, not the window: well under the 120 s window plus 5 s.
+    await until(() => coordinators().length === 0, 20_000);
+    expect(acceptanceCopies()).toContain(copyName);
+
+    const aged = (Date.now() - STALE_COPY_AGE_MS - 60_000) / 1000;
+    utimesSync(path.join(privateTmp, copyName), aged, aged);
+    const later = await verify(box, ADD_SUITE);
+    expect(later.status, later.details).toBe('passed');
+    await until(() => !acceptanceCopies().includes(copyName), 20_000);
+  }, 120_000);
 });
