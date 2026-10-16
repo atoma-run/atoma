@@ -2182,7 +2182,8 @@ export class ProjectRunCoordinator {
       // and the files in its workspace are as real as a delivery's — the run
       // reached its budget with phases already accepted and reported those
       // (`dispatchWithAggregation`) instead of discarding them, which is the
-      // 2026-09-21 defect this exists to close. Only two things differ, both
+      // 2026-09-21 defect this exists to close; a phase that failed its typed
+      // checks lands the same way, its dependents never started. Only two things differ, both
       // below: the status it completes into, and that publication never sees
       // it. The declared manifest is NOT cross-checked against the workspace
       // here, so a plan that declared artefacts its unrun phases would have

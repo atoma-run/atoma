@@ -8,7 +8,8 @@ import { dirname, resolve } from 'node:path';
 import { cpSync, existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { setMaxListeners } from 'node:events';
-import { RunnerConfigError } from '../core/errors.js';
+import { PlanParseError, RunnerConfigError } from '../core/errors.js';
+import { planParseFeedback } from '../atoms/json.js';
 import { containerImageDigestSchema } from '../contracts/containerImage.js';
 import { applyTierPins } from '../core/models.js';
 import { createAttestationLog } from '../core/attestation.js';
@@ -45,7 +46,8 @@ import { withPlannedDelivery } from '../atoms/taskContext.js';
 import { depthModeSchema, type DepthMode } from '../contracts/depthRouting.js';
 import { decodePreviousLanding, isLanded, landingReasons, PREVIOUS_LANDING_ENV } from '../contracts/runLanding.js';
 import { withPreviousRunInputs } from './taskInputs.js';
-import { runDepthTask } from './depth.js';
+import { refuseUnreviewedParentTests, runDepthTask } from './depth.js';
+import { persistedParentTests } from '../contracts/parentTests.js';
 import { SkillRegistry } from '../skills/registry.js';
 import { LearningQueue } from '../skills/learningQueue.js';
 import { spawnApprovedLearning } from './learningProcess.js';
@@ -105,11 +107,24 @@ export const ARTIFACT_MANIFEST_PATH_ENV = 'ATOMA_ARTIFACT_MANIFEST_PATH';
 
 /**
  * SHORT depth's root: the entry cell plans, the plan is recorded, and a
- * declared text delivery reaches every descendant before execution.
+ * declared text delivery reaches every descendant before execution. An
+ * unparseable plan reply spends one of three attempts and is asked again with
+ * the parser's message, as at the L3 root; no review is added here.
  */
 export function shortRootHandle(cell: L2Atom): (task: Task, context: RunContext) => Promise<Result> {
   return async (task, context) => {
-    const plan = await cell.plan(task, context);
+    let plan: Plan | undefined;
+    let planning = task;
+    for (let attempt = 1; !plan; attempt++) {
+      try {
+        plan = await cell.plan(planning, context);
+      } catch (error) {
+        if (!(error instanceof PlanParseError) || context.signal.aborted || attempt >= 3) throw error;
+        const feedback = planParseFeedback(error);
+        context.logger.warn(`[${cell.name}] ${feedback}`);
+        planning = { ...task, constraints: [...(task.constraints ?? []), feedback] };
+      }
+    }
     context.recordRootPlan?.(plan);
     return cell.execute(withPlannedDelivery(task, plan), plan, context);
   };
@@ -1553,7 +1568,10 @@ async function startTaskInternal(
             }
           });
       }
-      const result = await handle(task, ctx).finally(() => { retrievalWatched = false; });
+      const handled = await handle(task, ctx).finally(() => { retrievalWatched = false; });
+      // Root acceptance judges a depth run's unjudged parent-owned suites;
+      // without it, one that did not pass refuses the delivery here.
+      const result = args.depth ? handled : refuseUnreviewedParentTests(handled);
       clearTimeout(watchdog);
       // Audits still in flight record into this run's trace before it closes;
       // one that outlasts the bound is dropped, since it measures and decides nothing.
@@ -1586,7 +1604,12 @@ async function startTaskInternal(
           output: result.output,
           producedBy: result.producedBy,
           ...(unfinishedPhases.length > 0 ? { unfinishedPhases } : {}),
+          // Which of those a failed prerequisite held back: explains, never decides.
+          ...(result.blockedPhases?.length ? { blockedPhases: result.blockedPhases } : {}),
           ...(result.refusal ? { refusal: result.refusal } : {}),
+          // Typed and source-free: what viz, MCP readers and the analyst read
+          // of the suites, instead of a summary prefix.
+          ...(result.parentTests?.length ? { parentTests: persistedParentTests(result.parentTests) } : {}),
         },
       });
 

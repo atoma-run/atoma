@@ -244,7 +244,32 @@ describe('GPU authentication controls', () => {
     expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
   });
 
-  it('stays hidden when authentication is disabled', async () => {
+  it('offers the legal links only when an anonymous whoami says exactly legal: true', async () => {
+    function Probe() {
+      const { gate, legal } = useAuthController();
+      return createElement('output', { 'data-testid': 'legal-probe' }, `${gate}:${legal}`);
+    }
+    for (const [legal, expected] of [[true, true], ['yes', false], [undefined, false]] as const) {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+        enabled: true, authenticated: false, providers: [{ id: 'github', label: 'GitHub' }], legal,
+      }));
+      const { unmount } = render(
+        createElement(
+          AuthControls,
+          {
+            t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+            fetchImpl: fetchMock as unknown as typeof fetch,
+            navigate: vi.fn(),
+          },
+          createElement(Probe)
+        )
+      );
+      await waitFor(() => expect(screen.getByTestId('legal-probe')).toHaveTextContent(`unauthenticated:${expected}`));
+      unmount();
+    }
+  });
+
+    it('stays hidden when authentication is disabled', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ enabled: false, authenticated: false }));
     const { navigate } = renderControls(fetchMock);
 

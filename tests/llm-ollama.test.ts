@@ -70,6 +70,22 @@ describe('OllamaLlmClient', () => {
     if (restore) restore();
   });
 
+  it('reports a reply cut by num_predict as max_tokens', async () => {
+    restore = installFetchStub(async () => jsonResponse({
+      model: 'glm-5.1:cloud',
+      message: { role: 'assistant', content: '[{"strategy"' },
+      done: true,
+      done_reason: 'length',
+      prompt_eval_count: 10,
+      eval_count: 3,
+    }));
+
+    const client = new OllamaLlmClient({ defaultModel: 'glm-5.1:cloud' });
+    const resp = await client.complete({ model: 'glm-5.1:cloud', systemPrompt: 's', userContent: 'u' });
+
+    expect(resp.stopReason).toBe('max_tokens');
+  });
+
   it('POSTs a single /api/chat with system + user messages when no tool calls come back', async () => {
     restore = installFetchStub(async (input, init) => {
       calls.push([input, init]);
@@ -91,7 +107,8 @@ describe('OllamaLlmClient', () => {
     });
 
     expect(resp.text).toBe('hello back');
-    expect(resp.stopReason).toBe('stop');
+    // Normalised to the vocabulary every other transport returns.
+    expect(resp.stopReason).toBe('end_turn');
     expect(resp.usage.inputTokens).toBe(10);
     expect(resp.usage.outputTokens).toBe(3);
     expect(resp.usage.cacheReadInputTokens).toBe(0); // Ollama has no cache

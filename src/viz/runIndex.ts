@@ -149,7 +149,7 @@ function readTraceSummary(file: string, withCost: boolean): TraceSummary | null 
         const value = readValue();
         if (name === 'result' && value && typeof value === 'object') {
           const result = value as Record<string, unknown>;
-          return { refusal: result['refusal'], unfinishedPhases: result['unfinishedPhases'] };
+          return { refusal: result['refusal'], unfinishedPhases: result['unfinishedPhases'], blockedPhases: result['blockedPhases'] };
         }
         return value;
       },

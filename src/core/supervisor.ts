@@ -1,4 +1,4 @@
-import { verifyParentTests, parentTestRefusal } from './parentTests.js';
+import { markParentTestsJudged, verifyParentTests, withParentTestConsequences } from './parentTests.js';
 import { EscalationSignal, ValidationError } from './errors.js';
 import type { Atom, Supervisor } from './atom.js';
 import type {
@@ -303,6 +303,17 @@ export async function superviseLoop<C extends Atom>(
         const v1 = await parent.validatePlan(current, plan, task, ctx);
         trace.push({ kind: 'verdict-plan', ts: now(), atom: parent.name, payload: v1 });
 
+        if (!v1.approved && v1.delegationRefusal === 'reviewer') {
+          // The REVIEWER failed (unfinished, unparseable or unclassified,
+          // twice: the tissue already re-reviewed once on its root model).
+          // It is no judgement of the plan, so nothing is coached and no
+          // repeat streak counts it: the plan is asked again inside the plan
+          // budget, which escalates as before when it runs out. Thrown, one
+          // flaky reviewer ended the whole run (follow-up review 2026-10-16).
+          ctx.logger.warn(`[${current.name}] plan review failed as the reviewer's; asking again (${(v1.reasoning ?? '').slice(0, 200)})`);
+          trace.push({ kind: 'plan-review-fault', ts: now(), atom: parent.name, payload: { reasoning: v1.reasoning } });
+          continue;
+        }
         if (!v1.approved) {
           const hit = planRepeat.push(v1.reasoning ?? '');
           if (hit.repeated) {
@@ -356,7 +367,11 @@ export async function superviseLoop<C extends Atom>(
         const result = await run(() => current.execute(task, plan, ctx));
         trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: result });
 
-        const v2 = parentTestRefusal(result) ?? await parent.validateResult(current, result, task, ctx);
+        // A real L2/L3 applies the parent-test mapping in its result gates,
+        // before any I/O or model call; this is the same mapping again for any
+        // other Supervisor, so an approval past a failed suite is overruled and
+        // one past a suite that did not run earns no credit.
+        const v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
         lastResultVerdict = v2;
         trace.push({
           kind: 'verdict-result',
@@ -367,7 +382,8 @@ export async function superviseLoop<C extends Atom>(
 
         if (v2.approved) {
           if (hooks.onApproved) await hooks.onApproved(current, result, v2);
-          return { ...result, trace };
+          // Judged here, once: the tier above sees them as context only.
+          return { ...markParentTestsJudged(result), trace };
         }
 
         const handedUp = hooks.handUpRefused?.(current, result, v2);

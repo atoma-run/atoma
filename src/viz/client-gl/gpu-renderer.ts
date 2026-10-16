@@ -226,6 +226,8 @@ export interface GpuDataSnapshot {
     notice: string | null;
     /** Provider whose OAuth redirect is in flight; that button shows a spinner. */
     pendingProvider?: string | null;
+    /** The server serves the operator's privacy, terms and support pages. */
+    legal?: boolean;
   } | null;
   loading: boolean;
   error: string | null;
@@ -542,6 +544,7 @@ import {
   publishOverlayMenuClip,
 } from './renderer/overlay-menu-clip.js';
 import { drawSettings } from './renderer/views/settings.js';
+import { drawLoadingNotice, viewLoadingKey } from './renderer/loading-notice.js';
 import {
   drawSidebar,
   FOCUS_RAIL_FPS_SCALE,
@@ -2145,7 +2148,10 @@ export class GpuRenderer {
     this.activeViewLayoutHeight = layoutHeight;
     try {
       if (snapshot.data.loading) {
-        this.text(this.root, snapshot.t('common.loading'), 24, 84, { size: 16 });
+        drawLoadingNotice(this, this.root, snapshot.t(viewLoadingKey(snapshot.state.view, {
+          project: Boolean(snapshot.state.selectedProjectId),
+          run: Boolean(snapshot.state.selectedRunId),
+        })), 24, 84, { size: 16, width: contentWidth - 48 });
       } else if (snapshot.data.error) {
         this.text(this.root, snapshot.data.error, 24, 84, {
           size: 14,

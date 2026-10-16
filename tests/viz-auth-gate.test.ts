@@ -2027,6 +2027,8 @@ describe('viz auth gate (process level)', () => {
       enabled: true,
       authenticated: false,
       providers: [{ id: 'github', label: 'GitHub' }],
+      // A loopback origin is not the deployment the legal pages describe.
+      legal: false,
     });
     // The no-JS fallback selector stays server-rendered at /auth/login.
     const fallback = await fetch(`${base}/auth/login?invite=${invitation}`);

@@ -55,6 +55,9 @@ describe('Attica validation context regressions', () => {
       expect(req.userContent).toContain('Offline only');
       expect(req.userContent).toContain('CURRENT_TEST_FAILURE');
       expect(req.systemPrompt).toContain('Keep each judgment local to its criterion');
+      expect(req.systemPrompt).toContain('that its own evidence independently establishes');
+      expect(req.systemPrompt).not.toContain('scheduler');
+      expect(req.systemPrompt).not.toContain('lock-release');
       return { text: jsonText({ approved: false, reasoning: 'File still present.', scope: 'ephemeral', modifications: {},
         criteria: [{ id: 'c1', met: false, reason: 'Current directory listing includes debug.js.' }] }),
       stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };

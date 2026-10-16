@@ -1,6 +1,7 @@
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { ATOMA_MARK_LOCAL_CENTER } from '../atoma-mark.js';
 import { GPU_COLORS } from '../../theme.js';
+import { WELCOME_LEGAL_LINKS } from '../../legal-links.js';
 
 const BUTTON_WIDTH = 200;
 /**
@@ -22,6 +23,12 @@ const VERSION_BOTTOM = 18;
 const VERSION_WIDTH = 160;
 const VERSION_HEIGHT = 14;
 const VERSION_GAP = 10;
+/** The operator's legal links, one row above the version when the server serves them. */
+const LEGAL_HEIGHT = 28;
+const LEGAL_GAP = 4;
+const LEGAL_SIZE = 12;
+const LEGAL_SEPARATOR = '·';
+const LEGAL_SEPARATOR_SPACE = 10;
 const MIN_MARK_SCALE = 4;
 const INSPECT_WIDTH = 400;
 const BEAD_CHECK_WIDTH = 92;
@@ -63,6 +70,9 @@ export interface WelcomeLayout {
   versionY: number;
   versionWidth: number;
   versionHeight: number;
+  /** Top of the legal-links row; meaningful only when the layout reserved it. */
+  legalY: number;
+  legalHeight: number;
 }
 
 /**
@@ -81,7 +91,8 @@ export interface WelcomeLayout {
 export function welcomeLayout(
   width: number,
   height: number,
-  handheld = false
+  handheld = false,
+  legal = false
 ): WelcomeLayout {
   const controlsHeight =
     MARK_TO_SLIDER +
@@ -89,7 +100,9 @@ export function welcomeLayout(
     COPY_HEIGHT +
     COPY_TO_BUTTON +
     BUTTON_HEIGHT;
-  const footerTop = height - VERSION_BOTTOM - VERSION_HEIGHT;
+  const versionTop = height - VERSION_BOTTOM - VERSION_HEIGHT;
+  const legalY = versionTop - LEGAL_GAP - LEGAL_HEIGHT;
+  const footerTop = legal ? legalY : versionTop;
   const footerLimitedMarkPx = Math.max(
     LOCAL_SIZE * MIN_MARK_SCALE,
     (footerTop - VERSION_GAP - height / 2 - controlsHeight) * 2
@@ -135,6 +148,8 @@ export function welcomeLayout(
     versionY: height - VERSION_BOTTOM,
     versionWidth: VERSION_WIDTH,
     versionHeight: VERSION_HEIGHT,
+    legalY,
+    legalHeight: LEGAL_HEIGHT,
   };
 }
 
@@ -150,7 +165,8 @@ export function drawWelcome(
   height: number
 ): void {
   const handheld = snapshot.state.handheld && !snapshot.state.handheldAccepted;
-  const layout = welcomeLayout(width, height, handheld);
+  const legal = snapshot.data.login?.legal === true;
+  const layout = welcomeLayout(width, height, handheld, legal);
   ctx.retainAtomaMark(layout.markX, layout.markY, layout.scale, {
     bobPx: FLOAT_AMPLITUDE_PX,
     bobPeriodMs: FLOAT_PERIOD_MS,
@@ -290,6 +306,7 @@ export function drawWelcome(
       true
     );
   }
+  if (legal) drawLegalLinks(ctx, snapshot, width, layout);
   const version = ctx.text(
     ctx.root,
     snapshot.t('welcome.version', { version: snapshot.releaseVersion }),
@@ -305,4 +322,39 @@ export function drawWelcome(
     }
   );
   version.anchor.set(0.5, 1);
+}
+
+/**
+ * Privacy · Terms · Support, centred above the version. Each label is its own
+ * link region; GpuApp navigates on activation and the DOM bridge mirrors them
+ * as real anchors.
+ */
+function drawLegalLinks(
+  ctx: RendererCtx,
+  snapshot: GpuRenderSnapshot,
+  width: number,
+  layout: WelcomeLayout
+): void {
+  const options = { size: LEGAL_SIZE, color: GPU_COLORS.muted, weight: '500', singleLine: true } as const;
+  const labels = WELCOME_LEGAL_LINKS.map((link) => {
+    const label = snapshot.t(link.id);
+    return { id: link.id, label, width: Math.ceil(ctx.measureText(label, options)) };
+  });
+  const separatorWidth = Math.ceil(ctx.measureText(LEGAL_SEPARATOR, options));
+  const total = labels.reduce((sum, link) => sum + link.width, 0)
+    + (labels.length - 1) * (separatorWidth + LEGAL_SEPARATOR_SPACE * 2);
+  let cursor = Math.round((width - total) / 2);
+  const textY = (layout.legalHeight - LEGAL_SIZE * 1.4) / 2;
+  labels.forEach((link, index) => {
+    if (index > 0) {
+      cursor += LEGAL_SEPARATOR_SPACE;
+      ctx.text(ctx.root, LEGAL_SEPARATOR, cursor, layout.legalY + textY,
+        { ...options, width: separatorWidth, alpha: 0.6 });
+      cursor += separatorWidth + LEGAL_SEPARATOR_SPACE;
+    }
+    const region = ctx.linkRegion(ctx.root, link.id, link.label, cursor, layout.legalY,
+      link.width, layout.legalHeight, snapshot.onActivate);
+    ctx.text(region, link.label, 0, textY, { ...options, width: link.width, alpha: 0.8 });
+    cursor += link.width;
+  });
 }

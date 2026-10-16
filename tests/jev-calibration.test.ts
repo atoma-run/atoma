@@ -1,7 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { prefilterStrategy, SKILL_PREFILTER_SYSTEM_PROMPT } from '../src/atoms/cost.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
+import { L3Atom } from '../src/atoms/L3Atom.js';
 import { resetPrefilterCacheForTests } from '../src/atoms/prefilterCache.js';
 import { llmVerdict, renderTransportEvidence } from '../src/atoms/verdict.js';
 import { APPLICATION_TYPESCRIPT_GUIDANCE, TASK_CONTEXT_HEADER, DELEGATED_SCOPE_GUIDANCE, delegatedTaskContext } from '../src/atoms/taskContext.js';
@@ -19,10 +23,16 @@ import {
   type RecordedDecision,
 } from '../src/atoms/jevCalibration.js';
 import { JEV_ENDPOINT } from '../src/core/jev.js';
+import { JEV_EXCLUSION_STAMPS } from '../src/contracts/llmTrace.js';
 import { JEV_THRESHOLDS, buildCompilation } from '../src/core/jevQuestions.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import type { Witness } from '../src/contracts/witness.js';
+import { parentTestSuiteDigest, type ParentTestSuite } from '../src/contracts/parentTests.js';
+import type { Result } from '../src/core/types.js';
+import { RecordingLlmClient } from '../src/viz/recordingLlm.js';
+import { TraceRecorder } from '../src/viz/trace.js';
+import { DELEGATION_REVIEW_HEADER } from '../src/atoms/delegationReview.js';
 import { makePlan } from './helpers/factories.js';
 import { jsonText, makeCtx } from './helpers.js';
 
@@ -364,6 +374,190 @@ describe('the corpus: model decisions, in the window, from runs Jev did not deci
       'jev',
       'late',
     ]);
+  });
+
+  // Review 2026-10-16, group F: four validations Decision never takes by
+  // policy were read as calibration material. Production stamps them on the
+  // call; the calibration keeps them in the corpus and counts them apart.
+  describe('the validations Decision never takes', () => {
+    let runsDir: string;
+
+    beforeEach(() => {
+      runsDir = mkdtempSync(join(tmpdir(), 'atoma-jev-excluded-'));
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      rmSync(runsDir, { recursive: true, force: true });
+    });
+
+    const SUITE: ParentTestSuite = {
+      requirement: 'add returns the sum of its arguments',
+      cwd: '.',
+      source: "import { test, expect } from 'vitest';\nimport { add } from './add.ts';\ntest('adds', () => {\n  expect(add(2, -3)).toBe(-1);\n});",
+    };
+
+    const passed = {
+      suiteDigest: parentTestSuiteDigest(SUITE),
+      suite: SUITE,
+      workspaceDigest: 'a'.repeat(64),
+      status: 'passed' as const,
+      cause: 'ran' as const,
+      passed: 1,
+      failed: 0,
+      skipped: 0,
+      details: JSON.stringify(['', { name: 'adds', status: 'passed', failures: [] }]),
+    };
+
+    const contractReview = (subtasks: number) => jsonText({
+      approved: true,
+      reasoning: 'scope reviewed',
+      delegationReview: {
+        subtasks: Array.from({ length: subtasks }, (_, index) => ({ index, kind: 'vitest', reason: 'implements add' })),
+        integration: { kind: 'other', reason: 'one module' },
+        independentWork: false,
+        parallelReason: 'one module',
+      },
+    });
+
+    function actors() {
+      const registry = new AtomRegistry(openDb(':memory:'));
+      const seedOf = (description: string) => ({ ...seed, description });
+      const tissue = L3Atom.buildWithModel(registry.create(3, seedOf('orchestrator')), registry, 'mock');
+      const cell = L2Atom.fromType(registry.create(2, seedOf('module author')), registry);
+      const molecule = L1Atom.fromType(registry.create(1, seedOf('module writer')));
+      return { tissue, cell, molecule };
+    }
+
+    function leafResult(extra: Partial<Result> = {}): Result {
+      return {
+        output: { exports: ['add(a, b)'] },
+        summary: 'added the function',
+        trace: [],
+        producedBy: { tier: 1, name: 'Water', viaFallback: false },
+        ...extra,
+      };
+    }
+
+    /** Every validation of the four kinds, and two controls, through production code and the real recorder. */
+    async function recordedRun() {
+      const { tissue, cell, molecule } = actors();
+      const recorder = new TraceRecorder(runsDir);
+      recorder.beginRun({ description: 'goal' });
+      const base = makeCtx();
+      const ctx = { ...base, llm: new RecordingLlmClient(base.llm, recorder) };
+      const suitePlan = makePlan({ subtasks: [{ description: 'Implement add', outputs: ['add.ts'], acceptanceTests: SUITE }] });
+      const ids: Record<string, string> = {};
+      const last = () => recorder.currentRun!.events.filter((event) => event.kind === 'llm').at(-1)!.id;
+
+      // (a) L3 reviewing an L2 plan carrying suites: a delegation-contract review.
+      base.llm.enqueueText(contractReview(1));
+      expect((await tissue.validatePlan(cell, suitePlan, { description: 'Add numbers' }, ctx)).approved).toBe(true);
+      ids['l3-plan-with-suite'] = last();
+
+      // (b) The root review of the tissue's own plan.
+      vi.spyOn(tissue, 'plan').mockResolvedValue(suitePlan);
+      vi.spyOn(tissue, 'execute').mockResolvedValue(leafResult());
+      base.llm.enqueueText(contractReview(1));
+      await tissue.handle({ description: 'Implement signed addition' }, ctx);
+      ids['root-review'] = last();
+
+      // (c) L2 judging a molecule's RESULT on a suite-bearing task.
+      base.llm.enqueueText(jsonText({ approved: true, reasoning: 'the suite passed' }));
+      await cell.validateResult(molecule, leafResult({ parentTests: [passed] }), { description: 'Implement add', acceptanceTests: SUITE }, ctx);
+      ids['l2-result-under-suite'] = last();
+
+      // (d) L3 judging a cell's RESULT that carries passing aggregated observations.
+      base.llm.enqueueText(jsonText({ approved: true, reasoning: 'delivered' }));
+      await tissue.validateResult(cell, leafResult({ parentTests: [passed] }), { description: 'Implement add' }, ctx);
+      ids['l3-result-with-observations'] = last();
+
+      // Controls: Decision decides both.
+      base.llm.enqueueText(jsonText({ approved: true, reasoning: 'routes the work' }));
+      await tissue.validatePlan(cell, makePlan({ subtasks: [{ description: 'Write the README' }] }), { description: 'Document add' }, ctx);
+      ids['l3-plan-without-suite'] = last();
+      base.llm.enqueueText(jsonText({ approved: true, reasoning: 'writes add.ts' }));
+      await cell.validatePlan(molecule, makePlan(), { description: 'Implement add', acceptanceTests: SUITE }, ctx);
+      ids['l2-plan-of-l1-under-suite'] = last();
+
+      const run = JSON.parse(JSON.stringify(recorder.endRun()!)) as { startedAt: string; jevExclusionStamps?: unknown; events: Record<string, unknown>[] };
+      return { run, events: run.events, ids };
+    }
+
+    it('counts apart the validations Decision never takes, stamped by production', async () => {
+      const { run, ids } = await recordedRun();
+      // The recorder marks the trace as written by code that stamps.
+      expect(run.jevExclusionStamps).toBe(JEV_EXCLUSION_STAMPS);
+      const found = decisionsOfTrace(run, { runId: 'r', orgId: 'o' });
+      const excludedOf = (key: string) => found.decisions.find((decision) => decision.eventId === ids[key])?.excluded;
+
+      expect(found.decisions.map((decision) => decision.eventId)).toEqual(Object.values(ids));
+      expect(excludedOf('l3-plan-with-suite')).toBe('delegation-review');
+      expect(excludedOf('root-review')).toBe('delegation-review');
+      expect(excludedOf('l2-result-under-suite')).toBe('parent-suite');
+      expect(excludedOf('l3-result-with-observations')).toBe('parent-suite');
+      expect(excludedOf('l3-plan-without-suite')).toBeUndefined();
+      expect(excludedOf('l2-plan-of-l1-under-suite')).toBeUndefined();
+      const controls = found.decisions.filter((decision) => !decision.excluded);
+      for (const control of controls) expect(parseValidationPrompt(control)?.eligible).toBe(true);
+
+      const { impl, bodies } = fakeJev();
+      const calibration = await calibrate({ decisions: found.decisions, apiKey: 'k', fetchImpl: impl, concurrency: 1 });
+
+      expect(calibration.excluded).toEqual({ 'delegation-review': 2, 'parent-suite': 2 });
+      expect(calibration.ineligible).toEqual({ PLAN: 0, RESULT: 0 });
+      expect(calibration.records.map((record) => record.id)).toEqual([ids['l3-plan-without-suite'], ids['l2-plan-of-l1-under-suite']]);
+      // Each control asks the documented and the legacy questions; nothing else is sent.
+      expect(bodies).toHaveLength(4);
+    });
+
+    it('reads a trace by its host-rendered structure only when its writer predates the stamp, whatever its date', async () => {
+      const { events, ids } = await recordedRun();
+      const unstamped = events.map((event) => {
+        const { jevExcluded: _stamp, ...rest } = event;
+        return rest;
+      });
+      const excludedIn = (marker: boolean, startedAt = '2026-10-16T06:00:00.000Z') => {
+        const found = decisionsOfTrace({ startedAt, events: unstamped, ...(marker ? { jevExclusionStamps: JEV_EXCLUSION_STAMPS } : {}) }, { runId: 'r', orgId: 'o' });
+        return Object.fromEntries(Object.entries(ids).map(([key, id]) => [key, found.decisions.find((decision) => decision.eventId === id)?.excluded]));
+      };
+      const historical = {
+        'l3-plan-with-suite': 'delegation-review',
+        'root-review': 'delegation-review',
+        'l2-result-under-suite': 'parent-suite',
+        'l3-result-with-observations': 'parent-suite',
+        'l3-plan-without-suite': undefined,
+        'l2-plan-of-l1-under-suite': undefined,
+      };
+      expect(excludedIn(false)).toEqual(historical);
+      // A trace an older deploy wrote AFTER any calendar cutover is still read
+      // by its structure: the writer decides, never the date (second review).
+      expect(excludedIn(false, '2026-10-20T06:00:00.000Z')).toEqual(historical);
+      // A writer that stamps: the text never decides.
+      expect(Object.values(excludedIn(true)).every((excluded) => excluded === undefined)).toBe(true);
+      // Read as text alone, every one of them looks eligible: before the stamp,
+      // the calibration sent all six.
+      const recent = decisionsOfTrace({ startedAt: '2026-10-20T06:00:00.000Z', events: unstamped, jevExclusionStamps: JEV_EXCLUSION_STAMPS }, { runId: 'r', orgId: 'o' });
+      for (const decision of recent.decisions) expect(parseValidationPrompt(decision)?.eligible).toBe(true);
+    });
+
+    it('keeps a historical control whose task text carries the review header before its plan', async () => {
+      const { tissue, cell } = actors();
+      const recorder = new TraceRecorder(runsDir);
+      recorder.beginRun({ description: 'goal' });
+      const base = makeCtx();
+      const ctx = { ...base, llm: new RecordingLlmClient(base.llm, recorder) };
+      base.llm.enqueueText(jsonText({ approved: true, reasoning: 'routes the work' }));
+      const description = `Document the review screen.\n${DELEGATION_REVIEW_HEADER}\nThis heading is shown to users.`;
+
+      await tissue.validatePlan(cell, makePlan({ subtasks: [{ description: 'Write the README' }] }), { description }, ctx);
+
+      const events = JSON.parse(JSON.stringify(recorder.endRun()!.events)) as unknown[];
+      const found = decisionsOfTrace({ startedAt: '2026-10-16T06:00:00.000Z', events }, { runId: 'r', orgId: 'o' });
+      expect(found.decisions).toHaveLength(1);
+      expect(found.decisions[0]!.userContent).toContain(`\n${DELEGATION_REVIEW_HEADER}\n`);
+      expect(found.decisions[0]!.excluded).toBeUndefined();
+    });
   });
 });
 

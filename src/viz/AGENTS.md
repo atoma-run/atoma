@@ -71,6 +71,12 @@ npm run viz:mark-turn:analyze
   source in the GL client. Every animation system consults it and JUMPS to its
   final state — exit effects are skipped entirely, never left running.
 - The GPU client uses one Pixi context (WebGPU with WebGL fallback). Do not add a second context for a tiny widget. Smoke tests assert exactly one canvas and both backends.
+- ONE LOADING NOTICE: the brand crystal turning five times faster than the
+  mark, WITHOUT its bead (a live run's crystal keeps it), beside "Loading
+  <what>…". `activity-crystal.ts` is the one Pixi-free frame; the canvas draws
+  it through `drawLoadingNotice` (`renderer/loading-notice.ts`), the DOM
+  through `AtomaLoader` (SVG — never a second canvas). Never paint a bare
+  "Loading…": name what is on its way (`viewLoadingKey` for whole views).
 - Chevrons share the 14px geometry in `client-gl/button-icons.ts`: DOM
   disclosures and selects use its CSS variables; canvas controls use
   `drawChevron`. Never substitute a font glyph or a browser's native marker.
@@ -782,6 +788,24 @@ npm run viz:mark-turn:analyze
   page is lit: drawn over its `data-atoma-receiver` section, behind content, on
   `createFarField` (scenery off) so its light and caustics reach the background;
   the others snapshot and restore the page-global field light around each frame.
+
+## Legal pages
+
+- `/privacy`, `/terms` and `/support` (`legalPages.ts`) are atoma.run's
+  operator texts, so they answer ONLY where the public origin is
+  `https://atoma.run`; any other deployment answers 404 and lists none of
+  them, because a self-hosted instance must publish its own operator. Static,
+  English, `script-src 'none'`, `no-store` for the showcase's service-worker
+  reason. Retention numbers come from the code that applies them
+  (`LegalFacts`), and a test pins the contact, address and run retention to
+  `docs/platform-commons-terms.md`. They are what the plugin directories cite
+  (the Codex manifest's support, privacy and terms URLs).
+- The arrival gate links them below the login, on the canvas
+  (`welcome.legal.*` link regions, navigated by GpuApp) and as anchors in the
+  DOM bridge, only when an anonymous `/auth/whoami` says `legal: true` — the
+  same `servesLegalPages` rule. The list lives in the renderer-free
+  `client-gl/legal-links.ts` so the eager bundle never imports Pixi for it.
+  `viz:shot -- --login-gate` draws that gate and taps the canvas Privacy link.
 
 ## Intentional choices and rejected shortcuts
 

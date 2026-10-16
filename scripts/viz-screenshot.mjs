@@ -55,6 +55,9 @@
  *                        exercising the real return transition.
  *   --tuning             Open the floating Scene Tuning window.
  *   --activate <ids>     Click comma-separated canvas hit target IDs before capture.
+ *   --login-gate         An anonymous visitor on a gated instance that serves
+ *                        the legal pages: /auth/whoami is stubbed with one
+ *                        provider and `legal: true` (not with --auth).
  *   --handheld           A phone (390x844, touch as the only pointer): the
  *                        mobile notice then login or authenticated entry
  *                        (-gate, -notice and -projects PNGs beside --out).
@@ -114,6 +117,9 @@ const overviewProbe = has('--overview-probe');
 const filesProbe = has('--files-probe');
 // A running app preview, so its controls (open, stop) are drawn.
 const previewReady = has('--preview-ready');
+// Leave every stubbed request under this path unanswered, so a loading notice
+// stays on screen long enough to be captured (`--hold /api/assistant`).
+const holdPath = arg('--hold');
 // The saved workspace `--files-probe` browses: one root file and a folder.
 const probeFiles = {
   'README.md': '# Stopwatch\n\nStart, stop and reset, shown as mm:ss.cc.',
@@ -183,6 +189,11 @@ if (appearanceRevealMs !== null && (!appearanceTheme || !Number.isFinite(appeara
 const showThemeMenu = has('--theme-menu');
 const scrollEnd = has('--scroll-end');
 const handheld = has('--handheld');
+const loginGate = has('--login-gate');
+if (loginGate && authed) throw new Error('--login-gate is the anonymous gate; drop --auth');
+// The handheld proof installs its own interception to stop at OAuth; two
+// handlers would race to resolve the same request.
+if (loginGate && handheld) throw new Error('--login-gate draws the desktop gate; use --width/--height for a narrow one');
 const cameraMode = arg('--camera', 'focus');
 if (cameraMode !== 'overview' && cameraMode !== 'focus') {
   throw new Error(`--camera must be overview or focus, got ${cameraMode}`);
@@ -906,6 +917,7 @@ try {
         // handler died is never continued and the page hangs on it forever.
         try {
           const path = new URL(request.url()).pathname;
+          if (holdPath && path.startsWith(holdPath)) return;
           // The assistant card is on every authed Projects shot (2026-10-09).
           if (path === '/api/assistant') {
             void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(assistantFixture) });
@@ -995,6 +1007,23 @@ try {
       });
     }
 
+    if (loginGate) {
+      await page.setRequestInterception(true);
+      page.on('request', (request) => {
+        try {
+          if (new URL(request.url()).pathname === '/auth/whoami') {
+            void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({
+              enabled: true, authenticated: false, providers: [{ id: 'github', label: 'GitHub' }], legal: true,
+            }) });
+            return;
+          }
+        } catch {
+          // Fall through: an unreadable URL is simply not the stubbed one.
+        }
+        void request.continue().catch(() => {});
+      });
+    }
+
     // Fresh visitor: clear the persisted arrival flag so behaviour does not
     // depend on what an earlier session on this origin did.
     await page.evaluateOnNewDocument((hidePush) => {
@@ -1055,6 +1084,19 @@ try {
       await mkdir(dirname(outPath), { recursive: true });
       await page.screenshot({ path: outPath });
       console.log(`viz screenshot: ${outPath} (login gate — anonymous visitor; use --auth to enter)`);
+      if (loginGate) {
+        // The canvas link, not its DOM mirror: tap the drawn Privacy target
+        // and require a navigation to the page it names.
+        const privacy = await page.evaluate(() => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const row = handle.hitTargets().find(entry => entry.id === 'welcome.legal.privacy');
+          if (!row) throw new Error('--login-gate: no Privacy link on the canvas');
+          return handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
+        });
+        await Promise.all([page.waitForNavigation({ timeout: READY_TIMEOUT_MS }), page.mouse.click(privacy.x, privacy.y)]);
+        if (new URL(page.url()).pathname !== '/privacy') throw new Error(`--login-gate: Privacy led to ${page.url()}`);
+        console.log('viz screenshot: the canvas Privacy link navigates to /privacy');
+      }
       await browser.close();
       stack.stop();
       process.exit(0);

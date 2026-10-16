@@ -103,6 +103,9 @@ describe('viz run index', () => {
     };
     expect(trace('cut', { output: 'page', summary: 'INCOMPLETE', unfinishedPhases: ['document F'] })).toMatchObject({ landed: true, hasError: false });
     expect(trace('refused', { output: 'page', summary: 'REFUSED', refusal: 'the replay re-ran no check' })).toMatchObject({ landed: true });
+    // A phase held back behind a failed one is unfinished too (review 2026-10-16, group B).
+    expect(trace('blocked', { output: 'page', summary: 'INCOMPLETE', unfinishedPhases: ['docs (not started)'], blockedPhases: ['docs (not started)'] }))
+      .toMatchObject({ landed: true });
     expect(trace('delivered', { output: 'page', summary: 'done' })).not.toHaveProperty('landed');
     expect(trace('no-result', undefined)).not.toHaveProperty('landed');
   });

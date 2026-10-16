@@ -5,6 +5,7 @@ import { gpuFilterButtonWidth } from '../chip-layout.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_PAD } from '../view-frame.js';
 import { drawJournalRow, journalRowHeight } from './journal-row.js';
+import { drawLoadingNotice } from '../loading-notice.js';
 
 /**
  * THE PLATFORM JOURNAL — every control-plane event, newest first, in one
@@ -176,11 +177,8 @@ export function drawJournal(
   // scroll to the bottom would fetch. The button is not a fallback for a
   // broken gesture: it is the keyboard and touch route to the same page.
   if (snapshot.data.adminEventsLoading) {
-    ctx.text(pane.content, snapshot.t('journal.loading'), columnX, cursor + 8, {
-      size: 10,
-      color: GPU_COLORS.muted,
-      width: innerWidth,
-    });
+    drawLoadingNotice(ctx, pane.content, snapshot.t('journal.loading'), columnX, cursor + 8,
+      { size: 10, width: innerWidth });
     cursor += FOOTER_HEIGHT;
   } else if (snapshot.data.adminEventsHasMore) {
     ctx.button(

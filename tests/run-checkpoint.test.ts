@@ -1,7 +1,7 @@
 import { AuthStore } from '../src/auth/store.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, realpathSync, mkdirSync, symlinkSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync, realpathSync, mkdirSync, symlinkSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -14,7 +14,10 @@ import { closeStoreHandles } from '../src/core/stores.js';
 import { OLLAMA_PINS } from './tier-pins.js';
 import { forkBranch } from '../src/core/branchCtx.js';
 import { makeCtx } from './helpers.js';
-import { parseRunnerArgs } from '../src/run/runner.js';
+import { parseRunnerArgs, shortRootHandle } from '../src/run/runner.js';
+import { L2Atom } from '../src/atoms/L2Atom.js';
+import { PlanParseError } from '../src/core/errors.js';
+import type { Result } from '../src/core/types.js';
 import { BudgetGateLlmClient, RunBudgetMeter } from '../src/core/runBudget.js';
 import { InMemoryMetrics } from '../src/core/metrics.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
@@ -39,7 +42,14 @@ function fixture() {
     ['--experimental-test-module-mocks', '--import', 'tsx', resolve('tests/fixtures/checkpoint-run-child.ts'), ...args],
     { env: { ...env, CHECKPOINT_TEST_CRASH: crash, ...overrides }, encoding: 'utf8', timeout: 45000, maxBuffer: 4 * 1024 * 1024 });
   const report = () => JSON.parse(readFileSync(join(root, 'report.json'), 'utf8')) as {
-    outcome: string; checkpointId: string; calls: string[];
+    outcome: string; checkpointId: string; calls: string[]; rootReviews: number;
+  };
+  /** The calls of a run that exited 2 before writing its report. */
+  const errorReport = () => JSON.parse(readFileSync(join(root, 'error-report.json'), 'utf8')) as { calls: string[]; rootReviews: number };
+  /** Edit the saved checkpoint payload as an older binary or a tamperer would leave it. */
+  const editPayload = (id: string, sql: string) => {
+    const handle = new Database(db);
+    try { handle.prepare(`UPDATE run_checkpoints SET payload=${sql} WHERE id=?`).run(id); } finally { handle.close(); }
   };
   const counters = () => {
     const handle = new Database(db, { readonly: true });
@@ -48,7 +58,7 @@ function fixture() {
       skills: handle.prepare('SELECT sum(successes) AS n FROM skill_meta').get() as { n: number },
     }; } finally { handle.close(); }
   };
-  return { root, db, run, report, counters };
+  return { root, db, run, report, errorReport, editPayload, counters };
 }
 
 describe('durable sequential run continuation', () => {
@@ -166,10 +176,15 @@ describe('durable sequential run continuation', () => {
     expect(stored.remainingMs).toBeLessThan(600000);
     expect(stored.completed[0]).not.toHaveProperty('evidence');
     expect(stored.completed[0]).not.toHaveProperty('trace');
+    // The approval rides the checkpoint: one review before the pause, none after.
+    expect(before.rootReviews).toBe(1);
+    expect(stored.root?.approval?.from).toBe(0);
+    expect(stored.root?.approval?.review.subtasks.map(s => s.index)).toEqual([0, 1]);
     const next = f.run(['--resume', before.checkpointId]);
     expect(next.status, next.stdout + next.stderr).toBe(0);
     const after = f.report();
     expect(after.outcome).toBe('delivered');
+    expect(after.rootReviews).toBe(0);
     expect(after.calls.filter(c => c.startsWith('plan:3:'))).toHaveLength(0);
     expect(after.calls.filter(c => c.startsWith('draft-checklist:'))).toHaveLength(0);
     expect(after.calls.filter(c => c.endsWith(':run-root'))).toHaveLength(1);
@@ -280,6 +295,8 @@ describe('durable sequential run continuation', () => {
     expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
     expect(readFileSync(join(f.root, 'answer-prompt.txt'), 'utf8')).toContain('Keep both login methods');
     expect(f.report().calls.filter(c => c.startsWith('plan:3:'))).toHaveLength(crashAfterPlan ? 0 : 1);
+    // The crashed successor reviewed and recorded its replan; its own successor does not judge it again.
+    expect(f.report().rootReviews).toBe(crashAfterPlan ? 0 : 1);
     expect(f.report().calls.filter(c => c.endsWith(':run-root'))).toHaveLength(1);
     expect(checkpointWorkspaceDigest(first.workspace)).toBe(digest);
     if (!crashAfterPlan) expect(f.counters().skills.n).toBe(2);
@@ -288,6 +305,81 @@ describe('durable sequential run continuation', () => {
     expect(checkpoints.clientQuestion(viewer.orgId, second.id)).toBeNull();
     expect(() => checkpoints.read(first.id)).toThrow(/not at a resumable/);
   }, 90000);
+
+  // Group D, review 2026-10-16: a resumed root used to re-judge its plan,
+  // and a refusal ended the run with "Saved delegation plan requires a new run".
+  describe('the recorded root delegation approval', () => {
+    const paused = () => {
+      const f = fixture();
+      const first = f.run(['--pause-after-phase', '1', 'Write two files in sequence']);
+      expect(first.status, first.stdout + first.stderr).toBe(0);
+      return { f, id: f.report().checkpointId };
+    };
+
+    it('reviews a legacy checkpoint without an approval record once, then delivers', () => {
+      const { f, id } = paused();
+      f.editPayload(id, "json_remove(payload, '$.root.approval')");
+      const next = f.run(['--resume', id]);
+      expect(next.status, next.stdout + next.stderr).toBe(0);
+      expect(f.report().outcome).toBe('delivered');
+      expect(f.report().rootReviews).toBe(1);
+      expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
+    }, 90000);
+
+    it.each([
+      ['a saved subtask description', "json_set(payload, '$.root.plan.subtasks[1].description', 'Write phase-two.txt with care')"],
+      ['the saved inputs', "json_set(payload, '$.root.inputs', json('{\"note\":\"changed\"}'))"],
+    ])('reviews again when %s changed after the approval', (_, sql) => {
+      const { f, id } = paused();
+      f.editPayload(id, sql);
+      const next = f.run(['--resume', id]);
+      expect(next.status, next.stdout + next.stderr).toBe(0);
+      expect(f.report().outcome).toBe('delivered');
+      expect(f.report().rootReviews).toBe(1);
+    }, 90000);
+
+    it('records the plan before executing a recorded approval, so the phase count is checked', () => {
+      const { f, id } = paused();
+      const next = f.run(['--resume', id, '--pause-after-phase', '3']);
+      expect(next.status).not.toBe(0);
+      expect(next.stdout + next.stderr).toContain('--pause-after-phase exceeds the number of root phases');
+      const failed = existsSync(join(f.root, 'error-report.json')) ? f.errorReport() : f.report();
+      expect(failed.rootReviews).toBe(0);
+      expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\n');
+    }, 90000);
+
+    it('replans only the remaining work when a legacy plan is refused on resume', () => {
+      const { f, id } = paused();
+      f.editPayload(id, "json_remove(payload, '$.root.approval')");
+      const next = f.run(['--resume', id], '', { CHECKPOINT_TEST_REFUSE_ROOT_REVIEW: 'first' });
+      expect(next.status, next.stdout + next.stderr).toBe(0);
+      expect(f.report().outcome).toBe('delivered');
+      expect(f.report().rootReviews).toBe(2);
+      expect(f.report().calls.filter(c => c.startsWith('plan:3:'))).toHaveLength(1);
+      expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
+    }, 90000);
+
+    it('ends a resumed run whose remaining plan is refused three times', () => {
+      const { f, id } = paused();
+      f.editPayload(id, "json_remove(payload, '$.root.approval')");
+      const next = f.run(['--resume', id], '', { CHECKPOINT_TEST_REFUSE_ROOT_REVIEW: 'always' });
+      expect(next.status).not.toBe(0);
+      expect(next.stdout + next.stderr).toContain('Saved delegation plan requires a new run');
+      expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\n');
+    }, 90000);
+
+    it('ends a resumed run at once when its remaining work must fan out', () => {
+      const { f, id } = paused();
+      f.editPayload(id, "json_remove(payload, '$.root.approval')");
+      const next = f.run(['--resume', id], '', { CHECKPOINT_TEST_ROOT_FAN_OUT: '1' });
+      expect(next.status).not.toBe(0);
+      expect(next.stdout + next.stderr).toContain('remaining work must fan out');
+      const failed = existsSync(join(f.root, 'error-report.json')) ? f.errorReport() : f.report();
+      expect(failed.rootReviews).toBe(1);
+      expect(failed.calls.filter(c => c.startsWith('plan:3:'))).toHaveLength(0);
+      expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\n');
+    }, 90000);
+  });
 
   it('resumes after SIGKILL exactly at a committed boundary', () => {
     const f = fixture();
@@ -587,10 +679,77 @@ describe('durable sequential run continuation', () => {
     expect(() => assertCheckpointStoreOutsideWorkspace(store, join(root, 'new', 'workspace'))).not.toThrow();
   });
 
+  // Review 2026-10-16 (D5): an approved phase whose parent-owned suite did not
+  // run proved nothing, like an uncovered obligation; parent tests no longer
+  // write `refusal`, so `isLanded` alone would have saved it as a resume prefix.
+  it('does not seed a resume with an approved phase whose parent-owned suite did not run', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-checkpoint-parent-tests-'))); roots.push(root);
+    const workspace = join(root, 'ws');
+    mkdirSync(workspace);
+    writeFileSync(join(workspace, 'add.ts'), 'export const add = (a: number, b: number) => a + b;');
+    const store = new RunCheckpointStore(join(root, 'atoma.db'));
+    const id = randomUUID();
+    const data = { version: 1, id, scope: { orgId: 'o', projectId: 'p', principalId: 'u', runId: id }, goal: 'g', workspace,
+      policy: '{}', actor: { name: 'Meristem', atomId: 'a', version: 1 }, checklist: [], root: null, completed: [],
+      workspaceDigest: null, processes: [], consumed: { tokens: 0, costUsd: 0 }, remainingMs: 600_000, lastRunId: null };
+    const warnings: string[] = [];
+    await withRecoveryEffects(async () => {
+      const cp = new SequentialCheckpoint(data as never, store, { fresh: true, automatic: true,
+        account: () => ({ tokens: 1, costUsd: 0.1 }), deadlineAt: Date.now() + 600_000, settle: async () => {},
+        processes: () => [], warn: (line: string) => warnings.push(line) });
+      cp.planned({ description: 'g' }, { subtasks: [{ description: 'phase 1' }, { description: 'phase 2' }], aggregation: { mode: 'sequential' } } as never, {}, 2);
+      await cp.beforePhase(0, { description: 'phase 1' });
+      await cp.afterPhase(0, { output: { ok: true }, summary: 'phase 1 done', producedBy: { name: 'Cell', tier: 2, viaFallback: false },
+        trace: [{ kind: 'verdict-result', ts: '0', atom: 'Meristem', payload: { approved: true, reasoning: 'reviewed' } }],
+        parentTests: [{ suiteDigest: 'd', workspaceDigest: 'w', status: 'unavailable', cause: 'runner-error', passed: 0, failed: 0, skipped: 0,
+          details: 'crashed', judged: true }] });
+      cp.release();
+    });
+    expect(warnings).toContain('Durable continuation disabled: this phase did not close with a complete approved result');
+    expect(data.completed).toEqual([]);
+  });
+
   it('keeps the checkpoint out of nested dispatch contexts', () => {
     const ctx = makeCtx();
     Object.assign(ctx, { rootCheckpoint: {} });
     expect(forkBranch(ctx, 'child').rootCheckpoint).toBeUndefined();
+  });
+
+  // Group D, review 2026-10-16: the SHORT root called cell.plan once, so one
+  // unparseable reply ended the run.
+  describe('the SHORT root plan', () => {
+    const plan = { reasoning: 'r', subtasks: [{ description: 'Write a.txt', outputs: ['a.txt'] }], aggregation: { mode: 'sequential' }, expectedOutput: 'a.txt' };
+    const good = JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'r' }, plan]);
+    const bad = good.replace('"reasoning":"r"', '"reasoning":"say "hi""');
+    const cell = () => {
+      const db = openDb(':memory:');
+      const registry = new AtomRegistry(db);
+      const type = registry.create(2, { description: 'cell', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' });
+      const atom = L2Atom.fromType(type, registry);
+      const delivered: Result = { output: 'done', summary: 'done', trace: [], producedBy: { tier: 2, name: atom.name, viaFallback: false } };
+      atom.execute = async () => delivered;
+      return { atom, delivered, close: () => db.close() };
+    };
+
+    it('asks the entry cell again after an unparseable reply, with the parser message', async () => {
+      const { atom, delivered, close } = cell();
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(bad);
+      ctx.llm.enqueueText(good);
+      await expect(shortRootHandle(atom)({ description: 'Write a.txt' }, ctx)).resolves.toBe(delivered);
+      close();
+      expect(ctx.llm.calls).toHaveLength(2);
+      expect(ctx.llm.calls[1]?.userContent).toContain('plan reply unparseable');
+    });
+
+    it('gives up after three unparseable replies', async () => {
+      const { atom, close } = cell();
+      const ctx = makeCtx();
+      for (let i = 0; i < 3; i++) ctx.llm.enqueueText(bad);
+      await expect(shortRootHandle(atom)({ description: 'Write a.txt' }, ctx)).rejects.toBeInstanceOf(PlanParseError);
+      close();
+      expect(ctx.llm.calls).toHaveLength(3);
+    });
   });
 
   it('parses bounded pause/resume arguments', () => {

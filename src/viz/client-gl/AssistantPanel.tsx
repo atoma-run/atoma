@@ -4,6 +4,7 @@ import type { AssistantRequest, AssistantRun, AssistantView } from '../../contra
 import { api } from '../client/data-api.js';
 import { relativeTime, timestampTooltip } from './renderer/relative-time.js';
 import { useGpuStore } from './store.js';
+import { AtomaLoader } from './AtomaLoader.js';
 import { ButtonIcon } from './ButtonIcon.js';
 import { AssistantMarkdown } from './AssistantMarkdown.js';
 import { AssistantRunResult } from './AssistantRunResult.js';
@@ -198,7 +199,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     <div id="project-mcp-content" className="gpu-assistant-content" hidden={collapsed}>
     <div className={`gpu-assistant-conversation${empty ? ' gpu-assistant-conversation--empty' : ''}`} hidden={externalAgentOpen}>
     {query.isError ? <div role="alert"><p>{t('assistant.failed')}</p><button onClick={() => void query.refetch()}>{t('assistant.retry')}</button></div> : null}
-    {query.isPending ? <p role="status">{t('assistant.loading')}</p> : null}
+    {query.isPending ? <AtomaLoader label={t('assistant.loading')} /> : null}
     {query.data && choices.length === 0 ? <div className="gpu-assistant-setup">
       {(query.data.subscriptions ?? []).map(subscription => <div key={subscription.provider}>
         <span>{subscription.provider === 'claude' ? 'Claude' : 'ChatGPT'} · {t(`settings.subscriptionState.${subscription.state}`)}</span>

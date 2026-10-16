@@ -53,6 +53,7 @@ export function AuthControls({
   const [viewer, setViewer] = useState<AuthViewer | null>(null);
   const [gate, setGate] = useState<AuthGateStatus>('unknown');
   const [providers, setProviders] = useState<AuthProviderOption[]>([]);
+  const [legal, setLegal] = useState(false);
   const [failure, setFailure] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [switchingOrganisationId, setSwitchingOrganisationId] = useState<string | null>(null);
@@ -80,6 +81,7 @@ export function AuthControls({
           // The arrival gate becomes the login: remember which providers to
           // offer. The server remains the authority on every /api call.
           setGate('unauthenticated');
+          setLegal(body['legal'] === true);
           setProviders(
             Array.isArray(body['providers'])
               ? body['providers'].flatMap((candidate): AuthProviderOption[] => {
@@ -208,8 +210,8 @@ export function AuthControls({
     switchingOrganisationId,
   } : null, [failure, signingOut, switchingOrganisationId, viewer]);
   const controller = useMemo<AuthController>(
-    () => ({ snapshot, gate, providers, activate }),
-    [activate, gate, providers, snapshot]
+    () => ({ snapshot, gate, providers, legal, activate }),
+    [activate, gate, legal, providers, snapshot]
   );
 
   return (

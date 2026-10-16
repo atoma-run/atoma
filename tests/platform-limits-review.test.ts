@@ -83,7 +83,7 @@ describe('a platform ceiling lands the run instead of discarding it (owner decis
     const outcome = await dispatchWithAggregation(plan(subtasks).subtasks, plan(subtasks), ctx, async (_subtask, idx) => {
       if (idx === 2) throw budgetError();
       return result(`phase ${idx + 1}`);
-    });
+    }, { dispatcher: 'Dispatcher' });
     expect(outcome.results).toHaveLength(2);
     expect(outcome.unfinished.map((subtask) => subtask.description)).toEqual(['README', 'package']);
   });

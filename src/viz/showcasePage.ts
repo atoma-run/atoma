@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { legalLinks, servesLegalPages } from './legalPages.js';
 import { homeSocialMeta } from './seo.js';
 import {
   SHOWCASE_KINDS,
@@ -266,13 +267,13 @@ function header(): string {
 <nav class="top" aria-label="Site"><a class="secondary" href="/#feed">Finished work</a><a href="/app">Sign in</a><a class="primary" href="/app">Start your own</a></nav></header>`;
 }
 
-function closing(): string {
+function closing(origin: URL | null): string {
   return `<section class="cta-band"><div class="wrap"><div class="box"><div class="row">
 <div class="mark mark-band" data-atoma-mark="band"></div><div style="display:flex;flex-direction:column;gap:16px">
 <h2 class="display">Have a request of your own?</h2>
 <p>Describe the outcome you want. Atoma works on it in a private project and gives you the same story: every step, every check, and the finished result.</p>
 <a class="btn primary" style="align-self:flex-start" href="/app">Start your own</a></div></div></div></div></section>
-<footer class="bottom">atoma.run · Every story on this page is real work, shown as it was delivered.</footer>`;
+<footer class="bottom">atoma.run · Every story on this page is real work, shown as it was delivered.${origin && servesLegalPages(origin) ? ` · ${legalLinks()}` : ''}</footer>`;
 }
 
 function card(entry: ShowcaseEntry): string {
@@ -335,7 +336,7 @@ export function renderShowcaseIndex(
 <div class="chips" id="filters" role="group" aria-label="Filter by kind of work" hidden>${chips}</div></div>
 ${entries.length ? `<div class="cards">${orderShowcaseEntries(entries).map(card).join('')}</div>` : '<div class="empty">Nothing to show yet. Finished work appears here as it is delivered.</div>'}
 </div></section></main>
-${closing()}`;
+${closing(origin)}`;
   return page({
     // Plain words, like the page: the product's technical SEO line names
     // agents, and this home is written for people who have never heard of them.
@@ -399,7 +400,7 @@ export function renderShowcaseEntry(
 <div class="facts"><span style="color:${KIND_COLOR[entry.kind]}">${esc(KIND_NOUN[entry.kind])}</span><span>${entry.episodes.length > 1 ? `${entry.episodes.length} deliveries` : '1 delivery'}</span><span>${esc(formatDuration(entry.totalDurationS))} in total</span><span>${esc(formatCost(entry.totalCostUsd))} in total</span></div>
 ${entry.episodes.map((episode, index) => episodeSection(episode, index, entry.episodes.length, answers.get(episode.id) ?? null, entry.kind)).join('\n')}
 </div></main>
-${closing()}`;
+${closing(origin)}`;
   return page({
     title: `${first.title} — Atoma`,
     description: `How Atoma worked on: ${first.title}`,
@@ -410,13 +411,13 @@ ${closing()}`;
   });
 }
 
-export function renderShowcaseNotFound(assets: ShowcaseAssets = NO_ASSETS): string {
+export function renderShowcaseNotFound(assets: ShowcaseAssets = NO_ASSETS, origin: URL | null = null): string {
   return page({
     title: 'Not found — Atoma',
     description: 'This story is not available.',
     origin: null,
     pathname: '/',
-    body: `${header()}<main class="story"><div class="wrap"><a class="crumb" href="/">← All finished work</a><h1 class="display">This story is not available.</h1></div></main>${closing()}`,
+    body: `${header()}<main class="story"><div class="wrap"><a class="crumb" href="/">← All finished work</a><h1 class="display">This story is not available.</h1></div></main>${closing(origin)}`,
     assets,
   });
 }

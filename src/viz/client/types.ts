@@ -118,6 +118,8 @@ export interface VizRun {
     producedBy?: { tier?: number; name?: string; viaFallback?: boolean };
     /** Non-empty on a run that landed on its budget. See VizRun in src/viz/trace.ts. */
     unfinishedPhases?: readonly string[];
+    /** The subset of the above a failed prerequisite held back. See VizRun in src/viz/trace.ts. */
+    blockedPhases?: readonly string[];
     /** Set when root delivery acceptance refused the result. Composes with the above. */
     refusal?: string;
   };

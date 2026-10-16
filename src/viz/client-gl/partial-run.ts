@@ -1,4 +1,4 @@
-import { landingReasons, type LandingSignals } from '../../contracts/runLanding.js';
+import { budgetUnfinishedPhases, landingReasons, type LandingSignals } from '../../contracts/runLanding.js';
 import type { RunIndexEntry, VizProject, VizRun } from '../client/types.js';
 
 /**
@@ -11,7 +11,9 @@ import type { RunIndexEntry, VizProject, VizRun } from '../client/types.js';
  * trace and the project already carry, and the copy for each is ours:
  *
  *   - WHY it stopped: the budget ran out, the final check refused it, or both
- *     (the two reasons compose — `src/contracts/runLanding.ts`);
+ *     (the two reasons compose — `src/contracts/runLanding.ts`); and,
+ *     separately, whether a step that failed its checks held back the steps
+ *     depending on it (`blockedPhases`), which composes with either;
  *   - WHETHER THE NEXT RUN CONTINUES IT: a project run's next run starts from
  *     the latest delivered-or-partial workspace and is handed these reasons
  *     (`previousSeedRun`, `PREVIOUS_LANDING_ENV`) — EXCEPT a project imported
@@ -30,7 +32,8 @@ export type LandingCause = 'budget' | 'refused' | 'both';
 
 export function landingCause(result: LandingSignals | null | undefined): LandingCause | null {
   if (!result) return null;
-  const budget = (result.unfinishedPhases?.length ?? 0) > 0;
+  // Held-back phases are also unfinished ones, but the clock did not cut them.
+  const budget = budgetUnfinishedPhases(result).length > 0;
   const refused = Boolean(result.refusal);
   if (budget && refused) return 'both';
   if (budget) return 'budget';
@@ -38,7 +41,10 @@ export function landingCause(result: LandingSignals | null | undefined): Landing
 }
 
 export interface PartialRunGuidance {
-  readonly cause: LandingCause;
+  /** Null when the only fact is a held-back step (`blocked`). */
+  readonly cause: LandingCause | null;
+  /** A step failed its checks, so the steps depending on it were not started. */
+  readonly blocked: boolean;
   /** The project a next run would continue — null for a run outside one. */
   readonly project: VizProject | null;
   /** True when the project's next run starts from this work. */
@@ -64,7 +70,8 @@ export function partialRunGuidance(
   projects: readonly VizProject[]
 ): PartialRunGuidance | null {
   const cause = landingCause(run.result);
-  if (!cause) return null;
+  const blocked = (run.result?.blockedPhases?.length ?? 0) > 0;
+  if (!cause && !blocked) return null;
   const entry = index.find((candidate) => candidate.id === run.id);
   const project = entry?.projectId
     ? projects.find((candidate) => candidate.projectId === entry.projectId) ?? null
@@ -79,6 +86,7 @@ export function partialRunGuidance(
     Date.parse(other.startedAt) > startedAt));
   return {
     cause,
+    blocked,
     project,
     carriesOver: Boolean(project && !project.repositoryTarget.source && !entry?.rerunOf && !superseded),
     rerun: Boolean(entry?.rerunOf),
@@ -90,3 +98,15 @@ export function partialRunGuidance(
 
 /** The activation id of the "continue" control, and its one parser. */
 export const PARTIAL_CONTINUE_PREFIX = 'run.partial.continue.';
+
+/**
+ * The locale keys of the "why it stopped" copy, one sentence per fact: the
+ * held-back steps first, then the budget and/or the refusal. After the first
+ * sentence a refusal no longer says "the work was done", which is false of a
+ * step that failed its checks.
+ */
+export function partialCauseKeys(guidance: Pick<PartialRunGuidance, 'cause' | 'blocked'>): string[] {
+  if (!guidance.blocked) return guidance.cause ? [`run.partial.cause.${guidance.cause}`] : [];
+  if (!guidance.cause) return ['run.partial.blocked'];
+  return ['run.partial.blocked', guidance.cause === 'refused' ? 'run.partial.cause.refusedAfter' : `run.partial.cause.${guidance.cause}`];
+}

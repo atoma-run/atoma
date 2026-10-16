@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { parentTestSuiteSchema } from '../contracts/parentTests.js';
 import { deliveryKindSchema, executionModeSchema } from '../contracts/taskExecution.js';
 import { jsonrepair, JSONRepairError } from 'jsonrepair';
-import { ValidationError } from '../core/errors.js';
+import { PlanParseError, ValidationError } from '../core/errors.js';
+import { jsonParseExcerpt } from '../core/jsonExcerpt.js';
 import { isProofObligation } from '../contracts/attestation.js';
 
 /**
@@ -451,6 +452,16 @@ function splitFusedStrategyPlan(el: unknown): [unknown, unknown] | null {
 }
 
 export function parseTwoJson(text: string): [unknown, unknown] {
+  return parseTwoJsonEx(text).pair;
+}
+
+/**
+ * `parseTwoJson`, flagging a pair that only `repairTruncatedJson` produced
+ * (including the synthesised placeholder plan). A repaired pair is
+ * schema-valid but may be amputated: a reply cut inside a test source comes
+ * back with the source cut short and later subtasks gone.
+ */
+export function parseTwoJsonEx(text: string): { pair: [unknown, unknown]; repaired: boolean } {
   const trimmed = text.trim();
 
   const firstBracket = trimmed.indexOf('[');
@@ -461,9 +472,9 @@ export function parseTwoJson(text: string): [unknown, unknown] {
       if (arrEnd !== -1) {
         try {
           const arr = JSON.parse(trimmed.slice(firstBracket, arrEnd + 1));
-          if (Array.isArray(arr) && arr.length >= 2) return [arr[0], arr[1]];
+          if (Array.isArray(arr) && arr.length >= 2) return { pair: [arr[0], arr[1]], repaired: false };
           const fused = Array.isArray(arr) && arr.length === 1 ? splitFusedStrategyPlan(arr[0]) : null;
-          if (fused) return fused;
+          if (fused) return { pair: fused, repaired: false };
         } catch {
           /* fall through */
         }
@@ -473,18 +484,18 @@ export function parseTwoJson(text: string): [unknown, unknown] {
       if (repaired) {
         try {
           const arr = JSON.parse(repaired);
-          if (Array.isArray(arr) && arr.length >= 2) return [arr[0], arr[1]];
+          if (Array.isArray(arr) && arr.length >= 2) return { pair: [arr[0], arr[1]], repaired: true };
           if (Array.isArray(arr) && arr.length === 1) {
             const fused = splitFusedStrategyPlan(arr[0]);
-            if (fused) return fused;
-            return [
+            if (fused) return { pair: fused, repaired: true };
+            return { pair: [
               arr[0],
               {
                 reasoning: 'plan section truncated; synthesised placeholder',
                 proposedAction: 'delegate to child per strategy',
                 expectedOutput: 'as described in task',
               },
-            ];
+            ], repaired: true };
           }
         } catch {
           /* fall through */
@@ -506,7 +517,7 @@ export function parseTwoJson(text: string): [unknown, unknown] {
     fencedPayloadIsBalanced(fences[1]![1]!)
   ) {
     try {
-      return [JSON.parse(fences[0]![1]!), JSON.parse(fences[1]![1]!)];
+      return { pair: [JSON.parse(fences[0]![1]!), JSON.parse(fences[1]![1]!)], repaired: false };
     } catch {
       /* fall through to the brace walk */
     }
@@ -530,7 +541,110 @@ export function parseTwoJson(text: string): [unknown, unknown] {
   if (end2 === -1) {
     throw new Error(`parseTwoJson: unterminated second JSON (head: ${trimmed.slice(0, 200)})`);
   }
-  return [first, JSON.parse(rest.slice(start2, end2 + 1))];
+  return { pair: [first, JSON.parse(rest.slice(start2, end2 + 1))], repaired: false };
+}
+
+/** Bound on the parser or schema text a plan-parse failure carries. */
+const PLAN_PARSE_MESSAGE_MAX_CHARS = 600;
+
+/** Where JSON.parse stops on the reply's first JSON value, or '' when it does not. */
+function locateJsonFailure(text: string): string {
+  const firstBrace = text.indexOf('{');
+  const firstBracket = text.indexOf('[');
+  const start = firstBracket === -1 ? firstBrace : firstBrace === -1 ? firstBracket : Math.min(firstBrace, firstBracket);
+  if (start === -1) return 'no JSON array found';
+  const end = findBalancedEnd(text, start);
+  const slice = end === -1 ? text.slice(start) : text.slice(start, end + 1);
+  try {
+    JSON.parse(slice);
+    return '';
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const excerpt = jsonParseExcerpt(slice, message);
+    return `${message}${excerpt.near ? `, near ${excerpt.near}` : ''}` +
+      (excerpt.controlAt ? '; the character there is a raw control character' : '');
+  }
+}
+
+function planParseError(detail: string): PlanParseError {
+  return new PlanParseError(`plan reply unparseable: ${detail.slice(0, PLAN_PARSE_MESSAGE_MAX_CHARS)}`);
+}
+
+/**
+ * Read a strategy+plan reply EXACTLY as written, or throw `PlanParseError`.
+ *
+ * A plan pair is a contract: its `acceptanceTests.source` bytes are executed
+ * as the parent's suite. So, unlike `parseTwoJson`, a pair that only a
+ * truncation repair produced is refused (the repair would ship a cut test
+ * source, drop later subtasks, or invent a placeholder plan), and the caller
+ * asks the planner again with the message.
+ *
+ * ONE salvage is admitted: raw control characters inside strings are escaped
+ * (`escapeControlCharsInStrings`, applied from the first `[`/`{` on), and the
+ * result is kept only if the whole pair then parses with NO repair and both
+ * schemas accept it. That is lossless: the decoded string is the characters
+ * the model wrote between the quotes. Doubling invalid escapes (`\d`),
+ * inferring unescaped quotes and executing repaired pairs were refused: each
+ * authors contract bytes on the model's behalf (src/atoms/AGENTS.md, Model
+ * output parsing; review record 2026-10-16, group D).
+ */
+export function parsePlanPair<S extends z.ZodTypeAny>(
+  text: string,
+  strategySchema: S,
+  stopReason?: string | null,
+): { rawStrategy: unknown; rawPlan: unknown; strategy: z.infer<S>; plan: z.infer<typeof planSchema>; salvaged: boolean } {
+  const schemas = (pair: [unknown, unknown]) => {
+    const strategy = strategySchema.safeParse(pair[0]);
+    const plan = planSchema.safeParse(pair[1]);
+    return strategy.success && plan.success ? { strategy: strategy.data, plan: plan.data } : null;
+  };
+  let first: { pair: [unknown, unknown]; repaired: boolean } | undefined;
+  let extraction: unknown;
+  try {
+    first = parseTwoJsonEx(text);
+  } catch (error) {
+    extraction = error;
+  }
+  if (first && !first.repaired) {
+    const strategy = strategySchema.safeParse(first.pair[0]);
+    if (!strategy.success) throw planParseError(`strategy does not match its schema: ${strategy.error.message}`);
+    const plan = planSchema.safeParse(first.pair[1]);
+    if (!plan.success) throw planParseError(`plan does not match its schema: ${plan.error.message}`);
+    return { rawStrategy: first.pair[0], rawPlan: first.pair[1], strategy: strategy.data, plan: plan.data, salvaged: false };
+  }
+  // The one admitted salvage. Never over a reply that parsed as written, and
+  // never over truncation: the escaped reply must parse with no repair.
+  const firstBrace = text.indexOf('{');
+  const firstBracket = text.indexOf('[');
+  const start = firstBracket === -1 ? firstBrace : firstBrace === -1 ? firstBracket : Math.min(firstBrace, firstBracket);
+  if (start !== -1) {
+    const escaped = escapeControlCharsInStrings(text.slice(start));
+    if (escaped !== text.slice(start)) {
+      try {
+        const salvage = parseTwoJsonEx(escaped);
+        const parsed = salvage.repaired ? null : schemas(salvage.pair);
+        if (parsed) return { rawStrategy: salvage.pair[0], rawPlan: salvage.pair[1], ...parsed, salvaged: true };
+      } catch {
+        /* report the reply as written, below */
+      }
+    }
+  }
+  const location = locateJsonFailure(text);
+  if (first?.repaired) {
+    if (stopReason === 'max_tokens') {
+      throw planParseError('plan reply hit the STRATEGY_MAX_TOKENS output cap and was cut; return a shorter reply: ' +
+        'fewer or shorter suites, shared fixtures once in the integration suite, no duplicated setup');
+    }
+    throw planParseError(`plan reply was unbalanced; a repair would drop subtasks or test source${location ? ` (${location})` : ''}`);
+  }
+  const message = extraction instanceof Error ? extraction.message : String(extraction);
+  throw planParseError(location && !message.includes(location) ? `${location} (${message.slice(0, 200)})` : message);
+}
+
+/** The constraint a planner is asked again with after `PlanParseError`. */
+export function planParseFeedback(error: PlanParseError): string {
+  return `Previous plan reply could not be parsed: ${error.message.slice(0, PLAN_PARSE_MESSAGE_MAX_CHARS)}. ` +
+    'Return exactly the JSON array; inside strings escape every backslash, double quote and newline, test sources included.';
 }
 
 /**

@@ -111,6 +111,20 @@ export interface SubtaskSpec {
   readonly proofObligations?: readonly ProofObligation[];
   /** Ids of the parent task's `criteria` this subtask records evidence for; see `Task.criteria`. */
   readonly criteria?: readonly string[];
+  /**
+   * Internal provenance marker set when `routeCrossBucketVerification` split
+   * a planner checkpoint into a browser part and an exact-shell part: `index`
+   * is the PLANNER's subtask index, `role` which part this is. Like
+   * `Plan.viaPrefilter` it is set by the host only and is NOT in
+   * `subtaskSpecSchema`, so `z.object` strips it from model JSON and a planner
+   * cannot spoof it. Informational, never behaviour-bearing: it feeds
+   * `routingIndexNote` (the index mapping the reviewer and a replanning
+   * planner read) and a checkpoint restore drops it.
+   */
+  readonly routedFrom?: {
+    readonly index: number;
+    readonly role: 'browser-verification' | 'shell-verification';
+  };
 }
 
 /**
@@ -179,8 +193,13 @@ export interface Plan {
 }
 
 export interface Result {
-  /** Runtime-produced observations, never accepted from result JSON. */
-  readonly parentTests?: readonly import('../contracts/parentTests.js').ParentTestObservation[];
+  /**
+   * Runtime-produced observations, never accepted from result JSON nor
+   * written into `summary`: validators read them only as the host block
+   * (`src/atoms/parentTestsBlock.ts`). `src/core/parentTests.ts` is the one
+   * mapping from their status and cause to a consequence.
+   */
+  readonly parentTests?: readonly import('../contracts/parentTests.js').HeldParentTestObservation[];
   readonly output: unknown;
   readonly summary: string;
   readonly toolCallResults?: unknown[];
@@ -215,6 +234,10 @@ export interface Result {
    *
    * It is no longer the ONLY route to `partial`: see `refusal` below, and
    * `landedResult()` in `src/run/runner.ts` for the one derivation both feed.
+   *
+   * Since 2026-10-16 it also names the phases a parallel dispatch never
+   * started because a phase they depend on failed its typed checks; those
+   * entries are repeated in `blockedPhases`.
    */
   readonly unfinishedPhases?: readonly string[];
   /**
@@ -283,6 +306,27 @@ export interface Result {
    * aggregates; the `phase-budget-spent` gate forces root review.
    */
   readonly phaseBudgetSpent?: true;
+  /**
+   * The subset of `unfinishedPhases` that never STARTED because a phase they
+   * declared a dependency on (`dependsOn`) failed its typed checks: its
+   * parent-owned suite failed, or it was not approved and its suite did not
+   * pass (`dependencyBlocker`, src/atoms/dispatch.ts). That phase's result is
+   * kept; its dependents land unstarted instead of failing the run.
+   *
+   * Never a landing signal by itself: every entry is also in
+   * `unfinishedPhases`, which is what `isLanded` reads. It tells the readers
+   * that explain a landing which of its phases the clock cut and which a
+   * failed prerequisite held back. Carried up by aggregates.
+   */
+  readonly blockedPhases?: readonly string[];
+  /**
+   * RUNTIME ONLY, never persisted: the atom whose OWN fallback result held
+   * back dependents in the dispatch that produced this result. Its direct
+   * supervisor reads it (`ladderSpent`, src/core/phaseBudget.ts): a cell
+   * whose branch landed behind its own fallback has spent its ladder on that
+   * root phase, whatever the plan shape. The name check keeps it inert above.
+   */
+  readonly ownFallbackBlockedBy?: string;
 }
 
 export type MutationScope = 'ephemeral' | 'branch' | 'patch';
@@ -334,6 +378,15 @@ export type PositiveVerdict = {
    */
   proofUncovered?: boolean;
   /**
+   * Set by the host — never by a model (`verdictSchema` strips unknown keys) —
+   * when a parent-owned acceptance suite on this result did not run
+   * (`withParentTestConsequences`). Like `proofUncovered` it leaves the
+   * approval alone and withholds atom trust, skill credit, distillation and
+   * promotion; it is a separate flag because `proofUncovered` drives the
+   * `uncovered-obligation` run statistic.
+   */
+  parentTestsUnverified?: true;
+  /**
    * Set by the supervisor — never by a model — when Jev, not the model
    * validator, approved (docs/decisions/jev-decisions-2026-09-28.md). It withholds ONE
    * consequence: distilling a NEW recipe from the run. Compile-at-learn makes a
@@ -347,7 +400,19 @@ export type PositiveVerdict = {
   criteria?: readonly CriterionJudgement[];
   /** One judgement per inherited check root acceptance listed (src/contracts/inheritedChecks.ts). */
   inherited?: readonly import('../contracts/inheritedChecks.js').InheritedJudgement[];
+  /**
+   * Set by the host — never parsed from `verdictSchema` — on an approved
+   * delegation-contract review: the classification it enforced. The root
+   * records it with the checkpoint (`RootDelegationApproval`).
+   */
+  delegationReview?: import('../contracts/parentTests.js').DelegationReview;
 };
+/**
+ * Why a delegation-contract review refused, typed by the host: `reviewer` is
+ * the reviewer's own failure (unfinished, unparseable, unclassified), so the
+ * same plan is reviewed again; `plan` and `fan-out` are the plan's.
+ */
+export type DelegationRefusalKind = 'reviewer' | 'plan' | 'fan-out';
 /** A validator's judgement of ONE acceptance criterion, by its checklist id. */
 export interface CriterionJudgement {
   readonly id: string;
@@ -366,6 +431,8 @@ export type NegativeVerdict = {
   criteria?: readonly CriterionJudgement[];
   /** See PositiveVerdict.inherited. */
   inherited?: readonly import('../contracts/inheritedChecks.js').InheritedJudgement[];
+  /** Set by the host on a delegation-contract refusal, never by a model. */
+  delegationRefusal?: DelegationRefusalKind;
 };
 export type Verdict = PositiveVerdict | NegativeVerdict;
 
@@ -373,6 +440,7 @@ export interface TraceEntry {
   kind:
     | 'plan'
     | 'plan-unparseable'
+    | 'plan-review-fault'
     | 'verdict-plan'
     | 'execute'
     | 'verdict-result'
@@ -410,6 +478,11 @@ export interface LlmCompletionRequest {
   actor?: { name: string; tier: Tier };
   child?: { name: string; tier: Tier };
   subject?: 'PLAN' | 'RESULT';
+  /**
+   * A validation Decision is never asked about, by policy; the calibration
+   * counts it apart (`jevCalibration.ts`). Stamped by `llmVerdict` only.
+   */
+  jevExcluded?: import('../contracts/llmTrace.js').JevExclusion;
   /**
    * Typed injects folded into `systemPrompt`. The recorder cites these on
    * the llm event; they are the join between injectContext and complete().

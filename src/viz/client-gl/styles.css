@@ -1943,6 +1943,17 @@ html.atoma-cursor-active * {
   pointer-events: none;
 }
 
+/* The one DOM loading notice (`AtomaLoader`): the turning crystal beside
+   "Loading <what>". Its canvas twin is `renderer/loading-notice.ts`. */
+.gpu-loader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #a8b4cc;
+}
+.gpu-loader-crystal { flex: 0 0 auto; }
+
 /* The conversation INSIDE the project guide card (owner, 2026-10-09): the
    guide owns frame, veil, collapse and height; this block fills it and keeps
    its own log scrolling. */

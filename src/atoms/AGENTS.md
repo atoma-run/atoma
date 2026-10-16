@@ -14,21 +14,23 @@ Neighbours:
 
 ## Supervision protocol
 - ONE LADDER PER ROOT PHASE (owner decision 2026-10-10, judge what exists): a
-  tissue that refuses its root phase's result when that result is the cell's own
-  fallback does not re-run the phase; `handUpRefused` hands it up marked
-  (`phaseBudgetSpent`, `src/core/phaseBudget.ts`) and `phase-budget-spent`
-  forces root review. Run bad74240 ran a spent ladder twice. A per-phase
-  execution counter was refused in review: it starved multi-subtask phases.
+  tissue that refuses its root phase's result when the cell's own fallback made
+  it, or held back a dependent (`ownFallbackBlockedBy`), does not re-run the
+  phase; `handUpRefused` hands it up marked (`phaseBudgetSpent`) and
+  `phase-budget-spent` forces root review. Run bad74240 ran a spent ladder
+  twice; a per-phase counter starved multi-subtask phases.
 - `superviseLoop` is the only child plan → validate → execute → validate loop.
-  L3 root plans additionally receive mandatory tool-free contract review on the
-  validation model. The reviewer classifies testable branches and integration;
-  missing suites or missing required parallel branches block dispatch, even
-  beside approved:true. Up to three planning attempts; no unreviewed fallback.
-  L2 plans under a parent suite use the same classification before L1 execution.
-  An L3 `replanAfter:true` plan performs read-only discovery only, once, then
-  the host replans from its observations. Discovery is not a checkpoint prefix.
-  The existing declared-output collision coaching still runs before review;
-  its fail-open result must pass contract review. Never coerce concat to sequential.
+  Root L3 plans also get mandatory tool-free contract review on `modelForTier(2)`
+  (own cap and effort, src/core; a refusal costs a top-tier replan); a reviewer
+  fault (unfinished, unparseable, unclassified) re-reviews the same plan on the
+  validation model. L2 plans under a parent suite get the same check there; their
+  reviewer fault re-reviews once on tier 2; a second one returns a `reviewer`
+  refusal that `superviseLoop` neither coaches nor counts: it asks again.
+  Missing classified suites or parallel branches block dispatch even beside
+  approved:true. Three root attempts (a plan parse failure counts); no unreviewed
+  fallback. L3 `replanAfter:true` is read-only discovery, once, then the host
+  replans; never a checkpoint prefix. Output-collision coaching runs first; its
+  fail-open result is still reviewed. Never coerce concat to sequential.
 - Escalation branches a type and toggles parent fallback in a `try/finally`.
   Persist capability prompts only; task text, seed instructions and diagnostics
   belong to the current instance. Validator diagnostics are fallible evidence.
@@ -42,9 +44,9 @@ Neighbours:
   Fallback uses an explicit direct-executor system role, not the delegator role.
 - `pendingStrategy` couples `plan()` and `execute()` on the same instance. Never
   call `execute()` without the corresponding plan.
-- A resumed root restores its saved plan AND parsed strategy on that instance.
-  Answers replan only the suffix; root-only checkpoints never enter child forks.
-  Dispatch skips the saved prefix before selecting or crediting children.
+- A resumed root restores its saved plan, strategy and digest-bound approval (re-enforced
+  mechanically, not re-judged); answers or a refused legacy plan replan only the suffix.
+  Root-only checkpoints never enter forks; dispatch skips the prefix before selecting or crediting.
 - `fallbackMode` bypasses registry delegation and calls self-plan/self-execute.
 - Mutation scopes flow through `applyByScope`; update the union and every hook
   together when adding a scope.
@@ -138,16 +140,16 @@ Neighbours:
   about the rest, and a name that resolves to no file is silent — "saves
   quote.txt" names a download. Both are read only for a validation call.
   Superseded reads also get bounded current excerpts; unknown stays unknown, old bytes stay out. [Contract and review](../../docs/decisions/stale-file-evidence-2026-10-03.md).
-- A LANDED result carries `LANDED_RESULT_GUIDANCE` to that validator, and
-  nothing else does. A landed run stopped before it could prove the floor, so
-  `floorCoverage` is uncovered BY CONSTRUCTION and the verdict is always a
-  validation call — never the mechanical path. Until 2026-09-24 the judge was
-  told nothing about landings while the prompt's only statement on
-  incompleteness was a rejection ("a visually-incomplete artefact is a failed
-  deliverable"), so an honest landing's fate rested on model prose alone. The
-  wording follows the analyst's on purpose: one definition of a landing, served
-  to both judges. A phase supervisor never receives it — landing is a property
-  of the whole run.
+- A BUDGET landing carries `LANDED_RESULT_GUIDANCE` to that validator; a
+  DEPENDENCY landing (`blockedPhases`) carries `DEPENDENCY_LANDING_GUIDANCE`
+  and is never approved mechanically; a result that is both carries both. A
+  budget landing is usually a validation call (its floor is usually uncovered),
+  but a covered floor with no finding still approves it mechanically. Until
+  2026-09-24 the judge was told nothing about landings and decided on model
+  prose alone. The wording follows the analyst's on purpose: one definition of
+  a landing, served to both judges. A phase supervisor never receives it —
+  landing is a property of the whole run.
+  [Dependency landing](../../docs/decisions/parent-owned-tests-2026-10-16.md).
 - THE ACCEPTANCE CHECKLIST ([design](../../docs/decisions/acceptance-checklist-2026-09-25.md))
   is drafted once per depth-routed run by `draftAcceptanceChecklist`
   (cheapest tier, role `draft-checklist`, actor `run-checklist`), reaches the
@@ -197,11 +199,12 @@ load-bearing.
   defers it, under the `jev-audit` role, off the run's path. It
   decides NOTHING — Decision's approval stands whatever the model says — and its
   role keeps it out of every reader that counts validations.
-- The Decision calibration (`jevCalibration.ts`) reads prefilter and validation
-  prompts back out of traces: their LAYOUT is a contract with it (`tests/jev-calibration.test.ts`);
-  validation uses `TASK_CONTEXT_HEADER` to separate multiline task text from
-  runtime guidance; the reader also supports historical traces without it.
-  A recipe's opening steps come from the deferring `jev` event's `details`.
+- The Decision calibration (`jevCalibration.ts`) reads prefilter and validation prompts back out of
+  traces: their LAYOUT is a contract with it (`tests/jev-calibration.test.ts`); `TASK_CONTEXT_HEADER`
+  separates multiline task text from runtime guidance (historical traces lack it). A recipe's opening
+  steps come from the deferring `jev` event's `details`. Calls stamped `jevExcluded` (delegation
+  reviews, parent-suite results: Decision takes none) are counted apart and never asked; a trace
+  without `jevExclusionStamps` predates the stamp and is read by structure, whatever its date.
 - Atom trust fast paths require the configured consecutive approved-result
   threshold (default 3), read through `trustThreshold()`; historical failures do
   not permanently disqualify a type. Script dispatch retains its separate
@@ -262,13 +265,14 @@ load-bearing.
   subtasks in parallel; `sequential` dispatches shared-artifact phases in order
   and threads `previousStepSummary` plus declared `outputs` as
   `inputs.previousStepOutputs`. Do not merge prior writes into the next
-  phase's `outputs` — skill/promotion gates read the current phase only.
-  Do not parallelize coupled filesystem work.
-- Independent work MUST fan out, including multiple L2 branches at L3.
-  Parallel aggregation accepts `dependsOn` with earlier subtask indices: ready
-  branches start immediately and integration joins declare their producers.
-  Coupled writers require dependencies. No global wave barrier; no inference
-  from prose. Existing sequential checkpoint limitations remain.
+  phase's `outputs` — skill/promotion gates read the current phase only. Do not parallelize coupled filesystem work.
+- Independent work MUST fan out, including multiple L2 branches at L3: a branch starts once its
+  `dependsOn` producers (earlier indices) settle; joins name producers, coupled writers declare
+  dependencies; no wave barrier, no prose inference. A producer with a typed failure is KEPT and its
+  dependents land unstarted (`blockedPhases`); a throw still fails the dispatch. Routing splits only
+  output-less checkpoints, remapping `dependsOn` ([why](../../records/reviews/parent-tests-review-fixes-2026-10-16.md)).
+  This DAG answers [2026-08-16](../../records/incidents/parallel-fanin-2026-08-16.md), where per-artefact phases
+  serialised independent work, though fan-out was not always cheaper; no live run has exercised it yet.
 - A phase of a SEQUENTIAL root plan the PLANNER wrote with two phases or more
   (counted before `routeCrossBucketVerification` splits one) that declares no
   `outputs` is READ-ONLY (`Task.readOnly`) — the tissue's plan, or a root
@@ -304,15 +308,15 @@ load-bearing.
   nothing included, and never approves past them mechanically: no read-only
   phase can fix the defect it finds.
 - REACHING THE RUN DEADLINE LANDS A DISPATCH; it does not discard it.
-  `dispatchWithAggregation` returns `{results, unfinished}`: sequential refuses
+  `dispatchWithAggregation` returns `{results, unfinished, blocked}`: sequential refuses
   to OPEN a phase under `MIN_PHASE_LANDING_MS` of remaining wall clock and keeps
   the earlier phases when a phase that was opened is aborted, and parallel keeps
   the branches that settled when the deadline cut their siblings. A dispatch
   that completed NO phase still throws (the run's first pass then lands, src/run), and a rejection that is not the deadline
   keeps its meaning whatever else settled — `ctx.signal` is the deadline and
   nothing else, since cancellation reaches a run as process teardown. `markLanded`
-  stamps the aggregate (`Result.unfinishedPhases`, unioned with what a nested
-  landing reported) and the runner turns that into the `partial` outcome. Never
+  stamps the aggregate (`Result.unfinishedPhases`, unioned from below; held-back
+  dependents also in `blockedPhases`), and the runner makes it `partial`. Never
   infer a landing from the summary text: `markLanded` prefixes it, but it then
   continues into model-authored prose. Measured twice on 2026-09-21:
   [progressive runs](../../records/incidents/progressive-runs-2026-09-21.md).
@@ -336,24 +340,22 @@ load-bearing.
 ## Verification and ground truth
 
 - [Parent-owned tests](../../docs/decisions/parent-owned-tests-2026-10-16.md): L3
-  assigns L2 suites and reviews L2-authored L1 suites before execution. Unchanged
-  approved plans reuse review; revisions require it. The shared loop and compiled
-  dispatch run the fixed harness before validation/credit, including fallbacks.
-  Plan-level suites check integration. Host-owned sources and observations survive
-  delegation/aggregation; failed or unavailable checks cannot grant acceptance.
-  Green still needs semantic review. This runtime harness is an authorized replay
-  exception, not supervisor tools. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md).
+  assigns L2 suites and reviews L2-authored L1 suites before execution; unchanged
+  approved plans reuse review, revisions require it. The loop and compiled dispatch
+  run the fixed harness before validation/credit, fallbacks included; plan suites
+  check integration. `core/parentTests.ts` alone maps typed status/cause to reject,
+  reject-once or review; none grants credit. Observations survive aggregation typed,
+  reach validators only as a host block, and are judged once. Green still needs
+  semantic review. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
 
-- All JavaScript-runtime applications use strict TypeScript, including existing
-  projects, browser/server logic and maintained tests. Application changes
-  include migration where needed. `APPLICATION_TYPESCRIPT_GUIDANCE` in
-  `taskContext.ts` is the runtime rule shared by planners, executors and
-  reviewers, including old stored types and fallbacks. Final review requires
-  observed `check` (typecheck, lint, tests) and `build` success and effective configuration/source coverage;
-  transpilation or a script name is not proof. Compilation goes to a shell
-  molecule before browser verification, without widening static-web tools.
-  Generated JavaScript, vendor assets and necessary tooling glue remain valid.
-  No extension-based rejection or supervisor command replay.
+- All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
+  logic and maintained tests. Application changes include migration where needed.
+  `APPLICATION_TYPESCRIPT_GUIDANCE` in `taskContext.ts` is the runtime rule shared by tool-mode planners,
+  executors and reviewers, including old stored types and fallbacks; reasoning tasks hold no tools and skip it.
+  Final review requires observed `check` (typecheck, lint, tests) and `build` success and effective
+  configuration/source coverage; transpilation or a script name is not proof. Compilation goes to a shell
+  molecule before browser verification, without widening static-web tools. Generated JavaScript, vendor
+  assets and necessary tooling glue remain valid. No extension-based rejection or supervisor command replay.
   [Decision and review](../../docs/decisions/typescript-applications-2026-10-16.md).
   Apps also adopt the [versioned application skeleton](../../docs/decisions/application-skeleton-2026-10-16.md):
   ESLint/typescript-eslint, Vitest, Vite for browser assets, and uniform scripts.
@@ -629,9 +631,9 @@ load-bearing.
   on parse failure; never guess a structure. After tool work, one tool-free
   formatting turn may repair it (24,000 chars, 60s, with 60s run time left).
   Preserve witnesses, validation, raw failures and fence-aware tests; never replay tools for formatting.
-- An unparseable molecule PLAN is asked again inside the plan budget, which then
-  escalates (`plan-unparseable` trace entry, parser message kept); it neither
-  blames trust nor branches on one slip. It used to end the run (12bdcf19).
+- An unparseable L1 plan or L2/L3 plan pair (a truncation repair counts for pairs) is asked
+  again within the plan budget, then escalates (`plan-unparseable`, 12bdcf19); the root spends an
+  attempt. Pairs salvage raw control chars only; L1 keeps parseWith's repair. Never blames trust.
 
 ## Intentional choices and rejected shortcuts
 

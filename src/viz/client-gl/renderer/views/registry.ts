@@ -5,6 +5,7 @@ import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawAtomDetail } from './atom-detail.js';
+import { drawLoadingNotice } from '../loading-notice.js';
 
 export function drawRegistry(
   ctx: RendererCtx,
@@ -121,7 +122,7 @@ export function drawRegistry(
   }
   if (!payload) {
     if (pane.visible(y, y + 28)) {
-      ctx.text(pane.content, snapshot.t('common.loading'), 16, y + 8);
+      drawLoadingNotice(ctx, pane.content, snapshot.t('loading.registryDetail'), 16, y + 8);
     }
     pane.extend(y + 28);
     ctx.scrollMax.registry = pane.finish();

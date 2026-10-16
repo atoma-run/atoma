@@ -28,6 +28,9 @@
       "Write"
     ],
     "websiteURL": "https://atoma.run",
+    "supportURL": "https://atoma.run/support",
+    "privacyPolicyURL": "https://atoma.run/privacy",
+    "termsOfServiceURL": "https://atoma.run/terms",
     "defaultPrompt": [
       "Show my Atoma projects and their latest runs.",
       "Help me draft a goal for an Atoma project.",

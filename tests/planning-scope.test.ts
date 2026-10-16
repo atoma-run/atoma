@@ -10,10 +10,16 @@ import type { Task } from '../src/core/types.js';
 const seed = { description: 'constrained writing', systemPrompt: 'Always use separate modeling, drafting, audit, correction and finalization phases.', tools: [], params: {}, createdBy: 'test' };
 
 describe('runtime planning scope for existing catalog agents', () => {
+  // The TypeScript policy reaches tool-mode planners only: a reasoning task
+  // holds no tools and builds nothing (review 2026-10-16, group F).
   it.each([
-    { tier: 2, delegated: false }, { tier: 2, delegated: true },
-    { tier: 3, delegated: false }, { tier: 3, delegated: true },
-  ] as const)('keeps the checklist on root planners only (tier=$tier, delegated=$delegated)', async ({ tier, delegated }) => {
+    { tier: 2, delegated: false, reasoning: false },
+    { tier: 2, delegated: true, reasoning: true },
+    { tier: 2, delegated: true, reasoning: false },
+    { tier: 3, delegated: false, reasoning: false },
+    { tier: 3, delegated: true, reasoning: true },
+    { tier: 3, delegated: true, reasoning: false },
+  ] as const)('keeps the checklist on root planners only (tier=$tier, delegated=$delegated, reasoning=$reasoning)', async ({ tier, delegated, reasoning }) => {
     const db = openDb(':memory:');
     try {
       const reg = new AtomRegistry(db);
@@ -23,7 +29,8 @@ describe('runtime planning scope for existing catalog agents', () => {
       const original = { description: 'Write a four-stanza poem with six words per line.', inputs: { acceptanceChecklist: 'ROOT_CHECKLIST' } };
       const task: Task = delegated ? {
         description: 'Model the requirements as a checklist; do not draft the poem.',
-        executionMode: 'reasoning', originalTask: original,
+        ...(reasoning ? { executionMode: 'reasoning' as const } : {}),
+        originalTask: original,
         inputs: { originalTask: original, acceptanceChecklist: 'ROOT_CHECKLIST', previousStepResult: 'Prior observations' },
       } : { description: original.description, inputs: original.inputs };
       const ctx = makeCtx();
@@ -32,7 +39,7 @@ describe('runtime planning scope for existing catalog agents', () => {
         expect(req.userContent).toContain(`Task: ${task.description}`);
         expect(req.userContent).toContain(PLANNING_SCOPE_GUIDANCE);
         expect(req.userContent).toContain(PROPORTIONATE_PLANNING_GUIDANCE);
-        expect(req.userContent).toContain(APPLICATION_TYPESCRIPT_GUIDANCE);
+        expect(req.userContent.includes(APPLICATION_TYPESCRIPT_GUIDANCE)).toBe(!reasoning);
         expect(req.userContent.includes('ROOT_CHECKLIST')).toBe(!delegated);
         if (delegated) {
           expect(req.userContent).toContain(original.description);

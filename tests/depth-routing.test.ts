@@ -535,6 +535,26 @@ describe('one common root acceptance, independent of phase credit', () => {
     expect(acceptanceSchema.parse(accepted)).toMatchObject({ approved: true, basis: 'mechanical', phaseCoverage: [phase, { ...phase, attempt: 2 }] });
     expect(ctx.llm.calls).toHaveLength(0);
   });
+  // Review 2026-10-16, group B: a covered floor with no finding still approves
+  // a BUDGET landing mechanically; a phase that failed its typed checks and
+  // held its dependents back is never approved without a validation call.
+  it('approves a covered budget landing mechanically, never a covered dependency landing', async () => {
+    const ctx = context();
+    await observe(ctx);
+    const budget = await acceptRootResult({ actor: new Actor(), task, ctx, floor, phaseCoverage: [],
+      result: { ...result, unfinishedPhases: ['write the README'] } });
+    expect(budget).toMatchObject({ approved: true, basis: 'mechanical' });
+    expect(ctx.llm.calls).toHaveLength(0);
+
+    const entry = 'write the README (not started: its prerequisite "build" failed its parent-owned acceptance suite)';
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'The build phase stands on its own evidence' }));
+    const blocked = await acceptRootResult({ actor: new Actor(), task, ctx, floor, phaseCoverage: [],
+      result: { ...result, unfinishedPhases: [entry], blockedPhases: [entry] } });
+    expect(blocked).toMatchObject({ approved: true, basis: 'validation-call' });
+    expect(ctx.llm.calls).toHaveLength(1);
+    expect(ctx.llm.calls[0]!.userContent).toContain('== PHASES NOT STARTED BEHIND A FAILED PHASE ==');
+    expect(ctx.llm.calls[0]!.userContent).not.toContain('== THIS RESULT LANDED ON THE RUN BUDGET ==');
+  });
   it.each([true, false])('reviews uncovered delivery once, accepts=%s, with no method-credit hooks', async (approved) => {
     const ctx = context();
     const recordRunStat = vi.fn();
@@ -720,7 +740,7 @@ describe('depth transition through the production supervision loop', () => {
             order.push('sibling-drained');
             current.signal.throwIfAborted();
             return result;
-          });
+          }, { dispatcher: 'Dispatcher' });
           return siblings.results[0]!;
         } };
       },
@@ -1249,7 +1269,7 @@ describe('deadline landing across dispatch and depth acceptance', () => {
           controller.abort(new DOMException('Execution deadline', 'TimeoutError'));
           current.signal.throwIfAborted();
           return result;
-        });
+        }, { dispatcher: 'Dispatcher' });
         return markLanded(dispatch.results[0]!, dispatch.unfinished);
       } }),
     });

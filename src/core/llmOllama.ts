@@ -250,7 +250,7 @@ export class OllamaLlmClient implements LlmClient {
 
       if (!shouldLoop) {
         finalText = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-        stopReason = json.done_reason ?? (json.done ? 'stop' : null);
+        stopReason = ollamaStopReason(json.done_reason ?? (json.done ? 'stop' : null));
         break;
       }
 
@@ -266,7 +266,7 @@ export class OllamaLlmClient implements LlmClient {
           const pseudoFinal = coercePseudoFinalToolCall(toolName, args);
           if (pseudoFinal) {
             finalText = pseudoFinal;
-            stopReason = 'stop';
+            stopReason = 'end_turn';
             break;
           }
         }
@@ -408,6 +408,18 @@ export class OllamaLlmClient implements LlmClient {
       ...(stopReason === 'tool_budget_exhausted' ? { toolBudgetExhausted: true as const } : {}),
     };
   }
+}
+
+/**
+ * Ollama's `done_reason` in the vocabulary the rest of the system reads
+ * (`Anthropic.Messages.Message['stop_reason']`), as every other transport maps
+ * it. Left raw, `'stop'` read as "did not finish" to every caller that checks
+ * for `end_turn` (the delegation review, client questions, criteria review).
+ */
+export function ollamaStopReason(reason: string | null): string | null {
+  if (reason === 'stop') return 'end_turn';
+  if (reason === 'length') return 'max_tokens';
+  return reason;
 }
 
 function toOllamaTool(t: Tool): {

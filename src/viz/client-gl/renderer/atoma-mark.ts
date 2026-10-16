@@ -11,7 +11,6 @@ import {
   ATOMA_MARK_CORE_RADIUS,
   ATOMA_MARK_LAMP_Z,
   ATOMA_MARK_LOCAL_SIZE,
-  ATOMA_MARK_MESH,
   ATOMA_MARK_REAR_LIGHT_RADIUS,
   buildAtomaMarkFrame,
   collectPointerFieldSpills,
@@ -33,6 +32,7 @@ import {
   readPointerLight,
   type PointerLightSnapshot,
 } from '../pointer-light.js';
+import { ACTIVITY_CRYSTAL_LOCAL_SIZE, activityCrystalFrame } from '../activity-crystal.js';
 import { markBeadVisible, markClockIsPinned, markElapsedMs } from './mark-clock.js';
 import { createMarkShell } from './mark-shell.js';
 import {
@@ -57,39 +57,35 @@ import {
  */
 export const ATOMA_MARK_LOCAL_CENTER = 14;
 
-/** Status-size crystal: the brand's mesh and pose, with a five-times faster turn. */
+/**
+ * Status-size crystal: the brand's mesh and pose, with a five-times faster turn
+ * (`activity-crystal.ts`). A live run's keeps the bead; a loading notice's
+ * (`bead: false`) does not.
+ */
 export function attachLiveAtomaMark(
   parent: Container,
   addTicker: (callback: (ticker: Ticker) => void) => void,
   x: number,
   y: number,
-  color: number
+  color: number,
+  { size = 14, bead = true, label = 'live-atoma-crystal' }: { size?: number; bead?: boolean; label?: string } = {}
 ): void {
   const gem = new Graphics();
-  gem.label = 'live-atoma-crystal';
+  gem.label = label;
   gem.eventMode = 'none';
   gem.position.set(x, y);
-  gem.scale.set(14 / ATOMA_MARK_LOCAL_SIZE);
+  gem.scale.set(size / ACTIVITY_CRYSTAL_LOCAL_SIZE);
   parent.addChild(gem);
   const paint = () => {
-    const frame = buildAtomaMarkFrame(prefersReducedMotion() ? 0 : performance.now() * 5);
+    const frame = activityCrystalFrame(performance.now(), color, prefersReducedMotion());
     gem.clear();
     // At 14px, shade the shared facets directly: no per-badge offscreen
     // textures, pointer lamps or writes to the main crystal's field light.
-    for (const index of frame.frontOrder) {
-      const facet = frame.facets[index]!;
-      const points = ATOMA_MARK_MESH.facets[index]!.points.flatMap(point => {
-        const projected = frame.projected[point]!;
-        return [projected.x, projected.y];
-      });
-      const light = Math.max(0, -facet.normal[0] * 0.38 + facet.normal[1] * 0.72 + facet.normal[2] * 1.05) / 1.33;
-      const shade = light > 0.65
-        ? mixColor(color, 0xffffff, (light - 0.65) * 1.4)
-        : mixColor(0x000000, color, 0.4 + light * 0.85);
-      gem.poly(points).fill(shade);
+    for (const facet of frame.facets) gem.poly([...facet.points]).fill(facet.color);
+    if (bead) {
+      gem.circle(frame.bead.x, frame.bead.y, 1.25)
+        .fill({ color: mixColor(color, 0xffffff, 0.7), alpha: 0.9 });
     }
-    gem.circle(frame.corePosition.x, frame.corePosition.y, 1.25)
-      .fill({ color: mixColor(color, 0xffffff, 0.7), alpha: 0.9 });
   };
   paint();
   if (!prefersReducedMotion()) addTicker(paint);

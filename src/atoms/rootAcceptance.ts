@@ -12,8 +12,9 @@ import { checkGroundTruth } from './groundTruth.js';
 import { commandTestScripts, criteriaFilesBlock, ROOT_CRITERIA_SOURCE_CHARS } from './fileEvidence.js';
 import { llmVerdict, renderTransportEvidence } from './verdict.js';
 import { reviewAcceptanceCriteria } from './criteriaReview.js';
+import { renderParentTestsBlock } from './parentTestsBlock.js';
 import { textReviewReference } from './textReview.js';
-import { LANDED_RESULT_GUIDANCE } from './prompts.js';
+import { DEPENDENCY_LANDING_GUIDANCE, LANDED_RESULT_GUIDANCE } from './prompts.js';
 import {
   compareStartingWorkspace,
   renderStartingWorkspace,
@@ -523,7 +524,11 @@ export async function acceptRootResult(args: {
     inheritedItems.length > 0 || (inherited?.report.notReplayed ?? 0) > 0 ||
     (inherited !== undefined && baselineEstablishedNothing(inherited.report.baseline)) ||
     // Refused below whatever it says; the call keeps the acceptor's own reading in the record.
-    unrechecked !== undefined;
+    unrechecked !== undefined ||
+    // A phase failed its typed checks and held its dependents back: never
+    // approved mechanically, whatever the floor says. Budget landings keep
+    // their mechanical approval on a covered floor with no finding.
+    (result.blockedPhases?.length ?? 0) > 0;
   const judgementsAsked = checklistBlock !== '';
   // Read only for a validation call: nothing reads them on the mechanical path.
   // Named criteria files and incomplete reads share one bounded reader.
@@ -538,6 +543,17 @@ export async function acceptRootResult(args: {
   const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems, earlier) : '';
   const textReference = reviewing && args.delivery === 'text'
     ? await textReviewReference(ctx, task, checklist) : undefined;
+  // The delivery's parent-owned suites, typed and host-rendered: the root's
+  // own integration suite first and whole, then the phase suites' sources.
+  const parentTestsBlock = reviewing && result.parentTests?.length
+    ? renderParentTestsBlock(result.parentTests, { tier: 'root' }) : '';
+  // Which landing this is: the clock cut phases, a failed phase held its
+  // dependents back, or both. Every blocked entry is also an unfinished one.
+  const blockedCount = result.blockedPhases?.length ?? 0;
+  const landingBlock = [
+    ...((result.unfinishedPhases?.length ?? 0) > blockedCount ? [LANDED_RESULT_GUIDANCE] : []),
+    ...(blockedCount > 0 ? [DEPENDENCY_LANDING_GUIDANCE] : []),
+  ].join('\n\n');
   const reviewRoot = (reconciliation = '') => llmVerdict({
     ctx, model: modelForTier(args.delivery === 'text' ? 2 : 1), supervisorName: RUN_ACTORS.root.name, supervisorTier: RUN_ACTORS.root.tier,
     subject: 'RESULT', child: actor, task,
@@ -546,16 +562,19 @@ export async function acceptRootResult(args: {
     payload: { output: result.output, summary: result.summary, producedBy: result.producedBy },
     ...(evidence ? { evidence } : {}),
     groundTruthBlock: probe.block,
+    ...(parentTestsBlock ? { parentTestsBlock } : {}),
     mechanicalFindingsBlock: renderResultGateFindings(gates.reviewFindings),
     proofCoverageBlock: 'ROOT DELIVERY PROOF (no effect on phase credits):\n' + JSON.stringify(floorCoverage) +
       (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : '') + (inputsBlock ? `\n\n${inputsBlock}` : '') +
       (namedFilesBlock ? `\n\n${namedFilesBlock}` : '') + (startingBlock ? `\n\n${startingBlock}` : '') +
       (restorationsBlock ? `\n\n${restorationsBlock}` : '') + (inheritedBlock ? `\n\n${inheritedBlock}` : '') +
       (reconciliation ? `\n\n${reconciliation}` : ''),
-    // A landed run always reaches here through a validation call, because it
-    // stopped before it could prove the floor. Saying what a landing IS costs
+    // A budget landing usually reaches here through a validation call, because
+    // it stopped before it could prove the floor (a covered floor with no
+    // finding still approves it mechanically); a dependency landing always
+    // does, or a reject gate refuses it first. Saying what a landing IS costs
     // one block and decides whether the phases it did complete survive.
-    ...(result.unfinishedPhases?.length ? { landingBlock: LANDED_RESULT_GUIDANCE } : {}),
+    ...(landingBlock ? { landingBlock } : {}),
   });
   const raw = gates.rejection
     ? { approved: false, reasoning: gates.rejection.reasoning }
@@ -571,7 +590,7 @@ export async function acceptRootResult(args: {
   const focused = reviewing && userCriteria && !landed && args.delivery !== 'text'
     ? await reviewAcceptanceCriteria({ ctx, task, checklist,
       evidence: [probe.block, namedFilesBlock, checklistBlock, layoutsBlock, inputsBlock, startingBlock, restorationsBlock,
-        inheritedBlock, renderResultGateFindings(gates.reviewFindings),
+        inheritedBlock, parentTestsBlock, renderResultGateFindings(gates.reviewFindings),
         [`Transport observations: ${transport.omitted} omitted; omissions establish no coverage.`, ...transport.lines]
           .join('\n')].filter(Boolean).join('\n\n') }) : undefined;
   let judged = focused ? judgeCoverage(coverage, focused.criteria) : initialJudged;

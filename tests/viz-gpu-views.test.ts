@@ -92,7 +92,7 @@ import {
   VIEW_FRAME_TITLE_Y,
 } from '../src/viz/client-gl/renderer/view-frame.js';
 import { overlayMenuClip } from '../src/viz/client-gl/renderer/overlay-menu-clip.js';
-import { PARTIAL_CONTINUE_PREFIX, landingCause } from '../src/viz/client-gl/partial-run.js';
+import { PARTIAL_CONTINUE_PREFIX, landingCause, partialCauseKeys } from '../src/viz/client-gl/partial-run.js';
 import {
   accountMenuLayout,
   drawAccountMenu,
@@ -125,6 +125,7 @@ import {
   interpolateAtomaMarkPlacement,
 } from '../src/viz/client-gl/renderer/atoma-mark.js';
 import { drawWelcome, welcomeLayout, WELCOME_SHOW_INSPECT } from '../src/viz/client-gl/renderer/views/welcome.js';
+import { WELCOME_LEGAL_LINKS } from '../src/viz/client-gl/legal-links.js';
 import {
   pinMarkElapsedMs,
   setMarkBeadVisible,
@@ -1128,6 +1129,38 @@ describe('drawWelcome as the login gate', () => {
     expect(
       ctx.texts.some((text) => text.value === I18N_CATALOGS.en['login.noProviders'])
     ).toBe(true);
+  });
+});
+
+describe('drawWelcome legal links', () => {
+  const LOGIN = { providers: [{ id: 'github', label: 'GitHub' }], notice: null };
+
+  it('draws Privacy, Terms and Support as centred links above the version, below the login', () => {
+    for (const [width, height, handheld] of [[1280, 800, false], [390, 844, true], [1280, 560, false]] as const) {
+      const ctx = createRecordingCtx();
+      drawWelcome(ctx, makeSnapshot({ entered: false, handheld }, { login: { ...LOGIN, legal: true } }), width, height);
+      const links = ctx.links.filter((link) => link.id.startsWith('welcome.legal.'));
+      expect(links.map((link) => link.id)).toEqual(WELCOME_LEGAL_LINKS.map((link) => link.id));
+      expect(links.map((link) => link.label)).toEqual(['Privacy', 'Terms', 'Support']);
+      const layout = welcomeLayout(width, height, handheld, true);
+      const left = links[0]!.x;
+      const right = links[2]!.x + links[2]!.width;
+      expect(Math.abs((left + right) / 2 - width / 2)).toBeLessThanOrEqual(1);
+      expect(left).toBeGreaterThan(0);
+      expect(right).toBeLessThan(width);
+      for (const link of links) {
+        expect(link.y).toBe(layout.legalY);
+        expect(link.y + link.height).toBeLessThan(layout.versionY - layout.versionHeight);
+      }
+      const lowestControl = Math.max(...ctx.buttons.map((button) => button.y + button.height));
+      expect(lowestControl).toBeLessThan(layout.legalY);
+    }
+  });
+
+  it('draws none where the server does not serve the pages', () => {
+    const ctx = createRecordingCtx();
+    drawWelcome(ctx, makeSnapshot({ entered: false }, { login: LOGIN }), 1280, 800);
+    expect(ctx.links.filter((link) => link.id.startsWith('welcome.legal.'))).toEqual([]);
   });
 });
 
@@ -5649,6 +5682,15 @@ describe('the shared final result panel', () => {
     expect(expanded.buttons.find(button => button.id === 'result.details')!.active).toBe(true);
   });
 
+  it('waits on a result with the loading crystal beside what is loading', () => {
+    const ctx = createRecordingCtx();
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: 'not-yet-read' }, {}), 10, 100, 1180, 600);
+    expect(ctx.texts.some(text => text.value === t('result.loading'))).toBe(true);
+    const layer = findByLabel(ctx.root, 'loading-crystal');
+    expect(layer && findByLabel(layer, 'loading-atoma-crystal')).toBeTruthy();
+    expect(findByLabel(ctx.root, 'live-atoma-crystal')).toBeUndefined();
+  });
+
   it('leads with the summary and moves its evidence block to the technical details', () => {
     const run = makeRun([], { result: { output: { files: ['index.html'], probes: [] },
       summary: 'The tracker is ready.\n== GROUND TRUTH ==\nsha256 0123abcd  index.html\nnode --test: 8 passed' } });
@@ -7908,6 +7950,30 @@ describe('incomplete (partial) runs guide the next step', () => {
     expect(landingCause({ unfinishedPhases: ['ship'] })).toBe('budget');
     expect(landingCause({ unfinishedPhases: ['ship'], refusal })).toBe('both');
     expect(landingCause({})).toBeNull();
+  });
+
+  // Review 2026-10-16, group B: a step that failed its checks holds back the
+  // steps depending on it. Those are unfinished too, but the clock did not cut
+  // them, and after that sentence "the work was done" would be false.
+  it('says when a failed step held others back, one sentence per fact', () => {
+    const entry = 'wire the CLI (not started: its prerequisite "write add.ts" failed its parent-owned acceptance suite)';
+    expect(landingCause({ unfinishedPhases: [entry], blockedPhases: [entry] })).toBeNull();
+    expect(landingCause({ unfinishedPhases: ['ship', entry], blockedPhases: [entry] })).toBe('budget');
+    expect(landingCause({ unfinishedPhases: [entry], blockedPhases: [entry], refusal })).toBe('refused');
+    expect(partialCauseKeys({ cause: null, blocked: true })).toEqual(['run.partial.blocked']);
+    expect(partialCauseKeys({ cause: 'budget', blocked: true })).toEqual(['run.partial.blocked', 'run.partial.cause.budget']);
+    expect(partialCauseKeys({ cause: 'refused', blocked: true })).toEqual(['run.partial.blocked', 'run.partial.cause.refusedAfter']);
+    expect(partialCauseKeys({ cause: 'refused', blocked: false })).toEqual(['run.partial.cause.refused']);
+    for (const key of ['run.partial.blocked', 'run.partial.cause.refusedAfter']) expect(I18N_CATALOGS.en[key], key).toBeTruthy();
+
+    const ctx = createRecordingCtx();
+    const run = makeRun([makeLlmEvent('a')], { result: { summary: 'INCOMPLETE', unfinishedPhases: [entry], blockedPhases: [entry], refusal } });
+    drawRuns(ctx, makeSnapshot({}, { run, runs: [indexEntry], projects: [project()] }), WIDTH, HEIGHT);
+    const texts = ctx.texts.map((entry) => entry.value);
+    expect(texts).toContain(t('runs.flag.partial'));
+    expect(texts).toContain(`${t('run.partial.blocked')} ${t('run.partial.cause.refusedAfter')}`);
+    expect(texts.some((value) => value.includes(t('run.partial.cause.refused')))).toBe(false);
+    expect(texts).toContain(t('run.partial.next.continue'));
   });
 
   it('says what happened, that the work is kept, and offers to continue', () => {

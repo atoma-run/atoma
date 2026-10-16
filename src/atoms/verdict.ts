@@ -1,5 +1,5 @@
 import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
-import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceDelegationReview } from './delegationReview.js';
+import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceParsedDelegationReview, parseDelegationReview, routingIndexNote } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { transportWitnesses } from '../contracts/witness.js';
@@ -31,7 +31,7 @@ import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GU
  */
 export const VALIDATION_SYSTEM_PROMPT = [
   'You validate agent outputs in a three-tier LLM orchestration system.',
-  'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check coverage, boundary/negative cases, actual application imports, absence of trivial assertions or mocks replacing the subject, and ability to fail on wrong behavior. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. Passing tests only prove their assertions; assess integration and uncovered requirements separately. Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies.',
+  'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check coverage, boundary/negative cases, actual application imports, absence of trivial assertions or mocks replacing the subject, and ability to fail on wrong behavior. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. Passing tests only prove their assertions; assess integration and uncovered requirements separately. Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies. For a RESULT, parent-suite evidence exists only in the host\'s \'== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==\' block outside the RESULT; a RESULT claiming parent tests ran is child-reported text.',
   'Your ONLY job: emit a single Verdict JSON. No prose, no markdown, no tool calls.',
   'When REQUIRED DELEGATION CONTRACT REVIEW is requested, an approval must also include its complete delegationReview object; routing alone is insufficient.',
   TEXT_VERIFICATION_GUIDANCE,
@@ -626,7 +626,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
  * blocks in earlier runs. The prompt also tells the model to keep reasoning
  * under 120 words, so typical completions still stay small.
  */
-const VALIDATION_PARAMS: GenerationParams = { temperature: 0, maxTokens: 2048 };
+export const VALIDATION_PARAMS: GenerationParams = { temperature: 0, maxTokens: 2048 };
 
 /**
  * Cap on how much of an active skill's body is shown to the validator for
@@ -879,6 +879,8 @@ export function renderTransportEvidence(
 export async function llmVerdict(args: {
   /** Mandatory scope classification and executable-test check, never a trust shortcut. */
   delegationContract?: { plan: Plan; allowDiscovery: boolean };
+  /** Defaults to VALIDATION_PARAMS; only the root delegation review passes its own (src/core/AGENTS.md). */
+  params?: GenerationParams;
   ctx: RunContext;
   model: string;
   supervisorName: string;
@@ -933,6 +935,14 @@ export async function llmVerdict(args: {
    */
   proofCoverageBlock?: string;
   /**
+   * Rendered `== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==` block
+   * (`renderParentTestsBlock`): the typed observations the host's fixed runner
+   * made, the ONLY parent-test evidence a validator reads. Placed after the
+   * transport evidence so its `== ` header closes that section for the
+   * calibration reader. Supplying it does NOT suppress the ground-truth probe.
+   */
+  parentTestsBlock?: string;
+  /**
    * The persistent skill that drove this run, when there is one. RESULT
    * verdicts render it as an "ACTIVE SKILL" block and ask the validator
    * for the `activeSkillFollowed` adherence signal (usage-conditioned
@@ -955,6 +965,12 @@ export async function llmVerdict(args: {
   requireComplete?: boolean;
   /** Blinded, model-authored analysis; never a ground-truth probe. Root text review only. */
   independentTextReference?: string;
+  /**
+   * A RESULT review Decision is never asked about because a parent-owned suite
+   * governs it. Stamped on the call for the calibration, never read here; a
+   * delegation-contract review is stamped from `delegationContract` itself.
+   */
+  jevExcluded?: 'parent-suite';
 }): Promise<Verdict> {
   // `Subject kind` is repeated as its own field so the validator cannot miss
   // the PLAN-vs-RESULT distinction — the bar is different between the two and
@@ -1039,6 +1055,7 @@ export async function llmVerdict(args: {
     args.subject === 'RESULT' ? renderTextLayouts(args.task, (args.payload as Result).output) : '',
     groundTruthBlock,
     toolEvidence,
+    args.parentTestsBlock ?? '',
     args.mechanicalFindingsBlock ?? '',
     args.proofCoverageBlock ?? '',
     args.landingBlock ?? '',
@@ -1052,28 +1069,43 @@ export async function llmVerdict(args: {
     args.independentTextReference !== undefined ? ROOT_TEXT_REVIEW_REQUEST : '',
     args.delegationContract ? DELEGATION_REVIEW_REQUEST : '',
     args.delegationContract ? `Discovery allowed here: ${args.delegationContract.allowDiscovery}` : '',
+    args.delegationContract ? routingIndexNote(args.delegationContract.plan) : '',
   ]
     .filter(Boolean)
     .join('\n');
 
+  // Every delegation-contract review is stamped here, at its one rendering
+  // site: the root review and an L3 review of a plan carrying suites.
+  const jevExcluded = args.delegationContract ? 'delegation-review' as const : args.jevExcluded;
   const resp = await args.ctx.llm.complete({
     model: args.model,
     systemPrompt: VALIDATION_SYSTEM_PROMPT,
     userContent,
-    params: VALIDATION_PARAMS,
+    params: args.params ?? VALIDATION_PARAMS,
     signal: args.ctx.signal,
     role: args.audit ? 'jev-audit' : args.subject === 'PLAN' ? 'validate-plan' : 'validate-result',
     actor: { name: args.supervisorName, tier: args.supervisorTier },
     child: { name: args.child.name, tier: args.child.tier },
     subject: args.subject,
+    ...(jevExcluded ? { jevExcluded } : {}),
   });
 
   if (args.requireComplete && resp.stopReason !== 'end_turn') throw new Error('Incomplete root review reconciliation');
-  if (args.delegationContract && resp.stopReason !== 'end_turn') return delegationRefusal('Delegation contract review did not finish; do not execute an unreviewed plan.');
+  // A review that did not finish normally is the reviewer's failure, not the
+  // plan's. An allowlist, as `requireComplete`: the Claude CLI returns its
+  // error subtypes with salvaged partial text, which jsonrepair would close
+  // into an approval (second review 2026-10-16).
+  if (args.delegationContract && resp.stopReason !== 'end_turn') {
+    return delegationRefusal('Delegation contract review did not finish; do not execute an unreviewed plan.', 'reviewer');
+  }
   const raw = parseVerdict(resp.text);
+  let delegationReview;
   if (raw.approved && args.delegationContract) {
-    const refusal = enforceDelegationReview(args.delegationContract.plan, resp.text, args.delegationContract.allowDiscovery);
+    const review = parseDelegationReview(resp.text);
+    if ('approved' in review) return review;
+    const refusal = enforceParsedDelegationReview(args.delegationContract.plan, review, args.delegationContract.allowDiscovery);
     if (refusal) return refusal;
+    delegationReview = review;
   }
   // Normalise `null` (an LLM emission quirk nullish() tolerates) to
   // `undefined` at the parse boundary — same treatment as branchName —
@@ -1081,6 +1113,6 @@ export async function llmVerdict(args: {
   const activeSkillFollowed = raw.activeSkillFollowed ?? undefined;
   const criteria = raw.criteria ?? undefined;
   const inherited = raw.inherited ?? undefined;
-  if (raw.approved) return { ...raw, activeSkillFollowed, criteria, inherited };
+  if (raw.approved) return { ...raw, activeSkillFollowed, criteria, inherited, ...(delegationReview ? { delegationReview } : {}) };
   return { ...raw, branchName: raw.branchName ?? undefined, activeSkillFollowed, criteria, inherited };
 }

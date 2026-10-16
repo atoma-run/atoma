@@ -94,7 +94,9 @@ Neighbours:
 
 - Opt-in `--checkpoint` / `--pause-after-phase N` / `--resume ID` implement
   durable sequential continuation in `checkpoint.ts`. Same workspace for CLI,
-  original plan/checklist and carried budget; fresh trace and proof log. Only
+  original plan/checklist and carried budget; fresh trace and proof log. The
+  root delegation approval rides `root` in the plan's own write, bound by digest;
+  an older binary reads such a checkpoint as incomplete (one-way, 2026-10-16). Only
   complete approved boundaries are restored. An interrupted phase may restart
   only with a sealed snapshot, settled model spend, no external/commons mutation
   since that boundary, and verified backend shutdown. A pausing boundary (pause
@@ -316,8 +318,9 @@ Neighbours:
 - A run has THREE success-side outcomes, not two. `partial` is a run that ended
   with real work and did NOT deliver, for either of TWO typed reasons, and they
   COMPOSE: `Result.unfinishedPhases` (the deadline landed the dispatch before
-  some phases ran) and `Result.refusal` (root delivery acceptance did not
-  accept the result). `isLanded` in
+  some phases ran, or a phase failed its typed checks and its dependents were
+  never started — `blockedPhases`) and `Result.refusal` (root delivery
+  acceptance did not accept the result). `isLanded` in
   [src/contracts/runLanding.ts](../contracts/runLanding.ts) is the ONE
   derivation — the runner, the viz client and the supervisor digest each read a
   different type carrying the same two fields, and were three unlinked copies

@@ -1,4 +1,5 @@
-import { mkdirSync, existsSync, realpathSync, mkdtempSync, lstatSync, readlinkSync } from 'node:fs';
+import { mkdirSync, existsSync, realpathSync, mkdtempSync, lstatSync, readlinkSync, constants as fsConstants } from 'node:fs';
+import { open, readlink, realpath, stat, type FileHandle } from 'node:fs/promises';
 import { resolve, relative, isAbsolute, join, dirname, basename, sep } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -196,6 +197,58 @@ function kernelRealpath(path: string): string {
 }
 
 /**
+ * The asynchronous sibling of `kernelRealpath`: `fs.promises.realpath` is
+ * libuv's realpath, i.e. libc's, like `realpathSync.native`. Both sides of
+ * every containment check go through these two functions.
+ */
+export function kernelRealpathAsync(path: string | Buffer): Promise<Buffer> {
+  return realpath(path, { encoding: 'buffer' });
+}
+
+/** A descriptor opened below a root that turned out to lie outside it. */
+export class OutsideRootError extends Error {}
+
+const PROC_FD = process.platform === 'linux' && existsSync('/proc/self/fd');
+
+/** `real` is `root` or lies below it; byte-wise, so a non-UTF-8 name cannot read as inside. */
+export function containedIn(real: Buffer, root: Buffer): boolean {
+  if (real.equals(root)) return true;
+  if (real.length <= root.length || !real.subarray(0, root.length).equals(root)) return false;
+  return root[root.length - 1] === SEP_BYTE || real[root.length] === SEP_BYTE;
+}
+const SEP_BYTE = sep.charCodeAt(0);
+
+/**
+ * Open `path` without following its last component, then prove the opened
+ * object lies inside `realRoot` before anything is read or listed through
+ * it. On Linux the proof is exact: `/proc/self/fd/<fd>` names what was
+ * opened, so an ancestor swapped for a link between a listing and this open
+ * is caught. Elsewhere it compares the descriptor's dev:ino with the kernel
+ * realpath of the same spelling, which narrows the window without closing it
+ * (the same limit `src/run/AGENTS.md` records for the read-only phase).
+ * `O_NONBLOCK` keeps a FIFO from parking a libuv thread on its open.
+ */
+export async function openContained(path: string | Buffer, flags: number, realRoot: Buffer): Promise<FileHandle> {
+  const handle = await open(path, flags | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
+  try {
+    if (PROC_FD) {
+      const real = await readlink(`/proc/self/fd/${handle.fd}`, { encoding: 'buffer' });
+      if (!containedIn(real, realRoot)) throw new OutsideRootError('opened outside the root');
+    } else {
+      const [held, named] = await Promise.all([handle.stat(), kernelRealpathAsync(path).then(async (real) => {
+        if (!containedIn(real, realRoot)) throw new OutsideRootError('opened outside the root');
+        return stat(real);
+      })]);
+      if (held.dev !== named.dev || held.ino !== named.ino) throw new OutsideRootError('changed while it was opened');
+    }
+    return handle;
+  } catch (error) {
+    await handle.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
  * Where a DANGLING symbolic link points, spelled as the kernel will walk it:
  * the raw target, relative to the link's real parent directory, NEVER
  * normalized. `path.resolve` collapsed `inner/..` as text while the kernel
@@ -238,6 +291,7 @@ export class ToolSandbox {
   private readonly children: ChildProcess[] = [];
   private readonly childGroups = new Set<number>();
   private readonly cleanupHooks: Array<() => Promise<void> | void> = [];
+  private cleanups = 0;
 
   constructor(root: string) {
     const abs = isAbsolute(root) ? root : resolve(process.cwd(), root);
@@ -252,10 +306,25 @@ export class ToolSandbox {
   /**
    * Register a callback invoked during `cleanup()`. Used by tools that hold
    * long-lived resources (e.g. a Puppeteer browser) so they can tear them down
-   * when the sandbox shuts down.
+   * when the sandbox shuts down. Returns a disposer, so a hook scoped to one
+   * call does not outlive it.
    */
-  onCleanup(hook: () => Promise<void> | void): void {
+  onCleanup(hook: () => Promise<void> | void): () => void {
     this.cleanupHooks.push(hook);
+    return () => {
+      const at = this.cleanupHooks.indexOf(hook);
+      if (at !== -1) this.cleanupHooks.splice(at, 1);
+    };
+  }
+
+  /** Incremented when every `cleanup()` starts: a caller that saw it change must not start new work. */
+  get cleanupGeneration(): number {
+    return this.cleanups;
+  }
+
+  /** Hooks still registered; tests prove a scoped hook was disposed. */
+  cleanupHookCount(): number {
+    return this.cleanupHooks.length;
   }
 
   /**
@@ -405,6 +474,7 @@ export class ToolSandbox {
    * Safe to call multiple times.
    */
   async cleanup(): Promise<void> {
+    this.cleanups += 1;
     for (const hook of this.cleanupHooks.splice(0)) {
       try {
         await hook();

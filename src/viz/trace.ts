@@ -3,11 +3,12 @@ import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import type { ContextCitation, ContextSource } from '../contracts/llmTrace.js';
+import { JEV_EXCLUSION_STAMPS, type ContextCitation, type ContextSource, type JevExclusion } from '../contracts/llmTrace.js';
 import type { AtomType } from '../registry/atomRegistry.js';
 import type { JevDecisionInfo, Task, Tier } from '../core/types.js';
 import type { AcceptanceInfo, TopologyInfo } from '../contracts/depthRouting.js';
 import { isLanded } from '../contracts/runLanding.js';
+import type { PersistedParentTestObservation } from '../contracts/parentTests.js';
 
 /**
  * Minimal structured event log for the web visualizer. One run corresponds to
@@ -57,6 +58,12 @@ export interface VizLlmEvent {
    * sets an execution's effort only where it is honoured. Since 2026-10-06.
    */
   effort?: 'low' | 'medium' | 'high';
+  /**
+   * A validation Decision is never asked about by policy (a delegation-contract
+   * review, a RESULT under a parent-owned suite), from the request stamp. The
+   * calibration counts it apart. Since 2026-10-16.
+   */
+  jevExcluded?: JevExclusion;
   systemPrompt: string;
   userContent: string;
   response: string;
@@ -569,6 +576,8 @@ export function executionProvenance(root = fileURLToPath(new URL('../../', impor
 
 export interface VizRun {
   provenance?: ReturnType<typeof executionProvenance>;
+  /** `JEV_EXCLUSION_STAMPS`: this writer stamps `jevExcluded`. Absent on older traces. */
+  jevExclusionStamps?: number;
   /** Absent on traces written before 2026-09-25. See `VizTierModels`. */
   tierModels?: VizTierModels;
   /** Resolves floor/phase coverage references, including abandoned attempts. */
@@ -600,6 +609,12 @@ export interface VizRun {
      */
     unfinishedPhases?: readonly string[];
     /**
+     * The subset of `unfinishedPhases` never started because a phase they
+     * depend on failed its typed checks (`Result.blockedPhases`). It explains
+     * a landing; `isLanded` never reads it.
+     */
+    blockedPhases?: readonly string[];
+    /**
      * Why root delivery acceptance refused this result (`Result.refusal`).
      * The SECOND reason a trace is partial rather than delivered, and it
      * composes with the first — a run can land on its budget and then be
@@ -607,6 +622,13 @@ export interface VizRun {
      * is the one derivation every reader shares.
      */
     refusal?: string;
+    /**
+     * The parent-owned acceptance suites the delivery carries, typed and
+     * without source (`persistedParentTests`). Informational: `isLanded`
+     * never reads it, because the runner already turned an unjudged suite
+     * that did not pass into `refusal` where no root acceptance ran.
+     */
+    parentTests?: readonly PersistedParentTestObservation[];
   };
   /**
    * Mirrors `VizRunIndexEntry.degraded`. Computed from
@@ -676,6 +698,7 @@ export class TraceRecorder {
       task,
       startedAt: new Date().toISOString(),
       provenance: executionProvenance(),
+      jevExclusionStamps: JEV_EXCLUSION_STAMPS,
       ...(opts?.tierModels ? { tierModels: { ...opts.tierModels } } : {}),
       events: [],
     };

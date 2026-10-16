@@ -1,3 +1,4 @@
+import { AtomaLoader } from './AtomaLoader.js';
 import { ButtonIcon } from './ButtonIcon.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiHttpError } from '../client/data-api.js';
@@ -163,7 +164,7 @@ export function McpAccessPanel({
             </button>
           </div>
         ) : (
-          <p>{loading ? t('settings.subscriptionState.loading') : t('settings.mcpAddressUnknown')}</p>
+          loading ? <AtomaLoader label={t('settings.mcpAddressLoading')} /> : <p>{t('settings.mcpAddressUnknown')}</p>
         )}
         {showSetup && !loading ? <p>{t(operator ? 'settings.mcpLocalSteps' : 'settings.mcpConnectSteps')}</p> : null}
       </article>

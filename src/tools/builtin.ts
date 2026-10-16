@@ -1085,7 +1085,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
         );
       }
       opts.logger?.info(`[tool:run_shell] ${command} ${argv.join(' ')}`);
-      if (command === 'atoma-verify') return runParentTests(opts.sandbox, argv, timeoutMs);
+      if (command === 'atoma-verify') return runParentTests(opts.sandbox, argv, timeoutMs, opts.logger);
       if (command === 'atoma-scaffold') {
         try {
           return { exitCode: 0, stdout: scaffoldApplication(opts.sandbox, argv), stderr: '' };
