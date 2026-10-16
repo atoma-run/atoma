@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
-import { L3Atom, ROOT_PLAN_ATTEMPTS, routeCrossBucketVerification } from '../src/atoms/L3Atom.js';
+import { DISCOVERY_REPORT_CHARS, L3Atom, ROOT_PLAN_ATTEMPTS, discoveryInputs, routeCrossBucketVerification } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, previousRefusalsNote, refusalWithRequests, routingIndexNote } from '../src/atoms/delegationReview.js';
 import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
@@ -170,6 +170,45 @@ describe('mandatory delegation contracts', () => {
     expect(execute.mock.calls[1]?.[1].subtasks[0]?.acceptanceTests).toEqual(suite);
     expect(ctx.rootCheckpoint.planned).toHaveBeenCalledOnce();
     expect(ctx.rootCheckpoint.planned.mock.calls[0]?.[1]).toMatchObject({ subtasks: [{ acceptanceTests: suite }] });
+  });
+
+  // Run d37d2f8f (2026-10-16): the L3 synthesis of a two-branch discovery
+  // dropped the scheduler interface one branch had read (configure, onDue);
+  // the replan could not inspect again and three plans tested invented
+  // adapters. Discovery is now joined on the host and each branch report is
+  // forwarded, so the replan and its review see what the branch saw.
+  it('joins a discovery on the host and hands each branch report to the replan and its review', async () => {
+    const { tissue } = actors();
+    const ctx = makeCtx();
+    const discoveryPlan = planSchema.parse({ ...makePlan({ subtasks: [{ description: 'Inspect browser modules' }, { description: 'Audit maintained tests' }] }), replanAfter: true });
+    const plan = vi.spyOn(tissue, 'plan').mockResolvedValueOnce(discoveryPlan).mockResolvedValueOnce(runnable());
+    const branchReports = [
+      'AtticaScheduler(dir,{now,onDue}).configure(values={}) sets enabled, time and timezone; tick() calls onDue when due.',
+      { checkpoint: 'loadCheckpoint(file) and recoverAndLoad(file) take the checkpoint FILE path' },
+    ];
+    const execute = vi.spyOn(tissue, 'execute')
+      .mockResolvedValueOnce({ ...result, output: branchReports, summary: '2 subtasks aggregated (concat): #1 modules read | #2 tests audited' })
+      .mockResolvedValue(result);
+    ctx.llm.enqueueText(JSON.stringify(review(['inspection', 'inspection'], false, 'inspection')));
+    ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
+
+    await tissue.handle({ description: 'Migrate the real application' }, ctx);
+
+    expect(execute.mock.calls[0]?.[1].aggregation).toEqual({ mode: 'concat' });
+    const handed = plan.mock.calls[1]?.[0].inputs?.['repositoryDiscovery'] as { branches: { subtask: string; report: string }[] };
+    expect(handed.branches).toHaveLength(2);
+    expect(handed.branches[0]).toEqual({ subtask: 'Inspect browser modules', report: branchReports[0] });
+    expect(handed.branches[1]!.report).toContain('loadCheckpoint(file) and recoverAndLoad(file)');
+    const replanReview = ctx.llm.calls.filter(call => call.role === 'validate-plan')[1]!.userContent;
+    expect(replanReview).toContain('configure(values={})');
+    expect(replanReview).toContain('recoverAndLoad(file)');
+  });
+
+  it('shares the branch report budget equally, so one long branch cannot crowd out another', () => {
+    const discoveryPlan = planSchema.parse({ ...makePlan({ subtasks: [{ description: 'a' }, { description: 'b' }] }), replanAfter: true });
+    const inputs = discoveryInputs(discoveryPlan, { ...result, output: ['x'.repeat(50_000), 'THE FACT'] }) as { branches: { report: string }[] };
+    expect(inputs.branches[0]!.report.length).toBe(DISCOVERY_REPORT_CHARS / 2);
+    expect(inputs.branches[1]!.report).toBe('THE FACT');
   });
 
   it('never turns a failed discovery into implementation', async () => {

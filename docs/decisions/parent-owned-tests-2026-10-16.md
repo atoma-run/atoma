@@ -460,8 +460,12 @@ behalf. Refusing repaired L2 and L3 pairs revises the 2026-08 truncation defence
 and the supervisor's own run wrapper verifies it.
 
 When interfaces are unknown, L3 may emit `replanAfter: true` on an inspection-only
-plan without outputs. The host executes it read-only, then asks L3 for a new plan
-with bounded discovery observations and the original task. Only one discovery
+plan without outputs. The host executes it read-only, joins its branches itself
+(no synthesis call), then asks L3 for a new plan with each branch's own report
+(an equal share of 24,000 characters), the observed tool evidence and the
+original task. Run d37d2f8f (2026-10-16) showed why: the L3 synthesis dropped
+the interface a branch had read, and the replan, barred from inspecting again,
+planned suites against invented adapters. Only one discovery
 round is allowed. It is not registered as a completed implementation checkpoint,
 so the new plan never skips its first branch. DAG checkpoint support is unchanged.
 
