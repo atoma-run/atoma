@@ -256,6 +256,41 @@ describe('folding the per-owner partition back into the platform', () => {
     } finally { db.close(); }
   }, 60_000);
 
+  it('serves an empty registry from a store no run has bootstrapped yet', async () => {
+    // FRESH STORE, 2026-10-16. Since skill trust moved into the product store
+    // (W4), the server creates that file at startup with the skill and ledger
+    // tables, while `atom_types` waits for the first run's bootstrap. The
+    // registry dump saw a file that EXISTS and selected from a table that did
+    // not: HTTP 500, which the client paints as the global error over every
+    // view — viz:smoke in any fresh worktree, and a new deployment's first
+    // visit. Same process boundary as the bug: a real server, no store yet.
+    const root = directory();
+    const path = join(root, 'atoma.db');
+    mkdirSync(join(root, 'runs'), { recursive: true });
+    const port = await freePort();
+    const child = spawn(
+      process.execPath,
+      ['--import', 'tsx', 'src/viz/server.ts', '--host', '127.0.0.1', '--port', String(port),
+        '--dir', join(root, 'runs'), '--db', path, '--skills-dir', join(root, 'skills'), '--no-sentinel'],
+      { cwd: process.cwd(), env: { ...process.env }, stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+    try {
+      await waitForJson(`http://127.0.0.1:${port}/api/registries`);
+      const response = await fetch(`http://127.0.0.1:${port}/api/registry/atoma`);
+      expect(response.status).toBe(200);
+      const payload = await response.json() as { registry: { exists: boolean; counts: Record<string, number> }; types: unknown[] };
+      expect(payload.types).toEqual([]);
+      expect(payload.registry.counts).toMatchObject({ 1: 0, 2: 0, 3: 0, total: 0 });
+    } finally {
+      child.kill('SIGKILL');
+    }
+    // The precondition the bug needed: the file exists, the registry table does not.
+    const db = new Database(path, { readonly: true });
+    try {
+      expect(db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'atom_types'`).get()).toBeUndefined();
+    } finally { db.close(); }
+  }, 60_000);
+
   it('opens a pre-partition store as it is: the platform schema is its schema', () => {
     const root = directory(); const path = join(root, 'store.db');
     const legacy = new Database(path);

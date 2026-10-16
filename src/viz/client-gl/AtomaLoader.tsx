@@ -44,8 +44,10 @@ export function AtomaLoader({ label, section = false, leaving = false, size, cla
 
 /**
  * Where a loading section stands: `loading` shows the notice, `leaving` plays
- * its exit over content kept invisible, `entering` fades the content in, then
- * `shown`. Only a load that ENDS plays the exit; content present from the
+ * its exit OVER the content — out of the flow, so the content already holds its
+ * final place, invisible — `entering` fades the content in, then `shown`. The
+ * canvas lays its rows out from the DOM's measured height: a notice that left
+ * the flow 140ms late moved them under a click (viz:smoke, 2026-10-16). Only a load that ENDS plays the exit; content present from the
  * first render is simply shown. Reduced motion jumps to `shown`.
  */
 export type LoadingPhase = 'loading' | 'leaving' | 'entering' | 'shown';
@@ -73,6 +75,9 @@ export function useLoadingReveal(loading: boolean): LoadingPhase {
       clearTimeout(shown);
     };
   }, [loading]);
+  // The render that delivers the content already leaves: the notice steps out
+  // of the flow in the same commit, so a layout measured then is the final one.
+  if (!loading && phase === 'loading') return prefersReducedMotion() ? 'shown' : 'leaving';
   return phase;
 }
 

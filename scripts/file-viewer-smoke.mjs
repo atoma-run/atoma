@@ -77,7 +77,13 @@ try {
   await page.waitForFunction(() => typeof window.showFile === 'function');
   for (const [path, fixture] of Object.entries(fixtures)) {
     await page.evaluate(path => window.showFile(path), path);
-    await page.waitForFunction(() => document.querySelector('iframe') && !document.querySelector('.gpu-preview-status')).catch(async error => {
+    // Ready once no status line remains AND the loading notice has left and
+    // the frame faded in (`useLoadingReveal`): mid-fade the frame is dim.
+    await page.waitForFunction(() => {
+      const frame = document.querySelector('iframe');
+      return frame && !document.querySelector('.gpu-preview-status') && !document.querySelector('.gpu-preview-loading') &&
+        !frame.classList.contains('gpu-loading-wait') && !frame.classList.contains('gpu-loading-enter');
+    }).catch(async error => {
       throw new Error(`File preview ${path}: ${await page.locator('.gpu-preview-status').map(el => el.textContent).wait()}\n${errors.join('\n')}`, { cause: error });
     });
     await page.waitForFunction(({ selector, text }) => {

@@ -2089,6 +2089,11 @@ try {
           ],
           providers: [{ id: 'github', label: 'GitHub' }],
         },
+        // Organisation MCP connectors (8c094613): none connected. Unstubbed,
+        // Settings and the project page each logged a 404 the account
+        // diagnostics count as a failure.
+        '/api/org/mcp-servers': { servers: [], encryptionReady: true, canManage: true },
+        [`/api/projects/${projectId}/mcp-servers`]: { servers: [], enabled: [], canEdit: true },
         '/api/org': {
           id: 'org-a',
           name: 'Analytical Engines',
@@ -3010,6 +3015,13 @@ try {
           // in a blank page: the console's CSP forbids fetching a data: URL.
           // The stage is light; a canvas left uncomposited shows the frame's
           // dark body instead, so most of its rectangle must read bright.
+          // Read it once the loading notice has left and the frame faded in
+          // (`useLoadingReveal`, 320ms): mid-fade the frame is still dim.
+          await accountPage.waitForFunction(path => {
+            const frame = document.querySelector(`iframe[title="${path}"]`);
+            return frame !== null && !document.querySelector('.gpu-preview-loading') &&
+              !frame.classList.contains('gpu-loading-wait') && !frame.classList.contains('gpu-loading-enter');
+          }, { timeout: READY_TIMEOUT_MS }, path);
           const box = await accountPage.$eval(`iframe[title="${path}"]`, frame => {
             const outer = frame.getBoundingClientRect();
             const stage = frame.contentDocument.querySelector('.ofv-model-stage canvas').getBoundingClientRect();

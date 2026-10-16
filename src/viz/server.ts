@@ -2300,6 +2300,16 @@ function dumpRegistry(id: string): { registry: RegistrySummary; types: RegistryT
   }
   const db = openReadOnly(entry.path);
   try {
+    // The server creates the product store at startup for skill trust and the
+    // ledger; `atom_types` arrives with the first run's bootstrap. Until then
+    // the registry is EMPTY, not broken — a 500 here became the client's
+    // global error over every view. Any other failure still answers 500.
+    if (!db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'atom_types'`).get()) {
+      return {
+        registry: { id: entry.id, label: entry.label, path: entry.path, exists: true, counts: { 1: 0, 2: 0, 3: 0, total: 0 } },
+        types: [],
+      };
+    }
     const rows = db
       .prepare(`SELECT * FROM atom_types WHERE ${unfoldedRegistryPredicate(db)} ORDER BY tier ASC, ordinal ASC`)
       .all() as Array<{

@@ -1994,7 +1994,17 @@ html.atoma-cursor-active * {
 /* THE EXIT, fast: the notice whitens and fades out (140ms), then the content
    fades in (180ms) — LOADING_LEAVE_MS / LOADING_ENTER_MS in
    `loading-crystal.ts`, which times the same phases on the canvas. */
-.gpu-loader--leaving { animation: gpu-loader-leave 140ms ease-in forwards; }
+.gpu-loader--leaving {
+  /* Out of the flow: the content beneath already holds its final layout. */
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  min-height: 0;
+  pointer-events: none;
+  animation: gpu-loader-leave 140ms ease-in forwards;
+}
+.gpu-assistant-conversation,
+.gpu-subscription-card { position: relative; }
 .gpu-loader--leaving > span:last-child { animation: gpu-loader-text-white 140ms ease-out forwards; }
 .gpu-loader--leaving .gpu-loader-crystal::after {
   animation: gpu-loader-turn var(--gpu-loader-turn) steps(var(--gpu-loader-frames)) infinite,
