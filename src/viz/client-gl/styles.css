@@ -1943,8 +1943,10 @@ html.atoma-cursor-active * {
   pointer-events: none;
 }
 
-/* The one DOM loading notice (`AtomaLoader`): the turning crystal beside
-   "Loading <what>". Its canvas twin is `renderer/loading-notice.ts`. */
+/* The one DOM loading notice (`AtomaLoader`): the original crystal, turning,
+   beside "Loading <what>". Its canvas twin is `renderer/loading-notice.ts`;
+   both play the sheet of `loading-crystal.ts` (row 0 the crystal, row 1 its
+   white pose). The size, frame count, turn and sheet ride inline variables. */
 .gpu-loader {
   display: flex;
   align-items: center;
@@ -1952,7 +1954,64 @@ html.atoma-cursor-active * {
   margin: 0;
   color: #a8b4cc;
 }
-.gpu-loader-crystal { flex: 0 0 auto; }
+.gpu-loader-crystal,
+.gpu-loader-crystal::after {
+  background: var(--gpu-loader-sheet) 0 0 /
+    calc(var(--gpu-loader-size) * var(--gpu-loader-frames)) calc(var(--gpu-loader-size) * 2) no-repeat;
+  animation: gpu-loader-turn var(--gpu-loader-turn) steps(var(--gpu-loader-frames)) infinite;
+}
+.gpu-loader-crystal {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--gpu-loader-size);
+  height: var(--gpu-loader-size);
+}
+.gpu-loader-crystal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-position-y: calc(var(--gpu-loader-size) * -1);
+  opacity: 0;
+}
+@keyframes gpu-loader-turn {
+  to { background-position-x: calc(var(--gpu-loader-size) * var(--gpu-loader-frames) * -1); }
+}
+/* A section with nothing to show yet: the notice fills it, centred both ways,
+   at twice the inline crystal (`drawSectionLoading` on the canvas). */
+.gpu-loader--section {
+  flex: 1 1 auto;
+  justify-content: center;
+  gap: 14px;
+  min-height: 160px;
+  font-size: 18px;
+}
+.gpu-preview-stage > .gpu-preview-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #0b111e;
+}
+/* THE EXIT, fast: the notice whitens and fades out (140ms), then the content
+   fades in (180ms) — LOADING_LEAVE_MS / LOADING_ENTER_MS in
+   `loading-crystal.ts`, which times the same phases on the canvas. */
+.gpu-loader--leaving { animation: gpu-loader-leave 140ms ease-in forwards; }
+.gpu-loader--leaving > span:last-child { animation: gpu-loader-text-white 140ms ease-out forwards; }
+.gpu-loader--leaving .gpu-loader-crystal::after {
+  animation: gpu-loader-turn var(--gpu-loader-turn) steps(var(--gpu-loader-frames)) infinite,
+    gpu-loader-whiten 140ms ease-out forwards;
+}
+@keyframes gpu-loader-leave { 0%, 35% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes gpu-loader-whiten { 60%, 100% { opacity: 1; } }
+@keyframes gpu-loader-text-white { 60%, 100% { color: #fff; } }
+.gpu-loading-wait { opacity: 0; }
+.gpu-loading-enter { animation: gpu-loading-enter 180ms ease-out both; }
+@keyframes gpu-loading-enter { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .gpu-loader-crystal,
+  .gpu-loader-crystal::after,
+  .gpu-loader--leaving,
+  .gpu-loading-enter { animation: none; }
+}
 
 /* The conversation INSIDE the project guide card (owner, 2026-10-09): the
    guide owns frame, veil, collapse and height; this block fills it and keeps

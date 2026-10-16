@@ -192,7 +192,8 @@ describe('McpAccess API lifecycle', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create token' })).toBeEnabled());
     expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.getByTestId('mcp-url')).toHaveTextContent(tokenList.mcpUrl);
+    // The address follows the loading notice's exit (whiten, fade, then fade in).
+    expect(await screen.findByTestId('mcp-url')).toHaveTextContent(tokenList.mcpUrl);
   });
 
   it('retains the one-time token and canonical URL when creation succeeds but refresh fails', async () => {
@@ -209,7 +210,8 @@ describe('McpAccess API lifecycle', () => {
     expect(await screen.findByTestId('mcp-token')).toHaveTextContent(minted.token);
     expect(await screen.findByText(/The change was saved, but the token list/)).toBeInTheDocument();
     expect(fetcher).toHaveBeenNthCalledWith(2, '/api/tokens', expect.objectContaining({ method: 'POST', body: JSON.stringify({ label: 'laptop' }) }));
-    expect(screen.getByTestId('mcp-url')).toHaveTextContent(minted.mcpUrl);
+    // The address follows the loading notice's exit (whiten, fade, then fade in).
+    expect(await screen.findByTestId('mcp-url')).toHaveTextContent(minted.mcpUrl);
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
     expect(screen.queryByText(/The change was saved, but the token list/)).toBeNull();

@@ -7,7 +7,7 @@ import { readableBlocks, resultNarrative, resultSections, resultText, splitSumma
 import { runStatus } from '../../../client/run-utils.js';
 import { formatDateTime } from '../../../client/date-format.js';
 import { drawPreviewControl } from '../preview-control.js';
-import { drawLoadingNotice } from '../loading-notice.js';
+import { drawSectionLoading, revealSection } from '../loading-notice.js';
 
 /** One bounded result reader shared by Projects and Runs. No model HTML executes. */
 export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
@@ -89,13 +89,14 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
   };
 
   if (run) {
+    revealSection(ctx, 'result', pane.content);
     text(`${snapshot.t(`runs.flag.${runStatus(run)}`)} · ${formatDateTime(run.endedAt ?? run.startedAt, snapshot.state.locale)}`, false, true);
     if (runStatus(run) !== 'delivered') text(snapshot.t('result.notFinal'));
   } else if (snapshot.data.resultFailed) {
     text(snapshot.t('result.unavailable'));
   } else {
-    const label = drawLoadingNotice(ctx, pane.content, snapshot.t('result.loading'), 4, cursor, { width: contentWidth });
-    cursor += label.height + 14;
+    drawSectionLoading(ctx, pane.content, snapshot.t('result.loading'),
+      { x: 0, y: cursor, width: pane.width, height: pane.height - cursor }, 'result');
   }
 
   // Only the host's manifest grants file actions; names in model output do not.

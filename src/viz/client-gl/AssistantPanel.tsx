@@ -4,7 +4,7 @@ import type { AssistantRequest, AssistantRun, AssistantView } from '../../contra
 import { api } from '../client/data-api.js';
 import { relativeTime, timestampTooltip } from './renderer/relative-time.js';
 import { useGpuStore } from './store.js';
-import { AtomaLoader } from './AtomaLoader.js';
+import { AtomaLoader, loaderVisible, revealClass, useLoadingReveal } from './AtomaLoader.js';
 import { ButtonIcon } from './ButtonIcon.js';
 import { AssistantMarkdown } from './AssistantMarkdown.js';
 import { AssistantRunResult } from './AssistantRunResult.js';
@@ -30,6 +30,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   const conversationId = useRef<string | undefined>(undefined);
   const query = useQuery({ queryKey, queryFn: () => api.assistant(projectId, { conversationId: conversationId.current }), retry: false,
     refetchInterval: 5000 });
+  const reveal = useLoadingReveal(query.isPending);
   const [older, setOlder] = useState<AssistantView['conversation']['messages']>([]);
   const [before, setBefore] = useState<number | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -199,8 +200,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     <div id="project-mcp-content" className="gpu-assistant-content" hidden={collapsed}>
     <div className={`gpu-assistant-conversation${empty ? ' gpu-assistant-conversation--empty' : ''}`} hidden={externalAgentOpen}>
     {query.isError ? <div role="alert"><p>{t('assistant.failed')}</p><button onClick={() => void query.refetch()}>{t('assistant.retry')}</button></div> : null}
-    {query.isPending ? <AtomaLoader label={t('assistant.loading')} /> : null}
-    {query.data && choices.length === 0 ? <div className="gpu-assistant-setup">
+    {loaderVisible(reveal) ? <AtomaLoader section leaving={reveal === 'leaving'} label={t('assistant.loading')} /> : null}
+    {query.data && choices.length === 0 ? <div className={`gpu-assistant-setup${revealClass(reveal)}`}>
       {(query.data.subscriptions ?? []).map(subscription => <div key={subscription.provider}>
         <span>{subscription.provider === 'claude' ? 'Claude' : 'ChatGPT'} · {t(`settings.subscriptionState.${subscription.state}`)}</span>
         <button type="button" onClick={() => onSettings('subscriptions')}>{t(subscription.state === 'connected' || subscription.state === 'connecting' ? 'assistant.connections' :
@@ -208,7 +209,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       </div>)}
       <button type="button" onClick={() => onSettings('keys')}>{t('assistant.apiKeys')}</button>
     </div> : null}
-    <div className={`gpu-assistant-log${empty ? ' gpu-assistant-log--empty' : ''}`} hidden={newProjectPrompt} ref={log} role="log" aria-label={t('assistant.conversation')} aria-live="polite" aria-relevant="additions">
+    <div className={`gpu-assistant-log${empty ? ' gpu-assistant-log--empty' : ''}${revealClass(reveal)}`} hidden={newProjectPrompt} ref={log} role="log" aria-label={t('assistant.conversation')} aria-live="polite" aria-relevant="additions">
       {before ? <button type="button" disabled={loadingHistory} onClick={() => void loadOlder()}>{t('assistant.olderMessages')}</button> : null}
       {empty && conversation && projectId ? <p className="gpu-assistant-empty">{t('assistant.existingHint')}</p> : null}
       {[...older, ...(conversation?.messages ?? [])].map((message, i) => <article key={message.id ?? `${message.at}:${i}`} className={`gpu-assistant-message gpu-assistant-message--${message.role}`}>

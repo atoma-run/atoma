@@ -68,6 +68,7 @@
     "viz:smoke": "npm run build && node scripts/mcp-oauth-browser-smoke.mjs && node scripts/viz-gpu-smoke.mjs",
     "viz:smoke:gc": "node scripts/viz-gpu-gc-smoke.mjs",
     "viz:mark-turn": "node scripts/viz-mark-turn.mjs",
+    "viz:loading-crystal": "node scripts/viz-loading-crystal.mjs",
     "viz:mark-turn:analyze": "python3 scripts/viz-mark-turn-analyze.py",
     "viz:frame-probe": "node scripts/viz-frame-probe.mjs",
     "viz:serve": "node dist/viz/server.js",

@@ -447,7 +447,7 @@ it('shows shared attribution and reads older history without executing a proposa
   vi.mocked(api.assistant).mockImplementation(async (_projectId, options) => options?.before ? { ...data, nextBefore: null,
     conversation: { ...data.conversation, messages: [{ role: 'user', text: 'The original brief', at: '2026-10-07T10:00:00.000Z' }] } } : data);
   expect(await screen.findByText('Shared via Claude Code (reported)')).toBeVisible();
-  await userEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Load earlier messages' }));
   expect(await screen.findByText('The original brief')).toBeVisible();
   expect(screen.getByText('Latest shared update')).toBeVisible();
   expect(api.assistant).toHaveBeenCalledWith(null, { conversationId: proposalId, before: 20 });

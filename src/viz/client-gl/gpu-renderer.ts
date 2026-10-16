@@ -544,7 +544,7 @@ import {
   publishOverlayMenuClip,
 } from './renderer/overlay-menu-clip.js';
 import { drawSettings } from './renderer/views/settings.js';
-import { drawLoadingNotice, viewLoadingKey } from './renderer/loading-notice.js';
+import { drawSectionLoading, revealSection, viewLoadingKey } from './renderer/loading-notice.js';
 import {
   drawSidebar,
   FOCUS_RAIL_FPS_SCALE,
@@ -2148,10 +2148,10 @@ export class GpuRenderer {
     this.activeViewLayoutHeight = layoutHeight;
     try {
       if (snapshot.data.loading) {
-        drawLoadingNotice(this, this.root, snapshot.t(viewLoadingKey(snapshot.state.view, {
+        drawSectionLoading(this, this.root, snapshot.t(viewLoadingKey(snapshot.state.view, {
           project: Boolean(snapshot.state.selectedProjectId),
           run: Boolean(snapshot.state.selectedRunId),
-        })), 24, 84, { size: 16, width: contentWidth - 48 });
+        })), { x: 0, y: 0, width: contentWidth, height: layoutHeight }, `view:${snapshot.state.view}`);
       } else if (snapshot.data.error) {
         this.text(this.root, snapshot.data.error, 24, 84, {
           size: 14,
@@ -2212,6 +2212,7 @@ export class GpuRenderer {
             drawSettings(this, snapshot, contentWidth, layoutHeight);
             break;
         }
+        revealSection(this, `view:${snapshot.state.view}`, viewport);
       }
     } finally {
       // Chrome draws into the stage again — including on the throw path, or

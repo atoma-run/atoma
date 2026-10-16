@@ -71,12 +71,21 @@ npm run viz:mark-turn:analyze
   source in the GL client. Every animation system consults it and JUMPS to its
   final state — exit effects are skipped entirely, never left running.
 - The GPU client uses one Pixi context (WebGPU with WebGL fallback). Do not add a second context for a tiny widget. Smoke tests assert exactly one canvas and both backends.
-- ONE LOADING NOTICE: the brand crystal turning five times faster than the
-  mark, WITHOUT its bead (a live run's crystal keeps it), beside "Loading
-  <what>…". `activity-crystal.ts` is the one Pixi-free frame; the canvas draws
-  it through `drawLoadingNotice` (`renderer/loading-notice.ts`), the DOM
-  through `AtomaLoader` (SVG — never a second canvas). Never paint a bare
-  "Loading…": name what is on its way (`viewLoadingKey` for whole views).
+- ONE LOADING NOTICE: the ORIGINAL crystal, without its bead, turning five
+  times faster than the mark, beside "Loading <what>…". It is rendered once by
+  `attachAtomaMark` itself into a sprite sheet (`npm run viz:loading-crystal`
+  → `public/textures/loading-crystal.webp`; re-run after any change to the
+  crystal's look) and played by both surfaces from `loading-crystal.ts`: the
+  canvas through `drawLoadingNotice`/`drawSectionLoading`, the DOM through
+  `AtomaLoader` as a CSS sprite. A live mark per notice is refused (a shell,
+  two refraction textures and a ticker each, and a DOM notice cannot reach the
+  one canvas); a recoloured flat crystal was refused by the owner (2026-10-16).
+  Never paint a bare "Loading…": name what is on its way (`viewLoadingKey`).
+  A section with NOTHING to show yet centres the notice both ways at twice the
+  inline crystal; a footer loading the next page stays inline. When the
+  content arrives the notice whitens and fades out (140ms), then the content
+  fades in (180ms): `revealSection` on the canvas, `useLoadingReveal` in the
+  DOM; reduced motion jumps straight to the content.
 - Chevrons share the 14px geometry in `client-gl/button-icons.ts`: DOM
   disclosures and selects use its CSS variables; canvas controls use
   `drawChevron`. Never substitute a font glyph or a browser's native marker.

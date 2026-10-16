@@ -5,7 +5,7 @@ import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawAtomDetail } from './atom-detail.js';
-import { drawLoadingNotice } from '../loading-notice.js';
+import { drawSectionLoading, revealSection } from '../loading-notice.js';
 
 export function drawRegistry(
   ctx: RendererCtx,
@@ -121,13 +121,13 @@ export function drawRegistry(
     y += 16;
   }
   if (!payload) {
-    if (pane.visible(y, y + 28)) {
-      drawLoadingNotice(ctx, pane.content, snapshot.t('loading.registryDetail'), 16, y + 8);
-    }
+    drawSectionLoading(ctx, pane.content, snapshot.t('loading.registryDetail'),
+      { x: 0, y, width: pane.width, height: pane.height - y }, 'registry');
     pane.extend(y + 28);
     ctx.scrollMax.registry = pane.finish();
     return;
   }
+  revealSection(ctx, 'registry', pane.content);
   const query = snapshot.state.search.registry;
   // Culled rows still advance the cursor so the reported max scroll covers
   // every source and atom, including the ones skipped this frame.

@@ -1,4 +1,4 @@
-import { AtomaLoader } from './AtomaLoader.js';
+import { AtomaLoader, loaderVisible, revealClass, useLoadingReveal } from './AtomaLoader.js';
 import { ButtonIcon } from './ButtonIcon.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiHttpError } from '../client/data-api.js';
@@ -107,6 +107,8 @@ export function McpAccessPanel({
   const [setupExpanded, setSetupExpanded] = useState(false);
   const operator = mode === 'operator';
   const ready = !loading && !error && Boolean(mcpUrl);
+  // A known address stays on screen through a refresh; only a first load waits.
+  const reveal = useLoadingReveal(loading && !mcpUrl);
   const live = tokens.filter((token) => token.revokedAt === null);
   const hasUsedConnection = !operator && live.some((token) => token.lastUsedAt !== null);
   const showSetup = !hasUsedConnection || setupExpanded;
@@ -156,15 +158,17 @@ export function McpAccessPanel({
         <div className="gpu-subscription-card-head">
           <span className="gpu-subscription-name">{t('settings.mcpAddress')}</span>
         </div>
-        {mcpUrl ? (
-          <div className="gpu-subscription-code-row">
+        {loaderVisible(reveal) ? (
+          <AtomaLoader leaving={reveal === 'leaving'} label={t('settings.mcpAddressLoading')} />
+        ) : mcpUrl ? (
+          <div className={`gpu-subscription-code-row${revealClass(reveal)}`}>
             <code data-testid="mcp-url">{mcpUrl}</code>
             <button type="button" disabled={busy} onClick={() => void onCopy(mcpUrl)}><ButtonIcon kind="copy" />
               {t('settings.mcpCopy')}
             </button>
           </div>
         ) : (
-          loading ? <AtomaLoader label={t('settings.mcpAddressLoading')} /> : <p>{t('settings.mcpAddressUnknown')}</p>
+          <p className={revealClass(reveal).trim() || undefined}>{t('settings.mcpAddressUnknown')}</p>
         )}
         {showSetup && !loading ? <p>{t(operator ? 'settings.mcpLocalSteps' : 'settings.mcpConnectSteps')}</p> : null}
       </article>
