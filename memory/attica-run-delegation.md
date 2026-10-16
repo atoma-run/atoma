@@ -157,3 +157,20 @@ acceptance, publication or real collection occurred in this continuation.
   in the session scratchpad) moves those suites to npm run test:browser and
   names the real interfaces (AtticaScheduler(dir,{now,onDue}).configure/tick,
   loadCheckpoint(file), recoverAndLoad(file), AtticaStore(dir).savePause/loadState).
+- e3c8a4a2 (stage 1c, partial, $7.97): root plan converged in 2 rounds; four
+  modules migrated to TypeScript with .js forwarders to dist/; but "Offline only"
+  was read as no npm registry, so nothing was installed or built. 50019ee0
+  (repair, partial, $6.69): typecheck, lint, build, npm test and check passed in
+  the run; refused at delivery for missing evidence (no clean-copy npm ci, a
+  strictness grep ending in || true). Independent clean-copy check: one more
+  Chromium case (tests/xe-browser-html.test.js) needs playwright; dist/ was
+  delivered with stale copies.
+- Goal lessons: say explicitly that the npm registry is allowed; name every
+  Chromium test; ask for evidence as recorded probes (clean-copy npm ci + check,
+  a scan that exits non-zero on findings).
+- Atoma fixes the same evening: c0d7a6ba (planners and the review are told bare
+  imports resolve .js before .ts, pinned on the real runner) and 98a048a1
+  (project commands no longer inherit the worker's NODE_ENV=production, which made
+  npm ci skip devDependencies).
+- Next: stage 1 finishing run from 50019ee0 (stage1e-goal.txt), then stage 2
+  (browser/session.js, browser/xe-browser-session.js, browser/local-security.js).
