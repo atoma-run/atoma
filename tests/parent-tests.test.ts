@@ -8,7 +8,7 @@ import { defaultBuiltinTools } from '../src/tools/builtin.js';
 import { InMemoryToolRegistry } from '../src/tools/registry.js';
 import { runParentTests } from '../src/tools/parentTests.js';
 import { parentTestSuiteSchema, type ParentTestSuite } from '../src/contracts/parentTests.js';
-import { verifyParentTests, parentTestRefusal } from '../src/core/parentTests.js';
+import { verifyParentTests, parentTestConsequence, parentTestRejection } from '../src/core/parentTests.js';
 import { superviseLoop } from '../src/core/supervisor.js';
 import { Atom } from '../src/core/atom.js';
 import type { Result, RunContext, Task, Tier } from '../src/core/types.js';
@@ -36,12 +36,14 @@ it('runs real TypeScript through the fixed runner, detects a wrong implementatio
   const ctx: RunContext = { ...makeCtx(), tools };
   const approved = await verifyParentTests({description:'add',acceptanceTests:suite()}, result(), forkBranch(forkBranch(ctx,'l2'),'l1'));
   expect(approved.parentTests?.[0], approved.summary).toMatchObject({status:'passed',passed:1});
-  expect(parentTestRefusal(approved)).toBeUndefined();
+  expect(parentTestRejection(approved)).toBeNull();
   writeFileSync(path.join(root,'add.ts'), 'export const add=(_a:number,_b:number)=>5;');
   const rejected = await verifyParentTests({description:'add',acceptanceTests:suite()}, result(), ctx);
   expect(rejected.parentTests?.[0], rejected.summary).toMatchObject({status:'failed',failed:1});
   expect(rejected.parentTests?.[0]?.workspaceDigest).not.toBe(approved.parentTests?.[0]?.workspaceDigest);
-  expect(parentTestRefusal(rejected)?.approved).toBe(false);
+  expect(parentTestConsequence(rejected.parentTests![0]!)).toBe('reject');
+  expect(rejected.summary).toBe('leaf');
+  expect(rejected.refusal).toBeUndefined();
   expect(() => readFileSync(path.join(root,'atoma.acceptance.test.ts'))).toThrow();
 }, 60_000);
 
@@ -108,7 +110,7 @@ it('the shared supervision loop verifies before credit and verifies fallback too
   const delivered=await superviseLoop(parent,child,task,ctx,{applyByScope:async c=>c,branchOnEscalation:async()=>{},onApproved:credit});
   expect(credit).not.toHaveBeenCalled(); expect(execute).toHaveBeenCalledTimes(2);
   expect(delivered.producedBy.viaFallback).toBe(true);
-  expect(parentTestRefusal(delivered)).toBeDefined();
+  expect(parentTestRejection(delivered)).not.toBeNull();
 });
 
 describe('dependency-aware parallel branches',()=>{
@@ -170,6 +172,8 @@ it('preserves completed work when the budget prevents integration tests, while c
   const kept=await verifyParentTests({description:'integration',acceptanceTests:suite()},result('completed modules'),ctx);
   expect(kept.output).toBe('completed modules');expect(kept.unfinishedPhases).toContain('acceptance tests: integration');
   expect(kept.parentTests?.[0]?.status).toBe('unavailable');expect(tools.execute).not.toHaveBeenCalled();
+  expect(kept.parentTests?.[0]?.cause).toBe('landing');
+  expect(kept.refusal).toBeUndefined();
   const cancel=new AbortController();cancel.abort(new Error('user cancelled'));
   await expect(verifyParentTests({description:'integration',acceptanceTests:suite()},result(),{...ctx,signal:cancel.signal})).rejects.toThrow('user cancelled');
 });

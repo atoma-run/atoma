@@ -1,5 +1,6 @@
 import { PARENT_TEST_PLANNING, PARALLEL_BRANCH_PLANNING } from '../contracts/parentTests.js';
-import { verifyParentTests, parentTestRefusal } from '../core/parentTests.js';
+import { verifyParentTests, parentTestFindings } from '../core/parentTests.js';
+import { renderParentTestsBlock } from './parentTestsBlock.js';
 import { deferPromptLearning } from './promptLearning.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { branchRecordCount, executorEvidence } from './executorEvidence.js';
@@ -379,7 +380,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       const discovery = await this.execute({ ...task, readOnly: true,
         criteria: task.criteria?.map(item => ({ ...item, unassigned: true })),
       }, plan, { ...ctx, rootCheckpoint: undefined });
-      if (discovery.refusal || discovery.unfinishedPhases?.length || parentTestRefusal(discovery)) return discovery;
+      if (discovery.refusal || discovery.unfinishedPhases?.length || parentTestFindings(discovery).reject.length > 0) return discovery;
       currentTask = { ...task, inputs: { ...task.inputs, repositoryDiscovery: {
         summary: discovery.summary.slice(0, 12000),
         output: JSON.stringify(discovery.output)?.slice(0, 24000),
@@ -1152,6 +1153,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
           ctx.logger.warn(`[${this.name}] ${child.name}: phase approved, but its fallback's declared proof obligation is UNCOVERED — trust success WITHHELD`);
           return;
         }
+        // Nor does a phase whose parent-owned suite did not run: nothing proved it.
+        if (verdict?.approved === true && verdict.parentTestsUnverified === true) {
+          ctx.logger.warn(`[${this.name}] ${child.name}: phase approved, but a parent-owned acceptance suite did not run — trust success and distillation WITHHELD`);
+          return;
+        }
         this.registry.recordSuccess(child.name, this.name, child.registryVersion());
         if (!(verdict?.approved && verdict.viaJev)) {
           deferPromptLearning(this.registry, child, { description: subtaskDescription }, result, ctx, learningFeedback, verdict?.approved ? verdict.reasoning : undefined);
@@ -1500,7 +1506,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // Leaf-only action, disk and proof checks stay with the L2 supervisor.
     const gates = await runResultGates(
       buildResultGateEnv({ task, result, childName: child.name, childToolNames: child.toolNames(), ctx }),
-      undefined,
+      // The run-wide one-shot memo, as at L2: a `reject-once` delegated gate
+      // (a parent-owned suite the workspace kept from being copied) coaches
+      // once, then becomes a review finding instead of a repeat cascade.
+      (ctx.mechanicalResultRejections ??= new Set<string>()),
       'delegated'
     );
     if (gates.rejection) {
@@ -1570,6 +1579,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // Jev fast path — see L2Atom.validateResult: a review finding keeps the
     // decision with the model.
     let groundTruth = trustedProbe;
+    // The only parent-test evidence a validator reads: typed, host-rendered,
+    // outside the RESULT a child wrote.
+    const parentTestsBlock = result.parentTests?.length
+      ? renderParentTestsBlock(result.parentTests, { tier: 'phase', ...(task.acceptanceTests ? { contextSuite: task.acceptanceTests } : {}) })
+      : '';
     // ONE model verdict, whether it decides or audits a Jev approval; it reads
     // `groundTruth` when it is called, after the Jev path has probed.
     const modelVerdict = (audit: boolean) =>
@@ -1589,6 +1603,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
         ...(gateFindingsBlock !== undefined ? { mechanicalFindingsBlock: gateFindingsBlock } : {}),
         ...(fallbackCoverage.length > 0 ? { proofCoverageBlock: renderProofCoverage(fallbackCoverage) } : {}),
+        ...(parentTestsBlock ? { parentTestsBlock } : {}),
         ...(audit ? { audit: true } : {}),
       });
     if (!task.acceptanceTests && !result.parentTests?.length && ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {

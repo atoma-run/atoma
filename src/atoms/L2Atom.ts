@@ -1,5 +1,6 @@
 import { PARENT_TEST_PLANNING, PARALLEL_BRANCH_PLANNING } from '../contracts/parentTests.js';
-import { verifyParentTests } from '../core/parentTests.js';
+import { markParentTestsJudged, verifyParentTests, withParentTestConsequences } from '../core/parentTests.js';
+import { renderParentTestsBlock } from './parentTestsBlock.js';
 import { deferPromptLearning } from './promptLearning.js';
 import { Atom, type Peerable, type Supervisor } from '../core/atom.js';
 import { modelFacingExecutor } from '../core/attestation.js';
@@ -1044,7 +1045,9 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
               // rejection like an upstream one, and a later re-dispatch of it
               // in this run is set aside without being validated again.
               memo.set(skills.skill.id, [...seen.slice(-7), signature]);
-              const verdict = await this.validateScriptDispatch(l1, direct, matched.task, ctx);
+              const validated = await this.validateScriptDispatch(l1, direct, matched.task, ctx);
+              // The same parent-test mapping as the supervision loop's.
+              const verdict = validated && withParentTestConsequences(direct, validated, ctx.logger);
               if (verdict?.approved) {
                 // A script that changed files in a read-only subtask is not
                 // credited: the runtime had to put its work back. Below a
@@ -1058,14 +1061,16 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
                     ? 'a read-only phase below a tissue is restored after this approval'
                     : verdict.proofUncovered
                       ? 'a declared proof obligation is not covered'
-                      : null;
+                      : verdict.parentTestsUnverified
+                        ? 'a parent-owned acceptance suite did not run'
+                        : null;
                 if (!restoredHere && verdict.proofUncovered) ctx.recordRunStat?.('uncovered-obligation');
                 if (uncredited) {
                   this.lifecycle()?.noteUncreditedDirect(skills.skill, skills.ownerNs, ctx, uncredited, l1Type);
                 } else {
                   this.lifecycle()?.commitScriptSkillDirect(skills.skill, skills.ownerNs, ctx, l1Type);
                 }
-                return direct;
+                return markParentTestsJudged(direct);
               }
               ctx.logger.info(
                 `[${this.name}] skill "${skills.skill.id}" dispatch result not accepted by its validation${verdict ? ` (${verdict.reasoning.slice(0, 200)})` : ''} — falling back to the LLM loop (no counter moved)`
@@ -1901,13 +1906,18 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         // review: the molecule that rewrote the page kept its trust).
         const restored = (result.readOnlyRestoration !== undefined && restorationDamaged(result.readOnlyRestoration.restoration)) ||
           (skillCtx.subTask.readOnly === true && !skillCtx.readOnlyHere && wroteInBranch(ctx, skillCtx.branchId));
-        if (verdict?.approved === true && (verdict.proofUncovered === true || restored)) {
-          if (!restored) ctx.recordRunStat?.('uncovered-obligation');
+        const parentTestsUnverified = verdict?.approved === true && verdict.parentTestsUnverified === true;
+        if (verdict?.approved === true && (verdict.proofUncovered === true || parentTestsUnverified || restored)) {
+          if (verdict.proofUncovered === true && !restored) ctx.recordRunStat?.('uncovered-obligation');
+          const withheldBecause = restored
+            ? 'the runtime put back files this read-only subtask changed'
+            : verdict.proofUncovered === true
+              ? 'a declared proof obligation is UNCOVERED'
+              : 'a parent-owned acceptance suite did not run';
           const withheldSkillId = child.activeSkillId();
           const withheldNs = child.activeSkillOwner() ?? namespaceOf(child);
           ctx.logger.warn(
-            `[${this.name}] ${child.name}: RESULT approved but ` +
-              (restored ? 'the runtime put back files this read-only subtask changed' : 'a declared proof obligation is UNCOVERED') +
+            `[${this.name}] ${child.name}: RESULT approved but ${withheldBecause}` +
               ` — atom trust success, skill credit, distillation and promotion are all WITHHELD`
           );
           if (withheldSkillId && this.skillRegistry) {
@@ -1921,7 +1931,9 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
               actorTier: 2,
               reasoning: restored
                 ? 'success NOT credited — the runtime put back files this read-only subtask changed'
-                : 'success NOT credited — a declared proof obligation has no transport-observed attestation',
+                : verdict.proofUncovered === true
+                  ? 'success NOT credited — a declared proof obligation has no transport-observed attestation'
+                  : 'success NOT credited — a parent-owned acceptance suite did not run, so nothing proved it',
             });
           }
           return;
@@ -2674,6 +2686,12 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // signal alongside the verdict. The onApproved/onFailed hooks gate the
     // skill's counter bumps on it — a child that ignored the recipe proves
     // nothing about it, and unearned successes arm the promotion trigger.
+    // The only parent-test evidence a validator reads: typed, host-rendered,
+    // outside the RESULT a child wrote. The task's own suite source is already
+    // in the task context, so the block names it by digest.
+    const parentTestsBlock = result.parentTests?.length
+      ? renderParentTestsBlock(result.parentTests, { tier: 'phase', ...(task.acceptanceTests ? { contextSuite: task.acceptanceTests } : {}) })
+      : '';
     // ONE model verdict, whether it decides or audits a Jev approval; it reads
     // `groundTruth` when it is called, after the Jev path has probed.
     const modelVerdict = (audit: boolean) =>
@@ -2688,6 +2706,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         ...(gateFindingsBlock !== undefined ? { mechanicalFindingsBlock: gateFindingsBlock } : {}),
         ...(coverageBlock ? { proofCoverageBlock: coverageBlock } : {}),
         ...(activeSkill ? { activeSkill: { id: activeSkill.id, body: activeSkill.body } } : {}),
+        ...(parentTestsBlock ? { parentTestsBlock } : {}),
         task,
         payload: { output: result.output, summary: result.summary },
         ...(result.evidence ? { evidence: result.evidence } : {}),

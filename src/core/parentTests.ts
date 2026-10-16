@@ -1,48 +1,236 @@
-import { createHash } from 'node:crypto';
-import { parentTestObservationSchema, type ParentTestObservation } from '../contracts/parentTests.js';
+import {
+  PARENT_TEST_TIMEOUT_MS,
+  parentTestObservationSchema,
+  parentTestSuiteDigest,
+  type HeldParentTestObservation,
+  type ParentTestCause,
+  type ParentTestObservation,
+} from '../contracts/parentTests.js';
 import { abortedForLanding } from './limits.js';
 import { baseExecutorOf } from './attestation.js';
-import type { NegativeVerdict, Result, RunContext, Task } from './types.js';
+import type { Logger, Result, RunContext, Task, Verdict } from './types.js';
 
-/** Canonical bytes stay on the control plane. Only disposable copies cross into the worker. */
+/**
+ * Canonical bytes stay on the control plane. Only disposable copies cross into
+ * the worker. The observation rides `Result.parentTests` and nothing else: it
+ * is never written into `summary` (the gates that read the head of a summary
+ * went blind behind it, review 2026-10-16) and never into `refusal` (a
+ * delivery is refused by its judge, not by an observation).
+ */
 export async function verifyParentTests(task: Task, result: Result, ctx: RunContext): Promise<Result> {
   const suite = task.acceptanceTests;
   if (!suite) return result;
   if (!abortedForLanding(ctx)) ctx.signal.throwIfAborted();
-  const suiteDigest = createHash('sha256').update(JSON.stringify(suite)).digest('hex');
+  const suiteDigest = parentTestSuiteDigest(suite);
   let observation: ParentTestObservation = {
-    suiteDigest, suite, workspaceDigest: '', status: 'unavailable', passed: 0, failed: 0, skipped: 0,
+    suiteDigest, suite, workspaceDigest: '', status: 'unavailable', cause: 'no-executor', passed: 0, failed: 0, skipped: 0,
     details: 'No shell executor is available for the parent-owned suite.',
   };
   if (result.unfinishedPhases?.length || abortedForLanding(ctx)) {
-    observation = { ...observation, details: 'Not run: the plan landed with unfinished work or exhausted its run budget.' };
+    observation = { ...observation, cause: 'landing', details: 'Not run: the plan landed with unfinished work or exhausted its run budget.' };
   } else if (ctx.tools?.has('run_shell')) {
     try {
-      const timeoutMs = Math.max(1, Math.min(120_000, (ctx.deadlineAt ?? Date.now() + 120_000) - Date.now()));
+      const timeoutMs = Math.max(1, Math.min(PARENT_TEST_TIMEOUT_MS, (ctx.deadlineAt ?? Date.now() + PARENT_TEST_TIMEOUT_MS) - Date.now()));
       const raw = await baseExecutorOf(ctx.tools).execute('run_shell', {
         command: 'atoma-verify', args: [JSON.stringify(suite)], timeoutMs,
       });
       const parsed = parentTestObservationSchema.safeParse(raw);
-      observation = parsed.success && parsed.data.suiteDigest === suiteDigest ? { ...parsed.data, suite }
-        : { ...observation, details: 'The verification worker returned no valid observation for this suite.' };
+      if (parsed.success && parsed.data.suiteDigest === suiteDigest) {
+        // A window the run deadline cut short is the host's, not the code's.
+        const clamped = parsed.data.cause === 'timeout' && timeoutMs < PARENT_TEST_TIMEOUT_MS;
+        observation = { ...parsed.data, suite, ...(clamped ? { cause: 'deadline-timeout' as const } : {}) };
+      } else {
+        observation = { ...observation, cause: 'invalid-observation', details: 'The verification worker returned no valid observation for this suite.' };
+      }
     } catch (error) {
       if (!abortedForLanding(ctx)) ctx.signal.throwIfAborted();
-      observation = { ...observation, details: `Verification unavailable: ${String(error).slice(0, 1000)}` };
+      observation = { ...observation, cause: 'executor-error', details: `Verification unavailable: ${String(error).slice(0, 1000)}` };
     }
   }
   if (!abortedForLanding(ctx)) ctx.signal.throwIfAborted();
-  const summary = `PARENT ACCEPTANCE TESTS (observed on the named snapshot; later edits are not covered): ${JSON.stringify(observation)}`;
   return { ...result, parentTests: [...(result.parentTests ?? []), observation],
-    summary: `${summary}\n${result.summary}`,
     ...(abortedForLanding(ctx) && observation.status !== 'passed'
       ? { unfinishedPhases: [...(result.unfinishedPhases ?? []), `acceptance tests: ${task.description}`] } : {}),
-    ...(observation.status !== 'passed' ? { refusal: `Parent-owned acceptance suite ${observation.status}: ${observation.details}` } : {}),
   };
 }
 
-export function parentTestRefusal(result: Result): NegativeVerdict | undefined {
-  const failed = result.parentTests?.filter(check => check.status !== 'passed');
-  if (!failed?.length) return undefined;
-  const reasoning = `Parent-owned acceptance checks did not pass: ${JSON.stringify(failed.map(check => ({ suiteDigest: check.suiteDigest, status: check.status, details: check.details }))).slice(0, 12000)}. Repair the implementation; if a test contradicts the assigned requirement, explain the conflict to the parent for a reviewed revision. Do not edit or bypass its suite.`;
-  return { approved: false, reasoning, scope: 'ephemeral', modifications: { additionalContext: reasoning } };
+/**
+ * What a non-passed observation does to the result carrying it:
+ *
+ *  - `reject` — executed and independent of content: the suite failed, or the
+ *    code under test stopped it from finishing (a hang the whole window could
+ *    not interrupt, a rewritten suite file, a runaway report).
+ *  - `reject-once` — the workspace content kept the suite from being copied
+ *    (an escaping link, a special file): the child can fix it once, coached;
+ *    a repeat is reviewed, like every `reject-once` result gate.
+ *  - `review` — a host cause, or one nobody can attribute: the child cannot
+ *    act on it, so rejecting would be the wrong gate. The suite established
+ *    nothing; a full review decides on the other evidence.
+ *
+ * None of them grants trust, skill credit, distillation or promotion.
+ */
+export type ParentTestConsequence = 'reject' | 'reject-once' | 'review';
+
+const SUBJECT_CAUSES: ReadonlyMap<ParentTestCause, string> = new Map([
+  ['timeout', `the suite did not finish within ${PARENT_TEST_TIMEOUT_MS / 1000} s; make every path it exercises terminate`],
+  ['source-changed', 'the code under test changed the suite file; never write atoma.acceptance.test.ts'],
+  ['report-oversize', 'the failure/print output exceeded 8 MiB'],
+] as const);
+const WORKSPACE_CAUSES: ReadonlySet<ParentTestCause> = new Set(['snapshot-link', 'snapshot-special-file']);
+
+/** THE one mapping from a typed observation to its consequence. */
+export function parentTestConsequence(observation: ParentTestObservation): ParentTestConsequence | null {
+  if (observation.status === 'passed') return null;
+  if (observation.status === 'failed') return 'reject';
+  if (observation.cause && SUBJECT_CAUSES.has(observation.cause)) return 'reject';
+  if (observation.cause && WORKSPACE_CAUSES.has(observation.cause)) return 'reject-once';
+  return 'review';
+}
+
+/** A non-passed observation that a later (higher index) PASSED run of the same suite replaced. */
+export function parentTestSuperseded(observations: readonly ParentTestObservation[], index: number): boolean {
+  const observation = observations[index];
+  if (!observation || observation.status === 'passed') return false;
+  return observations.some((later, at) => at > index && later.status === 'passed' && later.suiteDigest === observation.suiteDigest);
+}
+
+export interface ParentTestFindings {
+  readonly reject: readonly HeldParentTestObservation[];
+  readonly rejectOnce: readonly HeldParentTestObservation[];
+  readonly review: readonly HeldParentTestObservation[];
+}
+
+/** Unjudged, non-superseded observations, grouped by consequence. */
+export function parentTestFindings(result: Pick<Result, 'parentTests'>): ParentTestFindings {
+  const observations = result.parentTests ?? [];
+  const reject: HeldParentTestObservation[] = [];
+  const rejectOnce: HeldParentTestObservation[] = [];
+  const review: HeldParentTestObservation[] = [];
+  observations.forEach((observation, index) => {
+    if (observation.judged || parentTestSuperseded(observations, index)) return;
+    const consequence = parentTestConsequence(observation);
+    if (consequence === 'reject') reject.push(observation);
+    else if (consequence === 'reject-once') rejectOnce.push(observation);
+    else if (consequence === 'review') review.push(observation);
+  });
+  return { reject, rejectOnce, review };
+}
+
+/**
+ * True when some non-superseded observation did not pass. `unjudged` asks
+ * what this tier must still judge; `all` asks whether the result's method can
+ * be trusted at all (durable continuation reads it).
+ */
+export function parentTestsGrantNothing(result: Pick<Result, 'parentTests'>, scope: 'unjudged' | 'all'): boolean {
+  const observations = result.parentTests ?? [];
+  return observations.some((observation, index) =>
+    observation.status !== 'passed' && (scope === 'all' || !observation.judged) && !parentTestSuperseded(observations, index));
+}
+
+const short = (observation: ParentTestObservation): string => observation.suiteDigest.slice(0, 16);
+
+/**
+ * The failing set, sorted, first failure line each. Keyed on WHAT fails, so
+ * the repeat tracker escalates three identical failures and never progress.
+ */
+function failingExcerpt(details: string): string {
+  let entries: unknown;
+  try {
+    entries = JSON.parse(details);
+  } catch {
+    return JSON.stringify(details.split('\n')[0]?.slice(0, 300) ?? '');
+  }
+  if (!Array.isArray(entries)) return JSON.stringify(details.split('\n')[0]?.slice(0, 300) ?? '');
+  const failing: { name: string; failure: string }[] = [];
+  for (const entry of entries) {
+    if (typeof entry === 'string') {
+      if (entry.trim()) failing.push({ name: '(module)', failure: entry.split('\n')[0]!.slice(0, 200) });
+      continue;
+    }
+    if (!entry || typeof entry !== 'object') continue;
+    const test = entry as { name?: unknown; status?: unknown; failures?: unknown };
+    if (test.status !== 'failed') continue;
+    const first = Array.isArray(test.failures) && typeof test.failures[0] === 'string' ? test.failures[0] : '';
+    failing.push({ name: typeof test.name === 'string' ? test.name.slice(0, 200) : '(unnamed)', failure: first.split('\n')[0]!.slice(0, 200) });
+  }
+  failing.sort((a, b) => a.name.localeCompare(b.name) || a.failure.localeCompare(b.failure));
+  const text = JSON.stringify(failing);
+  return text.length > 1200 ? `${text.slice(0, 1199)}…` : text;
+}
+
+const REPAIR_COACHING =
+  'Repair the implementation; if a test contradicts the assigned requirement, explain the conflict to the parent for a reviewed revision. Do not edit or bypass its suite.';
+
+export interface ParentTestFinding {
+  readonly reasoning: string;
+  readonly coaching: string;
+}
+
+/** The rejecting findings: a failed suite, or one the code under test kept from finishing. */
+export function parentTestRejection(result: Pick<Result, 'parentTests'>): ParentTestFinding | null {
+  const { reject } = parentTestFindings(result);
+  if (reject.length === 0) return null;
+  const reasoning = reject.map((observation) => observation.status === 'failed'
+    ? `Parent-owned acceptance suite ${short(observation)} failed ${observation.failed}/${observation.passed + observation.failed + observation.skipped}: ${failingExcerpt(observation.details)}`
+    : `Parent-owned acceptance suite ${short(observation)} could not finish: ${observation.cause} — ${SUBJECT_CAUSES.get(observation.cause!) ?? ''}`,
+  ).join(' ');
+  const details = reject.map((observation) => `${short(observation)}: ${observation.details}`).join('\n');
+  return { reasoning, coaching: `${REPAIR_COACHING}\nHost observation:\n${details.slice(0, 6000)}` };
+}
+
+/** A suite the workspace content kept from being copied: coached once, then reviewed. */
+export function parentTestWorkspaceFinding(result: Pick<Result, 'parentTests'>): ParentTestFinding | null {
+  const { rejectOnce } = parentTestFindings(result);
+  if (rejectOnce.length === 0) return null;
+  return {
+    reasoning: rejectOnce.map((observation) =>
+      `the parent-owned suite ${short(observation)} could not be copied: ${observation.cause} (${observation.details.slice(0, 300)})`).join(' '),
+    coaching:
+      'Remove the link or special file named above and keep the dependencies inside the project ' +
+      '(install them there rather than linking a shared store), or explain in your result why that is impossible.',
+  };
+}
+
+/** A suite that did not run for a host cause: a fact for the full review, never a rejection. */
+export function parentTestReviewFinding(result: Pick<Result, 'parentTests'>): ParentTestFinding | null {
+  const { review } = parentTestFindings(result);
+  if (review.length === 0) return null;
+  return {
+    reasoning: review.map((observation) =>
+      `HOST FACT, not a heuristic lead: the parent-owned suite ${short(observation)} did not run (${observation.cause ?? 'cause not reported'}); ` +
+      'see the PARENT ACCEPTANCE TESTS host block').join(' '),
+    coaching:
+      'It established nothing. Judge its requirement only on the other host evidence; approve only what that evidence establishes; ' +
+      'name the suite as unverified.',
+  };
+}
+
+/**
+ * The safety net where a verdict meets a result: `superviseLoop` (any
+ * Supervisor, a mock included) and L2's compiled-script dispatch. A real L2
+ * or L3 has already applied the same mapping through its result gates, so
+ * this changes nothing there; a supervisor that approves past a rejecting
+ * observation is overruled, and one that approves past a suite that did not
+ * run has its credit withheld.
+ */
+export function withParentTestConsequences(result: Pick<Result, 'parentTests'>, verdict: Verdict, logger?: Logger): Verdict {
+  if (!verdict.approved) return verdict;
+  const findings = parentTestFindings(result);
+  const rejection = parentTestRejection(result);
+  if (rejection) {
+    logger?.warn(`[parent-tests] an approval past a rejecting parent-owned suite was overruled: ${rejection.reasoning.slice(0, 300)}`);
+    return { approved: false, reasoning: rejection.reasoning, scope: 'ephemeral', modifications: { additionalContext: rejection.coaching } };
+  }
+  return findings.rejectOnce.length > 0 || findings.review.length > 0 ? { ...verdict, parentTestsUnverified: true } : verdict;
+}
+
+/**
+ * Called where an approval returns a result upward: the supervisor directly
+ * above has judged every observation the result carries, so no tier above
+ * judges them again (the `declared-unverified` precedent, review 2026-10-10).
+ * They stay visible to it, as context.
+ */
+export function markParentTestsJudged(result: Result): Result {
+  if (!result.parentTests?.length || result.parentTests.every((observation) => observation.judged)) return result;
+  return { ...result, parentTests: result.parentTests.map((observation) => observation.judged ? observation : { ...observation, judged: true as const }) };
 }

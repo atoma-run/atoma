@@ -1,4 +1,8 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
+
+/** The runner's own window. Core clamps it to the run deadline; tools never hardcode a copy. */
+export const PARENT_TEST_TIMEOUT_MS = 120_000;
 
 /** Parent-authored checks; never parsed from a child's result or workspace. */
 export const parentTestSuiteSchema = z.object({
@@ -8,17 +12,88 @@ export const parentTestSuiteSchema = z.object({
 }).strict();
 export type ParentTestSuite = z.infer<typeof parentTestSuiteSchema>;
 
+/** One digest for one suite, computed identically on the control plane and in the worker. */
+export function parentTestSuiteDigest(suite: ParentTestSuite): string {
+  return createHash('sha256').update(JSON.stringify(suite)).digest('hex');
+}
+
+/**
+ * Why an observation is what it is, typed by the code that saw it, so no
+ * reader classifies blame from text the code under test printed.
+ * `src/core/parentTests.ts` maps each cause to one consequence.
+ */
+export const parentTestCauseSchema = z.enum([
+  'ran', // the runner produced a valid report (passed or failed)
+  'timeout', // tools: the runner was killed by its timer
+  'exited-without-report', // tools: the runner exited on its own and wrote no report
+  'source-changed', // tools: the suite file differs, or vanished, after the run
+  'report-oversize', // tools: the report exceeds 8 MiB
+  'report-invalid', // tools: the report is not JSON or not the expected shape
+  'snapshot-link', // tools: a link resolves outside the project
+  'snapshot-bounds', // tools: more than 100,000 files or 512 MiB
+  'snapshot-special-file', // tools: a FIFO, socket or device in the project
+  'worker-missing', // tools: the compiled acceptance worker is not installed
+  'runner-error', // tools: any other host failure
+  'no-executor', // core: no shell executor in this context
+  'invalid-observation', // core: the executor returned no valid observation for this suite
+  'executor-error', // core: the executor threw
+  'landing', // core: the run budget ended first
+  'deadline-timeout', // core: a timeout while the window was clamped below PARENT_TEST_TIMEOUT_MS
+]);
+export type ParentTestCause = z.infer<typeof parentTestCauseSchema>;
+
 export const parentTestObservationSchema = z.object({
   suiteDigest: z.string(),
   suite: parentTestSuiteSchema.optional(),
   workspaceDigest: z.string(),
   status: z.enum(['passed', 'failed', 'unavailable']),
+  /** Absent from an older worker; read as a host cause. */
+  cause: parentTestCauseSchema.optional(),
   passed: z.number().int().nonnegative(),
   failed: z.number().int().nonnegative(),
   skipped: z.number().int().nonnegative(),
+  /** Host text, plus the runner's assertion outcomes when it reported. */
   details: z.string(),
+  /** The runner's stdout/stderr tail: CHILD-CONTROLLED text, never host fact. */
+  output: z.string().max(6000).optional(),
 }).strict();
 export type ParentTestObservation = z.infer<typeof parentTestObservationSchema>;
+
+/**
+ * An observation as the host holds it. `judged` is set by the host when the
+ * supervisor directly above approved the result carrying it, never parsed from
+ * a worker reply: the wire schema is strict and has no such key.
+ */
+export type HeldParentTestObservation = ParentTestObservation & { readonly judged?: true };
+
+/** What a persisted run keeps of an observation: no suite source, no child output. */
+export interface PersistedParentTestObservation {
+  readonly suiteDigest: string;
+  readonly workspaceDigest: string;
+  readonly status: ParentTestObservation['status'];
+  readonly cause?: ParentTestCause;
+  readonly passed: number;
+  readonly failed: number;
+  readonly skipped: number;
+  readonly judged?: true;
+  readonly requirement?: string;
+  readonly details: string;
+}
+
+export function persistedParentTests(observations: readonly HeldParentTestObservation[]): PersistedParentTestObservation[] {
+  return observations.map((observation) => ({
+    suiteDigest: observation.suiteDigest,
+    workspaceDigest: observation.workspaceDigest,
+    status: observation.status,
+    ...(observation.cause ? { cause: observation.cause } : {}),
+    passed: observation.passed,
+    failed: observation.failed,
+    skipped: observation.skipped,
+    ...(observation.judged ? { judged: true as const } : {}),
+    ...(observation.suite ? { requirement: observation.suite.requirement.slice(0, 600) } : {}),
+    details: observation.details.slice(0, 1500),
+  }));
+}
 
 // A reviewer classifies scope; the host checks that every classified requirement
 // actually has executable bytes. Never infer testability from prose or extensions.

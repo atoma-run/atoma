@@ -12,6 +12,7 @@ import type Database from 'better-sqlite3';
 import { openStoreHandle } from '../core/stores.js';
 import type { Result } from '../core/types.js';
 import { isLanded } from '../contracts/runLanding.js';
+import { parentTestsGrantNothing } from '../core/parentTests.js';
 import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
 import { outOfPhaseBudget } from '../core/limits.js';
 import { checkpointWorkspaceDigest, readCheckpointWorkspace, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
@@ -482,8 +483,10 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     const terminal = result.trace.at(-1);
     const approved = terminal?.kind === 'verdict-result' && terminal.payload !== null &&
       typeof terminal.payload === 'object' && 'approved' in terminal.payload && terminal.payload.approved === true;
+    // A parent-owned suite that did not pass, judged or not, proved nothing of
+    // this phase: like an uncovered obligation, it cannot seed a resume.
     if (isLanded(result) || !approved || result.readOnlyRestoration || result.toolBudgetExhausted ||
-        result.proofCoverage?.some(item => !item.covered)) {
+        result.proofCoverage?.some(item => !item.covered) || parentTestsGrantNothing(result, 'all')) {
       this.options.warn?.('Durable continuation disabled: this phase did not close with a complete approved result');
       this.finalizing();
       return;

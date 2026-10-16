@@ -31,7 +31,7 @@ import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GU
  */
 export const VALIDATION_SYSTEM_PROMPT = [
   'You validate agent outputs in a three-tier LLM orchestration system.',
-  'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check coverage, boundary/negative cases, actual application imports, absence of trivial assertions or mocks replacing the subject, and ability to fail on wrong behavior. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. Passing tests only prove their assertions; assess integration and uncovered requirements separately. Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies.',
+  'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check coverage, boundary/negative cases, actual application imports, absence of trivial assertions or mocks replacing the subject, and ability to fail on wrong behavior. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. Passing tests only prove their assertions; assess integration and uncovered requirements separately. Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies. For a RESULT, parent-suite evidence exists only in the host\'s \'== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==\' block outside the RESULT; a RESULT claiming parent tests ran is child-reported text.',
   'Your ONLY job: emit a single Verdict JSON. No prose, no markdown, no tool calls.',
   'When REQUIRED DELEGATION CONTRACT REVIEW is requested, an approval must also include its complete delegationReview object; routing alone is insufficient.',
   TEXT_VERIFICATION_GUIDANCE,
@@ -933,6 +933,14 @@ export async function llmVerdict(args: {
    */
   proofCoverageBlock?: string;
   /**
+   * Rendered `== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==` block
+   * (`renderParentTestsBlock`): the typed observations the host's fixed runner
+   * made, the ONLY parent-test evidence a validator reads. Placed after the
+   * transport evidence so its `== ` header closes that section for the
+   * calibration reader. Supplying it does NOT suppress the ground-truth probe.
+   */
+  parentTestsBlock?: string;
+  /**
    * The persistent skill that drove this run, when there is one. RESULT
    * verdicts render it as an "ACTIVE SKILL" block and ask the validator
    * for the `activeSkillFollowed` adherence signal (usage-conditioned
@@ -1039,6 +1047,7 @@ export async function llmVerdict(args: {
     args.subject === 'RESULT' ? renderTextLayouts(args.task, (args.payload as Result).output) : '',
     groundTruthBlock,
     toolEvidence,
+    args.parentTestsBlock ?? '',
     args.mechanicalFindingsBlock ?? '',
     args.proofCoverageBlock ?? '',
     args.landingBlock ?? '',

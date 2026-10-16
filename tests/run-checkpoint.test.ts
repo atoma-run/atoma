@@ -587,6 +587,36 @@ describe('durable sequential run continuation', () => {
     expect(() => assertCheckpointStoreOutsideWorkspace(store, join(root, 'new', 'workspace'))).not.toThrow();
   });
 
+  // Review 2026-10-16 (D5): an approved phase whose parent-owned suite did not
+  // run proved nothing, like an uncovered obligation; parent tests no longer
+  // write `refusal`, so `isLanded` alone would have saved it as a resume prefix.
+  it('does not seed a resume with an approved phase whose parent-owned suite did not run', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-checkpoint-parent-tests-'))); roots.push(root);
+    const workspace = join(root, 'ws');
+    mkdirSync(workspace);
+    writeFileSync(join(workspace, 'add.ts'), 'export const add = (a: number, b: number) => a + b;');
+    const store = new RunCheckpointStore(join(root, 'atoma.db'));
+    const id = randomUUID();
+    const data = { version: 1, id, scope: { orgId: 'o', projectId: 'p', principalId: 'u', runId: id }, goal: 'g', workspace,
+      policy: '{}', actor: { name: 'Meristem', atomId: 'a', version: 1 }, checklist: [], root: null, completed: [],
+      workspaceDigest: null, processes: [], consumed: { tokens: 0, costUsd: 0 }, remainingMs: 600_000, lastRunId: null };
+    const warnings: string[] = [];
+    await withRecoveryEffects(async () => {
+      const cp = new SequentialCheckpoint(data as never, store, { fresh: true, automatic: true,
+        account: () => ({ tokens: 1, costUsd: 0.1 }), deadlineAt: Date.now() + 600_000, settle: async () => {},
+        processes: () => [], warn: (line: string) => warnings.push(line) });
+      cp.planned({ description: 'g' }, { subtasks: [{ description: 'phase 1' }, { description: 'phase 2' }], aggregation: { mode: 'sequential' } } as never, {}, 2);
+      await cp.beforePhase(0, { description: 'phase 1' });
+      await cp.afterPhase(0, { output: { ok: true }, summary: 'phase 1 done', producedBy: { name: 'Cell', tier: 2, viaFallback: false },
+        trace: [{ kind: 'verdict-result', ts: '0', atom: 'Meristem', payload: { approved: true, reasoning: 'reviewed' } }],
+        parentTests: [{ suiteDigest: 'd', workspaceDigest: 'w', status: 'unavailable', cause: 'runner-error', passed: 0, failed: 0, skipped: 0,
+          details: 'crashed', judged: true }] });
+      cp.release();
+    });
+    expect(warnings).toContain('Durable continuation disabled: this phase did not close with a complete approved result');
+    expect(data.completed).toEqual([]);
+  });
+
   it('keeps the checkpoint out of nested dispatch contexts', () => {
     const ctx = makeCtx();
     Object.assign(ctx, { rootCheckpoint: {} });

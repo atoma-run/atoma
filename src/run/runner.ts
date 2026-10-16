@@ -45,7 +45,8 @@ import { withPlannedDelivery } from '../atoms/taskContext.js';
 import { depthModeSchema, type DepthMode } from '../contracts/depthRouting.js';
 import { decodePreviousLanding, isLanded, landingReasons, PREVIOUS_LANDING_ENV } from '../contracts/runLanding.js';
 import { withPreviousRunInputs } from './taskInputs.js';
-import { runDepthTask } from './depth.js';
+import { refuseUnreviewedParentTests, runDepthTask } from './depth.js';
+import { persistedParentTests } from '../contracts/parentTests.js';
 import { SkillRegistry } from '../skills/registry.js';
 import { LearningQueue } from '../skills/learningQueue.js';
 import { spawnApprovedLearning } from './learningProcess.js';
@@ -1553,7 +1554,10 @@ async function startTaskInternal(
             }
           });
       }
-      const result = await handle(task, ctx).finally(() => { retrievalWatched = false; });
+      const handled = await handle(task, ctx).finally(() => { retrievalWatched = false; });
+      // Root acceptance judges a depth run's unjudged parent-owned suites;
+      // without it, one that did not pass refuses the delivery here.
+      const result = args.depth ? handled : refuseUnreviewedParentTests(handled);
       clearTimeout(watchdog);
       // Audits still in flight record into this run's trace before it closes;
       // one that outlasts the bound is dropped, since it measures and decides nothing.
@@ -1587,6 +1591,9 @@ async function startTaskInternal(
           producedBy: result.producedBy,
           ...(unfinishedPhases.length > 0 ? { unfinishedPhases } : {}),
           ...(result.refusal ? { refusal: result.refusal } : {}),
+          // Typed and source-free: what viz, MCP readers and the analyst read
+          // of the suites, instead of a summary prefix.
+          ...(result.parentTests?.length ? { parentTests: persistedParentTests(result.parentTests) } : {}),
         },
       });
 

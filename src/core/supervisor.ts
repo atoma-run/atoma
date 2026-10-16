@@ -1,4 +1,4 @@
-import { verifyParentTests, parentTestRefusal } from './parentTests.js';
+import { markParentTestsJudged, verifyParentTests, withParentTestConsequences } from './parentTests.js';
 import { EscalationSignal, ValidationError } from './errors.js';
 import type { Atom, Supervisor } from './atom.js';
 import type {
@@ -356,7 +356,11 @@ export async function superviseLoop<C extends Atom>(
         const result = await run(() => current.execute(task, plan, ctx));
         trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: result });
 
-        const v2 = parentTestRefusal(result) ?? await parent.validateResult(current, result, task, ctx);
+        // A real L2/L3 applies the parent-test mapping in its result gates,
+        // before any I/O or model call; this is the same mapping again for any
+        // other Supervisor, so an approval past a failed suite is overruled and
+        // one past a suite that did not run earns no credit.
+        const v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
         lastResultVerdict = v2;
         trace.push({
           kind: 'verdict-result',
@@ -367,7 +371,8 @@ export async function superviseLoop<C extends Atom>(
 
         if (v2.approved) {
           if (hooks.onApproved) await hooks.onApproved(current, result, v2);
-          return { ...result, trace };
+          // Judged here, once: the tier above sees them as context only.
+          return { ...markParentTestsJudged(result), trace };
         }
 
         const handedUp = hooks.handUpRefused?.(current, result, v2);

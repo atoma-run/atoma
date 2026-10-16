@@ -201,7 +201,8 @@ Neighbours:
   Test threads inherit filesystem permissions explicitly but cannot spawn
   processes/workers or load native addons. Canonical suites stay on the host;
   only disposable copies run. The container remains the OS isolation boundary.
-  No tests, skips, focused tests, missing reports and timeouts cannot pass.
+  No tests, skips, focused tests, missing reports and timeouts cannot pass; a run
+  that did not finish reports a typed `cause`, never prose a reader classifies.
   Cleanup covers subprocess groups and temporary copies. The separate runner
   entrypoint belongs in image-closure tests. See the [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
 

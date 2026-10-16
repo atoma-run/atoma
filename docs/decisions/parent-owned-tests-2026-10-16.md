@@ -28,11 +28,53 @@ tool context reuses its review. Trust and Decision never replace test-plan
 review, nor the semantic result review following these suites.
 
 The shared supervision loop invokes a fixed runner after execution and before
-credit. Fallbacks and compiled recipes use the same verification. Failed or
-unavailable tests cannot grant acceptance or credit; their observations survive
-aggregation and reach root acceptance. The parent may revise an incorrect test
-only by proposing a requirement-backed plan revision. Passing a suite establishes
-its assertions, not untested requirements or correctness after later edits.
+credit. Fallbacks and compiled recipes use the same verification. The runner is
+an authorized host replay of a parent-owned harness, not a supervisor tool. The
+parent may revise an incorrect test only by proposing a requirement-backed plan
+revision. Passing a suite establishes its assertions, not untested requirements
+or correctness after later edits.
+
+Every observation carries a typed status and cause, and `src/core/parentTests.ts`
+alone maps them to a consequence; the result-gate rows and the loop's safety net
+for any other supervisor are projections of that one mapping:
+
+- A failed suite, and one the code under test kept from finishing (a hang that
+  used the full 120-second window, a rewritten suite file, a report over 8 MiB),
+  rejects mechanically at every tier, at compiled dispatch and at root acceptance.
+  The rejection names the failing assertions, so identical failures escalate and
+  progress does not.
+- A suite the workspace content kept from being copied (a link leaving the
+  project, a special file) is coached once with the path, then reviewed.
+- A suite that did not run for a host cause (no executor, a missing worker, a
+  runner error, an exit without a report, an invalid report, a snapshot over its
+  bounds, a window the run deadline cut, a landing) never rejects: it forces a
+  full review, which decides on the other host evidence.
+- No suite that did not pass grants atom trust, skill credit, distillation,
+  promotion or durable continuation.
+- Without root acceptance (a run without depth routing), any suite nobody below
+  judged that did not pass refuses the delivery.
+
+Observations are typed `Result.parentTests` entries, never summary text: until
+this change a prefix hid the banners the result gates read at the head of a
+summary. They reach validators only as the bounded host block
+`== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==`, outside the child's RESULT,
+with every child-controlled string encoded. The supervisor directly above
+judges them once and marks them judged; tiers above see them as context. A
+later passing run of the same suite supersedes an earlier failure. Parent tests
+no longer write `Result.refusal`; a landing keeps its unfinished phase. Durable
+resume does not carry observations: completed phases are historical context.
+The persisted run result keeps them without source or child output.
+
+**New reading awaiting owner confirmation.** This document first said "failed or
+unavailable tests cannot grant acceptance". A suite that did not run for a host
+cause now leaves the decision to semantic review: root acceptance can approve
+the delivery on its other evidence, and it can then be published. Rejecting a
+result its child cannot repair would be the wrong gate the repository forbids;
+before this change a molecule spent its whole retry ladder on a missing worker
+or a crashed runner, coached to repair an implementation nothing had judged. The unverified suite stays visible as the
+`parent-acceptance-tests-unavailable` gate in the acceptance record, and it
+still grants no credit. Review:
+[parent-test fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
 
 `run_shell` exposes the deterministic `atoma-verify` utility without adding an
 element. Atoma supplies the suite, copies the project to a temporary directory,
@@ -49,7 +91,8 @@ defence in depth, not a replacement for that boundary. Network policy remains th
 worker's policy; suites must mock external services. Browser interactions and CLI
 process behavior still use their existing probes. Project dependencies must
 already be installed. A snapshot over 100,000 files or 512 MiB is unavailable,
-not a pass. Generated harness files exist only in the disposable copy.
+not a pass, and so are the other host causes above. Generated harness files
+exist only in the disposable copy.
 
 ## Mandatory planning review and discovery
 

@@ -179,8 +179,13 @@ export interface Plan {
 }
 
 export interface Result {
-  /** Runtime-produced observations, never accepted from result JSON. */
-  readonly parentTests?: readonly import('../contracts/parentTests.js').ParentTestObservation[];
+  /**
+   * Runtime-produced observations, never accepted from result JSON nor
+   * written into `summary`: validators read them only as the host block
+   * (`src/atoms/parentTestsBlock.ts`). `src/core/parentTests.ts` is the one
+   * mapping from their status and cause to a consequence.
+   */
+  readonly parentTests?: readonly import('../contracts/parentTests.js').HeldParentTestObservation[];
   readonly output: unknown;
   readonly summary: string;
   readonly toolCallResults?: unknown[];
@@ -333,6 +338,15 @@ export type PositiveVerdict = {
    * across concurrent subtasks.
    */
   proofUncovered?: boolean;
+  /**
+   * Set by the host — never by a model (`verdictSchema` strips unknown keys) —
+   * when a parent-owned acceptance suite on this result did not run
+   * (`withParentTestConsequences`). Like `proofUncovered` it leaves the
+   * approval alone and withholds atom trust, skill credit, distillation and
+   * promotion; it is a separate flag because `proofUncovered` drives the
+   * `uncovered-obligation` run statistic.
+   */
+  parentTestsUnverified?: true;
   /**
    * Set by the supervisor — never by a model — when Jev, not the model
    * validator, approved (docs/decisions/jev-decisions-2026-09-28.md). It withholds ONE

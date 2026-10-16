@@ -21,6 +21,15 @@ export const CRITERIA_SOURCE_CHARS = 24_000;
  * (records/plans/run-duration-plan-2026-10-15.md, item A).
  */
 export const ROOT_CRITERIA_SOURCE_CHARS = 96_000;
+/**
+ * The host block of parent-owned suite observations (`renderParentTestsBlock`),
+ * in characters of suite source; status lines get half as much again.
+ * UNMEASURED, both of them: a phase block carries statuses and the source of a
+ * suite that did not run; the root one equals the schema's maximum suite size,
+ * so the root's own integration suite can always appear whole.
+ */
+export const PARENT_TEST_PHASE_CHARS = 12_000;
+export const PARENT_TEST_ROOT_CHARS = 32_000;
 const CRITERIA_FILE_MATCHED_BLOCKS = 15;
 const CRITERIA_BLOCK_LINES = 25;
 const CRITERIA_LINE_CHARS = 300;

@@ -338,6 +338,10 @@ const INELIGIBLE_MARKERS = [
   'NUMERIC LOOPBACK PORT',
   'but the tool call failed:',
   ': MALFORMED —',
+  // Decision is never asked about a result carrying parent-owned suite
+  // observations. Matches the host block's header and the summary prefix
+  // that carried them before 2026-10-16, so historical traces need no backfill.
+  'PARENT ACCEPTANCE TESTS (',
 ];
 
 /** The validation prompt `llmVerdict` renders, read back into a `JevApprovalRequest`. */

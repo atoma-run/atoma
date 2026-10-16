@@ -13,6 +13,7 @@ import {
 import { extractRecordedProbes, recordedProbesFromWitnesses } from '../contracts/witness.js';
 import { pathHeldNoFile } from '../contracts/toolOutput.js';
 import { resultHasSuccessfulToolAction } from '../skills/lifecycle.js';
+import { parentTestRejection, parentTestReviewFinding, parentTestWorkspaceFinding } from '../core/parentTests.js';
 
 /**
  * The mechanical RESULT gates, as ONE declarative table.
@@ -43,9 +44,11 @@ import { resultHasSuccessfulToolAction } from '../skills/lifecycle.js';
  *    `ctx.mechanicalResultRejections` (fork-shared, replans included).
  *  - `requires-review` — the TRIGGER is a regex reading of model-authored
  *    prose (the exact input class the ground-truth layer refuses to let
- *    reject on its own). Never rejects: the finding is rendered into a
- *    fact block, the trust fast-path is overridden, and the full LLM verdict
- *    decides with the facts in view — the `checkGroundTruth` architecture.
+ *    reject on its own), or a host-observed non-evidence that cannot reject
+ *    alone (a parent-owned suite that did not run for a host cause). Never
+ *    rejects: the finding is rendered into a fact block, the trust fast-path
+ *    is overridden, and the full LLM verdict decides with the facts in view —
+ *    the `checkGroundTruth` architecture.
  *
  * Shared plumbing the table buys: workspace reads are cached per validation
  * cycle (the command-manifest and JSON-shape gates used to read the SAME
@@ -303,12 +306,28 @@ export const DECLARED_UNVERIFIED_RE = new RegExp([
 ].join('|'), 'i');
 
 const RESULT_GATES: readonly ResultGate[] = [
+  // Parent-owned acceptance suites (docs/decisions/parent-owned-tests-2026-10-16.md).
+  // Three rows, one mapping: each disposition is a projection of
+  // `parentTestConsequence` (src/core/parentTests.ts), which also backs the
+  // superviseLoop safety net. Only observations nobody has judged yet count.
   {
+    // Executed and content-independent: the suite failed, or the code under
+    // test kept it from finishing (full-window hang, rewritten suite, runaway report).
     id: 'parent-acceptance-tests', disposition: 'reject', appliesToDelegatedResult: true,
-    check: async env => env.result.parentTests?.some(check => check.status !== 'passed') ? {
-      reasoning: 'Parent-owned acceptance tests failed or could not execute.',
-      coaching: 'Read the runtime test observations; repair the implementation or request a requirement-backed parent revision of an incorrect suite. Do not replace the tests.',
-    } : null,
+    check: env => Promise.resolve(parentTestRejection(env.result)),
+  },
+  {
+    // The workspace content kept the suite from being copied: the child can
+    // remove the link or special file, once; a repeat is reviewed.
+    id: 'parent-acceptance-tests-workspace', disposition: 'reject-once', appliesToDelegatedResult: true,
+    check: env => Promise.resolve(parentTestWorkspaceFinding(env.result)),
+  },
+  {
+    // A host cause: the child cannot act on it, so rejecting would be the
+    // wrong gate. The suite established nothing; the review decides on the
+    // other evidence, and the approval earns no credit.
+    id: 'parent-acceptance-tests-unavailable', disposition: 'requires-review', appliesToDelegatedResult: true,
+    check: env => Promise.resolve(parentTestReviewFinding(env.result)),
   },
   {
     // Transport witness: the run's own tool observer saw zero successful

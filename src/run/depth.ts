@@ -11,6 +11,7 @@ import { outOfPhaseBudget } from '../core/limits.js';
 import type { AcceptanceInfo, DepthMode, PhaseCoverageRecord, ProofFloor, TopologyInfo } from '../contracts/depthRouting.js';
 import { checklistPlanningLines, phaseCriteriaOf, type AcceptanceChecklist, type ChecklistSource } from '../contracts/acceptanceChecklist.js';
 import { PhaseBoundaryPause } from '../contracts/runCheckpoint.js';
+import { parentTestFindings, parentTestRejection, parentTestReviewFinding, parentTestsGrantNothing, parentTestWorkspaceFinding } from '../core/parentTests.js';
 
 export class DeepeningSignal extends Error {
   constructor() { super('Entry cell exhausted supervision; deepen once.'); this.name = 'DeepeningSignal'; }
@@ -31,6 +32,28 @@ export function markRefused(result: Result, acceptance: Pick<AcceptanceInfo, 're
   return {
     ...result,
     summary: `REFUSED AT DELIVERY — the run completed its plan and the root acceptor did not accept it: ${reasoning}. Reported so far: ${result.summary}`,
+    refusal: reasoning,
+  };
+}
+
+/**
+ * A run WITHOUT root acceptance (no `--depth`) has no judge for the suites
+ * nobody below judged — the root's own integration suite, an unvalidated
+ * fallback's. Any such suite that did not pass refuses the delivery, with
+ * `markRefused`'s shape: there is no reviewer on this path to read a suite
+ * that did not run, so it keeps the partial outcome it had before 2026-10-16.
+ */
+export function refuseUnreviewedParentTests(result: Result): Result {
+  const findings = parentTestFindings(result);
+  if (findings.reject.length + findings.rejectOnce.length + findings.review.length === 0) return result;
+  const reasoning = [parentTestRejection(result), parentTestWorkspaceFinding(result), parentTestReviewFinding(result)]
+    .flatMap((finding) => finding ? [finding.reasoning] : [])
+    .join(' ')
+    .slice(0, 4000);
+  const verb = findings.reject.some((observation) => observation.status === 'failed') ? 'failed' : 'did not run';
+  return {
+    ...result,
+    summary: `REFUSED AT DELIVERY — no root acceptance ran and the host-run parent-owned suite ${verb}: ${reasoning}. Reported so far: ${result.summary}`,
     refusal: reasoning,
   };
 }
@@ -398,7 +421,11 @@ export async function runDepthTask(args: {
           }
           args.onAcceptance(acceptance);
           if (acceptance.approved) {
-            if (!acceptance.floorCoverage.some(item => item.status === 'uncovered') &&
+            // A suite nobody below judged that did not pass proved nothing of
+            // the method: the delivery may stand on other evidence, its lesson does not.
+            const unverifiedSuite = parentTestsGrantNothing(result, 'unjudged');
+            if (unverifiedSuite) ctx.logger.warn('[root] distillation withheld: a parent-owned suite did not run');
+            if (!acceptance.floorCoverage.some(item => item.status === 'uncovered') && !unverifiedSuite &&
               !(passCtx.readOnlyPhases?.restorations() ?? []).some(item => item.attempt === (passCtx.attempt ?? 1) && restorationDamaged(item))) {
               args.onApproved?.(actor, currentTask, result, passCtx, refused ? [refused.acceptance.reasoning] : [], acceptance.reasoning);
             }
