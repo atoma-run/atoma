@@ -108,6 +108,29 @@ it('runs a suite that imports built output and requests an in-process server on 
   expect(observation, JSON.stringify(observation)).toMatchObject({ status: 'passed', cause: 'ran', passed: 1, failed: 0 });
 }, 60_000);
 
+// Run e3c8a4a2 (2026-10-16): a migration kept browser/attica-store.js as a
+// forwarder to an unbuilt dist/ beside the new attica-store.ts; the suite's
+// extensionless import loaded the forwarder and failed before any test ran.
+// PARENT_TEST_RUNNER_SCOPE states the resolution order; this pins it.
+it('resolves an extensionless import to the .js file before a .ts file of the same name', async () => {
+  const { root, box } = fixture();
+  writeFileSync(path.join(root, 'store.js'), "module.exports = { origin: 'forwarder' };\n");
+  writeFileSync(path.join(root, 'store.ts'), "export const origin = 'typescript';\n");
+  const source = [
+    "import { test, expect } from 'vitest';",
+    "import * as bare from './store';",
+    "import * as explicit from './store.ts';",
+    "test('resolution order', () => {",
+    "  expect(bare.origin).toBe('forwarder');",
+    "  expect(explicit.origin).toBe('typescript');",
+    '});',
+  ].join('\n');
+
+  const observation = await runParentTests(box, [JSON.stringify(suite(source))], 60_000);
+
+  expect(observation, JSON.stringify(observation)).toMatchObject({ status: 'passed', cause: 'ran', passed: 1, failed: 0 });
+}, 60_000);
+
 it('isolates test writes and refuses access to the live workspace', async () => {
   const { root, box } = fixture();
   writeFileSync(path.join(root, 'add.ts'), 'original');
