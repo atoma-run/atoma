@@ -114,6 +114,9 @@ const overviewProbe = has('--overview-probe');
 const filesProbe = has('--files-probe');
 // A running app preview, so its controls (open, stop) are drawn.
 const previewReady = has('--preview-ready');
+// Leave every stubbed request under this path unanswered, so a loading notice
+// stays on screen long enough to be captured (`--hold /api/assistant`).
+const holdPath = arg('--hold');
 // The saved workspace `--files-probe` browses: one root file and a folder.
 const probeFiles = {
   'README.md': '# Stopwatch\n\nStart, stop and reset, shown as mm:ss.cc.',
@@ -906,6 +909,7 @@ try {
         // handler died is never continued and the page hangs on it forever.
         try {
           const path = new URL(request.url()).pathname;
+          if (holdPath && path.startsWith(holdPath)) return;
           // The assistant card is on every authed Projects shot (2026-10-09).
           if (path === '/api/assistant') {
             void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(assistantFixture) });

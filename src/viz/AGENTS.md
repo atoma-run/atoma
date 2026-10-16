@@ -71,6 +71,12 @@ npm run viz:mark-turn:analyze
   source in the GL client. Every animation system consults it and JUMPS to its
   final state — exit effects are skipped entirely, never left running.
 - The GPU client uses one Pixi context (WebGPU with WebGL fallback). Do not add a second context for a tiny widget. Smoke tests assert exactly one canvas and both backends.
+- ONE LOADING NOTICE: the brand crystal turning five times faster than the
+  mark, WITHOUT its bead (a live run's crystal keeps it), beside "Loading
+  <what>…". `activity-crystal.ts` is the one Pixi-free frame; the canvas draws
+  it through `drawLoadingNotice` (`renderer/loading-notice.ts`), the DOM
+  through `AtomaLoader` (SVG — never a second canvas). Never paint a bare
+  "Loading…": name what is on its way (`viewLoadingKey` for whole views).
 - Chevrons share the 14px geometry in `client-gl/button-icons.ts`: DOM
   disclosures and selects use its CSS variables; canvas controls use
   `drawChevron`. Never substitute a font glyph or a browser's native marker.

@@ -2,6 +2,7 @@ import type { FilePreviewTarget } from './workspace-browser.js';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { FileViewer } from '@open-file-viewer/core';
 import { MAX_WORKSPACE_FILE_BYTES } from '../../contracts/workspaceBrowser.js';
+import { AtomaLoader } from './AtomaLoader.js';
 import { ButtonIcon } from './ButtonIcon.js';
 import { filePreviewPlugins } from './file-preview-plugins.js';
 import { filePreviewTranslations } from './file-preview-i18n.js';
@@ -34,7 +35,7 @@ export function FilePreview({ target, t, locale, onClose, docked }: {
   const frame = useRef<HTMLIFrameElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const [documentReady, setDocumentReady] = useState(false);
-  const [status, setStatus] = useState('workspace.loading');
+  const [status, setStatus] = useState('workspace.previewLoading');
   const [download, setDownload] = useState<string | null>(null);
   useEffect(() => {
     if (documentReady && frame.current) return connectPointerFrame(frame.current);
@@ -71,7 +72,7 @@ export function FilePreview({ target, t, locale, onClose, docked }: {
     let viewerStyle: HTMLStyleElement | undefined;
     let url: string | undefined;
     let failureStatus = 'workspace.unavailable';
-    setStatus('workspace.loading');
+    setStatus('workspace.previewLoading');
     setDownload(null);
     void (async () => {
       const endpoint = `/api/projects/${encodeURIComponent(target.projectId)}/runs/${encodeURIComponent(target.runId)}/workspace?format=bytes&path=${encodeURIComponent(target.path)}`;
@@ -126,7 +127,8 @@ export function FilePreview({ target, t, locale, onClose, docked }: {
           <button type="button" ref={close} onClick={onClose}><ButtonIcon kind="back" />{t('workspace.close')}</button>
         </div>
       </header>
-      {status && <p className="gpu-preview-status" role="status">{t(status)}</p>}
+      {status === 'workspace.previewLoading' ? <AtomaLoader className="gpu-preview-status" label={t(status)} />
+        : status && <p className="gpu-preview-status" role="status">{t(status)}</p>}
       <div className="gpu-preview-stage"><iframe ref={frame} className="gpu-preview-frame" title={target.path} sandbox="allow-same-origin allow-scripts"
         referrerPolicy="no-referrer" srcDoc={DOCUMENT} onLoad={() => setDocumentReady(true)} /></div>
     </section>;

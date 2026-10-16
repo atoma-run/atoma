@@ -5649,6 +5649,15 @@ describe('the shared final result panel', () => {
     expect(expanded.buttons.find(button => button.id === 'result.details')!.active).toBe(true);
   });
 
+  it('waits on a result with the loading crystal beside what is loading', () => {
+    const ctx = createRecordingCtx();
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: 'not-yet-read' }, {}), 10, 100, 1180, 600);
+    expect(ctx.texts.some(text => text.value === t('result.loading'))).toBe(true);
+    const layer = findByLabel(ctx.root, 'loading-crystal');
+    expect(layer && findByLabel(layer, 'loading-atoma-crystal')).toBeTruthy();
+    expect(findByLabel(ctx.root, 'live-atoma-crystal')).toBeUndefined();
+  });
+
   it('leads with the summary and moves its evidence block to the technical details', () => {
     const run = makeRun([], { result: { output: { files: ['index.html'], probes: [] },
       summary: 'The tracker is ready.\n== GROUND TRUTH ==\nsha256 0123abcd  index.html\nnode --test: 8 passed' } });

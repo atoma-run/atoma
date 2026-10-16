@@ -4,6 +4,7 @@ import { workspaceChildren, workspaceParent, workspacePreviewPath, workspaceSpli
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_PAD } from '../view-frame.js';
 import { formatDateTime } from '../../../client/date-format.js';
+import { drawLoadingNotice } from '../loading-notice.js';
 
 /**
  * Height of the docked reader's box below `top`: the column's content box
@@ -58,7 +59,10 @@ export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
   let bottom = 0;
   const message = (key: string) => { ctx.text(pane.content, t(key), 0, 0, { size: 12, width: pane.width - 16 }); bottom = 60; };
   if (data?.failed) message('workspace.unavailable');
-  else if (!data?.index || data.loading) message('workspace.loading');
+  else if (!data?.index || data.loading) {
+    drawLoadingNotice(ctx, pane.content, t('workspace.loading'), 0, 0, { size: 12, width: pane.width - 16 });
+    bottom = 60;
+  }
   else {
     const children = workspaceChildren(data.index, path);
     if (!children.length) message('workspace.empty');

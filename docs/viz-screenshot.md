@@ -54,6 +54,7 @@ npm run viz:shot -- --auth --camera overview        # neutral, undeformed whole-
 npm run viz:shot -- --auth --camera focus           # content-column pose (default)
 npm run viz:shot -- --auth --tuning                  # open the floating Scene Tuning window
 npm run viz:shot -- --out /tmp/before.png           # explicit destination
+npm run viz:shot -- --auth --select-first --hold /api/assistant # leave a stubbed path unanswered: its loading notice stays on screen
 npm run viz:shot -- --url http://127.0.0.1:5173     # attach to a dev stack already running
 npm run viz:shot -- --debug                         # page console + failed requests on stderr
 npm run viz:shot -- --width 528 --height 800        # narrow/compact layouts

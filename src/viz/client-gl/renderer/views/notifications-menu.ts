@@ -8,6 +8,7 @@ import { SEVERITY_COLORS } from './journal-row.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
 import { anchoredMenuPosition, type LocaleMenuAnchor } from './locale-menu.js';
 import { notificationTarget, type NotificationViewer } from '../../notification-target.js';
+import { drawLoadingNotice } from '../loading-notice.js';
 
 /**
  * THE NOTIFICATION TRAY — the bell between the locale control and the profile
@@ -328,11 +329,8 @@ export function drawNotificationsMenu(
         width: innerWidth,
       });
     } else if (data.notificationsLoading) {
-      ctx.text(ctx.root, snapshot.t('notifications.loading'), innerX, layout.foot.y + 8, {
-        size: 10,
-        color: GPU_COLORS.muted,
-        width: innerWidth,
-      });
+      drawLoadingNotice(ctx, ctx.root, snapshot.t('notifications.loading'), innerX, layout.foot.y + 8,
+        { size: 10, width: innerWidth });
     } else if (data.notificationsHasMore) {
       ctx.button(
         ctx.root,
