@@ -3,11 +3,12 @@ import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { L3Atom, routeCrossBucketVerification } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
-import { DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, routingIndexNote } from '../src/atoms/delegationReview.js';
+import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, routingIndexNote } from '../src/atoms/delegationReview.js';
 import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { planSchema } from '../src/atoms/json.js';
 import type { BranchEventInfo, LlmCompletionRequest, LlmCompletionResponse, Plan, Result, RunContext, Task, Tool, ToolExecutor } from '../src/core/types.js';
-import { parentTestSuiteDigest, type DelegationReview, type ParentTestSuite } from '../src/contracts/parentTests.js';
+import { PARENT_TEST_RUNNER_SCOPE, parentTestSuiteDigest, type DelegationReview, type ParentTestSuite } from '../src/contracts/parentTests.js';
+import { PROOF_OBLIGATIONS } from '../src/contracts/attestation.js';
 import { READ_ONLY_TASK_LINE } from '../src/contracts/readOnlyPhase.js';
 import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { MockLlmClient } from '../src/core/llm.js';
@@ -1216,5 +1217,178 @@ describe('capability routing under the root review', () => {
         expect(criteriaSections(req.userContent)).toEqual({ binding: [], context: ['c1', 'c2'] });
       }
     });
+  });
+});
+
+// Run 7a7af324 (2026-10-16): the root review refused the third plan because its
+// integration suite did not drive the compiled UI, although the plan proved those
+// interactions the one way the runtime can: a dom-interaction obligation on its
+// browser-capable integration branch. The planner had been told what the runner
+// can execute; the review had not (event 0ae547e8). These go through the real
+// L3.handle, L3.plan, routing, root review and its host enforcement.
+describe('the runner boundary and the browser proof route (run 7a7af324)', () => {
+  const tool = (name: string): Tool => ({ name, description: name, inputSchema: { type: 'object' } });
+  const suiteOf = (requirement: string, source: string): ParentTestSuite => ({ requirement, cwd: '.', source });
+  const approve = (plan: Plan, integration: 'vitest' | 'other' = 'other', kinds?: ('vitest' | 'other')[]) => ({
+    approved: true,
+    reasoning: 'Suites import real modules; the compiled UI rides the dom-interaction obligation of the browser-capable integration branch.',
+    delegationReview: {
+      subtasks: plan.subtasks.map((subtask, index) => ({
+        index, kind: kinds?.[index] ?? (subtask.outputs?.length ? 'vitest' : 'other'), reason: 'actual assigned scope',
+      })),
+      integration: { kind: integration, reason: 'the join branch carries the built-output suite' },
+      independentWork: true,
+      parallelReason: 'collectors, runtime and UI depend only on the foundation',
+    },
+  });
+
+  function atticaActors() {
+    const db = openDb(':memory:');
+    databases.push(db);
+    const registry = new AtomRegistry(db);
+    const seed = { description: 'orchestrator', systemPrompt: 'You orchestrate.', tools: [] as Tool[], params: {}, createdBy: 'test' };
+    const tissue = registry.create(3, seed);
+    // The two cells of the run, with their tools: SieveElement and Companion.
+    const browserCell = registry.create(2, { ...seed, description: 'Local browser integration cell: files, Node server, HTTP, real browser interaction, recorded commands',
+      tools: ['write_file', 'edit_file', 'read_file', 'list_files', 'run_shell', 'record_probe', 'validate_html', 'fetch_url', 'start_node_server'].map(tool) });
+    const webCell = registry.create(2, { ...seed, description: 'Static web-app builder: files, Node tests, static serving, browser interaction',
+      tools: ['write_file', 'edit_file', 'read_file', 'list_files', 'run_shell', 'record_probe', 'start_static_server', 'validate_html'].map(tool) });
+    return { registry, tissue, browserCell: browserCell.name, webCell: webCell.name };
+  }
+
+  /** The third root plan of run 7a7af324 (event 2c545856), reduced to its contract-bearing fields. */
+  function atticaPlan(cells: { browserCell: string; webCell: string }) {
+    return {
+      reasoning: 'Foundation, then disjoint collector, runtime and UI branches, then integration against built output.',
+      delivery: 'files',
+      subtasks: [
+        { description: 'Establish the shared foundation in package.json, tsconfig.json and tooling/foundation.ts.', preferredChild: cells.browserCell,
+          outputs: ['package.json', 'tsconfig.json', 'tooling/foundation.ts'],
+          acceptanceTests: suiteOf('the foundation names the compiled entry', "import { test, expect } from 'vitest';\nimport { nodeEntry } from './tooling/foundation.ts';\ntest('entry', () => {\n  expect(nodeEntry).toBe('dist/browser/control-server.js');\n});") },
+        { description: 'Migrate the root collectors into collect-attica.ts.', preferredChild: cells.browserCell, dependsOn: [0], outputs: ['collect-attica.ts'],
+          acceptanceTests: suiteOf('CSV escaping is preserved', "import { test, expect } from 'vitest';\nimport { csvEscape } from './collect-attica.ts';\ntest('escapes', () => {\n  expect(csvEscape('a,b')).toBe('\"a,b\"');\n  expect(csvEscape(null)).toBe('');\n});") },
+        { description: 'Migrate browser/control-server.ts and release the collection lock on every /api/resume and /api/start error path.', preferredChild: cells.browserCell, dependsOn: [0],
+          outputs: ['browser/control-server.ts', 'tests/helpers/control-contract.ts'],
+          acceptanceTests: suiteOf('a corrupt checkpoint releases the lock', "import { test, expect } from 'vitest';\nimport { createControlRig } from './tests/helpers/control-contract.ts';\ntest('releases', async () => {\n  const rig = await createControlRig();\n  expect((await rig.request('POST', '/api/resume', {})).status).toBe(500);\n  expect((await rig.request('POST', '/api/start')).status).toBe(202);\n  await rig.close();\n});") },
+        { description: 'Extract browser/control.html logic into browser/control.ts and browser/control-api.ts. Prove parser boundaries now; real selector-based interaction against the compiled server belongs to integration.',
+          preferredChild: cells.webCell, dependsOn: [0], outputs: ['browser/control.html', 'browser/control.ts', 'browser/control-api.ts'],
+          acceptanceTests: suiteOf('the announcement decoder narrows', "import { test, expect } from 'vitest';\nimport { parseAnnouncements } from './browser/control-api.ts';\ntest('narrows', () => {\n  expect(parseAnnouncements({ listings: [] })).toEqual({ listings: [] });\n  expect(() => parseAnnouncements(null)).toThrow();\n});") },
+        { description: 'Integrate the branches, run npm run check and npm run build, then on the same compiled server URL perform actual selector-based listing/filter, start/cancel, resume and schedule interactions and verify visible results, persistence, console errors and failed resources.',
+          preferredChild: cells.browserCell, dependsOn: [1, 2, 3], outputs: ['tooling/smoke-built-control.ts', 'README.md'],
+          proofObligations: ['dom-interaction'],
+          acceptanceTests: suiteOf('the compiled server serves its routes and recovers its lock over loopback HTTP', "import { test, expect } from 'vitest';\nimport { createServer } from './dist/browser/control-server.js';\nimport { createControlRig } from './tests/helpers/control-contract.ts';\ntest('built recovery', async () => {\n  const rig = await createControlRig({ serverFactory: createServer });\n  expect((await rig.request('GET', '/api/status')).status).toBe(200);\n  await rig.close();\n});") },
+      ],
+      aggregation: { mode: 'llm-synthesize', instruction: 'Summarise the five branch results.' },
+      expectedOutput: 'A strict-TypeScript application with compiled entry points and observed verification.',
+    };
+  }
+
+  function atticaModel(cells: { browserCell: string; webCell: string }, review: (plan: Plan) => unknown) {
+    const llm = new MockLlmClient();
+    const reply = (value: unknown): LlmCompletionResponse =>
+      ({ text: JSON.stringify(value), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } });
+    const route = (req: LlmCompletionRequest): LlmCompletionResponse => {
+      if (req.role === 'prefilter') return reply({ kind: 'reuse', target: cells.browserCell, confidence: 'high', reasoning: 'fits' });
+      if (req.role === 'plan') return reply([{ strategy: 'reuse', target: cells.browserCell, reasoning: 'fits' }, atticaPlan(cells)]);
+      if (req.role === 'validate-plan') {
+        const encoded = /^PLAN: (.*)$/m.exec(req.userContent)?.[1];
+        if (!encoded) throw new Error('the root review was not shown its plan');
+        return reply(review(JSON.parse(encoded) as Plan));
+      }
+      throw new Error(`Unexpected ${req.role} call`);
+    };
+    for (let i = 0; i < 12; i++) llm.enqueue(route);
+    return llm;
+  }
+
+  it('tells the root review what the runner can run, and executes the browser route the plan declared', async () => {
+    const actors = atticaActors();
+    const llm = atticaModel(actors, plan => approve(plan));
+    const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    await tissue.handle({ description: 'Migrate the retained Attica application to strict TypeScript' }, makeCtx({ llm }));
+
+    const planner = llm.calls.find(call => call.role === 'plan')!;
+    const reviews = llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews).toHaveLength(1);
+    const lines = reviews[0]!.userContent.split('\n');
+    const header = lines.indexOf(DELEGATION_REVIEW_HEADER);
+    // The calibration reader's anchor: the header is a whole line after the one-line payload.
+    expect(header).toBeGreaterThan(lines.findIndex(line => line.startsWith('PLAN: ')));
+    const request = lines.slice(header).join('\n');
+    // Event 0ae547e8's request named neither the runner's limits nor the route.
+    expect(request).toContain('"proofObligations": ["dom-interaction"]');
+    expect(request).toContain('cannot spawn processes');
+    // One definition, read by both sides: what a suite can run and the browser route.
+    expect(request).toContain(PARENT_TEST_RUNNER_SCOPE);
+    expect(planner.userContent).toContain(PARENT_TEST_RUNNER_SCOPE);
+    for (const obligation of PROOF_OBLIGATIONS) expect(PARENT_TEST_RUNNER_SCOPE).toContain(`"proofObligations": ["${obligation}"]`);
+    // The host half is unchanged: the approved classification executes the route intact.
+    expect(execute).toHaveBeenCalledOnce();
+    expect(execute.mock.calls[0]![1].subtasks[4]).toMatchObject({ preferredChild: actors.browserCell, proofObligations: ['dom-interaction'] });
+  });
+
+  it('gives cell planners the same boundary', async () => {
+    const { cell } = actors();
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'r' },
+      { reasoning: 'r', subtasks: [{ description: 'Implement add', preferredChild: 'Urea', outputs: ['add.ts'], acceptanceTests: suite }], aggregation: { mode: 'concat' }, expectedOutput: 'add.ts' }]));
+    await cell.plan({ description: 'Implement signed addition', acceptanceTests: suite }, ctx);
+    expect(ctx.llm.calls.find(call => call.role === 'plan')?.userContent).toContain(PARENT_TEST_RUNNER_SCOPE);
+  });
+
+  it('asks no suite of a browser-only checkpoint, yet still one of the UI logic behind it', async () => {
+    const actors = atticaActors();
+    const base = atticaPlan(actors);
+    const checkpoint = {
+      description: 'On the compiled server, drive listing/filter, start/cancel, resume and schedule controls by selector and check visible results, console errors and failed resources.',
+      preferredChild: actors.browserCell, dependsOn: [4], proofObligations: ['dom-interaction'],
+    };
+    const withCheckpoint = planSchema.parse({ ...base, subtasks: [...base.subtasks, checkpoint] });
+    const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+    vi.spyOn(tissue, 'plan').mockResolvedValue(withCheckpoint);
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(JSON.stringify(approve(withCheckpoint)));
+    await tissue.handle({ description: 'Migrate the retained Attica application' }, ctx);
+    expect(execute).toHaveBeenCalledOnce();
+
+    // The UI branch's decoder is importable logic: classified vitest, its suite is required.
+    const noUiSuite = planSchema.parse({ ...base, subtasks: base.subtasks.map((subtask, index) => {
+      if (index !== 3) return subtask;
+      const { acceptanceTests: _dropped, ...rest } = subtask;
+      return rest;
+    }) });
+    const refusing = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+    vi.spyOn(refusing, 'plan').mockResolvedValue(noUiSuite);
+    const notRun = vi.spyOn(refusing, 'execute').mockResolvedValue(result);
+    const refusedCtx = makeCtx();
+    for (let i = 0; i < 3; i++) refusedCtx.llm.enqueueText(JSON.stringify(approve(noUiSuite)));
+    await expect(refusing.handle({ description: 'Migrate the retained Attica application' }, refusedCtx)).rejects.toThrow(/Missing parent-owned acceptanceTests on subtask 3/);
+    expect(notRun).not.toHaveBeenCalled();
+  });
+
+  it('keeps the plan-level suite an integration classified vitest requires: the join branch suite is not the plan suite', () => {
+    const actors = atticaActors();
+    const plan = planSchema.parse(atticaPlan(actors));
+    expect(enforceDelegationReview(plan, JSON.stringify(approve(plan, 'vitest')), false)).toMatchObject({ delegationRefusal: 'plan' });
+    expect(enforceDelegationReview(plan, JSON.stringify(approve(plan, 'other')), false)).toBeUndefined();
+  });
+
+  it('tells the review of a cell plan which obligation its subtasks already inherit', async () => {
+    const { tissue, cell } = actors();
+    const ctx = makeCtx();
+    const approval = JSON.stringify(review(['vitest']));
+    ctx.llm.enqueueText(approval);
+    ctx.llm.enqueueText(approval);
+    const inheritedTask: Task = { description: 'Integrate and drive the compiled UI', acceptanceTests: suite, proofObligations: ['dom-interaction'] };
+    await tissue.validatePlan(cell, runnable(), inheritedTask, ctx);
+    await tissue.validatePlan(cell, runnable(), { description: 'Integrate the modules', acceptanceTests: suite }, ctx);
+    const [inherited, plain] = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(inheritedObligationsNote(inheritedTask)).toContain('["dom-interaction"]');
+    expect(inherited!.userContent).toContain(inheritedObligationsNote(inheritedTask));
+    expect(plain!.userContent).not.toContain('HOST FACT: this task already carries proofObligations');
+    expect(inheritedObligationsNote({ description: 'root' })).toBe('');
   });
 });

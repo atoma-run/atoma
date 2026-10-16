@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { DelegationRefusalKind, NegativeVerdict, Plan, Task } from '../core/types.js';
-import { delegationReviewEnvelopeSchema, type DelegationReview } from '../contracts/parentTests.js';
+import { PARENT_TEST_RUNNER_SCOPE, delegationReviewEnvelopeSchema, type DelegationReview } from '../contracts/parentTests.js';
 import { parseWith, planSchema } from './json.js';
 import { parentSuiteRefusal } from './parentSuiteCheck.js';
 import { VALIDATION_SYSTEM_PROMPT } from './verdict.js';
@@ -10,15 +10,38 @@ export type { DelegationRefusalKind } from '../core/types.js';
 /** The review request's first line; the calibration's historical reader anchors on it. */
 export const DELEGATION_REVIEW_HEADER = '== REQUIRED DELEGATION CONTRACT REVIEW ==';
 
+/**
+ * The review's half of the browser route (run 7a7af324). The boundary says
+ * what a suite cannot run; this says what the review does about it, so a
+ * refusal names the route the runtime checks instead of a suite that fails.
+ */
+const BROWSER_PROOF_REVIEW = 'Review every suite against that boundary: a suite that needs a browser, a DOM or a spawned process cannot run here, so reject it, and never ask a suite for one. Never reject a plan because browser-only behaviour is proven by its browser subtask and the obligation that subtask carries instead of a suite. A subtask whose only proof is browser-only behaviour is other; one that also implements code is vitest for that code. When the task needs browser-only behaviour that no subtask routed to a child holding validate_html proves, ask for that subtask, with the obligation when real user input is involved, never for a suite; a task without a page needs neither.';
+
 export const DELEGATION_REVIEW_REQUEST = `${DELEGATION_REVIEW_HEADER}
 Review the entire current task and this plan before dispatch. This is mandatory even for trusted types.
 An approval MUST additionally contain delegationReview:
 {"subtasks":[{"index":0,"kind":"vitest|inspection|other","reason":"scope-specific justification"}],"integration":{"kind":"vitest|inspection|other","reason":"justification"},"independentWork":true,"parallelReason":"actual dependencies or independent work"}.
 Classify EVERY subtask exactly once using zero-based indices. Classify testable TypeScript application implementation as vitest, even when its tests or interfaces were omitted. Unknown interfaces do not turn implementation into inspection. A task that includes implementation cannot be classified inspection. Other is for non-code deliverables or behavior requiring separate browser/CLI probes; explain the concrete proof. Do not exempt importable application behavior merely because it also has a UI or CLI.
+${PARENT_TEST_RUNNER_SCOPE}
+${BROWSER_PROOF_REVIEW}
 Require plan-level Vitest integration tests when branches implement interacting application modules. Review all suite sources for real application imports, useful assertions, negative cases, faithful interfaces, and no replacement of the subject under test. Trivial assertions or placeholders must be rejected even when a suite exists.
 Set independentWork true whenever useful independent work exists in the assigned scope, including work hidden in one broad branch. Reject grouping independent L2 work into one L2 or inventing dependencies to serialize it. Genuine coupling permits sequential work; do not invent branches for a small inseparable change.
 An L3 replanAfter:true plan is discovery ONLY: no writes, no implementation deferred to another subtask. The host will replan once after its observations. A promise in prose to obtain review or replan later has NO runtime effect. Reject such a promise when executable contracts are missing. L2 cannot use replanAfter.
 An approval without this complete classification is not executable. For rejection use the ordinary negative Verdict with actionable reasoning; no classification is required.`;
+
+/**
+ * The obligations the reviewed task already carries. Dispatch unions them into
+ * every subtask (`effectiveObligations`), but a cell's plan does not repeat
+ * them and the task context never renders them: told the browser route, the
+ * review of that plan would ask it to declare what it inherits. Facts only;
+ * '' for a task carrying none, which is every root task.
+ */
+export function inheritedObligationsNote(task: Task): string {
+  const carried = task.proofObligations ?? [];
+  if (carried.length === 0) return '';
+  const pronoun = carried.length === 1 ? 'it' : 'them';
+  return `HOST FACT: this task already carries proofObligations ${JSON.stringify(carried)}; dispatch hands ${pronoun} to every subtask, so this plan need not declare ${pronoun} again.`;
+}
 
 /** The longest routing note a review or a replanning planner reads. */
 export const ROUTING_INDEX_NOTE_MAX_CHARS = 1200;

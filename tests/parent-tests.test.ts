@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, symlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -70,6 +70,42 @@ it('runs real TypeScript through the fixed runner, detects a wrong implementatio
   expect(rejected.summary).toBe('leaf');
   expect(rejected.refusal).toBeUndefined();
   expect(() => readFileSync(path.join(root, 'atoma.acceptance.test.ts'))).toThrow();
+}, 60_000);
+
+// PARENT_TEST_RUNNER_SCOPE tells planners and the delegation review what a suite
+// can run (run 7a7af324). The refusals it states (processes, workers, the live
+// workspace) are pinned below; this pins what it says a suite CAN do, so the
+// text cannot outlive the runner.
+it('runs a suite that imports built output and requests an in-process server on loopback', async () => {
+  const { root, box } = fixture();
+  mkdirSync(path.join(root, 'dist'));
+  writeFileSync(path.join(root, 'dist', 'server.js'), [
+    "import http from 'node:http';",
+    'export function createServer() {',
+    '  return http.createServer((_request, response) => {',
+    "    response.setHeader('content-type', 'application/json');",
+    '    response.end(JSON.stringify({ ok: true }));',
+    '  });',
+    '}',
+    '',
+  ].join('\n'));
+  const source = [
+    "import { test, expect } from 'vitest';",
+    "import { createServer } from './dist/server.js';",
+    "test('serves the status route on loopback', async () => {",
+    '  const server = createServer();',
+    "  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', () => resolve()));",
+    '  const address = server.address();',
+    "  if (!address || typeof address === 'string') throw new Error('no port');",
+    '  const response = await fetch(`http://127.0.0.1:${address.port}/api/status`);',
+    '  expect(await response.json()).toEqual({ ok: true });',
+    '  await new Promise<void>(resolve => server.close(() => resolve()));',
+    '});',
+  ].join('\n');
+
+  const observation = await runParentTests(box, [JSON.stringify(suite(source))], 60_000);
+
+  expect(observation, JSON.stringify(observation)).toMatchObject({ status: 'passed', cause: 'ran', passed: 1, failed: 0 });
 }, 60_000);
 
 it('isolates test writes and refuses access to the live workspace', async () => {

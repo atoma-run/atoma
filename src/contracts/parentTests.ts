@@ -173,11 +173,29 @@ export const delegationReviewSchema = z.object({
 export type DelegationReview = z.infer<typeof delegationReviewSchema>;
 export const delegationReviewEnvelopeSchema = z.object({ delegationReview: delegationReviewSchema });
 
+/**
+ * What a parent-owned suite can execute, and how a plan proves what it cannot.
+ * ONE definition for both sides of the contract: planners read it inside
+ * `PARENT_TEST_PLANNING`, the delegation review inside
+ * `DELEGATION_REVIEW_REQUEST` (src/atoms/delegationReview.ts). Until run
+ * 7a7af324 (2026-10-16) only the planner held it: the root review refused a
+ * plan whose compiled-UI interactions rode a declared `dom-interaction`
+ * obligation on a browser-capable branch, and asked instead for a Vitest suite
+ * driving the UI, which this runner can only fail (no test may spawn a
+ * browser). The third refusal ended the run.
+ */
+export const PARENT_TEST_RUNNER_SCOPE = [
+  'WHAT A PARENT SUITE CAN RUN: one TypeScript Vitest file at the project root of a disposable workspace copy, in a Node environment. It can import real application modules by relative path, source or built output that exists when the suite runs, call their in-process APIs, and start the application\'s HTTP server in-process and request it on loopback. It has no browser and no DOM environment, cannot spawn processes (a CLI run, a browser launch), nested workers or native addons, and never loads the project\'s Vite or Vitest configuration, plugins or setup files. tsconfig `paths` aliases resolve in the suite as in the application modules it imports; CSS imports load as empty stubs (CSS-module class names map to themselves and are not checked).',
+  'BROWSER-ONLY BEHAVIOUR (real user input reaching a page and what it changes on screen, console errors, failed resources) is proven by a subtask routed to a child that holds validate_html. When it depends on real user input, that subtask carries "proofObligations": ["dom-interaction"]: the runtime checks the browser tool\'s own record for interactions it executed on the page, and a result without one goes to full review with that fact. That is the proof route for such behaviour, never a suite. The importable logic and HTTP routes behind the page still need a suite. A CLI process is proven by a subtask that runs it.',
+].join('\n');
+
 export const PARENT_TEST_PLANNING = `PARENT-OWNED ACCEPTANCE TESTS:
 For TypeScript application work, define acceptanceTests on each implementation subtask BEFORE execution:
 {"requirement":"the assigned behavior and its observable interface","cwd":".","source":"import { test, expect } from 'vitest'; import { add } from './src/add.ts'; test('adds', () => { expect(add(2, 3)).toBe(5); });"}.
 The acceptanceTests source is a JSON string: write every backslash as \\\\ (a regex \\d becomes \\\\d in JSON) and escape double quotes and newlines; prefer single-quoted TypeScript strings in test code.
-The source is one TypeScript Vitest file placed at the project root in a disposable workspace copy. Each suite is a self-contained file: it cannot import or share setup with another suite, so include only the setup its own assertions need. Keep it to its own branch's contract, usually 2,000–4,000 characters and under ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')}; do not repeat assertions another suite already makes; cross-branch behaviour belongs in the plan-level suite. Use relative imports of real application modules. Node environment only; subprocesses, nested workers and native addons are unavailable inside assertions. tsconfig \`paths\` aliases resolve in the suite as in the application modules it imports; CSS imports load as empty stubs (CSS-module class names map to themselves and are not checked). Test importable modules and in-process APIs; real browser and CLI process checks remain separate.
+The source is one TypeScript Vitest file placed at the project root in a disposable workspace copy. Each suite is a self-contained file: it cannot import or share setup with another suite, so include only the setup its own assertions need. Keep it to its own branch's contract, usually 2,000–4,000 characters and under ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')}; do not repeat assertions another suite already makes; cross-branch behaviour belongs in the plan-level suite.
+${PARENT_TEST_RUNNER_SCOPE}
+Use relative imports of real application modules; test importable modules and in-process APIs.
 Use Vitest's built-in matchers; expect.extend may only add new names; custom equality testers, snapshot serializers and file snapshots are unavailable (inline snapshots work).
 L3 assigns criteria, interfaces and tests to EACH L2 branch. L2 proposes contract tests for EACH L1; L3 reviews them with the L2 plan before any L1 starts. Specify branch contracts before parallel implementation.
 Plan-level acceptanceTests run after the branches join: L3 owns integration tests in addition to its per-L2 tests. Do not require future branches' behavior in a leaf suite.
