@@ -509,6 +509,41 @@ const fixThenVerify = (l2: string, mode: 'sequential' | 'concat' = 'sequential')
 });
 
 describe('a read-only phase in a run', () => {
+  it('restores a single discovery branch before replanning and keeps root criteria contextual until implementation', async () => {
+    const { reg, l3Type, l2Type, l1Type } = registryWithTiers();
+    const root = workspace({ 'index.html': 'seeded bytes' });
+    const options = { l2: l2Type.name, l1: l1Type.name, l2Prefilter: 'reuse' as const,
+      l3Plan: { reasoning: 'inspect first', replanAfter: true, subtasks: [{ description: 'inspect exports', preferredChild: l2Type.name }],
+        aggregation: { mode: 'sequential' }, expectedOutput: 'interfaces' } as unknown };
+    const { llm: base, validations } = roleLlm(options);
+    let plans = 0;
+    const prompts: string[] = [];
+    const llm: RunContext['llm'] = { complete: async req => {
+      if (req.role === 'plan' && req.actor?.tier === 3 && ++plans === 2) {
+        expect(read(root, 'index.html')).toBe('seeded bytes');
+        expect(req.userContent).toContain('repositoryDiscovery');
+        options.l3Plan = { reasoning: 'implement', subtasks: [{ description: 'build the reviewed page', preferredChild: l2Type.name, outputs: ['index.html'] }],
+          aggregation: { mode: 'sequential' }, expectedOutput: 'page' };
+      }
+      if (req.role === 'validate-plan' && req.userContent.includes('== REQUIRED DELEGATION CONTRACT REVIEW ==') &&
+          req.userContent.includes('"replanAfter":true')) return { ...reply({ approved: true, reasoning: 'discovery only', delegationReview: {
+        subtasks: [{ index: 0, kind: 'inspection', reason: 'inspect exports only' }], integration: { kind: 'inspection', reason: 'read-only discovery' },
+        independentWork: false, parallelReason: 'one inspection' } }), stopReason: 'end_turn' };
+      if (req.role === 'execute') prompts.push(req.userContent);
+      return base.complete(req);
+    } };
+    const ctx = runCtx(root, llm);
+    await L3Atom.buildWithModel(l3Type, reg, FALLBACK_OPUS).handle({ description: 'Build the application',
+      criteria: [{ id: 'c1', source: 'user', behaviour: 'The completed application works' }] }, ctx);
+    expect(plans).toBe(2);
+    expect(validations.some(text => text.includes('Task: inspect exports') && text.includes(READ_ONLY_TASK_LINE))).toBe(true);
+    expect(prompts[0]).not.toContain('Acceptance criteria this phase must prove');
+    expect(prompts[1]).not.toContain(READ_ONLY_TASK_LINE);
+    expect(prompts[1]).toContain('Acceptance criteria this phase must prove');
+    expect(read(root, 'index.html')).toBe('written by: build the reviewed page');
+    expect(ctx.readOnlyPhases!.restorations()).toHaveLength(1);
+  });
+
   it("puts back what the tissue's outputless phase wrote, before its result is judged, and credits its cell nothing (run 04ea696f)", async () => {
     const { reg, l3Type, l2Type, l1Type } = registryWithTiers();
     const root = workspace({ 'index.html': 'the seeded page' });

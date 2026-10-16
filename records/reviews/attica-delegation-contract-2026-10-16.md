@@ -46,3 +46,10 @@ superviseLoop, replay model commands, add supervisor tools, or alter worker egre
 Behavioral regression tests exercise L3.handle and L3.validatePlan, including
 rejection before execution, bounded repair, and inspection followed by a real
 second plan. The existing isolated Vitest runner tests remain part of the checks.
+
+The real three-tier discovery regression also writes through the leaf executor:
+its bytes must be restored before the second L3 planning call. It checks that a
+single discovery branch receives root criteria as context, while implementation
+receives them as requirements. L3 explicitly carries the read-only mark into L2;
+L2 already carries it into L1. This catches an inheritance gap that a mocked
+L3.execute test alone could not establish.

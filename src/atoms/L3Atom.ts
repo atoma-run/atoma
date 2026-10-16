@@ -376,7 +376,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       // Discovery has no resumable implementation prefix. Do not register it as
       // a completed phase of the subsequent plan or skip that plan's first task.
       ctx.recordRootPlan?.(plan);
-      const discovery = await this.execute({ ...task, readOnly: true }, plan, { ...ctx, rootCheckpoint: undefined });
+      const discovery = await this.execute({ ...task, readOnly: true,
+        criteria: task.criteria?.map(item => ({ ...item, unassigned: true })),
+      }, plan, { ...ctx, rootCheckpoint: undefined });
       if (discovery.refusal || discovery.unfinishedPhases?.length || parentTestRefusal(discovery)) return discovery;
       currentTask = { ...task, inputs: { ...task.inputs, repositoryDiscovery: {
         summary: discovery.summary.slice(0, 12000),
@@ -918,6 +920,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         : undeclaredIsReadOnly
           ? { readOnly: true as const }
           : {}),
+      ...(parentTask.readOnly ? { readOnly: true as const } : {}),
       // Proof obligations must cross THIS boundary too. Measured on the first
       // armed control (2026-08-22): the L3 planner declared
       // `proofObligations: ["dom-interaction"]` on its phase, this line
