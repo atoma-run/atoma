@@ -3,6 +3,7 @@
 ## How to work
 - [Push to prod authorized](push-to-prod-authorized.md) — I push to main (= prod) myself after verifying, fetch+rebase first; watch CI + deploy
 - [Prod SSH authorized](prod-ssh-authorized.md) — ssh mgf@atoma.run + sudo for diagnosis; ask before restarting Docker/services
+- [Shared Claude session limit](shared-claude-session-limit.md) — my subagents and own:anthropic Atoma runs share one limit; a 66-agent workflow killed run 492b3334 (2026-10-16)
 - [Verification speed](verification-speed.md) — targeted tests + checks before an ordinary push; CI gates the deploy
 - [No cooling-off](no-cooling-off.md) — fix incidents in-session, but adversarially review every gate/prompt rule/parser salvage first
 - [Beta rules not fixed](beta-rules-not-fixed.md) — 2026-10-16: I decide owner-level design choices myself; documented rules and AGENTS.md can change if evidence says so

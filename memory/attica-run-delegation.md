@@ -103,3 +103,20 @@ acceptance, publication or real collection occurred in this continuation.
   (per-owner budget, 30 s sweep bound). Running the deployed sweep by hand reaped
   the remaining four owners. /24 pools would need a Docker restart (hosted
   containers restart): proposed to the owner, not done.
+
+## 2026-10-16
+
+- 492b3334 (the polish relaunch, own:anthropic) failed after 44 min on the Claude
+  session limit that my 66-agent analysis workflow exhausted; see
+  [[shared-claude-session-limit]].
+- Since then the project runs on own:openai (gpt-5.6-luna / gpt-5.6-terra /
+  gpt-6-astra via codex-cli). Another session's TypeScript migration attempts:
+  e9c1775f and ae044d1f cancelled by the owner, fec4ef6a cancelled, 26a40736 failed
+  at the new delegation contract ("acceptance coverage insufficient"); the fixes
+  landed later that day (c9829d93, c8432e53, 46f3eb80, fd6ec7b7, 7a94b880).
+- 17:40 local: the owner asked to relaunch Attica. Started the strict TypeScript
+  migration again from base 6b6b1952, key attica-typescript-migration-20261016-v3,
+  with seven explicit criteria, plus two pre-existing defects to fix during the
+  port: the /api/resume and /api/start lock release on error paths, and deleting
+  the 27 root debug scripts. Goal and criteria are in the session scratchpad
+  (ts-goal.txt, ts-criteria.json).
