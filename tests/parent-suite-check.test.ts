@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { chai } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
-import { L3Atom } from '../src/atoms/L3Atom.js';
+import { L3Atom, ROOT_PLAN_ATTEMPTS } from '../src/atoms/L3Atom.js';
 import { enforceParsedDelegationReview } from '../src/atoms/delegationReview.js';
 import { parentSuiteRefusal, parentSuiteUnsupported } from '../src/atoms/parentSuiteCheck.js';
 import { VITEST_BUILTIN_MATCHERS, type DelegationReview } from '../src/contracts/parentTests.js';
@@ -158,11 +158,11 @@ describe('a root plan whose suite the runner would refuse', () => {
     const result: Result = { output: {}, summary: 'never', trace: [], producedBy: { name: 'cell', tier: 2, viaFallback: false } };
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
     const approval = { approved: true, reasoning: 'looks fine', delegationReview: review(1) };
-    for (let attempt = 0; attempt < 3; attempt++) ctx.llm.enqueueText(JSON.stringify(approval));
+    for (let attempt = 0; attempt < ROOT_PLAN_ATTEMPTS; attempt++) ctx.llm.enqueueText(JSON.stringify(approval));
 
     await expect(tissue.handle({ description: 'Implement signed addition' }, ctx)).rejects.toThrow('toMatchSnapshot is unavailable');
 
-    expect(plan).toHaveBeenCalledTimes(3);
+    expect(plan).toHaveBeenCalledTimes(ROOT_PLAN_ATTEMPTS);
     expect(execute).not.toHaveBeenCalled();
   });
 

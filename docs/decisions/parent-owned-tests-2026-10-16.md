@@ -378,7 +378,8 @@ review identifies independent work, even beside an affirmative verdict. Scope
 classification and test quality remain semantic judgments, not file-extension or
 keyword detectors. Non-code work and browser/process checks retain their own proof.
 
-A rejected root plan gets bounded planning repair (three candidates total), not
+A rejected root plan gets bounded planning repair (five candidates total since run
+d37d2f8f, whose three sound and narrowing refusals ended it one round short), not
 unreviewed execution or direct fallback. Each refusal reaches the planner with
 the requests it made, and every later review reads the earlier refusals of the
 delegation: one that still stands refuses again only when it is a blocking suite
@@ -479,7 +480,7 @@ no longer refuse it on resume. A checkpoint without a record (older ones), or on
 whose digest no longer matches, gets today's review of the remaining work. A
 refused legacy plan, like a client answer, gets a bounded replan of the remaining
 work only: a sequential suffix, merged after the kept prefix, reviewed again,
-three attempts in all. A fan-out refusal on resume ends the run at once:
+five attempts in all. A fan-out refusal on resume ends the run at once:
 checkpoints are sequential, so replanning cannot satisfy it. Every resumed branch
 records the plan before executing it, so phase counting and
 `--pause-after-phase` are unchanged.

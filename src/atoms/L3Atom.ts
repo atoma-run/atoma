@@ -367,8 +367,16 @@ export function routeCrossBucketVerification(plan: Plan, registry: AtomRegistry)
   return { ...plan, subtasks };
 }
 
-/** The root's planning attempts, each a plan call or re-review followed by the contract review. */
-const ROOT_PLAN_ATTEMPTS = 3;
+/**
+ * The root's planning attempts, each a plan call or re-review followed by the
+ * contract review. Five since 2026-10-16: run d37d2f8f was the first with the
+ * review's requests forwarded and its earlier refusals shown, and every one of
+ * its three refusals was sound and narrower than the one before (a plan with
+ * no implementation; serialized branches and an untested scheduler tick; a
+ * scheduler suite testing an invented adapter). The run then failed one round
+ * short, losing its discovery and $1.84.
+ */
+export const ROOT_PLAN_ATTEMPTS = 5;
 
 export class L3Atom extends Atom implements Supervisor<L2Atom> {
   readonly tier: Tier = 3;
@@ -604,7 +612,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
   }
 
   /**
-   * The root's ONE bounded planning repair: three attempts, each a plan call
+   * The root's ONE bounded planning repair: ROOT_PLAN_ATTEMPTS attempts, each a plan call
    * (or a re-review) followed by the mandatory contract review. An unparseable
    * plan reply spends an attempt with the parser's message as feedback; a
    * reviewer fault (unfinished, unparseable, unclassified) reviews the SAME

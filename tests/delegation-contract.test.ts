@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
-import { L3Atom, routeCrossBucketVerification } from '../src/atoms/L3Atom.js';
+import { L3Atom, ROOT_PLAN_ATTEMPTS, routeCrossBucketVerification } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, previousRefusalsNote, refusalWithRequests, routingIndexNote } from '../src/atoms/delegationReview.js';
 import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
@@ -91,11 +91,11 @@ describe('mandatory delegation contracts', () => {
     });
     const plan = vi.spyOn(tissue, 'plan').mockResolvedValue(observed);
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
-    for (let i = 0; i < 3; i++) ctx.llm.enqueueText(JSON.stringify(review(['inspection', 'vitest', 'other'], true, 'vitest')));
+    for (let i = 0; i < ROOT_PLAN_ATTEMPTS; i++) ctx.llm.enqueueText(JSON.stringify(review(['inspection', 'vitest', 'other'], true, 'vitest')));
 
     await expect(tissue.handle({ description: 'Migrate Attica to TypeScript' }, ctx)).rejects.toThrow('Missing parent-owned');
 
-    expect(plan).toHaveBeenCalledTimes(3);
+    expect(plan).toHaveBeenCalledTimes(ROOT_PLAN_ATTEMPTS);
     expect(execute).not.toHaveBeenCalled();
     expect(ctx.llm.calls.every(c => c.role === 'validate-plan' && !c.tools && !c.executor)).toBe(true);
   });
@@ -372,12 +372,12 @@ describe('root delegation review robustness', () => {
     expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(2);
   });
 
-  it('ends the run after three reviewer faults without executing', async () => {
+  it('ends the run after a reviewer fault on every attempt, without executing', async () => {
     const { tissue } = actors();
     const ctx = makeCtx();
     vi.spyOn(tissue, 'plan').mockResolvedValue(runnable());
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
-    for (let i = 0; i < 3; i++) ctx.llm.enqueueText('not a verdict');
+    for (let i = 0; i < ROOT_PLAN_ATTEMPTS; i++) ctx.llm.enqueueText('not a verdict');
     await expect(tissue.handle({ description: 'Implement signed addition' }, ctx)).rejects.toBeInstanceOf(ValidationError);
     expect(execute).not.toHaveBeenCalled();
   });
@@ -400,10 +400,10 @@ describe('root delegation review robustness', () => {
     expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
   });
 
-  it('ends the run after three unparseable root plans, naming the parser', async () => {
+  it('ends the run after an unparseable root plan on every attempt, naming the parser', async () => {
     const { tissue, cellName } = routedActors();
     const bad = planReply(cellName).replace('\\\\d', '\\d');
-    const ctx = makeCtx({ llm: routedLlm(cellName, [{ text: bad }, { text: bad }, { text: bad }], []) });
+    const ctx = makeCtx({ llm: routedLlm(cellName, Array.from({ length: ROOT_PLAN_ATTEMPTS }, () => ({ text: bad })), []) });
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
     await expect(tissue.handle({ description: 'Implement signed addition' }, ctx)).rejects.toThrow(/plan reply unparseable: .*Bad escaped character/);
     expect(execute).not.toHaveBeenCalled();
@@ -474,10 +474,10 @@ describe('root delegation review robustness', () => {
       expect(execute.mock.calls[0]?.[1].subtasks[0]?.acceptanceTests?.source).toBe(atBound);
     });
 
-    it('ends the run after three, naming the bound', async () => {
+    it('ends the run after every attempt is over the bound, naming the bound', async () => {
       const { tissue, cellName } = routedActors();
       const over = { text: planReply(cellName, sized(13_240)) };
-      const ctx = makeCtx({ llm: routedLlm(cellName, [over, { ...over }, { ...over }], []) });
+      const ctx = makeCtx({ llm: routedLlm(cellName, Array.from({ length: ROOT_PLAN_ATTEMPTS }, () => ({ ...over })), []) });
       const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
       await expect(tissue.handle({ description: 'Implement signed addition' }, ctx)).rejects.toThrow(sizeMessage);
       expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(0);
@@ -990,7 +990,7 @@ describe('capability routing under the root review', () => {
 
     await expect(tissue.handle({ description: 'Build the application' }, ctx)).rejects.toBeInstanceOf(ValidationError);
 
-    expect(model.reviewedPlans).toHaveLength(3);
+    expect(model.reviewedPlans).toHaveLength(ROOT_PLAN_ATTEMPTS);
     expect(execute).not.toHaveBeenCalled();
   });
 
@@ -1364,7 +1364,7 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
     vi.spyOn(refusing, 'plan').mockResolvedValue(noUiSuite);
     const notRun = vi.spyOn(refusing, 'execute').mockResolvedValue(result);
     const refusedCtx = makeCtx();
-    for (let i = 0; i < 3; i++) refusedCtx.llm.enqueueText(JSON.stringify(approve(noUiSuite)));
+    for (let i = 0; i < ROOT_PLAN_ATTEMPTS; i++) refusedCtx.llm.enqueueText(JSON.stringify(approve(noUiSuite)));
     await expect(refusing.handle({ description: 'Migrate the retained Attica application' }, refusedCtx)).rejects.toThrow(/Missing parent-owned acceptanceTests on subtask 3/);
     expect(notRun).not.toHaveBeenCalled();
   });
