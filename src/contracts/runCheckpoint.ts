@@ -1,13 +1,30 @@
 import { startingSnapshotSchema } from './startingWorkspace.js';
 import { z } from 'zod';
 import { acceptanceChecklistSchema } from './acceptanceChecklist.js';
+import { delegationReviewSchema } from './parentTests.js';
 import type { Plan, Result, Task, SubtaskSpec } from '../core/types.js';
+
+/**
+ * The root delegation review that approved the saved plan, bound by digest to
+ * what decided it (`approvalDigest`): a pre-execution judgement of plan bytes,
+ * like the plan and strategy beside it, never proof or a delivery approval.
+ * `from` is the first subtask the review covered. Absent on older checkpoints,
+ * which a resume reviews again. Adding it is one-way: an older binary reads a
+ * checkpoint carrying it as incomplete (docs/decisions/run-checkpoints-2026-10-08.md).
+ */
+export const rootDelegationApprovalSchema = z.object({
+  digest: z.string().regex(/^[0-9a-f]{64}$/),
+  from: z.number().int().nonnegative(),
+  review: delegationReviewSchema,
+}).strict();
+export type RootDelegationApproval = z.infer<typeof rootDelegationApprovalSchema>;
 
 /** Plan/strategy are opaque here; their existing parsers decode them at L3. */
 export const rootPlanCheckpointSchema = z.object({
   plan: z.unknown(), strategy: z.unknown(), plannedPhases: z.number().int().positive(),
   inputs: z.record(z.string(), z.unknown()).optional(),
   reconciledQuestionId: z.string().uuid().optional(),
+  approval: rootDelegationApprovalSchema.optional(),
 }).strict();
 export type RootPlanCheckpoint = z.infer<typeof rootPlanCheckpointSchema>;
 export const checkpointProcessSchema = z.object({ pid: z.number().int().min(2), group: z.boolean() }).strict();
@@ -46,7 +63,7 @@ export type RunCheckpoint = z.infer<typeof runCheckpointSchema>;
 export interface RootPhaseCheckpoint {
   restore(): RootPlanCheckpoint | null;
   readonly replanAfterAnswer?: boolean;
-  planned(task: Task, plan: Plan, strategy: unknown, plannedPhases: number): void;
+  planned(task: Task, plan: Plan, strategy: unknown, plannedPhases: number, approval?: RootDelegationApproval): void;
   readonly completed: readonly Result[];
   beforePhase(index: number, next?: SubtaskSpec): void | Promise<void>;
   afterPhase(index: number, result: Result): Promise<void>;

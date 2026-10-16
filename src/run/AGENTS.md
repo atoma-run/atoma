@@ -94,7 +94,9 @@ Neighbours:
 
 - Opt-in `--checkpoint` / `--pause-after-phase N` / `--resume ID` implement
   durable sequential continuation in `checkpoint.ts`. Same workspace for CLI,
-  original plan/checklist and carried budget; fresh trace and proof log. Only
+  original plan/checklist and carried budget; fresh trace and proof log. The
+  root delegation approval rides `root` in the plan's own write, bound by digest;
+  an older binary reads such a checkpoint as incomplete (one-way, 2026-10-16). Only
   complete approved boundaries are restored. An interrupted phase may restart
   only with a sealed snapshot, settled model spend, no external/commons mutation
   since that boundary, and verified backend shutdown. A pausing boundary (pause

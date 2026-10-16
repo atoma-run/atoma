@@ -699,3 +699,209 @@ container test on any bump of vite, vitest or rolldown.
 - **Throughput on Linux** is about 2.2x the synchronous copy's wall time in a
   2-CPU container; the copy no longer blocks other lanes, but a large
   `node_modules` takes a larger share of the 120 s window.
+
+## D — Root delegation review robustness and unparseable root plans
+
+Problem points 5 and 6 of the critical review. Owner decisions kept: the root
+review is mandatory, there is no unreviewed fallback, and independent work must
+fan out.
+
+### Findings
+
+1. **The 0d3739dc retry only covered L1 plans.** `superviseLoop` asks again on a
+   `ValidationError`, but `L2Atom.plan` and `L3Atom.plan` used `parseTwoJson`
+   plus `schema.parse`, which throw `SyntaxError`, a plain `Error` or
+   `ZodError`. A test source holding `\d`, a raw newline or an unescaped `"`
+   ended the run at L2, at the L3 root and at the SHORT root
+   (`shortRootHandle` had no retry at all).
+2. **`parseTwoJson` amputated plans silently.** Its truncation path closes an
+   open string and the brackets: a reply cut inside `acceptanceTests.source`
+   came back schema-valid with the suite cut short and the later subtasks gone,
+   and a reply cut inside the plan got a synthesised placeholder plan.
+   `parsePlanWithFallback` is only used by fallback `selfPlan`, where the suite
+   rides `task.acceptanceTests` and the supervisor's run wrapper verifies it; it
+   does not drop a declared suite, and it is unchanged.
+3. **Reviewer failures counted as plan failures.** A review whose stop reason
+   was not `end_turn`, or an approval with no classification or bad indices,
+   became a refusal that asked Opus for a new plan coached about the reviewer's
+   own failure. An unparseable verdict (`parseVerdict` → `ValidationError`)
+   escaped `prepareRootDelegation` and ended the run.
+4. **Ollama broke the stop-reason vocabulary.** It returned `stop`/`length`
+   where every other transport maps to `end_turn`/`max_tokens`. On Ollama every
+   delegation review read as unfinished, and so did the client-question and
+   criteria reviews.
+5. **Validators are capped at 2048 tokens**, and Sonnet 5 counts adaptive
+   thinking inside `max_tokens`; moving the root review to tier 2 needed its
+   own parameters.
+
+Probe evidence: findings 1–5 were traced in the code at `8b9d990b` (line
+references in the group D design: `supervisor.ts:289-296`, `L2Atom.ts:700-703`,
+`L3Atom.ts:753-755`, `runner.ts:107-111`, `json.ts:469-490`, `verdict.ts:629`
+and `:1072`, `llmOllama.ts:253,269`). The regression tests below were checked
+against the fix by mutation (see Tests); they were not replayed on the base tree.
+
+### What changed
+
+- **Root review on tier 2** with `ROOT_DELEGATION_REVIEW_PARAMS`
+  (`STRATEGY_MAX_TOKENS`, `effort: 'medium'`), resolved lazily so an L3 builds
+  without `ATOMA_MODEL_L2`. Child-plan reviews stay on the validation model.
+  The constant lives in `cost.ts` beside `STRATEGY_MAX_TOKENS`, not in
+  `verdict.ts` as designed: `cost.ts` imports `verdict.ts`, and a top-level
+  constant across that cycle would hit the temporal dead zone on one load order.
+- **Typed refusal kinds**, set by the host on `NegativeVerdict.delegationRefusal`
+  and never parsed from the model: `reviewer` (cut at `max_tokens`/`pause_turn`,
+  unparseable verdict, missing classification, incomplete or duplicate
+  indices), `plan` (discovery misuse, missing classified suites) and `fan-out`.
+  `enforceParsedDelegationReview` is the mechanical half, reused on resume.
+- **`L3Atom.reviewedRootPlan`**, one bounded loop for the fresh and resumed
+  paths: three iterations; a `PlanParseError` spends one with
+  `planParseFeedback`; a reviewer fault re-reviews the same plan on the
+  validation model with `VALIDATION_PARAMS`, with no plan call; a plan refusal
+  replans; on a continuation a fan-out refusal is terminal at once.
+- **`parsePlanPair`** reads a strategy+plan reply exactly as written or throws
+  `PlanParseError` (a `ValidationError`) prefixed `plan reply unparseable:`:
+  the parser message with an 80-character excerpt around the position
+  (`jsonParseExcerpt`, extracted from `describeInvalidArguments`); a distinct
+  message for a repaired reply cut at `max_tokens` (asks for a shorter reply)
+  and for an unbalanced finished one; schema errors bounded to 600 characters.
+  L2 and L3 `plan()` use it; L2 now commits its strategy only after the plan
+  parsed. `parseTwoJson` keeps its behaviour for `viz/report.ts` and the index.
+- **SHORT root**: three attempts around `cell.plan`, on `PlanParseError` only.
+- **Ollama** maps `stop` → `end_turn` and `length` → `max_tokens`.
+- **Planning guidance**: `PARENT_TEST_PLANNING` now says how to write a test
+  source inside a JSON string.
+- **Checkpoint approval record**: `root.approval = { digest, from, review }`,
+  written in the same `planned()` write as the plan. The digest binds the review
+  request, a hash of `VALIDATION_SYSTEM_PROMPT`, the reviewing model, `from`, the
+  plan as a checkpoint restores it (JSON then `planSchema`, so key order and
+  host-only keys cannot break the match), the task's inputs, description,
+  criteria and constraints, and the actor's name, id and registry version. A
+  resume whose record binds against either current reviewing pin re-runs the
+  mechanical enforcement and executes with no model call; otherwise it reviews
+  the remaining slice as before. A refused legacy plan, like a client answer,
+  replans only a sequential suffix (a non-sequential reply is feedback, not an
+  exception). Every resumed branch calls `planned()` before `execute()`.
+
+### Salvage: admitted and refused
+
+Admitted: raw control characters inside strings, escaped by the existing
+`escapeControlCharsInStrings` from the first `[`/`{` on, kept only if the whole
+pair then parses with no repair and both schemas accept it. It is lossless: the
+decoded string is what the model wrote between the quotes. It is tried only
+when the reply did not parse as written (extraction error or repaired read);
+it can never win over a clean reply, and never over truncation, since a
+truncated reply still needs a repair after escaping. Adversarial cases, each
+with a test or a traced path: a stray unescaped quote inverts the in-string
+tracking, so escaping hits structural whitespace, the pair fails and the planner
+is asked again (`does not salvage raw newlines beside a stray unescaped quote`);
+a backslash before a raw newline is left as is and fails; `\d` and other invalid
+escapes are untouched and fail; prose before the JSON is outside the slice.
+
+Refused: doubling invalid escapes, inferring unescaped quotes, and executing a
+truncated or repaired pair. Each would author contract bytes on the model's
+behalf (src/core: "never repair or reinterpret executable arguments"); the
+`salvageResultEnvelope` fuzz (685 of 20,000 envelopes fused wrongly) is the
+precedent. Asking again with a positional message loses nothing.
+
+### Counterexamples checked
+
+- **fec4ef6a**: a tier-2 or Haiku approval still runs the mechanical
+  enforcement; a recorded approval is re-enforced on resume and bound to the
+  exact plan, so a plan promising tests in prose cannot pass.
+- **12bdcf19**: raw newlines are escaped losslessly; quotes and invalid escapes
+  are asked again with an excerpt, at L2, at the L3 root and at the SHORT root.
+- **Truncation history** (`plan-truncation-recovery`,
+  `l3-truncated-plan-aggregation`): complete replies keep their defaults
+  (L3's `sequential` for an omitted aggregation, read from the raw plan); only
+  repaired replies are refused. The 2026-08-08 fused emission still parses.
+- **The 39-character summary**: the same "schema-valid but amputated" class.
+- **"Proof is always fresh"**: the approval judges plan bytes before execution,
+  like the saved plan and strategy; root acceptance stays fresh.
+- **Saved actor changed** (code review 2026-10-09, 1.4): still refused before
+  any approval is read, and the actor is in the digest.
+- **Client-answer crash after plan**: `planned()` runs after the approval, so
+  the successor resumes without judging again (asserted).
+- **Discovery**: never checkpointed. **Fallback**: `parsePlanWithFallback`
+  untouched. **Fan-out on resume**: terminal at once, zero plan calls.
+
+### Tests
+
+All mocked; the checkpoint cases cross the process boundary with the real
+runner and store.
+
+- `tests/delegation-contract.test.ts`: the root review's model and parameters
+  and the child review's; an L3 built without `ATOMA_MODEL_L2`; four reviewer
+  faults each re-review once on the validation model, and three in a row end the
+  run unexecuted; through the real `L3.plan`, an invalid escape is asked again
+  with the parser message and never reviewed, three end the run naming the
+  parser, raw newlines are salvaged on the first call with the exact suite
+  bytes, and a reply cut at the cap is never reviewed or executed and is asked
+  to be shorter; the escaping sentence reaches the L3 and L2 plan prompts; an
+  in-process resume runs a recorded approval with no model call, reviews again
+  after a criteria change, and after a recorded classification that no longer
+  enforces.
+- `tests/json.test.ts`: `parsePlanPair` cases (clean, fused, no aggregation,
+  cut at the cap, unbalanced, placeholder, invalid escape with excerpt, bounded
+  schema error, raw-newline salvage, stray-quote refusal; `parseTwoJson`
+  unchanged).
+- `tests/supervision.test.ts`: a real L2 cell's unparseable pair gives one
+  `plan-unparseable` entry and no escalation, and the executed strategy is the
+  parsed reply's.
+- `tests/llm-ollama.test.ts`: `stop` → `end_turn`, `length` → `max_tokens`.
+- `tests/run-checkpoint.test.ts` (separate process): the restart stores an
+  approval classifying both phases and the resume makes zero root reviews; a
+  legacy payload (`json_remove`) is reviewed once and delivers; a changed saved
+  subtask or changed saved inputs are reviewed once; a resume with
+  `--pause-after-phase 3` fails in `planned()` with zero reviews (proving the
+  recorded branch records the plan); a refused legacy plan replans one suffix
+  and the prefix is not replayed; an always-refused one ends with "Saved
+  delegation plan requires a new run"; a fan-out refusal ends with zero plan
+  calls; the client-answer cases make one review, and none after the post-plan
+  crash; the SHORT root retries once and gives up after three.
+  Mutation checks: with the recorded-approval branch disabled, the restart, the
+  two post-plan-crash and the in-process recorded-approval tests fail; with
+  reviewer faults treated as plan refusals, the four re-review tests fail; with
+  repaired pairs accepted, the cap, unbalanced, placeholder and root truncation
+  tests fail.
+
+Criteria tampering is asserted in process rather than across the boundary: the
+fixture's checklist is empty, and a non-empty one would change final acceptance
+as well as the digest.
+
+### Critique disposition
+
+Adopted: the tier-2 cap and effort with a Haiku re-review on a reviewer fault;
+host-typed refusal kinds; terminal fan-out on a continuation; the digest binding
+(request, system-prompt hash, model, task fields, actor); the run-checkpoints
+decision edit; the L1 wording; the SHORT root retry; Ollama normalisation; the
+control-character salvage only when the whole pair then parses unrepaired; the
+lazy tier-2 resolution; `stopReason` in the truncation feedback;
+`PlanParseError`; `planned()` in every saved branch; the cost upper bound and
+the `models.ts` comment. Adopted in part: rollback stays a documented one-way
+change inside the strict payload (a two-step deploy and a sibling table were
+rejected). Rejected: keeping Haiku until measured; the cost rule and the root
+acceptance precedent support tier 2, and the Haiku re-review keeps today's
+finishing behaviour as a floor.
+
+### Measurement triggers
+
+- the root `validate-plan` `stopReason` and output tokens on the first deployed
+  runs (a `max_tokens` on Sonnet at 8000 means the cap or effort is wrong);
+- how often a `reviewer` fault falls back to the validation model;
+- `plan reply unparseable` warnings, split into truncation and other;
+- root refusals overturned on replan.
+
+### Open items
+
+- A child-review `reviewer` refusal repeated in `superviseLoop` still hits
+  `planRepeat` and gives `EscalationSignal('repeat')`, branching a type over a
+  reviewer failure.
+- An unparseable verdict in a child plan review still throws.
+- L1 `parseWith` still accepts repaired payloads.
+- A change to `VALIDATION_SYSTEM_PROMPT` or the review request invalidates every
+  recorded approval: those resumes take the legacy review, by design.
+- Sonnet under the 8000-token cap at medium effort is unmeasured; a run ends
+  only after three consecutive reviewer faults.
+- Plans with many suites can exceed `STRATEGY_MAX_TOKENS`; three truncations
+  now end the run where an amputated plan used to execute. A cell whose replies
+  keep truncating escalates once its plan budget is spent.

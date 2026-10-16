@@ -211,7 +211,7 @@ Review:
 The first Attica trial exposed a missing admission boundary: a root plan could
 promise later tests and review in prose while its actual implementation branch
 carried no executable suite. L3 root plans now receive a mandatory tool-free
-review using the validation model before dispatch. The reviewer classifies every
+review before dispatch. The reviewer classifies every
 subtask and integration as Vitest-testable, inspection, or another proof method,
 and states whether useful independent work exists. The host requires complete,
 unique indices and refuses missing classified suites or a serial plan when the
@@ -224,11 +224,74 @@ unreviewed execution or direct fallback. L2 plans under parent suites receive th
 same contract check within the existing L3 review, including trusted cells. Exact
 approved-plan reuse remains; changed contracts are reviewed again.
 
+**The root review runs on tier 2** (`modelForTier(2)`), with its own parameters,
+`ROOT_DELEGATION_REVIEW_PARAMS`: the `STRATEGY_MAX_TOKENS` cap (8000, a cap that
+includes adaptive thinking) and `effort: 'medium'`. It is the one validator with
+an effort pin. The ground is the cost rule's own: three refusals end the run with
+nothing delivered, each refusal costs a top-tier replan, and the review judges
+test-source quality, which is code review rather than a bounded yes/no. Root
+acceptance of a recorded text plan already rides tier 2 for the same reason.
+Child-plan reviews stay on the validation model: their refusals stay inside
+`superviseLoop`'s budget and cost a tier-2 replan.
+
+Typical cost, at catalogue prices (Sonnet 5 $2/$10 per M input/output, Haiku 4.5
+$1/$5, Opus 5.5 $4/$20): about $0.03–0.05 per root review against about $0.02 on
+Haiku. Upper bound per tier-2 review: about $0.04 of input for a 15–20k-token
+plan plus $0.08 for the whole 8000-token output cap, so about $0.12; per run,
+three reviews, about $0.36, and less in practice because a re-review after a
+reviewer fault runs on Haiku and the calls share a warm cache. One avoided Opus
+replan saves up to about $0.16; three avoid a run that delivers nothing (run
+fec4ef6a: $0.32 in 165 s, no delivery).
+
+**A reviewer fault is not a plan fault.** The host types each refusal
+(`delegationRefusal: 'reviewer' | 'plan' | 'fan-out'`, never parsed from model
+text). A review cut by its cap, an unparseable verdict, an approval without its
+classification or with incomplete or duplicate indices is the reviewer's
+failure: the SAME plan is reviewed again on the validation model with
+`VALIDATION_PARAMS`, with no new plan call. Enforcement runs on whichever review
+approves. Only a plan or fan-out refusal asks for a new plan.
+
+**An unparseable root plan spends an attempt.** The reply is read exactly as
+written (`parsePlanPair`); malformed JSON, a schema mismatch, or a reply that
+only a truncation repair would complete raises `PlanParseError`, and the next
+attempt is asked with the parser's message and an excerpt around the position.
+A reply cut at `max_tokens` is asked to be shorter. The bad reply is never
+reviewed. The same parser serves L2 plans, which `superviseLoop` now asks again,
+and the SHORT root, which gets the same three attempts. The planning guidance
+tells planners how to write a test source inside a JSON string.
+
+One salvage is admitted: raw control characters inside strings are escaped, and
+the result is kept only if the whole pair then parses with no repair and both
+schemas accept it. It is lossless, since the decoded string is the characters the
+model wrote. Doubling invalid escapes, inferring unescaped quotes and executing a
+repaired pair were refused: each would author contract bytes on the model's
+behalf. Refusing repaired L2 and L3 pairs revises the 2026-08 truncation defence
+(placeholder plans, closed strings) for plan pairs; L1 keeps `parseWith`'s repair.
+`parsePlanWithFallback` is unchanged: in fallback mode the suite rides the task
+and the supervisor's own run wrapper verifies it.
+
 When interfaces are unknown, L3 may emit `replanAfter: true` on an inspection-only
 plan without outputs. The host executes it read-only, then asks L3 for a new plan
 with bounded discovery observations and the original task. Only one discovery
 round is allowed. It is not registered as a completed implementation checkpoint,
-so the new plan never skips its first branch. Saved sequential plans are reviewed
-for remaining work on resume; DAG checkpoint support is unchanged.
+so the new plan never skips its first branch. DAG checkpoint support is unchanged.
+
+**Resume does not re-judge a recorded approval** (owner confirmation requested).
+The approval is saved with the checkpoint's root plan, in the same write:
+`{ digest, from, review }`. The digest binds the review contract text, a hash of
+the validation system prompt, the reviewing model selector, `from` (the first
+subtask reviewed), the plan as a checkpoint restores it, the task's inputs,
+description, criteria and constraints, and the root actor's name, id and
+version. A resumed root whose record still binds (against either current
+reviewing pin) re-runs the host's mechanical enforcement over the recorded
+classification, at zero tokens, and executes; a model that approved a plan can
+no longer refuse it on resume. A checkpoint without a record (older ones), or one
+whose digest no longer matches, gets today's review of the remaining work. A
+refused legacy plan, like a client answer, gets a bounded replan of the remaining
+work only: a sequential suffix, merged after the kept prefix, reviewed again,
+three attempts in all. A fan-out refusal on resume ends the run at once:
+checkpoints are sequential, so replanning cannot satisfy it. Every resumed branch
+records the plan before executing it, so phase counting and
+`--pause-after-phase` are unchanged.
 
 Incident and adversarial controls: [Attica planning review](../../records/reviews/attica-delegation-contract-2026-10-16.md).

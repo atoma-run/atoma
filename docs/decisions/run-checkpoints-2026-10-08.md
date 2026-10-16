@@ -27,6 +27,7 @@ seeded work is supported. Nothing changes for operator launches without these fl
 
 `run_checkpoints` is a table in the existing product SQLite store, outside the
 tool workspace. It stores the original plan/strategy, original phase count,
+the root delegation approval record (added 2026-10-16),
 root actor identity/version, checklist, completed output/summary/provenance,
 remaining execution time, consumed tokens/cost and a workspace digest. It stores
 no provider credentials. Boundary snapshots (including workspace file bytes) live
@@ -130,6 +131,21 @@ references, proof coverage, tool results and validation traces are not loaded
 into the new process. Runtime endpoints may have disappeared. Remaining phases
 and the final root acceptor must establish the evidence they need normally;
 a checkpoint is never a delivery approval.
+
+The root delegation approval record (2026-10-16, owner confirmation requested) is
+the single pre-execution judgement a resume restores. It is bound by digest to the
+exact plan, inputs, task, root actor, review contract and reviewing model; it
+judges plan bytes before execution, like the saved plan and strategy beside it,
+is kept apart from result proof, and is never a delivery approval. The host's
+mechanical enforcement runs again over it; a record that no longer binds gets a
+fresh review ([parent-owned tests](parent-owned-tests-2026-10-16.md#mandatory-planning-review-and-discovery)).
+
+Rollback is one-way for checkpoints that carry the record: the root payload is a
+strict schema, so an older binary reads such a checkpoint as `incomplete` and
+refuses to resume it. Nothing is destroyed (only finished or expired rows are
+pruned), and rolling forward makes those checkpoints resumable again. A two-step
+deploy was rejected because auto-deploy runs per CI revision, and a sibling table
+because continuations would then need a second, non-atomic copy of root state.
 
 Each process gets its own immutable trace and records only its own new usage.
 The launch log links the continuation ID and previous trace. The budget meter

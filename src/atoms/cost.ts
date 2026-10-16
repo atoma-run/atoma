@@ -256,6 +256,18 @@ export async function withinSignal<T>(work: Promise<T>, signal: AbortSignal): Pr
  */
 export const STRATEGY_MAX_TOKENS = 8000;
 
+/**
+ * The ROOT delegation review's parameters: the one validator that runs on a
+ * thinking tier (`modelForTier(2)`), because three refusals end the run and
+ * each one costs a top-tier replan (src/atoms/AGENTS.md, src/core/AGENTS.md).
+ * The cap is STRATEGY_MAX_TOKENS for the same reason as there: it is a cap,
+ * not a target, and it includes adaptive thinking, which VALIDATION_PARAMS'
+ * 2048 would leave no room for. Effort is pinned as on strategy calls. A
+ * reviewer that still fails is re-asked on the validation model with
+ * VALIDATION_PARAMS (`L3Atom.reviewedRootPlan`).
+ */
+export const ROOT_DELEGATION_REVIEW_PARAMS: GenerationParams = { temperature: 0, maxTokens: STRATEGY_MAX_TOKENS, effort: 'medium' };
+
 export function shouldTrustType(type: AtomType): boolean {
   return type.consecutiveSuccesses >= trustThreshold();
 }

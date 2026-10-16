@@ -1,5 +1,5 @@
 import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
-import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceDelegationReview } from './delegationReview.js';
+import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceParsedDelegationReview, parseDelegationReview } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { transportWitnesses } from '../contracts/witness.js';
@@ -626,7 +626,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
  * blocks in earlier runs. The prompt also tells the model to keep reasoning
  * under 120 words, so typical completions still stay small.
  */
-const VALIDATION_PARAMS: GenerationParams = { temperature: 0, maxTokens: 2048 };
+export const VALIDATION_PARAMS: GenerationParams = { temperature: 0, maxTokens: 2048 };
 
 /**
  * Cap on how much of an active skill's body is shown to the validator for
@@ -879,6 +879,8 @@ export function renderTransportEvidence(
 export async function llmVerdict(args: {
   /** Mandatory scope classification and executable-test check, never a trust shortcut. */
   delegationContract?: { plan: Plan; allowDiscovery: boolean };
+  /** Defaults to VALIDATION_PARAMS; only the root delegation review passes its own (src/core/AGENTS.md). */
+  params?: GenerationParams;
   ctx: RunContext;
   model: string;
   supervisorName: string;
@@ -1069,7 +1071,7 @@ export async function llmVerdict(args: {
     model: args.model,
     systemPrompt: VALIDATION_SYSTEM_PROMPT,
     userContent,
-    params: VALIDATION_PARAMS,
+    params: args.params ?? VALIDATION_PARAMS,
     signal: args.ctx.signal,
     role: args.audit ? 'jev-audit' : args.subject === 'PLAN' ? 'validate-plan' : 'validate-result',
     actor: { name: args.supervisorName, tier: args.supervisorTier },
@@ -1078,11 +1080,19 @@ export async function llmVerdict(args: {
   });
 
   if (args.requireComplete && resp.stopReason !== 'end_turn') throw new Error('Incomplete root review reconciliation');
-  if (args.delegationContract && resp.stopReason !== 'end_turn') return delegationRefusal('Delegation contract review did not finish; do not execute an unreviewed plan.');
+  // A cut reply is the reviewer's failure, not the plan's. Only a real cut:
+  // every transport maps its finish reason onto this vocabulary (llmOllama).
+  if (args.delegationContract && (resp.stopReason === 'max_tokens' || resp.stopReason === 'pause_turn')) {
+    return delegationRefusal('Delegation contract review did not finish; do not execute an unreviewed plan.', 'reviewer');
+  }
   const raw = parseVerdict(resp.text);
+  let delegationReview;
   if (raw.approved && args.delegationContract) {
-    const refusal = enforceDelegationReview(args.delegationContract.plan, resp.text, args.delegationContract.allowDiscovery);
+    const review = parseDelegationReview(resp.text);
+    if ('approved' in review) return review;
+    const refusal = enforceParsedDelegationReview(args.delegationContract.plan, review, args.delegationContract.allowDiscovery);
     if (refusal) return refusal;
+    delegationReview = review;
   }
   // Normalise `null` (an LLM emission quirk nullish() tolerates) to
   // `undefined` at the parse boundary — same treatment as branchName —
@@ -1090,6 +1100,6 @@ export async function llmVerdict(args: {
   const activeSkillFollowed = raw.activeSkillFollowed ?? undefined;
   const criteria = raw.criteria ?? undefined;
   const inherited = raw.inherited ?? undefined;
-  if (raw.approved) return { ...raw, activeSkillFollowed, criteria, inherited };
+  if (raw.approved) return { ...raw, activeSkillFollowed, criteria, inherited, ...(delegationReview ? { delegationReview } : {}) };
   return { ...raw, branchName: raw.branchName ?? undefined, activeSkillFollowed, criteria, inherited };
 }

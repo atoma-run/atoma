@@ -17,7 +17,7 @@ import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
 import { outOfPhaseBudget } from '../core/limits.js';
 import { checkpointWorkspaceDigest, readCheckpointWorkspace, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
 export { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
-import { PhaseBoundaryPause, runCheckpointSchema, type RootPhaseCheckpoint, type RunCheckpoint, type ProjectCheckpointStatus } from '../contracts/runCheckpoint.js';
+import { PhaseBoundaryPause, runCheckpointSchema, type RootDelegationApproval, type RootPhaseCheckpoint, type RunCheckpoint, type ProjectCheckpointStatus } from '../contracts/runCheckpoint.js';
 
 const DDL = `CREATE TABLE IF NOT EXISTS run_checkpoints (
   id TEXT PRIMARY KEY, state TEXT NOT NULL, owner TEXT NOT NULL,
@@ -382,7 +382,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     return !!this.data.clientQuestionId && this.data.root?.reconciledQuestionId !== this.data.clientQuestionId;
   }
   planned(task: Parameters<RootPhaseCheckpoint['planned']>[0], plan: Parameters<RootPhaseCheckpoint['planned']>[1],
-    strategy: unknown, plannedPhases: number): void {
+    strategy: unknown, plannedPhases: number, approval?: RootDelegationApproval): void {
     if (!this.active) return;
     if (plan.aggregation.mode !== 'sequential') {
       if (this.options.automatic) { this.finalizing(); return; }
@@ -392,8 +392,11 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     if (this.options.pauseAfter !== undefined && this.options.pauseAfter > plan.subtasks.length) {
       throw new Error('--pause-after-phase exceeds the number of root phases');
     }
+    // The approval rides the same write as the plan it approved: continuations
+    // copy `root`, so it can never describe a different plan.
     this.data.root = { plan, strategy, plannedPhases, inputs: task.inputs,
-      ...(this.data.clientQuestionId ? { reconciledQuestionId: this.data.clientQuestionId } : {}) };
+      ...(this.data.clientQuestionId ? { reconciledQuestionId: this.data.clientQuestionId } : {}),
+      ...(approval ? { approval } : {}) };
     this.store.write(this.data, this.owner, 'running');
   }
   async beforePhase(index: number, next?: SubtaskSpec): Promise<void> {

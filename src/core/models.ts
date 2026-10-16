@@ -24,8 +24,9 @@ import {
  * Read at CALL time so tests and per-run env changes behave. Pass `env` when
  * the caller holds a snapshot (T10): `modelForTier` and the router must see
  * the same pins or the router constructs a client the atoms never request.
- * Validators/prefilters always ride the L1 tier's selector — validation is a
- * yes/no, it belongs on the cheapest capable model regardless of vendor.
+ * Which tier each validator rides is decided where it is called: see
+ * src/atoms/AGENTS.md (planning and root acceptance). Most ride the L1
+ * selector; the root delegation review and root text acceptance ride L2.
  */
 export function modelForTier(tier: TierNumber, env: NodeJS.ProcessEnv = process.env): string {
   return formatOrThrow(tier, env).raw;

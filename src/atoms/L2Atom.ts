@@ -31,9 +31,8 @@ import {
   type L2Strategy,
   l2StrategySchema,
   parsePayloadTolerant,
+  parsePlanPair,
   parsePlanWithFallback,
-  parseTwoJson,
-  planSchema,
   NON_JSON_PAYLOAD_SUMMARY_PREFIX,
   REMEDIATION_FEEDBACK_MAX_CHARS,
 } from './json.js';
@@ -698,10 +697,14 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       })
     );
 
-    const pair = parseTwoJson(resp.text);
-    this.pendingStrategy = l2StrategySchema.parse(pair[0]);
-    this.warnOnUngrantableSeedTools(pair[0], ctx);
-    const plan = planSchema.parse(pair[1]);
+    // PlanParseError on a reply that cannot be read as written: superviseLoop
+    // asks again within the plan budget. The strategy is committed only once
+    // its plan parsed, as at L3: a failed reply must not leave its strategy
+    // behind for the next plan's execute().
+    const { rawStrategy, strategy, plan, salvaged } = parsePlanPair(resp.text, l2StrategySchema, resp.stopReason);
+    if (salvaged) ctx.logger.warn(`[${this.name}] plan reply carried raw control characters in strings; escaped`);
+    this.pendingStrategy = strategy;
+    this.warnOnUngrantableSeedTools(rawStrategy, ctx);
     return preservePlanLiteralContracts(plan, task.description);
   }
 

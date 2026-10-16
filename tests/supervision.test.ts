@@ -18,6 +18,9 @@ import {
 } from '../src/core/supervisor.js';
 import { makeCtx } from './helpers.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
+import { L2Atom } from '../src/atoms/L2Atom.js';
+import { AtomRegistry } from '../src/registry/atomRegistry.js';
+import { openDb } from '../src/registry/db.js';
 import { makePlan } from './helpers/factories.js';
 
 class FakeChild extends Atom {
@@ -249,6 +252,39 @@ describe('superviseLoop', () => {
       const unparseable = result.trace.filter((t) => t.kind === 'plan-unparseable');
       expect(unparseable).toHaveLength(1);
       expect(String((unparseable[0]!.payload as { error: string }).error)).toMatch(/JSON parse failed/);
+    });
+
+    // Group D, review 2026-10-16: an L2 plan pair threw SyntaxError or
+    // ZodError, which the loop's ValidationError retry did not cover.
+    it('asks a real L2 cell again after an unparseable plan pair, keeping only the parsed reply\'s strategy', async () => {
+      const db = openDb(':memory:');
+      const registry = new AtomRegistry(db);
+      const type = registry.create(2, { description: 'cell', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' });
+      const cell = L2Atom.fromType(type, registry);
+      let strategyAtExecute: unknown;
+      cell.execute = async function (this: L2Atom) {
+        strategyAtExecute = (this as unknown as { pendingStrategy: unknown }).pendingStrategy;
+        return { output: 'cell-output', summary: 's', trace: [], producedBy: { tier: 2, name: this.name, viaFallback: false } };
+      };
+      const plan = { reasoning: 'r', subtasks: [{ description: 'Implement', acceptanceTests: { requirement: 'digits', cwd: '.',
+        source: "import { test, expect } from 'vitest';\ntest('d', () => expect('4').toMatch(/\\d/));" } }], aggregation: { mode: 'sequential' }, expectedOutput: 'o' };
+      const good = JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'parsed' }, plan]);
+      const bad = JSON.stringify([{ strategy: 'create', reasoning: 'broken' }, plan]).replace('\\\\d', '\\d');
+      expect(bad).not.toContain('\\\\d');
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(bad);
+      ctx.llm.enqueueText(good);
+      const parent = new FakeParent();
+      parent.queuePlanVerdict(approve);
+      parent.queueResultVerdict(approve);
+      const hooks = { applyByScope: async (c: L2Atom) => c, branchOnEscalation: async () => { throw new Error('must not escalate'); } };
+      const result = await superviseLoop(parent as never, cell as never, { description: 'go' }, ctx, hooks as never);
+      db.close();
+      expect(result.output).toBe('cell-output');
+      const unparseable = result.trace.filter((t) => t.kind === 'plan-unparseable');
+      expect(unparseable).toHaveLength(1);
+      expect(String((unparseable[0]!.payload as { error: string }).error)).toMatch(/plan reply unparseable: Bad escaped character/);
+      expect(strategyAtExecute).toMatchObject({ strategy: 'reuse', target: 'Urea' });
     });
 
     it('escalates once the plan budget is spent on unparseable replies', async () => {

@@ -19,6 +19,9 @@ const root = process.env['CHECKPOINT_TEST_ROOT']!;
 let cellName = '';
 let leafName = '';
 const calls: string[] = [];
+// The root delegation reviews (tier-3 actor reviewing its own plan), apart
+// from `calls`, so existing call assertions are untouched.
+let rootReviews = 0;
 const PERSISTING_SERVER = "const s=require('http').createServer((q,r)=>r.end('ok')).listen(Number(process.env.PORT)||0,function(){console.log('LISTENING_ON_PORT='+this.address().port)});" +
   "process.on('SIGTERM',()=>{require('fs').writeFileSync('notes.json','[]');process.exit(0)});";
 const recipe = { id: 'checkpoint-write-file', description: 'Write the requested file',
@@ -37,6 +40,17 @@ const complete = async (req: LlmCompletionRequest) => {
     reply = { kind: 'reuse', target: recipe.id, confidence: 'high', reasoning: 'File recipe' };
   } else if (req.role === 'prefilter') {
     reply = { kind: 'reuse', target: req.actor?.tier === 3 ? cellName : leafName, confidence: 'high', reasoning: 'Reuse' };
+  } else if (req.role === 'validate-plan' && req.actor?.tier === 3 && req.child?.tier === 3) {
+    rootReviews++;
+    const refuse = process.env['CHECKPOINT_TEST_REFUSE_ROOT_REVIEW'];
+    const proof = mockOtherProofReview(req);
+    if (refuse === 'always' || (refuse === 'first' && rootReviews === 1)) {
+      reply = { approved: false, reasoning: 'Fixture refuses the saved plan', scope: 'ephemeral', modifications: {} };
+    } else if (process.env['CHECKPOINT_TEST_ROOT_FAN_OUT'] === '1' && 'delegationReview' in proof) {
+      reply = { approved: true, reasoning: 'Fixture finds independent work', delegationReview: { ...proof.delegationReview, independentWork: true } };
+    } else {
+      reply = { approved: true, reasoning: 'Fixture approved', ...proof };
+    }
   } else if (req.role === 'validate-plan' || req.role === 'validate-result') {
     reply = { approved: true, reasoning: 'Fixture approved', activeSkillFollowed: true, ...mockOtherProofReview(req) };
   } else if (req.role === 'plan' && req.actor?.tier === 3) {
@@ -45,7 +59,11 @@ const complete = async (req: LlmCompletionRequest) => {
     if (answering && (!req.userContent.includes('Keep both login methods') || !req.userContent.includes('checkpointContinuation'))) {
       throw new Error('Remaining plan did not receive the client answer and continuation scope');
     }
-    const files = ['one', 'two'].slice(answering ? Number(questionPhase) : 0);
+    // A continuation replans only the phases after the completed prefix.
+    const continued = req.userContent.includes('checkpointContinuation')
+      ? Number(/"completedPhaseCount":(\d+)/.exec(req.userContent)?.[1] ?? 'NaN') : 0;
+    if (Number.isNaN(continued)) throw new Error('Continuation plan request did not carry its completed phase count');
+    const files = ['one', 'two'].slice(answering ? Number(questionPhase) : continued);
     const subtasks = files.map(n => ({ description: `Write phase-${n}.txt`, preferredChild: cellName, outputs: [`phase-${n}.txt`] }));
     // Reproduce the production planner that stops its plan at a clarification.
     if (questionPhase !== undefined && !answering) subtasks.splice(Number(questionPhase), subtasks.length,
@@ -141,9 +159,10 @@ try {
   } });
   const outcome = await handle.settled;
   await handle.shutdown();
-  writeFileSync(join(root, 'report.json'), JSON.stringify({ ...outcome, checkpointId: handle.checkpointId, calls }));
+  writeFileSync(join(root, 'report.json'), JSON.stringify({ ...outcome, checkpointId: handle.checkpointId, calls, rootReviews }));
   process.exit(outcome.outcome === 'failed' ? 1 : 0);
 } catch (error) {
   console.error(error);
+  writeFileSync(join(root, 'error-report.json'), JSON.stringify({ calls, rootReviews }));
   process.exit(2);
 }

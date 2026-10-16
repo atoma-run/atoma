@@ -36,6 +36,19 @@ export class ValidationError extends Error {
 }
 
 /**
+ * A strategy+plan reply that could not be read as written: malformed JSON, a
+ * reply a truncation repair would have amputated, or a schema mismatch. A
+ * ValidationError, so `superviseLoop` asks a child again within its plan
+ * budget; the L3 and SHORT roots count it as a failed planning attempt.
+ */
+export class PlanParseError extends ValidationError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PlanParseError';
+  }
+}
+
+/**
  * Invalid launch input (timeout, seed, tier pin, credentials). `startTask`
  * throws it; the CLI shell maps it to exit 2.
  *

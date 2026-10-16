@@ -386,7 +386,19 @@ export type PositiveVerdict = {
   criteria?: readonly CriterionJudgement[];
   /** One judgement per inherited check root acceptance listed (src/contracts/inheritedChecks.ts). */
   inherited?: readonly import('../contracts/inheritedChecks.js').InheritedJudgement[];
+  /**
+   * Set by the host — never parsed from `verdictSchema` — on an approved
+   * delegation-contract review: the classification it enforced. The root
+   * records it with the checkpoint (`RootDelegationApproval`).
+   */
+  delegationReview?: import('../contracts/parentTests.js').DelegationReview;
 };
+/**
+ * Why a delegation-contract review refused, typed by the host: `reviewer` is
+ * the reviewer's own failure (unfinished, unparseable, unclassified), so the
+ * same plan is reviewed again; `plan` and `fan-out` are the plan's.
+ */
+export type DelegationRefusalKind = 'reviewer' | 'plan' | 'fan-out';
 /** A validator's judgement of ONE acceptance criterion, by its checklist id. */
 export interface CriterionJudgement {
   readonly id: string;
@@ -405,6 +417,8 @@ export type NegativeVerdict = {
   criteria?: readonly CriterionJudgement[];
   /** See PositiveVerdict.inherited. */
   inherited?: readonly import('../contracts/inheritedChecks.js').InheritedJudgement[];
+  /** Set by the host on a delegation-contract refusal, never by a model. */
+  delegationRefusal?: DelegationRefusalKind;
 };
 export type Verdict = PositiveVerdict | NegativeVerdict;
 

@@ -20,15 +20,15 @@ Neighbours:
   `phase-budget-spent` forces root review. Run bad74240 ran a spent ladder
   twice; a per-phase counter starved multi-subtask phases.
 - `superviseLoop` is the only child plan → validate → execute → validate loop.
-  L3 root plans additionally receive mandatory tool-free contract review on the
-  validation model. The reviewer classifies testable branches and integration;
-  missing suites or missing required parallel branches block dispatch, even
-  beside approved:true. Up to three planning attempts; no unreviewed fallback.
-  L2 plans under a parent suite use the same classification before L1 execution.
-  An L3 `replanAfter:true` plan performs read-only discovery only, once, then
-  the host replans from its observations. Discovery is not a checkpoint prefix.
-  The existing declared-output collision coaching still runs before review;
-  its fail-open result must pass contract review. Never coerce concat to sequential.
+  Root L3 plans also get mandatory tool-free contract review on `modelForTier(2)`
+  (own cap and effort, src/core; a refusal costs a top-tier replan); a reviewer
+  fault (unfinished, unparseable, unclassified) re-reviews the same plan on the
+  validation model. L2 plans under a parent suite get the same check there.
+  Missing classified suites or parallel branches block dispatch even beside
+  approved:true. Three root attempts (a plan parse failure counts); no unreviewed
+  fallback. L3 `replanAfter:true` is read-only discovery, once, then the host
+  replans; never a checkpoint prefix. Output-collision coaching runs first; its
+  fail-open result is still reviewed. Never coerce concat to sequential.
 - Escalation branches a type and toggles parent fallback in a `try/finally`.
   Persist capability prompts only; task text, seed instructions and diagnostics
   belong to the current instance. Validator diagnostics are fallible evidence.
@@ -42,9 +42,9 @@ Neighbours:
   Fallback uses an explicit direct-executor system role, not the delegator role.
 - `pendingStrategy` couples `plan()` and `execute()` on the same instance. Never
   call `execute()` without the corresponding plan.
-- A resumed root restores its saved plan AND parsed strategy on that instance.
-  Answers replan only the suffix; root-only checkpoints never enter child forks.
-  Dispatch skips the saved prefix before selecting or crediting children.
+- A resumed root restores its saved plan, strategy and digest-bound approval (re-enforced
+  mechanically, not re-judged); answers or a refused legacy plan replan only the suffix.
+  Root-only checkpoints never enter forks; dispatch skips the prefix before selecting or crediting.
 - `fallbackMode` bypasses registry delegation and calls self-plan/self-execute.
 - Mutation scopes flow through `applyByScope`; update the union and every hook
   together when adding a scope.
@@ -629,9 +629,9 @@ load-bearing.
   on parse failure; never guess a structure. After tool work, one tool-free
   formatting turn may repair it (24,000 chars, 60s, with 60s run time left).
   Preserve witnesses, validation, raw failures and fence-aware tests; never replay tools for formatting.
-- An unparseable molecule PLAN is asked again inside the plan budget, which then
-  escalates (`plan-unparseable` trace entry, parser message kept); it neither
-  blames trust nor branches on one slip. It used to end the run (12bdcf19).
+- An unparseable L1 plan or L2/L3 plan pair (a truncation repair counts for pairs) is asked
+  again within the plan budget, then escalates (`plan-unparseable`, 12bdcf19); the root spends an
+  attempt. Pairs salvage raw control chars only; L1 keeps parseWith's repair. Never blames trust.
 
 ## Intentional choices and rejected shortcuts
 

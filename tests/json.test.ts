@@ -5,7 +5,10 @@ import {
   extractJsonEx,
   findAllJsonObjects,
   parsePayloadTolerant,
+  parsePlanPair,
   parseTwoJson,
+  parseTwoJsonEx,
+  l3StrategySchema,
   parseVerdict,
   parsePlanTolerant,
   parsePlanWithFallback,
@@ -18,6 +21,7 @@ import {
   verdictSchema,
   isEffectivelyEmptyMods,
 } from '../src/atoms/json.js';
+import { PlanParseError } from '../src/core/errors.js';
 
 describe('extractJson', () => {
   it('parses a plain JSON object', () => {
@@ -755,5 +759,87 @@ describe('isEffectivelyEmptyMods', () => {
     expect(isEffectivelyEmptyMods({ systemPromptAppend: 'x' })).toBe(false);
     expect(isEffectivelyEmptyMods({ params: { temperature: 0.1 } })).toBe(false);
     expect(isEffectivelyEmptyMods({ removeTools: ['foo'] })).toBe(false);
+  });
+});
+
+// Group D, review 2026-10-16: a plan pair is a contract whose test sources are
+// executed, so it is read exactly as written or refused with a message.
+describe('parsePlanPair', () => {
+  const strategy = { strategy: 'reuse', target: 'Ammonia', reasoning: 'r' };
+  const source = "import { test, expect } from 'vitest';\ntest('digits', () => {\n  expect('42').toMatch(/\\d+/);\n});";
+  const plan = {
+    reasoning: 'one tested module',
+    subtasks: [{ description: 'Implement', outputs: ['a.ts'], acceptanceTests: { requirement: 'digits', cwd: '.', source } }],
+    aggregation: { mode: 'sequential' },
+    expectedOutput: 'a.ts',
+  };
+  const text = JSON.stringify([strategy, plan]);
+
+  it('reads a clean pair and keeps the raw values', () => {
+    const parsed = parsePlanPair(text, l3StrategySchema, 'end_turn');
+    expect(parsed.salvaged).toBe(false);
+    expect(parsed.plan.subtasks[0]?.acceptanceTests?.source).toBe(source);
+    expect(parsed.rawPlan).toEqual(plan);
+  });
+
+  it('reads a clean fused reply (2026-08-08) and a complete pair without aggregation', () => {
+    const fused = JSON.stringify([{ ...strategy, subtasks: plan.subtasks, expectedOutput: 'a.ts' }]);
+    expect(parsePlanPair(fused, l3StrategySchema).plan.subtasks).toHaveLength(1);
+    const withoutAggregation = JSON.stringify([strategy, { ...plan, aggregation: undefined }]);
+    const parsed = parsePlanPair(withoutAggregation, l3StrategySchema);
+    expect((parsed.rawPlan as Record<string, unknown>)['aggregation']).toBeUndefined();
+  });
+
+  it('refuses a reply cut at the output cap, naming the cap', () => {
+    const cut = text.slice(0, text.indexOf('toMatch'));
+    expect(parseTwoJsonEx(cut).repaired).toBe(true);
+    expect(() => parsePlanPair(cut, l3StrategySchema, 'max_tokens')).toThrow(PlanParseError);
+    expect(() => parsePlanPair(cut, l3StrategySchema, 'max_tokens')).toThrow(/STRATEGY_MAX_TOKENS output cap/);
+  });
+
+  it('refuses an unbalanced reply that finished, with a distinct message', () => {
+    const cut = text.slice(0, text.indexOf('toMatch'));
+    expect(() => parsePlanPair(cut, l3StrategySchema, 'end_turn')).toThrow(/plan reply was unbalanced; a repair would drop subtasks or test source/);
+  });
+
+  it('refuses the synthesised placeholder plan', () => {
+    const strategyOnly = JSON.stringify([strategy]).slice(0, -1);
+    expect(parseTwoJsonEx(strategyOnly).repaired).toBe(true);
+    expect(() => parsePlanPair(strategyOnly, l3StrategySchema, 'end_turn')).toThrow(PlanParseError);
+  });
+
+  it('refuses an invalid escape with the position and an excerpt', () => {
+    const bad = text.replace('\\\\d', '\\d');
+    expect(() => parsePlanPair(bad, l3StrategySchema)).toThrow(/^plan reply unparseable: Bad escaped character in JSON at position \d+.*, near ".*toMatch/);
+  });
+
+  it('refuses a plan that does not match its schema, bounded', () => {
+    const wrong = JSON.stringify([strategy, { reasoning: 'r', subtasks: [] }]);
+    let message = '';
+    try {
+      parsePlanPair(wrong, l3StrategySchema);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/^plan reply unparseable: plan does not match its schema/);
+    expect(message.length).toBeLessThanOrEqual('plan reply unparseable: '.length + 600);
+  });
+
+  it('escapes raw newlines inside strings losslessly', () => {
+    const raw = text.split('\\n').join('\n');
+    expect(() => JSON.parse(raw)).toThrow();
+    const parsed = parsePlanPair(raw, l3StrategySchema);
+    expect(parsed.salvaged).toBe(true);
+    expect(parsed.plan.subtasks[0]?.acceptanceTests?.source).toBe(source);
+  });
+
+  it('does not salvage raw newlines beside a stray unescaped quote', () => {
+    const raw = text.split('\\n').join('\n').replace("toMatch(/", 'toMatch("/');
+    expect(() => parsePlanPair(raw, l3StrategySchema)).toThrow(PlanParseError);
+  });
+
+  it('leaves parseTwoJson tolerant for its other readers', () => {
+    const cut = text.slice(0, text.indexOf('toMatch'));
+    expect(() => parseTwoJson(cut)).not.toThrow();
   });
 });

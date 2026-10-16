@@ -8,7 +8,8 @@ import { dirname, resolve } from 'node:path';
 import { cpSync, existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { setMaxListeners } from 'node:events';
-import { RunnerConfigError } from '../core/errors.js';
+import { PlanParseError, RunnerConfigError } from '../core/errors.js';
+import { planParseFeedback } from '../atoms/json.js';
 import { containerImageDigestSchema } from '../contracts/containerImage.js';
 import { applyTierPins } from '../core/models.js';
 import { createAttestationLog } from '../core/attestation.js';
@@ -106,11 +107,24 @@ export const ARTIFACT_MANIFEST_PATH_ENV = 'ATOMA_ARTIFACT_MANIFEST_PATH';
 
 /**
  * SHORT depth's root: the entry cell plans, the plan is recorded, and a
- * declared text delivery reaches every descendant before execution.
+ * declared text delivery reaches every descendant before execution. An
+ * unparseable plan reply spends one of three attempts and is asked again with
+ * the parser's message, as at the L3 root; no review is added here.
  */
 export function shortRootHandle(cell: L2Atom): (task: Task, context: RunContext) => Promise<Result> {
   return async (task, context) => {
-    const plan = await cell.plan(task, context);
+    let plan: Plan | undefined;
+    let planning = task;
+    for (let attempt = 1; !plan; attempt++) {
+      try {
+        plan = await cell.plan(planning, context);
+      } catch (error) {
+        if (!(error instanceof PlanParseError) || context.signal.aborted || attempt >= 3) throw error;
+        const feedback = planParseFeedback(error);
+        context.logger.warn(`[${cell.name}] ${feedback}`);
+        planning = { ...task, constraints: [...(task.constraints ?? []), feedback] };
+      }
+    }
     context.recordRootPlan?.(plan);
     return cell.execute(withPlannedDelivery(task, plan), plan, context);
   };
