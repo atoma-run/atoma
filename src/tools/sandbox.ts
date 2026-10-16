@@ -32,7 +32,12 @@ const CHILD_ENV_ALLOWLIST: readonly string[] = [
   'SHELL',
   'USER',
   'LOGNAME',
-  'NODE_ENV',
+  // NODE_ENV is deliberately absent. The worker image runs with
+  // NODE_ENV=production, and a project command that inherited it made npm
+  // omit devDependencies: in Attica run 50019ee0 (2026-10-16) `npm ci` then
+  // `npm run check` exited 127 with no TypeScript, ESLint or Vitest installed,
+  // until the model found `--include=dev`. Every TypeScript application needs
+  // them. A tool that wants a mode sets it as an extra (parent tests: test).
   'npm_config_cache',
   // PROXY CONFIG — plumbing, not a secret.
   //

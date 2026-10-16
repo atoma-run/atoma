@@ -52,6 +52,30 @@ describe('sandboxChildEnv — env allowlist (#7a)', () => {
     }
   });
 
+  it('run_shell children do not inherit NODE_ENV, so npm keeps devDependencies', async () => {
+    // Attica run 50019ee0 (2026-10-16): the worker image's NODE_ENV=production
+    // reached `npm ci`, which then skipped TypeScript, ESLint and Vitest.
+    const before = process.env['NODE_ENV'];
+    process.env['NODE_ENV'] = 'production';
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-node-env-'));
+    const sandbox = new ToolSandbox(dir);
+    try {
+      const tool = runShellTool({ sandbox });
+      const res = (await tool.execute({
+        command: 'node',
+        args: ['-e', "console.log(process.env.NODE_ENV || 'unset')"],
+      })) as { exitCode: number; stdout: string };
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout.trim()).toBe('unset');
+      expect(sandboxChildEnv({ NODE_ENV: 'test' })['NODE_ENV']).toBe('test');
+    } finally {
+      if (before === undefined) delete process.env['NODE_ENV'];
+      else process.env['NODE_ENV'] = before;
+      await sandbox.cleanup();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   posixIt('run_shell reaps `&`-backgrounded grandchildren — no orphan survives the command (#7c)', async () => {
     // The double-fork vector: `bash -c "server &"` exits 0 immediately and
     // the promisified-execFile implementation left the grandchild running

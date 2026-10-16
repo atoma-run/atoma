@@ -44,6 +44,9 @@ Neighbours:
   isolated IPv4 and IPv6 gateway modes, because plain `--internal` can still
   reach host services through the bridge address. Fail closed on older engines.
 - The worker receives an allowlisted environment, not a spread parent env.
+- Project commands never inherit `NODE_ENV`: the worker image runs with
+  `production`, and an inherited value made `npm ci` skip devDependencies
+  (Attica run 50019ee0, 2026-10-16). A tool needing a mode passes it as an extra.
   Credentials and control-plane store paths never cross the boundary.
 - THE HOST CREATES THE MOUNT SOURCE before the engine is asked for it. A
   bind-mount source that does not exist is created by the DAEMON, as root; the
