@@ -1,4 +1,5 @@
 import { createInstance } from 'i18next';
+import { translate } from '../client/i18n-catalog.js';
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, asLocale, twoFormPluralKey, type Locale }
   from '../../contracts/locales.js';
 import type { PlatformEvent, PlatformEventKind } from '../../contracts/platformEvents.js';
@@ -17,10 +18,9 @@ import type { PlatformEvent, PlatformEventKind } from '../../contracts/platformE
  * keyed by kind would be one refactor away from disagreeing — an event with
  * an audience and no copy, or copy nobody receives.
  *
- * COPY IS LOCALISED HERE, not from the client i18n catalog: that module is a
- * `.tsx` carrying a React provider and must never be imported into the
- * server. Same shape and rationale as the frozen `AUTH_COPY` / `GITHUB_COPY`
- * maps. Summaries on the event rows stay English (they are operator-facing
+ * New copy uses the shared JSON catalogs through the React-free translator.
+ * Legacy route copy remains here; never import the React provider into the
+ * server. Summaries on the event rows stay English (they are operator-facing
  * audit text); a push is product UI and follows the subscriber's language.
  *
  * TEMPLATES read from `detail`, never from `summary`. `detail` is the
@@ -132,6 +132,19 @@ function countFromDetail(event: PlatformEvent, key: string): number {
 
 function pushCount(locale: PushLocale, key: string, count: number): string {
   return pushI18n.t(twoFormPluralKey(key, count), { count, lng: locale });
+}
+
+/** One line per `server.pressure` cause, from `detail` numbers only. */
+function pressureLine(event: PlatformEvent, locale: PushLocale): string {
+  const vars = Object.fromEntries(
+    ['count', 'slowestMs', 'availableMb', 'activeRuns', 'reserveMb'].map(key => [key, countFromDetail(event, key)])
+  );
+  switch (text(event, 'cause')) {
+    case 'store_busy': return translate(locale, 'push.pressure.storeBusy', vars);
+    case 'store_slow': return translate(locale, 'push.pressure.storeSlow', vars);
+    case 'memory_low': return translate(locale, 'push.pressure.memoryLow', vars);
+    default: return translate(locale, 'push.pressure.unknown');
+  }
 }
 
 /** A `detail` string, defensively: foreign rows may omit or mistype it. */
@@ -462,6 +475,13 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
         title: 'Atoma — redémarrage après incident',
         body: '{{runs}} ; {{publications}}',
       },
+    },
+  },
+  'server.pressure': {
+    audience: { platformAdmins: true },
+    vars: (event, locale) => ({ title: translate(locale, 'push.pressure.title'), what: pressureLine(event, locale) }),
+    copy: {
+      en: { title: '{{title}}', body: '{{what}}' },
     },
   },
   /**

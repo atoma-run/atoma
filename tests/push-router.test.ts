@@ -199,6 +199,19 @@ describe('PUSH_ROUTES', () => {
       .toBe('1 run récupéré ; 2 publications récupérées');
   });
 
+  it('says which host limit is under pressure, from detail numbers only', () => {
+    const route = PUSH_ROUTES['server.pressure']!;
+    const pressure = (detail: Record<string, string | number>) =>
+      event({ kind: 'server.pressure', actorType: 'system', actorId: null, orgId: null, projectId: null, runId: null, detail });
+    expect(renderPush(pressure({ cause: 'store_busy', count: 2 }), 'en', route).body)
+      .toBe('Store: 2 writes refused, lock busy (SQLITE_BUSY)');
+    expect(renderPush(pressure({ cause: 'store_slow', count: 1, slowestMs: 3100 }), 'en', route).body)
+      .toBe('Store: 1 slow transaction, longest 3100 ms');
+    expect(renderPush(pressure({ cause: 'memory_low', availableMb: 900, activeRuns: 2, reserveMb: 2048 }), 'en', route).body)
+      .toBe('Memory: 900 MiB available; active runs: 2; reserve: 2048 MiB');
+    expect(route.audience).toEqual({ platformAdmins: true });
+  });
+
   it('maps an unknown locale to English', () => {
     expect(asPushLocale('fr')).toBe('fr');
     expect(asPushLocale('en')).toBe('en');

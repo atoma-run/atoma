@@ -69,6 +69,16 @@ describe('the Vite bundle boundary', () => {
       logLevel: 'silent',
     })).resolves.toHaveProperty('errors', []);
   });
+  it('bundles the push catalogs into a server closure with no client runtime imports or React', async () => {
+    const result = await build({
+      entryPoints: ['src/viz/push/routes.ts'], bundle: true, packages: 'external',
+      platform: 'node', format: 'esm', target: 'node24', write: false, metafile: true,
+    });
+    const imports = Object.values(result.metafile.outputs).flatMap(output => output.imports);
+    expect([...new Set(imports.map(entry => entry.path))]).toEqual(['i18next']);
+    expect(Object.keys(result.metafile.inputs).some(path => path.endsWith('/locales/en.json'))).toBe(true);
+  });
+
   it('has no server-side runtime import from src/viz/client/', () => {
     const offenders: string[] = [];
     for (const file of sourceFiles('src')) {
@@ -78,6 +88,10 @@ describe('the Vite bundle boundary', () => {
       // for exactly that.
       if (normalised.startsWith('src/viz/client/')) continue;
       if (normalised.startsWith('src/viz/client-gl/')) continue;
+      // Explicit server bundle: viz-build packages this route and its JSON
+      // catalogs outside client/. The release smoke imports and renders the
+      // packaged route after Vite, and the closure test below bars React.
+      if (normalised === 'src/viz/push/routes.ts') continue;
       for (const specifier of runtimeImportSpecifiers(readFileSync(file, 'utf8'))) {
         if (!specifier.startsWith('.')) continue;
         const resolved = relative(process.cwd(), resolve(dirname(file), specifier));

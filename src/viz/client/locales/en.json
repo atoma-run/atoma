@@ -2039,5 +2039,12 @@
   "plan.feature.manyConcurrentRuns": "Many concurrent runs per organisation",
   "plan.feature.organisationBilling": "One invoice for the organisation",
   "plan.feature.usageReports": "Usage and cost reports per project",
-  "plan.feature.dedicatedSupport": "Dedicated support"
+  "plan.feature.dedicatedSupport": "Dedicated support",
+  "push.pressure.title": "Atoma — host under pressure",
+  "push.pressure.storeBusy_one": "Store: {{count}} write refused, lock busy (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "Store: {{count}} writes refused, lock busy (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "Store: {{count}} slow transaction, longest {{slowestMs}} ms",
+  "push.pressure.storeSlow_other": "Store: {{count}} slow transactions, longest {{slowestMs}} ms",
+  "push.pressure.memoryLow": "Memory: {{availableMb}} MiB available; active runs: {{activeRuns}}; reserve: {{reserveMb}} MiB",
+  "push.pressure.unknown": "Host resource pressure detected"
 }

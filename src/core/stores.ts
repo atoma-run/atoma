@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { instrumentStoreHandle } from './storePressure.js';
 
 /**
  * WHERE THIS ATOMA INSTANCE KEEPS ITS STATE.
@@ -97,6 +98,9 @@ export function openStoreHandle(
     const db = new Database(path);
     db.pragma('journal_mode = WAL');
     db.pragma(`busy_timeout = ${STORE_BUSY_TIMEOUT_MS}`);
+    // A writer handle: its lock waits and busy failures are recorded beside
+    // the store (`storePressure.ts`), the evidence Gate 0 reopens on.
+    instrumentStoreHandle(db);
     h = { db, applied: new Set() };
     handles.set(path, h);
   }

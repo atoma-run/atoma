@@ -697,9 +697,12 @@ npm run viz:mark-turn:analyze
   until that session opts the worker in. The subscriber's
   language rides the subscription (`locale` column, captured at subscribe
   time) because a push is generated from an event with no request left to
-  read a header off; rendering uses the server-side frozen `PUSH_COPY`
-  map in `src/viz/push/routes.ts`, never the client i18n catalog (a
-  `.tsx` carrying a React provider must not reach the server).
+  read a header off. New push copy uses the JSON catalogs through the
+  React-free `client/i18n-catalog.ts` translator; write only `en.json`,
+  leaving target translations to CI. `viz-build.mjs` bundles push routes and
+  catalogs outside Vite’s emptied client directory; the compiled release
+  smoke verifies that closure. Existing frozen route copy remains
+  compatible. Never import the React provider `i18n.tsx` into the server.
   The worker logs whether `showNotification` was accepted or rejected with
   the notification tag only, never the title or body: DevTools diagnostics
   must be observable without copying operator or project text into a log. A CLICK opens the event's subject: the router writes it into the URL (`contracts/notificationLink.ts`: kind, org, project, run trace — ids only), the worker posts it to an open tab (never navigates it: the tab keeps its screen) or opens a window on it, and the app resolves it with `notificationTarget`, the tray's ONE rule, then strips it from the address bar.

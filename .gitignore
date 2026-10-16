@@ -67,3 +67,6 @@ __pycache__/
 
 # Reproducible file preview decoder assets, copied by the Vite plugin.
 /src/viz/public/vendor/file-viewer/
+
+# Cross-process store contention telemetry (bounded, host-local).
+*.pressure.jsonl*

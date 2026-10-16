@@ -249,6 +249,50 @@ export class RunCheckpointStore {
     }).immediate();
   }
 
+  /**
+   * Drop the recovery journal of every FINISHED checkpoint (2026-10-16).
+   * Those rows answer one question — may this boundary be resumed — and a
+   * finished checkpoint can no longer be read, claimed or resumed. Kept, they
+   * were 54 of the production store's 143 MB, each tool and model call
+   * holding up to 64 KiB of result until the 90-day offline retention.
+   *
+   * ONE EXCEPTION: the source of a project continuation in flight. The
+   * successor marks its source finished when it claims it
+   * (`continueProject`), and may still hand it back untouched
+   * (`restoreContinuation`) with the journal its resumability is judged on.
+   * Its run row names that source in `resume_of_run_id` while it is queued or
+   * running, so the source is kept until the successor ends.
+   *
+   * Bounded batches per checkpoint, never one sweep: the first pass on
+   * an existing store deletes thousands of rows and must not hold the shared
+   * write lock while it does.
+   */
+  pruneFinished(): number {
+    const continuing = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_runs'").get()
+      ? "AND c.id NOT IN (SELECT resume_of_run_id FROM project_runs WHERE resume_of_run_id IS NOT NULL AND status IN ('queued','running'))"
+      : '';
+    const ids = this.db.prepare(`SELECT c.id FROM run_checkpoints c WHERE c.state='finished' ${continuing}
+      AND (EXISTS (SELECT 1 FROM run_checkpoint_actions a WHERE a.id=c.id)
+        OR EXISTS (SELECT 1 FROM run_checkpoint_recovery r WHERE r.id=c.id)
+        OR EXISTS (SELECT 1 FROM run_checkpoint_pauses p WHERE p.id=c.id))`).pluck().all() as string[];
+    const prune = this.db.transaction((id: string) => {
+      // Re-read under the lock: a restored continuation source is no longer finished.
+      if (!this.db.prepare(`SELECT 1 FROM run_checkpoints c WHERE c.id=? AND c.state='finished' ${continuing}`).get(id)) return 'protected';
+      const removed = this.db.prepare('DELETE FROM run_checkpoint_actions WHERE seq IN (SELECT seq FROM run_checkpoint_actions WHERE id=? LIMIT 128)').run(id);
+      if (removed.changes === 128) return 'more';
+      this.db.prepare('DELETE FROM run_checkpoint_recovery WHERE id=?').run(id);
+      this.db.prepare('DELETE FROM run_checkpoint_pauses WHERE id=?').run(id);
+      return 'done';
+    });
+    let pruned = 0;
+    for (const id of ids) {
+      let result: string;
+      do { result = prune.immediate(id); } while (result === 'more');
+      if (result === 'done') pruned++;
+    }
+    return pruned;
+  }
+
   /** Offline retention expires byte-bearing records along with the workspace. */
   expire(id: string): void {
     this.db.transaction(() => {
@@ -483,6 +527,10 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     this.store.write(this.data, this.owner, 'finished');
     this.active = false; // A root remediation is fresh supervised work, never a checkpoint replay.
     this.store.pruneSnapshots();
+    // Housekeeping for every finished checkpoint, this one included. A
+    // failure costs only space, so it never fails the run that triggered it.
+    try { this.store.pruneFinished(); }
+    catch (error) { this.options.warn?.(`Checkpoint journal pruning skipped: ${(error as Error).message}`); }
   }
   /** A project continuation refused before any phase (its saved root actor
    * changed) hands the source back and leaves no successor running. */

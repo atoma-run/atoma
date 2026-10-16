@@ -501,6 +501,12 @@ on the host. Waiting rows hold no lease, survive restart, and can be cancelled. 
 cleanup and publication; excess global demand persists as queued runs and resumes FIFO. Recheck inside reservation after idempotency; an
 identical live request (goal, items, depth) re-attaches, any key; refusals name it.
 Operator commands and offline prerequisites: [W9/W10](../../docs/project-maintenance.md).
+The coordinator can additionally queue on Linux `MemAvailable` with
+`ATOMA_RUN_MEMORY_RESERVE_MB` (unset/0 disables it). The first run remains
+admissible; recent admissions reserve growth headroom for seven minutes.
+Recheck after asynchronous preparation, immediately before starting the run.
+Operational ramp-up: [maintenance](../../docs/project-maintenance.md#memory-aware-admission-and-store-pressure).
+
 ## A landed run, from the tenant's side
 
 - `partial` is a run that produced real work and did not deliver it, for either

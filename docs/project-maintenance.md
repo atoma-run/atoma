@@ -117,6 +117,42 @@ The compiled command ships as `projects:maintenance`; checkout use is
 `projects:maintenance:dev`. Both accept `--db`. The compiled help is included
 in `release:check`.
 
+## Memory-aware admission and store pressure
+
+On a Linux host, set `ATOMA_RUN_MEMORY_RESERVE_MB=2048` in the server
+service environment to require 2 GiB of available memory before admitting
+another project run. Apply environment changes through the normal drained
+deployment. Unset or `0` disables the reserve. A missing memory reading also
+leaves admission unchanged. The first run is always admitted; this controls
+concurrency, not availability.
+
+Admission reads `MemAvailable`, including reclaimable page cache. Each run
+admitted by this coordinator in the preceding seven minutes adds another
+reserve while its processes grow. A request waits in the existing queue and
+is rechecked before launch; no running job is cancelled. The reading is a
+host estimate, not a container memory limit or an OOM guarantee.
+
+Start the global `run.concurrentMax` ceiling at 2. Raise it by one only after
+observing representative concurrent runs with memory above the reserve, no
+sustained swap growth, and no store contention alerts. Keep one run per
+organisation. Provider quotas remain a separate constraint.
+
+`atoma_mcp_health` exposes `host`: retained store-pressure observations over
+the last 24 hours, current memory, admission deferrals, and the minimum
+available memory sampled while runs were active since server startup.
+Writer handles record `SQLITE_BUSY` and operations taking at least one
+second beside the database in bounded `.pressure.jsonl` files. These files
+rotate, so the window can be incomplete during sustained contention. The
+platform journal emits `server.pressure` at most hourly per cause for busy
+failures, waits/holds of at least 2.5 seconds, or memory below the configured
+reserve. Notifications go to platform admins.
+
+Finished checkpoint recovery journals are pruned at run finalization in
+batches of at most 128 action rows per transaction. Paused or interrupted
+checkpoints and sources of queued/running continuations remain protected.
+Run metadata and trace evidence remain under the existing retention policy;
+SQLite reuses freed pages without an online `VACUUM`.
+
 ## Executed evidence
 
 `tests/project-maintenance.test.ts` covers suspended coordinator admission

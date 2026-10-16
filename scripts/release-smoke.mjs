@@ -21,6 +21,16 @@ if (!existsSync(vizEntry) || !existsSync(vizIndex)) {
 if (!existsSync(mcpTools)) {
   throw new Error(`compiled MCP catalogue missing: ${mcpTools} (run npm run build first)`);
 }
+// Exercise the packaged push route after Vite has replaced dist/viz/client.
+// Source imports alone cannot catch a missing server catalog in the archive.
+const { PUSH_ROUTES, renderPush } = await import('../dist/viz/push/routes.js');
+const pressurePush = renderPush({ kind: 'server.pressure', detail: { cause: 'store_busy', count: 2 } },
+  'en', PUSH_ROUTES['server.pressure']);
+if (pressurePush.title !== 'Atoma — host under pressure' ||
+    pressurePush.body !== 'Store: 2 writes refused, lock busy (SQLITE_BUSY)') {
+  throw new Error('packaged push catalog failed to render host pressure');
+}
+
 // Also runs on the production host after npm ci --omit=dev, before activation.
 await import('./sqlite-release-smoke.mjs');
 await import('./retrieval-project-smoke.mjs');

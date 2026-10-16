@@ -597,6 +597,7 @@ T3, Track A or Track B resolve through the legacy map below.
 | 2026-09-15 | **A run is a run.** One registry, one catalogue, one trust, one lifecycle. Promotion, dispatch and the prefilter cache at host defaults for tenant runs. Recoverable atom trust. | Current design. Mutually distrusting organisations on one instance are not a supported shape. | [platform trust](decisions/platform-trust-2026-09-15.md), [recoverable trust](decisions/recoverable-trust-2026-09-15.md), commits `2911881`, `63f5317`, `418b25d`, `5d0e0ac` |
 | 2026-09-16 review | This reconciliation: Track A/B retired, T2/T3/R1 rewritten, remaining work listed as W1–W14. | No new acceptance run; no closure of Gate 0. | this document at `76c041f` |
 | 2026-09-17 → 18 | W8-a, W4a, W5, W6 landed; Gate 0 and owner decisions 1–6 taken under a stabilisation mandate (hardened SQLite, no migration). | Current design. W11's journaling design and W4 remain the next engineering. | commits `bdb6bf9`, `8a4f2ff`, `5154832`, `437c713`, and this document |
+| 2026-10-16 | PostgreSQL feasibility re-measured on the deployed instance: one host, zero `SQLITE_BUSY` since 2026-09-18, 143 MB store; a phased plan is written for the day a reopen criterion fires. | Input, not a decision; Gate 0 stays closed. | [feasibility and plan](../records/experiments/postgresql-migration-plan-2026-10-16.md) |
 
 <a id="3-prerequisite-f1-the-sandbox-is-not-an-isolation-boundary"></a>
 

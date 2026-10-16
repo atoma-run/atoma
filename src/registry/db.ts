@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import { ensureLedgerSchema } from '../core/ledger.js';
 import { STORE_BUSY_TIMEOUT_MS } from '../core/stores.js';
+import { instrumentStoreHandle } from '../core/storePressure.js';
 
 export type DB = Database.Database;
 
@@ -108,6 +109,7 @@ export function openDb(path: string): DB {
   // The registry's own connection, separate from `openStoreHandle`'s cached
   // one and contending with it on the same file.
   db.pragma(`busy_timeout = ${STORE_BUSY_TIMEOUT_MS}`);
+  instrumentStoreHandle(db);
   try {
     migrateRegistryToPlatform(db);
     db.exec(SCHEMA);

@@ -29,6 +29,7 @@ import {
   MAX_PROJECT_RUN_TIMEOUT_MS,
   MIN_PROJECT_RUN_TIMEOUT_MS,
   PROJECT_RUN_TIMEOUT_ENV,
+  RUN_MEMORY_RESERVE_ENV,
   ProjectRunBusy,
   ProjectRunConfigurationError,
   ProjectRunCoordinator,
@@ -2316,6 +2317,63 @@ describe('a project run has a budget an operator can set', () => {
     // The host's ATOMA_BUILD_TIMEOUT_MS did not win; the project budget did.
     expect(driver.mock.calls[0]?.[0].timeoutMs).toBe(expected);
     expect(coordinator.runTaskBudgetMs()).toBe(expected + PROJECT_RUN_PREPARATION_TIMEOUT_MS + DEFAULT_HARD_KILL_MARGIN_MS + UNKILLABLE_BACKSTOP_EXTRA_MS);
+  });
+
+  it.each([false, true])('queues under memory pressure and resumes when memory frees (simultaneous: %s)', async (simultaneous) => {
+    const f = fixture();
+    const second = AuthStore.open(f.dbPath).completeLogin({ provider: 'github', subject: 'second', displayName: 'Second',
+      email: null, emailVerified: false }, null)!.viewer;
+    expect(second.orgId).not.toBe(f.viewer.orgId);
+    const otherProject = f.store.createProject({ orgId: second.orgId, principalId: second.principalId, project: {
+      name: 'Notes', slug: 'notes', initialPrompt: 'Notes.',
+      repositoryTarget: { installationId: '124', owner: 'second', name: 'notes', visibility: 'private' } } });
+    const GiB = 1024 ** 3;
+    let available = 1 * GiB;
+    const settles: Array<(value: string) => void> = [];
+    const driver = vi.fn(() => new Promise<string>((resolve) => { settles.push(resolve); }));
+    const coordinator = new ProjectRunCoordinator({
+      store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), PATH: process.env['PATH'], ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key',
+        [RUN_MEMORY_RESERVE_ENV]: '2048' },
+      driver, acquireLease: async () => lease(),
+      memoryProbe: () => ({ availableBytes: available, totalBytes: 8 * GiB, swapTotalBytes: 0, swapFreeBytes: 0 }),
+    });
+    try {
+      // Nothing in flight: admitted whatever the reading. The reserve limits
+      // concurrency, never availability.
+      const firstPending = coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+        projectId: f.project.projectId, request: { idempotencyKey: 'mem-1', goal: 'Build a clock.' } });
+      if (!simultaneous) await firstPending;
+      const queued = await coordinator.start({ orgId: second.orgId, principalId: second.principalId,
+        projectId: otherProject.projectId, request: { idempotencyKey: 'mem-2', goal: 'Build notes.' } });
+      expect(queued.status).toBe('queued');
+      const first = await firstPending;
+      await vi.waitFor(() => expect(driver).toHaveBeenCalledTimes(1));
+      // The first run is still ramping up: the reserve counts twice.
+      available = 3 * GiB;
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      expect(driver).toHaveBeenCalledTimes(1);
+      expect(f.store.getProjectRun(second.orgId, queued.projectRunId)?.status).toBe('queued');
+      expect(coordinator.memoryAdmission()).toMatchObject({ reserveMb: 2048, activeRuns: 1, deferrals: 1,
+        lastDeferral: { availableMb: 3072, requiredMb: 4096 } });
+      available = 5 * GiB;
+      await vi.waitFor(() => expect(driver).toHaveBeenCalledTimes(2));
+      expect(f.store.getProjectRun(second.orgId, queued.projectRunId)?.status).toBe('running');
+      expect(first.status).toBe('running');
+    } finally {
+      for (const settle of settles) settle(`${formatRunStatsEpilogue({ ...DELIVERED_STATS, outcome: 'failed' })}\n✖ stopped\n`);
+      await coordinator.waitForIdle();
+      coordinator.stopQueue();
+    }
+  });
+
+  it('refuses to boot on a malformed memory reserve', () => {
+    const f = fixture();
+    for (const value of ['2GB', '-1', '1.5']) {
+      expect(() => new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+        hostEnv: { ...haystackTestEnvironment(f.root), PATH: process.env['PATH'], [RUN_MEMORY_RESERVE_ENV]: value },
+        driver: vi.fn(async (_spawn: SpawnRunOptions) => ''), acquireLease: async () => lease() })).toThrow(ProjectRunConfigurationError);
+    }
   });
 
   it('refuses to start at all when the configured budget is nonsense', () => {

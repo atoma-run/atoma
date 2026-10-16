@@ -197,6 +197,8 @@ import { buildTierClients } from '../run/providers.js';
 import { RoutingLlmClient } from '../core/llmRouting.js';
 import type { LlmClient } from '../core/types.js';
 import { PlatformEventLog } from '../platform/events.js';
+import { HostPressureWatch } from '../platform/hostPressure.js';
+import { readHostMemory } from '../core/hostMemory.js';
 import { eventLabel } from '../contracts/platformEvents.js';
 import { sentinelRuleTable } from '../sentinel/rules.js';
 import { supervisorDirPath } from '../supervisor/paths.js';
@@ -1308,6 +1310,23 @@ function sentinelReferences(): TrajectoryReferenceSource[] {
   ];
 }
 
+/**
+ * THE HOST-PRESSURE WATCH (`src/platform/hostPressure.ts`): store lock
+ * contention every writer process records beside the store, and host memory
+ * while project runs are in flight, journaled as `server.pressure`. Gated
+ * only, like the sentinel: the journal is the channel it speaks on.
+ */
+const HOST_PRESSURE: HostPressureWatch | null = EVENTS
+  ? new HostPressureWatch({
+      storePath: DBS[0]!.path,
+      emit,
+      recentAlerts: () => EVENTS.list({ kind: 'server.pressure', limit: 20 }).events,
+      memoryProbe: () => readHostMemory(),
+      admission: () => PROJECTS_RUNTIME?.coordinator.memoryAdmission() ?? null,
+    })
+  : null;
+HOST_PRESSURE?.start();
+
 const SENTINEL_BOOTED_AT = new Date().toISOString();
 
 const SENTINEL: ResidentSentinel | null = (() => {
@@ -1477,6 +1496,7 @@ const MCP_DEPS: McpToolDeps = {
   analyst: () => ANALYST?.health() ?? null,
   // Read at call time, after MCP_HOST below exists: no tool runs before the bind.
   mcpHealth: () => MCP_HOST.health(),
+  hostPressure: () => HOST_PRESSURE?.health() ?? null,
   ...(EVENTS && AUTH?.store
     ? {
         notifications: (input) =>

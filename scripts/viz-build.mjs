@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { build } from 'esbuild';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -60,6 +61,21 @@ if (!readFileSync(markFile, 'utf8').includes(marker)) {
   console.error('viz build: the showcase crystal bundle does not carry the crystal (missing mark-shell-front)');
   process.exit(1);
 }
+
+// Push uses the same JSON catalogs as the client. Vite empties the client
+// output above, including tsc's copy of i18n-catalog.js and its JSON imports.
+// Package the server route with its pure catalog dependencies outside that
+// directory, keeping i18next external and React out of the server closure.
+await build({
+  entryPoints: [fileURLToPath(new URL('../src/viz/push/routes.ts', import.meta.url))],
+  outfile: fileURLToPath(new URL('../dist/viz/push/routes.js', import.meta.url)),
+  bundle: true,
+  packages: 'external',
+  platform: 'node',
+  format: 'esm',
+  target: 'node24',
+  sourcemap: true,
+});
 
 // The viz server serves these exact bytes with Content-Encoding: br. Building
 // them once avoids compressing a multi-megabyte module on the first request.

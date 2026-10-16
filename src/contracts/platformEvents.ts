@@ -206,6 +206,15 @@ export const platformEventKindSchema = z.enum([
   'auth.state_flood',
   'webhook.rejected',
   'server.recovered',
+  /**
+   * The host is short of what concurrent runs share (2026-10-16): the product
+   * store's write lock (`SQLITE_BUSY` after the busy timeout, or a
+   * transaction waiting or holding past half of it) or memory (`MemAvailable`
+   * under the run reserve while runs are in flight). `detail.cause` names
+   * which. The store causes are Gate 0's reopen evidence for PostgreSQL;
+   * memory is the limit concurrent organisations reach first.
+   */
+  'server.pressure',
   'push.subscribed',
   'push.unsubscribed',
   /**
@@ -437,6 +446,8 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'webhook.rejected': 'security',
   // A prior process died mid-run. Recovery worked; the crash still happened.
   'server.recovered': 'warning',
+  // A limit is near or crossed; nothing failed for good yet. Worth a push.
+  'server.pressure': 'warning',
   // Operator-initiated, attributable, and irreversible once sent.
   'platform.announcement': 'security',
   'push.subscribed': 'info',

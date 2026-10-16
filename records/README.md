@@ -38,6 +38,7 @@ name `docs/` locations from before 2026-10-15.
 
 - [Hybrid skills — rejected design](experiments/hybrid-skills-design.md)
 - [PostgreSQL migration analysis — September 2](experiments/postgresql-migration-analysis-2026-09-02.md)
+- [PostgreSQL migration feasibility and plan — October 16](experiments/postgresql-migration-plan-2026-10-16.md)
 - [Retrieval invocation policy experiment](experiments/retrieval-invocation-policy-experiment.md)
 - [Trajectory predictability proposal — September 9](experiments/trajectory-predictability-design-2026-09-09.md)
 - [Depth-routing experiment — September 13](experiments/depth-routing-experiment-2026-09-13.md)

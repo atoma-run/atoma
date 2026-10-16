@@ -89,6 +89,7 @@ import { ProjectStateConflict, ProjectStore } from './store.js';
 import { ProjectRetrievalLaunchStore } from './retrievalLaunch.js';
 import { resolveRerunOrigin, type RerunOrigin } from './rerun.js';
 import { HAYSTACK_LAUNCH_ENV, readHaystackLaunch } from '../contracts/retrievalHaystack.js';
+import { MIB, readHostMemory, type HostMemory, type RunMemoryAdmission } from '../core/hostMemory.js';
 
 const MAX_CONTROL_JSON_BYTES = 512 * 1024;
 
@@ -258,6 +259,8 @@ export interface ProjectCoordinatorOptions {
   readonly platformLimits?: () => PlatformLimits;
   /** Re-check membership when a previously admitted request leaves the queue. */
   readonly queuedRunAllowed?: (principalId: string, orgId: string) => boolean;
+  /** The host memory reading admission compares with the run reserve; tests inject one. */
+  readonly memoryProbe?: () => HostMemory | null;
 }
 
 /** What the coordinator knows about a delivered run's deliverable. */
@@ -1131,6 +1134,47 @@ export const MAX_PROJECT_RUN_TIMEOUT_MS = 2 * 60 * 60 * 1_000;
 export const PROJECT_RUN_TIMEOUT_ENV = 'ATOMA_PROJECT_TIMEOUT_MS';
 
 /**
+ * THE MEMORY A NEW RUN MUST FIND FREE BESIDE RUNNING ONES (2026-10-16).
+ * ====================================================================
+ *
+ * Several organisations' runs share one host, and its memory gives out long
+ * before the SQLite store does: measured on atoma.run that day, one run in
+ * flight held about 1.5 GiB (the run child, a Claude CLI, the Haystack
+ * preparation, the gVisor sandbox) with 3.3 GiB left and swap nearly full.
+ * An out-of-memory kill takes whichever process is largest, and the viz
+ * server is among them: every organisation's session with it.
+ *
+ * A run is ADMITTED beside running ones only while `MemAvailable` covers this
+ * reserve once for itself and once more for every run admitted in the last
+ * `RUN_MEMORY_RAMP_MS`, which has not reached its working size yet (Haystack
+ * preparation alone took 6m29-6m53 on 2026-10-15). Otherwise it stays QUEUED,
+ * exactly as at the concurrent-run ceiling, and the queue's own poll admits
+ * it once memory frees. It is never refused.
+ *
+ * IT LIMITS CONCURRENCY, NEVER AVAILABILITY: with no project run in flight a
+ * run is admitted whatever the reading, so a reserve set above the host's
+ * memory cannot stop the instance from running anything. Unset or `0` keeps
+ * the behaviour that shipped (no reserve); a host without a reading (darwin)
+ * admits as before.
+ */
+export const RUN_MEMORY_RESERVE_ENV = 'ATOMA_RUN_MEMORY_RESERVE_MB';
+export const RUN_MEMORY_RAMP_MS = 7 * 60_000;
+const MAX_RUN_MEMORY_RESERVE_MB = 1_048_576;
+
+export function runMemoryReserveBytes(hostEnv: NodeJS.ProcessEnv): number {
+  const raw = hostEnv[RUN_MEMORY_RESERVE_ENV]?.trim();
+  if (!raw) return 0;
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > MAX_RUN_MEMORY_RESERVE_MB) {
+    throw new ProjectRunConfigurationError(
+      `invalid ${RUN_MEMORY_RESERVE_ENV} "${raw}" (expected an integer number of MiB in 0..${MAX_RUN_MEMORY_RESERVE_MB})`
+    );
+  }
+  return parsed * MIB;
+}
+
+
+/**
  * The preparation's OWN bound, and the reason the run budget no longer pays
  * for it.
  *
@@ -1268,6 +1312,14 @@ export class ProjectRunCoordinator {
   private learningPrincipal?: string;
   private readonly active = new Map<string, ActiveRun>();
   private readonly idleWaiters = new Set<() => void>();
+  private readonly memoryReserveBytes: number;
+  private readonly memoryProbe: () => HostMemory | null;
+  /** When each run still in `active` was admitted: the ones still ramping up. */
+  private readonly admittedAt = new Map<string, number>();
+  /** Deferral EPISODES: the queue re-checks every 250 ms, and one wait is one deferral. */
+  private memoryDeferrals = 0;
+  private memoryDeferring = false;
+  private lastMemoryDeferral: RunMemoryAdmission['lastDeferral'] = null;
 
   constructor(options: ProjectCoordinatorOptions) {
     this.store = options.store;
@@ -1317,6 +1369,34 @@ export class ProjectRunCoordinator {
     // admin's limits refuse that run alone and a change reaches the next
     // launch without a restart. The value is deliberately NOT cached.
     projectRunTimeoutMs(this.hostEnv, this.explicitTimeoutMs);
+    // Same rule: a malformed reserve refuses the boot, not every run after it.
+    this.memoryReserveBytes = runMemoryReserveBytes(this.hostEnv);
+    this.memoryProbe = options.memoryProbe ?? (() => readHostMemory());
+  }
+
+  /** See `RUN_MEMORY_RESERVE_ENV`. True when a new run may start beside the running ones. */
+  private memoryAdmits(): boolean {
+    if (this.memoryReserveBytes === 0 || this.active.size === 0) return true;
+    const memory = this.memoryProbe();
+    if (!memory) return true;
+    const now = Date.now();
+    let ramping = 0;
+    for (const [runId, at] of this.admittedAt) if (this.active.has(runId) && now - at < RUN_MEMORY_RAMP_MS) ramping++;
+    const requiredBytes = this.memoryReserveBytes * (1 + ramping);
+    if (memory.availableBytes >= requiredBytes) {
+      this.memoryDeferring = false;
+      return true;
+    }
+    if (!this.memoryDeferring) this.memoryDeferrals++;
+    this.memoryDeferring = true;
+    this.lastMemoryDeferral = { at: new Date(now).toISOString(),
+      availableMb: Math.floor(memory.availableBytes / MIB), requiredMb: Math.ceil(requiredBytes / MIB) };
+    return false;
+  }
+
+  memoryAdmission(): RunMemoryAdmission {
+    return { reserveMb: Math.round(this.memoryReserveBytes / MIB), activeRuns: this.active.size,
+      deferrals: this.memoryDeferrals, lastDeferral: this.lastMemoryDeferral };
   }
 
   /**
@@ -1683,7 +1763,11 @@ export class ProjectRunCoordinator {
     );
     let lease: RunLease | undefined;
     try {
-      if (this.store.listQueuedRuns().length === 0) lease = await this.acquireLeasePreempting(`project:${candidateRunId}`, input.orgId);
+      // A run the host has no memory for joins the queue, like one past the
+      // concurrent-run ceiling; the queue admits it when memory frees.
+      if (this.store.listQueuedRuns().length === 0 && this.memoryAdmits()) {
+        lease = await this.acquireLeasePreempting(`project:${candidateRunId}`, input.orgId);
+      }
     } catch (error) {
       if (error instanceof RunLockBusyError) {
         // A concurrent identical request may have reserved its row while
@@ -1835,6 +1919,14 @@ export class ProjectRunCoordinator {
         lease.release();
         return { run: this.store.getProjectRun(run.orgId, run.projectRunId)!, created: false };
       }
+      // Inventory lookup and lease acquisition may have yielded to another
+      // admission. Recheck immediately before the synchronous start + active
+      // registration, so simultaneous organisations cannot spend one reserve.
+      if (!this.memoryAdmits()) {
+        lease.release();
+        this.resumeQueuedRuns();
+        return { run, created: true };
+      }
       this.store.startProjectRun({
         orgId: input.orgId,
         projectRunId: run.projectRunId,
@@ -1863,6 +1955,7 @@ export class ProjectRunCoordinator {
       principalId: input.principalId,
       controller,
     });
+    this.admittedAt.set(run.projectRunId, Date.now());
 
     let driven: Promise<string>;
     try {
@@ -2220,6 +2313,7 @@ export class ProjectRunCoordinator {
         );
       }
       this.active.delete(reservedRun.projectRunId);
+      this.admittedAt.delete(reservedRun.projectRunId);
       if (!this.queueStopped) this.resumeLearning();
       if (!this.queueStopped) this.resumeQueuedRuns();
       this.resolveIdleIfSettled();
@@ -2337,6 +2431,8 @@ export class ProjectRunCoordinator {
       for (const queued of this.store.listQueuedRuns()) {
         if (this.queueStopped) break;
         if (this.store.runCapacity(queued.orgId).maxConcurrent === 0) continue;
+        // FIFO: the head waits for memory, and nobody overtakes it.
+        if (!this.memoryAdmits()) break;
         let lease: RunLease;
         try { lease = await this.acquireLeasePreempting(`project:${queued.projectRunId}`, queued.orgId); }
         catch (error) {

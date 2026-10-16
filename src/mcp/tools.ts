@@ -34,6 +34,7 @@ import type { ProjectStore } from '../projects/store.js';
 import { resolveProjectRunTraceFile } from '../projects/store.js';
 import type { SentinelHealth } from '../sentinel/resident.js';
 import type { McpHttpHealth } from './http.js';
+import type { HostPressureHealth } from '../platform/hostPressure.js';
 import { sentinelRuleTable } from '../sentinel/rules.js';
 import type { ResidentAnalystHealth } from '../supervisor/resident.js';
 import type { PushLocale } from '../viz/push/routes.js';
@@ -153,6 +154,8 @@ export interface McpToolDeps {
   readonly analyst?: () => ResidentAnalystHealth | null;
   /** This MCP host's own counters — who speaks which protocol — read at call time. */
   readonly mcpHealth?: () => McpHttpHealth;
+  /** Store lock contention, host memory and run admission (`src/platform/hostPressure.ts`). */
+  readonly hostPressure?: () => HostPressureHealth | null;
   /** The viewer's notification tray — the same builder `/api/notifications` reads. */
   readonly notifications?: (input: {
     principalId: string;
@@ -1282,11 +1285,12 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       server.registerTool(
         'atoma_mcp_health',
         {
-          title: 'Who speaks which MCP protocol',
+          title: 'This host’s counters: MCP protocols, store contention, memory',
           description:
-            'This MCP host’s counters since the server started: open 2025-11-25 sessions, 2026-07-28 requests, and `clients` — `<protocol version> <client name>` → sessions opened (2025) or requests (2026). The evidence for when 2025 support can go. Client names are what each client declared about itself. Zero tokens: this reads counters.',
+            'This MCP host’s counters since the server started: open 2025-11-25 sessions, 2026-07-28 requests, and `clients` — `<protocol version> <client name>` → sessions opened (2025) or requests (2026). The evidence for when 2025 support can go. Client names are what each client declared about itself. `host`: product-store write-lock contention over the last 24 hours as every writer process recorded it (`busy` = SQLITE_BUSY after the busy timeout, `slow` = a transaction waiting or holding the lock 1 s or more), host memory, and the run admission memory reserve. Zero tokens: this reads counters.',
           outputSchema: z.looseObject({
             mcp: z.record(z.string(), z.unknown()).nullable(),
+            host: z.record(z.string(), z.unknown()).nullable(),
             note: z.string(),
           }),
           annotations: READ_ONLY,
@@ -1295,6 +1299,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           const mcp = ctx.deps.mcpHealth?.() ?? null;
           return jsonResult({
             mcp,
+            host: (ctx.deps.hostPressure?.() ?? null) as Record<string, unknown> | null,
             note: mcp
               ? 'counted since this server process started: a deployment resets them. A client appears once it opened or resumed a session (2025; resumed clients have a synthetic name) or sent a request (2026).'
               : 'this host exposes no MCP counters',
