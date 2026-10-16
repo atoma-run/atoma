@@ -43,7 +43,9 @@ export function routingIndexNote(plan: Plan): string {
   const head = 'HOST CAPABILITY ROUTING: ';
   const tail = '; the order between the parts of one checkpoint is host ordering, not planner serialization. ' +
     'Review indices refer to this routed plan. To keep a checkpoint whole, give it a cell holding validate_html, ' +
-    'run_shell and start_node_server, or omit its preferredChild.';
+    'run_shell and start_node_server, or omit its preferredChild. A split checkpoint\'s acceptance criteria bind only a part ' +
+    'routed to a cell holding validate_html, run_shell and start_node_server; other parts hear them as context, and root ' +
+    'acceptance judges every one.';
   const mappings = [...parts.entries()].map(([planner, group]) => {
     const indices = group.map((part) => part.index);
     const listed = indices.length === 2 ? `${indices[0]} and ${indices[1]}` : indices.join(', ');

@@ -45,6 +45,7 @@ import {
   parsePlanWithFallback,
   parsePlanPair,
   planSchema,
+  restoreRoutingMarks,
   type L3Strategy,
   NON_JSON_PAYLOAD_SUMMARY_PREFIX,
 } from './json.js';
@@ -60,6 +61,7 @@ import { approvalDigest, delegationRefusal, enforceParsedDelegationReview, routi
 import { VALIDATION_PARAMS } from './verdict.js';
 import type { RootDelegationApproval, RootPhaseCheckpoint, RootPlanCheckpoint } from '../contracts/runCheckpoint.js';
 import type { DelegationReview } from '../contracts/parentTests.js';
+import type { RoutedFrom } from '../contracts/routedFrom.js';
 import { scopeTools } from './toolMerge.js';
 import {
   prefilterStrategy,
@@ -71,6 +73,7 @@ import {
   TaskChildrenMemo,
 } from './cost.js';
 import {
+  browserHolderFor,
   bucketIdForTools,
   canonicalFullStackPrompt,
   extractBranchDiagnostic,
@@ -172,6 +175,17 @@ export function buildNarrowL2Prompt(
 }
 
 /**
+ * The host line a WHOLE-rerouted checkpoint opens with: the union of the two
+ * split parts' lines (guestbook 2026-08-12, 31st iteration), so the browser
+ * proof is still named and `requiredPassingCommands` still reads the commands.
+ */
+function wholeCheckpointLine(commands: readonly string[]): string {
+  return `BROWSER AND EXACT-COMMAND VERIFICATION — start the app with start_node_server, prove browser requirements ` +
+    `with validate_html interactions on that returned URL and do not substitute a Node/static-source harness for the browser; ` +
+    `run the exact required command(s) ${commands.join(', ')} and require exit code 0; do not substitute another harness. `;
+}
+
+/**
  * Capability routing of a root plan's browser and shell verification, by
  * TYPED contract (review 2026-10-16, point 7). It used to return any plan
  * holding `dependsOn` or `acceptanceTests` untouched, which turned routing off
@@ -191,11 +205,24 @@ export function buildNarrowL2Prompt(
  *    needs a browser and a shell its cell lacks, to a cell holding
  *    validate_html, run_shell, start_node_server and every tool of the
  *    planner's cell (a reroute never drops a tool the planner chose), else it
- *    is left alone; a browser-only node keeps the older reroute to a web cell.
+ *    is left alone; a browser-only node is rerouted to its browser holder.
  *  - CHECKPOINT: an output-less node of a multi-phase plan. A browser + exact
- *    command checkpoint splits into a browser part then a shell part, each
- *    marked `routedFrom` (guestbook 2026-08-12); a browser-only one is
+ *    command checkpoint planned on a cell holding start_node_server moves
+ *    WHOLE to a full-stack cell holding every tool of that cell, under one
+ *    host line naming both proofs (group G5, 2026-10-16: one verification,
+ *    not two — phase-redundancy 2026-08-22). Otherwise it splits into a
+ *    browser part then a shell part, each marked `routedFrom` (guestbook
+ *    2026-08-12). The checkpoint's criteria bind at most ONE part, the one
+ *    whose cell holds validate_html, run_shell and start_node_server; the
+ *    other hears them as context (`delegatedCriteria`), and the shell part
+ *    drops the browser-only proof obligations. A browser-only checkpoint is
  *    rerouted in place.
+ *
+ * Every browser target — a split's browser part, a browser-only checkpoint
+ * or implementation node — is chosen by `browserHolderFor`: a server-backed
+ * cell's browser work never lands on a cell without its server (notes-app
+ * 2026-09-07; guestbook 32nd iteration, 2026-08-12), and a static or
+ * server-less cell's never on the Node-only full-stack cell.
  *
  * Every `dependsOn` is remapped onto the routed indices; a dependent of a
  * split checkpoint waits for both parts. In parallel modes the shell part
@@ -219,7 +246,10 @@ export function routeCrossBucketVerification(plan: Plan, registry: AtomRegistry)
   const supportsBrowser = (type: AtomType | undefined): boolean => holds(type, 'validate_html');
   const supportsShellHarness = (type: AtomType | undefined): boolean =>
     holds(type, 'run_shell') && holds(type, 'start_node_server');
-  const fallbackWebL2 = l2Types.find(supportsBrowser);
+  const provesBoth = (type: AtomType | undefined): boolean => supportsBrowser(type) && supportsShellHarness(type);
+  // A found name of another tier holds no cell capability: it is never kept as its own browser holder.
+  const browserTarget = (planned: AtomType): AtomType | undefined =>
+    browserHolderFor(planned.tier === 2 ? planned : undefined, l2Types);
   const fallbackShellL2 = l2Types.find(supportsShellHarness);
   const fullStackFor = (planned: AtomType): AtomType | undefined =>
     l2Types.find((type) =>
@@ -248,16 +278,28 @@ export function routeCrossBucketVerification(plan: Plan, registry: AtomRegistry)
         changed = true;
         return [{ ...subtask, preferredChild: target.name }];
       }
-      if (browser && fallbackWebL2 && !supportsBrowser(planned)) {
+      const webL2 = browser && !supportsBrowser(planned) ? browserTarget(planned) : undefined;
+      if (webL2) {
         changed = true;
-        return [{ ...subtask, preferredChild: fallbackWebL2.name }];
+        return [{ ...subtask, preferredChild: webL2.name }];
       }
       return [subtask];
     }
-    const webL2 = supportsBrowser(planned) ? planned : fallbackWebL2;
+    if (browser && commands.length > 0 && holds(planned, 'start_node_server')) {
+      const whole = fullStackFor(planned);
+      if (whole) {
+        changed = true;
+        return [{ ...subtask, preferredChild: whole.name, description: wholeCheckpointLine(commands) + subtask.description }];
+      }
+    }
+    const webL2 = browserTarget(planned);
     const shellL2 = supportsShellHarness(planned) ? planned : fallbackShellL2;
     if (browser && commands.length > 0 && webL2 && shellL2) {
       changed = true;
+      const owner = provesBoth(webL2) ? 'browser-verification' : provesBoth(shellL2) ? 'shell-verification' : null;
+      const criteriaOf = (role: RoutedFrom['role']): RoutedFrom['criteria'] => owner === role ? 'binding' : 'context';
+      // `dom-interaction`, the only obligation, is browser evidence.
+      const { proofObligations, ...withoutObligations } = subtask;
       const sentences = subtask.description.split(/(?<=[.!?])\s+(?=[A-Z])/);
       const browserSentences = sentences.filter((sentence) =>
         /\b(?:browser|selector-based|window\.__test|console(?:\.error|\s+errors?)|failed requests?|UI probe)\b/i.test(
@@ -276,16 +318,16 @@ export function routeCrossBucketVerification(plan: Plan, registry: AtomRegistry)
             `BROWSER VERIFICATION ONLY — use a real browser and do not substitute a Node/static-source harness. ` +
             `${browserSentences.join(' ') || subtask.description}`,
           preferredChild: webL2.name,
-          routedFrom: { index: plannerIndex, role: 'browser-verification' },
+          routedFrom: { index: plannerIndex, role: 'browser-verification', criteria: criteriaOf('browser-verification') },
         },
         {
-          ...subtask,
+          ...withoutObligations,
           description:
             `FINAL SHELL/HARNESS VERIFICATION ONLY — run the exact required command(s) ` +
             `${commands.join(', ')} and require exit code 0; do not substitute another harness. ` +
             `${shellSentences.join(' ') || subtask.description}`,
           preferredChild: shellL2.name,
-          routedFrom: { index: plannerIndex, role: 'shell-verification' },
+          routedFrom: { index: plannerIndex, role: 'shell-verification', criteria: criteriaOf('shell-verification') },
         },
       ];
     }
@@ -459,7 +501,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * so phase counting and --pause-after-phase behave alike.
    */
   private async resumeSavedPlan(task: Task, saved: RootPlanCheckpoint, checkpoint: RootPhaseCheckpoint, ctx: RunContext): Promise<Result> {
-    const savedPlan: Plan = planSchema.parse(saved.plan);
+    // The host's routing marks ride the raw checkpoint; the approval digest ignores them.
+    const savedPlan: Plan = restoreRoutingMarks(planSchema.parse(saved.plan), saved.plan);
     if (savedPlan.aggregation.mode !== 'sequential') throw new Error('Checkpoint root plan is not sequential');
     this.pendingStrategy = l3StrategySchema.parse(saved.strategy);
     this.pendingPlannedPhases = saved.plannedPhases;

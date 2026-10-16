@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
-import { L3Atom } from '../src/atoms/L3Atom.js';
+import { L3Atom, routeCrossBucketVerification } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, routingIndexNote } from '../src/atoms/delegationReview.js';
 import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { planSchema } from '../src/atoms/json.js';
 import type { BranchEventInfo, LlmCompletionRequest, LlmCompletionResponse, Plan, Result, RunContext, Task, Tool, ToolExecutor } from '../src/core/types.js';
-import { parentTestSuiteDigest, type ParentTestSuite } from '../src/contracts/parentTests.js';
+import { parentTestSuiteDigest, type DelegationReview, type ParentTestSuite } from '../src/contracts/parentTests.js';
 import { READ_ONLY_TASK_LINE } from '../src/contracts/readOnlyPhase.js';
 import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { MockLlmClient } from '../src/core/llm.js';
@@ -15,14 +15,23 @@ import { modelForTier } from '../src/core/models.js';
 import { ValidationError } from '../src/core/errors.js';
 import { ROOT_DELEGATION_REVIEW_PARAMS } from '../src/atoms/cost.js';
 import { VALIDATION_PARAMS, VALIDATION_SYSTEM_PROMPT } from '../src/atoms/verdict.js';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { RunCheckpointStore, SequentialCheckpoint } from '../src/run/checkpoint.js';
+import { closeStoreHandles } from '../src/core/stores.js';
+import { withRecoveryEffects } from '../src/core/recoveryEffects.js';
 import { makeCtx } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
 
 const databases: ReturnType<typeof openDb>[] = [];
+const roots: string[] = [];
 
 afterEach(() => {
   for (const db of databases.splice(0)) db.close();
+  closeStoreHandles();
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
 function actors() {
@@ -722,7 +731,7 @@ describe('capability routing under the root review', () => {
   const CHECKPOINT = 'Confirm the page in a real browser with selector-based interactions. Run node test-api.js and require it to pass.';
   const tool = (name: string): Tool => ({ name, description: name, inputSchema: { type: 'object' } });
 
-  function routingRegistry(options: { fullStack?: boolean } = {}) {
+  function routingRegistry(options: { fullStack?: boolean; shellExtra?: string[] } = {}) {
     const db = openDb(':memory:');
     databases.push(db);
     const registry = new AtomRegistry(db);
@@ -734,8 +743,9 @@ describe('capability routing under the root review', () => {
       createdBy: 'test',
     };
     const tissue = registry.create(3, seed);
-    const shell = registry.create(2, { ...seed, tools: [tool('run_shell'), tool('start_node_server')] });
-    const web = registry.create(2, { ...seed, tools: [tool('validate_html')] });
+    const shellTools = ['run_shell', 'start_node_server', ...(options.shellExtra ?? [])];
+    const shell = registry.create(2, { ...seed, tools: shellTools.map(tool) });
+    const web = registry.create(2, { ...seed, tools: [tool('validate_html'), tool('start_static_server')] });
     const fullStack = options.fullStack
       ? registry.create(2, { ...seed, tools: [tool('validate_html'), tool('run_shell'), tool('start_node_server')] })
       : undefined;
@@ -1025,5 +1035,186 @@ describe('capability routing under the root review', () => {
     expect(reviewsOf('BROWSER VERIFICATION ONLY').every((req) => req.userContent.includes(READ_ONLY_TASK_LINE))).toBe(true);
     expect(reviewsOf('FINAL SHELL/HARNESS VERIFICATION ONLY').length).toBeGreaterThan(0);
     expect(reviewsOf('FINAL SHELL/HARNESS VERIFICATION ONLY').every((req) => req.userContent.includes(READ_ONLY_TASK_LINE))).toBe(true);
+  });
+  /**
+   * GROUP G5 (2026-10-16): the parts of a host-split checkpoint hear its
+   * criteria as context unless their cell can prove both browser and command
+   * evidence; the mark survives a durable checkpoint and a resume.
+   */
+  describe('criteria of a split checkpoint', () => {
+    const userCriteria = [
+      { id: 'c1', behaviour: 'A note is added with the keyboard only, no mouse', source: 'user' as const },
+      { id: 'c2', behaviour: 'node test-api.js exits 0', source: 'user' as const },
+      { id: 'c3', behaviour: 'module A renders the page', source: 'user' as const },
+    ];
+
+    /** The criteria ids a phase review lists under each header. */
+    function criteriaSections(content: string) {
+      const listed = (header: string): string[] => {
+        const lines = content.split('\n');
+        const start = lines.findIndex((line) => line.startsWith(header));
+        if (start < 0) return [];
+        const items: string[] = [];
+        for (const line of lines.slice(start + 1)) {
+          const item = /^- (c\d+): /.exec(line);
+          if (!item) break;
+          items.push(item[1]!);
+        }
+        return items;
+      };
+      return {
+        binding: listed('Acceptance criteria this phase must prove'),
+        context: listed('Acceptance criteria the root acceptor will also judge'),
+      };
+    }
+
+    /** Every request that hands a phase's task to a model: its plans, executions and reviews, below the prefilter. */
+    function phaseRequests(requests: readonly LlmCompletionRequest[], prefix: string) {
+      return requests.filter((req) => req.role !== 'prefilter' && req.userContent.includes(`Task: ${prefix}`));
+    }
+
+    function withCriteria(plan: ReturnType<typeof dagPlan>) {
+      return {
+        ...plan,
+        subtasks: plan.subtasks.map((subtask, index) =>
+          index === 1 ? { ...subtask, criteria: ['c3'] } : index === 3 ? { ...subtask, criteria: ['c1', 'c2'] } : subtask
+        ),
+      };
+    }
+
+    async function run(actors: ReturnType<typeof routingRegistry>, checkpointCell = actors.web) {
+      const model = routingModel({
+        cell: actors.shell,
+        molecule: actors.molecule,
+        rootPlans: [withCriteria(dagPlan(actors, checkpointCell))],
+        review: classify,
+      });
+      const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites() };
+      await L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock').handle({ description: 'Build the application', criteria: userCriteria }, ctx);
+      return model.requests;
+    }
+
+    it('gives both parts the checkpoint\'s criteria as context when neither cell can prove both', async () => {
+      const requests = await run(routingRegistry());
+
+      const browserRequests = phaseRequests(requests, 'BROWSER VERIFICATION ONLY');
+      const shellRequests = phaseRequests(requests, 'FINAL SHELL/HARNESS VERIFICATION ONLY');
+      const moduleRequests = phaseRequests(requests, 'Implement a.ts');
+      expect(browserRequests.length).toBeGreaterThan(0);
+      expect(shellRequests.length).toBeGreaterThan(0);
+      expect(moduleRequests.length).toBeGreaterThan(0);
+      for (const req of [...browserRequests, ...shellRequests]) {
+        expect(criteriaSections(req.userContent)).toEqual({ binding: [], context: ['c1', 'c2'] });
+      }
+      for (const req of moduleRequests) {
+        expect(criteriaSections(req.userContent)).toEqual({ binding: ['c3'], context: [] });
+      }
+    });
+
+    it('binds the criteria to the browser part when it is routed to a cell holding both capabilities', async () => {
+      // The checkpoint is planned on the shell cell, which holds a tool the
+      // full-stack cell lacks: it splits, and its browser part goes to the
+      // full-stack cell, which can start the shell cell's Node server.
+      const actors = routingRegistry({ fullStack: true, shellExtra: ['call_mcp_tool'] });
+
+      const requests = await run(actors, actors.shell);
+
+      const browserRequests = phaseRequests(requests, 'BROWSER VERIFICATION ONLY');
+      const shellRequests = phaseRequests(requests, 'FINAL SHELL/HARNESS VERIFICATION ONLY');
+      expect(browserRequests.length).toBeGreaterThan(0);
+      expect(shellRequests.length).toBeGreaterThan(0);
+      for (const req of browserRequests) {
+        expect(criteriaSections(req.userContent)).toEqual({ binding: ['c1', 'c2'], context: [] });
+      }
+      for (const req of shellRequests) {
+        expect(criteriaSections(req.userContent)).toEqual({ binding: [], context: ['c1', 'c2'] });
+      }
+    });
+
+    it('keeps the routing marks through a durable checkpoint and a resume under the recorded approval', async () => {
+      const actors = routingRegistry();
+      const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+      const task: Task = { description: 'Build the notes page', inputs: { a: 1 }, criteria: userCriteria.slice(0, 2) };
+      const planned = planSchema.parse({
+        reasoning: 'build, then verify',
+        subtasks: [
+          { description: 'Build the notes page in index.html.', preferredChild: actors.shell, outputs: ['index.html'] },
+          { description: CHECKPOINT, preferredChild: actors.web, criteria: ['c1', 'c2'] },
+        ],
+        aggregation: { mode: 'sequential' },
+        expectedOutput: 'a verified notes page',
+      });
+      const routed = routeCrossBucketVerification(planned, actors.registry);
+      expect(routed.subtasks).toHaveLength(3);
+      const actor = { name: tissue.name, atomId: tissue.atomId, version: tissue.registryVersion() };
+      const approval = {
+        digest: approvalDigest({ plan: routed, from: 0, task, actor, model: modelForTier(2) }),
+        from: 0,
+        review: classify(routed).delegationReview as DelegationReview,
+      };
+
+      const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-g5-resume-')));
+      roots.push(root);
+      const workspace = join(root, 'workspace');
+      mkdirSync(workspace);
+      writeFileSync(join(workspace, 'index.html'), '<main>notes</main>');
+      const store = new RunCheckpointStore(join(root, 'atoma.db'));
+      const id = randomUUID();
+      const data = {
+        version: 1, id, scope: { orgId: 'org', projectId: 'proj', principalId: 'alice', runId: id }, goal: task.description, workspace,
+        policy: '{}', actor, checklist: [], root: null, completed: [], workspaceDigest: null, processes: [],
+        consumed: { tokens: 0, costUsd: 0 }, remainingMs: 600_000, lastRunId: null,
+      };
+      await withRecoveryEffects(async () => {
+        const writer = new SequentialCheckpoint(data as never, store, {
+          fresh: true, automatic: true, pauseAfter: 1, account: () => ({ tokens: 1, costUsd: 0.1 }),
+          deadlineAt: Date.now() + 600_000, settle: async () => {}, processes: () => [],
+        });
+        writer.planned(task, routed, { strategy: 'reuse', target: actors.shell, reasoning: 'r' }, 2, approval);
+        await writer.beforePhase(0, routed.subtasks[0]);
+        const built: Result = {
+          ...result,
+          summary: 'page built',
+          trace: [{ kind: 'verdict-result', ts: '0', atom: tissue.name, payload: { approved: true, reasoning: 'reviewed' } }],
+        };
+        await expect(writer.afterPhase(0, built)).rejects.toThrow();
+        writer.release();
+      });
+      const saved = store.read(id);
+      expect(saved.root?.approval).toEqual(approval);
+
+      const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [], review: classify });
+      const recorded: Plan[] = [];
+      const plannedAgain = vi.fn<RootPhaseCheckpoint['planned']>();
+      const ctx: RunContext = {
+        ...makeCtx(),
+        llm: model.llm,
+        tools: passingSuites(),
+        recordRootPlan: (plan) => recorded.push(plan),
+        rootCheckpoint: {
+          restore: () => saved.root ?? null,
+          completed: saved.completed.map((phase) => ({ ...phase, trace: [] })),
+          planned: plannedAgain,
+          beforePhase: vi.fn(),
+          afterPhase: vi.fn(async () => {}),
+          finalizing: vi.fn(),
+        },
+      };
+
+      await tissue.handle(task, ctx);
+
+      expect(model.reviewedPlans).toHaveLength(0);
+      expect(plannedAgain.mock.calls[0]?.[4]).toEqual(approval);
+      expect(recorded[0]!.subtasks.map((subtask) => subtask.routedFrom)).toEqual([
+        undefined,
+        { index: 1, role: 'browser-verification', criteria: 'context' },
+        { index: 1, role: 'shell-verification', criteria: 'context' },
+      ]);
+      const browserRequests = phaseRequests(model.requests, 'BROWSER VERIFICATION ONLY');
+      expect(browserRequests.length).toBeGreaterThan(0);
+      for (const req of browserRequests) {
+        expect(criteriaSections(req.userContent)).toEqual({ binding: [], context: ['c1', 'c2'] });
+      }
+    });
   });
 });

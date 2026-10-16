@@ -281,6 +281,8 @@ load-bearing.
   dependencies; no wave barrier, no prose inference. A producer with a typed failure is KEPT and its
   dependents land unstarted (`blockedPhases`); a throw still fails the dispatch. Routing splits only
   output-less checkpoints, remapping `dependsOn` ([why](../../records/reviews/parent-tests-review-fixes-2026-10-16.md)).
+  It keeps a server-backed browser+command checkpoint whole on a superset full-stack cell and splits it
+  otherwise; the criteria bind at most the split part whose cell holds both capabilities; the shell part drops obligations.
   This DAG answers [2026-08-16](../../records/incidents/parallel-fanin-2026-08-16.md), where per-artefact phases
   serialised independent work, though fan-out was not always cheaper; no live run has exercised it yet.
 - A phase of a SEQUENTIAL root plan the PLANNER wrote with two phases or more
@@ -288,8 +290,8 @@ load-bearing.
   `outputs` is READ-ONLY (`Task.readOnly`) — the tissue's plan, or a root
   cell's own (a fork carries `currentBranchId`; a prefilter reuse is one
   dispatch of the whole task). A one-phase plan is the whole task, and
-  parallel phases share the workspace at the same moment, so neither is
-  marked. Runs 04ea696f (2026-09-30: a verification phase replaced the page it
+  parallel phases, host-split parts included, share the workspace at the
+  same moment, so neither is marked. Runs 04ea696f (2026-09-30: a verification phase replaced the page it
   verified, and that page shipped) and f793b338 (2026-09-27: an inspect
   subtask overwrote a home page 23 times).
 - Every execution of a read-only phase — the child's, a branch's, the
@@ -710,6 +712,16 @@ Read the archived sections before changing something that merely looks odd.
   `producedBy` (false provenance); a hand-up without root acceptance (delivered
   unread). The `[A, C]` reach lands by analogy, with a pre-registered count:
   [record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-spent-ladders-that-are-not-recognised).
+- Split verification (G5, 2026-10-16,
+  [record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-split-verification-parts-land-on-the-right-cell-and-own-their-criteria)).
+  Do not bind a split checkpoint's criteria to a part whose cell cannot prove
+  both browser and command evidence: a README phase judged on a keyboard
+  criterion loops (first-refusals 2026-10-10). Ownership goes by cell type,
+  never by criterion wording or `check.kind` (an http criterion bound to the
+  static split's fetch_url cell would push it to write a Node server). Browser
+  holders follow `browserHolderFor`, at L3 and at the L2 redirect, never
+  "first validate_html by ordinal" (notes-app 2026-09-07). A whole reroute
+  names both proofs in one host line (guestbook, 31st iteration).
 - A read-only phase is RESTORED when it ends, never refused its writes. The
   refusal was built and reviewed first (2026-09-30): a verifier that found a
   real defect was coached by the internal-validation gate to fix what the

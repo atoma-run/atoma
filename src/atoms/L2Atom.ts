@@ -59,6 +59,7 @@ import {
   TaskChildrenMemo,
 } from './cost.js';
 import {
+  browserHolderFor,
   bucketIdForTools,
   canonicalFullStackPrompt,
   CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES,
@@ -443,9 +444,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         const prefilterTarget = prefilter.target;
         const selected = catalog.find((candidate) => candidate.name === prefilterTarget);
         if (!selected?.tools.some((tool) => tool.name === 'validate_html')) {
-          const webCandidate = catalog.find((candidate) =>
-            candidate.tools.some((tool) => tool.name === 'validate_html')
-          );
+          // The same order as L3 routing: a Node pick goes to a browser
+          // molecule that can start its server, never to the static web
+          // molecule merely because it comes first (group G5, 2026-10-16).
+          const webCandidate = browserHolderFor(selected, catalog);
           if (webCandidate) {
             ctx.logger.warn(
               `[${this.name}] browser-verification task was prefiltered to ${prefilter.target}, which lacks validate_html — routing to ${webCandidate.name}`

@@ -114,17 +114,17 @@ export interface SubtaskSpec {
   /**
    * Internal provenance marker set when `routeCrossBucketVerification` split
    * a planner checkpoint into a browser part and an exact-shell part: `index`
-   * is the PLANNER's subtask index, `role` which part this is. Like
-   * `Plan.viaPrefilter` it is set by the host only and is NOT in
-   * `subtaskSpecSchema`, so `z.object` strips it from model JSON and a planner
-   * cannot spoof it. Informational, never behaviour-bearing: it feeds
-   * `routingIndexNote` (the index mapping the reviewer and a replanning
-   * planner read) and a checkpoint restore drops it.
+   * is the PLANNER's subtask index, `role` which part this is, `criteria`
+   * whether the checkpoint's criteria bind this part or are context for it
+   * (`src/contracts/routedFrom.ts`). Like `Plan.viaPrefilter` it is set by the
+   * host only and is NOT in `subtaskSpecSchema`, so `z.object` strips it from
+   * model JSON and a planner cannot spoof it. It feeds `routingIndexNote`
+   * (the index mapping the reviewer and a replanning planner read) and bears
+   * ONE behaviour: `delegatedCriteria` renders a `context` part's criteria as
+   * context. A resumed root restores it from the raw checkpoint
+   * (`restoreRoutingMarks`); the approval digest ignores it.
    */
-  readonly routedFrom?: {
-    readonly index: number;
-    readonly role: 'browser-verification' | 'shell-verification';
-  };
+  readonly routedFrom?: import('../contracts/routedFrom.js').RoutedFrom;
 }
 
 /**

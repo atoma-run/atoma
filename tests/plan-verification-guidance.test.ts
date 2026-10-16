@@ -7,10 +7,22 @@ import { FALLBACK_OPUS } from './tier-pins.js';
 import { preservePlanLiteralContracts } from '../src/atoms/prompts.js';
 import { makeCtx, jsonText, jsonTextPair } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
-import { planSchema } from '../src/atoms/json.js';
+import { planSchema, restoreRoutingMarks } from '../src/atoms/json.js';
 import { parallelDeclaredOutputCollision } from '../src/atoms/l3RootPlan.js';
 import { enforceDelegationReview, routingIndexNote, ROUTING_INDEX_NOTE_MAX_CHARS } from '../src/atoms/delegationReview.js';
-import type { Plan, SubtaskSpec, Tool } from '../src/core/types.js';
+import type { Plan, SubtaskSpec, Task, Tool } from '../src/core/types.js';
+import { requiredPassingCommands } from '../src/atoms/resultGates.js';
+import { delegatedCriteria } from '../src/atoms/taskContext.js';
+import { PROOF_OBLIGATIONS } from '../src/contracts/attestation.js';
+import {
+  browserHolderFor,
+  CANONICAL_BOOTSTRAP_MARKER,
+  CANONICAL_FULL_STACK_BOOTSTRAP_MARKER,
+  CANONICAL_HTTP_BOOTSTRAP_MARKER,
+} from '../src/atoms/capability.js';
+import { seedCatalog } from '../src/run/setup.js';
+import { defaultBuiltinTools } from '../src/tools/builtin.js';
+import { ToolSandbox } from '../src/tools/sandbox.js';
 
 /**
  * Regression tests for the "VERIFICATION MATCHES THE ARTEFACT" rule in
@@ -381,9 +393,9 @@ describe('cross-bucket browser routing', () => {
 describe('DAG-aware cross-bucket routing', () => {
   const tool = (name: string): Tool => ({ name, description: name, inputSchema: { type: 'object' } });
 
-  function cells(options: { fullStack?: string[]; shellExtra?: string[] } = {}) {
+  function cells(options: { fullStack?: string[]; shellExtra?: string[]; webExtra?: string[] } = {}) {
     const registry = new AtomRegistry(openDb(':memory:'));
-    const web = registry.create(2, { ...seed, tools: [tool('validate_html')] });
+    const web = registry.create(2, { ...seed, tools: ['validate_html', ...(options.webExtra ?? [])].map(tool) });
     const shellTools = ['run_shell', 'start_node_server', ...(options.shellExtra ?? [])];
     const shell = registry.create(2, { ...seed, tools: shellTools.map(tool) });
     const fullStack = options.fullStack
@@ -431,12 +443,12 @@ describe('DAG-aware cross-bucket routing', () => {
     expect(browserPart.description).toMatch(/^BROWSER VERIFICATION ONLY/);
     expect(browserPart.preferredChild).toBe(web);
     expect(browserPart.dependsOn).toEqual([1, 2]);
-    expect(browserPart.routedFrom).toEqual({ index: 3, role: 'browser-verification' });
+    expect(browserPart.routedFrom).toEqual({ index: 3, role: 'browser-verification', criteria: 'context' });
     const shellPart = routed.subtasks[4]!;
     expect(shellPart.description).toMatch(/^FINAL SHELL\/HARNESS VERIFICATION ONLY/);
     expect(shellPart.preferredChild).toBe(shell);
     expect(shellPart.dependsOn).toEqual([1, 2, 3]);
-    expect(shellPart.routedFrom).toEqual({ index: 3, role: 'shell-verification' });
+    expect(shellPart.routedFrom).toEqual({ index: 3, role: 'shell-verification', criteria: 'context' });
     expect(routed.subtasks[5]!.dependsOn).toEqual([3, 4]);
     expect(routed.subtasks[5]!.description).toBe('Write the README.');
     expect(routed.aggregation.mode).toBe('concat');
@@ -598,16 +610,276 @@ describe('DAG-aware cross-bucket routing', () => {
     expect(note).toContain('subtasks 3 and 4 are the host\'s browser then exact-shell verification of planner subtask 3');
     expect(note).toContain('Review indices refer to this routed plan.');
     expect(note).toContain('give it a cell holding validate_html, run_shell and start_node_server, or omit its preferredChild');
+    expect(note).toContain("A split checkpoint's acceptance criteria bind only a part routed to a cell holding validate_html, run_shell and start_node_server");
+    expect(note).toContain('root acceptance judges every one');
 
     const many = makePlan({
       subtasks: Array.from({ length: 60 }, (_, index): SubtaskSpec => ({
         description: CHECKPOINT,
-        routedFrom: { index: Math.floor(index / 2), role: index % 2 === 0 ? 'browser-verification' : 'shell-verification' },
+        routedFrom: {
+          index: Math.floor(index / 2),
+          role: index % 2 === 0 ? 'browser-verification' : 'shell-verification',
+          criteria: 'context',
+        },
       })),
     });
     const bounded = routingIndexNote(many);
     expect(bounded.length).toBeLessThanOrEqual(ROUTING_INDEX_NOTE_MAX_CHARS);
     expect(bounded).toContain('more split checkpoint(s) not listed');
     expect(bounded).toContain('omit its preferredChild');
+    expect(bounded).toContain('root acceptance judges every one');
+  });
+
+  /**
+   * GROUP G5 (2026-10-16): a server-backed checkpoint stays whole on a
+   * superset full-stack cell; otherwise its browser part goes where the
+   * planner's cell serves the app, and its criteria bind at most the part
+   * whose cell can prove both kinds of evidence.
+   */
+  describe('split verification parts land on the right cell and own their criteria', () => {
+    const FULL_STACK = ['write_file', 'read_file', 'list_files', 'edit_file', 'fetch_url', 'validate_html', 'run_shell', 'start_node_server'];
+    const BROWSER_ONLY = 'Validate the UI in a real browser with selector-based interactions.';
+    const criteria = [
+      { id: 'c1', behaviour: 'A note is added with the keyboard only, no mouse', source: 'user' as const },
+      { id: 'c2', behaviour: 'node test-api.js exits 0', source: 'user' as const },
+    ];
+
+    function checkpointPlan(cell: string, mode: 'concat' | 'sequential', checkpoint: Partial<SubtaskSpec> = {}): Plan {
+      return makePlan({
+        subtasks: [
+          { description: 'Build the app.', preferredChild: cell, outputs: ['server.js'] },
+          { description: CHECKPOINT, preferredChild: cell, dependsOn: [0], criteria: ['c1', 'c2'], ...checkpoint },
+          { description: 'Write the README.', preferredChild: cell, outputs: ['README.md'], dependsOn: [1] },
+        ],
+        aggregation: { mode },
+      });
+    }
+
+    it.each(['concat', 'sequential'] as const)('keeps an HTTP cell\'s checkpoint whole on a superset full-stack cell (%s)', (mode) => {
+      const { registry, shell, fullStack } = cells({ fullStack: FULL_STACK });
+      const plan = checkpointPlan(shell, mode);
+
+      const routed = routeCrossBucketVerification(plan, registry);
+
+      expect(routed.subtasks).toHaveLength(3);
+      const whole = routed.subtasks[1]!;
+      expect(whole.preferredChild).toBe(fullStack);
+      expect(whole.description).toMatch(/^BROWSER AND EXACT-COMMAND VERIFICATION — start the app with start_node_server/);
+      expect(whole.description.endsWith(CHECKPOINT)).toBe(true);
+      expect(requiredPassingCommands(whole.description)).toEqual(requiredPassingCommands(CHECKPOINT));
+      expect(taskRequiresRealBrowser(whole.description)).toBe(true);
+      expect(whole.routedFrom).toBeUndefined();
+      expect(whole.criteria).toEqual(['c1', 'c2']);
+      expect(routed.subtasks.map((subtask) => subtask.dependsOn)).toEqual(plan.subtasks.map((subtask) => subtask.dependsOn));
+      expect(routed.subtasks[0]).toBe(plan.subtasks[0]);
+      expect(routed.subtasks[2]).toBe(plan.subtasks[2]);
+      expect(routingIndexNote(routed)).toBe('');
+      expect(routeCrossBucketVerification(routed, registry)).toBe(routed);
+    });
+
+    it('binds the criteria to a browser part routed to a full-stack cell, and drops the shell part\'s obligations', () => {
+      const { registry, shell, web, fullStack } = cells({
+        fullStack: FULL_STACK,
+        shellExtra: ['call_mcp_tool'],
+        webExtra: ['start_static_server'],
+      });
+      const plan = checkpointPlan(shell, 'sequential', { proofObligations: ['dom-interaction'] });
+
+      const routed = routeCrossBucketVerification(plan, registry);
+
+      expect(routed.subtasks).toHaveLength(4);
+      const browserPart = routed.subtasks[1]!;
+      const shellPart = routed.subtasks[2]!;
+      expect(browserPart.preferredChild).toBe(fullStack);
+      expect(browserPart.preferredChild).not.toBe(web);
+      expect(browserPart.routedFrom).toEqual({ index: 1, role: 'browser-verification', criteria: 'binding' });
+      expect(browserPart.proofObligations).toEqual(['dom-interaction']);
+      expect(shellPart.preferredChild).toBe(shell);
+      expect(shellPart.routedFrom).toEqual({ index: 1, role: 'shell-verification', criteria: 'context' });
+      expect('proofObligations' in shellPart).toBe(false);
+
+      const parent: Task = { description: 'Build the notes app', criteria };
+      const browserCriteria = delegatedCriteria(parent, routed.subtasks, 1, true).criteria;
+      const shellCriteria = delegatedCriteria(parent, routed.subtasks, 2, true).criteria;
+      expect(browserCriteria).toEqual(criteria);
+      expect(shellCriteria).toEqual(criteria.map((item) => ({ ...item, unassigned: true })));
+    });
+
+    it('splits a static web cell\'s checkpoint without an owner, its browser part staying on that cell', () => {
+      const { registry, web, shell } = cells({ fullStack: FULL_STACK, webExtra: ['start_static_server'] });
+      const plan = checkpointPlan(web, 'sequential');
+
+      const routed = routeCrossBucketVerification(plan, registry);
+
+      expect(routed.subtasks).toHaveLength(4);
+      expect(routed.subtasks[1]!.preferredChild).toBe(web);
+      expect(routed.subtasks[1]!.routedFrom?.criteria).toBe('context');
+      expect(routed.subtasks[2]!.preferredChild).toBe(shell);
+      expect(routed.subtasks[2]!.routedFrom?.criteria).toBe('context');
+    });
+
+    it('never moves a static or server-less cell\'s browser work to the Node-only full-stack cell', () => {
+      const { registry, web } = cells({ fullStack: FULL_STACK, webExtra: ['write_file', 'start_static_server'] });
+      const staticCell = registry.create(2, { ...seed, tools: ['write_file', 'start_static_server', 'fetch_url'].map(tool) });
+      const scribe = registry.create(2, { ...seed, tools: ['write_file', 'read_file', 'list_files', 'edit_file', 'run_shell'].map(tool) });
+      const browserCheck = (cell: string): Plan => checkpointPlan(cell, 'concat', { description: BROWSER_ONLY });
+
+      const fromStatic = routeCrossBucketVerification(browserCheck(staticCell.name), registry);
+      const fromScribe = routeCrossBucketVerification(browserCheck(scribe.name), registry);
+
+      expect(fromStatic.subtasks[1]!.preferredChild).toBe(web);
+      expect(fromScribe.subtasks[1]!.preferredChild).toBe(web);
+    });
+
+    it('moves an HTTP cell\'s browser-only checkpoint and browser-only implementation node to the full-stack cell', () => {
+      const { registry, shell, fullStack } = cells({ fullStack: FULL_STACK });
+      const checkpoint = checkpointPlan(shell, 'concat', { description: BROWSER_ONLY });
+      const implementation = makePlan({
+        subtasks: [
+          { description: `Implement the page. ${BROWSER_ONLY}`, preferredChild: shell, outputs: ['index.html'] },
+          { description: 'Write the README.', preferredChild: shell, outputs: ['README.md'] },
+        ],
+        aggregation: { mode: 'concat' },
+      });
+
+      expect(routeCrossBucketVerification(checkpoint, registry).subtasks[1]!.preferredChild).toBe(fullStack);
+      expect(routeCrossBucketVerification(implementation, registry).subtasks[0]!.preferredChild).toBe(fullStack);
+    });
+
+    it('falls back to the first browser cell when no browser cell holds a serving tool', () => {
+      const { registry, shell, web } = cells();
+      registry.create(2, { ...seed, tools: ['validate_html', 'write_file'].map(tool) });
+      const plan = checkpointPlan(shell, 'concat', { description: BROWSER_ONLY });
+
+      const routed = routeCrossBucketVerification(plan, registry);
+
+      expect(routed.subtasks[1]!.preferredChild).toBe(web);
+    });
+
+    it('keeps the browser part\'s obligation through a planSchema round trip; the vocabulary is pinned', () => {
+      const { registry, web, shell } = cells();
+      const plan = checkpointPlan(web, 'sequential', { proofObligations: ['dom-interaction'] });
+      const routed = routeCrossBucketVerification(plan, registry);
+
+      const parsed = planSchema.parse(JSON.parse(JSON.stringify(routed)));
+
+      expect(routed.subtasks[2]!.preferredChild).toBe(shell);
+      expect(parsed.subtasks[1]!.proofObligations).toEqual(['dom-interaction']);
+      expect(parsed.subtasks[2]!.proofObligations).toBeUndefined();
+      // A second obligation may not be browser evidence: the shell part drops
+      // every obligation, so adding one must revisit routeCrossBucketVerification.
+      expect(PROOF_OBLIGATIONS).toEqual(['dom-interaction']);
+    });
+
+    it('restores host marks from a raw saved plan, and none from a malformed one', () => {
+      const { registry, web } = cells();
+      const routed = routeCrossBucketVerification(checkpointPlan(web, 'sequential'), registry);
+      const raw = JSON.parse(JSON.stringify(routed)) as { subtasks: Record<string, unknown>[] };
+      const parsed = planSchema.parse(raw);
+      const forged = JSON.parse(JSON.stringify(raw)) as typeof raw;
+      forged.subtasks[1]!['routedFrom'] = { index: 1, role: 'browser-verification', criteria: 'context', extra: true };
+
+      expect(parsed.subtasks.some((subtask) => 'routedFrom' in subtask)).toBe(false);
+      expect(restoreRoutingMarks(parsed, raw).subtasks.map((subtask) => subtask.routedFrom)).toEqual(routed.subtasks.map((subtask) => subtask.routedFrom));
+      expect(restoreRoutingMarks(parsed, forged)).toBe(parsed);
+      expect(restoreRoutingMarks(parsed, { subtasks: raw.subtasks.slice(1) })).toBe(parsed);
+    });
+
+    it('chooses a browser holder by tools only, in one order', () => {
+      const types = (...sets: string[][]) => sets.map((names) => ({ tools: names.map(tool) }));
+      const [web, http, fullStack, statics] = types(
+        ['validate_html', 'start_static_server'],
+        ['run_shell', 'fetch_url', 'start_node_server'],
+        ['validate_html', 'run_shell', 'fetch_url', 'start_node_server'],
+        ['write_file', 'fetch_url', 'start_static_server'],
+      );
+      const candidates = [web!, fullStack!];
+
+      expect(browserHolderFor(web, candidates)).toBe(web);
+      expect(browserHolderFor(http, candidates)).toBe(fullStack);
+      expect(browserHolderFor(statics, candidates)).toBe(web);
+      expect(browserHolderFor(undefined, candidates)).toBe(web);
+      expect(browserHolderFor(http, [web!])).toBe(web);
+    });
+  });
+});
+
+/**
+ * GROUP G5 ON THE REAL CATALOGUE: the subset premise (the canonical HTTP cell
+ * and molecule hold nothing the full-stack ones lack) is what keeps a
+ * server-backed checkpoint whole, so it is checked on the seeded rows.
+ */
+describe('verification routing over the seeded canonical catalogue', () => {
+  function seeded() {
+    const registry = new AtomRegistry(openDb(':memory:'));
+    const toolDecls = defaultBuiltinTools({ sandbox: new ToolSandbox('/tmp') }).map((declared) => declared.declaration);
+    const logs: string[] = [];
+    seedCatalog({ registry, toolDecls, log: (line) => logs.push(line) });
+    const canonical = (tier: 1 | 2, marker: string) => registry.listByTier(tier).find((type) => type.createdBy === marker)!;
+    return {
+      registry,
+      logs,
+      webL2: canonical(2, CANONICAL_BOOTSTRAP_MARKER),
+      httpL2: canonical(2, CANONICAL_HTTP_BOOTSTRAP_MARKER),
+      fullStackL2: canonical(2, CANONICAL_FULL_STACK_BOOTSTRAP_MARKER),
+      httpL1: canonical(1, CANONICAL_HTTP_BOOTSTRAP_MARKER),
+      fullStackL1: canonical(1, CANONICAL_FULL_STACK_BOOTSTRAP_MARKER),
+    };
+  }
+  const CHECKPOINT = 'Confirm the page in a real browser with selector-based interactions. Run node test-api.js and require it to pass.';
+  const withCheckpoint = (cell: string, description = CHECKPOINT): Plan => makePlan({
+    subtasks: [
+      { description: 'Build the app.', preferredChild: cell, outputs: ['server.js'] },
+      { description, preferredChild: cell },
+    ],
+    aggregation: { mode: 'sequential' },
+  });
+
+  it('logs no HTTP tool the full-stack rows lack', () => {
+    const { logs } = seeded();
+
+    expect(logs.some((line) => line.includes('not covered by full-stack'))).toBe(false);
+  });
+
+  it('keeps the HTTP cell\'s checkpoint whole on the full-stack cell, and splits the web cell\'s on the web cell', () => {
+    const { registry, webL2, httpL2, fullStackL2 } = seeded();
+
+    const fromHttp = routeCrossBucketVerification(withCheckpoint(httpL2.name), registry);
+    const fromWeb = routeCrossBucketVerification(withCheckpoint(webL2.name), registry);
+
+    expect(fromHttp.subtasks).toHaveLength(2);
+    expect(fromHttp.subtasks[1]!.preferredChild).toBe(fullStackL2.name);
+    expect(fromWeb.subtasks).toHaveLength(3);
+    expect(fromWeb.subtasks[1]!.preferredChild).toBe(webL2.name);
+    expect(fromWeb.subtasks[1]!.routedFrom?.role).toBe('browser-verification');
+  });
+
+  it('moves the HTTP cell\'s browser-only implementation node to the full-stack cell', () => {
+    const { registry, httpL2, fullStackL2 } = seeded();
+    const plan = makePlan({
+      subtasks: [
+        { description: 'Implement the page. Validate the UI in a real browser.', preferredChild: httpL2.name, outputs: ['index.html'] },
+        { description: 'Write the README.', preferredChild: httpL2.name, outputs: ['README.md'] },
+      ],
+      aggregation: { mode: 'sequential' },
+    });
+
+    const routed = routeCrossBucketVerification(plan, registry);
+
+    expect(routed.subtasks[0]!.preferredChild).toBe(fullStackL2.name);
+  });
+
+  it('redirects the full-stack cell\'s HTTP-molecule pick to the full-stack molecule without decomposing', async () => {
+    const { registry, fullStackL2, httpL1, fullStackL1 } = seeded();
+    const cell = L2Atom.fromType(fullStackL2, registry);
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: httpL1.name, confidence: 'high', reasoning: 'serves the API' }));
+    const task = { description: 'Validate the UI in a real browser with selector-based interactions and zero console errors.' };
+
+    const plan = await cell.plan(task, ctx);
+
+    expect(plan.subtasks).toHaveLength(1);
+    expect(plan.subtasks[0]!.preferredChild).toBe(fullStackL1.name);
+    expect(ctx.llm.calls).toHaveLength(1);
   });
 });

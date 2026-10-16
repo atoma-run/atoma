@@ -409,6 +409,42 @@ export function canonicalFullStackPrompt(tier: 1 | 2): string {
   ]).join('\n');
 }
 
+/** The tools that serve an application to a browser; `fetch_url` only requests. */
+const SERVING_TOOLS = ['start_node_server', 'start_static_server'] as const;
+
+/**
+ * WHICH CELL OR MOLECULE HOLDS THE BROWSER WORK of `selected`, one typed
+ * order for L3 routing (`routeCrossBucketVerification`) and the L2 prefilter
+ * redirect (group G5, 2026-10-16). Tool names only, never wording:
+ *
+ *  1. `selected` itself when it holds validate_html;
+ *  2. when `selected` holds a serving tool, a browser candidate holding every
+ *     tool of `selected`, else one holding the serving tools it holds — the
+ *     browser work lands where the app is served the way its cell serves it.
+ *     Notes-app 2026-09-07 and the guestbook's 32nd iteration (2026-08-12) are
+ *     this class: a Node app's browser check went to the static web cell
+ *     (first by ordinal), which served the directory instead of server.js;
+ *  3. otherwise the first browser candidate, the behaviour before. A cell
+ *     that serves nothing gives no sign its app is served by Node, so its
+ *     browser work is never moved to the Node-only full-stack cell.
+ */
+export function browserHolderFor<T extends { readonly tools: readonly { readonly name: string }[] }>(
+  selected: T | undefined,
+  candidates: readonly T[]
+): T | undefined {
+  const holds = (type: T, tool: string): boolean => type.tools.some((held) => held.name === tool);
+  if (selected && holds(selected, 'validate_html')) return selected;
+  const browsers = candidates.filter((candidate) => holds(candidate, 'validate_html'));
+  const serving = selected ? SERVING_TOOLS.filter((tool) => holds(selected, tool)) : [];
+  if (selected && serving.length > 0) {
+    const superset = browsers.find((candidate) => selected.tools.every((tool) => holds(candidate, tool.name)));
+    if (superset) return superset;
+    const server = browsers.find((candidate) => serving.every((tool) => holds(candidate, tool)));
+    if (server) return server;
+  }
+  return browsers[0];
+}
+
 /** The combined capability has its own identity; narrow HTTP/web rows stay scoped. */
 export function ensureCanonicalFullStack(
   registry: AtomRegistry,

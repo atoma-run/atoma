@@ -79,6 +79,11 @@ export function phaseCriteriaLines(task: Task): string[] {
  * a sequential plan (or a plan's only subtask) as context, never as its
  * requirement: a README phase judged on a keyboard criterion would loop
  * (review 2026-10-10). Parallel lanes have no last one, and get none.
+ *
+ * The parts of a host-split checkpoint (`routedFrom`) hear its criteria as
+ * context unless the host marked the part `binding` — the one part, if any,
+ * whose cell holds validate_html, run_shell and start_node_server (group G5,
+ * 2026-10-16). Root acceptance still judges every criterion.
  */
 export function delegatedCriteria(parent: Task, subtasks: readonly SubtaskSpec[], idx: number, sequential: boolean): Pick<Task, 'criteria'> {
   const all = parent.criteria ?? [];
@@ -92,7 +97,9 @@ export function delegatedCriteria(parent: Task, subtasks: readonly SubtaskSpec[]
   // molecule and its validators read them as context; the root then refused
   // the keyboard journey they said nothing about.
   const whole = subtasks.length === 1;
-  const criteria = all.flatMap((item) => named.has(item.id) || (whole && !assigned.has(item.id)) ? [item]
+  const contextPart = subtasks[idx]?.routedFrom?.criteria === 'context';
+  const criteria = all.flatMap((item) => named.has(item.id) || (whole && !assigned.has(item.id))
+    ? [contextPart ? { ...item, unassigned: true as const } : item]
     : takesRest && !assigned.has(item.id) ? [{ ...item, unassigned: true as const }] : []);
   return criteria.length > 0 ? { criteria } : {};
 }

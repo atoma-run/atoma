@@ -953,8 +953,9 @@ DAG plans; suite nodes are still never split. "Routing does not own dispatch
 topology" now admits one host edge inside a split checkpoint in parallel modes.
 
 Remaining: checkpoint parts still copy criteria and proof obligations to both parts
-and keep only regex-matched prose (pre-existing); a browser part may land on a web
-cell without a server (notes-app 2026-09-07 class, pre-existing for checkpoints);
+(addressed by group G5, [below](#follow-up-split-verification-parts-land-on-the-right-cell-and-own-their-criteria))
+and keep only regex-matched prose (pre-existing, still open); a browser part may land on a web
+cell without a server (notes-app 2026-09-07 class, pre-existing for checkpoints; addressed by group G5);
 parallel checkpoint parts are not read-only, like any planner-written parallel
 checkpoint; resume reviews a slice whose sequential `dependsOn` keys are not rebased,
 and the answer continuation does not shift them (no gate reads them in sequential
@@ -2221,3 +2222,236 @@ retries.
   total suite characters.
 - If cuts still occur at 16,384, write suites in a separate call per branch
   instead of raising the cap further.
+
+## Follow-up: Split verification parts land on the right cell and own their criteria
+
+Follow-up group G5, decided under the owner's delegation
+(`memory/beta-rules-not-fixed.md`). It closes the first two items of group E's
+"Remaining": criteria and obligations copied to both parts of a split
+checkpoint, and a browser part landing on a web cell that cannot start the
+application's server. Read-only review and code only: no run was started and
+the production MCP was not called.
+
+### Findings, verified at 522d79a2
+
+- **The static web cell always won.** `routeCrossBucketVerification` took
+  `l2Types.find(supportsBrowser)`; `listByTier` sorts by ordinal and
+  `seedCatalog` seeds web before HTTP before full-stack, so a split's browser
+  part, a browser-only checkpoint and a browser-only implementation node of a
+  Node application all went to the static web cell. That is the notes-app
+  failure (2026-09-07) and the guestbook's 32nd iteration (2026-08-12).
+- **The same flaw one tier down.** The L2 prefilter redirect took the first
+  `validate_html` molecule of `listCapabilities(1)`: the canonical web L1 is
+  seeded before the full-stack L1, so a full-stack cell whose prefilter picked
+  the HTTP molecule was redirected to the static molecule, then decomposed.
+- **Checkpoints never consulted `fullStackFor`.** Only implementation nodes
+  did, so an HTTP cell's browser+command checkpoint was split even when the
+  canonical full-stack cell holds every tool of the HTTP cell.
+- **Both parts got everything.** Each part spread `...subtask`, copying
+  `criteria` and `proofObligations`; `delegatedCriteria` then made every named
+  criterion binding on both, so each part was judged as owning every
+  criterion whatever its cell could prove.
+- **The mark was lost on resume.** `routedFrom` was hand-declared in
+  `core/types.ts`, absent from `subtaskSpecSchema`, and `resumeSavedPlan`
+  stripped it through `planSchema.parse(saved.plan)`.
+- **Stored cells only gain tools.** `refreshTemplate` is called with
+  `addTools` only, so the subset relation between stored HTTP and full-stack
+  rows can drift.
+
+### Decisions
+
+1. **A server-backed checkpoint stays whole when a superset full-stack cell
+   exists.** Trigger: a browser + exact-command checkpoint whose planner cell
+   holds `start_node_server`, and `fullStackFor(planned)` finds a cell. It is
+   rerouted whole under one host line, the union of the two split lines
+   already reviewed (31st iteration), so it adds no rule wording and
+   `requiredPassingCommands` reads the same commands. No `routedFrom`, no
+   edge; a second routing returns the same plan. `start_node_server` is
+   required because the full-stack cell serves only through Node: a planner
+   cell with no serving tool gives no sign the application is served by Node.
+   On the seeded catalogue the HTTP L2 (7 tools) is a subset of the full-stack
+   L2 (8 tools), so the common case stops splitting, which also removes the
+   doubled verification of phase-redundancy 2026-08-22.
+2. **One typed order for a browser holder, at L3 and L2:**
+   `browserHolderFor(selected, candidates)` in `src/atoms/capability.ts`.
+   `selected` if it holds `validate_html`; otherwise, when `selected` holds a
+   serving tool (`start_node_server`, `start_static_server`; `fetch_url` only
+   requests), a browser candidate holding every tool of `selected`, else one
+   holding those serving tools; otherwise the first browser candidate, the
+   previous behaviour. Tool names only. L3 uses it for a split's browser part,
+   a browser-only checkpoint and a browser-only implementation node; the L2
+   redirect uses it over the molecule catalogue. A planner cell of another
+   tier is never its own browser holder.
+3. **A split checkpoint's criteria have at most one binding owner, decided by
+   cell type.** The browser part owns them when its cell holds
+   `validate_html`, `run_shell` and `start_node_server`; else the shell part
+   when its cell holds all three; else nobody. The mark carries
+   `criteria: 'binding' | 'context'`; `delegatedCriteria` renders a context
+   part's criteria as `unassigned`. Both parts still see the text, since the
+   browser molecule must see "no mouse" (runs 50be47bf, ebc60ee4). Root
+   acceptance still judges every criterion.
+4. **Proof obligations:** the shell part drops `proofObligations`. The
+   vocabulary has one member, `dom-interaction`, which is browser evidence; a
+   test pins the vocabulary so a second member forces a review of this rule.
+5. **The mark is one contract and survives a resume.**
+   `src/contracts/routedFrom.ts` holds the strict `routedFromSchema`; the type
+   is inferred from it. It stays out of `subtaskSpecSchema`. `resumeSavedPlan`
+   restores marks from the raw checkpoint (`restoreRoutingMarks` in
+   `json.ts`); a malformed mark, a count mismatch or no mark returns the plan
+   unchanged, so a part's criteria then bind, the behaviour before. The
+   approval digest still ignores the mark: anyone able to write the
+   checkpoint can already recompute the unsalted digest, so this grants no new
+   capability.
+6. **A seeding log line, not a gate.** `seedCatalog` logs
+   `canonical http L<n> tools not covered by full-stack L<n>: …` when the
+   stored HTTP row holds a tool the full-stack row lacks, at both tiers.
+7. **The routing index note** gains one factual clause: a split checkpoint's
+   criteria bind only a part routed to a cell holding the three tools; other
+   parts hear them as context; root acceptance judges every one. No
+   imperative; still bounded by `ROUTING_INDEX_NOTE_MAX_CHARS`.
+
+### Read-only marking of parallel split parts: infeasible in general
+
+Not built; documented in `src/atoms/AGENTS.md` ("parallel phases, host-split
+parts included, share the workspace at the same moment").
+
+- **The photograph covers the whole workspace.** `readOnlyPhasesFor().begin`
+  (`src/run/readOnlyPhase.ts`) photographs the workspace root and `end`
+  restores every changed path, whatever wrote it. A concurrent sibling's
+  writes would be reverted, and its in-flight bytes would become the baseline.
+- **Attestations are sliced from a shared log.** `withinReadOnlyPhase`
+  (`dispatch.ts`) slices the shared attempt log after `recordedBefore`, so it
+  would mark a sibling's observations stale, and `stopServersStarted` would
+  stop servers the sibling started. The code states its precondition:
+  "parallel plans are never marked."
+- **The narrow exception is not built.** A part comparable to every other
+  node never runs concurrently, but read-only is the plan's word: marking host
+  parts and not a planner checkpoint of the same shape would give one concept
+  two definitions; the general rule is a new policy over every parallel plan
+  needing its own adversarial review; and no incident shows a parallel
+  checkpoint writing (04ea696f and f793b338 were sequential). Decision 1 makes
+  parallel splits rarer still.
+
+### Counterexamples checked
+
+| Record | Outcome |
+|---|---|
+| Guestbook 2026-08-12, 31st iteration (substitute harness) | The whole reroute carries both host lines; `required-command-manifest` reads the same commands (asserted). |
+| Guestbook 2026-08-12, 32nd iteration (static molecule serving a Node app's directory) | Browser work of a serving cell goes to a cell holding its server; a static or server-less cell's never moves to the Node-only full-stack cell. |
+| Notes-app 2026-09-07 | Browser parts and browser-only nodes leave the static cell at L3, and molecules at the L2 redirect. |
+| Phase-redundancy 2026-08-22 | Fewer splits; at most one binding owner. |
+| Code review 2026-08-14 (forced sequential) | Mode and DAG untouched; a whole reroute keeps the planner's `dependsOn`. |
+| Run 04ea696f | A sole subtask is never split (unchanged). |
+| Run 76a9486c | Criteria are demoted only on split parts that cannot prove both; a plan's only subtask keeps them. |
+| First refusals 2026-10-10 | The text reaches both parts; binding only where the cell can prove both. |
+| Attica delegation contract 2026-10-16 | A whole reroute keeps the indices; no note is emitted. |
+| Group E independent-pair check | Whole reroutes keep the planner DAG; split parts keep the host edge. |
+
+### Critique disposition
+
+Adopted: the L2 redirect shares the flaw (fixed through the same helper); a
+whole reroute must keep the browser host line (it carries both); the subset
+premise was untested and fragile under additive refresh (real-catalogue
+tests, the seeding log line, and a production read left to an authorised
+session); ownership by "which part the criterion's wording names" was a
+vocabulary-frozen detector (ownership by cell type instead); the superset
+step must not fire for non-serving cells, and `fetch_url` is not a serving
+tool; the note states a fact instead of an instruction; the mark has one
+schema; no second obligation table (the shell part drops obligations and the
+vocabulary is pinned); the resume test crosses the real checkpoint store.
+
+Rejected: binding by `check.kind: 'http'`. In the residual static-web split
+the part holding `fetch_url` is the HTTP cell; binding an http criterion there
+would push it to write a Node server for a static application, the 32nd
+iteration's pollution. The check kind names a request, not the server that
+answers it. Also rejected: a clause in `criteriaAssignmentLine`. The first
+planner cannot see routing and acts only through the cell it chooses, a lever
+the index note already names; the clause would add tokens to every planner
+call carrying criteria for a rare residual case, while the note reaches the
+reviewer and a replanning planner exactly when a split happens.
+
+### Deviations from the design
+
+- The design's seeding check compared the L2 rows only; the log line covers
+  both tiers, because the L2 redirect's superset step reads the L1 rows.
+- The delegation-contract tests read every request that hands a split part's
+  task to a model (its molecule's plan and execution as well as the tissue's
+  reviews), not only the tissue's plan reviews: a trusted cell's prefilter
+  reuse has no plan review, and the shell part's result review does not reach
+  a model in that fixture. The criteria lines are identical in each.
+
+### Tests
+
+`tests/plan-verification-guidance.test.ts`, through
+`routeCrossBucketVerification` and `browserHolderFor`:
+
+- An HTTP cell's checkpoint goes whole to a superset full-stack cell in concat
+  and sequential modes: the host line, the same parsed commands, no mark, no
+  note, unchanged `dependsOn`, and a second routing returning the same plan.
+- An HTTP cell holding `call_mcp_tool` (no superset): the browser part goes to
+  the full-stack cell, not the web cell holding `start_static_server`, and is
+  `binding`; the shell part stays on the planner's cell as `context` without a
+  `proofObligations` key; `delegatedCriteria` renders binding and `unassigned`.
+- A static web planner cell with a full-stack cell present still splits, the
+  browser part staying on it, both parts `context`.
+- A static cell (`write_file`, `start_static_server`, `fetch_url`) and a
+  server-less cell (`write/read/list/edit/run_shell`) keep their browser-only
+  checkpoint on the web cell, never the full-stack cell.
+- An HTTP cell's browser-only checkpoint and browser-only implementation node
+  go to the full-stack cell; with no browser cell holding a serving tool, the
+  first browser cell is kept.
+- A `planSchema` round trip keeps `dom-interaction` on the browser part only;
+  `PROOF_OBLIGATIONS` is pinned to `['dom-interaction']`.
+- `restoreRoutingMarks` restores marks from a raw saved plan and none from a
+  forged (extra key) or count-mismatched one.
+- The index note carries the criteria clause and stays within 1,200
+  characters in the 60-part case.
+- On the seeded canonical catalogue (built-in tool declarations): no drift
+  logged; an HTTP-L2 checkpoint goes whole to the full-stack L2 while the web
+  L2's splits with its browser part on the web L2; an HTTP-L2 browser-only
+  implementation node goes to the full-stack L2; a full-stack L2 whose
+  prefilter picks the HTTP L1 for a real-browser task is redirected to the
+  full-stack L1 with one model call and no decomposition.
+
+`tests/delegation-contract.test.ts`, through `handle` → `plan` → routing →
+review → dispatch (the web fixture cell now also holds `start_static_server`):
+
+- With no full-stack cell, a DAG checkpoint naming c1 and c2 splits and both
+  parts' tasks carry c1 and c2 under the context header only, while the
+  implementation node naming c3 carries it under "must prove".
+- With the full-stack cell and an HTTP cell holding `call_mcp_tool`, the
+  browser part carries c1 and c2 under "must prove" and the shell part under
+  context.
+- A routed sequential plan written through `SequentialCheckpoint.planned` to a
+  real `RunCheckpointStore`, paused after phase one and read back through the
+  store, resumes through `L3Atom.handle` under its recorded approval with no
+  review call; the dispatched parts carry their marks, criteria included, and
+  the browser part's task renders context.
+
+Each new test was checked against a mutation of the code it covers (no whole
+reroute; the old first-by-ordinal browser target; no context parts; no mark
+restoration; the old L2 redirect): every one failed under its mutation.
+
+### Remaining risks
+
+- **A whole checkpoint can be approved without a browser attestation.**
+  Nothing gates browser evidence unless `dom-interaction` is declared;
+  deriving it from the browser regex would be a new gate and is not done.
+  Signal: a whole-rerouted checkpoint approved whose phase recorded no
+  `validate_html` call.
+- **Residual splits with no owner lose phase-level enforcement** of their
+  criteria (a static-web planner cell with an exact command; cells holding
+  tools outside the full-stack scope). Signal: a root refusal citing a
+  criterion assigned to a split checkpoint.
+- **A server-backed application planned on the static web cell, or on a cell
+  with no serving tool, is still honoured:** no typed signal says otherwise.
+- **Stored HTTP rows only gain tools.** A tool added to the HTTP row would
+  silently restore splitting; the seeding log line makes it visible.
+- **Before pushing,** a session allowed to read production should confirm the
+  HTTP and full-stack L2 tool lists with a read-only `atoma_registry_show` and
+  record them here; this group could not call the production MCP.
+- Pre-existing and unchanged: sentence selection on a split is regex-based;
+  the root's own `dom-interaction` still reaches the shell part through
+  `effectiveObligations`; `fullStackFor` takes the first superset by ordinal;
+  marks on a continuation replan index the continuation planner's subtasks
+  (the criteria behaviour depends only on the mark).

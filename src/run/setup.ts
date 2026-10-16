@@ -165,6 +165,14 @@ export function seedCatalog({ registry, toolDecls, log }: SeedContext): void {
   for (const tier of [1, 2] as const) {
     const fullStack = ensureCanonicalFullStack(registry, toolDecls, tier);
     if (fullStack) log(`canonical L${tier} (full-stack): ${fullStack.name} (v${fullStack.version}) — ${fullStack.description}`);
+    // L3 routing keeps an HTTP cell's browser+command checkpoint whole only on
+    // a full-stack cell holding every tool of it (group G5, 2026-10-16), and
+    // stored rows only GAIN tools on refresh: a drift is logged, never gated.
+    const http = tier === 2 ? canonicalL2Http : canonicalL1Http;
+    const uncovered = fullStack ? http.tools.filter((tool) => !fullStack.tools.some((held) => held.name === tool.name)) : [];
+    if (uncovered.length > 0) {
+      log(`canonical http L${tier} tools not covered by full-stack L${tier}: ${uncovered.map((tool) => tool.name).join(', ')}`);
+    }
   }
   // Branch rows created before the capability-first reset still carry the
   // one task they were branched for, and get reused for any other.

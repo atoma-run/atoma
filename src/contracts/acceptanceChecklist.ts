@@ -71,7 +71,12 @@ export interface PhaseCriterion {
   readonly id: string;
   readonly behaviour: string;
   readonly source: ChecklistSource;
-  /** No subtask of the plan named it: the last phase hears it, as context only. */
+  /**
+   * CONTEXT ONLY: the phase hears the criterion but is not judged on it. Set
+   * when no subtask of the plan named it (the last phase hears it), on a
+   * discovery pass, and on a part of a host-split checkpoint whose cell cannot
+   * prove both browser and command evidence (`routedFrom.criteria`).
+   */
   readonly unassigned?: true;
 }
 

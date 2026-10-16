@@ -6,6 +6,8 @@ import { jsonrepair, JSONRepairError } from 'jsonrepair';
 import { PlanParseError, type PlanParseCause, ValidationError } from '../core/errors.js';
 import { jsonParseExcerpt } from '../core/jsonExcerpt.js';
 import { isProofObligation } from '../contracts/attestation.js';
+import { routedFromSchema, type RoutedFrom } from '../contracts/routedFrom.js';
+import type { Plan } from '../core/types.js';
 
 /**
  * Strip stray `}` / `]` tokens that close the OUTER aggregate too early,
@@ -1253,6 +1255,38 @@ export const planSchema = z.preprocess(
     // only place it should ever be set.
   })
 );
+
+/**
+ * The host's `routedFrom` marks a parsed checkpoint plan lost: `planSchema`
+ * strips them, as it must for model JSON, but the root checkpoint stores the
+ * plan the host routed (group G5, 2026-10-16). Each mark is read back from
+ * the RAW saved plan through its strict schema; the plan comes back unchanged
+ * when the subtask counts differ, a mark is malformed, or there is none — a
+ * part then hears its criteria as binding, the behaviour before the mark.
+ */
+export function restoreRoutingMarks(plan: Plan, raw: unknown): Plan {
+  const rawSubtasks = (raw as { subtasks?: unknown } | null | undefined)?.subtasks;
+  if (!Array.isArray(rawSubtasks) || rawSubtasks.length !== plan.subtasks.length) return plan;
+  const marks: (RoutedFrom | undefined)[] = [];
+  for (const subtask of rawSubtasks as unknown[]) {
+    const mark = (subtask as { routedFrom?: unknown } | null | undefined)?.routedFrom;
+    if (mark === undefined) {
+      marks.push(undefined);
+      continue;
+    }
+    const parsed = routedFromSchema.safeParse(mark);
+    if (!parsed.success) return plan;
+    marks.push(parsed.data);
+  }
+  if (marks.every((mark) => mark === undefined)) return plan;
+  return {
+    ...plan,
+    subtasks: plan.subtasks.map((subtask, index) => {
+      const routedFrom = marks[index];
+      return routedFrom ? { ...subtask, routedFrom } : subtask;
+    }),
+  };
+}
 
 export const resultPayloadSchema = z.object({
   output: z.unknown(),
