@@ -51,6 +51,7 @@
 - [First refusals 2026-10-10](first-refusals-2026-10-10.md) — 118/275 first root refusals classified; E3 and false approvals open
 - [edit_file manifest fix 2026-10-11](edit-file-manifest-2026-10-11.md) — 171/1198 failures; manifest loop fixed, other categories open
 - [Production runs 2026-09-26/27](production-runs-2026-09-26.md) — hard width refusal undecided; MCP/WSL/heredoc gotchas
+- [Delegation review replay](delegation-review-replay.md) — replay recorded root reviews offline via Codex on the Mac; 2026-10-16 measurements
 - [Validator prompt replay](validator-prompt-replay.md) — PR #12 gave no gain; how to replay a verdict offline
 - [Run titles state](run-titles-state.md) — short titles live since d1a1d71b; past runs not backfilled
 

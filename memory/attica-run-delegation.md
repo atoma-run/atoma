@@ -120,3 +120,26 @@ acceptance, publication or real collection occurred in this continuation.
   port: the /api/resume and /api/start lock release on error paths, and deleting
   the 27 root debug scripts. Goal and criteria are in the session scratchpad
   (ts-goal.txt, ts-criteria.json).
+
+## 2026-10-16 evening — delegation review blocked every migration plan
+
+- 7a7af324, aaa6b442 (full migration) and 63feeb3c (stage 1: foundation plus
+  seven support modules) each failed after the tier-2 root delegation review
+  refused three implementation plans: about $8, nothing executed. Causes fixed
+  in 8cf68c80 (the review had not been told the Node-only runner limits and
+  demanded a suite drive a browser) and 8059f2ac (each refusal's
+  additionalContext requests had never reached the planner; reviews now read
+  the delegation's earlier refusals and block only on PARENT_TEST_BLOCKING_DEFECTS).
+  Replay evidence: [[delegation-review-replay]].
+- Goal lesson: the review enforces every behaviour the goal names. Name few,
+  concrete behaviours for new suites, and say that existing node --test suites
+  cover the rest. The tightened stage-1 goal (four modules, four behaviours) is
+  in the session scratchpad (stage1b-goal.txt, stage1b-criteria.json); base
+  6b6b1952.
+- Open, not fixed: when two read-only root phases run in parallel, a sibling's
+  write is charged to whichever phase closes first, which loses its trust credit;
+  the restore of .atoma-probes.json also drops the sibling's legitimate probe
+  records (run 7a7af324 log, src/run/readOnlyPhase.ts ~697).
+- The planner reproduced helper-only suites in 4 of 9 plans; a host precheck
+  (each code-producing branch suite must import a production module directly)
+  is a candidate gate, not built.
