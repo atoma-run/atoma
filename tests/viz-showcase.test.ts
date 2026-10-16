@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -25,6 +25,15 @@ import {
   type ShowcaseKind,
 } from '../src/viz/showcase.js';
 import { renderShowcaseEntry, renderShowcaseIndex, SHOWCASE_SECURITY_HEADERS } from '../src/viz/showcasePage.js';
+import {
+  LEGAL_CONTACT_EMAIL,
+  LEGAL_OPERATOR_ADDRESS,
+  LEGAL_PATHS,
+  renderLegalPage,
+  servesLegalPages,
+} from '../src/viz/legalPages.js';
+import { PLATFORM_EVENTS_DEFAULT_RETENTION_DAYS } from '../src/platform/events.js';
+import { RUN_RETENTION_DAYS } from '../src/projects/retention.js';
 import { ANTHROPIC_PINS } from './tier-pins.js';
 
 /**
@@ -1169,5 +1178,53 @@ describe('the real server', () => {
     expect((await fetch(`${origin}/showcase`)).status).toBe(404);
     expect((await fetch(`${origin}/showcase/${id}`)).status).toBe(404);
     expect(await (await fetch(`${origin}/sitemap.xml`)).text()).not.toContain('/showcase');
+  });
+});
+
+describe('the legal pages', () => {
+  it('are served, sessionless and scriptless, by the deployment they describe', async () => {
+    const w = world();
+    closeStoreHandles();
+    const loopback = await boot(w, { ATOMA_VIZ_PUBLIC_ORIGIN: 'https://atoma.run', ATOMA_PUBLIC_SHOWCASE: '1' });
+    for (const path of LEGAL_PATHS) {
+      const response = await fetch(`${loopback}${path}`);
+      expect(response.status, path).toBe(200);
+      expect(response.headers.get('content-security-policy')).toContain("script-src 'none'");
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.get('set-cookie')).toBeNull();
+      const html = await response.text();
+      expect(html).toContain(`rel="canonical" href="https://atoma.run${path}"`);
+      expect(html).not.toContain('<script');
+      expect((await fetch(`${loopback}${path}`, { method: 'POST' })).status).toBe(405);
+    }
+    const sitemap = await (await fetch(`${loopback}/sitemap.xml`)).text();
+    for (const path of LEGAL_PATHS) expect(sitemap).toContain(`<loc>https://atoma.run${path}</loc>`);
+    expect(await (await fetch(`${loopback}/`)).text()).toContain('href="/privacy"');
+  });
+
+  it('answer 404 on any other deployment, which must not publish this operator as its own', async () => {
+    const w = world();
+    closeStoreHandles();
+    const origin = await boot(w, { ATOMA_PUBLIC_SHOWCASE: '1' });
+    for (const path of LEGAL_PATHS) expect((await fetch(`${origin}${path}`)).status, path).toBe(404);
+    expect(await (await fetch(`${origin}/sitemap.xml`)).text()).not.toContain('/privacy');
+    expect(await (await fetch(`${origin}/`)).text()).not.toContain('href="/privacy"');
+  });
+
+  it('state the retention the code applies, and the contact the service terms publish', () => {
+    const facts = { runRetentionDays: RUN_RETENTION_DAYS, journalRetentionDays: PLATFORM_EVENTS_DEFAULT_RETENTION_DAYS, sessionDays: 7 };
+    const origin = new URL('https://atoma.run');
+    const terms = readFileSync('docs/platform-commons-terms.md', 'utf8');
+    for (const path of LEGAL_PATHS) {
+      const html = renderLegalPage(path, origin, facts);
+      expect(html).toContain(LEGAL_CONTACT_EMAIL);
+      expect(terms).toContain(LEGAL_CONTACT_EMAIL);
+    }
+    expect(renderLegalPage('/privacy', origin, facts)).toContain(`${RUN_RETENTION_DAYS} days`);
+    expect(terms).toContain(`after ${RUN_RETENTION_DAYS} days`);
+    expect(terms).toContain(LEGAL_OPERATOR_ADDRESS);
+    expect(servesLegalPages(new URL('https://atoma.run/'))).toBe(true);
+    expect(servesLegalPages(new URL('https://atoma.example.com'))).toBe(false);
+    expect(servesLegalPages(new URL('http://atoma.run'))).toBe(false);
   });
 });

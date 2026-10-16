@@ -4,6 +4,8 @@ Service terms dated 2026-09-20, updated 2026-09-30 (decisions taken by
 TypeSafe), for the hosted service at
 [atoma.run](https://atoma.run), implementing the owner's commons decision.
 Publication of these terms does not itself record any individual user's acceptance.
+The hosted service's full [terms of service](https://atoma.run/terms) and
+[privacy policy](https://atoma.run/privacy) incorporate them.
 
 ## Service operator and contact
 

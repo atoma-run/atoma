@@ -789,6 +789,18 @@ npm run viz:mark-turn:analyze
   `createFarField` (scenery off) so its light and caustics reach the background;
   the others snapshot and restore the page-global field light around each frame.
 
+## Legal pages
+
+- `/privacy`, `/terms` and `/support` (`legalPages.ts`) are atoma.run's
+  operator texts, so they answer ONLY where the public origin is
+  `https://atoma.run`; any other deployment answers 404 and lists none of
+  them, because a self-hosted instance must publish its own operator. Static,
+  English, `script-src 'none'`, `no-store` for the showcase's service-worker
+  reason. Retention numbers come from the code that applies them
+  (`LegalFacts`), and a test pins the contact, address and run retention to
+  `docs/platform-commons-terms.md`. They are what the plugin directories cite
+  (the Codex manifest's support, privacy and terms URLs).
+
 ## Intentional choices and rejected shortcuts
 
 - `vite-plugin-pwa`: rejected and restated here because it looks like the

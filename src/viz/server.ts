@@ -106,6 +106,7 @@ import {
   retireSessionCookie,
   serializeCookie,
   parseCookieHeader,
+  SESSION_TTL_MS,
 } from '../auth/sessions.js';
 import {
   isAuthorizationCode,
@@ -200,7 +201,8 @@ import {
 import { buildTierClients } from '../run/providers.js';
 import { RoutingLlmClient } from '../core/llmRouting.js';
 import type { LlmClient } from '../core/types.js';
-import { PlatformEventLog } from '../platform/events.js';
+import { eventsRetentionDays, PlatformEventLog } from '../platform/events.js';
+import { RUN_RETENTION_DAYS } from '../projects/retention.js';
 import { HostPressureWatch } from '../platform/hostPressure.js';
 import { readHostMemory } from '../core/hostMemory.js';
 import { eventLabel } from '../contracts/platformEvents.js';
@@ -254,6 +256,7 @@ import { runPageInputSchema } from '../contracts/clientExperience.js';
 import { retrievalCampaignHost } from '../cli/retrievalCampaignHost.js';
 import { BenchmarkRuns } from './benchmarkRuns.js';
 import { injectAppShellSeo, robotsTxt, sitemapXml } from './seo.js';
+import { isLegalPath, LEGAL_PATHS, LEGAL_SECURITY_HEADERS, renderLegalPage, servesLegalPages, type LegalFacts } from './legalPages.js';
 // The MCP run lease, read for CONTEXT only (which pid holds the run slot) and
 // never as a detector. `src/sentinel/watch.ts` already reaches for it, so this
 // adds a name, not a dependency.
@@ -1684,6 +1687,13 @@ function escapeHtml(s: string): string {
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const CLIENT_DIR = join(HERE, 'client');
+
+/** What the legal pages state about retention, read from the code and this host's environment. */
+const LEGAL_FACTS: LegalFacts = {
+  runRetentionDays: RUN_RETENTION_DAYS,
+  journalRetentionDays: eventsRetentionDays(),
+  sessionDays: SESSION_TTL_MS / 86_400_000,
+};
 
 /**
  * The showcase's real crystal (`vite.showcase.config.ts`), versioned by its
@@ -4664,13 +4674,36 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     }
     const entry = SHOWCASE.entry(pathname.slice('/showcase/'.length));
     if (!entry) {
-      sendShowcase(res, 404, renderShowcaseNotFound(SHOWCASE_ASSETS));
+      sendShowcase(res, 404, renderShowcaseNotFound(SHOWCASE_ASSETS, AUTH_RUNTIME?.publicOrigin ?? null));
       return;
     }
     const answers = new Map(
       entry.episodes.map((episode) => [episode.id, SHOWCASE.answer(entry.id, episode.id)] as const)
     );
     sendShowcase(res, 200, renderShowcaseEntry(entry, answers, AUTH_RUNTIME?.publicOrigin ?? null, SHOWCASE_ASSETS));
+    return;
+  }
+
+  // THE OPERATOR'S LEGAL PAGES. Static, sessionless and served only by the
+  // deployment they describe (`servesLegalPages`): a self-hosted instance
+  // must not publish atoma.run's operator as its own.
+  if (isLegalPath(pathname)) {
+    if (!methodAllowed(req, res, 'GET')) return;
+    const origin = AUTH_RUNTIME?.publicOrigin ?? null;
+    if (!origin || !servesLegalPages(origin)) {
+      send(res, 404, 'not found', 'text/plain; charset=utf-8');
+      return;
+    }
+    const html = renderLegalPage(pathname, origin, LEGAL_FACTS);
+    res.writeHead(200, {
+      ...LEGAL_SECURITY_HEADERS,
+      'content-type': 'text/html; charset=utf-8',
+      'content-length': Buffer.byteLength(html),
+      // `no-store` for the showcase's reason: the service worker would
+      // otherwise keep this navigation as its offline `/`.
+      'cache-control': 'no-store',
+    });
+    res.end(html);
     return;
   }
 
@@ -4696,7 +4729,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       res,
       200,
       sitemapXml(AUTH_RUNTIME.publicOrigin, {
-        paths: SHOWCASE ? SHOWCASE.entries().slice(0, 200).map((entry) => `/showcase/${entry.id}`) : [],
+        paths: [
+          ...(servesLegalPages(AUTH_RUNTIME.publicOrigin) ? LEGAL_PATHS : []),
+          ...(SHOWCASE ? SHOWCASE.entries().slice(0, 200).map((entry) => `/showcase/${entry.id}`) : []),
+        ],
         showcaseHome: Boolean(SHOWCASE),
       }),
       'application/xml; charset=utf-8',
