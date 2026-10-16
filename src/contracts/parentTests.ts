@@ -189,6 +189,20 @@ export const PARENT_TEST_RUNNER_SCOPE = [
   'BROWSER-ONLY BEHAVIOUR (real user input reaching a page and what it changes on screen, console errors, failed resources) is proven by a subtask routed to a child that holds validate_html. When it depends on real user input, that subtask carries "proofObligations": ["dom-interaction"]: the runtime checks the browser tool\'s own record for interactions it executed on the page, and a result without one goes to full review with that fact. That is the proof route for such behaviour, never a suite. The importable logic and HTTP routes behind the page still need a suite. A CLI process is proven by a subtask that runs it.',
 ].join('\n');
 
+/**
+ * What makes a parent suite sufficient, and what refuses a plan, for both sides
+ * of the contract: the planning guidance below and DELEGATION_REVIEW_REQUEST.
+ * Runs 7a7af324, aaa6b442 and 63feeb3c (2026-10-16) each failed after three
+ * refused root plans. Two rounds in three refused a plan for what the round
+ * before had asked: the requests travelled in `additionalContext`, which the
+ * root never forwarded. Others asked for cases the task never named (a
+ * scheduler's history cap), while the plan cap kept suites from listing them all.
+ */
+export const PARENT_TEST_SUFFICIENCY = 'A SUFFICIENT SUITE imports and calls the real application module it claims to test (a helper may wrap that module, never replace it); asserts exact values the module returns, persists or serves, so that getting a behaviour the task or its criteria name wrong changes a checked value; and includes at least one negative or boundary case. It need not cover cases the task never asks for, including ones the existing repository suites already run.';
+
+/** The suite defects that refuse a plan in every review round; see PARENT_TEST_SUFFICIENCY. */
+export const PARENT_TEST_BLOCKING_DEFECTS = 'BLOCKING SUITE DEFECTS, which refuse a plan in any review round: a suite that does not import and call the real module it claims to test, or tests a helper or mock standing in for it; trivial or placeholder assertions, or none on values the module produces; no negative or boundary case; an interface the suite assumes that the application does not have; a testable implementation subtask without a parent-owned suite; interacting implementation branches without a plan-level integration suite; a behaviour the task or its criteria name that no suite can fail on; a proof the runtime cannot execute.';
+
 export const PARENT_TEST_PLANNING = `PARENT-OWNED ACCEPTANCE TESTS:
 For TypeScript application work, define acceptanceTests on each implementation subtask BEFORE execution:
 {"requirement":"the assigned behavior and its observable interface","cwd":".","source":"import { test, expect } from 'vitest'; import { add } from './src/add.ts'; test('adds', () => { expect(add(2, 3)).toBe(5); });"}.
@@ -199,6 +213,8 @@ Use relative imports of real application modules; test importable modules and in
 Use Vitest's built-in matchers; expect.extend may only add new names; custom equality testers, snapshot serializers and file snapshots are unavailable (inline snapshots work).
 L3 assigns criteria, interfaces and tests to EACH L2 branch. L2 proposes contract tests for EACH L1; L3 reviews them with the L2 plan before any L1 starts. Specify branch contracts before parallel implementation.
 Plan-level acceptanceTests run after the branches join: L3 owns integration tests in addition to its per-L2 tests. Do not require future branches' behavior in a leaf suite.
+${PARENT_TEST_SUFFICIENCY}
+${PARENT_TEST_BLOCKING_DEFECTS}
 Tests must exercise actual code and observable behavior, including relevant negative/boundary cases. Mock external services only; no trivial assertions, implementation replacement, skip/todo/only, hidden requirements or real external traffic.
 A source revision is a new plan requiring parent review. Never weaken assertions to obtain green; explain a requirement-backed correction in the plan reasoning. A failing test can be wrong: challenge its contract explicitly.
 The runtime owns the suite, runner, configuration and result. Children may add their own tests but cannot replace the parent's suite. No package script/config is used for these checks. Install the application's dependencies before verification.

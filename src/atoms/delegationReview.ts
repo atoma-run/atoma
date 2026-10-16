@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { DelegationRefusalKind, NegativeVerdict, Plan, Task } from '../core/types.js';
-import { PARENT_TEST_RUNNER_SCOPE, delegationReviewEnvelopeSchema, type DelegationReview } from '../contracts/parentTests.js';
+import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_SUFFICIENCY, delegationReviewEnvelopeSchema, type DelegationReview } from '../contracts/parentTests.js';
 import { parseWith, planSchema } from './json.js';
 import { parentSuiteRefusal } from './parentSuiteCheck.js';
 import { VALIDATION_SYSTEM_PROMPT } from './verdict.js';
@@ -25,6 +25,8 @@ Classify EVERY subtask exactly once using zero-based indices. Classify testable 
 ${PARENT_TEST_RUNNER_SCOPE}
 ${BROWSER_PROOF_REVIEW}
 Require plan-level Vitest integration tests when branches implement interacting application modules. Review all suite sources for real application imports, useful assertions, negative cases, faithful interfaces, and no replacement of the subject under test. Trivial assertions or placeholders must be rejected even when a suite exists.
+${PARENT_TEST_SUFFICIENCY}
+${PARENT_TEST_BLOCKING_DEFECTS} Name any other gap in a suite's coverage in your reasoning; it does not refuse the plan.
 Set independentWork true whenever useful independent work exists in the assigned scope, including work hidden in one broad branch. Reject grouping independent L2 work into one L2 or inventing dependencies to serialize it. Genuine coupling permits sequential work; do not invent branches for a small inseparable change.
 An L3 replanAfter:true plan is discovery ONLY: no writes, no implementation deferred to another subtask. The host will replan once after its observations. A promise in prose to obtain review or replan later has NO runtime effect. Reject such a promise when executable contracts are missing. L2 cannot use replanAfter.
 An approval without this complete classification is not executable. For rejection use the ordinary negative Verdict with actionable reasoning; no classification is required.`;
@@ -41,6 +43,27 @@ export function inheritedObligationsNote(task: Task): string {
   if (carried.length === 0) return '';
   const pronoun = carried.length === 1 ? 'it' : 'them';
   return `HOST FACT: this task already carries proofObligations ${JSON.stringify(carried)}; dispatch hands ${pronoun} to every subtask, so this plan need not declare ${pronoun} again.`;
+}
+
+/**
+ * The review's own earlier refusals of this delegation, oldest first, each with
+ * the requests it made. Without them each round judged the new plan from
+ * scratch; with the requests withheld from the planner too, runs 7a7af324,
+ * aaa6b442 and 63feeb3c (2026-10-16) refused nine plans, three per run, and
+ * every run ended with nothing executed. No round count: the last round must
+ * judge as strictly as the first.
+ */
+export function previousRefusalsNote(refusals: readonly string[]): string {
+  if (refusals.length === 0) return '';
+  const cap = 1200;
+  const listed = refusals.map((text, index) => `${index + 1}. ${text.length > cap ? `${text.slice(0, cap)} [truncated]` : text}`).join('\n');
+  return `PREVIOUS REFUSALS OF THIS DELEGATION, oldest first; the planner received each with its requests:\n${listed}\nJudge first whether this plan fixes each of them. One that still stands refuses again only when it is a blocking suite defect above or breaks another rule of this review. Any other gap, including one no earlier refusal named, goes in your reasoning and does not refuse the plan.`;
+}
+
+/** One refusal as the planner and later reviews read it: the reasoning, then what it asked for. */
+export function refusalWithRequests(verdict: { reasoning: string; modifications?: { additionalContext?: string } }): string {
+  const requested = verdict.modifications?.additionalContext?.trim();
+  return requested && requested !== verdict.reasoning.trim() ? `${verdict.reasoning} Requested: ${requested}` : verdict.reasoning;
 }
 
 /** The longest routing note a review or a replanning planner reads. */

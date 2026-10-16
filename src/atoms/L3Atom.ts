@@ -57,7 +57,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, withPlannedDelivery, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, planFeedbackLines } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { PlanParseError, RegistryNotFoundError, ValidationError } from '../core/errors.js';
-import { approvalDigest, delegationRefusal, enforceParsedDelegationReview, routingIndexNote } from './delegationReview.js';
+import { approvalDigest, delegationRefusal, enforceParsedDelegationReview, routingIndexNote, refusalWithRequests } from './delegationReview.js';
 import { VALIDATION_PARAMS } from './verdict.js';
 import type { RootDelegationApproval, RootPhaseCheckpoint, RootPlanCheckpoint } from '../contracts/runCheckpoint.js';
 import type { DelegationReview } from '../contracts/parentTests.js';
@@ -367,6 +367,9 @@ export function routeCrossBucketVerification(plan: Plan, registry: AtomRegistry)
   return { ...plan, subtasks };
 }
 
+/** The root's planning attempts, each a plan call or re-review followed by the contract review. */
+const ROOT_PLAN_ATTEMPTS = 3;
+
 export class L3Atom extends Atom implements Supervisor<L2Atom> {
   readonly tier: Tier = 3;
   readonly model: string;
@@ -576,11 +579,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
   }
 
   private async reviewRootDelegation(plan: Plan, task: Task, ctx: RunContext, allowDiscovery: boolean,
-    model: string, params: GenerationParams): Promise<Verdict> {
+    model: string, params: GenerationParams, previousRefusals: readonly string[]): Promise<Verdict> {
     try {
       return await llmVerdict({ ctx, model, params, supervisorName: this.name, supervisorTier: 3,
         subject: 'PLAN', child: this, task, payload: plan, targetContext: buildTargetContext(plan, this.registry),
-        delegationContract: { plan, allowDiscovery } });
+        delegationContract: { plan, allowDiscovery, previousRefusals } });
     } catch (error) {
       // An unparseable verdict is the reviewer's failure, not the plan's.
       if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
@@ -608,9 +611,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * plan again on the validation model instead of asking for a new one. Only
    * an enforced approval is returned; execution still belongs to the shared loop.
    *
-   * The feedback is a list: the last review refusal, then the latest parse or
-   * precheck message. A reply refused by the parser after a review refusal
-   * must not erase what the reviewer asked for (group G4, 2026-10-16).
+   * The feedback is a list: every review refusal so far, then the latest parse
+   * or precheck message. A reply refused by the parser after a review refusal
+   * must not erase what the reviewer asked for (group G4, 2026-10-16). Each
+   * refusal carries its requests (`additionalContext`), and the review reads
+   * its own earlier refusals, so a later round judges whether they were fixed:
+   * runs 7a7af324, aaa6b442 and 63feeb3c (2026-10-16) spent all three rounds
+   * each, two of them refusing for requests the planner had never received.
    */
   private async reviewedRootPlan(args: {
     propose: (feedback: readonly string[]) => Promise<Plan>;
@@ -621,15 +628,16 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     continuation: boolean;
   }, ctx: RunContext): Promise<{ plan: Plan; review: DelegationReview; model: string }> {
     const exhausted = args.continuation ? 'Saved delegation plan requires a new run: ' : '';
-    let refusal = '';
+    const refusals: string[] = [];
+    const reviewRefusals: string[] = [];
     let retry = '';
     let failure = 'Delegation contract review did not finish';
     let pending: Plan | undefined;
     let reviewerFault = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < ROOT_PLAN_ATTEMPTS; attempt++) {
       if (!pending) {
         try {
-          pending = await args.propose([refusal, retry].filter(Boolean));
+          pending = await args.propose([...refusals, retry].filter(Boolean));
         } catch (error) {
           if (!(error instanceof PlanParseError) || ctx.signal.aborted) throw error;
           failure = retry = error.feedback();
@@ -648,7 +656,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       const model = reviewerFault ? this.validationModel : this.rootReviewModel();
       const reviewed = args.from ? { ...pending, subtasks: pending.subtasks.slice(args.from) } : pending;
       const verdict = await this.reviewRootDelegation(reviewed, args.reviewTask, ctx, args.allowDiscovery, model,
-        reviewerFault ? VALIDATION_PARAMS : ROOT_DELEGATION_REVIEW_PARAMS);
+        reviewerFault ? VALIDATION_PARAMS : ROOT_DELEGATION_REVIEW_PARAMS, reviewRefusals);
       if (verdict.approved) {
         if (!verdict.delegationReview) throw new Error('Delegation contract review approved without an enforced classification');
         return { plan: pending, review: verdict.delegationReview, model };
@@ -664,7 +672,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       }
       // The reviewer cited ROUTED indices; the note maps them back to the planner's own.
       const note = routingIndexNote(reviewed);
-      refusal = `Delegation contract rejected before execution: ${verdict.reasoning}${note ? ` ${note}` : ''}`;
+      // The requests travel with the reasoning: until 2026-10-16 the root
+      // forwarded the reasoning alone, and the next round refused the plan
+      // for what the previous one had asked (runs 7a7af324, 63feeb3c).
+      const stated = refusalWithRequests(verdict);
+      const refusal = `Delegation contract rejected before execution: ${stated}${note ? ` ${note}` : ''}`;
+      refusals.push(refusal);
+      reviewRefusals.push(stated);
       retry = '';
       ctx.logger.warn(`[l3] ${refusal}`);
       pending = undefined;

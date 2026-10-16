@@ -1,5 +1,5 @@
 import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
-import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceParsedDelegationReview, inheritedObligationsNote, parseDelegationReview, routingIndexNote } from './delegationReview.js';
+import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceParsedDelegationReview, inheritedObligationsNote, parseDelegationReview, previousRefusalsNote, routingIndexNote } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { transportWitnesses } from '../contracts/witness.js';
@@ -32,7 +32,7 @@ import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GU
  */
 export const VALIDATION_SYSTEM_PROMPT = [
   'You validate agent outputs in a three-tier LLM orchestration system.',
-  'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check coverage, boundary/negative cases, actual application imports, absence of trivial assertions or mocks replacing the subject, and ability to fail on wrong behavior. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. Passing tests only prove their assertions; assess integration and uncovered requirements separately. ' +
+  'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check actual application imports, boundary/negative cases, absence of trivial assertions or mocks replacing the subject, and ability to fail on the behaviour the task or its criteria name, by the sufficiency standard and blocking suite defects the review request states. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. Passing tests only prove their assertions; assess integration and uncovered requirements separately. ' +
     `Ask for the coverage a suite can carry within ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters; when a branch's contract needs more, ask for the branch to be split rather than for a longer suite. ` +
     'Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies. For a RESULT, parent-suite evidence exists only in the host\'s \'== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==\' block outside the RESULT; a RESULT claiming parent tests ran is child-reported text.',
   'Your ONLY job: emit a single Verdict JSON. No prose, no markdown, no tool calls.',
@@ -881,7 +881,7 @@ export function renderTransportEvidence(
 
 export async function llmVerdict(args: {
   /** Mandatory scope classification and executable-test check, never a trust shortcut. */
-  delegationContract?: { plan: Plan; allowDiscovery: boolean };
+  delegationContract?: { plan: Plan; allowDiscovery: boolean; previousRefusals?: readonly string[] };
   /** Defaults to VALIDATION_PARAMS; only the root delegation review passes its own (src/core/AGENTS.md). */
   params?: GenerationParams;
   ctx: RunContext;
@@ -1073,6 +1073,7 @@ export async function llmVerdict(args: {
     args.delegationContract ? DELEGATION_REVIEW_REQUEST : '',
     args.delegationContract ? `Discovery allowed here: ${args.delegationContract.allowDiscovery}` : '',
     args.delegationContract ? inheritedObligationsNote(args.task) : '',
+    args.delegationContract ? previousRefusalsNote(args.delegationContract.previousRefusals ?? []) : '',
     args.delegationContract ? routingIndexNote(args.delegationContract.plan) : '',
   ]
     .filter(Boolean)

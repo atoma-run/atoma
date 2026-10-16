@@ -103,8 +103,10 @@ and assertion outcomes. It rejects empty, skipped, focused, failed or incomplete
 runs and cleans its process group and temporary copy.
 
 This runner supports Node module and in-process API tests; what a suite may
-rely on is stated once, for the planner, in `PARENT_TEST_PLANNING`
-([src/contracts/parentTests.ts](../../src/contracts/parentTests.ts)). Test
+rely on is stated once, in `PARENT_TEST_RUNNER_SCOPE`
+([src/contracts/parentTests.ts](../../src/contracts/parentTests.ts)), which the
+planning text and the delegation review both read (run 7a7af324: the review had
+not been told, and demanded a suite drive a browser). Test
 workers cannot spawn processes, create further workers, load native addons, or
 access the live workspace through Node filesystem APIs. The existing container
 is the OS boundary; Node permissions are defence in depth, not a replacement
@@ -377,7 +379,17 @@ classification and test quality remain semantic judgments, not file-extension or
 keyword detectors. Non-code work and browser/process checks retain their own proof.
 
 A rejected root plan gets bounded planning repair (three candidates total), not
-unreviewed execution or direct fallback. L2 plans under parent suites receive the
+unreviewed execution or direct fallback. Each refusal reaches the planner with
+the requests it made, and every later review reads the earlier refusals of the
+delegation: one that still stands refuses again only when it is a blocking suite
+defect (`PARENT_TEST_BLOCKING_DEFECTS`) or breaks another rule of the review;
+any other gap is named in the reasoning and does not refuse. A suite is
+sufficient by `PARENT_TEST_SUFFICIENCY`: real module imported and called,
+exact values, a negative case, able to fail on what the task or its criteria
+name; it need not cover cases the task never asks for. Runs 7a7af324,
+aaa6b442 and 63feeb3c (2026-10-16) refused all nine root plans and executed
+nothing; in two of them a round refused the plan for requests the root had
+never forwarded. L2 plans under parent suites receive the
 same contract check within the existing L3 review, including trusted cells. Exact
 approved-plan reuse remains; changed contracts are reviewed again.
 
@@ -543,8 +555,9 @@ longer suite.
 SHORT root and the L3 root pass that feedback to the next plan call on the
 channel above, so a retry reaches the prefilter as the same request (a cache
 hit, and no new L2 short-circuit verdict). At the L3 root the channel carries
-the last review refusal and the latest parse or precheck message together, so
-a size refusal does not erase what the reviewer asked for.
+every review refusal so far, each with its requests, and the latest parse or
+precheck message together, so a size refusal does not erase what the reviewer
+asked for.
 
 **Cost.** Output at the cap, per call: Fable 5.1 $0.40 → $0.82, Opus 5.5 $0.16 →
 $0.33, Sonnet 5 $0.08 → $0.16. Worst case per run, every call at its cap: the

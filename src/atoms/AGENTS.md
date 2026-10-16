@@ -366,6 +366,20 @@ load-bearing.
   API check (`parentSuiteCheck.ts`): what the runner's integrity guard refuses
   is refused in the parent's plan, so no child is rejected for it. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
 
+- One text states what a parent suite can run and how browser-only behaviour is
+  proven (`PARENT_TEST_RUNNER_SCOPE`: a `validate_html` subtask, with the
+  `dom-interaction` obligation for real input), and one what makes a suite
+  sufficient (`PARENT_TEST_SUFFICIENCY`: real module import, exact values with a
+  negative case, able to fail on what the task or its criteria name, nothing
+  more), with `PARENT_TEST_BLOCKING_DEFECTS` the defects that refuse in every
+  round. Planners and the delegation review read the same texts. Each root
+  refusal reaches the planner with its requests (`additionalContext`), and the
+  review reads its earlier refusals: one that still stands refuses again only as
+  a blocking defect or another rule's breach. Root only: cell-plan reviews keep
+  superviseLoop's own coaching. Runs 7a7af324, aaa6b442 and 63feeb3c
+  (2026-10-16) refused nine root plans; two runs refused for requests the root
+  never forwarded, the first run's last round for a suite driving a browser.
+
 - All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
   logic and maintained tests. Application changes include migration where needed.
   `APPLICATION_TYPESCRIPT_GUIDANCE` in `taskContext.ts` is the runtime rule shared by tool-mode planners,

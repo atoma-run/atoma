@@ -3,7 +3,7 @@ import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { L3Atom, routeCrossBucketVerification } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
-import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, routingIndexNote } from '../src/atoms/delegationReview.js';
+import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, previousRefusalsNote, refusalWithRequests, routingIndexNote } from '../src/atoms/delegationReview.js';
 import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { planSchema } from '../src/atoms/json.js';
 import type { BranchEventInfo, LlmCompletionRequest, LlmCompletionResponse, Plan, Result, RunContext, Task, Tool, ToolExecutor } from '../src/core/types.js';
@@ -1390,5 +1390,93 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
     expect(inherited!.userContent).toContain(inheritedObligationsNote(inheritedTask));
     expect(plain!.userContent).not.toContain('HOST FACT: this task already carries proofObligations');
     expect(inheritedObligationsNote({ description: 'root' })).toBe('');
+  });
+
+  // Runs 7a7af324, aaa6b442 and 63feeb3c (2026-10-16): three refused root rounds
+  // each. The root forwarded a refusal's reasoning but never its requests
+  // (additionalContext), and no round saw the ones before it, so a later round
+  // refused for what an earlier one had asked. Through the real L3.handle path.
+  it('carries every earlier refusal with its requests into the next review and plan', async () => {
+    const actors = atticaActors();
+    const verdicts = [
+      { approved: false, reasoning: 'FIRST: the integration suite imports only scenario helpers.',
+        modifications: { additionalContext: 'ASK-1: import createServer from the control server and request it over loopback.' }, scope: 'ephemeral' },
+      { approved: false, reasoning: 'SECOND: the scheduler suite has no negative case.',
+        modifications: { additionalContext: 'ASK-2: assert that an invalid timezone is refused.' }, scope: 'ephemeral' },
+    ];
+    let reviewed = 0;
+    const llm = atticaModel(actors, plan => verdicts[reviewed++] ?? approve(plan));
+    const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    await tissue.handle({ description: 'Migrate the retained Attica application to strict TypeScript' }, makeCtx({ llm }));
+
+    const reviews = llm.calls.filter(call => call.role === 'validate-plan').map(call => call.userContent);
+    const plans = llm.calls.filter(call => call.role === 'plan').map(call => call.userContent);
+    expect(reviews).toHaveLength(3);
+    expect(reviews[0]).not.toContain('PREVIOUS REFUSALS OF THIS DELEGATION');
+    expect(reviews[1]).toContain('PREVIOUS REFUSALS OF THIS DELEGATION');
+    expect(reviews[1]).toContain('1. FIRST: the integration suite imports only scenario helpers. Requested: ASK-1');
+    expect(reviews[1]).not.toContain('SECOND:');
+    expect(reviews[2]).toContain('1. FIRST: the integration suite imports only scenario helpers. Requested: ASK-1');
+    expect(reviews[2]).toContain('2. SECOND: the scheduler suite has no negative case. Requested: ASK-2');
+    // No round count: the last round judges as strictly as the first.
+    for (const review of reviews) expect(review).not.toMatch(/review \d+ of \d+/);
+    // The planner receives both refusals and both requests, not only the last one.
+    for (const text of ['FIRST:', 'ASK-1:', 'SECOND:', 'ASK-2:']) expect(plans.at(-1)).toContain(text);
+    // One standard, read by both sides.
+    for (const review of reviews) {
+      expect(review).toContain('A SUFFICIENT SUITE imports and calls the real application module');
+      expect(review).toContain('BLOCKING SUITE DEFECTS, which refuse a plan in any review round');
+    }
+    expect(plans[0]).toContain('BLOCKING SUITE DEFECTS, which refuse a plan in any review round');
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it('an unparseable plan reply between two reviews keeps the refusal history', async () => {
+    const actors = atticaActors();
+    const llm = new MockLlmClient();
+    const reply = (value: unknown): LlmCompletionResponse =>
+      ({ text: typeof value === 'string' ? value : JSON.stringify(value), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } });
+    let planCalls = 0;
+    let reviewCalls = 0;
+    const route = (req: LlmCompletionRequest): LlmCompletionResponse => {
+      if (req.role === 'prefilter') return reply({ kind: 'reuse', target: actors.browserCell, confidence: 'high', reasoning: 'fits' });
+      if (req.role === 'plan') {
+        planCalls++;
+        return planCalls === 2 ? reply('not a plan at all') : reply([{ strategy: 'reuse', target: actors.browserCell, reasoning: 'fits' }, atticaPlan(actors)]);
+      }
+      if (req.role === 'validate-plan') {
+        reviewCalls++;
+        if (reviewCalls === 1) return reply({ approved: false, reasoning: 'ONLY: the runtime suite imports a helper.', modifications: { additionalContext: 'ASK: import the control server.' }, scope: 'ephemeral' });
+        const encoded = /^PLAN: (.*)$/m.exec(req.userContent)?.[1];
+        return reply(approve(JSON.parse(encoded!) as Plan));
+      }
+      throw new Error(`Unexpected ${req.role} call`);
+    };
+    for (let i = 0; i < 12; i++) llm.enqueue(route);
+    const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    await tissue.handle({ description: 'Migrate the retained Attica application to strict TypeScript' }, makeCtx({ llm }));
+
+    const reviews = llm.calls.filter(call => call.role === 'validate-plan').map(call => call.userContent);
+    const plans = llm.calls.filter(call => call.role === 'plan').map(call => call.userContent);
+    expect(plans).toHaveLength(3);
+    expect(reviews).toHaveLength(2);
+    expect(reviews[1]).toContain('1. ONLY: the runtime suite imports a helper. Requested: ASK: import the control server.');
+    expect(plans[2]).toContain('ONLY: the runtime suite imports a helper.');
+    expect(plans[2]).toContain('ASK: import the control server.');
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it('caps each listed refusal and marks the cut; a first review carries no note', () => {
+    expect(previousRefusalsNote([])).toBe('');
+    const note = previousRefusalsNote(['x'.repeat(5000)]);
+    expect(note).toContain('[truncated]');
+    expect(note.length).toBeLessThan(2000);
+    expect(refusalWithRequests({ reasoning: 'R', modifications: { additionalContext: 'R' } })).toBe('R');
+    expect(refusalWithRequests({ reasoning: 'R', modifications: { additionalContext: ' A ' } })).toBe('R Requested: A');
+    expect(refusalWithRequests({ reasoning: 'R' })).toBe('R');
   });
 });
