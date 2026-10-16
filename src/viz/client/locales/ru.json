@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "Предыдущий вызов",
   "detail.batch.nextCall": "Следующий вызов",
   "detail.batch.calls": "Вызовы в этом пакете",
-  "detail.batch.arguments": "Аргументы"
+  "detail.batch.arguments": "Аргументы",
+  "push.pressure.title": "Atoma — высокая нагрузка на хост",
+  "push.pressure.storeBusy_one": "Хранилище: отклонена {{count}} операция записи, блокировка занята (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "Хранилище: отклонено операций записи: {{count}}, блокировка занята (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "Хранилище: {{count}} медленная транзакция, самая долгая — {{slowestMs}} мс",
+  "push.pressure.storeSlow_other": "Хранилище: медленных транзакций: {{count}}, самая долгая — {{slowestMs}} мс",
+  "push.pressure.memoryLow": "Память: доступно {{availableMb}} МиБ; активные run: {{activeRuns}}; резерв: {{reserveMb}} МиБ",
+  "push.pressure.unknown": "Обнаружена высокая нагрузка на ресурсы хоста"
 }

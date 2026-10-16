@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "前の呼び出し",
   "detail.batch.nextCall": "次の呼び出し",
   "detail.batch.calls": "このバッチの呼び出し",
-  "detail.batch.arguments": "引数"
+  "detail.batch.arguments": "引数",
+  "push.pressure.title": "Atoma — ホストに負荷がかかっています",
+  "push.pressure.storeBusy_one": "ストア：{{count}}件の書き込みを拒否、ロック使用中（SQLITE_BUSY）",
+  "push.pressure.storeBusy_other": "ストア：{{count}}件の書き込みを拒否、ロック使用中（SQLITE_BUSY）",
+  "push.pressure.storeSlow_one": "ストア：遅いトランザクション{{count}}件、最長{{slowestMs}}ミリ秒",
+  "push.pressure.storeSlow_other": "ストア：遅いトランザクション{{count}}件、最長{{slowestMs}}ミリ秒",
+  "push.pressure.memoryLow": "メモリ：利用可能{{availableMb}} MiB、アクティブなrun：{{activeRuns}}、予約：{{reserveMb}} MiB",
+  "push.pressure.unknown": "ホストのリソース負荷を検出しました"
 }

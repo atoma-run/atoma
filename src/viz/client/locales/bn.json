@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "আগের কল",
   "detail.batch.nextCall": "পরের কল",
   "detail.batch.calls": "এই ব্যাচের কলসমূহ",
-  "detail.batch.arguments": "আর্গুমেন্টসমূহ"
+  "detail.batch.arguments": "আর্গুমেন্টসমূহ",
+  "push.pressure.title": "Atoma — হোস্ট চাপে রয়েছে",
+  "push.pressure.storeBusy_one": "স্টোর: {{count}}টি রাইট প্রত্যাখ্যাত, লক ব্যস্ত (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "স্টোর: {{count}}টি রাইট প্রত্যাখ্যাত, লক ব্যস্ত (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "স্টোর: {{count}}টি ধীর ট্রানজ্যাকশন, দীর্ঘতম {{slowestMs}} ms",
+  "push.pressure.storeSlow_other": "স্টোর: {{count}}টি ধীর ট্রানজ্যাকশন, দীর্ঘতম {{slowestMs}} ms",
+  "push.pressure.memoryLow": "মেমোরি: {{availableMb}} MiB উপলভ্য; সক্রিয় run: {{activeRuns}}; রিজার্ভ: {{reserveMb}} MiB",
+  "push.pressure.unknown": "হোস্টের রিসোর্সে চাপ শনাক্ত হয়েছে"
 }

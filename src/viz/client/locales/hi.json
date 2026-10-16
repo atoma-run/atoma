@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "पिछली कॉल",
   "detail.batch.nextCall": "अगली कॉल",
   "detail.batch.calls": "इस बैच की कॉल",
-  "detail.batch.arguments": "आर्ग्युमेंट"
+  "detail.batch.arguments": "आर्ग्युमेंट",
+  "push.pressure.title": "Atoma — होस्ट पर दबाव",
+  "push.pressure.storeBusy_one": "स्टोर: {{count}} लेखन अस्वीकृत, लॉक व्यस्त (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "स्टोर: {{count}} लेखन अस्वीकृत, लॉक व्यस्त (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "स्टोर: {{count}} धीमा ट्रांज़ैक्शन, सबसे लंबा {{slowestMs}} ms",
+  "push.pressure.storeSlow_other": "स्टोर: {{count}} धीमे ट्रांज़ैक्शन, सबसे लंबा {{slowestMs}} ms",
+  "push.pressure.memoryLow": "मेमोरी: {{availableMb}} MiB उपलब्ध; सक्रिय run: {{activeRuns}}; आरक्षित: {{reserveMb}} MiB",
+  "push.pressure.unknown": "होस्ट संसाधनों पर दबाव का पता चला"
 }

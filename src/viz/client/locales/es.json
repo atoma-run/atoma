@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "Llamada anterior",
   "detail.batch.nextCall": "Llamada siguiente",
   "detail.batch.calls": "Llamadas en este lote",
-  "detail.batch.arguments": "Argumentos"
+  "detail.batch.arguments": "Argumentos",
+  "push.pressure.title": "Atoma — host bajo presión",
+  "push.pressure.storeBusy_one": "Almacén: {{count}} escritura rechazada, bloqueo ocupado (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "Almacén: {{count}} escrituras rechazadas, bloqueo ocupado (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "Almacén: {{count}} transacción lenta, la más larga: {{slowestMs}} ms",
+  "push.pressure.storeSlow_other": "Almacén: {{count}} transacciones lentas, la más larga: {{slowestMs}} ms",
+  "push.pressure.memoryLow": "Memoria: {{availableMb}} MiB disponibles; runs activos: {{activeRuns}}; reserva: {{reserveMb}} MiB",
+  "push.pressure.unknown": "Se detectó presión sobre los recursos del host"
 }

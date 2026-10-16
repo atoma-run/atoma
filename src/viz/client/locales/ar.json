@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "الاستدعاء السابق",
   "detail.batch.nextCall": "الاستدعاء التالي",
   "detail.batch.calls": "الاستدعاءات في هذه الدفعة",
-  "detail.batch.arguments": "الوسائط"
+  "detail.batch.arguments": "الوسائط",
+  "push.pressure.title": "Atoma — المضيف تحت الضغط",
+  "push.pressure.storeBusy_one": "المخزن: رُفضت {{count}} عملية كتابة، القفل مشغول (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "المخزن: عمليات الكتابة المرفوضة: {{count}}، القفل مشغول (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "المخزن: {{count}} معاملة بطيئة، الأطول {{slowestMs}} مللي ثانية",
+  "push.pressure.storeSlow_other": "المخزن: المعاملات البطيئة: {{count}}، الأطول {{slowestMs}} مللي ثانية",
+  "push.pressure.memoryLow": "الذاكرة: المتاح {{availableMb}} MiB؛ عمليات run النشطة: {{activeRuns}}؛ الاحتياطي: {{reserveMb}} MiB",
+  "push.pressure.unknown": "تم اكتشاف ضغط على موارد المضيف"
 }

@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "Vorheriger Aufruf",
   "detail.batch.nextCall": "Nächster Aufruf",
   "detail.batch.calls": "Aufrufe in diesem Batch",
-  "detail.batch.arguments": "Argumente"
+  "detail.batch.arguments": "Argumente",
+  "push.pressure.title": "Atoma — Host unter Last",
+  "push.pressure.storeBusy_one": "Speicher: {{count}} Schreibvorgang abgelehnt, Sperre belegt (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "Speicher: {{count}} Schreibvorgänge abgelehnt, Sperre belegt (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "Speicher: {{count}} langsame Transaktion, längste {{slowestMs}} ms",
+  "push.pressure.storeSlow_other": "Speicher: {{count}} langsame Transaktionen, längste {{slowestMs}} ms",
+  "push.pressure.memoryLow": "Arbeitsspeicher: {{availableMb}} MiB verfügbar; aktive runs: {{activeRuns}}; Reserve: {{reserveMb}} MiB",
+  "push.pressure.unknown": "Ressourcenengpass auf dem Host erkannt"
 }

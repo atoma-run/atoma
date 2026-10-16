@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "پچھلی کال",
   "detail.batch.nextCall": "اگلی کال",
   "detail.batch.calls": "اس بیچ کی کالز",
-  "detail.batch.arguments": "آرگیومنٹس"
+  "detail.batch.arguments": "آرگیومنٹس",
+  "push.pressure.title": "Atoma — میزبان دباؤ میں ہے",
+  "push.pressure.storeBusy_one": "اسٹور: {{count}} لکھائی مسترد ہوئی، لاک مصروف ہے (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "اسٹور: {{count}} لکھائیاں مسترد ہوئیں، لاک مصروف ہے (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "اسٹور: {{count}} سست ٹرانزیکشن، طویل ترین {{slowestMs}} ms",
+  "push.pressure.storeSlow_other": "اسٹور: {{count}} سست ٹرانزیکشنز، طویل ترین {{slowestMs}} ms",
+  "push.pressure.memoryLow": "میموری: {{availableMb}} MiB دستیاب؛ فعال run: {{activeRuns}}؛ ریزرو: {{reserveMb}} MiB",
+  "push.pressure.unknown": "میزبان کے وسائل پر دباؤ کا پتا چلا ہے"
 }

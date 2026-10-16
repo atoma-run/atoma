@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "Appel précédent",
   "detail.batch.nextCall": "Appel suivant",
   "detail.batch.calls": "Appels dans ce lot",
-  "detail.batch.arguments": "Arguments"
+  "detail.batch.arguments": "Arguments",
+  "push.pressure.title": "atoma — hôte sous pression",
+  "push.pressure.storeBusy_one": "Stockage : {{count}} écriture refusée, verrou occupé (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "Stockage : {{count}} écritures refusées, verrou occupé (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "Stockage : {{count}} transaction lente, la plus longue : {{slowestMs}} ms",
+  "push.pressure.storeSlow_other": "Stockage : {{count}} transactions lentes, la plus longue : {{slowestMs}} ms",
+  "push.pressure.memoryLow": "Mémoire : {{availableMb}} Mio disponibles ; runs actifs : {{activeRuns}} ; réserve : {{reserveMb}} Mio",
+  "push.pressure.unknown": "Pression détectée sur les ressources de l’hôte"
 }

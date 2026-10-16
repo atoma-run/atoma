@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "Chamada anterior",
   "detail.batch.nextCall": "Chamada seguinte",
   "detail.batch.calls": "Chamadas neste lote",
-  "detail.batch.arguments": "Argumentos"
+  "detail.batch.arguments": "Argumentos",
+  "push.pressure.title": "Atoma — sistema sob pressão",
+  "push.pressure.storeBusy_one": "Armazenamento: {{count}} escrita recusada, bloqueio em uso (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "Armazenamento: {{count}} escritas recusadas, bloqueio em uso (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "Armazenamento: {{count}} transação lenta, a mais longa demorou {{slowestMs}} ms",
+  "push.pressure.storeSlow_other": "Armazenamento: {{count}} transações lentas, a mais longa demorou {{slowestMs}} ms",
+  "push.pressure.memoryLow": "Memória: {{availableMb}} MiB disponíveis; runs ativos: {{activeRuns}}; reserva: {{reserveMb}} MiB",
+  "push.pressure.unknown": "Detetada pressão sobre os recursos do sistema"
 }

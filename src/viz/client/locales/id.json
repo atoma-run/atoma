@@ -2039,5 +2039,12 @@
   "detail.batch.previousCall": "Panggilan sebelumnya",
   "detail.batch.nextCall": "Panggilan berikutnya",
   "detail.batch.calls": "Panggilan dalam batch ini",
-  "detail.batch.arguments": "Argumen"
+  "detail.batch.arguments": "Argumen",
+  "push.pressure.title": "Atoma — host terbebani",
+  "push.pressure.storeBusy_one": "Penyimpanan: {{count}} penulisan ditolak, kunci sibuk (SQLITE_BUSY)",
+  "push.pressure.storeBusy_other": "Penyimpanan: {{count}} penulisan ditolak, kunci sibuk (SQLITE_BUSY)",
+  "push.pressure.storeSlow_one": "Penyimpanan: {{count}} transaksi lambat, terlama {{slowestMs}} md",
+  "push.pressure.storeSlow_other": "Penyimpanan: {{count}} transaksi lambat, terlama {{slowestMs}} md",
+  "push.pressure.memoryLow": "Memori: {{availableMb}} MiB tersedia; run aktif: {{activeRuns}}; cadangan: {{reserveMb}} MiB",
+  "push.pressure.unknown": "Tekanan sumber daya host terdeteksi"
 }
