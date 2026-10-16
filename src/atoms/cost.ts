@@ -286,14 +286,18 @@ export const STRATEGY_MAX_TOKENS = 16_384;
 export const PLAN_REVIEW_MAX_TOKENS = 8000;
 
 /**
- * The ROOT delegation review's parameters: the one validator that runs on a
- * thinking tier (`modelForTier(2)`), because three refusals end the run and
- * each one costs a top-tier replan (src/atoms/AGENTS.md, src/core/AGENTS.md).
- * The cap is PLAN_REVIEW_MAX_TOKENS: it is a cap, not a target, and it
- * includes adaptive thinking, which VALIDATION_PARAMS' 2048 would leave no
- * room for. Effort is pinned as on strategy calls. A
- * reviewer that still fails is re-asked on the validation model with
- * VALIDATION_PARAMS (`L3Atom.reviewedRootPlan`).
+ * The parameters of the delegation reviews that run on a thinking tier
+ * (`modelForTier(2)`): the ROOT review, because three refusals end the run
+ * and each one costs a top-tier replan, and the RE-REVIEW of a child plan
+ * whose first review, on the validation model, failed as the reviewer
+ * (`L3Atom.reviewChildDelegation`). They are the only validators with an
+ * effort pin (src/atoms/AGENTS.md, src/core/AGENTS.md). The two re-review in
+ * opposite directions: a root review that fails as the reviewer is re-asked
+ * DOWN on the validation model with VALIDATION_PARAMS (`L3Atom.reviewedRootPlan`);
+ * a child review is re-asked UP here. The cap is PLAN_REVIEW_MAX_TOKENS: it is
+ * a cap, not a target, and it includes adaptive thinking, which
+ * VALIDATION_PARAMS' 2048 would leave no room for. Effort is pinned as on
+ * strategy calls.
  */
 export const ROOT_DELEGATION_REVIEW_PARAMS: GenerationParams = { temperature: 0, maxTokens: PLAN_REVIEW_MAX_TOKENS, effort: 'medium' };
 

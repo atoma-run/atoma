@@ -85,8 +85,10 @@ describe('supervise loop outcome hooks', () => {
   it('calls onFailed when the loop escalates, before branchOnEscalation', async () => {
     const parent = mkParent();
     const child = mkChild();
-    // force escalation on first plan iteration
-    const ctx = makeCtx({ limits: { maxPlanIterations: 0, maxExecIterations: 0 } });
+    // One judged plan refusal spends a budget of one: a judged escalation.
+    // (A budget spent with nothing judged is blameless: tests/supervision.test.ts.)
+    parent.queueP({ approved: false, reasoning: 'names no outputs', scope: 'ephemeral', modifications: {} });
+    const ctx = makeCtx({ limits: { maxPlanIterations: 1, maxExecIterations: 0 } });
 
     let failedCalls = 0;
     let branchedCalls = 0;

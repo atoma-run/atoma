@@ -398,17 +398,37 @@ describe('superviseLoop', () => {
       expect(feedbacks).toEqual([[], []]);
     });
 
-    it('escalates once the plan budget is spent on unparseable replies', async () => {
-      const ctx = makeCtx({ limits: { maxPlanIterations: 2, maxExecIterations: 3 } });
+    // Third review 2026-10-16: nothing judged the child, so the spent budget
+    // records no trust failure and branches no type (AGENTS: "Never blames trust").
+    it('hands the task to the parent once the plan budget is spent on unparseable replies, blaming and branching nothing', async () => {
+      const ctx = makeCtx();
+      for (let i = 0; i < ctx.limits.maxPlanIterations; i++) ctx.llm.enqueueText(BROKEN);
+      const parent = new FakeParent();
+      let branched = 0;
+      let failed = 0;
+      const hooks = { applyByScope: async (c: RealPlanL1) => c, branchOnEscalation: async () => { branched++; }, onFailed: async () => { failed++; } };
+      const result = await superviseLoop(parent as never, makeChild() as never, { description: 'go' }, ctx, hooks as never);
+      expect(branched).toBe(0);
+      expect(failed).toBe(0);
+      expect(result.producedBy.viaFallback).toBe(true);
+      expect(result.output).toBe('parent-output');
+      expect(result.trace.find(t => t.kind === 'escalated')?.payload).toMatchObject({ phase: 'plan', blameless: true });
+    });
+
+    it('still blames and branches when a plan was refused on its merits before the replies stopped parsing', async () => {
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(GOOD);
       ctx.llm.enqueueText(BROKEN);
       ctx.llm.enqueueText(BROKEN);
       const parent = new FakeParent();
+      parent.queuePlanVerdict({ approved: false, reasoning: 'names no outputs', scope: 'ephemeral', modifications: {} });
       let branched = 0;
-      const hooks = { applyByScope: async (c: RealPlanL1) => c, branchOnEscalation: async () => { branched++; } };
+      let failed = 0;
+      const hooks = { applyByScope: async (c: RealPlanL1) => c, branchOnEscalation: async () => { branched++; }, onFailed: async () => { failed++; } };
       const result = await superviseLoop(parent as never, makeChild() as never, { description: 'go' }, ctx, hooks as never);
+      expect(failed).toBe(1);
       expect(branched).toBe(1);
       expect(result.producedBy.viaFallback).toBe(true);
-      expect(result.output).toBe('parent-output');
     });
   });
 

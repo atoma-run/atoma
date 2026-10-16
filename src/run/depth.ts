@@ -12,7 +12,7 @@ import type { AcceptanceInfo, DepthMode, PhaseCoverageRecord, ProofFloor, Topolo
 import { checklistPlanningLines, phaseCriteriaOf, type AcceptanceChecklist, type ChecklistSource } from '../contracts/acceptanceChecklist.js';
 import { PhaseBoundaryPause } from '../contracts/runCheckpoint.js';
 import { DEPENDENCY_LANDING_INPUT } from '../contracts/runLanding.js';
-import { parentTestFindings, parentTestRejection, parentTestReviewFinding, parentTestsGrantNothing, parentTestSuperseded, parentTestWorkspaceFinding } from '../core/parentTests.js';
+import { parentTestFindings, parentTestRejection, parentTestReviewFinding, parentTestsGrantNothing, parentTestSuperseded, parentTestNoResultFinding } from '../core/parentTests.js';
 
 export class DeepeningSignal extends Error {
   constructor() { super('Entry cell exhausted supervision; deepen once.'); this.name = 'DeepeningSignal'; }
@@ -47,7 +47,7 @@ export function markRefused(result: Result, acceptance: Pick<AcceptanceInfo, 're
 export function refuseUnreviewedParentTests(result: Result): Result {
   const findings = parentTestFindings(result);
   if (findings.reject.length + findings.rejectOnce.length + findings.review.length === 0) return result;
-  const reasoning = [parentTestRejection(result), parentTestWorkspaceFinding(result), parentTestReviewFinding(result)]
+  const reasoning = [parentTestRejection(result), parentTestNoResultFinding(result), parentTestReviewFinding(result)]
     .flatMap((finding) => finding ? [finding.reasoning] : [])
     .join(' ')
     .slice(0, 4000);

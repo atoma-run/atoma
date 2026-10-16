@@ -217,6 +217,17 @@ Neighbours:
   (`windowMs`): a timeout in less is the host's, never the code's (second
   review 2026-10-16). Paths the host writes in the copy are removed whole
   first, directories included; `details` is one valid JSON array, bounded.
+- Permission bits are the child's to change, never a host fault (third review
+  2026-10-16): an entry the owner cannot read refuses the copy as
+  `snapshot-unreadable`; after the run the owner takes back the copy root, the
+  suite file and the report before reading them (the suite compared by size
+  first), and restores its access to every directory before removing a copy.
+  A report with no failing assertion that is still red says why: skipped tests,
+  or each unhandled error the coordinator names on an `atoma-unhandled:` line
+  (child text, like a failure message). A runner killed after its report is a
+  `timeout`. The copy is reachable by any process of the worker's uid (a
+  `start_node_server` server, a sibling's `run_shell`): a recorded limit in the
+  [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
 - No project code runs in the coordinator, which holds `--allow-addons` and
   writes the report: an inline PostCSS config, a stylesheet stub decided on the
   RESOLVED id (an alias or a package `main` hides the extension) that keeps a

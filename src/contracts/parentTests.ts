@@ -135,10 +135,11 @@ export type ParentTestObservation = z.infer<typeof parentTestObservationSchema>;
 
 /**
  * An observation as the host holds it. `judged` is set by the host when the
- * supervisor directly above approved the result carrying it, never parsed from
- * a worker reply: the wire schema is strict and has no such key.
+ * supervisor directly above approved the result carrying it, and `observedAt`
+ * when core records it; neither is ever parsed from a worker reply: the wire
+ * schema is strict and has no such key.
  */
-export type HeldParentTestObservation = ParentTestObservation & { readonly judged?: true };
+export type HeldParentTestObservation = ParentTestObservation & { readonly judged?: true; readonly observedAt?: number };
 
 /** What a persisted run keeps of an observation: no suite source, no child output. */
 export function persistedParentTests(observations: readonly HeldParentTestObservation[]): PersistedParentTestObservation[] {
@@ -151,6 +152,7 @@ export function persistedParentTests(observations: readonly HeldParentTestObserv
     failed: observation.failed,
     skipped: observation.skipped,
     ...(observation.judged ? { judged: true as const } : {}),
+    ...(observation.observedAt !== undefined ? { observedAt: observation.observedAt } : {}),
     ...(observation.suite ? { requirement: observation.suite.requirement.slice(0, PERSISTED_REQUIREMENT_CHARS) } : {}),
     details: observation.details.slice(0, PERSISTED_DETAILS_CHARS),
   }));

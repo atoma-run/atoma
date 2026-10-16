@@ -13,7 +13,7 @@ import {
 import { extractRecordedProbes, recordedProbesFromWitnesses } from '../contracts/witness.js';
 import { pathHeldNoFile } from '../contracts/toolOutput.js';
 import { resultHasSuccessfulToolAction } from '../skills/lifecycle.js';
-import { parentTestRejection, parentTestReviewFinding, parentTestWorkspaceFinding } from '../core/parentTests.js';
+import { parentTestRejection, parentTestReviewFinding, parentTestNoResultFinding } from '../core/parentTests.js';
 import { isOwnFallback, spentOn } from '../core/phaseBudget.js';
 
 /**
@@ -318,10 +318,12 @@ const RESULT_GATES: readonly ResultGate[] = [
     check: env => Promise.resolve(parentTestRejection(env.result)),
   },
   {
-    // The workspace content kept the suite from being copied: the child can
-    // remove the link or special file, once; a repeat is reviewed.
-    id: 'parent-acceptance-tests-workspace', disposition: 'reject-once', appliesToDelegatedResult: true,
-    check: env => Promise.resolve(parentTestWorkspaceFinding(env.result)),
+    // The suite produced no result for a cause the child may control: the
+    // workspace could not be copied (a link, a special file, permissions), or
+    // the runner ended without a valid report (a killed or signalled process,
+    // memory). The child is coached once; a repeat is reviewed.
+    id: 'parent-acceptance-tests-no-result', disposition: 'reject-once', appliesToDelegatedResult: true,
+    check: env => Promise.resolve(parentTestNoResultFinding(env.result)),
   },
   {
     // A host cause: the child cannot act on it, so rejecting would be the

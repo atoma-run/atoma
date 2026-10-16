@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
-import { dependencyBlocker, dispatchWithAggregation, keptWithoutSynthesis, markLanded, type BlockedSubtask } from '../src/atoms/dispatch.js';
+import { dependencyBlocker, dispatchWithAggregation, keptWithoutSynthesis, landedOnBudget, markLanded, type BlockedSubtask } from '../src/atoms/dispatch.js';
 import { ladderSpent, withSpentLadder } from '../src/core/phaseBudget.js';
 import { parentTestSuiteDigest, type HeldParentTestObservation } from '../src/contracts/parentTests.js';
 import { MIN_PHASE_LANDING_MS, outOfPhaseBudget } from '../src/core/limits.js';
@@ -394,9 +394,19 @@ describe('the dependency predicate', () => {
     expect(dependencyBlocker(ownFallback('own, no suite'), DISPATCHER)).toBeUndefined();
   });
 
-  it('reads typed facts only: a refusal stamp alone does not block, unfinished work does', () => {
+  it('reads typed facts only: a refusal stamp alone does not block, work held back behind a failed check does', () => {
     expect(dependencyBlocker({ ...result('stamped'), refusal: 'prose' }, DISPATCHER)).toBeUndefined();
-    expect(dependencyBlocker({ ...result('landed below'), unfinishedPhases: ['x'] }, DISPATCHER)).toBe('landed');
+    expect(dependencyBlocker({ ...result('held back below'), unfinishedPhases: ['x'], blockedPhases: ['x'] }, DISPATCHER)).toBe('landed');
+  });
+
+  // Third review 2026-10-16: the budget alone is no failed check.
+  it('does not block behind a producer that landed on the run budget alone', () => {
+    const budget = { ...result('landed below'), unfinishedPhases: ['x'] };
+    expect(dependencyBlocker(budget, DISPATCHER)).toBeUndefined();
+    expect(landedOnBudget(budget)).toBe(true);
+    expect(landedOnBudget({ ...budget, blockedPhases: ['x'] })).toBe(false);
+    // Unapproved with a suite that never ran: still the budget, not a check.
+    expect(dependencyBlocker(ownFallback('own', { unfinishedPhases: ['x'], parentTests: [check('unavailable')] }), DISPATCHER)).toBeUndefined();
   });
 
   it('ignores a failure a later pass of the same suite superseded', () => {
@@ -436,6 +446,38 @@ describe('a parallel dispatch with a branch that failed its typed checks', () =>
     expect(outcome.blocked[1]!.rootCauses).toEqual([
       { index: 0, description: 'write add.ts', cause: 'failed-suite' },
     ]);
+  });
+
+  // Third review 2026-10-16: a producer whose own sequential dispatch
+  // declined a phase under the floor (`outOfPhaseBudget`) lands with the
+  // signal still live; its dependents are unfinished, never "behind a failed check".
+  it('leaves the dependents of a producer that landed on the run budget unfinished, transitively, not blocked', async () => {
+    const started: number[] = [];
+    const ctx: RunContext = { ...makeCtx(), deadlineAt: Date.now() + 30_000 };
+
+    const outcome = await dispatchWithAggregation(subtasks, parallel(subtasks), ctx, async (_subtask, idx) => {
+      started.push(idx);
+      if (idx === 0) return { ...result('add.ts half written'), unfinishedPhases: ['write the add tests'] };
+      return result(`branch ${idx}`);
+    }, { dispatcher: DISPATCHER });
+
+    expect(ctx.signal.aborted).toBe(false);
+    expect(started.sort()).toEqual([0, 1, 4]);
+    expect(outcome.blocked).toEqual([]);
+    expect(outcome.unfinished.map((subtask) => subtask.description)).toEqual(['wire add into the CLI', 'document the CLI']);
+    const landed = markLanded(outcome.results[0]!, outcome.unfinished, outcome.blocked);
+    expect(landed.blockedPhases).toBeUndefined();
+    expect(landingReasons(landed).join(' ')).not.toContain('failed its typed checks');
+  });
+
+  it('still blocks behind a producer whose own landing held work back behind a failed check', async () => {
+    const outcome = await dispatchWithAggregation(subtasks, parallel(subtasks), makeCtx(), async (_subtask, idx) => {
+      if (idx === 0) return { ...result('cell landed'), unfinishedPhases: ['wire tests (not started)'], blockedPhases: ['wire tests (not started)'] };
+      return result(`branch ${idx}`);
+    }, { dispatcher: DISPATCHER });
+
+    expect(outcome.unfinished).toEqual([]);
+    expect(outcome.blocked.map((item) => [item.index, item.rootCauses[0]?.cause])).toEqual([[2, 'landed'], [3, 'landed']]);
   });
 
   it('still fails the dispatch when a branch threw', async () => {

@@ -1,5 +1,5 @@
-import { constants, existsSync, lstatSync, readFileSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
-import { lstat, mkdir, mkdtemp, open, readdir, rm, stat, symlink, type FileHandle } from 'node:fs/promises';
+import { chmodSync, constants, existsSync, lstatSync, readFileSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
+import { chmod, lstat, mkdir, mkdtemp, open, readdir, rm, stat, symlink, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,6 +39,13 @@ const SLASH = Buffer.from('/');
 const NUL = Buffer.from([0]);
 /** The entry is gone, or became a link, after the listing named it: a concurrent writer, not a violation. */
 const VANISHED = new Set(['ENOENT', 'ENOTDIR', 'ELOOP']);
+/**
+ * The entry's permission bits refuse this uid. The worker runs as the one uid
+ * that owns the workspace, with no capability to override them, so only code
+ * that uid ran (the child's `chmod`) made it so: a typed, child-visible cause,
+ * never `runner-error` (third review 2026-10-16).
+ */
+const UNREADABLE = new Set(['EACCES', 'EPERM']);
 
 /**
  * I/O slots shared by EVERY snapshot in this process. One container worker
@@ -87,8 +94,9 @@ const posix = (rel: Buffer): Buffer => path.sep === '/' ? rel : Buffer.from(rel.
 const excluded = (name: Buffer): boolean => EXCLUDED.some(candidate => candidate.equals(name));
 const childOf = (parent: Buffer, name: Buffer, separator: Buffer): Buffer =>
   parent.length === 0 ? name : Buffer.concat([parent, separator, name]);
-const readFailure = (rel: Buffer, error: unknown): Error =>
-  new Error(`Verification could not read ${shown(rel)}: ${errno(error) ?? String(error).slice(0, 200)}`);
+const readFailure = (rel: Buffer, error: unknown): Error => UNREADABLE.has(errno(error) ?? '')
+  ? new TypedFailure('snapshot-unreadable', `Verification cannot read ${shown(rel)}: its permissions refuse the workspace owner (${errno(error)})`)
+  : new Error(`Verification could not read ${shown(rel)}: ${errno(error) ?? String(error).slice(0, 200)}`);
 
 /**
  * A bounded, asynchronous copy of `root` into `target`: verification cannot
@@ -358,6 +366,100 @@ export function runnerDetails(notes: readonly string[], modules: readonly { read
 
 const statOf = (file: string) => lstatSync(file, { throwIfNoEntry: false });
 
+/** The owner takes back a regular file or directory it reads; a link is never followed, an error is read later. */
+function ownAgain(file: string, mode: number): void {
+  try {
+    const info = lstatSync(file);
+    if (info.isFile() || info.isDirectory()) chmodSync(file, mode);
+  } catch {
+    // Absent or unreachable: the read that follows classifies it.
+  }
+}
+
+/**
+ * The suite file is still the host's bytes. The size is compared first, so a
+ * file the code under test grew is never read whole into the process that
+ * serves every lane; any error reading it is a changed source, never a host
+ * fault (third review 2026-10-16).
+ */
+function sourceIntact(file: string, source: string): boolean {
+  try {
+    const info = statOf(file);
+    const expected = Buffer.from(source);
+    return Boolean(info?.isFile()) && info!.size === expected.length && readFileSync(file).equals(expected);
+  } catch {
+    return false;
+  }
+}
+
+/** The coordinator's line for one unhandled error Vitest caught (`parentTestWorker.ts`). */
+export const UNHANDLED_PREFIX = 'atoma-unhandled: ';
+const MAX_UNHANDLED = 5;
+
+/**
+ * Why a report with no failing assertion is red: skipped tests, or a runner
+ * that exited non-zero, which with a valid report means Vitest caught an
+ * unhandled error or rejection after the assertions (it sets exit code 1 and
+ * leaves the report's `success` alone for those). The coordinator names each
+ * on its own line; their text is the code under test's, like a failure
+ * message, and never a host fact.
+ */
+function redWithoutFailure(skipped: number, code: number | null, success: boolean, output: string): string[] {
+  const reasons: string[] = [];
+  if (skipped > 0) reasons.push(`Runner: ${skipped} test(s) skipped or todo; a parent-owned suite passes only when every test runs and passes`);
+  if (code === 0 && success) return reasons;
+  const unhandled: string[] = [];
+  for (const line of output.split('\n')) {
+    if (!line.startsWith(UNHANDLED_PREFIX) || unhandled.length >= MAX_UNHANDLED) continue;
+    try {
+      const error = z.object({ name: z.string(), message: z.string() }).parse(JSON.parse(line.slice(UNHANDLED_PREFIX.length)));
+      unhandled.push(`${error.name.slice(0, 80)}: ${error.message.split('\n')[0]!.slice(0, 300)}`);
+    } catch {
+      // Not the coordinator's shape: ignored.
+    }
+  }
+  if (unhandled.length > 0) {
+    for (const error of unhandled) reasons.push(`Runner: no assertion failed, but the code under test raised an unhandled error: ${error}`);
+  } else if (code !== 0 || !success) {
+    reasons.push(`Runner: no assertion failed, but the runner exited with code ${String(code)}`);
+  }
+  return reasons;
+}
+
+/**
+ * Removes a verification copy. Code under test may have left a directory
+ * without the owner's write bit, which `rm` cannot empty for a uid with no
+ * capability to override it: the owner restores its own access, then removes
+ * (third review 2026-10-16). Links are never followed.
+ */
+async function removeCopy(directory: string): Promise<void> {
+  try {
+    await rm(directory, { recursive: true, force: true });
+    return;
+  } catch {
+    // Retried below with the owner's access restored.
+  }
+  await restoreOwnerAccess(directory);
+  await rm(directory, { recursive: true, force: true });
+}
+
+async function restoreOwnerAccess(directory: string): Promise<void> {
+  const pending = [directory];
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    try {
+      const info = await lstat(current);
+      if (!info.isDirectory()) continue;
+      await chmod(current, 0o700);
+      for (const entry of await readdir(current, { withFileTypes: true })) {
+        if (entry.isDirectory()) pending.push(path.join(current, entry.name));
+      }
+    } catch {
+      // What still refuses is reported by the final removal.
+    }
+  }
+}
+
 /** Host-only test seams: never reachable from `run_shell` arguments. */
 export interface ParentTestSeams {
   /** A setup file relative to the copy, written by the host into the coordinator's stdin header. */
@@ -486,30 +588,48 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     if (outcome.spawnError) {
       return { ...observation, ...withOutput, cause: 'runner-error', details: `The runner could not start: ${normalize(outcome.spawnError).slice(0, 1000)}` };
     }
+    // The child could chmod what it could write, the copy included: the owner
+    // takes back the paths the host reads before reading them, and whatever
+    // still refuses is the code under test's doing (third review 2026-10-16).
+    for (const [file, mode] of [[project, 0o700], [source, 0o600], [report, 0o600]] as const) ownAgain(file, mode);
     // Checked before the report: code that rewrites the suite owns whatever report follows.
-    if (!statOf(source)?.isFile() || readFileSync(source, 'utf8') !== suite.source) {
+    if (!sourceIntact(source, suite.source)) {
       return { ...observation, ...withOutput, cause: 'source-changed', details: 'The acceptance source changed or vanished during verification' };
     }
-    const reportStat = statOf(report);
+    const killed = { ...observation, ...withOutput, cause: 'timeout' as const,
+      details: `The runner was killed at the end of its ${childWindowMs} ms window` };
+    let reportStat: ReturnType<typeof statOf>;
+    try {
+      reportStat = statOf(report);
+    } catch (error) {
+      return { ...observation, ...withOutput, cause: 'report-tampered', details: `The report path could not be read: ${errno(error) ?? 'error'}` };
+    }
     if (!reportStat) {
       return timedOut
-        ? { ...observation, ...withOutput, cause: 'timeout', details: `The runner was killed at the end of its ${childWindowMs} ms window` }
+        ? killed
         : { ...observation, ...withOutput, cause: 'exited-without-report', details: `The runner exited with code ${String(outcome.code)} and wrote no report` };
     }
     // The host removed this path before the spawn: only code under test made it something else.
     if (!reportStat.isFile()) {
       return { ...observation, ...withOutput, cause: 'report-tampered', details: 'The report path is not a regular file: code under test replaced atoma.report.json' };
     }
+    // A runner killed while it wrote or after it wrote is a timeout, never a
+    // bad report: the window logic (and core's shortened-window reading) applies.
     if (reportStat.size > 8 * 1024 * 1024) {
-      return { ...observation, ...withOutput, cause: 'report-oversize', details: 'The verification report exceeds 8 MiB' };
+      return timedOut ? killed : { ...observation, ...withOutput, cause: 'report-oversize', details: 'The verification report exceeds 8 MiB' };
     }
     let parsed: z.infer<typeof reportSchema>;
     let reportText: string;
     try {
       reportText = readFileSync(report, 'utf8');
+    } catch (error) {
+      return { ...observation, ...withOutput, cause: 'report-tampered', details: `The report could not be read: ${errno(error) ?? 'error'}` };
+    }
+    try {
       parsed = reportSchema.parse(JSON.parse(reportText));
     } catch (error) {
-      return { ...observation, ...withOutput, cause: 'report-invalid', details: `The verification report is not the expected shape: ${normalize(String(error)).slice(0, 1000)}` };
+      return timedOut ? killed
+        : { ...observation, ...withOutput, cause: 'report-invalid', details: `The verification report is not the expected shape: ${normalize(String(error)).slice(0, 1000)}` };
     }
     const skipped = parsed.numPendingTests + parsed.numTodoTests;
     const outcomes = parsed.testResults.map(module => ({
@@ -535,6 +655,10 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     if (!guardReady) {
       return { ...observation, ...withOutput, cause: 'runner-error', details: runnerDetails(['Host: the assertion-integrity guard did not report ready'], outcomes) };
     }
+    // Killed after its report with nothing failing: the hang is what happened
+    // (the report says nothing of the close it never finished). A failing
+    // assertion is kept: it rejects either way, and says why.
+    if (timedOut && parsed.numFailedTests === 0) return killed;
     const passed = outcome.code === 0 && parsed.success && parsed.numTotalTests > 0 &&
       parsed.numPassedTests === parsed.numTotalTests && parsed.numFailedTests === 0 && skipped === 0;
     // Host notes are array elements, so the details stay one JSON array.
@@ -549,11 +673,17 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     for (const line of outcome.details.split('\n')) {
       if (/^Host: suite alias '.{1,200}' resolved via tsconfig[\w.-]*\.json$/.test(line) && notes.length < 8) notes.push(line);
     }
-    // A report carries the assertion outcomes; the raw tail would only repeat them.
-    return { ...observation, status: passed ? 'passed' : 'failed', cause: 'ran', passed: parsed.numPassedTests,
-      failed: parsed.numFailedTests, skipped,
+    // A red run with no failing assertion says why, as entries the repeat key
+    // reads (no `Host:` prefix): otherwise every such failure read "failed
+    // 0/N: []", one key for different causes (third review 2026-10-16).
+    const reasons = passed || parsed.numFailedTests > 0 || parsed.numTotalTests === 0
+      ? [] : redWithoutFailure(skipped, outcome.code, parsed.success, outcome.details);
+    // A report carries the assertion outcomes; the raw tail would only repeat
+    // them. Without a failing assertion it is the only place the cause shows.
+    return { ...observation, ...(reasons.length > 0 ? withOutput : {}), status: passed ? 'passed' : 'failed', cause: 'ran',
+      passed: parsed.numPassedTests, failed: parsed.numFailedTests, skipped,
       // Each string is normalized before it is encoded, so the array stays valid JSON.
-      details: runnerDetails(notes.map(normalize), outcomes),
+      details: runnerDetails([...notes, ...reasons].map(normalize), outcomes),
     };
   } catch (error) {
     return error instanceof TypedFailure
@@ -563,7 +693,7 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     clearTimeout(deadlineTimer);
     dispose();
     try {
-      await rm(temp, { recursive: true, force: true });
+      await removeCopy(temp);
     } catch (error) {
       logger?.warn(`[tool:atoma-verify] the verification copy could not be removed: ${String(error).slice(0, 300)}`);
     }
@@ -622,7 +752,7 @@ export async function sweepStaleCopies(directory: string, options: {
         if (!info.isDirectory() || info.isSymbolicLink()) continue;
         if (typeof process.getuid === 'function' && info.uid !== process.getuid()) continue;
         if (now - info.mtimeMs < STALE_COPY_AGE_MS || alive(pid)) continue;
-        await slots.run(() => rm(entry, { recursive: true, force: true }));
+        await slots.run(() => removeCopy(entry));
         removed += 1;
       } catch (error) {
         options.logger?.warn(`[tool:atoma-verify] a stale verification copy could not be removed: ${String(error).slice(0, 300)}`);

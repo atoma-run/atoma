@@ -172,6 +172,7 @@ export const PARENT_TEST_CAUSE_KEYS: Record<ParentTestCause | 'unknown', string>
   'snapshot-bounds': 'result.tests.cause.snapshot-bounds',
   'snapshot-timeout': 'result.tests.cause.snapshot-timeout',
   'snapshot-special-file': 'result.tests.cause.snapshot-special-file',
+  'snapshot-unreadable': 'result.tests.cause.snapshot-unreadable',
   'worker-missing': 'result.tests.cause.worker-missing',
   'assertions-tampered': 'result.tests.cause.assertions-tampered',
   'runner-error': 'result.tests.cause.runner-error',

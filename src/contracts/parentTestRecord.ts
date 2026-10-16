@@ -16,7 +16,7 @@ import { z } from 'zod';
 export const parentTestCauseSchema = z.enum([
   'ran', // the runner produced a valid report (passed or failed)
   'timeout', // tools: the runner was killed by its timer
-  'exited-without-report', // tools: the runner exited on its own and wrote no report
+  'exited-without-report', // tools: the runner ended without a report (killed, signalled, out of memory); process.exit is Vitest's failure
   'source-changed', // tools: the suite file differs, or vanished, after the run
   'report-oversize', // tools: the report exceeds 8 MiB
   'report-invalid', // tools: the report is not JSON or not the expected shape
@@ -25,6 +25,7 @@ export const parentTestCauseSchema = z.enum([
   'snapshot-bounds', // tools: more than 100,000 entries, depth 128 or 512 MiB
   'snapshot-timeout', // tools: the window ended while the project was being copied
   'snapshot-special-file', // tools: a FIFO, socket or device in the project
+  'snapshot-unreadable', // tools: an entry's permissions refuse the workspace owner (EACCES/EPERM)
   'worker-missing', // tools: the compiled acceptance worker is not installed
   'assertions-tampered', // tools: a host-tagged assertion-integrity violation during the run
   'runner-error', // tools: any other host failure
@@ -55,6 +56,8 @@ export const persistedParentTestSchema = z.object({
   failed: count,
   skipped: count,
   judged: z.literal(true).optional(),
+  /** When the host recorded it (epoch ms, strictly increasing per process): the superseded rule's clock. */
+  observedAt: count.optional(),
   requirement: z.string().max(PERSISTED_REQUIREMENT_CHARS).optional(),
   details: z.string().max(PERSISTED_DETAILS_CHARS),
 });
@@ -69,23 +72,43 @@ export type PersistedParentTestObservation = z.infer<typeof persistedParentTestS
 export const persistedParentTestReaderSchema = persistedParentTestSchema.extend({
   cause: parentTestCauseSchema.optional().catch(undefined),
   judged: z.boolean().optional().catch(undefined),
+  observedAt: count.optional().catch(undefined),
   requirement: z.string().optional(),
   details: z.string(),
 });
 
 /**
- * A non-passed observation that a later (higher index) PASSED run of the same
- * suite replaced. The index is RECORD order (aggregation concatenates
- * subtasks in order), not time, and the key is the suite digest alone, across
+ * A non-passed observation that a LATER PASSED run of the same suite replaced.
+ * Later means recorded later by the host (`observedAt`), never a higher
+ * index: an aggregate concatenates its branches in subtask order, so a pass
+ * that ran first on an older workspace sat after a sibling's later failure and
+ * hid it (third review 2026-10-16). Only where either side carries no
+ * `observedAt` (a record from before it existed) does record order decide;
+ * a tie falls to record order too. The key is the suite digest alone, across
  * workspaces: core's gates and every display read this one rule.
  */
 export function parentTestSuperseded(
-  observations: readonly { readonly status: ParentTestStatus; readonly suiteDigest: string }[],
+  observations: readonly ParentTestOrdered[],
   index: number,
 ): boolean {
   const observation = observations[index];
   if (!observation || observation.status === 'passed') return false;
-  return observations.some((later, at) => at > index && later.status === 'passed' && later.suiteDigest === observation.suiteDigest);
+  return observations.some((other, at) => other.status === 'passed' && other.suiteDigest === observation.suiteDigest &&
+    recordedAfter(observations, at, index));
+}
+
+interface ParentTestOrdered {
+  readonly status: ParentTestStatus;
+  readonly suiteDigest: string;
+  readonly observedAt?: number | undefined;
+}
+
+/** True when record `at` was observed after record `index`: by `observedAt` where both carry a distinct one, else by record order. */
+function recordedAfter(observations: readonly ParentTestOrdered[], at: number, index: number): boolean {
+  if (at === index) return false;
+  const a = observations[at]?.observedAt;
+  const b = observations[index]?.observedAt;
+  return a !== undefined && b !== undefined && a !== b ? a > b : at > index;
 }
 
 export const parentTestRowSchema = z.object({
@@ -175,10 +198,14 @@ export function summarizeParentTests(result: unknown, limits: ParentTestLimits):
   }
   const entries = valid.map(item => item.entry);
   const superseded = entries.map((_, index) => parentTestSuperseded(entries, index));
-  const lastBySuite = new Map<string, ParentTestStatus>();
-  for (const entry of entries) lastBySuite.set(entry.suiteDigest, entry.status);
+  // The last record per suite, by the superseded rule's own clock.
+  const lastBySuite = new Map<string, { readonly index: number; readonly status: ParentTestStatus }>();
+  entries.forEach((entry, index) => {
+    const known = lastBySuite.get(entry.suiteDigest);
+    if (!known || recordedAfter(entries, index, known.index)) lastBySuite.set(entry.suiteDigest, { index, status: entry.status });
+  });
   const suites = { total: lastBySuite.size, passed: 0, failed: 0, unavailable: 0 };
-  for (const status of lastBySuite.values()) suites[status]++;
+  for (const { status } of lastBySuite.values()) suites[status]++;
   // The last record per (suite, workspace, status) stands for the others.
   const kept = new Map<string, number>();
   entries.forEach((entry, index) => kept.set(JSON.stringify([entry.suiteDigest, entry.workspaceDigest, entry.status]), index));

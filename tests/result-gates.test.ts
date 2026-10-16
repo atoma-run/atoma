@@ -74,7 +74,7 @@ describe('result-gate pipeline', () => {
   it('pins the gate order — hard witnesses, then disk evidence, then prose-triggered reviews', () => {
     expect(RESULT_GATE_IDS).toEqual([
       'parent-acceptance-tests',
-      'parent-acceptance-tests-workspace',
+      'parent-acceptance-tests-no-result',
       'parent-acceptance-tests-unavailable',
       'observed-tool-action',
       'required-command-manifest',

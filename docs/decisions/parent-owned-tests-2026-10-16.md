@@ -47,9 +47,15 @@ for any other supervisor are projections of that one mapping:
   progress does not.
 - A suite content the child controls may have kept from a result is coached
   once, then reviewed: the workspace could not be copied (a link leaving the
-  project, a special file), or the runner ended without a valid report (an exit
-  without a report, an invalid report), which code under test can cause by
-  exiting or killing the process as well as a host crash can (second review).
+  project, a special file, an entry whose permissions refuse the workspace
+  owner), or the runner ended without a valid report (an exit without a report,
+  an invalid report). Measured on the real runner (third review): Vitest
+  intercepts `process.exit` in imported code and reports it as a failed run;
+  only a killed or signalled process or one out of memory ends without a
+  report, which code under test can cause as well as a host crash can.
+- A red run with no failing assertion (an unhandled error or rejection after
+  the assertions, a skipped test) is a failed run that names its cause in the
+  rejection, from the coordinator's own record of each unhandled error.
 - A suite that did not run for a cause only the host owns (no executor, a
   missing worker, a runner error, a snapshot over its bounds or one that
   outlived the window, a child window the run deadline or a slow copy cut
@@ -66,7 +72,11 @@ summary. They reach validators only as the bounded host block
 `== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==`, outside the child's RESULT,
 with every child-controlled string encoded. The supervisor directly above
 judges them once and marks them judged; tiers above see them as context. A
-later passing run of the same suite supersedes an earlier failure. Parent tests
+passing run of the same suite that the host OBSERVED later (`observedAt`, set
+when core records it) supersedes an earlier failure; record order decides only
+for records that carry no clock. A parallel aggregate lists its branches in
+subtask order, so a pass that ran first on an older workspace sat after a
+sibling's later failure and hid it (third review). Parent tests
 no longer write `Result.refusal`; a landing keeps its unfinished phase. Durable
 resume does not carry observations: completed phases are historical context.
 The persisted run result keeps them without source or child output. Every
@@ -173,13 +183,32 @@ with the identity matchers (`toBe`, `toBeDefined`, …). The details name the
 property in both cases. The container and semantic review of the imported
 modules remain the real defence: F6 is narrowed, not closed.
 
+A process outside the suite can also change the copy (third review). The copy
+lives in the worker's temporary directory, owned by the uid every tool child
+runs as, and Node permissions confine only the Vitest child: a server the L1
+started with `start_node_server`, which outlives its execute, or a parallel
+sibling's `run_shell` can rewrite `atoma-acceptance-*/project` between the
+snapshot and Vite's import. The suite then runs bytes the live workspace does
+not hold while `workspaceDigest` names the live ones, and the forging code sits
+in a file the suite never imports, so semantic review of the imported modules
+does not see it. Stopping the phase's servers before the snapshot was not done:
+later probes and phases rely on them. Closing it needs the copy outside that
+uid's reach (a separate uid or mount namespace for the runner), which the
+worker image does not provide today.
+
 A runner killed hard (`SIGKILL`, an OOM) used to leave its copy and its
 coordinator behind. The coordinator now exits when its stdin pipe from the
 runner ends, or at its window plus 5 s. Copies are named
 `atoma-acceptance-<pid>-…`; the first verification in a process sharing the
 temporary directory removes, in the background and at most 32 at a time,
 copies this user owns whose process is dead and which are at least 10 minutes
-old. Bounded, not closed: a copy waits for a later verification.
+old. Bounded, not closed: a copy waits for a later verification. A copy the
+code under test left a directory in without the owner's write bit is removed
+too: the owner restores its own access first (third review). After the run the
+owner also takes back the copy root, the suite file and the report before
+reading them, so a `chmod` by the code under test reads as a changed suite or a
+tampered report, never a host `runner-error`; the suite file is compared by size
+before it is read.
 
 Unsupported, each an honest red rather than a pass:
 
@@ -216,8 +245,12 @@ typed failure, not acceptance:
 - **Any producer whose suite rejects** blocks its dependents. Rejecting means
   `parentTestConsequence` is `reject` (a failed suite, or one the code under
   test kept from finishing) and no later pass of that suite superseded it.
-- **A producer that landed** with unfinished work of its own blocks its
-  dependents.
+- **A producer that landed** with phases a typed failure held back
+  (`blockedPhases`) blocks its dependents. One that landed on the run budget
+  alone (unfinished phases, none held back: the phase floor declined a phase
+  while the clock still ran) blocks nothing: its dependents settle unfinished,
+  like any phase the budget did not reach (`landedOnBudget`; third review).
+  Every reader of `blockedPhases` says a check failed, and none had.
 - **An unapproved producer with any unjudged suite that did not pass** blocks
   its dependents. Unapproved means the dispatcher's own fallback (`viaFallback`
   under the dispatcher's name) or a root phase handed up spent.
@@ -350,20 +383,26 @@ approved-plan reuse remains; changed contracts are reviewed again.
 
 **The root review runs on tier 2** (`modelForTier(2)`), with its own parameters,
 `ROOT_DELEGATION_REVIEW_PARAMS`: its own 8,000-token cap (`PLAN_REVIEW_MAX_TOKENS`,
-a cap that includes adaptive thinking) and `effort: 'medium'`. It is the one validator with
+a cap that includes adaptive thinking) and `effort: 'medium'`. It and the child re-review below are the only validators with
 an effort pin. The ground is the cost rule's own: three refusals end the run with
 nothing delivered, each refusal costs a top-tier replan, and the review judges
 test-source quality, which is code review rather than a bounded yes/no. Root
 acceptance of a recorded text plan already rides tier 2 for the same reason.
-Child-plan reviews stay on the validation model: their refusals stay inside
-`superviseLoop`'s budget and cost a tier-2 replan.
+Child-plan reviews run on the validation model: their refusals stay inside
+`superviseLoop`'s budget and cost a tier-2 replan. Only a child review that
+failed as the reviewer is re-reviewed UP on tier 2 with these parameters, the
+opposite direction to the root, which re-reviews DOWN on the validation model.
 
 Typical cost, at catalogue prices (Sonnet 5 $2/$10 per M input/output, Haiku 4.5
 $1/$5, Opus 5.5 $4/$20): about $0.03–0.05 per root review against about $0.02 on
 Haiku. Upper bound per tier-2 review: about $0.04 of input for a 15–20k-token
 plan plus $0.08 for the whole 8000-token output cap, so about $0.12; per run,
 three reviews, about $0.36, and less in practice because a re-review after a
-reviewer fault runs on Haiku and the calls share a warm cache. One avoided Opus
+root reviewer fault runs on Haiku and the calls share a warm cache. Child
+re-reviews add at most two tier-2 reviews per supervise cycle
+(`MAX_PLAN_REVIEW_FAULTS`), each bounded like a root review (about $0.12), and
+a cycle that hands the phase up after them is not branched: at most about
+$0.24 per cell, or $0.48 when an earlier judged escalation already branched it. One avoided Opus
 replan saves up to about $0.16; three avoid a run that delivers nothing (run
 fec4ef6a: $0.32 in 165 s, no delivery).
 
@@ -375,9 +414,15 @@ failure: the SAME plan is reviewed again on the validation model with
 `VALIDATION_PARAMS`, with no new plan call. Enforcement runs on whichever review
 approves. Only a plan or fan-out refusal asks for a new plan. Under an L2
 plan, a second reviewer fault (after the tier-2 re-review) returns to
-`superviseLoop` as a `reviewer` refusal: no coaching, no repeat streak, the plan
-is asked again inside the plan budget, which escalates as before when spent.
-It never throws: one flaky reviewer must not end a run.
+`superviseLoop` as a `reviewer` refusal: no coaching, no repeat streak, no plan
+iteration spent, traced as `plan-review-fault` rather than a refused
+`verdict-plan`, and the plan is asked again. After `MAX_PLAN_REVIEW_FAULTS` (2)
+the parent takes over with no trust failure recorded and no branch created
+(escalation phase `review`). Counted on the plan budget (three by default),
+three faults escalated, blamed and branched the child exactly as the coaching
+had (third review). It never throws: one flaky reviewer must not end a run.
+The same holds for a plan budget spent on unparseable replies alone: nothing
+judged the child, so it is not blamed or branched.
 
 **An unparseable root plan spends an attempt.** The reply is read exactly as
 written (`parsePlanPair`); malformed JSON, a schema mismatch, or a reply that

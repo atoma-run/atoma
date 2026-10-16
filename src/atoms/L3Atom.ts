@@ -1776,12 +1776,15 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
   /**
    * The delegation-contract review of a child plan carrying suites. A reviewer
    * fault (unfinished, unparseable, unclassified) is the reviewer's, not the
-   * plan's: the SAME plan is reviewed once more on the root review's model and
-   * cap, as the root does. A second fault is returned as a `reviewer`
-   * refusal, which `superviseLoop` neither coaches nor counts as a repeat: it
-   * asks for the plan again inside the plan budget. Thrown, it ended the run
-   * over a flaky reviewer; coached, it escalated and branched the child's
-   * type (second review and follow-up, 2026-10-16). No unreviewed plan executes.
+   * plan's: the SAME plan is reviewed once more, UP on the root review's model
+   * and parameters (the root re-reviews the other way, down on the validation
+   * model, `reviewedRootPlan`). A second fault is returned as a `reviewer`
+   * refusal, which `superviseLoop` neither coaches, counts as a repeat nor
+   * charges to the plan budget; after `MAX_PLAN_REVIEW_FAULTS` the parent takes
+   * over with no trust failure and no branch. Thrown, it ended the run over a
+   * flaky reviewer; coached, then counted on the plan budget, it escalated and
+   * branched the child's type (second review, follow-up and third review,
+   * 2026-10-16). No unreviewed plan executes.
    */
   private async reviewChildDelegation(
     child: L2Atom,

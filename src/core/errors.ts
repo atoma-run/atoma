@@ -1,4 +1,9 @@
-export type EscalationPhase = 'plan' | 'exec' | 'repeat';
+/**
+ * Why `superviseLoop` stopped asking the child. `review` is the one phase no
+ * judgement of the child caused: the plan reviewer itself failed
+ * `MAX_PLAN_REVIEW_FAULTS` times, so the loop blames and branches nothing.
+ */
+export type EscalationPhase = 'plan' | 'exec' | 'repeat' | 'review';
 
 export class EscalationSignal extends Error {
   constructor(public readonly phase: EscalationPhase) {

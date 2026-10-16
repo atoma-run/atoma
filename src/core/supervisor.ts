@@ -148,6 +148,18 @@ export const POLICY_MARKERS: readonly { id: string; synonyms: readonly string[] 
 export const MAX_SAME_MARKER_REJECTS = 3;
 
 /**
+ * Plan reviews that failed AS THE REVIEWER (`delegationRefusal: 'reviewer'`)
+ * one supervise cycle tolerates before the parent takes over. Each one is
+ * already two failed reviews of one plan (the validation model, then tier 2),
+ * so two are four failed reviews over two plans; a third would buy another
+ * replan and tier-2 review with no new evidence. They spend no plan
+ * iteration: under the default budget of three, three faults used to escalate,
+ * record a trust failure against the child and branch its type for the
+ * reviewer's failure (third review 2026-10-16).
+ */
+export const MAX_PLAN_REVIEW_FAULTS = 2;
+
+/**
  * Normalize a verdict's reasoning for repeat-detection comparisons:
  * lowercase, strip punctuation, collapse whitespace. Exported so tests and
  * tooling can assert the normalization the supervisor actually applies.
@@ -261,6 +273,12 @@ export async function superviseLoop<C extends Atom>(
     // installs a fresh child (with its own re-injected skill), so verdicts
     // about the previous child must not leak into the new cycle's blame.
     let lastResultVerdict: Verdict | undefined;
+    // Judgements of THIS child in this cycle: a plan refused on its merits or
+    // a result verdict. An escalation with none (only unparseable replies and
+    // reviewer faults) is nobody's verdict on the child, so it records no
+    // failure and branches no type; the parent takes over directly.
+    let judgements = 0;
+    let reviewFaults = 0;
     // Separate trackers for plan-rejects and result-rejects: "same gripe three
     // times in a row on the plan" and "same gripe three times in a row on the
     // result" are independent stuck-conditions and should each escalate.
@@ -292,7 +310,8 @@ export async function superviseLoop<C extends Atom>(
           plan = await current.plan(task, ctx, planFeedback);
         } catch (error) {
           // An unparseable plan reply is asked again within the plan budget,
-          // which escalates when it runs out. Rethrown, it ended run 12bdcf19
+          // which escalates when it runs out: with no other judgement in the
+          // cycle, without blame or branch (below). Rethrown, it ended run 12bdcf19
           // (2026-10-15) over one reply with unescaped quotes in a string;
           // escalating at once would blame the child's trust and its recipe
           // and branch a type for one formatting slip. The raw reply stays
@@ -311,20 +330,26 @@ export async function superviseLoop<C extends Atom>(
         trace.push({ kind: 'plan', ts: now(), atom: current.name, payload: plan });
 
         const v1 = await parent.validatePlan(current, plan, task, ctx);
-        trace.push({ kind: 'verdict-plan', ts: now(), atom: parent.name, payload: v1 });
 
         if (!v1.approved && v1.delegationRefusal === 'reviewer') {
           // The REVIEWER failed (unfinished, unparseable or unclassified,
-          // twice: the tissue already re-reviewed once on its root model).
-          // It is no judgement of the plan, so nothing is coached and no
-          // repeat streak counts it: the plan is asked again inside the plan
-          // budget, which escalates as before when it runs out. Thrown, one
-          // flaky reviewer ended the whole run (follow-up review 2026-10-16).
-          ctx.logger.warn(`[${current.name}] plan review failed as the reviewer's; asking again (${(v1.reasoning ?? '').slice(0, 200)})`);
-          trace.push({ kind: 'plan-review-fault', ts: now(), atom: parent.name, payload: { reasoning: v1.reasoning } });
+          // twice: the tissue already re-reviewed once on tier 2). It is no
+          // judgement of the plan: nothing is coached, no repeat streak counts
+          // it, no plan iteration is spent, and it is traced apart from
+          // `verdict-plan`, which the branch diagnostic and the fallback read
+          // as validator feedback. Thrown, one flaky reviewer ended the whole
+          // run; counted on the plan budget, three faults blamed and branched
+          // the child (follow-up and third review, 2026-10-16).
+          planIter--;
+          reviewFaults++;
+          ctx.logger.warn(`[${current.name}] plan review failed as the reviewer's (${reviewFaults}/${MAX_PLAN_REVIEW_FAULTS}) (${(v1.reasoning ?? '').slice(0, 200)})`);
+          trace.push({ kind: 'plan-review-fault', ts: now(), atom: parent.name, payload: { reasoning: v1.reasoning, faults: reviewFaults } });
+          if (reviewFaults >= MAX_PLAN_REVIEW_FAULTS) throw new EscalationSignal('review');
           continue;
         }
+        trace.push({ kind: 'verdict-plan', ts: now(), atom: parent.name, payload: v1 });
         if (!v1.approved) {
+          judgements++;
           const hit = planRepeat.push(v1.reasoning ?? '');
           if (hit.repeated) {
             trace.push({
@@ -396,6 +421,7 @@ export async function superviseLoop<C extends Atom>(
           return { ...markParentTestsJudged(result), trace };
         }
 
+        judgements++;
         const handedUp = hooks.handUpRefused?.(current, result, v2);
         if (handedUp) return { ...handedUp, trace };
 
@@ -439,18 +465,23 @@ export async function superviseLoop<C extends Atom>(
     } catch (e) {
       if (!(e instanceof EscalationSignal)) throw e;
 
+      // Not the child's failure: the reviewer stopped the loop, or nothing
+      // judged the child (every reply it gave was unparseable). Its type
+      // keeps its trust and no branch is created or coached; the parent
+      // takes over (third review 2026-10-16).
+      const blameless = e.phase === 'review' || (e.phase === 'plan' && judgements === 0);
       trace.push({
         kind: 'escalated',
         ts: now(),
         atom: parent.name,
-        payload: { phase: e.phase, failingChild: current.name },
+        payload: { phase: e.phase, failingChild: current.name, ...(blameless ? { blameless: true } : {}) },
       });
       ctx.recordRunStat?.('escalation');
 
-      if (hooks.onFailed) {
+      if (hooks.onFailed && !blameless) {
         await hooks.onFailed(current, `escalation-${e.phase}`, lastResultVerdict);
       }
-      const replacement = await hooks.branchOnEscalation(
+      const replacement = blameless ? undefined : await hooks.branchOnEscalation(
         current,
         trace,
         `escalation-${e.phase}`

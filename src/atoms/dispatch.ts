@@ -21,7 +21,10 @@ type Subtask = Plan['subtasks'][number];
  *  - `failed-suite` — its parent-owned suite failed, or the code under test
  *    kept it from finishing (`parentTestConsequence` is `reject`), and no
  *    later pass of the same suite superseded it;
- *  - `landed` — it carries unfinished phases of its own;
+ *  - `landed` — it carries phases of its own that a typed failure held back
+ *    (`blockedPhases`). One that landed on the run budget alone blocks
+ *    nothing: its dependents are unfinished, like any phase the budget did
+ *    not reach (`landedOnBudget`; third review 2026-10-16);
  *  - `unverified` — it was not approved (the dispatcher's OWN fallback, or a
  *    root phase handed up spent) and a suite it carries did not pass.
  */
@@ -47,14 +50,25 @@ export function dependencyBlocker(result: Result, dispatcher: string): Dependenc
   const observations = result.parentTests ?? [];
   if (observations.some((observation, index) =>
     parentTestConsequence(observation) === 'reject' && !parentTestSuperseded(observations, index))) return 'failed-suite';
-  if (result.unfinishedPhases?.length) return 'landed';
+  if (result.blockedPhases?.length) return 'landed';
+  if (landedOnBudget(result)) return undefined;
   const unapproved = result.phaseBudgetSpent === true || isOwnFallback(result, dispatcher);
   return unapproved && parentTestsGrantNothing(result, 'unjudged') ? 'unverified' : undefined;
 }
 
+/**
+ * A settled branch that landed with unfinished phases and none held back by a
+ * typed failure: the run budget, not a check, stopped it. A dependent decided
+ * behind it is unfinished, never blocked: every reader of `blockedPhases`
+ * says a check failed, and none did.
+ */
+export function landedOnBudget(result: Result): boolean {
+  return Boolean(result.unfinishedPhases?.length) && !result.blockedPhases?.length;
+}
+
 const BLOCK_CAUSE: Readonly<Record<DependencyBlock, string>> = {
   'failed-suite': 'failed its parent-owned acceptance suite',
-  landed: 'landed with unfinished work',
+  landed: 'landed with phases held back behind a failed check',
   unverified: 'was not approved and its parent-owned suite did not pass',
 };
 
@@ -77,7 +91,9 @@ export interface BlockedSubtask {
 /**
  * What a dispatch produced, and what it did not.
  *
- * `unfinished` is non-empty only when the RUN DEADLINE landed the dispatch:
+ * `unfinished` is non-empty only when the RUN BUDGET landed the dispatch (the
+ * deadline, a ceiling, or the phase floor `outOfPhaseBudget`, which also
+ * leaves a branch unstarted behind a producer that landed on it):
  * the results are real, accepted work, and the named subtasks never produced
  * one. It exists because the alternative — returning a short array — is
  * indistinguishable from a complete dispatch of fewer phases, and the caller
@@ -101,6 +117,9 @@ class Blocked {
   constructor(readonly rootCauses: readonly DependencyRefusal[], readonly entry: string) {}
 }
 
+/** The sentinel of a branch the run budget left unstarted behind a producer that landed on it. */
+class Unstarted {}
+
 const cut = (description: string): string => description.length > 120 ? `${description.slice(0, 119)}…` : description;
 
 /**
@@ -111,15 +130,20 @@ const cut = (description: string): string => description.length > 120 ? `${descr
 function blockedBehind(
   subtask: Subtask,
   dependencies: readonly number[],
-  predecessors: readonly (Result | Blocked)[],
+  predecessors: readonly (Result | Blocked | Unstarted)[],
   subtasks: readonly Subtask[],
   dispatcher: string
-): Blocked | undefined {
+): Blocked | Unstarted | undefined {
   const causes = new Map<number, DependencyRefusal>();
   const parts: string[] = [];
+  let budget = false;
   predecessors.forEach((predecessor, k) => {
     const index = dependencies[k]!;
     const prerequisite = cut(subtasks[index]!.description);
+    if (predecessor instanceof Unstarted || (!(predecessor instanceof Blocked) && landedOnBudget(predecessor))) {
+      budget = true;
+      return;
+    }
     if (predecessor instanceof Blocked) {
       for (const root of predecessor.rootCauses) {
         causes.set(root.index, root);
@@ -132,7 +156,8 @@ function blockedBehind(
     causes.set(index, { index, description: subtasks[index]!.description, cause });
     parts.push(`its prerequisite "${prerequisite}" ${BLOCK_CAUSE[cause]}`);
   });
-  if (causes.size === 0) return undefined;
+  // A failed check names the landing; the budget alone leaves it unfinished.
+  if (causes.size === 0) return budget ? new Unstarted() : undefined;
   return new Blocked([...causes.values()], `${cut(subtask.description)} (not started: ${[...new Set(parts)].join('; ')})`);
 }
 
@@ -270,7 +295,7 @@ export async function dispatchWithAggregation(
   }
   // Earlier-index dependencies form a DAG by construction. Start every ready
   // branch immediately, not in waves: a slow sibling cannot block a ready join.
-  const pending: Promise<Result | Blocked>[] = [];
+  const pending: Promise<Result | Blocked | Unstarted>[] = [];
   for (const [idx, subtask] of subtasks.entries()) {
     const dependencies = [...new Set(subtask.dependsOn ?? [])];
     if (dependencies.some(i => !Number.isInteger(i) || i < 0 || i >= idx)) {
@@ -287,7 +312,10 @@ export async function dispatchWithAggregation(
       if (ctx.signal.aborted) throw ctx.signal.reason ?? new Error('aborted');
       // Decided as soon as THIS branch's producers settle: no wave barrier.
       const blocked = blockedBehind(subtask, dependencies, settledPredecessors, subtasks, options.dispatcher);
-      if (blocked) return blocked;
+      if (blocked) {
+        if (blocked instanceof Unstarted) ctx.logger.warn(`[dispatch] branch #${idx + 1} not started: a branch it depends on landed on the run budget`);
+        return blocked;
+      }
       const predecessors = settledPredecessors as Result[];
       const inputs = predecessors.length ? { ...subtask.inputs,
         dependencyResults: predecessors.map((result, i) => ({
@@ -317,6 +345,8 @@ export async function dispatchWithAggregation(
     if (item.status === 'fulfilled') {
       if (item.value instanceof Blocked) {
         blocked.push({ subtask: subtasks[idx]!, index: idx, entry: item.value.entry, rootCauses: item.value.rootCauses });
+      } else if (item.value instanceof Unstarted) {
+        unfinished.push(subtasks[idx]!);
       } else {
         fulfilled.push(item.value);
       }
@@ -336,7 +366,8 @@ export async function dispatchWithAggregation(
   };
   if (!failed) {
     reportBlocked();
-    return { results: fulfilled, unfinished: [], blocked };
+    // `unfinished` holds only branches the budget left behind a landed producer.
+    return { results: fulfilled, unfinished, blocked };
   }
   // A rejection that is NOT the deadline is a real failure and keeps its
   // original meaning, whatever else settled. Only the deadline lands.

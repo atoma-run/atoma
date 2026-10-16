@@ -155,7 +155,9 @@ Neighbours:
   (decision: [parent-owned tests](../../docs/decisions/parent-owned-tests-2026-10-16.md)).
   Four states: `recorded`; `none` (no field: NOT a pass); `not_recorded` (no
   result); `unavailable`, added by the server for a trace it could not read.
-- It follows core's superseded rule unchanged: record order, keyed on the suite
+- It follows core's superseded rule unchanged: a pass the host observed later
+  (`observedAt`; record order only where a record has no clock, since a
+  parallel aggregate lists branches in subtask order), keyed on the suite
   digest alone, across workspaces; a display never disagrees with the gate.
   It never parses `details` or summary prose and carries no suite source. The
   reader schema is derived from the writer's without its maxes: readers slice

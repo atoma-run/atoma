@@ -207,4 +207,15 @@ const vitest = await startVitest('test', [], {
   // Vite 8 reads tsconfig `paths` as data, natively; the project's config never runs.
   resolve: { alias: { vitest: fileURLToPath(import.meta.resolve('vitest')) }, tsconfigPaths: true },
 });
+// An unhandled error or rejection after the assertions sets exit code 1 and
+// leaves the report's `success` alone: one line each names it for the host
+// (`UNHANDLED_PREFIX` in parentTests.ts, kept literal here so no host module
+// loads into this process). Its text is the code under test's, never a fact.
+const unhandled = (vitest as unknown as { state?: { getUnhandledErrors?: () => unknown[] } }).state?.getUnhandledErrors?.() ?? [];
+for (const error of unhandled.slice(0, 5)) {
+  const named = error as { name?: unknown; message?: unknown } | null;
+  const name = typeof named?.name === 'string' ? named.name : 'Error';
+  const message = typeof named?.message === 'string' ? named.message : String(error);
+  console.error(`atoma-unhandled: ${JSON.stringify({ name: name.slice(0, 80), message: message.slice(0, 600) })}`);
+}
 await vitest.close();

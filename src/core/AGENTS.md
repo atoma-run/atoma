@@ -111,9 +111,11 @@ Neighbours:
   [src/skills](../skills/AGENTS.md), the tissue author `high`. The molecule's
   EXECUTE call is the one place it varies per task, and Decision sets it (below,
   owner decision 2026-10-06). Validators and prefilters never carry one: they
-  are deterministic and cheap — except the root delegation review, which runs
-  on tier 2 with `ROOT_DELEGATION_REVIEW_PARAMS` (its own 8,000 cap, medium effort)
-  because its refusal costs a top-tier replan ([src/atoms](../atoms/AGENTS.md)).
+  are deterministic and cheap — except the delegation reviews on tier 2 with
+  `ROOT_DELEGATION_REVIEW_PARAMS` (their own 8,000 cap, medium effort): the root
+  review, because its refusal costs a top-tier replan, and the one re-review of a
+  child plan whose first review, on the validation model, failed as the reviewer
+  (at most `MAX_PLAN_REVIEW_FAULTS`, 2, per supervise cycle; [src/atoms](../atoms/AGENTS.md)).
   Each transport answers `honoursEffort(model)`
   from the gate its `complete` applies, and every decorator and `forkBranch`
   forwards it; a client that does not answer honours nothing.

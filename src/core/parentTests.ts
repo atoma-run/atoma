@@ -7,10 +7,18 @@ import {
   type ParentTestCause,
   type ParentTestObservation,
 } from '../contracts/parentTests.js';
+import { createHash } from 'node:crypto';
 import { parentTestSuperseded } from '../contracts/parentTestRecord.js';
 import { abortedForLanding } from './limits.js';
 import { baseExecutorOf } from './attestation.js';
 import type { Logger, Result, RunContext, Task, Verdict } from './types.js';
+
+let lastObservedAt = 0;
+/** Wall-clock ms, strictly increasing in this process: two lanes never tie. */
+function observedNow(): number {
+  lastObservedAt = Math.max(Date.now(), lastObservedAt + 1);
+  return lastObservedAt;
+}
 
 /**
  * Canonical bytes stay on the control plane. Only disposable copies cross into
@@ -24,7 +32,7 @@ export async function verifyParentTests(task: Task, result: Result, ctx: RunCont
   if (!suite) return result;
   if (!abortedForLanding(ctx)) ctx.signal.throwIfAborted();
   const suiteDigest = parentTestSuiteDigest(suite);
-  let observation: ParentTestObservation = {
+  let observation: HeldParentTestObservation = {
     suiteDigest, suite, workspaceDigest: '', status: 'unavailable', cause: 'no-executor', passed: 0, failed: 0, skipped: 0,
     details: 'No shell executor is available for the parent-owned suite.',
   };
@@ -54,7 +62,8 @@ export async function verifyParentTests(task: Task, result: Result, ctx: RunCont
     }
   }
   if (!abortedForLanding(ctx)) ctx.signal.throwIfAborted();
-  return { ...result, parentTests: [...(result.parentTests ?? []), observation],
+  // Stamped when the host has it, after the run: the superseded rule's clock.
+  return { ...result, parentTests: [...(result.parentTests ?? []), { ...observation, observedAt: observedNow() }],
     ...(abortedForLanding(ctx) && observation.status !== 'passed'
       ? { unfinishedPhases: [...(result.unfinishedPhases ?? []), `acceptance tests: ${task.description}`] } : {}),
   };
@@ -69,10 +78,13 @@ export async function verifyParentTests(task: Task, result: Result, ctx: RunCont
  *    runaway report, a changed assertion machinery).
  *  - `reject-once` — content the child controls may have kept the suite from
  *    a result: the workspace could not be copied (an escaping link, a special
- *    file), or the runner ended without a valid report, which code under test
- *    can cause (exiting or killing the process) as well as a host crash. The
- *    child is coached once; a repeat is reviewed, like every `reject-once`
- *    result gate (second review 2026-10-16).
+ *    file, permissions that refuse the workspace owner), or the runner ended
+ *    without a valid report. Measured on the real runner (third review
+ *    2026-10-16): Vitest intercepts `process.exit` in imported code, which
+ *    reads `failed`/`ran`; only a killed or signalled process or one out of
+ *    memory ends without a report, and code under test can do both, as can a
+ *    host crash. The child is coached once; a repeat is reviewed, like every
+ *    `reject-once` result gate (second review 2026-10-16).
  *  - `review` — a cause only the host owns: the child cannot act on it, so
  *    rejecting would be the wrong gate. The suite established nothing; a full
  *    review decides on the other evidence.
@@ -93,14 +105,18 @@ const SUBJECT_CAUSES: ReadonlyMap<ParentTestCause, string> = new Map([
 const COPY_COACHING =
   'Remove the link or special file named above and keep the dependencies inside the project ' +
   '(install them there rather than linking a shared store), or explain in your result why that is impossible.';
+const PERMISSION_COACHING =
+  'Restore read permission on the file or directory named above (the workspace owner must be able to read every project entry), ' +
+  'or explain in your result why that is impossible.';
 const REPORT_COACHING =
-  'The runner ended without a valid report. Code the suite imports must not exit, kill or signal the process, ' +
-  'nor write atoma.report.json: keep entry-point side effects (process.exit, argv parsing, listening servers) out of ' +
-  'the modules the suite imports, or explain in your result why the runner could not report.';
+  'The runner ended without a valid report: its process was killed or signalled, or ran out of memory. Code the suite exercises ' +
+  'must not kill or signal the process (process.kill, process.abort), must bound the memory it allocates, and must not write ' +
+  'atoma.report.json; or explain in your result why the runner could not report.';
 /** Content the child controls may be the cause: coached once, then reviewed. */
 const ONCE_CAUSES: ReadonlyMap<ParentTestCause, { readonly what: string; readonly coaching: string }> = new Map([
   ['snapshot-link', { what: 'could not be copied', coaching: COPY_COACHING }],
   ['snapshot-special-file', { what: 'could not be copied', coaching: COPY_COACHING }],
+  ['snapshot-unreadable', { what: 'could not be copied', coaching: PERMISSION_COACHING }],
   ['exited-without-report', { what: 'produced no valid report', coaching: REPORT_COACHING }],
   ['report-invalid', { what: 'produced no valid report', coaching: REPORT_COACHING }],
 ] as const);
@@ -157,7 +173,10 @@ const short = (observation: ParentTestObservation): string => observation.suiteD
  * The failing set, sorted, first failure line each. Keyed on WHAT fails, so
  * the repeat tracker escalates three identical failures and never progress.
  * Host notes (snapshot counts, omissions) vary between runs and are no part
- * of the key; the runner keeps `details` one valid JSON array for this.
+ * of the key; the runner keeps `details` one valid JSON array for this. A set
+ * longer than the excerpt is shown cut and keyed by the digest of the WHOLE
+ * set: cut alone, two sets that differed past the cut read as one failure
+ * (third review 2026-10-16).
  */
 function failingExcerpt(details: string): string {
   let entries: unknown;
@@ -179,9 +198,11 @@ function failingExcerpt(details: string): string {
     const first = Array.isArray(test.failures) && typeof test.failures[0] === 'string' ? test.failures[0] : '';
     failing.push({ name: typeof test.name === 'string' ? test.name.slice(0, 200) : '(unnamed)', failure: first.split('\n')[0]!.slice(0, 200) });
   }
-  failing.sort((a, b) => a.name.localeCompare(b.name) || a.failure.localeCompare(b.failure));
+  // Code-unit order: the key must not depend on the host's locale.
+  failing.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : a.failure < b.failure ? -1 : a.failure > b.failure ? 1 : 0);
   const text = JSON.stringify(failing);
-  return text.length > 1200 ? `${text.slice(0, 1199)}…` : text;
+  if (text.length <= 1200) return text;
+  return `${text.slice(0, 1170)}… (failing set ${createHash('sha256').update(text).digest('hex').slice(0, 16)})`;
 }
 
 const REPAIR_COACHING =
@@ -204,8 +225,12 @@ export function parentTestRejection(result: Pick<Result, 'parentTests'>): Parent
   return { reasoning, coaching: `${REPAIR_COACHING}\nHost observation:\n${details.slice(0, 6000)}` };
 }
 
-/** A suite content the child controls may have kept from a result: coached once, then reviewed. */
-export function parentTestWorkspaceFinding(result: Pick<Result, 'parentTests'>): ParentTestFinding | null {
+/**
+ * A suite that produced no result for a cause the child may control (an
+ * uncopyable workspace, or a runner that ended without a valid report):
+ * coached once, then reviewed.
+ */
+export function parentTestNoResultFinding(result: Pick<Result, 'parentTests'>): ParentTestFinding | null {
   const { rejectOnce } = parentTestFindings(result);
   if (rejectOnce.length === 0) return null;
   const once = rejectOnce.map((observation) => ({ observation, ...ONCE_CAUSES.get(observation.cause!)! }));

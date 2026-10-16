@@ -1284,7 +1284,7 @@ D and the calibration date gap in Group F.
   Narrowed: `snapshot-bounds` stays review, since a legitimate `node_modules`
   can exceed 100,000 entries and a rejection would be the wrong gate. The
   "awaiting owner confirmation" half of that finding was already settled by
-  2b0629ff (decided under the owner's delegation), so only the classification
+  673a357b (decided under the owner's delegation), so only the classification
   of child-provokable causes changed.
 - **A child-plan reviewer fault coached the planner and escalated.** The L3
   review of an L2 plan carrying suites ran on the 2,048-token validation cap
@@ -1332,13 +1332,20 @@ D and the calibration date gap in Group F.
   (confirmed by re-introducing the early commit). The earlier test no longer
   claims to show it.
 - Delegation review: an `error_during_execution` reply is a reviewer fault at
-  the root and at the child; a child fault is re-reviewed on tier 2; two
-  faults throw from `superviseLoop` with no coaching, failure hook or branch.
+  the root and at the child; a child fault is re-reviewed on tier 2. Since the
+  follow-up (2c9747a9) a second fault is returned as a `reviewer` refusal, never
+  thrown (tests/delegation-contract.test.ts, "returns a child plan review that
+  faults twice as a reviewer refusal"), and tests/plan-review-fault.test.ts
+  covers the loop; the third review rewrote that file under the production plan
+  budget (see "Third review").
 
 ### Remaining risks
 
-- A child-plan reviewer that faults twice now fails the dispatch instead of
-  costing the child a ladder; how often that happens is unmeasured.
+- Superseded by the follow-up and the third review: a child-plan reviewer
+  that faults twice no longer fails the dispatch. Counted on the plan budget,
+  three such refusals still escalated, recorded a trust failure and branched
+  the child under the default limits; the third review moved them to their
+  own budget, with no blame and no branch.
 - `reject-once` for an exit without a report spends one retry when the cause
   was the host's (an OOM kill, a runner crash); the repeat is reviewed.
 - Traces from a deploy of this branch onward carry the marker; nothing
@@ -2607,3 +2614,246 @@ not run read, on the receipt card, exactly like one whose suites passed.
   list already does. Bounded by the runs opened in one tab.
 - **Not seen in a real browser:** `viz:smoke` still fails before any view on
   main ("focused view frame composite is invalid").
+
+## Third review
+
+An independent review of 8b9d990b..522d79a2 confirmed nineteen findings, each
+verified by two refutation votes, several reproduced on the branch. Several
+were the same defect seen from two files. The follow-up commits after
+522d79a2 were read first. 5be0ea2d had already given the L2 plan retry the
+parser's message, so only the blame half of that finding was still open.
+Decisions were taken under the owner's delegation
+(memory/beta-rules-not-fixed.md). Every new or changed gate has its
+adversarial notes below. The independent subagent pass was not available
+again, so the notes are this session's own.
+
+### What changed
+
+- **Reviewer faults still blamed and branched the child.** This finding came
+  from three reviewers, and a fourth found the test that hid it. The
+  follow-up's `reviewer` refusal skipped coaching and repeat streaks, but it
+  still spent a plan iteration. Under the default `maxPlanIterations` of 3,
+  three faults escalated: `onFailed` recorded a trust failure against the cell
+  and `branchOnEscalation` created a narrow L2, coached with the fault text.
+  That text came from the `verdict-plan` entry, which
+  `extractBranchDiagnostic` reads as validator feedback.
+  tests/plan-review-fault.test.ts passed only because it raised the budget to
+  5. Its second test swallowed every outcome with `.catch`, so a mutant that
+  threw a `ValidationError` passed (reproduced).
+
+  Now:
+  - A reviewer fault spends no plan iteration. It is counted on its own
+    budget, `MAX_PLAN_REVIEW_FAULTS` (2).
+  - It is traced only as `plan-review-fault`, never as a refused
+    `verdict-plan`.
+  - When that budget is spent, the loop raises `EscalationSignal('review')`.
+    The parent takes over directly: no `onFailed`, no branch.
+
+  Two, not three: each fault is already two failed reviews of one plan (the
+  validation model, then tier 2), and a third would buy another replan and
+  tier-2 review with no new evidence.
+- **A budget spent on unparseable replies blamed trust.** This contradicted
+  src/atoms/AGENTS.md ("Never blames trust"). One rule now covers both cases:
+  an escalation is `blameless` when the reviewer-fault budget ended the cycle,
+  or when the plan budget ran out with nothing in the cycle judged (no plan
+  refused on its merits, no result verdict, so only parse failures and
+  reviewer faults). A blameless escalation records no failure and creates no
+  branch, and the trace's `escalated` entry says `blameless: true`. The doc
+  line is now true and says what happens instead. A cycle whose fault budget
+  runs out after a judged refusal is blameless too: the reviewer, not the
+  plan budget, stopped it.
+- **Supersession read branch order as time.** A parallel aggregate
+  concatenates its branches in subtask order. A pass that ran first, on an
+  older workspace, sat after a sibling's later failure of the same suite and
+  hid it from the reject gate, from `parentTestsGrantNothing` and from the
+  root's refusal. Core now stamps every observation it records with
+  `observedAt`: wall-clock ms, strictly increasing in the process, never
+  parsed from a worker. The superseded rule (`recordedAfter`, in the
+  browser-safe record contract) compares those stamps, and uses record order
+  only where a record has none. The persisted record keeps the stamp, and the
+  projection's "last record per suite" reads the same clock, so a display
+  never disagrees with the gate. The `dependencyBlocker` half of that finding
+  was overstated: a predecessor's own result holds only its own observations.
+- **Permission bits the child controls became host faults.** The worker runs
+  as the one uid that owns the workspace, with no capability to override
+  permissions. So `chmod 000` on a workspace entry made the copy throw a plain
+  `EACCES`, which became `runner-error` and then review: a red suite escaped
+  its mechanical rejection. Reproduced by both reviewers. The same happened
+  after the run when the code under test chmodded the suite file or the copy
+  root.
+
+  Now:
+  - `EACCES`/`EPERM` while copying is the new cause `snapshot-unreadable`. It
+    is `reject-once`, coached to restore read permission.
+  - After the run, the owner takes back the copy root (0700) and the suite file
+    and report (0600), after an `lstat`, never through a link, before reading
+    them.
+  - Whatever still refuses reads as `source-changed` or `report-tampered`.
+- **An unbounded read of the suite file.** The suite file is now compared by
+  size before it is read, then compared as bytes. A file the code under test
+  grew past V8's string limit used to throw `ERR_STRING_TOO_LONG`, which
+  became `runner-error`. It now reads `source-changed`.
+- **A red run with no failing assertion said "failed 0/N: []".** This came from
+  two findings. Vitest sets exit code 1 for an unhandled error or rejection
+  after the assertions, and leaves the report's `success` alone. The runner
+  recorded `failed`/`ran` with only passing tests in the details and dropped
+  the output tail. Every such failure had one repeat key, and nobody could
+  see the cause (reproduced: late throw, rejection, timed exit).
+
+  Now:
+  - The coordinator prints each unhandled error Vitest holds
+    (`state.getUnhandledErrors()`) on an `atoma-unhandled:` line.
+  - The runner turns those lines into `Runner:` entries, which the repeat key
+    reads. The same applies to skipped tests and to a non-zero exit with no
+    named error.
+  - The output tail is kept for these runs.
+  - A runner killed by its window after writing its report, with nothing
+    failing, is now `timeout` rather than `failed`. The shortened-window
+    reading then applies, as the contract says.
+- **The `exited-without-report` premise was false.** The second review called
+  an imported CLI's `process.exit` the ordinary cause. Measured here: Vitest
+  intercepts `process.exit` in imported code and reports `failed`/`ran`
+  ("process.exit unexpectedly called"). Only a killed or signalled process or
+  one out of memory ends without a report. The classification stays
+  `reject-once`, because code under test can do both and so can a host crash.
+  The coaching, the cause comment, the decision doc and the EN copy now name
+  what was measured. Two real-runner tests pin the premise.
+- **The repeat key cut a long failing set.** `failingExcerpt` sorted the set
+  and then cut it at 1,200 characters. Two sets of twelve that differed past
+  the cut gave one key (reproduced). A cut excerpt now ends with the digest of
+  the whole sorted set. Sorting is by code unit, so the key does not depend on
+  the host locale.
+- **A copy left behind on every verification.** Code under test that left a
+  directory without the owner write bit made `rm` fail with `EACCES`, and the
+  copy stayed. `removeCopy` now restores the owner's access to every directory,
+  without following links, and removes again. The stale-copy sweep uses it too.
+- **A budget landing read as a failed check.** A producer that landed because
+  the phase floor declined a phase, while the signal was still live, made
+  `dependencyBlocker` return `landed`. Its dependents went into
+  `blockedPhases`, and every reader then said a check had failed: root
+  guidance, `landingReasons`, the remediation input and the customer copy.
+
+  Now:
+  - `landed` blocks only when the producer's own landing held work back behind
+    a failed check (`blockedPhases`).
+  - Behind a producer that landed on the budget alone (`landedOnBudget`),
+    dependents settle as `unfinished`, transitively, like any phase the budget
+    did not reach.
+  - The decision doc's "Every dependency landing carries an observation that
+    did not pass" is true again.
+- **The docs said the root review was the only validator with an effort
+  pin.** The child-plan re-review after a fault also runs on tier 2 with
+  `ROOT_DELEGATION_REVIEW_PARAMS`. Corrected in src/core/AGENTS.md, cost.ts and
+  the decision doc, with its cost bound: at most two tier-2 re-reviews per
+  supervise cycle, about $0.24 per cell, or $0.48 when a judged escalation had
+  already branched it. The L3 comment's "as the root does" now states the
+  asymmetry: the root re-reviews down, a child re-reviews up.
+- **The gate id named only one family.** `parent-acceptance-tests-workspace`
+  also carried the runner-exit causes. It is now
+  `parent-acceptance-tests-no-result`, and its function is
+  `parentTestNoResultFinding`. Nothing persisted depends on the id. Historical
+  traces keep the old one, which is byte-honest.
+- **Stale records.** The Second review's Tests and Remaining-risks bullets
+  still described the thrown fault, and are now corrected. The memory handoff
+  and this record cited pre-rebase hashes that are on no branch. They are
+  replaced by main's (835f2cdf..522d79a2).
+
+### Recorded, not closed
+
+- **The verification copy is reachable by any process of the worker's uid.**
+  A `start_node_server` server outlives its execute, and a sibling lane's
+  `run_shell` runs alongside. Either can rewrite the copy between the snapshot
+  and Vite's import, so the suite tests bytes the live workspace does not hold.
+  Node permissions confine only the Vitest child, and a directory of the same
+  uid is no barrier. Stopping the phase's servers before the snapshot was
+  rejected: later probes and phases use them. The limit is in the decision
+  doc beside the matcher residuals. Closing it needs a separate uid or mount
+  namespace for the runner.
+- **A runner killed after its report has no deterministic test.** Nothing
+  available makes `vitest.close()` hang on demand. The path is covered by
+  reading only.
+
+### Adversarial notes on the new mechanisms
+
+- **Blameless escalation.** A child cannot gain from it.
+  - A child that only produces unparseable plans or provokes reviewer faults
+    never executes. The parent takes over, and no approval or trust is
+    earned. What it avoids is the failure count and a branch.
+  - The cost of that: a type that has stopped producing parseable plans is not
+    demoted by this path. It is not trusted past a validator either, because
+    trust gates validation of work it never delivers.
+  - A cycle with one judged refusal still blames and branches. Pinned both
+    ways in tests/supervision.test.ts and tests/plan-review-fault.test.ts.
+- **The fault budget.** A fault spends no plan iteration, so a cycle can
+  now make up to five plan calls: three judged and two faulted. Both bounds
+  are fixed, and fault-only cycles end in the parent, not in a branch, so the
+  ladder never grows.
+- **`snapshot-unreadable` as `reject-once`.** An `EACCES` the child did not
+  cause is possible: a root-owned file in a workspace mounted from elsewhere.
+  It costs one coached retry, and the repeat is reviewed, the same bound as
+  links and special files.
+- **Reclaiming ownership after the run.** It follows `lstat`, so `chmodSync`
+  never follows a link the host saw. A concurrent same-uid process could swap
+  a path between the two calls. That process can already `chmod` any file the
+  uid owns, so the host acting on its path grants it nothing new.
+- **`atoma-unhandled:` lines.** They are read only for a run that is already
+  red and has no failing assertion. Forging them changes the text of a
+  rejection, never its consequence. A pass is computed before they are read
+  and never reads them.
+- **Killed after the report: `timeout`, not `failed`.** In a window the copy
+  shortened, a hang after the report is the host's (review). Code under test
+  can lengthen the copy with workspace content, which is the second review's
+  existing window rule, not a new opening. A failing assertion still wins: it
+  rejects and says why.
+- **`observedAt`.** It is set only by core, after the worker's strict schema
+  parsed the reply, so it cannot be forged. Checkpoints carry no
+  observations, so a resumed process never compares stamps from two clocks.
+  The cross-workspace question stays open: a pass observed later on another
+  branch's workspace still supersedes.
+- **Budget landing.** `unfinishedPhases` and `blockedPhases` are host fields:
+  the result payload schema keeps only `output` and `summary`. A producer
+  with a failing suite still blocks first, as `failed-suite`.
+
+### Tests
+
+- tests/plan-review-fault.test.ts, rewritten under the production limits,
+  which a test pins to 3:
+  - one fault, then an approval: no coaching, no blame, no branch, and no
+    refused `verdict-plan`;
+  - refusal, fault, refusal, approval: four plan calls under a budget of three;
+  - two faults: the parent, no `onFailed`, no branch, `phase: 'review'`;
+  - three judged refusals: still blamed and branched;
+  - through the real tissue hooks, a real `AtomRegistry`, the cell's failure
+    count stays 0 and no L2 type is created.
+- tests/supervision.test.ts: a budget spent on unparseable replies goes to the
+  parent with no blame or branch, and a refusal on the merits followed by two
+  unparseable replies still blames and branches.
+- tests/hooks.test.ts: the hook-order test now escalates on a judged
+  refusal. A plan budget of zero, which judges nothing, is blameless.
+- tests/landed-run.test.ts: the predicate on a budget landing and on a
+  held-back landing, and a parallel dispatch with a live signal, where the
+  dependents of a budget-landed producer are unfinished transitively and
+  `landingReasons` says no check failed.
+- tests/parent-tests-third-review.test.ts (new), through the real runner:
+  - an unhandled error and an unhandled rejection named in the rejection, with
+    two errors keyed apart;
+  - skipped tests named, and a passing suite unchanged;
+  - `process.exit` reads `failed`/`ran`, and a `SIGKILL` reads
+    `exited-without-report`, coached about the kill;
+  - an unreadable entry reads `snapshot-unreadable`;
+  - a suite file chmodded by the code under test stays red;
+  - a copy with a 0555 directory is removed;
+  - supersession through the real `dispatchWithAggregation` and
+    `verifyParentTests`, where a later failure is not hidden by an earlier
+    sibling pass, plus persistence and projection;
+  - a failing set keyed past the excerpt cut.
+- Each was run against a mutation of the code it covers, and each fails:
+  - the plan-iteration refund;
+  - the blameless rule;
+  - the clock;
+  - the digest suffix;
+  - the ownership reclaim;
+  - the typed `EACCES`;
+  - the access restore;
+  - the reasons;
+  - the budget check.

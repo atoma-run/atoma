@@ -330,6 +330,7 @@ describe('one mapping, three rows', () => {
     // Content the child controls may be the cause: coached once, then reviewed.
     'snapshot-link': 'reject-once',
     'snapshot-special-file': 'reject-once',
+    'snapshot-unreadable': 'reject-once',
     'exited-without-report': 'reject-once',
     'report-invalid': 'reject-once',
     // Only the host owns these.
@@ -367,7 +368,7 @@ describe('one mapping, three rows', () => {
   });
 
   it('pins the parent rows ahead of every other gate', () => {
-    expect(RESULT_GATE_IDS.slice(0, 3)).toEqual(['parent-acceptance-tests', 'parent-acceptance-tests-workspace', 'parent-acceptance-tests-unavailable']);
+    expect(RESULT_GATE_IDS.slice(0, 3)).toEqual(['parent-acceptance-tests', 'parent-acceptance-tests-no-result', 'parent-acceptance-tests-unavailable']);
   });
 
   it.each(statuses)('%s / %s gives the same consequence in the gates and in the loop safety net', async (status, cause) => {
@@ -384,7 +385,7 @@ describe('one mapping, three rows', () => {
       );
       const parentFindings = outcome.reviewFindings.filter((finding) => finding.gateId.startsWith('parent-acceptance-tests'));
       if (consequence === 'reject') expect(outcome.rejection?.gateId).toBe('parent-acceptance-tests');
-      else if (consequence === 'reject-once') expect(outcome.rejection?.gateId).toBe('parent-acceptance-tests-workspace');
+      else if (consequence === 'reject-once') expect(outcome.rejection?.gateId).toBe('parent-acceptance-tests-no-result');
       else expect(outcome.rejection).toBeNull();
       expect(parentFindings.map((finding) => finding.gateId)).toEqual(consequence === 'review' ? ['parent-acceptance-tests-unavailable'] : []);
     }
@@ -694,7 +695,7 @@ describe('typed causes from the real runner', () => {
     ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'reviewed' }));
     const second = await cell.validateResult(leaf(), linked, task, ctx);
     expect(second.approved).toBe(true);
-    expect(ctx.llm.calls[0]!.userContent).toContain('[parent-acceptance-tests-workspace]');
+    expect(ctx.llm.calls[0]!.userContent).toContain('[parent-acceptance-tests-no-result]');
 
     const reg = new AtomRegistry(openDb(':memory:'));
     const tissue = L3Atom.buildWithModel(reg.create(3, seed), reg, 'mock');

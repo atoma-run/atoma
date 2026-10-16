@@ -29,7 +29,10 @@ Neighbours:
   fault (unfinished, unparseable, unclassified) re-reviews the same plan on the
   validation model. L2 plans under a parent suite get the same check there; their
   reviewer fault re-reviews once on tier 2; a second one returns a `reviewer`
-  refusal that `superviseLoop` neither coaches nor counts: it asks again.
+  refusal that `superviseLoop` neither coaches, counts nor charges to the plan
+  budget: it asks again, and after `MAX_PLAN_REVIEW_FAULTS` (2) the parent takes
+  over. Such an escalation, or a plan budget spent on unparseable replies with
+  nothing judged, records no failure and branches no type (`blameless`).
   Missing classified suites or parallel branches block dispatch even beside
   approved:true. Three root attempts (a plan parse failure counts); no unreviewed
   fallback. L3 `replanAfter:true` is read-only discovery, once, then the host
@@ -279,7 +282,8 @@ load-bearing.
 - Independent work MUST fan out, including multiple L2 branches at L3: a branch starts once its
   `dependsOn` producers (earlier indices) settle; joins name producers, coupled writers declare
   dependencies; no wave barrier, no prose inference. A producer with a typed failure is KEPT and its
-  dependents land unstarted (`blockedPhases`); a throw still fails the dispatch. Routing splits only
+  dependents land unstarted (`blockedPhases`); behind one that landed on the budget alone they are
+  unfinished, never blocked (`landedOnBudget`); a throw still fails the dispatch. Routing splits only
   output-less checkpoints, remapping `dependsOn` ([why](../../records/reviews/parent-tests-review-fixes-2026-10-16.md)).
   It keeps a server-backed browser+command checkpoint whole on a superset full-stack cell and splits it
   otherwise; the criteria bind at most the split part whose cell holds both capabilities; the shell part drops obligations.
@@ -647,7 +651,8 @@ load-bearing.
   Preserve witnesses, validation, raw failures and fence-aware tests; never replay tools for formatting.
 - An unparseable L1 plan or L2/L3 plan pair (a truncation repair counts for pairs) is asked
   again within the plan budget, then escalates (`plan-unparseable`, 12bdcf19); the root spends an
-  attempt. Pairs salvage raw control chars only; L1 keeps parseWith's repair. Never blames trust.
+  attempt. Pairs salvage raw control chars only; L1 keeps parseWith's repair. Never blames trust:
+  a budget spent with no plan or result judged hands the task to the parent unbranched.
 - `PlanParseError` is typed (`syntax`, `unbalanced`, `truncated`, `schema`, `suite-size`; the trace
   records it as `cause`) and owns `feedback()`; only JSON-syntax kinds get escaping advice. A new
   suite over `PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS` (12,000) is refused by `parsePlanPair`, clean
