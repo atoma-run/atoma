@@ -303,6 +303,17 @@ export async function superviseLoop<C extends Atom>(
         const v1 = await parent.validatePlan(current, plan, task, ctx);
         trace.push({ kind: 'verdict-plan', ts: now(), atom: parent.name, payload: v1 });
 
+        if (!v1.approved && v1.delegationRefusal === 'reviewer') {
+          // The REVIEWER failed (unfinished, unparseable or unclassified,
+          // twice: the tissue already re-reviewed once on its root model).
+          // It is no judgement of the plan, so nothing is coached and no
+          // repeat streak counts it: the plan is asked again inside the plan
+          // budget, which escalates as before when it runs out. Thrown, one
+          // flaky reviewer ended the whole run (follow-up review 2026-10-16).
+          ctx.logger.warn(`[${current.name}] plan review failed as the reviewer's; asking again (${(v1.reasoning ?? '').slice(0, 200)})`);
+          trace.push({ kind: 'plan-review-fault', ts: now(), atom: parent.name, payload: { reasoning: v1.reasoning } });
+          continue;
+        }
         if (!v1.approved) {
           const hit = planRepeat.push(v1.reasoning ?? '');
           if (hit.repeated) {

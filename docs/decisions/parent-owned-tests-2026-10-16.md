@@ -258,7 +258,11 @@ text). A review cut by its cap, an unparseable verdict, an approval without its
 classification or with incomplete or duplicate indices is the reviewer's
 failure: the SAME plan is reviewed again on the validation model with
 `VALIDATION_PARAMS`, with no new plan call. Enforcement runs on whichever review
-approves. Only a plan or fan-out refusal asks for a new plan.
+approves. Only a plan or fan-out refusal asks for a new plan. Under an L2
+plan, a second reviewer fault (after the tier-2 re-review) returns to
+`superviseLoop` as a `reviewer` refusal: no coaching, no repeat streak, the plan
+is asked again inside the plan budget, which escalates as before when spent.
+It never throws: one flaky reviewer must not end a run.
 
 **An unparseable root plan spends an attempt.** The reply is read exactly as
 written (`parsePlanPair`); malformed JSON, a schema mismatch, or a reply that

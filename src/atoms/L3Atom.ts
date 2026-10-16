@@ -1719,10 +1719,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * The delegation-contract review of a child plan carrying suites. A reviewer
    * fault (unfinished, unparseable, unclassified) is the reviewer's, not the
    * plan's: the SAME plan is reviewed once more on the root review's model and
-   * cap, as the root does. A second fault throws a ValidationError, never a
-   * rejection: returned to the loop, its fixed text coached the child's
-   * planner and, repeated, escalated and branched the child's type over a
-   * reviewer failure (second review 2026-10-16). No unreviewed plan executes.
+   * cap, as the root does. A second fault is returned as a `reviewer`
+   * refusal, which `superviseLoop` neither coaches nor counts as a repeat: it
+   * asks for the plan again inside the plan budget. Thrown, it ended the run
+   * over a flaky reviewer; coached, it escalated and branched the child's
+   * type (second review and follow-up, 2026-10-16). No unreviewed plan executes.
    */
   private async reviewChildDelegation(
     child: L2Atom,
@@ -1742,8 +1743,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     const model = this.rootReviewModel();
     ctx.logger.warn(`[l3] delegation reviewer failed on ${child.name}'s plan (${first.reasoning.slice(0, 200)}); reviewing the same plan on ${model}`);
     const second = await attempt({ model, params: ROOT_DELEGATION_REVIEW_PARAMS });
-    if (second.approved || second.delegationRefusal !== 'reviewer') return second;
-    throw new ValidationError(`Delegation contract review of ${child.name}'s plan failed twice; no unreviewed plan executes: ${second.reasoning.slice(0, 300)}`);
+    return second;
   }
 
   async validateResult(child: L2Atom, result: Result, task: Task, ctx: RunContext): Promise<Verdict> {

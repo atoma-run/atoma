@@ -24,7 +24,8 @@ Neighbours:
   (own cap and effort, src/core; a refusal costs a top-tier replan); a reviewer
   fault (unfinished, unparseable, unclassified) re-reviews the same plan on the
   validation model. L2 plans under a parent suite get the same check there; their
-  reviewer fault re-reviews once on tier 2, then throws, never a rejection.
+  reviewer fault re-reviews once on tier 2; a second one returns a `reviewer`
+  refusal that `superviseLoop` neither coaches nor counts: it asks again.
   Missing classified suites or parallel branches block dispatch even beside
   approved:true. Three root attempts (a plan parse failure counts); no unreviewed
   fallback. L3 `replanAfter:true` is read-only discovery, once, then the host

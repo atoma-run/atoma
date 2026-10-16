@@ -1282,9 +1282,14 @@ D and the calibration date gap in Group F.
   and returned reviewer faults as rejections, so their fixed text coached the
   planner and three of them escalated and branched the child's type. A fault
   (unfinished, unparseable, unclassified) now re-reviews the same plan once on
-  the root review's model and parameters; a second fault throws a
-  `ValidationError`, never a rejection. The dispatch fails, as the root fails
-  after three reviewer faults; nobody is coached or blamed.
+  the root review's model and parameters. The round-one fix then threw a
+  `ValidationError` on a second fault, which failed the whole dispatch and the
+  run over a flaky reviewer. The follow-up returns it as a `reviewer` refusal
+  instead: `superviseLoop` neither coaches it nor counts it in a repeat streak,
+  and asks for the plan again inside the plan budget, which escalates as
+  before when spent. Tests: tests/plan-review-fault.test.ts (fails with the
+  loop's reviewer branch removed) and the child case in
+  tests/delegation-contract.test.ts.
 - **The delegation review's completeness guard became a denylist.** Only
   `max_tokens` and `pause_turn` refused; the Claude CLI returns
   `error_during_execution` with salvaged text, which jsonrepair closed into an

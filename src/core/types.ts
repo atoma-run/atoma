@@ -440,6 +440,7 @@ export interface TraceEntry {
   kind:
     | 'plan'
     | 'plan-unparseable'
+    | 'plan-review-fault'
     | 'verdict-plan'
     | 'execute'
     | 'verdict-result'

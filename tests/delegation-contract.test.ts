@@ -17,7 +17,6 @@ import { ROOT_DELEGATION_REVIEW_PARAMS } from '../src/atoms/cost.js';
 import { VALIDATION_PARAMS, VALIDATION_SYSTEM_PROMPT } from '../src/atoms/verdict.js';
 import { createHash } from 'node:crypto';
 import { makeCtx } from './helpers.js';
-import { superviseLoop } from '../src/core/supervisor.js';
 import { makePlan } from './helpers/factories.js';
 
 const databases: ReturnType<typeof openDb>[] = [];
@@ -351,24 +350,16 @@ describe('root delegation review robustness', () => {
     ]);
   });
 
-  it('fails a child plan review that faults twice as the reviewer\'s, never as a rejection the loop repeats', async () => {
+  it('returns a child plan review that faults twice as a reviewer refusal, never a thrown error', async () => {
     const { tissue, cell } = actors();
     const ctx = makeCtx();
-    const plan = vi.spyOn(cell, 'plan').mockResolvedValue(runnable());
-    const execute = vi.spyOn(cell, 'execute').mockResolvedValue(result);
-    for (let i = 0; i < 2; i++) ctx.llm.enqueue({ text: '{"approved": true, "reasoning": "cut', stopReason: 'max_tokens', usage: { inputTokens: 1, outputTokens: 1 } });
-    const onFailed = vi.fn(async () => {});
-    const branchOnEscalation = vi.fn(async () => undefined);
-    const applyByScope = vi.fn(async (child: L2Atom) => child);
-    await expect(superviseLoop(tissue, cell, { description: 'add', acceptanceTests: suite }, ctx, { applyByScope, onFailed, branchOnEscalation }))
-      .rejects.toThrow(/Delegation contract review of .* plan failed twice/);
-    // One plan, two reviews of it, nothing executed, nobody coached or blamed.
-    expect(plan).toHaveBeenCalledOnce();
+    for (let i = 0; i < 2; i++) {
+      ctx.llm.enqueue({ text: '{"approved": true, "reasoning": "cut', stopReason: 'max_tokens', usage: { inputTokens: 1, outputTokens: 1 } });
+    }
+    const verdict = await tissue.validatePlan(cell, runnable(), { description: 'add', acceptanceTests: suite }, ctx);
+    expect(verdict.approved).toBe(false);
+    expect(verdict).toMatchObject({ delegationRefusal: 'reviewer' });
     expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(2);
-    expect(execute).not.toHaveBeenCalled();
-    expect(applyByScope).not.toHaveBeenCalled();
-    expect(onFailed).not.toHaveBeenCalled();
-    expect(branchOnEscalation).not.toHaveBeenCalled();
   });
 
   it('ends the run after three reviewer faults without executing', async () => {
