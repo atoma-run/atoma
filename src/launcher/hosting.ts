@@ -7,6 +7,24 @@ import { hostingIdentitySchema, hostingLaunchSchema, type HostingIdentity, type 
 import type { AsyncDockerRunner } from './docker.js';
 
 const exec = promisify(execFile);
+
+/**
+ * Fixed addresses on a deployment's internal network. A restarted engine hands
+ * dynamic ones out again in start order: on 2026-10-16 the app and its browser
+ * proxy swapped, and the relay (which names its upstream by address) answered
+ * 502. Pinned endpoints keep their address across an engine restart.
+ */
+export function pinnedHostingAddresses(subnets: string): { app: string; proxy: string; relay: string } {
+  const cidr = subnets.split(/\s+/).find(s => /^\d+\.\d+\.\d+\.\d+\/\d+$/.test(s) && isIPv4(s.split('/')[0]!));
+  if (!cidr) throw new Error('No isolated network subnet');
+  const [address, bits] = [cidr.split('/')[0]!, Number(cidr.split('/')[1])];
+  if (bits > 29) throw new Error('Isolated network subnet too small');
+  const value = address.split('.').reduce((n, part) => n * 256 + Number(part), 0);
+  const base = value - (value % 2 ** (32 - bits));
+  const at = (offset: number) => [24, 16, 8, 0].map(shift => Math.floor((base + offset) / 2 ** shift) % 256).join('.');
+  return { app: at(2), proxy: at(3), relay: at(4) };
+}
+
 const engine: AsyncDockerRunner = async args => (await exec('docker', args, { timeout: 30_000, maxBuffer: 1024 * 1024 })).stdout.trim();
 /** Durable deployments have their own namespace. Preview/worker sweeps never own these objects. */
 export class DockerHosting implements HostingLauncher {
@@ -62,18 +80,19 @@ export class DockerHosting implements HostingLauncher {
     try {
       await this.run(['network', 'create', '--internal', ...labels, '--opt', 'com.docker.network.bridge.gateway_mode_ipv4=isolated', '--opt', 'com.docker.network.bridge.gateway_mode_ipv6=isolated', n.internal]);
       await this.run(['network', 'create', ...labels, n.uplink]);
+      const pinned = pinnedHostingAddresses(await this.run(['network', 'inspect', '--format', '{{range .IPAM.Config}}{{.Subnet}} {{end}}', n.internal]));
       const bounds = ['--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--memory', '512m', '--memory-swap', '512m', '--cpus', '0.5', '--pids-limit', '128', '--log-opt', 'max-size=1m', '--log-opt', 'max-file=2'];
       let proxyIp = '';
       if (spec.browser) {
         await this.run(['run', '-d', '--name', n.proxy, ...labels, '--restart', 'unless-stopped', '--network', n.uplink,
           '--user', this.options.user, '--read-only', ...bounds, '-e', 'ATOMA_EGRESS_ALLOWLIST=*',
           '--entrypoint', 'node', this.options.relayImage, '/app/dist/tools/egressProxy.js']);
-        await this.run(['network', 'connect', n.internal, n.proxy]);
+        await this.run(['network', 'connect', '--ip', pinned.proxy, n.internal, n.proxy]);
         proxyIp = (await this.run(['inspect', '--format', `{{with index .NetworkSettings.Networks ${JSON.stringify(n.internal)}}}{{.IPAddress}}{{end}}`, n.proxy])).trim();
-        if (!isIPv4(proxyIp)) throw new Error('No browser proxy address');
+        if (proxyIp !== pinned.proxy) throw new Error('No browser proxy address');
       }
       const appBounds = spec.browser ? ['--memory', '1536m', '--memory-swap', '1536m', '--cpus', '1', '--pids-limit', '256', '--shm-size', '256m'] : [];
-      await this.run(['run', '-d', '--name', n.app, ...labels, '--restart', 'unless-stopped', '--network', n.internal,
+      await this.run(['run', '-d', '--name', n.app, ...labels, '--restart', 'unless-stopped', '--network', n.internal, '--ip', pinned.app,
         ...(spec.browser ? ['--label', 'dev.atoma.browser=true'] : []),
         '--runtime', 'runsc', '--user', this.options.user, '--read-only', ...bounds, ...appBounds,
         '--tmpfs', spec.browser ? '/tmp:rw,noexec,nosuid,size=256m' : '/tmp:rw,noexec,nosuid,size=64m', '--mount', `type=bind,src=${n.source},dst=/workspace,readonly`,
@@ -83,11 +102,11 @@ export class DockerHosting implements HostingLauncher {
         '--entrypoint', 'node', spec.browser ? this.options.browserImage! : this.options.image,
         ...(spec.browser ? ['/opt/atoma-hosting/browser.mjs', spec.entry] : [spec.kind === 'static' ? '/opt/atoma-hosting/static.mjs' : spec.entry])]);
       const ip = (await this.run(['inspect', '--format', `{{with index .NetworkSettings.Networks ${JSON.stringify(n.internal)}}}{{.IPAddress}}{{end}}`, n.app])).trim();
-      if (!isIPv4(ip)) throw new Error('No isolated application address');
+      if (ip !== pinned.app) throw new Error('No isolated application address');
       await this.run(['run', '-d', '--name', n.relay, ...labels, '--restart', 'unless-stopped', '--network', n.uplink,
         '-p', '127.0.0.1::8081', ...bounds, '-e', 'ATOMA_PREVIEW_INGRESS_PORT=8081', '-e', `ATOMA_PREVIEW_UPSTREAM_HOST=${ip}`,
         '-e', 'ATOMA_PREVIEW_UPSTREAM_PORT=8080', '--entrypoint', 'node', this.options.relayImage, '/app/dist/tools/previewIngress.js']);
-      await this.run(['network', 'connect', n.internal, n.relay]);
+      await this.run(['network', 'connect', '--ip', pinned.relay, n.internal, n.relay]);
       const handle = await this.inspectHosting(id); if (!handle) throw new Error('Hosting start failed');
       return handle;
     } catch (error) { await this.stopHosting(id); throw error; }
