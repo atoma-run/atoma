@@ -72,15 +72,13 @@ acceptance, publication or real collection occurred in this continuation.
 - e72cc17b failed in 5 s before any model call: `docker network create` →
   "all predefined address pools have been fully subnetted" on prod. The in-process
   egress path (`src/tools/egressSidecar.ts`) has no boot sweep; only the separate
-  launcher service reconciles orphans. Host inspection needs the owner (SSH denied
-  to the agent). Relaunched as key attica-control-proofs-idle-cancel-20261015-v2.
+  launcher service reconciles orphans. Host inspection: see below (SSH is authorized). Relaunched as key attica-control-proofs-idle-cancel-20261015-v2.
 - Atoma fixes: 8d4b0e4c (claude-cli rethrows the caller's abort reason instead of
   "aborted by user"; deployed), d822ae99 (strip "Name:" from run titles).
 - 7062fdc1 (deployed 17:10 UTC): before creating its egress networks a run reaps
   owners whose label hash proves `run-<pid>` for a dead pid in the same pid
   namespace (new `dev.atoma.pidns` label; legacy unlabelled ones on Linux only).
-  The next Attica run 6b6b1952 (17:12 UTC) got past network creation. Cause of
-  the exhaustion was NOT confirmed on the host (no host access); if it recurs,
+  The next Attica run 6b6b1952 (17:12 UTC) got past network creation. Cause confirmed 2026-10-16 (see below); if it recurs,
   list `docker network ls` by `dev.atoma.owner` and consider /24
   `default-address-pools` — hosting networks are permanent by design.
 - 6b6b1952 (partial, $9.76, base f144718c): independent repro confirms c1–c4 correct
@@ -98,3 +96,10 @@ acceptance, publication or real collection occurred in this continuation.
   2026-10-15 session: resume lock try/finally, enabled-scheduler restart ticks,
   exact retryNotBefore, CAPTCHA success path, delete 27 root debug scripts) from
   base 6b6b1952. Session total ≈ $24 subscription-equivalent over 4 started runs.
+- 2026-10-16, on the host (SSH authorized by the owner, sudo allowed): only 6
+  orphan egress networks of dead runners remained (Oct 10–15, no members) plus
+  2 hosting networks; Docker 29.8, no `default-address-pools`. The sweep had a
+  shared 3.5 s deadline that left most owners untouched; fixed in c9208eac
+  (per-owner budget, 30 s sweep bound). Running the deployed sweep by hand reaped
+  the remaining four owners. /24 pools would need a Docker restart (hosted
+  containers restart): proposed to the owner, not done.

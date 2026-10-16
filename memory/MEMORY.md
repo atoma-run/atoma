@@ -2,6 +2,7 @@
 
 ## How to work
 - [Push to prod authorized](push-to-prod-authorized.md) — I push to main (= prod) myself after verifying, fetch+rebase first; watch CI + deploy
+- [Prod SSH authorized](prod-ssh-authorized.md) — ssh mgf@atoma.run + sudo for diagnosis; ask before restarting Docker/services
 - [Verification speed](verification-speed.md) — targeted tests + checks before an ordinary push; CI gates the deploy
 - [No cooling-off](no-cooling-off.md) — fix incidents in-session, but adversarially review every gate/prompt rule/parser salvage first
 - [Shared checkout staging](shared-checkout-staging.md) — never stage from a status listing; never reset --hard/stash the shared tree; a peer can sweep my hunk into their push (2026-10-15)
