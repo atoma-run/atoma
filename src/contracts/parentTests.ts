@@ -30,7 +30,8 @@ export const parentTestCauseSchema = z.enum([
   'report-oversize', // tools: the report exceeds 8 MiB
   'report-invalid', // tools: the report is not JSON or not the expected shape
   'snapshot-link', // tools: a link resolves outside the project
-  'snapshot-bounds', // tools: more than 100,000 files or 512 MiB
+  'snapshot-bounds', // tools: more than 100,000 entries, depth 128 or 512 MiB
+  'snapshot-timeout', // tools: the window ended while the project was being copied
   'snapshot-special-file', // tools: a FIFO, socket or device in the project
   'worker-missing', // tools: the compiled acceptance worker is not installed
   'runner-error', // tools: any other host failure
@@ -56,6 +57,16 @@ export const parentTestObservationSchema = z.object({
   details: z.string(),
   /** The runner's stdout/stderr tail: CHILD-CONTROLLED text, never host fact. */
   output: z.string().max(6000).optional(),
+  /** What the host copied before the run. Absent from an older worker and before a copy finished. */
+  snapshot: z.object({
+    entries: z.number().int().nonnegative(),
+    files: z.number().int().nonnegative(),
+    bytes: z.number().int().nonnegative(),
+    links: z.number().int().nonnegative(),
+    skipped: z.number().int().nonnegative(),
+    unstable: z.number().int().nonnegative(),
+    ms: z.number().int().nonnegative(),
+  }).strict().optional(),
 }).strict();
 export type ParentTestObservation = z.infer<typeof parentTestObservationSchema>;
 
@@ -112,7 +123,7 @@ export const delegationReviewEnvelopeSchema = z.object({ delegationReview: deleg
 export const PARENT_TEST_PLANNING = `PARENT-OWNED ACCEPTANCE TESTS:
 For TypeScript application work, define acceptanceTests on each implementation subtask BEFORE execution:
 {"requirement":"the assigned behavior and its observable interface","cwd":".","source":"import { test, expect } from 'vitest'; import { add } from './src/add.ts'; test('adds', () => { expect(add(2, 3)).toBe(5); });"}.
-The source is one TypeScript Vitest file placed at the project root in a disposable workspace copy. Use relative imports of real application modules. Node environment only; subprocesses, nested workers and native addons are unavailable inside assertions. Test importable modules and in-process APIs; real browser and CLI process checks remain separate.
+The source is one TypeScript Vitest file placed at the project root in a disposable workspace copy. Use relative imports of real application modules. Node environment only; subprocesses, nested workers and native addons are unavailable inside assertions. tsconfig \`paths\` aliases resolve only inside application modules their tsconfig includes; CSS imports load as empty stubs (CSS-module class names map to themselves and are not checked). Test importable modules and in-process APIs; real browser and CLI process checks remain separate.
 L3 assigns criteria, interfaces and tests to EACH L2 branch. L2 proposes contract tests for EACH L1; L3 reviews them with the L2 plan before any L1 starts. Specify branch contracts before parallel implementation.
 Plan-level acceptanceTests run after the branches join: L3 owns integration tests in addition to its per-L2 tests. Do not require future branches' behavior in a leaf suite.
 Tests must exercise actual code and observable behavior, including relevant negative/boundary cases. Mock external services only; no trivial assertions, implementation replacement, skip/todo/only, hidden requirements or real external traffic.

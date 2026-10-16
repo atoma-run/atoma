@@ -179,6 +179,22 @@ describe('worker image closure — everything the worker imports must be in the 
     expect(drifted).toEqual([]);
   });
 
+  it('pins the acceptance runner to the versions the repository tests', () => {
+    // The image installs without a lockfile. Vite 6 and 7 silently ignore
+    // `resolve.tsconfigPaths`, and rolldown implements the resolver, the CSS
+    // path and the transform: a floating version would change what the
+    // coordinator executes (review 2026-10-16, group C-runner) unseen. Re-run
+    // tests/parent-tests-snapshot.test.ts on any bump of the three.
+    const lock = JSON.parse(readFileSync(resolve(REPO, 'package-lock.json'), 'utf8')) as {
+      packages: Record<string, { version?: string }>;
+    };
+    for (const name of ['vitest', 'vite', 'rolldown']) {
+      const locked = lock.packages[`node_modules/${name}`]?.version;
+      expect(locked, name).toBeDefined();
+      expect(workerPkg.dependencies?.[name], name).toBe(locked);
+    }
+  });
+
   it('builds the worker from packaged dist without requiring source files', () => {
     expect(rootPkg.scripts?.['build:worker']).toBe(
       'docker build -f docker/worker.Dockerfile -t atoma-worker:latest .'

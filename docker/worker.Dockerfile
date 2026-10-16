@@ -26,7 +26,8 @@ ENV PUPPETEER_SKIP_DOWNLOAD=1 \
 
 WORKDIR /app
 
-# puppeteer, zod and the pinned Vitest acceptance runner are tool dependencies —
+# puppeteer, zod and the pinned Vitest acceptance runner (with the Vite and
+# rolldown it executes, pinned to the lockfile) are tool dependencies —
 # everything else it needs is a node builtin. Installing just those keeps the
 # image small and keeps the SQLite driver, the LLM SDKs and the MCP bridge out
 # of the container entirely: the worker has no business holding them.

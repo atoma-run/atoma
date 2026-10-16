@@ -404,3 +404,298 @@ All tests use mocked models.
   typed fields correct it.
 - **Unmeasured live.** The partial-run card copy needs `viz:smoke` on a real
   machine before shipping.
+
+## Group C-runner — asynchronous snapshot, no project code in the coordinator
+
+Point 4 of the review (a synchronous copy in the shared worker) and the minor
+point on tsconfig `paths` aliases. Investigating them found five more defects
+in the same runner; each is listed with its reproduction.
+
+### Findings
+
+- **F1, critical: project code ran in the coordinator and could forge a pass.**
+  Vite's CSS plugin loads the PostCSS configuration when the plugin is created,
+  whether or not any stylesheet is imported. It executes
+  `postcss.config.{js,cjs,mjs,ts}`, or the plugins named in
+  `package.json#postcss`, from the project's `node_modules`. A `*.module.scss`
+  import also loads the project's `sass-embedded`/`sass`. `config: false` stops
+  none of it. The coordinator holds `--allow-addons` and `--allow-worker` and
+  writes the report. Reproduced through the real `runParentTests` and the
+  compiled worker image built before this group (`atoma-worker:parent-tests-check`):
+  `add = () => 5` with a `postcss.config.cjs` that rewrites
+  `atoma.report.json` and sets `process.exitCode = 0` at exit returned
+  `status: passed`. The `package.json#postcss` plugin and the `sass-embedded`
+  variants passed the same way.
+- **F2: the link check could be escaped.** `copyProject` used Node's JS
+  `realpathSync`, which resolves a link's content as text (the class of the
+  2026-10-13 review). `.git/inner -> <outside>/dir` was never checked because
+  `.git` was filtered out; `up -> .git/inner/..` then read as inside, and
+  `cpSync` copied `<outside>/secret` as `up/secret`.
+- **F3: no bound on the copy, and blocking cleanup.** The timer bounded only
+  the child process. `rmSync` of the copy blocked for 0.2-0.3 s on Linux and
+  1.5 s on macOS. With the local backend the copy blocked the run process
+  itself: LLM streams, the watchdog, every lane.
+- **F4: point 4 confirmed.** `worker.ts` dispatches requests concurrently,
+  but `copyProject` ran synchronously before `runParentTests`' first `await`:
+  every lane's tool calls froze for the whole copy (measured below: 9.9-10.0 s
+  on macOS for a 36,395-file `node_modules`).
+- **F5: dereferencing broke pnpm layouts.** `node_modules/foo ->
+  .pnpm/foo@1/node_modules/foo`, where `foo` requires its sibling `bar`, failed
+  with `Cannot find module 'bar'` once copied dereferenced (`cpSync`'s
+  `dereference: true`), and directory links fanned out without bound: 30
+  levels of `d<n>/{a,b} -> d<n+1>` is 2^30 paths, and the old runner did not
+  return within 120 s on that fixture.
+- **F6: matchers can be forged inside the test thread.** A module the suite
+  imports can run `expect.extend({ toBe() { return { pass: true } } })`, and a
+  wrong `add` passes. The coordinator fix does not and cannot close this; it is
+  recorded as a remaining risk, not fixed here.
+- **F7 (found while testing): a read-only source directory broke cleanup.**
+  `cpSync` copied a `0o555` directory with its mode; `rmSync` in `finally` then
+  threw `ENOTEMPTY` out of `runParentTests`, replacing the observation with a
+  thrown error and leaving the copy behind.
+
+### Mechanism
+
+- **`src/tools/sandbox.ts`, one home for containment.** `kernelRealpathAsync`
+  (`fs.promises.realpath`: libuv, so libc's realpath) beside `kernelRealpath`;
+  `openContained(path, flags, realRoot)` opens with `O_NOFOLLOW | O_NONBLOCK`
+  and proves the descriptor inside before anything is read or listed — on Linux
+  through `readlink(/proc/self/fd/<fd>)`, elsewhere by comparing the
+  descriptor's dev:ino with the kernel realpath of the same spelling.
+  `onCleanup` returns a disposer and `cleanupGeneration` counts cleanups.
+- **`snapshotProject` (`src/tools/parentTests.ts`).** Every directory is opened
+  through `openContained` and listed through its descriptor on Linux, with
+  `Buffer` names so non-UTF-8 names survive. Entries (files, directories and
+  links) are counted when a directory is listed, so a flat directory over the
+  bound costs one listing; depth is checked when a directory is entered.
+  Destination directories are `0o700` and never take the source mode.
+  - Links are never followed. Inside the root, a link is recreated in the copy
+    as a relative link to its target's copied path; the walker copies the
+    target on its own pass. Outside, `snapshot-link`. No reachable target
+    (`ENOENT`, `ELOOP`), or a target under an excluded name: skipped and
+    counted. `EACCES` is a runner error.
+  - A file is opened through `openContained`, `fstat`ed (anything else than a
+    regular file is `snapshot-special-file`; `O_NONBLOCK` keeps a FIFO from
+    parking a pool thread), its size counted against 512 MiB before reading,
+    then read once in 256 KiB chunks that feed both the hash and the
+    destination (`O_CREAT | O_EXCL | O_NOFOLLOW`). A read whose length,
+    size, mtime, ctime or inode moved is retried three times, then kept as
+    last read and counted `unstable`. An entry that vanished after its
+    listing is skipped and counted. Only safety violations and bounds fail.
+  - On the first error nothing new is scheduled and every in-flight write
+    settles before the error is rethrown, so no write races the removal.
+  - Digest: sha256 over records sorted with `Buffer.compare` (code units, not
+    locale order): `rel \0 F \0 sha256 \0` for a file, `rel \0 L \0 target \0`
+    for a link. The format changed; the digest is only a label within a run.
+  - I/O slots: one semaphore shared by every snapshot in the process,
+    `min(3, UV_THREADPOOL_SIZE - 1)`.
+- **`runParentTests`.** One deadline drives an `AbortController` through an
+  unref'd timer, and a cleanup hook (disposed in `finally`) aborts it too. A
+  copy past the deadline is `snapshot-timeout` (a new host cause, consequence
+  `review`); one a cleanup interrupted is a `runner-error` ("the sandbox is
+  shutting down"). Between the copy's last `await` and `spawn` there is no
+  `await`; immediately before `spawn` the runner refuses if the signal fired
+  or `cleanupGeneration` moved. The child gets `deadline - now`, never a fresh
+  window. The copy is removed with an awaited `rm`, and a removal failure is
+  logged, never thrown out of `finally`. The observation carries an optional
+  `snapshot` receipt (entries, files, bytes, links, skipped, unstable, ms). A
+  `ran` result prepends host notes as array elements: the skipped/unstable
+  counts, and `Host: the suite module did not load; no test ran.` when no test
+  ran and a module message exists.
+- **`parentTestWorker.ts`.** `css: { postcss: {} }` (an inline object is
+  never searched for nor executed); a `pre` plugin that resolves a stylesheet
+  with `this.resolve` first (an unresolved one stays Vite's own failure, so a
+  missing file never passes) and returns `\0atoma-css-stub:<kind>:<hex id>` —
+  a virtual id without a stylesheet extension, since a prototype that kept the
+  extension still ran `vite:css` and `sass-embedded`; `?raw` and `?url` are
+  left to Vite. `resolve.tsconfigPaths: true`, Vite 8's native option.
+- **Image.** `docker/worker-package.json` pins `vite` 8.2.2 and `rolldown`
+  1.2.6, the lockfile's versions: the image installs without a lockfile, Vite 6
+  and 7 silently ignore `tsconfigPaths`, and rolldown implements the resolver,
+  the CSS path and the transform.
+
+### Measurements
+
+Fixture: a real `node_modules` subset, 39,813 entries, 36,395 files, 41 links,
+381 MiB. "Sibling read" and "DNS" are the p99 latency of a `readFile` of a
+small file and a `dns.lookup('localhost')` issued every 20 ms during the copy;
+the loop columns come from a 10 ms interval and `monitorEventLoopDelay`
+(both cover the copy and the removal).
+
+| Environment | Variant | Copy + hash | Loop max gap | Loop p99 | Sibling read p99 | DNS p99 | Removal |
+|---|---|---|---|---|---|---|---|
+| macOS APFS, Node 24.20 | before (sync) | 9.9-10.0 s | frozen | frozen | ≥ copy | ≥ copy | 1.6 s, blocking |
+| macOS | final, 3 slots | 3.9-4.0 s | 16-19 ms | 11 ms | 0.3-1.7 ms | 0.7-5.5 ms | 1.2 s, async |
+| macOS | 8 slots (pool 12), before the two cuts below | 3.5-3.6 s | 13-17 ms | 11 ms | 0.6-0.8 ms | 0.9-2.3 ms | 2.9-3.0 s |
+| Linux container, Node 24.22, `--cpus 2 --memory 2g`, overlay `/tmp` | before (sync) | 2.7-2.8 s | frozen | frozen | ≥ copy | ≥ copy | 0.2 s, blocking |
+| Linux container | final, 3 slots | 6.1-6.2 s | 65-73 ms | 12-16 ms | 0.4-0.7 ms | 0.3-0.8 ms | 0.4-0.5 s, async |
+| Linux container | 8 slots (pool 12) | 7.2 s | 192-212 ms | 86-91 ms | 1.6-18.8 ms | 0.6-2.5 ms | 1.9-2.3 s |
+| Linux container | design prototype, read-once c=8 | 8.0-8.2 s | 158-222 ms | 84-89 ms | — | — | 2.0-2.4 s |
+
+- On Linux the asynchronous copy takes about 2.2x the wall time of the
+  synchronous one: it is CPU bound in the worker's 2-CPU envelope (5 s user and
+  10 s system CPU for 6.1 s of wall time), and every operation is a pool
+  round-trip. It no longer blocks anything else, which is what point 4 asked.
+  The design prototype measured 3.3-4.7 s in the same container shape on the
+  day of the design; on this day the same prototype measured 8.0-8.2 s, so
+  the rows of this table are comparable with each other, not with the design.
+- **Deviation: three slots, not eight, and no `UV_THREADPOOL_SIZE` in the
+  image.** The design raised the pool to 12 for eight slots. Measured in the
+  2-CPU container, eight slots were slower (7.2 s against 6.1 s) with three
+  times the loop stalls and sibling reads up to 18.8 ms. A pool of 8 with
+  three slots still showed p99 loop delays of 53-80 ms (the removal used the
+  larger pool). The image keeps libuv's default pool of 4, and the slot count
+  is capped at 3.
+- Two cheap cuts were measured and kept: no trailing 1-byte probe read (the
+  second `fstat` sees a growth) and concurrent closes, 7.1-7.5 s → 6.1-6.2 s.
+- The synchronous tail, sorting and hashing the records: 22 ms for 40,000
+  records, 63 ms for 100,000.
+
+### Link experiments
+
+- **Linking `node_modules` from the live tree: rejected, shown unsafe.**
+  `proj/node_modules -> live/node_modules`, run under
+  `--allow-fs-read=proj --allow-fs-write=proj`: a write through the link
+  succeeded and landed in the live tree. Node checks the requested path, not
+  the resolved one.
+- **Links recreated inside the copy: adopted.** By the same semantics, a write
+  through an internal link lands inside the granted copy
+  (`tests/parent-tests-snapshot.test.ts`, "keeps writes through node_modules
+  and its links inside the copy"). The pnpm fixture passes with the links
+  kept and fails dereferenced. Bytes are still copied, never shared.
+
+### Stylesheets, assets and aliases in environment `node`
+
+Measured through the real runner:
+
+- A stylesheet import loads as `""`; a CSS module as a proxy mapping each
+  class to itself; `?inline` goes through the stub (`""`); `?raw` and `?url`
+  are left to Vite and both yielded `""` (Vitest's own CSS handling).
+- `import logo from './logo.png'` yields `'/logo.png'`; an SVG yields a
+  `data:image/svg+xml,…` URL; JSON imports load their data.
+- A tsconfig alias resolves only for an importer the tsconfig's
+  `include`/`files` covers. With `include: ["src"]`, or a solution-style
+  `files: []` + `references` layout, a `src` module resolves `@/x` while the
+  suite at the root does not. JSONC (comments, trailing commas), `extends`
+  inside the project, wildcard and exact keys and `baseUrl` work.
+- The resolver is rolldown's native code. Node `--permission` does not confine
+  native code in a process that holds `--allow-addons`: it stats an outside
+  alias target or an outside `extends`, which can reveal whether a path exists
+  (the existing oxc transform already reads tsconfig natively). Outside
+  content is kept out by the JavaScript loader's grant — an absolute alias to
+  an outside file failed with "Access to this API has been restricted" — and
+  by the container.
+
+### Rejected alternatives
+
+- **A `node_modules` link to the live tree:** unsafe (above).
+- **`fs.promises.cp` with an async filter, then a hash pass:** 18.3-18.6 s in
+  the container at design time, the slowest variant, and it still follows
+  links.
+- **A hand-written JSONC tsconfig mapper:** Vite 8 reads tsconfig natively,
+  with `extends` and include scoping a hand mapper would have to reproduce.
+- **A sandbox write lock during the copy:** a dev server or log writer in the
+  workspace would stall every write tool for the whole copy; per-file
+  consistency with counted instability is enough for a disposable copy.
+- **Moving the report out of the project:** it does not stop code in the
+  coordinator; keeping project code out of the coordinator does.
+- **Restarting the copy when a file changes:** a dev-server log in the project
+  would make every verification unavailable.
+- **Porting `readOnlyPhase`'s held-descriptor walker:** holding a descriptor
+  per pending directory needs fd bookkeeping; verify-after-open gives the same
+  guarantee on Linux.
+
+### Deviations from the design
+
+- **Slots and pool** (above): `min(3, pool - 1)` and the default pool.
+- **Paths are opened by full spelling, then verified**, not through
+  `/proc/self/fd/<dirfd>/<name>`: a directory descriptor is closed right after
+  its listing, so no descriptor is held per pending directory. On Linux the
+  post-open `readlink` proves where each descriptor landed, so a swapped
+  ancestor is caught all the same; a link's realpath is only used to place the
+  recreated link and never to read bytes.
+- **`kernelRealpathAsync` returns a `Buffer`**, so a non-UTF-8 name is
+  compared byte for byte (`containedIn`).
+- **Recreated links take the shortest relative path** (a `.bin/tool ->
+  ../tool/cli.js` stays exactly that), not a path climbing to the copy root.
+- **On Windows** a directory is checked by its kernel realpath and listed by
+  path (Windows opens no directory descriptor); an internal directory link
+  becomes a junction inside the copy and a file link is copied as bytes.
+  Untested here.
+- **The tests live in a new file**, `tests/parent-tests-snapshot.test.ts`,
+  rather than in `tests/parent-tests.test.ts`. T1 sends the `read_file` once
+  the copy has visibly started (the copy's `node_modules` exists in the
+  worker's private `TMPDIR`), not in the same chunk: in one chunk the read is
+  served while `runParentTests` awaits its first realpath, so a copy that
+  blocked after that await would still pass.
+- **`cleanupHookCount()`** is a test-facing count on `ToolSandbox`.
+
+### Tests
+
+`tests/parent-tests-snapshot.test.ts` (18 tests, each through the real runner
+or the real worker process; each red on the code before this group unless
+noted):
+
+- **The worker boundary.** The real `src/tools/worker.ts`, forked with tsx in
+  socket mode with a private `TMPDIR` over 3,000 files: `read_file` sent once
+  the copy started answers before `atoma-verify`, and when it answers the
+  suite file does not exist yet; the verification passes with
+  `snapshot.files ≥ 3000`. With a synchronous copy substituted the second
+  assertion fails.
+- **The event loop.** `snapshotProject` over 3,000 files: a `setTimeout(0)`
+  and a sibling `readFile` issued during the copy both complete before it, the
+  read under `snapshot.ms / 4`. Red with a synchronous copy substituted.
+- **Containment and shape.** The `.git/inner/..` escape is `snapshot-link`
+  with no outside bytes (`runner-error` before); a FIFO, and one behind an
+  internal link, is `snapshot-special-file` (green before too); a link cycle,
+  a 2^30 directory-link fan-out, the pnpm layout, a preserved `.bin` link,
+  a dangling and an `ELOOP` link pass together (`skipped: 2`, `links: 64`,
+  the host note present; the old runner did not return within 120 s);
+  100,001 directories and depth 129 are `snapshot-bounds`.
+- **Deadline and cleanup.** `timeoutMs: 1` is `snapshot-timeout` with no copy
+  left (`timeout` before); a `0o555` source directory passes and leaves
+  nothing (a thrown `ENOTEMPTY` before); a `cleanup()` during the copy is a
+  `runner-error`, spawns nothing, and the hook count returns to its baseline.
+- **No project code in the coordinator.** `add = () => 5` with each forger —
+  `postcss.config.cjs`, a `package.json#postcss` plugin, a `*.module.scss`
+  with forging `sass-embedded` and `sass` — is `failed` (`passed` before).
+- **Aliases and stylesheets.** JSONC + `extends` + wildcard and exact keys +
+  CSS module + plain CSS + a throwing `vitest.config.ts` pass; the
+  `include: ["src"]` and solution-style fixtures resolve in `src` and not in
+  the suite (`did not load` in the details); an alias to an outside file never
+  passes and shows none of its bytes; a missing stylesheet never passes.
+- **Isolation.** Writes through `node_modules` and through an internal link
+  stay in the copy; a concurrent appender and unlinker never make the result
+  `unavailable` nor surface a raw `ENOENT`.
+
+`tests/container-image-closure.test.ts` asserts the worker pins of `vitest`,
+`vite` and `rolldown` equal the lockfile's. `tests/container-isolation.test.ts`
+("compiled parent-test worker", with `ATOMA_TEST_ACCEPTANCE_IMAGE`) adds the
+forging `postcss.config.cjs` and a 5,000-file `node_modules`: a `read_file` in
+the same burst as `atoma-verify` answers in under `snapshot.ms / 4`, and the
+forger fails. Run against an image built from this tree
+(`atoma-worker:c-runner-check`): green; against the image built before it
+(`atoma-worker:parent-tests-check`): the forger passed. Re-run T5/T6 and this
+container test on any bump of vite, vitest or rolldown.
+
+### Limits
+
+- **darwin:** the open-then-verify window is narrowed, not closed; Linux
+  closes it.
+- **Matcher forging (F6)** is open. A matcher-table lock would be a separate
+  design.
+- **The minor point is partly closed.** Aliases work in application code; a
+  suite that imports an alias stays red and is coached as a repair, with the
+  neutral host note. A planning-side check of suite imports belongs to the
+  contracts and planning group.
+- **A hard process exit** leaves the temporary copy behind, as before.
+- **`--allow-addons`** stays with the coordinator. A future vite or rolldown
+  path that executes project code would regain that privilege; the forger
+  tests pin the three paths known today.
+- **Host install, for the owner:** `vitest` and `vite` are root
+  devDependencies, while the host installs with `npm ci --omit=dev`. A
+  local-backend `atoma-verify` on the host returns `unavailable`. Out of scope
+  here.
+- **Throughput on Linux** is about 2.2x the synchronous copy's wall time in a
+  2-CPU container; the copy no longer blocks other lanes, but a large
+  `node_modules` takes a larger share of the 120 s window.

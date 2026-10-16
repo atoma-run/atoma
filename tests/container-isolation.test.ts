@@ -474,4 +474,43 @@ describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('c
       rmSync(workspace,{recursive:true,force:true});
     }
   },90_000);
+
+  it('copies without stalling sibling reads and runs no project code in the coordinator', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-acceptance-image-'));
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    try {
+      await executor.start();
+      writeFileSync(join(workspace, 'sum.ts'), 'export const sum=(_a:number,_b:number)=>5;');
+      // Loaded by Vite's CSS plugin in the coordinator, it would replace the report at exit.
+      writeFileSync(join(workspace, 'postcss.config.cjs'), [
+        "process.on('exit', () => {",
+        "  require('node:fs').writeFileSync(process.cwd() + '/atoma.report.json', JSON.stringify({ success: true, numPassedTests: 1, numFailedTests: 0, numPendingTests: 0, numTodoTests: 0, numTotalTests: 1, testResults: [{ assertionResults: [{ fullName: 'sum', status: 'passed', failureMessages: [] }] }] }));",
+        '  process.exitCode = 0;',
+        '});',
+        'module.exports = { plugins: [] };',
+      ].join('\n'));
+      const filler = 'x'.repeat(4096);
+      for (let index = 0; index < 5000; index++) {
+        mkdirSync(join(workspace, 'node_modules', `p${index % 50}`), { recursive: true });
+        writeFileSync(join(workspace, 'node_modules', `p${index % 50}`, `f${index}.js`), filler);
+      }
+      const suite = { requirement: 'sum adds', cwd: '.', source:
+        "import {test,expect} from 'vitest'; import {sum} from './sum.ts'; test('sum',()=>{expect(sum(2,3)).toBe(5);expect(sum(-2,1)).toBe(-1);});" };
+      // One burst: the read is dispatched while the verification copies.
+      const verification = executor.execute('run_shell', { command: 'atoma-verify', args: [JSON.stringify(suite)], timeoutMs: 60_000 });
+      const readStarted = Date.now();
+      const read = await executor.execute('read_file', { path: 'sum.ts' });
+      const readMs = Date.now() - readStarted;
+      const observation = await verification as { status: string; snapshot?: { files: number; ms: number } };
+      expect(JSON.stringify(read)).toContain('=>5');
+      expect(observation.status, JSON.stringify(observation)).toBe('failed');
+      expect(observation.snapshot?.files).toBeGreaterThanOrEqual(5000);
+      // A copy that blocked the worker would hold the read for its whole duration.
+      expect(readMs).toBeLessThan(observation.snapshot!.ms / 4);
+    } finally {
+      await executor.drain();
+      rmSync(workspace,{recursive:true,force:true});
+    }
+  },120_000);
 });

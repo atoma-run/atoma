@@ -47,7 +47,8 @@ for any other supervisor are projections of that one mapping:
   project, a special file) is coached once with the path, then reviewed.
 - A suite that did not run for a host cause (no executor, a missing worker, a
   runner error, an exit without a report, an invalid report, a snapshot over its
-  bounds, a window the run deadline cut, a landing) never rejects: it forces a
+  bounds or one that outlived the window, a window the run deadline cut, a
+  landing) never rejects: it forces a
   full review, which decides on the other host evidence.
 - No suite that did not pass grants atom trust, skill credit, distillation,
   promotion or durable continuation.
@@ -83,16 +84,38 @@ configuration do not run. The runner records source and workspace digests, count
 and assertion outcomes. It rejects empty, skipped, focused, failed or incomplete
 runs and cleans its process group and temporary copy.
 
-This runner supports Node module and in-process API tests. Test workers cannot
-spawn processes, create further workers, load native addons, or access the live
-workspace through Node filesystem APIs. The coordinator loads Atoma's installed
-native compiler. The existing container is the OS boundary; Node permissions are
-defence in depth, not a replacement for that boundary. Network policy remains the
-worker's policy; suites must mock external services. Browser interactions and CLI
-process behavior still use their existing probes. Project dependencies must
-already be installed. A snapshot over 100,000 files or 512 MiB is unavailable,
-not a pass, and so are the other host causes above. Generated harness files
-exist only in the disposable copy.
+This runner supports Node module and in-process API tests; what a suite may
+rely on is stated once, for the planner, in `PARENT_TEST_PLANNING`
+([src/contracts/parentTests.ts](../../src/contracts/parentTests.ts)). Test
+workers cannot spawn processes, create further workers, load native addons, or
+access the live workspace through Node filesystem APIs. The existing container
+is the OS boundary; Node permissions are defence in depth, not a replacement
+for that boundary. Network policy remains the worker's policy; suites must mock
+external services. Browser interactions and CLI process behavior still use
+their existing probes. Project dependencies must already be installed.
+
+The copy is a bounded, asynchronous snapshot: at most 100,000 entries, depth
+128 and 512 MiB, links recreated inside the copy and never followed, and one
+deadline for the copy and the run together. Over its bounds, or past the
+window, it is unavailable, not a pass. Unreachable links are skipped and files
+that kept changing are copied as last read; both are counted in the details.
+Generated harness files exist only in the disposable copy.
+
+No project code runs in the coordinator, the process that loads Atoma's native
+compiler and writes the report. Test-thread code can still redefine matchers,
+so semantic review of the imported modules remains the defence against a
+forged pass. Unsupported, each an honest red rather than a pass:
+
+- Vite or Vitest configuration, plugins, `setupFiles`/`globalSetup`, jsdom or
+  browser environments.
+- CSS processing and hashed class names: stylesheets load as empty stubs.
+- `?worker` imports, native addons and subprocesses inside tests.
+- Aliases defined only in `vite.config`, a suite that imports an alias itself,
+  and a tsconfig whose `extends` leaves the project.
+- Hard links to files outside the project are still copied as bytes; inside
+  the container none can be created (`EXDEV` across the workspace mount).
+
+Review: [group C-runner](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#group-c-runner--asynchronous-snapshot-no-project-code-in-the-coordinator).
 
 ## A failed branch lands; its dependents do not start
 

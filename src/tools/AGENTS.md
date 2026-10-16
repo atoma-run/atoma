@@ -25,7 +25,10 @@ Neighbours:
   inner/..` read as the workspace); and a DANGLING link is followed to its
   raw, unnormalized target instead of reading as a not-yet-created path.
   Every platform, Windows included: both sides of the check use the one
-  `kernelRealpath`, so a platform quirk can refuse, never admit.
+  `kernelRealpath` (or its asynchronous sibling `kernelRealpathAsync`), so a
+  platform quirk can refuse, never admit. `openContained` opens without
+  following the last component and proves the descriptor lies inside before
+  anything is read: exactly on Linux (`/proc/self/fd`), narrowed elsewhere.
   `ToolSandbox.realPath` exposes where a write lands; a file identity check
   compares that (and the inode), never spellings.
 - Default builtins and the closed tool vocabulary must stay in lockstep. Tests
@@ -195,16 +198,30 @@ Neighbours:
 
 ## Parent-owned test execution
 
-- `atoma-verify` is a fixed `run_shell` utility, not another element. It copies
-  a sandbox-resolved project, refuses escaping links and bounded-resource
-  overflow, and runs Atoma's pinned Vitest with project config/scripts disabled.
-  Test threads inherit filesystem permissions explicitly but cannot spawn
-  processes/workers or load native addons. Canonical suites stay on the host;
-  only disposable copies run. The container remains the OS isolation boundary.
-  No tests, skips, focused tests, missing reports and timeouts cannot pass; a run
-  that did not finish reports a typed `cause`, never prose a reader classifies.
-  Cleanup covers subprocess groups and temporary copies. The separate runner
-  entrypoint belongs in image-closure tests. See the [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
+- `atoma-verify` is a fixed `run_shell` utility, not another element. It runs
+  Atoma's pinned Vitest with project config/scripts disabled on a disposable
+  copy. Canonical suites stay on the host. The container remains the OS
+  isolation boundary; Node permissions are defence in depth. No tests, skips,
+  focused tests, missing reports and timeouts cannot pass; a run that did not
+  finish reports a typed `cause`, never prose a reader classifies.
+- The copy is asynchronous: one worker serves every lane, and the synchronous
+  copy froze all of them for its duration (review 2026-10-16). Snapshots share
+  at most three libuv slots per process, leaving pool threads to siblings.
+  Every entry is opened through `openContained`; entries, depth and bytes are
+  bounded. A link is never followed and never pointed at the live tree (Node
+  permissions check the requested path, not the resolved one): an internal one
+  is recreated inside the copy, an escaping one refuses. A file is consistent
+  on its own, not with its siblings. ONE deadline covers the copy and the run;
+  cleanup, the deadline and a shutdown during the copy stop it before a spawn.
+- No project code runs in the coordinator, which holds `--allow-addons` and
+  writes the report: an inline PostCSS config, a stylesheet stub that keeps a
+  missing file red, `config: false`. tsconfig `paths` are read by Vite's native
+  resolver, which Node permissions do not confine. Code the suite imports can
+  still redefine matchers: semantic review of imported modules remains the
+  defence. The LLM-facing capability text has one home, `PARENT_TEST_PLANNING`.
+  The runner entrypoint and its Vite/rolldown pins belong in image-closure
+  tests. See the [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md)
+  and the [C-runner record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#group-c-runner--asynchronous-snapshot-no-project-code-in-the-coordinator).
 
 ## Generated artefact conventions
 
