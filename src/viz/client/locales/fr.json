@@ -2136,5 +2136,9 @@
   "loading.settings": "Chargement des paramètres…",
   "run.partial.cause.refusedAfter": "La vérification finale a constaté qu’une partie de ta demande n’est pas encore satisfaite.",
   "run.partial.blocked": "Une étape de ce run n’a pas réussi ses vérifications. Les étapes qui en dépendent n’ont donc pas été lancées.",
-  "workspace.previewLoading": "Chargement de ce fichier…"
+  "workspace.previewLoading": "Chargement de ce fichier…",
+  "welcome.legal.label": "Mentions légales",
+  "welcome.legal.privacy": "Confidentialité",
+  "welcome.legal.terms": "Conditions d’utilisation",
+  "welcome.legal.support": "Assistance"
 }

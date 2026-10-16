@@ -2136,5 +2136,9 @@
   "loading.settings": "সেটিংস লোড হচ্ছে…",
   "run.partial.cause.refusedAfter": "চূড়ান্ত পরীক্ষায় দেখা গেছে, আপনার অনুরোধের একটি অংশ এখনও পূরণ হয়নি।",
   "run.partial.blocked": "এই run-এর একটি ধাপ পরীক্ষায় উত্তীর্ণ হয়নি, তাই এর ওপর নির্ভরশীল ধাপগুলি শুরু করা হয়নি।",
-  "workspace.previewLoading": "এই ফাইলটি লোড হচ্ছে…"
+  "workspace.previewLoading": "এই ফাইলটি লোড হচ্ছে…",
+  "welcome.legal.label": "আইনি",
+  "welcome.legal.privacy": "গোপনীয়তা",
+  "welcome.legal.terms": "শর্তাবলি",
+  "welcome.legal.support": "সহায়তা"
 }

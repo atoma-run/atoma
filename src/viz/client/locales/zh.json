@@ -2136,5 +2136,9 @@
   "loading.settings": "正在加载设置…",
   "run.partial.cause.refusedAfter": "最终检查发现，您的部分请求尚未满足。",
   "run.partial.blocked": "此run的一个步骤未通过检查，因此依赖该步骤的其他步骤未启动。",
-  "workspace.previewLoading": "正在加载此文件…"
+  "workspace.previewLoading": "正在加载此文件…",
+  "welcome.legal.label": "法律信息",
+  "welcome.legal.privacy": "隐私",
+  "welcome.legal.terms": "条款",
+  "welcome.legal.support": "支持"
 }

@@ -2136,5 +2136,9 @@
   "loading.settings": "設定を読み込み中…",
   "run.partial.cause.refusedAfter": "最終チェックで、リクエストの一部がまだ満たされていないことが判明しました。",
   "run.partial.blocked": "このrunのステップの1つがチェックに合格しなかったため、それに依存するステップは開始されませんでした。",
-  "workspace.previewLoading": "このファイルを読み込み中…"
+  "workspace.previewLoading": "このファイルを読み込み中…",
+  "welcome.legal.label": "法的情報",
+  "welcome.legal.privacy": "プライバシー",
+  "welcome.legal.terms": "利用規約",
+  "welcome.legal.support": "サポート"
 }

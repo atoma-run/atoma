@@ -2136,5 +2136,9 @@
   "loading.settings": "Загрузка настроек…",
   "run.partial.cause.refusedAfter": "Итоговая проверка показала, что часть вашего запроса пока не выполнена.",
   "run.partial.blocked": "Один из шагов этого run не прошёл проверки, поэтому зависящие от него шаги не были запущены.",
-  "workspace.previewLoading": "Загрузка файла…"
+  "workspace.previewLoading": "Загрузка файла…",
+  "welcome.legal.label": "Правовая информация",
+  "welcome.legal.privacy": "Конфиденциальность",
+  "welcome.legal.terms": "Условия",
+  "welcome.legal.support": "Поддержка"
 }

@@ -2136,5 +2136,9 @@
   "loading.settings": "ترتیبات لوڈ ہو رہی ہیں…",
   "run.partial.cause.refusedAfter": "حتمی جانچ میں معلوم ہوا کہ آپ کی درخواست کا ایک حصہ ابھی تک پورا نہیں ہوا۔",
   "run.partial.blocked": "اس run کا ایک مرحلہ اپنی جانچوں میں کامیاب نہیں ہوا، اس لیے اس پر منحصر مراحل شروع نہیں کیے گئے۔",
-  "workspace.previewLoading": "یہ فائل لوڈ ہو رہی ہے…"
+  "workspace.previewLoading": "یہ فائل لوڈ ہو رہی ہے…",
+  "welcome.legal.label": "قانونی",
+  "welcome.legal.privacy": "رازداری",
+  "welcome.legal.terms": "شرائط",
+  "welcome.legal.support": "معاونت"
 }

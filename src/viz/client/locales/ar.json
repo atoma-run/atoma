@@ -2136,5 +2136,9 @@
   "loading.settings": "جارٍ تحميل الإعدادات…",
   "run.partial.cause.refusedAfter": "وجد الفحص النهائي أن جزءًا من طلبك لم يُستوفَ بعد.",
   "run.partial.blocked": "لم تجتز إحدى خطوات عملية run هذه عمليات التحقق الخاصة بها، لذلك لم تبدأ الخطوات التي تعتمد عليها.",
-  "workspace.previewLoading": "جارٍ تحميل هذا الملف…"
+  "workspace.previewLoading": "جارٍ تحميل هذا الملف…",
+  "welcome.legal.label": "الشؤون القانونية",
+  "welcome.legal.privacy": "الخصوصية",
+  "welcome.legal.terms": "الشروط",
+  "welcome.legal.support": "الدعم"
 }

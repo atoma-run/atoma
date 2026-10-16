@@ -2136,5 +2136,9 @@
   "loading.settings": "सेटिंग लोड हो रही हैं…",
   "run.partial.cause.refusedAfter": "अंतिम जाँच में पता चला कि आपके अनुरोध का कुछ हिस्सा अभी पूरा नहीं हुआ है।",
   "run.partial.blocked": "इस run का एक चरण अपनी जाँचों में पास नहीं हुआ, इसलिए उस पर निर्भर चरण शुरू नहीं किए गए।",
-  "workspace.previewLoading": "यह फ़ाइल लोड हो रही है…"
+  "workspace.previewLoading": "यह फ़ाइल लोड हो रही है…",
+  "welcome.legal.label": "कानूनी",
+  "welcome.legal.privacy": "गोपनीयता",
+  "welcome.legal.terms": "शर्तें",
+  "welcome.legal.support": "सहायता"
 }

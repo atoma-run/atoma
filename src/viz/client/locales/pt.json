@@ -2136,5 +2136,9 @@
   "loading.settings": "A carregar definições…",
   "run.partial.cause.refusedAfter": "A verificação final concluiu que parte do seu pedido ainda não foi satisfeita.",
   "run.partial.blocked": "Uma etapa deste run não passou nas verificações, pelo que as etapas que dependem dela não foram iniciadas.",
-  "workspace.previewLoading": "A carregar este ficheiro…"
+  "workspace.previewLoading": "A carregar este ficheiro…",
+  "welcome.legal.label": "Informações legais",
+  "welcome.legal.privacy": "Privacidade",
+  "welcome.legal.terms": "Termos",
+  "welcome.legal.support": "Suporte"
 }

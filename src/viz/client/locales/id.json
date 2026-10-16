@@ -2136,5 +2136,9 @@
   "loading.settings": "Memuat pengaturan…",
   "run.partial.cause.refusedAfter": "Pemeriksaan akhir menemukan bahwa sebagian permintaan Anda belum terpenuhi.",
   "run.partial.blocked": "Salah satu langkah dalam run ini tidak lolos pemeriksaan, sehingga langkah yang bergantung padanya tidak dimulai.",
-  "workspace.previewLoading": "Memuat file ini…"
+  "workspace.previewLoading": "Memuat file ini…",
+  "welcome.legal.label": "Hukum",
+  "welcome.legal.privacy": "Privasi",
+  "welcome.legal.terms": "Ketentuan",
+  "welcome.legal.support": "Dukungan"
 }

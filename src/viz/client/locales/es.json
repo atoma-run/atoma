@@ -2136,5 +2136,9 @@
   "loading.settings": "Cargando la configuración…",
   "run.partial.cause.refusedAfter": "La comprobación final determinó que parte de tu solicitud aún no se ha cumplido.",
   "run.partial.blocked": "Un paso de este run no superó las comprobaciones, por lo que no se iniciaron los pasos que dependen de él.",
-  "workspace.previewLoading": "Cargando este archivo…"
+  "workspace.previewLoading": "Cargando este archivo…",
+  "welcome.legal.label": "Información legal",
+  "welcome.legal.privacy": "Privacidad",
+  "welcome.legal.terms": "Términos",
+  "welcome.legal.support": "Soporte"
 }

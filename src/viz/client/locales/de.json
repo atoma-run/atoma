@@ -2136,5 +2136,9 @@
   "loading.settings": "Einstellungen werden geladen…",
   "run.partial.cause.refusedAfter": "Bei der abschließenden Prüfung wurde festgestellt, dass ein Teil Ihrer Anfrage noch nicht erfüllt ist.",
   "run.partial.blocked": "Ein Schritt in diesem Run hat seine Prüfungen nicht bestanden. Daher wurden die davon abhängigen Schritte nicht gestartet.",
-  "workspace.previewLoading": "Diese Datei wird geladen…"
+  "workspace.previewLoading": "Diese Datei wird geladen…",
+  "welcome.legal.label": "Rechtliches",
+  "welcome.legal.privacy": "Datenschutz",
+  "welcome.legal.terms": "Nutzungsbedingungen",
+  "welcome.legal.support": "Support"
 }
