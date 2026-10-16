@@ -11,6 +11,7 @@ import type {
   Plan,
   Result,
   RunContext,
+  SubtaskSpec,
   Task,
   Tier,
   Tool,
@@ -56,7 +57,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, withPlannedDelivery, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { PlanParseError, RegistryNotFoundError, ValidationError } from '../core/errors.js';
-import { approvalDigest, delegationRefusal, enforceParsedDelegationReview } from './delegationReview.js';
+import { approvalDigest, delegationRefusal, enforceParsedDelegationReview, routingIndexNote } from './delegationReview.js';
 import { VALIDATION_PARAMS } from './verdict.js';
 import type { RootDelegationApproval, RootPhaseCheckpoint, RootPlanCheckpoint } from '../contracts/runCheckpoint.js';
 import type { DelegationReview } from '../contracts/parentTests.js';
@@ -171,39 +172,91 @@ export function buildNarrowL2Prompt(
   return lines.join('\n');
 }
 
+/**
+ * Capability routing of a root plan's browser and shell verification, by
+ * TYPED contract (review 2026-10-16, point 7). It used to return any plan
+ * holding `dependsOn` or `acceptanceTests` untouched, which turned routing off
+ * for every plan shape the planning prompts now ask for.
+ *
+ * Each planner node is one of:
+ *
+ *  - KEPT: an omitted `preferredChild`, or a name the registry does not hold
+ *    (both get a fresh cell inheriting the tissue's tools — notes-app
+ *    2026-09-07), or a cell holding both a browser and a shell harness.
+ *  - IMPLEMENTATION: `acceptanceTests`, non-empty `outputs` ("Omit the key only
+ *    on read-only phases"), or the planner's only subtask (the whole task,
+ *    owner decision 2026-09-30). NEVER split: splitting replaced the node with
+ *    two VERIFICATION ONLY parts, dropped its build prose, and copied its
+ *    outputs and suite to both (a declared-output collision on a concat plan,
+ *    run 04ea696f's one-phase fixture). It is only rerouted WHOLE: when it
+ *    needs a browser and a shell its cell lacks, to a cell holding
+ *    validate_html, run_shell, start_node_server and every tool of the
+ *    planner's cell (a reroute never drops a tool the planner chose), else it
+ *    is left alone; a browser-only node keeps the older reroute to a web cell.
+ *  - CHECKPOINT: an output-less node of a multi-phase plan. A browser + exact
+ *    command checkpoint splits into a browser part then a shell part, each
+ *    marked `routedFrom` (guestbook 2026-08-12); a browser-only one is
+ *    rerouted in place.
+ *
+ * Every `dependsOn` is remapped onto the routed indices; a dependent of a
+ * split checkpoint waits for both parts. In parallel modes the shell part
+ * depends on the browser part: the guestbook order, no two writable
+ * verification lanes over one workspace at once, and — load-bearing —
+ * `enforceParsedDelegationReview`'s independent-pair check stays sound: host
+ * parts never form an independent pair the planner did not write, so a linear
+ * planner DAG cannot pass it through routing. Sequential plans get no edge
+ * (dispatch order serializes). A declared dependency that is not an earlier
+ * index leaves the plan alone for dispatch to refuse. The same object comes
+ * back when nothing changed.
+ */
 export function routeCrossBucketVerification(plan: Plan, registry: AtomRegistry): Plan {
-  // Splitting a DAG node would invalidate index references and its approved suite.
-  if (plan.subtasks.some(subtask => subtask.dependsOn !== undefined || subtask.acceptanceTests)) return plan;
+  const declaredValid = plan.subtasks.every((subtask, index) =>
+    (subtask.dependsOn ?? []).every((dependency) => Number.isInteger(dependency) && dependency >= 0 && dependency < index)
+  );
+  if (!declaredValid) return plan;
   const l2Types = registry.listByTier(2);
-  const supportsBrowser = (name: string | undefined): boolean => {
-    const type = name ? registry.getByName(name) : undefined;
-    return type?.tier === 2 && type.tools.some((tool) => tool.name === 'validate_html');
-  };
-  const supportsShellHarness = (name: string | undefined): boolean => {
-    const type = name ? registry.getByName(name) : undefined;
-    return (
-      type?.tier === 2 &&
-      type.tools.some((tool) => tool.name === 'run_shell') &&
-      type.tools.some((tool) => tool.name === 'start_node_server')
+  const holds = (type: AtomType | undefined, tool: string): boolean =>
+    type?.tier === 2 && type.tools.some((held) => held.name === tool);
+  const supportsBrowser = (type: AtomType | undefined): boolean => holds(type, 'validate_html');
+  const supportsShellHarness = (type: AtomType | undefined): boolean =>
+    holds(type, 'run_shell') && holds(type, 'start_node_server');
+  const fallbackWebL2 = l2Types.find(supportsBrowser);
+  const fallbackShellL2 = l2Types.find(supportsShellHarness);
+  const fullStackFor = (planned: AtomType): AtomType | undefined =>
+    l2Types.find((type) =>
+      supportsBrowser(type) &&
+      supportsShellHarness(type) &&
+      planned.tools.every((tool) => holds(type, tool.name))
     );
-  };
-  const fallbackWebL2 = l2Types.find((type) => supportsBrowser(type.name));
-  const fallbackShellL2 = l2Types.find((type) => supportsShellHarness(type.name));
+  const soleSubtask = plan.subtasks.length === 1;
   let changed = false;
-  const subtasks = plan.subtasks.flatMap((subtask) => {
-    // No preferred child is the planner's request for a fresh cell, which
-    // inherits the tissue's tools. Replacing it with the first web cell
-    // discards the server capability needed by a combined proof phase.
+  const groups = plan.subtasks.map((subtask, plannerIndex): SubtaskSpec[] => {
     if (!subtask.preferredChild) return [subtask];
-    if (supportsBrowser(subtask.preferredChild) && supportsShellHarness(subtask.preferredChild)) return [subtask];
+    const planned = registry.getByName(subtask.preferredChild);
+    // An unknown name is auto-created like an omitted one, with the tissue's
+    // tools; a found name of the wrong tier lacks every cell capability.
+    if (!planned) return [subtask];
+    if (supportsBrowser(planned) && supportsShellHarness(planned)) return [subtask];
     const browser = taskRequiresRealBrowser(subtask.description);
     const commands = requiredPassingCommands(subtask.description);
-    const webL2 = supportsBrowser(subtask.preferredChild)
-      ? registry.getByName(subtask.preferredChild)
-      : fallbackWebL2;
-    const shellL2 = supportsShellHarness(subtask.preferredChild)
-      ? registry.getByName(subtask.preferredChild)
-      : fallbackShellL2;
+    const implementation = subtask.acceptanceTests !== undefined || (subtask.outputs?.length ?? 0) > 0 || soleSubtask;
+    if (implementation) {
+      const needsBoth = subtask.acceptanceTests !== undefined || (browser && commands.length > 0);
+      if (needsBoth) {
+        const lacking = (browser && !supportsBrowser(planned)) || (commands.length > 0 && !supportsShellHarness(planned));
+        const target = lacking ? fullStackFor(planned) : undefined;
+        if (!target) return [subtask];
+        changed = true;
+        return [{ ...subtask, preferredChild: target.name }];
+      }
+      if (browser && fallbackWebL2 && !supportsBrowser(planned)) {
+        changed = true;
+        return [{ ...subtask, preferredChild: fallbackWebL2.name }];
+      }
+      return [subtask];
+    }
+    const webL2 = supportsBrowser(planned) ? planned : fallbackWebL2;
+    const shellL2 = supportsShellHarness(planned) ? planned : fallbackShellL2;
     if (browser && commands.length > 0 && webL2 && shellL2) {
       changed = true;
       const sentences = subtask.description.split(/(?<=[.!?])\s+(?=[A-Z])/);
@@ -224,6 +277,7 @@ export function routeCrossBucketVerification(plan: Plan, registry: AtomRegistry)
             `BROWSER VERIFICATION ONLY — use a real browser and do not substitute a Node/static-source harness. ` +
             `${browserSentences.join(' ') || subtask.description}`,
           preferredChild: webL2.name,
+          routedFrom: { index: plannerIndex, role: 'browser-verification' },
         },
         {
           ...subtask,
@@ -232,10 +286,11 @@ export function routeCrossBucketVerification(plan: Plan, registry: AtomRegistry)
             `${commands.join(', ')} and require exit code 0; do not substitute another harness. ` +
             `${shellSentences.join(' ') || subtask.description}`,
           preferredChild: shellL2.name,
+          routedFrom: { index: plannerIndex, role: 'shell-verification' },
         },
       ];
     }
-    if (browser && webL2 && !supportsBrowser(subtask.preferredChild)) {
+    if (browser && webL2 && !supportsBrowser(planned)) {
       changed = true;
       return [{ ...subtask, preferredChild: webL2.name }];
     }
@@ -243,8 +298,32 @@ export function routeCrossBucketVerification(plan: Plan, registry: AtomRegistry)
   });
   // Routing does not own dispatch topology. In particular an explicit concat
   // or llm-synthesize plan represents orthogonal checkpoints and must not be
-  // silently serialized merely because one checkpoint changed bucket.
-  return changed ? { ...plan, subtasks } : plan;
+  // silently serialized merely because one checkpoint changed bucket. The
+  // only edge routing adds is the one inside a split checkpoint (above).
+  if (!changed) return plan;
+  const first: number[] = [];
+  let next = 0;
+  for (const group of groups) {
+    first.push(next);
+    next += group.length;
+  }
+  const partsOf = (plannerIndex: number): number[] =>
+    groups[plannerIndex]!.map((_, part) => first[plannerIndex]! + part);
+  const parallel = plan.aggregation.mode !== 'sequential';
+  const subtasks = groups.flatMap((group, plannerIndex) => {
+    const declared = plan.subtasks[plannerIndex]!.dependsOn;
+    const remapped = (declared ?? []).flatMap(partsOf);
+    return group.map((part, k) => {
+      const hostEdge = parallel && k > 0 ? [first[plannerIndex]! + k - 1] : [];
+      const dependsOn = [...new Set([...remapped, ...hostEdge])].sort((a, b) => a - b);
+      if (declared === undefined && dependsOn.length === 0) return part;
+      if (declared !== undefined && dependsOn.length === declared.length && dependsOn.every((dependency, i) => dependency === declared[i])) {
+        return part;
+      }
+      return { ...part, dependsOn };
+    });
+  });
+  return { ...plan, subtasks };
 }
 
 export class L3Atom extends Atom implements Supervisor<L2Atom> {
@@ -534,7 +613,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       if (verdict.delegationRefusal === 'fan-out' && args.continuation) {
         throw new ValidationError(`${exhausted}remaining work must fan out, and checkpoints are sequential. ${verdict.reasoning}`);
       }
-      feedback = `Delegation contract rejected before execution: ${verdict.reasoning}`;
+      // The reviewer cited ROUTED indices; the note maps them back to the planner's own.
+      const note = routingIndexNote(reviewed);
+      feedback = `Delegation contract rejected before execution: ${verdict.reasoning}${note ? ` ${note}` : ''}`;
       ctx.logger.warn(`[l3] ${feedback}`);
       pending = undefined;
     }
@@ -993,7 +1074,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         ctx,
         // A phase of a sequential decomposition declares its outputs or
         // reads only. A plan the planner wrote as one phase is the whole task
-        // (however routing split it), a single-action plan the schema coerced
+        // (routing never splits it), a single-action plan the schema coerced
         // into one has no outputs to declare, and parallel phases share the
         // workspace at the same moment: restoring one would undo what its
         // siblings wrote.

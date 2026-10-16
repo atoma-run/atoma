@@ -905,3 +905,88 @@ finishing behaviour as a floor.
 - Plans with many suites can exceed `STRATEGY_MAX_TOKENS`; three truncations
   now end the run where an amputated plan used to execute. A cell whose replies
   keep truncating escalates once its plan budget is spent.
+
+## Group E-routing — point 7, DAG-aware cross-bucket verification routing
+
+b3af7c1e made `routeCrossBucketVerification` return any plan holding `dependsOn`
+or `acceptanceTests` untouched, which disabled browser/shell capability routing for
+every plan shape the planning prompts now request. Routing was built (guestbook,
+2026-08-12) to split verification checkpoints; applied to an implementation node it
+replaced the node with two VERIFICATION ONLY parts, copying outputs and suites and
+dropping the build prose (one-phase fixture of run 04ea696f), and on a concat plan it
+manufactured a declared-output collision the planner was then coached about.
+
+Now routing classifies by typed contract. A node with `acceptanceTests`, non-empty
+`outputs`, or the planner's only subtask implements and is never split: it is
+rerouted whole only to a cell holding validate_html, run_shell and
+start_node_server and every tool of the planner's cell, else left alone (a browser-only
+static node keeps the older reroute to a web cell). An output-less node of a
+multi-phase plan is a checkpoint and keeps the browser-then-shell split. An omitted
+or unregistered preferredChild is kept, since a fresh cell inherits the tissue's
+tools. Every `dependsOn` is remapped; dependents of a split checkpoint wait for
+both parts; in parallel modes the shell part depends on the browser part, which keeps
+`enforceDelegationReview`'s independent-pair check sound (host parts never form a
+new independent pair). Mode, plan suite and read-only counting are unchanged.
+
+Routing stays inside `L3Atom.plan`, before `acceptL3RootPlan` and the mandatory
+review: the reviewer classifies exactly the dispatched indices and sees the cells
+that will run them. Host parts carry an internal `routedFrom` marker (not in
+`planSchema`); `routingIndexNote` tells the reviewer and the replanning planner
+which routed indices belong to which planner subtask and how to keep a checkpoint
+whole. The note rides the review prompt (`llmVerdict`, beside the review request)
+and the rejection feedback of `reviewedRootPlan`, computed on the slice the
+reviewer saw. The review is not relaxed for host parts.
+
+Deviation from the design: a `preferredChild` naming a type of another tier is
+not treated as unregistered. The dispatcher throws on it rather than creating a
+cell, so routing keeps treating it as lacking every cell capability, as before.
+
+Pending owner confirmation: this reverses "Routing cannot split a node holding tests
+or dependency references" (parent-owned-tests record, line 13) for checkpoints in
+DAG plans; suite nodes are still never split. "Routing does not own dispatch
+topology" now admits one host edge inside a split checkpoint in parallel modes.
+
+Remaining: checkpoint parts still copy criteria and proof obligations to both parts
+and keep only regex-matched prose (pre-existing); a browser part may land on a web
+cell without a server (notes-app 2026-09-07 class, pre-existing for checkpoints);
+parallel checkpoint parts are not read-only, like any planner-written parallel
+checkpoint; resume reviews a slice whose sequential `dependsOn` keys are not rebased,
+and the answer continuation does not shift them (no gate reads them in sequential
+mode); the triggers stay regex-based (`requiredPassingCommands` sees only
+`node X.js`); a suite node needing a browser on a cell without one, with no
+superset full-stack cell, relies on the cell's prefilter redirect and root
+acceptance, as before. Signal to watch: a rejection citing a `routedFrom` index
+three times in one run.
+
+Counterexamples checked: guestbook 2026-08-12; forced sequential on concat
+(code-review-2026-08-14); omitted preferredChild (notes-app 2026-09-07); one-phase
+split marked read-only (run 04ea696f); whole-task criteria (run 76a9486c);
+verification doubling (phase-redundancy 2026-08-22); Attica index-based
+classification (attica-delegation-contract-2026-10-16).
+
+Critique disposition: an implementation split (a writable verification lane
+after the suite, duplicated browser verification, re-firing detectors, lost
+sequential handover, whole-task criteria demoted) is removed at its cause, since
+implementation nodes are never split. A web-only target for a server-backed
+node is excluded by the superset full-stack rule. An unregistered
+`preferredChild` is kept. Rejected: an exemption for host parts in the review
+(state and a gate path without an observed incident; the note gives the planner
+the lever), and dropping the host browser→shell edge (host parts would then
+form an independent pair and let a linear planner DAG pass the mechanical
+fan-out check).
+
+Tests: `tests/plan-verification-guidance.test.ts` (a DAG checkpoint split with
+remapped dependencies, `planSchema` round trip and no output collision; the
+independent-pair check refusing a linear planner DAG both before and after
+routing; implementation nodes kept or moved whole; in-place reroute; invented
+cell, no browser work, full-stack cell and dangling dependency left alone;
+sequential remap without a host edge; the bounded note).
+`tests/delegation-contract.test.ts`, through the real `handle`, `plan`, review,
+dispatch and cells: the reviewed plan is the recorded and dispatched plan, the
+review prompt carries the note, six root branches with the shell part after the
+browser part and the README after both, the module suite run once; a review
+classifying planner indices refused; a rejection mapped back to the planner,
+whose full-stack checkpoint then runs unsplit; three rejections fail closed; a
+sequential two-phase plan counted as two planner phases with both checkpoint
+parts read-only and the implementing phase not. `tests/read-only-phase.test.ts`:
+the one-phase 04ea696f fixture now runs as one branch.

@@ -48,7 +48,7 @@ import { llmVerdict, VALIDATION_SYSTEM_PROMPT } from '../src/atoms/verdict.js';
 import { FALLBACK_OPUS } from './tier-pins.js';
 import { makePlan, makeTools } from './helpers/factories.js';
 import { jsonText, makeCtx } from './helpers.js';
-import type { Plan, Result, RunContext, Task, Tool, ToolExecutor, Verdict } from '../src/core/types.js';
+import type { BranchEventInfo, Plan, Result, RunContext, Task, Tool, ToolExecutor, Verdict } from '../src/core/types.js';
 
 /**
  * A phase a ROOT decomposition gives no `outputs` runs between a photograph
@@ -589,7 +589,9 @@ describe('a read-only phase in a run', () => {
 
     // Adversarial review 2026-09-30: `routeCrossBucketVerification` split
     // this ONE phase into a browser half and a shell half, both were marked,
-    // and every byte the run built was put back.
+    // and every byte the run built was put back. Since review 2026-10-16
+    // (point 7) routing never splits the planner's only subtask: it runs
+    // whole, as one branch, with its build prose.
     const reg = new AtomRegistry(openDb(':memory:'));
     const seed = { description: 'seed', systemPrompt: 'sys', tools: [] as Tool[], params: {}, createdBy: 'test' };
     const l3Type = reg.create(3, seed);
@@ -601,8 +603,12 @@ describe('a read-only phase in a run', () => {
     const onePhase = { reasoning: 'one phase', expectedOutput: 'a notes page', subtasks: [{ preferredChild: scribe.name,
       description: 'Build the notes page in index.html. Confirm it in a real browser. Then make node test.js exit 0.' }] };
     const { llm } = roleLlm({ l2: scribe.name, l1: l1Type.name, l2Prefilter: 'reuse', l3Plan: onePhase });
-    const ctx = runCtx(root, llm);
+    const branches: BranchEventInfo[] = [];
+    const ctx: RunContext = { ...runCtx(root, llm), recordBranch: (info) => branches.push(info) };
     await L3Atom.buildWithModel(l3Type, reg, FALLBACK_OPUS).handle({ description: 'build the notes page' }, ctx);
+    const rootStarts = branches.filter((info) => info.actorTier === 3 && info.op === 'start');
+    expect(rootStarts).toHaveLength(1);
+    expect(rootStarts[0]!.label).toBe(onePhase.subtasks[0]!.description);
     expect(ctx.readOnlyPhases!.restorations()).toEqual([]);
     expect(read(root, 'index.html')).toMatch(/^written by: /);
   });

@@ -1,5 +1,5 @@
 import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
-import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceParsedDelegationReview, parseDelegationReview } from './delegationReview.js';
+import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceParsedDelegationReview, parseDelegationReview, routingIndexNote } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { transportWitnesses } from '../contracts/witness.js';
@@ -1063,6 +1063,7 @@ export async function llmVerdict(args: {
     args.independentTextReference !== undefined ? ROOT_TEXT_REVIEW_REQUEST : '',
     args.delegationContract ? DELEGATION_REVIEW_REQUEST : '',
     args.delegationContract ? `Discovery allowed here: ${args.delegationContract.allowDiscovery}` : '',
+    args.delegationContract ? routingIndexNote(args.delegationContract.plan) : '',
   ]
     .filter(Boolean)
     .join('\n');

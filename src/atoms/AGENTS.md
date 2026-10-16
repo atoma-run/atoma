@@ -262,13 +262,13 @@ load-bearing.
   subtasks in parallel; `sequential` dispatches shared-artifact phases in order
   and threads `previousStepSummary` plus declared `outputs` as
   `inputs.previousStepOutputs`. Do not merge prior writes into the next
-  phase's `outputs` — skill/promotion gates read the current phase only.
-  Do not parallelize coupled filesystem work.
+  phase's `outputs` — skill/promotion gates read the current phase only. Do not parallelize coupled filesystem work.
 - Independent work MUST fan out, including multiple L2 branches at L3.
   `dependsOn` (earlier indices) starts a branch once its producers settle;
   joins name producers, coupled writers need dependencies; no wave barrier, no
   prose inference. A producer with a typed failure is KEPT and its dependents
-  land unstarted (`blockedPhases`); a throw still fails the dispatch.
+  land unstarted (`blockedPhases`); a throw still fails the dispatch. Routing
+  splits only output-less checkpoints, remapping `dependsOn` ([why](../../records/reviews/parent-tests-review-fixes-2026-10-16.md)).
 - A phase of a SEQUENTIAL root plan the PLANNER wrote with two phases or more
   (counted before `routeCrossBucketVerification` splits one) that declares no
   `outputs` is READ-ONLY (`Task.readOnly`) — the tissue's plan, or a root

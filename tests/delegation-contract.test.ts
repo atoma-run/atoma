@@ -3,10 +3,13 @@ import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
-import { approvalDigest, enforceDelegationReview } from '../src/atoms/delegationReview.js';
+import { approvalDigest, enforceDelegationReview, routingIndexNote } from '../src/atoms/delegationReview.js';
 import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { planSchema } from '../src/atoms/json.js';
-import type { LlmCompletionRequest, LlmCompletionResponse, Plan, Result, Task } from '../src/core/types.js';
+import type { BranchEventInfo, LlmCompletionRequest, LlmCompletionResponse, Plan, Result, RunContext, Task, Tool, ToolExecutor } from '../src/core/types.js';
+import { parentTestSuiteDigest, type ParentTestSuite } from '../src/contracts/parentTests.js';
+import { READ_ONLY_TASK_LINE } from '../src/contracts/readOnlyPhase.js';
+import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { MockLlmClient } from '../src/core/llm.js';
 import { modelForTier } from '../src/core/models.js';
 import { ValidationError } from '../src/core/errors.js';
@@ -362,5 +365,269 @@ describe('root delegation review robustness', () => {
       await tissue.handle(task, ctx);
       expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
     });
+  });
+});
+
+// Review 2026-10-16, point 7: capability routing runs inside `L3Atom.plan`,
+// before the mandatory review, so the reviewer classifies exactly the plan
+// that is dispatched. These tests go through the real `handle`, `plan`,
+// review, dispatch and cells; only the model is mocked.
+describe('capability routing under the root review', () => {
+  const MODULE_SUITE: ParentTestSuite = {
+    requirement: 'module A renders the page',
+    cwd: '.',
+    source: "import { test, expect } from 'vitest';\nimport { render } from './a.ts';\ntest('renders', () => {\n  expect(render()).toContain('<main');\n});",
+  };
+  const CHECKPOINT = 'Confirm the page in a real browser with selector-based interactions. Run node test-api.js and require it to pass.';
+  const tool = (name: string): Tool => ({ name, description: name, inputSchema: { type: 'object' } });
+
+  function routingRegistry(options: { fullStack?: boolean } = {}) {
+    const db = openDb(':memory:');
+    databases.push(db);
+    const registry = new AtomRegistry(db);
+    const seed = { description: 'orchestrator', systemPrompt: 'You orchestrate.', tools: [] as Tool[], params: {}, createdBy: 'test' };
+    const tissue = registry.create(3, seed);
+    const shell = registry.create(2, { ...seed, tools: [tool('run_shell'), tool('start_node_server')] });
+    const web = registry.create(2, { ...seed, tools: [tool('validate_html')] });
+    const fullStack = options.fullStack
+      ? registry.create(2, { ...seed, tools: [tool('validate_html'), tool('run_shell'), tool('start_node_server')] })
+      : undefined;
+    const molecule = registry.create(1, { ...seed, tools: [tool('write_file')] });
+    return { registry, tissue, shell: shell.name, web: web.name, fullStack: fullStack?.name, molecule: molecule.name };
+  }
+
+  function dagPlan(names: { shell: string; web: string }, checkpointCell = names.web) {
+    return {
+      reasoning: 'Two modules, one checkpoint, then the README',
+      delivery: 'files',
+      subtasks: [
+        { description: 'Scaffold the project.', preferredChild: names.shell, outputs: ['package.json'] },
+        {
+          description: 'Implement a.ts. Confirm the page in a real browser with selector-based interactions.',
+          preferredChild: names.shell,
+          outputs: ['a.ts'],
+          acceptanceTests: MODULE_SUITE,
+        },
+        { description: 'Implement b.ts.', preferredChild: names.shell, outputs: ['b.ts'], dependsOn: [0] },
+        { description: CHECKPOINT, preferredChild: checkpointCell, dependsOn: [1, 2] },
+        { description: 'Write the README.', preferredChild: names.shell, outputs: ['README.md'], dependsOn: [3] },
+      ],
+      aggregation: { mode: 'concat' },
+      expectedOutput: 'the application',
+    };
+  }
+
+  const ok = (value: unknown): LlmCompletionResponse => ({
+    text: typeof value === 'string' ? value : JSON.stringify(value),
+    stopReason: 'end_turn',
+    usage: { inputTokens: 1, outputTokens: 1 },
+  });
+
+  /** Classifies a suite-bearing subtask as vitest and everything else as other. */
+  function classify(plan: Plan) {
+    return {
+      approved: true,
+      reasoning: 'scope reviewed',
+      delegationReview: {
+        subtasks: plan.subtasks.map((subtask, index) => ({
+          index,
+          kind: subtask.acceptanceTests ? 'vitest' : 'other',
+          reason: 'actual assigned scope',
+        })),
+        integration: { kind: 'other', reason: 'the checkpoint proves integration' },
+        independentWork: false,
+        parallelReason: 'actual dependencies',
+      },
+    };
+  }
+
+  /**
+   * One model for every tier: the root plans are the test's, every cell reuses
+   * the molecule, every molecule reports without writing, and every child
+   * review approves. The ROOT review (a tissue judging its own plan) is the
+   * test's `review`, handed the plan it was shown.
+   */
+  function routingModel(args: { cell: string; molecule: string; rootPlans: unknown[]; review: (plan: Plan) => unknown }) {
+    const requests: LlmCompletionRequest[] = [];
+    const reviewedPlans: Plan[] = [];
+    const llm = {
+      complete: async (req: LlmCompletionRequest): Promise<LlmCompletionResponse> => {
+        requests.push(req);
+        const tier = req.actor?.tier;
+        if (req.role === 'prefilter') {
+          const target = tier === 3 ? args.cell : args.molecule;
+          return ok({ kind: 'reuse', target, confidence: 'high', reasoning: 'fits' });
+        }
+        if (req.role === 'plan' && tier === 3) {
+          const plan = args.rootPlans.length > 1 ? args.rootPlans.shift() : args.rootPlans[0];
+          return ok([{ strategy: 'reuse', target: args.cell, reasoning: 'fits' }, plan]);
+        }
+        if (req.role === 'plan' && tier === 2) {
+          const plan = { reasoning: 'one molecule', subtasks: [{ description: 'do it', preferredChild: args.molecule }], aggregation: { mode: 'concat' }, expectedOutput: 'done' };
+          return ok([{ strategy: 'reuse', target: args.molecule, reasoning: 'fits' }, plan]);
+        }
+        if (req.role === 'plan' || req.role === 'fallback-plan') {
+          return ok({ reasoning: 'r', proposedAction: 'act', expectedOutput: 'e' });
+        }
+        if (req.role === 'execute' || req.role === 'fallback-execute') {
+          return ok({ output: { done: true }, summary: 'reported' });
+        }
+        if (req.role === 'validate-plan' && req.child?.tier === 3) {
+          const encoded = /^PLAN: (.*)$/m.exec(req.userContent)?.[1];
+          if (!encoded) throw new Error('the root review was not shown its plan');
+          const plan = JSON.parse(encoded) as Plan;
+          reviewedPlans.push(plan);
+          return ok(args.review(plan));
+        }
+        return ok({ approved: true, reasoning: 'fine', ...mockOtherProofReview(req) });
+      },
+    };
+    return { llm: llm as unknown as RunContext['llm'], requests, reviewedPlans };
+  }
+
+  /** The fixed runner's shell: every suite it is handed passes. */
+  function passingSuites(): ToolExecutor & { readonly suites: string[] } {
+    const suites: string[] = [];
+    return {
+      suites,
+      has: (name) => name === 'run_shell',
+      execute: async (name, args) => {
+        if (name !== 'run_shell' || args['command'] !== 'atoma-verify') return {};
+        const suite = JSON.parse((args['args'] as string[])[0]!) as ParentTestSuite;
+        suites.push(suite.requirement);
+        return {
+          suiteDigest: parentTestSuiteDigest(suite), workspaceDigest: 'w'.repeat(64), status: 'passed', cause: 'ran',
+          passed: 1, failed: 0, skipped: 0, details: JSON.stringify(['', { name: 'renders', status: 'passed', failures: [] }]),
+        };
+      },
+    };
+  }
+
+  it('reviews exactly the routed plan it dispatches, and orders the split checkpoint', async () => {
+    const actors = routingRegistry();
+    const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [dagPlan(actors)], review: classify });
+    const tools = passingSuites();
+    const branches: BranchEventInfo[] = [];
+    const recorded: Plan[] = [];
+    const ctx: RunContext = {
+      ...makeCtx(),
+      llm: model.llm,
+      tools,
+      recordBranch: (info) => branches.push(info),
+      recordRootPlan: (plan) => recorded.push(plan),
+    };
+
+    await L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock').handle({ description: 'Build the application' }, ctx);
+
+    expect(model.reviewedPlans).toHaveLength(1);
+    expect(recorded).toHaveLength(1);
+    expect(model.reviewedPlans[0]).toEqual(JSON.parse(JSON.stringify(recorded[0])));
+    expect(recorded[0]!.subtasks.map((subtask) => subtask.dependsOn)).toEqual([undefined, undefined, [0], [1, 2], [1, 2, 3], [3, 4]]);
+    const rootReview = model.requests.find((req) => req.role === 'validate-plan' && req.child?.tier === 3)!;
+    expect(rootReview.userContent).toContain(routingIndexNote(recorded[0]!));
+    expect(rootReview.userContent).toContain("subtasks 3 and 4 are the host's browser then exact-shell verification of planner subtask 3");
+
+    const root = branches.filter((info) => info.actorTier === 3);
+    const starts = root.filter((info) => info.op === 'start');
+    expect(starts).toHaveLength(6);
+    expect(starts.every((info) => info.total === 6)).toBe(true);
+    const at = (op: 'start' | 'end', index: number) => root.findIndex((info) => info.op === op && info.index === index);
+    expect(at('start', 4)).toBeGreaterThan(at('end', 3));
+    expect(at('start', 5)).toBeGreaterThan(at('end', 3));
+    expect(at('start', 5)).toBeGreaterThan(at('end', 4));
+    expect(tools.suites).toEqual([MODULE_SUITE.requirement]);
+  });
+
+  it('refuses a review that classifies the planner indices instead of the routed ones', async () => {
+    const actors = routingRegistry();
+    const plannerCount = (plan: Plan) => {
+      const verdict = classify(plan);
+      return { ...verdict, delegationReview: { ...verdict.delegationReview, subtasks: verdict.delegationReview.subtasks.slice(0, 5) } };
+    };
+    const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [dagPlan(actors)], review: plannerCount });
+    const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites() };
+    const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+    const execute = vi.spyOn(tissue, 'execute');
+
+    await expect(tissue.handle({ description: 'Build the application' }, ctx)).rejects.toThrow(/classify every subtask exactly once/);
+
+    expect(model.reviewedPlans.every((plan) => plan.subtasks.length === 6)).toBe(true);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('maps a rejection citing a routed index back to the planner, who keeps the checkpoint whole', async () => {
+    const actors = routingRegistry({ fullStack: true });
+    const rejection = { approved: false, reasoning: 'subtask 4 cannot start the server it must probe.', scope: 'ephemeral', modifications: {} };
+    let reviews = 0;
+    const model = routingModel({
+      cell: actors.shell,
+      molecule: actors.molecule,
+      rootPlans: [dagPlan(actors), dagPlan(actors, actors.fullStack)],
+      review: (plan) => ++reviews === 1 ? rejection : classify(plan),
+    });
+    const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites() };
+    const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    await tissue.handle({ description: 'Build the application' }, ctx);
+
+    const rootPlans = model.requests.filter((req) => req.role === 'plan' && req.actor?.tier === 3);
+    expect(rootPlans).toHaveLength(2);
+    expect(rootPlans[1]!.userContent).toContain('Delegation contract rejected before execution: subtask 4 cannot start the server');
+    expect(rootPlans[1]!.userContent).toContain("subtasks 3 and 4 are the host's browser then exact-shell verification of planner subtask 3");
+    expect(execute).toHaveBeenCalledOnce();
+    const dispatched = execute.mock.calls[0]![1];
+    expect(dispatched.subtasks).toHaveLength(5);
+    expect(dispatched.subtasks[3]!.preferredChild).toBe(actors.fullStack);
+    expect(dispatched.subtasks[3]!.description).toBe(CHECKPOINT);
+    expect(dispatched.subtasks.some((subtask) => subtask.routedFrom)).toBe(false);
+  });
+
+  it('fails closed when every review rejects a host split', async () => {
+    const actors = routingRegistry();
+    const rejection = { approved: false, reasoning: 'subtask 3 cannot start the server it must probe.', scope: 'ephemeral', modifications: {} };
+    const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [dagPlan(actors)], review: () => rejection });
+    const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites() };
+    const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+    const execute = vi.spyOn(tissue, 'execute');
+
+    await expect(tissue.handle({ description: 'Build the application' }, ctx)).rejects.toBeInstanceOf(ValidationError);
+
+    expect(model.reviewedPlans).toHaveLength(3);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('counts planner phases for read-only marking before a sequential checkpoint is split', async () => {
+    const actors = routingRegistry();
+    const twoPhases = {
+      reasoning: 'build, then verify',
+      delivery: 'files',
+      subtasks: [
+        { description: 'Build the notes page in index.html.', preferredChild: actors.shell, outputs: ['index.html'] },
+        { description: 'Confirm the notes page in a real browser. Then make node test.js exit 0.', preferredChild: actors.web },
+      ],
+      aggregation: { mode: 'sequential' },
+      expectedOutput: 'a verified notes page',
+    };
+    const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [twoPhases], review: classify });
+    const planned = vi.fn<RootPhaseCheckpoint['planned']>();
+    const checkpoint: RootPhaseCheckpoint = {
+      restore: () => null, completed: [], planned, beforePhase: vi.fn(), afterPhase: vi.fn(async () => {}), finalizing: vi.fn(),
+    };
+    const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites(), rootCheckpoint: checkpoint };
+
+    await L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock').handle({ description: 'Build the notes page' }, ctx);
+
+    expect(planned).toHaveBeenCalledOnce();
+    expect(planned.mock.calls[0]![1].subtasks).toHaveLength(3);
+    expect(planned.mock.calls[0]![3]).toBe(2);
+    const phaseReviews = model.requests.filter((req) => req.actor?.tier === 3 && req.child?.tier === 2);
+    const reviewsOf = (prefix: string) => phaseReviews.filter((req) => req.userContent.includes(`Task: ${prefix}`));
+    expect(reviewsOf('Build the notes page').length).toBeGreaterThan(0);
+    expect(reviewsOf('Build the notes page').every((req) => !req.userContent.includes(READ_ONLY_TASK_LINE))).toBe(true);
+    expect(reviewsOf('BROWSER VERIFICATION ONLY').length).toBeGreaterThan(0);
+    expect(reviewsOf('BROWSER VERIFICATION ONLY').every((req) => req.userContent.includes(READ_ONLY_TASK_LINE))).toBe(true);
+    expect(reviewsOf('FINAL SHELL/HARNESS VERIFICATION ONLY').length).toBeGreaterThan(0);
+    expect(reviewsOf('FINAL SHELL/HARNESS VERIFICATION ONLY').every((req) => req.userContent.includes(READ_ONLY_TASK_LINE))).toBe(true);
   });
 });

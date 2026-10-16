@@ -111,6 +111,20 @@ export interface SubtaskSpec {
   readonly proofObligations?: readonly ProofObligation[];
   /** Ids of the parent task's `criteria` this subtask records evidence for; see `Task.criteria`. */
   readonly criteria?: readonly string[];
+  /**
+   * Internal provenance marker set when `routeCrossBucketVerification` split
+   * a planner checkpoint into a browser part and an exact-shell part: `index`
+   * is the PLANNER's subtask index, `role` which part this is. Like
+   * `Plan.viaPrefilter` it is set by the host only and is NOT in
+   * `subtaskSpecSchema`, so `z.object` strips it from model JSON and a planner
+   * cannot spoof it. Informational, never behaviour-bearing: it feeds
+   * `routingIndexNote` (the index mapping the reviewer and a replanning
+   * planner read) and a checkpoint restore drops it.
+   */
+  readonly routedFrom?: {
+    readonly index: number;
+    readonly role: 'browser-verification' | 'shell-verification';
+  };
 }
 
 /**

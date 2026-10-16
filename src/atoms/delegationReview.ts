@@ -16,6 +16,47 @@ Set independentWork true whenever useful independent work exists in the assigned
 An L3 replanAfter:true plan is discovery ONLY: no writes, no implementation deferred to another subtask. The host will replan once after its observations. A promise in prose to obtain review or replan later has NO runtime effect. Reject such a promise when executable contracts are missing. L2 cannot use replanAfter.
 An approval without this complete classification is not executable. For rejection use the ordinary negative Verdict with actionable reasoning; no classification is required.`;
 
+/** The longest routing note a review or a replanning planner reads. */
+export const ROUTING_INDEX_NOTE_MAX_CHARS = 1200;
+
+/**
+ * Which routed indices belong to which PLANNER subtask, when
+ * `routeCrossBucketVerification` split a checkpoint (review 2026-10-16,
+ * point 7). The reviewer classifies the dispatched plan's indices, and a
+ * rejection citing "subtask 4" goes back to a planner whose own plan has no
+ * subtask 4: both read this note. Facts only — no command, no gate. Empty when
+ * nothing was split.
+ */
+export function routingIndexNote(plan: Plan): string {
+  const parts = new Map<number, { index: number; role: string }[]>();
+  plan.subtasks.forEach((subtask, index) => {
+    if (!subtask.routedFrom) return;
+    const group = parts.get(subtask.routedFrom.index) ?? [];
+    group.push({ index, role: subtask.routedFrom.role });
+    parts.set(subtask.routedFrom.index, group);
+  });
+  if (parts.size === 0) return '';
+  const head = 'HOST CAPABILITY ROUTING: ';
+  const tail = '; the order between the parts of one checkpoint is host ordering, not planner serialization. ' +
+    'Review indices refer to this routed plan. To keep a checkpoint whole, give it a cell holding validate_html, ' +
+    'run_shell and start_node_server, or omit its preferredChild.';
+  const mappings = [...parts.entries()].map(([planner, group]) => {
+    const indices = group.map((part) => part.index);
+    const listed = indices.length === 2 ? `${indices[0]} and ${indices[1]}` : indices.join(', ');
+    return `subtasks ${listed} are the host's browser then exact-shell verification of planner subtask ${planner}, routed to capable cells`;
+  });
+  const budget = ROUTING_INDEX_NOTE_MAX_CHARS - head.length - tail.length - 40;
+  const kept: string[] = [];
+  let used = 0;
+  for (const mapping of mappings) {
+    if (used + mapping.length + 2 > budget) break;
+    kept.push(mapping);
+    used += mapping.length + 2;
+  }
+  const omitted = mappings.length - kept.length;
+  return `${head}${kept.join('; ')}${omitted > 0 ? `; ${omitted} more split checkpoint(s) not listed` : ''}${tail}`;
+}
+
 export function delegationRefusal(reason: string, kind: DelegationRefusalKind): NegativeVerdict {
   return { approved: false, reasoning: reason, scope: 'ephemeral', modifications: { additionalContext: reason }, delegationRefusal: kind };
 }
