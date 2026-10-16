@@ -7,6 +7,7 @@ import { startEgressSidecar } from '../tools/egressSidecar.js';
 import type { Logger, Tool, ToolExecutor } from '../core/types.js';
 import { createProjectRetrievalTool, type ProjectRetrievalBinding, type ProjectRetrievalCallContext } from '../tools/projectRetrieval.js';
 import { projectRetrievalExecutor } from '../tools/projectRetrievalExecutor.js';
+import { createMcpConnectorTools, mcpConnectorExecutor, type McpConnectorRunContext, type McpConnectorService } from '../tools/mcpConnectors.js';
 
 /**
  * Where a run's side effects happen.
@@ -59,6 +60,29 @@ export async function withProjectRetrievalBackend(
     return { ...backend, ...composite, cleanup: close };
   } catch (error) {
     await close();
+    throw error;
+  }
+}
+
+/**
+ * The organisation's MCP servers as two host elements around either backend
+ * (docs/decisions/customer-mcp-servers-2026-10-16.md). The service is the
+ * RUN's and outlives this backend; `cleanup` stops the tools only.
+ */
+export async function withMcpConnectorBackend(
+  backend: ToolBackend, service: McpConnectorService, context: McpConnectorRunContext
+): Promise<ToolBackend> {
+  const connectors = createMcpConnectorTools(service, context);
+  try {
+    const composite = mcpConnectorExecutor(backend.executor, backend.toolDecls, connectors);
+    let cleanup: Promise<void> | undefined;
+    return { ...backend, ...composite, cleanup: () => {
+      cleanup ??= connectors.close().then(() => backend.cleanup());
+      return cleanup;
+    } };
+  } catch (error) {
+    await connectors.close();
+    await backend.cleanup();
     throw error;
   }
 }

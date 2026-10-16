@@ -24,6 +24,14 @@ words); an admin rename retires the old label as a permanent redirect, never
 reused ([rules](../../docs/project-hosting.md#dns-and-https)).
 External provider execution is not implemented.
 
+## The organisation's MCP servers
+
+A project enables some of its organisation's MCP servers (admin-only, journaled
+`project.mcp_servers_changed`). At launch the coordinator asks `mcpConnectorsFor`
+during preparation and writes `ATOMA_MCP_CONNECTORS` (access headers only, never
+a refresh token); a resolver failure starts the run without servers. Contract:
+[src/connectors](../connectors/AGENTS.md).
+
 ## Run network
 
 Project runs enable isolated, proxied egress by default. `ATOMA_EGRESS=0` disables

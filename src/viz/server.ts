@@ -126,6 +126,10 @@ import {
 import { GitHubStore, isGitHubConnectState } from '../github/store.js';
 import { persistGitHubUserTokens, resolveGitHubUserAccessToken } from '../github/tokens.js';
 import { ProjectStore } from '../projects/store.js';
+import { ConnectorHttpError, ConnectorService } from '../connectors/service.js';
+import { ConnectorStore } from '../connectors/store.js';
+import { connectorFetch } from '../connectors/guardedFetch.js';
+import type { ConnectorCreateInput, ConnectorUpdateInput, ProjectConnectorsInput } from '../contracts/mcpConnectors.js';
 import {
   DEFAULT_PROJECTS_ROOT,
   ProjectRunCoordinator,
@@ -603,6 +607,29 @@ const emit: (input: Parameters<PlatformEventLog['append']>[0]) => void = (input)
 };
 
 /**
+ * THE ORGANISATION'S MCP SERVERS (src/connectors). Gated only: connections
+ * belong to organisations. The OAuth redirect is built from the configured
+ * public origin, never a request Host, like the login callback.
+ */
+const CONNECTORS: ConnectorService | null = AUTH_RUNTIME
+  ? new ConnectorService({
+      store: ConnectorStore.open(DBS[0]!.path),
+      encryption: SECRET_ENCRYPTION.context,
+      fetch: connectorFetch(),
+      redirectUrl: new URL('/api/org/mcp-servers/oauth/callback', AUTH_RUNTIME.publicOrigin).href,
+      events: emit,
+      projectInOrg: (() => {
+        let projects: ProjectStore | null = null;
+        return (orgId: string, projectId: string): boolean => {
+          // A malformed id names no project; the store refuses it by throwing.
+          try { return (projects ??= ProjectStore.open(DBS[0]!.path)).getProject(orgId, projectId) !== null; }
+          catch { return false; }
+        };
+      })(),
+    })
+  : null;
+
+/**
  * PERSONAL PROVIDER PROFILES. Only authenticated deployments have principals,
  * so the profile authority follows the auth gate. Credential bytes stay in
  * provider-owned private directories; callbacks journal only provider names.
@@ -927,6 +954,11 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
           orgProviderKeyFor: (orgId: string, provider: ProviderKeyProvider) =>
             AUTH.store!.decryptOrgProviderKey(orgId, provider, SECRET_ENCRYPTION.context),
         }
+      : {}),
+    // The project's MCP servers, with credentials resolved HERE: this process
+    // alone holds refresh tokens (docs/decisions/customer-mcp-servers-2026-10-16.md).
+    ...(CONNECTORS
+      ? { mcpConnectorsFor: (orgId: string, projectId: string, validUntil: number, signal: AbortSignal) => CONNECTORS.launchFor(orgId, projectId, validUntil, signal) }
       : {}),
     // The subscription-transport authority. Passed as the QUESTION, not the
     // answer — the coordinator asks it — and absent without a gate, where
@@ -3801,6 +3833,110 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     // member sees who else is in the organisation they belong to. Emails are
     // deliberately absent — provider emails are display attributes and
     // GitHub's is not even a verified-email assertion.
+    // THE ORGANISATION'S MCP SERVERS (src/connectors). Every rule — who may
+    // read or manage, which organisation, what is journaled — lives in
+    // `ConnectorService`; these routes resolve the actor and translate.
+    // Writes ride the viewer's ACTIVE organisation, never a body field.
+    if (CONNECTORS && (pathname.startsWith('/api/org/mcp-servers') || /^\/api\/projects\/[^/]+\/mcp-servers$/.test(pathname))) {
+      const actor = { principalId: viewer.principalId, orgId: viewer.orgId, role: viewer.role, platformAdmin: viewer.platformAdmin };
+      // The pending authorization is bound to this browser session: a digest of
+      // its token, never the token itself.
+      const connectorSessionKey = (): string => {
+        const token = sessionTokenFromCookieHeader(req.headers.cookie, AUTH_RUNTIME!.secureCookies);
+        return token ? createHash('sha256').update(token).digest('base64url') : '';
+      };
+      const readJson = async (limit: number): Promise<unknown> => {
+        try { return JSON.parse((await readBodyBounded(req, limit)).toString('utf8') || '{}'); }
+        catch { throw new ConnectorHttpError(400, 'request body is not valid JSON'); }
+      };
+      try {
+        if (pathname === '/api/org/mcp-servers/oauth/callback') {
+          if (!methodAllowed(req, res, 'GET')) return;
+          const query = url.searchParams;
+          const state = query.get('state') ?? '';
+          const back = (outcome: string): void => {
+            const target = new URL('/', AUTH_RUNTIME!.publicOrigin);
+            target.searchParams.set('mcpServer', outcome.slice(0, 300));
+            target.hash = '#/settings';
+            res.writeHead(302, { location: target.href, 'cache-control': 'no-store' });
+            res.end();
+          };
+          if (!state) { back('error:The server returned no authorization state.'); return; }
+          if (query.get('error')) {
+            // The authorization server refused; the pending entry expires on its own.
+            back(`error:${(query.get('error_description') ?? query.get('error') ?? '').replace(/[\r\n]+/g, ' ')}`);
+            return;
+          }
+          const sessionKey = connectorSessionKey();
+          try {
+            await CONNECTORS.finishAuthorization({ state, code: query.get('code') ?? '', sessionKey }, (orgId) => {
+              if (orgId === viewer.orgId) return actor;
+              const membership = AUTH.store!.listOrganisationsForPrincipal(viewer.principalId).find((entry) => entry.orgId === orgId);
+              return membership ? { ...actor, orgId, role: membership.role } : null;
+            });
+            back('connected');
+          } catch (error) {
+            back(`error:${error instanceof Error ? error.message : 'authorization failed'}`);
+          }
+          return;
+        }
+        const projectMatch = /^\/api\/projects\/([^/]+)\/mcp-servers$/.exec(pathname);
+        if (projectMatch) {
+          const projectId = decodeURIComponent(projectMatch[1]!);
+          if (req.method === 'GET') { sendJson(res, 200, CONNECTORS.projectServers(actor, projectId)); return; }
+          if (!methodAllowed(req, res, 'PUT')) return;
+          if (!sameOrigin(req, res)) return;
+          const enabled = CONNECTORS.setProjectServers(actor, projectId, await readJson(8_192) as ProjectConnectorsInput);
+          sendJson(res, 200, { enabled });
+          return;
+        }
+        if (pathname === '/api/org/mcp-servers') {
+          if (req.method === 'GET') {
+            sendJson(res, 200, { servers: CONNECTORS.list(actor), encryptionReady: CONNECTORS.encryptionReady, canManage: CONNECTORS.canManage(actor) });
+            return;
+          }
+          if (!methodAllowed(req, res, 'POST')) return;
+          if (!sameOrigin(req, res)) return;
+          const created = CONNECTORS.create(actor, await readJson(65_536) as ConnectorCreateInput);
+          // A connection that needs no browser step is listed at once.
+          const server = created.authKind === 'oauth' ? created : await CONNECTORS.refreshTools(actor, created.id);
+          sendJson(res, 201, { server });
+          return;
+        }
+        const itemMatch = /^\/api\/org\/mcp-servers\/([0-9a-f-]{36})(?:\/(refresh|authorize))?$/.exec(pathname);
+        if (!itemMatch) { sendJson(res, 404, { error: 'not found' }); return; }
+        const serverId = itemMatch[1]!;
+        const action = itemMatch[2];
+        if (action === 'refresh') {
+          if (!methodAllowed(req, res, 'POST')) return;
+          if (!sameOrigin(req, res)) return;
+          sendJson(res, 200, { server: await CONNECTORS.refreshTools(actor, serverId) });
+          return;
+        }
+        if (action === 'authorize') {
+          if (!methodAllowed(req, res, 'POST')) return;
+          if (!sameOrigin(req, res)) return;
+          const sessionKey = connectorSessionKey();
+          if (!sessionKey) throw new ConnectorHttpError(401, 'sign in again before authorizing a server');
+          sendJson(res, 200, { authorizationUrl: await CONNECTORS.startAuthorization(actor, serverId, sessionKey) });
+          return;
+        }
+        if (req.method === 'DELETE') {
+          if (!sameOrigin(req, res)) return;
+          CONNECTORS.remove(actor, serverId);
+          sendJson(res, 200, { ok: true });
+          return;
+        }
+        if (!methodAllowed(req, res, 'PUT')) return;
+        if (!sameOrigin(req, res)) return;
+        sendJson(res, 200, { server: CONNECTORS.update(actor, serverId, await readJson(65_536) as ConnectorUpdateInput) });
+      } catch (error) {
+        if (error instanceof ConnectorHttpError) { sendJson(res, error.status, { error: error.message.slice(0, 500) }); return; }
+        throw error;
+      }
+      return;
+    }
+
     // WHO ELSE MAY SPEND THE MACHINE'S OWN LOGIN. The second door onto
     // `setSubscriptionDelegate`; the CLI is the first and the MCP the third,
     // and all three share that body so the rule has one spelling. PUT grants,

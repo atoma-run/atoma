@@ -381,6 +381,11 @@ npm run viz:mark-turn:analyze
   no price. A disabled Upgrade would promise a flow that does not exist.
   Both entrances route through `openSettings(tab)` in the store, so the Pixi
   menu and its DOM mirror land on the same tab.
+- Settings → Your MCP servers (`McpServersPanel`, DOM, `/api/org/mcp-servers*`)
+  and Project settings → MCP servers (`project-connectors.ts`, one choice model
+  for the GPU card and its accessible twin, `/api/projects/:id/mcp-servers`)
+  are doors onto [src/connectors](../connectors/AGENTS.md); the OAuth callback
+  is a stateful GET and returns to `/?mcpServer=…#/settings` on that tab.
 - Project Settings holds the optional deployment preference (none, Atoma, external).
   GPU and accessible controls share the choice model, explicit save and errors.
   It never redirects preview to local Docker installation or claims hosting is

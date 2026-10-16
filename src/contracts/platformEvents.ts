@@ -72,6 +72,8 @@ export const platformEventKindSchema = z.enum([
   'project.repository_attention',
   'project.upstream_follow_changed',
   'project.deployment_preference_changed',
+  /** Which of the organisation's MCP servers this project's runs may call. */
+  'project.mcp_servers_changed',
   'project.hosting_changed',
   'project.hosting_failed',
   /** A project received its hosting address: who can reach what changed. */
@@ -190,6 +192,15 @@ export const platformEventKindSchema = z.enum([
   'org.models_updated',
   'org.provider_key_set',
   'org.provider_key_removed',
+  /**
+   * An organisation admin connected, changed, removed or authorized one of
+   * the organisation's own MCP servers (src/connectors). The detail names
+   * the connection and its host, never a URL path, header or token.
+   */
+  'org.mcp_server_added',
+  'org.mcp_server_updated',
+  'org.mcp_server_removed',
+  'org.mcp_server_authorized',
   /**
    * The operator placed an organisation on another plan (`auth set-plan`).
    * The detail carries the two plan ids and nothing else.
@@ -398,6 +409,7 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'project.repository_attention': 'warning',
   'project.upstream_follow_changed': 'security',
   'project.deployment_preference_changed': 'info',
+  'project.mcp_servers_changed': 'security',
   'project.hosting_changed': 'info',
   'project.hosting_failed': 'warning',
   'project.hosting_address_assigned': 'info',
@@ -438,6 +450,11 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'org.models_updated': 'info',
   'org.provider_key_set': 'info',
   'org.provider_key_removed': 'info',
+  // Exposure decisions: which external system a run may act on.
+  'org.mcp_server_added': 'security',
+  'org.mcp_server_updated': 'security',
+  'org.mcp_server_removed': 'info',
+  'org.mcp_server_authorized': 'security',
   // A commercial fact set by the operator: worth the audit trail, nothing crossed a gate.
   'org.plan_changed': 'info',
   // Catalogue hygiene is routine; a rollback or a drop of PROVEN knowledge

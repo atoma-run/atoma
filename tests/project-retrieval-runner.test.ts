@@ -131,6 +131,45 @@ describe('trusted retrieval injection through startTask', () => {
     expect(() => process.kill(Number(readFileSync(join(root, 'haystack.pid'), 'utf8')), 0)).toThrow();
   });
 
+  it.each(['none', 'one'] as const)('gives every tenant run the two connector elements, with %s server, and keeps the hand-off out of its environment', async servers => {
+    const root = environment();
+    const f = projectRetrievalFixture(root);
+    const source = f.makeRun({ 'docs.md': 'Price is 190 euros.\n' });
+    const current = f.makeRun();
+    await ProjectRetrievalLaunchStore.open(f.dbPath).prepare(current.run.projectRunId, source.run.projectRunId, retrievalContext());
+    for (const [key, value] of Object.entries({ ATOMA_TENANT_RUN: '1', ATOMA_RUN_ID: current.run.projectRunId,
+      ATOMA_DB_PATH: f.dbPath, ATOMA_BUILD_WORKSPACE: current.layout.workspacePath, ATOMA_RUNS_DIR: current.layout.runsPath,
+      ATOMA_SKILLS_DIR: current.layout.skillsPath, ATOMA_SKILL_PROMOTE: '0', ATOMA_SKILL_DIRECT: '0', ATOMA_PREFILTER_CACHE: '0' })) vi.stubEnv(key, value);
+    vi.stubEnv(HAYSTACK_LAUNCH_ENV, JSON.stringify(haystackTestRuntime(root, 'valid')));
+    if (servers === 'one') {
+      vi.stubEnv('ATOMA_MCP_CONNECTORS', JSON.stringify({ version: 1, orgId: current.run.orgId, projectId: current.run.projectId,
+        connectors: [{ status: 'unavailable', serverId: '7f1c3a52-9d1e-4a55-8a4b-1f2e3d4c5b6a', key: 'notes', name: 'Notes', reason: 'authorization_required' }] }));
+    }
+    resetHostLifecycleSnapshotForTests();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const llm = new MockLlmClient();
+    let listed: unknown;
+    let declared: string[] = [];
+    let environmentDuringRun: string | undefined = 'unset';
+    llm.enqueue(async req => {
+      declared = (req.tools ?? []).map(tool => tool.name);
+      environmentDuringRun = process.env['ATOMA_MCP_CONNECTORS'];
+      listed = await req.executor!.execute('list_mcp_tools', {});
+      return { text: 'Listed.', stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    vi.mocked(buildTierClients).mockReturnValue({ ollama: llm });
+    vi.mocked(containerToolBackend).mockImplementation(async opts => localToolBackend({ workspaceRoot: opts.workspaceRoot, logger: silentLogger() }));
+    const handle = await startTask(['--container', '--baseline', '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', 'List the servers.']);
+    try {
+      expect((await handle.settled).outcome).toBe('delivered');
+      expect(declared).toEqual(expect.arrayContaining(['list_mcp_tools', 'call_mcp_tool']));
+      expect(environmentDuringRun).toBeUndefined();
+      if (servers === 'none') expect(listed).toEqual({ ok: true, servers: [] });
+      else expect(listed).toMatchObject({ ok: true, servers: [{ server: 'notes', status: 'unavailable' }] });
+    } finally { await handle.shutdown(); }
+  });
+
   it('runs a synthetic benchmark control on the one platform registry, and refuses nothing after cancellation', async () => {
     const root = environment(); const f = projectRetrievalFixture(root); const current = f.makeRun();
     for (const [key, value] of Object.entries({ ATOMA_TENANT_RUN: '1', ATOMA_RUN_ID: current.run.projectRunId,

@@ -21,6 +21,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { AuthStore } from '../auth/store.js';
 import { planShowsAttribution } from '../contracts/accountPlan.js';
 import { snapshotProviderRegistry } from '../auth/providers.js';
+import { ConnectorService } from '../connectors/service.js';
+import { ConnectorStore } from '../connectors/store.js';
+import { connectorFetch } from '../connectors/guardedFetch.js';
 import {
   resolveSecretEncryption,
   SECRET_ENCRYPTION_ENV,
@@ -598,6 +601,13 @@ async function main(): Promise<void> {
     orgTierModelsFor: (orgId) => auth.orgTierModels(orgId),
     orgProviderKeyFor: (orgId, provider) =>
       auth.decryptOrgProviderKey(orgId, provider, SECRET_ENCRYPTION),
+    // The project's MCP servers, as the browser path hands them over, but this
+    // process never refreshes a token: the server is the one writer of a
+    // rotating refresh token, so a terminal run gets a still-valid one or none.
+    mcpConnectorsFor: (orgId, projectId, validUntil, signal) => new ConnectorService({
+      store: ConnectorStore.open(dbPath), encryption: SECRET_ENCRYPTION, fetch: connectorFetch(),
+      redirectUrl: 'https://invalid.invalid/', events: () => {}, projectInOrg: () => false, refreshTokens: false,
+    }).launchFor(orgId, projectId, validUntil, signal),
     // The run's own outcome, journaled from the process that drove it — the
     // server's `onRunFinished` twin. A `run.finished` row is what makes the
     // publication attempt (and its failure) answerable after the fact.

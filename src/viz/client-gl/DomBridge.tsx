@@ -187,6 +187,7 @@ export function DomBridge({
   projectRuns = [], githubRecovery = null, auth = null,
   workspace,
   deploymentSettings,
+  connectorSettings,
   onRenameAddress,
   onOpenMcp,
   mcpAccessState = 'unknown',
@@ -232,6 +233,7 @@ export function DomBridge({
   projectGuideEnabled?: boolean;
   workspace?: WorkspaceBrowserData;
   deploymentSettings?: import('./project-deployment.js').DeploymentSettingsView;
+  connectorSettings?: import('./project-connectors.js').ConnectorSettingsView | null;
   onRenameAddress?: (subdomain: string) => void;
   projectAdmin?: boolean;
   /** Notification offer (first live run for members, login for platform
@@ -512,6 +514,7 @@ export function DomBridge({
         ) : null}
         {view === 'projects' && selectedProjectId && projectSection === 'settings' && deploymentSettings && onActivate ?
           <ProjectSettingsAccessible view={deploymentSettings} t={t} onActivate={onActivate}
+            connectors={connectorSettings ?? null}
             {...(onRenameAddress ? { onRenameAddress } : {})} /> : null}
         {view === 'projects' && selectedProjectId && (projectSection === 'conversation' || projectSection === 'runs') ?
           <ProjectOverviewAccessible runs={projectRuns.filter(run => run.projectId === selectedProjectId)} t={t} /> : null}

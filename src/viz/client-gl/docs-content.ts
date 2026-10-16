@@ -124,6 +124,7 @@ export const DOC_PAGES: Readonly<Record<DocsThemeKey, DocPageSpec>> = {
         cards: [
           { tagKey: 'docs.user.projects.visibility.tag', titleKey: 'docs.user.projects.visibility.title', bodyKey: 'docs.user.projects.visibility.body', tone: 'warning' },
           { tagKey: 'docs.user.projects.access.tag', titleKey: 'docs.user.projects.access.title', bodyKey: 'docs.user.projects.access.body', tone: 'primary' },
+          { tagKey: 'docs.user.projects.connectors.tag', titleKey: 'docs.user.projects.connectors.title', bodyKey: 'docs.user.projects.connectors.body', tone: 'cyan' },
         ],
       },
     ],

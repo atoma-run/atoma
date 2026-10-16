@@ -1364,6 +1364,40 @@ describe('viz auth gate (process level)', () => {
     expect(keyBody.keys.some((row) => row.provider === 'zai')).toBe(true);
     expect(JSON.stringify(keyBody)).not.toContain(zaiMaterial);
 
+    // ---- the organisation's own MCP servers (src/connectors): write-only
+    // secrets, same-origin writes, and a server that cannot be reached is a
+    // recorded tool error, never a failed save.
+    const mcpSecret = 'Bearer mcp-secret-value-123';
+    const refusedOrigin = await fetch(`${base}/api/org/mcp-servers`, {
+      method: 'POST',
+      headers: { ...cookie, 'content-type': 'application/json', origin: 'https://evil.example' },
+      body: JSON.stringify({ key: 'notes', name: 'Notes', url: 'https://mcp.example.invalid/mcp', authKind: 'header', headerValue: mcpSecret }),
+    });
+    expect(refusedOrigin.status).toBe(403);
+    const plainHttp = await fetch(`${base}/api/org/mcp-servers`, {
+      method: 'POST',
+      headers: { ...cookie, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ key: 'notes', name: 'Notes', url: 'http://mcp.example.invalid/mcp', authKind: 'none' }),
+    });
+    expect(plainHttp.status).toBe(400);
+    const createdServer = await fetch(`${base}/api/org/mcp-servers`, {
+      method: 'POST',
+      headers: { ...cookie, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ key: 'notes', name: 'Notes', url: 'https://mcp.example.invalid/mcp', authKind: 'header', headerValue: mcpSecret }),
+    });
+    expect(createdServer.status).toBe(201);
+    const createdBody = await createdServer.json() as { server: { id: string; hasHeaderSecret: boolean; toolsError: string | null; url?: string } };
+    expect(createdBody.server).toMatchObject({ hasHeaderSecret: true, url: 'https://mcp.example.invalid/mcp' });
+    expect(createdBody.server.toolsError).toMatch(/Could not list tools/);
+    expect(JSON.stringify(createdBody)).not.toContain('mcp-secret-value');
+    const listedServers = await (await fetch(`${base}/api/org/mcp-servers`, { headers: cookie })).json() as { servers: unknown[]; canManage: boolean };
+    expect(listedServers.canManage).toBe(true);
+    expect(listedServers.servers).toHaveLength(1);
+    expect(JSON.stringify(listedServers)).not.toContain('mcp-secret-value');
+    expect((await fetch(`${base}/api/projects/no-such-project/mcp-servers`, { headers: cookie })).status).toBe(404);
+    const removedServer = await fetch(`${base}/api/org/mcp-servers/${createdBody.server.id}`, { method: 'DELETE', headers: { ...cookie, origin: base } });
+    expect(removedServer.status).toBe(200);
+
     // ---- the viewer's own organisation, with no email anywhere in it.
     const org = await fetch(`${base}/api/org`, { headers: cookie });
     expect(org.status).toBe(200);
@@ -1929,8 +1963,18 @@ describe('viz auth gate (process level)', () => {
     });
     expect(deletedKey.status).toBe(403);
 
+    // The organisation's MCP servers: readable, never manageable, by a member.
+    expect(await readJson('/api/org/mcp-servers')).toMatchObject({ servers: [], canManage: false });
+    const addedServer = await fetch(`${base}/api/org/mcp-servers`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ key: 'notes', name: 'Notes', url: 'https://mcp.example.invalid/mcp', authKind: 'none' }),
+    });
+    expect(addedServer.status).toBe(403);
+
     // And nothing was written by the refusals.
     expect((await readJson('/api/org/models') as { keys: unknown[] }).keys).toHaveLength(0);
+    expect((await readJson('/api/org/mcp-servers') as { servers: unknown[] }).servers).toHaveLength(0);
 
   });
 

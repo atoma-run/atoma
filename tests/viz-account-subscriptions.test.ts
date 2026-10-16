@@ -284,8 +284,9 @@ describe('personal subscription settings', () => {
     }
   );
 
-  it('splits the body into six tabs and keeps every panel mounted, hidden', async () => {
+  it('splits the body into seven tabs and keeps every panel mounted, hidden', async () => {
     const adminSettings = vi.spyOn(api, 'adminSettings');
+    vi.spyOn(api, 'mcpServers').mockResolvedValue({ servers: [], encryptionReady: true, canManage: false });
     vi.spyOn(api, 'accountModels').mockResolvedValue(ACCOUNT_MODELS);
     vi.spyOn(api, 'orgModels').mockResolvedValue(ORG_MODELS);
     vi.spyOn(api, 'accountSubscriptions').mockResolvedValue(DISCONNECTED);
@@ -298,13 +299,15 @@ describe('personal subscription settings', () => {
 
     const tabs = await screen.findAllByRole('tab');
     // Reading order of a first setup: identity, the plan it is on, then what
-    // pays, then the models those choices unlock, then the MCP address.
+    // pays, then the models those choices unlock, then what a run may reach
+    // (the organisation's MCP servers), then the MCP address.
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'General',
       'Your plan',
       'Your AI subscriptions',
       'Your AI API keys',
       'LLM models',
+      'Your MCP servers',
       'Atoma MCP',
     ]);
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
@@ -312,7 +315,7 @@ describe('personal subscription settings', () => {
     // Every panel is in the DOM (a minted MCP token must survive a tab
     // switch); only the active one is visible.
     const panels = container.querySelectorAll('[role="tabpanel"]');
-    expect(panels).toHaveLength(6);
+    expect(panels).toHaveLength(7);
     expect(Array.from(panels).filter((panel) => !panel.hasAttribute('hidden'))).toHaveLength(1);
     // Children land in the MCP tab, hidden until it is selected.
     const child = screen.getByTestId('settings-child');

@@ -1,6 +1,7 @@
 import { Container } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { deploymentCopy, hostingCopy, type HostingTone } from '../../project-deployment.js';
+import { connectorsCopy } from '../../project-connectors.js';
 import { GPU_COLORS } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
 
@@ -12,10 +13,10 @@ const BUTTON_HEIGHT = 40;
 const GAP = 10;
 
 /**
- * Project settings as two cards: the hosted application first (what is
- * online, where, and the actions that apply now), then the destination
- * preference. Each card's frame is drawn behind its content once the
- * content's height is known.
+ * Project settings as cards: the hosted application first (what is online,
+ * where, and the actions that apply now), then the destination preference,
+ * then the organisation's MCP servers this project's runs may use. Each
+ * card's frame is drawn behind its content once the content's height is known.
  */
 export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
   box: { x: number; top: number; width: number; bottom: number }): void {
@@ -96,6 +97,27 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
     if (!view.canEdit) line(snapshot.t('deployment.adminOnly'));
     if (copy.status) line(snapshot.t(copy.status), { color: view.status === 'failed' || view.status === 'conflict' ? GPU_COLORS.error : GPU_COLORS.muted });
     if (copy.showSave) buttonRow([{ id: 'deployment.save', disabled: copy.saveDisabled }], 240);
+  });
+
+  const connectors = snapshot.data.connectorSettings;
+  if (connectors) card(() => {
+    const model = connectorsCopy(connectors);
+    line(snapshot.t('connectors.title'), { size: 16, weight: '600', color: GPU_COLORS.text, gap: 6 });
+    line(snapshot.t('connectors.intro'), { gap: 14 });
+    if (model.empty) line(snapshot.t(model.empty), { color: GPU_COLORS.text });
+    for (const row of model.rows) {
+      // The name is the organisation's, never a catalogue key: drawn as is, never through t().
+      if (pane.visible(y, y + BUTTON_HEIGHT)) ctx.button(content, row.id, 'button', row.name, PAD, y, Math.min(inner, 360), BUTTON_HEIGHT,
+        row.checked, snapshot.onActivate, undefined, false, false, undefined, undefined, undefined, row.disabled);
+      y += BUTTON_HEIGHT + 4;
+      line(snapshot.t(row.detail, { ...row.detailVars, status: snapshot.t(String(row.detailVars['status'])) }), { size: 12, gap: 12 });
+    }
+    if (!connectors.canEdit && !connectors.loading) line(snapshot.t('connectors.adminOnly'));
+    if (model.status) line(snapshot.t(model.status), { color: connectors.status === 'failed' || connectors.status === 'conflict' ? GPU_COLORS.error : GPU_COLORS.muted });
+    buttonRow([
+      ...(model.showSave ? [{ id: 'connectors.save', disabled: model.saveDisabled }] : []),
+      ...(model.showOpenSettings ? [{ id: 'connectors.openSettings' }] : []),
+    ], 260);
   });
 
   pane.extend(y); ctx.scrollMax.projects = pane.finish();

@@ -85,7 +85,7 @@ exercise either camera pose. The same probe is part of `viz:smoke`.
   the script says so instead of failing. With auth off it enters the app and
   opens the requested view.
 - **`--auth`** — a logged-in org member **without any real OAuth session**:
-  `/auth/whoami`, `/api/org`, `/api/org/models`, `/api/projects`, the run list,
+  `/auth/whoami`, `/api/org`, `/api/org/models`, `/api/org/mcp-servers`, `/api/projects`, the run list,
   `/api/goal-guidance`, `/api/account/models` and `/api/github/installations` are
   stubbed via Puppeteer request interception (the same technique as
   `viz-gpu-smoke`'s account arm). Settings is not a rail tab: `--view Settings`

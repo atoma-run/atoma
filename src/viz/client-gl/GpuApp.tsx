@@ -1,4 +1,5 @@
 import { useProjectDeployment } from './project-deployment.js';
+import { useProjectConnectors } from './project-connectors.js';
 import { FilePreview } from './FilePreview.js';
 import { CHEVRON_CSS_VARS } from './button-icons.js';
 import { TIMELINE_JUMP_PREFIX } from './renderer/timeline-minimap.js';
@@ -286,6 +287,9 @@ function GpuAppContent({
   const deployment = useProjectDeployment(selectedProject,
     (authSnapshot?.viewer.role === 'org:owner' || authSnapshot?.viewer.role === 'org:admin') &&
     (!selectedProject?.orgId || selectedProject.orgId === authSnapshot?.viewer.activeOrganisation?.id));
+  // Read only where it is shown: a selected project's Settings section.
+  const connectors = useProjectConnectors(selectedProject?.projectId ?? null,
+    state.view === 'projects' && state.projectSection === 'settings' && !!selectedProject && !!authSnapshot);
   const projectRunsQuery = useProjectRuns(
     selectedProject?.projectId ?? null,
     (state.view === 'projects' || state.view === 'runs') && !!selectedProject
@@ -948,6 +952,8 @@ function GpuAppContent({
       return;
     }
     if ((id.startsWith('deployment.') || id.startsWith('hosting.'))) { deployment.activate(id); return; }
+    if (id === 'connectors.openSettings') { store.openSettings('mcpServers'); return; }
+    if (id.startsWith('connectors.')) { connectors.activate(id); return; }
     if (id.startsWith('project.section.')) {
       if (!store.selectedProjectId) return;
       const section = id.slice('project.section.'.length);
@@ -1265,6 +1271,7 @@ function GpuAppContent({
     guidance: null,
     workspace,
     deploymentSettings: deployment.view,
+    connectorSettings: connectors.view,
     projects: projectsQuery.data ?? [],
     githubRecovery,
     projectRuns: resultProjectId && resultProjectRunsQuery.data
@@ -1296,6 +1303,7 @@ function GpuAppContent({
     error,
   }), [
     deployment.view,
+    connectors.view,
     githubRecovery,
     workspace,
     accountError,
@@ -1447,6 +1455,7 @@ function GpuAppContent({
             }}
           /> : null}
           deploymentSettings={deployment.view}
+          connectorSettings={connectors.view}
           onRenameAddress={deployment.renameAddress}
           workspace={workspace}
           mcpAccessState={mcpAccessState}

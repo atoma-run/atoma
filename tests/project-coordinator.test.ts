@@ -869,6 +869,42 @@ describe('ProjectRunCoordinator', () => {
     expect(driver.mock.calls[0]![0].timeoutMs).toBe(600_000);
   });
 
+  it('hands the child the project\'s MCP servers, and starts without them when they cannot be resolved', async () => {
+    const f = fixture();
+    const seen: Array<string | undefined> = [];
+    const driver = vi.fn(async (options: SpawnRunOptions) => {
+      seen.push(options.env?.['ATOMA_MCP_CONNECTORS']);
+      return formatRunStatsEpilogue(DELIVERED_STATS);
+    });
+    const launch = {
+      version: 1 as const, orgId: f.viewer.orgId, projectId: f.project.projectId,
+      connectors: [{ status: 'ready' as const, serverId: randomUUID(), key: 'notes', name: 'Notes', url: 'https://notes.example/mcp', headers: { Authorization: 'Bearer t' } }],
+    };
+    const asked: Array<{ orgId: string; projectId: string; validUntil: number }> = [];
+    let answer: () => Promise<typeof launch | null> = async () => launch;
+    const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key', ATOMA_MCP_CONNECTORS: 'forged' },
+      driver, acquireLease: async () => lease(), publisher: { publish: vi.fn().mockResolvedValue(undefined) },
+      mcpConnectorsFor: async (orgId, projectId, validUntil) => { asked.push({ orgId, projectId, validUntil }); return answer(); },
+    });
+    const before = Date.now();
+    await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { idempotencyKey: 'connectors-1', goal: 'Summarise my notes' } });
+    await coordinator.waitForIdle();
+    expect(asked[0]).toMatchObject({ orgId: f.viewer.orgId, projectId: f.project.projectId });
+    // The credential must outlive the run's own budget.
+    expect(asked[0]!.validUntil).toBeGreaterThanOrEqual(before + driver.mock.calls[0]![0].timeoutMs);
+    expect(JSON.parse(seen[0]!)).toEqual(launch);
+
+    answer = async () => { throw new Error('store unavailable'); };
+    await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { idempotencyKey: 'connectors-2', goal: 'Summarise my notes again' } });
+    await coordinator.waitForIdle();
+    expect(driver).toHaveBeenCalledTimes(2);
+    // Neither the failure nor a host variable of the same name reaches the child.
+    expect(seen[1]).toBeUndefined();
+  });
+
   it('isolates and verifies a delivery without publishing before client acceptance', async () => {
     const f = fixture();
     const runLease = lease();

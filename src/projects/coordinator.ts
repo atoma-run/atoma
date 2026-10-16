@@ -5,6 +5,7 @@ import { deploymentPaused } from '../viz/deployment.js';
 import { peekDeploymentPending } from '../mcp/runLock.js';
 import type { AnswerClientQuestion } from '../contracts/clientQuestion.js';
 import { encodeProjectContext, PROJECT_CONTEXT_ENV } from '../contracts/projectContext.js';
+import { encodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
 import { RunCheckpointStore, canonicalCheckpointWorkspacePath } from '../run/checkpoint.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
@@ -165,6 +166,14 @@ export interface ProjectCoordinatorOptions {
     orgId: string,
     provider: ProviderKeyProvider
   ) => string | null;
+  /**
+   * The organisation's MCP servers this project enables, each with a
+   * credential valid until at least `validUntil` or the reason it has none
+   * (src/connectors). Asked once per launch, during preparation; `null`
+   * means the project enables none. A throw degrades to no connectors and
+   * is logged: a connector never blocks a run.
+   */
+  readonly mcpConnectorsFor?: (orgId: string, projectId: string, validUntil: number, signal: AbortSignal) => Promise<ConnectorLaunchSet | null>;
   /**
    * Does this principal hold the instance-wide platform-admin flag? Supplied
    * as a QUESTION, never as an answer: the coordinator asks it itself, so no
@@ -1287,6 +1296,7 @@ export class ProjectRunCoordinator {
     orgId: string,
     provider: ProviderKeyProvider
   ) => string | null;
+  private readonly mcpConnectorsFor?: ProjectCoordinatorOptions['mcpConnectorsFor'];
   private readonly platformAdmins?: (principalId: string) => boolean;
   private readonly subscriptionDelegates?: (principalId: string, orgId: string) => boolean;
   private readonly principalCodexProfileFor?: (
@@ -1341,6 +1351,7 @@ export class ProjectRunCoordinator {
     if (options.principalCodexModelsFor) this.principalCodexModelsFor = options.principalCodexModelsFor;
     if (options.orgTierModelsFor) this.orgTierModelsFor = options.orgTierModelsFor;
     if (options.orgProviderKeyFor) this.orgProviderKeyFor = options.orgProviderKeyFor;
+    if (options.mcpConnectorsFor) this.mcpConnectorsFor = options.mcpConnectorsFor;
     if (options.platformAdmins) this.platformAdmins = options.platformAdmins;
     if (options.subscriptionDelegates) this.subscriptionDelegates = options.subscriptionDelegates;
     if (options.principalCodexProfileFor) {
@@ -2065,6 +2076,20 @@ export class ProjectRunCoordinator {
           const context = this.store.getProjectContext(run.orgId, run.projectId, run.contextVersion);
           if (!context) throw new ProjectStateConflict('The reserved project context version is unavailable');
           environment[PROJECT_CONTEXT_ENV] = encodeProjectContext(context);
+        }
+        // THE ORGANISATION'S MCP SERVERS: credentials resolved in THIS process,
+        // which alone holds refresh tokens; the child receives access headers
+        // valid past its own deadline (docs/decisions/customer-mcp-servers-2026-10-16.md).
+        // A comparison rerun gets none: it re-runs another run's goal, and every
+        // change that run made on the organisation's systems would be made again.
+        delete environment[MCP_CONNECTORS_ENV];
+        if (this.mcpConnectorsFor && !rerun) {
+          try {
+            const connectors = await this.mcpConnectorsFor(run.orgId, run.projectId, Date.now() + timeoutMs, preparationSignal);
+            if (connectors) environment[MCP_CONNECTORS_ENV] = encodeConnectorLaunch(connectors);
+          } catch (error) {
+            console.error(`[atoma connectors] run ${run.projectRunId} starts without MCP servers: ${(error as Error).message}`);
+          }
         }
         // WHY THE PREVIOUS RUN DID NOT DELIVER, handed to this one.
         //

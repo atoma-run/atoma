@@ -8,6 +8,7 @@ import {
   ensureCanonicalFileScribeL1,
   ensureCanonicalFullStack,
   ensureCanonicalProjectDocsL1,
+  ensureCanonicalConnectorsL1,
 } from '../atoms/capability.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -159,6 +160,8 @@ export function seedCatalog({ registry, toolDecls, log }: SeedContext): void {
   );
   const documentMolecule = ensureCanonicalProjectDocsL1(registry, toolDecls);
   if (documentMolecule) log(`canonical L1 (project-docs): ${documentMolecule.name} (v${documentMolecule.version})`);
+  const connectorMolecule = ensureCanonicalConnectorsL1(registry, toolDecls);
+  if (connectorMolecule) log(`canonical L1 (connectors): ${connectorMolecule.name} (v${connectorMolecule.version})`);
   for (const tier of [1, 2] as const) {
     const fullStack = ensureCanonicalFullStack(registry, toolDecls, tier);
     if (fullStack) log(`canonical L${tier} (full-stack): ${fullStack.name} (v${fullStack.version}) — ${fullStack.description}`);

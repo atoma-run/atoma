@@ -174,6 +174,7 @@ export interface GpuDataSnapshot {
   githubRecovery?: import('./github-access.js').GitHubRecoveryProgress | null;
   workspace?: WorkspaceBrowserData;
   deploymentSettings?: import('./project-deployment.js').DeploymentSettingsView;
+  connectorSettings?: import('./project-connectors.js').ConnectorSettingsView | null;
   githubInstallations: VizGitHubInstallation[];
   adminOrganisations: VizAdminOrganisation[];
   adminInvitation: VizAdminInvitation | null;

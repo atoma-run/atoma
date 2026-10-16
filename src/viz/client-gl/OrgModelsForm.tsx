@@ -35,6 +35,7 @@ import type {
 import { useAccountSubscriptions } from './queries.js';
 import { PlatformLimitsForm } from './PlatformLimitsForm.js';
 import { PlanPanel } from './PlanPanel.js';
+import { McpServersPanel } from './McpServersPanel.js';
 import { SETTINGS_TABS, type SettingsTab } from './store.js';
 
 /**
@@ -43,7 +44,9 @@ import { SETTINGS_TABS, type SettingsTab } from './store.js';
  * models those choices make available, and last the MCP address. Models sits
  * after the two credential tabs because an empty account arms its tiers from
  * the subscription it just connected, so the pins are already filled by the
- * time it is reached. The list itself lives in the store, which routes to it.
+ * time it is reached. The organisation's own MCP servers (what a run may
+ * reach) come before Atoma's MCP address (how an agent reaches Atoma).
+ * The list itself lives in the store, which routes to it.
  */
 export { SETTINGS_TABS, type SettingsTab } from './store.js';
 
@@ -666,6 +669,10 @@ export function OrgModelsForm({
               );
             })}
         </form>
+      </section>
+
+      <section {...panelProps('mcpServers')}>
+        <McpServersPanel t={t} locale={locale} enabled={enabled} onError={onError} />
       </section>
 
       <section {...panelProps('mcp')}>{children}</section>

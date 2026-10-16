@@ -179,6 +179,12 @@ Neighbours:
   a deepening puts the marks back after its seed copy. The manifest is
   replaced through a new file renamed over it.
 
+- `ATOMA_MCP_CONNECTORS` is read ONCE at launch, refused outside a tenant
+  project run or for another project, and deleted from the process
+  environment before anything is spawned; `withMcpConnectorBackend` composes
+  the two connector elements after retrieval, and the runner disposes the
+  connector sessions once at teardown ([src/connectors](../connectors/AGENTS.md)).
+
 ## Platform run limits
 
 - The runner reads the instance's run limits from the product store at launch

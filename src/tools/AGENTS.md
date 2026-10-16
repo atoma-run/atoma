@@ -70,6 +70,13 @@ Neighbours:
   first waits, bounded by the run's signal and deadline, instead of answering
   `unavailable` while the corpus is still building. A rejected `ready()` is
   `unavailable`; an invalid request is refused before any wait.
+- `list_mcp_tools` and `call_mcp_tool` (`mcpConnectors.ts`) are host elements
+  like search: intercepted around either backend, never in the worker, with
+  STATIC declarations because atom types persist them in the shared registry.
+  They refuse before reaching a server (unknown, unavailable, denied, tool
+  switched off), bound time and result size, and drop media bytes. The
+  service, its sessions and its credentials belong to
+  [src/connectors](../connectors/AGENTS.md).
 - `run_shell` and `record_probe` take a per-call `timeoutMs` (2026-10-15):
   defaults 30 s and 120 s (`SHELL_TIMEOUT_MS`, `PROBE_TIMEOUT_MS`), at most
   five minutes, an out-of-range value REFUSED before anything runs, never

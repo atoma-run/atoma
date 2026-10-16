@@ -80,6 +80,7 @@ const LAYOUT = Object.freeze({
   auth: { band: 'control', col: 0, type: 'security', label: 'Auth' },
   projects: { band: 'control', col: 1, type: 'database', label: 'Projects' },
   github: { band: 'control', col: 2, type: 'external', label: 'GitHub' },
+  connectors: { band: 'control', col: 3, type: 'external', label: 'Connectors' },
 
   platform: { band: 'journal', col: 0, type: 'database', label: 'Platform' },
   sentinel: { band: 'journal', col: 1, type: 'backend', label: 'Sentinel' },
@@ -116,6 +117,9 @@ const EDGES = Object.freeze([
   { from: 'launcher', to: 'preview', variant: 'security' },
   { from: 'auth', to: 'projects', variant: 'security' },
   { from: 'github', to: 'projects' },
+  // The coordinator hands a run its servers; the run calls them through two host elements.
+  { from: 'projects', to: 'connectors', variant: 'security' },
+  { from: 'connectors', to: 'tools', variant: 'security' },
   { from: 'projects', to: 'platform' },
   { from: 'sentinel', to: 'platform' },
   { from: 'supervisor', to: 'platform' },

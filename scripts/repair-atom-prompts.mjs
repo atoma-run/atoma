@@ -11,6 +11,7 @@ import {
   CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES, CANONICAL_HTTP_L2_SYSTEM_PROMPT_LINES,
   CANONICAL_FILESCRIBE_L1_SYSTEM_PROMPT_LINES, canonicalFullStackPrompt,
   CANONICAL_PROJECT_DOCS_MARKER, canonicalProjectDocsPrompt,
+  CANONICAL_CONNECTORS_MARKER, canonicalConnectorsPrompt,
 } from '../src/atoms/capability.ts';
 import { HOST_TOOL_NAMES } from '../src/contracts/toolTaxonomy.ts';
 import { SMOKE_DESIGN_GUIDANCE } from '../src/atoms/prompts.ts';
@@ -38,6 +39,7 @@ try {
     else if (marker === 'bootstrap-canonical-filescribe') prompt = CANONICAL_FILESCRIBE_L1_SYSTEM_PROMPT_LINES.join('\n');
     // The bootstrap owns this one too: a generic prompt here was put back two versions later.
     else if (marker === CANONICAL_PROJECT_DOCS_MARKER) prompt = canonicalProjectDocsPrompt(tools.some(tool => tool.name === HOST_TOOL_NAMES[0]));
+    else if (marker === CANONICAL_CONNECTORS_MARKER) prompt = canonicalConnectorsPrompt(tools.some(tool => tool.name === HOST_TOOL_NAMES[2]));
     else if (marker === 'bootstrap-canonical') prompt = tier === 1
       ? [...CANONICAL_L1_SYSTEM_PROMPT_LINES, '', SMOKE_DESIGN_GUIDANCE].join('\n')
       : CANONICAL_L2_SYSTEM_PROMPT_LINES.join('\n');

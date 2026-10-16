@@ -13,6 +13,8 @@ const STATEFUL_GET_PATHS = new Set([
   '/auth/github/connect',
   '/auth/github/authorize',
   '/auth/github/setup',
+  // Consumes a pending connector authorization and stores its tokens.
+  '/api/org/mcp-servers/oauth/callback',
 ]);
 
 /**

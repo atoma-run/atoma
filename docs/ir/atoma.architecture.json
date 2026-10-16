@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "atoma",
-    "subtitle": "18 subsystems, each under its own AGENTS.md contract",
+    "subtitle": "19 subsystems, each under its own AGENTS.md contract",
     "output": "docs/architecture.html"
   },
   "layout": {
@@ -140,6 +140,14 @@
       "col": 2
     },
     {
+      "id": "connectors",
+      "type": "external",
+      "label": "Connectors",
+      "sublabel": "customer MCP servers",
+      "row": 4,
+      "col": 3
+    },
+    {
       "id": "platform",
       "type": "database",
       "label": "Platform",
@@ -207,7 +215,8 @@
       "wraps": [
         "auth",
         "projects",
-        "github"
+        "github",
+        "connectors"
       ]
     },
     {
@@ -282,6 +291,16 @@
     {
       "from": "github",
       "to": "projects"
+    },
+    {
+      "from": "projects",
+      "to": "connectors",
+      "variant": "security"
+    },
+    {
+      "from": "connectors",
+      "to": "tools",
+      "variant": "security"
     },
     {
       "from": "projects",

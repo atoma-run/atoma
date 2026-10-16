@@ -332,7 +332,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 | --- | --- |
 | Version | `0.4.0` |
 | Node | 24.20+ (`.nvmrc` 24.20.0, `engines` >=24) |
-| Subsystems under their own contract | 18 |
+| Subsystems under their own contract | 19 |
 | MCP tools | 59 |
 | Curated agent names | 118 molecules · 40 cells · 20 tissues |
 | Controlled benchmark rounds | 12 (`benchmark/RESULT.md` + `ROUND<n>.md`) |

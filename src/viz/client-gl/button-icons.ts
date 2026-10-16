@@ -58,6 +58,9 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'hosting.stop') return 'close';
   if (id === 'hosting.rename') return 'edit';
   if (id === 'deployment.save') return 'check';
+  if (id === 'connectors.save') return 'check';
+  if (id === 'connectors.openSettings') return 'settings';
+  if (id.startsWith('connectors.toggle.')) return 'link';
   if (/^(result|workspace|activity)\.close$|^run.event.close$|^activity.files$|^workspace.parent$|^runs\.project\.back\./.test(id)) return 'back';
   if (/^activity.source\./.test(id)) return 'code';
   if (/^activity.collapse\.|\.more$/.test(id)) return 'down';

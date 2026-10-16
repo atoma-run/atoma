@@ -3,10 +3,12 @@ import { ButtonIcon } from './ButtonIcon.js';
 import { buttonIconKind } from './button-icons.js';
 import { HOSTING_SUBDOMAIN_MAX } from '../../contracts/projectDeployment.js';
 import { deploymentCopy, hostingCopy, type DeploymentSettingsView } from './project-deployment.js';
+import { connectorsCopy, type ConnectorSettingsView } from './project-connectors.js';
 
-export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress }: {
+export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress, connectors }: {
   view: DeploymentSettingsView; t: (key: string, vars?: Record<string, unknown>) => string; onActivate: (id: string) => void;
   onRenameAddress?: (subdomain: string) => void;
+  connectors?: ConnectorSettingsView | null;
 }) {
   const copy = deploymentCopy(view);
   const hosted = hostingCopy(view);
@@ -45,6 +47,34 @@ export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress
     <p role={view.status === 'failed' || view.status === 'conflict' ? 'alert' : 'status'}>{copy.status ? t(copy.status) : ''}</p>
     {copy.showSave ? <button type="button" disabled={copy.saveDisabled} onClick={() => onActivate('deployment.save')}>
       <ButtonIcon kind="check" />{t('deployment.save')}
+    </button> : null}
+    {connectors ? <ConnectorsSection view={connectors} t={t} onActivate={onActivate} /> : null}
+  </section>;
+}
+
+/** The organisation's MCP servers this project's runs may use: the GPU card's twin. */
+function ConnectorsSection({ view, t, onActivate }: {
+  view: ConnectorSettingsView; t: (key: string, vars?: Record<string, unknown>) => string; onActivate: (id: string) => void;
+}) {
+  const model = connectorsCopy(view);
+  return <section aria-label={t('connectors.title')} aria-busy={view.busy}>
+    <h2>{t('connectors.title')}</h2><p>{t('connectors.intro')}</p>
+    {model.empty ? <p>{t(model.empty)}</p> : null}
+    {model.rows.length > 0 ? <fieldset disabled={!view.canEdit || view.busy}>
+      <legend>{t('connectors.title')}</legend>
+      {model.rows.map(row => <div key={row.id}>
+        <label><input type="checkbox" checked={row.checked} aria-describedby={`${row.id}-detail`}
+          onChange={() => onActivate(row.id)} />{row.name}</label>
+        <p id={`${row.id}-detail`}>{t(row.detail, { ...row.detailVars, status: t(String(row.detailVars['status'])) })}</p>
+      </div>)}
+    </fieldset> : null}
+    {!view.canEdit && !view.loading ? <p>{t('connectors.adminOnly')}</p> : null}
+    <p role={view.status === 'failed' || view.status === 'conflict' ? 'alert' : 'status'}>{model.status ? t(model.status) : ''}</p>
+    {model.showSave ? <button type="button" disabled={model.saveDisabled} onClick={() => onActivate('connectors.save')}>
+      <ButtonIcon kind="check" />{t('connectors.save')}
+    </button> : null}
+    {model.showOpenSettings ? <button type="button" onClick={() => onActivate('connectors.openSettings')}>
+      <ButtonIcon kind="settings" />{t('connectors.openSettings')}
     </button> : null}
   </section>;
 }

@@ -33,6 +33,21 @@ import type { PreviewOpenOptions } from '../../contracts/preview.js';
 import type { AssistantRequest, AssistantView } from '../../contracts/assistant.js';
 import type { RunReview } from '../../contracts/clientExperience.js';
 import type { DeliveryAcceptance } from '../../contracts/projects.js';
+import type { ConnectorCreateInput, ConnectorUpdateInput, ConnectorView } from '../../contracts/mcpConnectors.js';
+
+/** Settings' MCP servers list (src/connectors). */
+export interface VizMcpServers {
+  readonly servers: ConnectorView[];
+  readonly encryptionReady: boolean;
+  readonly canManage: boolean;
+}
+
+/** A project's MCP servers: the organisation's connections and the ones this project enables. */
+export interface VizProjectMcpServers {
+  readonly servers: ConnectorView[];
+  readonly enabled: string[];
+  readonly canEdit: boolean;
+}
 
 let activeMutations = 0;
 export function pendingApiMutations(): number { return activeMutations; }
@@ -293,6 +308,25 @@ export const api = {
     if (!response.ok) throw new Error(`HTTP ${response.status} for provider-keys`);
     return (await response.json()) as { keys: VizOrgProviderKeyStatus[] };
   }),
+  mcpServers: () => fetchJson<VizMcpServers>('/api/org/mcp-servers'),
+  createMcpServer: (input: ConnectorCreateInput) =>
+    mutateJson<{ server: ConnectorView }>('/api/org/mcp-servers', input, 'POST'),
+  updateMcpServer: (id: string, input: ConnectorUpdateInput) =>
+    mutateJson<{ server: ConnectorView }>(`/api/org/mcp-servers/${encodeURIComponent(id)}`, input, 'PUT'),
+  refreshMcpServer: (id: string) =>
+    mutateJson<{ server: ConnectorView }>(`/api/org/mcp-servers/${encodeURIComponent(id)}/refresh`, {}, 'POST'),
+  authorizeMcpServer: (id: string) =>
+    mutateJson<{ authorizationUrl: string }>(`/api/org/mcp-servers/${encodeURIComponent(id)}/authorize`, {}, 'POST'),
+  removeMcpServer: (id: string): Promise<void> => trackMutation(async () => {
+    const path = `/api/org/mcp-servers/${encodeURIComponent(id)}`;
+    const response = await fetch(path, { method: 'DELETE', credentials: 'same-origin', headers: { accept: 'application/json' } });
+    await assertMutationSucceeded(response, path);
+    await response.arrayBuffer();
+  }),
+  projectMcpServers: (projectId: string) =>
+    fetchJson<VizProjectMcpServers>(`/api/projects/${encodeURIComponent(projectId)}/mcp-servers`),
+  saveProjectMcpServers: (projectId: string, serverIds: string[], expectedServerIds: string[]) =>
+    mutateJson<{ enabled: string[] }>(`/api/projects/${encodeURIComponent(projectId)}/mcp-servers`, { serverIds, expectedServerIds }, 'PUT'),
   renameAccount: (displayName: string) =>
     mutateJson<{ displayName: string; displayNameSource: string }>(
       '/api/account',

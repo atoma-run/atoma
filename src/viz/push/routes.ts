@@ -210,6 +210,10 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   'org.models_updated': null,
   'org.provider_key_set': null,
   'org.provider_key_removed': null,
+  'org.mcp_server_added': null,
+  'org.mcp_server_updated': null,
+  'org.mcp_server_removed': null,
+  'org.mcp_server_authorized': null,
   'org.plan_changed': null,
   // Operator catalogue actions taken over the MCP: audit rows, never a
   // notification — the actor is the one person who would receive it.
@@ -328,6 +332,7 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   'project.repository_synced': null,
   'project.upstream_follow_changed': null,
   'project.deployment_preference_changed': null,
+  'project.mcp_servers_changed': null,
   'project.hosting_changed': null,
   'project.hosting_failed': null,
   'project.hosting_address_assigned': null,

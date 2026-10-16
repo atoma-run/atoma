@@ -48,7 +48,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function fixture() {
+function fixture(extra: Partial<ConstructorParameters<typeof ProjectRunCoordinator>[0]> = {}) {
   // Retention rejects symlink ancestors; macOS temp roots may alias /private.
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-project-rerun-')));
   roots.push(root);
@@ -98,6 +98,7 @@ function fixture() {
     driver,
     acquireLease: async () => ({ path: '/test/lease', attachChild: vi.fn(), release: vi.fn() }),
     publisher,
+    ...extra,
   });
   const start = async (request: Parameters<typeof coordinator.start>[0]['request']) => {
     const run = await coordinator.start({
@@ -225,6 +226,19 @@ describe('comparison reruns', () => {
     db.close();
     await f.start({ idempotencyKey: 'b', rerunOf: a.projectRunId, models: OVERRIDES });
     expect(f.seedOf(2)).toBe(r0.hostPaths.workspacePath);
+  });
+
+  it('never hands a comparison rerun the project\'s MCP servers: it would repeat its origin\'s changes', async () => {
+    const asked: string[] = [];
+    const f = fixture({ mcpConnectorsFor: async (orgId, projectId) => {
+      asked.push(projectId);
+      return { version: 1, orgId, projectId, connectors: [{ status: 'unavailable', serverId: '7f1c3a52-9d1e-4a55-8a4b-1f2e3d4c5b6a', key: 'notes', name: 'Notes', reason: 'authorization_required' }] };
+    } });
+    const a = await f.start({ idempotencyKey: 'a', goal: 'Build a clock.' });
+    await f.start({ idempotencyKey: 'b', rerunOf: a.projectRunId, models: OVERRIDES });
+    expect(asked).toHaveLength(1);
+    expect(f.driver.mock.calls[0]![0].env!['ATOMA_MCP_CONNECTORS']).toBeDefined();
+    expect(f.driver.mock.calls[1]![0].env!['ATOMA_MCP_CONNECTORS']).toBeUndefined();
   });
 
   it('refuses before reserving when the origin cannot be rerun from where it started', async () => {

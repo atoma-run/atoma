@@ -15,8 +15,7 @@ sibling `CLAUDE.md` on its own when it opens a file there; Codex merges
 per-file discovery is guaranteed by neither. The map is an instruction, not a
 convenience.
 
-`docs/` holds only what developers and users read; incident narratives,
-measurements and reviews live under `records/`, linked, never copied in.
+`docs/` holds only what developers and users read; incident narratives, measurements and reviews live under `records/`, linked, never copied in.
 The former 5,452-line engineering record is preserved verbatim (apart from
 its archive banner) in
 [`records/incidents/engineering-record-2026-08-14.md`](records/incidents/engineering-record-2026-08-14.md).
@@ -40,13 +39,13 @@ Use it when a rule's rationale matters, not as default session context.
 | `src/launcher/` | [src/launcher/AGENTS.md](src/launcher/AGENTS.md) | the one holder of container-engine access: profiles, networks, orphan reconciliation |
 | `src/preview/` | [src/preview/AGENTS.md](src/preview/AGENTS.md) | result preview: deliverable classification, byte policy, instance state |
 | `src/github/` | [src/github/AGENTS.md](src/github/AGENTS.md) | GitHub App install, webhooks, repository creation |
+| `src/connectors/` | [src/connectors/AGENTS.md](src/connectors/AGENTS.md) | customer MCP servers: encrypted connections, OAuth client, guarded outbound fetch, launch hand-off, run sessions |
 | `src/platform/` | [src/platform/AGENTS.md](src/platform/AGENTS.md) | the control-plane audit journal, the one source of notifications, the admin-settable run limits |
 | `src/cli/` | [src/cli/AGENTS.md](src/cli/AGENTS.md) | operator commands, doctor, burn-in and friction reporting |
 | `src/sentinel/` | [src/sentinel/AGENTS.md](src/sentinel/AGENTS.md) | mechanical live watch over runs in flight: rules, sources, hosts |
 | `src/supervisor/` | [src/supervisor/AGENTS.md](src/supervisor/AGENTS.md) | post-mortem analyst, the mender and the assayer: verdicts, idle gate, worktree, pull requests, recipes judged by execution |
 
-Every subsystem file names its own neighbours, so one hop is usually enough.
-`npm run docs:check` enforces the shape: each subsystem `AGENTS.md` is listed
+Every subsystem file names its own neighbours, so one hop is usually enough. `npm run docs:check` enforces the shape: each subsystem `AGENTS.md` is listed
 above, each has a sibling `CLAUDE.md` holding exactly the import, links resolve,
 no file exceeds its budget, and each carries its own
 `## Intentional choices and rejected shortcuts` section. That last one was
@@ -343,6 +342,7 @@ load-bearing and they are stated once, where the call sites are.
   model-authored commands. The authorized browser replay and parent-owned test harness are defined in [src/atoms](src/atoms/AGENTS.md).
 - Tools belong to L1 only, and only [src/tools](src/tools/AGENTS.md) may declare
   or execute them. The MCP is not an element surface: [src/mcp](src/mcp/AGENTS.md).
+  A customer's own MCP servers reach a run through two fixed host elements: [src/connectors](src/connectors/AGENTS.md).
 
 ## Skills lifecycle
 

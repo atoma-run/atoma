@@ -441,6 +441,19 @@ function gatedStubs() {
       },
       catalog: [],
     },
+    // Settings → Your MCP servers: one connected server, so the tab shows a row.
+    '/api/org/mcp-servers': {
+      servers: [{
+        id: '7f1c3a52-9d1e-4a55-8a4b-1f2e3d4c5b6a', key: 'notes', name: 'Team notes', host: 'mcp.notes.example',
+        url: 'https://mcp.notes.example/mcp', authKind: 'oauth', hasHeaderSecret: false, hasOauthClientSecret: false,
+        oauthConnected: true, status: 'ready',
+        tools: [{ name: 'search_notes', readOnly: true }, { name: 'create_note' }, { name: 'delete_note', destructive: true }],
+        toolsRefreshedAt: '2026-10-16T08:00:00.000Z', toolsError: null, disabledTools: ['delete_note'], revision: 2,
+        createdAt: '2026-10-16T08:00:00.000Z', updatedAt: '2026-10-16T08:00:00.000Z',
+      }],
+      encryptionReady: true,
+      canManage: true,
+    },
     // Settings body fetches this on mount. A 401 here reload-loops the page.
     '/api/org/models': {
       models: { l1: null, l2: null, l3: null },
@@ -945,6 +958,14 @@ try {
             if (project) project.hostingSubdomain = body.subdomain;
             stubs.renamedAddress = body;
             void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(project ?? {}) }); return;
+          }
+          // The organisation's MCP servers, as Project settings reads and saves them.
+          if (has('--project-settings') && /^\/api\/projects\/[^/]+\/mcp-servers$/.test(path)) {
+            const servers = stubs['/api/org/mcp-servers'].servers.map(server => ({ ...server, url: undefined }));
+            stubs.projectMcpServers ??= { servers, enabled: [], canEdit: true };
+            if (request.method() === 'PUT') stubs.projectMcpServers.enabled = JSON.parse(request.postData() ?? '{}').serverIds ?? [];
+            const body = request.method() === 'PUT' ? { enabled: stubs.projectMcpServers.enabled } : stubs.projectMcpServers;
+            void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }); return;
           }
           if (has('--project-settings') && /^\/api\/projects\/[^/]+\/deployment$/.test(path) && request.method() === 'PUT') {
             const project = stubs['/api/projects'].find(row => row.projectId === path.split('/')[3]);

@@ -157,8 +157,13 @@ export const BUILTIN_TOOL_ELEMENTS: readonly ToolElement[] = BUILTIN_TOOL_NAMES.
   }
 );
 
-/** Host capabilities are opt-in and never part of the worker handshake. */
-export const HOST_TOOL_NAMES = ['search_project_docs'] as const;
+/**
+ * Host capabilities are opt-in and never part of the worker handshake.
+ * APPEND ONLY: an element identity is positional, so a name's index is its
+ * periodic-table identity. The two connector elements are fixed names over
+ * every customer MCP server (docs/decisions/customer-mcp-servers-2026-10-16.md).
+ */
+export const HOST_TOOL_NAMES = ['search_project_docs', 'list_mcp_tools', 'call_mcp_tool'] as const;
 export const HOST_TOOL_ELEMENTS: readonly ToolElement[] = HOST_TOOL_NAMES.map(
   (toolName, index) => ({ ...ELEMENTS[BUILTIN_TOOL_NAMES.length + index]!, toolName })
 );

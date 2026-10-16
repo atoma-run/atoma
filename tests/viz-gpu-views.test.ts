@@ -3633,6 +3633,28 @@ describe('drawProjects', () => {
     }
   });
 
+  it('draws the project\'s MCP servers as canvas toggles named as the organisation wrote them', () => {
+    const project = guidanceProject();
+    const ctx = createRecordingCtx();
+    drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId, projectSection: 'settings' }, {
+      auth: makeAuth(), projects: [project],
+      deploymentSettings: { saved: 'none', destination: 'none', canEdit: true, busy: false, status: 'idle' },
+      connectorSettings: {
+        loading: false, loadFailed: false, canEdit: true, busy: false, status: 'idle', saved: [], selected: ['a'],
+        servers: [
+          { id: 'a', key: 'notes', name: 'notes.app: Team', host: 'notes.example', status: 'ready', enabledTools: 2, totalTools: 3 },
+          { id: 'b', key: 'crm', name: 'CRM', host: 'crm.example', status: 'authorization_required', enabledTools: 0, totalTools: 0 },
+        ],
+      },
+    }), 1280, 2400);
+    const toggles = ctx.buttons.filter(button => button.id.startsWith('connectors.toggle.'));
+    // A name with a dot and a colon is not a catalogue key: drawn as is.
+    expect(toggles.map(button => [button.id, button.label, button.active])).toEqual([
+      ['connectors.toggle.a', 'notes.app: Team', true], ['connectors.toggle.b', 'CRM', false]]);
+    expect(ctx.buttons.some(button => button.id === 'connectors.save' && !button.disabled)).toBe(true);
+    expect(ctx.texts.some(text => String(text.value).includes(t('settings.mcpServers.status.authorization_required')))).toBe(true);
+  });
+
   it('keeps all six project sections available when files or delivered results are absent', () => {
     const project = guidanceProject();
     for (const [section, messageKey] of [

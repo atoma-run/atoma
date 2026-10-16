@@ -16,7 +16,17 @@ import { prefersReducedMotion } from './renderer/motion.js';
  * platform admin alone the instance's run limits. Declared here, not in the
  * form, because the store routes to one.
  */
-export const SETTINGS_TABS = ['general', 'plan', 'subscriptions', 'keys', 'models', 'mcp', 'limits'] as const;
+/**
+ * Back from a connector's OAuth authorization (`?mcpServer=` on the return
+ * address, src/connectors): Settings opens on the tab that started it.
+ */
+function initialSettingsTab(): SettingsTab {
+  try {
+    return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('mcpServer') ? 'mcpServers' : 'general';
+  } catch { return 'general'; }
+}
+
+export const SETTINGS_TABS = ['general', 'plan', 'subscriptions', 'keys', 'models', 'mcpServers', 'mcp', 'limits'] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export { DOC_THEMES, type DocsThemeKey } from './docs-content.js';
@@ -534,7 +544,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   },
   handheldBlocked: false,
   accountMenuOpen: false,
-  settingsTab: 'general',
+  settingsTab: initialSettingsTab(),
   localeMenuOpen: false,
   notificationsMenuOpen: false,
   tuningPanelOpen: initialTuningPanelOpen(),

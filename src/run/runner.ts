@@ -54,7 +54,10 @@ import { isTraceRunId, TraceRecorder, runLabelFromGoal } from '../viz/trace.js';
 import { formatDecompositionReport, formatTimeoutPostMortem } from '../viz/report.js';
 import { RecordingLlmClient } from '../viz/recordingLlm.js';
 import { RecordingRegistry } from '../viz/recordingRegistry.js';
-import { containerToolBackend, localToolBackend, withProjectRetrievalBackend } from './toolBackend.js';
+import { containerToolBackend, localToolBackend, withMcpConnectorBackend, withProjectRetrievalBackend } from './toolBackend.js';
+import { decodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
+import { openConnectorRuntime } from '../connectors/runtime.js';
+import { emptyConnectorService, type McpConnectorService } from '../tools/mcpConnectors.js';
 import { validateProjectRetrievalBinding, type ProjectRetrievalBinding } from '../tools/projectRetrieval.js';
 import { projectRunHasRetrievalReceipt } from '../projects/retrievalLaunch.js';
 import { HAYSTACK_LAUNCH_ENV, readHaystackLaunch } from '../contracts/retrievalHaystack.js';
@@ -735,6 +738,18 @@ async function startTaskInternal(
       throw new RunnerConfigError('tenant runs cannot use an operator retrieval scope');
     }
   }
+  // THE ORGANISATION'S MCP SERVERS (docs/decisions/customer-mcp-servers-2026-10-16.md).
+  // Written by the project coordinator only, read once here and REMOVED from
+  // this process's environment, so no child spawned later (a transport, the
+  // learning worker) inherits a customer's credential. A present but malformed
+  // value fails the launch; a non-tenant run may not carry one.
+  let connectorLaunch: ConnectorLaunchSet | null;
+  try { connectorLaunch = decodeConnectorLaunch(process.env[MCP_CONNECTORS_ENV]); }
+  catch (error) { throw new RunnerConfigError((error as Error).message); }
+  finally { delete process.env[MCP_CONNECTORS_ENV]; }
+  if (connectorLaunch && (process.env['ATOMA_TENANT_RUN'] !== '1' || !requestedRunId)) {
+    throw new RunnerConfigError('MCP connectors require a tenant project run');
+  }
   // Validate every fallible launch argument BEFORE mutating the workspace,
   // opening stores or starting the container/egress backend. The old order
   // archived a valid deliverable before discovering a missing seed, and
@@ -968,6 +983,20 @@ async function startTaskInternal(
       retrievalBinding = prepared.binding; prepareRetrieval = prepared.prepare;
     } catch { throw new RunnerConfigError('project retrieval launch is unavailable or denied'); }
   }
+  // EVERY tenant run carries the two elements, servers or none: a project run's
+  // tool set (and so the shared connector molecule's) never flips with what
+  // its project enables, which would reset that molecule's trust and strip
+  // the elements from a concurrent run that has servers.
+  let connectorService: McpConnectorService | undefined;
+  if (connectorLaunch) {
+    if (runScope.orgId !== connectorLaunch.orgId || runScope.projectId !== connectorLaunch.projectId) {
+      throw new RunnerConfigError('MCP connectors were launched for another project');
+    }
+    try { connectorService = openConnectorRuntime(dbPath, connectorLaunch); }
+    catch { throw new RunnerConfigError('MCP connector launch is unavailable or denied'); }
+  } else if (tenantRun) {
+    connectorService = emptyConnectorService();
+  }
   const recorder = new TraceRecorder(runsDir);
   const db = openDb(dbPath);
   const registry = new RecordingRegistry(db, recorder);
@@ -1123,9 +1152,12 @@ async function startTaskInternal(
         } : {}),
       })
     : localToolBackend({ workspaceRoot, logger: consoleLogger });
-    const composed = retrievalBinding
+    const withRetrieval = retrievalBinding
     ? await withProjectRetrievalBackend(selectedBackend, retrievalBinding, { signal, deadlineAt })
     : selectedBackend;
+    const composed = connectorService
+    ? await withMcpConnectorBackend(withRetrieval, connectorService, { signal, deadlineAt })
+    : withRetrieval;
     return checkpoint ? { ...composed, executor: checkpoint.tools(composed.executor) } : composed;
   };
   let backend = await makeBackend();
@@ -1370,7 +1402,7 @@ async function startTaskInternal(
     ...(savedCheckpoint?.root?.inputs ? { inputs: savedCheckpoint.root.inputs }
       : routingRepository ? { inputs: { startingRepository: routingRepository } } : {}),
   };
-  const withLanding = withPreviousRunInputs(builtTask, process.env);
+  const withLanding = withPreviousRunInputs(builtTask, process.env, connectorLaunch);
   const task = args.depth ? {
     ...withLanding,
     proofFloor: DEPTH_CONTRACT.floor.map((item) => ({ ...item })),
@@ -1407,6 +1439,10 @@ async function startTaskInternal(
     } else {
       recorder.flushPartial();
     }
+    // The connector sessions belong to the run, not to a backend: closed once, here.
+    await connectorService?.dispose().catch((err: unknown) => {
+      console.error(`✖ MCP connector cleanup incomplete: ${(err as Error).message}`);
+    });
     try {
       await backend.cleanup();
     } catch (err) {
