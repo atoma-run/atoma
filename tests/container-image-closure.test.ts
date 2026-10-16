@@ -47,6 +47,7 @@ const SRC = resolve(REPO, 'src');
  */
 const ENTRIES = [
   resolve(SRC, 'tools/worker.ts'),
+  resolve(SRC, 'tools/parentTestWorker.ts'),
   resolve(SRC, 'tools/egressProxy.ts'),
   resolve(SRC, 'tools/previewIngress.ts'),
 ];

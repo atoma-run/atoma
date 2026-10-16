@@ -1,3 +1,4 @@
+import { verifyParentTests, parentTestRefusal } from './parentTests.js';
 import { EscalationSignal, ValidationError } from './errors.js';
 import type { Atom, Supervisor } from './atom.js';
 import type {
@@ -241,8 +242,8 @@ export async function superviseLoop<C extends Atom>(
 ): Promise<Result> {
   const trace: TraceEntry[] = [];
   let current: C = child;
-  const run = (execute: () => Promise<Result>): Promise<Result> =>
-    hooks.aroundExecute ? hooks.aroundExecute(execute) : execute();
+  const run = async (execute: () => Promise<Result>): Promise<Result> =>
+    verifyParentTests(task, await (hooks.aroundExecute ? hooks.aroundExecute(execute) : execute()), ctx);
   // One-shot branch retry: when a branchOnEscalation hook returns a fresh
   // child instance, we run ONE more full supervise cycle with it (resetting
   // the iteration counters and rejection-streak trackers) before giving up
@@ -355,7 +356,7 @@ export async function superviseLoop<C extends Atom>(
         const result = await run(() => current.execute(task, plan, ctx));
         trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: result });
 
-        const v2 = await parent.validateResult(current, result, task, ctx);
+        const v2 = parentTestRefusal(result) ?? await parent.validateResult(current, result, task, ctx);
         lastResultVerdict = v2;
         trace.push({
           kind: 'verdict-result',

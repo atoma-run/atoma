@@ -57,8 +57,10 @@ export function parallelDeclaredOutputCollision(plan: Plan): ParallelOutputColli
       owners.set(declared, seen);
     }
   });
+  const depends = (a: number, b: number): boolean =>
+    (plan.subtasks[a]?.dependsOn ?? []).some(i => i < a && (i === b || depends(i, b)));
   const paths = [...owners.entries()]
-    .filter(([, idxs]) => idxs.size > 1)
+    .filter(([, idxs]) => [...idxs].some(a => [...idxs].some(b => a !== b && !depends(a, b) && !depends(b, a))))
     .map(([p]) => p)
     .sort();
   if (paths.length === 0) return null;

@@ -264,11 +264,11 @@ load-bearing.
   `inputs.previousStepOutputs`. Do not merge prior writes into the next
   phase's `outputs` — skill/promotion gates read the current phase only.
   Do not parallelize coupled filesystem work.
-- A plan carries ONE aggregation mode, so fan-out + join has no direct spelling
-  at a single tier: L3 emits ONE phase per orthogonal GROUP and the L2 that
-  receives it fans the group out. One L3 phase per orthogonal artefact
-  serialises work that shares no file — see
-  [parallel fan-in 2026-08-16](../../records/incidents/parallel-fanin-2026-08-16.md).
+- Independent work MUST fan out, including multiple L2 branches at L3.
+  Parallel aggregation accepts `dependsOn` with earlier subtask indices: ready
+  branches start immediately and integration joins declare their producers.
+  Coupled writers require dependencies. No global wave barrier; no inference
+  from prose. Existing sequential checkpoint limitations remain.
 - A phase of a SEQUENTIAL root plan the PLANNER wrote with two phases or more
   (counted before `routeCrossBucketVerification` splits one) that declares no
   `outputs` is READ-ONLY (`Task.readOnly`) — the tissue's plan, or a root
@@ -334,6 +334,15 @@ load-bearing.
   (owner decision 2026-09-30, [src/platform](../platform/AGENTS.md)).
 
 ## Verification and ground truth
+
+- [Parent-owned tests](../../docs/decisions/parent-owned-tests-2026-10-16.md): L3
+  assigns L2 suites and reviews L2-authored L1 suites before execution. Unchanged
+  approved plans reuse review; revisions require it. The shared loop and compiled
+  dispatch run the fixed harness before validation/credit, including fallbacks.
+  Plan-level suites check integration. Host-owned sources and observations survive
+  delegation/aggregation; failed or unavailable checks cannot grant acceptance.
+  Green still needs semantic review. This runtime harness is an authorized replay
+  exception, not supervisor tools. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md).
 
 - All JavaScript-runtime applications use strict TypeScript, including existing
   projects, browser/server logic and maintained tests. Application changes

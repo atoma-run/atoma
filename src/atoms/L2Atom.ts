@@ -1,3 +1,5 @@
+import { PARENT_TEST_PLANNING, PARALLEL_BRANCH_PLANNING } from '../contracts/parentTests.js';
+import { verifyParentTests } from '../core/parentTests.js';
 import { deferPromptLearning } from './promptLearning.js';
 import { Atom, type Peerable, type Supervisor } from '../core/atom.js';
 import { modelFacingExecutor } from '../core/attestation.js';
@@ -464,7 +466,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         }
       }
       if (prefilter && prefilter.kind === 'reuse') {
-        if (!prefilter.decomposable) {
+        if (!prefilter.decomposable && !task.acceptanceTests) {
           this.pendingStrategy = {
             strategy: 'reuse',
             target: prefilter.target,
@@ -530,12 +532,14 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       ``,
       `== DECOMPOSITION DISCIPLINE ==`,
       PLANNING_SCOPE_GUIDANCE,
+      PARENT_TEST_PLANNING,
+      PARALLEL_BRANCH_PLANNING,
       PROPORTIONATE_PLANNING_GUIDANCE,
       `Split the task into a LIST of subtasks. Each subtask:`,
       `  - has ONE single-responsibility description ("write the HTML layout",`,
       `    "implement game state machine", "start server + run validation")`,
-      `  - in PARALLEL mode, is orthogonal: no subtask reads or depends on`,
-      `    another subtask's output. Use SEQUENTIAL for dependent phases.`,
+      `  - in PARALLEL mode, declares any prerequisites with dependsOn;`,
+      `    otherwise it is independent and starts concurrently with ready siblings.`,
       `  - targets a specific L1 molecule via "preferredChild" (required for N>1,`,
       `    optional for N=1 where your strategy field still drives selection).`,
       `A single-responsibility task is still valid: emit a list with exactly ONE`,
@@ -548,7 +552,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       `  - "llm-synthesize": you run one more LLM call to merge the sub-results`,
       `    into a coherent TEXT result. This call has NO tools and writes NO files.`,
       `    For layout/logic/render fragments requiring a final file, delegate`,
-      `    assembly and verification to an L1 in a later sequential phase. Provide a short`,
+      `    assembly and verification to a dependent L1 with dependsOn. Provide a short`,
       `    "instruction" describing how to merge.`,
       `  - "sequential": phases run ONE AT A TIME on the SAME workspace. Each`,
       `    step receives "previousStepSummary" automatically in its inputs. Use`,
@@ -673,7 +677,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       `Shape:`,
       `[`,
       `  {"strategy": "reuse"|"create"|"mutualize", "target": "<name>"?, "seed"?: {"description": "...", "tools": [], "params": {}}, "reasoning": "..."},`,
-      `  {"reasoning": "...", "delivery": "text"|"files", "subtasks": [{"description": "...", "executionMode": "reasoning"|"tools", "preferredChild": "<L1-name>"?, "inputs": {}?, "outputs": ["<file the subtask creates/modifies>", ...]}, ...], "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}, "expectedOutput": "..."}`,
+      `  {"reasoning": "...", "delivery": "text"|"files", "subtasks": [{"description": "...", "executionMode": "reasoning"|"tools", "preferredChild": "<L1-name>"?, "inputs": {}?, "dependsOn": [0]?, "acceptanceTests": {"requirement":"...", "cwd":".", "source":"..."}?, "outputs": ["<file the subtask creates/modifies>", ...]}, ...], "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}, "expectedOutput": "..."}`,
       `]`,
       `Every file-mutating subtask MUST include "outputs". Omit the key only on read-only subtasks.`,
       criteriaAssignmentLine(task),
@@ -742,7 +746,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     const subtasks = plan.subtasks;
     const dispatched = await this.dispatchSubtasks(subtasks, plan, strategy, task, ctx);
     const landed = dispatched.unfinished.length > 0;
-    return markLanded(
+    const result = markLanded(
       withOwnFallbackLoopFacts(
         await this.aggregate(dispatched.results, plan.aggregation, task, ctx, landed),
         dispatched.results,
@@ -750,6 +754,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       ),
       dispatched.unfinished
     );
+    return plan.acceptanceTests
+      ? verifyParentTests({ ...task, acceptanceTests: plan.acceptanceTests }, result, ctx) : result;
   }
 
   /**
@@ -999,7 +1005,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
             return outcome.value.kind === 'ran' ? outcome.value.result : null;
           };
           // Every change a script run makes is its own.
-          const direct = await (readOnlyHere ? withinReadOnlyPhase(ctx, subTask, dispatch, { script: true }) : dispatch());
+          const directRaw = await (readOnlyHere ? withinReadOnlyPhase(ctx, subTask, dispatch, { script: true }) : dispatch());
+          const direct = directRaw ? await verifyParentTests(subTask, directRaw, ctx) : null;
           if (outcome.value.kind === 'set-aside') setAside = { cause: outcome.value.cause };
           if (direct) {
             // ANTI-REDISPATCH GUARD (epoch-5 run 5, the $1.63 lesson). A
@@ -2154,7 +2161,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       return withoutExecutorLoopFacts(subResults[0]!);
     }
     const evidence = subResults.flatMap((result) => result.evidence ?? []);
-    const evidenceField = evidence.length > 0 ? { evidence } : {};
+    const parentTests = subResults.flatMap(result => result.parentTests ?? []);
+    const evidenceField = { ...(evidence.length > 0 ? { evidence } : {}),
+      ...(parentTests.length > 0 ? { parentTests } : {}),
+    };
     // Carried up like `evidence`; see L3Atom.aggregate for why.
     const unfinishedBelow = subResults.flatMap((result) => result.unfinishedPhases ?? []);
     const unfinishedField =
@@ -2616,7 +2626,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     let trustedProbe: GroundTruthCheck | null = null;
     if (
       !options.scriptDispatch &&
-      type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered
+      !task.acceptanceTests && !result.parentTests?.length && type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered
     ) {
       trustedProbe = await checkGroundTruth({
         ctx,
@@ -2683,7 +2693,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         ...(result.evidence ? { evidence: result.evidence } : {}),
         ...(audit ? { audit: true } : {}),
       });
-    if (ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
+    if (!task.acceptanceTests && !result.parentTests?.length && ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
       groundTruth ??= await checkGroundTruth({
         ctx,
         taskDescription: task.description,

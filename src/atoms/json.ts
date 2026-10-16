@@ -1,5 +1,6 @@
 import { inheritedJudgementSchema } from '../contracts/inheritedChecks.js';
 import { z } from 'zod';
+import { parentTestSuiteSchema } from '../contracts/parentTests.js';
 import { deliveryKindSchema, executionModeSchema } from '../contracts/taskExecution.js';
 import { jsonrepair, JSONRepairError } from 'jsonrepair';
 import { ValidationError } from '../core/errors.js';
@@ -923,6 +924,8 @@ export function parsePlanWithFallback(
  * considers alongside its prefilter/create logic.
  */
 export const subtaskSpecSchema = z.object({
+  dependsOn: z.array(z.number().int().nonnegative()).nullish().transform(v => v ?? undefined),
+  acceptanceTests: parentTestSuiteSchema.nullish().transform(v => v ?? undefined),
   description: z.string(),
   executionMode: executionModeSchema.nullish().transform((value) => value ?? undefined),
   // Null-tolerance, same pattern as `outputs`/`proofObligations` below —
@@ -994,7 +997,7 @@ export const subtaskSpecSchema = z.object({
   // rule is no gate (code review 2026-10-09 2.6). The declared work decides:
   // the subtask runs with tools, the default, so its gates hold. The failure
   // direction is a tool-bearing child, never an unchecked file claim.
-  const contradicted = spec.executionMode === 'reasoning' && (spec.outputs !== undefined || spec.proofObligations !== undefined);
+  const contradicted = spec.executionMode === 'reasoning' && (spec.outputs !== undefined || spec.proofObligations !== undefined || spec.acceptanceTests !== undefined);
   return contradicted ? { ...spec, executionMode: undefined } : spec;
 });
 
@@ -1066,7 +1069,12 @@ export const planSchema = z.preprocess(
   z.object({
     reasoning: z.string(),
     delivery: deliveryKindSchema.nullish().transform((value) => value ?? undefined),
-    subtasks: z.array(subtaskSpecSchema).min(1),
+    acceptanceTests: parentTestSuiteSchema.nullish().transform(v => v ?? undefined),
+    subtasks: z.array(subtaskSpecSchema).min(1).superRefine((tasks, ctx) => {
+      tasks.forEach((task, index) => {
+        if (task.dependsOn?.some(dependency => dependency >= index)) ctx.addIssue({ code: 'custom', path: [index, 'dependsOn'], message: 'Dependencies must name earlier subtask indices' });
+      });
+    }),
     aggregation: aggregationSpecSchema.default({ mode: 'concat' }),
     // `expectedOutput` is informational (it surfaces in the trace +
     // narrow-prompt builder). Marking it optional with a default

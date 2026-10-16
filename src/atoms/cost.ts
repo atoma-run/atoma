@@ -215,32 +215,7 @@ export function finalizationSignal(deadlineAt?: number): AbortSignal | undefined
   return AbortSignal.timeout(Math.max(1, deadlineAt + FINALIZATION_GRACE_MS - Date.now()));
 }
 
-/**
- * Did the run reach one of its two BUDGETS — as opposed to an explicit
- * cancellation or a deepening, which are interruptions and never a landing?
- *
- *   - the RUN DEADLINE: the runner's `AbortSignal.timeout`, whose reason is a
- *     `TimeoutError` DOMException (an `Error` on Node 24);
- *   - a PLATFORM CEILING on tokens or spend (`src/core/runBudget.ts`): the
- *     runner aborts the same signal with a `RunBudgetExceededError`. It lands
- *     exactly as the deadline does — the phases already accepted are kept and
- *     the run is `partial`, so the next run of the project continues from them
- *     (owner decision 2026-09-30: reaching a ceiling must lose neither the work
- *     nor what it cost). No landing step spends past it: once a ceiling fires
- *     the run's client refuses every new call, so a synthesis falls back to
- *     the sub-results as they are and root acceptance ends refused-and-kept.
- *
- * Both always come with `deadlineAt`. Without one there is no run budget: a
- * library caller's own `AbortSignal.timeout` is that caller asking to stop, so
- * it is honoured as a cancellation, never a licence to finalize unbounded
- * (2026-09-25 adversarial review). The reason is matched by NAME: this module
- * does not import the runner's budget code, and the name is the contract.
- */
-export function abortedForLanding(ctx: { readonly signal?: AbortSignal; readonly deadlineAt?: number }): boolean {
-  if (ctx.deadlineAt === undefined || !ctx.signal?.aborted) return false;
-  const reason: unknown = ctx.signal.reason;
-  return reason instanceof Error && (reason.name === 'TimeoutError' || reason.name === 'RunBudgetExceededError');
-}
+export { abortedForLanding } from '../core/limits.js';
 
 /**
  * Settle `work` or reject when `signal` aborts, whichever comes first: the
@@ -465,24 +440,13 @@ export const PREFILTER_SYSTEM_PROMPT = [
   '  whose artefacts are mutually coupled.',
   '  Set "decomposable": false (or omit) when ANY of:',
   '    - the task is a single artefact (one file, one page, one service).',
-  '    - the artefacts share imports or references: e.g. a test file',
-  '      imports the library under test, a package.json "scripts.test"',
-  '      points at the test file, a README documents the exported API.',
-  '      These are STRUCTURALLY COUPLED — building them in parallel on',
-  '      separate L1 instances forces each instance to guess the same',
-  '      API surface, risks divergence, and typically produces less',
-  '      code than a single sequential L1 that writes all files in one',
-  '      tool-loop. Rule of thumb: if the artefacts are part of ONE',
-  '      coherent project deliverable (library + tests + docs, server',
-  '      + client code that imports it, config + code that reads it),',
-  '      they are COUPLED → decomposable=false.',
-  '  Set "decomposable": true ONLY when the artefacts are GENUINELY',
-  '  ORTHOGONAL — no shared types, no cross-references, no depends-on.',
-  '  Example decomposable:true cases: "build three unrelated puzzle',
-  '  games in three index.html files", "scrape three separate websites',
-  '  and save each dataset to its own JSON". Be CONSERVATIVE — default',
-  '  is false, and the caller will still decompose via its full Sonnet/',
-  '  Opus plan call when true independence is present in the task shape.',
+  '    - all implementation steps require the same evolving file or unknown',
+  '      interface, with no useful independent branches. One coherent project',
+  '      alone is NOT coupling: modules with agreed contracts can be independent.',
+  '  Set "decomposable": true when useful independent branches exist, including',
+  '  branches after a shared contract/scaffold step and before integration.',
+  '  The full planner expresses those prerequisites with dependsOn. Independent',
+  '  tasks MUST fan out instead of being hidden in one monolithic child.',
   '',
   'Respond with ONE JSON object, no prose, no markdown, starting with "{":',
   '  {"kind": "reuse", "target": "<exact catalog name>", "confidence": "high"|"low", "decomposable": true|false, "reasoning": "<one short sentence>"}',

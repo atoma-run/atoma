@@ -186,6 +186,18 @@ Neighbours:
   the bound made a countdown task await 33s and 35s inside two smokes, both
   killed after burning ~45s each, and the run failed on its whole budget.
 
+## Parent-owned test execution
+
+- `atoma-verify` is a fixed `run_shell` utility, not another element. It copies
+  a sandbox-resolved project, refuses escaping links and bounded-resource
+  overflow, and runs Atoma's pinned Vitest with project config/scripts disabled.
+  Test threads inherit filesystem permissions explicitly but cannot spawn
+  processes/workers or load native addons. Canonical suites stay on the host;
+  only disposable copies run. The container remains the OS isolation boundary.
+  No tests, skips, focused tests, missing reports and timeouts cannot pass.
+  Cleanup covers subprocess groups and temporary copies. The separate runner
+  entrypoint belongs in image-closure tests. See the [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
+
 ## Generated artefact conventions
 
 - `run_shell` supplies the deterministic `atoma-scaffold` utility directly

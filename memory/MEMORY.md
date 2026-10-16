@@ -28,6 +28,7 @@
 - [OpenClaw host on atoma.run](openclaw-host-atoma-run.md) — ChatGPT subscription via native ~/.codex, gpt-5.6-sol
 
 ## Owner decisions and their state
+- [Parent-owned tests](parent-owned-tests.md) — L3 reviews L2-authored L1 tests; independent L2 branches must run in parallel
 - [TypeScript applications](typescript-applications.md) — 2026-10-16: all JS-runtime apps, including existing ones, use strict TypeScript; migrate only Attica now
 - [Supervisor replay exception](supervisor-replay-exception.md) — supervisor replays inherited web checks of static pages at root acceptance
 - [Read-only phases](read-only-phases.md) — outputless root phases are photographed and restored by the host

@@ -446,3 +446,32 @@ describeDocker('a containerised run cannot reach the stores', () => {
     }
   }, 120_000);
 });
+
+// The required CI worker job builds its image first. Local callers select an
+// isolated tag explicitly, so a stale shared :latest cannot masquerade as proof.
+const acceptanceImage = process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'];
+describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('compiled parent-test worker', () => {
+  it('uses packaged Vitest, detects a wrong implementation and keeps the workspace intact', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-acceptance-image-'));
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    try {
+      await executor.start();
+      expect(executor.toolDeclarations()).toHaveLength(10);
+      writeFileSync(join(workspace, 'sum.ts'), 'export const sum=(a:number,b:number)=>a+b;');
+      writeFileSync(join(workspace, 'vitest.config.ts'), "throw new Error('foreign config');");
+      const suite = {requirement: 'sum handles signed inputs', cwd: '.', source:
+        "import {test,expect} from 'vitest'; import {sum} from './sum.ts'; import {writeFileSync} from 'node:fs'; test('sum',()=>{expect(sum(2,3)).toBe(5);expect(sum(-2,1)).toBe(-1);expect(()=>writeFileSync('/workspace/sum.ts','bad')).toThrow();expect(()=>writeFileSync('/app/dist/tools/worker.js','bad')).toThrow()});"};
+      const run = () => executor.execute('run_shell', {command:'atoma-verify',args:[JSON.stringify(suite)],timeoutMs:30_000});
+      const passed = await run();
+      expect(passed, JSON.stringify(passed)).toMatchObject({status:'passed',passed:1});
+      expect(readFileSync(join(workspace,'sum.ts'),'utf8')).toContain('a+b');
+      writeFileSync(join(workspace,'sum.ts'),'export const sum=()=>5;');
+      expect(await run()).toMatchObject({status:'failed',failed:1});
+      expect(existsSync(join(workspace,'atoma.acceptance.test.ts'))).toBe(false);
+    } finally {
+      await executor.drain();
+      rmSync(workspace,{recursive:true,force:true});
+    }
+  },90_000);
+});

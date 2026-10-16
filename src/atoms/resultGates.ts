@@ -304,6 +304,13 @@ export const DECLARED_UNVERIFIED_RE = new RegExp([
 
 const RESULT_GATES: readonly ResultGate[] = [
   {
+    id: 'parent-acceptance-tests', disposition: 'reject', appliesToDelegatedResult: true,
+    check: async env => env.result.parentTests?.some(check => check.status !== 'passed') ? {
+      reasoning: 'Parent-owned acceptance tests failed or could not execute.',
+      coaching: 'Read the runtime test observations; repair the implementation or request a requirement-backed parent revision of an incorrect suite. Do not replace the tests.',
+    } : null,
+  },
+  {
     // Transport witness: the run's own tool observer saw zero successful
     // actions. Content-independent — the fifth-iteration fix for a weak L1
     // fabricating a CLI with no tool calls.

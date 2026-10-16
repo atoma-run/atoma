@@ -146,7 +146,35 @@ export async function dispatchWithAggregation(
     }
     return { results: out, unfinished: [] };
   }
-  const pending = subtasks.map((subtask, idx) => runOne(subtask, idx));
+  // Earlier-index dependencies form a DAG by construction. Start every ready
+  // branch immediately, not in waves: a slow sibling cannot block a ready join.
+  const pending: Promise<Result>[] = [];
+  for (const [idx, subtask] of subtasks.entries()) {
+    const dependencies = [...new Set(subtask.dependsOn ?? [])];
+    if (dependencies.some(i => !Number.isInteger(i) || i < 0 || i >= idx)) {
+      // Validate before starting any work, including callers bypassing planSchema.
+      throw new Error('Dependencies must name earlier subtask indices');
+    }
+  }
+  subtasks.forEach((subtask, idx) => {
+    const dependencies = [...new Set(subtask.dependsOn ?? [])];
+    if (dependencies.length === 0) { pending.push(runOne(subtask, idx)); return; }
+    pending.push((async () => {
+      const predecessors = await Promise.all(dependencies.map(i => pending[i]!));
+      if (ctx.signal.aborted) throw ctx.signal.reason ?? new Error('aborted');
+      if (predecessors.some(result => result.refusal || result.unfinishedPhases?.length || result.parentTests?.some(check => check.status !== 'passed'))) {
+        throw new Error('Dependency did not complete with accepted evidence');
+      }
+      const inputs = predecessors.length ? { ...subtask.inputs,
+        dependencyResults: predecessors.map((result, i) => ({
+          index: dependencies[i], summary: result.summary, output: previousResultInput(result.output),
+          outputs: subtasks[dependencies[i]!]!.outputs ?? [],
+        })),
+        previousPhaseObservations: renderTransportEvidence(predecessors.flatMap(result => result.evidence ?? [])),
+      } : subtask.inputs;
+      return runOne({ ...subtask, ...(inputs ? { inputs } : {}) }, idx);
+    })());
+  });
   // `allSettled` unconditionally, where it used to be reserved for depth
   // transitions (which archive the workspace and so need every sibling
   // settled first). Partial landing needs the same guarantee for the same
@@ -367,6 +395,8 @@ export function keptWithoutSynthesis(
   const evidence = subResults.flatMap((result) => result.evidence ?? []);
   return {
     output: subResults.map((result) => result.output),
+    ...(subResults.some(result => result.parentTests?.length)
+      ? { parentTests: subResults.flatMap(result => result.parentTests ?? []) } : {}),
     summary: `${subResults.length} sub-results kept without synthesis (${why}): ${subResults
       .map((result, i) => `#${i + 1} ${result.summary}`).join(' | ')}`,
     trace: [],

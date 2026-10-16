@@ -1,3 +1,4 @@
+import { runParentTests } from './parentTests.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync, statSync } from 'node:fs';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -915,6 +916,7 @@ function recoverLiteralTokenEdit(oldString: string, newString: string, actualSpa
 
 export const DEFAULT_SHELL_ALLOWLIST: readonly string[] = [
   'atoma-scaffold',
+  'atoma-verify',
   // Interpreters and package tooling (unchanged).
   'node',
   'npm',
@@ -1083,6 +1085,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
         );
       }
       opts.logger?.info(`[tool:run_shell] ${command} ${argv.join(' ')}`);
+      if (command === 'atoma-verify') return runParentTests(opts.sandbox, argv, timeoutMs);
       if (command === 'atoma-scaffold') {
         try {
           return { exitCode: 0, stdout: scaffoldApplication(opts.sandbox, argv), stderr: '' };

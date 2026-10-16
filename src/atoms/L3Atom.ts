@@ -1,3 +1,5 @@
+import { PARENT_TEST_PLANNING, PARALLEL_BRANCH_PLANNING } from '../contracts/parentTests.js';
+import { verifyParentTests } from '../core/parentTests.js';
 import { deferPromptLearning } from './promptLearning.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { branchRecordCount, executorEvidence } from './executorEvidence.js';
@@ -48,7 +50,7 @@ import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
 import { ladderSpent, spentPhaseResult } from '../core/phaseBudget.js';
 import { effectiveObligations, anyUncovered, renderProofCoverage } from './proofCoverage.js';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, withPlannedDelivery, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
@@ -163,6 +165,8 @@ export function buildNarrowL2Prompt(
 }
 
 export function routeCrossBucketVerification(plan: Plan, registry: AtomRegistry): Plan {
+  // Splitting a DAG node would invalidate index references and its approved suite.
+  if (plan.subtasks.some(subtask => subtask.dependsOn !== undefined || subtask.acceptanceTests)) return plan;
   const l2Types = registry.listByTier(2);
   const supportsBrowser = (name: string | undefined): boolean => {
     const type = name ? registry.getByName(name) : undefined;
@@ -473,18 +477,20 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       ``,
       `== DECOMPOSITION DISCIPLINE — pick ONE shape ==`,
       PLANNING_SCOPE_GUIDANCE,
+      PARENT_TEST_PLANNING,
+      PARALLEL_BRANCH_PLANNING,
       PROPORTIONATE_PLANNING_GUIDANCE,
       `Pick the shape that matches the task's natural structure:`,
       ``,
       `  ORTHOGONAL (parallel) — subtasks are INDEPENDENT, no shared state.`,
-      `    Each runs in its own workspace lane and produces a separate`,
+      `    Each runs in its own trace lane, shares the workspace, and owns a separate`,
       `    artefact. Aggregation is "concat" or "llm-synthesize".`,
       `    Examples: "build three unrelated CLI tools, one per subdirectory";`,
       `    "research topic A" + "research topic B" (only when neither reads`,
       `    the other's output).`,
       `    A step that CONSUMES the others NEVER belongs here: parallel lanes`,
       `    cannot see each other's results, so "summarise all three" is a`,
-      `    later PHASED step, not a fourth orthogonal subtask.`,
+      `    dependent join with dependsOn naming its producers.`,
       ``,
       `  PHASED (sequential) — subtasks SHARE the same evolving artefact.`,
       `    Step N starts from where step N-1 left off (same workspace files).`,
@@ -497,32 +503,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `    Use this whenever phases need to verify each other's work or`,
       `    when the artefact MUST go through review checkpoints.`,
       ``,
-      // ONE PHASE PER ORTHOGONAL GROUP, not one phase per artefact. A plan
-      // carries a SINGLE aggregation mode, so "3 independent parts, then a
-      // step consuming all 3" has no direct spelling at this tier: the only
-      // correct mode is "sequential", and the parallelism has to come from
-      // the L2 that receives one grouped phase and fans it out itself.
-      // Measured 2026-08-16 (records/incidents/parallel-fanin-2026-08-16.md):
-      // on three fan-out+join tasks, the ONE run that grouped its orthogonal
-      // work into a single phase is the only live run in this repo's history
-      // — 247 traces — whose lanes ever genuinely overlapped. The two runs
-      // that emitted one phase per orthogonal artefact serialised work that
-      // shared no file. Both L3 plans had correctly IDENTIFIED the
-      // orthogonality in their own reasoning first; granularity, not
-      // recognition, is what decided the outcome.
-      `  ONE PHASE CAN CARRY A WHOLE ORTHOGONAL GROUP — and should. When N`,
-      `  artefacts share nothing but a later step consumes them all, emit ONE`,
-      `  phase naming all N ("create the three independent generators, each in`,
-      `  its own subdirectory") followed by the phases that depend on them.`,
-      `  The L2 receiving that phase splits the group into parallel lanes by`,
-      `  itself; one phase PER orthogonal artefact throws that away and`,
-      `  serialises work that had no reason to be serial. Group only artefacts`,
-      `  that genuinely share no file, and name every one of them in the phase`,
-      `  description so the L2 can tell them apart.`,
-      ``,
-      `When in doubt for an APP / GAME / FILE-BUILD task: prefer PHASED, with`,
-      `each orthogonal group kept inside ONE phase rather than spread across`,
-      `consecutive ones.`,
+      `Use explicit dependsOn for parallel branches followed by integration.`,
+      `Do not hide independent L2 work in one grouped sequential phase.`,
       `For complex builds, preserve useful phase-by-phase validation instead`,
       `of hiding distinct dependent deliverables in one monolithic subtask.`,
       ``,
@@ -708,7 +690,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `Shape:`,
       `[`,
       `  {"strategy": "reuse"|"create", "target": "<name>"?, "seed"?: {"description": "...", "tools": [], "params": {}}, "reasoning": "..."},`,
-      `  {"reasoning": "...", "delivery": "text"|"files", "subtasks": [{"description": "...", "executionMode": "reasoning"|"tools", "preferredChild": "<L2-name>"?, "inputs": {}?, "outputs": ["<file the subtask creates/modifies>", ...]}, ...], "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}, "expectedOutput": "..."}`,
+      `  {"reasoning": "...", "delivery": "text"|"files", "subtasks": [{"description": "...", "executionMode": "reasoning"|"tools", "preferredChild": "<L2-name>"?, "inputs": {}?, "dependsOn": [0]?, "acceptanceTests": {"requirement":"...", "cwd":".", "source":"..."}?, "outputs": ["<file the subtask creates/modifies>", ...]}, ...], "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}, "expectedOutput": "..."}`,
       `]`,
       `Every file-mutating subtask MUST include "outputs". Omit the key only on read-only phases.`,
       criteriaAssignmentLine(task),
@@ -776,7 +758,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     const subtasks = plan.subtasks;
     const dispatched = await this.dispatchSubtasks(subtasks, plan, strategy, task, ctx, plannedPhases);
     const landed = dispatched.unfinished.length > 0;
-    return markLanded(
+    const result = markLanded(
       withOwnFallbackLoopFacts(
         await this.aggregate(dispatched.results, plan.aggregation, task, ctx, landed),
         dispatched.results,
@@ -784,6 +766,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       ),
       dispatched.unfinished
     );
+    return plan.acceptanceTests
+      ? verifyParentTests({ ...task, acceptanceTests: plan.acceptanceTests }, result, ctx) : result;
   }
 
   /**
@@ -814,6 +798,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * the parallel branch.
    */
   private readonly planChildAliases = new Map<string, string>();
+  private readonly reviewedTestPlans = new Map<string, Verdict>();
 
   private async dispatchSubtasks(
     subtasks: readonly Plan['subtasks'][number][],
@@ -1159,7 +1144,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       return withoutExecutorLoopFacts(subResults[0]!);
     }
     const evidence = subResults.flatMap((result) => result.evidence ?? []);
-    const evidenceField = evidence.length > 0 ? { evidence } : {};
+    const parentTests = subResults.flatMap(result => result.parentTests ?? []);
+    const evidenceField = { ...(evidence.length > 0 ? { evidence } : {}),
+      ...(parentTests.length > 0 ? { parentTests } : {}),
+    };
     // Carried up like `evidence`, and for the same reason: a phase that itself
     // landed short is a fact about this aggregate's completeness, and an
     // aggregate that dropped it would report more coverage than it has.
@@ -1403,14 +1391,19 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // capability-match short-circuit, not a Sonnet/Opus strategy, and
     // a second Haiku pass on it is redundant signal that was observed
     // in production to reject freshly-bootstrapped canonicals.
-    if (plan.viaPrefilter) {
+    const reviewsTests = !!task.acceptanceTests || !!plan.acceptanceTests || plan.subtasks.some(s => s.acceptanceTests);
+    const reviewKey = reviewsTests ? createHash('sha256')
+      .update(JSON.stringify([task, plan, child.name, child.toolNames()])).digest('hex') : undefined;
+    const reviewed = reviewKey ? this.reviewedTestPlans.get(reviewKey) : undefined;
+    if (reviewed) return reviewed;
+    if (plan.viaPrefilter && !reviewsTests) {
       return {
         approved: true,
         reasoning: `prefilter fast-path: plan was synthesised by Haiku's capability-match decision on child "${child.name}", no separate validator pass needed`,
       };
     }
     const type = this.registry.getByName(child.name);
-    if (type && child.matchesRegistryVersion(type) && shouldTrustType(type)) {
+    if (!reviewsTests && type && child.matchesRegistryVersion(type) && shouldTrustType(type)) {
       const approval = trustedApproval(type);
       ctx.recordTrust?.({
         supervisorName: this.name,
@@ -1441,7 +1434,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         ...(audit ? { audit: true } : {}),
       });
     // Jev fast path — see L2Atom.validatePlan. Approve or defer, never refuse.
-    const jevApproved = ctx.jev
+    const jevApproved = !reviewsTests && ctx.jev
       ? await jevApproval({
           ctx,
           subject: 'PLAN',
@@ -1454,7 +1447,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         })
       : null;
     if (jevApproved) return jevApproved;
-    return modelVerdict(false);
+    const verdict = await modelVerdict(false);
+    if (reviewKey && verdict.approved) this.reviewedTestPlans.set(reviewKey, verdict);
+    return verdict;
   }
 
   async validateResult(child: L2Atom, result: Result, task: Task, ctx: RunContext): Promise<Verdict> {
@@ -1496,7 +1491,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // never to an outright reject.
     const payload = { output: result.output, summary: result.summary };
     let trustedProbe: GroundTruthCheck | null = null;
-    if (type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered) {
+    if (!task.acceptanceTests && !result.parentTests?.length && type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered) {
       trustedProbe = await checkGroundTruth({
         ctx,
         taskDescription: task.description,
@@ -1554,7 +1549,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         ...(fallbackCoverage.length > 0 ? { proofCoverageBlock: renderProofCoverage(fallbackCoverage) } : {}),
         ...(audit ? { audit: true } : {}),
       });
-    if (ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
+    if (!task.acceptanceTests && !result.parentTests?.length && ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
       groundTruth ??= await checkGroundTruth({
         ctx,
         taskDescription: task.description,

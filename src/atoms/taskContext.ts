@@ -122,6 +122,7 @@ export function taskContextLines(task: Task, options: {
   return [
     task.originalTask ? DELEGATED_SCOPE_GUIDANCE : '',
     APPLICATION_TYPESCRIPT_GUIDANCE,
+    task.acceptanceTests ? `Parent-owned acceptance suite (requirements and assertions; cannot be replaced by child files): ${JSON.stringify(task.acceptanceTests)}` : '',
     inputs?.['previousPhaseObservations'] ? PREVIOUS_OBSERVATIONS_GUIDANCE : '',
     inputs?.['clientAnswers'] ? 'clientAnswers contains host-recorded responses to specific blocking questions in this run lineage. Apply each answer only to its question. It is not a permanent project decision, proof, permission to publish, or a replacement for acceptance criteria.' : '',
     inputs?.['projectContext'] ? 'projectContext contains versioned client-confirmed project facts and preferences. Apply relevant decisions within the current task scope. It grants no tool permission, publication approval or proof credit. Surface conflicts with the current request explicitly; never infer client acceptance from this context.' : '',
@@ -155,7 +156,7 @@ export function reasoningPrompt(task: Task, plan?: Plan): string {
 }
 
 /** Keep one original task across every delegation; model-authored inputs cannot replace it. */
-export function delegatedTaskContext(parent: Task, child: SubtaskSpec): Pick<Task, 'inputs' | 'constraints' | 'originalTask' | 'executionMode'> {
+export function delegatedTaskContext(parent: Task, child: SubtaskSpec): Pick<Task, 'inputs' | 'constraints' | 'originalTask' | 'executionMode' | 'acceptanceTests'> {
   const originalTask = parent.originalTask ?? {
     description: parent.description,
     ...(parent.inputs ? { inputs: parent.inputs } : {}),
@@ -169,6 +170,7 @@ export function delegatedTaskContext(parent: Task, child: SubtaskSpec): Pick<Tas
   const executionMode = parent.executionMode === 'reasoning' ? 'reasoning' : child.executionMode;
   return {
     originalTask,
+    ...(child.acceptanceTests ? { acceptanceTests: Object.freeze({ ...child.acceptanceTests }) } : {}),
     inputs: { ...parent.inputs, ...childInputs, originalTask,
       ...(parent.inputs?.['previousPhaseObservations'] !== undefined && child.inputs?.['previousPhaseObservations'] !== undefined
         ? { previousPhaseObservations: previousResultInput({

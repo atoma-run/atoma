@@ -3,6 +3,7 @@ import type { AttestationLog, ProofObligation } from '../contracts/attestation.j
 export type Tier = 1 | 2 | 3;
 
 export interface Task {
+  readonly acceptanceTests?: import('../contracts/parentTests.js').ParentTestSuite;
   readonly description: string;
   readonly originalTask?: Pick<Task, 'description' | 'inputs' | 'constraints'>;
   readonly executionMode?: import('../contracts/taskExecution.js').ExecutionMode;
@@ -94,6 +95,8 @@ export type GenerationParams = import('zod').infer<typeof import('../contracts/s
  * that already know which catalog entry fits best.
  */
 export interface SubtaskSpec {
+  readonly dependsOn?: readonly number[];
+  readonly acceptanceTests?: import('../contracts/parentTests.js').ParentTestSuite;
   readonly description: string;
   readonly executionMode?: import('../contracts/taskExecution.js').ExecutionMode;
   readonly inputs?: Record<string, unknown>;
@@ -148,6 +151,7 @@ export interface AggregationSpec {
  * child run when N=1.
  */
 export interface Plan {
+  readonly acceptanceTests?: import('../contracts/parentTests.js').ParentTestSuite;
   readonly reasoning: string;
   readonly delivery?: import('../contracts/taskExecution.js').DeliveryKind;
   readonly subtasks: readonly SubtaskSpec[];
@@ -173,6 +177,8 @@ export interface Plan {
 }
 
 export interface Result {
+  /** Runtime-produced observations, never accepted from result JSON. */
+  readonly parentTests?: readonly import('../contracts/parentTests.js').ParentTestObservation[];
   readonly output: unknown;
   readonly summary: string;
   readonly toolCallResults?: unknown[];
