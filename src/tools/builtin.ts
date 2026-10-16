@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { MAX_FILE_PAGE_CHARS, MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
 import type { Tool, Logger } from '../core/types.js';
 import { sandboxChildEnv, type ToolSandbox } from './sandbox.js';
+import { scaffoldApplication } from './applicationSkeleton.js';
 import {
   DECORATED_CMD_RE,
   PORT_BEARING_STDOUT_RE,
@@ -913,6 +914,7 @@ function recoverLiteralTokenEdit(oldString: string, newString: string, actualSpa
 }
 
 export const DEFAULT_SHELL_ALLOWLIST: readonly string[] = [
+  'atoma-scaffold',
   // Interpreters and package tooling (unchanged).
   'node',
   'npm',
@@ -1007,6 +1009,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
       description: [
         'Run an allowlisted shell command inside the workspace and return stdout/stderr.',
         `Allowed executables: ${[...allowlist].join(', ')}.`,
+        'Built-in utility: command:"atoma-scaffold", args:["web"|"node"|"fullstack", "empty-directory"] creates the versioned TypeScript/ESLint/Vitest skeleton (Vite for browser apps). Use it directly, not inside bash or a compound command. It refuses nonempty directories; use .atoma-skeleton as a reference when adapting an existing app.',
         'Do NOT use this for long-running processes (start_static_server or start_node_server own those).',
       ].join(' '),
       inputSchema: {
@@ -1080,6 +1083,13 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
         );
       }
       opts.logger?.info(`[tool:run_shell] ${command} ${argv.join(' ')}`);
+      if (command === 'atoma-scaffold') {
+        try {
+          return { exitCode: 0, stdout: scaffoldApplication(opts.sandbox, argv), stderr: '' };
+        } catch (error) {
+          return { exitCode: 1, stdout: '', stderr: error instanceof Error ? error.message : String(error) };
+        }
+      }
       // Spawned in its OWN PROCESS GROUP (`detached: true`, POSIX pgid ==
       // child pid) and the WHOLE GROUP is SIGKILLed once the command
       // finishes or times out. This makes the declared contract ("do NOT

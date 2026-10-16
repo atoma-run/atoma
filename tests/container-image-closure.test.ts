@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 /**
  * The worker image must contain everything the worker imports.
@@ -61,8 +62,8 @@ interface Closure {
 /**
  * Follow value imports from `entry`, mirroring what `tsc` emits.
  *
- * Matches `import ... from '<spec>'` and `export ... from '<spec>'`, skipping
- * `import type` / `export type`. Relative specifiers carry the compiled `.js`
+ * Reads real import/export declarations (not strings in generated source),
+ * skipping `import type` / `export type`. Relative specifiers carry the compiled `.js`
  * extension (NodeNext), so they map back to `.ts` on the way in.
  */
 function importClosure(entry: string): Closure {
@@ -78,11 +79,13 @@ function importClosure(entry: string): Closure {
     if (top) dirs.add(top);
 
     const source = readFileSync(file, 'utf8');
-    const pattern = /(?:^|\n)\s*(?:import|export)\s+(type\s+)?[^;]*?from\s+'([^']+)'/g;
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(source)) !== null) {
-      if (match[1]) continue; // `import type` — erased by tsc
-      const spec = match[2];
+    const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+    for (const statement of parsed.statements) {
+      if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) continue;
+      if (ts.isImportDeclaration(statement) ? statement.importClause?.isTypeOnly : statement.isTypeOnly) continue;
+      const module = statement.moduleSpecifier;
+      if (!module || !ts.isStringLiteral(module)) continue;
+      const spec = module.text;
       if (!spec || spec.startsWith('node:')) continue;
       if (!spec.startsWith('.')) {
         external.add(spec);

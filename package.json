@@ -49,7 +49,7 @@
     "assayer": "node dist/cli/assayer.js",
     "assayer:dev": "tsx src/cli/assayer.ts",
     "release:check": "npm run release:check:static && npm test",
-    "release:check:static": "npm run docs:check && npm run typecheck && npm run lint && npm audit && npm run build && node scripts/release-smoke.mjs && node scripts/auth-release-smoke.mjs && npm run auth -- --help && npm run doctor -- --help && npm run analyst -- --help && npm run mender -- --help && npm run assayer -- --help && npm run backup -- --help && npm run projects:maintenance -- --help && npm run settings -- --help",
+    "release:check:static": "npm run docs:check && npm run typecheck && npm run lint && npm audit && npm run build && npm run application:skeleton:smoke && node scripts/release-smoke.mjs && node scripts/auth-release-smoke.mjs && npm run auth -- --help && npm run doctor -- --help && npm run analyst -- --help && npm run mender -- --help && npm run assayer -- --help && npm run backup -- --help && npm run projects:maintenance -- --help && npm run settings -- --help",
     "settings": "node dist/cli/settings.js",
     "settings:dev": "tsx src/cli/settings.ts",
     "release:container-smoke": "node scripts/release-container-smoke.mjs",
@@ -87,7 +87,8 @@
     "mcp:build": "node scripts/build-mcp-app.mjs",
     "mcp:smoke": "npm run mcp:build && node scripts/mcp-app-browser-smoke.mjs",
     "build:hosting:browser": "docker build -f docker/hosting-browser.Dockerfile -t atoma-hosted-browser:latest .",
-    "build:hosting": "docker build -f docker/hosting.Dockerfile -t atoma-hosting:latest ."
+    "build:hosting": "docker build -f docker/hosting.Dockerfile -t atoma-hosting:latest .",
+    "application:skeleton:smoke": "node scripts/application-skeleton-smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",

@@ -188,6 +188,14 @@ Neighbours:
 
 ## Generated artefact conventions
 
+- `run_shell` supplies the deterministic `atoma-scaffold` utility directly
+  (not a PATH executable or a new element). It writes the versioned application
+  skeleton into an empty sandbox directory and never installs packages or
+  overwrites existing work. Existing apps use a separate reference directory.
+  `applicationSkeleton.ts` and its pinned lockfile ship in `dist/tools`;
+  `application:skeleton:smoke` exercises fresh installs and compiled apps in
+  the release checks. Contract: [application skeleton](../../docs/decisions/application-skeleton-2026-10-16.md).
+
 - HTTP servers normally bind `process.env.PORT`, accept port 0, and emit
   `LISTENING_ON_PORT=<N>` once ready. A task-defined CLI may instead receive
   literal `args` and emit a complete JSON `{"port":N}` line. Preserve that
