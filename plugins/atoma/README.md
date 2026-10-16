@@ -39,6 +39,20 @@ browser. The tools you see depend on your role in your organisation.
 If you already registered the server with `claude mcp add ... atoma`, remove
 it (`claude mcp remove atoma --scope user`) so the tools do not appear twice.
 
+## What the plugin sends, and where
+
+The plugin runs nothing on your machine: it has no hooks, scripts or local
+server. It connects your client to one remote server, `https://atoma.run/mcp`,
+over HTTPS, after you sign in to Atoma in your browser (OAuth). What your
+client sends through the Atoma tools, such as a goal, acceptance criteria or an
+answer to a run's question, goes to atoma.run, which processes it to carry out
+the run. Starting a run uses your Atoma quota and sends the work to the AI
+model providers configured for your organisation. Results, traces and files
+come back from atoma.run as tool output.
+
+See the [privacy policy](https://atoma.run/privacy), the
+[terms of service](https://atoma.run/terms) and [support](https://atoma.run/support).
+
 ## Self-hosted instances
 
 The plugin connects `atoma.run`. For another instance, register its endpoint

@@ -33,6 +33,7 @@ import {
   servesLegalPages,
 } from '../src/viz/legalPages.js';
 import { PLATFORM_EVENTS_DEFAULT_RETENTION_DAYS } from '../src/platform/events.js';
+import { openAiAppsChallenge } from '../src/viz/seo.js';
 import { RUN_RETENTION_DAYS } from '../src/projects/retention.js';
 import { ANTHROPIC_PINS } from './tier-pins.js';
 
@@ -1004,7 +1005,7 @@ async function boot(w: World, extra: Record<string, string>): Promise<string> {
     if (key.startsWith('ATOMA_AUTH_') || key.startsWith('ATOMA_GITHUB_')) delete env[key];
   }
   for (const key of ['ATOMA_VIZ_AUTH', 'ATOMA_VIZ_PUBLIC_ORIGIN', 'ATOMA_VIZ_DEV_URL', 'ATOMA_DB_PATH',
-    'ATOMA_RUNS_DIR', 'ATOMA_VIZ_SENTINEL', 'ATOMA_PUBLIC_SHOWCASE']) delete env[key];
+    'ATOMA_RUNS_DIR', 'ATOMA_VIZ_SENTINEL', 'ATOMA_PUBLIC_SHOWCASE', 'ATOMA_OPENAI_APPS_CHALLENGE']) delete env[key];
   const profiles = mkdtempSync(join(tmpdir(), 'atoma-showcase-profiles-'));
   roots.push(profiles);
   const origin = `http://127.0.0.1:${port}`;
@@ -1185,7 +1186,13 @@ describe('the legal pages', () => {
   it('are served, sessionless and scriptless, by the deployment they describe', async () => {
     const w = world();
     closeStoreHandles();
-    const loopback = await boot(w, { ATOMA_VIZ_PUBLIC_ORIGIN: 'https://atoma.run', ATOMA_PUBLIC_SHOWCASE: '1' });
+    const loopback = await boot(w, {
+      ATOMA_VIZ_PUBLIC_ORIGIN: 'https://atoma.run', ATOMA_PUBLIC_SHOWCASE: '1', ATOMA_OPENAI_APPS_CHALLENGE: ' portal-token_42 ',
+    });
+    const challenge = await fetch(`${loopback}/.well-known/openai-apps-challenge`);
+    expect(challenge.status).toBe(200);
+    expect(challenge.headers.get('content-type')).toContain('text/plain');
+    expect(await challenge.text()).toBe('portal-token_42');
     for (const path of LEGAL_PATHS) {
       const response = await fetch(`${loopback}${path}`);
       expect(response.status, path).toBe(200);
@@ -1208,6 +1215,7 @@ describe('the legal pages', () => {
     closeStoreHandles();
     const origin = await boot(w, { ATOMA_PUBLIC_SHOWCASE: '1' });
     for (const path of LEGAL_PATHS) expect((await fetch(`${origin}${path}`)).status, path).toBe(404);
+    expect((await fetch(`${origin}/.well-known/openai-apps-challenge`)).status).toBe(404);
     expect(await (await fetch(`${origin}/sitemap.xml`)).text()).not.toContain('/privacy');
     expect(await (await fetch(`${origin}/`)).text()).not.toContain('href="/privacy"');
     expect(await (await fetch(`${origin}/auth/whoami`)).json()).toMatchObject({ authenticated: false, legal: false });
@@ -1228,5 +1236,8 @@ describe('the legal pages', () => {
     expect(servesLegalPages(new URL('https://atoma.run/'))).toBe(true);
     expect(servesLegalPages(new URL('https://atoma.example.com'))).toBe(false);
     expect(servesLegalPages(new URL('http://atoma.run'))).toBe(false);
+    expect(openAiAppsChallenge({ ATOMA_OPENAI_APPS_CHALLENGE: 'abc<script>' })).toBeNull();
+    expect(openAiAppsChallenge({ ATOMA_OPENAI_APPS_CHALLENGE: '   ' })).toBeNull();
+    expect(openAiAppsChallenge({})).toBeNull();
   });
 });

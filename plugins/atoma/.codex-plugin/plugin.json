@@ -19,7 +19,7 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Atoma",
-    "shortDescription": "Build software and follow your Atoma runs.",
+    "shortDescription": "Build and follow Atoma runs",
     "longDescription": "Connect to Atoma to draft goals and acceptance criteria, start or continue project runs, and inspect their status, deliverables, costs and traces. Available tools depend on your account role. Starting a run uses your Atoma quota.",
     "developerName": "Matthieu Foillard",
     "category": "Developer Tools",

@@ -162,3 +162,16 @@ export function sitemapXml(publicOrigin: URL, options: { readonly paths?: readon
     '',
   ].join('\n');
 }
+
+/**
+ * OpenAI's plugin portal proves domain ownership by fetching a token it issues
+ * at `/.well-known/openai-apps-challenge`. The host sets it in
+ * `ATOMA_OPENAI_APPS_CHALLENGE`; unset, or anything but one short printable
+ * word, serves nothing.
+ */
+export const OPENAI_APPS_CHALLENGE_PATH = '/.well-known/openai-apps-challenge';
+
+export function openAiAppsChallenge(env: NodeJS.ProcessEnv = process.env): string | null {
+  const token = env['ATOMA_OPENAI_APPS_CHALLENGE']?.trim() ?? '';
+  return /^[A-Za-z0-9._~-]{1,512}$/.test(token) ? token : null;
+}

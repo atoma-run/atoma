@@ -255,7 +255,7 @@ import type { McpToolDeps } from '../mcp/tools.js';
 import { runPageInputSchema } from '../contracts/clientExperience.js';
 import { retrievalCampaignHost } from '../cli/retrievalCampaignHost.js';
 import { BenchmarkRuns } from './benchmarkRuns.js';
-import { injectAppShellSeo, robotsTxt, sitemapXml } from './seo.js';
+import { injectAppShellSeo, OPENAI_APPS_CHALLENGE_PATH, openAiAppsChallenge, robotsTxt, sitemapXml } from './seo.js';
 import { isLegalPath, LEGAL_PATHS, LEGAL_SECURITY_HEADERS, renderLegalPage, servesLegalPages, type LegalFacts } from './legalPages.js';
 // The MCP run lease, read for CONTEXT only (which pid holds the run slot) and
 // never as a detector. `src/sentinel/watch.ts` already reaches for it, so this
@@ -4707,6 +4707,17 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       'cache-control': 'no-store',
     });
     res.end(html);
+    return;
+  }
+
+  if (pathname === OPENAI_APPS_CHALLENGE_PATH) {
+    if (!methodAllowed(req, res, 'GET')) return;
+    const token = openAiAppsChallenge();
+    if (!token) {
+      send(res, 404, 'not found', 'text/plain; charset=utf-8');
+      return;
+    }
+    send(res, 200, token, 'text/plain; charset=utf-8');
     return;
   }
 
