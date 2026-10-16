@@ -28,6 +28,7 @@
 - [OpenClaw host on atoma.run](openclaw-host-atoma-run.md) — ChatGPT subscription via native ~/.codex, gpt-5.6-sol
 
 ## Owner decisions and their state
+- [TypeScript applications](typescript-applications.md) — 2026-10-16: all JS-runtime apps, including existing ones, use strict TypeScript; migrate only Attica now
 - [Supervisor replay exception](supervisor-replay-exception.md) — supervisor replays inherited web checks of static pages at root acceptance
 - [Read-only phases](read-only-phases.md) — outputless root phases are photographed and restored by the host
 - [Decision state](jev-decisions-state.md) — Decision decides in every run; ATOMA_JEV=0 is the off switch

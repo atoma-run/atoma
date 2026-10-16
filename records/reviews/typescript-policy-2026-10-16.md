@@ -1,19 +1,21 @@
-# TypeScript policy review — 2026-10-16
+# TypeScript policy review — 2026-10-16 (amended)
 
 Scope: runtime application language policy and the existing acceptance path.
 This is a design/call-path review, not a measured claim about model compliance.
 
 ## Counterexamples considered
 
-- A new component inside an existing JavaScript application must remain in
-  its established language. Applicability refers to the original task and
-  starting repository, not the current phase's new files.
-- A later phase of a new application must not treat files written earlier in
-  the same run as a pre-existing JavaScript project.
+- The owner removed the new/existing distinction after the first implementation:
+  all JavaScript-runtime applications use strict TypeScript. Updating an existing
+  JavaScript application includes its migration. This may expand an application
+  change; the owner explicitly accepts that consequence during beta.
+- The rule does not launch migrations in other projects. Attica alone is being
+  migrated in this session. Read-only phases still cannot modify source.
 - A static HTML/CSS page, Python service, copied vendor asset, generated bundle
   or archival response HTML must not be rejected for lacking TypeScript.
-- A client-requested single-file/no-build artifact remains possible. Explicit
-  constraints win; no-runtime-dependencies does not prohibit dev tooling.
+- The earlier single-file/no-build exception was removed from the policy rather
+  than retaining a second compatibility branch. Generated JavaScript remains
+  deployable, while authoring and typechecking use the project-local compiler.
 - A web molecule cannot run tsc. The existing canonical cell's unconditional
   one-molecule instruction conflicted with the new policy. It now permits an
   ordered build with a shell-capable molecule before browser verification.

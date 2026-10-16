@@ -333,16 +333,16 @@ load-bearing.
 
 ## Verification and ground truth
 
-- New JavaScript-runtime applications use strict TypeScript, including browser
-  logic and maintained tests; existing JavaScript projects keep their language
-  unless the client requests migration. `APPLICATION_TYPESCRIPT_GUIDANCE` in
+- All JavaScript-runtime applications use strict TypeScript, including existing
+  projects, browser/server logic and maintained tests. Application changes
+  include migration where needed. `APPLICATION_TYPESCRIPT_GUIDANCE` in
   `taskContext.ts` is the runtime rule shared by planners, executors and
   reviewers, including old stored types and fallbacks. Final review requires
   observed typecheck success and effective configuration/source coverage;
   transpilation or a script name is not proof. Compilation goes to a shell
   molecule before browser verification, without widening static-web tools.
-  Explicit client constraints, generated assets and HTML/CSS-only pages retain
-  their meaning. No extension-based rejection or supervisor command replay.
+  Generated JavaScript, vendor assets and necessary tooling glue remain valid.
+  No extension-based rejection or supervisor command replay.
   [Decision and review](../../docs/decisions/typescript-applications-2026-10-16.md).
 
 - Browser executors and reviewers share `WEB_DELIVERY_GUIDANCE`: user-entered
