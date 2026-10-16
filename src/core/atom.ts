@@ -61,7 +61,14 @@ export abstract class Atom {
     this.params = { ...args.params };
   }
 
-  abstract plan(task: Task, ctx: RunContext): Promise<Plan>;
+  /**
+   * `feedback` is the planner-feedback channel: what the previous plan reply
+   * of the same request was refused for (a `PlanParseError`'s `feedback()`, a
+   * root review refusal). It reaches the strategy prompt ONLY; the prefilter,
+   * its cache key, tried-children bookkeeping and the task handed to review and
+   * execution keep `task` unchanged, so a retry is the same request.
+   */
+  abstract plan(task: Task, ctx: RunContext, feedback?: readonly string[]): Promise<Plan>;
   abstract execute(task: Task, plan: Plan, ctx: RunContext): Promise<Result>;
 
   applyModifications(mods: AtomModifications): void {

@@ -35,16 +35,41 @@ export class ValidationError extends Error {
   }
 }
 
+/** Bound on the parser, schema or size text a plan-parse failure carries. */
+export const PLAN_PARSE_MESSAGE_MAX_CHARS = 600;
+
 /**
- * A strategy+plan reply that could not be read as written: malformed JSON, a
- * reply a truncation repair would have amputated, or a schema mismatch. A
- * ValidationError, so `superviseLoop` asks a child again within its plan
- * budget; the L3 and SHORT roots count it as a failed planning attempt.
+ * Why a plan reply was refused, typed where it was seen so feedback and trace
+ * measurements never classify it from prose: `syntax` (malformed JSON),
+ * `unbalanced` (only a truncation repair would read it), `truncated` (the
+ * reply hit the plan output cap), `schema` (a well-formed pair the schemas
+ * refuse), `suite-size` (a new acceptance suite over the authored bound).
+ */
+export type PlanParseCause = 'syntax' | 'unbalanced' | 'truncated' | 'schema' | 'suite-size';
+
+/**
+ * A strategy+plan reply that could not be accepted as written: malformed JSON,
+ * a reply a truncation repair would have amputated, a schema mismatch, or a
+ * new suite over the authored size bound. A ValidationError, so
+ * `superviseLoop` asks a child again within its plan budget; the L3 and SHORT
+ * roots count it as a failed planning attempt. `feedback()` is what the next
+ * plan call is told, through the planner-feedback channel (`Atom.plan`).
  */
 export class PlanParseError extends ValidationError {
-  constructor(message: string) {
-    super(message);
+  // `kind`, not `cause`: ES2022 `Error.cause` is the chained-error slot that
+  // error walkers follow (src/projects/coordinator.ts); a string there would
+  // overload it. Traces still record it under `cause`.
+  constructor(public readonly kind: PlanParseCause, detail: string) {
+    super(`${kind === 'suite-size' ? 'plan reply refused' : 'plan reply unparseable'}: ${detail.slice(0, PLAN_PARSE_MESSAGE_MAX_CHARS)}`);
     this.name = 'PlanParseError';
+  }
+
+  /** The text the next plan call carries; only a JSON-syntax failure is told how to escape. */
+  feedback(): string {
+    const escaping = this.kind === 'syntax' || this.kind === 'unbalanced'
+      ? ' Return exactly the JSON array; inside strings escape every backslash, double quote and newline, test sources included.'
+      : '';
+    return `Previous plan reply was not accepted: ${this.message}.${escaping}`;
   }
 }
 

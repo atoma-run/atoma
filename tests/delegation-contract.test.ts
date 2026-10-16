@@ -418,11 +418,77 @@ describe('root delegation review robustness', () => {
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
     await tissue.handle({ description: 'Implement signed addition' }, ctx);
     const plans = ctx.llm.calls.filter(call => call.role === 'plan');
-    expect(plans[1]?.userContent).toContain('STRATEGY_MAX_TOKENS output cap');
-    expect(plans[1]?.userContent).toContain('return a shorter reply');
+    expect(plans[1]?.userContent).toContain('PREVIOUS PLAN ATTEMPT:');
+    expect(plans[1]?.userContent).toContain('plan reply hit the plan output cap and was cut; return a shorter reply');
+    expect(plans[1]?.userContent).toContain('each suite a self-contained file under 8,000 characters');
+    // No token number the planner cannot act on, no advice the runner cannot honour.
+    expect(plans[1]?.userContent).not.toMatch(/STRATEGY_MAX_TOKENS|16,?384/);
+    expect(plans[1]?.userContent).not.toContain('integration suite, no duplicated setup');
+    expect(plans[1]?.userContent).not.toContain('fewer or shorter suites');
+    expect(plans[1]?.userContent).not.toContain('escape every backslash, double quote and newline, test sources included');
     expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
     expect(execute).toHaveBeenCalledOnce();
     expect(execute.mock.calls[0]?.[1].subtasks[0]?.acceptanceTests?.source).toBe(SOURCE);
+  });
+
+  // Group G4, 2026-10-16: a new suite over the authored bound is refused on
+  // the real root path before review, and the planner is told where and why
+  // on the planner-feedback channel, beside any earlier review refusal.
+  describe('a suite over the authored bound', () => {
+    const sized = (length: number) => `${SOURCE}\n// ${'x'.repeat(length - SOURCE.length - 4)}`;
+    const sizeMessage = 'over the 12,000 characters the host accepts for a new suite';
+
+    it('is never reviewed, and the planner is asked again with its location and length', async () => {
+      const { tissue, cellName } = routedActors();
+      const atBound = sized(12_000);
+      const ctx = makeCtx({ llm: routedLlm(cellName, [{ text: planReply(cellName, sized(12_001)) }, { text: planReply(cellName, atBound) }], [{ text: approval }]) });
+      const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+      await tissue.handle({ description: 'Implement signed addition' }, ctx);
+      const roles = ctx.llm.calls.map(call => call.role).filter(role => role === 'plan' || role === 'validate-plan');
+      expect(roles).toEqual(['plan', 'plan', 'validate-plan']);
+      const plans = ctx.llm.calls.filter(call => call.role === 'plan');
+      expect(plans[0]?.userContent).not.toContain('PREVIOUS PLAN ATTEMPT:');
+      const retry = plans[1]?.userContent ?? '';
+      expect(retry).toContain('PREVIOUS PLAN ATTEMPT:');
+      expect(retry).toContain('plan reply refused: acceptanceTests.source ' + sizeMessage);
+      expect(retry).toContain('subtask index 0 (zero-based) (12,001)');
+      expect(retry).toContain('keep each suite under 8,000 characters');
+      expect(retry).not.toContain('escape every backslash, double quote and newline');
+      // The channel never reaches the prefilter or the task's constraints.
+      const prefilters = ctx.llm.calls.filter(call => call.role === 'prefilter');
+      expect(prefilters.length).toBeGreaterThan(0);
+      expect(prefilters.every(call => !call.userContent.includes(sizeMessage))).toBe(true);
+      expect(retry).not.toContain('Constraints:');
+      expect(execute).toHaveBeenCalledOnce();
+      expect(execute.mock.calls[0]?.[0].constraints).toBeUndefined();
+      expect(execute.mock.calls[0]?.[1].subtasks[0]?.acceptanceTests?.source).toBe(atBound);
+    });
+
+    it('ends the run after three, naming the bound', async () => {
+      const { tissue, cellName } = routedActors();
+      const over = { text: planReply(cellName, sized(13_240)) };
+      const ctx = makeCtx({ llm: routedLlm(cellName, [over, { ...over }, { ...over }], []) });
+      const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+      await expect(tissue.handle({ description: 'Implement signed addition' }, ctx)).rejects.toThrow(sizeMessage);
+      expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(0);
+      expect(execute).not.toHaveBeenCalled();
+    });
+
+    it('keeps the review refusal beside the size message on the next attempt', async () => {
+      const { tissue, cellName } = routedActors();
+      const refusal = JSON.stringify({ approved: false, reasoning: 'the suite misses negative operands', scope: 'ephemeral', modifications: {} });
+      const ctx = makeCtx({ llm: routedLlm(cellName,
+        [{ text: planReply(cellName) }, { text: planReply(cellName, sized(12_001)) }, { text: planReply(cellName) }],
+        [{ text: refusal }, { text: approval }]) });
+      vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+      await tissue.handle({ description: 'Implement signed addition' }, ctx);
+      const plans = ctx.llm.calls.filter(call => call.role === 'plan');
+      expect(plans).toHaveLength(3);
+      expect(plans[1]?.userContent).toContain('Delegation contract rejected before execution: the suite misses negative operands');
+      expect(plans[1]?.userContent).not.toContain(sizeMessage);
+      expect(plans[2]?.userContent).toContain('Delegation contract rejected before execution: the suite misses negative operands');
+      expect(plans[2]?.userContent).toContain(sizeMessage);
+    });
   });
 
   it('tells root and cell planners how to write a test source inside JSON', async () => {
@@ -438,6 +504,30 @@ describe('root delegation review robustness', () => {
     cellCtx.llm.enqueueText(planReply('Urea'));
     await cell.plan({ description: 'Implement signed addition', acceptanceTests: suite }, cellCtx);
     expect(cellCtx.llm.calls.find(call => call.role === 'plan')?.userContent).toContain(sentence);
+  });
+
+  // Group G4, 2026-10-16: suites are written alone into a disposable copy, so
+  // the guidance says so and states the size target; reviewers ask within it.
+  it('tells root and cell planners that each suite is self-contained and states the size target', async () => {
+    const { tissue, cellName } = routedActors();
+    const ctx = makeCtx({ llm: routedLlm(cellName, [{ text: planReply(cellName) }], [{ text: approval }]) });
+    vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+    await tissue.handle({ description: 'Implement signed addition' }, ctx);
+    const { cell } = actors();
+    const cellCtx = makeCtx();
+    cellCtx.llm.enqueueText(planReply('Urea'));
+    await cell.plan({ description: 'Implement signed addition', acceptanceTests: suite }, cellCtx);
+    const prompts = [
+      ctx.llm.calls.find(call => call.role === 'plan')?.userContent ?? '',
+      cellCtx.llm.calls.find(call => call.role === 'plan')?.userContent ?? '',
+    ];
+    for (const prompt of prompts) {
+      expect(prompt).toContain('Each suite is a self-contained file: it cannot import or share setup with another suite');
+      expect(prompt).toContain('under 8,000;');
+      expect(prompt).not.toMatch(/shared fixtures|setup (?:once )?in the integration suite|fewer subtasks/i);
+    }
+    expect(VALIDATION_SYSTEM_PROMPT).toContain('Ask for the coverage a suite can carry within 8,000 characters');
+    expect(VALIDATION_SYSTEM_PROMPT).toContain('ask for the branch to be split rather than for a longer suite');
   });
 
   describe('resuming a saved root plan', () => {
@@ -493,6 +583,23 @@ describe('root delegation review robustness', () => {
       await tissue.handle(task, ctx);
       expect(ctx.llm.calls).toHaveLength(0);
       expect(execute).toHaveBeenCalledOnce();
+      expect(planned.mock.calls[0]?.[4]).toEqual(root.approval);
+    });
+
+    // Group G4, 2026-10-16: the authored bound is the parser's, never the
+    // schema's, so a plan saved with a longer suite still restores.
+    it('runs a recorded approval over a suite longer than the authored bound', async () => {
+      const { tissue } = actors();
+      const task: Task = { description: 'Implement signed addition', inputs: { a: 1 }, criteria };
+      const long = { ...suite, source: `${suite.source}\n// ${'x'.repeat(20_000 - suite.source.length - 4)}` };
+      expect(long.source).toHaveLength(20_000);
+      const saved = planSchema.parse({ ...runnable(), subtasks: [{ ...runnable().subtasks[0]!, acceptanceTests: long }], aggregation: { mode: 'sequential' } });
+      const root = savedRoot(tissue, task, saved);
+      const { ctx, planned } = resumingCtx(root);
+      const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+      await tissue.handle(task, ctx);
+      expect(ctx.llm.calls).toHaveLength(0);
+      expect(execute.mock.calls[0]?.[1].subtasks[0]?.acceptanceTests?.source).toBe(long.source);
       expect(planned.mock.calls[0]?.[4]).toEqual(root.approval);
     });
 
@@ -564,7 +671,10 @@ describe('root delegation review robustness', () => {
         await tissue.handle(task, ctx);
         expect(plan).toHaveBeenCalledTimes(2);
         expect(plan.mock.calls[0]?.[0].constraints ?? []).toEqual([]);
-        expect(plan.mock.calls[1]?.[0].constraints?.at(-1)).toContain('a resumed run executes sequentially');
+        expect(plan.mock.calls[0]?.[2]).toEqual([]);
+        // The reason travels on the planner channel, never in the task's constraints.
+        expect(plan.mock.calls[1]?.[0].constraints ?? []).toEqual([]);
+        expect(plan.mock.calls[1]?.[2]?.at(-1)).toContain('a resumed run executes sequentially');
         expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
         const executed = execute.mock.calls[0]?.[1];
         expect(executed?.aggregation.mode).toBe('sequential');

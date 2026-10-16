@@ -4,6 +4,7 @@ import { baseExecutorOf } from '../core/attestation.js';
 import type { AcceptanceChecklist } from '../contracts/acceptanceChecklist.js';
 import type { AttestationRecord } from '../contracts/attestation.js';
 import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_MAX_CHARS } from '../contracts/parentTests.js';
 
 const NAMED_PATH = /(?<![\w./-])(\.?[\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
 const CRITERIA_FILES_MAX = 16;
@@ -25,11 +26,13 @@ export const ROOT_CRITERIA_SOURCE_CHARS = 96_000;
  * The host block of parent-owned suite observations (`renderParentTestsBlock`),
  * in characters of suite source; status lines get half as much again.
  * UNMEASURED, both of them: a phase block carries statuses and the source of a
- * suite that did not run; the root one equals the schema's maximum suite size,
- * so the root's own integration suite can always appear whole.
+ * suite that did not run. The phase one IS the bound on a newly written suite
+ * (`parsePlanPair` refuses a longer one), so a suite planned now always appears
+ * whole there; the root one is the stored bound, so the root's own integration
+ * suite, even one restored from an older checkpoint, can always appear whole.
  */
-export const PARENT_TEST_PHASE_CHARS = 12_000;
-export const PARENT_TEST_ROOT_CHARS = 32_000;
+export const PARENT_TEST_PHASE_CHARS = PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS;
+export const PARENT_TEST_ROOT_CHARS = PARENT_TEST_SOURCE_MAX_CHARS;
 const CRITERIA_FILE_MATCHED_BLOCKS = 15;
 const CRITERIA_BLOCK_LINES = 25;
 const CRITERIA_LINE_CHARS = 300;

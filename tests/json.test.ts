@@ -13,6 +13,7 @@ import {
   parsePlanTolerant,
   parsePlanWithFallback,
   parseWith,
+  planSchema,
   repairTruncatedJson,
   repairPrematureClose,
   resultPayloadSchema,
@@ -21,7 +22,8 @@ import {
   verdictSchema,
   isEffectivelyEmptyMods,
 } from '../src/atoms/json.js';
-import { PlanParseError } from '../src/core/errors.js';
+import { PLAN_PARSE_MESSAGE_MAX_CHARS, PlanParseError } from '../src/core/errors.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_MAX_CHARS } from '../src/contracts/parentTests.js';
 
 describe('extractJson', () => {
   it('parses a plain JSON object', () => {
@@ -794,7 +796,7 @@ describe('parsePlanPair', () => {
     const cut = text.slice(0, text.indexOf('toMatch'));
     expect(parseTwoJsonEx(cut).repaired).toBe(true);
     expect(() => parsePlanPair(cut, l3StrategySchema, 'max_tokens')).toThrow(PlanParseError);
-    expect(() => parsePlanPair(cut, l3StrategySchema, 'max_tokens')).toThrow(/STRATEGY_MAX_TOKENS output cap/);
+    expect(() => parsePlanPair(cut, l3StrategySchema, 'max_tokens')).toThrow(/plan reply hit the plan output cap and was cut/);
   });
 
   it('refuses an unbalanced reply that finished, with a distinct message', () => {
@@ -841,5 +843,102 @@ describe('parsePlanPair', () => {
   it('leaves parseTwoJson tolerant for its other readers', () => {
     const cut = text.slice(0, text.indexOf('toMatch'));
     expect(() => parseTwoJson(cut)).not.toThrow();
+  });
+
+  // Group G4, 2026-10-16: a NEW suite is held to the authored bound when the
+  // reply is parsed; the schema keeps the stored bound so saved plans restore.
+  describe('the authored suite bound', () => {
+    const sized = (length: number) => `${source}\n// ${'x'.repeat(length - source.length - 4)}`;
+    const suiteOf = (length: number) => ({ requirement: 'digits', cwd: '.', source: sized(length) });
+    const twoBranches = (first: number, second: number, integration?: number) => JSON.stringify([strategy, {
+      ...plan,
+      subtasks: [
+        { description: 'Implement a', outputs: ['a.ts'], acceptanceTests: suiteOf(first) },
+        { description: 'Implement b', outputs: ['b.ts'], acceptanceTests: suiteOf(second) },
+      ],
+      ...(integration ? { acceptanceTests: suiteOf(integration) } : {}),
+      aggregation: { mode: 'concat' },
+    }]);
+    const refusal = (reply: string, stopReason?: string): PlanParseError => {
+      try {
+        parsePlanPair(reply, l3StrategySchema, stopReason);
+      } catch (error) {
+        if (error instanceof PlanParseError) return error;
+        throw error;
+      }
+      throw new Error('the reply was accepted');
+    };
+
+    it('builds suites of the exact length asked for', () => {
+      expect(sized(PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS)).toHaveLength(PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS);
+    });
+
+    it('accepts suites at the bound, at subtask and plan level', () => {
+      const bound = PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS;
+      const parsed = parsePlanPair(twoBranches(bound, bound, bound), l3StrategySchema, 'end_turn');
+      expect(parsed.plan.subtasks[1]?.acceptanceTests?.source).toHaveLength(bound);
+      expect(parsed.plan.acceptanceTests?.source).toHaveLength(bound);
+    });
+
+    it('refuses one character over at subtask level, naming the zero-based index and both numbers', () => {
+      const error = refusal(twoBranches(100, 12_001));
+      expect(error.kind).toBe('suite-size');
+      expect(error.message).toMatch(/^plan reply refused: acceptanceTests\.source over the 12,000 characters the host accepts for a new suite/);
+      expect(error.message).toContain('subtask index 1 (zero-based) (12,001)');
+      expect(error.message).not.toContain('subtask index 0');
+      expect(error.message).toContain('keep each suite under 8,000 characters');
+    });
+
+    it('refuses one character over at plan level', () => {
+      const error = refusal(twoBranches(100, 100, 12_001));
+      expect(error.kind).toBe('suite-size');
+      expect(error.message).toContain('plan-level integration suite (12,001)');
+    });
+
+    it('names every location in one bounded message', () => {
+      const error = refusal(twoBranches(13_240, 20_000, 12_410));
+      expect(error.message).toContain('subtask index 0 (zero-based) (13,240)');
+      expect(error.message).toContain('subtask index 1 (zero-based) (20,000)');
+      expect(error.message).toContain('plan-level integration suite (12,410)');
+      expect(error.message.length).toBeLessThanOrEqual('plan reply refused: '.length + PLAN_PARSE_MESSAGE_MAX_CHARS);
+    });
+
+    it('holds a salvaged reply to the same bound', () => {
+      const raw = twoBranches(100, 12_001).split('\\n').join('\n');
+      expect(() => JSON.parse(raw)).toThrow();
+      expect(refusal(raw).kind).toBe('suite-size');
+    });
+
+    it('reports a cut reply as cut even when a suite in it is oversized', () => {
+      const reply = twoBranches(12_500, 100);
+      const cut = reply.slice(0, reply.indexOf('Implement b'));
+      const error = refusal(cut, 'max_tokens');
+      expect(error.kind).toBe('truncated');
+      expect(error.message).toMatch(/^plan reply unparseable: plan reply hit the plan output cap/);
+    });
+
+    it('leaves the stored bound on the schema, so a saved plan still restores', () => {
+      const saved = (length: number) => planSchema.safeParse({ ...plan, subtasks: [{ ...plan.subtasks[0], acceptanceTests: suiteOf(length) }] });
+      expect(saved(PARENT_TEST_SOURCE_MAX_CHARS).success).toBe(true);
+      expect(saved(PARENT_TEST_SOURCE_MAX_CHARS + 1).success).toBe(false);
+    });
+
+    it('tells only a JSON-syntax failure how to escape', () => {
+      const escaping = 'escape every backslash, double quote and newline';
+      const cut = text.slice(0, text.indexOf('toMatch'));
+      const syntax = refusal(text.replace('\\\\d', '\\d'));
+      const unbalanced = refusal(cut, 'end_turn');
+      const truncated = refusal(cut, 'max_tokens');
+      const schema = refusal(JSON.stringify([strategy, { reasoning: 'r', subtasks: [] }]));
+      const size = refusal(twoBranches(100, 12_001));
+      expect([syntax.kind, unbalanced.kind, truncated.kind, schema.kind, size.kind])
+        .toEqual(['syntax', 'unbalanced', 'truncated', 'schema', 'suite-size']);
+      expect(syntax.feedback()).toContain(escaping);
+      expect(unbalanced.feedback()).toContain(escaping);
+      expect(truncated.feedback()).not.toContain(escaping);
+      expect(schema.feedback()).not.toContain(escaping);
+      expect(size.feedback()).not.toContain(escaping);
+      expect(size.feedback()).toContain('subtask index 1 (zero-based)');
+    });
   });
 });

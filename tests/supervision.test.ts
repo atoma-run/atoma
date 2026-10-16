@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Atom, type Supervisor } from '../src/core/atom.js';
 import type {
+  LlmCompletionRequest,
+  LlmCompletionResponse,
   Plan,
   Result,
   RunContext,
@@ -23,6 +25,10 @@ import { L2Atom } from '../src/atoms/L2Atom.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { makePlan } from './helpers/factories.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { resetPrefilterCacheForTests } from '../src/atoms/prefilterCache.js';
 
 class FakeChild extends Atom {
   readonly tier: Tier = 1;
@@ -308,6 +314,88 @@ describe('superviseLoop', () => {
       } finally {
         db.close();
       }
+    });
+
+    // Group G4, 2026-10-16: a cut L2 reply used to be asked again blind; the
+    // feedback now reaches the next strategy prompt only, never the prefilter
+    // (whose cache key hashes constraints) nor the task review and execution see.
+    it('tells a real L2 cell why its cut reply was refused, on the planner channel only', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'atoma-g4-feedback-'));
+      const cacheBefore = process.env['ATOMA_PREFILTER_CACHE'];
+      process.env['ATOMA_PREFILTER_CACHE'] = join(dir, 'cache.db');
+      resetPrefilterCacheForTests();
+      const db = openDb(':memory:');
+      try {
+        const registry = new AtomRegistry(db);
+        const seed = { description: 'module author', systemPrompt: 'write modules', tools: [], params: {}, createdBy: 'test' };
+        registry.create(1, seed);
+        const type = registry.create(2, { ...seed, description: 'cell', systemPrompt: 'delegate' });
+        const cell = L2Atom.fromType(type, registry);
+        cell.execute = async function (this: L2Atom) {
+          return { output: 'cell-output', summary: 's', trace: [], producedBy: { tier: 2, name: this.name, viaFallback: false } };
+        };
+        const plan = { reasoning: 'r', subtasks: [{ description: 'Implement' }], aggregation: { mode: 'sequential' }, expectedOutput: 'o' };
+        const good = JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'parsed' }, plan]);
+        const cut = good.slice(0, good.indexOf('"aggregation"'));
+        const plans = [{ text: cut, stopReason: 'max_tokens' }, { text: good, stopReason: 'end_turn' }];
+        const ctx = makeCtx();
+        const route = (req: LlmCompletionRequest): LlmCompletionResponse => {
+          const next = req.role === 'prefilter'
+            ? { text: JSON.stringify({ kind: 'escalate', reasoning: 'no molecule fits' }), stopReason: 'end_turn' }
+            : req.role === 'plan' ? plans.shift() : undefined;
+          if (!next) throw new Error(`Unexpected ${req.role} call`);
+          return { ...next, usage: { inputTokens: 10, outputTokens: 10 } };
+        };
+        for (let i = 0; i < 6; i++) ctx.llm.enqueue(route);
+        const task: Task = { description: 'go', constraints: ['keep the public API'] };
+        const reviewed: Task[] = [];
+        const parent = new FakeParent();
+        parent.validatePlan = async (_c, _p, seen) => {
+          reviewed.push(seen);
+          return approve;
+        };
+        parent.queueResultVerdict(approve);
+        const hooks = { applyByScope: async (c: L2Atom) => c, branchOnEscalation: async () => { throw new Error('must not escalate'); } };
+        const result = await superviseLoop(parent as never, cell as never, task, ctx, hooks as never);
+        expect(result.output).toBe('cell-output');
+        const strategyPrompts = ctx.llm.calls.filter(call => call.role === 'plan');
+        expect(strategyPrompts).toHaveLength(2);
+        expect(strategyPrompts[0]?.userContent).not.toContain('PREVIOUS PLAN ATTEMPT:');
+        expect(strategyPrompts[1]?.userContent).toContain('PREVIOUS PLAN ATTEMPT:');
+        expect(strategyPrompts[1]?.userContent).toContain('plan reply hit the plan output cap and was cut');
+        // One prefilter call: the retry was served from the cache under an unchanged key.
+        const prefilters = ctx.llm.calls.filter(call => call.role === 'prefilter');
+        expect(prefilters).toHaveLength(1);
+        expect(prefilters[0]?.userContent).not.toContain('output cap');
+        expect(reviewed).toHaveLength(1);
+        expect(reviewed[0]?.constraints).toEqual(['keep the public API']);
+        const unparseable = result.trace.filter((t) => t.kind === 'plan-unparseable');
+        expect(unparseable).toHaveLength(1);
+        expect(unparseable[0]?.payload).toMatchObject({ cause: 'truncated' });
+        expect(result.trace.some((t) => t.kind === 'escalated')).toBe(false);
+      } finally {
+        db.close();
+        if (cacheBefore === undefined) delete process.env['ATOMA_PREFILTER_CACHE'];
+        else process.env['ATOMA_PREFILTER_CACHE'] = cacheBefore;
+        resetPrefilterCacheForTests();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('asks an L1 again after its own ValidationError without planner feedback', async () => {
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(BROKEN);
+      ctx.llm.enqueueText(GOOD);
+      const parent = new FakeParent();
+      parent.queuePlanVerdict(approve);
+      parent.queueResultVerdict(approve);
+      const child = makeChild();
+      const plan = vi.spyOn(child, 'plan');
+      const hooks = { applyByScope: async (c: RealPlanL1) => c, branchOnEscalation: async () => {} };
+      await superviseLoop(parent as never, child as never, { description: 'go' }, ctx, hooks as never);
+      // The loop's third argument, past L1's own two-parameter signature.
+      const feedbacks = plan.mock.calls.map(call => (call as unknown[])[2]);
+      expect(feedbacks).toEqual([[], []]);
     });
 
     it('escalates once the plan budget is spent on unparseable replies', async () => {

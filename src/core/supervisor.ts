@@ -1,5 +1,5 @@
 import { markParentTestsJudged, verifyParentTests, withParentTestConsequences } from './parentTests.js';
-import { EscalationSignal, ValidationError } from './errors.js';
+import { EscalationSignal, PlanParseError, ValidationError } from './errors.js';
 import type { Atom, Supervisor } from './atom.js';
 import type {
   NegativeVerdict,
@@ -273,6 +273,10 @@ export async function superviseLoop<C extends Atom>(
     // reasoning strings literally differ.
     const planMarker = makeMarkerTracker(MAX_SAME_MARKER_REJECTS);
     const resultMarker = makeMarkerTracker(MAX_SAME_MARKER_REJECTS);
+    // What the last refused plan REPLY was refused for, on the planner-feedback
+    // channel (`Atom.plan`): never in `task.constraints`, so the prefilter,
+    // its cache key, review and execution all keep the request as asked.
+    let planFeedback: string[] = [];
 
     try {
       while (true) {
@@ -285,19 +289,25 @@ export async function superviseLoop<C extends Atom>(
 
         let plan;
         try {
-          plan = await current.plan(task, ctx);
+          plan = await current.plan(task, ctx, planFeedback);
         } catch (error) {
           // An unparseable plan reply is asked again within the plan budget,
           // which escalates when it runs out. Rethrown, it ended run 12bdcf19
           // (2026-10-15) over one reply with unescaped quotes in a string;
           // escalating at once would blame the child's trust and its recipe
           // and branch a type for one formatting slip. The raw reply stays
-          // in the llm event; the parser's message is kept here.
+          // in the llm event; the parser's message is kept here. A refused
+          // REPLY (PlanParseError) tells the next call why; any other
+          // ValidationError (an L1's plan) is asked again as before.
           if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
           ctx.logger.warn(`[${current.name}] plan reply unparseable; asking again (${error.message.slice(0, 200)})`);
-          trace.push({ kind: 'plan-unparseable', ts: now(), atom: current.name, payload: { error: error.message } });
+          const cause = error instanceof PlanParseError ? error.kind : undefined;
+          trace.push({ kind: 'plan-unparseable', ts: now(), atom: current.name,
+            payload: { ...(cause ? { cause } : {}), error: error.message } });
+          if (error instanceof PlanParseError) planFeedback = [error.feedback()];
           continue;
         }
+        planFeedback = [];
         trace.push({ kind: 'plan', ts: now(), atom: current.name, payload: plan });
 
         const v1 = await parent.validatePlan(current, plan, task, ctx);

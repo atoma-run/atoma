@@ -44,7 +44,6 @@ import {
   parsePayloadTolerant,
   parsePlanWithFallback,
   parsePlanPair,
-  planParseFeedback,
   planSchema,
   type L3Strategy,
   NON_JSON_PAYLOAD_SUMMARY_PREFIX,
@@ -54,7 +53,7 @@ import { forkBranch } from '../core/branchCtx.js';
 import { isOwnFallback, ladderSpent, spentPhaseResult, withSpentLadder } from '../core/phaseBudget.js';
 import { effectiveObligations, anyUncovered, renderProofCoverage } from './proofCoverage.js';
 import { createHash, randomUUID } from 'node:crypto';
-import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, withPlannedDelivery, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
+import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, withPlannedDelivery, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, planFeedbackLines } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { PlanParseError, RegistryNotFoundError, ValidationError } from '../core/errors.js';
 import { approvalDigest, delegationRefusal, enforceParsedDelegationReview, routingIndexNote } from './delegationReview.js';
@@ -472,14 +471,14 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     if (!approval && (checkpoint.replanAfterAnswer || savedPlan.subtasks.length > completed)) {
       const prefix = savedPlan.subtasks.slice(0, completed);
       const completedSummaries = checkpoint.completed.map(result => result.summary).join('\n').slice(0, 12000);
-      const replan = async (feedback: string): Promise<Plan> => {
+      const replan = async (feedback: readonly string[]): Promise<Plan> => {
         const instruction = checkpoint.replanAfterAnswer
           ? 'The client has answered the blocking question in clientAnswers. Replan ONLY the remaining work toward the original goal. Do not ask the answered question again or replay completed phases. Preserve their files and results. Return a sequential plan for the remaining phases only; the host retains the completed prefix. Historical summaries are context, not fresh proof.'
-          : 'The saved plan for the remaining work was refused by the delegation contract review (see constraints). Replan ONLY the remaining work toward the original goal. Do not replay completed phases. Preserve their files and results. Return a sequential plan for the remaining phases only; the host retains the completed prefix. Historical summaries are context, not fresh proof.';
+          : 'The saved plan for the remaining work was refused by the delegation contract review (see PREVIOUS PLAN ATTEMPT). Replan ONLY the remaining work toward the original goal. Do not replay completed phases. Preserve their files and results. Return a sequential plan for the remaining phases only; the host retains the completed prefix. Historical summaries are context, not fresh proof.';
         const continuation: Task = { ...savedTask, inputs: { ...saved.inputs, checkpointContinuation: {
           instruction, completedPhaseCount: completed, completedSummaries,
-        } }, ...(feedback ? { constraints: [...(savedTask.constraints ?? []), feedback] } : {}) };
-        const remaining = await this.plan(continuation, ctx);
+        } } };
+        const remaining = await this.plan(continuation, ctx, feedback);
         // The delivery is the original request's: a replan of the remaining phases may omit it.
         const delivery = remaining.delivery ?? savedPlan.delivery;
         this.pendingPlannedPhases = prefix.length + (this.pendingPlannedPhases ?? remaining.subtasks.length);
@@ -547,11 +546,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
   }
 
   private prepareRootDelegation(task: Task, ctx: RunContext, allowDiscovery: boolean): Promise<{ plan: Plan; review: DelegationReview; model: string }> {
-    const coach = (feedback: string): Task => feedback ? { ...task, constraints: [...(task.constraints ?? []), feedback] } : task;
+    // Feedback travels on the planner channel, never in `task.constraints`:
+    // the prefilter (and its cache key) and the review see the task as asked.
+    // The collision coaching inside `acceptL3RootPlan` stays a constraint; it
+    // is its own mechanism, not a retry of this request.
     return this.reviewedRootPlan({
-      propose: async feedback => acceptL3RootPlan({ plan: await this.plan(coach(feedback), ctx), task: coach(feedback), ctx,
-        replan: next => this.plan(next, ctx) }),
-      // The review always sees the uncoached task.
+      propose: async feedback => acceptL3RootPlan({ plan: await this.plan(task, ctx, feedback), task, ctx,
+        replan: next => this.plan(next, ctx, feedback) }),
       reviewTask: task, from: 0, allowDiscovery, continuation: false,
     }, ctx);
   }
@@ -563,9 +564,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * reviewer fault (unfinished, unparseable, unclassified) reviews the SAME
    * plan again on the validation model instead of asking for a new one. Only
    * an enforced approval is returned; execution still belongs to the shared loop.
+   *
+   * The feedback is a list: the last review refusal, then the latest parse or
+   * precheck message. A reply refused by the parser after a review refusal
+   * must not erase what the reviewer asked for (group G4, 2026-10-16).
    */
   private async reviewedRootPlan(args: {
-    propose: (feedback: string) => Promise<Plan>;
+    propose: (feedback: readonly string[]) => Promise<Plan>;
     precheck?: (plan: Plan) => string | undefined;
     reviewTask: Task;
     from: number;
@@ -573,25 +578,26 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     continuation: boolean;
   }, ctx: RunContext): Promise<{ plan: Plan; review: DelegationReview; model: string }> {
     const exhausted = args.continuation ? 'Saved delegation plan requires a new run: ' : '';
-    let feedback = '';
+    let refusal = '';
+    let retry = '';
     let failure = 'Delegation contract review did not finish';
     let pending: Plan | undefined;
     let reviewerFault = false;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (!pending) {
         try {
-          pending = await args.propose(feedback);
+          pending = await args.propose([refusal, retry].filter(Boolean));
         } catch (error) {
           if (!(error instanceof PlanParseError) || ctx.signal.aborted) throw error;
-          failure = feedback = planParseFeedback(error);
-          ctx.logger.warn(`[l3] ${feedback}`);
+          failure = retry = error.feedback();
+          ctx.logger.warn(`[l3] ${retry}`);
           continue;
         }
         reviewerFault = false;
         const precheck = args.precheck?.(pending);
         if (precheck) {
-          failure = feedback = precheck;
-          ctx.logger.warn(`[l3] ${feedback}`);
+          failure = retry = precheck;
+          ctx.logger.warn(`[l3] ${retry}`);
           pending = undefined;
           continue;
         }
@@ -615,14 +621,15 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       }
       // The reviewer cited ROUTED indices; the note maps them back to the planner's own.
       const note = routingIndexNote(reviewed);
-      feedback = `Delegation contract rejected before execution: ${verdict.reasoning}${note ? ` ${note}` : ''}`;
-      ctx.logger.warn(`[l3] ${feedback}`);
+      refusal = `Delegation contract rejected before execution: ${verdict.reasoning}${note ? ` ${note}` : ''}`;
+      retry = '';
+      ctx.logger.warn(`[l3] ${refusal}`);
       pending = undefined;
     }
     throw new ValidationError(`${exhausted}${failure}`);
   }
 
-  async plan(task: Task, ctx: RunContext): Promise<Plan> {
+  async plan(task: Task, ctx: RunContext, feedback?: readonly string[]): Promise<Plan> {
     if (this.isFallbackMode()) return this.selfPlan(task, ctx);
 
     this.triedChildren.beginTask(task.description);
@@ -933,6 +940,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
       ...taskContextLines(task, { includeAcceptanceChecklist: !task.originalTask && !task.inputs?.['originalTask'] }),
+      ...planFeedbackLines(feedback),
       ``,
       `CRITICAL OUTPUT FORMAT: your entire response MUST be exactly one JSON array`,
       `of TWO objects, with no prose before or after, no markdown fences, no tool calls.`,

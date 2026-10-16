@@ -45,7 +45,7 @@ import {
   renderProofCoverage,
 } from './proofCoverage.js';
 import { createHash, randomUUID } from 'node:crypto';
-import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
+import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, planFeedbackLines } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { scopeTools } from './toolMerge.js';
@@ -408,7 +408,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     if (!this.peers.includes(p)) this.peers.push(p);
   }
 
-  async plan(task: Task, ctx: RunContext): Promise<Plan> {
+  async plan(task: Task, ctx: RunContext, feedback?: readonly string[]): Promise<Plan> {
     if (this.isFallbackMode()) {
       return this.selfPlan(task, ctx);
     }
@@ -672,6 +672,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
       ...taskContextLines(task, { includeAcceptanceChecklist: !task.originalTask && !task.inputs?.['originalTask'] }),
+      ...planFeedbackLines(feedback),
       ``,
       `CRITICAL OUTPUT FORMAT: your entire response MUST be exactly one JSON array`,
       `of TWO objects, with no prose before or after, no markdown fences, no tool calls.`,

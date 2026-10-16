@@ -338,6 +338,25 @@ describe('durable sequential run continuation', () => {
       expect(f.report().rootReviews).toBe(1);
     }, 90000);
 
+    // Group G4, 2026-10-16: a new suite is held to 12,000 characters by the
+    // plan parser only; a plan saved with a longer one must still restore in
+    // the real runner, in another process, through the stored schema bound.
+    it('restores a saved plan whose suite is longer than the authored bound', () => {
+      const { f, id } = paused();
+      const source = `import { test, expect } from 'vitest';\n// ${'x'.repeat(20_000 - 42)}`;
+      expect(source).toHaveLength(20_000);
+      const suite = JSON.stringify({ requirement: 'phase one wrote its file', cwd: '.', source });
+      const quoted = suite.replaceAll("'", "''");
+      f.editPayload(id, `json_set(payload, '$.root.plan.subtasks[0].acceptanceTests', json('${quoted}'))`);
+      const next = f.run(['--resume', id]);
+      expect(next.status, next.stdout + next.stderr).toBe(0);
+      expect(f.report().outcome).toBe('delivered');
+      // The edit changed the approved plan, so its remaining work is reviewed once and nothing is replanned.
+      expect(f.report().rootReviews).toBe(1);
+      expect(f.report().calls.filter(c => c.startsWith('plan:3:'))).toHaveLength(0);
+      expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
+    }, 90000);
+
     it('records the plan before executing a recorded approval, so the phase count is checked', () => {
       const { f, id } = paused();
       const next = f.run(['--resume', id, '--pause-after-phase', '3']);
@@ -740,6 +759,9 @@ describe('durable sequential run continuation', () => {
       close();
       expect(ctx.llm.calls).toHaveLength(2);
       expect(ctx.llm.calls[1]?.userContent).toContain('plan reply unparseable');
+      // On the planner channel (group G4): never merged into the task's constraints.
+      expect(ctx.llm.calls[1]?.userContent).toContain('PREVIOUS PLAN ATTEMPT:');
+      expect(ctx.llm.calls[1]?.userContent).not.toContain('Constraints:');
     });
 
     it('gives up after three unparseable replies', async () => {

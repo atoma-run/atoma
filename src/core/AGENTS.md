@@ -112,11 +112,14 @@ Neighbours:
   EXECUTE call is the one place it varies per task, and Decision sets it (below,
   owner decision 2026-10-06). Validators and prefilters never carry one: they
   are deterministic and cheap — except the root delegation review, which runs
-  on tier 2 with `ROOT_DELEGATION_REVIEW_PARAMS` (STRATEGY cap, medium effort)
+  on tier 2 with `ROOT_DELEGATION_REVIEW_PARAMS` (its own 8,000 cap, medium effort)
   because its refusal costs a top-tier replan ([src/atoms](../atoms/AGENTS.md)).
   Each transport answers `honoursEffort(model)`
   from the gate its `complete` applies, and every decorator and `forkBranch`
   forwards it; a client that does not answer honours nothing.
+- `superviseLoop` passes a `PlanParseError`'s `feedback()` to the next plan call
+  only, on the planner channel (`Atom.plan`'s third argument); the task the
+  prefilter, review and execution see is never changed by it.
 - A transport cannot outlive its deadline. Keep both per-call abort and outer
   watchdog guards, clean abort listeners in `finally`, and account partial usage
   when a provider exposes it. Tool-loop iteration caps shrink against

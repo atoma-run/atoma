@@ -251,22 +251,51 @@ export async function withinSignal<T>(work: Promise<T>, signal: AbortSignal): Pr
  * the model actually generates, and the plan call sites pin
  * `effort: 'medium'` which keeps thinking volume modest.
  *
+ * 16,384, not 8000, since 2026-10-16 (review record, group G4): plans now
+ * carry whole Vitest sources inside JSON strings, and escaped test code runs
+ * at 3.2-3.3 characters per token (chars/4 undercounts it by ~20%). Measured
+ * with tiktoken on plausible replies: a root plan with five branches and
+ * four focused suites is ~4.1k tokens, one with seven branches and six
+ * thorough suites ~9.7-10k, before any thinking; one suite at the stored
+ * bound alone is ~10k. Since a cut reply is refused rather than executed,
+ * every such plan failed three times under 8000. ONE cap for every L2/L3 plan
+ * call: nothing known before the call says whether the reply carries suites.
+ * 16,384 is what the transports send when a caller names no cap
+ * (`llm.ts`, the OpenAI and chat-completions defaults), and it stays under
+ * the Anthropic SDK's non-streaming ceiling (it throws "Streaming is
+ * required" above 21,333 tokens, above 8,192 for the dated Opus 4 and 4.1
+ * ids, all retired in the catalogue; tests/strategy-cap.test.ts pins both).
+ * Still a cap, not a target: a plan that fits in 8000 costs what it did.
+ *
  * Fallback / self-exec calls still use the atom's configured maxTokens
  * because they may produce actual content, not routing JSON.
  */
-export const STRATEGY_MAX_TOKENS = 8000;
+export const STRATEGY_MAX_TOKENS = 16_384;
+
+/**
+ * Output cap for the reviews of a PLAN that run on a thinking budget: the root
+ * delegation review (`ROOT_DELEGATION_REVIEW_PARAMS`) and the second attempt
+ * of a child-plan review (`L3Atom`), which re-asks the tier-2 model after the
+ * first, VALIDATION_PARAMS one failed. UNMEASURED, and not independent of plan
+ * size: the review writes one disposition per subtask with reasons up to
+ * 2,000 characters, and its thinking grows with the suites it reads. It stays
+ * at 8000 when plan calls moved to 16,384 because token caps are raised only
+ * after a real cut is observed (src/atoms/AGENTS.md), and it keeps the
+ * documented $0.12 bound per root review true.
+ */
+export const PLAN_REVIEW_MAX_TOKENS = 8000;
 
 /**
  * The ROOT delegation review's parameters: the one validator that runs on a
  * thinking tier (`modelForTier(2)`), because three refusals end the run and
  * each one costs a top-tier replan (src/atoms/AGENTS.md, src/core/AGENTS.md).
- * The cap is STRATEGY_MAX_TOKENS for the same reason as there: it is a cap,
- * not a target, and it includes adaptive thinking, which VALIDATION_PARAMS'
- * 2048 would leave no room for. Effort is pinned as on strategy calls. A
+ * The cap is PLAN_REVIEW_MAX_TOKENS: it is a cap, not a target, and it
+ * includes adaptive thinking, which VALIDATION_PARAMS' 2048 would leave no
+ * room for. Effort is pinned as on strategy calls. A
  * reviewer that still fails is re-asked on the validation model with
  * VALIDATION_PARAMS (`L3Atom.reviewedRootPlan`).
  */
-export const ROOT_DELEGATION_REVIEW_PARAMS: GenerationParams = { temperature: 0, maxTokens: STRATEGY_MAX_TOKENS, effort: 'medium' };
+export const ROOT_DELEGATION_REVIEW_PARAMS: GenerationParams = { temperature: 0, maxTokens: PLAN_REVIEW_MAX_TOKENS, effort: 'medium' };
 
 export function shouldTrustType(type: AtomType): boolean {
   return type.consecutiveSuccesses >= trustThreshold();

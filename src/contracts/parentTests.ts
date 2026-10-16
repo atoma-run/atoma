@@ -15,11 +15,34 @@ export const PARENT_TEST_TIMEOUT_MS = 120_000;
  */
 export const PARENT_TEST_SNAPSHOT_ALLOWANCE_MS = 60_000;
 
+/**
+ * The STORED and EXECUTED bound on one suite's source: every reader of a saved
+ * plan parses with it (checkpoint restore, the approval digest, the worker,
+ * core's observation mapping, the run report), so lowering it would make a
+ * checkpoint saved before the change throw on resume. A plan reply is held to
+ * the tighter `PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS` when it is parsed.
+ */
+export const PARENT_TEST_SOURCE_MAX_CHARS = 32_000;
+/**
+ * The HARD bound on a suite a planner writes now, enforced on the plan reply
+ * only (`parsePlanPair`). It is the budget that keeps a new suite whole in a
+ * phase block (`PARENT_TEST_PHASE_CHARS`), and 50% above the target so a
+ * reviewer's request for more cases does not turn into a parser refusal
+ * (review record 2026-10-16, group G4).
+ */
+export const PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS = 12_000;
+/**
+ * The size a suite is asked to stay under, in the planning text and the review
+ * rule. More than twice the largest focused branch suite measured (3.4k
+ * characters); a suite at it costs about 2,500 output tokens once escaped.
+ */
+export const PARENT_TEST_SOURCE_TARGET_CHARS = 8_000;
+
 /** Parent-authored checks; never parsed from a child's result or workspace. */
 export const parentTestSuiteSchema = z.object({
   requirement: z.string().min(1).max(4000),
   cwd: z.string().max(240).default('.').refine(p => p === '.' || /^(?!\.)(?!.*(?:^|\/)\.\.(?:\/|$))[a-zA-Z0-9_./-]+$/.test(p), 'Use a relative project directory'),
-  source: z.string().min(1).max(32000),
+  source: z.string().min(1).max(PARENT_TEST_SOURCE_MAX_CHARS),
 }).strict();
 export type ParentTestSuite = z.infer<typeof parentTestSuiteSchema>;
 
@@ -170,7 +193,7 @@ export const PARENT_TEST_PLANNING = `PARENT-OWNED ACCEPTANCE TESTS:
 For TypeScript application work, define acceptanceTests on each implementation subtask BEFORE execution:
 {"requirement":"the assigned behavior and its observable interface","cwd":".","source":"import { test, expect } from 'vitest'; import { add } from './src/add.ts'; test('adds', () => { expect(add(2, 3)).toBe(5); });"}.
 The acceptanceTests source is a JSON string: write every backslash as \\\\ (a regex \\d becomes \\\\d in JSON) and escape double quotes and newlines; prefer single-quoted TypeScript strings in test code.
-The source is one TypeScript Vitest file placed at the project root in a disposable workspace copy. Use relative imports of real application modules. Node environment only; subprocesses, nested workers and native addons are unavailable inside assertions. tsconfig \`paths\` aliases resolve in the suite as in the application modules it imports; CSS imports load as empty stubs (CSS-module class names map to themselves and are not checked). Test importable modules and in-process APIs; real browser and CLI process checks remain separate.
+The source is one TypeScript Vitest file placed at the project root in a disposable workspace copy. Each suite is a self-contained file: it cannot import or share setup with another suite, so include only the setup its own assertions need. Keep it to its own branch's contract, usually 2,000–4,000 characters and under ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')}; do not repeat assertions another suite already makes; cross-branch behaviour belongs in the plan-level suite. Use relative imports of real application modules. Node environment only; subprocesses, nested workers and native addons are unavailable inside assertions. tsconfig \`paths\` aliases resolve in the suite as in the application modules it imports; CSS imports load as empty stubs (CSS-module class names map to themselves and are not checked). Test importable modules and in-process APIs; real browser and CLI process checks remain separate.
 Use Vitest's built-in matchers; expect.extend may only add new names; custom equality testers, snapshot serializers and file snapshots are unavailable (inline snapshots work).
 L3 assigns criteria, interfaces and tests to EACH L2 branch. L2 proposes contract tests for EACH L1; L3 reviews them with the L2 plan before any L1 starts. Specify branch contracts before parallel implementation.
 Plan-level acceptanceTests run after the branches join: L3 owns integration tests in addition to its per-L2 tests. Do not require future branches' behavior in a leaf suite.

@@ -347,8 +347,8 @@ same contract check within the existing L3 review, including trusted cells. Exac
 approved-plan reuse remains; changed contracts are reviewed again.
 
 **The root review runs on tier 2** (`modelForTier(2)`), with its own parameters,
-`ROOT_DELEGATION_REVIEW_PARAMS`: the `STRATEGY_MAX_TOKENS` cap (8000, a cap that
-includes adaptive thinking) and `effort: 'medium'`. It is the one validator with
+`ROOT_DELEGATION_REVIEW_PARAMS`: its own 8,000-token cap (`PLAN_REVIEW_MAX_TOKENS`,
+a cap that includes adaptive thinking) and `effort: 'medium'`. It is the one validator with
 an effort pin. The ground is the cost rule's own: three refusals end the run with
 nothing delivered, each refusal costs a top-tier replan, and the review judges
 test-source quality, which is code review rather than a bounded yes/no. Root
@@ -382,7 +382,10 @@ written (`parsePlanPair`); malformed JSON, a schema mismatch, or a reply that
 only a truncation repair would complete raises `PlanParseError`, and the next
 attempt is asked with the parser's message and an excerpt around the position.
 A reply cut at `max_tokens` is asked to be shorter. The bad reply is never
-reviewed. The same parser serves L2 plans, which `superviseLoop` now asks again,
+reviewed. The message travels on the planner-feedback channel, the third
+argument of `Atom.plan`, rendered in the strategy prompt under
+`PREVIOUS PLAN ATTEMPT:`; it is never merged into the task's constraints, which
+the prefilter's cache key hashes and children inherit (see Plan size below). The same parser serves L2 plans, which `superviseLoop` now asks again,
 and the SHORT root, which gets the same three attempts. The planning guidance
 tells planners how to write a test source inside a JSON string.
 
@@ -424,3 +427,95 @@ records the plan before executing it, so phase counting and
 
 Incident and adversarial controls: [Attica planning review](../../records/reviews/attica-delegation-contract-2026-10-16.md);
 critical review and fixes: [parent-test review fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
+
+## Plan size
+
+Plans carry whole TypeScript sources inside JSON strings, so a root or L2 plan
+with several suites outgrew the 8,000-token plan cap, and since a cut reply is
+refused rather than executed, such a plan failed every attempt. Decided
+2026-10-16 under the owner's delegation (review record, group G4).
+
+**Measured** with tiktoken (`cl100k_base`, `o200k_base`) on plausible replies
+for a TypeScript notes app; the Claude figure applies an ASSUMED ×1.35 upper
+bound, not a measurement. Escaped test code runs at 3.2–3.3 characters per
+token, so characters/4 undercounts it by about 20%.
+
+| Reply | chars | cl100k | o200k | Claude (≤×1.35) |
+|---|---|---|---|---|
+| Root, 5 branches, 4 focused suites (1.5–3.4k chars) | 14,346 | 4,070 | 4,158 | ≤5,500 |
+| Root, 7 branches, 6 thorough suites (3–7k chars) | 32,618 | 9,728 | 9,990 | ≤13,100 |
+| L2, 3 subtasks with suites | 10,582 | 2,997 | 3,069 | ≤4,050 |
+| One suite at the stored bound (32,000 chars) | ~32,600 | 10,024 | 10,285 | ≤13,500 |
+| One suite at the 8,000-character target | ~8,150 | 2,440 | 2,498 | ≤3,300 |
+
+Adaptive thinking counts against the cap too, and how much a plan call thinks
+at `effort: 'medium'` is unmeasured.
+
+**One plan cap, 16,384 tokens** (`STRATEGY_MAX_TOKENS`), for every L2 and L3
+plan call. Nothing known before the call says whether the reply will carry
+suites, so there is no per-plan selection, and starting at 8,000 and raising
+after a cut was rejected: a cut is the common case for plans with suites, and
+each wastes a whole reply. 16,384 is what the transports send when a caller
+names no cap, and it stays under the Anthropic SDK's non-streaming ceiling
+(21,333 tokens; 8,192 for the dated Opus 4 and 4.1 ids, all retired). It is a
+cap, not a target: a plan that fits in 8,000 costs what it did.
+
+**The plan reviews keep 8,000** (`PLAN_REVIEW_MAX_TOKENS`): the root review and
+the second attempt of a child-plan review. That value is UNMEASURED and grows
+with plan size (one disposition per subtask, thinking over every suite); it is
+not raised because caps are raised only after an observed cut, and it keeps the
+$0.12 bound per review above true.
+
+**Three suite bounds.** The stored and executed bound stays 32,000 characters
+(`PARENT_TEST_SOURCE_MAX_CHARS`, on `parentTestSuiteSchema`): checkpoint
+restore, the approval digest, the worker, core's observation mapping and the
+run report all parse saved plans with it, and a lower one would make a
+checkpoint saved before the change throw on resume. A suite written NOW is
+refused over 12,000 characters (`PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS`), by
+`parsePlanPair` only, after both schemas accept; that is the budget that keeps
+a new suite whole in a phase block. The planning text and the review rule ask
+for under 8,000 (`PARENT_TEST_SOURCE_TARGET_CHARS`), more than twice the largest
+focused suite measured; the gap to the hard bound absorbs a reviewer's request
+for more cases. A bound on a plan's TOTAL suite size was rejected: a reply that
+completed within the cap has proven it fits, and every downstream budget is per
+suite. The refusal names each suite by zero-based index and length and costs
+one full reply, like a cut.
+
+**Suites are self-contained.** Each is written alone into a disposable copy,
+and branch suites run when their branch finishes, before the join. The planning
+text says so, asks each suite for its own branch's contract only, and the cut
+message no longer advises sharing fixtures through the integration suite. No
+guidance asks for fewer subtasks, which would contradict the mandatory
+parallel delegation; a reviewer asks for a branch to be split rather than for a
+longer suite.
+
+**Typed refusals and the feedback channel.** `PlanParseError` carries its kind
+(`syntax`, `unbalanced`, `truncated`, `schema`, `suite-size`) and its own
+`feedback()`; only the two JSON-syntax kinds are told how to escape. The
+`plan-unparseable` trace entry records the kind as `cause`. `superviseLoop`, the
+SHORT root and the L3 root pass that feedback to the next plan call on the
+channel above, so a retry reaches the prefilter as the same request (a cache
+hit, and no new L2 short-circuit verdict). At the L3 root the channel carries
+the last review refusal and the latest parse or precheck message together, so
+a size refusal does not erase what the reviewer asked for.
+
+**Cost.** Output at the cap, per call: Fable 5.1 $0.40 → $0.82, Opus 5.5 $0.16 →
+$0.33, Sonnet 5 $0.08 → $0.16. Worst case per run, every call at its cap: the
+root makes up to 7 plan calls (two planning rounds × 3 attempts, plus one
+collision replan), $1.12 → $2.29 on Opus and $2.80 → $5.73 on Fable; an L2
+branch up to 6 (2 cycles × 3), $0.48 → $0.98 on Sonnet, multiplied by branches.
+A plan that fits in 8,000 costs the same as before, and one between 8,000 and
+16,384 now costs one complete reply instead of three wasted ones and a failed
+root. A resumed run after the deploy pays one extra root review (≤ $0.12): the
+review rule changed, and the system prompt is in the approval digest. A plan
+call can take up to twice as long; the SDK's non-streaming timeout stays 10
+minutes against an expected 7.7 at the cap.
+
+**Known limits.** Thinking volume and Claude's token ratio are unmeasured, so a
+plan with seven or more thorough branches can still be cut; it is then asked
+again with feedback. The output ceilings of non-Anthropic models eligible for
+L2 and L3 are unchecked; one below 16,384 would answer with a transport error.
+Decision's view of a plan (`JEV_STATE_CHARS.plan`, 20,000 characters) already
+cuts the largest plans. The collision coaching in `l3RootPlan.ts` still rides
+the task's constraints. The 32,000-character stored bound can be lowered once
+no checkpoint from before the change can resume.

@@ -1,9 +1,9 @@
 import { inheritedJudgementSchema } from '../contracts/inheritedChecks.js';
 import { z } from 'zod';
-import { parentTestSuiteSchema } from '../contracts/parentTests.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS, parentTestSuiteSchema } from '../contracts/parentTests.js';
 import { deliveryKindSchema, executionModeSchema } from '../contracts/taskExecution.js';
 import { jsonrepair, JSONRepairError } from 'jsonrepair';
-import { PlanParseError, ValidationError } from '../core/errors.js';
+import { PlanParseError, type PlanParseCause, ValidationError } from '../core/errors.js';
 import { jsonParseExcerpt } from '../core/jsonExcerpt.js';
 import { isProofObligation } from '../contracts/attestation.js';
 
@@ -544,9 +544,6 @@ export function parseTwoJsonEx(text: string): { pair: [unknown, unknown]; repair
   return { pair: [first, JSON.parse(rest.slice(start2, end2 + 1))], repaired: false };
 }
 
-/** Bound on the parser or schema text a plan-parse failure carries. */
-const PLAN_PARSE_MESSAGE_MAX_CHARS = 600;
-
 /** Where JSON.parse stops on the reply's first JSON value, or '' when it does not. */
 function locateJsonFailure(text: string): string {
   const firstBrace = text.indexOf('{');
@@ -566,8 +563,39 @@ function locateJsonFailure(text: string): string {
   }
 }
 
-function planParseError(detail: string): PlanParseError {
-  return new PlanParseError(`plan reply unparseable: ${detail.slice(0, PLAN_PARSE_MESSAGE_MAX_CHARS)}`);
+function planParseError(kind: PlanParseCause, detail: string): PlanParseError {
+  return new PlanParseError(kind, detail);
+}
+
+const count = (n: number) => n.toLocaleString('en-US');
+
+/**
+ * The refusal for new suites over `PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS`, or
+ * undefined. Read from the PARSED plan, after both schemas accepted: the
+ * schema keeps the stored bound so a saved plan still restores, and only a
+ * reply being written now is held to the authored one. Per suite, never a
+ * plan total: a reply that completed within the cap has already proven it
+ * fits, and every downstream budget is per suite.
+ */
+function authoredSuiteOverrun(plan: z.infer<typeof planSchema>): string | undefined {
+  const over = [
+    ...plan.subtasks.flatMap((subtask, index) => {
+      const length = subtask.acceptanceTests?.source.length ?? 0;
+      return length > PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS ? [`subtask index ${index} (zero-based) (${count(length)})`] : [];
+    }),
+    ...(plan.acceptanceTests && plan.acceptanceTests.source.length > PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS
+      ? [`plan-level integration suite (${count(plan.acceptanceTests.source.length)})`] : []),
+  ];
+  if (over.length === 0) return undefined;
+  return `acceptanceTests.source over the ${count(PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS)} characters the host accepts for a new suite: ` +
+    `${over.join(', ')}; keep each suite under ${count(PARENT_TEST_SOURCE_TARGET_CHARS)} characters by testing only its branch's contract, or split the branch`;
+}
+
+/** The parsed pair, or a `suite-size` refusal: the one check after both schemas accept. */
+function withinAuthoredBounds<T extends { plan: z.infer<typeof planSchema> }>(parsed: T): T {
+  const overrun = authoredSuiteOverrun(parsed.plan);
+  if (overrun) throw planParseError('suite-size', overrun);
+  return parsed;
 }
 
 /**
@@ -587,6 +615,11 @@ function planParseError(detail: string): PlanParseError {
  * inferring unescaped quotes and executing repaired pairs were refused: each
  * authors contract bytes on the model's behalf (src/atoms/AGENTS.md, Model
  * output parsing; review record 2026-10-16, group D).
+ *
+ * A pair both schemas accept is still refused (`suite-size`) when a suite in
+ * it is over the AUTHORED bound: a suite written now must stay whole in a
+ * phase block, while the schema keeps the stored bound for saved plans
+ * (group G4). Each refusal is typed, so its feedback fits its cause.
  */
 export function parsePlanPair<S extends z.ZodTypeAny>(
   text: string,
@@ -607,10 +640,10 @@ export function parsePlanPair<S extends z.ZodTypeAny>(
   }
   if (first && !first.repaired) {
     const strategy = strategySchema.safeParse(first.pair[0]);
-    if (!strategy.success) throw planParseError(`strategy does not match its schema: ${strategy.error.message}`);
+    if (!strategy.success) throw planParseError('schema', `strategy does not match its schema: ${strategy.error.message}`);
     const plan = planSchema.safeParse(first.pair[1]);
-    if (!plan.success) throw planParseError(`plan does not match its schema: ${plan.error.message}`);
-    return { rawStrategy: first.pair[0], rawPlan: first.pair[1], strategy: strategy.data, plan: plan.data, salvaged: false };
+    if (!plan.success) throw planParseError('schema', `plan does not match its schema: ${plan.error.message}`);
+    return withinAuthoredBounds({ rawStrategy: first.pair[0], rawPlan: first.pair[1], strategy: strategy.data, plan: plan.data, salvaged: false });
   }
   // The one admitted salvage. Never over a reply that parsed as written, and
   // never over truncation: the escaped reply must parse with no repair.
@@ -620,31 +653,34 @@ export function parsePlanPair<S extends z.ZodTypeAny>(
   if (start !== -1) {
     const escaped = escapeControlCharsInStrings(text.slice(start));
     if (escaped !== text.slice(start)) {
+      let parsed: ReturnType<typeof schemas> = null;
+      let salvage: { pair: [unknown, unknown]; repaired: boolean } | undefined;
       try {
-        const salvage = parseTwoJsonEx(escaped);
-        const parsed = salvage.repaired ? null : schemas(salvage.pair);
-        if (parsed) return { rawStrategy: salvage.pair[0], rawPlan: salvage.pair[1], ...parsed, salvaged: true };
+        salvage = parseTwoJsonEx(escaped);
+        parsed = salvage.repaired ? null : schemas(salvage.pair);
       } catch {
         /* report the reply as written, below */
       }
+      // Outside the try: a salvaged pair is held to the same suite bound.
+      if (parsed && salvage) return withinAuthoredBounds({ rawStrategy: salvage.pair[0], rawPlan: salvage.pair[1], ...parsed, salvaged: true });
     }
+  }
+  // A cut reply is reported as cut whether a repair could read it or not:
+  // the escaping advice would send the planner after the wrong defect.
+  if (stopReason === 'max_tokens') {
+    // No token number: the planner cannot act on one, and naming the cap
+    // here would import cost.ts, which imports this module. Each suite is
+    // written alone into a disposable copy, so none can share setup.
+    throw planParseError('truncated', 'plan reply hit the plan output cap and was cut; return a shorter reply: ' +
+      `each suite a self-contained file under ${count(PARENT_TEST_SOURCE_TARGET_CHARS)} characters limited to its branch's contract, ` +
+      'shorter requirement and reasoning prose');
   }
   const location = locateJsonFailure(text);
   if (first?.repaired) {
-    if (stopReason === 'max_tokens') {
-      throw planParseError('plan reply hit the STRATEGY_MAX_TOKENS output cap and was cut; return a shorter reply: ' +
-        'fewer or shorter suites, shared fixtures once in the integration suite, no duplicated setup');
-    }
-    throw planParseError(`plan reply was unbalanced; a repair would drop subtasks or test source${location ? ` (${location})` : ''}`);
+    throw planParseError('unbalanced', `plan reply was unbalanced; a repair would drop subtasks or test source${location ? ` (${location})` : ''}`);
   }
   const message = extraction instanceof Error ? extraction.message : String(extraction);
-  throw planParseError(location && !message.includes(location) ? `${location} (${message.slice(0, 200)})` : message);
-}
-
-/** The constraint a planner is asked again with after `PlanParseError`. */
-export function planParseFeedback(error: PlanParseError): string {
-  return `Previous plan reply could not be parsed: ${error.message.slice(0, PLAN_PARSE_MESSAGE_MAX_CHARS)}. ` +
-    'Return exactly the JSON array; inside strings escape every backslash, double quote and newline, test sources included.';
+  throw planParseError('syntax', location && !message.includes(location) ? `${location} (${message.slice(0, 200)})` : message);
 }
 
 /**

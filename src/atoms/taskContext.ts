@@ -104,6 +104,17 @@ export function criteriaAssignmentLine(task: Task): string {
 }
 
 /** Shared task evidence for model and Jev validation; the current phase remains the scope. */
+/**
+ * The planner-feedback channel in a strategy prompt (`Atom.plan`): rendered
+ * after the task context, never merged into `task.constraints`, which the
+ * prefilter cache key hashes and children inherit.
+ */
+export function planFeedbackLines(feedback: readonly string[] | undefined): string[] {
+  const entries = (feedback ?? []).filter(entry => entry.trim());
+  if (entries.length === 0) return [];
+  return ['', 'PREVIOUS PLAN ATTEMPT:', ...entries.map(entry => `- ${entry}`)];
+}
+
 export function taskContextLines(task: Task, options: {
   includeAcceptanceChecklist?: boolean;
   /** The task's own executor reads the instruction; planners and validators read the fact. */

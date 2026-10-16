@@ -229,7 +229,13 @@ load-bearing.
 - Normal L2/L3 plan and validation calls never receive tools/executors. Their
   last-resort tool-bearing self-execution must use `modelForTier(1)` while
   retaining supervisor provenance.
-- Strategy calls use `STRATEGY_MAX_TOKENS` and medium effort. A molecule's execute
+- Plan calls (L2/L3) use `STRATEGY_MAX_TOKENS` (16,384 since 2026-10-16: plans
+  carry whole suites, escaped code is ~3.3 chars/token, and a cut reply is
+  refused) and medium effort; one cap for every plan call, since nothing before
+  the call says whether the reply carries suites. Plan reviews keep their own
+  UNMEASURED `PLAN_REVIEW_MAX_TOKENS` (8000): the root review and a child-plan
+  review's second attempt. Measurement and cost:
+  [plan size](../../docs/decisions/parent-owned-tests-2026-10-16.md#plan-size). A molecule's execute
   effort is Decision's (`L1Atom.executionEffort`, [src/core](../core/AGENTS.md#decision)),
   and a type's own effort pin wins over it. The cap includes
   adaptive thinking. Defaults in `planSchema` protect against truncation;
@@ -640,12 +646,27 @@ load-bearing.
 - An unparseable L1 plan or L2/L3 plan pair (a truncation repair counts for pairs) is asked
   again within the plan budget, then escalates (`plan-unparseable`, 12bdcf19); the root spends an
   attempt. Pairs salvage raw control chars only; L1 keeps parseWith's repair. Never blames trust.
+- `PlanParseError` is typed (`syntax`, `unbalanced`, `truncated`, `schema`, `suite-size`; the trace
+  records it as `cause`) and owns `feedback()`; only JSON-syntax kinds get escaping advice. A new
+  suite over `PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS` (12,000) is refused by `parsePlanPair`, clean
+  or salvaged, after both schemas accept; restore readers keep the schema's 32,000. Each suite is a
+  self-contained file: never advise shared setup across suites.
+- Feedback on a refused plan reply travels on the planner channel (`Atom.plan`'s third argument,
+  `PREVIOUS PLAN ATTEMPT:`), never in `task.constraints`: the prefilter key hashes constraints and
+  children inherit them. The L3 root sends the last review refusal plus the latest parse message.
 
 ## Intentional choices and rejected shortcuts
 
 - Approved method hooks collect version-bound prompt lessons for all three ranks; root refusal discards them. Fixed author/reviewer prompts, bounded evidence and preservation rules: [prompt consolidation](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 Read the archived sections before changing something that merely looks odd.
+
+- Plan size (G4, 2026-10-16): the suite bound is per suite, never a plan total;
+  a soft 8,000-character target in prompts and review, with a 12,000 hard
+  refusal 50% above it so a reviewer's request does not become a parser
+  refusal; no adaptive plan cap (a cut is the common case, so cap-then-raise
+  wastes a reply); no non-streaming cap above the SDK's 21,333; parse feedback
+  never reaches the prefilter.
 
 - L3 construction is async because it may resolve the latest Opus model alias;
   L2 construction has no equivalent lookup and may remain synchronous.
