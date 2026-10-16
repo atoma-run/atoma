@@ -1,0 +1,41 @@
+{
+  "name": "atoma",
+  "version": "0.4.0+codex.20261016032114",
+  "description": "Start and continue Atoma projects, follow runs, and inspect results, costs and traces.",
+  "author": {
+    "name": "Matthieu Foillard",
+    "url": "https://atoma.run"
+  },
+  "homepage": "https://atoma.run",
+  "repository": "https://github.com/atoma-run/atoma",
+  "license": "AGPL-3.0-only",
+  "keywords": [
+    "atoma",
+    "agents",
+    "orchestration",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Atoma",
+    "shortDescription": "Build software and follow your Atoma runs.",
+    "longDescription": "Connect to Atoma to draft goals and acceptance criteria, start or continue project runs, and inspect their status, deliverables, costs and traces. Available tools depend on your account role. Starting a run uses your Atoma quota.",
+    "developerName": "Matthieu Foillard",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://atoma.run",
+    "defaultPrompt": [
+      "Show my Atoma projects and their latest runs.",
+      "Help me draft a goal for an Atoma project.",
+      "Investigate my latest Atoma run."
+    ],
+    "brandColor": "#0F766E",
+    "composerIcon": "./assets/atoma.svg",
+    "logo": "./assets/atoma.svg",
+    "logoDark": "./assets/atoma.svg"
+  }
+}

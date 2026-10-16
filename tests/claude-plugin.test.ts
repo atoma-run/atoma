@@ -54,6 +54,24 @@ describe('the Claude Code plugin', () => {
     expect(manifest.homepage).toBe(pkg.homepage);
   });
 
+  it('ships the same identity, MCP and official mark in the Codex package', () => {
+    const codex = json<typeof manifest & {
+      skills: string;
+      mcpServers: string;
+      interface: { displayName: string; logo: string; composerIcon: string; logoDark: string };
+    }>(join(root, '.codex-plugin/plugin.json'));
+    expect(codex.name).toBe(manifest.name);
+    expect(codex.version.split('+')[0]).toBe(manifest.version);
+    expect(codex.homepage).toBe(manifest.homepage);
+    expect(codex.license).toBe(manifest.license);
+    expect(codex.skills).toBe('./skills/');
+    expect(json(join(root, codex.mcpServers))).toEqual(mcp);
+    expect(codex.interface.displayName).toBe('Atoma');
+    for (const asset of [codex.interface.logo, codex.interface.composerIcon, codex.interface.logoDark]) {
+      expect(readFileSync(join(root, asset), 'utf8')).toBe(readFileSync('src/viz/public/favicon.svg', 'utf8'));
+    }
+  });
+
   it('connects the one route server.json names, and nothing else', () => {
     expect(Object.values(mcp.mcpServers)).toEqual([{ type: 'http', url: serverJson.remotes[0]!.url }]);
   });

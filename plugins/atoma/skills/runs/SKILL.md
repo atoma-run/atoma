@@ -1,4 +1,5 @@
 ---
+name: runs
 description: Drive Atoma through its MCP — draft a run goal and acceptance criteria, start or continue a project run, follow it, read its status, files, cost and trace, and explain why a run failed or stopped incomplete. Use whenever the person mentions Atoma, atoma.run, or an Atoma project, run, trace or deliverable.
 ---
 
@@ -6,7 +7,7 @@ description: Drive Atoma through its MCP — draft a run goal and acceptance cri
 
 Atoma plans, builds and verifies software in runs, and records the evidence
 and the cost of each one. Everything goes through the `atoma` MCP server this
-plugin connects (`https://atoma.run/mcp`, signed in through `/mcp`). The
+plugin connects (`https://atoma.run/mcp`, authenticated through the host’s MCP settings). The
 server's own instructions stay authoritative; this skill says how to use them
 well.
 
@@ -72,9 +73,9 @@ decisions still use the separate, explicitly confirmed project-context tools.
   `atoma_project_runs`), not from local folders or screenshots.
 - `atoma_run_status` gives the outcome, errors and the publication receipt;
   `atoma_run_artifacts` and `atoma_run_file` read what it delivered.
-- A trace is long. Hand it to the `atoma:trace-reader` agent, which reads
-  every page in its own context and returns the findings with event ids,
-  instead of paging `atoma_run_trace` here.
+- Read every page of `atoma_run_trace` and report findings with event ids.
+  In Claude Code, the bundled `atoma:trace-reader` agent can do this in its
+  own context. If that agent is unavailable, read the pages directly.
 - Report what the evidence shows; say plainly when a page could not be read.
 
 ## Follow a run
@@ -85,5 +86,7 @@ poll them in a tight loop.
 
 ## Self-hosted instances
 
-This plugin connects `atoma.run`. For another instance, add its endpoint
-instead: `claude mcp add --transport http --scope user atoma <origin>/mcp`.
+This plugin connects `atoma.run`. For another instance, register its MCP
+endpoint in your host instead. In Claude Code:
+`claude mcp add --transport http --scope user atoma <origin>/mcp`.
+In Codex: `codex mcp add atoma --url <origin>/mcp`.
