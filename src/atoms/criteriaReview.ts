@@ -1,5 +1,6 @@
 import type { AcceptanceChecklist } from '../contracts/acceptanceChecklist.js';
 import { RUN_ACTORS } from '../contracts/runActors.js';
+import { REMEDIATION_INPUTS } from '../contracts/runLanding.js';
 import type { CriterionJudgement, RunContext, Task } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
 import { parseVerdict } from './json.js';
@@ -30,7 +31,9 @@ export async function reviewAcceptanceCriteria(args: {
   ctx: RunContext; task: Task; checklist: AcceptanceChecklist; evidence: string;
 }): Promise<{ approved: boolean; reasoning: string; criteria: CriterionJudgement[] }> {
   const inputs = { ...args.task.inputs };
-  for (const key of ['acceptanceChecklist', 'rootAcceptanceRefusal', 'rootRemediationScope',
+  // REMEDIATION_INPUTS is the shared list of what an earlier pass's verdict
+  // left in `inputs`; the rest is this reviewer's own.
+  for (const key of ['acceptanceChecklist', ...REMEDIATION_INPUTS,
     'previousStepResult', 'previousStepSummary', 'previousStepOutputs', 'previousPhaseObservations',
     'previousRunResults', 'previousRunLanding']) delete inputs[key];
   args.ctx.signal?.throwIfAborted();

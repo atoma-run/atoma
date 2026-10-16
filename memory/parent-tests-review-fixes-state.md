@@ -23,7 +23,7 @@ State on 2026-10-16 ~13:00. The branch was PUSHED to main around 13:00 (see git 
 **History, in flight at ~11:50:** workflow wf_d3cd8ca8-8b5, review round 1 fix stage (17 findings, 34 refutation votes), then a second verify. Check `git log` on the branch and the workflow journal under the session's subagents/workflows dir; if the fix commit is missing, the findings were: timeout cause misclassifies a slow copy as a hang (copy now shares the 120 s window); CSS stub only on spelled extensions; delegation-review completeness guard became a denylist of stop reasons; failingExcerpt breaks past 8,000 chars of details; tautological table test and approval-digest test.
 
 **Follow-up still to do (owner asked for all of it):**
-1. Approved dependency landing with blocked phases and budget left → open the remediation pass (choice (b) reversed).
+1. DONE (G1, committed on the worktree branch, not pushed): an approved pure dependency landing in a deep attempt opens the one extra root pass with `rootDependencyLanding`; every exit after a judged pass lands on it; counters `landingRemediations`/`unjudgedRemediations`; analyst prompt p10. Record: review file, section "Follow-up: An approved dependency landing…".
 2. `exited-without-report` / `report-invalid` causes sit in review; reconsider (reject once then review).
 3. Code under test can redefine Vitest matchers (expect.extend) in the same thread → detect and report.
 4. L3 re-runs an L2 [A, C] branch without dependencies whose own fallback fails; a mutualized peer's fallback never counts as a spent ladder.
@@ -33,7 +33,7 @@ State on 2026-10-16 ~13:00. The branch was PUSHED to main around 13:00 (see git 
 8. parentTests not shown in viz or the MCP; run viz:smoke on a real machine for the new "partial run" card copy.
 9. Hard runner exit leaves `atoma-acceptance-*` temp copies.
 10. A suite importing a tsconfig alias stays red; apply the same alias resolution to the suite.
-11. Docs: (b) wording after item 1.
+11. DONE with item 1: decision doc choice (b) marked reversed, (a) and (e) updated.
 12. d6f3835f (review round 1 fixes) made a SECOND reviewer fault on a child plan review throw ValidationError, which fails the whole dispatch/run. Too harsh: prefer a plain rejection without type escalation, or a re-review on another model, never ending the run on reviewer flakiness.
 
 After the push: full suite 6,954 passed / 15 skipped post-rebase, container tests 38/38 on a fresh unique image, viz:smoke fails at "focused view frame composite is invalid" ON MAIN TOO (pre-existing, not this branch) — worth its own fix. Update [[parent-owned-tests]] with the new semantics. Decisions taken under [[beta-rules-not-fixed]].

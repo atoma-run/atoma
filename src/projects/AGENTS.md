@@ -400,7 +400,9 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
 
 - `partial` is TERMINAL and is not a failure: the run reached its budget with
   phases already accepted and reported those, or a phase failed its typed
-  checks and its dependents were never started (`blockedPhases`). It reaches the store through the
+  checks and its dependents were never started (`blockedPhases`) and the
+  run's one extra root pass could not run them (src/run, G1); a follow-up the
+  clock cut adds its planned phases as unfinished. It reaches the store through the
   same `completeProjectRun` transaction as a delivery — same trace bar, same
   workspace manifest, same atomicity — and differs on exactly three points.
   It may carry an error string, because the phases it never ran are worth

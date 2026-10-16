@@ -89,6 +89,20 @@ export const runStatsSchema = z.object({
    */
   rootRemediations: countSchema.default(0),
   /**
+   * Times an APPROVED dependency landing opened the run's one extra root pass
+   * to run the phases it never started (G1, 2026-10-16). Apart from
+   * `rootRemediations`, which readers show as "sent back by the final review":
+   * this pass was not sent back. Defaulted, like its neighbours.
+   */
+  landingRemediations: countSchema.default(0),
+  /**
+   * Extra root passes, after a refusal or an approved landing, that ended
+   * with no verdict: cut by the run deadline or failing on their own, so the
+   * run landed on the pass before. The 60 s floor that lets a pass open was
+   * measured for one phase, not a root pass; this is how it gets measured.
+   */
+  unjudgedRemediations: countSchema.default(0),
+  /**
    * Skill lessons distilled during a pass that root acceptance then refused,
    * and therefore never saved (owner decision 2026-10-09). Defaulted, like its
    * neighbours, so archived epilogues still parse.
@@ -134,6 +148,8 @@ export type RunStatSignal =
   | 'uncovered-obligation'
   | 'deepening'
   | 'root-remediation'
+  | 'landing-remediation'
+  | 'unjudged-remediation'
   | 'discarded-lesson'
   | 'skill-trigger-rejected';
 

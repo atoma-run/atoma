@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
@@ -9,8 +12,13 @@ import { createAttestationLog } from '../src/core/attestation.js';
 import { POST_APPROVAL_LLM_TIMEOUT_MS } from '../src/atoms/cost.js';
 import { PHASE_BUDGET_SPENT_PREFIX } from '../src/core/phaseBudget.js';
 import { parentTestSuiteDigest, type HeldParentTestObservation, type ParentTestSuite } from '../src/contracts/parentTests.js';
-import { isLanded } from '../src/contracts/runLanding.js';
-import { DEPENDENCY_LANDING_INPUT, runDepthTask } from '../src/run/depth.js';
+import { isLanded, landingReasons } from '../src/contracts/runLanding.js';
+import type { AcceptanceInfo } from '../src/contracts/depthRouting.js';
+import type { ApprovedLesson } from '../src/contracts/skillLearning.js';
+import { closeStoreHandles } from '../src/core/stores.js';
+import { ValidationError } from '../src/core/errors.js';
+import { LearningQueue } from '../src/skills/learningQueue.js';
+import { DEPENDENCY_LANDING_INPUT, remediationTask, runDepthTask } from '../src/run/depth.js';
 import { FALLBACK_OPUS } from './tier-pins.js';
 import { Atom, type Supervisor } from '../src/core/atom.js';
 import type { LlmCompletionRequest, Plan, Result, RunContext, Task, ToolExecutor, Verdict } from '../src/core/types.js';
@@ -303,14 +311,19 @@ describe('a dependency landing without a run deadline', () => {
       unfinishedPhases: [entry], blockedPhases: [entry],
     };
     const ctx = { ...makeCtx(), tools: { has: () => false, execute: async () => ({}) } as ToolExecutor };
+    // The approval opens the one extra pass (G1); its pass lands the same way
+    // and is approved again, with the same unbounded judge.
     ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'the adder phase stands on its own evidence' }));
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'still stands; the CLI is still blocked' }));
+    const handle = vi.fn(async () => landed);
 
     const outcome = await runDepthTask({
       mode: 'deep', task: { description: 'Build the adder' }, ctx, floor: [], restart: vi.fn(),
       onTopology: vi.fn(), onAcceptance: vi.fn(), onApproved: vi.fn(),
-      createExecutor: () => ({ actor: new RootActor(), handle: async () => landed }),
+      createExecutor: () => ({ actor: new RootActor(), handle }),
     });
 
+    expect(handle).toHaveBeenCalledTimes(2);
     expect(outcome.refusal).toBeUndefined();
     expect(outcome.blockedPhases).toEqual([entry]);
 
@@ -323,5 +336,452 @@ describe('a dependency landing without a run deadline', () => {
       createExecutor: () => ({ actor: new RootActor(), handle: async () => ({ ...landed, unfinishedPhases: ['package'], blockedPhases: [] }) }),
     });
     expect(budget.refusal).toContain('could not finish within the landing budget');
+  });
+});
+
+/**
+ * AN APPROVED DEPENDENCY LANDING WITH BUDGET LEFT OPENS THE EXTRA PASS (G1,
+ * 2026-10-16, reversing group B's choice (b)), through the real depth runner
+ * and root acceptance over a mocked model: the run's one extra root pass runs
+ * the phases that never started, and every way that pass can end without a
+ * verdict lands on the approved pass instead of failing the run.
+ */
+describe('an approved dependency landing with budget left', () => {
+  const entry = 'wire add into the CLI (not started: its prerequisite "write add.ts" was not approved and its parent-owned suite did not pass)';
+  const producedBy = { tier: 3 as const, name: 'actor-3', viaFallback: false };
+  const unavailable: HeldParentTestObservation = {
+    suiteDigest: parentTestSuiteDigest(ADD_SUITE), suite: ADD_SUITE, workspaceDigest: 'w', status: 'unavailable', cause: 'runner-error',
+    passed: 0, failed: 0, skipped: 0, details: 'worker crashed', judged: true,
+  };
+  const approvedLanding: Result = {
+    output: { files: ['add.ts'] }, summary: 'INCOMPLETE — the CLI was not started.', trace: [], producedBy,
+    unfinishedPhases: [entry], blockedPhases: [entry], parentTests: [unavailable],
+  };
+  const complete: Result = { output: { files: ['add.ts', 'cli.ts'] }, summary: 'the adder and its CLI', trace: [], producedBy };
+  const approve = (reasoning: string) => jsonText({ approved: true, reasoning });
+  const refuse = (reasoning: string) => jsonText({ approved: false, reasoning });
+  const model = 'api:ollama:fixture';
+  const host = { name: 'prompt-consolidation', model, params: {}, systemPrompt: 'Author' };
+
+  function atomLesson(owner: string, tier: 1 | 2 | 3, task: string, feedback: string[]): ApprovedLesson {
+    return { kind: 'atom', owner, tier, name: owner, version: 1, prompt: 'Keep the protocol.', host, reviewerModel: model,
+      task, summary: 'approved', feedback, observations: [] };
+  }
+
+  function taskLesson(owner: string, task: string, summary: string): ApprovedLesson {
+    return { kind: 'task', owner, host, task, summary, childName: 'Water', childTools: ['read_file'],
+      successfulToolAction: true, recordedCommandProbes: false };
+  }
+
+  function rootCtx(extra: Partial<Omit<RunContext, 'llm'>> = {}) {
+    const stats: string[] = [];
+    const ctx = { ...makeCtx(), tools: { has: () => false, execute: async () => ({}) } as ToolExecutor,
+      recordRunStat: (signal: string) => { stats.push(signal); }, ...extra };
+    return { ctx, stats };
+  }
+
+  const counted = (stats: readonly string[], signal: string) => stats.filter((entry) => entry === signal).length;
+
+  /** A real learning queue on a temporary store, the one the runner writes. */
+  const roots: string[] = [];
+  afterEach(() => {
+    closeStoreHandles();
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+  function learningQueue() {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-landing-remediation-'));
+    roots.push(root);
+    const queue = new LearningQueue(join(root, 'store.db'));
+    const enqueueApprovedLessons = (lessons: readonly ApprovedLesson[]) => {
+      queue.enqueue({ version: 1, runId: 'run-g1', approvedAt: new Date().toISOString(),
+        skillsPath: join(root, 'skills'), runsPath: join(root, 'runs'), model, policy: {},
+        budget: { tokens: 0, costUsd: 0 }, lessons: [...lessons] });
+    };
+    return { queue, enqueueApprovedLessons };
+  }
+
+  /** Each pass returns its result after deferring its lessons, as phases do. */
+  function passes(...steps: Array<(passCtx: RunContext) => Promise<Result> | Result>) {
+    const tasks: Task[] = [];
+    const handle = async (task: Task, passCtx: RunContext) => {
+      tasks.push(task);
+      const step = steps[tasks.length - 1];
+      if (!step) throw new Error('the fixture has no pass left');
+      return step(passCtx);
+    };
+    return { tasks, handle };
+  }
+
+  function defer(passCtx: RunContext, lesson: ApprovedLesson) {
+    passCtx.deferredLearning!.defer(async () => {}, lesson.owner, lesson);
+  }
+
+  const criteria = [{ id: 'c1', behaviour: 'add returns the sum', source: 'user' as const }];
+
+  it('opens the pass with the typed facts and saves both passes\' lessons in the one queue row', async () => {
+    const { queue, enqueueApprovedLessons } = learningQueue();
+    const { ctx, stats } = rootCtx({ enqueueApprovedLessons });
+    ctx.llm.enqueueText(approve('the adder stands; the CLI was never started'));
+    ctx.llm.enqueueText(approve('the CLI now prints sums'));
+    const run = passes(
+      (passCtx) => {
+        defer(passCtx, atomLesson('molecule-x', 1, 'pass 1', ['an earlier probe failed']));
+        defer(passCtx, atomLesson('cell-y', 2, 'pass 1', []));
+        defer(passCtx, taskLesson('molecule-x', 'write add.ts', 'pass 1 recipe'));
+        return approvedLanding;
+      },
+      (passCtx) => {
+        defer(passCtx, atomLesson('molecule-x', 1, 'pass 2', ['a later probe failed']));
+        defer(passCtx, taskLesson('molecule-x', 'write add.ts', 'pass 2 recipe'));
+        return complete;
+      },
+    );
+    const onApproved = vi.fn();
+
+    const outcome = await runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds', criteria }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(), onApproved,
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(run.tasks).toHaveLength(2);
+    const landing = run.tasks[1]!.inputs?.[DEPENDENCY_LANDING_INPUT] as { notStarted: string[]; checks: unknown[]; instruction: string };
+    expect(landing.notStarted).toEqual([entry]);
+    expect(landing.checks).toEqual([expect.objectContaining({ status: 'unavailable', requirement: ADD_SUITE.requirement })]);
+    expect(landing.instruction).toContain('re-run it rather than rebuilding that work');
+    expect(landing.instruction).not.toMatch(/approv|refus/i);
+    expect(run.tasks[1]!.inputs).not.toHaveProperty('rootAcceptanceRefusal');
+    expect(run.tasks[1]!.inputs).not.toHaveProperty('rootRemediationScope');
+    expect(run.tasks[1]!.criteria).toEqual(criteria);
+    expect(isLanded(outcome)).toBe(false);
+    expect(outcome.summary).toBe(complete.summary);
+    expect(counted(stats, 'landing-remediation')).toBe(1);
+    expect(counted(stats, 'root-remediation')).toBe(0);
+    expect(counted(stats, 'discarded-lesson')).toBe(0);
+    expect(onApproved).toHaveBeenCalledTimes(2);
+    expect(onApproved.mock.calls[1]![4]).toEqual([]);
+    const saved = queue.get('run-g1')!.lessons;
+    expect(saved.map((lesson) => [lesson.kind, lesson.owner, lesson.task, lesson.summary])).toEqual([
+      ['atom', 'molecule-x', 'pass 2', 'approved'],
+      ['task', 'molecule-x', 'write add.ts', 'pass 2 recipe'],
+      ['atom', 'cell-y', 'pass 1', 'approved'],
+    ]);
+  });
+
+  it('keeps the earlier pass\'s lesson of a rank when it carries more feedback', async () => {
+    const { queue, enqueueApprovedLessons } = learningQueue();
+    const { ctx } = rootCtx({ enqueueApprovedLessons });
+    ctx.llm.enqueueText(approve('the adder stands'));
+    ctx.llm.enqueueText(approve('the CLI now prints sums'));
+    const run = passes(
+      (passCtx) => {
+        defer(passCtx, atomLesson('molecule-x', 1, 'pass 1', ['a probe failed', 'then a fixture failed']));
+        return approvedLanding;
+      },
+      (passCtx) => {
+        defer(passCtx, atomLesson('molecule-x', 1, 'pass 2', ['a probe failed']));
+        return complete;
+      },
+    );
+
+    await runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(queue.get('run-g1')!.lessons.map((lesson) => lesson.task)).toEqual(['pass 1']);
+  });
+
+  it('after a refusal, an approved dependency landing is the result: no third pass', async () => {
+    const { ctx, stats } = rootCtx();
+    ctx.llm.enqueueText(refuse('the adder is unproven'));
+    ctx.llm.enqueueText(approve('the adder stands; the CLI was never started'));
+    const run = passes(() => approvedLanding, () => approvedLanding);
+
+    const outcome = await runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(run.tasks).toHaveLength(2);
+    expect(outcome.refusal).toBeUndefined();
+    expect(outcome.blockedPhases).toEqual([entry]);
+    expect(counted(stats, 'root-remediation')).toBe(1);
+    expect(counted(stats, 'landing-remediation')).toBe(0);
+  });
+
+  it.each([
+    ['under a minute of the run deadline left', approvedLanding, { deadlineAt: Date.now() + 30_000 }],
+    ['a landing the budget also cut', { ...approvedLanding, unfinishedPhases: ['package', entry] }, {}],
+  ] as const)('opens no pass with %s, and ends partial as before', async (_case, landed, extra) => {
+    const enqueue = vi.fn();
+    const { ctx, stats } = rootCtx({ ...extra, enqueueApprovedLessons: enqueue });
+    ctx.llm.enqueueText(approve('the adder stands'));
+    const run = passes((passCtx) => {
+      defer(passCtx, atomLesson('molecule-x', 1, 'pass 1', []));
+      return landed;
+    });
+
+    const outcome = await runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(run.tasks).toHaveLength(1);
+    expect(outcome.refusal).toBeUndefined();
+    expect(isLanded(outcome)).toBe(true);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(counted(stats, 'landing-remediation')).toBe(0);
+  });
+
+  it('opens no pass in the short topology, whose deepening would archive the approved workspace', async () => {
+    const { ctx, stats } = rootCtx();
+    ctx.llm.enqueueText(approve('the adder stands'));
+    const run = passes(() => approvedLanding);
+
+    const outcome = await runDepthTask({
+      mode: 'short', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(run.tasks).toHaveLength(1);
+    expect(isLanded(outcome)).toBe(true);
+    expect(counted(stats, 'landing-remediation')).toBe(0);
+  });
+
+  /** A run deadline ten minutes out, and the abort the run budget sends when it passes. */
+  function deadline() {
+    const controller = new AbortController();
+    const cut = () => {
+      const reason = new Error('run budget reached');
+      reason.name = 'TimeoutError';
+      controller.abort(reason);
+      throw reason;
+    };
+    return { signal: controller.signal, deadlineAt: Date.now() + 600_000, cut };
+  }
+
+  it('lands on the approved pass when the deadline cuts the extra one, naming its phases unfinished', async () => {
+    const { queue, enqueueApprovedLessons } = learningQueue();
+    const clock = deadline();
+    const { ctx, stats } = rootCtx({ signal: clock.signal, deadlineAt: clock.deadlineAt, enqueueApprovedLessons });
+    ctx.llm.enqueueText(approve('the adder stands'));
+    const run = passes(
+      (passCtx) => {
+        defer(passCtx, atomLesson('molecule-x', 1, 'pass 1', []));
+        return approvedLanding;
+      },
+      (passCtx) => {
+        defer(passCtx, atomLesson('molecule-x', 1, 'pass 2', []));
+        passCtx.recordRootPlan!({ ...makePlan(), subtasks: [{ description: 'write cli.ts' }] });
+        return clock.cut();
+      },
+    );
+
+    const outcome = await runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(outcome.refusal).toBeUndefined();
+    expect(outcome.unfinishedPhases).toEqual([entry, 'write cli.ts']);
+    expect(outcome.blockedPhases).toEqual([entry]);
+    expect(outcome.summary).toContain('was cut by the run deadline before it completed');
+    expect(landingReasons(outcome)[0]).toContain('1 unfinished phase(s) that did not complete with an accepted result: write cli.ts');
+    expect(queue.get('run-g1')!.lessons.map((lesson) => lesson.task)).toEqual(['pass 1']);
+    expect(counted(stats, 'discarded-lesson')).toBe(1);
+    expect(counted(stats, 'unjudged-remediation')).toBe(1);
+  });
+
+  it('lands on the approved pass unchanged when the deadline cuts the extra one before its plan', async () => {
+    const clock = deadline();
+    const { ctx } = rootCtx({ signal: clock.signal, deadlineAt: clock.deadlineAt });
+    ctx.llm.enqueueText(approve('the adder stands'));
+    const run = passes(() => approvedLanding, () => clock.cut());
+
+    const outcome = await runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(outcome.unfinishedPhases).toEqual(approvedLanding.unfinishedPhases);
+    expect(outcome.blockedPhases).toEqual(approvedLanding.blockedPhases);
+    expect(outcome.summary).toContain('before its plan existed; no phase of it ran');
+  });
+
+  it('lands on the approved pass when the extra one fails on its own, naming only the error class', async () => {
+    const { ctx, stats } = rootCtx();
+    ctx.llm.enqueueText(approve('the adder stands'));
+    const run = passes(() => approvedLanding, () => {
+      throw new ValidationError('Delegation contract review did not finish: SECRET_DETAIL');
+    });
+
+    const outcome = await runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(outcome.refusal).toBeUndefined();
+    expect(isLanded(outcome)).toBe(true);
+    expect(outcome.summary).toContain('failed (ValidationError)');
+    expect(outcome.summary).not.toContain('SECRET_DETAIL');
+    expect(JSON.stringify(outcome.unfinishedPhases)).not.toContain('SECRET_DETAIL');
+    expect(counted(stats, 'unjudged-remediation')).toBe(1);
+  });
+
+  it('lands refused on the refused pass when its remediation fails on its own', async () => {
+    const { ctx } = rootCtx();
+    ctx.llm.enqueueText(refuse('the adder is unproven'));
+    const run = passes(() => approvedLanding, () => {
+      throw new Error('boom');
+    });
+
+    const outcome = await runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(outcome.refusal).toBe('the adder is unproven — the remediation pass failed (Error) before it completed');
+    expect(outcome.output).toEqual(approvedLanding.output);
+  });
+
+  it('keeps the extra pass\'s work refused when its acceptance fails, and saves no lesson', async () => {
+    const enqueue = vi.fn();
+    const { ctx, stats } = rootCtx({ enqueueApprovedLessons: enqueue });
+    ctx.llm.enqueueText(approve('the adder stands'));
+    ctx.llm.enqueue(() => {
+      throw new TypeError('transport down');
+    });
+    const second: Result = { ...approvedLanding, summary: 'the second pass' };
+    const run = passes(
+      (passCtx) => {
+        defer(passCtx, atomLesson('molecule-x', 1, 'pass 1', []));
+        return approvedLanding;
+      },
+      () => second,
+    );
+
+    const outcome = await runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(outcome.refusal).toBe('root acceptance of the follow-up pass did not finish (TypeError)');
+    expect(outcome.summary).toContain('the second pass');
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(counted(stats, 'discarded-lesson')).toBe(1);
+  });
+
+  it('drops both passes\' lessons when the extra pass is refused', async () => {
+    const enqueue = vi.fn();
+    const { ctx, stats } = rootCtx({ enqueueApprovedLessons: enqueue });
+    ctx.llm.enqueueText(approve('the adder stands'));
+    ctx.llm.enqueueText(refuse('the CLI prints nothing'));
+    const run = passes(
+      (passCtx) => {
+        defer(passCtx, atomLesson('molecule-x', 1, 'pass 1', []));
+        return approvedLanding;
+      },
+      (passCtx) => {
+        defer(passCtx, atomLesson('molecule-x', 1, 'pass 2', []));
+        return approvedLanding;
+      },
+    );
+
+    const outcome = await runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    expect(outcome.refusal).toBe('the CLI prints nothing');
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(counted(stats, 'discarded-lesson')).toBe(2);
+  });
+
+  it('still fails on an explicit cancellation during the extra pass', async () => {
+    const controller = new AbortController();
+    const { ctx, stats } = rootCtx({ signal: controller.signal });
+    ctx.llm.enqueueText(approve('the adder stands'));
+    const run = passes(
+      (passCtx) => {
+        defer(passCtx, atomLesson('molecule-x', 1, 'pass 1', []));
+        return approvedLanding;
+      },
+      () => {
+        controller.abort(new Error('cancelled by the operator'));
+        throw controller.signal.reason;
+      },
+    );
+
+    const outcome = runDepthTask({
+      mode: 'deep', task: { description: 'Build a CLI that adds' }, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new RootActor(), handle: run.handle }),
+    });
+
+    await expect(outcome).rejects.toThrow('cancelled by the operator');
+    expect(counted(stats, 'discarded-lesson')).toBe(1);
+    expect(counted(stats, 'unjudged-remediation')).toBe(0);
+  });
+});
+
+describe('the extra pass a dependency landing opens', () => {
+  const entry = 'wire add (not started: its prerequisite "write add.ts" failed its parent-owned acceptance suite)';
+  const checklist = [
+    { id: 'c1', behaviour: 'add returns the sum', source: 'user' as const },
+    { id: 'c2', behaviour: 'the CLI prints sums', source: 'user' as const },
+  ];
+  const root: Task = { description: 'Build a CLI that adds', criteria: checklist };
+  const failed: HeldParentTestObservation = {
+    suiteDigest: parentTestSuiteDigest(ADD_SUITE), suite: ADD_SUITE, workspaceDigest: 'w', status: 'failed', cause: 'ran',
+    passed: 0, failed: 1, skipped: 0, details: FAILED_DETAILS,
+  };
+  const landing = (parentTests: HeldParentTestObservation[]): Result => ({
+    output: null, summary: 'INCOMPLETE', trace: [], producedBy: { tier: 3, name: 'actor-3', viaFallback: false },
+    unfinishedPhases: [entry], blockedPhases: [entry], parentTests,
+  });
+  const judged = (approved: boolean): AcceptanceInfo => ({
+    approved, reasoning: approved ? 'stands' : 'c2 is unmet', gates: [], floorCoverage: [], probe: {},
+    checklist: [
+      { id: 'c1', behaviour: 'add returns the sum', check: { kind: 'review' }, status: 'review', judgement: { met: true, reason: 'r' } },
+      { id: 'c2', behaviour: 'the CLI prints sums', check: { kind: 'review' }, status: 'review', judgement: { met: false, reason: 'r' } },
+    ],
+  } as unknown as AcceptanceInfo);
+  const input = (task: Task) => task.inputs?.[DEPENDENCY_LANDING_INPUT] as { instruction: string; checks: unknown[] };
+
+  it('a refused landing with one unmet criterion repairs the failed phase and gets no single-criterion scope', () => {
+    const next = remediationTask(root, judged(false), landing([failed]));
+
+    expect(next.inputs).not.toHaveProperty('rootRemediationScope');
+    expect(next.inputs?.['rootAcceptanceRefusal']).toBe('c2 is unmet');
+    expect(input(next).instruction).toContain('Repair that phase against its parent-owned suite');
+    expect(next.criteria?.map((item) => item.id)).toEqual(['c2']);
+  });
+
+  it('an approved landing keeps every criterion and hears no refusal', () => {
+    const next = remediationTask(root, judged(true), landing([failed]));
+
+    expect(next.inputs).not.toHaveProperty('rootAcceptanceRefusal');
+    expect(next.inputs).not.toHaveProperty('rootRemediationScope');
+    expect(next.criteria?.map((item) => item.id)).toEqual(['c1', 'c2']);
+    expect(input(next).instruction).toContain('(listed in checks)');
+  });
+
+  it('an approved landing with no failing check says nothing of checks', () => {
+    const next = remediationTask(root, judged(true), landing([]));
+
+    expect(input(next).checks).toEqual([]);
+    expect(input(next).instruction).not.toContain('check');
+    expect(input(next).instruction).toContain('without rebuilding the work this run kept');
   });
 });

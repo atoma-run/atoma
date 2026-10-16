@@ -259,6 +259,16 @@ Neighbours:
   Measured 2026-09-23: with one pass only, a goal naming nine verifiable
   behaviours was refused twice while a goal naming six was delivered, and the
   refusals named exactly which behaviours had never been probed.
+- AN APPROVED DEPENDENCY LANDING SPENDS THE SAME PASS (G1, 2026-10-16): an
+  approved result whose `blockedPhases` never started, with no phase the
+  budget cut, in a deep attempt with the pass and the clock left, opens it
+  with `rootDependencyLanding` as its input — no refusal, no scope, every
+  criterion. Short attempts never do: a deepening during the pass would
+  archive the approved workspace. Counted apart (`landingRemediations`), so
+  `rootRemediations` still means "sent back by the final review". The 60 s
+  floor was measured for one phase, not a root pass; `unjudgedRemediations`
+  counts extra passes that then ended with no verdict, which is how a root
+  floor gets sized ([decision](../../docs/decisions/parent-owned-tests-2026-10-16.md)).
 - A REFUSAL THAT IS ONE CRITERION IS SCOPED TO IT (owner decision 2026-09-28,
   the mender's first pull request): when the acceptor judged exactly one
   criterion unmet and the refusal holds nothing else — no gate finding, no
@@ -272,14 +282,22 @@ Neighbours:
   their pass rebuilt the whole task, the first replacing a working page.
   Anything else keeps the broad pass: a scope that left a second reason
   standing would be refused again and land a partial. Free-form refusal
-  prose is never parsed for a scope. Every remediation's phases carry only
+  prose is never parsed for a scope, and a refused DEPENDENCY landing never
+  gets one (G1): "keep the deliverables" contradicts "complete the phases
+  that never started". A refused pass's remediation phases carry only
   the criteria the acceptor did NOT judge met (`Task.criteria`, src/atoms);
   none judged leaves the whole list, all met leaves none.
 - WORK IN HAND IS FINALIZED, landed or complete: its root acceptance runs to
   the absolute deadline + 45s (`finalizationSignal`), explicit cancellation
   and deepening still abort, and expiry keeps the work as a refused partial —
-  never an approval, never another pass. A remediation pass the deadline cuts
-  before it accepts a phase lands on the refused first pass (review 1.2).
+  never an approval, never another pass. EVERY EXIT AFTER A JUDGED PASS
+  LANDS ON IT (review 1.2b, widened by G1): an extra pass the deadline cuts,
+  or one that fails on its own, returns the earlier pass's result — refused
+  with the error's class name appended, or approved with the follow-up's
+  planned phases added as unfinished and unverified — and a failing
+  acceptance of the extra pass keeps that pass's work refused. Deepening and
+  explicit cancellation still end the attempt; a cancellation during the
+  extra pass forfeits the seed, since teardown records `cancelled`.
   A FIRST pass the run budget cuts before any phase is accepted lands too once
   its root plan exists (`landedBeforeAnyPhase`): every planned phase
   unfinished, judged like any work in hand, and its workspace seeds the next run. On the

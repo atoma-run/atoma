@@ -89,6 +89,22 @@ export function landingReasons(result: LandingSignals | null | undefined): strin
 }
 
 /**
+ * The input the run's one extra root pass reads when its earlier pass was a
+ * dependency landing, refused or approved (`remediationTask`, src/run/depth.ts).
+ */
+export const DEPENDENCY_LANDING_INPUT = 'rootDependencyLanding';
+
+/**
+ * The host's inputs about THIS run's earlier pass: its refusal, the scope
+ * drawn from it, and a dependency landing's failing checks. A report-blind
+ * reviewer (`reviewAcceptanceCriteria`, `textReviewReference`) must see none
+ * of them; it judges the work, never what an earlier verdict said of it. One
+ * list, because the two reviewers kept hand-copied ones and the dependency
+ * landing's key reached neither (review G1, 2026-10-16).
+ */
+export const REMEDIATION_INPUTS = ['rootAcceptanceRefusal', 'rootRemediationScope', DEPENDENCY_LANDING_INPUT] as const;
+
+/**
  * HOW A LANDING REACHES THE NEXT RUN OF THE SAME PROJECT.
  *
  * A project run already continues from the previous run's workspace

@@ -168,6 +168,8 @@ export function parseRunLog(log: string): RunStats {
     // exists for runs killed before their epilogue, where the counter is
     // simply unknown. Zero is the same answer `deepenings` gives above.
     rootRemediations: 0,
+    landingRemediations: 0,
+    unjudgedRemediations: 0,
     discardedLessons: 0,
     triggerRejections: 0,
     // Deliberately empty rather than scraped from the banner. The reasons are

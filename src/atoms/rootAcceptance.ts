@@ -452,9 +452,9 @@ export async function acceptRootResult(args: {
   checklist?: AcceptanceChecklist;
   /** A `user` list is the host-held approved one; its digest rides the acceptance record. */
   checklistOrigin?: { readonly source: ChecklistSource; readonly digest?: string };
-  /** The acceptance that refused this attempt's previous pass, when this one closes a remediation. */
+  /** The previous pass's acceptance in this attempt, refused or an approved dependency landing (G1). */
   previousAcceptance?: AcceptanceInfo;
-  /** Evidence earned by the refused pass in this same workspace and attempt; see `carriedEvidence`. */
+  /** Evidence earned by that previous pass in this same workspace and attempt; see `carriedEvidence`. */
   previousEvidence?: readonly Witness[];
 }): Promise<AcceptanceInfo> {
   const { actor, task, result, ctx, floor } = args;

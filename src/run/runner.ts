@@ -265,6 +265,8 @@ function machineRunStats(
     uncoveredObligations: signals['uncovered-obligation'],
     deepenings: signals.deepening,
     rootRemediations: signals['root-remediation'],
+    landingRemediations: signals['landing-remediation'],
+    unjudgedRemediations: signals['unjudged-remediation'],
     discardedLessons: signals['discarded-lesson'],
     triggerRejections: signals['skill-trigger-rejected'],
     landingReasons: [...landing],
@@ -1029,6 +1031,8 @@ async function startTaskInternal(
     'uncovered-obligation': 0,
     deepening: 0,
     'root-remediation': 0,
+    'landing-remediation': 0,
+    'unjudged-remediation': 0,
     'discarded-lesson': 0,
     'skill-trigger-rejected': 0,
   };

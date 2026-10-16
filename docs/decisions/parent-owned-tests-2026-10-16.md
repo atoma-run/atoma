@@ -176,44 +176,79 @@ way there.
 
 **At the root.** Every dependency landing carries an observation that did not
 pass, and the refusing producer is kept, so the root's reject gate usually
-refuses the landing mechanically. Depth then opens its one remediation pass.
-That pass carries `inputs.rootDependencyLanding`, built from typed fields
-only:
+refuses the landing mechanically. Depth then opens its one extra root pass.
+Since G1 (same day) it opens that pass for an APPROVED dependency landing too,
+when the landing is pure (the budget left no phase unfinished), the attempt is
+deep, and a pass and the clock remain. The pass carries
+`inputs.rootDependencyLanding`, built from typed fields only:
 
 - the phases that never started;
 - the suites that did not pass;
-- a fixed instruction to repair the failed phase against its suite and then
-  complete the phases that never started.
+- a fixed instruction that depends on the verdict and never names it. After a
+  refusal: repair the failed phase against its suite, then complete the phases
+  that never started. After an approval: complete the phases that never
+  started and re-run a listed check rather than rebuilding kept work, or, with
+  no check listed, complete them without rebuilding kept work.
 
-If no remediation is left, or the wall clock cannot pay for one, the run is
-refused and ends `partial`, and its workspace seeds the next run. A dependency
-landing that reaches a validation call hears `DEPENDENCY_LANDING_GUIDANCE`
-instead of the budget-landing block, and it is never approved mechanically.
-Without a run deadline, a pure dependency landing is not capped by the landing
-window, because it happened with the clock running. Lessons follow the root's
-verdict as before. Parallel root plans keep no durable checkpoint, so the next
+After an approval the pass hears no refusal and no single-criterion scope, and
+keeps every criterion: a landed approval's criterion judgements are never
+checked against coverage, so filtering on them could drop the criteria of the
+phases that never started. A refused dependency landing gets no
+single-criterion scope either, since "keep the deliverables" contradicts
+"complete the phases that never started".
+
+If no pass is left, or the wall clock cannot pay for one, a refused landing
+ends refused and `partial`, and an approved one ends `partial`; either way its
+workspace seeds the next run. Every exit after a judged pass lands on it: an
+extra pass the deadline cuts, or one that fails on its own, returns the earlier
+pass's result (refused, or approved with the follow-up's planned phases added
+as unfinished and unverified), and an acceptance of the extra pass that fails
+keeps that pass's work refused. Deepening, a `PhaseBoundaryPause` and an
+explicit cancellation still end the attempt; a cancellation during the extra
+pass forfeits the seed, because the runner's teardown records `cancelled`
+whatever the depth runner returns.
+
+A dependency landing that reaches a validation call hears
+`DEPENDENCY_LANDING_GUIDANCE` instead of the budget-landing block, and it is
+never approved mechanically. Without a run deadline, a pure dependency landing
+is not capped by the landing window, because it happened with the clock
+running. Lessons follow the last verdict on the work they came from: an
+approved landing's lessons are held, then saved with the extra pass's in the
+run's one enqueue when it is approved (ties go to the later pass, otherwise the
+longer feedback wins), saved alone when it ends with no verdict, and dropped
+when it is refused. Parallel root plans keep no durable checkpoint, so the next
 run continues from the workspace and from the landing reasons.
 
 **Choices recorded with this change** (decided 2026-10-16 under the owner's
-delegation; (b) is revisited by the follow-up below if one lands):
+delegation; (b) was reversed the same day, G1):
 
 - **(a)** A spent semantic refusal whose suites passed, or which has no suites,
-  feeds its dependents, as before and as in sequential mode. The alternative is
-  to block it. That would need a matching depth rule: open the remediation pass
-  for any approved result with `blockedPhases` while a pass and budget remain.
-- **(b)** An approved dependency landing ends `partial` and forfeits the
-  remaining budget, like an approved budget landing. Today the reject gate
-  refuses every dependency landing, so this is reachable only when every
-  observation that did not pass was weighed and approved above.
+  feeds its dependents, as before and as in sequential mode. The alternative,
+  blocking it, needed a depth rule that opens the extra pass for an approved
+  result with `blockedPhases`; that rule now exists (b), so re-deciding (a) is
+  open and needs evidence that such a producer misleads its dependents.
+- **(b)** REVERSED (G1). An approved dependency landing used to end `partial`
+  and forfeit the remaining budget, like an approved budget landing. But its
+  dependents never started while the clock still ran, which is not the budget
+  landing's situation: the 2026-09-21 cost argument ("the cheaper error is to
+  try") applies, and ending forfeited exactly the budget that could run them.
+  It now opens the run's one extra root pass under the conditions above. The
+  pass inherits `outOfPhaseBudget`'s 60 s floor, which was measured for opening
+  one phase, not a root pass (replan, delegation review, a phase, acceptance);
+  the run counter `unjudgedRemediations` counts every extra pass that then
+  ended without a verdict, and a root-pass floor gets proposed when that
+  counter and the trace corpus can size it.
 - **(c)** An unapproved producer with no suite does not block.
 - **(d)** Customer copy: "A step of this run did not pass its checks, so the
   steps that depend on it were not started." It is written in English only;
   CI translates it.
-- **(e)** The analyst's definition of `partial` now names this case (prompt
-  version `p9-2026-10-16-dependency-landing`).
+- **(e)** The analyst's definition of `partial` names this case and, since G1,
+  when an approved one still ends `partial` (prompt version
+  `p10-2026-10-16-landing-remediation`).
 
 Review:
-[parent-test fixes, group B](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#group-b--a-refused-dependency-lands).
+[parent-test fixes, group B](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#group-b--a-refused-dependency-lands),
+[follow-up G1](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-an-approved-dependency-landing-with-budget-left-opens-remediation).
 
 ## Mandatory planning review and discovery
 

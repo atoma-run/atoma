@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { snapshotDeliveredWorkspace, snapshotStartingWorkspace } from '../src/run/workspace.js';
 import { reviewAcceptanceCriteria } from '../src/atoms/criteriaReview.js';
-import { remediationTask } from '../src/run/depth.js';
+import { DEPENDENCY_LANDING_INPUT, remediationTask } from '../src/run/depth.js';
+import { textReviewReference } from '../src/atoms/textReview.js';
 import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { markLanded } from '../src/atoms/dispatch.js';
@@ -209,6 +210,31 @@ describe('focused criterion review', () => {
     expect(reviewed.approved).toBe(false);
     expect(reviewed.criteria).toHaveLength(5);
     expect(ctx.llm.calls).toHaveLength(3);
+  });
+
+  // G1 (2026-10-16): the extra pass after a dependency landing carries that
+  // landing's failing checks; a report-blind reviewer must judge the work.
+  it('hides a dependency landing\'s failing checks from the focused review and the text reference', async () => {
+    const landing = { [DEPENDENCY_LANDING_INPUT]: { notStarted: ['wire the CLI'], instruction: 'complete it',
+      checks: [{ status: 'failed', details: 'LANDING_FAILURE_SENTINEL' }] } };
+    const followUp = { ...task, inputs: { data: 'original source data', ...landing } };
+    const ctx = makeCtx();
+    ctx.llm.enqueue(reply(met));
+    ctx.llm.enqueue(reply(met));
+
+    await acceptRootResult({ actor, task: followUp, result: { ...result, output: {} }, ctx, floor: [], phaseCoverage: [],
+      checklist, checklistOrigin: { source: 'user' } });
+
+    const focused = ctx.llm.calls.filter(call => call.actor?.name === 'run-criteria');
+    expect(focused).toHaveLength(1);
+    expect(focused[0]!.userContent).toContain('original source data');
+    expect(focused[0]!.userContent).not.toContain('LANDING_FAILURE_SENTINEL');
+    expect(focused[0]!.userContent).not.toContain(DEPENDENCY_LANDING_INPUT);
+    const reference = makeCtx();
+    reference.llm.enqueueText('the reference answer');
+    await textReviewReference(reference, followUp, checklist);
+    expect(reference.llm.calls[0]!.userContent).toContain('original source data');
+    expect(reference.llm.calls[0]!.userContent).not.toContain('LANDING_FAILURE_SENTINEL');
   });
 
   it('preserves explicit scoped refusal even when every item says met', async () => {

@@ -1,4 +1,5 @@
 import { RUN_ACTORS } from '../contracts/runActors.js';
+import { REMEDIATION_INPUTS } from '../contracts/runLanding.js';
 import type { RunContext, Task } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
 import { taskContextLines } from './taskContext.js';
@@ -25,7 +26,9 @@ export const ROOT_TEXT_REVIEW_REQUEST = [
 /** One bounded L2 reference per text acceptance, blinded to this pass's answer. */
 export async function textReviewReference(ctx: RunContext, task: Task, checklist: readonly { behaviour: string }[]): Promise<string> {
   const inputs = { ...task.inputs };
-  for (const key of ['acceptanceChecklist', 'rootAcceptanceRefusal', 'rootRemediationScope',
+  // REMEDIATION_INPUTS is the shared list of what an earlier pass's verdict
+  // left in `inputs`. Run history stays: a reference may need it as source.
+  for (const key of ['acceptanceChecklist', ...REMEDIATION_INPUTS,
     'previousStepResult', 'previousStepSummary', 'previousStepOutputs']) delete inputs[key];
   const response = await ctx.llm.complete({
     model: modelForTier(2), systemPrompt: TEXT_REFERENCE_PROMPT,

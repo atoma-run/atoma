@@ -1334,3 +1334,205 @@ D and the calibration date gap in Group F.
   was the host's (an OOM kill, a runner crash); the repeat is reviewed.
 - Traces from a deploy of this branch onward carry the marker; nothing
   backfills older ones, which keep the structural reader.
+
+## Follow-up: An approved dependency landing with budget left opens remediation
+
+Follow-up item 1 (G1), decided under the owner's delegation
+(`memory/beta-rules-not-fixed.md`). It reverses choice (b) of group B.
+
+### Finding
+
+`runDepthTask` (`src/run/depth.ts` at `522d79a2`, lines 461-484) returned
+every approved root result as it was. An approved result carrying
+`blockedPhases` — dependents that never started because a producer did not
+complete with passing checks — therefore ended `partial`, and the clock it had
+left went unused. That is reachable: the reject gate refuses a `failed-suite`
+blocker mechanically, but an `unverified` or `landed` blocker reaches a
+validation call, and `DEPENDENCY_LANDING_GUIDANCE` tells the judge not to
+refuse for the missing dependents.
+
+Unlike a budget landing, these dependents were held back while the clock still
+ran. The 2026-09-21 record (`records/incidents/progressive-runs-2026-09-21.md`)
+settled the cost question for exactly this shape: opening work that might be
+cut is the cheaper error.
+
+The design's two adversarial critiques found a second defect in the same
+loop, older than G1 and made worse by it. A follow-up pass that failed on its
+own (not the deadline) rethrew, the attempt rethrew in deep mode, the run
+recorded `failed`, and `previousSeedRun` skipped it: `6ab0ae3b`'s loss, now
+reachable after an approval too.
+
+### Mechanism
+
+- **One test for a pass.** `passLeft(ctx, remediations)` is the refusal's old
+  condition and now gates both cases: not aborted, `MAX_ROOT_REMEDIATIONS`
+  not spent, not `outOfPhaseBudget`.
+- **The approved branch.** The pass opens only for a PURE dependency landing
+  (`!budgetLanded`: a phase the budget cut means the clock is the binding
+  limit, even with the signal not aborted), only in deep mode (a short
+  attempt that deepened during the follow-up would archive the approved
+  workspace in `restart`), and only while `passLeft`. It counts
+  `landing-remediation`, not `root-remediation`, so "Sent back by the final
+  review" (`showcase.ts`) stays true.
+- **The earlier pass.** `refused` became `prior`, refused or approved.
+  `previousAcceptance`/`previousEvidence` are passed in both cases (run
+  5dff35b0's recheck), and `onApproved` hears the earlier reasoning as
+  feedback only when it was a refusal.
+- **Every exit after a judged pass lands on it.** In the catch around
+  `handle`, anything but a `PhaseBoundaryPause`, a deepening or an explicit
+  cancellation returns the earlier pass:
+  - refused: `markRefused(prior)` with "— the remediation pass was cut by the
+    run deadline / failed (<ErrorName>) before it completed";
+  - approved: `followUpLanded(prior)`, which appends the follow-up's planned
+    root phases to `unfinishedPhases` (so `landingReasons` reports them as
+    budget-unfinished and the next run reads typed facts), or, with no root
+    plan yet, only adds a summary note.
+
+  Only the error's `name` enters typed fields; the message stays in the
+  trace. An acceptance of the follow-up that fails before the deadline
+  returns `markRefused(followUp)`: its work is in hand and is kept, never
+  delivered. Each of these counts `unjudged-remediation`.
+- **Lessons follow the last verdict on their work.** An approved landing's
+  lessons, the root's own included, are HELD. The follow-up approved: both
+  passes' lessons go in the run's one enqueue (`skill_learning_jobs.run_id` is
+  the primary key). The follow-up refused: both are dropped (fc2a68cf's rule:
+  the refusal judged a workspace holding the earlier work). No verdict: the
+  held lessons are saved under the finalization window, the follow-up's are
+  dropped. `persistApprovedLessons` puts the current pass first, so the
+  stable per-tier sort keeps the later pass on a tie and otherwise the longer
+  feedback; a task lesson is kept once per (owner, child, task).
+- **The follow-up's task.** `remediationTask` sets `rootAcceptanceRefusal`
+  only after a refusal. After an approval it keeps every criterion: a landed
+  approval's criterion judgements are never checked against coverage
+  (`consistentWithCriteria` returns early on a landing), so filtering on them
+  could drop the criteria of the blocked phases. `rootDependencyLanding`'s
+  instruction depends on the verdict and never names it, so the next judge is
+  not anchored on its own approval; an approved landing with no failing check
+  (a `landed` blocker) gets a variant that says nothing of checks.
+- **Report-blind reviewers.** `REMEDIATION_INPUTS`
+  (`src/contracts/runLanding.ts`) is the one list of host inputs about the
+  earlier pass. `reviewAcceptanceCriteria` and `textReviewReference` both
+  strip it. Before this, `rootDependencyLanding` — failure details included —
+  reached both reviewers, which kept hand-copied lists.
+
+### Behaviour changes on the refused path
+
+Two, recorded because they change runs that never see an approval:
+
+- A remediation pass that fails on its own now lands refused on the refused
+  pass instead of failing the run.
+- A refused DEPENDENCY landing no longer gets `rootRemediationScope`, even
+  with exactly one unmet criterion: "keep the deliverables, re-run the checks"
+  contradicts "complete the phases that never started", and the scope's
+  evidence (cc922a60, ed84d7be) came from complete deliveries.
+
+### Countercases checked
+
+| Record | Outcome |
+|---|---|
+| progressive-runs 2026-09-21, "the cheaper error is to try" | Supports opening the pass; its 60 s floor is reused, stated as unmeasured for a root pass |
+| 6ab0ae3b, a failed run seeds nothing | Every exit after a judged pass returns a result, on both paths |
+| 2026-09-25 review 1.2b | Extended to an approved earlier pass, with typed follow-up phases |
+| dfa20873, `landedBeforeAnyPhase` | Its guard is now `!prior`; unchanged otherwise |
+| 5dff35b0, recheck what the earlier pass listed | `previousAcceptance` passed for an approved earlier pass too |
+| fc2a68cf / 2026-10-09 lessons rule | Held lessons follow the last verdict on their work |
+| `learningQueue` primary key | One merged enqueue, proven on a real queue |
+| bad74240, L3 retry of landed branches | Not reintroduced: this is the depth runner's existing whole-root pass; the cell ladder still runs once |
+| cc922a60 / ed84d7be, single-criterion scope | Suppressed only for dependency landings |
+| Short mode, `restart()` archives the workspace | Deep-only guard |
+| Mixed landing with the signal not aborted | Explicit `!budgetLanded` condition |
+| Explicit cancellation during the follow-up | Still rethrows; teardown records `cancelled` whatever the depth runner returns, so the seed is forfeited — documented |
+
+### Rejected alternatives
+
+- **`markRefused` on a cut follow-up after an approval.** Nothing judged the
+  follow-up, so a typed "refused at delivery" would be false and would show
+  refusal copy to the customer. The typed `unfinishedPhases` follows
+  `landedBeforeAnyPhase`'s precedent.
+- **A typed "why no pass" field for the analyst.** The digest reads the
+  trace, not stats, and the trace already holds the evidence: a second root
+  `acceptance` event marks an opened pass.
+- **A root-pass floor now.** It would be an unmeasured threshold.
+  `unjudgedRemediations` counts every extra pass the 60 s floor let through
+  and that then ended with no verdict; a floor gets proposed when that
+  counter and the trace corpus can size it.
+- **Keeping the earlier pass's lessons when the refusal cites none of its
+  phases.** A prose-matching heuristic over model-authored text.
+- **Unifying every report-blind input list.** `textReviewReference` may need
+  run history as source material, and `EARLIER_LISTED_INPUT` is
+  host-observed workspace fact; both are separate decisions.
+- **A "skip when every criterion is met" gate on the approved follow-up.**
+  That would be a new gate; the full criteria list is kept instead.
+
+### Deviations from the design
+
+- The analyst sentence is reworded so it cannot read as "a dependency landing
+  that got its pass and ends partial is a defect": it says the pass opens
+  whether the root refused or approved, that an APPROVED landing ends
+  `partial` only when the pass could not open, and how a cut follow-up shows
+  (summary note, planned phases unfinished), since a cut pass leaves no second
+  `acceptance` event.
+- A clock-bounded acceptance failure of the follow-up (the existing "could not
+  finish within the landing budget" refusal) also counts
+  `unjudged-remediation`: it is an extra pass the clock ended without a
+  verdict, which is what the counter measures.
+- T9 (a real `L3Atom` whose blocked dependent is written on the second pass)
+  was not written; the approved landing needs an `unavailable` suite on an
+  approved producer, a larger fixture than the depth-runner path already
+  proves. The docs say the pass opens with the typed facts and do not claim
+  it runs the blocked work.
+
+### Tests
+
+Mocked LLMs, through the real `runDepthTask`, `acceptRootResult` and
+`remediationTask` (`tests/dependency-landing.test.ts` unless named):
+
+- An approved landing opens the pass: two `handle` calls, the approved
+  instruction and `notStarted`, no refusal or scope, the full criteria, not
+  landed at the end, `landing-remediation` once, `onApproved` twice (second
+  with no feedback), and ONE row on a real `LearningQueue` holding pass 2's
+  tier-1 and task lessons and pass 1's tier-2 lesson. A second case pins the
+  longer-feedback rule.
+- Refused then approved landing: pass 2 returned, no third pass.
+- Under a minute left, and a mixed landing with no deadline: one pass,
+  `partial`, one enqueue. Short mode: one pass.
+- Deadline cuts the follow-up after its root plan: pass 1 returned unrefused,
+  its follow-up phase appended to `unfinishedPhases`, `blockedPhases` intact,
+  `landingReasons` naming it, held lessons enqueued, pass 2's discarded,
+  `unjudged-remediation` once. Cut before its plan: pass 1's typed fields
+  unchanged.
+- The follow-up throws `ValidationError`: the run does not fail; only the
+  class name reaches the summary. After a refusal, a plain `Error`: refused
+  with "…the remediation pass failed (Error) before it completed".
+- The follow-up's acceptance throws: its result kept refused, no lesson saved.
+  The follow-up refused: both passes' lessons dropped. An explicit
+  cancellation during the follow-up still rejects.
+- The existing no-deadline test now expects two passes and two approvals.
+- `remediationTask` units: no scope for a refused dependency landing, full
+  criteria after an approval, both approved instruction variants.
+- `tests/criteria-review.test.ts`: the focused review, reached through
+  `acceptRootResult`, and `textReviewReference` never see
+  `rootDependencyLanding` or its failure details (fails without the shared
+  list).
+- `tests/analyst-host-instructions.test.ts`: the `p10` version and the new
+  `partial` sentence.
+
+Disabling the approved branch fails eight of these tests; reverting the
+reviewer list fails the report-blind one.
+
+### Limits
+
+- A host fault that repeats (a runner error behind an `unverified` blocker)
+  costs one wasted pass, bounded at one.
+- A run that ended approved and `partial` can now end refused and `partial`
+  when the extra pass breaks the approved work. The label is honest.
+- The acceptance trace keeps pass 1's approval while a cut follow-up's
+  unverified bytes sit in the workspace; the typed `unfinishedPhases`
+  carries the truth, and the customer's `run.partial.blocked` copy still
+  describes pass 1's plan.
+- Mid-run, `runProgress` shows `acceptanceApproved: true` while the extra
+  pass builds (unchanged).
+- Both approved-landing instructions are prompt rules that had the
+  adversarial pass above; neither is measured in production.
+- The root-pass floor is unmeasured; `unjudgedRemediations` is how it gets
+  measured.

@@ -54,6 +54,8 @@ const PARTIAL_STATS: RunStats = {
   deterministicPhases: 0,
   deepenings: 0,
   rootRemediations: 0,
+  landingRemediations: 0,
+  unjudgedRemediations: 0,
   discardedLessons: 0,
   triggerRejections: 0,
   landingReasons: [],
