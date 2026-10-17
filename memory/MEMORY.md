@@ -12,6 +12,7 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Crystal caustic state](crystal-caustic-state.md) — 2026-10-17: facing + caustic fixes committed locally (50c15882, dfa4c921), not pushed; strokes invisible, 3 options to test
 - [Parent-tests review fixes state](parent-tests-review-fixes-state.md) — 2026-10-16: done and deployed; existsSync permission fix b8b2fd86 (10-17); open runner limits; a deploy ran on a red-CI commit
 - [Account plan screen](account-plan-screen.md) — Your plan screen; org plan set by operator `auth set-plan` (2026-10-16); Pro/Team drop the Atoma mark
 - [Project deployment](project-deployment.md) — optional, mutable project setting: none (default), Atoma, or external; hosted address = model-chosen label, admin rename → permanent 308 (2026-10-15)
