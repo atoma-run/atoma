@@ -3,8 +3,13 @@ import { dirname, join } from 'node:path';
 import type { ToolSandbox } from './sandbox.js';
 import lockfile from './applicationSkeleton.lock.json' with { type: 'json' };
 
-/** Versioned application source, independent of control-plane services. */
-export const APPLICATION_SKELETON_VERSION = 1;
+/**
+ * Versioned application source, independent of control-plane services.
+ * Version 2 (2026-10-17): ESLint ignores `.atoma-*` host directories, whose
+ * copies of other runs' saved files (`.atoma-runs`) `eslint .` would otherwise
+ * lint, outside the tsconfig, and fail `npm run check` on.
+ */
+export const APPLICATION_SKELETON_VERSION = 2;
 export type ApplicationSkeletonKind = 'web' | 'node' | 'fullstack';
 const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
 
@@ -39,7 +44,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'coverage/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'coverage/**', '.atoma-*/**'] },
   { ...js.configs.recommended, files: ['**/*.js'], languageOptions: { globals: globals.node } },
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
@@ -105,7 +110,11 @@ export function scaffoldApplication(sandbox: ToolSandbox, argv: readonly string[
   }
   const root = sandbox.resolve(target);
   try {
-    if (readdirSync(root).length > 0) throw new Error('Scaffold target must be empty. For an existing app, generate in .atoma-skeleton and adapt its configuration without replacing application code or tests.');
+    // `.atoma-*` entries are the host's (read-run copies, scratch inputs, the
+    // probe record), never application work: a seed holding only
+    // `.atoma-runs` is empty, and refusing it invited `rm -rf .atoma-runs`
+    // (review 2026-10-17). The skeleton writes none of those names.
+    if (readdirSync(root).some((name) => !name.startsWith('.atoma-'))) throw new Error('Scaffold target must be empty. For an existing app, generate in .atoma-skeleton and adapt its configuration without replacing application code or tests.');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }

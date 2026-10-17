@@ -186,6 +186,17 @@ Neighbours:
   environment before anything is spawned; `withMcpConnectorBackend` composes
   the two connector elements after retrieval, and the runner disposes the
   connector sessions once at teardown ([src/connectors](../connectors/AGENTS.md)).
+- `ATOMA_READ_RUNS` names the coordinator's read-run index, read once, removed
+  from the environment and refused outside the tenant run, organisation and
+  project it was written for; every manifest is re-hashed. After the seed copy,
+  at launch and at the deepening restart, each entry is copied through
+  `readManifestArtifact` to `.atoma-runs/<runId>/<path>` as a new file with its
+  saved mode (0755 for `100755`, else 0644; directories 0755), and its identity
+  (device, inode, ctime, mode) is kept; a continuation keeps its sealed copies
+  and takes their identities after the restore. A mismatch is a
+  `RunnerConfigError` before any model call, or fails the restart with `.prevN`
+  intact. Root acceptance reads `ctx.readRunCopies` and `ctx.compareReadRunFiles`
+  ([decision](../../docs/decisions/read-runs-2026-10-17.md)).
 
 ## Platform run limits
 
@@ -324,7 +335,8 @@ Neighbours:
   depth-routed (`2102979`); after it, a project run that deepened rebuilt its
   corpus from nothing and seeded the next run from that. A seed that cannot be
   copied at restart fails the run with the first attempt in `.prevN`. The copy
-  filters the inherited probe manifest ([src/contracts](../contracts/AGENTS.md))
+  filters the inherited probe manifest ([src/contracts](../contracts/AGENTS.md)),
+  leaves out the seed's read-run copies (`.atoma-runs`)
   and keeps links as written (`verbatimSymlinks`): a rewritten absolute
   `node_modules/.bin` link is an escaping link to the checkpoint, which then
   disabled pause, questions and resume for every seeded Node project.
@@ -360,6 +372,12 @@ Neighbours:
 ## Intentional choices and rejected shortcuts
 
 - Approved learning includes at most one prompt candidate per rank, on the saved L2 author and L1 reviewer models/payers. [Contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
+
+- Read-only (0444) read-run copies: reverted (2026-10-17). `cp` gives a new
+  file its source's bits, so every file restored from a copy was read-only
+  (`edit_file` failed EACCES, the next seed kept 0444) and a saved script lost
+  its executable bit while its sha256 matched; the mode never stopped the
+  workspace's owner. A change is detected instead (`checkReadRunCopies`).
 
 - Replaying from the last checkpoint after an interrupted phase is refused:
   external effects and phase credits are not rolled back with files. Persist

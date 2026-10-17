@@ -2,6 +2,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { WATCHED_PROTOTYPES, WATCHED_STATICS } from '../contracts/assertionIntegrity.js';
 import { VITEST_BUILTIN_MATCHERS } from '../contracts/parentTests.js';
+import { mentionsReadRunCopies, READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
 
 /**
  * APIs the parent-owned runner's integrity guard refuses or ignores at run
@@ -319,13 +320,27 @@ export function suiteTestFileImports(cwd: string, source: string): string[] {
 }
 
 /**
+ * A suite that names the read-run copies (`.atoma-runs`) can never pass: the
+ * runner's snapshot of the workspace leaves them out (src/tools/parentTests.ts),
+ * so the suite reads ENOENT in every round and the child is rejected for a
+ * suite it cannot change (review 2026-10-17, against run 2e6bdcfc's criterion
+ * "byte-identical to their versions in run 50019ee0"). Refused every time.
+ */
+export function readRunCopiesRefusal(label: string, source: string): string | undefined {
+  if (!mentionsReadRunCopies(source)) return undefined;
+  return `Acceptance suite ${label} names ${READ_RUNS_DIRECTORY}, which the parent-owned runner's copy of the workspace leaves out, ` +
+    'so it can never pass. Prove a restore or a comparison with another run\'s saved files with sha256sum or diff in a shell ' +
+    'subtask, or rely on the host, which compares the files the criteria name with the read runs\' saved files at acceptance. Revise the suite.';
+}
+
+/**
  * Every zero-token suite finding of a plan, as ONE refusal, before any review:
  * the regexes it cannot mean (`suiteRegexPrecheck`), the APIs the runner's
- * guard refuses, and test files imported as subjects. One message, so the
- * planner hears every host finding in one round (2026-10-17). A test-file
- * import refuses once per planner and specifier: a real module may carry a
- * test-like name (`openapi.spec.ts`), and a kept import reaches the review
- * as a host fact instead (review 2026-10-17).
+ * guard refuses, test files imported as subjects, and a suite naming the
+ * read-run copies. One message, so the planner hears every host finding in
+ * one round (2026-10-17). A test-file import refuses once per planner and
+ * specifier: a real module may carry a test-like name (`openapi.spec.ts`), and
+ * a kept import reaches the review as a host fact instead (review 2026-10-17).
  */
 export function planSuitePrecheck(
   suites: ReadonlyArray<{ readonly label: string; readonly source: string | undefined; readonly cwd?: string }>,
@@ -340,6 +355,8 @@ export function planSuitePrecheck(
     if (!source) continue;
     const api = parentSuiteRefusal(label, source);
     if (api) findings.push(api);
+    const copies = readRunCopiesRefusal(label, source);
+    if (copies) findings.push(copies);
     const tests = suiteTestFileImports(cwd ?? '.', source);
     const fresh = tests.filter(specifier => !memo.has(`suite-test-import|${planner}|${specifier}`));
     if (fresh.length) {

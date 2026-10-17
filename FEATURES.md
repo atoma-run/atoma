@@ -167,7 +167,9 @@ Decision, TypeSafe's Jev model, takes bounded, structured decisions beside the m
   latest result, with an overview column showing cost by model tier.
 - **Continuation.** A project created in atoma starts each run from the last
   delivered or incomplete workspace; `baseRunId` iterates from a specific saved
-  version.
+  version, and `readRunIds` gives a run copies of up to three other runs'
+  saved files to restore or compare against; at acceptance the host compares
+  the files the criteria name with them.
 - **Versioned project context.** Project briefs and client-confirmed decisions
   are versioned, attributed and captured per run; model suggestions stay
   proposals until confirmed ([project context](docs/project-context.md)).

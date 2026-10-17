@@ -64,6 +64,7 @@ import { artifactManifestHash } from './artifacts.js';
 import { captureAcceptanceSpec, parseAcceptanceSpec } from '../run/acceptanceSpec.js';
 import type { AcceptanceSpec, ChecklistSource } from '../contracts/acceptanceChecklist.js';
 import type { DepthMode } from '../contracts/depthRouting.js';
+import { MAX_READ_RUN_BYTES, MAX_READ_RUN_FILES } from '../contracts/readRuns.js';
 
 /** An acceptance list a run carries, and who wrote it. */
 export interface RunAcceptance {
@@ -488,6 +489,7 @@ interface ProjectRunRow {
   rerun_of_run_id?: string | null;
   resume_of_run_id?: string | null;
   base_run_id?: string | null;
+  read_run_ids_json?: string | null;
   context_version?: number | null;
   model_overrides_json?: string | null;
   requested_timeout_ms?: number | null;
@@ -524,6 +526,11 @@ interface PublicationRow {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+}
+
+/** One spelling of a run's read runs: sorted, so two orders of one list are one request. */
+function encodeReadRunIds(runIds: readonly string[] | undefined): string | null {
+  return runIds?.length ? JSON.stringify([...runIds].sort()) : null;
 }
 
 function parseJson(value: string, label: string): unknown {
@@ -611,6 +618,7 @@ function runFromRow(row: ProjectRunRow): ProjectRun {
     ...(row.resume_of_run_id ? { resumeOf: row.resume_of_run_id } : {}),
     ...(row.context_version != null ? { contextVersion: row.context_version } : {}),
     ...(row.base_run_id ? { baseRunId: row.base_run_id } : {}),
+    ...(row.read_run_ids_json ? { readRunIds: parseJson(row.read_run_ids_json, 'read runs') } : {}),
     ...(row.model_overrides_json ? { modelOverrides: parseJson(row.model_overrides_json, 'model overrides') } : {}),
     ...(row.requested_timeout_ms != null ? { requestedTimeoutMs: row.requested_timeout_ms } : {}),
     ...(row.seed_json ? { seed: parseJson(row.seed_json, 'run seed') } : {}),
@@ -856,6 +864,7 @@ export class ProjectStore {
         ['project_runs', 'rerun_of_run_id'],
         ['project_runs', 'resume_of_run_id'],
         ['project_runs', 'base_run_id'],
+        ['project_runs', 'read_run_ids_json'],
         ['project_runs', 'model_overrides_json'],
         ['project_runs', 'seed_json'],
         ['project_runs', 'depth'],
@@ -922,6 +931,9 @@ BEGIN SELECT RAISE(ABORT, 'a retired hosting address is never reused'); END;
 CREATE TRIGGER IF NOT EXISTS project_runs_base_immutable BEFORE UPDATE OF base_run_id ON project_runs
 WHEN NEW.base_run_id IS NOT OLD.base_run_id
 BEGIN SELECT RAISE(ABORT, 'iteration base is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS project_runs_read_runs_immutable BEFORE UPDATE OF read_run_ids_json ON project_runs
+WHEN NEW.read_run_ids_json IS NOT OLD.read_run_ids_json
+BEGIN SELECT RAISE(ABORT, 'the runs a run reads are immutable'); END;
 CREATE UNIQUE INDEX IF NOT EXISTS project_runs_resume_once ON project_runs(resume_of_run_id) WHERE resume_of_run_id IS NOT NULL AND status NOT IN ('failed','cancelled');
 CREATE TRIGGER IF NOT EXISTS project_runs_resume_immutable BEFORE UPDATE OF resume_of_run_id ON project_runs
 WHEN NEW.resume_of_run_id IS NOT OLD.resume_of_run_id
@@ -1550,6 +1562,7 @@ END;
     const storedDigest = this.getRunAcceptanceSpec(orgId, existing.project_run_id)?.digest ?? null;
     if (existing.requested_by_principal_id !== principalId || existing.goal !== request.goal ||
         (existing.base_run_id ?? null) !== (request.baseRunId ?? null) ||
+        (existing.read_run_ids_json ?? null) !== this.requestedReadRuns(orgId, request) ||
         (existing.resume_of_run_id ?? null) !== (request.resumeOf ?? null) || wantedDigest !== storedDigest || (existing.depth ?? null) !== (request.depth ?? null)) {
       throw new ProjectStateConflict('run idempotency key was already used for different input');
     }
@@ -1588,7 +1601,9 @@ END;
     }
     const request = createProjectRunInputSchema.parse(requestInput);
     const wantedDigest = request.acceptanceChecklist ? captureAcceptanceSpec(request.acceptanceChecklist).digest : null;
+    const wantedReadRuns = this.requestedReadRuns(orgId, request);
     const match = live.find((row) => !row.rerun_of_run_id && (row.base_run_id ?? null) === (request.baseRunId ?? null) && (row.resume_of_run_id ?? null) === (request.resumeOf ?? null) && row.goal === request.goal &&
+      (row.read_run_ids_json ?? null) === wantedReadRuns &&
       (row.depth ?? null) === (request.depth ?? null) &&
       (this.getRunAcceptanceSpec(orgId, row.project_run_id)?.digest ?? null) === wantedDigest);
     return match ? this.runWithLearning(match) : null;
@@ -1712,6 +1727,12 @@ END;
       if (contextOriginId && (!contextOrigin || contextOrigin.projectId !== projectId)) throw new ProjectStateConflict('Context origin must belong to this project');
       const contextVersion = contextOriginId ? contextOrigin?.contextVersion : readProjectContext(this.db, orgId, projectId)!.version;
       if (request.baseRunId) this.iterationBase(orgId, projectId, request.baseRunId);
+      // THE RUNS THIS ONE READS: the request's own, or what its origin read. A
+      // rerun copies them again and is checked as a new request is; a
+      // continuation keeps the copies in its sealed workspace, so it needs
+      // their stored manifests only, whatever their bytes became.
+      const readRunIds = contextOriginId ? contextOrigin?.readRunIds : request.readRunIds;
+      if (readRunIds && !request.resumeOf) this.readRuns(orgId, projectId, readRunIds);
       if (input.enforceCapacity) this.assertRunCapacity(orgId);
       const now = new Date().toISOString();
       this.db
@@ -1719,8 +1740,9 @@ END;
           `INSERT INTO project_runs (
              project_run_id, project_id, org_id, requested_by_principal_id, request_key,
              goal, status, workspace_path, runs_path, log_path, skills_path,
-             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms, resume_of_run_id, base_run_id, context_version
-           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms, resume_of_run_id, base_run_id, context_version,
+             read_run_ids_json
+           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           requestedRunId,
@@ -1741,7 +1763,8 @@ END;
           requestedTimeoutMs ?? null,
           request.resumeOf ?? null,
           request.baseRunId ?? null,
-          contextVersion ?? null
+          contextVersion ?? null,
+          encodeReadRunIds(readRunIds)
         );
       if (acceptance) {
         // `source` NULL is a user list, which is every row written before
@@ -2358,6 +2381,43 @@ END;
       throw new ProjectStateConflict('Iteration base requires a retained delivered or partial run of this project');
     }
     return run;
+  }
+
+  /**
+   * The runs a new run may READ (src/contracts/readRuns.ts): each one what an
+   * iteration base must be, and their saved bytes and files together within
+   * the caps, refused over either and never trimmed. Both caps read the saved
+   * manifests, so a refusal hashes nothing; the bytes themselves are checked
+   * by the coordinator, at admission and again at launch.
+   */
+  readRuns(orgId: string, projectId: string, runIds: readonly string[]): ProjectRun[] {
+    const runs = runIds.map((runId) => {
+      try { return this.iterationBase(orgId, projectId, runId); }
+      catch (error) {
+        if (!(error instanceof ProjectStateConflict)) throw error;
+        throw new ProjectStateConflict(`A read run must be a retained delivered or partial run of this project that is not a comparison rerun: ${runId}`);
+      }
+    });
+    const bytes = runs.reduce((total, run) => total + run.artifactManifest!.totalBytes, 0);
+    if (bytes > MAX_READ_RUN_BYTES) {
+      throw new ProjectStateConflict(`The read runs hold ${bytes} saved bytes together; at most ${MAX_READ_RUN_BYTES} can be read`);
+    }
+    const files = runs.reduce((total, run) => total + run.artifactManifest!.files.length, 0);
+    if (files > MAX_READ_RUN_FILES) {
+      throw new ProjectStateConflict(`The read runs hold ${files} saved files together; at most ${MAX_READ_RUN_FILES} can be read`);
+    }
+    return runs;
+  }
+
+  /**
+   * The read runs a request stands for, as stored: its own list, sorted, or a
+   * continuation's source's, which the host copies (a continuation names none).
+   */
+  private requestedReadRuns(orgId: string, request: ReturnType<typeof createProjectRunInputSchema.parse>): string | null {
+    if (!request.resumeOf) return encodeReadRunIds(request.readRunIds);
+    const source = this.db.prepare('SELECT read_run_ids_json FROM project_runs WHERE project_run_id = ? AND org_id = ?')
+      .get(request.resumeOf, orgId) as { read_run_ids_json?: string | null } | undefined;
+    return source?.read_run_ids_json ?? null;
   }
 
   /** Reference is derived from approvals, never advanced by an unaccepted candidate. */

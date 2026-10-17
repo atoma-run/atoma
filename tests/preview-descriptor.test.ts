@@ -317,6 +317,42 @@ describe('an http probe classifies the deliverable as node', () => {
     ]);
   });
 
+  // docs/decisions/read-runs-2026-10-17.md, review 2026-10-17: a run asked to
+  // behave like an older one may start that run's server from its read-run
+  // copy and probe it after its own. The copy is on disk at delivery, but the
+  // preview copy leaves every `.atoma-*` path out, so such an entry would
+  // leave the preview nothing to start.
+  it('never picks a server entry under an .atoma-* directory: the previous stamp, then the fallbacks', () => {
+    const copy = '.atoma-runs/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
+    const own = workspace({
+      [PROBE_MANIFEST_FILENAME]: manifest(httpEntry({ entry: 'src/api.js' }), httpEntry({ path: '/old', entry: `${copy}/src/api.js` })),
+      'src/api.js': '// this run\'s server\n',
+      [`${copy}/src/api.js`]: '// the read run\'s server\n',
+    });
+    expect(classifyDeliveredWorkspace(own)).toEqual({ availability: 'available', kind: 'node', entry: 'src/api.js', unavailableReason: null });
+    // No earlier stamp: package.json main, then the conventional names, never a copy's main.
+    const fallback = workspace({
+      [PROBE_MANIFEST_FILENAME]: manifest(httpEntry({ entry: `${copy}/src/api.js` })),
+      'server.js': '// this run\'s server\n',
+      [`${copy}/src/api.js`]: '// the read run\'s server\n',
+    });
+    expect(classifyDeliveredWorkspace(fallback).entry).toBe('server.js');
+    const main = workspace({
+      [PROBE_MANIFEST_FILENAME]: manifest(httpEntry()),
+      'package.json': JSON.stringify({ main: `${copy}/src/api.js` }),
+      'index.js': '// this run\'s server\n',
+      [`${copy}/src/api.js`]: '// the read run\'s server\n',
+    });
+    expect(classifyDeliveredWorkspace(main).entry).toBe('index.js');
+    // A static page whose only http probe was the copy's server is the page it validated.
+    const page = workspace({
+      [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY, httpEntry({ entry: `${copy}/server.js` })),
+      'index.html': '<!doctype html>\n',
+      [`${copy}/server.js`]: '// the read run\'s server\n',
+    });
+    expect(classifyDeliveredWorkspace(page)).toEqual({ availability: 'available', kind: 'static', entry: null, unavailableReason: null });
+  });
+
   it('reads the same through the in-flight manifest root', () => {
     const source = workspace({ [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY, httpEntry({ entry: 'server.js' })), 'index.html': '<!doctype html>\n' });
     const frozen = workspace({ 'index.html': '<!doctype html>\n' });

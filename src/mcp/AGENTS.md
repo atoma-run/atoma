@@ -459,6 +459,11 @@ Neighbours:
   a new goal. Status/readiness expose `acceptedReferenceRunId`; absent selection
   preserves automatic seeding. The shared service refuses comparison/resume
   combinations; identity, queue and byte checks are owned by projects.
+- `atoma_run_start.readRunIds` names up to three runs of the project whose
+  saved files the run may read, copied with their modes and never delivered;
+  its description states the caps and that it never joins `rerunOf` or
+  `resumeOf`. Additive in both eras, refused beside `conversationApproval` like
+  the other overrides; projects owns the rest ([decision](../../docs/decisions/read-runs-2026-10-17.md)).
 
 - `atoma_run_accept` records the client's explicit test/review acceptance of
   the exact manifest hash, then publishes through the existing project service.

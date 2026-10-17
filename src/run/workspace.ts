@@ -1,7 +1,8 @@
-import { dirname, basename, join } from 'node:path';
+import { dirname, basename, join, resolve } from 'node:path';
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { inheritProbeManifest, PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
+import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
 import type { DeliveredSnapshot, StartingSnapshot, WorkspaceFileSnapshot } from '../contracts/startingWorkspace.js';
 
 /**
@@ -127,17 +128,22 @@ export interface SeedReport {
  *
  * The inherited `.atoma-probes.json` is filtered through
  * `inheritProbeManifest`: kept as a replay baseline, minus every entry no
- * reader can replay. The seed source is never modified.
+ * reader can replay. The seed's read-run copies (`.atoma-runs`, at its top
+ * level) are never inherited: they were given to the run that read them, and
+ * a run reads only the runs its own request names (src/contracts/readRuns.ts).
+ * The seed source is never modified.
  */
 export function seedWorkspace(seedRoot: string, workspaceRoot: string): SeedReport {
   mkdirSync(workspaceRoot, { recursive: true });
+  const readRunCopies = resolve(seedRoot, READ_RUNS_DIRECTORY);
   // Links are copied as written. Without `verbatimSymlinks`, cpSync rewrites a
   // relative link (`node_modules/.bin/vite -> ../vite/bin/vite.js`) into an
   // absolute one into the SEED, which the checkpoint digest refuses as
   // escaping: every seeded run with installed dependencies lost pause, client
   // questions and resume without an error (code review 2026-10-09, 1.5). A link
   // that leaves the tree stays refused by the checkpoint, as before.
-  cpSync(seedRoot, workspaceRoot, { recursive: true, verbatimSymlinks: true });
+  cpSync(seedRoot, workspaceRoot, { recursive: true, verbatimSymlinks: true,
+    filter: (source) => resolve(source) !== readRunCopies });
   const entries = readdirSync(workspaceRoot).length;
   const manifestPath = join(workspaceRoot, PROBE_MANIFEST_FILENAME);
   let stat;

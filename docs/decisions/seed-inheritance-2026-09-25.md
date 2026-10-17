@@ -59,6 +59,7 @@ learn what the workspace is. Excluding it keeps nothing and costs all of that.
   `.prevN`, re-seeds, then builds the new backend. A copy that fails throws,
   and the run fails with the first attempt intact in its archive. Unseeded
   runs keep the empty directory decided on 2026-09-13.
+- **Amended 2026-10-17 ([read runs](read-runs-2026-10-17.md)):** the seed copy leaves out the seed's top-level `.atoma-runs`, and `inheritProbeManifest` drops an entry naming a path into a read-run copy (`.atoma-runs/<run id>/…`, the id required) in anything a replay runs or compares (a command or its recorded output, a page, smoke or interaction, an HTTP entry stamp, path or body; never a note). An entry that only mentions the directory, such as a lint exclusion, is kept. That drop is an inheritance rule the health check never reports.
 
 No reader changed. Every reader sees what it saw before, minus entries no
 reader could replay. One entry is repaired rather than dropped: a harness

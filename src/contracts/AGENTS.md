@@ -316,6 +316,22 @@ Neighbours:
   the request schema on read made one immutable row throw in every reader of
   its project once its model was retired (2026-09-25 review, 1.1).
 
+## Read runs
+
+- `readRuns.ts` is the one home of read runs: the directory (`.atoma-runs`), the
+  caps (three runs, 64 MiB, 10,000 files), `ATOMA_READ_RUNS`, the launch index,
+  the copies' modes, the `readRuns` task input, its guidance, the acceptor's
+  lines (per copy, per compared file) and two predicates: `namesReadRunCopy` (a
+  path INTO a copy, run id required: the probe-inheritance drop and the skills
+  refusal) and `mentionsReadRunCopies` (any mention: the parent-suite refusal).
+  Browser-safe: the copy, its check and the comparison live in
+  `src/run/readRuns.ts`. A stored list is read back by spelling
+  (`storedReadRunIdsSchema`). [Decision](../../docs/decisions/read-runs-2026-10-17.md).
+- `artifactInventory.ts` holds the manifest shapes below `projects.ts`, which
+  re-exports them: `projects.ts` imports `readRuns.ts`, whose index carries
+  manifests, and in an import cycle whose two sides use each other at load
+  time, one of them reads the other before it is defined.
+
 ## Repository sync records
 
 - `repositorySync.ts` owns per-run BASE inventories, immutable sync records and
@@ -359,6 +375,10 @@ Neighbours:
 - Deciding `baseSha` from anything: refused. It is OBSERVED, the same rule
   `attestation.ts` states for a tool observation; the authority to publish
   onto an existing branch is read from GitHub at publish time.
+- Dropping an inherited probe entry on any mention of `.atoma-runs`: refused
+  (2026-10-17). It dropped the exclusions the guidance asks for
+  (`--ignore-pattern '.atoma-runs/**'`) and a seeded run's lint replay with
+  them; only a path into a copy, with its run id, replays nowhere else.
 - Letting the trajectory contract carry `args`, `result` or prose: refused.
   Identities only, and a structural event type so every `VizEvent` satisfies
   it without a `src/viz` import — a shared shape that imports a subsystem is a

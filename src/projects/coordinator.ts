@@ -6,6 +6,7 @@ import { peekDeploymentPending } from '../mcp/runLock.js';
 import type { AnswerClientQuestion } from '../contracts/clientQuestion.js';
 import { encodeProjectContext, PROJECT_CONTEXT_ENV } from '../contracts/projectContext.js';
 import { encodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
+import { encodeReadRunsIndex, READ_RUNS_DIRECTORY, READ_RUNS_ENV, READ_RUNS_INDEX_FILENAME } from '../contracts/readRuns.js';
 import { RunCheckpointStore, canonicalCheckpointWorkspacePath } from '../run/checkpoint.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
@@ -14,7 +15,8 @@ import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexMode
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
 import { randomUUID } from 'node:crypto';
 import { migratePlatformSkills, reconcilePlatformSkills } from '../skills/migratePlatform.js';
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { parseRunLog, spawnRun, DEFAULT_HARD_KILL_MARGIN_MS, UNKILLABLE_BACKSTOP_EXTRA_MS, type RunStats } from '../cli/burnin.js';
@@ -1706,6 +1708,72 @@ export class ProjectRunCoordinator {
   }
 
   /**
+   * The runs a new run reads (src/contracts/readRuns.ts), checked as an
+   * iteration base is: the store's rule, then every saved byte read again
+   * against its manifest. At admission, so a refusal reserves nothing, and at
+   * launch, so a byte changed while the run queued refuses it before spawn.
+   */
+  private verifiedReadRuns(orgId: string, projectId: string, runIds: readonly string[]): ProjectRun[] {
+    const runs = this.store.readRuns(orgId, projectId, runIds);
+    for (const run of runs) {
+      try {
+        if (!lstatSync(run.hostPaths.workspacePath).isDirectory()) throw new Error('missing workspace');
+        revalidateArtifactManifest({ workspaceRoot: run.hostPaths.workspacePath,
+          manifest: run.artifactManifest!, expectedHash: run.artifactManifestHash! });
+      } catch {
+        throw new ProjectStateConflict(`The saved files of read run ${run.projectRunId} are unavailable or changed; choose a retained intact run`);
+      }
+    }
+    return runs;
+  }
+
+  /**
+   * THE LAUNCH INDEX of a run's read runs, written beside its log (mode 0600,
+   * outside the workspace, removed with the run) and named to the child by
+   * `READ_RUNS_ENV`: a file because 1,502 manifest entries exceed one
+   * environment string. A continuation's copies are in its sealed workspace,
+   * so its index carries the stored manifests whatever their bytes became.
+   */
+  private writeReadRunsIndex(run: ProjectRun, runRoot: string, continuation: boolean): string {
+    const reads = continuation
+      ? run.readRunIds!.map((runId) => {
+        const read = this.store.getProjectRun(run.orgId, runId);
+        if (!read?.artifactManifest || !read.artifactManifestHash) throw new ProjectStateConflict(`Read run ${runId} has no saved manifest`);
+        return read;
+      })
+      : this.verifiedReadRuns(run.orgId, run.projectId, run.readRunIds!);
+    const encoded = encodeReadRunsIndex({ version: 1, orgId: run.orgId, projectId: run.projectId, runId: run.projectRunId,
+      readRuns: reads.map((read) => ({
+        runId: read.projectRunId, status: read.status as 'delivered' | 'partial', endedAt: read.endedAt!,
+        workspacePath: read.hostPaths.workspacePath, manifestHash: read.artifactManifestHash!, manifest: read.artifactManifest!,
+      })) });
+    mkdirSync(runRoot, { recursive: true });
+    const target = path.join(runRoot, READ_RUNS_INDEX_FILENAME);
+    const temporary = `${target}.${process.pid}.tmp`;
+    writeFileSync(temporary, encoded, { encoding: 'utf8', mode: 0o600, flag: 'w' });
+    renameSync(temporary, target);
+    return target;
+  }
+
+  /**
+   * A FINISHED run's read-run copies, removed once nothing can read them
+   * again (review 2026-10-17): its delivery, publication, preview, corpus and
+   * the next run's seed all leave `.atoma-*` out, and its manifest is built,
+   * so after the run they only kept another run's bytes past that run's own
+   * retention. A run that can still be continued (paused, or interrupted and
+   * recoverable) keeps them: its continuation starts from that workspace.
+   * Asynchronous, so up to `MAX_READ_RUN_FILES` unlinks never hold the
+   * server's event loop; `rm` removes a link where the directory was, never
+   * what it points at.
+   */
+  private async releaseReadRunCopies(run: ProjectRun): Promise<void> {
+    if (!run.readRunIds || !['delivered', 'partial', 'failed', 'cancelled'].includes(run.status)) return;
+    const continuable = this.checkpointStatus(run)?.state;
+    if (continuable === 'paused' || continuable === 'recoverable') return;
+    await rm(path.join(run.hostPaths.workspacePath, READ_RUNS_DIRECTORY), { recursive: true, force: true });
+  }
+
+  /**
    * `start`, saying whether THIS call created the run. An exact retry (same
    * key) and a re-sent identical request while its run is live both return
    * the existing run with `created: false`: what journals "run started" must
@@ -1764,6 +1832,12 @@ export class ProjectRunCoordinator {
     if ('baseRunId' in input.request && input.request.baseRunId) {
       this.selectedIterationBase(input.orgId, input.projectId, input.request.baseRunId);
     }
+    // The runs it reads, before anything is reserved: its own, or a rerun's
+    // origin's, which the rerun copies again. A continuation's are in its
+    // sealed workspace.
+    const readRunIds = rerun ? rerun.origin.readRunIds
+      : 'readRunIds' in input.request && !input.request.resumeOf ? input.request.readRunIds : undefined;
+    if (readRunIds) this.verifiedReadRuns(input.orgId, input.projectId, readRunIds);
     const candidateRunId = randomUUID();
     const candidatePaths = projectRunHostLayout(
       this.root,
@@ -2091,6 +2165,12 @@ export class ProjectRunCoordinator {
             console.error(`[atoma connectors] run ${run.projectRunId} starts without MCP servers: ${(error as Error).message}`);
           }
         }
+        // THE OTHER RUNS THIS ONE READS, read back from the RESERVED ROW (its
+        // own list, a rerun's origin's, a continuation's source's) and checked
+        // again here: a byte changed while the run queued refuses it before
+        // spawn (docs/decisions/read-runs-2026-10-17.md).
+        delete environment[READ_RUNS_ENV];
+        if (run.readRunIds) environment[READ_RUNS_ENV] = this.writeReadRunsIndex(run, layout.runRoot, Boolean(continuation));
         // WHY THE PREVIOUS RUN DID NOT DELIVER, handed to this one.
         //
         // Written HERE and not beside `previousSeedRun`, because a
@@ -2284,6 +2364,16 @@ export class ProjectRunCoordinator {
         );
       }
     } finally {
+      // The copies of the runs it read, once it can no longer be continued:
+      // after its manifest, its preview descriptor and its terminal state.
+      if (reservedRun.readRunIds) {
+        try {
+          const ended = this.store.getProjectRun(reservedRun.orgId, reservedRun.projectRunId);
+          if (ended) await this.releaseReadRunCopies(ended);
+        } catch (error) {
+          process.stderr.write(`[atoma projects] read-run copies of ${reservedRun.projectRunId} were not released: ${String(error)}\n`);
+        }
+      }
       // Terminal-outcome hook, AFTER the state transition above persisted and
       // read back from the store so listeners see exactly what the run table
       // says. Fire-and-forget: notification latency or failure must never

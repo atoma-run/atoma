@@ -9,7 +9,7 @@ import { establishesDomInteraction, fileReadsNeedingReadback, renderBrowserInput
 import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contracts/depthRouting.js';
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
 import { checkGroundTruth } from './groundTruth.js';
-import { commandTestScripts, criteriaFilesBlock, ROOT_CRITERIA_SOURCE_CHARS } from './fileEvidence.js';
+import { commandTestScripts, criteriaFilesBlock, criteriaNamedPaths, ROOT_CRITERIA_SOURCE_CHARS } from './fileEvidence.js';
 import { llmVerdict, renderTransportEvidence } from './verdict.js';
 import { reviewAcceptanceCriteria } from './criteriaReview.js';
 import { renderParentTestsBlock } from './parentTestsBlock.js';
@@ -41,6 +41,7 @@ import {
 import type { AttestationRecord } from '../contracts/attestation.js';
 import type { Witness } from '../contracts/witness.js';
 import { deliveryRunsEntry, serverCodeDigest } from '../contracts/serverDigest.js';
+import { renderReadRunCopies, renderReadRunFiles } from '../contracts/readRuns.js';
 import {
   coverAcceptanceChecklist,
   httpCheckMatches,
@@ -539,6 +540,16 @@ export async function acceptRootResult(args: {
     [...new Set(fileReadsNeedingReadback(records, transport.eventIds).values())], task.description, ROOT_CRITERIA_SOURCE_CHARS,
     commandTestScripts(records)) : '';
   const startingBlock = reviewing ? renderStartingWorkspace(comparison ?? startingComparison(ctx)) : '';
+  // The other runs' files this run was given, checked against their manifests
+  // now (a copy the run changed proves nothing about the run it came from),
+  // and the host's own comparison of each file the criteria name with the
+  // saved entries: "restore to the bytes of run X" no longer rests on a
+  // model's sha256sum surviving the transport cut (run 2e6bdcfc).
+  const readRunsBlock = reviewing ? [
+    ctx.readRunCopies ? renderReadRunCopies(ctx.readRunCopies()) : '',
+    ctx.compareReadRunFiles ? renderReadRunFiles(ctx.compareReadRunFiles(criteriaNamedPaths(
+      [...checklist.map((item) => item.behaviour), ...(task.criteria ?? []).map((criterion) => criterion.behaviour)]))) : '',
+  ].filter(Boolean).join('\n') : '';
   const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';
   const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems, earlier) : '';
   const textReference = reviewing && args.delivery === 'text'
@@ -567,6 +578,7 @@ export async function acceptRootResult(args: {
     proofCoverageBlock: 'ROOT DELIVERY PROOF (no effect on phase credits):\n' + JSON.stringify(floorCoverage) +
       (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : '') + (inputsBlock ? `\n\n${inputsBlock}` : '') +
       (namedFilesBlock ? `\n\n${namedFilesBlock}` : '') + (startingBlock ? `\n\n${startingBlock}` : '') +
+      (readRunsBlock ? `\n\n${readRunsBlock}` : '') +
       (restorationsBlock ? `\n\n${restorationsBlock}` : '') + (inheritedBlock ? `\n\n${inheritedBlock}` : '') +
       (reconciliation ? `\n\n${reconciliation}` : ''),
     // A budget landing usually reaches here through a validation call, because
@@ -589,7 +601,7 @@ export async function acceptRootResult(args: {
   // Landed/text/mechanically rejected paths retain their separate protocols.
   const focused = reviewing && userCriteria && !landed && args.delivery !== 'text'
     ? await reviewAcceptanceCriteria({ ctx, task, checklist,
-      evidence: [probe.block, namedFilesBlock, checklistBlock, layoutsBlock, inputsBlock, startingBlock, restorationsBlock,
+      evidence: [probe.block, namedFilesBlock, checklistBlock, layoutsBlock, inputsBlock, startingBlock, readRunsBlock, restorationsBlock,
         inheritedBlock, parentTestsBlock, renderResultGateFindings(gates.reviewFindings),
         [`Transport observations: ${transport.omitted} omitted; omissions establish no coverage.`, ...transport.lines]
           .join('\n')].filter(Boolean).join('\n\n') }) : undefined;

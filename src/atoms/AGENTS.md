@@ -147,6 +147,14 @@ Neighbours:
   about the rest, and a name that resolves to no file is silent — "saves
   quote.txt" names a download. Both are read only for a validation call.
   Superseded reads also get bounded current excerpts; unknown stays unknown, old bytes stay out. [Contract and review](../../docs/decisions/stale-file-evidence-2026-10-03.md).
+- A run given READ RUNS (`readRuns`, host-owned like `previousRunResults`)
+  reads, at every root acceptance and in both reviews, one host line per copy
+  (bytes and mode against its manifest, a change put back told by its ctime,
+  added names a separate fact) and one per workspace path the criteria name
+  that a read run saved, compared on the host with the saved entry, never
+  through `read_file`. The criteria read-back never reads a copy, and a parent
+  suite naming `.atoma-runs` is refused by the zero-token precheck: the runner's
+  snapshot leaves the copies out. Facts, never verdicts ([decision](../../docs/decisions/read-runs-2026-10-17.md)).
 - A BUDGET landing carries `LANDED_RESULT_GUIDANCE` to that validator; a
   DEPENDENCY landing (`blockedPhases`) carries `DEPENDENCY_LANDING_GUIDANCE`
   and is never approved mechanically; a result that is both carries both. A

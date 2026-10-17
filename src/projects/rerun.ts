@@ -14,8 +14,10 @@ import { ProjectStateConflict, resolveProjectRunTraceFile, type ProjectStore, ty
  * A rerun B of an origin A answers one question: what would A have cost and
  * produced on other models? So B starts from the state A STARTED from (its
  * seed run R0, never A's own output and never the project's latest run), is
- * asked A's goal, and is judged against the list A was judged against. Every
- * refusal below is a refusal to compare two different things under one name.
+ * asked A's goal, and is judged against the list A was judged against. It
+ * reads the runs A read (src/contracts/readRuns.ts): the store copies A's list
+ * onto B, and B copies their files again. Every refusal below is a refusal
+ * to compare two different things under one name.
  */
 
 export interface RerunOrigin {
@@ -46,6 +48,12 @@ export function resolveRerunOrigin(input: {
   }
   if (origin.status !== 'delivered' && origin.status !== 'partial') {
     throw new ProjectStateConflict('only a delivered or partial run can be rerun for comparison');
+  }
+  for (const runId of origin.readRunIds ?? []) {
+    const read = input.store.getProjectRun(origin.orgId, runId);
+    if (!read || read.bytesExpiredAt) {
+      throw new ProjectStateConflict(`the saved files of run ${runId}, which this run read, have expired; a rerun could not read them again`);
+    }
   }
   return {
     origin,

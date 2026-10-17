@@ -218,7 +218,9 @@ Neighbours:
   bounded. A link is never followed and never pointed at the live tree (Node
   permissions check the requested path, not the resolved one): an internal one
   is recreated inside the copy, an escaping one refuses. A file is consistent
-  on its own, not with its siblings. ONE deadline covers the copy and the run;
+  on its own, not with its siblings. Read-run copies (`.atoma-runs`, up to
+  64 MiB of another run) are never copied, beside `.git`, `.atoma-scratch` and
+  `.atoma-skeleton`. ONE deadline covers the copy and the run;
   cleanup, the deadline and a shutdown during the copy stop it before a spawn.
   The child gets at most `PARENT_TEST_TIMEOUT_MS` and reports what it had
   (`windowMs`): a timeout in less is the host's, never the code's (second
@@ -281,7 +283,9 @@ Neighbours:
 - `run_shell` supplies the deterministic `atoma-scaffold` utility directly
   (not a PATH executable or a new element). It writes the versioned application
   skeleton into an empty sandbox directory and never installs packages or
-  overwrites existing work. Existing apps use a separate reference directory.
+  overwrites existing work; `.atoma-*` host entries (read-run copies, the
+  probe record) do not make a directory non-empty. Existing apps use a
+  separate reference directory.
   `applicationSkeleton.ts` and its pinned lockfile ship in `dist/tools`;
   `application:skeleton:smoke` exercises fresh installs and compiled apps in
   the release checks. Contract: [application skeleton](../../docs/decisions/application-skeleton-2026-10-16.md).

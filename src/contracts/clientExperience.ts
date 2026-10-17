@@ -128,7 +128,7 @@ export type RunParentTests = z.infer<typeof runParentTestsSchema>;
 
 export const runReviewSchema = z.object({
   run: projectRunPublicSchema.pick({ projectId: true, projectRunId: true, goal: true, status: true,
-    artifactManifestHash: true, baseRunId: true, contextVersion: true, seed: true, bytesExpiredAt: true }),
+    artifactManifestHash: true, baseRunId: true, readRunIds: true, contextVersion: true, seed: true, bytesExpiredAt: true }),
   acceptedReferenceRunId: z.string().nullable(),
   delivery: z.enum(['text', 'files', 'unknown']),
   files: artifactPageResultSchema.nullable(),

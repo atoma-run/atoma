@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { DelegationRefusalKind, NegativeVerdict, Plan, Task } from '../core/types.js';
 import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_SUFFICIENCY, delegationReviewEnvelopeSchema, type DelegationReview } from '../contracts/parentTests.js';
 import { parseWith, planSchema } from './json.js';
-import { parentSuiteRefusal } from './parentSuiteCheck.js';
+import { parentSuiteRefusal, readRunCopiesRefusal } from './parentSuiteCheck.js';
 import { VALIDATION_SYSTEM_PROMPT } from './verdict.js';
 
 export type { DelegationRefusalKind } from '../core/types.js';
@@ -156,10 +156,13 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
       ...(integration ? ['plan integration'] : []),
     ].join('; ')}. Supply executable suites before implementation, or request a genuine inspection-only discovery plan at L3.`);
   }
-  // APIs the runner's integrity guard refuses: the parent's choice, refused before a child is blamed for it.
+  // APIs the runner's integrity guard refuses, and the read-run copies its
+  // snapshot leaves out: the parent's choice, refused before a child is blamed for it.
   for (const { label, source } of planSuites(plan)) {
     const refusal = source ? parentSuiteRefusal(label, source) : undefined;
     if (refusal) findings.push(refusal);
+    const copies = source ? readRunCopiesRefusal(label, source) : undefined;
+    if (copies) findings.push(copies);
   }
   const depends = (a: number, b: number): boolean =>
     (plan.subtasks[a]?.dependsOn ?? []).some(i => i < a && (i === b || depends(i, b)));

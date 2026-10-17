@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runShellTool } from '../src/tools/builtin.js';
@@ -31,6 +31,25 @@ describe('application skeleton through the existing shell tool', () => {
     expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe('existing bytes');
     expect(await tool.execute({ command: 'atoma-scaffold', args: ['web', '.atoma-skeleton'] })).toMatchObject({ exitCode: 0 });
     expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe('existing bytes');
+  });
+
+  // Review 2026-10-17: a seed holding only the host's `.atoma-runs` copies
+  // was refused as not empty, which invited `rm -rf .atoma-runs`.
+  it('scaffolds beside the host\'s .atoma-* entries, which it leaves as they are', async () => {
+    const { root, tool } = fixture();
+    const copy = join(root, '.atoma-runs', '50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a');
+    mkdirSync(copy, { recursive: true });
+    writeFileSync(join(copy, 'package.json'), 'the read run\'s bytes');
+    writeFileSync(join(root, '.atoma-probes.json'), '{"version":1,"entries":[]}');
+    expect(await tool.execute({ cmd: 'atoma-scaffold web' })).toMatchObject({ exitCode: 0, stderr: '' });
+    expect(readdirSync(root)).toEqual(expect.arrayContaining(['.atoma-runs', '.atoma-probes.json', 'package.json', 'package-lock.json']));
+    expect(readFileSync(join(copy, 'package.json'), 'utf8')).toBe('the read run\'s bytes');
+    // Application work beside them still refuses.
+    const other = fixture();
+    mkdirSync(join(other.root, '.atoma-runs'));
+    writeFileSync(join(other.root, 'index.html'), 'existing work');
+    expect(await other.tool.execute({ cmd: 'atoma-scaffold web' })).toMatchObject({ exitCode: 1 });
+    expect(readdirSync(other.root).sort()).toEqual(['.atoma-runs', 'index.html']);
   });
 
   it('refuses traversal, external links, unknown kinds and extra arguments', async () => {

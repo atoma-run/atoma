@@ -105,6 +105,44 @@ describe('the zero-token precheck', () => {
     expect(precheck.refusal).toContain('Acceptance suite on subtask 0 imports ./tests/collector.test.ts, a test file: its assertions would be the child\'s.');
     expect(precheck.refusal).toContain('Acceptance suite for the plan integration: toMatchSnapshot is unavailable');
   });
+
+  // Review 2026-10-17: the runner's snapshot leaves the read-run copies out,
+  // so a suite comparing with one reads ENOENT in every round, and the child
+  // is rejected for a suite it cannot change. Refused at plan time, every time.
+  const COPY_SUITE = "import { test, expect } from 'vitest';\nimport { readFileSync } from 'node:fs';\n" +
+    "test('restored', () => { expect(readFileSync('browser/x.js', 'utf8')).toBe(readFileSync('.atoma-runs/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/x.js', 'utf8')); });";
+  const COPY_REFUSAL = 'Acceptance suite on subtask 0 names .atoma-runs, which the parent-owned runner\'s copy of the workspace leaves out, so it can never pass. ' +
+    'Prove a restore or a comparison with another run\'s saved files with sha256sum or diff in a shell subtask, or rely on the host, which compares the files ' +
+    'the criteria name with the read runs\' saved files at acceptance. Revise the suite.';
+
+  it('refuses a suite naming the read-run copies every time, in the one refusal with every other finding', () => {
+    const regex = String.raw`expect('a b').toMatch(/a\\sb/);`;
+    const memo = new Set<string>();
+    const suites = [
+      { label: 'on subtask 0', cwd: '.', source: COPY_SUITE },
+      { label: 'on subtask 1', cwd: '.', source: `import { test, expect } from 'vitest';\ntest('t', () => { ${regex} });` },
+      { label: 'for the plan integration', cwd: '.', source: "import { test, expect } from 'vitest';\ntest('t', () => { expect(1).toMatchSnapshot(); });" },
+    ];
+    const first = planSuitePrecheck(suites, memo, 'cell:A');
+    expect(first.refusal).toContain(COPY_REFUSAL);
+    expect(first.refusal).toContain('Acceptance suite on subtask 1, line 2');
+    expect(first.refusal).toContain('Acceptance suite for the plan integration: toMatchSnapshot is unavailable');
+    // Told once is not excused: it can never pass, so it is refused again.
+    expect(planSuitePrecheck([suites[0]!], memo, 'cell:A').refusal).toBe(COPY_REFUSAL);
+    // Any mention counts: the copies are absent from the snapshot however they are named.
+    expect(planSuitePrecheck([{ label: 'on subtask 0', cwd: '.', source: "import { test, expect } from 'vitest';\nimport { readdirSync } from 'node:fs';\n" +
+      "test('t', () => { expect(readdirSync('.atoma-runs')).toHaveLength(1); });" }], memo, 'cell:A').refusal).toBe(COPY_REFUSAL);
+    // A suite that merely shares the prefix is not refused.
+    expect(planSuitePrecheck([{ label: 'on subtask 0', cwd: '.', source: "import { test, expect } from 'vitest';\ntest('t', () => { expect('.atoma-runsx').toBe('.atoma-runsx'); });" }],
+      memo, 'cell:A').refusal).toBeUndefined();
+  });
+
+  it('refuses it in the review\'s own enforcement too', () => {
+    const plan = makePlan({ subtasks: [{ description: 'Restore x', outputs: ['browser/x.js'], acceptanceTests: suite(COPY_SUITE) }] });
+    const refusal = enforceParsedDelegationReview(plan, review(['vitest']), false);
+    expect(refusal?.delegationRefusal).toBe('plan');
+    expect(refusal?.reasoning).toContain(COPY_REFUSAL);
+  });
 });
 
 describe('the mechanical half of the review', () => {
@@ -320,6 +358,28 @@ describe('the host facts block', () => {
     expect(reviews).toHaveLength(1);
     expect(reviews[0]!.userContent).toContain('- subtask 0 suite (cwd .): ./src/a.ts → src/a.ts, exists.');
     expect(reviews[0]!.userContent).toContain('export const a = () => 1;');
+  });
+
+  it('refuses a suite naming the read-run copies before any review, and the planner hears why', async () => {
+    const { ctx } = workspace(files);
+    const db = openDb(':memory:');
+    databases.push(db);
+    const registry = new AtomRegistry(db);
+    const tissue = L3Atom.buildWithModel(registry.create(3, { description: 'module author', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' }), registry, 'mock');
+    const copy = facts("import { test, expect } from 'vitest';\nimport { readFileSync } from 'node:fs';\n" +
+      "test('a', () => { expect(readFileSync('src/a.ts', 'utf8')).toBe(readFileSync('.atoma-runs/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/src/a.ts', 'utf8')); });", ['src/a.ts']);
+    const own = facts("import { test, expect } from 'vitest';\nimport { a } from './src/a.ts';\ntest('a', () => { expect(a()).toBe(1); });", ['src/a.ts']);
+    const plan = vi.spyOn(tissue, 'plan').mockResolvedValueOnce(copy).mockResolvedValue(own);
+    const done: Result = { output: {}, summary: 'done', trace: [], producedBy: { name: 'cell', tier: 2, viaFallback: false } };
+    vi.spyOn(tissue, 'execute').mockResolvedValue(done);
+    ctx.llm.enqueueText(JSON.stringify({ approved: true, reasoning: 'scope reviewed', delegationReview: review(['vitest']) }));
+
+    await tissue.handle({ description: 'Restore module a to the bytes of run 50019ee0' }, ctx);
+
+    expect(plan).toHaveBeenCalledTimes(2);
+    expect(String(plan.mock.calls[1]?.[2])).toContain('names .atoma-runs, which the parent-owned runner\'s copy of the workspace leaves out');
+    // Zero tokens: the one model call is the review of the second plan.
+    expect(ctx.llm.calls.filter(call => call.userContent.includes('== REQUIRED DELEGATION CONTRACT REVIEW =='))).toHaveLength(1);
   });
 
   it('hands a kept test-file import to the review as a fact: a real module may carry a test-like name', () => {

@@ -6,6 +6,7 @@ import type { AttestationRecord } from '../contracts/attestation.js';
 import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_MAX_CHARS } from '../contracts/parentTests.js';
 import { FILE_OBSERVATION_ONLY_ARG } from '../contracts/toolOutput.js';
+import { insideReadRunCopies } from '../contracts/readRuns.js';
 
 const NAMED_PATH = /(?<![\w./-])(\.?[\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
 const CRITERIA_FILES_MAX = 16;
@@ -155,6 +156,15 @@ function namedFileExcerpt(content: string, words: ReadonlySet<string>, allowance
 }
 
 /**
+ * The workspace paths a criterion text spells ("docs/ERRORS.md",
+ * "browser/collect-xe-browser.js"), once each, in order: the read-back's own
+ * reading, shared with the root's read-run comparison (src/contracts/readRuns.ts).
+ */
+export function criteriaNamedPaths(texts: readonly string[]): string[] {
+  return [...new Set(texts.flatMap((text) => [...text.matchAll(NAMED_PATH)].map((match) => match[1]!)))];
+}
+
+/**
  * The files the CRITERIA name, read back by the host, so a criterion about a
  * document is judged on the document. Production run dc45c95b (2026-09-27):
  * "README documents every route with a curl example" was judged met on "README
@@ -173,7 +183,7 @@ export async function criteriaFilesBlock(
   if (!ctx.tools?.has('read_file') || (checklist.length === 0 && refreshPaths.length === 0 && commandTests.length === 0)) return '';
   const tools = baseExecutorOf(ctx.tools);
   const text = checklist.map((item) => item.behaviour).join('\n');
-  const wanted: string[] = [...text.matchAll(NAMED_PATH)].map((match) => match[1]!);
+  const wanted: string[] = criteriaNamedPaths([text]);
   if (checklist.length > 0 && tools.has('list_files')) {
     try {
       const listed = (await tools.execute('list_files', { path: '.' })) as { entries?: Array<{ name?: string; kind?: string }> } | null;
@@ -202,7 +212,11 @@ export async function criteriaFilesBlock(
   wanted.push(...commandNamed, ...refreshed.filter(isTest), ...refreshed.filter(path => !isTest(path)));
   const lines: string[] = [];
   const files: Array<{ label: string; content: string; words: ReadonlySet<string>; referencedBy?: string; ranByCommand?: boolean }> = [];
-  const paths = [...new Set(wanted)].filter((path) => !path.split('/').includes('..') && !/^(?:\/|[a-z]:)/i.test(path));
+  // Never a read-run copy (`.atoma-runs/…`): another run's bytes nobody can
+  // compare by eye, which crowded out the executed suites this budget exists
+  // for. The host compares the files the criteria name with them instead.
+  const paths = [...new Set(wanted)].filter((path) => !path.split('/').includes('..') && !/^(?:\/|[a-z]:)/i.test(path) &&
+    !insideReadRunCopies(path));
   let attempted = 0;
   for (const path of paths) {
     if (attempted >= CRITERIA_FILES_MAX || ctx.signal?.aborted) break;

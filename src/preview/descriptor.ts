@@ -55,6 +55,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 const entryKind = probeEntryKind;
 
 /**
+ * A host-internal path (`.atoma-runs/<run id>/src/api.js`, `.atoma-scratch/…`):
+ * never the delivery's own server. A run asked to behave like an older one may
+ * start that run's server from its read-run copy and probe it after its own
+ * (review 2026-10-17); the preview copy leaves every `.atoma-*` path out, so
+ * such an entry would leave the preview nothing to start.
+ */
+function hostInternal(path: string): boolean {
+  return path.split('/')[0]!.startsWith('.atoma');
+}
+
+/**
  * The entry file, from the tool argument that actually started a server.
  *
  * LAST WINS. HTTP entries are an ordered SEQUENCE and never merge by route
@@ -64,7 +75,8 @@ const entryKind = probeEntryKind;
  *
  * An unusable stamp is treated as no stamp rather than as a refusal — the
  * fallbacks below still have a chance, and a run is not unpreviewable because
- * one recorded field is malformed.
+ * one recorded field is malformed. A stamp under an `.atoma-*` directory is
+ * skipped the same way, in favour of the stamp before it.
  */
 function stampedEntry(entries: readonly unknown[]): string | null {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
@@ -72,11 +84,13 @@ function stampedEntry(entries: readonly unknown[]): string | null {
     if (!isRecord(entry) || entryKind(entry) !== 'http') continue;
     const stamped = entry['entry'];
     if (typeof stamped !== 'string' || stamped.length === 0) continue;
+    let normalized: string;
     try {
-      return normalizeArtifactPath(stamped);
+      normalized = normalizeArtifactPath(stamped);
     } catch {
       continue;
     }
+    if (!hostInternal(normalized)) return normalized;
   }
   return null;
 }
@@ -132,7 +146,8 @@ function hasPackageJson(workspaceRoot: string): boolean {
 function httpProbesOutlivedTheirServer(workspaceRoot: string, entries: readonly unknown[]): boolean {
   const records = entries.filter(isRecord);
   const stamps = records.filter((entry) => entryKind(entry) === 'http').map((entry) => relativePath(entry['entry']));
-  if (stamps.length === 0 || stamps.some((stamp) => stamp === null || !stampedServerGone(workspaceRoot, stamp))) return false;
+  // A server started from an `.atoma-*` path was never this delivery's: as gone as a deleted one.
+  if (stamps.length === 0 || stamps.some((stamp) => stamp === null || (!hostInternal(stamp) && !stampedServerGone(workspaceRoot, stamp)))) return false;
   if (hasPackageJson(workspaceRoot)) return false;
   return records.some((entry) => {
     if (entryKind(entry) !== 'web') return false;
@@ -167,6 +182,8 @@ function usableEntry(workspaceRoot: string, candidate: string | null): string | 
   // D7), so an entry node cannot execute is not an entry. Saying so here turns
   // a runtime crash a member would have to interpret into `not-runnable`.
   if (!JS_ENTRY.test(candidate)) return null;
+  // Nor one the preview copy leaves out (`package.json` `main` naming a read-run copy).
+  if (hostInternal(candidate)) return null;
   return previewWorkspaceHasFile(workspaceRoot, candidate) ? candidate : null;
 }
 

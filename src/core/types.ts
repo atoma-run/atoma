@@ -1095,6 +1095,21 @@ export interface RunContext {
    */
   readonly standingHttpEvidence?: readonly import('../contracts/standingHttpEvidence.js').StandingHttpObservation[];
   /**
+   * The copies of other runs' saved files this run was given
+   * (`src/contracts/readRuns.ts`), checked against their manifests (bytes,
+   * mode, and whether one was changed and put back) as the workspace holds
+   * them NOW. Root acceptance renders one line per read run; absent for a run
+   * that read none.
+   */
+  readonly readRunCopies?: () => readonly import('../contracts/readRuns.js').ReadRunCopyCheck[];
+  /**
+   * The host's comparison of this run's files at `paths` (the ones the
+   * criteria name) with each read run's saved entry, read on the host and
+   * never through a model-facing tool. Root acceptance renders one line per
+   * path a read run saved; absent for a run that read none.
+   */
+  readonly compareReadRunFiles?: (paths: readonly string[]) => import('../contracts/readRuns.js').ReadRunFileComparisons;
+  /**
    * Optional prefilter-cache observer — see `CacheHitInfo`. Same
    * observer-only contract as `recordTrust` / `recordSkill`: absent, the
    * cache still serves, it just leaves no trace.

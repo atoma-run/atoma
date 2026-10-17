@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { z } from 'zod';
 import { PARENT_TEST_TIMEOUT_MS, parentTestSuiteDigest, parentTestSuiteSchema, type ParentTestCause, type ParentTestObservation } from '../contracts/parentTests.js';
+import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
 import type { Logger } from '../core/types.js';
 import { OutsideRootError, ToolSandbox, containedIn, kernelRealpathAsync, openContained, sandboxChildEnv } from './sandbox.js';
 
@@ -24,8 +25,11 @@ class TypedFailure extends Error {
   constructor(readonly failure: ParentTestCause, message: string) { super(message); }
 }
 
-/** Names never copied, at any depth. */
-const EXCLUDED = ['.git', '.atoma-scratch', '.atoma-skeleton'].map(name => Buffer.from(name));
+/**
+ * Names never copied, at any depth. The read-run copies too: up to 64 MiB of
+ * another run's files a suite must never test (src/contracts/readRuns.ts).
+ */
+const EXCLUDED = ['.git', '.atoma-scratch', '.atoma-skeleton', READ_RUNS_DIRECTORY].map(name => Buffer.from(name));
 const MAX_ENTRIES = 100_000;
 const MAX_DEPTH = 128;
 const MAX_BYTES = 512 * 1024 * 1024;

@@ -105,6 +105,11 @@ by owner decision on 2026-09-26
   otherwise valid run, and an unchanged body is not a revision.
 - Auto-created/revised skill bodies must stay within the owner's toolset and
   generalize beyond the triggering task. No task-specific literals.
+- A recipe naming a read-run copy (`.atoma-runs/<run id>`, `namesReadRunCopy`)
+  is never learned (task or recovery), revised or compiled, and a compiled
+  script naming one is refused and stamped like a flagged one: the catalogue
+  would carry one organisation's run id into every other, and a path only one
+  run held ([read runs](../../docs/decisions/read-runs-2026-10-17.md)).
 - An approved L1 run that actually persisted a command `record_probe` gets one
   independent verification extraction if primary distillation omitted a usable
   sibling. The transport witness includes expected nonzero exits and survives

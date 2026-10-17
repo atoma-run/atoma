@@ -2,11 +2,17 @@ import { z } from 'zod';
 import { deploymentDestinationSchema, hostingSubdomainSchema } from './projectDeployment.js';
 import { learningReceiptSchema } from './skillLearning.js';
 import { PLATFORM_SETTINGS } from './platformSettings.js';
-import { deliveryKindSchema } from './taskExecution.js';
 import { runStatsSchema } from './runStats.js';
 import { approvedChecklistInputSchema } from './acceptanceChecklist.js';
 import { runTierModelsSchema, storedRunTierModelsSchema } from './tierModels.js';
 import { depthModeSchema } from './depthRouting.js';
+import { artifactManifestSchema, sha256Schema } from './artifactInventory.js';
+import { readRunIdsSchema, storedReadRunIdsSchema } from './readRuns.js';
+
+// The run inventory shapes live below this module (see artifactInventory.ts);
+// every reader keeps importing them from here.
+export { artifactFileSchema, artifactManifestSchema, artifactPathSchema, sha256Schema } from './artifactInventory.js';
+export type { ArtifactFile, ArtifactManifest } from './artifactInventory.js';
 
 export const PROJECT_RUN_WAITING_MESSAGE = 'This run is waiting for an available slot to start.';
 
@@ -304,6 +310,12 @@ export const createProjectRunInputSchema = z
     goal: projectGoalSchema,
     resumeOf: projectRunIdSchema.optional(),
     baseRunId: projectRunIdSchema.optional(),
+    /**
+     * Other runs of this project whose saved files this run may READ, copied
+     * with their saved modes into its workspace before any model call
+     * (`readRuns.ts`). Part of the request's identity; stored sorted.
+     */
+    readRunIds: readRunIdsSchema.optional(),
     idempotencyKey: idempotencyKeySchema,
     /**
      * The acceptance criteria the user approved before launch. Optional:
@@ -320,6 +332,9 @@ export const createProjectRunInputSchema = z
   })
   .strict().refine(value => !value.resumeOf || !value.baseRunId, {
     message: 'A continuation cannot select another base', path: ['baseRunId'],
+  }).refine(value => !value.resumeOf || !value.readRunIds, {
+    // A continuation reads what its source read, copied by the host.
+    message: 'A continuation cannot select other read runs', path: ['readRunIds'],
   });
 
 /**
@@ -365,8 +380,6 @@ export const projectRunHostPathsSchema = z
   })
   .strict();
 
-export const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
-
 /** A client's explicit review of this exact saved delivery, separate from model acceptance. */
 export const acceptDeliveryInputSchema = z.object({
   manifestHash: sha256Schema,
@@ -377,60 +390,6 @@ export const deliveryAcceptanceSchema = acceptDeliveryInputSchema.extend({
   acceptedAt: z.string().datetime(),
 });
 export type DeliveryAcceptance = z.infer<typeof deliveryAcceptanceSchema>;
-export const artifactPathSchema = z.string().min(1).max(512);
-export const artifactFileSchema = z
-  .object({
-    path: artifactPathSchema,
-    size: z.number().int().nonnegative(),
-    sha256: sha256Schema,
-    mode: z.enum(['100644', '100755']),
-  })
-  .strict();
-
-export const artifactManifestSchema = z
-  .object({
-    version: z.literal(1),
-    // Absent on legacy plan-only manifests. Never infer complete coverage.
-    source: z.literal('workspace').optional(),
-    delivery: deliveryKindSchema.optional(),
-    files: z.array(artifactFileSchema),
-    totalBytes: z.number().int().nonnegative(),
-  })
-  .strict()
-  .superRefine((manifest, ctx) => {
-    if (manifest.files.length === 0 && manifest.source !== 'workspace') {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['files'], message: 'only a workspace inventory may be empty' });
-    }
-    const paths = new Set<string>();
-    let total = 0;
-    let previous = '';
-    for (const [index, file] of manifest.files.entries()) {
-      if (paths.has(file.path)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['files', index, 'path'],
-          message: 'artifact paths must be unique',
-        });
-      }
-      if (index > 0 && file.path.localeCompare(previous) < 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['files', index, 'path'],
-          message: 'artifact files must be sorted by canonical path',
-        });
-      }
-      paths.add(file.path);
-      previous = file.path;
-      total += file.size;
-    }
-    if (total !== manifest.totalBytes) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['totalBytes'],
-        message: `totalBytes must equal the file-size sum (${total})`,
-      });
-    }
-  });
 
 /** One definition of a git commit sha, written twice before this. */
 export const commitShaSchema = z.string().regex(/^[a-f0-9]{40}$/);
@@ -471,6 +430,8 @@ export const projectRunSchema = z
     rerunOf: projectRunIdSchema.optional(),
     resumeOf: projectRunIdSchema.optional(),
     baseRunId: projectRunIdSchema.optional(),
+    /** The runs whose saved files this run read, sorted; a rerun's and a continuation's are their origin's. */
+    readRunIds: storedReadRunIdsSchema.optional(),
     /** The run-level models a comparison rerun was launched with. */
     modelOverrides: storedRunTierModelsSchema.optional(),
     /** Explicit operator budget survives queue handoff; absent uses current host settings. */
@@ -579,8 +540,6 @@ export type ProjectRunHostPaths = z.infer<typeof projectRunHostPathsSchema>;
 export type ProjectRun = z.infer<typeof projectRunSchema>;
 export type ProjectRunPublic = z.infer<typeof projectRunPublicSchema>;
 export type ProjectRunStatus = z.infer<typeof projectRunStatusSchema>;
-export type ArtifactFile = z.infer<typeof artifactFileSchema>;
-export type ArtifactManifest = z.infer<typeof artifactManifestSchema>;
 export type Publication = z.infer<typeof publicationSchema>;
 export type PublicationStatus = z.infer<typeof publicationStatusSchema>;
 export type PublicationReceipt = z.infer<typeof publicationReceiptSchema>;

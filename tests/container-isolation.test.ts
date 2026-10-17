@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, renameSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ContainerToolExecutor, workerRunArgs } from '../src/tools/containerExecutor.js';
@@ -10,6 +10,10 @@ import { drainLines, encodeMessage, isWorkerHello } from '../src/tools/container
 import { HOST_REPLAY_ARG } from '../src/contracts/inheritedChecks.js';
 import { assertCheckpointWorkerAbsent } from '../src/launcher/checkpointRecovery.js';
 import { OUTSIDE_THE_COPY_FILES, OUTSIDE_THE_COPY_SUITE, OUTSIDE_THE_COPY_TESTS } from './helpers/outsideTheCopy.js';
+import { randomUUID } from 'node:crypto';
+import { buildWorkspaceArtifactManifest } from '../src/projects/artifacts.js';
+import { checkReadRunCopies, materialiseReadRuns, type ReadRunCopyIdentities } from '../src/run/readRuns.js';
+import type { ReadRunsIndex } from '../src/contracts/readRuns.js';
 
 /**
  * The isolation primitive, proven against a real container.
@@ -446,6 +450,87 @@ describeDocker('a containerised run cannot reach the stores', () => {
       await backend.drain?.();
     }
   }, 120_000);
+});
+
+// docs/decisions/read-runs-2026-10-17.md: the host copies another run's saved
+// files into the workspace before the worker starts, each with its saved mode.
+// The worker reads the copy and restores from it with its own cp (GNU cp, which
+// gives a new file its source's bits); a write to the copy is detected by the
+// host, not prevented; and nothing but the workspace is reachable: not the
+// other run's directory, not by its host path. Run locally against an
+// isolated tag through ATOMA_TEST_ACCEPTANCE_IMAGE.
+describeDocker('a read-run copy in a containerised run', () => {
+  let dir: string;
+  let other: string;
+  let workspace: string;
+  let exec: ContainerToolExecutor;
+  let index: ReadRunsIndex;
+  let identities: ReadRunCopyIdentities;
+  const runId = '50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
+  const copy = `.atoma-runs/${runId}`;
+
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'atoma-container-read-runs-'));
+    other = join(dir, 'other-run', 'workspace');
+    mkdirSync(join(other, 'browser'), { recursive: true });
+    mkdirSync(join(other, 'bin'), { recursive: true });
+    writeFileSync(join(other, 'browser', 'collect.js'), 'SAVED_BYTES_OF_THE_OTHER_RUN');
+    writeFileSync(join(other, 'bin', 'run.sh'), '#!/bin/sh\necho SAVED_SCRIPT_RAN\n', { mode: 0o755 });
+    // Beside the saved files, and never in a manifest: never copied, never reachable.
+    writeFileSync(join(other, '.env'), 'OTHER_RUN_UNSAVED_SECRET');
+    const { manifest, hash } = buildWorkspaceArtifactManifest({ workspaceRoot: other });
+    workspace = join(dir, 'ws');
+    index = { version: 1, orgId: randomUUID(), projectId: randomUUID(), runId: randomUUID(),
+      readRuns: [{ runId, status: 'delivered', endedAt: new Date().toISOString(), workspacePath: other, manifestHash: hash, manifest }] };
+    identities = materialiseReadRuns(workspace, index).identities;
+    exec = new ContainerToolExecutor({ workspaceHostPath: workspace, startTimeoutMs: 90_000,
+      image: process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'] ?? 'atoma-worker:latest' });
+    await exec.start();
+  }, 120_000);
+
+  afterAll(() => {
+    exec?.stop();
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reads the copy, each file with its saved mode', async () => {
+    const read = (await exec.execute('read_file', { path: `${copy}/browser/collect.js` })) as { content?: string };
+    expect(read.content).toContain('SAVED_BYTES_OF_THE_OTHER_RUN');
+    const listed = (await exec.execute('run_shell', { command: 'ls', args: ['-l', `${copy}/browser/collect.js`, `${copy}/bin/run.sh`] })) as { stdout?: string };
+    expect(listed.stdout ?? '').toMatch(/^-rwxr-xr-x .*bin\/run\.sh$/m);
+    expect(listed.stdout ?? '').toMatch(/^-rw-r--r-- .*browser\/collect\.js$/m);
+  }, 60_000);
+
+  it('restores from it with the worker\'s cp: a writable file, executable where the run saved one', async () => {
+    await exec.execute('run_shell', { command: 'mkdir', args: ['-p', 'browser', 'bin'] });
+    for (const path of ['browser/collect.js', 'bin/run.sh']) {
+      expect(await exec.execute('run_shell', { command: 'cp', args: [`${copy}/${path}`, path] })).toMatchObject({ exitCode: 0 });
+    }
+    expect(await exec.execute('run_shell', { command: 'bash', args: ['-c', './bin/run.sh'] })).toMatchObject({ exitCode: 0, stdout: 'SAVED_SCRIPT_RAN\n' });
+    await exec.execute('read_file', { path: 'browser/collect.js' });
+    await exec.execute('edit_file', { path: 'browser/collect.js', old_string: 'SAVED_BYTES', new_string: 'EDITED_BYTES' });
+    expect(readFileSync(join(workspace, 'browser/collect.js'), 'utf8')).toBe('EDITED_BYTES_OF_THE_OTHER_RUN');
+    expect(lstatSync(join(workspace, 'bin/run.sh')).mode & 0o777).toBe(0o755);
+  }, 60_000);
+
+  it('a write to the copy from the worker is detected by the host, even once its bytes are back', async () => {
+    expect(checkReadRunCopies(workspace, index, identities)[0]).toMatchObject({ changedCount: 0, missingCount: 0, touchedCount: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    await exec.execute('run_shell', { command: 'bash', args: ['-c', `printf CHANGED > ${copy}/browser/collect.js`] });
+    expect(checkReadRunCopies(workspace, index, identities)[0]).toMatchObject({ changed: ['browser/collect.js'] });
+    await exec.execute('run_shell', { command: 'bash', args: ['-c', `printf SAVED_BYTES_OF_THE_OTHER_RUN > ${copy}/browser/collect.js`] });
+    expect(readFileSync(join(workspace, copy, 'browser/collect.js'), 'utf8')).toBe('SAVED_BYTES_OF_THE_OTHER_RUN');
+    expect(checkReadRunCopies(workspace, index, identities)[0]).toMatchObject({ changedCount: 0, touched: ['browser/collect.js'] });
+  }, 60_000);
+
+  it('cannot reach the other run by its host path', async () => {
+    const r = (await exec.execute('run_shell', { command: 'cat', args: [join(other, '.env'), join(other, 'browser', 'collect.js')] })) as {
+      stdout?: string; stderr?: string };
+    const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+    expect(out).not.toContain('OTHER_RUN_UNSAVED_SECRET');
+    expect(out).not.toContain('SAVED_BYTES_OF_THE_OTHER_RUN');
+    expect(out.toLowerCase()).toMatch(/no such file|cannot access|not found/);
+  }, 60_000);
 });
 
 // The required CI worker job builds its image first. Local callers select an

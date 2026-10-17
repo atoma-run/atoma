@@ -57,6 +57,9 @@ import { RecordingLlmClient } from '../viz/recordingLlm.js';
 import { RecordingRegistry } from '../viz/recordingRegistry.js';
 import { containerToolBackend, localToolBackend, withMcpConnectorBackend, withProjectRetrievalBackend } from './toolBackend.js';
 import { decodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
+import { READ_RUNS_DIRECTORY, READ_RUNS_ENV, type ReadRunsIndex } from '../contracts/readRuns.js';
+import { captureReadRunCopies, checkReadRunCopies, compareReadRunFiles, materialiseReadRuns, readReadRunsIndex,
+  type ReadRunCopyIdentities } from './readRuns.js';
 import { openConnectorRuntime } from '../connectors/runtime.js';
 import { emptyConnectorService, type McpConnectorService } from '../tools/mcpConnectors.js';
 import { validateProjectRetrievalBinding, type ProjectRetrievalBinding } from '../tools/projectRetrieval.js';
@@ -767,6 +770,21 @@ async function startTaskInternal(
   if (connectorLaunch && (process.env['ATOMA_TENANT_RUN'] !== '1' || !requestedRunId)) {
     throw new RunnerConfigError('MCP connectors require a tenant project run');
   }
+  // THE OTHER RUNS THIS ONE MAY READ (docs/decisions/read-runs-2026-10-17.md).
+  // The coordinator alone writes the index this variable names; it is read
+  // once, here, removed from the environment like the connectors' hand-off,
+  // and refused outside the tenant project run it was written for. Its scope
+  // is checked against the run's proven authority below.
+  const readRunsPath = process.env[READ_RUNS_ENV];
+  delete process.env[READ_RUNS_ENV];
+  if (readRunsPath && (process.env['ATOMA_TENANT_RUN'] !== '1' || !requestedRunId)) {
+    throw new RunnerConfigError('read runs require a tenant project run');
+  }
+  let decodedReadRuns: ReadRunsIndex | null = null;
+  try { if (readRunsPath) decodedReadRuns = readReadRunsIndex(readRunsPath); }
+  catch (error) { throw new RunnerConfigError((error as Error).message); }
+  const readRuns = decodedReadRuns;
+  if (readRuns && readRuns.runId !== requestedRunId) throw new RunnerConfigError('read runs were launched for another run');
   // Validate every fallible launch argument BEFORE mutating the workspace,
   // opening stores or starting the container/egress backend. The old order
   // archived a valid deliverable before discovering a missing seed, and
@@ -1014,6 +1032,9 @@ async function startTaskInternal(
   } else if (tenantRun) {
     connectorService = emptyConnectorService();
   }
+  if (readRuns && (runScope.orgId !== readRuns.orgId || runScope.projectId !== readRuns.projectId)) {
+    throw new RunnerConfigError('read runs were launched for another project');
+  }
   const recorder = new TraceRecorder(runsDir);
   const db = openDb(dbPath);
   const registry = new RecordingRegistry(db, recorder);
@@ -1106,6 +1127,21 @@ async function startTaskInternal(
     if (manifestLine) console.log(manifestLine);
   };
   seed();
+  // The read-run copies, after the seed (whose own copies `seedWorkspace`
+  // leaves out). A continuation's sealed workspace already holds them. Each
+  // copy's identity is kept as the host wrote it: root acceptance tells a
+  // copy changed and put back from one never touched (review 2026-10-17).
+  let readRunIdentities: ReadRunCopyIdentities | undefined;
+  const copyReadRuns = (): void => {
+    if (!readRuns) return;
+    const report = materialiseReadRuns(workspaceRoot, readRuns);
+    readRunIdentities = report.identities;
+    console.log(`read runs copied: ${report.files} files (${report.bytes} bytes) of ${report.runs} run(s), with their saved modes, into ${READ_RUNS_DIRECTORY}/`);
+  };
+  if (!savedCheckpoint) {
+    try { copyReadRuns(); }
+    catch (error) { throw new RunnerConfigError((error as Error).message); }
+  }
   const startingSnapshot = savedCheckpoint?.startingSnapshot ?? (seedRoot ? snapshotStartingWorkspace(seedRoot) : undefined);
   if (checkpointStore) {
     if (!savedCheckpoint || !checkpointAuthority) mkdirSync(workspaceRoot, { recursive: true });
@@ -1149,6 +1185,9 @@ async function startTaskInternal(
     } catch (error) { throw new RunnerConfigError((error as Error).message); }
     console.log(`checkpoint: ${data.id}; completed phases: ${data.completed.length}; prior consumption: ${JSON.stringify(data.consumed)}`);
   }
+  // A continuation's copies came back with its sealed workspace, as new
+  // files: their identities are taken now, before any tool exists.
+  if (readRuns && savedCheckpoint) readRunIdentities = captureReadRunCopies(workspaceRoot, readRuns);
   // Capture the starting repository before a backend or inherited probe can
   // run its code. The prompt remains the task; these bounded bytes are context.
   const routingRepository = args.baseline ? undefined : readRoutingRepository(workspaceRoot);
@@ -1296,8 +1335,10 @@ async function startTaskInternal(
           prepareWorkspace(workspaceRoot, true);
           // A seeded run restarts from its SEED, not from nothing: see
           // `seedWorkspace`. A failed copy throws and fails the run, with the
-          // first attempt still intact in its `.prevN` archive.
+          // first attempt still intact in its `.prevN` archive. So does a
+          // read run whose saved files no longer match their manifest.
           seed();
+          copyReadRuns();
           inheritedChecks?.reseeded();
           const replacement = await makeBackend();
           if (signal.aborted) {
@@ -1382,6 +1423,12 @@ async function startTaskInternal(
     ...(inheritedChecks ? { inheritedChecks } : {}),
     // The seed lineage's host-recorded HTTP probes, for root acceptance (standingHttpEvidence).
     ...(() => { const standing = decodeStandingHttpEvidence(process.env[STANDING_HTTP_EVIDENCE_ENV]); return standing.length > 0 ? { standingHttpEvidence: standing } : {}; })(),
+    // The read-run copies checked again, on the host path the tools write to,
+    // and the files the criteria name compared with the saved entries.
+    ...(readRuns ? {
+      readRunCopies: () => checkReadRunCopies(workspaceRoot, readRuns, readRunIdentities),
+      compareReadRunFiles: (paths: readonly string[]) => compareReadRunFiles(workspaceRoot, readRuns, paths),
+    } : {}),
     // Prefilter decisions replayed from the on-disk cache: the LLM call
     // that did NOT happen still deserves a card.
     recordCacheHit: (info) => recorder.recordCacheHit(info),
@@ -1422,7 +1469,7 @@ async function startTaskInternal(
     ...(savedCheckpoint?.root?.inputs ? { inputs: savedCheckpoint.root.inputs }
       : routingRepository ? { inputs: { startingRepository: routingRepository } } : {}),
   };
-  const withLanding = withPreviousRunInputs(builtTask, process.env, connectorLaunch);
+  const withLanding = withPreviousRunInputs(builtTask, process.env, connectorLaunch, readRuns);
   const task = args.depth ? {
     ...withLanding,
     proofFloor: DEPTH_CONTRACT.floor.map((item) => ({ ...item })),

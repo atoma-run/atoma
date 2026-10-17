@@ -937,7 +937,11 @@ export class ProjectService {
         summary: run.status === 'queued' ? `Run queued: ${eventLabel(run.goal, 120)}` : run.rerunOf
           ? `Comparison rerun started: ${eventLabel(run.goal, 100)}`
           : `Run started: ${eventLabel(run.goal, 120)}`,
-        ...(run.rerunOf ? { detail: { rerunOf: run.rerunOf } } : {}),
+        // Ids only, never text: which runs' saved files this one was given.
+        ...(run.rerunOf || run.readRunIds ? { detail: {
+          ...(run.rerunOf ? { rerunOf: run.rerunOf } : {}),
+          ...(run.readRunIds ? { readRunIds: run.readRunIds } : {}),
+        } } : {}),
       });
       const publication = this.store.getPublicationForRun(viewer.orgId, run.projectRunId);
       return this.present(run, publication);
@@ -1066,6 +1070,7 @@ export class ProjectService {
     const resumed = await this.startProjectRunFromInput(viewer, projectId, {
       goal: run.goal, depth: run.depth, idempotencyKey: `github-access:${projectRunId}`,
       ...(run.baseRunId ? { baseRunId: run.baseRunId } : {}),
+      ...(run.readRunIds ? { readRunIds: run.readRunIds } : {}),
       ...(acceptance ? { acceptanceChecklist: acceptance.items.map(({ behaviour, check }) => ({ behaviour, check })) } : {}),
     }) as { projectRunId: string };
     this.store.setGitHubAccess(viewer.orgId, projectRunId, { ...access, resumedRunId: resumed.projectRunId });

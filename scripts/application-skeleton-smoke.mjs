@@ -1,5 +1,5 @@
 /** Fresh application installs exercise the packaged worker-side generator. */
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
@@ -56,6 +56,15 @@ try {
     const cwd = sandbox.root;
     run(cwd, ['ci', '--include=dev', '--no-audit', '--no-fund']);
     run(cwd, ['run', 'check']);
+    // Read-only copies of other runs live under .atoma-runs (2026-10-17): the
+    // whole-tree lint, the typecheck and the tests must leave a broken one out.
+    const copy = join(cwd, '.atoma-runs', '00000000-0000-4000-8000-000000000000');
+    mkdirSync(join(copy, 'src'), { recursive: true });
+    mkdirSync(join(copy, 'tests'), { recursive: true });
+    writeFileSync(join(copy, 'src/old.ts'), 'export const broken: string = 42;\nPromise.resolve(1);\n');
+    writeFileSync(join(copy, 'tests/old.test.ts'), "import { expect, test } from 'vitest';\ntest('old', () => { expect(1).toBe(2); });\n");
+    run(cwd, ['run', 'check']);
+    rmSync(join(cwd, '.atoma-runs'), { recursive: true, force: true });
     run(cwd, ['run', 'build']);
     await serve(cwd, kind !== 'node');
     for (const file of ['src/message.ts', 'tests/message.test.ts']) {
@@ -72,6 +81,6 @@ try {
     writeFileSync(path, original.replace("toBe('Hello, Ada!')", "toBe('wrong')"));
     run(cwd, ['test'], false);
     writeFileSync(path, original);
-    console.log(`application skeleton ${kind}: install, check, build, built server, source/test type errors, floating promise and failing assertion verified`);
+    console.log(`application skeleton ${kind}: install, check, a broken .atoma-runs copy left out, build, built server, source/test type errors, floating promise and failing assertion verified`);
   }
 } finally { rmSync(root, { recursive: true, force: true }); }

@@ -37,10 +37,27 @@ import { transportOf, tryParseModelSelector } from '../contracts/modelSelector.j
 import { branchRecordCount, executorEvidence } from '../atoms/executorEvidence.js';
 import { baseExecutorOf } from '../core/attestation.js';
 import type { SkillLesson } from '../contracts/skillLearning.js';
+import { namesReadRunCopy, READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
 
 // Historical export home — the generation machinery lives in generations.ts
 // (stats/curriculum need the predicate without importing this whole engine).
 export { REFUSAL_GENERATION, refusalStampIsCurrent } from './generations.js';
+
+/**
+ * A recipe that names a read-run copy (`.atoma-runs/<run id>`,
+ * src/contracts/readRuns.ts) is never learned, revised or compiled: the
+ * catalogue is shared by every organisation, so the id would carry one
+ * organisation's run into all of them, and the path existed in one run only —
+ * a script trusted from its first match would fail on it, and a recipe
+ * applied by a model would keep injecting it (review 2026-10-17).
+ */
+export function recipeNamesReadRunCopy(recipe: {
+  readonly id?: string; readonly description?: string; readonly whenToUse?: string; readonly body?: string; readonly trigger?: string;
+}): boolean {
+  return [recipe.id, recipe.description, recipe.whenToUse, recipe.body, recipe.trigger]
+    .some((text) => typeof text === 'string' && namesReadRunCopy(text));
+}
+const READ_RUN_COPY_REFUSAL = `it names a read-run copy (${READ_RUNS_DIRECTORY}/<run id>), a path one run held`;
 
 /**
  * Why a script that RAN in a phase was not used there. The first three come
@@ -773,6 +790,11 @@ export class SkillLifecycle {
         );
         continue;
       }
+      // Free, before the twin guard and the trigger evaluation spend anything.
+      if (recipeNamesReadRunCopy(draft)) {
+        args.ctx.logger.warn(`[${this.host.name}] skill draft "${draft.id}" rejected: ${READ_RUN_COPY_REFUSAL}`);
+        continue;
+      }
       // THE TWIN GUARD (docs/decisions/jev-decisions-2026-09-28.md): the id guard above
       // sees an exact id only, and a semantic twin under a fresh name is the
       // failure this contract designs against. Jev compares the draft with the
@@ -822,6 +844,11 @@ export class SkillLifecycle {
           );
         }
         qualified = { ...draft, description: outcome.draft.description, whenToUse: outcome.draft.whenToUse };
+        // The revision reads the lesson's task, which may spell a copy's path.
+        if (recipeNamesReadRunCopy(qualified)) {
+          args.ctx.logger.warn(`[${this.host.name}] skill draft "${draft.id}" rejected after trigger evaluation: ${READ_RUN_COPY_REFUSAL}`);
+          continue;
+        }
       }
       this.skills.save(args.l1Name, {
         id: qualified.id,
@@ -971,6 +998,10 @@ export class SkillLifecycle {
       );
       return;
     }
+    if (recipeNamesReadRunCopy(draft)) {
+      args.ctx.logger.warn(`[${this.host.name}] event-skill draft "${draft.id}" rejected: ${READ_RUN_COPY_REFUSAL}`);
+      return;
+    }
     // The twin guard, as for task recipes, against this molecule's recovery
     // recipes: three twins under fresh names were measured on one molecule.
     const twinOf = await this.jevTwinOf(args.ctx, 'event', draft, () =>
@@ -1081,6 +1112,12 @@ export class SkillLifecycle {
     }));
     const text = (resp.text ?? '').trim();
     if (!text) return null;
+    // The diagnosis and the subtask come from this run and may spell a copy's
+    // path: no revision then, and the caller takes its registry-branch path.
+    if (recipeNamesReadRunCopy({ body: text })) {
+      args.ctx.logger.warn(`[${this.host.name}] skill ${args.skill.id} revision rejected: ${READ_RUN_COPY_REFUSAL}`);
+      return null;
+    }
     return text;
   }
 
@@ -1154,6 +1191,12 @@ export class SkillLifecycle {
       args.ctx.logger.debug(
         `[${this.host.name}] skill "${args.skillId}" promotion previously refused at ${skill.promotionRefusedAt}; skipping`
       );
+      return;
+    }
+    // Never compiled, at no cost: such a recipe was refused at learn time, so
+    // only one learned before that rule can name a copy.
+    if (recipeNamesReadRunCopy(skill)) {
+      args.ctx.logger.warn(`[${this.host.name}] skill "${args.skillId}" not compiled: ${READ_RUN_COPY_REFUSAL}`);
       return;
     }
     const userContent = buildCompileSkillPrompt({
@@ -1262,9 +1305,11 @@ export class SkillLifecycle {
     // rides the existing anti-thrash stamp: generation-scoped, so an
     // evolved compiler gets one fresh shot, and `skills reset` remains
     // the operator override after review.
-    const scanFlags = scanScriptBody(compiled.body, {
+    // The compile example (this run's subtask and summary) may spell a copy's
+    // path; a script naming one is refused like a flagged one.
+    const scanFlags = [...scanScriptBody(compiled.body, {
       allowLoopbackNetwork: hostAllowsLoopbackNetwork(args.hostTools ?? []),
-    });
+    }), ...(recipeNamesReadRunCopy({ body: compiled.body }) ? [READ_RUN_COPY_REFUSAL] : [])];
     if (scanFlags.length > 0) {
       const reason = `static scan flagged the compiled body: ${scanFlags.join(', ')}`;
       args.ctx.logger.warn(

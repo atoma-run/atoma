@@ -132,7 +132,10 @@ very directory EMPTY before copying from it.
   in [the Reading log incident](../../records/incidents/reading-log-preview-2026-10-12.md).
 - The node entry resolves in one order and stops at the first hit: the `entry`
   stamped on the newest http probe, then `package.json.main`, then `server.js`
-  → `index.js` → `app.js`. Each candidate must be a regular non-symlinked file
+  → `index.js` → `app.js`. A candidate under an `.atoma-*` directory is never
+  an entry (a read-run copy's server, which the preview copy leaves out): the
+  stamp before it is read instead, and the static exception below counts it
+  as a server this delivery does not hold (review 2026-10-17). Each candidate must be a regular non-symlinked file
   ending `.js`/`.mjs`/`.cjs`, because `node <entry>` is the ONLY start command
   for a web application preview — an entry node cannot execute is `not-runnable`,
   reported now, rather than a crash the member has to interpret later.
