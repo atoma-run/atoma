@@ -5,6 +5,8 @@ import { TASKS_EXTENSION } from '../src/mcp/taskWire.js';
 import { conversationReadResultSchema } from '../src/contracts/assistant.js';
 import type { LlmCompletionRequest, LlmCompletionResponse } from '../src/core/types.js';
 import { Conversations } from '../src/projects/conversations.js';
+import { Client as LegacyClient } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport as LegacyTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
@@ -358,6 +360,36 @@ it('refuses run overrides on a shared approval before any side effect', async ()
   } finally { await client.close(); }
 });
 
+
+it('serves a saved start carrying read runs to the browser and to validating MCP clients, and never approves it without them', async () => {
+  const f = await fixture();
+  const view = await (await f.post(f.message)).json() as AssistantView;
+  const conversationId = view.conversation.id!;
+  const readRunIds = [randomUUID(), randomUUID()].sort();
+  // As a writer saves it (docs/decisions/read-runs-2026-10-17.md): sorted, beside the goal and criteria.
+  f.db.prepare("UPDATE project_conversations SET body=json_set(body, '$.proposal.action.readRunIds', json(?)) WHERE id=?")
+    .run(JSON.stringify(readRunIds), conversationId);
+  const browser = await (await fetch(`${f.url}/api/assistant?conversationId=${conversationId}`, { headers: { cookie: 'session=test' } })).json() as AssistantView;
+  expect(browser.conversation.proposal?.action).toMatchObject({ kind: 'start_run', readRunIds });
+  // A 2025-era client that checks structured content against the outputSchema it listed.
+  const client = new LegacyClient({ name: 'validating-reader', version: '1' });
+  await client.connect(new LegacyTransport(new URL(`${f.url}/mcp`), { requestInit: { headers: { authorization: 'Bearer external-test' } } }));
+  try {
+    await client.listTools();
+    const read = await client.callTool({ name: 'atoma_conversation', arguments: { conversationId } });
+    expect(read.isError).not.toBe(true);
+    expect(conversationReadResultSchema.parse(read.structuredContent).conversation.proposal?.action).toMatchObject({ readRunIds });
+  } finally { await client.close(); }
+  const modern = conversationReadResultSchema.parse((await modernCall(f.url, 'atoma_conversation', { conversationId }))['structuredContent']);
+  expect(modern.conversation.proposal?.action).toMatchObject({ readRunIds });
+  // Confirmed without its read runs, it is refused before anything is claimed or started.
+  const refused = await f.post({ kind: 'confirm', version: view.conversation.version, projectId: null, conversationId,
+    proposalId: view.conversation.proposal!.id, requestId: randomUUID(), readRunIds });
+  expect(refused.status).toBe(409);
+  expect(f.start).not.toHaveBeenCalled();
+  const after = await (await fetch(`${f.url}/api/assistant?conversationId=${conversationId}`, { headers: { cookie: 'session=test' } })).json() as AssistantView;
+  expect(after.conversation).toMatchObject({ version: view.conversation.version, proposal: { state: 'pending' } });
+});
 
 it.each([
   ['api:anthropic:claude-haiku-4-5-20251001', 'org-key', 'anthropic-api'],

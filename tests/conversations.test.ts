@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import { afterEach, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import type { Viewer } from '../src/auth/store.js';
-import { assistantActionSchema, conversationReadResultSchema, type AssistantAction } from '../src/contracts/assistant.js';
+import { assistantActionSchema, assistantReplySchema, assistantRequestSchema, canonicalAction, conversationReadResultSchema,
+  type AssistantAction } from '../src/contracts/assistant.js';
 import { AssistantStore, emptyConversation, SHARED_WRITES_PER_DAY } from '../src/projects/conversationStore.js';
 import { Conversations } from '../src/projects/conversations.js';
 import type { ProjectService } from '../src/projects/service.js';
@@ -191,4 +193,59 @@ it('migrates legacy snapshots and costs atomically without losing their messages
   expect(store.page(scope).conversation).toMatchObject({ projectId, costUsd: 0.12, messages: [{ text: 'Legacy request', origin: 'legacy' }] });
   expect(new AssistantStore(db).page(scope)).toEqual(store.page(scope));
   expect(db.prepare("SELECT 1 FROM sqlite_master WHERE name='assistant_conversations'").get()).toBeUndefined();
+});
+
+it('reads back a saved start carrying read runs, and its receipt, before any writer emits one', async () => {
+  const f = fixture();
+  const [a, b] = [randomUUID(), randomUUID()].sort() as [string, string];
+  const saved = f.write({ proposal: start }).conversation;
+  // As a writer saves it (docs/decisions/read-runs-2026-10-17.md): sorted, beside the goal and criteria.
+  const body = JSON.parse((f.db.prepare('SELECT body FROM project_conversations WHERE id=?').get(saved.id) as { body: string }).body);
+  body.proposal.action.readRunIds = [a, b];
+  f.db.prepare('UPDATE project_conversations SET body=? WHERE id=?').run(JSON.stringify(body), saved.id);
+  const page = f.shared.read(f.viewer, { conversationId: saved.id });
+  expect(conversationReadResultSchema.parse(page).conversation.proposal?.action).toEqual({ ...start, readRunIds: [a, b] });
+  const scope = f.shared.scope(f.viewer, null, saved.id!);
+  f.db.prepare('INSERT INTO conversation_approvals VALUES (?, ?, ?, ?)').run(saved.id, randomUUID(), JSON.stringify({ ...start, readRunIds: [a] }), '{}');
+  const receipt = f.db.prepare('SELECT proposal_id FROM conversation_approvals').get() as { proposal_id: string };
+  expect(f.store.approval(scope, receipt.proposal_id)?.action).toEqual({ ...start, readRunIds: [a] });
+  // No writer emits them yet: the model's reply and a shared write both refuse the field.
+  expect(assistantReplySchema.safeParse({ message: 'Proposal', proposal: { ...start, readRunIds: [a] } }).success).toBe(false);
+  expect(() => f.write({ conversationId: saved.id, expectedVersion: saved.version, proposal: { ...start, readRunIds: [a] } })).toThrow();
+  // Restated without them, the start is refused before anything is claimed, and stays pending.
+  const execute = vi.fn(async () => ({ run: { projectId, runId: randomUUID() } }));
+  await expect(f.shared.approve(f.viewer, f.approval(saved), start, execute)).rejects.toThrow('exact saved');
+  expect(execute).not.toHaveBeenCalled();
+  expect(f.shared.read(f.viewer, { conversationId: saved.id }).conversation).toMatchObject({ version: saved.version, proposal: { state: 'pending' } });
+});
+
+it('approves a start without read runs restated with an explicit undefined, and replays its receipt', async () => {
+  const f = fixture(); const ref = f.approval();
+  const restated = { ...start, readRunIds: undefined };
+  // Zod keeps the explicit key, and isDeepStrictEqual tells it from an absent one: the canonical form drops it.
+  expect(Object.hasOwn(assistantActionSchema.parse(restated), 'readRunIds')).toBe(true);
+  const execute = vi.fn(async () => ({ run: { projectId, runId: randomUUID() } }));
+  const receipt = await f.shared.approve(f.viewer, ref, restated, execute);
+  expect(execute).toHaveBeenCalledOnce();
+  expect(await f.shared.approve(f.viewer, ref, start, execute)).toEqual(receipt);
+  expect(await f.shared.approve(f.viewer, ref, restated, execute)).toEqual(receipt);
+  expect(execute).toHaveBeenCalledOnce();
+});
+
+it('gives read runs one canonical form, outside the schemas that render as JSON Schema', () => {
+  const [a, b] = [randomUUID(), randomUUID()].sort() as [string, string];
+  expect(canonicalAction({ ...start, readRunIds: [b, a] })).toEqual({ ...start, readRunIds: [a, b] });
+  for (const none of [[], undefined]) expect(Object.hasOwn(canonicalAction({ ...start, readRunIds: none as string[] }), 'readRunIds')).toBe(false);
+  expect(canonicalAction(create)).toBe(create);
+  // The SDK renders an outputSchema in output mode, where a transform throws.
+  for (const io of ['input', 'output'] as const) {
+    expect(JSON.stringify(z.toJSONSchema(z.looseObject(conversationReadResultSchema.shape), { io }))).toContain('"readRunIds"');
+  }
+  // The confirmation may echo the read runs its card displayed: one to three distinct run ids.
+  const confirm = { kind: 'confirm', requestId: randomUUID(), version: 1, projectId, proposalId: randomUUID() };
+  expect(assistantRequestSchema.safeParse(confirm).success).toBe(true);
+  expect(assistantRequestSchema.safeParse({ ...confirm, readRunIds: [b, a] }).success).toBe(true);
+  for (const echo of [[], [a, a], ['not-a-run'], [a, b, randomUUID(), randomUUID()]]) {
+    expect(assistantRequestSchema.safeParse({ ...confirm, readRunIds: echo }).success).toBe(false);
+  }
 });

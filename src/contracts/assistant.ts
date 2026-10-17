@@ -2,25 +2,58 @@ import { z } from 'zod';
 import { accountSubscriptionStatusSchema } from './accountSubscriptions.js';
 import { createProjectInputSchema, projectGoalSchema, projectIdSchema, projectRunIdSchema } from './projects.js';
 import { MAX_CHECKLIST_ITEMS, parseChecklistLines } from './acceptanceChecklist.js';
+import { readRunIdsSchema, storedReadRunIdsSchema } from './readRuns.js';
 
-/** A proposal is data. Only a separate, version-bound client confirmation executes it. */
-export const assistantActionSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('create_project'), project: createProjectInputSchema }).strict(),
-  z.object({
-    kind: z.literal('start_run'), projectId: projectIdSchema, goal: projectGoalSchema,
-    acceptanceCriteria: z.array(z.string().trim().min(1).max(400)).max(MAX_CHECKLIST_ITEMS).default([])
-      .superRefine((lines, ctx) => {
-        for (const line of lines) {
-          const parsed = parseChecklistLines(line);
-          if (parsed.errors.length || parsed.items.length !== 1) ctx.addIssue({ code: 'custom', message: 'Invalid acceptance criterion' });
-        }
-      }),
-  }).strict(),
-]);
+const createProjectAction = z.object({ kind: z.literal('create_project'), project: createProjectInputSchema }).strict();
+const startRunFields = {
+  kind: z.literal('start_run'), projectId: projectIdSchema, goal: projectGoalSchema,
+  acceptanceCriteria: z.array(z.string().trim().min(1).max(400)).max(MAX_CHECKLIST_ITEMS).default([])
+    .superRefine((lines, ctx) => {
+      for (const line of lines) {
+        const parsed = parseChecklistLines(line);
+        if (parsed.errors.length || parsed.items.length !== 1) ctx.addIssue({ code: 'custom', message: 'Invalid acceptance criterion' });
+      }
+    }),
+};
+
+/**
+ * A proposal is data. Only a separate, version-bound client confirmation
+ * executes it. This is what a writer may propose: the assistant's reply and
+ * `atoma_conversation_update`.
+ */
+export const assistantProposalSchema = z.discriminatedUnion('kind', [createProjectAction, z.object(startRunFields).strict()]);
+/**
+ * What a saved proposal, an approval receipt and a restated action may hold:
+ * a proposal, and the read runs a start may carry
+ * (docs/decisions/read-runs-2026-10-17.md), read back by spelling
+ * (`storedReadRunIdsSchema`), so a later cap cannot make a saved
+ * conversation unreadable. Readers accepted them before any writer emitted
+ * them: conversation bodies and approval receipts are read back through these
+ * strict schemas, so a writer deployed first and then reverted would leave
+ * every conversation holding its proposal unreadable.
+ */
+export const assistantActionSchema = z.discriminatedUnion('kind', [createProjectAction,
+  z.object({ ...startRunFields, readRunIds: storedReadRunIdsSchema.optional() }).strict()]);
 export type AssistantAction = z.infer<typeof assistantActionSchema>;
+
+/**
+ * THE canonical form of an action: a start's read runs sorted, the key absent
+ * when there are none. Both sides of an approval's comparison take it. Never
+ * a schema transform: the SDK renders `atoma_conversation`'s outputSchema in
+ * output mode, where `z.toJSONSchema` throws on one. Zod keeps an explicit
+ * `readRunIds: undefined`, which `isDeepStrictEqual` tells from an absent
+ * key, so without it a start without read runs restated that way would never
+ * approve.
+ */
+export function canonicalAction(action: AssistantAction): AssistantAction {
+  if (action.kind !== 'start_run') return action;
+  const { readRunIds, ...start } = action;
+  return readRunIds?.length ? { ...start, readRunIds: [...readRunIds].sort() } : start;
+}
+
 export const assistantReplySchema = z.object({
   message: z.string().trim().min(1).max(6000),
-  proposal: assistantActionSchema.nullable(),
+  proposal: assistantProposalSchema.nullable(),
 }).strict();
 
 export const assistantPayerSchema = z.enum(['principal-subscription', 'org-key', 'host-key']);
@@ -36,7 +69,9 @@ export const assistantRequestSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('message'), requestId: z.string().uuid(), version: z.number().int().nonnegative(),
     projectId: assistantScopeSchema, conversationId: z.string().uuid().optional(), modelChoice: z.string().min(1).max(512).optional(), text: z.string().trim().min(1).max(4000) }).strict(),
   z.object({ kind: z.literal('confirm'), requestId: z.string().uuid(), version: z.number().int().nonnegative(),
-    projectId: assistantScopeSchema, conversationId: z.string().uuid().optional(), proposalId: z.string().uuid() }).strict(),
+    projectId: assistantScopeSchema, conversationId: z.string().uuid().optional(), proposalId: z.string().uuid(),
+    /** The read runs the confirmation card displayed, echoed back; absent when it displayed none. */
+    readRunIds: readRunIdsSchema.optional() }).strict(),
 ]);
 export type AssistantRequest = z.infer<typeof assistantRequestSchema>;
 export const assistantRunSchema = z.object({ projectId: projectIdSchema, runId: projectRunIdSchema });
@@ -78,7 +113,7 @@ export const conversationWriteSchema = z.object({
   requestId: z.string().uuid(), expectedVersion: z.number().int().nonnegative(),
   clientLabel: z.string().trim().min(1).max(80).optional(),
   messages: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().trim().min(1).max(6000) }).strict()).max(8).default([]),
-  proposal: assistantActionSchema.nullable().optional(),
+  proposal: assistantProposalSchema.nullable().optional(),
 }).strict();
 export type ConversationWrite = z.infer<typeof conversationWriteSchema>;
 export const conversationApprovalSchema = z.object({

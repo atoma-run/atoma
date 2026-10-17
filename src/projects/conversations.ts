@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { Viewer } from '../auth/store.js';
-import { assistantActionSchema, conversationApprovalSchema, conversationReadSchema, conversationWriteSchema,
+import { assistantActionSchema, canonicalAction, conversationApprovalSchema, conversationReadSchema, conversationWriteSchema,
   type AssistantAction, type ConversationApproval, type ConversationReceipt } from '../contracts/assistant.js';
 import { AssistantConflict, AssistantStore, type AssistantScope } from './conversationStore.js';
 import type { ProjectService } from './service.js';
@@ -61,18 +61,18 @@ export class Conversations {
   async approve(viewer: Viewer, raw: ConversationApproval, rawAction: AssistantAction,
     execute: (idempotencyKey: string) => Promise<ConversationReceipt>): Promise<ConversationReceipt> {
     const input = conversationApprovalSchema.parse(raw);
-    const action = assistantActionSchema.parse(rawAction);
+    const action = canonicalAction(assistantActionSchema.parse(rawAction));
     const scope = this.scope(viewer, null, input.conversationId);
     const previous = this.store.approval(scope, input.proposalId);
     if (previous) {
-      if (!isDeepStrictEqual(previous.action, action)) throw new AssistantConflict('The confirmed proposal has different content.');
+      if (!isDeepStrictEqual(canonicalAction(previous.action), action)) throw new AssistantConflict('The confirmed proposal has different content.');
       return previous.receipt;
     }
     const current = this.store.read(scope).conversation;
     if (!current.proposal || current.proposal.id !== input.proposalId || current.proposal.state !== 'pending') {
       throw new AssistantConflict('This proposal is no longer pending. Refresh the conversation.');
     }
-    if (!isDeepStrictEqual(current.proposal.action, action)) throw new AssistantConflict('Confirm the exact saved proposal.');
+    if (!isDeepStrictEqual(canonicalAction(current.proposal.action), action)) throw new AssistantConflict('Confirm the exact saved proposal.');
     this.validateProposal(viewer, current.projectId, action);
     if (action.kind === 'start_run' && !current.projectId) {
       const target = this.store.read({ ...scope, conversationId: undefined, projectId: action.projectId }).conversation;
