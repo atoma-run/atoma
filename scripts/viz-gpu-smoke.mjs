@@ -2258,9 +2258,12 @@ try {
       const accountSwitchRequests = [];
       const githubContinueRequests = [];
       const checkpointRequests = [];
+      const assistantPosts = [];
       const updateShell = await (await fetch(`http://127.0.0.1:${port}/`)).text();
       accountPage.on('request', (request) => {
         const path = new URL(request.url()).pathname;
+        // Recorded, then answered by the stub below like any other read.
+        if (path === '/api/assistant' && request.method() === 'POST') assistantPosts.push(JSON.parse(request.postData() ?? 'null'));
         if (path === `${terminalPreviewPath}/open`) {
           terminalOpenMode = JSON.parse(request.postData()).mode;
           stubs[terminalPreviewPath] = { ...stubs[terminalPreviewPath], availability: 'available', reason: null,
@@ -2676,6 +2679,61 @@ try {
       await reopenProjectByDeepLink('Project missing after delivery review');
       await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
       console.log('Assistant delivery ok: completion and explicit GitHub review survive project re-entry');
+      // A proposal that reads earlier runs lists them on its card, inside the
+      // guide's frame, and Approve echoes back exactly the list it displayed.
+      const readRunIds = ['eeeeeeee-1111-4222-8333-ffffffffffff', 'ffffffff-1111-4222-8333-000000000000'];
+      const projectRunsPath = `/api/projects/${projectId}/runs`;
+      stubs[projectRunsPath][1].title = 'Deliver the smoke app';
+      stubs['/api/assistant'] = { ...originalAssistant,
+        conversation: { ...originalAssistant.conversation, id: '7019a7f7-680f-4725-9a9b-5edca21730ec', projectId, version: 7,
+          messages: [{ role: 'assistant', text: 'Restore README.md from the delivered run.', at: '2026-10-17T10:00:00.000Z' }],
+          proposal: { id: '6019a7f7-680f-4725-9a9b-5edca21730eb', state: 'pending', projectName: 'Wide Glyph Project',
+            action: { kind: 'start_run', projectId, goal: 'Restore README.md to the bytes of the delivered run.',
+              acceptanceCriteria: ['README.md matches the delivered run byte for byte'], readRunIds } } },
+      };
+      await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
+      await reopenProjectByDeepLink('Read-runs proposal missing after reload');
+      await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-assistant-read-runs li')?.textContent?.includes('Deliver the smoke app'),
+        { timeout: READY_TIMEOUT_MS }).catch(async error => {
+        await accountPage.screenshot({ path: '/tmp/atoma-assistant-read-runs-failure.png' });
+        throw new Error(await accountPage.evaluate(() => document.body.innerText.slice(-4000)), { cause: error });
+      });
+      const readRunsCard = await accountPage.evaluate(() => {
+        const card = document.querySelector('.gpu-assistant-proposal');
+        const log = card.closest('.gpu-assistant-log');
+        const guide = card.closest('.gpu-project-mcp');
+        log.scrollTop = log.scrollHeight;
+        const button = [...card.querySelectorAll('button')].find(node => node.textContent === 'Approve and start run');
+        const [logBox, guideBox, buttonBox] = [log, guide, button].map(node => node.getBoundingClientRect());
+        return { items: [...card.querySelectorAll('.gpu-assistant-read-runs li')].map(item => item.textContent),
+          fits: card.scrollWidth <= card.clientWidth && log.scrollWidth <= log.clientWidth,
+          // The guide's measured height holds the log, and the log scrolls the whole card, Approve included, into view.
+          inGuide: logBox.top >= guideBox.top - 1 && logBox.bottom <= guideBox.bottom + 1,
+          reachable: buttonBox.top >= logBox.top - 1 && buttonBox.bottom <= logBox.bottom + 1 };
+      });
+      if (readRunsCard.items.length !== 2 || !/^Deliver the smoke app · eeeeeeee · delivered · /.test(readRunsCard.items[0])
+        || readRunsCard.items[1] !== 'ffffffff') throw new Error(`Read-runs card lists ${JSON.stringify(readRunsCard.items)}`);
+      if (!readRunsCard.fits || !readRunsCard.inGuide || !readRunsCard.reachable) {
+        await accountPage.screenshot({ path: '/tmp/atoma-assistant-read-runs-failure.png' });
+        throw new Error(`Read-runs card layout: ${JSON.stringify(readRunsCard)}`);
+      }
+      await accountPage.screenshot({ path: '/tmp/atoma-assistant-read-runs.png' });
+      assistantPosts.length = 0;
+      await accountPage.evaluate(() => [...document.querySelectorAll('.gpu-assistant-proposal button')]
+        .find(button => button.textContent === 'Approve and start run').click());
+      const deadline = Date.now() + READY_TIMEOUT_MS;
+      while (!assistantPosts.length && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+      const confirmation = assistantPosts[0];
+      if (confirmation?.kind !== 'confirm' || JSON.stringify(confirmation.readRunIds) !== JSON.stringify(readRunIds)) {
+        throw new Error(`Approve did not echo the displayed read runs: ${JSON.stringify(assistantPosts)}`);
+      }
+      delete stubs[projectRunsPath][1].title;
+      stubs['/api/assistant'] = originalAssistant;
+      await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
+      await reopenProjectByDeepLink('Project missing after the read-runs proposal');
+      await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+      console.log('Assistant read runs ok: the card lists titled and unknown runs inside the guide, and Approve echoes them');
       await clickAccountTarget('project.section.runs');
       await assertProjectRepository('Runs');
       await clickAccountTarget('project.section.preview');

@@ -151,6 +151,49 @@ it('confirms the displayed proposal id and version without allowing browser-auth
   expect(request).toHaveBeenCalledTimes(1);
 });
 
+it('lists a proposal\'s read runs from the cached run list, an unknown one by its id, and echoes them on Approve', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-17T12:00:00.000Z'));
+  const known = 'b4c281b5-6022-4ccd-a1eb-d69c5c0165ce', unknown = 'f0e1d2c3-6022-4ccd-a1eb-d69c5c0165ce';
+  const runs = vi.spyOn(api, 'projectRuns').mockResolvedValue([{ projectRunId: known, projectId, goal: 'Restore the collector',
+    title: 'Release stuck resume lock', status: 'delivered', traceId: 'trace-1', costUsd: 0.19, durationS: 576, error: null,
+    createdAt: '2026-10-17T10:40:31.129Z', endedAt: '2026-10-17T10:50:09.924Z', publication: null }]);
+  const data = view();
+  data.conversation.version = 3;
+  data.conversation.proposal = { id: proposalId, state: 'pending', action: { kind: 'start_run', projectId,
+    goal: 'Restore browser/collect.js to its earlier bytes', acceptanceCriteria: [], readRunIds: [known, unknown] } };
+  const request = vi.spyOn(api, 'assistantRequest').mockResolvedValue({ ...data, conversation: { ...data.conversation, proposal: null, version: 4 } });
+  panel(data);
+  const card = await screen.findByRole('article', { name: 'For your approval' });
+  expect(within(card).getByText('Reads the saved files of these 2 earlier runs')).toBeVisible();
+  expect(within(card).getByText('The run gets copies to read, restore from or compare with; they are never delivered or published.')).toBeVisible();
+  const [first, second] = within(card).getAllByRole('listitem');
+  await waitFor(() => expect(first).toHaveTextContent('Release stuck resume lock · b4c281b5 · delivered · an hour ago'));
+  expect(within(first!).getByText('an hour ago')).toHaveAttribute('dateTime', '2026-10-17T10:50:09.924Z');
+  expect(second).toHaveTextContent(/^f0e1d2c3$/);
+  expect(runs).toHaveBeenCalledWith(projectId);
+  await userEvent.click(screen.getByRole('button', { name: 'Approve and start run' }));
+  expect(request).toHaveBeenCalledWith({ kind: 'confirm', version: 3, projectId: null, proposalId, requestId: expect.any(String),
+    readRunIds: [known, unknown] });
+});
+
+it('names one read run in the singular and reads no run list for a proposal without any', async () => {
+  const runs = vi.spyOn(api, 'projectRuns').mockResolvedValue([]);
+  const data = view();
+  data.conversation.proposal = { id: proposalId, state: 'pending', action: { kind: 'start_run', projectId,
+    goal: 'Compare the report with its earlier version', acceptanceCriteria: [], readRunIds: ['b4c281b5-6022-4ccd-a1eb-d69c5c0165ce'] } };
+  const first = panel(data);
+  expect(await screen.findByText('Reads the saved files of this earlier run')).toBeVisible();
+  first.unmount();
+  runs.mockClear();
+  const plain = view();
+  plain.conversation.proposal = { id: proposalId, state: 'pending', action: { kind: 'start_run', projectId, goal: 'Add stock alerts', acceptanceCriteria: [] } };
+  panel(plain);
+  expect(await screen.findByRole('button', { name: 'Approve and start run' })).toBeVisible();
+  expect(screen.queryByText(/saved files of/)).not.toBeInTheDocument();
+  expect(runs).not.toHaveBeenCalled();
+});
+
 it('formats assistant Markdown while preserving the recorded prose and literal user messages', async () => {
   const data = view();
   const text = ['## Proposed goal', '', '**Stock alerts** with `node --test` and *no dependencies*.', '',

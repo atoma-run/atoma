@@ -17,6 +17,7 @@ import { afterEach, expect, it, vi, type Mock } from 'vitest';
 import { AssistantGrants } from '../src/auth/assistantGrants.js';
 import type { AuthStore, Viewer } from '../src/auth/store.js';
 import type { AssistantRequest, AssistantView } from '../src/contracts/assistant.js';
+import { READ_RUNS_ENV } from '../src/contracts/readRuns.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { GitHubStore } from '../src/github/store.js';
 import { McpHttpHost } from '../src/mcp/http.js';
@@ -29,6 +30,7 @@ import { AssistantService } from '../src/viz/assistant.js';
 import { assistantHttp } from '../src/viz/assistantHttp.js';
 import { connectAssistantMcp } from '../src/viz/assistantMcp.js';
 import { AssistantStore } from '../src/viz/assistantStore.js';
+import { readReadRunsIndex } from '../src/run/readRuns.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 import { ANTHROPIC_PINS } from './tier-pins.js';
@@ -361,7 +363,7 @@ it('refuses run overrides on a shared approval before any side effect', async ()
 });
 
 
-it('serves a saved start carrying read runs to the browser and to validating MCP clients, and never approves it without them', async () => {
+it('serves a saved start carrying read runs to the browser and to validating MCP clients, and never approves it unseen', async () => {
   const f = await fixture();
   const view = await (await f.post(f.message)).json() as AssistantView;
   const conversationId = view.conversation.id!;
@@ -382,10 +384,11 @@ it('serves a saved start carrying read runs to the browser and to validating MCP
   } finally { await client.close(); }
   const modern = conversationReadResultSchema.parse((await modernCall(f.url, 'atoma_conversation', { conversationId }))['structuredContent']);
   expect(modern.conversation.proposal?.action).toMatchObject({ readRunIds });
-  // Confirmed without its read runs, it is refused before anything is claimed or started.
+  // A tab still running a client that never displayed read runs confirms without echoing them: refused before anything starts.
   const refused = await f.post({ kind: 'confirm', version: view.conversation.version, projectId: null, conversationId,
-    proposalId: view.conversation.proposal!.id, requestId: randomUUID(), readRunIds });
+    proposalId: view.conversation.proposal!.id, requestId: randomUUID() });
   expect(refused.status).toBe(409);
+  expect(await refused.json()).toMatchObject({ error: 'Reload Atoma and review this proposal before approving it.' });
   expect(f.start).not.toHaveBeenCalled();
   const after = await (await fetch(`${f.url}/api/assistant?conversationId=${conversationId}`, { headers: { cookie: 'session=test' } })).json() as AssistantView;
   expect(after.conversation).toMatchObject({ version: view.conversation.version, proposal: { state: 'pending' } });
@@ -448,4 +451,69 @@ it('shows the model the newest run\'s acceptance, publication and progress besid
       artifactManifest: { files: unknown[] } };
     expect(status.artifactManifest.files).toHaveLength(170);
   } finally { await external.close(); }
+});
+
+/** The model's reply: a start reading these runs. */
+function readRunsReply(projectId: string, readRunIds: string[]): LlmCompletionResponse {
+  return { text: JSON.stringify({ message: 'Restore it from the older run.', proposal: { kind: 'start_run', projectId,
+    goal: 'Restore browser/collect.js to the bytes of the older run.', acceptanceCriteria: [], readRunIds } }),
+  stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 100 } };
+}
+
+it('shows the model the runs readiness offers to read, and saves a proposal naming only those', async () => {
+  const f = await storeFixture();
+  const older = f.makeRun({ 'browser/collect.js': 'the older bytes' }).run;
+  const newer = f.makeRun({ 'browser/collect.js': 'the newer bytes' }).run;
+  const expired = f.makeRun({ 'browser/collect.js': 'expired bytes' }).run;
+  const db = new Database(f.dbPath);
+  try {
+    [older, newer, expired].forEach((run, i) => db.prepare('UPDATE project_runs SET created_at = ? WHERE project_run_id = ?')
+      .run(new Date(Date.parse('2026-10-01T00:00:00Z') + i * 1000).toISOString(), run.projectRunId));
+    db.prepare('UPDATE project_runs SET bytes_expired_at = ? WHERE project_run_id = ?').run(new Date().toISOString(), expired.projectRunId);
+  } finally { db.close(); }
+  f.complete.mockResolvedValueOnce(readRunsReply(f.project.projectId, [expired.projectRunId]));
+  const refused = await f.post(f.message('Restore collect.js from the run before the last one'));
+  expect(refused.status).toBe(409);
+  expect(await refused.json()).toMatchObject({ error: expect.stringContaining('cannot read') });
+  // What the model was shown: the runs it may name, newest first, and when to name them.
+  const shown = JSON.parse(f.context().replace(/^Recorded Atoma context:\n/, '')) as {
+    readiness: { selectableRuns: Array<{ runId: string; files: number }> } };
+  expect(shown.readiness.selectableRuns.map(run => run.runId)).toEqual([newer.projectRunId, older.projectRunId]);
+  expect(shown.readiness.selectableRuns[0]).toMatchObject({ files: 1 });
+  expect(f.complete.mock.calls[0]![0]!.systemPrompt).toContain('Only when the person asks to restore, reuse or compare files');
+  const read = async () => (await (await fetch(`${f.url}/api/assistant?projectId=${f.project.projectId}`, { headers: { cookie: 'session=test' } })).json() as AssistantView).conversation;
+  const afterRefusal = await read();
+  expect(afterRefusal.proposal).toBeNull();
+  f.complete.mockResolvedValueOnce(readRunsReply(f.project.projectId, [newer.projectRunId, older.projectRunId]));
+  const saved = await f.post({ ...f.message('Restore it from those two runs instead', afterRefusal.version), conversationId: afterRefusal.id! });
+  expect(saved.status, await saved.clone().text()).toBe(200);
+  expect((await read()).proposal).toMatchObject({ state: 'pending',
+    action: { readRunIds: [older.projectRunId, newer.projectRunId].sort() } });
+});
+
+it('starts the run with the read runs its card echoed, after refusing a missing or different echo', async () => {
+  const f = await storeFixture();
+  const older = f.makeRun({ 'browser/collect.js': 'the older bytes' }).run;
+  const newer = f.makeRun({ 'browser/collect.js': 'the newer bytes' }).run;
+  const sorted = [older.projectRunId, newer.projectRunId].sort();
+  f.complete.mockResolvedValueOnce(readRunsReply(f.project.projectId, sorted));
+  const view = await (await f.post(f.message('Restore collect.js from both runs'))).json() as AssistantView;
+  const proposal = view.conversation.proposal!;
+  const confirm = (readRunIds?: string[]) => f.post({ kind: 'confirm', version: view.conversation.version, projectId: f.project.projectId,
+    conversationId: view.conversation.id!, proposalId: proposal.id, requestId: randomUUID(), ...(readRunIds ? { readRunIds } : {}) });
+  const runs = () => f.projects.listProjectRuns(f.viewer.orgId, f.project.projectId)!.length;
+  for (const echo of [undefined, [older.projectRunId]]) {
+    const refused = await confirm(echo);
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ error: 'Reload Atoma and review this proposal before approving it.' });
+  }
+  expect(runs()).toBe(2);
+  const started = await confirm([...sorted].reverse());
+  expect(started.status, await started.clone().text()).toBe(200);
+  const run = (await started.json() as AssistantView).conversation.lastRun!;
+  expect(f.projects.getProjectRun(f.viewer.orgId, run.runId)!.readRunIds).toEqual(sorted);
+  await f.coordinator.waitForIdle();
+  expect(f.driver).toHaveBeenCalledOnce();
+  expect(readReadRunsIndex(f.driver.mock.calls[0]![0].env![READ_RUNS_ENV]!).readRuns.map(entry => entry.runId)).toEqual(sorted);
+  expect(runs()).toBe(3);
 });

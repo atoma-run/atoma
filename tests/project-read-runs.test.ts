@@ -10,6 +10,7 @@ import { Client as LegacyClient } from '@modelcontextprotocol/sdk/client/index.j
 import { StreamableHTTPClientTransport as LegacyTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseRunLog } from '../src/cli/burnin.js';
+import { conversationReadResultSchema } from '../src/contracts/assistant.js';
 import { READ_RUNS_ENV, MAX_READ_RUN_BYTES, MAX_READ_RUN_FILES } from '../src/contracts/readRuns.js';
 import { formatRunStatsEpilogue } from '../src/contracts/runStats.js';
 import type { PlatformEventInput } from '../src/contracts/platformEvents.js';
@@ -185,19 +186,6 @@ describe('a run that reads other runs, through the MCP', () => {
     expect(launch.manifest.documents.map(document => document.path)).toEqual(['docs/guide.md']);
   });
 
-  it.each([false, true])('refuses read runs beside a shared approval before any side effect (legacy=%s)', async legacy => {
-    const f = await fixture(legacy);
-    const older = f.makeRun({ 'a.txt': 'a' }).run;
-    const before = runCount(f);
-    const result = await f.call('atoma_run_start', { projectId: f.project.projectId, goal: 'Restore a.txt',
-      readRunIds: [older.projectRunId], conversationApproval: { conversationId: randomUUID(), proposalId: randomUUID(),
-        requestId: randomUUID(), version: 0, confirmation: 'Approved.' } });
-    expect(result.isError).toBe(true);
-    expect(f.text(result)).toContain('without run overrides');
-    expect(f.driver).not.toHaveBeenCalled();
-    expect(runCount(f)).toBe(before);
-  });
-
   it('refuses a foreign, other-project, comparison, expired, oversized, too-many-files or changed read run before reserving anything', async () => {
     const f = await fixture();
     const kept = f.makeRun({ 'a.txt': 'saved' }).run;
@@ -250,6 +238,167 @@ describe('a run that reads other runs, through the MCP', () => {
       models: OVERRIDES, readRunIds: [kept.projectRunId] })).isError).toBe(true);
     expect(f.driver).not.toHaveBeenCalled();
     expect(runCount(f)).toBe(before);
+  });
+});
+
+/** The runs a test makes, one second apart, so "newest first" is an order, not a tie. */
+function dated(f: Fixture, runs: ReadonlyArray<{ projectRunId: string }>, from = Date.parse('2026-10-01T00:00:00Z')) {
+  const db = new Database(f.dbPath);
+  try {
+    runs.forEach((run, i) => db.prepare('UPDATE project_runs SET created_at = ? WHERE project_run_id = ?')
+      .run(new Date(from + i * 1000).toISOString(), run.projectRunId));
+  } finally { db.close(); }
+}
+
+/** A comparison rerun of `origin`, delivered: never a run another one reads. */
+function comparisonRerun(f: Fixture, origin: { projectRunId: string; goal: string; hostPaths: { workspacePath: string; runsPath: string; logPath: string }; artifactManifest: unknown }) {
+  const rerunId = randomUUID();
+  f.projects.createProjectRun({ orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId,
+    projectRunId: rerunId, request: { rerunOf: origin.projectRunId, idempotencyKey: rerunId, models: OVERRIDES },
+    origin: { goal: origin.goal, acceptance: null }, hostPaths: origin.hostPaths });
+  f.projects.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: rerunId, from: 'queued', to: 'running' });
+  f.projects.completeProjectRun({ orgId: f.viewer.orgId, projectRunId: rerunId, traceId: rerunId,
+    stats: parseRunLog('✓ build finished'), manifest: origin.artifactManifest as never });
+  return rerunId;
+}
+
+describe('read runs proposed in a shared conversation, through the MCP', () => {
+  const goal = 'Restore browser/collect.js to the bytes of the older run.';
+  const conversationOf = (result: unknown) => conversationReadResultSchema.parse((result as { structuredContent?: unknown }).structuredContent).conversation;
+  /** A proposal shared with atoma_conversation_update, as an external agent shares one. */
+  const propose = (f: Fixture, readRunIds: string[]) => f.call('atoma_conversation_update', { projectId: f.project.projectId,
+    expectedVersion: 0, requestId: randomUUID(), proposal: { kind: 'start_run', projectId: f.project.projectId, goal, acceptanceCriteria: [], readRunIds } });
+  const approve = (f: Fixture, shared: ReturnType<typeof conversationOf>, readRunIds?: string[]) => f.call('atoma_run_start', {
+    projectId: f.project.projectId, goal, ...(readRunIds ? { readRunIds } : {}),
+    conversationApproval: { conversationId: shared.id, proposalId: shared.proposal!.id, requestId: randomUUID(),
+      version: shared.version, confirmation: 'Approved: restore it from those runs.' } });
+
+  it.each([false, true])('starts the saved read runs restated in any order, refusing an omitted, added or different list first (legacy=%s)', async legacy => {
+    const f = await fixture(legacy);
+    const older = f.makeRun({ 'browser/collect.js': 'the bytes of run 50019ee0' }).run;
+    const seed = f.makeRun({ 'browser/collect.js': 'the bytes of the seed' }).run;
+    const other = f.makeRun({ 'browser/collect.js': 'a third version' }).run;
+    const sorted = [older.projectRunId, seed.projectRunId].sort();
+    const saved = await propose(f, [...sorted].reverse());
+    expect(saved.isError, f.text(saved)).not.toBe(true);
+    const shared = conversationOf(saved);
+    expect(shared.proposal?.action).toEqual({ kind: 'start_run', projectId: f.project.projectId, goal, acceptanceCriteria: [], readRunIds: sorted });
+    expect(conversationOf(await f.call('atoma_conversation', { projectId: f.project.projectId })).proposal).toEqual(shared.proposal);
+    // Every other list is refused before anything is claimed or reserved.
+    const before = runCount(f);
+    for (const readRunIds of [undefined, [...sorted, other.projectRunId], [older.projectRunId, other.projectRunId]]) {
+      const refused = await approve(f, shared, readRunIds);
+      expect(refused.isError, JSON.stringify(readRunIds)).toBe(true);
+      expect(f.text(refused)).toContain('restate its readRunIds unchanged');
+    }
+    expect(runCount(f)).toBe(before);
+    expect(f.driver).not.toHaveBeenCalled();
+    expect(conversationOf(await f.call('atoma_conversation', { projectId: f.project.projectId })))
+      .toMatchObject({ version: shared.version, proposal: { state: 'pending' } });
+    // In another order it is the same list: one run, which reads both.
+    const seen: Array<Parameters<ProjectRunDriver>[0]> = [];
+    completes(f, seen);
+    const started = await approve(f, shared, [...sorted].reverse());
+    expect(started.isError, f.text(started)).not.toBe(true);
+    expect(started.structuredContent).toMatchObject({ status: 'delivered', readRunIds: sorted });
+    expect(seen).toHaveLength(1);
+    const env = seen[0]!.env!;
+    expect(readReadRunsIndex(env[READ_RUNS_ENV]!).readRuns.map(entry => entry.runId)).toEqual(sorted);
+    expect(f.projects.getProjectRun(f.viewer.orgId, env['ATOMA_RUN_ID']!)!.readRunIds).toEqual(sorted);
+    expect(f.journal.find(event => event.kind === 'run.started')?.detail).toEqual({ readRunIds: sorted });
+    expect(conversationOf(await f.call('atoma_conversation', { projectId: f.project.projectId })))
+      .toMatchObject({ lastRun: { runId: env['ATOMA_RUN_ID'] }, proposal: { state: 'done' } });
+    expect(runCount(f)).toBe(before + 1);
+  });
+
+  it.each([false, true])('saves no proposal reading a live, failed, comparison, expired, other-project, foreign, oversized or too-many-files run (legacy=%s)', async legacy => {
+    const f = await fixture(legacy);
+    const kept = f.makeRun({ 'a.txt': 'saved' }).run;
+    const live = f.makeRun().run;
+    const failed = f.makeRun().run;
+    const rerunId = comparisonRerun(f, kept);
+    const expired = f.makeRun({ 'a.txt': 'expired' }).run;
+    const otherProject = projectRetrievalFixture(f.root, { slug: 'same-org-other' }).makeRun({ 'a.txt': 'y' }).run;
+    const foreign = projectRetrievalFixture(f.root, { subject: 'foreign-reader', slug: 'foreign-reader' }).makeRun({ 'a.txt': 'x' }).run;
+    const oversized = f.makeRun({ 'a.txt': 'small on disk' }).run;
+    const crowded = f.makeRun({ 'a.txt': 'small on disk' }).run;
+    const db = new Database(f.dbPath);
+    try {
+      db.prepare("UPDATE project_runs SET status = 'failed' WHERE project_run_id = ?").run(failed.projectRunId);
+      db.prepare('UPDATE project_runs SET bytes_expired_at = ? WHERE project_run_id = ?').run(new Date().toISOString(), expired.projectRunId);
+      const files = Array.from({ length: 7 }, (_, i) => ({ path: `big-${i}.bin`, size: 10 * 1024 * 1024, sha256: 'a'.repeat(64), mode: '100644' }));
+      db.prepare('UPDATE project_runs SET artifact_manifest_json = ?, artifact_manifest_hash = ? WHERE project_run_id = ?')
+        .run(JSON.stringify({ version: 1, files, totalBytes: 70 * 1024 * 1024 }), 'b'.repeat(64), oversized.projectRunId);
+      const many = Array.from({ length: MAX_READ_RUN_FILES }, (_, i) => ({ path: `f${String(i).padStart(6, '0')}.txt`, size: 1, sha256: 'c'.repeat(64), mode: '100644' }));
+      db.prepare('UPDATE project_runs SET artifact_manifest_json = ?, artifact_manifest_hash = ? WHERE project_run_id = ?')
+        .run(JSON.stringify({ version: 1, source: 'workspace', files: many, totalBytes: many.length }), 'd'.repeat(64), crowded.projectRunId);
+    } finally { db.close(); }
+    for (const [readRun, why] of [[live.projectRunId, 'retained delivered or partial run'], [failed.projectRunId, 'retained delivered or partial run'],
+      [rerunId, 'not a comparison rerun'],
+      [expired.projectRunId, 'retained delivered or partial run'], [otherProject.projectRunId, 'retained delivered or partial run'],
+      [foreign.projectRunId, 'retained delivered or partial run'], [oversized.projectRunId, 'saved bytes together'],
+      [crowded.projectRunId, `${MAX_READ_RUN_FILES + 1} saved files together`]] as const) {
+      const refused = await propose(f, [kept.projectRunId, readRun]);
+      expect(refused.isError, readRun).toBe(true);
+      expect(f.text(refused)).toContain('409');
+      expect(f.text(refused)).toContain(why);
+    }
+    expect(conversationOf(await f.call('atoma_conversation', { projectId: f.project.projectId }))).toMatchObject({ id: null, version: 0, proposal: null });
+  });
+
+  it.each([false, true])('refuses a read run that expired or a cap crossed since the proposal before its claim, leaving it pending (legacy=%s)', async legacy => {
+    const f = await fixture(legacy);
+    const read = f.makeRun({ 'a.txt': 'saved' }).run;
+    const shared = conversationOf(await propose(f, [read.projectRunId]));
+    const before = runCount(f);
+    const db = new Database(f.dbPath);
+    try {
+      db.prepare('UPDATE project_runs SET bytes_expired_at = ? WHERE project_run_id = ?').run(new Date().toISOString(), read.projectRunId);
+      let refused = await approve(f, shared, [read.projectRunId]);
+      expect(refused.isError).toBe(true);
+      expect(f.text(refused)).toContain('retained delivered or partial run');
+      db.prepare('UPDATE project_runs SET bytes_expired_at = NULL, artifact_manifest_json = ? WHERE project_run_id = ?').run(JSON.stringify({ version: 1,
+        files: [{ path: 'big.bin', size: 70 * 1024 * 1024, sha256: 'a'.repeat(64), mode: '100644' }], totalBytes: 70 * 1024 * 1024 }), read.projectRunId);
+      refused = await approve(f, shared, [read.projectRunId]);
+      expect(refused.isError).toBe(true);
+      expect(f.text(refused)).toContain('saved bytes together');
+    } finally { db.close(); }
+    // Never uncertain: nothing was claimed, reserved or started.
+    expect(conversationOf(await f.call('atoma_conversation', { projectId: f.project.projectId })))
+      .toMatchObject({ version: shared.version, proposal: { state: 'pending' } });
+    expect(runCount(f)).toBe(before);
+    expect(f.driver).not.toHaveBeenCalled();
+  });
+
+  it('offers as selectableRuns the newest eight runs a run may read, among the project\'s newest forty', async () => {
+    const f = await fixture();
+    const eligible = Array.from({ length: 10 }, (_, i) => f.makeRun({ 'a.txt': `version ${i}` }).run);
+    const expired = f.makeRun({ 'a.txt': 'expired' }).run;
+    const live = f.makeRun().run;
+    const failed = f.makeRun().run;
+    const rerunId = comparisonRerun(f, eligible[0]!);
+    const partial = f.makeRun({ 'a.txt': 'landed', 'b.txt': 'and more' }).run;
+    projectRetrievalFixture(f.root, { slug: 'same-org-other' }).makeRun({ 'a.txt': 'another project' });
+    dated(f, [...eligible, expired, live, failed, { projectRunId: rerunId }, partial]);
+    const db = new Database(f.dbPath);
+    try {
+      db.prepare("UPDATE project_runs SET status = 'failed' WHERE project_run_id = ?").run(failed.projectRunId);
+      db.prepare('UPDATE project_runs SET bytes_expired_at = ? WHERE project_run_id = ?').run(new Date().toISOString(), expired.projectRunId);
+      db.prepare("UPDATE project_runs SET status = 'partial' WHERE project_run_id = ?").run(partial.projectRunId);
+      db.prepare('UPDATE project_runs SET title = ? WHERE project_run_id = ?').run('Restore the collector', partial.projectRunId);
+    } finally { db.close(); }
+    const selectable = async () => ((await f.call('atoma_project_readiness', { projectId: f.project.projectId })).structuredContent as {
+      selectableRuns: Array<{ runId: string }> }).selectableRuns;
+    const offered = await selectable();
+    // The partial run, then the seven newest deliveries: never the rerun, the failed, live or expired runs, or another project's.
+    expect(offered.map(run => run.runId)).toEqual([partial, ...eligible.slice(3).reverse()].map(run => run.projectRunId));
+    expect(offered[0]).toEqual({ runId: partial.projectRunId, title: 'Restore the collector', status: 'partial', endedAt: partial.endedAt,
+      files: 2, bytes: partial.artifactManifest!.totalBytes });
+    expect(offered[1]).toMatchObject({ title: null, status: 'delivered', files: 1 });
+    // Forty newer runs that cannot be read push every older one out of the scan.
+    const newer = Array.from({ length: 40 }, () => f.makeRun().run);
+    dated(f, newer, Date.parse('2026-10-02T00:00:00Z'));
+    expect(await selectable()).toEqual([]);
   });
 });
 

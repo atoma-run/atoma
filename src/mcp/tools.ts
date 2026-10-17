@@ -461,7 +461,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     name: 'atoma_project_readiness',
     tier: 'viewer', needs: ['projects'],
     register: (server, ctx) => server.registerTool('atoma_project_readiness', {
-      title: 'Check project readiness', description: 'Read your active organisation, permission, saved GitHub connection, model/payer configuration and run limits before starting work. No run, lease, provider request or price estimate. Live access is checked again at launch.',
+      title: 'Check project readiness', description: 'Read your active organisation, permission, saved GitHub connection, model/payer configuration and run limits before starting work, and selectableRuns: the newest retained runs (at most 8) a new run may read (readRunIds) or start from (baseRunId). No run, lease, provider request or price estimate. Live access is checked again at launch.',
       inputSchema: { projectId: z.string().min(1) }, annotations: READ_ONLY,
     }, args => guarded(() => tenant(ctx).service.projectReadiness(ctx.viewer(), args.projectId))),
   },

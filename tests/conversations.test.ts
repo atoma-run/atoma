@@ -4,7 +4,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { Viewer } from '../src/auth/store.js';
 import { assistantActionSchema, assistantReplySchema, assistantRequestSchema, canonicalAction, conversationReadResultSchema,
-  type AssistantAction } from '../src/contracts/assistant.js';
+  conversationWriteSchema, type AssistantAction } from '../src/contracts/assistant.js';
+import { ProjectHttpError } from '../src/projects/service.js';
 import { AssistantStore, emptyConversation, SHARED_WRITES_PER_DAY } from '../src/projects/conversationStore.js';
 import { Conversations } from '../src/projects/conversations.js';
 import type { ProjectService } from '../src/projects/service.js';
@@ -21,7 +22,8 @@ function fixture() {
   const viewer: Viewer = { principalId: randomUUID(), orgId: randomUUID(), orgName: 'Example', displayName: 'Alice',
     role: 'org:member', kind: 'human', platformAdmin: false, displayNameSource: 'provider' };
   const projectContext = vi.fn(() => ({}));
-  const projects = { projectContext, projectReadiness: vi.fn(() => ({})),
+  const checkReadRuns = vi.fn((_viewer: Viewer, _projectId: string, _runIds: readonly string[]) => {});
+  const projects = { projectContext, projectReadiness: vi.fn(() => ({})), checkReadRuns,
     listInstallations: () => [{ installationId: '123', accountLogin: 'example', status: 'active' }],
   } as unknown as ProjectService;
   const shared = new Conversations(store, projects);
@@ -32,7 +34,7 @@ function fixture() {
     conversationId: conversation.id!, proposalId: conversation.proposal!.id, requestId: randomUUID(), version: conversation.version,
     confirmation: 'The person approved this exact goal and criteria.',
   });
-  return { db, store, viewer, shared, write, approval, projects, projectContext };
+  return { db, store, viewer, shared, write, approval, projects, projectContext, checkReadRuns };
 }
 
 it('shares before project creation, binds the same ID and keeps a separately pending first run', async () => {
@@ -195,28 +197,60 @@ it('migrates legacy snapshots and costs atomically without losing their messages
   expect(db.prepare("SELECT 1 FROM sqlite_master WHERE name='assistant_conversations'").get()).toBeUndefined();
 });
 
-it('reads back a saved start carrying read runs, and its receipt, before any writer emits one', async () => {
+it('reads back a saved start\'s read runs, and its receipt, by spelling: a later cap never makes them unreadable', async () => {
   const f = fixture();
-  const [a, b] = [randomUUID(), randomUUID()].sort() as [string, string];
+  const ids = Array.from({ length: 4 }, () => randomUUID()).sort();
   const saved = f.write({ proposal: start }).conversation;
-  // As a writer saves it (docs/decisions/read-runs-2026-10-17.md): sorted, beside the goal and criteria.
+  // Four ids, one more than a writer may propose today: what a saved row holds if the cap is ever lowered.
   const body = JSON.parse((f.db.prepare('SELECT body FROM project_conversations WHERE id=?').get(saved.id) as { body: string }).body);
-  body.proposal.action.readRunIds = [a, b];
+  body.proposal.action.readRunIds = ids;
   f.db.prepare('UPDATE project_conversations SET body=? WHERE id=?').run(JSON.stringify(body), saved.id);
   const page = f.shared.read(f.viewer, { conversationId: saved.id });
-  expect(conversationReadResultSchema.parse(page).conversation.proposal?.action).toEqual({ ...start, readRunIds: [a, b] });
+  expect(conversationReadResultSchema.parse(page).conversation.proposal?.action).toEqual({ ...start, readRunIds: ids });
   const scope = f.shared.scope(f.viewer, null, saved.id!);
-  f.db.prepare('INSERT INTO conversation_approvals VALUES (?, ?, ?, ?)').run(saved.id, randomUUID(), JSON.stringify({ ...start, readRunIds: [a] }), '{}');
-  const receipt = f.db.prepare('SELECT proposal_id FROM conversation_approvals').get() as { proposal_id: string };
-  expect(f.store.approval(scope, receipt.proposal_id)?.action).toEqual({ ...start, readRunIds: [a] });
-  // No writer emits them yet: the model's reply and a shared write both refuse the field.
-  expect(assistantReplySchema.safeParse({ message: 'Proposal', proposal: { ...start, readRunIds: [a] } }).success).toBe(false);
-  expect(() => f.write({ conversationId: saved.id, expectedVersion: saved.version, proposal: { ...start, readRunIds: [a] } })).toThrow();
+  const receiptId = randomUUID();
+  f.db.prepare('INSERT INTO conversation_approvals VALUES (?, ?, ?, ?)').run(saved.id, receiptId, JSON.stringify({ ...start, readRunIds: ids }), '{}');
+  expect(f.store.approval(scope, receiptId)?.action).toEqual({ ...start, readRunIds: ids });
   // Restated without them, the start is refused before anything is claimed, and stays pending.
   const execute = vi.fn(async () => ({ run: { projectId, runId: randomUUID() } }));
-  await expect(f.shared.approve(f.viewer, f.approval(saved), start, execute)).rejects.toThrow('exact saved');
+  await expect(f.shared.approve(f.viewer, f.approval(saved), start, execute)).rejects.toThrow('restate its readRunIds unchanged');
   expect(execute).not.toHaveBeenCalled();
   expect(f.shared.read(f.viewer, { conversationId: saved.id }).conversation).toMatchObject({ version: saved.version, proposal: { state: 'pending' } });
+});
+
+it('saves a shared proposal\'s read runs sorted once the project accepts them, and checks them again before the claim', async () => {
+  const f = fixture();
+  const [a, b, c] = [randomUUID(), randomUUID(), randomUUID()].sort() as [string, string, string];
+  // One to three distinct runs, as atoma_run_start takes them.
+  for (const readRunIds of [[], [a, a], [a, b, c, randomUUID()], ['not-a-run']]) {
+    expect(() => f.write({ proposal: { ...start, readRunIds } })).toThrow();
+  }
+  // The project refuses a run it could not give the run: nothing is saved.
+  f.checkReadRuns.mockImplementationOnce(() => { throw new ProjectHttpError(409, 'A read run must be a retained delivered or partial run of this project'); });
+  expect(() => f.write({ proposal: { ...start, readRunIds: [c] } })).toThrow('retained delivered or partial run');
+  expect(f.shared.read(f.viewer, {}).conversation).toMatchObject({ id: null, version: 0, proposal: null });
+  const saved = f.write({ proposal: { ...start, readRunIds: [b, a] } }).conversation;
+  expect(saved.proposal?.action).toEqual({ ...start, readRunIds: [a, b] });
+  expect(f.checkReadRuns).toHaveBeenLastCalledWith(expect.objectContaining({ platformAdmin: false }), projectId, [a, b]);
+  const execute = vi.fn(async () => ({ run: { projectId, runId: randomUUID() } }));
+  const ref = f.approval(saved);
+  // An omitted, added or different list is refused before the claim; the proposal stays pending.
+  for (const readRunIds of [undefined, [a, b, c], [a, c]]) {
+    await expect(f.shared.approve(f.viewer, { ...ref, requestId: randomUUID() }, { ...start, readRunIds }, execute))
+      .rejects.toThrow('Confirm the exact saved proposal: restate its readRunIds unchanged.');
+  }
+  // A cap exceeded, or a run expired, since the proposal was saved: refused before the claim too.
+  f.checkReadRuns.mockImplementationOnce(() => { throw new ProjectHttpError(409, 'The read runs hold 70000000 saved bytes together'); });
+  await expect(f.shared.approve(f.viewer, ref, { ...start, readRunIds: [b, a] }, execute)).rejects.toThrow('saved bytes together');
+  expect(execute).not.toHaveBeenCalled();
+  expect(f.shared.read(f.viewer, { conversationId: saved.id }).conversation).toMatchObject({ version: saved.version, proposal: { state: 'pending' } });
+  // In another order it is the same list.
+  const receipt = await f.shared.approve(f.viewer, { ...ref, requestId: randomUUID() }, { ...start, readRunIds: [b, a] }, execute);
+  expect(execute).toHaveBeenCalledOnce();
+  expect(f.checkReadRuns).toHaveBeenLastCalledWith(expect.objectContaining({ platformAdmin: false }), projectId, [a, b]);
+  expect(f.db.prepare('SELECT action FROM conversation_approvals').get()).toEqual({ action: JSON.stringify({ ...start, readRunIds: [a, b] }) });
+  expect(await f.shared.approve(f.viewer, ref, { ...start, readRunIds: [a, b] }, execute)).toEqual(receipt);
+  await expect(f.shared.approve(f.viewer, ref, start, execute)).rejects.toThrow('different content');
 });
 
 it('approves a start without read runs restated with an explicit undefined, and replays its receipt', async () => {
@@ -237,10 +271,13 @@ it('gives read runs one canonical form, outside the schemas that render as JSON 
   expect(canonicalAction({ ...start, readRunIds: [b, a] })).toEqual({ ...start, readRunIds: [a, b] });
   for (const none of [[], undefined]) expect(Object.hasOwn(canonicalAction({ ...start, readRunIds: none as string[] }), 'readRunIds')).toBe(false);
   expect(canonicalAction(create)).toBe(create);
-  // The SDK renders an outputSchema in output mode, where a transform throws.
+  // The SDK renders an outputSchema in output mode, where a transform throws; the model reads the input mode.
   for (const io of ['input', 'output'] as const) {
-    expect(JSON.stringify(z.toJSONSchema(z.looseObject(conversationReadResultSchema.shape), { io }))).toContain('"readRunIds"');
+    for (const schema of [z.looseObject(conversationReadResultSchema.shape), conversationWriteSchema, assistantReplySchema]) {
+      expect(JSON.stringify(z.toJSONSchema(schema, { io }))).toContain('"readRunIds"');
+    }
   }
+  expect(assistantReplySchema.safeParse({ message: 'Proposal', proposal: { ...start, readRunIds: [b, a] } }).success).toBe(true);
   // The confirmation may echo the read runs its card displayed: one to three distinct run ids.
   const confirm = { kind: 'confirm', requestId: randomUUID(), version: 1, projectId, proposalId: randomUUID() };
   expect(assistantRequestSchema.safeParse(confirm).success).toBe(true);

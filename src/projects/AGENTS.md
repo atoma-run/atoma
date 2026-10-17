@@ -566,7 +566,10 @@ read-only handle), and a reader that ends and cannot be continued has its own `.
 removed once its manifest and preview are built, and from its checkpoint snapshot
 (`forgetReadRunCopies`); a continuation's end also releases the run it consumed, and boot
 releases runs a restart failed with theirs. A removal logs, never throws. Never a seed, never delivered:
-[decision](../../docs/decisions/read-runs-2026-10-17.md).
+[decision](../../docs/decisions/read-runs-2026-10-17.md). `iterationEligible` is the ONE rule a base or
+read run meets (`iterationBase` refuses by it); readiness offers `selectableRuns`, at most 8 eligible runs
+among the newest 40, and a conversation proposal names only runs `checkReadRuns` (`readRuns`) admits: when
+it is saved, and again before its approval is claimed.
 
 ## Comparison reruns
 - File comparisons are a separate read: `compareRuns` shares workspace

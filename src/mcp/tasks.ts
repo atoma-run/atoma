@@ -339,7 +339,7 @@ export const OPERATOR_RUN_INPUT = {
 };
 
 export const PROJECT_RUN_INPUT = {
-  conversationApproval: conversationApprovalSchema.optional().describe('Confirm the exact saved shared proposal after explicit client approval. Use task augmentation; the receipt is shared with Atoma.'),
+  conversationApproval: conversationApprovalSchema.optional().describe('Confirm the exact saved shared proposal after explicit client approval: restate its goal, acceptanceCriteria and readRunIds unchanged. Use task augmentation; the receipt is shared with Atoma.'),
   projectId: z.string().min(1),
   goal: z.string().min(1).max(MAX_GOAL_CHARS).optional().describe('Required for a new run; omitted for a rerun, which re-asks its origin’s goal.'),
   idempotencyKey: idempotencyKeySchema.optional().describe('Opaque ASCII token, one per intended run: the same key returns that run, so use a new one for a new run.'),
@@ -356,7 +356,7 @@ export const PROJECT_RUN_INPUT = {
     `at most ${MAX_READ_RUN_BYTES / (1024 * 1024)} MiB and ${MAX_READ_RUN_FILES} files together. Copied with their modes to ${READ_RUNS_DIRECTORY}/<runId>/<path> before work starts; ` +
     'never delivered, published or seeded into the next run (a comparison rerun or continuation reads the same runs again). ' +
     'Name the files in the goal and criteria; atoma_run_artifacts lists them, and the host compares each file a criterion names with their saved bytes. ' +
-    'Not with rerunOf or resumeOf. Refused when a run\'s files expired or changed.'
+    'Not with rerunOf or resumeOf. Refused when a run\'s files expired or changed. With conversationApproval, restate the saved proposal\'s list (any order).'
   ),
   rerunOf: z.string().min(1).optional().describe(
     'A COMPARISON RERUN of this delivered or partial run of the same project: same goal, same acceptance list, same starting workspace, on the models you pass. It is never published and never seeds a later run.'
@@ -796,12 +796,14 @@ export function projectRunTask(
         })) as { projectRunId: string };
         if (args.conversationApproval) {
           if (!deps.conversations) throw new AssistantConflict('Shared conversations are unavailable.');
-          if (args.goal === undefined || args.baseRunId !== undefined || args.readRunIds !== undefined || args.rerunOf !== undefined || args.models !== undefined || args.depth !== undefined ||
+          if (args.goal === undefined || args.baseRunId !== undefined || args.rerunOf !== undefined || args.models !== undefined || args.depth !== undefined ||
             (args.idempotencyKey !== undefined && args.idempotencyKey !== `assistant:${args.conversationApproval.proposalId}`)) {
-            throw new AssistantConflict('Confirm the saved goal and criteria without run overrides.');
+            throw new AssistantConflict('Confirm the saved goal, criteria and read runs without run overrides.');
           }
+          // The read runs are part of the restated action: approve() refuses an omitted, added or different list.
           const receipt = await deps.conversations.approve(viewer, args.conversationApproval, {
             kind: 'start_run', projectId: args.projectId, goal: args.goal, acceptanceCriteria: args.acceptanceCriteria ?? [],
+            readRunIds: args.readRunIds,
           }, async key => ({ run: { projectId: args.projectId, runId: (await execute(key)).projectRunId } }));
           started = { projectRunId: receipt.run!.runId };
         } else started = await execute(args.idempotencyKey ?? `mcp-task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);

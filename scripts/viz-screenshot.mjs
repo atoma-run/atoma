@@ -31,6 +31,8 @@
  *   --assistant-empty    Empty conversation before choosing a model.
  *   --assistant-history  Conversation without an approval card.
  *   --assistant-no-runs  Selected project has no runs yet.
+ *   --assistant-read-runs A project start proposal that reads two earlier runs
+ *                        (with --auth --select-first).
  *   --assistant-model-probe Change model and prove retention across reload.
  *   --assistant-links-probe Verify compact receipt buttons and their destinations
  *                        (with --auth --select-first --url <frontend URL>).
@@ -108,6 +110,7 @@ const assistantHistory = has('--assistant-history');
 const assistantNoRuns = has('--assistant-no-runs');
 const assistantModelProbe = has('--assistant-model-probe');
 const assistantLinksProbe = has('--assistant-links-probe');
+const assistantReadRuns = has('--assistant-read-runs');
 if (assistantLinksProbe && (!authed || !selectFirst || !arg('--url'))) {
   throw new Error('--assistant-links-probe needs --auth --select-first --url <frontend URL>');
 }
@@ -126,7 +129,7 @@ const probeFiles = {
   'src/app.js': 'export function startStopwatch(clock) {\n  return clock.now();\n}\n',
   'src/styles.css': 'body { font-family: system-ui; }\n',
 };
-const showAssistant = has('--assistant') || assistantReconnect || assistantEmpty || assistantOwnAgent || assistantHistory || assistantModelProbe || assistantLinksProbe;
+const showAssistant = has('--assistant') || assistantReconnect || assistantEmpty || assistantOwnAgent || assistantHistory || assistantModelProbe || assistantLinksProbe || assistantReadRuns;
 const assistantFixture = {
   choices: [{ id: 'own:anthropic:haiku', model: 'own:anthropic:haiku', label: 'Claude · Haiku (beta)', payer: 'principal-subscription' }], nextBefore: null, available: true, model: 'api:anthropic:claude-haiku-4-5-20251001', busy: false, run: null,
   conversation: { id: 'f1195226-8f11-4bca-b408-1e6c10f8b353', projectId: null, version: 1, lastRequestId: null, lastRun: null, modelChoice: 'own:anthropic:haiku', costUsd: 0.0012, inputTokens: 900, outputTokens: 240,
@@ -169,6 +172,16 @@ if (assistantReconnect) {
     state: 'reauth_required', connectedAt: null, lastVerifiedAt: null, reason: 'authentication-required' }));
   assistantFixture.conversation = { ...assistantFixture.conversation, id: null, modelChoice: undefined,
     messages: [], proposal: null, costUsd: 0, inputTokens: 0, outputTokens: 0 };
+}
+if (assistantReadRuns) {
+  // Two read runs: one the project's run list titles (the lap run), one it does not hold.
+  const projectId = 'aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb';
+  // The conversation itself stays unbound, as in every fixture here: a bound one opens its project before --select-first can.
+  assistantFixture.conversation = { ...assistantFixture.conversation,
+    proposal: { id: 'dddddddd-1111-4222-8333-bbbbbbbbbbbb', state: 'pending', projectName: 'Stopwatch E2E two', action: {
+      kind: 'start_run', projectId, goal: 'Restore the lap list in index.html to the bytes of the run that added it, keeping the dark mode toggle.',
+      acceptanceCriteria: ['index.html lists laps exactly as the lap run delivered it'],
+      readRunIds: ['cccccccc-1111-4222-8333-dddddddddd13', 'eeeeeeee-1111-4222-8333-ffffffffffff'] } } };
 }
 const githubAccess = has('--github-access');
 const githubAccessProbe = has('--github-access-probe');
@@ -288,6 +301,7 @@ function gatedStubs() {
     requestedByName: index % 2 ? 'Grace Hopper' : 'Ada Lovelace',
     costBreakdown: costUsd === null ? null : stubCostBreakdown(costUsd, index),
   }));
+  if (assistantReadRuns) runs[3].title = 'Add a lap list to the stopwatch';
   if (projectRunCards) {
     Object.assign(runs[0], { orgId: 'org-a', requestedByPrincipalId: principalId, status: 'running', costUsd: 0.17, durationS: null, tokens: 51580, llmCalls: 5, jevCalls: 6,
       createdAt: new Date().toISOString(), endedAt: null, publication: null,

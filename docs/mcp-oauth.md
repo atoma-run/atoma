@@ -163,6 +163,9 @@ copies are never delivered, published or seeded into the next run; a
 comparison rerun or a continuation reads the same runs again. `readRunIds`
 cannot be combined with `rerunOf` or `resumeOf`, and a run whose files expired
 or changed is refused ([decision](decisions/read-runs-2026-10-17.md)).
+`atoma_project_readiness` lists the newest runs a run may read in
+`selectableRuns`. A conversation proposal may carry them too: confirm it with
+`conversationApproval` and the saved `readRunIds`, in any order.
 
 ### Protocols, tasks and run resources
 

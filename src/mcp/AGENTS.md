@@ -462,8 +462,11 @@ Neighbours:
 - `atoma_run_start.readRunIds` names up to three runs of the project whose
   saved files the run may read, copied with their modes and never delivered;
   its description states the caps and that it never joins `rerunOf` or
-  `resumeOf`. Additive in both eras, refused beside `conversationApproval` like
-  the other overrides; projects owns the rest ([decision](../../docs/decisions/read-runs-2026-10-17.md)).
+  `resumeOf`. Additive in both eras. Beside `conversationApproval` it is part
+  of the restated action: the saved proposal's list in any order, any other
+  list refused before anything is claimed; the other overrides stay refused.
+  `atoma_project_readiness.selectableRuns` lists what a conversation may
+  propose. Projects owns the rest ([decision](../../docs/decisions/read-runs-2026-10-17.md)).
 
 - `atoma_run_accept` records the client's explicit test/review acceptance of
   the exact manifest hash, then publishes through the existing project service.

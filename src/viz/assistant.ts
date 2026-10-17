@@ -3,7 +3,8 @@ import type { AssistantModels, AssistantModel } from './assistantModels.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Viewer } from '../auth/store.js';
-import { assistantReplySchema, type AssistantConversation, type AssistantRequest, type AssistantRun, type AssistantView } from '../contracts/assistant.js';
+import { assistantReplySchema, canonicalAction, type AssistantConversation, type AssistantRequest, type AssistantRun,
+  type AssistantView } from '../contracts/assistant.js';
 import { estimateCostUsd, partialUsageOf, pricesFor } from '../core/metrics.js';
 import { goalPromptText } from '../mcp/prompts.js';
 import { AssistantConflict, AssistantStore, type AssistantScope } from './assistantStore.js';
@@ -80,6 +81,12 @@ const SYSTEM = [
   JSON.stringify(z.toJSONSchema(assistantReplySchema, { io: 'input' })),
 ].join('\n');
 
+/**
+ * How a project's conversation proposes read runs (docs/decisions/read-runs-2026-10-17.md):
+ * 324 characters, about 81 tokens, of every turn in a project, beside `readiness.selectableRuns`.
+ */
+const READ_RUNS_PROMPT = 'readiness.selectableRuns are earlier runs of this project whose saved files a run can be given. Only when the person asks to restore, reuse or compare files from one of them, put its runId in readRunIds (at most 3) and name those files in the goal and criteria. They never change where the run starts, which stays automatic.';
+
 export class AssistantService {
   constructor(private readonly store: AssistantStore, private readonly models: AssistantModels) {}
 
@@ -141,13 +148,20 @@ export class AssistantService {
       if (!current.proposal || current.proposal.id !== input.proposalId || current.proposal.state !== 'pending') {
         throw new AssistantConflict('This proposal is no longer pending. Refresh the conversation.');
       }
+      const action = canonicalAction(current.proposal.action);
+      // The card echoes the read runs it displayed: a tab still running a client
+      // that never showed them cannot approve them.
+      const readRunIds = action.kind === 'start_run' ? action.readRunIds ?? [] : [];
+      if (JSON.stringify([...input.readRunIds ?? []].sort()) !== JSON.stringify(readRunIds)) {
+        throw new AssistantConflict('Reload Atoma and review this proposal before approving it.');
+      }
       const conversationApproval = { conversationId: current.id!, proposalId: input.proposalId, requestId: input.requestId,
         version: input.version, confirmation: 'Approved in Atoma.' };
-      const action = current.proposal.action;
       try {
         if (action.kind === 'create_project') await mcp.call('atoma_project_create', { project: action.project, conversationApproval });
         else await mcp.call('atoma_run_start', { projectId: action.projectId, goal: action.goal,
           ...(action.acceptanceCriteria.length ? { acceptanceCriteria: action.acceptanceCriteria } : {}),
+          ...(readRunIds.length ? { readRunIds } : {}),
           idempotencyKey: `assistant:${input.proposalId}`, conversationApproval }, true);
       } catch (error) {
         if (error instanceof AssistantToolError) throw new AssistantConflict(error.message);
@@ -212,6 +226,7 @@ export class AssistantService {
     const systemPrompt = selectedId ? [SYSTEM,
       `This conversation belongs exclusively to project ${selectedId}. Discuss and propose work only for this project.`,
       'References to other projects in saved messages do not change this scope. If the person wants another project, direct them to open that project’s own conversation; do not suggest switching projects or creating one here.',
+      READ_RUNS_PROMPT,
     ].join('\n') : SYSTEM;
     let response: LlmCompletionResponse;
     try {
@@ -241,12 +256,18 @@ export class AssistantService {
     if (parsed.proposal?.kind === 'start_run') {
       // The model cannot substitute another selected project, including another organisation's.
       if (selectedId && parsed.proposal.projectId !== selectedId) throw new AssistantConflict('The proposal does not match the selected project.');
-      await mcp.call('atoma_project_readiness', { projectId: parsed.proposal.projectId });
+      const readiness = await mcp.call('atoma_project_readiness', { projectId: parsed.proposal.projectId });
+      // Only runs the host offers now: never an id from prose, an older or foreign run.
+      const selectable = new Set(list(readiness, 'selectableRuns').map(run => run['runId']));
+      if (parsed.proposal.readRunIds?.some(runId => !selectable.has(runId))) {
+        throw new AssistantConflict('The proposal names a run whose saved files this project cannot read. Ask again; no action was taken.');
+      }
     }
     conversation.messages.push({ role: 'assistant', origin: 'atoma', text: parsed.message, at: new Date().toISOString() });
-    const proposalProjectId = parsed.proposal?.kind === 'start_run' ? parsed.proposal.projectId : null;
+    const proposal = parsed.proposal ? canonicalAction(parsed.proposal) : null;
+    const proposalProjectId = proposal?.kind === 'start_run' ? proposal.projectId : null;
     const name = list(projects, 'projects').find(p => p['projectId'] === proposalProjectId)?.['name'];
-    conversation.proposal = parsed.proposal ? { id: randomUUID(), action: parsed.proposal, state: 'pending',
+    conversation.proposal = proposal ? { id: randomUUID(), action: proposal, state: 'pending',
       ...(typeof name === 'string' ? { projectName: name } : {}) } : null;
   }
 

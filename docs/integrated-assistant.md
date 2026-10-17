@@ -38,6 +38,19 @@ These controls read host receipts and make no model call. Answering blocking
 run questions and cancelling still use an external MCP client connected through
 Settings. Delivery alone does not publish.
 
+## Reading earlier runs
+
+In a project, the assistant can propose that a run read the saved files of up
+to three earlier runs, when you ask to restore, reuse or compare files from
+them ([read runs](decisions/read-runs-2026-10-17.md)). It names only runs the
+project offers: up to eight of its newest retained delivered or incomplete
+runs, never a comparison rerun. The proposal lists each with its title, the start of its id,
+its status and when it ended, and says that the run gets copies of their files
+that are never delivered or published. **Approve and start run** approves those
+runs with the goal; to change them, say so in the conversation. Read runs never
+change where the run starts. Older runs can be named from an MCP client with
+`atoma_run_start`.
+
 ## Configuration and cost
 
 Choose the assistant model and account in the conversation before sending a
@@ -145,13 +158,18 @@ Claude chat or its hidden reasoning. Reported client names are visibly marked
 as unverified attribution. Clients cannot write host receipts.
 
 A write may include one proposal for confirmation in either interface; omitting
-it preserves the pending proposal, and null explicitly withdraws it. Message
-text never constitutes approval. To approve externally, call the EXISTING
-`atoma_project_create` or task-enabled `atoma_run_start` with the saved action
-unchanged and `conversationApproval` containing conversationId, proposalId,
-version, a stable UUID requestId and the person's explicit confirmation. Empty
-criteria in a saved run proposal mean no additional checklist. Run overrides
-are refused. Both protocol eras use the same service and durable receipt.
+it preserves the pending proposal, and null explicitly withdraws it. A proposed
+start's read runs are checked against the project before it is saved, and again
+before its approval is claimed, so an expired run or an exceeded size limit
+leaves it pending. Message text never constitutes approval. To approve
+externally, call the EXISTING `atoma_project_create` or task-enabled
+`atoma_run_start` with the saved action unchanged and `conversationApproval`
+containing conversationId, proposalId, version, a stable UUID requestId and the
+person's explicit confirmation. Empty criteria in a saved run proposal mean no
+additional checklist. A saved start's `readRunIds` are part of the action:
+restate them, in any order; an omitted, added or different list is refused
+before anything starts. Other run overrides are refused. Both protocol eras use
+the same service and durable receipt.
 
 Sharing a conversation does not update confirmed project briefs or decisions.
 Use the project-context tools with their explicit confirmation for durable
@@ -159,7 +177,9 @@ instructions that subsequent runs should inherit.
 
 Only validated structured proposals reach confirmation controls. The browser
 confirms the saved proposal's ID and conversation version, never a replacement
-action body. A transactional claim prevents concurrent submissions. Duplicate
+action body, and echoes the read runs its card displayed: an echo that differs
+from the saved list is refused, so a page that never displayed them cannot
+approve them. A transactional claim prevents concurrent submissions. Duplicate
 request receipts do not repeat inference or writes. Starts use MCP tasks and
 an idempotency key derived from the persisted proposal ID. A run continues when
 the tab closes; reopening reads its saved receipt and status.

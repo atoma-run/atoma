@@ -19,31 +19,35 @@ const startRunFields = {
 /**
  * A proposal is data. Only a separate, version-bound client confirmation
  * executes it. This is what a writer may propose: the assistant's reply and
- * `atoma_conversation_update`.
+ * `atoma_conversation_update`. A start may name read runs
+ * (docs/decisions/read-runs-2026-10-17.md), only when the person asks; the
+ * writers check them against the project before saving.
  */
-export const assistantProposalSchema = z.discriminatedUnion('kind', [createProjectAction, z.object(startRunFields).strict()]);
+export const assistantProposalSchema = z.discriminatedUnion('kind', [createProjectAction, z.object({ ...startRunFields,
+  readRunIds: readRunIdsSchema.optional().describe('Only when the person asks to reuse files of earlier runs: runIds from readiness.selectableRuns.'),
+}).strict()]);
 /**
  * What a saved proposal, an approval receipt and a restated action may hold:
- * a proposal, and the read runs a start may carry
- * (docs/decisions/read-runs-2026-10-17.md), read back by spelling
- * (`storedReadRunIdsSchema`), so a later cap cannot make a saved
- * conversation unreadable. Readers accepted them before any writer emitted
- * them: conversation bodies and approval receipts are read back through these
- * strict schemas, so a writer deployed first and then reverted would leave
- * every conversation holding its proposal unreadable.
+ * a proposal, its read runs read back by spelling (`storedReadRunIdsSchema`),
+ * so a later cap cannot make a saved conversation unreadable. Readers
+ * accepted them a deployment before any writer emitted them: conversation
+ * bodies and approval receipts are read back through these strict schemas,
+ * so a writer deployed first and then reverted would have left every
+ * conversation holding its proposal unreadable.
  */
-export const assistantActionSchema = z.discriminatedUnion('kind', [createProjectAction,
-  z.object({ ...startRunFields, readRunIds: storedReadRunIdsSchema.optional() }).strict()]);
+export const assistantActionSchema = z.discriminatedUnion('kind', [createProjectAction, z.object({ ...startRunFields,
+  readRunIds: storedReadRunIdsSchema.optional().describe('Restate unchanged as atoma_run_start.readRunIds with conversationApproval.'),
+}).strict()]);
 export type AssistantAction = z.infer<typeof assistantActionSchema>;
 
 /**
  * THE canonical form of an action: a start's read runs sorted, the key absent
- * when there are none. Both sides of an approval's comparison take it. Never
- * a schema transform: the SDK renders `atoma_conversation`'s outputSchema in
- * output mode, where `z.toJSONSchema` throws on one. Zod keeps an explicit
- * `readRunIds: undefined`, which `isDeepStrictEqual` tells from an absent
- * key, so without it a start without read runs restated that way would never
- * approve.
+ * when there are none. A proposal takes it where it is saved, and both sides
+ * of an approval's comparison take it. Never a schema transform: the SDK
+ * renders `atoma_conversation`'s outputSchema in output mode, where
+ * `z.toJSONSchema` throws on one. Zod keeps an explicit `readRunIds:
+ * undefined`, which `isDeepStrictEqual` tells from an absent key, so without
+ * it a start without read runs restated that way would never approve.
  */
 export function canonicalAction(action: AssistantAction): AssistantAction {
   if (action.kind !== 'start_run') return action;

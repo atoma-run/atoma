@@ -61,9 +61,9 @@ A proposal can be prepared there for the person to confirm in Atoma. Omit
 
 After explicit approval of the exact saved proposal, use the existing
 `atoma_project_create` or task-enabled `atoma_run_start`, copying its action
-unchanged and supplying `conversationApproval`: conversationId, proposalId,
-version, a stable UUID requestId, and the person's confirmation. Do not add run
-overrides. Atoma shares the execution receipt, including across retries. A
+unchanged, its `readRunIds` included, and supplying `conversationApproval`:
+conversationId, proposalId, version, a stable UUID requestId, and the person's
+confirmation. Do not add run overrides. Atoma shares the execution receipt, including across retries. A
 message that says "approved" alone never executes anything. Project briefs and
 decisions still use the separate, explicitly confirmed project-context tools.
 

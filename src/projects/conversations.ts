@@ -7,9 +7,17 @@ import { assistantActionSchema, canonicalAction, conversationApprovalSchema, con
 import { AssistantConflict, AssistantStore, type AssistantScope } from './conversationStore.js';
 import type { ProjectService } from './service.js';
 
+/** An action without its read runs: what an approval compares when it names what differs. */
+function withoutReadRuns(action: AssistantAction): AssistantAction {
+  if (action.kind !== 'start_run') return action;
+  const { readRunIds: _readRunIds, ...start } = action;
+  return start;
+}
+
 /** Private continuity across clients, independent of whichever model produced a reply. */
 export class Conversations {
-  constructor(readonly store: AssistantStore, private readonly projects: Pick<ProjectService, 'projectContext' | 'projectReadiness' | 'listInstallations'>) {}
+  constructor(readonly store: AssistantStore,
+    private readonly projects: Pick<ProjectService, 'projectContext' | 'projectReadiness' | 'checkReadRuns' | 'listInstallations'>) {}
 
   scope(viewer: Viewer, projectId: string | null, conversationId?: string): AssistantScope {
     if (viewer.role === 'org:viewer') throw new AssistantConflict('A member role is required.');
@@ -30,15 +38,16 @@ export class Conversations {
       (!input.messages.length && input.proposal === undefined)) throw new AssistantConflict('Share at most 12,000 characters per update, or one proposal.');
     const scope = this.scope(viewer, input.projectId, input.conversationId);
     const current = this.store.read(scope).conversation;
-    if (input.proposal) this.validateProposal(viewer, current.projectId, input.proposal);
+    const proposal = input.proposal ? canonicalAction(input.proposal) : input.proposal;
+    if (proposal) this.validateProposal(viewer, current.projectId, proposal);
     const conversation = this.store.claim(scope, input.expectedVersion, input.requestId, 'shared-write', JSON.stringify(input));
     if (!conversation) return this.read(viewer, { conversationId: current.id });
     try {
       conversation.messages.push(...input.messages.map(message => ({ ...message, at: new Date().toISOString(), origin: 'mcp' as const,
         ...(input.clientLabel ? { clientLabel: input.clientLabel } : {}) })));
       // Shared messages alone do not silently approve, replace or discard a proposal.
-      if (input.proposal !== undefined) conversation.proposal = input.proposal ? {
-        id: randomUUID(), action: input.proposal, state: 'pending',
+      if (proposal !== undefined) conversation.proposal = proposal ? {
+        id: randomUUID(), action: proposal, state: 'pending',
       } : null;
     } finally { this.store.save(scope, conversation); }
     return this.read(viewer, { conversationId: conversation.id });
@@ -49,6 +58,9 @@ export class Conversations {
     if (action.kind === 'start_run') {
       if (projectId && action.projectId !== projectId) throw new AssistantConflict('The proposal does not match this project.');
       this.projects.projectReadiness(scoped, action.projectId);
+      // Admission's own check, before a save or a claim: an expired read run or an exceeded cap
+      // leaves the proposal unsaved or pending, never uncertain.
+      if (action.readRunIds) this.projects.checkReadRuns(scoped, action.projectId, action.readRunIds);
     } else {
       if (projectId) throw new AssistantConflict('This conversation already belongs to a project. Start a new project conversation.');
       const target = action.project.repositoryTarget;
@@ -72,7 +84,11 @@ export class Conversations {
     if (!current.proposal || current.proposal.id !== input.proposalId || current.proposal.state !== 'pending') {
       throw new AssistantConflict('This proposal is no longer pending. Refresh the conversation.');
     }
-    if (!isDeepStrictEqual(canonicalAction(current.proposal.action), action)) throw new AssistantConflict('Confirm the exact saved proposal.');
+    const saved = canonicalAction(current.proposal.action);
+    if (!isDeepStrictEqual(saved, action)) {
+      throw new AssistantConflict(isDeepStrictEqual(withoutReadRuns(saved), withoutReadRuns(action))
+        ? 'Confirm the exact saved proposal: restate its readRunIds unchanged.' : 'Confirm the exact saved proposal.');
+    }
     this.validateProposal(viewer, current.projectId, action);
     if (action.kind === 'start_run' && !current.projectId) {
       const target = this.store.read({ ...scope, conversationId: undefined, projectId: action.projectId }).conversation;

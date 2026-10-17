@@ -71,6 +71,12 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; },
     [conversation?.messages.at(-1)?.id ?? conversation?.messages.length, query.data?.run?.status, waiting, active]);
   const proposal = conversation?.proposal;
+  // A start's read runs, as saved; Approve echoes exactly these back.
+  const readRunIds = proposal?.action.kind === 'start_run' ? proposal.action.readRunIds ?? [] : [];
+  const readRunsProjectId = proposal?.action.kind === 'start_run' ? proposal.action.projectId : null;
+  // Their titles come from the run list the open project already polls: the same cache entry, no polling of its own.
+  const projectRuns = useQuery({ queryKey: ['viz', 'project', readRunsProjectId, 'runs'],
+    queryFn: () => api.projectRuns(readRunsProjectId!), enabled: readRunIds.length > 0 && readRunsProjectId !== null, staleTime: 5_000 });
   const shownRun = query.data?.run ?? null;
   const modelChoice = selection ?? conversation?.modelChoice ?? '';
   const choices = query.data?.choices ?? [];
@@ -128,7 +134,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       ? previous
       : kind === 'message'
         ? { kind, requestId: crypto.randomUUID(), version: conversation.version, projectId, ...(conversation.id ? { conversationId: conversation.id } : {}), text: draft.trim(), modelChoice }
-        : { kind, requestId: crypto.randomUUID(), version: conversation.version, projectId, ...(conversation.id ? { conversationId: conversation.id } : {}), proposalId: proposal!.id };
+        : { kind, requestId: crypto.randomUUID(), version: conversation.version, projectId, ...(conversation.id ? { conversationId: conversation.id } : {}), proposalId: proposal!.id,
+          ...(readRunIds.length ? { readRunIds } : {}) };
     pending.current = request;
     const submittedDraft = draft;
     if (kind === 'message') setDraft('');
@@ -236,6 +243,18 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
           <p>{proposal.action.project.initialPrompt}</p>
         </> : <><p>{t('assistant.project')}: {proposal.projectName ?? proposal.action.projectId}</p><p>{proposal.action.goal}</p>
           {proposal.action.acceptanceCriteria.length ? <ul>{proposal.action.acceptanceCriteria.map((line, index) => <li key={index}>{line}</li>)}</ul> : null}
+          {readRunIds.length ? <div className="gpu-assistant-read-runs">
+            <p><strong>{t('assistant.readRuns', { count: readRunIds.length })}</strong></p>
+            <p>{t('assistant.readRunsNotice')}</p>
+            <ul>{readRunIds.map(runId => {
+              const run = projectRuns.data?.find(row => row.projectRunId === runId);
+              const at = run ? run.endedAt ?? run.createdAt : null;
+              // An id the cached list does not hold shows alone; a title is model text, never markup.
+              return <li key={runId}>{run?.title ? <>{run.title} · </> : null}<code>{runId.slice(0, 8)}</code>
+                {run ? <> · {t(`projects.runStatus.${run.status}`)}</> : null}
+                {at ? <> · <time dateTime={at} title={timestampTooltip(at, locale) ?? at}>{relativeTime(at, t, locale, now) || at}</time></> : null}</li>;
+            })}</ul>
+          </div> : null}
           <p>{t('assistant.runCostNotice')}</p></>}
         <p>{t('assistant.reviseHint')}</p>
         {proposal.state === 'pending' ? <button className="gpu-assistant-primary" disabled={waiting}

@@ -24,8 +24,15 @@ before launch, incomplete runs kept and explained, and comparison reruns.
   starts again. A removal never fails a run: it logs a line instead. A read
   run is held from retention while a run that reads it can still run or be
   continued. A comparison rerun and a continuation read the same runs again.
-  Additive in both MCP protocol versions; refused beside
-  `conversationApproval`, `rerunOf` or `resumeOf`.
+  Additive in both MCP protocol versions; refused beside `rerunOf` or
+  `resumeOf`. The project conversation can propose them too: the assistant
+  names only runs `atoma_project_readiness` lists in its new `selectableRuns`
+  (at most eight retained runs of the project, newest first), the proposal
+  card lists them, and approval starts the run with them. Beside
+  `conversationApproval`, `atoma_run_start` takes the saved proposal's
+  `readRunIds` as part of the restated action, in any order; an omitted, added
+  or different list is refused. `atoma_conversation_update` and
+  `atoma_conversation` carry the field on a proposed start.
 
 - Durable client questions at sequential project-run boundaries, exposed through
   `atoma_run_question` and `atoma_run_answer`. The original requester answers via

@@ -106,6 +106,15 @@ export interface ProjectServiceDeps {
   readonly hostingNamer?: HostingSubdomainNamer;
 }
 
+/**
+ * Readiness offers this many runs to read or start from, the newest eligible
+ * among the project's newest `SELECTABLE_RUNS_SCAN`: what a conversation can
+ * propose; older ones stay reachable through `atoma_run_start`. Each entry is
+ * about 190 characters of every assistant turn in a project.
+ */
+const SELECTABLE_RUNS = 8;
+const SELECTABLE_RUNS_SCAN = 40;
+
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let length = 0;
@@ -455,9 +464,29 @@ export class ProjectService {
       catch { problems.push(serviceProblem(400, 'The configured models or host prerequisites cannot support this run.',
         { code: 'configuration_required', nextAction: 'Check your model selections and provider connection in Settings. Ask the instance administrator to check host prerequisites if they are already configured.' })); }
     }
-    return { projectId, acceptedReferenceRunId: this.store.acceptedReference(orgId, projectId)?.projectRunId ?? null, organisation: { orgId, name: orgId === viewer.orgId ? viewer.orgName : null },
+    return { projectId, acceptedReferenceRunId: this.store.acceptedReference(orgId, projectId)?.projectRunId ?? null,
+      // The runs a new run may read (readRunIds) or start from (baseRunId), by the one rule both refuse with.
+      selectableRuns: this.store.iterationRuns(orgId, projectId, SELECTABLE_RUNS, SELECTABLE_RUNS_SCAN).map(run => ({
+        runId: run.projectRunId, title: run.title ?? null, status: run.status, endedAt: run.endedAt,
+        files: run.artifactManifest!.files.length, bytes: run.artifactManifest!.totalBytes })),
+      organisation: { orgId, name: orgId === viewer.orgId ? viewer.orgName : null },
       canRequest: mayStart, configured: problems.length === 0, capacity, configuration, problems,
       liveChecks: 'not-performed', note: 'Configuration only: credentials, repository access, live capacity and personal model availability are checked again at launch. No price estimate or reservation.' };
+  }
+
+  /**
+   * Refuses read runs a new run of this project could not be given, as
+   * admission will (`ProjectStore.readRuns`: the iteration rule and both caps,
+   * from the saved manifests; nothing is hashed here). For a shared
+   * proposal: before it is saved, and again before its approval claims it.
+   */
+  checkReadRuns(viewer: Viewer, projectId: string, runIds: readonly string[]): void {
+    const orgId = this.readOrgFor(viewer, projectId);
+    try { this.store.readRuns(orgId, projectId, runIds); }
+    catch (error) {
+      if (error instanceof ProjectStateConflict) throw new ProjectHttpError(409, error.message);
+      throw error;
+    }
   }
 
   /**

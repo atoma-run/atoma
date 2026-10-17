@@ -593,13 +593,14 @@ npm run viz:mark-turn:analyze
   renderer-less FALLBACK only. An estimate must over-shoot to never clip, so
   it pads long labels unevenly; do not add a new chip surface on the fallback.
 - There is no Launch tab in the GPU client. Projects offers the integrated
-  assistant or an agent connected through Settings → MCP; both prepare goals
-  and criteria for client approval. The assistant's transparent DOM conversation
-  uses a GPU-drawn Projects panel. Its project-owned shared history is principal/org scoped,
+  assistant or an agent connected through Settings → MCP; both prepare goals,
+  criteria and read runs for client approval. The card lists read runs (titles from the polled run
+  list) and Approve echoes that list; the server refuses one that differs from the saved list.
+  The assistant's transparent DOM conversation uses a GPU-drawn Projects panel. Its project-owned shared history is principal/org scoped,
   with version-bound confirmations and separately recorded model/payer usage.
   A project chat's model context is scoped by the conversation's saved project ID:
   filter catalogue metadata before serialization, omit organisation installation
-  discovery, and read only that project's brief, readiness and runs. Organisation
+  discovery, and read only that project's brief, readiness and runs (the newest as facts, never its manifest). Organisation
   project discovery belongs only to the unbound new-project conversation.
   The person selects a connected personal subscription, organisation API key or
   explicit platform API model; an unavailable selection never changes payer.

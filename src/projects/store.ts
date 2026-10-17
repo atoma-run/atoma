@@ -591,6 +591,18 @@ export function resolveProjectRunTraceFile(input: {
   return null;
 }
 
+/**
+ * THE rule a run must meet for another run of its project to start from it
+ * (`baseRunId`) or read it (`readRunIds`): this project's, delivered or
+ * partial, not a comparison rerun, its bytes retained, with a saved manifest.
+ * `iterationBase` refuses by it, and the runs readiness offers are filtered
+ * by it.
+ */
+export function iterationEligible(run: ProjectRun, projectId: string): boolean {
+  return run.projectId === projectId && !run.rerunOf && ['delivered', 'partial'].includes(run.status) &&
+    !run.bytesExpiredAt && Boolean(run.artifactManifest) && Boolean(run.artifactManifestHash);
+}
+
 function isRunLookupId(value: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,254}$/.test(value);
 }
@@ -2375,12 +2387,28 @@ END;
   /** A requested iteration base is never replaced by a newer or foreign run. */
   iterationBase(orgId: string, projectId: string, runId: string): ProjectRun {
     const run = this.getProjectRun(orgId, runId);
-    if (!run || run.projectId !== projectId || run.rerunOf ||
-        !['delivered', 'partial'].includes(run.status) || run.bytesExpiredAt ||
-        !run.artifactManifest || !run.artifactManifestHash) {
+    if (!run || !iterationEligible(run, projectId)) {
       throw new ProjectStateConflict('Iteration base requires a retained delivered or partial run of this project');
     }
     return run;
+  }
+
+  /**
+   * The runs another run of this project may start from or read, newest
+   * first: at most `limit` of its newest `scan` runs, by `iterationEligible`.
+   * The scan bounds the work, so a project whose recent runs failed offers
+   * fewer, never older ones; a row is parsed, manifest included, only until
+   * `limit` are found.
+   */
+  iterationRuns(orgId: string, projectId: string, limit: number, scan: number): ProjectRun[] {
+    const runs: ProjectRun[] = [];
+    for (const row of this.db.prepare(`SELECT * FROM project_runs WHERE org_id = ? AND project_id = ?
+      ORDER BY created_at DESC, project_run_id DESC LIMIT ?`).all(orgId, projectId, scan) as ProjectRunRow[]) {
+      if (runs.length === limit) break;
+      const run = runFromRow(row);
+      if (iterationEligible(run, projectId)) runs.push(run);
+    }
+    return runs;
   }
 
   /**
