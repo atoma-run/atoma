@@ -12,7 +12,7 @@ import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { fmtMs, runCost } from '../../../client/run-utils.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
 import { createScrollPane } from '../scroll-pane.js';
-import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_FRAME_TITLE_SIZE, VIEW_FRAME_TITLE_Y } from '../view-frame.js';
+import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR, VIEW_FRAME_TITLE_SIZE, VIEW_FRAME_TITLE_Y } from '../view-frame.js';
 import { drawResultPanel } from './result.js';
 import { latestDeliveredResult } from '../../run-result.js';
 import { drawPreviewControl } from '../preview-control.js';
@@ -258,6 +258,8 @@ function showcaseLabel(snapshot: GpuRenderSnapshot, project: { showcase?: 'liste
   return snapshot.t(project.showcaseShown ? 'projects.showcaseShown' : 'projects.showcaseEligible');
 }
 
+/** Air between the guide card and the project list below it. */
+const PROJECTS_GUIDE_LIST_GAP = 16;
 /** Air between the scrolled list's mask and the overview column, so a card's shadow is not clipped flush. */
 const PROJECT_LIST_ASIDE_CLEARANCE = 8;
 
@@ -599,7 +601,7 @@ export function drawProjects(
 
   // Reserve the guide's band only on the screen where its DOM contents render.
   let contentTop = selectedProject ? frame.contentTop
-    : guideVisible ? guideTop + guideHeight + 16 : frame.contentTop;
+    : guideVisible ? guideTop + guideHeight + PROJECTS_GUIDE_LIST_GAP : frame.contentTop;
   const resultRows = selectedProject ? runsByProject[selectedProject.projectId] ?? [] : [];
   const latestWorkspace = latestWorkspaceRun(resultRows);
   const latestResult = latestDeliveredResult(resultRows);
@@ -692,6 +694,12 @@ export function drawProjects(
     height: Math.max(0, frame.bottom - VIEW_FRAME_PAD - contentTop),
     scrollY: scroll,
     bottomPadding: PROJECTS_LIST_BOTTOM_PADDING,
+    // Above: the gap under the guide card, the title row's air, or nothing
+    // when a project's section tabs (raised buttons) stand right above.
+    air: {
+      top: selectedProject ? 0 : guideVisible ? PROJECTS_GUIDE_LIST_GAP : VIEW_FRAME_PANE_AIR.top,
+      bottom: VIEW_FRAME_PANE_AIR.bottom,
+    },
   });
 
   const expandedRunList: (readonly VizProjectRun[])[] = projects.map(

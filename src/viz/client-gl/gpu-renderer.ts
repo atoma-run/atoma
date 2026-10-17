@@ -23,6 +23,7 @@ import {
   type Texture,
   UniformGroup,
   UPDATE_PRIORITY,
+  type WebGLRenderer,
 } from 'pixi.js';
 import type {
   BurninRow,
@@ -72,11 +73,12 @@ import {
   markClockIsPinned,
 } from './renderer/mark-clock.js';
 import {
-  CAST_SHADOW_REACH_PX,
+  CAST_SHADOW_MAX_THROW_PX,
   type CastShadowSurface,
   surfaceDepthScale,
-  ambientShadowOffset,
-  castShadowOffset,
+  castShadowEdges,
+  castShadowTransform,
+  type CastShadowInput,
 } from './renderer/cast-shadow.js';
 import {
   SCENE_SHADOW_COLORS,
@@ -428,6 +430,8 @@ interface CastShadowEntry {
   height: number;
   depth: number;
   surface: CastShadowSurface;
+  /** A recessed shadow, masked by its own surface: offset only, never scaled. */
+  inset: boolean;
   left: number;
   top: number;
 }
@@ -460,35 +464,6 @@ function paintPanelSurface(
   if (border !== fill) graphics.stroke({ color: border, width: 1, alpha: 0.9 });
 }
 
-function paintPanelShadow(
-  graphics: Graphics,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-  alpha: number,
-  depth: number
-): void {
-  // The five rounded layers exceed Pixi's automatic batching threshold.
-  // Their geometry is static: batch it with the surrounding UI instead of
-  // breaking the batch and submitting a separate draw for every shadow.
-  graphics.context.batchMode = 'batch';
-  const layers = softShadowLayers(width, height, radius, alpha, depth);
-  for (const [index, layer] of layers.entries()) {
-    const towardCore = layers.length > 1 ? index / (layers.length - 1) : 1;
-    graphics.roundRect(x + layer.x, y + layer.y, layer.width, layer.height, layer.radius);
-    graphics.fill({
-      color: mixColor(
-        SCENE_SHADOW_COLORS.penumbra,
-        SCENE_SHADOW_COLORS.core,
-        towardCore
-      ),
-      alpha: layer.alpha,
-    });
-  }
-}
-
 export * from './renderer/chip-layout.js';
 export * from './renderer/shaders.js';
 export { gpuEventCardCopy, type GpuEventCardCopy, type GpuTranslate } from './renderer/copy.js';
@@ -516,6 +491,8 @@ import {
   type VizTuning,
 } from './tuning.js';
 import { prefersReducedMotion } from './renderer/motion.js';
+import { BlurredShadow, createBlurredShadow } from './renderer/blurred-shadow.js';
+import { installGlWireframe, VIZ_WIREFRAME_MODE } from './renderer/wireframe.js';
 import { drawRuns } from './renderer/views/runs.js';
 import { drawRunPicker } from './renderer/views/run-picker.js';
 import { drawRegistry } from './renderer/views/registry.js';
@@ -1419,7 +1396,8 @@ export class GpuRenderer {
   async init(host: HTMLElement) {
     this.host = host;
     const params = new URLSearchParams(location.search);
-    const forceWebGl = params.get('renderer') === 'webgl';
+    // `?wireframe=` wraps Pixi's GL context, so it forces WebGL too.
+    const forceWebGl = params.get('renderer') === 'webgl' || VIZ_WIREFRAME_MODE !== null;
     // MSAA is the single largest cost of a frame on an integrated GPU: the
     // 4-sample colour and stencil targets at 2560×1600 cost 2.5–3× the rest of
     // the frame put together, whatever the view draws (measured 2026-09-06,
@@ -1471,6 +1449,9 @@ export class GpuRenderer {
     // release includes that fix. WebGL stamps last-used on every bind.
     if (this.metrics.backend === 'webgpu') {
       this.app.renderer.gc.enabled = false;
+    }
+    if (VIZ_WIREFRAME_MODE && this.metrics.backend === 'webgl') {
+      installGlWireframe(this.app.renderer as WebGLRenderer, VIZ_WIREFRAME_MODE);
     }
     // The canvas now occupies the native viewport. Pixi's event boundary
     // consumes screen coordinates and inverts the rendered world transforms;
@@ -3197,10 +3178,8 @@ export class GpuRenderer {
     options: SurfaceShadowOptions = {}
   ) {
     const { x = 0, y = 0 } = options;
-    return this.addCastShadow(parent, width, height, options, () => {
-      const shadow = new Graphics();
-      paintPanelShadow(
-        shadow,
+    return this.addCastShadow(parent, width, height, options, () =>
+      createBlurredShadow(
         x,
         y,
         width,
@@ -3208,9 +3187,7 @@ export class GpuRenderer {
         options.radius ?? 8,
         options.alpha ?? 0.44,
         options.depth ?? 1
-      );
-      return shadow;
-    });
+      ));
   }
 
   /** The shared scene shadow material clipped to a texture's alpha silhouette. */
@@ -3308,7 +3285,7 @@ export class GpuRenderer {
     // Wide enough that the cut-out never slides off the mask at full reach,
     // and — required by `GraphicsContext.cut` — that the hole stays entirely
     // inside the shape it is cut from.
-    const pad = CAST_SHADOW_REACH_PX * 3;
+    const pad = CAST_SHADOW_MAX_THROW_PX * 3;
     const shadow = new Graphics();
     shadow.rect(-pad, -pad, width + pad * 2, height + pad * 2);
     shadow.fill({ color: SCENE_SHADOW_COLORS.core, alpha });
@@ -3326,7 +3303,7 @@ export class GpuRenderer {
 
     // 'card': an inset shadow belongs to the control it is carved into, and is
     // not one of the three stacks the tuning panel lifts.
-    this.registerCastShadow(shadow, parent, 0, 0, width, height, depth, 'card');
+    this.registerCastShadow(shadow, parent, 0, 0, width, height, depth, 'card', true);
     return shadow;
   }
 
@@ -3351,16 +3328,15 @@ export class GpuRenderer {
      * and multiplies it there, which is what lets a drag change the scene
      * without rebuilding it.
      */
-    surface: CastShadowSurface = 'card'
+    surface: CastShadowSurface = 'card',
+    inset = false
   ) {
     // Named so the smoke can find them: where a shadow lands is only
     // observable on a real renderer with a real pointer.
     shadow.label = 'cast-shadow';
-    const rest = ambientShadowOffset(depth);
-    shadow.position.set(rest.x, rest.y);
     // Anchored after the scene is built: `parent` is not on the stage yet, so
     // its global transform is not knowable here.
-    this.castShadows.push({
+    const entry: CastShadowEntry = {
       shadow,
       parent,
       localX,
@@ -3369,9 +3345,13 @@ export class GpuRenderer {
       height,
       depth,
       surface,
+      inset,
       left: 0,
       top: 0,
-    });
+    };
+    this.castShadows.push(entry);
+    // Ambient only until the first frame places it under the lamp.
+    this.placeCastShadow(entry, Number.NaN, Number.NaN, 0, readTuning());
   }
 
   /**
@@ -3423,21 +3403,45 @@ export class GpuRenderer {
       tuningRevision: tuning.revision,
     };
     for (const entry of this.castShadows) {
-      if (entry.shadow.destroyed) continue;
-      const offset = castShadowOffset({
-        left: entry.left,
-        top: entry.top,
-        width: entry.width,
-        height: entry.height,
-        lightX,
-        lightY,
-        strength,
-        depth: entry.depth * surfaceDepthScale(entry.surface, tuning),
-        lightHeight: tuning.lightHeight,
-      });
-      entry.shadow.position.set(offset.x, offset.y);
+      if (!entry.shadow.destroyed) this.placeCastShadow(entry, lightX, lightY, strength, tuning);
     }
   };
+
+  private placeCastShadow(
+    entry: CastShadowEntry,
+    lightX: number,
+    lightY: number,
+    strength: number,
+    tuning: Readonly<VizTuning>
+  ) {
+    const input: CastShadowInput = {
+      left: entry.left,
+      top: entry.top,
+      width: entry.width,
+      height: entry.height,
+      lightX,
+      lightY,
+      strength,
+      depth: entry.depth * surfaceDepthScale(entry.surface, tuning),
+      lightHeight: tuning.lightHeight,
+      ambientReach: tuning.ambientShadowReach,
+      ambientDensity: tuning.ambientShadowDensity,
+    };
+    if (entry.shadow instanceof BlurredShadow) {
+      // Rounded-rect shadows resolve the throw per edge, weighted by the
+      // lamp's light at that edge; the holder itself stays put.
+      const edges = castShadowEdges(input);
+      entry.shadow.setEdges(edges.left, edges.top, edges.right, edges.bottom);
+      entry.shadow.setDensity(edges.density);
+      return;
+    }
+    const cast = castShadowTransform(input);
+    // Scale about the surface's own top-left: pivot there, then place the
+    // pivot at that corner plus the cast offset.
+    entry.shadow.pivot.set(entry.localX, entry.localY);
+    entry.shadow.position.set(entry.localX + cast.x, entry.localY + cast.y);
+    entry.shadow.scale.set(entry.inset ? 1 : cast.scale);
+  }
 
   button(
     parent: Container,

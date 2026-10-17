@@ -18,6 +18,7 @@ import {
   type VizTuning,
 } from './tuning.js';
 import { readTuning, resetTuning, setTuningValue } from './tuning-live.js';
+import { VIZ_WIREFRAME_MODE, wireframeModeUrl, type VizWireframeMode } from './wireframe-mode.js';
 import { useGpuStore } from './store.js';
 import { sceneCameraViewport, unprojectScenePointInFrame } from './scene-camera.js';
 import { translate } from '../client/i18n-catalog.js';
@@ -41,6 +42,12 @@ function tuningSnapshot(): VizTuning {
   const current = readTuning();
   return Object.fromEntries(TUNING_KEYS.map((key) => [key, current[key]])) as unknown as VizTuning;
 }
+
+const WIREFRAME_CHOICES: ReadonlyArray<{ value: string; mode: VizWireframeMode; labelKey: string }> = [
+  { value: 'off', mode: null, labelKey: 'tuning.wireframe.off' },
+  { value: 'lines', mode: 'lines', labelKey: 'tuning.wireframe.lines' },
+  { value: 'overlay', mode: 'overlay', labelKey: 'tuning.wireframe.overlay' },
+];
 
 function formatValue(key: keyof VizTuning, value: number): string {
   const range = TUNING_RANGE[key];
@@ -117,6 +124,30 @@ export function SceneTuningPanel() {
     }
   };
 
+  const slider = (key: keyof VizTuning) => {
+    const range = TUNING_RANGE[key];
+    return (
+      <div key={key} className="gpu-scene-tuning__row">
+        <label htmlFor={`scene-tuning-${key}`}>{t(range.labelKey)}</label>
+        <input
+          id={`scene-tuning-${key}`}
+          name={key}
+          type="range"
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          value={values[key]}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            setTuningValue(key, value);
+            setValues((current) => ({ ...current, [key]: value }));
+          }}
+        />
+        <output>{formatValue(key, values[key])}</output>
+      </div>
+    );
+  };
+
   return (
     <aside
       ref={panelRef}
@@ -156,29 +187,28 @@ export function SceneTuningPanel() {
         </button>
       </header>
       <div className="gpu-scene-tuning__rows">
-        {TUNING_KEYS.map((key) => {
-          const range = TUNING_RANGE[key];
-          return (
-            <div key={key} className="gpu-scene-tuning__row">
-              <label htmlFor={`scene-tuning-${key}`}>{t(range.labelKey)}</label>
-              <input
-                id={`scene-tuning-${key}`}
-                name={key}
-                type="range"
-                min={range.min}
-                max={range.max}
-                step={range.step}
-                value={values[key]}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setTuningValue(key, value);
-                  setValues((current) => ({ ...current, [key]: value }));
-                }}
-              />
-              <output>{formatValue(key, values[key])}</output>
-            </div>
-          );
-        })}
+        {TUNING_KEYS.map(slider)}
+      </div>
+      <h3 className="gpu-scene-tuning__section">{t('tuning.diagnostics')}</h3>
+      <div className="gpu-scene-tuning__rows">
+        <div className="gpu-scene-tuning__row gpu-scene-tuning__row--choice">
+          <label htmlFor="scene-tuning-wireframe">{t('tuning.wireframe')}</label>
+          <select
+            id="scene-tuning-wireframe"
+            aria-describedby="scene-tuning-wireframe-note"
+            value={WIREFRAME_CHOICES.find((choice) => choice.mode === VIZ_WIREFRAME_MODE)?.value ?? 'off'}
+            onChange={(event) => {
+              const choice = WIREFRAME_CHOICES.find((option) => option.value === event.target.value);
+              // Wired into the GL context at init: switching it is a reload.
+              if (choice) window.location.assign(wireframeModeUrl(choice.mode, window.location.href));
+            }}
+          >
+            {WIREFRAME_CHOICES.map((choice) => (
+              <option key={choice.value} value={choice.value}>{t(choice.labelKey)}</option>
+            ))}
+          </select>
+        </div>
+        <p id="scene-tuning-wireframe-note" className="gpu-scene-tuning__note">{t('tuning.wireframe.reloads')}</p>
       </div>
     </aside>
   );

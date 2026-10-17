@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { GPU_COLORS } from '../theme.js';
+import { CAST_SHADOW_MAX_THROW_PX } from './cast-shadow.js';
 
 /**
  * A bounded, masked scroll region — THE way a GPU view presents content that
@@ -17,6 +18,22 @@ import { GPU_COLORS } from '../theme.js';
  * culled, or the wheel can never reach it. `finish()` also draws the shared
  * scrollbar thumb when the content overflows, so every pane advertises that
  * it scrolls without per-view code.
+ *
+ * SHADOWS AND THE MASK. The mask exists to stop scrolled CONTENT leaking;
+ * a surface's cast shadow legitimately reaches past that surface (up to
+ * `SCROLL_PANE_SHADOW_BLEED_PX`, penumbra included), and a mask laid flush
+ * against a card guillotines it — the shadow stops on a straight line no
+ * light could draw. So every pane DECLARES its `air`: the free floor the view
+ * guarantees around the pane on each side, where a shadow may land without
+ * covering a raised neighbour. The mask grows into it under ONE rule
+ * (`scrollPaneClipRect`): the top only while scrolled to the start and the
+ * bottom only while scrolled to the end — then nothing but shadows can sit
+ * there — and the sides always, because nothing scrolls horizontally and
+ * widths are measured, never overflowing. Air over flat text (a title, a
+ * caption) is still air: a shadow falls on the page the text is printed on.
+ * Air is NOT the space under a raised neighbour (tabs, buttons, another
+ * panel, a popup's edge): declare 0 there. A new pane decides its air when it
+ * is written, not when a shadow is first seen clipped.
  */
 export interface ScrollPaneOptions {
   x: number;
@@ -27,6 +44,46 @@ export interface ScrollPaneOptions {
   scrollY: number;
   /** Extra space kept below the last content row (default 12). */
   bottomPadding?: number;
+  /**
+   * Free floor around the pane that cast shadows may land on — see above.
+   * REQUIRED, so a new pane decides it; `{}` is a decision too (the pane is
+   * its panel, or raised neighbours stand on every side).
+   */
+  air: ScrollPaneAir;
+}
+
+export interface ScrollPaneAir {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+}
+
+/**
+ * Farthest a cast shadow, penumbra included, reaches past its surface: the
+ * capped throw plus the blurred margin of a default-depth shadow.
+ */
+export const SCROLL_PANE_SHADOW_BLEED_PX = CAST_SHADOW_MAX_THROW_PX + 8;
+
+/** THE rule for growing a scroll mask into its declared air. */
+export function scrollPaneClipRect(
+  rect: { x: number; y: number; width: number; height: number },
+  air: ScrollPaneAir,
+  scrollY: number,
+  maxScroll: number
+): { x: number; y: number; width: number; height: number } {
+  const grant = (value: number | undefined) =>
+    Math.min(SCROLL_PANE_SHADOW_BLEED_PX, Math.max(0, value ?? 0));
+  const top = scrollY <= 0 ? grant(air.top) : 0;
+  const bottom = scrollY >= maxScroll - 0.5 ? grant(air.bottom) : 0;
+  const left = grant(air.left);
+  const right = grant(air.right);
+  return {
+    x: rect.x - left,
+    y: rect.y - top,
+    width: rect.width + left + right,
+    height: rect.height + top + bottom,
+  };
 }
 
 export interface ScrollPane {
@@ -109,12 +166,13 @@ export function createScrollPane(parent: Container, options: ScrollPaneOptions):
     finish() {
       if (finished) return Math.max(0, contentBottom + bottomPadding - height);
       finished = true;
+      const maxScroll = Math.max(0, contentBottom + bottomPadding - height);
+      const clip = scrollPaneClipRect({ x, y, width, height }, options.air, scrollY, maxScroll);
       const mask = new Graphics();
-      mask.rect(x, y, width, height).fill(0xffffff);
+      mask.rect(clip.x, clip.y, clip.width, clip.height).fill(0xffffff);
       mask.eventMode = 'none';
       parent.addChild(mask);
       layer.mask = mask;
-      const maxScroll = Math.max(0, contentBottom + bottomPadding - height);
       drawScrollbarThumb(parent, { x, y, width, height, scrollY, maxScroll });
       return maxScroll;
     },

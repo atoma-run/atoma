@@ -55,7 +55,9 @@ export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
     top += 30;
   }
   const pane = createScrollPane(ctx.root, { x: left, y: top, width: contentWidth,
-    height: Math.max(0, bottomEdge - top - 12), scrollY: snapshot.state.scrollY.projects });
+    height: Math.max(0, bottomEdge - top - 12), scrollY: snapshot.state.scrollY.projects,
+    // Under the flat path line (or caption), above the 12px kept at the foot.
+    air: { top: 8, bottom: 12 } });
   let bottom = 0;
   const message = (key: string) => { ctx.text(pane.content, t(key), 0, 0, { size: 12, width: pane.width - 16 }); bottom = 60; };
   if (data?.failed) message('workspace.unavailable');

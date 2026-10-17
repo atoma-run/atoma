@@ -44,6 +44,8 @@ export function drawTimelineMinimap(
   // The logical row range remains complete, regardless of trace length.
   const pane = createScrollPane(layer, {
     x: 0, y: 0, width: TIMELINE_MINIMAP_WIDTH, height, scrollY: 0, bottomPadding: 0,
+    // Ticks cast no shadow.
+    air: {},
   });
   const ink = new Graphics();
   ink.label = 'timeline-minimap-bars';

@@ -308,6 +308,8 @@ function drawArticle(
     ...rect,
     scrollY: snapshot.state.scrollY.docs,
     bottomPadding: 30,
+    // The pane IS the article panel; its content is padded inside it.
+    air: {},
   });
   const compact = rect.width < 600;
   const horizontalPad = compact ? CONTENT_PAD_COMPACT : CONTENT_PAD;

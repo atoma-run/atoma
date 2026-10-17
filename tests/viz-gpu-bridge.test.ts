@@ -219,9 +219,14 @@ describe('full-GL minimal DOM bridge', () => {
     useGpuStore.setState({ tuningPanelOpen: true });
     render(createElement(SceneTuningPanel));
     expect(screen.getByLabelText('Scene tuning')).toHaveClass('gpu-panel-skin');
-    // Eight knobs: six scene multipliers plus independent caustic structure
-    // and spectral-dispersion controls.
-    expect(screen.getAllByRole('slider')).toHaveLength(8);
+    // Ten knobs: six scene multipliers, independent caustic structure and
+    // spectral-dispersion controls, and the ambient shadow's reach and density.
+    expect(screen.getAllByRole('slider')).toHaveLength(10);
+    fireEvent.change(screen.getByRole('slider', { name: 'Ambient shadow density' }), {
+      target: { value: '0.3' },
+    });
+    expect(readTuning().ambientShadowDensity).toBe(0.3);
+    expect(screen.getByRole('combobox', { name: 'Wireframe' })).toHaveValue('off');
     fireEvent.change(screen.getByRole('slider', { name: 'Light hue' }), {
       target: { value: '45' },
     });

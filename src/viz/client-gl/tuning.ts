@@ -42,6 +42,13 @@ export interface VizTuning {
    * diamond band, 0 collapses red and blue onto the mean trace.
    */
   causticDispersion: number;
+  /**
+   * The ambient key light's shadow, where the pointer lamp does not reach: how
+   * far it throws (a share of the shipped ambient offset) and how dense it is.
+   * Lower both and the lamp's shadow stands out more.
+   */
+  ambientShadowReach: number;
+  ambientShadowDensity: number;
 }
 
 /**
@@ -59,6 +66,8 @@ export const TUNING_IDENTITY: VizTuning = {
   columnDepth: 1,
   causticDetail: 1,
   causticDispersion: 1,
+  ambientShadowReach: 0.5,
+  ambientShadowDensity: 0.6,
 };
 
 export interface TuningRange {
@@ -85,6 +94,8 @@ export const TUNING_RANGE: Readonly<Record<keyof VizTuning, TuningRange>> = {
   columnDepth: { min: 0, max: 4, step: 0.05, labelKey: 'tuning.columnDepth', unit: '×' },
   causticDetail: { min: 0, max: 2, step: 0.05, labelKey: 'tuning.causticDetail', unit: '×' },
   causticDispersion: { min: 0, max: 2, step: 0.05, labelKey: 'tuning.causticDispersion', unit: '×' },
+  ambientShadowReach: { min: 0, max: 1.5, step: 0.05, labelKey: 'tuning.ambientShadowReach', unit: '×' },
+  ambientShadowDensity: { min: 0, max: 1, step: 0.05, labelKey: 'tuning.ambientShadowDensity', unit: '×' },
 };
 
 export const TUNING_KEYS = Object.keys(TUNING_RANGE) as ReadonlyArray<keyof VizTuning>;

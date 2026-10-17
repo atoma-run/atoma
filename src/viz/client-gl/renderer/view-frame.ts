@@ -24,6 +24,16 @@ export const VIEW_FRAME_TITLE_Y = 14;
 export const VIEW_FRAME_TITLE_SIZE = 16;
 /** Where content clears the title, measured from the frame's top. */
 export const VIEW_FRAME_CONTENT_TOP = 46;
+/**
+ * The free floor around a scroll pane spanning the frame below its title
+ * (`ScrollPaneOptions.air`): the gap under the title row above, the frame's
+ * bottom pad below. The sides need none — content already sits
+ * VIEW_FRAME_PAD inside such a pane.
+ */
+export const VIEW_FRAME_PANE_AIR = {
+  top: VIEW_FRAME_CONTENT_TOP - VIEW_FRAME_TITLE_Y - Math.ceil(VIEW_FRAME_TITLE_SIZE * 1.25),
+  bottom: VIEW_FRAME_PAD,
+} as const;
 /** How far the subtitle sits from the title's own left edge. */
 const SUBTITLE_X = 200;
 /** Narrow columns: the gap between the measured title and its subtitle. */

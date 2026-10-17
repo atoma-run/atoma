@@ -48,6 +48,11 @@ const MAX_LAYERS = 5;
 /** How far the penumbra spreads at depth 1, in renderer pixels. */
 const PENUMBRA_PX = 5;
 
+/** How far the penumbra spreads at `depth`, in renderer pixels. */
+export function softShadowSpread(depth = 1): number {
+  return PENUMBRA_PX * Math.max(0, depth);
+}
+
 /**
  * Layers ordered OUTERMOST FIRST, so a caller can fill them in order and let
  * the alphas accumulate toward the core — the same order a painter would use.
@@ -71,7 +76,7 @@ export function softShadowLayers(
   // invisible layers the renderer would still have to tessellate.
   if (peak === 0 || !(width > 0) || !(height > 0)) return [];
 
-  const spread = PENUMBRA_PX * Math.max(0, depth);
+  const spread = softShadowSpread(depth);
   // With no spread there is no penumbra to build: one crisp layer IS the
   // correct answer, and it keeps `depth: 0` an exact no-op.
   if (spread === 0) {

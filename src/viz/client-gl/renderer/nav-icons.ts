@@ -1,6 +1,7 @@
 import { CanvasSource, ColorMatrixFilter, Container, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
 import type { Group, WebGLRenderer } from 'three';
 import { pointerLightFalloff } from '../pointer-light.js';
+import { VIZ_WIREFRAME } from './wireframe.js';
 
 type ThreeModule = typeof import('./nav-icon-three-runtime.js');
 
@@ -170,6 +171,7 @@ function polishMaterials(model: Group, three: ThreeModule, kind: MeshKind): void
     const materials = Array.isArray(child.material) ? child.material : [child.material];
     for (const material of materials) {
       if (!(material instanceof three.MeshStandardMaterial)) continue;
+      material.wireframe = VIZ_WIREFRAME;
       if (kind === 'github') {
         const isDarkMark = /github/i.test(material.name);
         material.color.setHex(isDarkMark ? 0x111827 : 0xf3f4f6);

@@ -25,7 +25,9 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
   const copy = deploymentCopy(view);
   const hosted = hostingCopy(view);
   const pane = createScrollPane(ctx.root, { x: box.x, y: box.top, width: box.width,
-    height: Math.max(0, box.bottom - box.top - 16), scrollY: snapshot.state.scrollY.projects });
+    height: Math.max(0, box.bottom - box.top - 16), scrollY: snapshot.state.scrollY.projects,
+    // The section tabs (raised) stand right above; the frame's pad lies below.
+    air: { bottom: 16 } });
   const frames = new Container(); const content = new Container();
   pane.content.addChild(frames, content);
   const width = Math.max(0, Math.min(720, pane.width - 20));

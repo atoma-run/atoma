@@ -47,7 +47,10 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
   if (showPreview) top += drawPreviewControl(ctx, snapshot, x + 6, top, width - 12);
   const paneHeight = Math.max(0, height - (top - y) - 12);
   const pane = createScrollPane(ctx.root, { x: x + 12, y: top, width: width - 24,
-    height: paneHeight, scrollY: ctx.detailScrollY });
+    height: paneHeight, scrollY: ctx.detailScrollY,
+    // 10px below the details button (none under the preview control), the
+    // panel's 12px inset on the other three sides.
+    air: { top: showPreview ? 0 : 8, right: 8, bottom: 12, left: 8 } });
   ctx.detailBounds = new Rectangle(x + 12, top, width - 24, paneHeight);
   // Keep paragraphs readable on a large display instead of spanning the viewport.
   const contentWidth = Math.min(960, width - 44);

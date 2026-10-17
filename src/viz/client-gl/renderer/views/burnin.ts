@@ -10,7 +10,7 @@ import { gpuFilterButtonWidth } from '../chip-layout.js';
 import { quantile, truncate } from '../copy.js';
 import { prefersReducedMotion } from '../motion.js';
 import { createScrollPane } from '../scroll-pane.js';
-import { drawViewFrame, viewFrame, VIEW_FRAME_PAD } from '../view-frame.js';
+import { drawViewFrame, viewFrame, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR } from '../view-frame.js';
 
 /**
  * Burn-in view: filters, stat cards, cost scatter chart and the paginated
@@ -283,6 +283,8 @@ export function drawBurnin(
     height: Math.max(0, frame.bottom - PAGER_RESERVE - top),
     scrollY: scroll,
     bottomPadding: 0,
+    // The pager's buttons stand right below: no air there.
+    air: { top: VIEW_FRAME_PANE_AIR.top },
   });
   const latestTimestamp = Math.max(
     ...payload.rows.map((row) => Date.parse(row.ts)).filter(Number.isFinite)

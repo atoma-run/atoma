@@ -25,7 +25,9 @@ export function drawRunActivity(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
   const paneTop = stackedHeader ? 118 : 80;
   const paneHeight = Math.max(0, height - paneTop - 6);
   const pane = createScrollPane(ctx.root, { x: x + 16, y: y + paneTop, width: contentWidth,
-    height: paneHeight, scrollY: ctx.detailScrollY });
+    height: paneHeight, scrollY: ctx.detailScrollY,
+    // Below the header controls, inside the run frame's 16px inset.
+    air: { top: 8, right: 12, bottom: 6, left: 12 } });
   ctx.detailBounds = new Rectangle(x + 16, y + paneTop, contentWidth, paneHeight);
   const title = selected?.path ?? t(activity.touched ? 'activity.files' : 'activity.noSavedFiles', { count: activity.touched });
   const titleWidth = Math.max(40, contentWidth - (stackedHeader ? 0 : 146));

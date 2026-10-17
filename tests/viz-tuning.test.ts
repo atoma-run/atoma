@@ -13,11 +13,12 @@ import {
 } from '../src/viz/client-gl/tuning.js';
 import {
   CAST_SHADOW_IDENTITY_DEPTH,
-  CAST_SHADOW_REACH_PX,
-  castShadowOffset,
+  AMBIENT_SHADOW_DENSITY,
+  AMBIENT_SHADOW_REACH,
+  CAST_SHADOW_MAX_THROW_PX,
+  castShadowEdges,
   surfaceDepthScale,
 } from '../src/viz/client-gl/renderer/cast-shadow.js';
-import { POINTER_LIGHT_RADIUS_PX } from '../src/viz/client-gl/pointer-light.js';
 import {
   POINTER_LIGHT_BOUNDED_WGSL,
   POINTER_LIGHT_GLSL,
@@ -35,6 +36,11 @@ describe('the tuning identity is the shipped look', () => {
     expect(TUNING_IDENTITY.columnDepth).toBe(CAST_SHADOW_IDENTITY_DEPTH.column);
   });
 
+  it('starts the ambient shadow knobs on the model\'s own defaults', () => {
+    expect(TUNING_IDENTITY.ambientShadowReach).toBe(AMBIENT_SHADOW_REACH);
+    expect(TUNING_IDENTITY.ambientShadowDensity).toBe(AMBIENT_SHADOW_DENSITY);
+  });
+
   it('scales every surface class by exactly 1 at the identity', () => {
     for (const surface of ['button', 'frame', 'column', 'card'] as const) {
       expect(surfaceDepthScale(surface, TUNING_IDENTITY), surface).toBe(1);
@@ -46,8 +52,13 @@ describe('the tuning identity is the shipped look', () => {
       left: 400, top: 300, width: 120, height: 40,
       lightX: 420, lightY: 260, strength: 1,
     };
-    const before = castShadowOffset(input);
-    const after = castShadowOffset({ ...input, lightHeight: TUNING_IDENTITY.lightHeight });
+    const before = castShadowEdges(input);
+    const after = castShadowEdges({
+      ...input,
+      lightHeight: TUNING_IDENTITY.lightHeight,
+      ambientReach: TUNING_IDENTITY.ambientShadowReach,
+      ambientDensity: TUNING_IDENTITY.ambientShadowDensity,
+    });
     expect(after).toEqual(before);
   });
 
@@ -81,48 +92,39 @@ describe('the tuning identity is the shipped look', () => {
 });
 
 describe('light height moves the pool and the shadows together', () => {
-  // INSIDE the pool at every height under test. This matters and the first
-  // version of this test got it wrong: for a surface far outside the pool,
-  // LOWERING the light shortens its shadow rather than lengthening it, because
-  // shrinking the pool drops the surface out of the light entirely and it
-  // falls back to the ambient offset. Both behaviours are correct; only the
-  // near one is what "a lower lamp rakes longer shadows" means.
+  // The lamp sits 40px left of the surface, INSIDE the pool at every height
+  // under test: for a surface far outside it, lowering the lamp shrinks the
+  // pool and drops the surface back to its ambient shadow instead.
   const base = {
     left: 340, top: 400, width: 100, height: 30,
-    lightX: 300, lightY: 400, strength: 1,
+    lightX: 300, lightY: 415, strength: 1,
   };
+  const throwOf = (lightHeight: number) => castShadowEdges({ ...base, lightHeight }).left;
 
-  it('shortens shadows as the light rises, and lengthens them as it drops', () => {
-    const high = castShadowOffset({ ...base, lightHeight: 2 });
-    const low = castShadowOffset({ ...base, lightHeight: 0.5 });
-    const neutral = castShadowOffset({ ...base, lightHeight: 1 });
-    expect(Math.hypot(high.x, high.y)).toBeLessThan(Math.hypot(neutral.x, neutral.y));
-    expect(Math.hypot(low.x, low.y)).toBeGreaterThan(Math.hypot(neutral.x, neutral.y));
+  it('throws shorter as the lamp rises, and longer as it drops', () => {
+    expect(throwOf(2)).toBeLessThan(throwOf(1));
+    expect(throwOf(0.5)).toBeGreaterThan(throwOf(1));
   });
 
   it('widens the pool so a surface out of reach at rest comes into it', () => {
-    // 300px away: outside the 150px radius at height 1, inside it at height 3.
-    const far = { ...base, left: 300 + POINTER_LIGHT_RADIUS_PX * 1.6 };
-    const atRest = castShadowOffset({ ...far, lightHeight: 1 });
-    const lifted = castShadowOffset({ ...far, lightHeight: 3 });
-    // At rest the surface is unlit, so it keeps the ambient offset.
-    const ambient = castShadowOffset({ ...far, strength: 0 });
-    expect(atRest.x).toBeCloseTo(ambient.x, 1);
-    expect(lifted.x).not.toBeCloseTo(ambient.x, 1);
+    // Its right edge 300px from the lamp: outside the pool at height 1, inside at 3.
+    const far = { ...base, left: 300 - 300 - base.width };
+    const ambient = castShadowEdges({ ...far, strength: 0 }).right;
+    expect(castShadowEdges({ ...far, lightHeight: 1 }).right).toBeCloseTo(ambient, 1);
+    expect(castShadowEdges({ ...far, lightHeight: 3 }).right).not.toBeCloseTo(ambient, 1);
   });
 
   it('never divides by a zero or negative height', () => {
     for (const lightHeight of [0, -1, Number.NaN]) {
-      const offset = castShadowOffset({ ...base, lightHeight });
-      expect(Number.isFinite(offset.x), String(lightHeight)).toBe(true);
-      expect(Number.isFinite(offset.y), String(lightHeight)).toBe(true);
+      const spill = castShadowEdges({ ...base, lightHeight });
+      for (const value of [spill.left, spill.right, spill.top, spill.bottom]) {
+        expect(Number.isFinite(value), String(lightHeight)).toBe(true);
+      }
     }
   });
 
-  it('keeps the reach constant used by the identity', () => {
-    // Pins the direction of the height mapping against a silent inversion.
-    const lifted = castShadowOffset({ ...base, lightHeight: 2, depth: 1 });
-    expect(Math.hypot(lifted.x, lifted.y)).toBeLessThan(CAST_SHADOW_REACH_PX);
+  it('caps the throw however low the lamp goes', () => {
+    expect(Math.abs(throwOf(0.3))).toBeLessThanOrEqual(CAST_SHADOW_MAX_THROW_PX);
   });
 });
 
@@ -144,6 +146,7 @@ describe('surfaceDepthScale lifts one stack without lifting the others', () => {
       lightHeight: 3, lightIntensity: 2, lightHue: 180,
       buttonDepth: 4, controlFrameDepth: 4, columnDepth: 4,
       causticDetail: 2, causticDispersion: 2,
+      ambientShadowReach: 1.5, ambientShadowDensity: 1,
     };
     expect(surfaceDepthScale('card', extreme)).toBe(1);
   });

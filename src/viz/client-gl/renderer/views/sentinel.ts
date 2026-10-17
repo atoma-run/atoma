@@ -2,7 +2,7 @@ import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { truncate } from '../copy.js';
 import { createScrollPane } from '../scroll-pane.js';
-import { drawViewFrame, viewFrame, VIEW_FRAME_PAD } from '../view-frame.js';
+import { drawViewFrame, viewFrame, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR } from '../view-frame.js';
 import { clockDate, drawJournalRow, journalRowHeight, SEVERITY_COLORS } from './journal-row.js';
 
 /**
@@ -73,6 +73,7 @@ export function drawSentinel(
     height: Math.max(0, frame.bottom - VIEW_FRAME_PAD - contentTop),
     scrollY: snapshot.state.scrollY.sentinel,
     bottomPadding: 24,
+    air: VIEW_FRAME_PANE_AIR,
   });
 
   const x = VIEW_FRAME_PAD;

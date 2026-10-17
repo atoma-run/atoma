@@ -37,6 +37,8 @@ export function drawSkills(
     width: leftWidth,
     height: height - GPU_LAYOUT.gap - paneTop,
     scrollY: snapshot.state.scrollY.skills,
+    // Flat title copy above; the pane ends on the panel's edge.
+    air: { top: 12 },
   });
   let y = 0;
   for (const namespace of snapshot.data.skillNamespaces) {
@@ -145,6 +147,8 @@ export function drawSkills(
     width: rightWidth,
     height: height - GPU_LAYOUT.gap - detailPaneTop,
     scrollY: ctx.detailScrollY,
+    // The description above is flat text; the pane ends on the panel's edge.
+    air: { top: 12 },
   });
   let bodyY = 14;
   if (skill.shareability) {

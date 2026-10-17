@@ -53,6 +53,8 @@ export function drawAtomStubDetail(
     width,
     height: y + height - paneTop,
     scrollY: ctx.detailScrollY,
+    // The badge line above is flat text; the pane ends on the panel's edge.
+    air: { top: 12 },
   });
   const innerWidth = width - 36;
   let cursor = 0;

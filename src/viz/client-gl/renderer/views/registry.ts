@@ -75,6 +75,8 @@ export function drawRegistry(
     width: leftWidth,
     height: Math.max(0, height - GPU_LAYOUT.gap - paneTop),
     scrollY: snapshot.state.scrollY.registry,
+    // The store caption above is flat text; the pane ends on the panel's edge.
+    air: { top: 12 },
   });
   let y = 0;
   if (multipleRegistries) {

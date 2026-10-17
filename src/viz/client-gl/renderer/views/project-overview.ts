@@ -461,7 +461,9 @@ export function drawProjectAside(ctx: RendererCtx, snapshot: GpuRenderSnapshot, 
   const paneWidth = aside.asideWidth - 8;
   const paneHeight = Math.max(0, bottom - 4 - paneY);
   const pane = createScrollPane(ctx.root, { x: paneX, y: paneY, width: paneWidth, height: paneHeight,
-    scrollY: ctx.detailScrollY, bottomPadding: PAD });
+    scrollY: ctx.detailScrollY, bottomPadding: PAD,
+    // 8px under the header and its toggle, the column's 4px inset elsewhere.
+    air: { top: 8, right: 4, bottom: 4, left: 4 } });
   ctx.detailBounds = new Rectangle(paneX, paneY, paneWidth, paneHeight);
   const left = inset - 4;
   // A lane is in the coordinates of the parent that declares the bubble: the pane's content here.

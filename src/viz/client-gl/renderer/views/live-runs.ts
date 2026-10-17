@@ -2,7 +2,7 @@ import { formatDateTime } from '../../../client/date-format.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
-import { drawViewFrame, viewFrame, VIEW_FRAME_PAD } from '../view-frame.js';
+import { drawViewFrame, viewFrame, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR } from '../view-frame.js';
 
 /** The platform's transactional running set, including preparation before a trace exists. */
 export function drawLiveRuns(ctx: RendererCtx, snapshot: GpuRenderSnapshot, width: number, height: number): void {
@@ -12,7 +12,7 @@ export function drawLiveRuns(ctx: RendererCtx, snapshot: GpuRenderSnapshot, widt
   const pane = createScrollPane(ctx.root, {
     x: frame.x, y: frame.contentTop, width: frame.width,
     height: Math.max(0, frame.bottom - VIEW_FRAME_PAD - frame.contentTop),
-    scrollY: snapshot.state.scrollY.liveRuns, bottomPadding: 24,
+    scrollY: snapshot.state.scrollY.liveRuns, bottomPadding: 24, air: VIEW_FRAME_PANE_AIR,
   });
   const x = VIEW_FRAME_PAD;
   const textX = x + 16;
