@@ -256,6 +256,17 @@ Neighbours:
   runner's stdin pipe ends; copies carry the runner's pid, and a later
   verification removes a dead owner's copy once it is 10 minutes old.
   [G2 record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-matcher-forging-leftover-copies-suite-aliases).
+- Under the runner's Node permissions `existsSync` THROWS `ERR_ACCESS_DENIED`
+  for a path outside the readable set, where the OS's own refusal and
+  `fs.exists` both answer false: a module probing for a system binary at import
+  never loaded, and its suites read "failed 0/0" (run 760fef4c, 2026-10-17).
+  The setup file restores `false` for that one call inside the guarded setup
+  (a fault there is `runner-error`); no read is widened. The ESM re-sync it
+  needs holds every `node:process` binding, or `import { exit }` became
+  Vitest's catchable stub. `statSync`/`accessSync` still throw, and a traversal
+  test proves nothing aimed outside the copy: both limits are in the
+  [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md), and
+  `PARENT_TEST_RUNNER_SCOPE` tells planners what the code under test can see.
 
 ## Generated artefact conventions
 

@@ -663,9 +663,12 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
       parsed.numPassedTests === parsed.numTotalTests && parsed.numFailedTests === 0 && skipped === 0;
     // Host notes are array elements, so the details stay one JSON array.
     const notes: string[] = [];
-    if (receipt.skipped > 0 || receipt.unstable > 0) {
-      notes.push(`Host: the snapshot skipped ${receipt.skipped} unreachable entries and copied ${receipt.unstable} files that kept changing: ${receipt.unstablePaths.join(', ')}`);
-    }
+    // Only what happened: "copied 0 files that kept changing: " named nothing (run 760fef4c).
+    const snapshotNotes = [
+      ...(receipt.skipped > 0 ? [`skipped ${receipt.skipped} unreachable entries`] : []),
+      ...(receipt.unstable > 0 ? [`copied ${receipt.unstable} files that kept changing: ${receipt.unstablePaths.join(', ')}`] : []),
+    ];
+    if (snapshotNotes.length > 0) notes.push(`Host: the snapshot ${snapshotNotes.join(' and ')}`);
     if (parsed.numTotalTests === 0 && parsed.testResults.some(module => module.message?.trim())) {
       notes.push('Host: the suite module did not load; no test ran.');
     }

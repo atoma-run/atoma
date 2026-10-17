@@ -252,6 +252,8 @@ describe('containment and shape of the copy', () => {
     expect(observation.snapshot?.skipped).toBe(2);
     expect(observation.snapshot?.links).toBe(64);
     expect(observation.details).toContain('Host: the snapshot skipped 2 unreachable entries');
+    // Only what happened: no empty "copied 0 files that kept changing: " (run 760fef4c).
+    expect(observation.details).not.toContain('kept changing');
     expect(acceptanceCopies()).toEqual([]);
   }, 40_000);
 

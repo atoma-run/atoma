@@ -497,6 +497,35 @@ describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('c
     }
   }, 90_000);
 
+  // Run 760fef4c (2026-10-17), on this path: a module probing for the image's
+  // Chromium at import threw ERR_ACCESS_DENIED and never loaded.
+  it('answers existence probes outside the copy with false in the packaged runner', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-acceptance-image-'));
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    try {
+      await executor.start();
+      writeFileSync(join(workspace, 'probe.js'), [
+        "import { existsSync } from 'node:fs';",
+        "export const probes = ['/usr/bin/chromium', '/workspace/probe.js', './probe.js'].map(target => existsSync(target));",
+      ].join('\n'));
+      const suite = { requirement: 'existence probes answer', cwd: '.', source: [
+        "import { test, expect } from 'vitest';",
+        "import { readFileSync } from 'node:fs';",
+        "import { probes } from './probe.js';",
+        "test('probes', () => {",
+        '  expect(probes).toEqual([false, false, true]);',
+        "  expect(() => readFileSync('/workspace/probe.js', 'utf8')).toThrow();",
+        '});',
+      ].join('\n') };
+      const observation = await executor.execute('run_shell', { command: 'atoma-verify', args: [JSON.stringify(suite)], timeoutMs: 60_000 });
+      expect(observation, JSON.stringify(observation)).toMatchObject({ status: 'passed', passed: 1 });
+    } finally {
+      await executor.drain();
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }, 90_000);
+
   it('copies without stalling sibling reads and runs no project code in the coordinator', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'atoma-acceptance-image-'));
     const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,

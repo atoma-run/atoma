@@ -110,7 +110,19 @@ not been told, and demanded a suite drive a browser). Test
 workers cannot spawn processes, create further workers, load native addons, or
 access the live workspace through Node filesystem APIs. The existing container
 is the OS boundary; Node permissions are defence in depth, not a replacement
-for that boundary. Network policy remains the worker's policy; suites must mock
+for that boundary. Under them `existsSync` threw `ERR_ACCESS_DENIED` for a
+path outside the readable set (the copy, which is also HOME and the temporary
+directory, and the runner's own modules), where the OS's own refusal and
+`fs.exists` answer false; a module that probed for a system binary at import
+never loaded, and the run was refused at delivery (run 760fef4c, 2026-10-17).
+The setup file restores `false` for that call alone; nothing becomes readable.
+Making ESM named imports see it re-binds every built-in, so the `node:process`
+bindings are held at their imported values (Vitest replaces `process.exit`).
+Two limits remain: `statSync(p, { throwIfNoEntry: false })` and `accessSync`
+on such a path still throw, as on the OS's own refusal, so a module probing
+that way at import still does not load; and because every such path reads as
+absent, a test that a server refuses an escaping path proves it only when the
+target lies inside the copy, which `PARENT_TEST_RUNNER_SCOPE` tells planners. Network policy remains the worker's policy; suites must mock
 external services. Browser interactions and CLI process behavior still use
 their existing probes. Project dependencies must already be installed.
 

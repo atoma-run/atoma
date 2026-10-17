@@ -131,6 +131,72 @@ it('resolves an extensionless import to the .js file before a .ts file of the sa
   expect(observation, JSON.stringify(observation)).toMatchObject({ status: 'passed', cause: 'ran', passed: 1, failed: 0 });
 }, 60_000);
 
+// Run 760fef4c (2026-10-17): the collector's session module probes for a
+// Chromium binary at import, `existsSync('/usr/bin/chromium')`. Under the
+// runner's Node permissions that call THREW ERR_ACCESS_DENIED, where the
+// operating system's own refusal and `fs.exists` both answer false: both
+// parent suites "failed 0/0" on a module that never loaded, and the run was
+// refused at delivery for code whose own suite passed.
+it('answers an existence probe outside the copy with false and still refuses reading it', async () => {
+  const { root, box } = fixture();
+  const outside = fixture();
+  const secret = path.join(outside.root, 'secret');
+  writeFileSync(secret, 'hidden');
+  writeFileSync(path.join(root, 'probe.js'), [
+    "import fs, { existsSync } from 'node:fs';",
+    "import { createRequire } from 'node:module';",
+    `const outside = ${JSON.stringify(secret)};`,
+    'export const named = existsSync(outside);',
+    'export const viaDefault = fs.existsSync(outside);',
+    "export const viaRequire = createRequire(import.meta.url)('node:fs').existsSync(outside);",
+    "export const inside = existsSync('./probe.js');",
+    '',
+  ].join('\n'));
+  // PARENT_TEST_RUNNER_SCOPE says HOME and the temporary directory are inside the copy.
+  const source = [
+    "import { test, expect } from 'vitest';",
+    "import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';",
+    "import { homedir, tmpdir } from 'node:os';",
+    "import { join } from 'node:path';",
+    "import { named, viaDefault, viaRequire, inside } from './probe.js';",
+    "test('probes', () => {",
+    '  expect([named, viaDefault, viaRequire, inside]).toEqual([false, false, false, true]);',
+    `  expect(() => readFileSync(${JSON.stringify(secret)}, 'utf8')).toThrow();`,
+    '  expect([existsSync(homedir()), existsSync(tmpdir())]).toEqual([true, true]);',
+    "  const scratch = mkdtempSync(join(tmpdir(), 'fixture-'));",
+    "  writeFileSync(join(homedir(), '.probe'), 'home');",
+    "  writeFileSync(join(scratch, 'value'), 'temporary');",
+    "  expect(readFileSync(join(scratch, 'value'), 'utf8')).toBe('temporary');",
+    '});',
+  ].join('\n');
+
+  const observation = await runParentTests(box, [JSON.stringify(suite(source))], 60_000);
+
+  expect(observation, JSON.stringify(observation)).toMatchObject({ status: 'passed', cause: 'ran', passed: 1, failed: 0 });
+}, 60_000);
+
+// Review 2026-10-17: restoring `existsSync` for ESM named imports re-syncs
+// every built-in's ESM bindings, and Vitest had already replaced `process.exit`
+// with a catchable error: `import { exit } from 'node:process'` inside a
+// catch-all turned a red suite green. The runner holds those bindings.
+it('keeps an exit imported from node:process fatal when the code under test catches everything', async () => {
+  const { root, box } = fixture();
+  writeFileSync(path.join(root, 'quit.js'), [
+    "import { exit } from 'node:process';",
+    "export function quit() { try { exit(3); } catch { return 'caught'; } return 'continued'; }",
+    '',
+  ].join('\n'));
+  const source = [
+    "import { test, expect } from 'vitest';",
+    "import { quit } from './quit.js';",
+    "test('quits', () => { expect(quit()).toBe('caught'); });",
+  ].join('\n');
+
+  const observation = await runParentTests(box, [JSON.stringify(suite(source))], 60_000);
+
+  expect(observation.status, JSON.stringify(observation)).not.toBe('passed');
+}, 60_000);
+
 it('isolates test writes and refuses access to the live workspace', async () => {
   const { root, box } = fixture();
   writeFileSync(path.join(root, 'add.ts'), 'original');

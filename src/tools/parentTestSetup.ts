@@ -27,6 +27,9 @@
  * `Reflect.apply`.
  */
 /* eslint-disable @typescript-eslint/unbound-method -- built-ins are saved before code under test can replace them, then called through the saved Reflect.apply */
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+import * as processBindings from 'node:process';
 import { afterAll, beforeEach, chai, describe, expect, it, suite, test, vi } from 'vitest';
 import { WATCHED_PROTOTYPES, WATCHED_STATICS } from '../contracts/assertionIntegrity.js';
 
@@ -413,6 +416,53 @@ function lockObject(target: object): void {
   for (const key of ownKeys(target)) lockKey(target, key);
 }
 
+// Not the guard: what `existsSync` answers. The runner's Node permissions deny
+// every path outside the copy, and under them `existsSync` THROWS
+// ERR_ACCESS_DENIED where the operating system's own refusal (EACCES) and
+// `fs.exists` both answer false. A module that probed for a system binary at
+// import (`existsSync('/usr/bin/chromium')`) never loaded, and both of its
+// suites read "failed 0/0" (run 760fef4c, 2026-10-17). The probe answers false
+// again; nothing outside the copy becomes readable, and every other call keeps
+// Node's answer, as it would on the operating system's refusal. Installed with
+// the guard, so a fault here is the host's (`runner-error`), never the code's.
+// Once per thread: `node:fs` outlives each isolated file.
+function answerExistsLikeTheSystem(): void {
+  const original = fs.existsSync;
+  const marker = Symbol.for('atoma.existsSyncUnderPermissions');
+  if (has(original, marker)) return;
+  const existsSync = (target: fs.PathLike): boolean => {
+    try {
+      return original(target);
+    } catch (error) {
+      if ((error as { code?: unknown } | null)?.code === 'ERR_ACCESS_DENIED') return false;
+      throw error;
+    }
+  };
+  defineProperty(existsSync, marker, { value: true });
+  (fs as { existsSync: typeof existsSync }).existsSync = existsSync;
+  // ESM named imports (`import { existsSync } from 'node:fs'`) see it too. The
+  // sync re-binds EVERY built-in, and Vitest has already replaced
+  // `process.exit` on the process object: each `node:process` binding is held
+  // at its imported value across the sync, or `import { exit }` would throw
+  // Vitest's catchable error and an exit inside a catch-all would pass where
+  // it failed (review 2026-10-17).
+  const bindings = processBindings as unknown as Bag;
+  const live = process as unknown as Bag;
+  const held: Array<[string, unknown]> = [];
+  for (const key of ownKeys(bindings)) {
+    if (typeof key !== 'string' || key === 'default') continue;
+    const descriptor = describeOwn(live, key);
+    if (!descriptor || !hasOwn(descriptor, 'value') || !descriptor.writable || is(descriptor.value, bindings[key])) continue;
+    held[held.length] = [key, descriptor.value];
+    live[key] = bindings[key];
+  }
+  try {
+    syncBuiltinESMExports();
+  } finally {
+    for (const [key, value] of held) live[key] = value;
+  }
+}
+
 // 2. The nonces. Read and scrubbed from the provided context before the suite
 // module loads, so the suite and the code it imports see neither. The setup
 // nonce stays in this block, captured by no closure: only a setup failure can
@@ -431,6 +481,7 @@ let guardNonce = '';
   guardNonce = guard;
   try {
     install();
+    answerExistsLikeTheSystem();
   } catch (error) {
     throw new Error(`[atoma-integrity-setup:${setupNonce}] the assertion-integrity guard could not be installed: ${String(error).slice(0, 300)}`);
   }
