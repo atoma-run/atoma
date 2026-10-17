@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "Não foi possível iniciar o executor de testes.",
   "result.tests.cause.landing": "O run terminou com trabalho por concluir ou ficou sem orçamento antes que estes testes pudessem ser executados.",
   "result.tests.cause.deadline-timeout": "O limite de tempo do run ou a cópia do projeto interrompeu os testes antes de estes terminarem.",
-  "result.tests.cause.unknown": "O motivo não foi registado."
+  "result.tests.cause.unknown": "O motivo não foi registado.",
+  "tuning.ambientShadowReach": "Alcance da sombra ambiente",
+  "tuning.ambientShadowDensity": "Densidade da sombra ambiente",
+  "tuning.diagnostics": "Diagnóstico",
+  "tuning.wireframe": "Estrutura de arame",
+  "tuning.wireframe.off": "Desativada",
+  "tuning.wireframe.lines": "Apenas arestas",
+  "tuning.wireframe.overlay": "Sobre a cena",
+  "tuning.wireframe.reloads": "Alterar a estrutura de arame recarrega a página e utiliza WebGL."
 }

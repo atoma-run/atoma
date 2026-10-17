@@ -45,7 +45,7 @@ function stats(outcome: RunStats['outcome'], costUsd = 0.1): RunStats {
     outcome, costUsd, llmCalls: 3, opusCalls: 0, sonnetCalls: 1, haikuCalls: 2, otherCalls: 0,
     deterministicPhases: 0, escalations: 0, learnedSkills: 0, learnedEventSkills: 0, promotions: 0,
     refusals: 0, compileErrors: 0, demotions: 0, dispatchFallbacks: 0, uncoveredObligations: 0,
-    deepenings: 0, rootRemediations: 0, landingRemediations: 0, unjudgedRemediations: 0, discardedLessons: 0, triggerRejections: 0, landingReasons: [],
+    deepenings: 0, rootRemediations: 0, landingRemediations: 0, unjudgedRemediations: 0, discardedLessons: 0, triggerRejections: 0, suiteDisputes: 0, landingReasons: [],
   };
 }
 

@@ -29,7 +29,10 @@
 /* eslint-disable @typescript-eslint/unbound-method -- built-ins are saved before code under test can replace them, then called through the saved Reflect.apply */
 import fs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
+import { resolve, sep } from 'node:path';
 import * as processBindings from 'node:process';
+import { fileURLToPath } from 'node:url';
+import { getSystemErrorMap } from 'node:util';
 import { afterAll, beforeEach, chai, describe, expect, it, suite, test, vi } from 'vitest';
 import { WATCHED_PROTOTYPES, WATCHED_STATICS } from '../contracts/assertionIntegrity.js';
 
@@ -416,36 +419,253 @@ function lockObject(target: object): void {
   for (const key of ownKeys(target)) lockKey(target, key);
 }
 
-// Not the guard: what `existsSync` answers. The runner's Node permissions deny
-// every path outside the copy, and under them `existsSync` THROWS
-// ERR_ACCESS_DENIED where the operating system's own refusal (EACCES) and
-// `fs.exists` both answer false. A module that probed for a system binary at
-// import (`existsSync('/usr/bin/chromium')`) never loaded, and both of its
-// suites read "failed 0/0" (run 760fef4c, 2026-10-17). The probe answers false
-// again; nothing outside the copy becomes readable, and every other call keeps
-// Node's answer, as it would on the operating system's refusal. Installed with
-// the guard, so a fault here is the host's (`runner-error`), never the code's.
-// Once per thread: `node:fs` outlives each isolated file.
-function answerExistsLikeTheSystem(): void {
-  const original = fs.existsSync;
-  const marker = Symbol.for('atoma.existsSyncUnderPermissions');
-  if (has(original, marker)) return;
-  const existsSync = (target: fs.PathLike): boolean => {
+// Not the guard: what a path outside the readable set answers. The runner's
+// Node permissions refuse every path outside the copy (also HOME and the
+// temporary directory) and the runner's own modules with `ERR_ACCESS_DENIED`,
+// a code no file API documents: a module probing the system at import never
+// loaded and its suites read "failed 0/0" (run 760fef4c, 2026-10-17:
+// `existsSync('/usr/bin/chromium')`). Such a path is ABSENT for the code under
+// test, as in a container that mounts only the copy: `exists` and `existsSync`
+// answer false, `throwIfNoEntry: false` answers undefined, and every other
+// read raises the ENOENT Node raises for a missing path, thrown, called back
+// (never before the call returns) or rejected as the API does; streams open
+// through `fs.open`. Only a READ refusal of the path the caller NAMED
+// converts, decided by Node's own `process.permission.has`: nothing becomes
+// readable, and so do the directories above the readable set, which exist
+// (Node's asynchronous `realpath` walks them for a file inside the copy, and
+// is refused there as before). Writes keep Node's refusal, including those
+// that read first: an open for writing, a truncate, an `rm` (with `force`, a
+// read answered "absent" would have made it succeed: review 2026-10-17).
+// Installed with the guard, so a fault here is the host's (`runner-error`),
+// never the code's. Once per thread: `node:fs` outlives each isolated file.
+type Fn = (...args: unknown[]) => unknown;
+/** This file, whose frames a converted error's stack drops. */
+const SETUP_FILE = ((): string => {
+  try {
+    return fileURLToPath(import.meta.url);
+  } catch {
+    return '';
+  }
+})();
+/** Each read and the syscall its own ENOENT names (Node 24.20 and 24.22, measured). */
+const READS: ReadonlyArray<readonly [name: string, syscall: string]> = [
+  ['access', 'access'], ['lstat', 'lstat'], ['open', 'open'], ['opendir', 'opendir'], ['readdir', 'scandir'],
+  ['readFile', 'open'], ['readlink', 'readlink'], ['realpath', 'lstat'], ['stat', 'stat'], ['statfs', 'statfs'],
+];
+function answerOutsideAsAbsent(): void {
+  const marker = Symbol.for('atoma.absentOutsideTheCopy');
+  if (has(fs.existsSync, marker)) return;
+  const permission = (process as { permission?: { has: (scope: string, reference?: string) => boolean } }).permission;
+  if (!permission) return;
+  const permissionHas = permission.has;
+  const nextTick = process.nextTick;
+  const roots: string[] = [];
+  for (const flag of process.execArgv) if (flag.startsWith('--allow-fs-read=')) roots[roots.length] = resolve(flag.slice(16));
+  let errno = -2;
+  for (const [code, [name]] of getSystemErrorMap()) if (name === 'ENOENT') errno = code;
+  const captureStackTrace = SafeError.captureStackTrace;
+  const { O_WRONLY, O_RDWR, O_CREAT, O_TRUNC, O_APPEND } = fs.constants;
+  /** An open that only reads; any other is a write, and keeps Node's refusal. */
+  const readOnly = (flags: unknown): boolean => flags === undefined || flags === null ||
+    (typeof flags === 'number' ? (flags & (O_WRONLY | O_RDWR | O_CREAT | O_TRUNC | O_APPEND)) === 0
+      : typeof flags === 'string' && /^(?:r|rs|sr)$/.test(flags));
+  /** `open(path, flags?, mode?, cb)` and `readFile(path, options?, cb)`: whether this call only reads. */
+  const opensToRead = (args: readonly unknown[]): boolean => readOnly(typeof args[1] === 'function' ? undefined : args[1]);
+  const readsToRead = (args: readonly unknown[]): boolean => {
+    const options = args[1];
+    return !isObjectLike(options) || typeof options === 'function' || readOnly((options as Bag)['flag']);
+  };
+  /** Node's own test for a URL-like argument (`isURL`): it reads such an object as a file URL. */
+  const urlLike = (target: unknown): target is { href: string; protocol: string } => isObjectLike(target) &&
+    typeof (target as Bag)['href'] === 'string' && typeof (target as Bag)['protocol'] === 'string' &&
+    (target as Bag)['auth'] === undefined && (target as Bag)['path'] === undefined;
+  const named = (target: unknown): string | undefined => {
+    if (typeof target === 'string') return target;
+    if (isView(target)) return Buffer.from(target.buffer, target.byteOffset, target.byteLength).toString();
+    if (target instanceof URL) return target.protocol === 'file:' ? fileURLToPath(target) : undefined;
+    return urlLike(target) && target.protocol === 'file:' ? fileURLToPath(target.href) : undefined;
+  };
+  const readable = (shown: string): boolean => apply(permissionHas, permission, ['fs.read', shown]) === true;
+  /** The path the caller named when it is outside the readable set and not above it. */
+  const absentPath = (target: unknown): string | undefined => {
     try {
-      return original(target);
-    } catch (error) {
-      if ((error as { code?: unknown } | null)?.code === 'ERR_ACCESS_DENIED') return false;
-      throw error;
+      const shown = named(target);
+      if (shown === undefined || readable(shown)) return undefined;
+      const full = resolve(shown);
+      const prefix = full.endsWith(sep) ? full : `${full}${sep}`;
+      return roots.some(root => root.startsWith(prefix)) ? undefined : shown;
+    } catch {
+      return undefined;
     }
   };
-  defineProperty(existsSync, marker, { value: true });
-  (fs as { existsSync: typeof existsSync }).existsSync = existsSync;
-  // ESM named imports (`import { existsSync } from 'node:fs'`) see it too. The
-  // sync re-binds EVERY built-in, and Vitest has already replaced
-  // `process.exit` on the process object: each `node:process` binding is held
-  // at its imported value across the sync, or `import { exit }` would throw
-  // Vitest's catchable error and an exit inside a catch-all would pass where
-  // it failed (review 2026-10-17).
+  /**
+   * The runner's own frames never read as the fault: `caller` cuts a
+   * synchronous stack there, and any frame left in this file is dropped, as a
+   * promise's rejection keeps its own (second review 2026-10-17).
+   */
+  const fromCaller = (error: Error & Bag, caller?: Fn): Error => {
+    if (caller) apply(captureStackTrace, SafeError, [error, caller]);
+    if (SETUP_FILE) error.stack = String(error.stack).split('\n').filter(line => !line.includes(SETUP_FILE)).join('\n');
+    return error;
+  };
+  /** Node's ENOENT for a missing path. */
+  const enoent = (syscall: string, shown: string, caller?: Fn): Error => {
+    const error = new SafeError(`ENOENT: no such file or directory, ${syscall} '${shown}'`) as Error & Bag;
+    error['errno'] = errno;
+    error['code'] = 'ENOENT';
+    error['syscall'] = syscall;
+    error['path'] = shown;
+    return fromCaller(error, caller);
+  };
+  /** Node's own write refusal, for a write that would read first. */
+  const writeRefusal = (shown: string, caller: Fn): Error => {
+    const error = new SafeError('Access to this API has been restricted. Use --allow-fs-write to manage permissions.') as Error & Bag;
+    error['code'] = 'ERR_ACCESS_DENIED';
+    error['permission'] = 'FileSystemWrite';
+    error['resource'] = resolve(shown);
+    return fromCaller(error, caller);
+  };
+  const absent = (error: unknown, syscall: string, target: unknown, caller?: Fn): Error | undefined => {
+    if (!isObjectLike(error) || (error as Bag)['code'] !== 'ERR_ACCESS_DENIED' || (error as Bag)['permission'] !== 'FileSystemRead') return undefined;
+    const shown = absentPath(target);
+    return shown === undefined ? undefined : enoent(syscall, shown, caller);
+  };
+  /** `reads(args)` false: this call writes, and Node's answer stands as it is. */
+  type Reads = (args: readonly unknown[]) => boolean;
+  const synchronous = (original: Fn, syscall: string, reads?: Reads): Fn => function wrapper(this: unknown, ...args: unknown[]): unknown {
+    try {
+      return apply(original, this, args);
+    } catch (error) {
+      const answer = reads && !reads(args) ? undefined : absent(error, syscall, args[0], wrapper);
+      if (!answer) throw error;
+      const options = args[1];
+      if ((syscall === 'stat' || syscall === 'lstat') && isObjectLike(options) && (options as Bag)['throwIfNoEntry'] === false) return undefined;
+      throw answer;
+    }
+  };
+  const callback = (original: Fn, syscall: string, reads?: Reads): Fn => function (this: unknown, ...args: unknown[]): unknown {
+    const done = args[args.length - 1];
+    if (typeof done !== 'function' || (reads && !reads(args))) return apply(original, this, args);
+    const target = args[0];
+    // Node calls a refused request back before it returns; the system never does.
+    const later = (answer: Error): undefined => { apply(nextTick, process, [done, answer]); return undefined; };
+    args[args.length - 1] = function answered(this: unknown, ...results: unknown[]): unknown {
+      const answer = absent(results[0], syscall, target, answered);
+      return answer ? later(answer) : apply(done, this, results);
+    };
+    try {
+      return apply(original, this, args);
+    } catch (error) {
+      const answer = absent(error, syscall, target);
+      if (!answer) throw error;
+      return later(answer);
+    }
+  };
+  const promised = (original: Fn, syscall: string, reads?: Reads): Fn => async function (this: unknown, ...args: unknown[]): Promise<unknown> {
+    try {
+      return await apply(original, this, args);
+    } catch (error) {
+      throw (reads && !reads(args) ? undefined : absent(error, syscall, args[0])) ?? error;
+    }
+  };
+  /** Replaces `owner[name]`, keeping the original's own markers (`native`, `util.promisify.custom`). */
+  const replace = (owner: Bag, name: string, wrapper: Fn): void => {
+    const original = owner[name] as Fn;
+    for (const key of ownKeys(original)) {
+      const descriptor = key === 'prototype' || describeOwn(wrapper, key) ? undefined : describeOwn(original, key);
+      if (descriptor) defineProperty(wrapper, key, descriptor);
+    }
+    defineProperty(wrapper, 'name', { value: original.name, configurable: true });
+    defineProperty(wrapper, 'length', { value: original.length, configurable: true });
+    owner[name] = wrapper;
+  };
+  const module = fs as unknown as Bag;
+  const promises = fs.promises as unknown as Bag;
+  const readsOnly: Readonly<Record<string, Reads>> = { open: opensToRead, readFile: readsToRead };
+  for (const [name, syscall] of READS) {
+    if (name !== 'realpath') replace(module, `${name}Sync`, synchronous(module[`${name}Sync`] as Fn, syscall, readsOnly[name]));
+    replace(module, name, callback(module[name] as Fn, syscall, readsOnly[name]));
+    replace(promises, name, promised(promises[name] as Fn, name === 'realpath' ? 'realpath' : syscall, readsOnly[name]));
+  }
+  // Node's JavaScript `realpathSync` walks with an UNCHECKED lstat (on Linux it
+  // answered `/etc/hosts`) and turns any other argument into a string once:
+  // converted here once, so the check and the call read the same path. The
+  // call runs first, so its own argument errors keep their order, and its
+  // answer is never returned for a path outside the readable set.
+  const realpathSync = module['realpathSync'] as Fn;
+  replace(module, 'realpathSync', function wrapper(this: unknown, ...args: unknown[]): unknown {
+    if (typeof args[0] !== 'string' && !isView(args[0]) && !(args[0] instanceof URL) && !urlLike(args[0])) args[0] = `${args[0] as string}`;
+    let result: unknown;
+    try {
+      result = apply(realpathSync, this, args);
+    } catch (error) {
+      throw absent(error, 'lstat', args[0], wrapper) ?? error;
+    }
+    const shown = absentPath(args[0]);
+    if (shown !== undefined) throw enoent('lstat', shown, wrapper);
+    return result;
+  });
+  // A removal reads first, and a read answered "absent" let `force` succeed
+  // where Node refuses: outside the readable set it gets Node's write refusal.
+  // Only the argument shapes Node accepts: any other, Node refuses on its own,
+  // synchronously, before it reads anything (second review 2026-10-17).
+  const plainRemoval = (args: readonly unknown[]): boolean => {
+    const shown = named(args[0]);
+    const options = args[1];
+    return shown !== undefined && !shown.includes('\0') && (options === undefined || typeof options === 'function' || (isObjectLike(options) &&
+      ['force', 'recursive'].every(key => (options as Bag)[key] === undefined || typeof (options as Bag)[key] === 'boolean') &&
+      ['maxRetries', 'retryDelay'].every(key => (options as Bag)[key] === undefined || typeof (options as Bag)[key] === 'number')));
+  };
+  for (const [owner, name] of [[module, 'rm'], [module, 'rmdir'], [promises, 'rm'], [promises, 'rmdir']] as const) {
+    const original = owner[name] as Fn;
+    replace(owner, name, owner === promises
+      ? async function removal(this: unknown, ...args: unknown[]): Promise<unknown> {
+        const shown = plainRemoval(args) ? absentPath(args[0]) : undefined;
+        if (shown !== undefined) throw writeRefusal(shown, removal);
+        return await apply(original, this, args);
+      }
+      : function removal(this: unknown, ...args: unknown[]): unknown {
+        const done = args[args.length - 1];
+        const shown = typeof done === 'function' && plainRemoval(args) ? absentPath(args[0]) : undefined;
+        if (shown === undefined) return apply(original, this, args);
+        apply(nextTick, process, [done, writeRefusal(shown, removal)]);
+        return undefined;
+      });
+  }
+  for (const [owner, wrap] of [[module['realpathSync'], synchronous], [module['realpath'], callback]] as const) {
+    const native = describeOwn(owner, 'native');
+    if (!native || typeof native.value !== 'function') continue;
+    const wrapped = wrap(native.value as Fn, 'realpath');
+    defineProperty(wrapped, 'name', { value: (native.value as Fn).name, configurable: true });
+    defineProperty(owner as object, 'native', { ...native, value: wrapped });
+  }
+  // Every refused path answers false, the directories above included, as an unreadable one does on the system.
+  const existsSync = fs.existsSync as Fn;
+  replace(module, 'existsSync', function (this: unknown, ...args: unknown[]): boolean {
+    try {
+      return apply(existsSync, this, args) === true;
+    } catch (error) {
+      if (isObjectLike(error) && (error as Bag)['code'] === 'ERR_ACCESS_DENIED') return false;
+      throw error;
+    }
+  });
+  const exists = fs.exists as Fn;
+  replace(module, 'exists', function (this: unknown, ...args: unknown[]): unknown {
+    const done = args[1];
+    // A URL Node cannot read as a path answers false there: never a throw from here.
+    let shown: string | undefined;
+    try { shown = typeof done === 'function' ? named(args[0]) : undefined; } catch { shown = undefined; }
+    if (shown === undefined || readable(shown)) return apply(exists, this, args);
+    apply(nextTick, process, [done, false]);
+    return undefined;
+  });
+  defineProperty(fs.existsSync, marker, { value: true });
+  // ESM named imports (`import { statSync } from 'node:fs'`, `node:fs/promises`)
+  // see them too. The sync re-binds EVERY built-in, and Vitest has already
+  // replaced `process.exit` on the process object: each `node:process` binding
+  // is held at its imported value across the sync, or `import { exit }` would
+  // throw Vitest's catchable error and an exit inside a catch-all would pass
+  // where it failed (review 2026-10-17).
   const bindings = processBindings as unknown as Bag;
   const live = process as unknown as Bag;
   const held: Array<[string, unknown]> = [];
@@ -481,7 +701,7 @@ let guardNonce = '';
   guardNonce = guard;
   try {
     install();
-    answerExistsLikeTheSystem();
+    answerOutsideAsAbsent();
   } catch (error) {
     throw new Error(`[atoma-integrity-setup:${setupNonce}] the assertion-integrity guard could not be installed: ${String(error).slice(0, 300)}`);
   }

@@ -284,3 +284,106 @@ export function markParentTestsJudged(result: Result): Result {
   if (!result.parentTests?.length || result.parentTests.every((observation) => observation.judged)) return result;
   return { ...result, parentTests: result.parentTests.map((observation) => observation.judged ? observation : { ...observation, judged: true as const }) };
 }
+
+/**
+ * A SUITE DISPUTE, measured and never shown to a model (2026-10-17): the
+ * task's own suite failed with one failing set, the repeat key's text
+ * (`failingExcerpt`), on at least three observations spanning at least two
+ * versions of the workspace (`subjectDigest`). Run 2e6bdcfc's regular
+ * expression, escaped twice, failed byte for byte on every run, across
+ * several implementations, and nobody named it. The signal is weak on its own:
+ * a build output, a data file or a log the child writes is another version,
+ * and three different wrong implementations failing one assertion look the
+ * same. A host line naming the dispute reached every model call of the next
+ * pass and invited children working under a correct suite to contest it
+ * (review 2026-10-17), so the dispute is counted (`suiteDisputes`) and logged
+ * until its false-dispute rate is measured: no routing, no text.
+ */
+export const SUITE_DISPUTE_MIN_OBSERVATIONS = 3;
+export const SUITE_DISPUTE_MIN_SUBJECTS = 2;
+
+export interface SuiteDispute {
+  readonly suiteDigest: string;
+  /** The failing set every counted observation shares. */
+  readonly excerpt: string;
+  readonly observations: number;
+  readonly subjects: number;
+}
+
+/**
+ * The dispute these observations establish for the task's own suite, or
+ * null. Pure. Counted: failed runs of THAT suite carrying a subject digest (an
+ * older worker's cannot say which version failed), each once by `observedAt`.
+ * When several failing sets qualify, the one that failed last is returned.
+ */
+export function taskSuiteDispute(task: Pick<Task, 'acceptanceTests'>, observations: readonly HeldParentTestObservation[]): SuiteDispute | null {
+  if (!task.acceptanceTests) return null;
+  const suiteDigest = parentTestSuiteDigest(task.acceptanceTests);
+  const seen = new Set<unknown>();
+  const groups = new Map<string, { observations: number; readonly subjects: Set<string>; last: number }>();
+  observations.forEach((observation, index) => {
+    if (observation.suiteDigest !== suiteDigest || observation.status !== 'failed' || !observation.subjectDigest) return;
+    const identity = observation.observedAt ?? observation;
+    if (seen.has(identity)) return;
+    seen.add(identity);
+    const excerpt = failingExcerpt(observation.details);
+    const group = groups.get(excerpt) ?? { observations: 0, subjects: new Set<string>(), last: -1 };
+    group.observations += 1;
+    group.subjects.add(observation.subjectDigest);
+    group.last = index;
+    groups.set(excerpt, group);
+  });
+  let dispute: SuiteDispute | null = null;
+  let last = -1;
+  for (const [excerpt, group] of groups) {
+    if (group.observations < SUITE_DISPUTE_MIN_OBSERVATIONS || group.subjects.size < SUITE_DISPUTE_MIN_SUBJECTS || group.last < last) continue;
+    dispute = { suiteDigest, excerpt, observations: group.observations, subjects: group.subjects.size };
+    last = group.last;
+  }
+  return dispute;
+}
+
+const DISPUTE_TASK_CHARS = 120;
+
+export interface SuiteDisputeWatch {
+  /** Keeps the observation this loop's verification appended; returns the result unchanged. */
+  observe(result: Result): Result;
+  /** At an escalation: counts and logs a dispute the first time per suite digest in the attempt. */
+  escalated(): void;
+}
+
+/**
+ * One supervise loop's watch over its task's own suite. Its observations
+ * outlive branch retries, as the loop's trace does. A dispute is looked for
+ * where the loop escalates, where routing it back to the owner would act, so
+ * `suiteDisputes` measures that variant; it is counted and logged once per
+ * suite digest (`mechanicalResultRejections`, fork-shared, reset per attempt).
+ * Nothing here changes what the loop does next, and nothing reaches a model:
+ * a fault is logged and leaves the loop as it was.
+ */
+export function suiteDisputeWatch(task: Task, ctx: RunContext): SuiteDisputeWatch {
+  const observed: HeldParentTestObservation[] = [];
+  return {
+    observe(result) {
+      // verifyParentTests appends this loop's own observation last.
+      const own = task.acceptanceTests ? result.parentTests?.at(-1) : undefined;
+      if (own) observed.push(own);
+      return result;
+    },
+    escalated() {
+      try {
+        const dispute = taskSuiteDispute(task, observed);
+        if (!dispute) return;
+        const memo = (ctx.mechanicalResultRejections ??= new Set<string>());
+        const key = `suite-dispute|${dispute.suiteDigest}`;
+        if (memo.has(key)) return;
+        memo.add(key);
+        ctx.recordRunStat?.('suite-dispute');
+        ctx.logger.warn(`[parent-tests] suite dispute: suite ${dispute.suiteDigest.slice(0, 16)} for ${JSON.stringify(task.description.slice(0, DISPUTE_TASK_CHARS))} ` +
+          `failed with the same assertions on ${dispute.subjects} versions of the workspace over ${dispute.observations} attempts (measured only; no model reads it)`);
+      } catch (error) {
+        ctx.logger.warn(`[parent-tests] suite dispute detection failed; nothing counted: ${String(error).slice(0, 200)}`);
+      }
+    },
+  };
+}

@@ -172,6 +172,7 @@ export function parseRunLog(log: string): RunStats {
     unjudgedRemediations: 0,
     discardedLessons: 0,
     triggerRejections: 0,
+    suiteDisputes: 0,
     // Deliberately empty rather than scraped from the banner. The reasons are
     // an EPILOGUE field; a run whose epilogue never reached the log has none
     // that can be trusted, and parsing them out of prose a tenant goal is

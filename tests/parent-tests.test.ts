@@ -19,6 +19,7 @@ import { dispatchWithAggregation } from '../src/atoms/dispatch.js';
 import { parallelDeclaredOutputCollision } from '../src/atoms/l3RootPlan.js';
 import { makeCtx, silentLogger } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
+import { OUTSIDE_THE_COPY_FILES, OUTSIDE_THE_COPY_SUITE, OUTSIDE_THE_COPY_TESTS } from './helpers/outsideTheCopy.js';
 
 const dirs: string[] = [];
 const boxes: ToolSandbox[] = [];
@@ -174,6 +175,22 @@ it('answers an existence probe outside the copy with false and still refuses rea
 
   expect(observation, JSON.stringify(observation)).toMatchObject({ status: 'passed', cause: 'ran', passed: 1, failed: 0 });
 }, 60_000);
+
+// Follow-up of run 760fef4c: answering `existsSync` alone left statSync with
+// `throwIfNoEntry: false`, accessSync, ENOENT-only handlers, callbacks,
+// promises and streams on ERR_ACCESS_DENIED, a code no file API documents. A
+// path outside the readable set is absent, through every import style.
+it('answers every read outside the copy as an absent path', async () => {
+  const { root, box } = fixture();
+  for (const [name, text] of Object.entries(OUTSIDE_THE_COPY_FILES)) {
+    mkdirSync(path.dirname(path.join(root, name)), { recursive: true });
+    writeFileSync(path.join(root, name), text);
+  }
+
+  const observation = await runParentTests(box, [JSON.stringify(suite(OUTSIDE_THE_COPY_SUITE))], 60_000);
+
+  expect(observation, JSON.stringify(observation)).toMatchObject({ status: 'passed', cause: 'ran', passed: OUTSIDE_THE_COPY_TESTS, failed: 0 });
+}, 90_000);
 
 // Review 2026-10-17: restoring `existsSync` for ESM named imports re-syncs
 // every built-in's ESM bindings, and Vitest had already replaced `process.exit`

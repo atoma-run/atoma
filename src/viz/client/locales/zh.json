@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "无法启动测试运行程序。",
   "result.tests.cause.landing": "此次 run 结束时仍有工作未完成，或在这些测试运行前预算已用尽。",
   "result.tests.cause.deadline-timeout": "run 的时间限制或项目复制过程导致测试提前中止。",
-  "result.tests.cause.unknown": "未记录原因。"
+  "result.tests.cause.unknown": "未记录原因。",
+  "tuning.ambientShadowReach": "环境阴影范围",
+  "tuning.ambientShadowDensity": "环境阴影密度",
+  "tuning.diagnostics": "诊断",
+  "tuning.wireframe": "线框",
+  "tuning.wireframe.off": "关闭",
+  "tuning.wireframe.lines": "仅边线",
+  "tuning.wireframe.overlay": "叠加于场景",
+  "tuning.wireframe.reloads": "更改线框模式会重新加载页面并使用WebGL。"
 }

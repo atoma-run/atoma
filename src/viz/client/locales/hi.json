@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "टेस्ट रनर शुरू नहीं किया जा सका।",
   "result.tests.cause.landing": "run अधूरे काम के साथ समाप्त हो गया या इन परीक्षणों के run होने से पहले ही बजट खत्म हो गया।",
   "result.tests.cause.deadline-timeout": "run की समय-सीमा या प्रोजेक्ट की प्रतिलिपि बनाने के कारण परीक्षण बीच में ही रुक गए।",
-  "result.tests.cause.unknown": "कारण दर्ज नहीं किया गया।"
+  "result.tests.cause.unknown": "कारण दर्ज नहीं किया गया।",
+  "tuning.ambientShadowReach": "परिवेशी छाया की पहुँच",
+  "tuning.ambientShadowDensity": "परिवेशी छाया का घनत्व",
+  "tuning.diagnostics": "निदान",
+  "tuning.wireframe": "वायरफ़्रेम",
+  "tuning.wireframe.off": "बंद",
+  "tuning.wireframe.lines": "केवल किनारे",
+  "tuning.wireframe.overlay": "दृश्य के ऊपर",
+  "tuning.wireframe.reloads": "वायरफ़्रेम बदलने पर पेज फिर से लोड होता है और WebGL का उपयोग होता है।"
 }

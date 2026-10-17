@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "Le test runner n’a pas pu être démarré.",
   "result.tests.cause.landing": "Le run s’est terminé avec du travail inachevé ou a épuisé son budget avant que ces tests puissent être exécutés.",
   "result.tests.cause.deadline-timeout": "La limite de temps du run ou la copie du projet a interrompu les tests prématurément.",
-  "result.tests.cause.unknown": "La raison n’a pas été enregistrée."
+  "result.tests.cause.unknown": "La raison n’a pas été enregistrée.",
+  "tuning.ambientShadowReach": "Portée de l’ombre ambiante",
+  "tuning.ambientShadowDensity": "Densité de l’ombre ambiante",
+  "tuning.diagnostics": "Diagnostics",
+  "tuning.wireframe": "Mode filaire",
+  "tuning.wireframe.off": "Désactivé",
+  "tuning.wireframe.lines": "Arêtes uniquement",
+  "tuning.wireframe.overlay": "Par-dessus la scène",
+  "tuning.wireframe.reloads": "Modifier le mode filaire recharge la page et utilise WebGL."
 }

@@ -365,6 +365,19 @@ load-bearing.
   semantic review. The mechanical half of the delegation review owns the suite
   API check (`parentSuiteCheck.ts`): what the runner's integrity guard refuses
   is refused in the parent's plan, so no child is rejected for it. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
+  Before any review, reviewed root plans and cell plans get the suite regex
+  check (`suiteRegexPrecheck`, run 2e6bdcfc): an invalid regex literal refuses
+  every time, an escaped backslash before a class letter once per planner and
+  pattern, then reaches the review as a host fact (reject-once-then-honour).
+  The same zero-token precheck refuses a test-file import once per planner and
+  states every suite finding in one refusal; the review then reads
+  `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves), from
+  `list_files`, plus bounded current imported source through the shared evidence
+  reader. Observation-only reads withhold overwrite permission; missing excerpts
+  establish no absent interface. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
+- A SUITE DISPUTE (`taskSuiteDispute`, measured only): the task's own suite failed with one failing set on 3+ runs
+  over 2+ `subjectDigest`s, looked for where the loop escalates. Counted once per suite per attempt (`suiteDisputes`)
+  and logged; no routing and no text any model reads ([decision](../../docs/decisions/parent-owned-tests-2026-10-16.md#a-suite-that-fails-the-same-way-on-every-implementation-measured-only)).
 
 - One text states what a parent suite can run and how browser-only behaviour is
   proven (`PARENT_TEST_RUNNER_SCOPE`: a `validate_html` subtask, with the
@@ -678,6 +691,10 @@ load-bearing.
 
 ## Intentional choices and rejected shortcuts
 
+- Sampled delegation-review votes (2026-10-17): a majority of three approves a
+  defect the review misses two times in three more often (0.74), unanimity
+  refuses sound plans into a failed run, and samples share one misreading.
+  Host facts on the suites replaced them.
 - Approved method hooks collect version-bound prompt lessons for all three ranks; root refusal discards them. Fixed author/reviewer prompts, bounded evidence and preservation rules: [prompt consolidation](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 Read the archived sections before changing something that merely looks odd.
@@ -731,6 +748,10 @@ Read the archived sections before changing something that merely looks odd.
   `producedBy` (false provenance); a hand-up without root acceptance (delivered
   unread). The `[A, C]` reach lands by analogy, with a pre-registered count:
   [record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-spent-ladders-that-are-not-recognised).
+- Suite disputes route nothing and reach no model until measured (2026-10-17). Refused: a "SUITE DISPUTE" line in
+  the hand-up and the root's refusal (it reached every call of the next pass as an invitation to contest a suite
+  the weak signal often wrongly suspects), `workspaceDigest` as the version (every probe record moved it), and a
+  challenge field the child fills in (run 2e6bdcfc's child tried to game its suite instead).
 - Split verification (G5, 2026-10-16,
   [record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-split-verification-parts-land-on-the-right-cell-and-own-their-criteria)).
   Do not bind a split checkpoint's criteria to a part whose cell cannot prove

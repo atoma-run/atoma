@@ -1,4 +1,4 @@
-import { markParentTestsJudged, verifyParentTests, withParentTestConsequences } from './parentTests.js';
+import { markParentTestsJudged, suiteDisputeWatch, verifyParentTests, withParentTestConsequences } from './parentTests.js';
 import { EscalationSignal, PlanParseError, ValidationError } from './errors.js';
 import type { Atom, Supervisor } from './atom.js';
 import type {
@@ -254,8 +254,12 @@ export async function superviseLoop<C extends Atom>(
 ): Promise<Result> {
   const trace: TraceEntry[] = [];
   let current: C = child;
+  // Measurement only: a suite failing the same way on several versions of the
+  // workspace is counted and logged; no model reads it and it changes no step
+  // of this loop (src/core/parentTests.ts).
+  const disputes = suiteDisputeWatch(task, ctx);
   const run = async (execute: () => Promise<Result>): Promise<Result> =>
-    verifyParentTests(task, await (hooks.aroundExecute ? hooks.aroundExecute(execute) : execute()), ctx);
+    disputes.observe(await verifyParentTests(task, await (hooks.aroundExecute ? hooks.aroundExecute(execute) : execute()), ctx));
   // One-shot branch retry: when a branchOnEscalation hook returns a fresh
   // child instance, we run ONE more full supervise cycle with it (resetting
   // the iteration counters and rejection-streak trackers) before giving up
@@ -477,6 +481,7 @@ export async function superviseLoop<C extends Atom>(
         payload: { phase: e.phase, failingChild: current.name, ...(blameless ? { blameless: true } : {}) },
       });
       ctx.recordRunStat?.('escalation');
+      disputes.escalated();
 
       if (hooks.onFailed && !blameless) {
         await hooks.onFailed(current, `escalation-${e.phase}`, lastResultVerdict);

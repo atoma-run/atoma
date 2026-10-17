@@ -4,7 +4,7 @@ import { basename, dirname, join, relative, sep } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer } from 'node:net';
 import { createHash, randomUUID } from 'node:crypto';
-import { MAX_FILE_PAGE_CHARS, MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
+import { FILE_OBSERVATION_ONLY_ARG, MAX_FILE_PAGE_CHARS, MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
 import type { Tool, Logger } from '../core/types.js';
 import { sandboxChildEnv, type ToolSandbox } from './sandbox.js';
 import { scaffoldApplication } from './applicationSkeleton.js';
@@ -676,7 +676,9 @@ export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
         if (answer) return answer;
         throw error;
       }
-      markSeen(opts.sandbox, abs);
+      // Observing for a supervisor does not mean a child read this file before
+      // replacing it. Withhold the authorization; never clear an existing one.
+      if (args[FILE_OBSERVATION_ONLY_ARG] !== true) markSeen(opts.sandbox, abs);
       opts.logger?.debug(`[tool:read_file] ${path} (${Buffer.byteLength(content, 'utf8')} bytes)`);
       if (paged) {
         const start = Math.min(offset, content.length);

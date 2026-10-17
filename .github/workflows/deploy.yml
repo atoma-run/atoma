@@ -1,4 +1,10 @@
 name: Deploy production
+# A workflow_run event is listed under the default branch's HEAD when it is
+# triggered, not under the commit it deploys: on 2026-10-16 the run for green
+# 6270cd45 was listed as 7a94b880, whose own CI was red, and read as a deploy
+# of a red commit. Name each run after the CI run it follows and that run's
+# commit, which is exactly what REVISION deploys.
+run-name: Deploy ${{ github.event.workflow_run.head_sha }} (CI ${{ github.event.workflow_run.conclusion }})
 
 on:
   workflow_run:

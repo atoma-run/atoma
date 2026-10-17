@@ -115,6 +115,15 @@ export const runStatsSchema = z.object({
    */
   triggerRejections: countSchema.default(0),
   /**
+   * Parent-owned suites a supervise loop found, where it escalated, failing
+   * with the same assertions on at least two versions of the workspace over
+   * at least three runs (`taskSuiteDispute`), once per suite per attempt.
+   * Detection only: the pre-registered count for routing such a suite back to
+   * its owner (docs/decisions/parent-owned-tests-2026-10-16.md). Defaulted,
+   * like its neighbours.
+   */
+  suiteDisputes: countSchema.default(0),
+  /**
    * WHY a `partial` run did not deliver, in the words `landingReasons` builds
    * from the typed fields (`src/contracts/runLanding.ts`). Empty on every other
    * outcome.
@@ -151,7 +160,8 @@ export type RunStatSignal =
   | 'landing-remediation'
   | 'unjudged-remediation'
   | 'discarded-lesson'
-  | 'skill-trigger-rejected';
+  | 'skill-trigger-rejected'
+  | 'suite-dispute';
 
 export function formatRunStatsEpilogue(stats: RunStats): string {
   // The trace retains full descriptions; the epilogue is a bounded projection.

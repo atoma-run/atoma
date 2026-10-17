@@ -108,6 +108,13 @@ export const parentTestObservationSchema = z.object({
   suiteDigest: z.string(),
   suite: parentTestSuiteSchema.optional(),
   workspaceDigest: z.string(),
+  /**
+   * The same snapshot records without root `.atoma*` entries and without any
+   * `node_modules` (host artefacts, installs, caches): what the code under test
+   * is made of, so a probe record or a Vite cache is not another
+   * implementation. Absent from an older worker and before a copy finished.
+   */
+  subjectDigest: z.string().optional(),
   status: parentTestStatusSchema,
   /** Absent from an older worker; read as a host cause. */
   cause: parentTestCauseSchema.optional(),
@@ -146,6 +153,7 @@ export function persistedParentTests(observations: readonly HeldParentTestObserv
   return observations.map((observation) => ({
     suiteDigest: observation.suiteDigest,
     workspaceDigest: observation.workspaceDigest,
+    ...(observation.subjectDigest !== undefined ? { subjectDigest: observation.subjectDigest } : {}),
     status: observation.status,
     ...(observation.cause ? { cause: observation.cause } : {}),
     passed: observation.passed,
@@ -185,7 +193,7 @@ export const delegationReviewEnvelopeSchema = z.object({ delegationReview: deleg
  * browser). The third refusal ended the run.
  */
 export const PARENT_TEST_RUNNER_SCOPE = [
-  'WHAT A PARENT SUITE CAN RUN: one TypeScript Vitest file at the project root of a disposable workspace copy, in a Node environment. It can import real application modules by relative path, source or built output that exists when the suite runs, call their in-process APIs, and start the application\'s HTTP server in-process and request it on loopback. An extensionless relative import resolves a .js file before a .ts file of the same name, so a suite for a TypeScript module that keeps a .js forwarder beside it imports the .ts path explicitly. Code under test sees only the copy and its installed packages; HOME, the temporary directory and the working directory are inside it. existsSync answers false for any other path (a system binary such as /usr/bin/chromium) and any other access to one throws, so a test that a server refuses an escaping path targets a file inside the copy, such as package.json above the served directory. It has no browser and no DOM environment, cannot spawn processes (a CLI run, a browser launch), nested workers or native addons, and never loads the project\'s Vite or Vitest configuration, plugins or setup files. tsconfig `paths` aliases resolve in the suite as in the application modules it imports; CSS imports load as empty stubs (CSS-module class names map to themselves and are not checked).',
+  'WHAT A PARENT SUITE CAN RUN: one TypeScript Vitest file at the project root of a disposable workspace copy, in a Node environment. It can import real application modules by relative path, source or built output that exists when the suite runs, call their in-process APIs, and start the application\'s HTTP server in-process and request it on loopback. An extensionless relative import resolves a .js file before a .ts file of the same name, so a suite for a TypeScript module that keeps a .js forwarder beside it imports the .ts path explicitly. Code under test reads the copy and its installed packages; HOME, the temporary directory and the working directory are inside it. Reading any other path answers as for an absent file (existsSync false, ENOENT), a system binary such as /usr/bin/chromium included, and writing one is refused, so a test about a path outside the copy proves nothing: a test that a server refuses an escaping path targets a file inside the copy, such as package.json above the served directory. It has no browser and no DOM environment, cannot spawn processes (a CLI run, a browser launch), nested workers or native addons, and never loads the project\'s Vite or Vitest configuration, plugins or setup files. tsconfig `paths` aliases resolve in the suite as in the application modules it imports; CSS imports load as empty stubs (CSS-module class names map to themselves and are not checked).',
   'BROWSER-ONLY BEHAVIOUR (real user input reaching a page and what it changes on screen, console errors, failed resources) is proven by a subtask routed to a child that holds validate_html. When it depends on real user input, that subtask carries "proofObligations": ["dom-interaction"]: the runtime checks the browser tool\'s own record for interactions it executed on the page, and a result without one goes to full review with that fact. That is the proof route for such behaviour, never a suite. The importable logic and HTTP routes behind the page still need a suite. A CLI process is proven by a subtask that runs it.',
 ].join('\n');
 
@@ -218,7 +226,7 @@ ${PARENT_TEST_BLOCKING_DEFECTS}
 Tests must exercise actual code and observable behavior, including relevant negative/boundary cases. Mock external services only; no trivial assertions, implementation replacement, skip/todo/only, hidden requirements or real external traffic.
 A source revision is a new plan requiring parent review. Never weaken assertions to obtain green; explain a requirement-backed correction in the plan reasoning. A failing test can be wrong: challenge its contract explicitly.
 The runtime owns the suite, runner, configuration and result. Children may add their own tests but cannot replace the parent's suite. No package script/config is used for these checks. Install the application's dependencies before verification.
-For non-code work or repository inspection, explain the appropriate evidence in reasoning and omit acceptanceTests; do not fabricate tests. Unknown interfaces do NOT exempt a later implementation branch. At L3, if inspection is necessary first, return an inspection-ONLY plan with replanAfter:true, no outputs, no implementation or final-verification subtasks. The host executes it read-only, then asks L3 for a fresh implementation plan using the observations. Only one discovery round is allowed; never promise a future plan revision in prose. L2 cannot request replanAfter.
+For non-code work or repository inspection, explain the appropriate evidence in reasoning and omit acceptanceTests; do not fabricate tests. Unknown interfaces do NOT exempt a later implementation branch. At L3, if inspection is necessary first, return an inspection-ONLY plan with replanAfter:true, no outputs, no implementation or final-verification subtasks. Discovery fans out like any other plan: give each independent inspection its own parallel subtask. The host executes it read-only, then asks L3 for a fresh implementation plan using the observations. Only one discovery round is allowed; never promise a future plan revision in prose. L2 cannot request replanAfter.
 Passing tests prove only their assertions; semantic and integration review remain required.`;
 
 export const PARALLEL_BRANCH_PLANNING = `REQUIRED PARALLEL DELEGATION:

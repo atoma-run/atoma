@@ -206,7 +206,11 @@ Neighbours:
   copy. Canonical suites stay on the host. The container remains the OS
   isolation boundary; Node permissions are defence in depth. No tests, skips,
   focused tests, missing reports and timeouts cannot pass; a run that did not
-  finish reports a typed `cause`, never prose a reader classifies.
+  finish reports a typed `cause`, never prose a reader classifies. The snapshot
+  is digested twice: `workspaceDigest` over every record, `subjectDigest`
+  without root `.atoma*` entries and any `node_modules` (host artefacts,
+  installs, caches), so a probe record or a Vite cache is not another
+  implementation for the suite-dispute count ([src/atoms](../atoms/AGENTS.md)).
 - The copy is asynchronous: one worker serves every lane, and the synchronous
   copy froze all of them for its duration (review 2026-10-16). Snapshots share
   at most three libuv slots per process, leaving pool threads to siblings.
@@ -256,17 +260,21 @@ Neighbours:
   runner's stdin pipe ends; copies carry the runner's pid, and a later
   verification removes a dead owner's copy once it is 10 minutes old.
   [G2 record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-matcher-forging-leftover-copies-suite-aliases).
-- Under the runner's Node permissions `existsSync` THROWS `ERR_ACCESS_DENIED`
-  for a path outside the readable set, where the OS's own refusal and
-  `fs.exists` both answer false: a module probing for a system binary at import
-  never loaded, and its suites read "failed 0/0" (run 760fef4c, 2026-10-17).
-  The setup file restores `false` for that one call inside the guarded setup
-  (a fault there is `runner-error`); no read is widened. The ESM re-sync it
-  needs holds every `node:process` binding, or `import { exit }` became
-  Vitest's catchable stub. `statSync`/`accessSync` still throw, and a traversal
-  test proves nothing aimed outside the copy: both limits are in the
-  [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md), and
-  `PARENT_TEST_RUNNER_SCOPE` tells planners what the code under test can see.
+- A path outside the runner's readable set is ABSENT for the code under test
+  (run 760fef4c, 2026-10-17: `existsSync('/usr/bin/chromium')` threw
+  `ERR_ACCESS_DENIED`, a code no file API documents, the module never loaded
+  and its suites read "failed 0/0"). The setup file converts a READ refusal of
+  the path the caller named, decided by Node's own `process.permission.has`,
+  into Node's ENOENT: thrown, called back after the call returns, or rejected;
+  `existsSync`/`exists` answer false, `throwIfNoEntry: false` undefined, streams
+  follow `fs.open`. Nothing becomes readable; writes (also those that read
+  first: open for writing, truncate, `rm` with `force`) and the directories
+  above the readable set keep Node's refusal. It is installed inside the guarded
+  setup (a fault there is `runner-error`), and its ESM re-sync holds every
+  `node:process` binding, or `import { exit }` became Vitest's catchable stub.
+  A traversal test aimed outside the copy proves nothing: `PARENT_TEST_RUNNER_SCOPE`
+  tells planners, and the residuals are in the
+  [protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
 
 ## Generated artefact conventions
 
@@ -400,6 +408,10 @@ Neighbours:
 
 ## Intentional choices and rejected shortcuts
 
+- `read_file` with the internal `observationOnly` flag withholds its `markSeen`
+  side effect: supervisor inspection must not authorize a child's blind overwrite.
+  Ordinary reads still authorize writes; observation never revokes an existing read.
+
 - File text is preserved after one JSON decoding; source escapes are bytes,
   not transport errors. `edit_file` never unescapes its replacement. A mismatched
   old span can be recovered only when one decoded span exists and the raw old
@@ -461,6 +473,14 @@ Neighbours:
   removing copies by age alone (a live run's copy is old too); watching the
   global `Date` binding or `JSON` (fake timers and `vi.spyOn` replace them);
   a nonce in argv or env (`ps` and `/proc/<pid>/cmdline` show both).
+- Paths outside the runner's readable set (2026-10-17): widening
+  `--allow-fs-read` (loses the defence that keeps the live workspace out);
+  answering EACCES as the system would (`throwIfNoEntry: false` and
+  ENOENT-only handlers still throw); deciding from the error's `resource`
+  (callback `realpath` of a file inside the copy then read as absent); a Vite
+  alias or loader hook for `node:fs` (misses `require` and externalized
+  dependencies); wrapping `statSync`/`accessSync` alone (callbacks, promises
+  and streams would answer otherwise: one concept, two definitions).
 - Moving smoke guidance closer to the call site is NOT the untried variable.
   The erased-intermediate-state rule already sits in the `smoke` PARAMETER
   description and the model still violated it six times across two batches.

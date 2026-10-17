@@ -57,7 +57,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, withPlannedDelivery, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, planFeedbackLines } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { PlanParseError, RegistryNotFoundError, ValidationError } from '../core/errors.js';
-import { approvalDigest, delegationRefusal, enforceParsedDelegationReview, routingIndexNote, refusalWithRequests } from './delegationReview.js';
+import { approvalDigest, delegationRefusal, enforceParsedDelegationReview, planSuites, routingIndexNote, refusalWithRequests } from './delegationReview.js';
+import { planSuitePrecheck } from './parentSuiteCheck.js';
+import { planSuiteFactsBlock } from './parentSuiteFacts.js';
 import { VALIDATION_PARAMS, renderTransportEvidence } from './verdict.js';
 import type { RootDelegationApproval, RootPhaseCheckpoint, RootPlanCheckpoint } from '../contracts/runCheckpoint.js';
 import type { DelegationReview } from '../contracts/parentTests.js';
@@ -611,11 +613,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
   }
 
   private async reviewRootDelegation(plan: Plan, task: Task, ctx: RunContext, allowDiscovery: boolean,
-    model: string, params: GenerationParams, previousRefusals: readonly string[]): Promise<Verdict> {
+    model: string, params: GenerationParams, previousRefusals: readonly string[], hostFacts: readonly string[]): Promise<Verdict> {
     try {
       return await llmVerdict({ ctx, model, params, supervisorName: this.name, supervisorTier: 3,
         subject: 'PLAN', child: this, task, payload: plan, targetContext: buildTargetContext(plan, this.registry),
-        delegationContract: { plan, allowDiscovery, previousRefusals } });
+        delegationContract: { plan, allowDiscovery, previousRefusals, hostFacts } });
     } catch (error) {
       // An unparseable verdict is the reviewer's failure, not the plan's.
       if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
@@ -665,6 +667,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     let retry = '';
     let failure = 'Delegation contract review did not finish';
     let pending: Plan | undefined;
+    let pendingFacts: readonly string[] = [];
     let reviewerFault = false;
     for (let attempt = 0; attempt < ROOT_PLAN_ATTEMPTS; attempt++) {
       if (!pending) {
@@ -677,18 +680,35 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
           continue;
         }
         reviewerFault = false;
-        const precheck = args.precheck?.(pending);
-        if (precheck) {
-          failure = retry = precheck;
+        // Zero tokens, before the review: every host finding on the suites in one refusal (runs 2e6bdcfc, 760fef4c).
+        // Only once the caller's own precheck passed: a finding is remembered as told only when it is sent.
+        const own = args.precheck?.(pending);
+        const suites = own ? undefined : planSuitePrecheck(planSuites(pending, args.from), ctx.mechanicalPlanRejections ??= new Set(), `root:${this.name}`);
+        if (own) {
+          failure = retry = own;
           ctx.logger.warn(`[l3] ${retry}`);
           pending = undefined;
           continue;
         }
+        // A suite finding stays in the feedback like a review refusal: kept in
+        // `retry` alone, the next refusal erased it, and a planner never told
+        // again would be excused as told (second review 2026-10-17).
+        if (suites?.refusal) {
+          failure = suites.refusal;
+          refusals.push(suites.refusal);
+          retry = '';
+          ctx.logger.warn(`[l3] ${suites.refusal}`);
+          pending = undefined;
+          continue;
+        }
+        // What the host knows of the suites' imports, for the review to read rather than guess (2026-10-17).
+        const block = await planSuiteFactsBlock(args.from ? { ...pending, subtasks: pending.subtasks.slice(args.from) } : pending, ctx);
+        pendingFacts = [...(suites?.facts ?? []), ...(block ? [block] : [])];
       }
       const model = reviewerFault ? this.validationModel : this.rootReviewModel();
       const reviewed = args.from ? { ...pending, subtasks: pending.subtasks.slice(args.from) } : pending;
       const verdict = await this.reviewRootDelegation(reviewed, args.reviewTask, ctx, args.allowDiscovery, model,
-        reviewerFault ? VALIDATION_PARAMS : ROOT_DELEGATION_REVIEW_PARAMS, reviewRefusals);
+        reviewerFault ? VALIDATION_PARAMS : ROOT_DELEGATION_REVIEW_PARAMS, reviewRefusals, pendingFacts);
       if (verdict.approved) {
         if (!verdict.delegationReview) throw new Error('Delegation contract review approved without an enforced classification');
         return { plan: pending, review: verdict.delegationReview, model };
@@ -1782,6 +1802,14 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       });
       return approval;
     }
+    // Zero tokens, before any review: every host finding on the suites in one refusal (runs 2e6bdcfc, 760fef4c).
+    // Told once per cell AND task: another subtask of the same cell type is another planner's prompt.
+    const planner = `cell:${child.name}:${createHash('sha256').update(task.description).digest('hex').slice(0, 16)}`;
+    const suites = reviewsTests ? planSuitePrecheck(planSuites(plan), ctx.mechanicalPlanRejections ??= new Set(), planner) : { facts: [] };
+    if (suites.refusal) return delegationRefusal(suites.refusal, 'plan');
+    // What the host knows of the suites' imports, for the review to read rather than guess (2026-10-17).
+    const block = reviewsTests ? await planSuiteFactsBlock(plan, ctx) : '';
+    const hostFacts = [...suites.facts, ...(block ? [block] : [])];
     // ONE model verdict, whether it decides or audits a Jev approval.
     const modelVerdict = (audit: boolean, review?: { model: string; params: GenerationParams }) =>
       llmVerdict({
@@ -1797,7 +1825,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // Inject the downstream-target description so Haiku can judge the
         // routing on facts, not on name-based guesses.
         targetContext: buildTargetContext(plan, this.registry),
-        ...(reviewsTests ? { delegationContract: { plan, allowDiscovery: false } } : {}),
+        ...(reviewsTests ? { delegationContract: { plan, allowDiscovery: false, hostFacts } } : {}),
         ...(audit ? { audit: true } : {}),
       });
     // Jev fast path — see L2Atom.validatePlan. Approve or defer, never refuse.

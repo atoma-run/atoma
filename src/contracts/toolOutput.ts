@@ -4,6 +4,9 @@ export const MAX_TOOL_RESULT_CHARS = 20_000;
 /** Even six-character JSON escapes leave room for page metadata and the tool envelope. */
 export const MAX_FILE_PAGE_CHARS = 2_000;
 
+/** Withhold read_file's overwrite authorization side effect during host observation. Grants no capability. */
+export const FILE_OBSERVATION_ONLY_ARG = 'observationOnly';
+
 /**
  * `read_file` and `list_files` ANSWER a path that holds no file instead of
  * throwing (2026-10-13): `{ exists: false }` for an absent path, and

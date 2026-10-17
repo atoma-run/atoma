@@ -1,6 +1,6 @@
 ---
 name: parent-tests-review-fixes-state
-description: "2026-10-16: parent-owned-tests review fixes DONE and deployed (066638d3); existsSync permission fix b8b2fd86 (2026-10-17); open limits and one deploy-pipeline gap remain"
+description: "parent-owned-tests: review fixes deployed 066638d3 (10-16); outside-copy absent paths, suite regex check, review host facts 532d6e35 and dispute count 21b0e5ce (10-17); open limits listed"
 metadata:
   node_type: memory
   type: project
@@ -12,9 +12,13 @@ All work is done and deployed (production at 066638d3, 2026-10-16 ~17:55): the c
 
 **Open limits (documented, not fixed):** assertion forging is narrowed, not closed (code under test can still rewrite runner records); a same-uid process can rewrite the verification copy before the suite runs (needs a separate user or namespace); the spent-ladder stamp awaits its pre-registered production measurement (G3 section of the record).
 
-**existsSync under the runner's permissions (fixed 2026-10-17, b8b2fd86):** run 760fef4c was refused at delivery because `node --permission` makes `existsSync` THROW `ERR_ACCESS_DENIED` outside the readable set (a module probing `/usr/bin/chromium` at import never loaded: "failed 0/0"). The setup file now answers false, holding `node:process` ESM bindings across `syncBuiltinESMExports` (Vitest replaces `process.exit`). Still open, documented: `statSync(p, {throwIfNoEntry:false})` and `accessSync` still throw there, and a traversal test aimed outside the copy proves nothing. Replay of two recorded root reviews: same approval rate with the new scope text (2/3, 1/3); the review itself is that noisy on one plan.
+**Runner and review limits closed 2026-10-17 (532d6e35, 21b0e5ce; each through an adversarial review and a second pass):**
+- Paths outside the parent-test copy read as ABSENT (Node's ENOENT in every fs form; existsSync false; throwIfNoEntry undefined). Writes keep Node's refusal, including those that read first (open for writing, truncate, rm/rmdir with force). realpathSync never answers for an outside path. Residuals in the protocol: dirs above the copy, copyFile/cpSync/link/rename/watch, module resolution (ENOENT vs MODULE_NOT_FOUND).
+- Plan-time suite regex check (run 2e6bdcfc): invalid regex LITERALS refuse every time; an escaped backslash before s/d/w/b refuses once per planner (cell: per task) and pattern, stays in the planner's feedback, then becomes a review host fact.
+- HOST FACTS for every delegation review of a plan with suites: where each import resolves, from list_files ONLY. A host read_file marks files read and disarms write_file's blind-overwrite refusal (the first version did; caught by review). The "modules no suite imports" line was dropped: 14/14 corpus lines were .js twins of TS migrations.
+- Suite disputes are MEASURED ONLY (suiteDisputes stat + run-log warning): see [[suite-dispute-measurement]].
 
-**Deploy-pipeline gap seen 2026-10-16:** 7a94b880 was deployed by a workflow_run event although its own CI was red (a test-isolation failure, fixed by 066638d3). The deploy likely followed the previous commit's green CI while main had moved on. Check deploy.yml uses the triggering run's head_sha, not main's HEAD. See [[deploy-pipeline-state]].
+**Not a deploy gap (corrected 2026-10-17):** a Deploy production run listed under red 7a94b880 had in fact deployed green 6270cd45 (its REVISION and CI_RUN_ID). GitHub lists a workflow_run run under main's HEAD at trigger time; deploy runs are now named after the revision they ship. See [[deploy-pipeline-state]].
 
 **CI gotcha:** CI runs with TMPDIR unset; macOS sets it. A test that overrides TMPDIR must delete it on restore when it was unset. Reproduce with `env -u TMPDIR npx vitest run <file>`.
 

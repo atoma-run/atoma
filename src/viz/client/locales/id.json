@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "Pelaksana pengujian tidak dapat dimulai.",
   "result.tests.cause.landing": "run berakhir dengan pekerjaan yang belum selesai atau kehabisan anggaran sebelum pengujian ini dapat dijalankan.",
   "result.tests.cause.deadline-timeout": "Batas waktu run atau penyalinan proyek membuat pengujian berakhir lebih awal.",
-  "result.tests.cause.unknown": "Alasannya tidak dicatat."
+  "result.tests.cause.unknown": "Alasannya tidak dicatat.",
+  "tuning.ambientShadowReach": "Jangkauan bayangan sekitar",
+  "tuning.ambientShadowDensity": "Kerapatan bayangan sekitar",
+  "tuning.diagnostics": "Diagnostik",
+  "tuning.wireframe": "Kerangka kawat",
+  "tuning.wireframe.off": "Nonaktif",
+  "tuning.wireframe.lines": "Hanya tepi",
+  "tuning.wireframe.overlay": "Di atas adegan",
+  "tuning.wireframe.reloads": "Mengubah kerangka kawat akan memuat ulang halaman dan menggunakan WebGL."
 }

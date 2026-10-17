@@ -13,7 +13,8 @@
 
 ## Current work
 - [Crystal caustic state](crystal-caustic-state.md) — 2026-10-17: facing + caustic fixes committed locally (50c15882, dfa4c921), not pushed; strokes invisible, 3 options to test
-- [Parent-tests review fixes state](parent-tests-review-fixes-state.md) — 2026-10-16: done and deployed; existsSync permission fix b8b2fd86 (10-17); open runner limits; a deploy ran on a red-CI commit
+- [Parent-tests review fixes state](parent-tests-review-fixes-state.md) — deployed; 10-17: outside-copy absent paths, suite regex check, review host facts (532d6e35), dispute count (21b0e5ce)
+- [Suite dispute measurement](suite-dispute-measurement.md) — pre-registered: ≥20 disputes, ≥50% wrong suites before any line or routing
 - [Account plan screen](account-plan-screen.md) — Your plan screen; org plan set by operator `auth set-plan` (2026-10-16); Pro/Team drop the Atoma mark
 - [Project deployment](project-deployment.md) — optional, mutable project setting: none (default), Atoma, or external; hosted address = model-chosen label, admin rename → permanent 308 (2026-10-15)
 - [Attica run delegation](attica-run-delegation.md) — 2026-10-15: I draft and start Attica runs myself and fix Atoma defects found
@@ -30,7 +31,7 @@
 - [Windows portability state](windows-portability-state.md) — audit verdicts, open defects, report URL
 - [Public domain atoma.run](public-domain-atoma-run.md) — VPS 46.225.4.14; atoma.iotanet.net still proxies (no 301)
 - [Server dev checkout](server-dev-checkout.md) — ~/dev/atoma on the server's 50 GB volume
-- [Deploy pipeline state](deploy-pipeline-state.md) — deploys wait for work; reinstall the activator on host-deploy.sh changes; stale-lease fix
+- [Deploy pipeline state](deploy-pipeline-state.md) — deploys wait for work; reinstall the activator on host-deploy.sh changes; stale-lease fix; a deploy run is LISTED under main's HEAD, read REVISION or the run name
 - [OpenClaw host on atoma.run](openclaw-host-atoma-run.md) — ChatGPT subscription via native ~/.codex, gpt-5.6-sol
 
 ## Owner decisions and their state

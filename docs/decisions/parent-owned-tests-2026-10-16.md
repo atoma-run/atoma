@@ -110,19 +110,33 @@ not been told, and demanded a suite drive a browser). Test
 workers cannot spawn processes, create further workers, load native addons, or
 access the live workspace through Node filesystem APIs. The existing container
 is the OS boundary; Node permissions are defence in depth, not a replacement
-for that boundary. Under them `existsSync` threw `ERR_ACCESS_DENIED` for a
-path outside the readable set (the copy, which is also HOME and the temporary
-directory, and the runner's own modules), where the OS's own refusal and
-`fs.exists` answer false; a module that probed for a system binary at import
-never loaded, and the run was refused at delivery (run 760fef4c, 2026-10-17).
-The setup file restores `false` for that call alone; nothing becomes readable.
-Making ESM named imports see it re-binds every built-in, so the `node:process`
-bindings are held at their imported values (Vitest replaces `process.exit`).
-Two limits remain: `statSync(p, { throwIfNoEntry: false })` and `accessSync`
-on such a path still throw, as on the OS's own refusal, so a module probing
-that way at import still does not load; and because every such path reads as
-absent, a test that a server refuses an escaping path proves it only when the
-target lies inside the copy, which `PARENT_TEST_RUNNER_SCOPE` tells planners. Network policy remains the worker's policy; suites must mock
+for that boundary. Under them every path outside the readable set (the copy,
+which is also HOME and the temporary directory, and the runner's own modules)
+raised `ERR_ACCESS_DENIED`, a code no file API documents: a module that probed
+for a system binary at import (`existsSync('/usr/bin/chromium')`) never loaded,
+and the run was refused at delivery (run 760fef4c, 2026-10-17). Such a path is
+now ABSENT for the code under test, as in a container that mounts only the
+copy: the setup file converts a read refusal of the path the caller named,
+decided by Node's own `process.permission.has`, into Node's ENOENT (thrown,
+called back after the call returns, or rejected); `existsSync` and `exists`
+answer false and `throwIfNoEntry: false` answers undefined. Nothing becomes
+readable. Writes keep Node's refusal, including those that read first: an open
+for writing, a truncate, and `rm`/`rmdir`, where an "absent" read had let
+`force` succeed (adversarial review 2026-10-17, which also found that
+`realpathSync`, converting any argument to a string, could still answer for an
+outside path: it now never returns one). Converted errors start their stack at
+the caller. Making ESM named imports see the wrappers re-binds every built-in,
+so the `node:process` bindings are held at their imported values (Vitest
+replaces `process.exit`). Residuals: the directories above the readable set
+keep `ERR_ACCESS_DENIED` (they exist, and Node's callback `realpath` walks them
+even for a file inside the copy), and so do `copyFile`, `cpSync`, `link`,
+`rename`, `watch`, `watchFile` and `openAsBlob`; module resolution of an
+existing file outside answers ENOENT where a missing one answers
+MODULE_NOT_FOUND; fs answers are outside the integrity guarantee, since code
+under test may replace them; and because every such path reads as absent, a
+test about a path outside the copy proves nothing (a server refusing an
+escaping path proves it only when the target lies inside the copy), which
+`PARENT_TEST_RUNNER_SCOPE` tells planners. Network policy remains the worker's policy; suites must mock
 external services. Browser interactions and CLI process behavior still use
 their existing probes. Project dependencies must already be installed.
 
@@ -406,6 +420,81 @@ never forwarded. L2 plans under parent suites receive the
 same contract check within the existing L3 review, including trusted cells. Exact
 approved-plan reuse remains; changed contracts are reviewed again.
 
+**Suite regexes are checked before the review (2026-10-17).** In run 2e6bdcfc
+a cell's plan reply carried `/!\\\\s+-name…/` in its JSON, so the suite the
+runner executed held `/!\\s+-name…/`, where each `\\s` matches a backslash
+followed by "s". It failed eight times byte for byte, spent a ladder and a root
+acceptance, and the delegation review had approved it in ten seconds. Before
+any review, reviewed root plans and cell plans now go through
+`suiteRegexPrecheck` (`src/atoms/parentSuiteCheck.ts`), at zero tokens, over
+regex literals and `RegExp` strings, never plain strings or comments. A regex
+literal Node refuses refuses the plan every time, since that module can never
+load; an invalid `RegExp` string is not a finding, since it throws only when
+its line runs and a suite may test that. An escaped backslash before a class
+letter (s, d, w, b, either case) refuses once per planner (a cell's task) and
+pattern within a depth attempt, naming every escaped backslash of that pattern
+(a `\\.` is as wrong) with the JSON escaping rule of its form (literal,
+`RegExp` string or `String.raw`); the refusal stays in the planner's feedback,
+and a pattern kept after it reaches the review as a host fact. Measured on 2026-10-17: no such
+pattern among Atoma's 3,150 literals, 13 among 31,683 third-party literals,
+all deliberate (LaTeX, regex-source parsers). Those come from library code; a
+suite of generated text that really holds backslashes (a `grep -E` script, a
+Windows path) pays one replan, then says so in its requirement. Doubled
+metacharacters alone are not flagged: 6% of third-party literals have them.
+The short root, which plans without a review, is outside this check. An
+adversarial review of the first version found an invalid `RegExp` string
+refused on every attempt, a finding remembered without being sent on a resumed
+plan, one memo shared by every planner of the run, and a partial fix the check
+then missed; all four are fixed and pinned by tests.
+
+**Host facts on the suites (2026-10-17).** Over the twelve Attica runs since
+the contract, 64 root reviews refused 38 plans; 3 refusals were spurious and 4
+mixed, and replays of one plan of run 760fef4c refused it three times in six
+because its imports "resolve under tests/": a suite runs as
+`atoma.acceptance.test.ts` at the root of a copy of its cwd, and every file it
+imported existed. A child review in production coached the same misreading.
+The host knows these facts, so every delegation review of a plan carrying
+suites now reads a HOST FACTS block (`src/atoms/parentSuiteFacts.ts`): each
+relative import of each suite, resolved as the runner resolves it (Vite
+queries such as `?raw` and `import type` left out), as existing, declared by
+the plan before the suite runs (a declared directory covers what is under it),
+declared only by a subtask the suite does not wait for, a directory with a
+package.json (its entry not checked) or with nothing it can load, not present
+and declared by no subtask, or outside the copied cwd. It is computed from the
+executor's `list_files` alone, which marks nothing as read, bounded and
+fail-open: a directory that cannot be listed, as when a sibling branch is
+writing it, gives no block rather than a false "not present"; never a
+verdict. Since run 034d176d, the same review also receives current source for
+at most six distinct resolved source imports, through `criteriaFilesBlock`
+with a 24,000-character source allowance. The suite text supplies search words;
+this is evidence, not an API checker or another model call. Missing or cut
+source proves no interface absent, and requested interface changes remain
+allowed. These initial resource bounds are not a measured semantic guarantee.
+Observation-only `read_file` withholds overwrite authorization, including
+referenced fixture reads. It neither revokes an earlier ordinary read nor
+changes sandbox access. [Regression and review](../../records/reviews/suite-interface-evidence-2026-10-17.md).
+Not landed: a line
+naming the modules a plan writes that no suite imports. Replays found it
+consistent on one plan, but the adversarial review of its first version found
+it wrong where it mattered (14 of 14 corpus lines named a `.js` the plan
+replaced by its TypeScript twin; it missed modules imported through `../`,
+and modules a suite reaches through another one or a tsconfig alias), and its
+walk read files through the model-facing `read_file`, which switched off
+`write_file`'s blind-overwrite refusal for each of them for the whole run.
+With the facts: a suite that imports a test file is refused once per planner
+before any review (its assertions would be the child's; 5 of 198 suites, in 2
+defective plans; a real module may carry such a name, so a kept import reaches
+the review as a fact); every host plan finding arrives in one refusal, the
+fan-out finding apart (on a resumed run it ends the plan); a plan-level
+integration suite is required only when two or more tested branches exist, as
+the review text says ("branches implement interacting application modules");
+and planners are told that discovery fans out like any other plan (8 of 9
+first discovery plans had been refused for grouping). Sampled review votes
+were rejected: a majority of three approves a defect the review catches a
+third of the time more often (0.74 against 0.67), unanimity refuses a sound
+plan five times running in 17% of runs, and samples of one prompt share its
+misreading.
+
 **The root review runs on tier 2** (`modelForTier(2)`), with its own parameters,
 `ROOT_DELEGATION_REVIEW_PARAMS`: its own 8,000-token cap (`PLAN_REVIEW_MAX_TOKENS`,
 a cap that includes adaptive thinking) and `effort: 'medium'`. It and the child re-review below are the only validators with
@@ -596,3 +685,55 @@ Decision's view of a plan (`JEV_STATE_CHARS.plan`, 20,000 characters) already
 cuts the largest plans. The collision coaching in `l3RootPlan.ts` still rides
 the task's constraints. The 32,000-character stored bound can be lowered once
 no checkpoint from before the change can resume.
+
+## A suite that fails the same way on every implementation: measured only
+
+Decided 2026-10-17 under the owner's delegation. In run 2e6bdcfc (2026-10-16)
+a cell wrote a suite whose regular expression was escaped twice, so `\\s`
+matched a backslash and no `package.json` could pass it. It failed byte for
+byte on every run: three molecule attempts that changed nothing, three that
+each rewrote `package.json`, and the cell's own fallback. Root acceptance
+refused the run mechanically, naming the suite's failure, and nobody named the
+suite: 17.5 minutes and $0.45 of calls. The plan-time regex check above now
+refuses that class before any review. This is the general runtime half, and it
+only counts.
+
+**What is counted.** The runner digests the snapshot twice: `workspaceDigest`
+over everything it copied, `node_modules` included, and `subjectDigest` over
+the same records without root `.atoma*` entries and without any `node_modules`
+directory. Every attempt that records a probe moves the first, so three
+attempts on one implementation would read as three; a probe record, an
+install or a Vite cache does not move the second, while `package.json` or a
+source file does. `subjectDigest` is optional on the worker's reply and kept
+in the persisted record; no display reads it. `taskSuiteDispute`
+(`src/core/parentTests.ts`) finds a dispute when the task's own suite failed
+with one failing set, the repeat key's text, on at least 3 runs spanning at
+least 2 subject digests, across branch retries, looked for where the loop
+escalates. In 2e6bdcfc, as recorded, it would have held at the second
+escalation: 6 runs over 4 versions. The run counts it once per suite per
+attempt (`suiteDisputes` in the run stats, one more key in `atoma_run_status`)
+and logs one warning line in the run log. Nothing else: no branch, fallback,
+return path or text changes, and no model reads it.
+
+**Why no model reads it.** A first version rendered a "SUITE DISPUTE (host
+fact)" line into the spent ladder's hand-up and atop root acceptance's
+mechanical refusal. Its adversarial review (2026-10-17) found the line in all
+24 model calls of the next pass, twice in each delegated one, as a host-endorsed
+invitation to contest the suite, while the signal itself is weak: a build
+output (every TypeScript child runs `npm run build`), a data file or a log the
+child writes is another version, and three different wrong implementations
+failing one assertion ("expected false to be true") look exactly like a wrong
+suite. Children working under a correct suite would have been told to doubt
+it, which is the behaviour a child-filled challenge field was refused for, and
+the planned measurement could not have separated that effect.
+
+**Measured before anything reads it.** For each counted dispute, joining the
+warning line's suite digest with the persisted records and the trace: the
+suite was wrong (as in 2e6bdcfc), the implementation was wrong, or it cannot
+be told. A model-facing line or routing back to the owner lands only if, over
+at least 20 counted disputes, at least half were wrong suites; then with a
+holdout, so its effect on the next pass can be measured. Known over-count:
+build outputs, data files, logs and coverage reports move the subject digest,
+and identical failures of different wrong implementations count. Known
+under-count: an older worker's runs carry no subject digest, and a dispute that
+first holds on the fallback's own run is not counted.

@@ -50,6 +50,8 @@ const count = z.number().int().nonnegative();
 export const persistedParentTestSchema = z.object({
   suiteDigest: z.string(),
   workspaceDigest: z.string(),
+  /** The snapshot without root `.atoma*` entries and `node_modules`. Absent before 2026-10-17; no display reads it. */
+  subjectDigest: z.string().optional(),
   status: parentTestStatusSchema,
   cause: parentTestCauseSchema.optional(),
   passed: count,
@@ -70,6 +72,7 @@ export type PersistedParentTestObservation = z.infer<typeof persistedParentTestS
  * looser bound still shows.
  */
 export const persistedParentTestReaderSchema = persistedParentTestSchema.extend({
+  subjectDigest: z.string().optional().catch(undefined),
   cause: parentTestCauseSchema.optional().catch(undefined),
   judged: z.boolean().optional().catch(undefined),
   observedAt: count.optional().catch(undefined),

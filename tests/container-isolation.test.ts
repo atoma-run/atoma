@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, renameSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ContainerToolExecutor, workerRunArgs } from '../src/tools/containerExecutor.js';
 import { containerToolBackend } from '../src/run/toolBackend.js';
@@ -9,6 +9,7 @@ import { egressObjectId } from '../src/tools/egressSidecar.js';
 import { drainLines, encodeMessage, isWorkerHello } from '../src/tools/containerProtocol.js';
 import { HOST_REPLAY_ARG } from '../src/contracts/inheritedChecks.js';
 import { assertCheckpointWorkerAbsent } from '../src/launcher/checkpointRecovery.js';
+import { OUTSIDE_THE_COPY_FILES, OUTSIDE_THE_COPY_SUITE, OUTSIDE_THE_COPY_TESTS } from './helpers/outsideTheCopy.js';
 
 /**
  * The isolation primitive, proven against a real container.
@@ -451,6 +452,27 @@ describeDocker('a containerised run cannot reach the stores', () => {
 // isolated tag explicitly, so a stale shared :latest cannot masquerade as proof.
 const acceptanceImage = process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'];
 describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('compiled parent-test worker', () => {
+  it('keeps supervisor observation from authorizing a child overwrite across the worker boundary', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-observation-image-'));
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    try {
+      writeFileSync(join(workspace, 'source.ts'), 'export const value = 1;');
+      await executor.start();
+      expect(await executor.execute('read_file', { path: 'source.ts', observationOnly: true }))
+        .toMatchObject({ content: 'export const value = 1;' });
+      await expect(executor.execute('write_file', { path: 'source.ts', content: 'export const value = 2;' }))
+        .rejects.toThrow('nothing in this run has read it');
+      await executor.execute('read_file', { path: 'source.ts' });
+      await executor.execute('read_file', { path: 'source.ts', observationOnly: true });
+      await executor.execute('write_file', { path: 'source.ts', content: 'export const value = 2;' });
+      expect(readFileSync(join(workspace, 'source.ts'), 'utf8')).toBe('export const value = 2;');
+    } finally {
+      await executor.drain();
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it('uses packaged Vitest, detects a wrong implementation and keeps the workspace intact', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'atoma-acceptance-image-'));
     const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
@@ -462,12 +484,20 @@ describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('c
       writeFileSync(join(workspace, 'vitest.config.ts'), "throw new Error('foreign config');");
       const suite = {requirement: 'sum handles signed inputs', cwd: '.', source:
         "import {test,expect} from 'vitest'; import {sum} from './sum.ts'; import {writeFileSync} from 'node:fs'; test('sum',()=>{expect(sum(2,3)).toBe(5);expect(sum(-2,1)).toBe(-1);expect(()=>writeFileSync('/workspace/sum.ts','bad')).toThrow();expect(()=>writeFileSync('/app/dist/tools/worker.js','bad')).toThrow()});"};
-      const run = () => executor.execute('run_shell', {command:'atoma-verify',args:[JSON.stringify(suite)],timeoutMs:30_000});
+      type Observed = { status?: string; workspaceDigest?: string; subjectDigest?: string };
+      const run = async () => await executor.execute('run_shell', {command:'atoma-verify',args:[JSON.stringify(suite)],timeoutMs:30_000}) as Observed;
       const passed = await run();
-      expect(passed, JSON.stringify(passed)).toMatchObject({status:'passed',passed:1});
+      expect(passed, JSON.stringify(passed)).toMatchObject({status:'passed',passed:1,subjectDigest:expect.stringMatching(/^[0-9a-f]{64}$/)});
+      // A host artefact moves the workspace digest, never the subject digest (suite disputes, 2026-10-17).
+      writeFileSync(join(workspace,'.atoma-probes.json'),JSON.stringify({probes:[]}));
+      const probed = await run();
+      expect(probed).toMatchObject({status:'passed',subjectDigest:passed.subjectDigest});
+      expect(probed.workspaceDigest).not.toBe(passed.workspaceDigest);
       expect(readFileSync(join(workspace,'sum.ts'),'utf8')).toContain('a+b');
       writeFileSync(join(workspace,'sum.ts'),'export const sum=()=>5;');
-      expect(await run()).toMatchObject({status:'failed',failed:1});
+      const failed = await run();
+      expect(failed).toMatchObject({status:'failed',failed:1});
+      expect(failed.subjectDigest).not.toBe(passed.subjectDigest);
       expect(existsSync(join(workspace,'atoma.acceptance.test.ts'))).toBe(false);
     } finally {
       await executor.drain();
@@ -525,6 +555,26 @@ describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('c
       rmSync(workspace, { recursive: true, force: true });
     }
   }, 90_000);
+
+  // The same answers where /usr/bin/chromium is installed and /workspace is the live tree.
+  it('answers every read outside the copy as an absent path in the packaged runner', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-acceptance-image-'));
+    for (const [name, text] of Object.entries(OUTSIDE_THE_COPY_FILES)) {
+      mkdirSync(dirname(join(workspace, name)), { recursive: true });
+      writeFileSync(join(workspace, name), text);
+    }
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    try {
+      await executor.start();
+      const suite = { requirement: 'paths outside the copy are absent', cwd: '.', source: OUTSIDE_THE_COPY_SUITE };
+      const observation = await executor.execute('run_shell', { command: 'atoma-verify', args: [JSON.stringify(suite)], timeoutMs: 60_000 });
+      expect(observation, JSON.stringify(observation)).toMatchObject({ status: 'passed', passed: OUTSIDE_THE_COPY_TESTS, failed: 0 });
+    } finally {
+      await executor.drain();
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }, 120_000);
 
   it('copies without stalling sibling reads and runs no project code in the coordinator', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'atoma-acceptance-image-'));
