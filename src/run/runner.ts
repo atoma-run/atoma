@@ -57,8 +57,8 @@ import { RecordingLlmClient } from '../viz/recordingLlm.js';
 import { RecordingRegistry } from '../viz/recordingRegistry.js';
 import { containerToolBackend, localToolBackend, withMcpConnectorBackend, withProjectRetrievalBackend } from './toolBackend.js';
 import { decodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
-import { READ_RUNS_DIRECTORY, READ_RUNS_ENV, type ReadRunsIndex } from '../contracts/readRuns.js';
-import { captureReadRunCopies, checkReadRunCopies, compareReadRunFiles, materialiseReadRuns, readReadRunsIndex,
+import { READ_RUN_COPIES_DIRECTORY, READ_RUNS_DIRECTORY, READ_RUNS_ENV, type ReadRunsIndex } from '../contracts/readRuns.js';
+import { captureReadRunCopies, checkReadRunCopies, compareReadRunFiles, legacyReadRunCopy, materialiseReadRuns, readReadRunsIndex,
   removeReadRunCopies, type ReadRunCopyIdentities } from './readRuns.js';
 import { openConnectorRuntime } from '../connectors/runtime.js';
 import { emptyConnectorService, type McpConnectorService } from '../tools/mcpConnectors.js';
@@ -1136,7 +1136,7 @@ async function startTaskInternal(
     if (!readRuns) return;
     const report = materialiseReadRuns(workspaceRoot, readRuns);
     readRunIdentities = report.identities;
-    console.log(`read runs copied: ${report.files} files (${report.bytes} bytes) of ${report.runs} run(s), with their saved modes, into ${READ_RUNS_DIRECTORY}/`);
+    console.log(`read runs copied: ${report.files} files (${report.bytes} bytes) of ${report.runs} run(s), with their saved modes, into ${READ_RUN_COPIES_DIRECTORY}/`);
   };
   if (!savedCheckpoint) {
     try { copyReadRuns(); }
@@ -1186,8 +1186,19 @@ async function startTaskInternal(
     console.log(`checkpoint: ${data.id}; completed phases: ${data.completed.length}; prior consumption: ${JSON.stringify(data.consumed)}`);
   }
   // A continuation's copies came back with its sealed workspace, as new
-  // files: their identities are taken now, before any tool exists.
-  if (readRuns && savedCheckpoint) readRunIdentities = captureReadRunCopies(workspaceRoot, readRuns);
+  // files: their identities are taken now, before any tool exists. A
+  // workspace sealed before the copies moved under node_modules holds them
+  // where nothing reads them: refused, its source handed back untouched, as
+  // for a changed root actor.
+  if (readRuns && savedCheckpoint) {
+    const legacy = legacyReadRunCopy(workspaceRoot, readRuns);
+    if (legacy) {
+      checkpoint?.refuseContinuation();
+      throw new RunnerConfigError(`read run ${legacy}: the saved workspace holds its copy at ${READ_RUNS_DIRECTORY}/${legacy}, ` +
+        `where runs before 2026-10-17 put it, not at ${READ_RUN_COPIES_DIRECTORY}/${legacy}; start a new run that reads it`);
+    }
+    readRunIdentities = captureReadRunCopies(workspaceRoot, readRuns);
+  }
   // Capture the starting repository before a backend or inherited probe can
   // run its code. The prompt remains the task; these bounded bytes are context.
   const routingRepository = args.baseline ? undefined : readRoutingRepository(workspaceRoot);

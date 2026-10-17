@@ -37,7 +37,7 @@ describe('application skeleton through the existing shell tool', () => {
   // was refused as not empty, which invited `rm -rf .atoma-runs`.
   it('scaffolds beside the host\'s .atoma-* entries, which it leaves as they are', async () => {
     const { root, tool } = fixture();
-    const copy = join(root, '.atoma-runs', '50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a');
+    const copy = join(root, '.atoma-runs', 'node_modules', '50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a');
     mkdirSync(copy, { recursive: true });
     writeFileSync(join(copy, 'package.json'), 'the read run\'s bytes');
     writeFileSync(join(root, '.atoma-probes.json'), '{"version":1,"entries":[]}');

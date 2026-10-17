@@ -105,7 +105,8 @@ by owner decision on 2026-09-26
   otherwise valid run, and an unchanged body is not a revision.
 - Auto-created/revised skill bodies must stay within the owner's toolset and
   generalize beyond the triggering task. No task-specific literals.
-- A recipe naming a read-run copy (`.atoma-runs/<run id>`, `namesReadRunCopy`)
+- A recipe naming a read-run copy (`.atoma-runs/node_modules/<run id>`, or
+  `.atoma-runs/<run id>` as spelled before 2026-10-17; `namesReadRunCopy`)
   is never learned (task or recovery), revised or compiled: the catalogue
   would carry one organisation's run id into every other, and a path only one
   run held. A compile whose EXAMPLE names one is postponed without a stamp, as

@@ -7,7 +7,7 @@ import { makePlan } from './helpers/factories.js';
 import { silentLogger } from './helpers.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 import { ensureCanonicalFullStack } from '../src/atoms/capability.js';
-import { encodeReadRunsIndex, READ_RUNS_ENV, READ_RUNS_GUIDANCE, type ReadRunsIndex } from '../src/contracts/readRuns.js';
+import { encodeReadRunsIndex, READ_RUNS_ENV, READ_RUNS_GUIDANCE, readRunCopyPath, type ReadRunsIndex } from '../src/contracts/readRuns.js';
 import { HAYSTACK_LAUNCH_ENV } from '../src/contracts/retrievalHaystack.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { setLedgerScope } from '../src/core/ledger.js';
@@ -77,7 +77,7 @@ function tenant(options: { tenant?: boolean } = {}) {
   vi.stubEnv(HAYSTACK_LAUNCH_ENV, undefined);
   resetHostLifecycleSnapshotForTests();
   vi.mocked(containerToolBackend).mockImplementation(async opts => localToolBackend({ workspaceRoot: opts.workspaceRoot, logger: silentLogger() }));
-  const copy = join(current.layout.workspacePath, '.atoma-runs', read.run.projectRunId);
+  const copy = join(current.layout.workspacePath, readRunCopyPath(read.run.projectRunId));
   return { root, f, read, current, index, indexPath, writeIndex, copy, workspace: current.layout.workspacePath };
 }
 
@@ -100,7 +100,7 @@ describe('a tenant run that reads another run', () => {
       req.onToolInvocation?.({ name, args, result: value, startedAt, durationMs: Date.now() - startedAt });
       return value;
     };
-    const path = `.atoma-runs/${t.read.run.projectRunId}/browser/collect-xe-browser.js`;
+    const path = `.atoma-runs/node_modules/${t.read.run.projectRunId}/browser/collect-xe-browser.js`;
     vi.mocked(buildTierClients).mockReturnValue({ ollama: { complete: async (req) => {
       firstCall ??= { copied: existsSync(join(t.copy, 'browser/collect-xe-browser.js')), env: process.env[READ_RUNS_ENV] };
       calls.push(req);
@@ -141,7 +141,7 @@ describe('a tenant run that reads another run', () => {
       // Copied before the first model call, and the hand-off gone from the environment.
       expect(firstCall).toEqual({ copied: true, env: undefined });
       expect(refusal).toMatch(/^write_file: refuse to write into \.atoma-runs\//);
-      expect(logs).toContain(`read runs copied: 2 files (${t.read.run.artifactManifest!.totalBytes} bytes) of 1 run(s), with their saved modes, into .atoma-runs/`);
+      expect(logs).toContain(`read runs copied: 2 files (${t.read.run.artifactManifest!.totalBytes} bytes) of 1 run(s), with their saved modes, into .atoma-runs/node_modules/`);
       const files: string[] = [];
       const walk = (dir: string, prefix = ''): void => {
         for (const name of readdirSync(dir).sort()) {
@@ -158,7 +158,7 @@ describe('a tenant run that reads another run', () => {
       expect(readFileSync(join(t.workspace, 'browser/collect-xe-browser.js'), 'utf8')).toBe(READ['browser/collect-xe-browser.js']);
       if (copyState !== 'changed') expect(readFileSync(join(t.workspace, path), 'utf8')).toBe(READ['browser/collect-xe-browser.js']);
       // ONE listing and ONE sentence per prompt, at the root and in the molecule.
-      const listing = `"path":".atoma-runs/${t.read.run.projectRunId}"`;
+      const listing = `"path":".atoma-runs/node_modules/${t.read.run.projectRunId}"`;
       const root = calls.filter(req => req.actor?.name === 'run-root');
       const molecule = calls.filter(req => req.role === 'execute');
       expect(root).toHaveLength(1);
@@ -168,7 +168,7 @@ describe('a tenant run that reads another run', () => {
         expect(count(req.userContent, READ_RUNS_GUIDANCE), req.role).toBe(1);
       }
       const id8 = t.read.run.projectRunId.slice(0, 8);
-      const head = `READ RUN COPY (host-checked): .atoma-runs/${t.read.run.projectRunId}/`;
+      const head = `READ RUN COPY (host-checked): .atoma-runs/node_modules/${t.read.run.projectRunId}/`;
       expect(root[0]!.userContent).toContain({
         intact: `${head} still holds the 2 saved files of run ${id8} byte for byte, with their saved modes.`,
         touched: `${head} holds the 2 saved files of run ${id8} byte for byte now, but "browser/collect-xe-browser.js" was changed after the copy: a comparison made meanwhile may be wrong.`,

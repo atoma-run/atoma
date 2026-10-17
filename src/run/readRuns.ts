@@ -3,10 +3,12 @@ import { chmod, lstat, readdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
 import {
+  READ_RUN_COPIES_DIRECTORY,
   READ_RUN_COPY_LISTED_PATHS,
   READ_RUN_FILES_COMPARED,
   READ_RUNS_DIRECTORY,
   readRunCopyMode,
+  readRunCopyPath,
   readRunsIndexSchema,
   savedPathsNamed,
   type ReadRunCopyCheck,
@@ -70,16 +72,25 @@ interface DirectoryIdentity extends CopyIdentity {
   readonly names: readonly string[];
 }
 /**
- * Every copied file (`<runId>/<path>`) and every directory (`.atoma-runs`
- * itself as `''`, then `<runId>` and `<runId>/<dir>`) as the host left them.
+ * Every copied file (`<runId>/<path>`) and every directory, by its workspace
+ * path, as the host left them: `.atoma-runs` and `.atoma-runs/node_modules`,
+ * which every copy sits below, then each copy and the directories inside it.
  * Files alone missed a whole copy moved aside, duplicated, edited, compared
- * and moved back: every file kept its identity (review 2026-10-17, second pass).
+ * and moved back: every file kept its identity (review 2026-10-17, second
+ * pass). The shared directories count for every copy: moving
+ * `.atoma-runs/node_modules` aside and back moves them all.
  */
 export interface ReadRunCopyIdentities {
   readonly files: ReadonlyMap<string, CopyIdentity>;
   readonly directories: ReadonlyMap<string, DirectoryIdentity>;
 }
 const identityKey = (runId: string, path: string): string => `${runId}/${path}`;
+/** The directories above every copy, outermost first. */
+const COPY_ANCESTORS = [READ_RUNS_DIRECTORY, READ_RUN_COPIES_DIRECTORY] as const;
+const inWorkspace = (workspaceRoot: string, path: string): string => join(workspaceRoot, ...path.split('/'));
+/** A directory on the way to `copy` or inside it: its identity counts for that copy. */
+const onCopyPath = (directory: string, copy: string): boolean =>
+  directory === copy || copy.startsWith(`${directory}/`) || directory.startsWith(`${copy}/`);
 
 function statIdentity(path: string, kind: 'file' | 'directory'): CopyIdentity | undefined {
   try {
@@ -115,7 +126,7 @@ function directoryTouched(recorded: DirectoryIdentity, now: DirectoryIdentity | 
 }
 
 const copyTarget = (workspaceRoot: string, runId: string, file: Pick<ArtifactFile, 'path'>): string =>
-  join(workspaceRoot, READ_RUNS_DIRECTORY, runId, ...file.path.split('/'));
+  join(inWorkspace(workspaceRoot, readRunCopyPath(runId)), ...file.path.split('/'));
 
 export interface ReadRunCopyReport {
   readonly runs: number;
@@ -126,13 +137,14 @@ export interface ReadRunCopyReport {
 }
 
 /**
- * Copy every read run's saved files into `<workspace>/.atoma-runs/<runId>/`,
- * at launch and again after a deepening's seed copy. Each file is read from the
- * other run's workspace through `readManifestArtifact` (O_NOFOLLOW, identity,
- * size, mode and sha256 against its manifest entry) and written as a NEW file
- * with its SAVED mode: 0755 for a 100755 entry, 0644 otherwise. Nothing
- * outside the manifest crosses: no dependencies, no probe manifest, no
- * secret-like name, none of which a manifest ever lists.
+ * Copy every read run's saved files into
+ * `<workspace>/.atoma-runs/node_modules/<runId>/`, at launch and again after a
+ * deepening's seed copy. Each file is read from the other run's workspace
+ * through `readManifestArtifact` (O_NOFOLLOW, identity, size, mode and sha256
+ * against its manifest entry) and written as a NEW file with its SAVED mode:
+ * 0755 for a 100755 entry, 0644 otherwise. Nothing outside the manifest
+ * crosses: no dependencies, no probe manifest, no secret-like name, none of
+ * which a manifest ever lists.
  *
  * Not read-only, on purpose (review 2026-10-17): `cp` gives a new file its
  * source's bits, so 0444 copies made every file restored from them read-only
@@ -149,12 +161,12 @@ export interface ReadRunCopyReport {
  */
 export function materialiseReadRuns(workspaceRoot: string, index: ReadRunsIndex): ReadRunCopyReport {
   mkdirSync(workspaceRoot, { recursive: true });
-  const base = join(workspaceRoot, READ_RUNS_DIRECTORY);
-  mkdirSync(base, { mode: 0o755 });
+  // One level at a time, never recursive: `.atoma-runs` already there throws.
+  for (const directory of COPY_ANCESTORS) mkdirSync(inWorkspace(workspaceRoot, directory), { mode: 0o755 });
   let files = 0;
   let bytes = 0;
   for (const entry of index.readRuns) {
-    mkdirSync(join(base, entry.runId), { mode: 0o755 });
+    mkdirSync(inWorkspace(workspaceRoot, readRunCopyPath(entry.runId)), { mode: 0o755 });
     for (const file of entry.manifest.files) {
       let content: Buffer;
       // Read BEFORE the target is named: the read refuses a path that is not
@@ -187,25 +199,43 @@ export function materialiseReadRuns(workspaceRoot: string, index: ReadRunsIndex)
 export function captureReadRunCopies(workspaceRoot: string, index: ReadRunsIndex): ReadRunCopyIdentities {
   const files = new Map<string, CopyIdentity>();
   const directories = new Map<string, DirectoryIdentity>();
-  const base = join(workspaceRoot, READ_RUNS_DIRECTORY);
-  const top = directoryIdentityOf(base);
-  if (top) directories.set('', top);
+  for (const ancestor of COPY_ANCESTORS) {
+    const identity = directoryIdentityOf(inWorkspace(workspaceRoot, ancestor));
+    if (identity) directories.set(ancestor, identity);
+  }
   let visited = 0;
-  const walk = (directory: string, key: string): void => {
+  const walk = (key: string): void => {
     if (++visited > WORKSPACE_LIMITS.maxEntries) return;
-    const identity = directoryIdentityOf(directory);
+    const identity = directoryIdentityOf(inWorkspace(workspaceRoot, key));
     if (!identity) return;
     directories.set(key, identity);
-    for (const name of identity.names) walk(join(directory, name), `${key}/${name}`);
+    for (const name of identity.names) walk(`${key}/${name}`);
   };
   for (const entry of index.readRuns) {
-    walk(join(base, entry.runId), entry.runId);
+    walk(readRunCopyPath(entry.runId));
     for (const file of entry.manifest.files) {
       const identity = identityOf(copyTarget(workspaceRoot, entry.runId, file));
       if (identity) files.set(identityKey(entry.runId, file.path), identity);
     }
   }
   return { files, directories };
+}
+
+/**
+ * The first read run whose copy sits where runs before 2026-10-17 put it,
+ * `.atoma-runs/<runId>`, with nothing at today's path: what a continuation
+ * restores from a workspace an older version sealed, since a checkpoint seals
+ * every entry, copies included, and a continuation restores them as they
+ * were. Nothing reads them there, so the runner refuses that continuation
+ * before any model call. None is moved: no production run had read another
+ * when the copies moved (0 of 384 project runs).
+ */
+export function legacyReadRunCopy(workspaceRoot: string, index: ReadRunsIndex): string | undefined {
+  const exists = (path: string): boolean => {
+    try { lstatSync(path); return true; } catch { return false; }
+  };
+  return index.readRuns.find((entry) => exists(inWorkspace(workspaceRoot, `${READ_RUNS_DIRECTORY}/${entry.runId}`)) &&
+    !exists(inWorkspace(workspaceRoot, readRunCopyPath(entry.runId))))?.runId;
 }
 
 function realDirectory(path: string): boolean {
@@ -222,14 +252,15 @@ function realDirectory(path: string): boolean {
  * saved files whose bytes or mode differ (or that are no longer regular
  * files), the missing ones, the ones that match again but whose identity or
  * ctime moved since `identities` was taken (changed and put back), and the
- * names added since the copy. Never throws. A copy directory that is gone or
- * was replaced by a link holds none of its files. The walk for added names
- * stops at the workspace entry limit, so a count past it is a lower bound.
+ * names added since the copy. Never throws. A copy is read only through real
+ * directories: one that is gone, or a link at any level from `.atoma-runs`
+ * down to the copy, holds none of its files. The walk for added names stops
+ * at the workspace entry limit, so a count past it is a lower bound.
  */
 export function checkReadRunCopies(workspaceRoot: string, index: ReadRunsIndex, identities?: ReadRunCopyIdentities): ReadRunCopyCheck[] {
-  const base = join(workspaceRoot, READ_RUNS_DIRECTORY);
   return index.readRuns.map((entry) => {
-    const root = join(base, entry.runId);
+    const copy = readRunCopyPath(entry.runId);
+    const root = inWorkspace(workspaceRoot, copy);
     const found = {
       changed: [] as string[], missing: [] as string[], touched: [] as string[], added: [] as string[],
       changedCount: 0, missingCount: 0, touchedCount: 0, addedCount: 0,
@@ -238,7 +269,7 @@ export function checkReadRunCopies(workspaceRoot: string, index: ReadRunsIndex, 
       found[`${kind}Count`] += 1;
       if (found[kind].length < READ_RUN_COPY_LISTED_PATHS) found[kind].push(path);
     };
-    const present = realDirectory(base) && realDirectory(root);
+    const present = [...COPY_ANCESTORS, copy].every((directory) => realDirectory(inWorkspace(workspaceRoot, directory)));
     for (const file of entry.manifest.files) {
       if (!present) { note('missing', file.path); continue; }
       try {
@@ -271,13 +302,12 @@ export function checkReadRunCopies(workspaceRoot: string, index: ReadRunsIndex, 
       };
       walk(root, '');
     }
-    // A directory of this copy, or `.atoma-runs` itself, moved or modified
-    // with its names unchanged: a whole copy swapped aside and back.
+    // A directory of this copy, or one above it, moved or modified with its
+    // names unchanged: a whole copy, or all of them, swapped aside and back.
     let swapped = false;
     for (const [key, recorded] of identities?.directories ?? []) {
-      if (key !== '' && key !== entry.runId && !key.startsWith(`${entry.runId}/`)) continue;
-      const path = key === '' ? base : join(base, ...key.split('/'));
-      if (directoryTouched(recorded, directoryIdentityOf(path))) { swapped = true; break; }
+      if (!onCopyPath(key, copy)) continue;
+      if (directoryTouched(recorded, directoryIdentityOf(inWorkspace(workspaceRoot, key)))) { swapped = true; break; }
     }
     return { runId: entry.runId, files: entry.manifest.files.length, ...found, directoryTouched: swapped };
   });

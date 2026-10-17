@@ -37,14 +37,14 @@ import { transportOf, tryParseModelSelector } from '../contracts/modelSelector.j
 import { branchRecordCount, executorEvidence } from '../atoms/executorEvidence.js';
 import { baseExecutorOf } from '../core/attestation.js';
 import type { SkillLesson } from '../contracts/skillLearning.js';
-import { namesReadRunCopy, READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
+import { namesReadRunCopy, readRunCopyPath } from '../contracts/readRuns.js';
 
 // Historical export home — the generation machinery lives in generations.ts
 // (stats/curriculum need the predicate without importing this whole engine).
 export { REFUSAL_GENERATION, refusalStampIsCurrent } from './generations.js';
 
 /**
- * A recipe that names a read-run copy (`.atoma-runs/<run id>`,
+ * A recipe that names a read-run copy (`.atoma-runs/node_modules/<run id>`,
  * src/contracts/readRuns.ts) is never learned, revised or compiled: the
  * catalogue is shared by every organisation, so the id would carry one
  * organisation's run into all of them, and the path existed in one run only —
@@ -57,7 +57,7 @@ export function recipeNamesReadRunCopy(recipe: {
   return [recipe.id, recipe.description, recipe.whenToUse, recipe.body, recipe.trigger]
     .some((text) => typeof text === 'string' && namesReadRunCopy(text));
 }
-const READ_RUN_COPY_REFUSAL = `it names a read-run copy (${READ_RUNS_DIRECTORY}/<run id>), a path one run held`;
+const READ_RUN_COPY_REFUSAL = `it names a read-run copy (${readRunCopyPath('<run id>')}), a path one run held`;
 
 /**
  * Why a script that RAN in a phase was not used there. The first three come
@@ -1205,7 +1205,7 @@ export class SkillLifecycle {
     // review 2026-10-17). A stamp would refuse the recipe for its example.
     if (namesReadRunCopy(args.subTask.description) || namesReadRunCopy(args.result.summary)) {
       args.ctx.logger.info(
-        `[${this.host.name}] skill "${args.skillId}" compile postponed: its example names a read-run copy (${READ_RUNS_DIRECTORY}/<run id>); reconsidering at the next credited success`
+        `[${this.host.name}] skill "${args.skillId}" compile postponed: its example names a read-run copy (${readRunCopyPath('<run id>')}); reconsidering at the next credited success`
       );
       return;
     }

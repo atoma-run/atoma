@@ -102,19 +102,27 @@ describe('inheritProbeManifest', () => {
   // copy replays only where that copy existed, and a later run never holds one.
   // A command that only excludes the copies replays anywhere (reviews 2026-10-17).
   it('drops an entry reaching into a read-run copy, keeps one that only excludes the copies, and never reports either', () => {
-    const copy = '.atoma-runs/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
+    const id = '50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
+    const copy = `.atoma-runs/node_modules/${id}`;
     const dropped = [
       { cmd: `cmp ${copy}/browser/collect-xe-browser.js browser/collect-xe-browser.js`, exitCode: 0 },
-      { cmd: `diff -r ".atoma-runs"/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser browser`, exitCode: 0 },
+      { cmd: `diff -r ".atoma-runs"/node_modules/${id}/browser browser`, exitCode: 0 },
       // The command names no copy, its recorded output does: a replay without the copy prints otherwise.
       { cmd: 'find . -name collect-xe-browser.js', exitCode: 0, stdout: `./browser/collect-xe-browser.js\n./${copy}/browser/collect-xe-browser.js\n` },
       // No id, still into the copies (second review): silent on success, exit 2 where they are absent.
+      { cmd: 'diff -q browser/collect-xe-browser.js .atoma-runs/node_modules/*/browser/collect-xe-browser.js', exitCode: 0 },
+      { cmd: 'diff -q browser/collect-xe-browser.js .atoma-runs/*/*/browser/collect-xe-browser.js', exitCode: 0 },
+      { cmd: 'cd .atoma-runs/node_modules && sha256sum */browser/collect-xe-browser.js', exitCode: 0 },
+      // As a run recorded them while the copies sat at .atoma-runs/<run id> (before 2026-10-17).
+      { cmd: `cmp .atoma-runs/${id}/browser/collect-xe-browser.js browser/collect-xe-browser.js`, exitCode: 0 },
       { cmd: 'diff -q browser/collect-xe-browser.js .atoma-runs/*/browser/collect-xe-browser.js', exitCode: 0 },
       { cmd: 'cd .atoma-runs && sha256sum */browser/collect-xe-browser.js', exitCode: 0 },
       { probe: 'web', file: `${copy}/index.html`, smoke: 'document.title', expected: '"Old page"' },
       { probe: 'web', file: `./${copy}/index.html`, smoke: 'document.title', expected: '"Old page"' },
+      { probe: 'web', file: `.atoma-runs/${id}/index.html`, smoke: 'document.title', expected: '"Old page"' },
       // The old server started from the copy: its host-stamped entry, and a request served from the copy.
       { probe: 'http', method: 'GET', path: '/api/items', status: 200, serverKind: 'node', entry: `${copy}/src/api.js` },
+      { probe: 'http', method: 'GET', path: '/api/items', status: 200, serverKind: 'node', entry: `.atoma-runs/${id}/src/api.js` },
       { probe: 'http', method: 'GET', path: `/${copy}/index.html`, status: 200, serverKind: 'static' },
     ];
     const kept = [
@@ -123,6 +131,8 @@ describe('inheritProbeManifest', () => {
       { cmd: 'grep -r TODO src --exclude-dir=.atoma-runs', exitCode: 1 },
       { cmd: "rg --glob '!.atoma-runs/**' TODO", exitCode: 1 },
       { cmd: "find . -not -path './.atoma-runs/*' -name '*.test.js'", exitCode: 0 },
+      { cmd: "npx eslint . --max-warnings 0 --ignore-pattern '.atoma-runs/node_modules/**'", exitCode: 0 },
+      { cmd: "find . -path './.atoma-runs/node_modules/*' -prune -o -name '*.test.js' -print", exitCode: 0 },
       // A variable holding the directory is out of reach: no reader of a command can follow it.
       { cmd: 'D=.atoma-runs; ls $D', exitCode: 0 },
       { probe: 'http', method: 'GET', path: '/.atoma-runs/x', status: 404 },
@@ -162,7 +172,7 @@ describe('seedWorkspace', () => {
   // that read them; the next run reads only the runs its own request names.
   it('never inherits the seed\'s read-run copies, and leaves a nested directory of that name alone', () => {
     const seed = tempDir('atoma-seed-src-');
-    const copy = join(seed, '.atoma-runs', '50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a');
+    const copy = join(seed, '.atoma-runs', 'node_modules', '50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a');
     mkdirSync(copy, { recursive: true });
     writeFileSync(join(copy, 'collect.js'), 'the read run');
     mkdirSync(join(seed, 'docs', '.atoma-runs'), { recursive: true });

@@ -608,12 +608,14 @@ export interface InheritedProbeManifest {
  * One more drop is an INHERITANCE rule, not a malformation, so the health
  * check never reports it: an entry that reaches INTO a read-run copy
  * (src/contracts/readRuns.ts) replays only where that copy existed, and no
- * later run holds one. A path naming a run id (`.atoma-runs/<run id>/…`) in
- * any replayed field; in a command also a glob where the id would be
- * (`.atoma-runs/*\/x.js`) and a shell entering the directory (`cd
- * .atoma-runs`). A command that leaves the copies out (`--ignore-pattern
- * '.atoma-runs/**'`, a `!` glob) replays anywhere and is kept, and so is a
- * variable holding the directory, which no reader can follow (reviews 2026-10-17).
+ * later run holds one. A path naming a run id
+ * (`.atoma-runs/node_modules/<run id>/…`, or `.atoma-runs/<run id>/…` as
+ * recorded before 2026-10-17) in any replayed field; in a command also a glob
+ * where `node_modules` or the id would be (`.atoma-runs/*\/x.js`) and a shell
+ * entering the directory (`cd .atoma-runs`). A command that leaves the copies
+ * out (`--ignore-pattern '.atoma-runs/**'`, a `!` glob) replays anywhere and
+ * is kept, and so is a variable holding the directory, which no reader can
+ * follow (reviews 2026-10-17).
  */
 /** The entry with its run-varying stdout omitted, when that stdout names a bound port. */
 function portBearingStdoutRepair(entry: unknown): Record<string, unknown> | null {

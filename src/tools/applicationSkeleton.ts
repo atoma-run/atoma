@@ -7,8 +7,10 @@ import lockfile from './applicationSkeleton.lock.json' with { type: 'json' };
 /**
  * Versioned application source, independent of control-plane services.
  * Version 2 (2026-10-17): ESLint ignores `.atoma-*` host directories, whose
- * copies of other runs' saved files (`.atoma-runs`) `eslint .` would otherwise
- * lint, outside the tsconfig, and fail `npm run check` on.
+ * files `eslint .` would otherwise lint, outside the tsconfig, and fail
+ * `npm run check` on (`.atoma-skeleton`, `.atoma-scratch`). The read-run
+ * copies that prompted it moved the same day under `.atoma-runs/node_modules`,
+ * which `eslint .` skips in a v1 project too (src/contracts/readRuns.ts).
  */
 export const APPLICATION_SKELETON_VERSION = 2;
 export type ApplicationSkeletonKind = 'web' | 'node' | 'fullstack';

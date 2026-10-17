@@ -55,7 +55,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 const entryKind = probeEntryKind;
 
 /**
- * A host-internal path (`.atoma-runs/<run id>/src/api.js`, `.atoma-scratch/…`):
+ * A host-internal path (`.atoma-runs/node_modules/<run id>/src/api.js`, `.atoma-scratch/…`):
  * never the delivery's own server. A run asked to behave like an older one may
  * start that run's server from its read-run copy and probe it after its own
  * (review 2026-10-17); the preview copy leaves every `.atoma-*` path out, so

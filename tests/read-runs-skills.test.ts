@@ -13,7 +13,7 @@ import { SkillRegistry } from '../src/skills/registry.js';
 import { jsonText, makeCtx } from './helpers.js';
 
 /**
- * A recipe naming a read-run copy (`.atoma-runs/<run id>`) — review
+ * A recipe naming a read-run copy (`.atoma-runs/node_modules/<run id>`) — review
  * 2026-10-17. The catalogue is every organisation's, so such a recipe would
  * carry one organisation's run id into all of them, and replay a path that
  * existed in one run: a script trusted from its first match fails on it, and a
@@ -21,7 +21,7 @@ import { jsonText, makeCtx } from './helpers.js';
  * compiled. Real catalogue on disk; only the author and compiler are scripted.
  */
 
-const COPY = '.atoma-runs/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
+const COPY = '.atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
 const task = { description: `Restore browser/collect.js to the bytes of ${COPY}/browser/collect.js.` };
 
 let dir: string;
@@ -59,7 +59,9 @@ describe('a recipe that names a read-run copy', () => {
     expect(recipeNamesReadRunCopy({ body: `1. cp ${COPY}/<file> <file>` })).toBe(true);
     expect(recipeNamesReadRunCopy({ whenToUse: `when asked to restore from ${COPY}` })).toBe(true);
     expect(recipeNamesReadRunCopy({ trigger: `ENOENT on ${COPY}/x.js` })).toBe(true);
-    expect(recipeNamesReadRunCopy({ body: "1. npx eslint . --ignore-pattern '.atoma-runs/**'\n2. cp .atoma-runs/<run id>/<file> <file>" })).toBe(false);
+    // As a recipe learned while the copies sat at .atoma-runs/<run id> spells it (before 2026-10-17).
+    expect(recipeNamesReadRunCopy({ body: '1. cp .atoma-runs/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/<file> <file>' })).toBe(true);
+    expect(recipeNamesReadRunCopy({ body: "1. npx eslint . --ignore-pattern '.atoma-runs/**'\n2. cp .atoma-runs/node_modules/<run id>/<file> <file>" })).toBe(false);
   });
 
   it('is never learned, and costs nothing past the author\'s call', async () => {
@@ -72,7 +74,7 @@ describe('a recipe that names a read-run copy', () => {
     // The same recipe in its general form is learned, and compiled at learn time.
     const general = makeCtx();
     general.llm.enqueueText(jsonText({ id: 'restore-from-read-run', description: 'Restore a file from a read run',
-      when_to_use: 'When asked to restore a file to the bytes of an earlier run', body: '1. run_shell cp .atoma-runs/<run id>/<file> <file>' }));
+      when_to_use: 'When asked to restore a file to the bytes of an earlier run', body: '1. run_shell cp .atoma-runs/node_modules/<run id>/<file> <file>' }));
     general.llm.enqueueText(jsonText({ promotable: false, reason: 'needs the run id from the task' }));
     await lifecycle.learnSkillFromRun({ l1Name: namespace, subTask: task, result: approved, child, ctx: general, hostTools: ['read_file', 'run_shell'] });
     expect(skills.loadFor(namespace).map((skill) => skill.id)).toEqual(['restore-from-read-run']);
@@ -121,13 +123,13 @@ describe('a recipe that names a read-run copy', () => {
 
   it('is never written by a revision', async () => {
     skills.save(namespace, { id: 'general-restore', description: 'Restore', whenToUse: 'When restoring a saved file', kind: 'llm',
-      body: '1. run_shell cp .atoma-runs/<run id>/<file> <file>' });
+      body: '1. run_shell cp .atoma-runs/node_modules/<run id>/<file> <file>' });
     const skill = skills.loadFor(namespace)[0]!;
     const revising = makeCtx();
     revising.llm.enqueueText(`1. run_shell cp ${COPY}/browser/collect.js browser/collect.js`);
     expect(await lifecycle.improveSkillBody({ skill, diagnostic: `the file differs from ${COPY}/browser/collect.js`,
       subtaskDescription: task.description, ctx: revising })).toBeNull();
-    revising.llm.enqueueText('1. run_shell cp .atoma-runs/<run id>/<file> <file>\n2. sha256sum both files and compare them');
+    revising.llm.enqueueText('1. run_shell cp .atoma-runs/node_modules/<run id>/<file> <file>\n2. sha256sum both files and compare them');
     expect(await lifecycle.improveSkillBody({ skill, diagnostic: 'no comparison was shown', subtaskDescription: task.description, ctx: revising }))
       .toContain('sha256sum both files');
   });

@@ -323,7 +323,7 @@ describe('an http probe classifies the deliverable as node', () => {
   // preview copy leaves every `.atoma-*` path out, so such an entry would
   // leave the preview nothing to start.
   it('never picks a server entry under an .atoma-* directory: the previous stamp, then the fallbacks', () => {
-    const copy = '.atoma-runs/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
+    const copy = '.atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
     const own = workspace({
       [PROBE_MANIFEST_FILENAME]: manifest(httpEntry({ entry: 'src/api.js' }), httpEntry({ path: '/old', entry: `${copy}/src/api.js` })),
       'src/api.js': '// this run\'s server\n',

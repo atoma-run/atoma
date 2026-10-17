@@ -11,11 +11,12 @@ before launch, incomplete runs kept and explained, and comparison reruns.
 - `atoma_run_start` takes an optional `readRunIds`: up to three other retained
   delivered or partial runs of the same project, at most 64 MiB and 10,000
   files together, whose saved files the new run may read. They are copied with
-  their saved modes to `.atoma-runs/<runId>/<path>` before work starts;
-  `write_file` and `edit_file` refuse them. At root acceptance the host checks
-  the copies against their saved manifests, saying whether one was changed,
-  even if put back, and compares each file the criteria name with the read
-  runs' saved bytes and modes. The copies are never delivered, published,
+  their saved modes to `.atoma-runs/node_modules/<runId>/<path>` before work
+  starts, under a `node_modules` directory that linters and test runners skip
+  by default; `write_file` and `edit_file` refuse them. At root acceptance the
+  host checks the copies against their saved manifests, saying whether one
+  was changed, even if put back, and compares each file the criteria name
+  with the read runs' saved bytes and modes. The copies are never delivered, published,
   seeded into the next run or kept in a deepening's archive. They are removed,
   from the workspace and from the run's checkpoint snapshot, when the run ends
   unless it can still be continued (paused, or interrupted and recoverable); a

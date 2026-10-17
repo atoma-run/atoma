@@ -5,10 +5,10 @@ import { artifactManifestSchema, sha256Schema, type ArtifactFile } from './artif
  * READ RUNS: other runs of the same project whose saved files a new run may
  * read (docs/decisions/read-runs-2026-10-17.md). The client names them; the
  * host copies each one's saved manifest, hash-checked, into the new workspace
- * at `.atoma-runs/<runId>/<path>`, each file with its saved mode, before any
- * model call. Attica run 2e6bdcfc was asked to restore four files to the
- * bytes of run 50019ee0 while seeded from 8402ca88, and nothing it could
- * reach held them.
+ * at `.atoma-runs/node_modules/<runId>/<path>`, each file with its saved mode,
+ * before any model call. Attica run 2e6bdcfc was asked to restore four files
+ * to the bytes of run 50019ee0 while seeded from 8402ca88, and nothing it
+ * could reach held them.
  *
  * The one home of the directory, the caps, the hand-off from the coordinator
  * to the run process, the task input the planners read, the lines the root
@@ -23,6 +23,18 @@ import { artifactManifestSchema, sha256Schema, type ArtifactFile } from './artif
  * internal path (`assertPublishableArtifactPath`).
  */
 export const READ_RUNS_DIRECTORY = '.atoma-runs';
+/**
+ * The directory below it that holds the copies, one per read run. A path with
+ * a dot-directory AND a `node_modules` component is skipped by every tool that
+ * skips either one (2026-10-17). Copies at `.atoma-runs/<runId>` were walked by
+ * ESLint's flat config, Vitest's default include, Jest and `prettier --check .`,
+ * which skip `node_modules` but not dot-directories: one old lint defect failed
+ * a project's whole-tree check, and a clean copy made Vitest count another
+ * run's tests as this run's. npm manages only the root `node_modules`.
+ */
+export const READ_RUN_COPIES_PARENT = 'node_modules';
+/** The workspace path of the directory holding the copies: `.atoma-runs/node_modules`. */
+export const READ_RUN_COPIES_DIRECTORY = `${READ_RUNS_DIRECTORY}/${READ_RUN_COPIES_PARENT}`;
 export const MAX_READ_RUNS = 3;
 /** The read runs' saved bytes together. Over it a request is refused, never trimmed. */
 export const MAX_READ_RUN_BYTES = 64 * 1024 * 1024;
@@ -104,9 +116,9 @@ export function encodeReadRunsIndex(index: ReadRunsIndex): string {
   return JSON.stringify(readRunsIndexSchema.parse(index));
 }
 
-/** Where one read run's copy lives, relative to the workspace. */
+/** Where one read run's copy lives, relative to the workspace: `.atoma-runs/node_modules/<runId>`. */
 export function readRunCopyPath(runId: string): string {
-  return `${READ_RUNS_DIRECTORY}/${runId}`;
+  return `${READ_RUN_COPIES_DIRECTORY}/${runId}`;
 }
 
 /** The mode a copy is written with: its saved mode, so a file restored from it keeps its executable bit. */
@@ -138,18 +150,19 @@ export function readRunsInput(index: ReadRunsIndex): ReadRunInput[] {
 
 /**
  * The text the run's planners, executors and validators read beside
- * `readRuns`, and only then. About 165 tokens (659 characters at four a
+ * `readRuns`, and only then. About 169 tokens (675 characters at four a
  * token), in every prompt of such a run. What it answers, each from the
  * reviews of 2026-10-17: deleting or editing a copy makes it worthless and no
  * pass gets it back (write_file and edit_file also refuse them); a
  * parent-owned suite never sees the copies, so a suite comparing with them
- * fails every round; and a whole-tree lint or test run finds them, where
- * excluding them in the project's configuration conflicts with the
- * TypeScript rule against hiding source. Of later runs it says only what is
- * true of all of them: a continuation and a comparison rerun read the same
- * runs again, but no run is seeded with these copies.
+ * fails every round; and a whole-tree lint or test run skips them under
+ * `node_modules`, while a tool configured to reach them anyway runs on a copy
+ * of the workspace, because excluding them in the project's configuration
+ * conflicts with the TypeScript rule against hiding source. Of later runs it
+ * says only what is true of all of them: a continuation and a comparison
+ * rerun read the same runs again, but no run is seeded with these copies.
  */
-export const READ_RUNS_GUIDANCE = "readRuns are copies of other runs' saved files, chosen by the client; the host never delivers them or seeds them into the next run. Leave them in place and unchanged; read, compare or copy from them as the task asks. Parent-owned suites cannot read them: prove a restore or comparison with sha256sum or diff in a shell step (the host also compares the files the criteria name at acceptance). A check run inside them proves nothing about this run's files. Run a tool that walks the whole tree (eslint ., a test runner's default include) on a copy of the workspace without .atoma-runs rather than change the project's configuration, unless the task allows that.";
+export const READ_RUNS_GUIDANCE = "readRuns are copies of other runs' saved files, chosen by the client; the host never delivers them or seeds them into the next run. Leave them in place and unchanged; read, compare or copy from them as the task asks. Parent-owned suites cannot read them: prove a restore or comparison with sha256sum or diff in a shell step (the host also compares the files the criteria name at acceptance). A check run inside them proves nothing about this run's files. They sit under a node_modules directory, which linters and test runners skip; if one still reaches them, run it on a copy of the workspace without .atoma-runs, unless the task allows changing the project's configuration.";
 
 /**
  * What the host found when it checked one copy against its manifest, just
@@ -175,10 +188,11 @@ export interface ReadRunCopyCheck {
   readonly added: readonly string[];
   readonly addedCount: number;
   /**
-   * A directory of the copy (or `.atoma-runs` itself) was replaced or moved
-   * after the copy, its names unchanged: a whole copy swapped aside, edited,
-   * compared and swapped back keeps every file's identity (review 2026-10-17,
-   * second pass). A change explained by names added or removed is not this.
+   * A directory of the copy, or one above it (`.atoma-runs`, its
+   * `node_modules`), was replaced or moved after the copy, its names
+   * unchanged: a whole copy swapped aside, edited, compared and swapped back
+   * keeps every file's identity (review 2026-10-17, second pass). A change
+   * explained by names added or removed is not this.
    */
   readonly directoryTouched: boolean;
 }
@@ -313,32 +327,45 @@ export function renderReadRunFiles(comparisons: ReadRunFileComparisons): string 
 
 const READ_RUNS_PATTERN = READ_RUNS_DIRECTORY.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const RUN_ID_PATTERN = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
-
 /**
- * A path INTO a copy: the directory as a whole path component, then a run id
- * (quotes may wrap either component). The id is required here: a text that
- * only mentions the directory is often a command that excludes the copies
- * (`--ignore-pattern '.atoma-runs/**'`, `vitest --exclude '**\/.atoma-runs/**'`),
- * which replays anywhere, and dropping it lost a seeded run's lint replay
- * (review 2026-10-17). Commands that reach the copies without an id are
- * `reachesReadRunCopies`'s.
+ * One path component between the directory and a run id, quotes and all:
+ * `node_modules`, where the copies sit since 2026-10-17, or a glob standing for
+ * it (`.atoma-runs/*\/<run id>`). Optional: a probe manifest or recipe recorded
+ * while the copies sat at `.atoma-runs/<run id>` still spells them so, and
+ * replays no better for it.
  */
-const NAMES_READ_RUN_COPY = new RegExp(`(?:^|[^\\w.-])["']?${READ_RUNS_PATTERN}["']?/+["']?${RUN_ID_PATTERN}(?![0-9a-fA-F-])`);
+const COPIES_COMPONENT = '(?:[^/\\s]+/+)?';
 
 /**
- * Whether a text names a path inside a read-run copy (`.atoma-runs/<run id>`).
- * Such a check replays only where that copy existed, and a later run never
- * holds one, so the seed copy drops it (`inheritProbeManifest`): an
- * inheritance rule, not a malformation, which the health check never reports.
- * A recipe naming one would carry one organisation's run id into the shared
- * catalogue and replay a path one run held, so skills refuse it too.
+ * A path INTO a copy: the directory as a whole path component, then a run id,
+ * at most one component between them (quotes may wrap any of them). The id
+ * is required here: a text that only mentions the directory is often a
+ * command that excludes the copies (`--ignore-pattern '.atoma-runs/**'`,
+ * `vitest --exclude '**\/.atoma-runs/**'`), which replays anywhere, and
+ * dropping it lost a seeded run's lint replay (review 2026-10-17). Commands
+ * that reach the copies without an id are `reachesReadRunCopies`'s.
+ */
+const NAMES_READ_RUN_COPY = new RegExp(`(?:^|[^\\w.-])["']?${READ_RUNS_PATTERN}["']?/+${COPIES_COMPONENT}["']?${RUN_ID_PATTERN}(?![0-9a-fA-F-])`);
+
+/**
+ * Whether a text names a path inside a read-run copy
+ * (`.atoma-runs/node_modules/<run id>`, or `.atoma-runs/<run id>` as it was
+ * spelled before 2026-10-17). Such a check replays only where that copy
+ * existed, and a later run never holds one, so the seed copy drops it
+ * (`inheritProbeManifest`): an inheritance rule, not a malformation, which the
+ * health check never reports. A recipe naming one would carry one
+ * organisation's run id into the shared catalogue and replay a path one run
+ * held, so skills refuse it too.
  */
 export function namesReadRunCopy(text: string): boolean {
   return NAMES_READ_RUN_COPY.test(text);
 }
 
-/** The directory, then a glob where a run id would be: `.atoma-runs/*\/x.js`, `".atoma-runs"/**\/x.js`. */
-const GLOB_INTO_READ_RUNS = new RegExp(`(?:^|[^\\w.-])["']?${READ_RUNS_PATTERN}["']?/+["']?[*?[{]`, 'g');
+/**
+ * The directory, then a glob where `node_modules` or a run id would be:
+ * `.atoma-runs/*\/x.js`, `".atoma-runs"/**\/x.js`, `.atoma-runs/node_modules/*\/x.js`.
+ */
+const GLOB_INTO_READ_RUNS = new RegExp(`(?:^|[^\\w.-])["']?${READ_RUNS_PATTERN}["']?/+${COPIES_COMPONENT}["']?[*?[{]`, 'g');
 /** A shell entering the directory: `cd .atoma-runs && …`, `pushd ./.atoma-runs`. */
 const ENTERS_READ_RUNS = new RegExp(`(?:^|[;&|(\\s"'])(?:cd|pushd)\\s+["']?(?:\\./)?${READ_RUNS_PATTERN}(?=[/"'\\s;&|)]|$)`);
 /** An option whose argument is a pattern to leave out: `--exclude`, `--ignore-pattern`, `--exclude-dir`, `--ignore`. */
@@ -396,11 +423,12 @@ function exclusionArgument(command: string, at: number): boolean {
 
 /**
  * Whether a shell COMMAND reaches into the copies: a path naming a run id
- * (`namesReadRunCopy`), a glob where the id would be that is not a pattern
- * the command leaves out (`diff -q x.js .atoma-runs/*\/x.js`), or a shell
- * entering the directory (`cd .atoma-runs && sha256sum *\/x.js`). Such a
- * recorded command fails where the copies are absent, so the seed copy drops
- * it (review 2026-10-17, second pass). A variable holding the directory
+ * (`namesReadRunCopy`), a glob where `node_modules` or the id would be that is
+ * not a pattern the command leaves out (`diff -q x.js
+ * .atoma-runs/node_modules/*\/x.js`), or a shell entering the directory (`cd
+ * .atoma-runs/node_modules && sha256sum *\/x.js`). Such a recorded command
+ * fails where the copies are absent, so the seed copy drops it (review
+ * 2026-10-17, second pass). A variable holding the directory
  * (`D=.atoma-runs; cat $D/…`) is out of reach: no reader of a command string
  * can follow it.
  */

@@ -155,8 +155,9 @@ GitHub or deploying it. No selection preserves the usual automatic seed policy.
 To restore or compare files from other runs, pass up to three of them in
 `readRunIds`: retained delivered or partial runs of the same project, not
 comparison reruns, at most 64 MiB and 10,000 files together. Their saved files
-are copied, with their saved modes, to `.atoma-runs/<runId>/<path>` before
-work starts. Name the files in the goal and in the acceptance criteria
+are copied, with their saved modes, to `.atoma-runs/node_modules/<runId>/<path>`
+before work starts: under a `node_modules` directory, which linters and test
+runners skip by default. Name the files in the goal and in the acceptance criteria
 (`atoma_run_artifacts` lists a run's files): at acceptance the host compares
 each file a criterion names with the read runs' saved bytes and modes. The
 copies are never delivered, published or seeded into the next run; a

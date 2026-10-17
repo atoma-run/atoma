@@ -11,7 +11,7 @@ import { StreamableHTTPClientTransport as LegacyTransport } from '@modelcontextp
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseRunLog } from '../src/cli/burnin.js';
 import { conversationReadResultSchema } from '../src/contracts/assistant.js';
-import { READ_RUNS_ENV, MAX_READ_RUN_BYTES, MAX_READ_RUN_FILES } from '../src/contracts/readRuns.js';
+import { READ_RUNS_ENV, MAX_READ_RUN_BYTES, MAX_READ_RUN_FILES, readRunCopyPath } from '../src/contracts/readRuns.js';
 import { formatRunStatsEpilogue } from '../src/contracts/runStats.js';
 import type { PlatformEventInput } from '../src/contracts/platformEvents.js';
 import type { RunCheckpoint } from '../src/contracts/runCheckpoint.js';
@@ -101,8 +101,8 @@ function completes(f: Fixture, seen: Array<Parameters<ProjectRunDriver>[0]>) {
     mkdirSync(join(workspace, 'browser'), { recursive: true });
     writeFileSync(join(workspace, 'browser/collect.js'), 'restored');
     // What the run process would have copied: never part of the delivery.
-    mkdirSync(join(workspace, '.atoma-runs', id), { recursive: true });
-    writeFileSync(join(workspace, '.atoma-runs', id, 'collect.js'), 'a reference copy');
+    mkdirSync(join(workspace, readRunCopyPath(id)), { recursive: true });
+    writeFileSync(join(workspace, readRunCopyPath(id), 'collect.js'), 'a reference copy');
     writeFileSync(options.env![ARTIFACT_MANIFEST_PATH_ENV]!, JSON.stringify({
       version: 1, runId: id, generatedAt: new Date().toISOString(), outputs: ['browser/collect.js'] }));
     const traces = options.env!['ATOMA_RUNS_DIR']!;
@@ -125,7 +125,7 @@ describe('a run that reads other runs, through the MCP', () => {
     const parameter = tools.find(tool => tool.name === 'atoma_run_start')!.inputSchema.properties!['readRunIds'] as {
       type: string; maxItems: number; description: string };
     expect(parameter).toMatchObject({ type: 'array', maxItems: 3 });
-    expect(parameter.description).toContain('Copied with their modes to .atoma-runs/<runId>/<path> before work starts');
+    expect(parameter.description).toContain('Copied with their modes to .atoma-runs/node_modules/<runId>/<path> before work starts');
     // The caps, what a later run reads, and the requests it cannot join (review 2026-10-17).
     expect(parameter.description).toContain(`at most 64 MiB and ${MAX_READ_RUN_FILES} files together`);
     expect(parameter.description).toContain('a comparison rerun or continuation reads the same runs again');
@@ -159,10 +159,11 @@ describe('a run that reads other runs, through the MCP', () => {
     expect(f.journal.find(event => event.kind === 'run.started')?.detail).toEqual({ readRunIds: sorted });
     // Delivered without the copies: the inventory, publication, preview and corpus share one exclusion.
     expect(row.artifactManifest!.files.map(file => file.path)).toEqual(['browser/collect.js']);
-    const copy = `.atoma-runs/${row.projectRunId}/collect.js`;
-    expect(() => assertPublishableArtifactPath(copy)).toThrow('excluded');
-    expect(() => assertPreviewCopyablePath(copy)).toThrow();
-    expect(() => assertPreviewServablePath(copy)).toThrow();
+    for (const copy of [`${readRunCopyPath(row.projectRunId)}/collect.js`, `.atoma-runs/${row.projectRunId}/collect.js`]) {
+      expect(() => assertPublishableArtifactPath(copy)).toThrow('excluded');
+      expect(() => assertPreviewCopyablePath(copy)).toThrow();
+      expect(() => assertPreviewServablePath(copy)).toThrow();
+    }
     // An exact retry re-attaches; the same key naming other runs is another request.
     expect((await f.call('atoma_run_start', args)).isError).not.toBe(true);
     expect(f.driver).toHaveBeenCalledTimes(1);
@@ -177,9 +178,9 @@ describe('a run that reads other runs, through the MCP', () => {
     const finished = join(f.root, 'finished-workspace');
     mkdirSync(join(finished, 'docs'), { recursive: true });
     writeFileSync(join(finished, 'docs', 'guide.md'), '# Guide\n\nHow the collector restarts.\n');
-    mkdirSync(join(finished, '.atoma-runs', randomUUID(), 'docs'), { recursive: true });
-    for (const name of readdirSync(join(finished, '.atoma-runs'))) {
-      writeFileSync(join(finished, '.atoma-runs', name, 'docs', 'guide.md'), '# Old guide\n\nThe read run\'s version.\n');
+    mkdirSync(join(finished, readRunCopyPath(randomUUID()), 'docs'), { recursive: true });
+    for (const name of readdirSync(join(finished, '.atoma-runs', 'node_modules'))) {
+      writeFileSync(join(finished, readRunCopyPath(name), 'docs', 'guide.md'), '# Old guide\n\nThe read run\'s version.\n');
     }
     const next = f.makeRun();
     const launch = await ProjectRetrievalLaunchStore.open(f.dbPath).prepare(next.run.projectRunId, null, retrievalContext(), finished);
@@ -514,8 +515,8 @@ describe('a run that reads other runs, in the coordinator', () => {
       request: { goal: 'Compare with the saved version', idempotencyKey: id, readRunIds: [read.projectRunId], depth: 'deep' },
       hostPaths: { workspacePath: layout.workspacePath, runsPath: layout.runsPath, logPath: layout.logPath } });
     f.projects.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: id, from: 'queued', to: 'running' });
-    mkdirSync(join(layout.workspacePath, '.atoma-runs', read.projectRunId), { recursive: true });
-    writeFileSync(join(layout.workspacePath, '.atoma-runs', read.projectRunId, 'a.txt'), 'saved version');
+    mkdirSync(join(layout.workspacePath, readRunCopyPath(read.projectRunId)), { recursive: true });
+    writeFileSync(join(layout.workspacePath, readRunCopyPath(read.projectRunId), 'a.txt'), 'saved version');
     await ProjectRetrievalLaunchStore.open(f.dbPath).prepare(id, null, retrievalContext());
     const checkpoints = new RunCheckpointStore(f.dbPath);
     const data: RunCheckpoint = { version: 1, id, goal: 'Compare with the saved version', workspace: realpathSync(layout.workspacePath), policy: '{}',
@@ -564,13 +565,13 @@ describe('the copies once a run that read them ends', () => {
       const id = env['ATOMA_RUN_ID']!;
       const workspace = env['ATOMA_BUILD_WORKSPACE']!;
       const how = typeof end === 'function' ? end(id) : end;
-      mkdirSync(join(workspace, '.atoma-runs', read.projectRunId, 'browser'), { recursive: true });
-      writeFileSync(join(workspace, '.atoma-runs', read.projectRunId, 'a.txt'), 'saved version');
+      mkdirSync(join(workspace, readRunCopyPath(read.projectRunId), 'browser'), { recursive: true });
+      writeFileSync(join(workspace, readRunCopyPath(read.projectRunId), 'a.txt'), 'saved version');
       writeFileSync(join(workspace, 'a.txt'), 'saved version');
       if (how === 'read-only') {
         // What `run_shell chmod -R a-w .atoma-runs` leaves (third check 2026-10-17).
-        chmodSync(join(workspace, '.atoma-runs', read.projectRunId, 'a.txt'), 0o444);
-        for (const dir of ['browser', '', '..']) chmodSync(join(workspace, '.atoma-runs', read.projectRunId, dir), 0o555);
+        chmodSync(join(workspace, readRunCopyPath(read.projectRunId), 'a.txt'), 0o444);
+        for (const dir of ['browser', '', '..', '../..']) chmodSync(join(workspace, readRunCopyPath(read.projectRunId), dir), 0o555);
       }
       mkdirSync(env['ATOMA_RUNS_DIR']!, { recursive: true });
       if (options.extraArgs?.includes('--resume')) {
@@ -729,8 +730,8 @@ describe('the copies once a run that read them ends', () => {
         request: { goal: 'Compare with the saved version', idempotencyKey: id, readRunIds: [read.projectRunId], depth: 'deep' },
         hostPaths: { workspacePath: layout.workspacePath, runsPath: layout.runsPath, logPath: layout.logPath } });
       f.projects.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: id, from: 'queued', to: 'running' });
-      mkdirSync(join(layout.workspacePath, '.atoma-runs', read.projectRunId), { recursive: true });
-      writeFileSync(join(layout.workspacePath, '.atoma-runs', read.projectRunId, 'a.txt'), 'saved version');
+      mkdirSync(join(layout.workspacePath, readRunCopyPath(read.projectRunId)), { recursive: true });
+      writeFileSync(join(layout.workspacePath, readRunCopyPath(read.projectRunId), 'a.txt'), 'saved version');
       if (recoverable) {
         const data: RunCheckpoint = { version: 1, id, goal: 'Compare with the saved version', workspace: realpathSync(layout.workspacePath), policy: '{}',
           scope: { orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId, runId: id },
@@ -774,8 +775,8 @@ describe('the copies once a run that read them ends', () => {
       request: { goal, idempotencyKey: id, resumeOf: source.projectRunId, depth: 'deep' },
       hostPaths: { workspacePath: layout.workspacePath, runsPath: layout.runsPath, logPath: layout.logPath } });
     f.projects.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: id, from: 'queued', to: 'running' });
-    mkdirSync(join(layout.workspacePath, '.atoma-runs', read.projectRunId), { recursive: true });
-    writeFileSync(join(layout.workspacePath, '.atoma-runs', read.projectRunId, 'a.txt'), 'saved version');
+    mkdirSync(join(layout.workspacePath, readRunCopyPath(read.projectRunId)), { recursive: true });
+    writeFileSync(join(layout.workspacePath, readRunCopyPath(read.projectRunId), 'a.txt'), 'saved version');
     const db = new Database(f.dbPath);
     try { db.prepare("UPDATE run_checkpoints SET state='finished' WHERE id = ?").run(source.projectRunId); } finally { db.close(); }
     expect(f.coordinator.reconcileInterrupted()).toMatchObject({ runs: 1 });

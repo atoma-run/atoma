@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { stripVTControlCharacters } from 'node:util';
 import { ContainerToolExecutor, workerRunArgs } from '../src/tools/containerExecutor.js';
 import { containerToolBackend } from '../src/run/toolBackend.js';
 import { egressObjectId } from '../src/tools/egressSidecar.js';
@@ -13,7 +14,7 @@ import { OUTSIDE_THE_COPY_FILES, OUTSIDE_THE_COPY_SUITE, OUTSIDE_THE_COPY_TESTS 
 import { randomUUID } from 'node:crypto';
 import { buildWorkspaceArtifactManifest } from '../src/projects/artifacts.js';
 import { checkReadRunCopies, materialiseReadRuns, type ReadRunCopyIdentities } from '../src/run/readRuns.js';
-import type { ReadRunsIndex } from '../src/contracts/readRuns.js';
+import { readRunCopyIntact, readRunCopyPath, type ReadRunsIndex } from '../src/contracts/readRuns.js';
 
 /**
  * The isolation primitive, proven against a real container.
@@ -467,7 +468,7 @@ describeDocker('a read-run copy in a containerised run', () => {
   let index: ReadRunsIndex;
   let identities: ReadRunCopyIdentities;
   const runId = '50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
-  const copy = `.atoma-runs/${runId}`;
+  const copy = readRunCopyPath(runId);
 
   beforeAll(async () => {
     dir = mkdtempSync(join(tmpdir(), 'atoma-container-read-runs-'));
@@ -544,6 +545,81 @@ describeDocker('a read-run copy in a containerised run', () => {
     expect(out).not.toContain('SAVED_BYTES_OF_THE_OTHER_RUN');
     expect(out.toLowerCase()).toMatch(/no such file|cannot access|not found/);
   }, 60_000);
+});
+
+// The copies sit under .atoma-runs/node_modules so that whole-tree tools skip
+// them (2026-10-17). Offline, in the worker: npm's clean install manages the
+// root node_modules alone, and the image's own Vitest, with its default
+// include, never collects a copy's test, where it collects one in a plain
+// dot-directory, as the copies sat before.
+describeDocker('read-run copies beside whole-tree tools in a containerised run', () => {
+  let dir: string;
+  let workspace: string;
+  let exec: ContainerToolExecutor;
+  let index: ReadRunsIndex;
+  let identities: ReadRunCopyIdentities;
+  const runId = '50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
+  const copy = readRunCopyPath(runId);
+  const OLD_TEST = "test('an older run', () => { expect(1).toBe(2); });\n";
+  const shell = async (command: string, args: string[]) => {
+    const result = (await exec.execute('run_shell', { command, args })) as { exitCode?: number; stdout?: string; stderr?: string };
+    return { exitCode: result.exitCode, text: stripVTControlCharacters(`${result.stdout ?? ''}${result.stderr ?? ''}`) };
+  };
+  const vitest = () => shell('node', ['/app/node_modules/vitest/vitest.mjs', 'run', '--globals']);
+
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'atoma-container-read-run-tools-'));
+    const other = join(dir, 'other-run', 'workspace');
+    mkdirSync(join(other, 'tests'), { recursive: true });
+    writeFileSync(join(other, 'package.json'), '{"name":"application","version":"0.9.0","private":true}\n');
+    writeFileSync(join(other, 'tests', 'app.test.js'), OLD_TEST);
+    const { manifest, hash } = buildWorkspaceArtifactManifest({ workspaceRoot: other });
+    workspace = join(dir, 'ws');
+    mkdirSync(join(workspace, 'tests'), { recursive: true });
+    writeFileSync(join(workspace, 'package.json'), '{"name":"application","version":"1.0.0","private":true}\n');
+    writeFileSync(join(workspace, 'package-lock.json'), JSON.stringify({ name: 'application', version: '1.0.0', lockfileVersion: 3,
+      requires: true, packages: { '': { name: 'application', version: '1.0.0' } } }));
+    writeFileSync(join(workspace, 'tests', 'app.test.js'), "test('this run', () => { expect(1).toBe(1); });\n");
+    index = { version: 1, orgId: randomUUID(), projectId: randomUUID(), runId: randomUUID(),
+      readRuns: [{ runId, status: 'partial', endedAt: new Date().toISOString(), workspacePath: other, manifestHash: hash, manifest }] };
+    identities = materialiseReadRuns(workspace, index).identities;
+    exec = new ContainerToolExecutor({ workspaceHostPath: workspace, startTimeoutMs: 90_000,
+      image: process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'] ?? 'atoma-worker:latest' });
+    await exec.start();
+  }, 120_000);
+
+  afterAll(() => {
+    exec?.stop();
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('npm ci, offline, replaces the root node_modules and leaves the copy as the host wrote it', async () => {
+    mkdirSync(join(workspace, 'node_modules', 'stale'), { recursive: true });
+    writeFileSync(join(workspace, 'node_modules', 'stale', 'index.js'), 'left by an earlier install');
+    const install = await shell('npm', ['ci', '--offline', '--no-audit', '--no-fund']);
+    expect(install.exitCode, install.text).toBe(0);
+    expect(existsSync(join(workspace, 'node_modules', 'stale'))).toBe(false);
+    expect(readFileSync(join(workspace, copy, 'tests', 'app.test.js'), 'utf8')).toBe(OLD_TEST);
+    expect(readRunCopyIntact(checkReadRunCopies(workspace, index, identities)[0]!)).toBe(true);
+  }, 120_000);
+
+  it('the image\'s Vitest, with its default include, never collects a copy\'s test, and does collect one in a dot-directory', async () => {
+    const run = await vitest();
+    expect(run.exitCode, run.text).toBe(0);
+    expect(run.text).toMatch(/Tests\s+1 passed \(1\)/);
+    expect(run.text).not.toContain('an older run');
+    // Its cache went to the root node_modules, never into a copy.
+    expect(readRunCopyIntact(checkReadRunCopies(workspace, index, identities)[0]!)).toBe(true);
+    // The control: the same test where copies sat before 2026-10-17, below a dot-directory alone.
+    const legacy = join(workspace, '.atoma-runs', runId);
+    mkdirSync(join(legacy, 'tests'), { recursive: true });
+    writeFileSync(join(legacy, 'tests', 'app.test.js'), OLD_TEST);
+    try {
+      const control = await vitest();
+      expect(control.exitCode, control.text).toBe(1);
+      expect(control.text).toContain(`.atoma-runs/${runId}/tests/app.test.js > an older run`);
+    } finally { rmSync(legacy, { recursive: true, force: true }); }
+  }, 120_000);
 });
 
 // The required CI worker job builds its image first. Local callers select an

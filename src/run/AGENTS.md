@@ -190,11 +190,13 @@ Neighbours:
   from the environment and refused outside the tenant run, organisation and
   project it was written for; every manifest is re-hashed. After the seed copy,
   at launch and at the deepening restart, each entry is copied through
-  `readManifestArtifact` to `.atoma-runs/<runId>/<path>` as a new file with its
-  saved mode (0755 for `100755`, else 0644; directories 0755), and the identity
-  (device, inode, ctime, mode) of every copied file and directory is kept; a
-  continuation keeps its sealed copies and takes their identities after the
-  restore. The restart archives the first attempt, then removes the copies
+  `readManifestArtifact` to `.atoma-runs/node_modules/<runId>/<path>` as a new
+  file with its saved mode (0755 for `100755`, else 0644; directories 0755),
+  and the identity (device, inode, ctime, mode) of every copied file and
+  directory, `.atoma-runs/node_modules` included, is kept; a continuation
+  keeps its sealed copies and takes their identities after the restore, and
+  one sealed with a copy at `.atoma-runs/<runId>` alone (before 2026-10-17) is
+  a `RunnerConfigError`, its source handed back. The restart archives the first attempt, then removes the copies
   from `.prevN` at best (`removeReadRunCopies`: u+rwx on every directory, no
   link followed, a logged line, never a failed restart). A mismatch is a `RunnerConfigError` before any
   model call, or fails the restart with `.prevN` intact. Root acceptance reads

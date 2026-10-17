@@ -111,7 +111,7 @@ describe('the zero-token precheck', () => {
   // is rejected for a suite it cannot change. Refused at plan time, every time,
   // saying what to do rather than that the suite "can never pass" (second review).
   const COPY_SUITE = "import { test, expect } from 'vitest';\nimport { readFileSync } from 'node:fs';\n" +
-    "test('restored', () => { expect(readFileSync('browser/x.js', 'utf8')).toBe(readFileSync('.atoma-runs/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/x.js', 'utf8')); });";
+    "test('restored', () => { expect(readFileSync('browser/x.js', 'utf8')).toBe(readFileSync('.atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/x.js', 'utf8')); });";
   const COPY_REFUSAL = 'Acceptance suite on subtask 0 names .atoma-runs, which a parent-owned suite cannot read: the runner\'s copy of the workspace leaves it out. ' +
     'Remove the mention; prove a restore or a comparison with another run\'s saved files with sha256sum or diff in a shell subtask (the host also compares ' +
     'the files the criteria name with the read runs\' saved files at acceptance). Revise the suite.';
@@ -368,7 +368,7 @@ describe('the host facts block', () => {
     const registry = new AtomRegistry(db);
     const tissue = L3Atom.buildWithModel(registry.create(3, { description: 'module author', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' }), registry, 'mock');
     const copy = facts("import { test, expect } from 'vitest';\nimport { readFileSync } from 'node:fs';\n" +
-      "test('a', () => { expect(readFileSync('src/a.ts', 'utf8')).toBe(readFileSync('.atoma-runs/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/src/a.ts', 'utf8')); });", ['src/a.ts']);
+      "test('a', () => { expect(readFileSync('src/a.ts', 'utf8')).toBe(readFileSync('.atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/src/a.ts', 'utf8')); });", ['src/a.ts']);
     const own = facts("import { test, expect } from 'vitest';\nimport { a } from './src/a.ts';\ntest('a', () => { expect(a()).toBe(1); });", ['src/a.ts']);
     const plan = vi.spyOn(tissue, 'plan').mockResolvedValueOnce(copy).mockResolvedValue(own);
     const done: Result = { output: {}, summary: 'done', trace: [], producedBy: { name: 'cell', tier: 2, viaFallback: false } };

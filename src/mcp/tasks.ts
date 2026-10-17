@@ -12,7 +12,7 @@ import { MAX_CHECKLIST_BEHAVIOUR_CHARS, MAX_CHECKLIST_ITEMS, parseChecklistLines
 import type { RetrievalCampaignStart } from '../cli/retrievalCampaignHost.js';
 import { ProjectHttpError, type ProjectService } from '../projects/service.js';
 import { idempotencyKeySchema, createProjectRunInputSchema } from '../contracts/projects.js';
-import { MAX_READ_RUN_BYTES, MAX_READ_RUN_FILES, MAX_READ_RUNS, READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
+import { MAX_READ_RUN_BYTES, MAX_READ_RUN_FILES, MAX_READ_RUNS, readRunCopyPath } from '../contracts/readRuns.js';
 import type { Viewer } from '../auth/store.js';
 import {
   DEFAULT_RUN_TIMEOUT_MS,
@@ -353,7 +353,7 @@ export const PROJECT_RUN_INPUT = {
   ),
   readRunIds: createProjectRunInputSchema.shape.readRunIds.describe(
     `Up to ${MAX_READ_RUNS} other runs of this project whose saved files this run may read: retained delivered or partial runs, not comparison reruns, ` +
-    `at most ${MAX_READ_RUN_BYTES / (1024 * 1024)} MiB and ${MAX_READ_RUN_FILES} files together. Copied with their modes to ${READ_RUNS_DIRECTORY}/<runId>/<path> before work starts; ` +
+    `at most ${MAX_READ_RUN_BYTES / (1024 * 1024)} MiB and ${MAX_READ_RUN_FILES} files together. Copied with their modes to ${readRunCopyPath('<runId>')}/<path> before work starts; ` +
     'never delivered, published or seeded into the next run (a comparison rerun or continuation reads the same runs again). ' +
     'Name the files in the goal and criteria; atoma_run_artifacts lists them, and the host compares each file a criterion names with their saved bytes. ' +
     'Not with rerunOf or resumeOf. Refused when a run\'s files expired or changed. With conversationApproval, restate the saved proposal\'s list (any order).'

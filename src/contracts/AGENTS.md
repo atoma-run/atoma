@@ -318,17 +318,21 @@ Neighbours:
 
 ## Read runs
 
-- `readRuns.ts` is the one home of read runs: the directory (`.atoma-runs`), the
-  caps (three runs, 64 MiB, 10,000 files), `ATOMA_READ_RUNS`, the launch index,
-  the copies' modes, the `readRuns` task input, its guidance, the acceptor's
-  lines (per copy, per compared file), `savedPathsNamed` (the saved paths a
-  criterion spells out, at a path boundary; never a stem) and three predicates:
-  `namesReadRunCopy` (a path INTO a copy, run id required: inheritance and the
-  skills refusal), `reachesReadRunCopies` (a command: also a glob where the id
-  would be, or `cd .atoma-runs`; never an exclusion: an exclusion option's
-  argument, a `!` glob, a git `:!`/`:(exclude)` pathspec, a pruned or negated
-  `find -path`) and
-  `mentionsReadRunCopies` (any mention: the parent-suite refusal).
+- `readRuns.ts` is the one home of read runs: the directory (`.atoma-runs`)
+  and the copies' place below it (`.atoma-runs/node_modules/<runId>`,
+  `readRunCopyPath`), the caps (three runs, 64 MiB, 10,000 files),
+  `ATOMA_READ_RUNS`, the launch index, the copies' modes, the `readRuns` task
+  input, its guidance, the acceptor's lines (per copy, per compared file),
+  `savedPathsNamed` (the saved paths a criterion spells out, at a path
+  boundary; never a stem) and three predicates: `namesReadRunCopy` (a path
+  INTO a copy, run id required, with at most one component between the
+  directory and the id, `node_modules` or a glob, so `.atoma-runs/<run id>` as
+  recorded before 2026-10-17 still counts: inheritance and the skills
+  refusal), `reachesReadRunCopies` (a command: also a glob where
+  `node_modules` or the id would be, or `cd .atoma-runs`; never an exclusion:
+  an exclusion option's argument, a `!` glob, a git `:!`/`:(exclude)`
+  pathspec, a pruned or negated `find -path`) and `mentionsReadRunCopies` (any
+  mention: the parent-suite refusal).
   Browser-safe: the copy, its check and the comparison live in
   `src/run/readRuns.ts`. A stored list is read back by spelling
   (`storedReadRunIdsSchema`). [Decision](../../docs/decisions/read-runs-2026-10-17.md).
@@ -384,6 +388,14 @@ Neighbours:
   (2026-10-17). It dropped the exclusions the guidance asks for
   (`--ignore-pattern '.atoma-runs/**'`) and a seeded run's lint replay with
   them; only a path into a copy, with its run id, replays nowhere else.
+- Copies straight below `.atoma-runs`: moved the same day (2026-10-17).
+  ESLint's flat config, Vitest's default include, Jest and Prettier skip
+  `node_modules` but walk dot-directories, so one old defect failed a
+  whole-tree check and a clean copy counted another run's tests. Rejected
+  instead: `node_modules/.atoma-runs` (`npm ci` deletes it), `.git/atoma-runs`
+  (a workspace with no repository gets a broken one), and a worker utility
+  running scripts in a copy of the workspace (its cache wrote through to the
+  live `node_modules`; [decision](../../docs/decisions/read-runs-2026-10-17.md#the-copies-under-node_modules-2026-10-17)).
 - Letting the trajectory contract carry `args`, `result` or prose: refused.
   Identities only, and a structural event type so every `VizEvent` satisfies
   it without a `src/viz` import — a shared shape that imports a subsystem is a

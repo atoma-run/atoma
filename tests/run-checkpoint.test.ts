@@ -1,13 +1,16 @@
 import { AuthStore } from '../src/auth/store.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync, realpathSync, mkdirSync, symlinkSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync, realpathSync, mkdirSync, symlinkSync, readdirSync, renameSync, rmdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { assertCheckpointStoreOutsideWorkspace, checkpointWorkspaceDigest, RunCheckpointStore, SequentialCheckpoint, savedRootActor } from '../src/run/checkpoint.js';
+import { readCheckpointWorkspace, saveCheckpointWorkspace } from '../src/run/checkpointWorkspace.js';
+import { encodeReadRunsIndex, READ_RUNS_ENV, readRunCopyPath } from '../src/contracts/readRuns.js';
+import { buildWorkspaceArtifactManifest } from '../src/projects/artifacts.js';
 import { openDb } from '../src/registry/db.js';
 import { seedTissueCatalog } from '../src/run/tissues.js';
 import { closeStoreHandles } from '../src/core/stores.js';
@@ -241,6 +244,85 @@ describe('durable sequential run continuation', () => {
     expect(readFileSync(join(second.workspace, 'phase-two.txt'), 'utf8')).toBe('phase-two.txt');
     expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe(mode === 'crash' ? 'phase-one.txt\nphase-two.txt\nphase-two.txt\n' : 'phase-one.txt\nphase-two.txt\n');
     expect(() => new RunCheckpointStore(f.db).read(first.id)).toThrow('not at a resumable');
+  }, 90000);
+
+  // Read runs (docs/decisions/read-runs-2026-10-17.md): a continuation restores
+  // the copies its source sealed, exactly as they were, and copies nothing
+  // again. A workspace a version before 2026-10-17 sealed holds them at
+  // .atoma-runs/<runId>, where nothing reads them: refused before any model
+  // call, the source handed back.
+  it.each(['nested', 'legacy'] as const)('continues a tenant that reads another run from the copies its source sealed (%s layout)', layout => {
+    const f = fixture();
+    const viewer = AuthStore.open(f.db).completeLogin({ provider: 'github', subject: 'read-runs-owner', displayName: 'Owner', email: null, emailVerified: false }, null)!.viewer;
+    const store = ProjectStore.open(f.db);
+    const project = store.createProject({ orgId: viewer.orgId, principalId: viewer.principalId,
+      project: { name: 'Read runs', slug: 'read-runs', repositoryTarget: { installationId: '1', owner: 'owner', name: 'read-runs', visibility: 'private' } } });
+    const reserve = (resumeOf?: string) => {
+      const id = randomUUID();
+      const workspace = join(f.root, id, 'workspace');
+      const runs = join(f.root, id, 'traces');
+      store.createProjectRun({ orgId: viewer.orgId, principalId: viewer.principalId, projectId: project.projectId, projectRunId: id,
+        request: { goal: 'Write two files in sequence', idempotencyKey: id, ...(resumeOf ? { resumeOf } : {}) },
+        hostPaths: { workspacePath: workspace, runsPath: runs, skillsPath: join(f.root, 'skills'), logPath: join(f.root, id, 'run.log') } });
+      store.transitionProjectRun({ orgId: viewer.orgId, projectRunId: id, from: 'queued', to: 'running' });
+      return { id, workspace, env: { ATOMA_TENANT_RUN: '1', CHECKPOINT_TEST_TENANT: '1', ATOMA_RUN_ID: id,
+        ATOMA_BUILD_WORKSPACE: workspace, ATOMA_RUNS_DIR: runs } };
+    };
+    // The run both segments read, and the index the coordinator writes for each.
+    const read = join(f.root, 'read-run');
+    mkdirSync(join(read, 'browser'), { recursive: true });
+    writeFileSync(join(read, 'browser', 'collect.js'), 'the bytes of the read run');
+    const { manifest, hash } = buildWorkspaceArtifactManifest({ workspaceRoot: read });
+    const readRunId = randomUUID();
+    const indexFor = (runId: string) => {
+      const path = join(f.root, `${runId}.read-runs.json`);
+      writeFileSync(path, encodeReadRunsIndex({ version: 1, orgId: viewer.orgId, projectId: project.projectId, runId,
+        readRuns: [{ runId: readRunId, status: 'delivered', endedAt: new Date().toISOString(), workspacePath: read, manifestHash: hash, manifest }] }),
+      { mode: 0o600 });
+      return { [READ_RUNS_ENV]: path };
+    };
+    const first = reserve();
+    const paused = f.run(['--container', '--checkpoint', 'Write two files in sequence'], '',
+      { ...first.env, ...indexFor(first.id), CHECKPOINT_TEST_REQUEST_PAUSE: '1' });
+    expect(paused.status, paused.stdout + paused.stderr).toBe(0);
+    expect(f.report().checkpointId).toBe(first.id);
+    const copied = join(first.workspace, readRunCopyPath(readRunId), 'browser', 'collect.js');
+    expect(readFileSync(copied, 'utf8')).toBe('the bytes of the read run');
+    if (layout === 'legacy') {
+      // What an older version left: the copy straight below .atoma-runs, sealed so.
+      renameSync(join(first.workspace, readRunCopyPath(readRunId)), join(first.workspace, '.atoma-runs', readRunId));
+      rmdirSync(join(first.workspace, '.atoma-runs', 'node_modules'));
+      const db = new Database(f.db);
+      try {
+        const sealed = db.transaction(() => saveCheckpointWorkspace(db, first.workspace, readCheckpointWorkspace(first.workspace)))();
+        db.prepare("UPDATE run_checkpoints SET payload=json_set(payload,'$.snapshotId',?,'$.workspaceDigest',?) WHERE id=?")
+          .run(sealed.id, sealed.digest, first.id);
+      } finally { db.close(); }
+    } else {
+      // The read run's own file changes meanwhile: the continuation reads what its source sealed.
+      writeFileSync(join(read, 'browser', 'collect.js'), 'changed after the pause');
+    }
+    const second = reserve(first.id);
+    const resumed = f.run(['--container', '--resume', first.id, 'Write two files in sequence'], '', { ...second.env, ...indexFor(second.id) });
+    const checkpoints = new RunCheckpointStore(f.db);
+    if (layout === 'legacy') {
+      expect(resumed.status, resumed.stdout + resumed.stderr).toBe(2);
+      expect(resumed.stderr).toContain(`read run ${readRunId}: the saved workspace holds its copy at .atoma-runs/${readRunId}, ` +
+        `where runs before 2026-10-17 put it, not at .atoma-runs/node_modules/${readRunId}`);
+      expect(f.errorReport().calls).toEqual([]);
+      // Handed back untouched, as for a changed root actor: the source can still be continued.
+      expect(checkpoints.projectStatus(first.id, viewer.orgId)?.state).toBe('paused');
+      expect(checkpoints.projectStatus(second.id, viewer.orgId)?.state).toBe('unavailable');
+      expect(() => checkpoints.read(first.id)).not.toThrow();
+    } else {
+      expect(resumed.status, resumed.stdout + resumed.stderr).toBe(0);
+      expect(f.report()).toMatchObject({ outcome: 'delivered', checkpointId: second.id });
+      // The sealed copy, restored where the run reads it: nothing copied it again.
+      expect(readFileSync(join(second.workspace, readRunCopyPath(readRunId), 'browser', 'collect.js'), 'utf8')).toBe('the bytes of the read run');
+      expect(readFileSync(copied, 'utf8')).toBe('the bytes of the read run');
+      expect(resumed.stdout).not.toContain('read runs copied');
+      expect(readFileSync(join(second.workspace, 'phase-two.txt'), 'utf8')).toBe('phase-two.txt');
+    }
   }, 90000);
 
   it.each([[0, false], [1, false], [0, true], [1, true]] as const)('replans after a client answer at boundary %i, surviving a post-plan crash: %s', (phase, crashAfterPlan) => {
