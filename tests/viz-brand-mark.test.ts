@@ -27,6 +27,7 @@ import {
   ATOMA_MARK_TURN_MS,
   ATOMA_MARK_REST_YAW,
   buildAtomaMarkFrame,
+  CAUSTIC_MAX_FRINGE,
   collectPointerFieldSpills,
   mergeFieldSpills,
   pointerLampForLocal,
@@ -1127,12 +1128,30 @@ describe('Atoma GPU brand mark', () => {
       expect(Number.isFinite(delta.x)).toBe(true);
       expect(Number.isFinite(delta.y)).toBe(true);
     }
-    // A dispersive gem smears its caustic by real pixels at splash size:
-    // every corner's half-separation is positive and material-scaled, not
-    // rounding dust. (Local box units, ~28px across.)
-    const magnitudes = centre.spectral!.map((delta) => Math.hypot(delta.x, delta.y));
-    expect(Math.min(...magnitudes)).toBeGreaterThan(0.02);
-    expect(Math.max(...magnitudes)).toBeLessThan(2.5);
+    // The walls are diamond between PARALLEL faces: a ray crossing one leaves
+    // parallel to how it came in, merely shifted, so its two wavelengths land
+    // almost together. Real fire comes from rays crossing non-parallel faces
+    // near the edges. The collapsed lens model smeared every corner by
+    // 0.02-0.3 instead (2026-10-17). (Local box units, ~28px across.)
+    const magnitudes: number[] = [];
+    for (let ms = 0; ms < ATOMA_MARK_TURN_MS; ms += 100) {
+      for (const [x, y] of [[14, 14], [20, 18], [8, 10]] as const) {
+        const cast = projectMarkCaustic(buildAtomaMarkFrame(ms), x, y);
+        if (!cast?.spectral) continue;
+        for (const [slot, optics] of cast.optics.entries()) {
+          if (optics.intensity <= 0) continue;
+          for (const delta of cast.spectral.slice(slot * 3, slot * 3 + 3)) {
+            magnitudes.push(Math.hypot(delta.x, delta.y));
+          }
+        }
+      }
+    }
+    magnitudes.sort((left, right) => left - right);
+    expect(magnitudes[Math.floor(magnitudes.length / 2)]!).toBeLessThan(0.01);
+    // …yet the prism paths exist: some corner fringes clearly.
+    expect(magnitudes.at(-1)!).toBeGreaterThan(0.05);
+    // A grazing exit cannot stretch a lit bundle into a streak.
+    expect(magnitudes.at(-1)!).toBeLessThanOrEqual(CAUSTIC_MAX_FRINGE + 1e-9);
 
     // The band survives the whole turn: no pose may trace it away.
     for (const elapsedMs of [1_900, 5_600, 9_800, 13_400]) {
@@ -1147,6 +1166,54 @@ describe('Atoma GPU brand mark', () => {
     const withBand = projectMarkCaustic(buildAtomaMarkFrame(2_400), 14, 14)!;
     expect(withBand.spectral).not.toBeNull();
     expect(withBand.spectral!.length).toBe(withBand.points.length);
+  });
+
+  it('fills the slots a near lamp frees with strokes along the lit edges', () => {
+    // Light enters through the faces turned toward the LAMP. The near lamp
+    // often sees two or three of them, which leaves slots the halves cannot
+    // fill; edge strips take them. Three rays along one edge land almost in a
+    // line, so the field draws a stroke — the prism where two non-parallel
+    // walls meet, the part of this hollow crystal that bends light.
+    const thinness = (points: readonly Point[]) => {
+      const [a, b, c] = points;
+      const area = Math.abs((b!.x - a!.x) * (c!.y - a!.y) - (c!.x - a!.x) * (b!.y - a!.y)) / 2;
+      const side = Math.max(
+        Math.hypot(b!.x - a!.x, b!.y - a!.y),
+        Math.hypot(c!.x - b!.x, c!.y - b!.y),
+        Math.hypot(a!.x - c!.x, a!.y - c!.y)
+      );
+      return side > 1e-6 ? 2 * area / side / side : 1;
+    };
+    let fewFaces = 0;
+    let fewFacesWithStroke = 0;
+    for (let ms = 0; ms < ATOMA_MARK_TURN_MS; ms += 500) {
+      const frame = buildAtomaMarkFrame(ms);
+      for (const [x, y] of [[14, 14], [8, 10], [20, 18], [24, 6], [6, 22]] as const) {
+        const cast = projectMarkCaustic(frame, x, y);
+        if (!cast) continue;
+        const lamp = pointerLampForLocal(x, y).position;
+        let litFaces = 0;
+        for (const [index, facet] of frame.facets.entries()) {
+          if (ATOMA_MARK_MESH.facets[index]!.part !== 'outer') continue;
+          const towardLamp = facet.normal[0] * (lamp[0] - facet.centroid[0]) +
+            facet.normal[1] * (lamp[1] - facet.centroid[1]) +
+            facet.normal[2] * (lamp[2] - facet.centroid[2]);
+          if (towardLamp > 0) litFaces += 1;
+        }
+        expect(litFaces, `${ms}ms lamp ${x},${y}`).toBeGreaterThan(0);
+        expect(cast.points, `${ms}ms lamp ${x},${y}`).toHaveLength(24);
+        expect(cast.optics.filter(({ intensity }) => intensity > 0), `${ms}ms lamp ${x},${y}`)
+          .toHaveLength(8);
+        if (litFaces < 4) {
+          fewFaces += 1;
+          const stroke = cast.optics.some((optics, slot) =>
+            optics.intensity > 0 && thinness(cast.points.slice(slot * 3, slot * 3 + 3)) < 0.08);
+          if (stroke) fewFacesWithStroke += 1;
+        }
+      }
+    }
+    expect(fewFaces).toBeGreaterThan(0);
+    expect(fewFacesWithStroke / fewFaces).toBeGreaterThan(0.9);
   });
 
   it('keeps all eight caustic bundles throughout a complete turn', () => {
@@ -1187,10 +1254,10 @@ describe('Atoma GPU brand mark', () => {
   });
 
   it('publishes at most one real spectral reflection from the strongest bundle', () => {
-    // The eight half-facet bundles select a different strongest path than
-    // the former four full facets. This side lamp has a reflected branch
-    // that reaches the receiver over a neighbourhood, not a grazing instant.
-    const elapsedMs = 3_400;
+    // Traced through the real cavity, a reflected branch reaches the wall on
+    // ~11% of poses (2 in 724 under the collapsed shell). This side lamp has
+    // one over a neighbourhood, not a grazing instant.
+    const elapsedMs = 3_700;
     for (const offsetMs of [-10, 0, 10]) {
       const cast = projectMarkCaustic(
         buildAtomaMarkFrame(elapsedMs + offsetMs),

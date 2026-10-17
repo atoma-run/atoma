@@ -1247,6 +1247,12 @@ const CAUSTIC_REFERENCE_THROW = ATOMA_MARK_LAMP_Z - CAUSTIC_PLANE_Z;
 const CAUSTIC_MAX_WALL_DISTANCE = CAUSTIC_REFERENCE_THROW * 4;
 /** Maps physically small interface throughput into the dark HDR-style field. */
 const CAUSTIC_DISPLAY_EXPOSURE = 3;
+/**
+ * Largest red−blue half-separation a corner publishes, local units. Walls of
+ * parallel faces barely disperse (median ~0.0008); only grazing exits reach
+ * further, and they carry next to no energy. See the corner construction.
+ */
+export const CAUSTIC_MAX_FRINGE = 0.5;
 
 /**
  * How the cast dims as it is thrown further. The lamp is a point source, so
@@ -1311,9 +1317,10 @@ export interface MarkCausticSecondary {
 
 /**
  * The crystal's CAST on the far field. This is intentionally not its projected
- * silhouette: each half of every camera-facing facet launches three rays. They obey Snell
- * at entry and exit, and bounded total internal reflection follows trapped
- * light through additional faces. The eight bundles are sampled by
+ * silhouette: each half of every LAMP-facing facet launches three rays. They
+ * obey Snell and Fresnel at every interface of the hollow shell — into the
+ * diamond, out into the cavity's air, into the far wall, out of the hull — and
+ * bounded total internal reflection follows trapped light through more faces. The eight bundles are sampled by
  * the shared field shader, producing folds, gaps and concentrations instead
  * of one bright copy of the diamond outline.
  *
@@ -1338,10 +1345,23 @@ export function projectMarkCaustic(
   const lamp: MarkVec3 = [lampX, lampY, lampZ];
   const material = ATOMA_MARK_DIAMOND_MATERIAL;
   const ior = material.ior;
-  // The mesh is a thin hollow shell, not a solid gemstone. Collapse its inner
-  // diamond→air and rear air→diamond pair into one thickness-weighted exit
-  // ratio; the solid's full 2.42 would trap almost every ray in another object.
-  const shellExitRatio = ATOMA_MARK_THICKNESS / ATOMA_MARK_RADIUS;
+  // The crystal is an octahedron of diamond hollowed by a parallel octahedron
+  // of AIR: every cavity face is a hull face moved ATOMA_MARK_THICKNESS inward,
+  // so one plane set describes both (inside the hull: N·x < D; inside the
+  // cavity: N·x < D − thickness). Rays are walked through all of it below —
+  // hull in, cavity out, across the air, far wall in, hull out. That replaced
+  // one collapsed exit at an invented index of ~1.11, which bent the light
+  // like a lens this object is not (2026-10-17): a wall of parallel faces
+  // shifts a ray without turning it, so the cast's structure comes from rays
+  // crossing NON-parallel faces near the edges, and from internal reflection.
+  const shellPlanes = ATOMA_MARK_MESH.facets.flatMap((meshFacet, index) => {
+    if (meshFacet.part !== 'outer') return [];
+    const facet = frame.facets[index]!;
+    const hull = dot(facet.normal, facet.centroid);
+    return [{ index, normal: facet.normal, hull, cavity: hull - ATOMA_MARK_THICKNESS }];
+  });
+  /** Beer-Lambert per model unit of diamond crossed. */
+  const diamondAttenuation = material.absorption * 0.18;
 
   /**
    * The two traced wavelengths, as indices of refraction. Real diamond spans
@@ -1412,66 +1432,127 @@ export function projectMarkCaustic(
     outward: MarkVec3;
     incoming: MarkVec3;
     exitDirection: MarkVec3;
+    /** Fresnel reflectance at the hull exit, for the secondary branch. */
     reflectance: number;
-    tirBounces: number;
+    /** Absorption along the diamond path times the cavity crossings' transmission. */
+    retention: number;
   }
+  const along = (origin: MarkVec3, direction: MarkVec3, distance: number): MarkVec3 => [
+    origin[0] + direction[0] * distance,
+    origin[1] + direction[1] * distance,
+    origin[2] + direction[2] * distance,
+  ];
+  const negate = (value: MarkVec3): MarkVec3 => [-value[0], -value[1], -value[2]];
+  /**
+   * Walk a ray that is IN THE DIAMOND until it leaves the hull. Each interface
+   * is real: diamond→air into the cavity (Snell at n, or total internal
+   * reflection back into the wall), straight across the air, air→diamond into
+   * the far wall, diamond→air out of the hull (or total internal reflection).
+   * Fresnel takes its share at every transmission, Beer-Lambert at every unit
+   * of diamond. CPU only, capped at sixteen interfaces.
+   */
   const nextTransmissiveInterface = (
     initialOrigin: MarkVec3,
     initialDirection: MarkVec3,
     wavelengthIor: number
   ): CausticInterfaceHit | null => {
-    // Direction uses the collapsed thin-shell ratio. Energy still uses the
-    // diamond Fresnel term: collapsing geometry must not erase its reflection.
-    const exitEta = 1 + (wavelengthIor - 1) * shellExitRatio;
     let origin = initialOrigin;
     let direction = initialDirection;
-    for (let bounce = 0; bounce < 8; bounce += 1) {
-      let hitFacet = -1;
-      let hitDistance = Number.POSITIVE_INFINITY;
-      for (const [index, meshFacet] of ATOMA_MARK_MESH.facets.entries()) {
-        if (meshFacet.part !== 'outer') continue;
-        const facet = frame.facets[index]!;
-        const denominator = dot(facet.normal, direction);
-        if (denominator <= 1e-6) continue;
-        const plane = dot(facet.normal, facet.centroid);
-        const distance = (plane - dot(facet.normal, origin)) / denominator;
-        if (distance > 1e-5 && distance < hitDistance) {
-          hitDistance = distance;
-          hitFacet = index;
+    let retention = 1;
+    for (let event = 0; event < 16; event += 1) {
+      // The hull, leaving through the nearest plane ahead.
+      let hullDistance = Number.POSITIVE_INFINITY;
+      let hullPlane = -1;
+      // The cavity, entered where the last of its planes is crossed inward
+      // (it is convex), provided that happens before it is left again.
+      let enter = Number.NEGATIVE_INFINITY;
+      let leave = Number.POSITIVE_INFINITY;
+      let enterPlane = -1;
+      let missesCavity = false;
+      for (const [planeIndex, plane] of shellPlanes.entries()) {
+        const rate = dot(plane.normal, direction);
+        const height = dot(plane.normal, origin);
+        if (rate > 1e-6) {
+          const toHull = (plane.hull - height) / rate;
+          if (toHull > 1e-5 && toHull < hullDistance) {
+            hullDistance = toHull;
+            hullPlane = planeIndex;
+          }
+        }
+        const toCavity = plane.cavity - height;
+        if (Math.abs(rate) < 1e-9) {
+          if (toCavity < 0) missesCavity = true;
+          continue;
+        }
+        const crossing = toCavity / rate;
+        if (rate < 0) {
+          if (crossing > enter) {
+            enter = crossing;
+            enterPlane = planeIndex;
+          }
+        } else if (crossing < leave) {
+          leave = crossing;
         }
       }
-      if (hitFacet < 0 || !Number.isFinite(hitDistance)) return null;
-      const hit: MarkVec3 = [
-        origin[0] + direction[0] * hitDistance,
-        origin[1] + direction[1] * hitDistance,
-        origin[2] + direction[2] * hitDistance,
-      ];
-      const outward = frame.facets[hitFacet]!.normal;
-      const exitDirection = refract(
-        direction,
-        [-outward[0], -outward[1], -outward[2]],
-        exitEta
-      );
+      const cavityDistance = !missesCavity && enterPlane >= 0 && enter > 1e-5 && enter < leave
+        ? enter
+        : Number.POSITIVE_INFINITY;
+      if (hullPlane < 0 && !Number.isFinite(cavityDistance)) return null;
+
+      if (cavityDistance < hullDistance) {
+        const wallHit = along(origin, direction, cavityDistance);
+        retention *= Math.exp(-diamondAttenuation * cavityDistance);
+        // The cavity's face normal, seen from the diamond, is the hull's.
+        const wallNormal = shellPlanes[enterPlane]!.normal;
+        const intoAir = refract(direction, wallNormal, wavelengthIor);
+        if (!intoAir) {
+          direction = reflect(direction, wallNormal);
+          origin = along(wallHit, direction, 1e-4);
+          continue;
+        }
+        retention *= 1 - fresnel(wavelengthIor, clamp(-dot(intoAir, wallNormal)));
+        // Straight across the air to the far wall.
+        const start = along(wallHit, intoAir, 1e-4);
+        let crossDistance = Number.POSITIVE_INFINITY;
+        let farPlane = -1;
+        for (const [planeIndex, plane] of shellPlanes.entries()) {
+          const rate = dot(plane.normal, intoAir);
+          if (rate <= 1e-6) continue;
+          const distance = (plane.cavity - dot(plane.normal, start)) / rate;
+          if (distance > 1e-5 && distance < crossDistance) {
+            crossDistance = distance;
+            farPlane = planeIndex;
+          }
+        }
+        if (farPlane < 0) return null;
+        const farHit = along(start, intoAir, crossDistance);
+        const farNormal = shellPlanes[farPlane]!.normal;
+        const intoDiamond = refract(intoAir, negate(farNormal), 1 / wavelengthIor);
+        if (!intoDiamond) return null;
+        retention *= 1 - fresnel(wavelengthIor, clamp(dot(intoAir, farNormal)));
+        direction = intoDiamond;
+        origin = along(farHit, direction, 1e-4);
+        continue;
+      }
+
+      const hit = along(origin, direction, hullDistance);
+      retention *= Math.exp(-diamondAttenuation * hullDistance);
+      const plane = shellPlanes[hullPlane]!;
+      const exitDirection = refract(direction, negate(plane.normal), wavelengthIor);
       if (exitDirection) {
-        const cosine = clamp(dot(direction, outward));
         return {
           hit,
-          facet: hitFacet,
-          outward,
+          facet: plane.index,
+          outward: plane.normal,
           incoming: direction,
           exitDirection,
-          reflectance: fresnel(wavelengthIor, cosine),
-          tirBounces: bounce,
+          reflectance: fresnel(wavelengthIor, clamp(dot(exitDirection, plane.normal))),
+          retention,
         };
       }
-      // Total internal reflection remains in the hollow shell and tries the
-      // next table. This branch costs CPU only and is capped at eight faces.
-      direction = reflect(direction, outward);
-      origin = [
-        hit[0] + direction[0] * 1e-4,
-        hit[1] + direction[1] * 1e-4,
-        hit[2] + direction[2] * 1e-4,
-      ];
+      // Total internal reflection: back into the diamond, toward the next face.
+      direction = reflect(direction, plane.normal);
+      origin = along(hit, direction, 1e-4);
     }
     return null;
   };
@@ -1495,9 +1576,6 @@ export function projectMarkCaustic(
     energy: number;
     secondarySeed: CausticSecondarySeed | null;
   }
-  const bounceRetention = Math.exp(
-    -material.absorption * ATOMA_MARK_THICKNESS * 0.18
-  );
   const trace = (
     sample: MarkVec3,
     entryFacet: number,
@@ -1520,7 +1598,7 @@ export function projectMarkCaustic(
     const first = nextTransmissiveInterface(origin, direction, wavelengthIor);
     if (!first) return null;
     const entryEnergy = (1 - fresnel(wavelengthIor, entryCosine)) * entryCosine;
-    const retained = bounceRetention ** first.tirBounces;
+    const retained = first.retention;
     const exitCosine = clamp(dot(first.incoming, first.outward));
     const primaryEnergy = entryEnergy * (1 - first.reflectance) * retained;
 
@@ -1561,7 +1639,7 @@ export function projectMarkCaustic(
       exitFacet: second.facet,
       exitCosine: clamp(dot(second.incoming, second.outward)),
       energy: seed.energy * (1 - second.reflectance) *
-        bounceRetention ** (second.tirBounces + 1),
+        second.retention,
     };
   };
   const leakedRay = (
@@ -1679,24 +1757,86 @@ export function projectMarkCaustic(
     };
   };
 
-  const bundles = ATOMA_MARK_MESH.facets.flatMap((meshFacet, facetIndex) => {
+  /** Three entry points on one lit face → one traced three-ray bundle. */
+  const traceBundle = (
+    samples: readonly MarkVec3[],
+    facetIndex: number,
+    normal: MarkVec3,
+    share: number
+  ) => {
+    const points = samples.map((sample) => {
+      // Green is the mean trace; the red/blue pair supplies it without a third ray.
+      const red = land(sample, facetIndex, normal, tracesWavelengths ? iorRed : ior);
+      const blue = land(sample, facetIndex, normal, tracesWavelengths ? iorBlue : ior);
+      // Near the critical angle the two wavelengths can part ways: one
+      // leaves through a face, the other reflects and leaves through
+      // another. That is two rays, not one fringe — their midpoint lit
+      // nothing and their half-gap smeared a rainbow up to 36 units long.
+      // The corner then follows the stronger ray, with no fringe.
+      if (tracesWavelengths && red.exitFacet !== blue.exitFacet) {
+        const stronger = red.energy >= blue.energy ? red : blue;
+        return { red, blue, corner: stronger.point, delta: { x: 0, y: 0 } };
+      }
+      // A ray leaving at grazing incidence spreads its two wavelengths far
+      // apart on the wall while carrying almost no energy; the shader
+      // weighs energy per bundle, not per corner, so one such corner would
+      // stretch a lit bundle into a long streak. Typical fringes are
+      // ~0.001; 0.14% of corners reached 1 to 32 units.
+      const half = {
+        x: (red.point.x - blue.point.x) / 2,
+        y: (red.point.y - blue.point.y) / 2,
+      };
+      const spread = Math.hypot(half.x, half.y);
+      const bounded = spread > CAUSTIC_MAX_FRINGE
+        ? { x: half.x * CAUSTIC_MAX_FRINGE / spread, y: half.y * CAUSTIC_MAX_FRINGE / spread }
+        : half;
+      return {
+        red,
+        blue,
+        corner: {
+          x: (red.point.x + blue.point.x) / 2,
+          y: (red.point.y + blue.point.y) / 2,
+        },
+        delta: tracesWavelengths ? bounded : null,
+      };
+    });
+    const primaryPaths = points.flatMap((point) => [point.red, point.blue]);
+    return {
+      points,
+      facetIndex,
+      share,
+      optics: averageOptics(primaryPaths, facetIndex),
+    };
+  };
+  const lerp3 = (from: MarkVec3, to: MarkVec3, t: number): MarkVec3 => [
+    from[0] + (to[0] - from[0]) * t,
+    from[1] + (to[1] - from[1]) * t,
+    from[2] + (to[2] - from[2]) * t,
+  ];
+  const candidates = ATOMA_MARK_MESH.facets.flatMap((meshFacet, facetIndex) => {
     const facet = frame.facets[facetIndex]!;
-    // A convex octahedron presents four outer faces to the camera. Split each
-    // face into two triangles, then trace each half independently. This doubles
-    // the distinct receiver footprints without inventing a second light source.
-    if (meshFacet.part !== 'outer' || facet.normal[2] <= 0) return [];
-    const vertices = meshFacet.points.map((pointIndex) => frame.points[pointIndex]!);
-    const midpoint: MarkVec3 = [
-      (vertices[0]![0] + vertices[1]![0]) / 2,
-      (vertices[0]![1] + vertices[1]![1]) / 2,
-      (vertices[0]![2] + vertices[1]![2]) / 2,
+    // Light enters through the faces turned toward the LAMP — the camera has
+    // no say in it. A face lit from behind used to be traced anyway (it faced
+    // the camera), its impossible ray leaking a ghost 0.12 of energy, while a
+    // lamp-lit face turned from the camera never contributed (2026-10-17).
+    // A planar face is lit everywhere or nowhere by a point lamp, so its
+    // centroid decides.
+    if (meshFacet.part !== 'outer') return [];
+    const toLamp: MarkVec3 = [
+      lamp[0] - facet.centroid[0],
+      lamp[1] - facet.centroid[1],
+      lamp[2] - facet.centroid[2],
     ];
+    if (dot(facet.normal, toLamp) <= 0) return [];
+    const vertices = meshFacet.points.map((pointIndex) => frame.points[pointIndex]!);
+    // HALVES: the face's broad transmission, two footprints per face.
+    const midpoint = lerp3(vertices[0]!, vertices[1]!, 0.5);
     const halves = [
       [vertices[0]!, midpoint, vertices[2]!],
       [midpoint, vertices[1]!, vertices[2]!],
     ];
-    return halves.map((triangle) => {
-      const samples = triangle.map((vertex, vertexIndex): MarkVec3 => {
+    const halfBundles = halves.map((triangle) => traceBundle(
+      triangle.map((vertex, vertexIndex): MarkVec3 => {
         const otherA = triangle[(vertexIndex + 1) % 3]!;
         const otherB = triangle[(vertexIndex + 2) % 3]!;
         return [
@@ -1704,41 +1844,95 @@ export function projectMarkCaustic(
           vertex[1] * 0.72 + (otherA[1] + otherB[1]) * 0.14,
           vertex[2] * 0.72 + (otherA[2] + otherB[2]) * 0.14,
         ];
+      }),
+      facetIndex,
+      facet.normal,
+      0.5
+    ));
+    // EDGE STRIPS: where this wall meets its neighbour, a ray can leave
+    // through a face that is NOT parallel to the one it came in by — a real
+    // prism, the part of this hollow crystal that bends and splits light.
+    // The halves' inset samples never reach there. Three rays along one edge,
+    // half a wall thickness inside the face, land almost in a line: the
+    // shader draws that thin footprint as a stroke. A strip carries the share
+    // of the face its band covers, so it never outranks a half.
+    const faceArea = (() => {
+      const u: MarkVec3 = [
+        vertices[1]![0] - vertices[0]![0],
+        vertices[1]![1] - vertices[0]![1],
+        vertices[1]![2] - vertices[0]![2],
+      ];
+      const v: MarkVec3 = [
+        vertices[2]![0] - vertices[0]![0],
+        vertices[2]![1] - vertices[0]![1],
+        vertices[2]![2] - vertices[0]![2],
+      ];
+      return Math.hypot(
+        u[1] * v[2] - u[2] * v[1],
+        u[2] * v[0] - u[0] * v[2],
+        u[0] * v[1] - u[1] * v[0]
+      ) / 2;
+    })();
+    const stripBundles = [0, 1, 2].map((edge) => {
+      const start = vertices[edge]!;
+      const end = vertices[(edge + 1) % 3]!;
+      const opposite = vertices[(edge + 2) % 3]!;
+      const length = Math.hypot(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
+      const samples = [0.2, 0.5, 0.8].map((t) => {
+        const onEdge = lerp3(start, end, t);
+        const reach = Math.hypot(
+          opposite[0] - onEdge[0],
+          opposite[1] - onEdge[1],
+          opposite[2] - onEdge[2]
+        );
+        return lerp3(onEdge, opposite, ATOMA_MARK_THICKNESS * 0.5 / Math.max(reach, 1e-6));
       });
-      const points = samples.map((sample) => {
-        // Green is the mean trace; the red/blue pair supplies it without a third ray.
-        const red = land(sample, facetIndex, facet.normal, tracesWavelengths ? iorRed : ior);
-        const blue = land(sample, facetIndex, facet.normal, tracesWavelengths ? iorBlue : ior);
-        return {
-          red,
-          blue,
-          corner: {
-            x: (red.point.x + blue.point.x) / 2,
-            y: (red.point.y + blue.point.y) / 2,
-          },
-          delta: tracesWavelengths
-            ? {
-                x: (red.point.x - blue.point.x) / 2,
-                y: (red.point.y - blue.point.y) / 2,
-              }
-            : null,
-        };
-      });
-      const entryRay = normalise([
-        facet.centroid[0] - lamp[0],
-        facet.centroid[1] - lamp[1],
-        facet.centroid[2] - lamp[2],
-      ]);
-      const primaryPaths = points.flatMap((point) => [point.red, point.blue]);
-      return {
-        points,
-        facetIndex,
-        optics: averageOptics(primaryPaths, facetIndex),
-        score: clamp(-dot(entryRay, facet.normal)) * facet.normal[2],
-      };
+      const share = ATOMA_MARK_THICKNESS * length / Math.max(faceArea, 1e-6);
+      return traceBundle(samples, facetIndex, facet.normal, share);
     });
-  }).sort((left, right) => right.score - left.score).slice(0, 8);
-  if (bundles.length < 8) return null;
+    return [...halfBundles, ...stripBundles];
+  });
+  // No face toward the lamp: no light enters the glass.
+  if (candidates.length === 0) return null;
+  // EIGHT SLOTS, ALWAYS: the shader's constant cost is 8 three-ray bundles.
+  // Every lit face offers two halves and three edge strips; the slots go to
+  // the most energetic. An octahedron shows a point outside it at most four
+  // faces (parallel pairs), so halves alone can fill the slots — and do,
+  // since a strip carries a fraction of a half's share. When the lamp sees
+  // two or three faces, the freed slots go to the edges. Ranking by energy
+  // keeps it continuous: a face turning toward the lamp starts at zero (its
+  // entry cosine) and displaces a strip only once it outshines it. A slot
+  // nothing fills is EMPTY — no energy, a degenerate footprint parked inside
+  // the cast so it cannot widen the shader's bounds.
+  const lit = candidates
+    .map((bundle) => ({ bundle, energy: bundle.optics.intensity * bundle.share }))
+    .filter(({ energy }) => energy > 0)
+    .sort((left, right) => right.energy - left.energy)
+    .slice(0, 8)
+    .map(({ bundle }) => bundle);
+  if (lit.length === 0) return null;
+  const parked = (() => {
+    const all = lit.flatMap((bundle) => bundle.points.map((point) => point.corner));
+    return {
+      x: all.reduce((sum, point) => sum + point.x, 0) / all.length,
+      y: all.reduce((sum, point) => sum + point.y, 0) / all.length,
+    };
+  })();
+  const emptyPoint = () => ({
+    red: null,
+    blue: null,
+    corner: parked,
+    delta: tracesWavelengths ? { x: 0, y: 0 } : null,
+  });
+  const bundles = [
+    ...lit,
+    ...Array.from({ length: Math.max(0, 8 - lit.length) }, () => ({
+      points: [emptyPoint(), emptyPoint(), emptyPoint()],
+      facetIndex: -1,
+      share: 0,
+      optics: { r: 1, g: 1, b: 1, intensity: 0 },
+    })),
+  ].slice(0, 8);
   // Published green corners: the mean trace every consumer already draws.
   const corners = bundles.flatMap((bundle) =>
     bundle.points.map((point) => point.corner)
@@ -1755,12 +1949,14 @@ export function projectMarkCaustic(
   const castIntensity = coupling.gemEnter * markCausticFalloff(lampX, lampY);
   const optics = bundles.map((bundle): MarkCausticOptics => ({
     ...bundle.optics,
-    // Two half-facets share the energy previously assigned to one whole face.
+    // Each bundle carries the share of its face it samples: half a face, or
+    // the thin band along one edge.
     intensity: clamp(
-      bundle.optics.intensity * castIntensity * CAUSTIC_DISPLAY_EXPOSURE * 0.5
+      bundle.optics.intensity * castIntensity * CAUSTIC_DISPLAY_EXPOSURE * bundle.share
     ),
   }));
-  const secondarySource = bundles
+  // Only a lit bundle carries traced rays; lit bundles fill the first slots.
+  const secondarySource = lit
     .map((bundle, index) => ({
       bundle,
       intensity: optics[index]!.intensity,

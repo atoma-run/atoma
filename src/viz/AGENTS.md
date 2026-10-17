@@ -234,7 +234,7 @@ npm run viz:mark-turn:analyze
   its width from the material roughness plus the one source radius, and its
   bounded isocontours supply the projected ellipse. Do not bend the facet
   normal or reintroduce a pointer-UV window.
-- The gem's CAST is eight three-ray half-facet bundles on ONE receiver — the far-field
+- The gem's CAST is eight three-ray bundle SLOTS on ONE receiver, given by energy to the halves and edge strips of the faces turned toward the LAMP, never the camera (a strip's near-collinear footprint draws the edge prism as a stroke; an unfilled slot is empty and parked inside the cast); rays cross the diamond walls and the air cavity interface by interface — the far-field
   mesh behind the UI. Filled controls occlude that plane; never duplicate the
   caustic in the full-stage pointer-light filter, which both invents a second
   receiver at the UI's depth and doubles the hottest fragment work.
