@@ -12,7 +12,8 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
-- [Parent-tests review fixes state](parent-tests-review-fixes-state.md) — 2026-10-16: done and deployed; existsSync permission fix b8b2fd86 (10-17); open runner limits (the red-CI deploy was a misreading, corrected 10-17)
+- [Parent-tests review fixes state](parent-tests-review-fixes-state.md) — deployed; 10-17: outside-copy absent paths, suite regex check, review host facts (532d6e35), dispute count (21b0e5ce)
+- [Suite dispute measurement](suite-dispute-measurement.md) — pre-registered: ≥20 disputes, ≥50% wrong suites before any line or routing
 - [Account plan screen](account-plan-screen.md) — Your plan screen; org plan set by operator `auth set-plan` (2026-10-16); Pro/Team drop the Atoma mark
 - [Project deployment](project-deployment.md) — optional, mutable project setting: none (default), Atoma, or external; hosted address = model-chosen label, admin rename → permanent 308 (2026-10-15)
 - [Attica run delegation](attica-run-delegation.md) — 2026-10-15: I draft and start Attica runs myself and fix Atoma defects found

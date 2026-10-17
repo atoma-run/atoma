@@ -231,3 +231,4 @@ acceptance, publication or real collection occurred in this continuation.
 - Goal lesson: "keep everything else exactly as delivered" contradicts a
   behaviour restoration whenever an existing test asserts the removed
   behaviour. Name the tests that must change with the restoration.
+- Atoma limits found by these runs, 2026-10-17: the existsSync refusal (760fef4c) is fixed by 532d6e35 (outside paths read as absent); the over-escaped regex suite (2e6bdcfc) is refused at plan time (532d6e35) and repeated identical failures are counted (21b0e5ce, measurement only); review misreadings of suite imports get host facts (532d6e35). "Read another run's files" (2e6bdcfc) is being built as atoma_run_start readRunIds (copies under .atoma-runs/<id>/, host comparison of criteria-named files at acceptance), not yet pushed.
