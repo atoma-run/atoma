@@ -16,13 +16,15 @@ before launch, incomplete runs kept and explained, and comparison reruns.
   the copies against their saved manifests, saying whether one was changed,
   even if put back, and compares each file the criteria name with the read
   runs' saved bytes and modes. The copies are never delivered, published,
-  seeded into the next run or kept in a deepening's archive. They are removed
-  when the run ends unless it can still be continued (paused, or interrupted
-  and recoverable); a paused run's copies when the continuation that resumed
-  it ends; a run failed by a server restart's when the server starts again.
-  A read run is held from retention while a run that reads it can still run
-  or be continued. A comparison rerun and a continuation read the same runs
-  again. Additive in both MCP protocol versions; refused beside
+  seeded into the next run or kept in a deepening's archive. They are removed,
+  from the workspace and from the run's checkpoint snapshot, when the run ends
+  unless it can still be continued (paused, or interrupted and recoverable); a
+  paused run's copies when the continuation that resumed it ends; a run failed
+  by a server restart's, and the paused run it continued, when the server
+  starts again. A removal never fails a run: it logs a line instead. A read
+  run is held from retention while a run that reads it can still run or be
+  continued. A comparison rerun and a continuation read the same runs again.
+  Additive in both MCP protocol versions; refused beside
   `conversationApproval`, `rerunOf` or `resumeOf`.
 
 - Durable client questions at sequential project-run boundaries, exposed through

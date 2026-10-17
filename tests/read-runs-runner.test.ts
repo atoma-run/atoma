@@ -206,7 +206,11 @@ describe('a tenant run that reads another run', () => {
     expect(process.env[READ_RUNS_ENV]).toBeUndefined();
   });
 
-  it.skipIf(process.platform === 'win32').each([false, true])('a deepening copies the read run again, and one that changed fails the run with the first attempt archived (changed=%s)', async changed => {
+  // read-only: what `run_shell chmod -R a-w .atoma-runs` leaves. Removing the
+  // copies before the archive failed that restart; archived first, they are
+  // removed from the archive at best (third check 2026-10-17).
+  it.skipIf(process.platform === 'win32').each(['intact', 'changed', 'read-only'] as const)('a deepening copies the read run again, and one that changed fails the run with the first attempt archived (%s)', async variant => {
+    const changed = variant === 'changed';
     const t = tenant();
     const logs: string[] = [];
     for (const method of ['log', 'warn', 'error'] as const) {
@@ -241,6 +245,9 @@ describe('a tenant run that reads another run', () => {
           expect(existsSync(join(t.copy, 'browser/control-server.js'))).toBe(true);
           await req.executor!.execute('write_file', { path: 'abandoned.txt', content: 'attempt one' });
           if (changed) writeFileSync(join(t.read.layout.workspacePath, 'browser/control-server.js'), 'export const port = 4000;\n');
+          if (variant === 'read-only') {
+            expect(await req.executor!.execute('run_shell', { command: 'chmod', args: ['-R', 'a-w', '.atoma-runs'] })).toMatchObject({ exitCode: 0 });
+          }
         }
         await req.executor!.execute('write_file', { path: 'browser/collect-xe-browser.js', content: READ['browser/collect-xe-browser.js'] });
         reply = { output: { files: ['browser/collect-xe-browser.js'] }, summary: 'Restored' };

@@ -257,18 +257,18 @@ export interface ReadRunFileComparisons {
 const CONTINUES_PATH = /^(?:[\w/-]|\.[\w-])/;
 /** What may precede a path: a match preceded by one of these is part of a longer path. */
 const EXTENDS_PATH = /[\w.\-/]/;
-/** A root document a criterion may name by its stem ("README"), as the criteria read-back reads it. */
-const ROOT_DOCUMENT = /^([^/]{4,})\.(?:md|markdown|txt)$/i;
 
 /**
  * The saved paths a criterion text names, in the order the text first names
- * them: each read run's manifest path itself, found at a path boundary, a
- * leading `./` or `/` accepted, a sentence's closing period too
+ * them: each read run's manifest path itself, spelled out, found at a path
+ * boundary, a leading `./` or `/` accepted, a sentence's closing period too
  * ("browser/x.js."), never inside a longer path (`src/browser/x.js`,
- * `browser/x.js.bak`); and a saved root document by its stem ("README" for
- * `README.md`). The read-back's own extension list missed `.tsx`, `bin/cli`,
- * `Makefile`, images and `./x.js`, so a restore criterion got no host line
- * (review 2026-10-17, second pass).
+ * `browser/x.js.bak`). The read-back's own extension list missed `.tsx`,
+ * `bin/cli`, `Makefile`, images and `./x.js`, so a restore criterion got no
+ * host line (second review 2026-10-17). A stem never counts: "todo",
+ * "notes" or "design" in a sentence named TODO.md, NOTES.md and DESIGN.md
+ * and took the comparison's slots (third check); the criteria read-back
+ * keeps its own stem rule.
  */
 export function savedPathsNamed(texts: readonly string[], saved: Iterable<string>): string[] {
   const text = texts.join('\n');
@@ -283,11 +283,6 @@ export function savedPathsNamed(texts: readonly string[], saved: Iterable<string
       if (start > 0 && EXTENDS_PATH.test(text[start - 1]!)) continue;
       hits.set(path, at);
       break;
-    }
-    const stem = ROOT_DOCUMENT.exec(path)?.[1];
-    if (stem && !hits.has(path)) {
-      const named = new RegExp(`(?<![\\w./-])${stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w/-]|\\.[\\w-])`, 'i').exec(text);
-      if (named) hits.set(path, named.index);
     }
   }
   return [...hits.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).map(([path]) => path);
@@ -347,25 +342,56 @@ const GLOB_INTO_READ_RUNS = new RegExp(`(?:^|[^\\w.-])["']?${READ_RUNS_PATTERN}[
 /** A shell entering the directory: `cd .atoma-runs && …`, `pushd ./.atoma-runs`. */
 const ENTERS_READ_RUNS = new RegExp(`(?:^|[;&|(\\s"'])(?:cd|pushd)\\s+["']?(?:\\./)?${READ_RUNS_PATTERN}(?=[/"'\\s;&|)]|$)`);
 /** An option whose argument is a pattern to leave out: `--exclude`, `--ignore-pattern`, `--exclude-dir`, `--ignore`. */
-const EXCLUSION_OPTION = /^--?[\w-]*(?:exclude|ignore)[\w-]*$/i;
+const EXCLUSION_OPTION = /^--?[\w-]*(?:[Ee]xclude|[Ii]gnore)[\w-]*$/;
+/**
+ * Short options that exclude only for their own command: `zip -x`, `7z -x`,
+ * `fd -E`. Elsewhere `-x` traces a script (`bash -x`) and `-E` takes a regex.
+ */
+const SHORT_EXCLUSIONS: Readonly<Record<string, readonly string[]>> = {
+  '-x': ['zip', 'unzip', '7z', '7za', '7zr'],
+  '-E': ['fd', 'fdfind'],
+};
+/** A word that ends one shell command and starts another. */
+const COMMAND_SEPARATOR = /^(?:;|&&|\|\|?|\(|.*;)$/;
+/** A pathspec git leaves out: `:!…`, `:^…`, `:(exclude)…`, `:(top,exclude)…`. */
+const GIT_EXCLUDED_PATHSPEC = /^:(?:[!^]|\([^)]*\bexclude\b[^)]*\))/;
+/** A find path test: its argument is a pattern, excluded when negated or pruned. */
+const FIND_PATH_TEST = /^-i?(?:path|wholename)$/;
+/** What ends a find expression's tests before an action: a later `-prune` belongs to another branch. */
+const FIND_ACTION = /^(?:-print0?|-printf|-exec(?:dir)?|-ok(?:dir)?|-delete|-ls|-fprint\S*|;|&&|\|\|?|\\;)$/;
 
 /**
  * Whether the shell word holding `at` is a pattern a command leaves out
- * rather than a path it reads: a negated glob (`--glob '!.atoma-runs/**'`),
- * the argument of an exclusion option, inline or next (`--exclude=…`,
- * `--ignore-pattern '…'`), or a find path negated or pruned (`-not -path`,
- * `! -path`, `-path … -prune`). Words split on whitespace; quotes are ignored.
+ * rather than a path it reads: a negated glob, bare or as an option's value
+ * (`'!.atoma-runs/**'`, `--glob='!.atoma-runs/**'`), the argument of an
+ * exclusion option, inline or next (`--exclude=…`, `--ignore-pattern '…'`,
+ * `zip -x '…'`, `fd -E '…'`), a git pathspec excluding it (`':!…'`,
+ * `':(exclude)…'`), or a find path negated or pruned (`-not -path`,
+ * `! -path`, `-path … -prune`, a group of paths then `-prune`). Words split
+ * on whitespace; quotes are ignored (third check 2026-10-17).
  */
 function exclusionArgument(command: string, at: number): boolean {
   const wordStart = command.slice(0, at).search(/\S*$/);
   const prefix = command.slice(wordStart, at).replace(/["']/g, '');
-  if (prefix.startsWith('!') || /^--?[\w-]*(?:exclude|ignore)[\w-]*=/i.test(prefix)) return true;
+  const value = prefix.replace(/^-{1,2}[\w-]+=/, '');
+  if (value.startsWith('!') || GIT_EXCLUDED_PATHSPEC.test(value) || /^--?[\w-]*(?:[Ee]xclude|[Ii]gnore)[\w-]*=/.test(prefix)) return true;
   const before = command.slice(0, wordStart).trimEnd().split(/\s+/).map((word) => word.replace(/["']/g, ''));
   const previous = before.at(-1) ?? '';
   if (EXCLUSION_OPTION.test(previous)) return true;
-  if (!/^-i?(?:path|wholename)$/.test(previous)) return false;
-  const after = command.slice(at).split(/\s+/);
-  return before.at(-2) === '-not' || before.at(-2) === '!' || after[1] === '-prune';
+  const owners = SHORT_EXCLUSIONS[previous];
+  if (owners) {
+    let start = before.length;
+    while (start > 0 && !COMMAND_SEPARATOR.test(before[start - 1]!)) start -= 1;
+    if (before.slice(start).some((word) => owners.includes(word.split('/').pop()!))) return true;
+  }
+  if (!FIND_PATH_TEST.test(previous)) return false;
+  if (before.at(-2) === '-not' || before.at(-2) === '!') return true;
+  // Pruned: a `-prune` comes before this branch's action, past a group's `\)`.
+  for (const word of command.slice(at).split(/\s+/).slice(1)) {
+    if (word === '-prune') return true;
+    if (FIND_ACTION.test(word)) return false;
+  }
+  return false;
 }
 
 /**

@@ -322,10 +322,12 @@ Neighbours:
   caps (three runs, 64 MiB, 10,000 files), `ATOMA_READ_RUNS`, the launch index,
   the copies' modes, the `readRuns` task input, its guidance, the acceptor's
   lines (per copy, per compared file), `savedPathsNamed` (the saved paths a
-  criterion names, found at a path boundary) and three predicates:
+  criterion spells out, at a path boundary; never a stem) and three predicates:
   `namesReadRunCopy` (a path INTO a copy, run id required: inheritance and the
   skills refusal), `reachesReadRunCopies` (a command: also a glob where the id
-  would be, or `cd .atoma-runs`; never an exclusion argument) and
+  would be, or `cd .atoma-runs`; never an exclusion: an exclusion option's
+  argument, a `!` glob, a git `:!`/`:(exclude)` pathspec, a pruned or negated
+  `find -path`) and
   `mentionsReadRunCopies` (any mention: the parent-suite refusal).
   Browser-safe: the copy, its check and the comparison live in
   `src/run/readRuns.ts`. A stored list is read back by spelling

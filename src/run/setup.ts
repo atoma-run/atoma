@@ -92,11 +92,11 @@ export const RUN_DEFAULTS = {
 /** Prefix of the viz trace label of a run. */
 export const TRACE_LABEL_PREFIX = 'run: ';
 
-/** Prepare the workspace directory, BEFORE the sandbox is constructed. */
-export function prepareWorkspace(root: string, clean: boolean): void {
+/** Prepare the workspace directory, BEFORE the sandbox is constructed; returns the archive, if one was made. */
+export function prepareWorkspace(root: string, clean: boolean): string | undefined {
   // `ToolSandbox` realpath-resolves its root at construction, so archiving
   // the directory afterwards would leave every tool pointing at the archive.
-  prepareWorkspaceRoot(root, clean);
+  return prepareWorkspaceRoot(root, clean);
 }
 
 /** What the runner hands the seeding hooks. */

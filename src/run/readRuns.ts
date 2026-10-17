@@ -1,4 +1,5 @@
 import { chmodSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmod, lstat, readdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
 import {
@@ -313,4 +314,32 @@ export function compareReadRunFiles(workspaceRoot: string, index: ReadRunsIndex,
     })) };
   });
   return { compared, omitted: Math.max(0, wanted.length - READ_RUN_FILES_COMPARED) };
+}
+
+/**
+ * Remove a directory of read-run copies, whatever the run did to its modes,
+ * and SAY why when it cannot: never a throw (third check 2026-10-17). A shell
+ * that ran `chmod -R a-w .atoma-runs` left directories nobody could empty, and
+ * removing them failed the deepening that 44fd3757 had carried out. So every
+ * real directory below gets u+rwx back first, walked with `lstat` and never
+ * through a link (a chmod follows links; a link is removed, never what it
+ * points at), then the tree goes. Asynchronous: up to `MAX_READ_RUN_FILES`
+ * unlinks never hold the server's event loop. Resolves null once removed (or
+ * already absent), else the reason.
+ */
+export async function removeReadRunCopies(directory: string): Promise<string | null> {
+  const writable = async (path: string): Promise<void> => {
+    let stat;
+    try { stat = await lstat(path); } catch { return; }
+    if (!stat.isDirectory()) return;
+    await chmod(path, (stat.mode & 0o7777) | 0o700);
+    for (const name of await readdir(path)) await writable(join(path, name));
+  };
+  try {
+    await writable(directory);
+    await rm(directory, { recursive: true, force: true });
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
 }

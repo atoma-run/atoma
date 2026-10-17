@@ -200,6 +200,8 @@ describe('the read-run contract', () => {
   // Second review 2026-10-17: commands reach the copies without an id too.
   it('reads a command as reaching into the copies by an id, a glob where the id would be or a cd, never by an exclusion', () => {
     for (const command of [`cmp .atoma-runs/${RUN}/a.js a.js`, 'diff -q browser/x.js .atoma-runs/*/browser/x.js',
+      // A find whose path test leads to an action, not a prune, reads the copies.
+      "find . -path './.atoma-runs/*' -exec sha256sum {} \\;", 'bash -x .atoma-runs/*/bin/run.sh', 'zip -r out.zip x; bash -x .atoma-runs/*/run.sh',
       "sha256sum '.atoma-runs'/*/browser/x.js", 'cp .atoma-runs/**/x.js .', 'ls .atoma-runs/[0-9a-f]*',
       'cd .atoma-runs && sha256sum */browser/x.js', 'bash -c "cd ./.atoma-runs; ls"', 'pushd .atoma-runs/', '(cd .atoma-runs)']) {
       expect(reachesReadRunCopies(command), command).toBe(true);
@@ -208,6 +210,10 @@ describe('the read-run contract', () => {
       "npx vitest run --exclude '**/.atoma-runs/**'", 'vitest --exclude=**/.atoma-runs/**', "rg --glob '!.atoma-runs/**' TODO",
       "rg -g '!.atoma-runs/*' TODO", 'grep -r TODO src --exclude-dir=.atoma-runs', "find . -not -path './.atoma-runs/*' -name '*.js'",
       "find . ! -path './.atoma-runs/*' -type f", "find . -path './.atoma-runs/*' -prune -o -name '*.js' -print", 'ls .atoma-runs',
+      // Third check 2026-10-17: more exclusion spellings, each a valid entry to keep.
+      "rg --glob='!.atoma-runs/**' TODO", "zip -r out.zip . -x '.atoma-runs/*'", "fd -E '.atoma-runs/*' .",
+      "git diff --stat -- . ':!.atoma-runs/*'", "git ls-files -- ':(exclude).atoma-runs/*'", "git status -- ':^.atoma-runs/*'",
+      "find . \\( -path './.atoma-runs/*' -o -path './node_modules/*' \\) -prune -o -name '*.js' -print",
       // A variable holding the directory is out of reach of any reader of the command.
       'D=.atoma-runs; cat $D/x.js', 'echo cdx .atoma-runs']) {
       expect(reachesReadRunCopies(command), command).toBe(false);
@@ -219,7 +225,11 @@ describe('the read-run contract', () => {
     const saved = ['src/App.tsx', 'browser/x.js', 'bin/cli', 'Makefile', 'assets/logo.png', 'README.md', 'docs/guide.md', 'x.js', 'lib/x.js.map'];
     expect(savedPathsNamed(['Restore src/App.tsx, ./browser/x.js and /bin/cli as run 50019ee0 saved them.'], saved))
       .toEqual(['src/App.tsx', 'browser/x.js', 'bin/cli']);
-    expect(savedPathsNamed(['Makefile and assets/logo.png are unchanged; the README says so.'], saved)).toEqual(['Makefile', 'assets/logo.png', 'README.md']);
+    expect(savedPathsNamed(['Makefile and assets/logo.png are unchanged; the README says so, and README.md too.'], saved))
+      .toEqual(['Makefile', 'assets/logo.png', 'README.md']);
+    // Only paths spelled out: an ordinary word naming a document's stem is not a mention (third check).
+    expect(savedPathsNamed(['Keep the todo list, the notes, the design, the test data and the readme.'],
+      ['TODO.md', 'NOTES.md', 'DESIGN.md', 'test.md', 'data.json', 'README.md'])).toEqual([]);
     // Never inside a longer path or name; a sentence's period is fine.
     expect(savedPathsNamed(['src/browser/x.js, browser/x.js.bak, ../bin/cli, Makefiles, xx.js and a.x.js stay.'], saved)).toEqual([]);
     expect(savedPathsNamed(['Keep `x.js`.', 'lib/x.js.map too.'], saved)).toEqual(['x.js', 'lib/x.js.map']);

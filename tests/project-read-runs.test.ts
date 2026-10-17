@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
@@ -24,7 +24,7 @@ import { assertPublishableArtifactPath } from '../src/projects/artifacts.js';
 import { Conversations } from '../src/projects/conversations.js';
 import { ProjectRunCoordinator, projectRunHostLayout, type ProjectRunDriver } from '../src/projects/coordinator.js';
 import { ProjectRetrievalLaunchStore } from '../src/projects/retrievalLaunch.js';
-import { retentionPlan } from '../src/projects/retention.js';
+import { applyRetention, retentionPlan } from '../src/projects/retention.js';
 import { ProjectService } from '../src/projects/service.js';
 import { assertPreviewCopyablePath, assertPreviewServablePath } from '../src/preview/policy.js';
 import { RunCheckpointStore, checkpointWorkspaceDigest } from '../src/run/checkpoint.js';
@@ -405,7 +405,7 @@ describe('the copies once a run that read them ends', () => {
   // A finished run's copies only kept another run's bytes past that run's own
   // retention; one that can still be continued keeps them, and holds the runs
   // it read from retention. One predicate decides both (reviews 2026-10-17).
-  type End = 'delivered' | 'failed' | 'paused' | 'interrupted' | 'cancelled' | 'blocked';
+  type End = 'delivered' | 'failed' | 'paused' | 'interrupted' | 'cancelled' | 'blocked' | 'sealed-cancelled' | 'read-only';
 
   /** A run reading `read`, as its child would leave it: the copies, a restored file, and the checkpoint `end` leaves. */
   function ending(f: Fixture, read: { projectRunId: string }, end: End | ((id: string) => End)) {
@@ -415,9 +415,14 @@ describe('the copies once a run that read them ends', () => {
       const id = env['ATOMA_RUN_ID']!;
       const workspace = env['ATOMA_BUILD_WORKSPACE']!;
       const how = typeof end === 'function' ? end(id) : end;
-      mkdirSync(join(workspace, '.atoma-runs', read.projectRunId), { recursive: true });
+      mkdirSync(join(workspace, '.atoma-runs', read.projectRunId, 'browser'), { recursive: true });
       writeFileSync(join(workspace, '.atoma-runs', read.projectRunId, 'a.txt'), 'saved version');
       writeFileSync(join(workspace, 'a.txt'), 'saved version');
+      if (how === 'read-only') {
+        // What `run_shell chmod -R a-w .atoma-runs` leaves (third check 2026-10-17).
+        chmodSync(join(workspace, '.atoma-runs', read.projectRunId, 'a.txt'), 0o444);
+        for (const dir of ['browser', '', '..']) chmodSync(join(workspace, '.atoma-runs', read.projectRunId, dir), 0o555);
+      }
       mkdirSync(env['ATOMA_RUNS_DIR']!, { recursive: true });
       if (options.extraArgs?.includes('--resume')) {
         // What the continuation's run process does: it consumes its source's checkpoint.
@@ -425,7 +430,7 @@ describe('the copies once a run that read them ends', () => {
         try { db.prepare("UPDATE run_checkpoints SET state='finished' WHERE id = ?").run(f.projects.getProjectRun(f.viewer.orgId, id)!.resumeOf); }
         finally { db.close(); }
       }
-      if (how !== 'delivered' && how !== 'failed') {
+      if (how !== 'delivered' && how !== 'failed' && how !== 'read-only') {
         const data: RunCheckpoint = { version: 1, id, goal: options.goal, workspace: realpathSync(workspace), policy: '{}',
           scope: { orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId, runId: id },
           actor: { name: 'Meristem', atomId: 'actor', version: 1 }, checklist: [],
@@ -435,12 +440,14 @@ describe('the copies once a run that read them ends', () => {
           consumed: { tokens: 20, costUsd: 0.01 }, remainingMs: 300000, lastRunId: id };
         // A cancelled or crashed run leaves its claim 'running': teardown never finalizes it.
         const owner = checkpoints.claim(data, true);
-        if (how === 'paused' || how === 'interrupted') checkpoints.write(data, owner, 'ready', true);
-        if (how === 'interrupted') {
+        if (how === 'paused' || how === 'interrupted' || how === 'sealed-cancelled') {
+          // A boundary seals the whole workspace, the copies included, into the product store.
           checkpoints.beginSegment(data, Date.now() + 300000);
           checkpoints.boundary(data, owner);
         }
-        if (how === 'interrupted' || how === 'blocked') {
+        if (how === 'paused') checkpoints.write(data, owner, 'ready', true);
+        if (how === 'sealed-cancelled') checkpoints.write(data, owner, 'running');
+        if (how === 'interrupted' || how === 'blocked' || how === 'sealed-cancelled') {
           const connection = new Database(f.dbPath);
           connection.prepare('UPDATE run_checkpoints SET pid=? WHERE id=?').run(2000000000, id);
           connection.close();
@@ -452,8 +459,19 @@ describe('the copies once a run that read them ends', () => {
       writeFileSync(join(env['ATOMA_RUNS_DIR']!, `${id}.json`), JSON.stringify({ id, endedAt: new Date().toISOString(),
         result: { output: {}, summary: 'Restored', ...(how === 'paused' ? { refusal: 'Paused before final acceptance' } : {}) } }));
       return formatRunStatsEpilogue({ ...parseRunLog('✓ build finished'),
-        outcome: how === 'paused' ? 'partial' : how === 'cancelled' ? 'cancelled' : 'delivered' });
+        outcome: how === 'paused' ? 'partial' : how === 'cancelled' || how === 'sealed-cancelled' ? 'cancelled' : 'delivered' });
     });
+  }
+
+  /** The read-run copies a run's checkpoint snapshot still seals, and its other sealed entries. */
+  function sealed(f: Fixture, runId: string): { copies: number; others: number } {
+    const db = new Database(f.dbPath, { readonly: true });
+    try {
+      const rows = db.prepare(`SELECT path FROM run_checkpoint_files WHERE snapshot =
+        (SELECT json_extract(payload,'$.snapshotId') FROM run_checkpoints WHERE id = ?)`).pluck().all(runId) as string[];
+      const copies = rows.filter((path) => path === '.atoma-runs' || path.startsWith('.atoma-runs/')).length;
+      return { copies, others: rows.length - copies };
+    } finally { db.close(); }
   }
 
   /** Whether retention holds `read` as a run a run not yet over reads, planned as the CLI plans: on a read-only handle. */
@@ -477,6 +495,10 @@ describe('the copies once a run that read them ends', () => {
     // Neither can be continued, though their checkpoint row was never finished.
     { end: 'cancelled', status: 'cancelled', state: 'unavailable', kept: false },
     { end: 'blocked', status: 'failed', state: 'blocked', kept: false },
+    // Third check 2026-10-17: a boundary had sealed the copies into the product store.
+    { end: 'sealed-cancelled', status: 'cancelled', state: 'unavailable', kept: false },
+    // A shell made them read-only: they still go.
+    { end: 'read-only', status: 'delivered', state: undefined, kept: false },
   ] as const)('$end: removes them unless the run can be continued, and holds the read run while it can', async ({ end, status, state, kept }) => {
     const f = await fixture();
     const read = f.makeRun({ 'a.txt': 'saved version' }).run;
@@ -493,6 +515,33 @@ describe('the copies once a run that read them ends', () => {
     expect(existsSync(join(read.hostPaths.workspacePath, 'a.txt'))).toBe(true);
     if (status === 'delivered') expect(ended.artifactManifest!.files.map(file => file.path)).toEqual(['a.txt']);
     expect(held(f, read)).toBe(kept);
+    // A continuable run keeps its sealed copies with its snapshot; any other keeps none.
+    const snapshot = sealed(f, ended.projectRunId);
+    if (end === 'paused' || end === 'interrupted') expect(snapshot.copies).toBeGreaterThan(0);
+    else expect(snapshot.copies).toBe(0);
+    if (end === 'sealed-cancelled') expect(snapshot.others).toBeGreaterThan(0);
+  });
+
+  // Third check 2026-10-17: a cancelled reader's snapshot outlived the read run's retention.
+  it('a reader cancelled after a boundary keeps nothing: retention then deletes the read run, and no snapshot holds its bytes', async () => {
+    const f = await fixture();
+    const read = f.makeRun({ 'a.txt': 'saved version' }).run;
+    f.makeRun({ 'b.txt': 'a later delivery, the project seed' });
+    ending(f, read, 'sealed-cancelled');
+    const started = await f.coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { goal: 'Restore a.txt to the saved version', idempotencyKey: randomUUID(), readRunIds: [read.projectRunId] } });
+    await f.coordinator.waitForIdle();
+    expect(f.projects.getProjectRun(f.viewer.orgId, started.projectRunId)?.status).toBe('cancelled');
+    expect(held(f, read)).toBe(false);
+    const db = new Database(f.dbPath);
+    try {
+      const deleted = applyRetention(db, f.root, undefined, event => ({ ...event, id: 1, at: new Date().toISOString() }) as never,
+        new Date('2026-10-17T00:00:00Z'));
+      expect(deleted).toBeGreaterThan(0);
+      expect(db.prepare('SELECT bytes_deleted_at FROM project_runs WHERE project_run_id = ?').pluck().get(read.projectRunId)).not.toBeNull();
+      expect(existsSync(read.hostPaths.workspacePath)).toBe(false);
+      expect(db.prepare("SELECT count(*) FROM run_checkpoint_files WHERE path = '.atoma-runs' OR substr(path, 1, 12) = '.atoma-runs/'").pluck().get()).toBe(0);
+    } finally { db.close(); }
   });
 
   // Second review 2026-10-17: a paused run that is continued never ends again
@@ -553,8 +602,38 @@ describe('the copies once a run that read them ends', () => {
     const plain = reader(false);
     const recoverable = reader(true);
     expect(f.coordinator.reconcileInterrupted()).toMatchObject({ runs: 2 });
+    await f.coordinator.waitForIdle();
     expect(existsSync(join(plain, '.atoma-runs'))).toBe(false);
     expect(existsSync(join(recoverable, '.atoma-runs'))).toBe(true);
     expect(held(f, read)).toBe(true);
+  });
+
+  // Third check 2026-10-17: boot released only the interrupted run's own copies.
+  it('a continuation a restart failed: boot releases its copies and those of the paused run it consumed, snapshot included', async () => {
+    const f = await fixture();
+    const read = f.makeRun({ 'a.txt': 'saved version' }).run;
+    ending(f, read, 'paused');
+    const goal = 'Restore a.txt to the saved version';
+    const source = await f.coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { goal, idempotencyKey: randomUUID(), readRunIds: [read.projectRunId] } });
+    await f.coordinator.waitForIdle();
+    expect(sealed(f, source.projectRunId).copies).toBeGreaterThan(0);
+    // The continuation, running when the server stopped; its run process consumed the source's checkpoint.
+    const id = randomUUID();
+    const layout = projectRunHostLayout(f.root, f.viewer.orgId, f.project.projectId, id);
+    f.projects.createProjectRun({ orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId, projectRunId: id,
+      request: { goal, idempotencyKey: id, resumeOf: source.projectRunId, depth: 'deep' },
+      hostPaths: { workspacePath: layout.workspacePath, runsPath: layout.runsPath, logPath: layout.logPath } });
+    f.projects.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: id, from: 'queued', to: 'running' });
+    mkdirSync(join(layout.workspacePath, '.atoma-runs', read.projectRunId), { recursive: true });
+    writeFileSync(join(layout.workspacePath, '.atoma-runs', read.projectRunId, 'a.txt'), 'saved version');
+    const db = new Database(f.dbPath);
+    try { db.prepare("UPDATE run_checkpoints SET state='finished' WHERE id = ?").run(source.projectRunId); } finally { db.close(); }
+    expect(f.coordinator.reconcileInterrupted()).toMatchObject({ runs: 1 });
+    await f.coordinator.waitForIdle();
+    expect(existsSync(join(layout.workspacePath, '.atoma-runs'))).toBe(false);
+    expect(existsSync(join(source.hostPaths.workspacePath, '.atoma-runs'))).toBe(false);
+    expect(sealed(f, source.projectRunId)).toMatchObject({ copies: 0 });
+    expect(held(f, read)).toBe(false);
   });
 });

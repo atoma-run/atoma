@@ -8,6 +8,7 @@ import { encodeProjectContext, PROJECT_CONTEXT_ENV } from '../contracts/projectC
 import { encodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
 import { encodeReadRunsIndex, READ_RUNS_DIRECTORY, READ_RUNS_ENV, READ_RUNS_INDEX_FILENAME } from '../contracts/readRuns.js';
 import { RunCheckpointStore, canonicalCheckpointWorkspacePath, projectedCheckpointStatus } from '../run/checkpoint.js';
+import { removeReadRunCopies } from '../run/readRuns.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
 import { GitHubAccessRequiredError } from './publisher.js';
@@ -15,8 +16,7 @@ import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexMode
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
 import { randomUUID } from 'node:crypto';
 import { migratePlatformSkills, reconcilePlatformSkills } from '../skills/migratePlatform.js';
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { parseRunLog, spawnRun, DEFAULT_HARD_KILL_MARGIN_MS, UNKILLABLE_BACKSTOP_EXTRA_MS, type RunStats } from '../cli/burnin.js';
@@ -1310,8 +1310,11 @@ export class ProjectRunCoordinator {
   private readonly onSubscriptionTransport?: (info: SubscriptionTransportUse) => void;
   private readonly describeDeliveredPreview?: (input: DeliveredPreviewSubject) => void;
   private readonly runTitler?: RunTitler;
-  /** Naming calls still in flight; they hold `waitForIdle`, never the run slot. */
-  private readonly titling = new Set<Promise<void>>();
+  /**
+   * Detached work still in flight, run naming and the release of a restart's
+   * read-run copies: it holds `waitForIdle`, never the run slot.
+   */
+  private readonly detached = new Set<Promise<void>>();
   private readonly cwd: string;
   private readonly explicitTimeoutMs?: number;
   private readonly platformLimits: () => PlatformLimits;
@@ -1463,13 +1466,19 @@ export class ProjectRunCoordinator {
     const interrupted = this.store.listLiveRunTraces();
     const recovered = this.store.reconcileInterrupted('interrupted by server restart');
     // A run the restart failed never reaches its own end: its read-run copies
-    // go now, unless its checkpoint lets it be continued (second review
-    // 2026-10-17). Synchronous: this is boot, before any run starts.
+    // go now, and those of the run it continued, as at any end, unless a
+    // checkpoint lets one be continued (reviews 2026-10-17). Detached, and
+    // held by `waitForIdle`.
     for (const { orgId, projectRunId } of interrupted) {
       const run = this.store.getProjectRun(orgId, projectRunId);
-      const copies = run ? this.releasableReadRunCopies(run) : null;
-      try { if (copies) rmSync(copies, { recursive: true, force: true }); }
-      catch (error) { process.stderr.write(`[atoma projects] read-run copies of ${projectRunId} were not released: ${String(error)}\n`); }
+      if (!run?.readRunIds) continue;
+      const releasing: Promise<void> = this.releaseReadRunCopies(run).catch((error: unknown) => {
+        process.stderr.write(`[atoma projects] read-run copies of ${projectRunId} were not released: ${String(error)}\n`);
+      }).finally(() => {
+        this.detached.delete(releasing);
+        this.resolveIdleIfSettled();
+      });
+      this.detached.add(releasing);
     }
     new LearningQueue(this.dbPath).recover();
     this.resumeLearning();
@@ -1776,17 +1785,31 @@ export class ProjectRunCoordinator {
   }
 
   /**
-   * At a run's end: its own copies, and those of the run it continued, whose
-   * checkpoint it consumed, since a paused run that is continued never ends
-   * again itself. Asynchronous, so up to `MAX_READ_RUN_FILES` unlinks never
-   * hold the server's event loop; `rm` removes a link where the directory
-   * was, never what it points at.
+   * At a run's end, and at boot for a run a restart failed: its own copies,
+   * and those of the run it continued, whose checkpoint it consumed, since a
+   * paused run that is continued never ends again itself. Each released run
+   * loses them twice over: from its workspace (`removeReadRunCopies`: whatever
+   * a shell did to their modes, never a throw, a line on failure), and from
+   * its checkpoint snapshot, which sealed the whole workspace into the product
+   * store and outlived the read run's retention (third check 2026-10-17). A
+   * snapshot another run can still restore from stays whole.
    */
   private async releaseReadRunCopies(run: ProjectRun): Promise<void> {
     const source = run.resumeOf ? this.store.getProjectRun(run.orgId, run.resumeOf) : null;
     for (const ended of [run, ...(source ? [source] : [])]) {
       const copies = this.releasableReadRunCopies(ended);
-      if (copies) await rm(copies, { recursive: true, force: true });
+      if (!copies) continue;
+      const failure = await removeReadRunCopies(copies);
+      if (failure) process.stderr.write(`[atoma projects] read-run copies of ${ended.projectRunId} were not removed: ${failure}\n`);
+      try {
+        this.checkpoints.forgetReadRunCopies(ended.projectRunId, (holder) => {
+          const holding = this.store.getProjectRunAnyOrg(holder);
+          return !!holding && (holding.status === 'queued' || holding.status === 'running' ||
+            this.checkpoints.continuable(holder, holding.orgId, holding.status));
+        });
+      } catch (error) {
+        process.stderr.write(`[atoma projects] read-run copies sealed in the checkpoint of ${ended.projectRunId} were not removed: ${String(error)}\n`);
+      }
     }
   }
 
@@ -2433,10 +2456,10 @@ export class ProjectRunCoordinator {
       // sees the title land.
       if (this.runTitler) {
         const naming: Promise<void> = this.nameRun(this.runTitler, reservedRun).finally(() => {
-          this.titling.delete(naming);
+          this.detached.delete(naming);
           this.resolveIdleIfSettled();
         });
-        this.titling.add(naming);
+        this.detached.add(naming);
       }
       try {
         lease.release();
@@ -2604,7 +2627,7 @@ export class ProjectRunCoordinator {
   }
 
   private resolveIdleIfSettled(): void {
-    if (this.active.size > 0 || this.titling.size > 0 || this.queuePumping || this.store.listQueuedRuns().length > 0) return;
+    if (this.active.size > 0 || this.detached.size > 0 || this.queuePumping || this.store.listQueuedRuns().length > 0) return;
     clearTimeout(this.queueTimer);
     this.queueTimer = undefined;
     for (const resolveIdle of this.idleWaiters) resolveIdle();
@@ -2673,7 +2696,7 @@ export class ProjectRunCoordinator {
   }
 
   waitForIdle(): Promise<void> {
-    if (this.active.size === 0 && this.titling.size === 0 && !this.queuePumping && this.store.listQueuedRuns().length === 0) return Promise.resolve();
+    if (this.active.size === 0 && this.detached.size === 0 && !this.queuePumping && this.store.listQueuedRuns().length === 0) return Promise.resolve();
     this.resumeQueuedRuns();
     this.queueTimer?.ref();
     return new Promise<void>((resolveIdle) => this.idleWaiters.add(resolveIdle));

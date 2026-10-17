@@ -5,7 +5,7 @@ import { assertCheckpointWorkerAbsent } from '../launcher/checkpointRecovery.js'
 import { assertProjectRunAuthority } from '../projects/runAuthority.js';
 import { ledgerDbPath, setLedgerScope, type LedgerScope } from '../core/ledger.js';
 import { dirname, join, resolve } from 'node:path';
-import { cpSync, existsSync, mkdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { setMaxListeners } from 'node:events';
 import { PlanParseError, RunnerConfigError } from '../core/errors.js';
@@ -59,7 +59,7 @@ import { containerToolBackend, localToolBackend, withMcpConnectorBackend, withPr
 import { decodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
 import { READ_RUNS_DIRECTORY, READ_RUNS_ENV, type ReadRunsIndex } from '../contracts/readRuns.js';
 import { captureReadRunCopies, checkReadRunCopies, compareReadRunFiles, materialiseReadRuns, readReadRunsIndex,
-  type ReadRunCopyIdentities } from './readRuns.js';
+  removeReadRunCopies, type ReadRunCopyIdentities } from './readRuns.js';
 import { openConnectorRuntime } from '../connectors/runtime.js';
 import { emptyConnectorService, type McpConnectorService } from '../tools/mcpConnectors.js';
 import { validateProjectRetrievalBinding, type ProjectRetrievalBinding } from '../tools/projectRetrieval.js';
@@ -1332,11 +1332,17 @@ async function startTaskInternal(
           if (!backend.drain) throw new Error('Depth routing backend cannot confirm process exit');
           await backend.drain();
           signal.throwIfAborted();
-          // The read-run copies never enter the first attempt's archive: they
-          // are copied again below, and in `.prevN` they kept another run's
-          // bytes past that run's retention (second review 2026-10-17).
-          if (readRuns) rmSync(join(workspaceRoot, READ_RUNS_DIRECTORY), { recursive: true, force: true });
-          prepareWorkspace(workspaceRoot, true);
+          const archived = prepareWorkspace(workspaceRoot, true);
+          // The read-run copies do not stay in the first attempt's archive:
+          // they are copied again below, and in `.prevN` they kept another
+          // run's bytes past that run's retention (second review 2026-10-17).
+          // Archived FIRST, as before, and removed from the archive at best:
+          // a shell's `chmod -R a-w` on them must never fail the restart
+          // (third check 2026-10-17).
+          if (readRuns && archived) {
+            const failure = await removeReadRunCopies(join(archived, READ_RUNS_DIRECTORY));
+            if (failure) consoleLogger.warn(`read-run copies left in the archive ${archived}: ${failure}`);
+          }
           // A seeded run restarts from its SEED, not from nothing: see
           // `seedWorkspace`. A failed copy throws and fails the run, with the
           // first attempt still intact in its `.prevN` archive. So does a

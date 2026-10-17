@@ -73,11 +73,12 @@ export function ensureModuleResolutionBoundary(root: string): void {
   }
 }
 
-export function prepareWorkspace(root: string, clean: boolean): void {
+/** Returns the archive the workspace was moved to, when it was archived. */
+export function prepareWorkspace(root: string, clean: boolean): string | undefined {
   ensureModuleResolutionBoundary(root);
-  if (!existsSync(root)) return;
+  if (!existsSync(root)) return undefined;
   const stale = readdirSync(root);
-  if (stale.length === 0) return;
+  if (stale.length === 0) return undefined;
   if (!clean) {
     const shown = stale.slice(0, 8).join(', ');
     console.log(
@@ -86,7 +87,7 @@ export function prepareWorkspace(root: string, clean: boolean): void {
     console.log(
       '  stale artefacts appear in verification evidence — pass --clean-workspace to archive them'
     );
-    return;
+    return undefined;
   }
   // A monotonic suffix keeps repeated archives distinct without a clock
   // (and without ever overwriting an earlier archive).
@@ -97,6 +98,7 @@ export function prepareWorkspace(root: string, clean: boolean): void {
   const archived = join(parent, `${base}.prev${n}`);
   renameSync(root, archived);
   console.log(`workspace archived: ${archived} (${stale.length} entries) — starting clean`);
+  return archived;
 }
 
 

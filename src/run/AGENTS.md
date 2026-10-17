@@ -194,8 +194,9 @@ Neighbours:
   saved mode (0755 for `100755`, else 0644; directories 0755), and the identity
   (device, inode, ctime, mode) of every copied file and directory is kept; a
   continuation keeps its sealed copies and takes their identities after the
-  restore. The restart removes the copies before it archives the first attempt
-  (`.prevN` never holds them). A mismatch is a `RunnerConfigError` before any
+  restore. The restart archives the first attempt, then removes the copies
+  from `.prevN` at best (`removeReadRunCopies`: u+rwx on every directory, no
+  link followed, a logged line, never a failed restart). A mismatch is a `RunnerConfigError` before any
   model call, or fails the restart with `.prevN` intact. Root acceptance reads
   `ctx.readRunCopies` and `ctx.compareReadRunFiles` (the criteria texts)
   ([decision](../../docs/decisions/read-runs-2026-10-17.md)).

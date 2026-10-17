@@ -18,6 +18,7 @@ import { outOfPhaseBudget } from '../core/limits.js';
 import { checkpointWorkspaceDigest, readCheckpointWorkspace, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
 export { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
 import { PhaseBoundaryPause, runCheckpointSchema, type RootDelegationApproval, type RootPhaseCheckpoint, type RunCheckpoint, type ProjectCheckpointStatus } from '../contracts/runCheckpoint.js';
+import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
 
 const DDL = `CREATE TABLE IF NOT EXISTS run_checkpoints (
   id TEXT PRIMARY KEY, state TEXT NOT NULL, owner TEXT NOT NULL,
@@ -164,6 +165,27 @@ export class RunCheckpointStore {
   /** `checkpointContinuable` for one project run, read from its row and status. */
   continuable(id: string, orgId: string, runStatus: string): boolean {
     return projectRunContinuable(this.db, id, orgId, runStatus);
+  }
+
+  /**
+   * Delete the read-run copies (`.atoma-runs`, src/contracts/readRuns.ts) that
+   * a run's checkpoint snapshot sealed with the rest of its workspace, once
+   * the run can no longer be continued: the snapshot outlived the read run's
+   * own retention in the product store (third check 2026-10-17). A snapshot
+   * another checkpoint may still restore from (a continuation shares its
+   * source's until its first boundary) stays whole while `keep` says so of
+   * that holder. The snapshot then no longer matches its digest, so a restore
+   * of it fails closed; nothing may restore it. Returns the entries deleted.
+   */
+  forgetReadRunCopies(id: string, keep: (holder: string) => boolean): number {
+    const row = this.db.prepare("SELECT json_extract(payload,'$.snapshotId') AS snapshot FROM run_checkpoints WHERE id=?").get(id) as
+      { snapshot: string | null } | undefined;
+    if (!row?.snapshot) return 0;
+    const holders = this.db.prepare("SELECT id FROM run_checkpoints WHERE id<>? AND state<>'finished' AND json_extract(payload,'$.snapshotId')=?")
+      .pluck().all(id, row.snapshot) as string[];
+    if (holders.some(keep)) return 0;
+    return this.db.prepare('DELETE FROM run_checkpoint_files WHERE snapshot=? AND (path=? OR substr(path,1,?)=?)')
+      .run(row.snapshot, READ_RUNS_DIRECTORY, READ_RUNS_DIRECTORY.length + 1, `${READ_RUNS_DIRECTORY}/`).changes;
   }
 
   requestPause(id: string, orgId: string): void {

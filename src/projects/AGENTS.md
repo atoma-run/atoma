@@ -563,8 +563,9 @@ manifests. A rerun reads its origin's, refused once one expired; a continuation 
 from stored manifests. ONE predicate, `projectRunContinuable` (paused, or recoverable), decides
 both: retention holds them while a reader is queued, running or continuable (on the plan's
 read-only handle), and a reader that ends and cannot be continued has its own `.atoma-runs`
-removed once its manifest and preview are built; a continuation's end also releases the run it
-consumed, and boot releases runs a restart failed. Never a seed, never delivered:
+removed once its manifest and preview are built, and from its checkpoint snapshot
+(`forgetReadRunCopies`); a continuation's end also releases the run it consumed, and boot
+releases runs a restart failed with theirs. A removal logs, never throws. Never a seed, never delivered:
 [decision](../../docs/decisions/read-runs-2026-10-17.md).
 
 ## Comparison reruns
