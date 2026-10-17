@@ -94,14 +94,15 @@ Neighbours:
   Known limit: the preemption comes at lease time, before the start's later
   refusals (capacity, a duplicate, a changed connection), so a start refused
   there still costs the analysis its session; it restarts from scratch.
-- The mender model and checks stay in disposable Docker containers: 2 GiB RAM,
+- The mender model and checks stay in disposable Docker containers: 4 GiB RAM,
   no additional swap, one CPU, 512 MiB tmpfs, one Vitest worker. Host Codex is
   text-only and holds a dedicated ChatGPT profile; the harness alone holds the
   GitHub publisher token. Never give containers product state or credentials.
 - Chromium and its libraries live in the mender image, with Puppeteer downloads
   disabled. Each fresh command can run browser tests without an install cache.
   Synthetic read-only passwd/group files describe only the executing UID/GID;
-  Node gets a 1536 MiB heap within the existing 2 GiB container limit.
+  Node gets a 3072 MiB heap within the 4 GiB container limit. The 8 GiB
+  production host retains the other half for the control plane and host services.
 - `deploy/install-mender.sh` installs from a verified deployed revision, preserves
   an existing clone and configuration, and removes retired dispatch settings.
   The developer CLI remains available with the same idle reservation.

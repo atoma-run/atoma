@@ -29,6 +29,11 @@ describe.skipIf(process.env['ATOMA_MENDER_CONTAINER_TESTS'] !== '1')('mender con
     execFileSync('git', ['-C', repo, 'worktree', 'add', '--detach', work, 'HEAD'], { stdio: 'pipe' });
     const install = await runIsolatedMenderCommand('npm ci', [], { cwd: work, timeoutMs: 300_000 });
     expect(install.code, install.stdout + install.stderr).toBe(0);
+    // A fresh typecheck is the production failure: do not reuse an incremental cache.
+    const typed = await runIsolatedMenderCommand('npm run typecheck', [], {
+      cwd: work, timeoutMs: 300_000, network: 'none',
+    });
+    expect(typed.code, typed.stdout + typed.stderr).toBe(0);
     const checked = await runIsolatedMenderCommand('npx vitest run', [
       'tests/smoke-message-legibility.test.ts',
       'tests/validate-html-bounds.test.ts',
@@ -56,7 +61,7 @@ describe.skipIf(process.env['ATOMA_MENDER_CONTAINER_TESTS'] !== '1')('mender con
       const cp = require('node:child_process');
       if (process.env.GH_TOKEN || process.env.GITHUB_TOKEN) process.exit(10);
       if (process.env.VITEST_MAX_WORKERS !== '1') process.exit(21);
-      if (fs.existsSync('/sys/fs/cgroup/memory.max') && fs.readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim() !== '2147483648') process.exit(22);
+      if (fs.existsSync('/sys/fs/cgroup/memory.max') && fs.readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim() !== '4294967296') process.exit(22);
       if (fs.existsSync('/sys/fs/cgroup/memory.swap.max') && fs.readFileSync('/sys/fs/cgroup/memory.swap.max', 'utf8').trim() !== '0') process.exit(23);
       if (fs.existsSync(${JSON.stringify(secretPath)})) process.exit(11);
       if (fs.existsSync('/var/run/docker.sock')) process.exit(12);
@@ -83,7 +88,7 @@ describe.skipIf(process.env['ATOMA_MENDER_CONTAINER_TESTS'] !== '1')('mender con
         assert.equal(os.homedir(), '/tmp');
         assert.equal(os.userInfo().uid, process.getuid());
         assert.equal(os.userInfo().gid, process.getgid());
-        assert.ok(require('node:v8').getHeapStatistics().heap_size_limit > 1500 * 1024 * 1024);
+        assert.ok(require('node:v8').getHeapStatistics().heap_size_limit >= 3072 * 1024 * 1024);
         assert.equal(process.env.PUPPETEER_SKIP_DOWNLOAD, '1');
         const html = cp.execFileSync(process.env.PUPPETEER_EXECUTABLE_PATH, [
           '--headless', '--no-sandbox', '--disable-dev-shm-usage',
