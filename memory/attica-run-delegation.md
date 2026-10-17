@@ -199,3 +199,35 @@ acceptance, publication or real collection occurred in this continuation.
   with an over-escaped regex (/\\s+/ needing a literal backslash) was
   unsatisfiable, rejected the work 5 times and exhausted a ladder; no reviewer
   noticed. A suite that fails identically on every attempt could be flagged.
+- 4d330cc5 (restore v2, FAILED, $2.83, 2026-10-16 23:43-23:59): five root plans
+  refused; the planner kept returning a clarification-only plan with no
+  restoration subtask and no parent suite. Relaunched as v3 (stage1h-goal.txt),
+  which asks for a Vitest suite of the restored behaviour.
+- 760fef4c (restore v3, partial, $7.67, 2026-10-17 00:28-01:21): both files on
+  their target sha256; new tests/xe-restoration.vitest.test.ts (real collector,
+  fake session) 3/3; clean-copy npm ci + check pass (Vitest 7/7, node --test
+  75/75, rebuilt dist byte-identical). It also edited
+  tests/xe-browser-local-hardening.test.js, which my goal forbade but which was
+  necessary: the base version asserted the removed 12-request ceiling and a
+  resume without clearing the pause (2/7 red on the restored code). Refused at
+  delivery by an ATOMA defect, fixed in b8b2fd86 (live 2026-10-17 02:20 UTC): the parent suites failed 0/0
+  because xe-browser-session.js calls existsSync('/usr/bin/chromium') at
+  import, which throws ERR_ACCESS_DENIED under the runner's node --permission.
+- Open on the Attica side after 760fef4c (two independent reviews):
+  the CAPTCHA case covers collect() only, not resume() (a mutant that clears
+  the pause on resume passes all three new tests; only the node test "captcha:
+  CAPTCHA pause persists across restart" catches it); the Retry-After case
+  uses a bare rejects.toThrow(); tests/xe-chromium.test.ts lost its restart and
+  /api/resume-after-CAPTCHA block, and its last assertion counters.details===2
+  is likely unreachable (never run). Migration drift vs the pre-migration JS of
+  run 6b6b1952: checkpoint.ts throws on parseable non-object JSON (null, []);
+  store and scheduler treat a null file as defaults; migrateCheckpoint takes
+  the first non-null of rows/listings/results instead of the first array; the
+  scheduler suite never proves the timezone (it uses the defaults).
+- Next: a short run seeded from 760fef4c once b8b2fd86 is live (resume-path
+  CAPTCHA case, exact Retry-After message, the xe-chromium block rewritten to
+  clear the pause before resuming, the hardening edit declared), then a
+  drift-fix run for the malformed-input outcomes.
+- Goal lesson: "keep everything else exactly as delivered" contradicts a
+  behaviour restoration whenever an existing test asserts the removed
+  behaviour. Name the tests that must change with the restoration.
