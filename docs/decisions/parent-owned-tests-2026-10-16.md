@@ -676,3 +676,55 @@ Decision's view of a plan (`JEV_STATE_CHARS.plan`, 20,000 characters) already
 cuts the largest plans. The collision coaching in `l3RootPlan.ts` still rides
 the task's constraints. The 32,000-character stored bound can be lowered once
 no checkpoint from before the change can resume.
+
+## A suite that fails the same way on every implementation: measured only
+
+Decided 2026-10-17 under the owner's delegation. In run 2e6bdcfc (2026-10-16)
+a cell wrote a suite whose regular expression was escaped twice, so `\\s`
+matched a backslash and no `package.json` could pass it. It failed byte for
+byte on every run: three molecule attempts that changed nothing, three that
+each rewrote `package.json`, and the cell's own fallback. Root acceptance
+refused the run mechanically, naming the suite's failure, and nobody named the
+suite: 17.5 minutes and $0.45 of calls. The plan-time regex check above now
+refuses that class before any review. This is the general runtime half, and it
+only counts.
+
+**What is counted.** The runner digests the snapshot twice: `workspaceDigest`
+over everything it copied, `node_modules` included, and `subjectDigest` over
+the same records without root `.atoma*` entries and without any `node_modules`
+directory. Every attempt that records a probe moves the first, so three
+attempts on one implementation would read as three; a probe record, an
+install or a Vite cache does not move the second, while `package.json` or a
+source file does. `subjectDigest` is optional on the worker's reply and kept
+in the persisted record; no display reads it. `taskSuiteDispute`
+(`src/core/parentTests.ts`) finds a dispute when the task's own suite failed
+with one failing set, the repeat key's text, on at least 3 runs spanning at
+least 2 subject digests, across branch retries, looked for where the loop
+escalates. In 2e6bdcfc, as recorded, it would have held at the second
+escalation: 6 runs over 4 versions. The run counts it once per suite per
+attempt (`suiteDisputes` in the run stats, one more key in `atoma_run_status`)
+and logs one warning line in the run log. Nothing else: no branch, fallback,
+return path or text changes, and no model reads it.
+
+**Why no model reads it.** A first version rendered a "SUITE DISPUTE (host
+fact)" line into the spent ladder's hand-up and atop root acceptance's
+mechanical refusal. Its adversarial review (2026-10-17) found the line in all
+24 model calls of the next pass, twice in each delegated one, as a host-endorsed
+invitation to contest the suite, while the signal itself is weak: a build
+output (every TypeScript child runs `npm run build`), a data file or a log the
+child writes is another version, and three different wrong implementations
+failing one assertion ("expected false to be true") look exactly like a wrong
+suite. Children working under a correct suite would have been told to doubt
+it, which is the behaviour a child-filled challenge field was refused for, and
+the planned measurement could not have separated that effect.
+
+**Measured before anything reads it.** For each counted dispute, joining the
+warning line's suite digest with the persisted records and the trace: the
+suite was wrong (as in 2e6bdcfc), the implementation was wrong, or it cannot
+be told. A model-facing line or routing back to the owner lands only if, over
+at least 20 counted disputes, at least half were wrong suites; then with a
+holdout, so its effect on the next pass can be measured. Known over-count:
+build outputs, data files, logs and coverage reports move the subject digest,
+and identical failures of different wrong implementations count. Known
+under-count: an older worker's runs carry no subject digest, and a dispute that
+first holds on the fallback's own run is not counted.

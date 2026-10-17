@@ -206,7 +206,11 @@ Neighbours:
   copy. Canonical suites stay on the host. The container remains the OS
   isolation boundary; Node permissions are defence in depth. No tests, skips,
   focused tests, missing reports and timeouts cannot pass; a run that did not
-  finish reports a typed `cause`, never prose a reader classifies.
+  finish reports a typed `cause`, never prose a reader classifies. The snapshot
+  is digested twice: `workspaceDigest` over every record, `subjectDigest`
+  without root `.atoma*` entries and any `node_modules` (host artefacts,
+  installs, caches), so a probe record or a Vite cache is not another
+  implementation for the suite-dispute count ([src/atoms](../atoms/AGENTS.md)).
 - The copy is asynchronous: one worker serves every lane, and the synchronous
   copy froze all of them for its duration (review 2026-10-16). Snapshots share
   at most three libuv slots per process, leaving pool threads to siblings.

@@ -1004,7 +1004,9 @@ export interface RunContext {
    * and a byte-identical repeat is handed to the LLM validator with the
    * facts attached instead of tripping the repeat-rejection tracker.
    * Shared across forks by `forkBranch` (replans build fresh instances),
-   * but reset between depth-pilot attempts like the plan memo.
+   * but reset between depth-pilot attempts like the plan memo. Also keys
+   * `suite-dispute|<suite digest>`: a suite dispute is counted and surfaced
+   * once per attempt (`suiteDisputeWatch`, src/core/parentTests.ts).
    */
   mechanicalResultRejections?: Set<string>;
   readonly signal: AbortSignal;

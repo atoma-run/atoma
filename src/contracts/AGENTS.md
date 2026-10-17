@@ -162,6 +162,8 @@ Neighbours:
   It never parses `details` or summary prose and carries no suite source. The
   reader schema is derived from the writer's without its maxes: readers slice
   and replace control characters and lone surrogates, never reject.
+  `subjectDigest` (2026-10-17) is optional on the worker's reply and kept in
+  the record, a malformed one read as absent; no display reads it.
 - The suite digest stays in `parentTests.ts` (`node:crypto`), which re-exports
   the record names for the server; client code imports `parentTestRecord.js`
   only (`tests/viz-client-bundle-boundary.test.ts` bundles the consumers).

@@ -108,6 +108,13 @@ export const parentTestObservationSchema = z.object({
   suiteDigest: z.string(),
   suite: parentTestSuiteSchema.optional(),
   workspaceDigest: z.string(),
+  /**
+   * The same snapshot records without root `.atoma*` entries and without any
+   * `node_modules` (host artefacts, installs, caches): what the code under test
+   * is made of, so a probe record or a Vite cache is not another
+   * implementation. Absent from an older worker and before a copy finished.
+   */
+  subjectDigest: z.string().optional(),
   status: parentTestStatusSchema,
   /** Absent from an older worker; read as a host cause. */
   cause: parentTestCauseSchema.optional(),
@@ -146,6 +153,7 @@ export function persistedParentTests(observations: readonly HeldParentTestObserv
   return observations.map((observation) => ({
     suiteDigest: observation.suiteDigest,
     workspaceDigest: observation.workspaceDigest,
+    ...(observation.subjectDigest !== undefined ? { subjectDigest: observation.subjectDigest } : {}),
     status: observation.status,
     ...(observation.cause ? { cause: observation.cause } : {}),
     passed: observation.passed,

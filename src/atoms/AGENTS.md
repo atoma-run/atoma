@@ -374,6 +374,9 @@ load-bearing.
   `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves), from
   `list_files` alone: a host `read_file` marks files read and disarms
   `write_file`'s blind-overwrite refusal. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
+- A SUITE DISPUTE (`taskSuiteDispute`, measured only): the task's own suite failed with one failing set on 3+ runs
+  over 2+ `subjectDigest`s, looked for where the loop escalates. Counted once per suite per attempt (`suiteDisputes`)
+  and logged; no routing and no text any model reads ([decision](../../docs/decisions/parent-owned-tests-2026-10-16.md#a-suite-that-fails-the-same-way-on-every-implementation-measured-only)).
 
 - One text states what a parent suite can run and how browser-only behaviour is
   proven (`PARENT_TEST_RUNNER_SCOPE`: a `validate_html` subtask, with the
@@ -744,6 +747,10 @@ Read the archived sections before changing something that merely looks odd.
   `producedBy` (false provenance); a hand-up without root acceptance (delivered
   unread). The `[A, C]` reach lands by analogy, with a pre-registered count:
   [record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-spent-ladders-that-are-not-recognised).
+- Suite disputes route nothing and reach no model until measured (2026-10-17). Refused: a "SUITE DISPUTE" line in
+  the hand-up and the root's refusal (it reached every call of the next pass as an invitation to contest a suite
+  the weak signal often wrongly suspects), `workspaceDigest` as the version (every probe record moved it), and a
+  challenge field the child fills in (run 2e6bdcfc's child tried to game its suite instead).
 - Split verification (G5, 2026-10-16,
   [record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-split-verification-parts-land-on-the-right-cell-and-own-their-criteria)).
   Do not bind a split checkpoint's criteria to a part whose cell cannot prove

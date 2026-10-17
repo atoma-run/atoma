@@ -78,6 +78,8 @@ const slots = new Slots(SNAPSHOT_SLOTS);
 /** What a snapshot copied; `digest` covers exactly the bytes and links written. */
 export interface SnapshotReceipt {
   readonly digest: string;
+  /** The same records without root `.atoma*` entries and any `node_modules` (see `subjectRecord`). */
+  readonly subjectDigest: string;
   readonly entries: number;
   readonly files: number;
   readonly bytes: number;
@@ -97,6 +99,21 @@ const childOf = (parent: Buffer, name: Buffer, separator: Buffer): Buffer =>
 const readFailure = (rel: Buffer, error: unknown): Error => UNREADABLE.has(errno(error) ?? '')
   ? new TypedFailure('snapshot-unreadable', `Verification cannot read ${shown(rel)}: its permissions refuse the workspace owner (${errno(error)})`)
   : new Error(`Verification could not read ${shown(rel)}: ${errno(error) ?? String(error).slice(0, 200)}`);
+
+/**
+ * Whether a copied entry is part of what the code under test is made of, for
+ * `subjectDigest`. A root `.atoma*` entry is a host artefact (the probe
+ * manifest, saved response bodies) and a `node_modules` directory, at any
+ * depth, is an install or a cache (Vite writes `node_modules/.vite`): every
+ * attempt that records a probe moved the workspace digest, so three attempts
+ * on one implementation read as three (run 2e6bdcfc). `package.json`, a
+ * lockfile and every source file still count. `rel` is `/`-separated on every
+ * platform; latin1 keeps one code unit per byte.
+ */
+function subjectRecord(rel: Buffer): boolean {
+  const parts = rel.toString('latin1').split('/');
+  return !parts[0]!.startsWith('.atoma') && !parts.includes('node_modules');
+}
 
 /**
  * A bounded, asynchronous copy of `root` into `target`: verification cannot
@@ -295,9 +312,13 @@ export async function snapshotProject(
   // Code-unit order, never locale order: the digest must not depend on the host's locale.
   records.sort((a, b) => Buffer.compare(a.rel, b.rel));
   const digest = createHash('sha256');
-  for (const { record } of records) digest.update(record);
+  const subject = createHash('sha256');
+  for (const { rel, record } of records) {
+    digest.update(record);
+    if (subjectRecord(rel)) subject.update(record);
+  }
   return {
-    digest: digest.digest('hex'), entries, files, bytes, links, skipped, unstable, unstablePaths,
+    digest: digest.digest('hex'), subjectDigest: subject.digest('hex'), entries, files, bytes, links, skipped, unstable, unstablePaths,
     ms: Math.round(performance.now() - started),
   };
 }
@@ -510,7 +531,7 @@ export async function runParentTests(sandbox: ToolSandbox, argv: readonly string
     }
     logger?.info(`[tool:atoma-verify] snapshot ${receipt.entries} entries, ${receipt.files} files, ${receipt.bytes} bytes, ` +
       `${receipt.links} links, ${receipt.skipped} skipped, ${receipt.unstable} unstable in ${receipt.ms} ms`);
-    observation = { ...observation, workspaceDigest: receipt.digest, snapshot: {
+    observation = { ...observation, workspaceDigest: receipt.digest, subjectDigest: receipt.subjectDigest, snapshot: {
       entries: receipt.entries, files: receipt.files, bytes: receipt.bytes, links: receipt.links,
       skipped: receipt.skipped, unstable: receipt.unstable, ms: receipt.ms,
     } };

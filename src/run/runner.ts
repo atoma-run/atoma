@@ -268,6 +268,7 @@ function machineRunStats(
     unjudgedRemediations: signals['unjudged-remediation'],
     discardedLessons: signals['discarded-lesson'],
     triggerRejections: signals['skill-trigger-rejected'],
+    suiteDisputes: signals['suite-dispute'],
     landingReasons: [...landing],
   };
 }
@@ -1034,6 +1035,7 @@ async function startTaskInternal(
     'unjudged-remediation': 0,
     'discarded-lesson': 0,
     'skill-trigger-rejected': 0,
+    'suite-dispute': 0,
   };
   // ONE construction switch per transport, shared with curriculum and the viz
   // server (review §3.9): only the transports the three selectors reach are

@@ -463,12 +463,20 @@ describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('c
       writeFileSync(join(workspace, 'vitest.config.ts'), "throw new Error('foreign config');");
       const suite = {requirement: 'sum handles signed inputs', cwd: '.', source:
         "import {test,expect} from 'vitest'; import {sum} from './sum.ts'; import {writeFileSync} from 'node:fs'; test('sum',()=>{expect(sum(2,3)).toBe(5);expect(sum(-2,1)).toBe(-1);expect(()=>writeFileSync('/workspace/sum.ts','bad')).toThrow();expect(()=>writeFileSync('/app/dist/tools/worker.js','bad')).toThrow()});"};
-      const run = () => executor.execute('run_shell', {command:'atoma-verify',args:[JSON.stringify(suite)],timeoutMs:30_000});
+      type Observed = { status?: string; workspaceDigest?: string; subjectDigest?: string };
+      const run = async () => await executor.execute('run_shell', {command:'atoma-verify',args:[JSON.stringify(suite)],timeoutMs:30_000}) as Observed;
       const passed = await run();
-      expect(passed, JSON.stringify(passed)).toMatchObject({status:'passed',passed:1});
+      expect(passed, JSON.stringify(passed)).toMatchObject({status:'passed',passed:1,subjectDigest:expect.stringMatching(/^[0-9a-f]{64}$/)});
+      // A host artefact moves the workspace digest, never the subject digest (suite disputes, 2026-10-17).
+      writeFileSync(join(workspace,'.atoma-probes.json'),JSON.stringify({probes:[]}));
+      const probed = await run();
+      expect(probed).toMatchObject({status:'passed',subjectDigest:passed.subjectDigest});
+      expect(probed.workspaceDigest).not.toBe(passed.workspaceDigest);
       expect(readFileSync(join(workspace,'sum.ts'),'utf8')).toContain('a+b');
       writeFileSync(join(workspace,'sum.ts'),'export const sum=()=>5;');
-      expect(await run()).toMatchObject({status:'failed',failed:1});
+      const failed = await run();
+      expect(failed).toMatchObject({status:'failed',failed:1});
+      expect(failed.subjectDigest).not.toBe(passed.subjectDigest);
       expect(existsSync(join(workspace,'atoma.acceptance.test.ts'))).toBe(false);
     } finally {
       await executor.drain();
