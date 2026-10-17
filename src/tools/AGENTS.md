@@ -408,6 +408,10 @@ Neighbours:
 
 ## Intentional choices and rejected shortcuts
 
+- `read_file` with the internal `observationOnly` flag withholds its `markSeen`
+  side effect: supervisor inspection must not authorize a child's blind overwrite.
+  Ordinary reads still authorize writes; observation never revokes an existing read.
+
 - File text is preserved after one JSON decoding; source escapes are bytes,
   not transport errors. `edit_file` never unescapes its replacement. A mismatched
   old span can be recovered only when one decoded span exists and the raw old

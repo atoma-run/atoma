@@ -452,6 +452,27 @@ describeDocker('a containerised run cannot reach the stores', () => {
 // isolated tag explicitly, so a stale shared :latest cannot masquerade as proof.
 const acceptanceImage = process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'];
 describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('compiled parent-test worker', () => {
+  it('keeps supervisor observation from authorizing a child overwrite across the worker boundary', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-observation-image-'));
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    try {
+      writeFileSync(join(workspace, 'source.ts'), 'export const value = 1;');
+      await executor.start();
+      expect(await executor.execute('read_file', { path: 'source.ts', observationOnly: true }))
+        .toMatchObject({ content: 'export const value = 1;' });
+      await expect(executor.execute('write_file', { path: 'source.ts', content: 'export const value = 2;' }))
+        .rejects.toThrow('nothing in this run has read it');
+      await executor.execute('read_file', { path: 'source.ts' });
+      await executor.execute('read_file', { path: 'source.ts', observationOnly: true });
+      await executor.execute('write_file', { path: 'source.ts', content: 'export const value = 2;' });
+      expect(readFileSync(join(workspace, 'source.ts'), 'utf8')).toBe('export const value = 2;');
+    } finally {
+      await executor.drain();
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it('uses packaged Vitest, detects a wrong implementation and keeps the workspace intact', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'atoma-acceptance-image-'));
     const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,

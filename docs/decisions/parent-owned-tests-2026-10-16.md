@@ -464,7 +464,16 @@ and declared by no subtask, or outside the copied cwd. It is computed from the
 executor's `list_files` alone, which marks nothing as read, bounded and
 fail-open: a directory that cannot be listed, as when a sibling branch is
 writing it, gives no block rather than a false "not present"; never a
-verdict. Not landed: a line
+verdict. Since run 034d176d, the same review also receives current source for
+at most six distinct resolved source imports, through `criteriaFilesBlock`
+with a 24,000-character source allowance. The suite text supplies search words;
+this is evidence, not an API checker or another model call. Missing or cut
+source proves no interface absent, and requested interface changes remain
+allowed. These initial resource bounds are not a measured semantic guarantee.
+Observation-only `read_file` withholds overwrite authorization, including
+referenced fixture reads. It neither revokes an earlier ordinary read nor
+changes sandbox access. [Regression and review](../../records/reviews/suite-interface-evidence-2026-10-17.md).
+Not landed: a line
 naming the modules a plan writes that no suite imports. Replays found it
 consistent on one plan, but the adversarial review of its first version found
 it wrong where it mattered (14 of 14 corpus lines named a `.js` the plan

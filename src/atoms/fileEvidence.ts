@@ -5,6 +5,7 @@ import type { AcceptanceChecklist } from '../contracts/acceptanceChecklist.js';
 import type { AttestationRecord } from '../contracts/attestation.js';
 import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_MAX_CHARS } from '../contracts/parentTests.js';
+import { FILE_OBSERVATION_ONLY_ARG } from '../contracts/toolOutput.js';
 
 const NAMED_PATH = /(?<![\w./-])(\.?[\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
 const CRITERIA_FILES_MAX = 16;
@@ -167,6 +168,7 @@ function namedFileExcerpt(content: string, words: ReadonlySet<string>, allowance
 export async function criteriaFilesBlock(
   ctx: RunContext, checklist: AcceptanceChecklist, refreshPaths: readonly string[], taskDescription: string,
   sourceChars: number = CRITERIA_SOURCE_CHARS, commandTests: readonly string[] = [],
+  options: { observationOnly?: boolean; heading?: string } = {},
 ): Promise<string> {
   if (!ctx.tools?.has('read_file') || (checklist.length === 0 && refreshPaths.length === 0 && commandTests.length === 0)) return '';
   const tools = baseExecutorOf(ctx.tools);
@@ -211,7 +213,7 @@ export async function criteriaFilesBlock(
     const words = new Set(naming.flatMap((text) => [...text.matchAll(CRITERIA_TOKEN)].map((match) => match[0]))
       .filter((word) => !COMMON_WORDS.has(word) && word !== stem));
     try {
-      const read: unknown = await tools.execute('read_file', { path });
+      const read: unknown = await tools.execute('read_file', { path, ...(options.observationOnly ? { [FILE_OBSERVATION_ONLY_ARG]: true } : {}) });
       const content = typeof read === 'string' ? read : read && typeof read === 'object' &&
         'content' in read && typeof read.content === 'string' ? read.content : undefined;
       if (content === undefined) throw new Error('read returned no content');
@@ -243,7 +245,7 @@ export async function criteriaFilesBlock(
         if (attempted + referenceReads >= CRITERIA_FILES_MAX || ctx.signal?.aborted) break;
         referenceReads++;
         try {
-          const read: unknown = await tools.execute('read_file', { path });
+          const read: unknown = await tools.execute('read_file', { path, ...(options.observationOnly ? { [FILE_OBSERVATION_ONLY_ARG]: true } : {}) });
           const content = typeof read === 'string' ? read : read && typeof read === 'object' &&
             'content' in read && typeof read.content === 'string' ? read.content : undefined;
           if (content === undefined) continue;
@@ -298,7 +300,7 @@ export async function criteriaFilesBlock(
   const sources = [refreshPaths.length ? 'WHOSE READS WERE SUPERSEDED OR TRUNCATED' : '', commandNamed.length ? 'THAT SHELL COMMANDS NAMED' : '']
     .filter(Boolean).join(' OR ');
   return lines.length > 0
-    ? [`FILES THE CRITERIA NAME${sources ? ` OR ${sources}` : ''}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,
+    ? [`${options.heading ?? `FILES THE CRITERIA NAME${sources ? ` OR ${sources}` : ''}`}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,
       'does not show: never judge a criterion unmet on a part of the file you were not shown.',
       'These are current file contents, not executed checks. Historical command outcomes remain separate; a later edit is not proved by an earlier execution.', ...lines].join('\n')
     : '';

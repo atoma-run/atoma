@@ -156,7 +156,7 @@ describe('the host facts block', () => {
     { description: 'Change the modules', outputs, acceptanceTests: suite(source, cwd) },
   ] });
 
-  it('states where each import resolves, from list_files alone', async () => {
+  it('states where each import resolves and reads existing source separately', async () => {
     const { ctx } = workspace(files);
     const source = [
       "import { test, expect } from 'vitest';",
@@ -171,13 +171,54 @@ describe('the host facts block', () => {
       "test('t', () => { expect(a() + lib + n + h + d + o).toBe(page.length); });",
     ].join('\n');
     const block = await planSuiteFactsBlock(facts(source, ['src/new.ts', 'tests/']), ctx);
-    expect(block.split('\n')).toEqual([
+    expect(block.split('\n').slice(0, 2)).toEqual([
       'HOST FACTS ON THE SUITES, computed from the workspace and this plan; facts, not a verdict. Each suite runs as atoma.acceptance.test.ts at the root of a copy of its cwd, not at any path a subtask writes, and its relative imports resolve from there:',
       '- subtask 0 suite (cwd .): ./src/a → src/a.ts, exists; ./src/app.css → src/app.css, exists; ./public/index.html?raw → public/index.html, exists; ' +
         './vendor/lib → vendor/lib, a directory with a package.json and no index file; the entry it names is not checked; ./src/new.ts → src/new.ts, declared by this plan before the suite runs; ' +
         './tests/helpers/h.ts → tests/helpers/h.ts, declared by this plan before the suite runs; ./dist/server.js → not present now, and no subtask declares it; ' +
         '../outside.ts → outside the copied cwd, never present.',
     ]);
+    expect(block).toContain('export const a = () => 1;');
+    expect(block).not.toContain('body {}');
+  });
+
+  it('exposes the real required argument and method behind a suite that fails before its intended assertion', async () => {
+    const { root, ctx } = workspace({
+      'collector.js': "export function collect({startUrl, output}) { if (!startUrl || !output) throw new Error('startUrl and output required'); return output; }",
+      'store.ts': 'export class Store { loadPause() { return null; } }',
+    });
+    const broken = "import { test, expect } from 'vitest'; import { collect } from './collector.js'; import { Store } from './store.ts'; test('collect', () => { expect(collect({startUrl:'fixture'})).toBe('rows'); expect(new Store().getPauseState()).toBe(null); });";
+    const block = await planSuiteFactsBlock(facts(broken, []), ctx);
+    expect(block).toContain('startUrl and output required');
+    expect(block).toContain('loadPause()');
+    expect(block).not.toContain('getPauseState');
+    const box = new ToolSandbox(root);
+    boxes.push(box);
+    const failed = await runParentTests(box, [JSON.stringify(suite(broken))], 60_000);
+    expect(failed).toMatchObject({ status: 'failed', failed: 1 });
+    expect(failed.details).toContain('startUrl and output required');
+    const fixed = broken.replace("startUrl:'fixture'", "startUrl:'fixture',output:'rows'").replace('getPauseState()', 'loadPause()');
+    expect(await runParentTests(box, [JSON.stringify(suite(fixed))], 60_000)).toMatchObject({ status: 'passed', passed: 1 });
+  }, 90_000);
+
+  it('bounds imported source, deduplicates it, and reports unreadable content without inventing absence', async () => {
+    const { ctx } = workspace(Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`src/m${i}.ts`, `export const m${i} = ${i};`])));
+    const calls: Array<Record<string, unknown>> = [];
+    const tools: ToolExecutor = { has: name => ctx.tools.has(name), execute: async (name, args) => {
+      if (name === 'read_file') {
+        calls.push(args);
+        if (args['path'] === 'src/m1.ts') throw new Error('unreadable');
+      }
+      return await ctx.tools.execute(name, args);
+    } };
+    const source = Array.from({ length: 8 }, (_, i) => `import './src/m${i}.ts';`).join('\n') + "\nimport './src/m0.ts';";
+    const block = await planSuiteFactsBlock(facts(source, []), { ...ctx, tools });
+    expect(calls).toHaveLength(6);
+    expect(calls.every(args => args['observationOnly'] === true)).toBe(true);
+    expect(block).toContain('2 additional imported source files omitted');
+    expect(block).toContain('current read unavailable');
+    expect(block).toContain('This establishes no current content or absence');
+    expect(block).toContain('not a prohibition on changes the task requests');
   });
 
   // Second review 2026-10-17.
@@ -224,6 +265,19 @@ describe('the host facts block', () => {
     }
   });
 
+  it('observation-only reads withhold overwrite permission; an ordinary read still grants it', async () => {
+    const { ctx } = workspace({ 'src/a.ts': 'export const a = () => 1;\n' });
+    await expect(ctx.tools.execute('write_file', { path: 'src/a.ts', content: 'export {};\n' }))
+      .rejects.toThrow('nothing in this run has read it');
+    const observed = await ctx.tools.execute('read_file', { path: 'src/a.ts', observationOnly: true });
+    expect(observed).toMatchObject({ content: 'export const a = () => 1;\n' });
+    await expect(ctx.tools.execute('write_file', { path: 'src/a.ts', content: 'export {};\n' }))
+      .rejects.toThrow('nothing in this run has read it');
+    await ctx.tools.execute('read_file', { path: 'src/a.ts' });
+    await ctx.tools.execute('read_file', { path: 'src/a.ts', observationOnly: true });
+    await expect(ctx.tools.execute('write_file', { path: 'src/a.ts', content: 'export {};\n' })).resolves.toBeDefined();
+  });
+
   it('says an imported test file is one, and writes nothing without tools or suites', async () => {
     const { ctx } = workspace(files);
     const block = await planSuiteFactsBlock(facts("import { test } from 'vitest';\nimport './old.test.ts';\ntest('t', () => {});", ['src/a.ts'], 'tests'), ctx);
@@ -265,6 +319,7 @@ describe('the host facts block', () => {
     const reviews = ctx.llm.calls.filter(call => call.userContent.includes('== REQUIRED DELEGATION CONTRACT REVIEW =='));
     expect(reviews).toHaveLength(1);
     expect(reviews[0]!.userContent).toContain('- subtask 0 suite (cwd .): ./src/a.ts → src/a.ts, exists.');
+    expect(reviews[0]!.userContent).toContain('export const a = () => 1;');
   });
 
   it('hands a kept test-file import to the review as a fact: a real module may carry a test-like name', () => {
