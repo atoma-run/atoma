@@ -1,3 +1,33 @@
+import { lstatSync, realpathSync } from 'node:fs';
+import path from 'node:path';
+import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
+
+/** Where the read-run copies are mounted read-only in the worker. */
+export const READ_RUN_COPIES_MOUNT = `/workspace/${READ_RUNS_DIRECTORY}`;
+
+/**
+ * THE MOUNT-SOURCE GUARD for the read-run copies (docs/decisions/read-runs-2026-10-17.md),
+ * at the mount authority, before every `docker run`: `<workspace>/.atoma-runs`
+ * must be a real directory whose realpath is the workspace's own realpath plus
+ * that name. Docker FOLLOWS a symlinked bind source (measured on runc and
+ * runsc: `.atoma-runs -> /srv/secret` put the host directory in the worker),
+ * and `volume-subpath` follows an internal link. Returns the verified realpath,
+ * which is what the engine is handed, so no ancestor can be swapped after the
+ * check. No worker holds the workspace while this runs: every start follows a
+ * fresh workspace, an engine-confirmed drain or a crash whose container held
+ * the directory as a mount point it could not rename.
+ */
+export function verifiedRunCopiesSource(workspace: string): string {
+  const source = path.join(workspace, READ_RUNS_DIRECTORY);
+  let stat;
+  try { stat = lstatSync(source); } catch { throw new Error(`read-run copies mount refused: ${READ_RUNS_DIRECTORY} is absent`); }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error(`read-run copies mount refused: ${READ_RUNS_DIRECTORY} is not a real directory`);
+  const real = realpathSync(source);
+  if (real !== path.join(realpathSync(workspace), READ_RUNS_DIRECTORY)) throw new Error(`read-run copies mount refused: ${READ_RUNS_DIRECTORY} resolves elsewhere`);
+  if (/[,"'\n\r]/.test(real)) throw new Error('read-run copies mount refused: the path cannot be written as a mount option');
+  return real;
+}
+
 /**
  * `docker run` arguments that carry the isolation. Exported so a test can
  * assert them rather than trusting a comment — every one of them was
@@ -31,7 +61,18 @@ export function workerRunArgs(opts: {
    * worthless.
    */
   egress?: { network: string; proxyHost: string; proxyPort: number };
+  /**
+   * The verified `.atoma-runs` source (`verifiedRunCopiesSource`), mounted
+   * READ-ONLY over itself: `run_shell` can no longer edit, chmod, swap or
+   * delete another run's copies (EROFS, EBUSY, EXDEV). Always `--mount`,
+   * never `-v`, which creates a missing source as root instead of refusing.
+   * With a volume, the same directory as a `volume-subpath` (Engine 26+).
+   */
+  readOnlyRunCopiesSource?: string;
 }): string[] {
+  if (opts.readOnlyRunCopiesSource !== undefined && /[,"'\n\r]/.test(opts.readOnlyRunCopiesSource)) {
+    throw new Error('read-run copies mount refused: the path cannot be written as a mount option');
+  }
   return [
     'run',
     '--rm',
@@ -72,6 +113,12 @@ export function workerRunArgs(opts: {
     // `../../atoma-build.db` walk that works today finds nothing.
     ...(opts.workspaceVolume ? ['--mount', `type=volume,src=${opts.workspaceVolume},dst=/workspace,volume-nocopy`]
       : ['-v', `${opts.workspaceHostPath}:/workspace`]),
+    // Docker mounts by destination depth, so this lands on top of /workspace
+    // whatever the argument order (proven against the real engine).
+    ...(opts.readOnlyRunCopiesSource === undefined ? []
+      : ['--mount', opts.workspaceVolume
+        ? `type=volume,src=${opts.workspaceVolume},dst=${READ_RUN_COPIES_MOUNT},volume-subpath=${READ_RUNS_DIRECTORY},readonly,volume-nocopy`
+        : `type=bind,src=${opts.readOnlyRunCopiesSource},dst=${READ_RUN_COPIES_MOUNT},readonly`]),
     '-w',
     '/workspace',
     // Drop every capability and forbid regaining privilege: nothing the

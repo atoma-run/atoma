@@ -9,11 +9,18 @@ export const launcherWorkerSpecSchema = z.object({
   workspaceId: workerWorkspaceIdSchema.optional(),
   project: projectWorkspaceIdentitySchema.optional(),
   egress: z.boolean(),
+  /**
+   * Mount the workspace's `.atoma-runs` read-only (read runs). Strict on both
+   * sides: a launcher that predates it refuses the request, and the handle
+   * echoes it only when asked, so an older client never meets it.
+   */
+  readOnlyRunCopies: z.literal(true).optional(),
 }).strict();
 export type LauncherWorkerSpec = z.infer<typeof launcherWorkerSpecSchema>;
 export const launcherWorkerHandleSchema = z.object({
   id: z.string().uuid(), ownerId: launcherOwnerIdSchema,
   socketPath: z.string().min(1), workspaceHostPath: z.string().min(1), volume: z.string().optional(),
+  readOnlyRunCopies: z.literal(true).optional(),
 }).strict();
 export type LauncherWorkerHandle = z.infer<typeof launcherWorkerHandleSchema>;
 export interface WorkerLauncher {

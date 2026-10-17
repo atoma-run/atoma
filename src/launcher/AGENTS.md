@@ -261,7 +261,19 @@ versus uplink-then-internal) would have been quietly normalised away.
 `removeNetworkBefore` exists for the same reason: several removals in one
 teardown must share ONE deadline, not each get a fresh budget.
 
+- **Read-run copies are the one second worker mount**: `.atoma-runs`
+  read-only over itself, only when the spec asks (`readOnlyRunCopies`). The
+  source passes `verifiedRunCopiesSource` (a real directory whose realpath is
+  the workspace's plus that name) right before every `docker run`, because
+  Docker follows a symlinked bind source; the engine gets that realpath.
+  `--mount` only, `volume-subpath` in service mode (Engine 26+, fails closed).
+
 ## Intentional choices and rejected shortcuts
+
+- **`-v` for the read-run mount.** A missing source is created by the daemon
+  as root, where `--mount` refuses. Also rejected: copies stored outside the
+  workspace and mounted over it (host readers, the sandbox's link refusal,
+  sealing and retention would all move).
 
 - **A launcher that returns a pipe.** It would make the interface unswappable
   for the one operation that matters most, and it is what keeps the worker's

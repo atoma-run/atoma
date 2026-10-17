@@ -132,7 +132,10 @@ export interface ReadRunCopyReport {
   readonly runs: number;
   readonly files: number;
   readonly bytes: number;
-  /** Each copy's identity right after it was written, its directories' too, for `checkReadRunCopies`. */
+  /**
+   * Each copy's identity right after it was written. The runner takes them
+   * again once the worker mounting them started (`captureReadRunCopies`).
+   */
   readonly identities: ReadRunCopyIdentities;
 }
 
@@ -190,9 +193,11 @@ export function materialiseReadRuns(workspaceRoot: string, index: ReadRunsIndex)
 
 /**
  * The copies' identities as the workspace holds them now, files and
- * directories: taken right after the copy, and the baseline a continuation
- * takes after its sealed workspace was restored (new files, new inodes),
- * before any tool can touch them. A file that is not there, or not a regular
+ * directories: taken once the worker that mounts them has started, before any
+ * tool call, at launch, at the deepening restart and in a continuation (whose
+ * restore made new files). Not at copy time: Docker Desktop changes the mount
+ * source's ctime when a container starts (measured; Linux does not), which
+ * read as a directory moved. A file that is not there, or not a regular
  * file, gets none; nor does a directory that is not a real one. The walk stops
  * at the workspace entry limit.
  */
@@ -236,6 +241,20 @@ export function legacyReadRunCopy(workspaceRoot: string, index: ReadRunsIndex): 
   };
   return index.readRuns.find((entry) => exists(inWorkspace(workspaceRoot, `${READ_RUNS_DIRECTORY}/${entry.runId}`)) &&
     !exists(inWorkspace(workspaceRoot, readRunCopyPath(entry.runId))))?.runId;
+}
+
+/**
+ * The mount point of the read-only `.atoma-runs` mount, before each backend
+ * start: absent (a continuation whose sealed workspace lost it) it is created
+ * empty, so the check reports every file missing and no worker can fill it;
+ * anything but a real directory THROWS, before any worker starts. The
+ * launcher's guard checks again right before the engine.
+ */
+export function ensureReadRunMountPoint(workspaceRoot: string): void {
+  const directory = inWorkspace(workspaceRoot, READ_RUNS_DIRECTORY);
+  try { mkdirSync(directory, { mode: 0o755 }); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+  if (!realDirectory(directory)) throw new Error(`${READ_RUNS_DIRECTORY} is not a real directory; the read-run copies cannot be mounted`);
 }
 
 function realDirectory(path: string): boolean {

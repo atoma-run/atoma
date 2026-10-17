@@ -24,7 +24,7 @@ export type ContainerSpawn = typeof spawn;
 import { attachedWorkerLifecycle, hostContainerUser } from './docker.js';
 export { hostContainerUser };
 
-import { workerRunArgs } from './workerProfile.js';
+import { verifiedRunCopiesSource, workerRunArgs } from './workerProfile.js';
 /**
  * A `ToolExecutor` whose tools run inside a container.
  *
@@ -66,6 +66,8 @@ export class LocalContainerToolExecutor implements ToolExecutor {
       containerUser?: string;
       /** Mirror the worker's stderr onto the host's. Default true. */
       forwardWorkerLogs?: boolean;
+      /** Mount `<workspace>/.atoma-runs` read-only, guarded at every start, the crash restart included. */
+      readOnlyRunCopies?: boolean;
     }
   ) {}
 
@@ -105,11 +107,19 @@ export class LocalContainerToolExecutor implements ToolExecutor {
         );
         return;
       }
+      let readOnlyRunCopiesSource: string | undefined;
+      try {
+        if (this.opts.readOnlyRunCopies) readOnlyRunCopiesSource = verifiedRunCopiesSource(this.opts.workspaceHostPath);
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
       const args = workerRunArgs({
         image: this.opts.image ?? DEFAULT_WORKER_IMAGE,
         workspaceHostPath: this.opts.workspaceHostPath,
         ...(user ? { user } : {}),
         ...(this.opts.egress ? { egress: this.opts.egress } : {}),
+        ...(readOnlyRunCopiesSource ? { readOnlyRunCopiesSource } : {}),
       });
       const worker = attachedWorkerLifecycle({ ...(this.opts.docker ? { docker: this.opts.docker } : {}) });
       this.workers.push(worker);

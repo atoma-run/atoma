@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fork, type ChildProcess } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -106,8 +106,9 @@ describe.skipIf(process.platform === 'win32')('launcher worker transport', () =>
     vi.unstubAllEnvs();
     rmSync(root, { recursive: true, force: true });
   });
-  const executor = () => {
-    const result = new ContainerToolExecutor({ workspaceHostPath: workspace, image: 'worker-image', forwardWorkerLogs: false });
+  const executor = (readOnlyRunCopies?: boolean) => {
+    const result = new ContainerToolExecutor({ workspaceHostPath: workspace, image: 'worker-image', forwardWorkerLogs: false,
+      ...(readOnlyRunCopies ? { readOnlyRunCopies } : {}) });
     executors.push(result);
     return result;
   };
@@ -185,5 +186,33 @@ describe.skipIf(process.platform === 'win32')('launcher worker transport', () =>
     const run = new ContainerToolExecutor({ workspaceHostPath: join(root, 'different'), image: 'worker-image' });
     await expect(run.start()).rejects.toThrow('workspace mapping mismatch');
     await vi.waitFor(() => expect(children.size).toBe(0));
+  });
+
+  it('mounts the read-run copies read-only when asked, echoes it, and refuses a handle that does not', async () => {
+    mkdirSync(join(workspace, '.atoma-runs'));
+    const run = executor(true);
+    await run.start();
+    const started = calls.find(args => args[0] === 'run')!;
+    expect(started).toContain(`type=bind,src=${join(workspace, '.atoma-runs')},dst=/workspace/.atoma-runs,readonly`);
+    await run.drain();
+    const plain = await (await client()).startWorker({ ownerId: 'plain', workspaceId: 'build', egress: false });
+    expect(plain).not.toHaveProperty('readOnlyRunCopies');
+    expect(calls.filter(args => args[0] === 'run').at(-1)!.join(' ')).not.toContain('.atoma-runs');
+    clients.splice(0).forEach(c => c.close());
+    await vi.waitFor(() => expect(children.size).toBe(0));
+    const stripped = vi.spyOn(workers, 'startWorker').mockImplementation(async function (this: LauncherWorkers, spec) {
+      const { readOnlyRunCopies: _dropped, ...handle } = await LauncherWorkers.prototype.startWorker.call(this, spec);
+      return handle;
+    });
+    try { await expect(executor(true).start()).rejects.toThrow('read-run copies mount mismatch'); }
+    finally { stripped.mockRestore(); }
+  });
+
+  it('refuses a linked .atoma-runs before the engine is asked', async () => {
+    mkdirSync(join(root, 'secret'));
+    symlinkSync(join(root, 'secret'), join(workspace, '.atoma-runs'));
+    await expect((await client()).startWorker({ ownerId: 'linked', workspaceId: 'build', egress: false, readOnlyRunCopies: true }))
+      .rejects.toThrow('operation-failed');
+    expect(calls.some(args => args[0] === 'run')).toBe(false);
   });
 });

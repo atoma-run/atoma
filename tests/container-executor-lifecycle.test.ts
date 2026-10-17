@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -140,5 +140,49 @@ describe('ContainerToolExecutor lifecycle', () => {
     await executor.start();
     expect(children).toHaveLength(2);
     executor.stop();
+  });
+
+  // Docker follows a symlinked bind source (measured): the guard refuses
+  // anything but a real `.atoma-runs` before the engine is asked, at every
+  // start, the restart after a crash included.
+  it.skipIf(process.platform === 'win32').each(['link', 'file', 'absent', 'inner link'] as const)('refuses a read-run mount source that is not a real directory without spawning (%s)', async (shape) => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-executor-ro-')));
+    const workspace = join(root, 'ws');
+    mkdirSync(join(workspace, 'inner'), { recursive: true });
+    mkdirSync(join(root, 'secret'));
+    if (shape === 'link') symlinkSync(join(root, 'secret'), join(workspace, '.atoma-runs'));
+    if (shape === 'file') writeFileSync(join(workspace, '.atoma-runs'), '');
+    if (shape === 'inner link') symlinkSync('inner', join(workspace, '.atoma-runs'));
+    const spawnFn = vi.fn(() => fakeWorker(4242)) as unknown as ContainerSpawn;
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace, spawnFn, forwardWorkerLogs: false, readOnlyRunCopies: true });
+    try {
+      await expect(executor.start()).rejects.toThrow('read-run copies mount refused');
+      expect(spawnFn).not.toHaveBeenCalled();
+    } finally { executor.stop(); rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it.skipIf(process.platform === 'win32')('mounts the verified realpath, and checks again when it restarts a crashed worker', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-executor-ro-')));
+    const workspace = join(root, 'ws');
+    mkdirSync(join(workspace, '.atoma-runs'), { recursive: true });
+    mkdirSync(join(root, 'secret'));
+    const children: ChildProcess[] = [];
+    const seen: string[][] = [];
+    const spawnFn = ((_command: string, args: string[]) => {
+      seen.push(args);
+      const child = fakeWorker(1000 + children.length);
+      children.push(child);
+      return child;
+    }) as unknown as ContainerSpawn;
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace, spawnFn, forwardWorkerLogs: false, readOnlyRunCopies: true });
+    try {
+      await executor.start();
+      expect(seen[0]).toContain(`type=bind,src=${join(workspace, '.atoma-runs')},dst=/workspace/.atoma-runs,readonly`);
+      children[0]!.emit('exit', 1);
+      rmSync(join(workspace, '.atoma-runs'), { recursive: true });
+      symlinkSync(join(root, 'secret'), join(workspace, '.atoma-runs'));
+      await expect(executor.start()).rejects.toThrow('read-run copies mount refused');
+      expect(seen).toHaveLength(1);
+    } finally { executor.stop(); rmSync(root, { recursive: true, force: true }); }
   });
 });

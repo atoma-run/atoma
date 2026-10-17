@@ -200,7 +200,11 @@ Neighbours:
   from `.prevN` at best (`removeReadRunCopies`: u+rwx on every directory, no
   link followed, a logged line, never a failed restart). A mismatch is a `RunnerConfigError` before any
   model call, or fails the restart with `.prevN` intact. Root acceptance reads
-  `ctx.readRunCopies` and `ctx.compareReadRunFiles` (the criteria texts)
+  `ctx.readRunCopies` and `ctx.compareReadRunFiles` (the criteria texts). The
+  worker mounts `.atoma-runs` read-only from its first start: before each
+  backend `ensureReadRunMountPoint` (a real directory, created empty if a
+  continuation lost it), and the identities are taken once the backend
+  exists, before any tool call (Docker Desktop moves the source's ctime)
   ([decision](../../docs/decisions/read-runs-2026-10-17.md)).
 
 ## Platform run limits
@@ -382,8 +386,8 @@ Neighbours:
   file its source's bits, so every file restored from a copy was read-only
   (`edit_file` failed EACCES, the next seed kept 0444) and a saved script lost
   its executable bit while its sha256 matched; the mode never stopped the
-  workspace's owner's shell. The write tools refuse a copy instead, and a
-  shell's change is detected (`checkReadRunCopies`).
+  workspace's owner's shell. The write tools refuse a copy, and the worker
+  mounts the copies read-only instead (the kernel stops its shell).
 
 - Replaying from the last checkpoint after an interrupted phase is refused:
   external effects and phase credits are not rolled back with files. Persist

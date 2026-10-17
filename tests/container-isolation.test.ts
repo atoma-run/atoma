@@ -13,7 +13,7 @@ import { assertCheckpointWorkerAbsent } from '../src/launcher/checkpointRecovery
 import { OUTSIDE_THE_COPY_FILES, OUTSIDE_THE_COPY_SUITE, OUTSIDE_THE_COPY_TESTS } from './helpers/outsideTheCopy.js';
 import { randomUUID } from 'node:crypto';
 import { buildWorkspaceArtifactManifest } from '../src/projects/artifacts.js';
-import { checkReadRunCopies, materialiseReadRuns, type ReadRunCopyIdentities } from '../src/run/readRuns.js';
+import { captureReadRunCopies, checkReadRunCopies, materialiseReadRuns, type ReadRunCopyIdentities } from '../src/run/readRuns.js';
 import { readRunCopyIntact, readRunCopyPath, type ReadRunsIndex } from '../src/contracts/readRuns.js';
 
 /**
@@ -123,6 +123,18 @@ describe('workerRunArgs — the isolation is in the flags, so assert them', () =
     expect(a[a.indexOf('--user') + 1]).toBe('1001:1001');
     expect(a).toContain('HOME=/tmp/atoma-home');
     expect(a).not.toContain('0:0');
+  });
+
+  it('mounts the read-run copies read-only, with --mount, only when asked', () => {
+    expect(args.filter(a => a === '--mount')).toEqual([]);
+    const bind = workerRunArgs({ image: 'img', workspaceHostPath: '/host/ws', readOnlyRunCopiesSource: '/real/ws/.atoma-runs' });
+    expect(bind.filter((_a, i) => bind[i - 1] === '--mount')).toEqual(['type=bind,src=/real/ws/.atoma-runs,dst=/workspace/.atoma-runs,readonly']);
+    expect(bind.filter((_a, i) => bind[i - 1] === '-v')).toEqual(['/host/ws:/workspace']);
+    const volume = workerRunArgs({ image: 'img', workspaceHostPath: '/host/ws', workspaceVolume: 'vol', readOnlyRunCopiesSource: '/real/ws/.atoma-runs' });
+    expect(volume.filter((_a, i) => volume[i - 1] === '--mount')).toEqual(['type=volume,src=vol,dst=/workspace,volume-nocopy',
+      'type=volume,src=vol,dst=/workspace/.atoma-runs,volume-subpath=.atoma-runs,readonly,volume-nocopy']);
+    expect(volume).not.toContain('-v');
+    expect(() => workerRunArgs({ image: 'img', workspaceHostPath: '/host/ws', readOnlyRunCopiesSource: '/a,b/.atoma-runs' })).toThrow('mount option');
   });
 
   it('bounds memory and cpu', () => {
@@ -483,14 +495,18 @@ describeDocker('a read-run copy in a containerised run', () => {
     workspace = join(dir, 'ws');
     index = { version: 1, orgId: randomUUID(), projectId: randomUUID(), runId: randomUUID(),
       readRuns: [{ runId, status: 'delivered', endedAt: new Date().toISOString(), workspacePath: other, manifestHash: hash, manifest }] };
-    identities = materialiseReadRuns(workspace, index).identities;
-    exec = new ContainerToolExecutor({ workspaceHostPath: workspace, startTimeoutMs: 90_000,
+    materialiseReadRuns(workspace, index);
+    exec = new ContainerToolExecutor({ workspaceHostPath: workspace, startTimeoutMs: 90_000, readOnlyRunCopies: true,
       image: process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'] ?? 'atoma-worker:latest' });
     await exec.start();
+    // Taken once the worker mounted them, as the runner does: Docker Desktop moves the source's ctime at start.
+    identities = captureReadRunCopies(workspace, index);
   }, 120_000);
 
-  afterAll(() => {
-    exec?.stop();
+  // Removal follows the engine-confirmed drain: Docker Desktop refuses to
+  // remove a mount source while its worker lives.
+  afterAll(async () => {
+    await exec?.drain();
     if (dir) rmSync(dir, { recursive: true, force: true });
   });
 
@@ -527,14 +543,27 @@ describeDocker('a read-run copy in a containerised run', () => {
     expect(existsSync(join(workspace, copy, 'browser/new.js'))).toBe(false);
   }, 60_000);
 
-  it('a write to the copy from the worker is detected by the host, even once its bytes are back', async () => {
-    expect(checkReadRunCopies(workspace, index, identities)[0]).toMatchObject({ changedCount: 0, missingCount: 0, touchedCount: 0 });
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    await exec.execute('run_shell', { command: 'bash', args: ['-c', `printf CHANGED > ${copy}/browser/collect.js`] });
-    expect(checkReadRunCopies(workspace, index, identities)[0]).toMatchObject({ changed: ['browser/collect.js'] });
-    await exec.execute('run_shell', { command: 'bash', args: ['-c', `printf SAVED_BYTES_OF_THE_OTHER_RUN > ${copy}/browser/collect.js`] });
+  // Hardening (d), built 2026-10-17: the kernel refuses every shell change.
+  it('the worker\'s shell can no longer change, move, link or remove a copy, mounted read-only over /workspace', async () => {
+    const sh = async (script: string) => (await exec.execute('run_shell', { command: 'bash', args: ['-c', script] })) as { exitCode?: number; stdout?: string; stderr?: string };
+    for (const script of [
+      `printf CHANGED > ${copy}/browser/collect.js`, `chmod 600 ${copy}/browser/collect.js`, `touch ${copy}/browser/collect.js`,
+      `rm -f ${copy}/browser/collect.js`, `mkdir ${copy}/new`, `mv ${copy} ${copy}-aside`, 'mv .atoma-runs aside', 'rm -rf .atoma-runs',
+      `ln ${copy}/browser/collect.js hard.js`,
+    ]) {
+      const result = await sh(script);
+      expect(result.exitCode, script).not.toBe(0);
+      expect(`${result.stderr}`, script).toMatch(/Read-only file system|Device or resource busy|cross-device|Invalid cross-device/i);
+    }
     expect(readFileSync(join(workspace, copy, 'browser/collect.js'), 'utf8')).toBe('SAVED_BYTES_OF_THE_OTHER_RUN');
-    expect(checkReadRunCopies(workspace, index, identities)[0]).toMatchObject({ changedCount: 0, touched: ['browser/collect.js'] });
+    expect(readRunCopyIntact(checkReadRunCopies(workspace, index, identities)[0]!)).toBe(true);
+    // Docker mounts by destination depth: the copies' mount sits on /workspace's, read-only, which itself stays writable.
+    const mounts = (await sh('cat /proc/self/mountinfo')).stdout!.split('\n').map(line => line.split(' '));
+    const ws = mounts.find(fields => fields[4] === '/workspace')!;
+    const runs = mounts.find(fields => fields[4] === '/workspace/.atoma-runs')!;
+    expect(runs[1]).toBe(ws[0]);
+    expect(runs[5]!.split(',')).toContain('ro');
+    expect((await sh('printf ok > writable.txt && cat writable.txt')).stdout).toBe('ok');
   }, 60_000);
 
   it('cannot reach the other run by its host path', async () => {
@@ -582,14 +611,16 @@ describeDocker('read-run copies beside whole-tree tools in a containerised run',
     writeFileSync(join(workspace, 'tests', 'app.test.js'), "test('this run', () => { expect(1).toBe(1); });\n");
     index = { version: 1, orgId: randomUUID(), projectId: randomUUID(), runId: randomUUID(),
       readRuns: [{ runId, status: 'partial', endedAt: new Date().toISOString(), workspacePath: other, manifestHash: hash, manifest }] };
-    identities = materialiseReadRuns(workspace, index).identities;
-    exec = new ContainerToolExecutor({ workspaceHostPath: workspace, startTimeoutMs: 90_000,
+    materialiseReadRuns(workspace, index);
+    exec = new ContainerToolExecutor({ workspaceHostPath: workspace, startTimeoutMs: 90_000, readOnlyRunCopies: true,
       image: process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'] ?? 'atoma-worker:latest' });
     await exec.start();
+    // Taken once the worker mounted them, as the runner does: Docker Desktop moves the source's ctime at start.
+    identities = captureReadRunCopies(workspace, index);
   }, 120_000);
 
-  afterAll(() => {
-    exec?.stop();
+  afterAll(async () => {
+    await exec?.drain();
     if (dir) rmSync(dir, { recursive: true, force: true });
   });
 

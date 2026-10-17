@@ -11,7 +11,7 @@ import type { ContainerLauncher } from '../contracts/launcher.js';
 import type { LauncherWorkerHandle, LauncherWorkerSpec, WorkerLauncher } from '../contracts/launcherWorker.js';
 import { launcherWorkerSpecSchema, workerWorkspaceIdSchema } from '../contracts/launcherWorker.js';
 import { attachedWorkerLifecycle, type AsyncDockerRunner } from './docker.js';
-import { workerRunArgs } from './workerProfile.js';
+import { verifiedRunCopiesSource, workerRunArgs } from './workerProfile.js';
 
 const exec = promisify(execFile);
 type State = {
@@ -95,7 +95,8 @@ export class LauncherWorkers implements WorkerLauncher {
     if (Buffer.byteLength(workerPath) > SOCKET_PATH_BYTES) throw new Error(socketRootTooLong(this.options.socketRoot));
     mkdirSync(directory, { mode: 0o700 });
     const state: State = {
-      handle: { id, ownerId: spec.ownerId, socketPath: clientPath, workspaceHostPath: workspace },
+      handle: { id, ownerId: spec.ownerId, socketPath: clientPath, workspaceHostPath: workspace,
+        ...(spec.readOnlyRunCopies ? { readOnlyRunCopies: true as const } : {}) },
       workspace, directory, lifecycle: attachedWorkerLifecycle({ runDocker: this.run, id }),
       servers: [], sockets: new Set(), egress: spec.egress,
     };
@@ -153,7 +154,11 @@ export class LauncherWorkers implements WorkerLauncher {
         await launcher.awaitUnitReady(proxy);
         egress = { network: internal.name, proxyHost: proxy.name, proxyPort: 3128 };
       }
-      const args = workerRunArgs({ image: this.options.image, workspaceHostPath: workspace, workspaceVolume: state.handle.volume, user: this.options.user, socketHostPath: workerPath, egress });
+      // Checked last, right before the engine: the volume's own subpath check
+      // refuses an escaping link but follows an internal one.
+      const readOnlyRunCopiesSource = spec.readOnlyRunCopies ? verifiedRunCopiesSource(workspace) : undefined;
+      const args = workerRunArgs({ image: this.options.image, workspaceHostPath: workspace, workspaceVolume: state.handle.volume, user: this.options.user, socketHostPath: workerPath, egress,
+        ...(readOnlyRunCopiesSource ? { readOnlyRunCopiesSource } : {}) });
       args.splice(1, 0, '--name', state.lifecycle.name, '--label', 'dev.atoma.owner=worker');
       await this.run(args);
       finishLaunch();

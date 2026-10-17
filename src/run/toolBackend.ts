@@ -126,6 +126,8 @@ export async function containerToolBackend(opts: {
   /** Names the per-run network and proxy, so two runs never share either. */
   runId?: string;
   projectWorkspace?: ProjectWorkspaceIdentity;
+  /** Mount `.atoma-runs` read-only: a run with read runs, from its first worker start. */
+  readOnlyRunCopies?: boolean;
 }): Promise<ToolBackend> {
   const image = opts.image ?? process.env['ATOMA_WORKER_IMAGE'] ?? DEFAULT_WORKER_IMAGE;
   // PER RUN, not shared. Reproduced: two containers on one --internal network
@@ -143,6 +145,7 @@ export async function containerToolBackend(opts: {
     workspaceHostPath: opts.workspaceRoot,
     image,
     ownerId: opts.runId, proxiedEgress: opts.egress, project: opts.projectWorkspace,
+    ...(opts.readOnlyRunCopies ? { readOnlyRunCopies: true } : {}),
     ...(sidecar
       ? { egress: { network: sidecar.network, proxyHost: sidecar.proxyHost, proxyPort: sidecar.proxyPort } }
       : {}),

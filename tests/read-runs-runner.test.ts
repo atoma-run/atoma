@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -76,9 +76,17 @@ function tenant(options: { tenant?: boolean } = {}) {
   })) vi.stubEnv(key, value);
   vi.stubEnv(HAYSTACK_LAUNCH_ENV, undefined);
   resetHostLifecycleSnapshotForTests();
-  vi.mocked(containerToolBackend).mockImplementation(async opts => localToolBackend({ workspaceRoot: opts.workspaceRoot, logger: silentLogger() }));
+  const backends: Array<{ readOnlyRunCopies?: boolean }> = [];
+  vi.mocked(containerToolBackend).mockImplementation(async opts => {
+    backends.push({ ...(opts.readOnlyRunCopies ? { readOnlyRunCopies: true } : {}) });
+    // What Docker Desktop does to the mount source at container start: its
+    // ctime moves. The identities are taken after this, so a copy reads intact.
+    const mountSource = join(opts.workspaceRoot, '.atoma-runs');
+    if (existsSync(mountSource)) { await new Promise((resolve) => setTimeout(resolve, 30)); chmodSync(mountSource, 0o755); }
+    return localToolBackend({ workspaceRoot: opts.workspaceRoot, logger: silentLogger() });
+  });
   const copy = join(current.layout.workspacePath, readRunCopyPath(read.run.projectRunId));
-  return { root, f, read, current, index, indexPath, writeIndex, copy, workspace: current.layout.workspacePath };
+  return { root, f, read, current, index, indexPath, writeIndex, copy, workspace: current.layout.workspacePath, backends };
 }
 
 const count = (text: string, needle: string) => text.split(needle).length - 1;
@@ -140,6 +148,8 @@ describe('a tenant run that reads another run', () => {
       expect(await handle.settled).toEqual({ outcome: 'delivered' });
       // Copied before the first model call, and the hand-off gone from the environment.
       expect(firstCall).toEqual({ copied: true, env: undefined });
+      // The worker mounts the copies read-only from its first start.
+      expect(t.backends).toEqual([{ readOnlyRunCopies: true }]);
       expect(refusal).toMatch(/^write_file: refuse to write into \.atoma-runs\//);
       expect(logs).toContain(`read runs copied: 2 files (${t.read.run.artifactManifest!.totalBytes} bytes) of 1 run(s), with their saved modes, into .atoma-runs/node_modules/`);
       const files: string[] = [];
@@ -272,6 +282,8 @@ describe('a tenant run that reads another run', () => {
         expect(deepSawCopy).toBe(true);
         expect(logs.filter(line => line.startsWith('read runs copied:'))).toHaveLength(2);
         expect(parseRunLog(logs.join('\n'))).toMatchObject({ outcome: 'partial', deepenings: 1 });
+        // The second backend mounts the copies again.
+        expect(t.backends).toEqual([{ readOnlyRunCopies: true }, { readOnlyRunCopies: true }]);
       }
     } finally { await handle.shutdown(); }
   }, 30_000);

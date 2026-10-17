@@ -359,8 +359,8 @@ Neighbours:
 - `write_file`, `edit_file` and `atoma-scaffold` refuse a path that lands under
   `.atoma-runs/` (`readRunCopies.ts`: links followed, the name read case-blind),
   the copies of other runs' saved files ([read runs](../../docs/decisions/read-runs-2026-10-17.md)):
-  a restore copies FROM a copy. A shell is not refused; the host reports what
-  it changes.
+  a restore copies FROM a copy. A shell is stopped by the kernel: the worker
+  mounts `.atoma-runs` read-only (`readOnlyRunCopies`, src/launcher).
 - A `select` interaction chooses a `<select>` option by value or label, or
   sets a range, date, month, week, time, datetime-local, colour or number
   input, then fires input and change. A headless page opens no dropdown: a

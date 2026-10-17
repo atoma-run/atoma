@@ -15,8 +15,9 @@ import type { ToolSandbox } from './sandbox.js';
  * Keyed on where the write LANDS, links followed, and case-blind on the
  * directory, as the probe manifest's refusal is: a refusal, never an
  * admission. Anything below `.atoma-runs` is refused, `node_modules` and the
- * copies alike. A shell is not refused: the host's check at root acceptance
- * reports any change it makes, and `cp` restores must keep working.
+ * copies alike. A shell is not refused here: the worker mounts `.atoma-runs`
+ * read-only (src/launcher/workerProfile.ts), so the kernel refuses its
+ * writes, and `cp` restores keep working.
  */
 export function writesIntoReadRunCopies(sandbox: ToolSandbox, path: string): boolean {
   try {

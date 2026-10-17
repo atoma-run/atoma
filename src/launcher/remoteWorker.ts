@@ -21,7 +21,7 @@ export class RemoteWorkerExecutor implements ToolExecutor {
   constructor(private readonly options: {
     endpoint: string; workspaceId?: string; project?: ProjectWorkspaceIdentity; workspaceHostPath: string; image: string;
     ownerId?: string; proxiedEgress?: boolean; callTimeoutMs?: number; startTimeoutMs?: number;
-    forwardWorkerLogs?: boolean;
+    forwardWorkerLogs?: boolean; readOnlyRunCopies?: boolean;
   }) {}
 
   start(): Promise<void> {
@@ -37,8 +37,10 @@ export class RemoteWorkerExecutor implements ToolExecutor {
       const handle = await this.launcher.startWorker({
         ownerId: this.options.ownerId ?? randomUUID(), workspaceId: this.options.workspaceId, project: this.options.project,
         egress: this.options.proxiedEgress ?? false,
+        ...(this.options.readOnlyRunCopies ? { readOnlyRunCopies: true as const } : {}),
       });
       this.id = handle.id;
+      if (!!handle.readOnlyRunCopies !== !!this.options.readOnlyRunCopies) throw new Error('Launcher read-run copies mount mismatch');
       // Older v2 launchers used a different engine UUID. Only a launcher that
       // implements the recovery reader establishes the new identity contract.
       // Absence of that optional capability keeps ordinary execution available.
