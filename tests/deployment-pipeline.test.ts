@@ -36,6 +36,21 @@ describe('post-CI deployment pipeline', () => {
     expect(workflow).toMatch(/permissions:\n\s+actions: read\n\s+contents: read/);
   });
 
+  it('names each deploy run after the revision it deploys, not the branch head it is listed under', () => {
+    // A workflow_run run is listed under main's HEAD at trigger time: on
+    // 2026-10-16 the deploy of green 6270cd45 was listed as red 7a94b880.
+    expect(workflow).toContain('run-name: Deploy ${{ github.event.workflow_run.head_sha }} (CI ${{ github.event.workflow_run.conclusion }})');
+    expect(workflow).toContain('REVISION: ${{ github.event.workflow_run.head_sha }}');
+  });
+
+  it('deploys revisions in push order: main CI queues instead of cancelling, and so do deploys', () => {
+    // Each deploy ships its own CI run's commit. Main CI runs one at a time in
+    // push order (a newer push replaces only a PENDING run), so an older
+    // revision cannot finish CI after a newer one and roll production back.
+    expect(ci).toContain("cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}");
+    expect(workflow).toMatch(/concurrency:\n\s+group: production-deployment\n\s+cancel-in-progress: false/);
+  });
+
   it('downloads from the triggering run and never deploys a floating checkout', () => {
     expect(workflow).toContain('run-id: ${{ github.event.workflow_run.id }}');
     expect(workflow).toContain('name: atoma-deploy-${{ github.event.workflow_run.head_sha }}');

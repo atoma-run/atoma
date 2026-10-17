@@ -14,7 +14,7 @@ All work is done and deployed (production at 066638d3, 2026-10-16 ~17:55): the c
 
 **existsSync under the runner's permissions (fixed 2026-10-17, b8b2fd86):** run 760fef4c was refused at delivery because `node --permission` makes `existsSync` THROW `ERR_ACCESS_DENIED` outside the readable set (a module probing `/usr/bin/chromium` at import never loaded: "failed 0/0"). The setup file now answers false, holding `node:process` ESM bindings across `syncBuiltinESMExports` (Vitest replaces `process.exit`). Still open, documented: `statSync(p, {throwIfNoEntry:false})` and `accessSync` still throw there, and a traversal test aimed outside the copy proves nothing. Replay of two recorded root reviews: same approval rate with the new scope text (2/3, 1/3); the review itself is that noisy on one plan.
 
-**Deploy-pipeline gap seen 2026-10-16:** 7a94b880 was deployed by a workflow_run event although its own CI was red (a test-isolation failure, fixed by 066638d3). The deploy likely followed the previous commit's green CI while main had moved on. Check deploy.yml uses the triggering run's head_sha, not main's HEAD. See [[deploy-pipeline-state]].
+**Not a deploy gap (corrected 2026-10-17):** a Deploy production run listed under red 7a94b880 had in fact deployed green 6270cd45 (its REVISION and CI_RUN_ID). GitHub lists a workflow_run run under main's HEAD at trigger time; deploy runs are now named after the revision they ship. See [[deploy-pipeline-state]].
 
 **CI gotcha:** CI runs with TMPDIR unset; macOS sets it. A test that overrides TMPDIR must delete it on restore when it was unset. Reproduce with `env -u TMPDIR npx vitest run <file>`.
 
