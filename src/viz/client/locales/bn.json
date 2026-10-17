@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "টেস্ট রানার চালু করা যায়নি।",
   "result.tests.cause.landing": "অসমাপ্ত কাজসহ run শেষ হয়েছে অথবা এই পরীক্ষাগুলো চালানোর আগেই বাজেট শেষ হয়ে গেছে।",
   "result.tests.cause.deadline-timeout": "run-এর সময়সীমা অথবা প্রকল্প কপি করার কারণে পরীক্ষাগুলো অসম্পূর্ণ রয়ে গেছে।",
-  "result.tests.cause.unknown": "কারণটি রেকর্ড করা হয়নি।"
+  "result.tests.cause.unknown": "কারণটি রেকর্ড করা হয়নি।",
+  "tuning.ambientShadowReach": "পরিবেষ্টিত ছায়ার বিস্তার",
+  "tuning.ambientShadowDensity": "পরিবেষ্টিত ছায়ার ঘনত্ব",
+  "tuning.diagnostics": "সমস্যা নির্ণয়",
+  "tuning.wireframe": "ওয়্যারফ্রেম",
+  "tuning.wireframe.off": "বন্ধ",
+  "tuning.wireframe.lines": "শুধু প্রান্তরেখা",
+  "tuning.wireframe.overlay": "দৃশ্যের উপরে",
+  "tuning.wireframe.reloads": "ওয়্যারফ্রেম পরিবর্তন করলে পৃষ্ঠাটি পুনরায় লোড হয় এবং WebGL ব্যবহার করে।"
 }

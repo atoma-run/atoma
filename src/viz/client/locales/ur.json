@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "ٹیسٹ رنر شروع نہیں کیا جا سکا۔",
   "result.tests.cause.landing": "run نامکمل کام کے ساتھ ختم ہوا یا ان ٹیسٹس کے run ہونے سے پہلے بجٹ ختم ہو گیا۔",
   "result.tests.cause.deadline-timeout": "run کی وقت کی حد یا پروجیکٹ کو کاپی کرنے کے عمل نے ٹیسٹس کو ادھورا روک دیا۔",
-  "result.tests.cause.unknown": "وجہ ریکارڈ نہیں کی گئی۔"
+  "result.tests.cause.unknown": "وجہ ریکارڈ نہیں کی گئی۔",
+  "tuning.ambientShadowReach": "محیطی سائے کی رسائی",
+  "tuning.ambientShadowDensity": "محیطی سائے کی کثافت",
+  "tuning.diagnostics": "تشخیص",
+  "tuning.wireframe": "وائر فریم",
+  "tuning.wireframe.off": "بند",
+  "tuning.wireframe.lines": "صرف کنارے",
+  "tuning.wireframe.overlay": "منظر کے اوپر",
+  "tuning.wireframe.reloads": "وائر فریم تبدیل کرنے سے صفحہ دوبارہ لوڈ ہوتا ہے اور WebGL استعمال ہوتا ہے۔"
 }

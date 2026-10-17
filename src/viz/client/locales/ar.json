@@ -2191,5 +2191,13 @@
   "result.tests.testsFailed_one": "فشل {{count}} من الاختبارات",
   "result.tests.testsSkipped_one": "تم تخطي {{count}} من الاختبارات",
   "result.tests.more_one": "لم يُعرض عنصر إضافي واحد ({{count}})؛ افتح التفاصيل التقنية.",
-  "result.tests.omitted_one": "لم يُعرض سجل إضافي واحد ({{count}})"
+  "result.tests.omitted_one": "لم يُعرض سجل إضافي واحد ({{count}})",
+  "tuning.ambientShadowReach": "مدى الظل المحيطي",
+  "tuning.ambientShadowDensity": "كثافة الظل المحيطي",
+  "tuning.diagnostics": "التشخيصات",
+  "tuning.wireframe": "الإطار السلكي",
+  "tuning.wireframe.off": "إيقاف",
+  "tuning.wireframe.lines": "الحواف فقط",
+  "tuning.wireframe.overlay": "فوق المشهد",
+  "tuning.wireframe.reloads": "يؤدي تغيير الإطار السلكي إلى إعادة تحميل الصفحة واستخدام WebGL."
 }

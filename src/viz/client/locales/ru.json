@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "Не удалось запустить средство запуска тестов.",
   "result.tests.cause.landing": "run завершился с незаконченной работой или исчерпал бюджет до запуска этих тестов.",
   "result.tests.cause.deadline-timeout": "Тесты были прерваны из-за ограничения времени run или копирования проекта.",
-  "result.tests.cause.unknown": "Причина не записана."
+  "result.tests.cause.unknown": "Причина не записана.",
+  "tuning.ambientShadowReach": "Радиус фоновой тени",
+  "tuning.ambientShadowDensity": "Плотность фоновой тени",
+  "tuning.diagnostics": "Диагностика",
+  "tuning.wireframe": "Каркас",
+  "tuning.wireframe.off": "Выкл.",
+  "tuning.wireframe.lines": "Только рёбра",
+  "tuning.wireframe.overlay": "Поверх сцены",
+  "tuning.wireframe.reloads": "Изменение каркаса перезагружает страницу и использует WebGL."
 }

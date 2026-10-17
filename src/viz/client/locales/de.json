@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "Der Test-Runner konnte nicht gestartet werden.",
   "result.tests.cause.landing": "Der run endete mit unerledigter Arbeit oder das Budget war aufgebraucht, bevor diese Tests ausgeführt werden konnten.",
   "result.tests.cause.deadline-timeout": "Das Zeitlimit des runs oder das Kopieren des Projekts führte zum vorzeitigen Abbruch der Tests.",
-  "result.tests.cause.unknown": "Der Grund wurde nicht erfasst."
+  "result.tests.cause.unknown": "Der Grund wurde nicht erfasst.",
+  "tuning.ambientShadowReach": "Reichweite des Umgebungsschattens",
+  "tuning.ambientShadowDensity": "Dichte des Umgebungsschattens",
+  "tuning.diagnostics": "Diagnose",
+  "tuning.wireframe": "Drahtgitter",
+  "tuning.wireframe.off": "Aus",
+  "tuning.wireframe.lines": "Nur Kanten",
+  "tuning.wireframe.overlay": "Über der Szene",
+  "tuning.wireframe.reloads": "Beim Ändern des Drahtgitters wird die Seite neu geladen und WebGL verwendet."
 }

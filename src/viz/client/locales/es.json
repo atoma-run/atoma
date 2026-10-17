@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "No se pudo iniciar el ejecutor de pruebas.",
   "result.tests.cause.landing": "El run terminó con trabajo sin finalizar o agotó el presupuesto antes de que pudieran ejecutarse estas pruebas.",
   "result.tests.cause.deadline-timeout": "El límite de tiempo del run o la copia del proyecto interrumpieron las pruebas.",
-  "result.tests.cause.unknown": "El motivo no se registró."
+  "result.tests.cause.unknown": "El motivo no se registró.",
+  "tuning.ambientShadowReach": "Alcance de la sombra ambiental",
+  "tuning.ambientShadowDensity": "Densidad de la sombra ambiental",
+  "tuning.diagnostics": "Diagnóstico",
+  "tuning.wireframe": "Estructura alámbrica",
+  "tuning.wireframe.off": "Desactivada",
+  "tuning.wireframe.lines": "Solo aristas",
+  "tuning.wireframe.overlay": "Sobre la escena",
+  "tuning.wireframe.reloads": "Cambiar la estructura alámbrica recarga la página y usa WebGL."
 }

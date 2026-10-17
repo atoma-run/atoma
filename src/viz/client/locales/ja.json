@@ -2191,5 +2191,13 @@
   "result.tests.cause.executor-error": "テストランナーを起動できませんでした。",
   "result.tests.cause.landing": "作業が未完了のままrunが終了したか、これらのテストを実行する前に予算を使い切りました。",
   "result.tests.cause.deadline-timeout": "runの制限時間またはプロジェクトのコピーにより、テストが途中で打ち切られました。",
-  "result.tests.cause.unknown": "理由は記録されていません。"
+  "result.tests.cause.unknown": "理由は記録されていません。",
+  "tuning.ambientShadowReach": "環境シャドウの範囲",
+  "tuning.ambientShadowDensity": "環境シャドウの濃度",
+  "tuning.diagnostics": "診断",
+  "tuning.wireframe": "ワイヤーフレーム",
+  "tuning.wireframe.off": "オフ",
+  "tuning.wireframe.lines": "エッジのみ",
+  "tuning.wireframe.overlay": "シーン上に重ねる",
+  "tuning.wireframe.reloads": "ワイヤーフレームを変更するとページが再読み込みされ、WebGLが使用されます。"
 }
