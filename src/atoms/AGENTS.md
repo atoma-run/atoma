@@ -379,10 +379,10 @@ load-bearing.
   pattern, then reaches the review as a host fact (reject-once-then-honour).
   The same zero-token precheck refuses a test-file import once per planner and
   states every suite finding in one refusal; the review then reads
-  `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves), from
-  `list_files`, plus bounded current imported source through the shared evidence
-  reader. Observation-only reads withhold overwrite permission; missing excerpts
-  establish no absent interface. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
+  `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves, bounded imported
+  source, and `parentSuiteReach.ts`'s line on written modules no suite imports, names
+  or calls into, withheld on any open walk or bound). Observation-only reads withhold
+  overwrite permission. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
 - A SUITE DISPUTE (`taskSuiteDispute`, measured only): the task's own suite failed with one failing set on 3+ runs over 2+
   `subjectDigest`s, looked for where the loop escalates. Counted once per suite per attempt (`suiteDisputes`), logged and recorded in the
   trace for a [pre-registered](../../benchmark/suite-dispute-2026-10-17/PREREGISTRATION.md) classification; no routing, no text a run's models read ([decision](../../docs/decisions/parent-owned-tests-2026-10-16.md#a-suite-that-fails-the-same-way-on-every-implementation-measured-only)).

@@ -473,14 +473,39 @@ allowed. These initial resource bounds are not a measured semantic guarantee.
 Observation-only `read_file` withholds overwrite authorization, including
 referenced fixture reads. It neither revokes an earlier ordinary read nor
 changes sandbox access. [Regression and review](../../records/reviews/suite-interface-evidence-2026-10-17.md).
-Not landed: a line
-naming the modules a plan writes that no suite imports. Replays found it
-consistent on one plan, but the adversarial review of its first version found
-it wrong where it mattered (14 of 14 corpus lines named a `.js` the plan
-replaced by its TypeScript twin; it missed modules imported through `../`,
-and modules a suite reaches through another one or a tsconfig alias), and its
-walk read files through the model-facing `read_file`, which switched off
-`write_file`'s blind-overwrite refusal for each of them for the whole run.
+**Module reach (2026-10-17).** The block's last suite bullet names the modules
+the plan writes that no suite imports, names or calls into
+(`src/atoms/parentSuiteReach.ts`). Its first version was dropped: 14 of 14 corpus
+lines named a `.js` the plan replaced by its TypeScript twin, it missed `../`
+imports and reach through other modules, and its plain `read_file` disarmed the
+blind-overwrite refusal. The design: candidates are written code modules (no
+test, test-support, declaration or generated file) grouped with their twins and
+imported by another project file; each suite's reach is walked over the files as
+they stand, inside its cwd, a new module read through its existing twin; a
+module a suite imports, names, reaches through an application module or a built
+file, or that a reached file names, is covered; a module reached only through
+helpers the suite imports is claimed only when the helper part the suite takes
+never references it (a one-file syntax check, unknown means silent); any open
+walk (computed load in the suite, unknown imports, undeclared bare import, root
+tsconfig `paths`/`baseUrl`, directory import, unreadable file, bound of 200
+listings, 400 reads or 4 MB) withholds the line; computed loads without a
+literal directory are disclosed in it. Reads are `list_files` and
+observation-only `read_file`; no model call.
+Numbers: on eleven Attica runs (100 reviews with suites, 97 past the precheck)
+it fires in 3, all browser/control-server.js in run 760fef4c (c3379f8c, fde6e0d6,
+d8579413), all real gaps; identical on delivered workspaces; 0 in the 21 reviews
+of six later runs; every other review's block is byte-identical; at most 69
+reads and 20 listings. The pre-registered replay gate (11 calls): with the line
+3 of 3 c3379f8c refusals named the gap, without it 1 of 3; the negative control
+0 of 3; no fde6e0d6 refusal misread it
+([record](../../records/reviews/suite-module-reach-2026-10-17.md)).
+Stop rule, classified from traces: a false claim (the module is imported, named,
+called, or reached through an application module at that workspace state) is
+fixed or disabled before the next run; remove the line after 2 unjustified
+refusals (refusals citing a module whose behaviour the task does not name) in
+its first 10 firings; remove it if, at 20 firings, justified catches do not
+outnumber unjustified refusals; with fewer than 5 firings in 30 days, remove it
+and record the counts.
 With the facts: a suite that imports a test file is refused once per planner
 before any review (its assertions would be the child's; 5 of 198 suites, in 2
 defective plans; a real module may carry such a name, so a kept import reaches

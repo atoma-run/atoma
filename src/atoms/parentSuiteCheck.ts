@@ -257,25 +257,112 @@ export function suiteRegexPrecheck(
  */
 export const VITEST_TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 
-/** The relative specifiers a source loads: import and export-from, literal `import()`, literal `require()`. */
-export function relativeSpecifiers(source: string, fileName = 'atoma.acceptance.test.ts'): string[] {
-  const kind = /\.(?:[cm]?jsx?)$/.test(fileName) ? ts.ScriptKind.JS : /\.tsx$/.test(fileName) ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, kind);
-  const found = new Set<string>();
+/** The script kind TypeScript parses a file name as. */
+export const scriptKindOf = (fileName: string): ts.ScriptKind =>
+  /\.(?:[cm]?jsx?)$/.test(fileName) ? ts.ScriptKind.JS : /\.tsx$/.test(fileName) ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+
+/** `require`, and every variable a `createRequire(…)` call initializes: each loads as `require` does. */
+export function requireNames(file: ts.SourceFile): Set<string> {
+  const names = new Set(['require']);
   const visit = (node: ts.Node): void => {
-    // `import type` and `export type … from` are erased: nothing loads them.
-    if (ts.isImportDeclaration(node) && node.importClause?.isTypeOnly) { /* erased */ }
-    else if (ts.isExportDeclaration(node) && node.isTypeOnly) { /* erased */ }
-    else if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-      found.add(node.moduleSpecifier.text);
-    } else if (ts.isCallExpression(node) && node.arguments.length >= 1 && ts.isStringLiteralLike(node.arguments[0]!) &&
-        (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require'))) {
-      found.add(node.arguments[0].text);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && ts.isCallExpression(node.initializer)) {
+      const callee = node.initializer.expression;
+      if ((ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : '') === 'createRequire') names.add(node.name.text);
     }
     ts.forEachChild(node, visit);
   };
   visit(file);
-  return [...found].filter(specifier => specifier.startsWith('./') || specifier.startsWith('../'));
+  return names;
+}
+
+/**
+ * What a source loads, read from its syntax: the one definition behind
+ * `relativeSpecifiers` (the test-file precheck, the host facts) and the reach
+ * walk of `parentSuiteReach.ts`. A load is an import or export-from,
+ * `import x = require()`, `import()`, or `require()` through `require` itself
+ * or a `createRequire` result; `import type` and `export type … from` are
+ * erased and load nothing. Tolerant like the checks above: a source that does
+ * not parse yields what its parse recovered, and `parsed` says so.
+ */
+export interface ModuleSpecifiers {
+  /** Relative specifiers loaded with a literal, as written, in source order. */
+  readonly relative: readonly string[];
+  /** Relative specifiers handed to `require.resolve`: a path the source means to use, never loaded here. */
+  readonly resolved: readonly string[];
+  /** Every other literal specifier: a builtin, a package, an alias, an `#import`, an absolute path. */
+  readonly bare: readonly string[];
+  /** One entry per load or resolve whose specifier is computed: the literal pieces of its argument. */
+  readonly computed: ReadonlyArray<readonly string[]>;
+  /** `import.meta.glob`, which loads whatever its patterns match. */
+  readonly glob: boolean;
+  /** Every string literal and template piece under 300 characters, specifiers included. */
+  readonly literals: readonly string[];
+  /** The same without the specifiers of loads and resolves: a path the source names for any other use. */
+  readonly mentions: readonly string[];
+  readonly parsed: boolean;
+}
+
+export function moduleSpecifiers(source: string, fileName = 'atoma.acceptance.test.ts'): ModuleSpecifiers {
+  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, scriptKindOf(fileName));
+  const requires = requireNames(file);
+  const loads: string[] = [];
+  const resolves: string[] = [];
+  const computed: string[][] = [];
+  const specifiers = new Set<ts.Node>();
+  const literals = new Set<string>();
+  const mentions = new Set<string>();
+  let glob = false;
+  const pieces = (argument: ts.Node): string[] => {
+    const found: string[] = [];
+    const collect = (node: ts.Node): void => {
+      if (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) found.push(node.text);
+      ts.forEachChild(node, collect);
+    };
+    collect(argument);
+    return found;
+  };
+  const visit = (node: ts.Node): void => {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier) {
+      specifiers.add(node.moduleSpecifier);
+      const erased = ts.isImportDeclaration(node) ? node.importClause?.isTypeOnly : node.isTypeOnly;
+      if (!erased && ts.isStringLiteral(node.moduleSpecifier)) loads.push(node.moduleSpecifier.text);
+    } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+      specifiers.add(node.moduleReference.expression);
+      if (!node.isTypeOnly && ts.isStringLiteral(node.moduleReference.expression)) loads.push(node.moduleReference.expression.text);
+    } else if (ts.isCallExpression(node) && node.arguments.length >= 1) {
+      const callee = node.expression;
+      const argument = node.arguments[0]!;
+      const load = callee.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(callee) && requires.has(callee.text));
+      const resolve = ts.isPropertyAccessExpression(callee) && callee.name.text === 'resolve' && ts.isIdentifier(callee.expression) &&
+        requires.has(callee.expression.text);
+      if (ts.isPropertyAccessExpression(callee) && callee.name.text.startsWith('glob') && ts.isMetaProperty(callee.expression)) glob = true;
+      if (load || resolve) {
+        if (ts.isStringLiteralLike(argument)) {
+          specifiers.add(argument);
+          (load ? loads : resolves).push(argument.text);
+        } else computed.push(pieces(argument));
+      }
+    }
+    if ((ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) && node.text.length < 300) {
+      literals.add(node.text);
+      if (!specifiers.has(node)) mentions.add(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  const relative = (specifier: string): boolean => specifier.startsWith('./') || specifier.startsWith('../');
+  return {
+    relative: [...new Set(loads.filter(relative))],
+    resolved: [...new Set(resolves.filter(relative))],
+    bare: [...new Set([...loads, ...resolves].filter(specifier => !relative(specifier)))],
+    computed, glob, literals: [...literals], mentions: [...mentions],
+    parsed: !(file as unknown as { parseDiagnostics?: readonly unknown[] }).parseDiagnostics?.length,
+  };
+}
+
+/** The relative specifiers a source loads (`moduleSpecifiers`). */
+export function relativeSpecifiers(source: string, fileName = 'atoma.acceptance.test.ts'): string[] {
+  return [...moduleSpecifiers(source, fileName).relative];
 }
 
 /** Vite's own extension order for an extensionless import, then the CommonJS and TypeScript module forms. */
@@ -297,6 +384,14 @@ export function resolutionCandidates(target: string): string[] {
     for (const each of EXTENSIONLESS) out.push(`${target}/index${each}`);
   }
   return out;
+}
+
+/** The other spellings of one module: what its `.js` specifier also loads (`TWINS`), and back. */
+export function twinsOf(file: string): string[] {
+  const extension = path.posix.extname(file);
+  const stem = file.slice(0, file.length - extension.length);
+  const back = Object.entries(TWINS).filter(([, twins]) => twins.includes(extension)).map(([from]) => from);
+  return [...(TWINS[extension] ?? []), ...back].map(each => `${stem}${each}`);
 }
 
 /** A suite's relative import, resolved against its cwd; undefined when it leaves the copied directory. */
