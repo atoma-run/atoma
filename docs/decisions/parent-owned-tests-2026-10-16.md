@@ -737,3 +737,49 @@ build outputs, data files, logs and coverage reports move the subject digest,
 and identical failures of different wrong implementations count. Known
 under-count: an older worker's runs carry no subject digest, and a dispute that
 first holds on the fallback's own run is not counted.
+
+**Recorded, so it can be classified (2026-10-17).** Classifying the first
+counted dispute (run 034d176d) took a grep of the run log for a 16-character
+digest prefix, digests recomputed over 19 suites parsed out of plan replies in
+an 18 MB trace, and a read of the saved workspace; its persisted result kept two
+observations and no suite source. Each count now also writes a record
+(`src/contracts/suiteDisputeRecord.ts`) into the trace's top-level
+`suiteDisputes` member: the suite the host holds, the failing set, every
+observation of that suite the loop held, then each later verification of it in
+the loop (the branch retry, the fallback). `suiteDisputeWatch` writes it through
+`RunContext.recordSuiteDispute`, after the count and inside its try/catch, so a
+record that fails changes neither the loop nor the count, and counted entries
+equal `suiteDisputes` in the run stats. No run path reads the member, so no
+model in a run sees it: it is not an event (every event reaches the analyst's
+events file) and not part of `result` (which goes up the tree and into later
+runs); outside runs it is where the plan replies and the run log line already
+are, in a viewer's `section=metadata` and in the whole trace the post-mortem
+analyst may open. One report
+(`src/projects/suiteDisputes.ts`) behind two doors — the platform MCP tool
+`atoma_suite_disputes`, which journals each organisation it reads first, and
+`npm run projects -- disputes` — lists one unit per suite digest in first-count
+order, clusters the units first counted in one run with one failing set, and
+gives each its outcome as of a stated horizon: `passed-later`, `revised`
+(advisory) or `never-passed`. The classification and its rule are
+[pre-registered](../../benchmark/suite-dispute-2026-10-17/PREREGISTRATION.md):
+read at exactly 20 and 40 consecutive units, wrong suites at least half on units
+and on clusters, a `passed-later` unit counted as a wrong implementation, a fail
+at 40 closing the measurement, and 034d176d entered by hand as the one legacy
+unit, with the disclosure that it was inspected before the registration.
+
+**The model-facing variant: designed, switched off, not built.** If the rule
+passes, a rate `SUITE_DISPUTE_FACT_RATE`, absent from the code until then and
+0 by definition, goes to 0.5, drawn at the count with Decision's random seam
+and stored in the counted entry. In the shown arm one host-written fact (about
+90 tokens) reaches the suite's own planner when it replans, on its feedback
+channel, and that suite in its delegation review — never molecule prompts,
+result validation, the spent-ladder hand-up, root acceptance or the criteria,
+the path refused above for reaching every call. Its outcomes are pre-registered
+in the commit that builds it (benefit: wrong-suite units whose suite was revised
+and then passed; harm: wrong-implementation units whose owner weakened a
+requirement-backed assertion), labels are assigned blind from the counted entry,
+and a gate test fails CI while the rate is non-zero and `results.json` does not
+say pass. Not built now: the rule may fail; the measurement takes weeks and a
+holdout as long again; the variant touches the most fragile prompt surfaces; and
+034d176d shows the suite's author can be the tissue rather than the cell the
+loop sees, so the labelled units should decide where the fact goes.

@@ -127,7 +127,8 @@ describe('the 2026-07-28 era', () => {
         artifactFile: () => ({ projectId: 'p', runId: 'r', path: 'a.txt', size: 1, snapshot: 'f'.repeat(64), mimeType: 'text/plain',
           kind: 'text', text: 'a', textOffset: 0, nextTextOffset: null, untrusted: true }),
       } as never, store: {} as never },
-      auth: {} as never,
+      // The suite-dispute report reads every organisation: none here.
+      auth: { listOrganisations: () => [] } as never,
       journal: { list: () => ({ events: [], nextBefore: null }) },
       notifications: () => ({ notifications: [], nextBefore: null }),
     });
@@ -135,7 +136,7 @@ describe('the 2026-07-28 era', () => {
     try {
       const withSchema = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(withSchema.map((tool) => tool.name).sort()).toEqual([
-        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_project_learning', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health',
+        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_project_learning', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health', 'atoma_suite_disputes',
       ]);
       for (const tool of withSchema) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);

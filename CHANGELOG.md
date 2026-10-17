@@ -8,6 +8,17 @@ before launch, incomplete runs kept and explained, and comparison reruns.
 
 ### Added
 
+- Platform MCP `atoma_suite_disputes` (read-only, the platform tier only) and
+  `npm run projects -- disputes`: every counted suite dispute of every
+  organisation, one unit per suite digest in first-count order, with its
+  outcome (`passed-later`, `revised` or `never-passed`) as of the call. Each
+  organisation's read is journaled before anything is read. `view=rows` carries
+  no text and a digest of the ordered list; `view=review` and `suiteDigest`
+  carry model-authored text marked untrusted. Run traces gain a top-level
+  `suiteDisputes` member, written when a dispute is counted, that no run path
+  reads. The classification it feeds is pre-registered in
+  `benchmark/suite-dispute-2026-10-17/`. Additive in both MCP protocol versions.
+
 - `atoma_run_start` takes an optional `readRunIds`: up to three other retained
   delivered or partial runs of the same project, at most 64 MiB and 10,000
   files together, whose saved files the new run may read. They are copied with

@@ -167,6 +167,16 @@ Neighbours:
 - The suite digest stays in `parentTests.ts` (`node:crypto`), which re-exports
   the record names for the server; client code imports `parentTestRecord.js`
   only (`tests/viz-client-bundle-boundary.test.ts` bundles the consumers).
+- `suiteDisputeRecord.ts` (2026-10-17) is the record of a counted suite
+  dispute and of that suite's later verifications in the loop, server-side
+  only. Strict writer: its builders bound every string first, so a real
+  dispute is never refused for its size. Tolerant reader: it keeps what it
+  knows and drops an unreadable observation, never the entry around it. It
+  lives in the trace's top-level `suiteDisputes` member (64 entries, a
+  counted one displacing a later one), never in an event or in `result`,
+  which the analyst's events file and later runs read. Counted entries equal
+  the run stats' `suiteDisputes`; the report lists a run whose stats count
+  more as legacy ([pre-registration](../../benchmark/suite-dispute-2026-10-17/PREREGISTRATION.md)).
 
 ## Reading a trace without holding it
 

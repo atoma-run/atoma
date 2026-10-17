@@ -10,6 +10,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   renameSync,
   rmSync,
   statSync,
@@ -46,6 +47,7 @@ import { unsupportedRunHostMessage } from '../src/run/platform.js';
 import { RunLockBusyError, type RunLease } from '../src/mcp/runLock.js';
 import { TraceRecorder } from '../src/viz/trace.js';
 import { LearningQueue } from '../src/skills/learningQueue.js';
+import { countedFor, disputeSuite, laterFor } from './helpers/suiteDisputes.js';
 import type { LearningJob } from '../src/contracts/skillLearning.js';
 
 type SpawnRunOptions = Parameters<typeof import('../src/cli/burnin.js').spawnRun>[0];
@@ -2214,6 +2216,20 @@ describe('ProjectRunCoordinator — a large trace is evidence, not a refusal', (
       expect(publisher.publish).not.toHaveBeenCalled();
     });
   }
+
+  // 2026-10-17: the suite-dispute record is one more top-level member, and
+  // the delivery decision reads the same six members whatever else is there.
+  it('decides a trace carrying a suite-dispute record exactly as one without', async () => {
+    const counted = countedFor(disputeSuite('REQ-RECORDED'), Date.now());
+    const record = (r: TraceRecorder) => { r.recordSuiteDispute(counted); r.recordSuiteDispute(laterFor(counted, Date.now(), 'failed')); };
+    const f = fixture();
+    const delivered = await runOnce(f, bigTraceDriver({ targetBytes: 600_000, finish: (r) => { record(r); r.endRun({ result: deliveredResult }); } }), 'run-recorded');
+    expect(readFileSync(delivered.tracePath, 'utf8')).toContain(counted.id);
+    expect(delivered.row.status).toBe('delivered');
+    const errored = await runOnce(f, bigTraceDriver({ targetBytes: 600_000, finish: (r) => { record(r); r.endRun({ error: '401 API key is invalid.' }); } }), 'run-recorded-error');
+    expect(errored.row.status).toBe('failed');
+    expect(errored.row.error).toMatch(/run trace has no completed result/);
+  });
 
   it('refuses a large trace whose id belongs to another run', async () => {
     const f = fixture();

@@ -92,4 +92,12 @@ describe('forkBranch — field propagation', () => {
     const root = { ...makeCtx(), recordRootPlan: observer };
     expect(forkBranch(forkBranch(root, 'outer'), 'inner').recordRootPlan).toBe(observer);
   });
+
+  // The stat and its record reach one recorder, or counts and entries disagree.
+  it('forwards the suite-dispute recorder by reference through a double fork, and leaves it absent when unset', () => {
+    const recorder = () => undefined;
+    const root = { ...makeCtx(), recordSuiteDispute: recorder };
+    expect(forkBranch(forkBranch(root, 'outer'), 'inner').recordSuiteDispute).toBe(recorder);
+    expect(forkBranch(makeCtx(), 'branch-1').recordSuiteDispute).toBeUndefined();
+  });
 });

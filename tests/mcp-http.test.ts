@@ -36,6 +36,8 @@ import { acquireRunLease } from '../src/mcp/runLock.js';
 import { ANTHROPIC_PINS } from './tier-pins.js';
 import { benchmarkRegistration } from './helpers/retrievalBenchmark.js';
 import { summarizeRetrievalCampaign } from '../src/cli/retrievalCampaign.js';
+import { addDisputeRun, countedFor, disputeSuite } from './helpers/suiteDisputes.js';
+import { parentTestSuiteDigest } from '../src/contracts/parentTests.js';
 
 /**
  * ONE MCP FOR EVERYONE, OVER HTTP. What these hold, through the real SDK
@@ -430,6 +432,9 @@ describe('the catalogue by tier', () => {
     // Sending an organisation's recorded prompts to TypeSafe is the platform's call.
     expect(asAdmin).not.toContain('atoma_jev_calibrate');
     expect(asPlatform).toContain('atoma_jev_calibrate');
+    // So is reading every organisation's suite disputes.
+    expect(asAdmin).not.toContain('atoma_suite_disputes');
+    expect(asPlatform).toContain('atoma_suite_disputes');
     // The tray needs the host's notification builder; this host has none, so
     // the platform ladder is the whole table minus that one row.
     expect(asPlatform).toEqual(MCP_TOOL_NAMES.filter((name) => !['atoma_notifications', 'atoma_benchmark_start'].includes(name)));
@@ -442,6 +447,7 @@ describe('the catalogue by tier', () => {
     expect(asOperator).not.toContain('atoma_journal_tail');
     expect(asOperator).not.toContain('atoma_notifications');
     expect(asOperator).not.toContain('atoma_jev_calibrate');
+    expect(asOperator).not.toContain('atoma_suite_disputes');
     expect(asOperator).toContain('atoma_operator_run_start');
     expect(asOperator).toContain('atoma_registry_list');
     expect(asOperator).toContain('atoma_run_trace');
@@ -860,6 +866,8 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
         artifactFile: () => ({ projectId: 'p', runId: 'r', path: 'a.txt', size: 1, snapshot: 'f'.repeat(64), mimeType: 'text/plain',
           kind: 'text', text: 'a', textOffset: 0, nextTextOffset: null, untrusted: true }),
       } as never, store: {} as never },
+      // The suite-dispute report reads every organisation: none here.
+      auth: { listOrganisations: () => [] } as never,
       notifications: () => ({ notifications: [], nextBefore: null }),
     };
     const { url } = await listen(() => ({ kind: 'principal', viewer: viewer('org:owner', true), tokenId: 'platform' }), deps);
@@ -867,7 +875,7 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
     try {
       const tools = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(tools.map((tool) => tool.name).sort()).toEqual([
-        'atoma_conversation', 'atoma_conversation_update', 'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_project_learning', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health',
+        'atoma_conversation', 'atoma_conversation_update', 'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_project_learning', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health', 'atoma_suite_disputes',
       ]);
       for (const tool of tools) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
@@ -1748,6 +1756,66 @@ it('calibrates Jev over MCP on every organisation, and reads its answers again f
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     forgetJevCalibrationsForTest();
+  }
+});
+
+it('reports suite disputes to the platform tier alone, journaled per foreign organisation, rows without text', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-suite-disputes-'));
+  dirs.push(root);
+  const a = projectRetrievalFixture(root, { subject: 'admin', slug: 'admin' });
+  const b = projectRetrievalFixture(root, { subject: 'tenant', slug: 'tenant' });
+  const ownSuite = disputeSuite('REQ-OWN the admin suite');
+  const foreignSuite = disputeSuite('REQ-FOREIGN the tenant suite');
+  addDisputeRun(a, { status: 'partial', disputes: 1, entries: [countedFor(ownSuite, Date.now() - 2_000)] });
+  addDisputeRun(b, { status: 'partial', disputes: 1, entries: [countedFor(foreignSuite, Date.now() - 1_000)] });
+  const journal = PlatformEventLog.open(a.dbPath);
+  const coordinator = { checkpointStatus: () => undefined } as unknown as ProjectRunCoordinator;
+  const audited = new ProjectService({ store: a.projects, github: null, coordinator, auditRead: (read) => journal.recordCrossOrgRead(read) });
+  const unaudited = new ProjectService({ store: a.projects, github: null, coordinator });
+  const callers: Record<string, McpCaller> = {
+    platform: { kind: 'principal', viewer: { ...a.viewer, platformAdmin: true }, tokenId: 'platform' },
+    owner: { kind: 'principal', viewer: a.viewer, tokenId: 'owner' },
+  };
+  const host = (service: ProjectService) => listen((req) => callers[String(req.headers.authorization).replace('Bearer ', '')] ?? null,
+    { ...NO_TENANT, auth: a.auth, projects: { store: a.projects, service }, journal });
+  const { url } = await host(audited);
+  const platform = await connect(url, 'platform');
+  const owner = await connect(url, 'owner');
+  try {
+    const tool = (await platform.listTools()).tools.find((candidate) => candidate.name === 'atoma_suite_disputes');
+    expect(tool?.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
+    // An organisation's owner is not the platform: not listed, not callable.
+    expect(await toolNames(owner)).not.toContain('atoma_suite_disputes');
+    await expect(owner.callTool({ name: 'atoma_suite_disputes', arguments: {} })).rejects.toThrow(/not found/);
+    expect(journal.list({ kind: 'admin.cross_org_read' }).events).toHaveLength(0);
+
+    const rows = await platform.callTool({ name: 'atoma_suite_disputes', arguments: {} });
+    expect(rows.isError).not.toBe(true);
+    const payload = rows.structuredContent as { view: string; units: { key: string }[]; listDigest: string };
+    expect(payload.view).toBe('rows');
+    expect(payload.units.map((unit) => unit.key)).toEqual([parentTestSuiteDigest(ownSuite), parentTestSuiteDigest(foreignSuite)]);
+    const text = (rows.content as { type: string; text: string }[])[0]!.text;
+    for (const marker of ['REQ-OWN', 'REQ-FOREIGN', 'TASK-TEXT', 'EXCERPT-TEXT', 'GOAL-TEXT', 'vitest']) expect(text).not.toContain(marker);
+    // The foreign organisation's read is journaled; the caller's own is not a cross-organisation read.
+    const reads = journal.list({ kind: 'admin.cross_org_read' }).events;
+    expect(reads.map((event) => [event.orgId, (event.detail as { surface?: string }).surface])).toEqual([[b.viewer.orgId, 'mcp.trace']]);
+    const review = await platform.callTool({ name: 'atoma_suite_disputes', arguments: { view: 'review' } });
+    expect((review.content as { type: string; text: string }[])[0]!.text).toContain('REQ-FOREIGN');
+  } finally {
+    await platform.close();
+    await owner.close();
+  }
+  // Without a receipt, nothing is read: a host that cannot journal refuses before any payload.
+  const refusing = await host(unaudited);
+  const refused = await connect(refusing.url, 'platform');
+  try {
+    const answer = await refused.callTool({ name: 'atoma_suite_disputes', arguments: {} });
+    expect(answer.isError).toBe(true);
+    const text = (answer.content as { type: string; text: string }[])[0]!.text;
+    expect(text).toContain('cross-organisation audit unavailable');
+    expect(text).not.toContain(parentTestSuiteDigest(foreignSuite));
+  } finally {
+    await refused.close();
   }
 });
 

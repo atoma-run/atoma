@@ -7,11 +7,17 @@ import {
   type ParentTestCause,
   type ParentTestObservation,
 } from '../contracts/parentTests.js';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { parentTestSuperseded } from '../contracts/parentTestRecord.js';
+import {
+  SUITE_DISPUTE_LATER_PER_COUNT,
+  suiteDisputeCountedEntry,
+  suiteDisputeLaterEntry,
+  type SuiteDisputeKey,
+} from '../contracts/suiteDisputeRecord.js';
 import { abortedForLanding } from './limits.js';
 import { baseExecutorOf } from './attestation.js';
-import type { Logger, Result, RunContext, Task, Verdict } from './types.js';
+import type { Logger, Result, RunContext, Task, Tier, Verdict } from './types.js';
 
 let lastObservedAt = 0;
 /** Wall-clock ms, strictly increasing in this process: two lanes never tie. */
@@ -297,7 +303,11 @@ export function markParentTestsJudged(result: Result): Result {
  * same. A host line naming the dispute reached every model call of the next
  * pass and invited children working under a correct suite to contest it
  * (review 2026-10-17), so the dispute is counted (`suiteDisputes`) and logged
- * until its false-dispute rate is measured: no routing, no text.
+ * until its false-dispute rate is measured: no routing, no text. Each count
+ * is also RECORDED for that measurement (`src/contracts/suiteDisputeRecord.ts`):
+ * the suite, its failing set and every observation the loop held, then each
+ * later verification of the suite in the loop, into the trace's
+ * `suiteDisputes` member, which no run path reads.
  */
 export const SUITE_DISPUTE_MIN_OBSERVATIONS = 3;
 export const SUITE_DISPUTE_MIN_SUBJECTS = 2;
@@ -345,32 +355,87 @@ export function taskSuiteDispute(task: Pick<Task, 'acceptanceTests'>, observatio
 
 const DISPUTE_TASK_CHARS = 120;
 
+/** Where the loop escalated: what a counted entry names besides the suite. */
+export interface SuiteDisputeEscalation {
+  /** `EscalationSignal.phase`. */
+  readonly phase: string;
+  /** The child the loop gave up on. */
+  readonly failingChild: string;
+}
+
 export interface SuiteDisputeWatch {
-  /** Keeps the observation this loop's verification appended; returns the result unchanged. */
+  /**
+   * Keeps the observation this loop's verification appended and, once the
+   * loop counted a dispute, records it as a later verification; returns the
+   * result unchanged.
+   */
   observe(result: Result): Result;
-  /** At an escalation: counts and logs a dispute the first time per suite digest in the attempt. */
-  escalated(): void;
+  /** At an escalation: counts, logs and records a dispute the first time per suite digest in the attempt. */
+  escalated(escalation: SuiteDisputeEscalation): void;
 }
 
 /**
- * One supervise loop's watch over its task's own suite. Its observations
- * outlive branch retries, as the loop's trace does. A dispute is looked for
- * where the loop escalates, where routing it back to the owner would act, so
- * `suiteDisputes` measures that variant; it is counted and logged once per
- * suite digest (`mechanicalResultRejections`, fork-shared, reset per attempt).
+ * One supervise loop's watch over its task's own suite, owned by the loop's
+ * parent (`owner`). Its observations outlive branch retries, as the loop's
+ * trace does. A dispute is looked for where the loop escalates, where routing
+ * it back to the owner would act, so `suiteDisputes` measures that variant;
+ * it is counted, logged and recorded once per suite digest
+ * (`mechanicalResultRejections`, fork-shared, reset per attempt), and every
+ * later verification of that suite in this loop is recorded after it, up to
+ * `SUITE_DISPUTE_LATER_PER_COUNT`. The count comes first and stands whatever
+ * the record does, so a run whose record failed shows as stats above entries.
  * Nothing here changes what the loop does next, and nothing reaches a model:
  * a fault is logged and leaves the loop as it was.
  */
-export function suiteDisputeWatch(task: Task, ctx: RunContext): SuiteDisputeWatch {
+export function suiteDisputeWatch(
+  task: Task,
+  ctx: RunContext,
+  owner: { readonly name: string; readonly tier: Tier }
+): SuiteDisputeWatch {
   const observed: HeldParentTestObservation[] = [];
+  /** This loop's count, once its record was written: what later verifications follow. */
+  let count: { readonly id: string; readonly suiteDigest: string; readonly excerpt: string; later: number } | null = null;
+  // An observer's write: whatever it throws is logged, and the loop goes on as it was.
+  const record = (write: (recordSuiteDispute: NonNullable<RunContext['recordSuiteDispute']>) => void): void => {
+    const recordSuiteDispute = ctx.recordSuiteDispute;
+    if (!recordSuiteDispute) return;
+    try {
+      write(recordSuiteDispute);
+    } catch (error) {
+      ctx.logger.warn(`[parent-tests] suite dispute record not written; nothing else changes: ${String(error).slice(0, 200)}`);
+    }
+  };
+  const sameSet = (observation: HeldParentTestObservation, excerpt: string): boolean =>
+    observation.status === 'failed' && failingExcerpt(observation.details) === excerpt;
+  const keyOf = (suiteDigest: string): SuiteDisputeKey => ({
+    id: randomUUID(),
+    at: Date.now(),
+    suiteDigest,
+    ...(ctx.attempt !== undefined ? { attempt: ctx.attempt } : {}),
+    ...(ctx.currentBranchId !== undefined ? { branchId: ctx.currentBranchId } : {}),
+  });
   return {
     observe(result) {
       // verifyParentTests appends this loop's own observation last.
       const own = task.acceptanceTests ? result.parentTests?.at(-1) : undefined;
-      if (own) observed.push(own);
+      if (!own) return result;
+      observed.push(own);
+      const counted = count;
+      if (counted && counted.later < SUITE_DISPUTE_LATER_PER_COUNT && own.suiteDigest === counted.suiteDigest) {
+        record((recordSuiteDispute) => {
+          recordSuiteDispute(suiteDisputeLaterEntry({
+            key: keyOf(counted.suiteDigest),
+            countId: counted.id,
+            producedBy: { name: result.producedBy.name, tier: result.producedBy.tier, viaFallback: result.producedBy.viaFallback },
+            observation: own,
+            sameSet: sameSet(own, counted.excerpt),
+          }));
+          counted.later += 1;
+        });
+      }
       return result;
     },
-    escalated() {
+    escalated({ phase, failingChild }) {
       try {
         const dispute = taskSuiteDispute(task, observed);
         if (!dispute) return;
@@ -381,6 +446,24 @@ export function suiteDisputeWatch(task: Task, ctx: RunContext): SuiteDisputeWatc
         ctx.recordRunStat?.('suite-dispute');
         ctx.logger.warn(`[parent-tests] suite dispute: suite ${dispute.suiteDigest.slice(0, 16)} for ${JSON.stringify(task.description.slice(0, DISPUTE_TASK_CHARS))} ` +
           `failed with the same assertions on ${dispute.subjects} versions of the workspace over ${dispute.observations} attempts (measured only; no model reads it)`);
+        const suite = task.acceptanceTests!;
+        record((recordSuiteDispute) => {
+          const entry = suiteDisputeCountedEntry({
+            key: keyOf(dispute.suiteDigest),
+            owner: { name: owner.name, tier: owner.tier },
+            failingChild,
+            phase,
+            task: task.description,
+            suite,
+            excerpt: dispute.excerpt,
+            counts: { observations: dispute.observations, subjects: dispute.subjects },
+            observations: observed
+              .filter((observation) => observation.suiteDigest === dispute.suiteDigest)
+              .map((observation) => ({ observation, sameSet: sameSet(observation, dispute.excerpt) })),
+          });
+          recordSuiteDispute(entry);
+          count = { id: entry.id, suiteDigest: dispute.suiteDigest, excerpt: dispute.excerpt, later: 0 };
+        });
       } catch (error) {
         ctx.logger.warn(`[parent-tests] suite dispute detection failed; nothing counted: ${String(error).slice(0, 200)}`);
       }

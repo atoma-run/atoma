@@ -1005,7 +1005,7 @@ export interface RunContext {
    * facts attached instead of tripping the repeat-rejection tracker.
    * Shared across forks by `forkBranch` (replans build fresh instances),
    * but reset between depth-pilot attempts like the plan memo. Also keys
-   * `suite-dispute|<suite digest>`: a suite dispute is counted and surfaced
+   * `suite-dispute|<suite digest>`: a suite dispute is counted and recorded
    * once per attempt (`suiteDisputeWatch`, src/core/parentTests.ts).
    */
   mechanicalResultRejections?: Set<string>;
@@ -1062,6 +1062,17 @@ export interface RunContext {
    */
   readonly recordRunStat?: (
     signal: import('../contracts/runStats.js').RunStatSignal
+  ) => void;
+  /**
+   * The record of a counted suite dispute and of that suite's later
+   * verifications (`src/contracts/suiteDisputeRecord.ts`). The runner writes
+   * it into the trace's top-level `suiteDisputes` member, which no run path
+   * reads. Observer only: `suiteDisputeWatch` calls it inside its own
+   * try/catch, so a throwing recorder changes nothing in the loop.
+   * Forwarded by `forkBranch`.
+   */
+  readonly recordSuiteDispute?: (
+    entry: import('../contracts/suiteDisputeRecord.js').SuiteDisputeEntry
   ) => void;
   /**
    * The files a SEEDED run started from, read by the host before any model

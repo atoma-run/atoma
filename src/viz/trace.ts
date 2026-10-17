@@ -9,6 +9,7 @@ import type { JevDecisionInfo, Task, Tier } from '../core/types.js';
 import type { AcceptanceInfo, TopologyInfo } from '../contracts/depthRouting.js';
 import { isLanded } from '../contracts/runLanding.js';
 import type { PersistedParentTestObservation } from '../contracts/parentTestRecord.js';
+import { appendSuiteDisputeEntry, type SuiteDisputeEntry } from '../contracts/suiteDisputeRecord.js';
 
 /**
  * Minimal structured event log for the web visualizer. One run corresponds to
@@ -582,6 +583,15 @@ export interface VizRun {
   tierModels?: VizTierModels;
   /** Resolves floor/phase coverage references, including abandoned attempts. */
   attestations?: import('../contracts/attestation.js').AttestationRecord[];
+  /**
+   * The record of each counted suite dispute and of that suite's later
+   * verifications (`src/contracts/suiteDisputeRecord.ts`), for the platform
+   * report that classifies them. A top-level member and never an event: the
+   * analyst's events file is model input, and no run path reads this member.
+   * Absent on runs without a dispute and on traces written before 2026-10-17;
+   * capped at `SUITE_DISPUTE_TRACE_ENTRIES`.
+   */
+  suiteDisputes?: SuiteDisputeEntry[];
   id: string;
   label: string;
   task: Task;
@@ -733,6 +743,12 @@ export class TraceRecorder {
     if (!this.run) return;
     (this.run.attestations ??= []).push(record);
     this.schedulePartialPersist();
+  }
+
+  /** `RunContext.recordSuiteDispute`'s writer: one more entry of the top-level `suiteDisputes` member. */
+  recordSuiteDispute(entry: SuiteDisputeEntry): void {
+    if (!this.run) return;
+    if (appendSuiteDisputeEntry((this.run.suiteDisputes ??= []), entry)) this.schedulePartialPersist();
   }
 
   /**

@@ -179,6 +179,14 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   newest run, or by creation before a first run. `projects.updated_at` also
   changes for repository and showcase administration, so it cannot describe
   the activity shown on those cards. Break ties by creation and project id.
+- `suiteDisputes.ts` is the suite-dispute report (2026-10-17), the one body
+  behind the platform MCP tool `atoma_suite_disputes` and `projects disputes`.
+  Cross-org by construction, it opens only runs whose stats count a dispute or
+  have none, then the later runs of the projects that counted one, and reads
+  their `id`, `provenance`, `suiteDisputes` and `result` members through
+  `withTraceDocument`, one trace per event-loop turn. It journals nothing (its
+  MCP door does) and writes nothing; units, clusters and outcomes are defined
+  in its header ([pre-registration](../../benchmark/suite-dispute-2026-10-17/PREREGISTRATION.md)).
 - Such a reader must not WRITE here. A `running` row that outlived its process
   is repaired by `reconcileInterrupted` at the next boot, never by the
   observer that noticed it. `hasProjectTables` exists so a reader can ask

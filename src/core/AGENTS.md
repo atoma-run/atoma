@@ -1,7 +1,8 @@
 # Core — AGENTS.md
 
 Depth attempts share the run deadline and accounting. `forkBranch` forwards
-attempt identity and the pre-fallback/phase-coverage hooks. Attestations are
+attempt identity and the pre-fallback, phase-coverage and suite-dispute record
+hooks. Attestations are
 read by attempt at root acceptance; optional trace snapshots resolve their
 references but are never loaded back as execution proof.
 

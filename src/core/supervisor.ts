@@ -255,9 +255,9 @@ export async function superviseLoop<C extends Atom>(
   const trace: TraceEntry[] = [];
   let current: C = child;
   // Measurement only: a suite failing the same way on several versions of the
-  // workspace is counted and logged; no model reads it and it changes no step
-  // of this loop (src/core/parentTests.ts).
-  const disputes = suiteDisputeWatch(task, ctx);
+  // workspace is counted, logged and recorded for the trace; no model reads it
+  // and it changes no step of this loop (src/core/parentTests.ts).
+  const disputes = suiteDisputeWatch(task, ctx, { name: parent.name, tier: parent.tier });
   const run = async (execute: () => Promise<Result>): Promise<Result> =>
     disputes.observe(await verifyParentTests(task, await (hooks.aroundExecute ? hooks.aroundExecute(execute) : execute()), ctx));
   // One-shot branch retry: when a branchOnEscalation hook returns a fresh
@@ -481,7 +481,7 @@ export async function superviseLoop<C extends Atom>(
         payload: { phase: e.phase, failingChild: current.name, ...(blameless ? { blameless: true } : {}) },
       });
       ctx.recordRunStat?.('escalation');
-      disputes.escalated();
+      disputes.escalated({ phase: e.phase, failingChild: current.name });
 
       if (hooks.onFailed && !blameless) {
         await hooks.onFailed(current, `escalation-${e.phase}`, lastResultVerdict);

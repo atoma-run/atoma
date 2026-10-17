@@ -32,6 +32,8 @@ import { attestingExecutor, createAttestationLog } from './attestation.js';
  *     their own id plus `currentBranchId` as the exact parent.
  *   - `recordRunStat` → forwarded unchanged; it is run-scoped accounting,
  *     not a branch-labelled viz event.
+ *   - `recordSuiteDispute` → forwarded unchanged; the entry names its own
+ *     lane (`currentBranchId` where the watch counted it).
  */
 export function forkBranch(ctx: RunContext, branchId: string): RunContext {
   // rootCheckpoint is intentionally NOT forwarded: a child cannot commit or
@@ -138,6 +140,9 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
     ...(wrappedRecordTrust !== undefined ? { recordTrust: wrappedRecordTrust } : {}),
     ...(wrappedRecordSkill !== undefined ? { recordSkill: wrappedRecordSkill } : {}),
     ...(ctx.recordRunStat !== undefined ? { recordRunStat: ctx.recordRunStat } : {}),
+    // The record of what `recordRunStat` counts as a suite dispute: both
+    // reach the run's one recorder, or the counts and the entries disagree.
+    ...(ctx.recordSuiteDispute !== undefined ? { recordSuiteDispute: ctx.recordSuiteDispute } : {}),
     ...(wrappedRecordCacheHit !== undefined ? { recordCacheHit: wrappedRecordCacheHit } : {}),
     ...(wrappedJev !== undefined ? { jev: wrappedJev } : {}),
     // One registry for the run: the runner awaits it before closing the trace.

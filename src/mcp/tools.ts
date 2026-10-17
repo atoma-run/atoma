@@ -64,6 +64,7 @@ import {
 } from './readers.js';
 import { operatorRunUri, operatorTraceUri, projectRunUri, projectFileUri, registerResources } from './resources.js';
 import { JEV_CALIBRATE_INPUT, jevCalibrateCall } from './jevCalibrate.js';
+import { SUITE_DISPUTES_INPUT, suiteDisputesCall } from './suiteDisputes.js';
 import {
   OPERATOR_RUN_INPUT,
   BENCHMARK_RUN_INPUT,
@@ -109,7 +110,8 @@ import { WriteRefused, registryMerge, registryRollback, skillDrop, skillMerge, s
  *   platform — the instance: operator runs, skill analytics (stats, review),
  *              the four lifecycle writes, ledger, the operator run corpus,
  *              friction, the journal, every organisation, and the Jev
- *              calibration over every organisation's runs
+ *              calibration and the suite-dispute report over every
+ *              organisation's runs
  *
  * NEEDS. A tool is registered only when the host can honour it: the tenant
  * tools need the gated projects runtime, the journal tool needs a journal,
@@ -1481,6 +1483,30 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             } finally {
               heartbeat.stop();
             }
+          })
+      ),
+  },
+  {
+    name: 'atoma_suite_disputes',
+    tier: 'platform',
+    needs: ['auth', 'projects'],
+    register: (server, ctx) =>
+      server.registerTool(
+        'atoma_suite_disputes',
+        {
+          title: 'Suite disputes, for classification',
+          description:
+            'Units of the pre-registered suite-dispute measurement: parent suites counted as failing the same way on every implementation, read from every organisation\'s run traces (each organisation\'s read is journaled). Ordered by first count, with outcome passed-later, revised or never-passed as of horizon, and listDigest over the window. view=rows (default) has no text; view=review and suiteDigest carry UNTRUSTED model text. Page with offset/limit under a fixed until.',
+          inputSchema: SUITE_DISPUTES_INPUT,
+          // Three views share these; everything else is additive.
+          outputSchema: z.looseObject({ view: z.enum(['rows', 'review', 'unit']), horizon: z.string(), note: z.string() }),
+          annotations: READ_ONLY,
+        },
+        (args, extra) =>
+          guarded(() => {
+            const { service, store, viewer } = tenant(ctx);
+            const orgIds = () => ctx.deps.auth!.listOrganisations().map((organisation) => organisation.orgId);
+            return suiteDisputesCall({ projects: { service, store }, viewer, orgIds, signal: extra.mcpReq.signal }, args);
           })
       ),
   },

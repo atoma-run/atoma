@@ -636,7 +636,9 @@ npm run viz:mark-turn:analyze
   ORDER nor INDENTATION, which is deliberate: a throttled partial flush already
   moves `totals` ahead of `endedAt`, so order was never stable. Changing the
   document to a stream of records, or nesting the terminal members, is a change
-  to that contract.
+  to that contract. A new member is additive: `suiteDisputes` (2026-10-17, the
+  suite-dispute record) is read by the projects report alone; a viewer sees it
+  through `atoma_run_trace` `section=metadata`, as the plan replies.
 - TWO hand-rolled JSON scanners now exist and they own different jobs: this
   subsystem's neighbour `src/atoms/json.ts` (`findBalancedEnd`,
   `repairPrematureClose`) repairs a whole model-authored STRING already in

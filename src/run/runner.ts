@@ -1428,6 +1428,10 @@ async function startTaskInternal(
     recordRunStat: (signalName) => {
       runSignals[signalName] += 1;
     },
+    // Every run, like the stat it records: a counted suite dispute and that
+    // suite's later verifications go to the trace's top-level member, which
+    // only the platform report reads (suiteDisputeRecord.ts).
+    recordSuiteDispute: (entry) => recorder.recordSuiteDispute(entry),
     // Read from the SEED, which is never modified, rather than from the
     // workspace after seeding: a deepening re-seeds, and its baseline is the
     // same seed. The delivered side is read from the host path the tools

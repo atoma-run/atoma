@@ -15,8 +15,16 @@ import {
   SUITE_DISPUTE_MIN_OBSERVATIONS,
   SUITE_DISPUTE_MIN_SUBJECTS,
   parentTestRejection,
+  suiteDisputeWatch,
   taskSuiteDispute,
 } from '../src/core/parentTests.js';
+import {
+  SUITE_DISPUTE_LATER_PER_COUNT,
+  suiteDisputeEntrySchema,
+  type SuiteDisputeCounted,
+  type SuiteDisputeEntry,
+  type SuiteDisputeLater,
+} from '../src/contracts/suiteDisputeRecord.js';
 import { snapshotProject } from '../src/tools/parentTests.js';
 import {
   parentTestObservationSchema,
@@ -230,7 +238,11 @@ function runner(subjects: readonly (string | undefined)[]): ToolExecutor & { rea
   };
 }
 
-async function supervise(subjects: readonly (string | undefined)[], shared?: Set<string>) {
+async function supervise(
+  subjects: readonly (string | undefined)[],
+  shared?: Set<string>,
+  recordSuiteDispute?: (entry: SuiteDisputeEntry) => void
+) {
   const stats: RunStatSignal[] = [];
   const warnings: string[] = [];
   const tools = runner(subjects);
@@ -239,6 +251,7 @@ async function supervise(subjects: readonly (string | undefined)[], shared?: Set
     tools,
     recordRunStat: (signal) => { stats.push(signal); },
     ...(shared ? { mechanicalResultRejections: shared } : {}),
+    ...(recordSuiteDispute ? { recordSuiteDispute } : {}),
   };
   const onFailed = vi.fn(async () => {});
   const branchOnEscalation = vi.fn(async () => new Stand(1, 'Branched'));
@@ -333,6 +346,119 @@ describe('B3: surfacing in superviseLoop, routing unchanged', () => {
   });
 });
 
+/** What a recorder received, split by type and checked against the strict writer. */
+function recorded() {
+  const entries: SuiteDisputeEntry[] = [];
+  return {
+    entries,
+    record: (entry: SuiteDisputeEntry) => { entries.push(suiteDisputeEntrySchema.parse(entry)); },
+    counted: () => entries.filter((entry): entry is SuiteDisputeCounted => entry.type === 'counted'),
+    later: () => entries.filter((entry): entry is SuiteDisputeLater => entry.type === 'later'),
+  };
+}
+
+describe('B5: the record, for the measurement (2026-10-17)', () => {
+  it('records one counted entry with the stat and the log line: the suite, the failing set and every subject digest', async () => {
+    const record = recorded();
+    const disputed = await supervise(SPENT, undefined, record.record);
+    const [entry] = record.counted();
+    expect(record.counted()).toHaveLength(disputed.stats.filter((signal) => signal === 'suite-dispute').length);
+    expect(entry).toMatchObject({
+      suiteDigest: DIGEST, owner: { name: 'Cell', tier: 2 }, failingChild: 'Branched', phase: 'repeat',
+      task: TASK.description, suite: SUITE, counts: { observations: 6, subjects: 4 },
+    });
+    // The log line names the same suite and the same numbers.
+    expect(disputed.warnings[0]).toContain(entry!.suiteDigest.slice(0, 16));
+    expect(disputed.warnings[0]).toContain(`on ${entry!.counts.subjects} versions of the workspace over ${entry!.counts.observations} attempts`);
+    expect(entry!.excerpt).toBe(taskSuiteDispute(TASK, SPENT.slice(0, 6).map((subject) => failed(subject)))!.excerpt);
+    expect(entry!.observations.map((observation) => [observation.subjectDigest, observation.status, observation.sameSet]))
+      .toEqual(['a', 'a', 'a', 'b', 'c', 'd'].map((subject) => [subject, 'failed', true]));
+    // Only the fallback verified the suite after the count.
+    expect(record.later()).toEqual([expect.objectContaining({
+      countId: entry!.id, suiteDigest: DIGEST,
+      producedBy: { name: 'Cell', tier: 2, viaFallback: false },
+      observation: expect.objectContaining({ subjectDigest: 'e', status: 'failed', sameSet: true }),
+    })]);
+  });
+
+  it('records the later verifications of the branch retry and of the fallback, and none before the count', async () => {
+    const record = recorded();
+    const early = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+    const disputed = await supervise(early, undefined, record.record);
+    const control = await supervise(early.map(() => 'a'));
+    expect(disputed.routing).toEqual(control.routing);
+    expect(disputed.failures).toEqual(control.failures);
+    expect(record.counted()).toEqual([expect.objectContaining({ failingChild: 'Molecule', counts: { observations: 3, subjects: 3 } })]);
+    expect(record.counted()[0]!.observations.map((observation) => observation.subjectDigest)).toEqual(['a', 'b', 'c']);
+    expect(record.later().map((entry) => [entry.observation.subjectDigest, entry.producedBy.name, entry.producedBy.tier]))
+      .toEqual([['d', 'Branched', 1], ['e', 'Branched', 1], ['f', 'Branched', 1], ['g', 'Cell', 2]]);
+    expect(record.later().every((entry) => entry.countId === record.counted()[0]!.id)).toBe(true);
+  });
+
+  it('records nothing where nothing is counted: one version, or a worker that names none', async () => {
+    for (const subjects of [SPENT.map(() => 'a'), SPENT.map(() => undefined)]) {
+      const record = recorded();
+      await supervise(subjects, undefined, record.record);
+      expect(record.entries).toEqual([]);
+    }
+  });
+
+  it('records a suite once per attempt, as it counts it: a later loop records nothing, a new attempt records again', async () => {
+    const record = recorded();
+    const attempt = new Set<string>();
+    await supervise(SPENT, attempt, record.record);
+    expect(record.entries).toHaveLength(2);
+    const again = await supervise(SPENT, attempt, record.record);
+    expect(again.stats).not.toContain('suite-dispute');
+    expect(record.entries).toHaveLength(2);
+    const next = await supervise(SPENT, new Set<string>(), record.record);
+    expect(next.stats).toContain('suite-dispute');
+    expect(record.counted()).toHaveLength(2);
+  });
+
+  it('keeps the loop, the count and the log line when the recorder throws, and says the record was not written', async () => {
+    const thrown: string[] = [];
+    const faulted = await supervise(SPENT, undefined, (entry) => { thrown.push(entry.type); throw new Error('trace unavailable'); });
+    const control = await supervise(SPENT);
+    expect(faulted.routing).toEqual(control.routing);
+    expect(faulted.reasonings).toEqual(control.reasonings);
+    expect(faulted.failures).toEqual(control.failures);
+    expect(faulted.runs).toBe(control.runs);
+    expect(faulted.result.spentLadder).toEqual(control.result.spentLadder);
+    expect(faulted.stats).toEqual(control.stats);
+    expect(faulted.otherWarnings).toEqual(control.otherWarnings);
+    expect(faulted.warnings[0]).toBe(control.warnings[0]);
+    expect(faulted.warnings.slice(1)).toEqual([expect.stringContaining('suite dispute record not written; nothing else changes: Error: trace unavailable')]);
+    // A count whose record failed is followed by no later entry.
+    expect(thrown).toEqual(['counted']);
+  });
+
+  it('records at most eight later verifications per count', () => {
+    const record = recorded();
+    const ctx: RunContext = { ...makeCtx(), recordSuiteDispute: record.record };
+    const watch = suiteDisputeWatch(TASK, ctx, { name: 'Cell', tier: 2 });
+    const verified = (observation: HeldParentTestObservation): Result => ({
+      output: null, summary: '', trace: [], producedBy: { tier: 1, name: 'Molecule', viaFallback: false }, parentTests: [observation],
+    });
+    for (const subject of ['a', 'b', 'c']) watch.observe(verified(failed(subject)));
+    watch.escalated({ phase: 'repeat', failingChild: 'Molecule' });
+    for (let i = 0; i < 12; i++) watch.observe(verified(failed(`later-${i}`)));
+    expect(record.counted()).toHaveLength(1);
+    expect(record.later()).toHaveLength(SUITE_DISPUTE_LATER_PER_COUNT);
+  });
+
+  // Checkpoints persist phase Results, later runs read `result`: the record is on neither.
+  it('leaves the result the loop returns as it was: no field, no entry id', async () => {
+    const record = recorded();
+    const disputed = await supervise(SPENT, undefined, record.record);
+    const control = await supervise(SPENT);
+    expect(Object.keys(disputed.result).sort()).toEqual(Object.keys(control.result).sort());
+    const serialized = JSON.stringify(disputed.result);
+    for (const entry of record.entries) expect(serialized).not.toContain(entry.id);
+    expect(serialized).not.toContain('countId');
+  });
+});
+
 /** The run's root actor where the test supplies the result itself. */
 class RootActor extends Atom implements Supervisor<RootActor> {
   readonly model = 'test';
@@ -376,7 +502,7 @@ describe('B3: through the real tissue, cell and molecules, with root acceptance 
   const phase = 'restore the browser scripts';
   const leaf = 'repair only package.json scripts';
 
-  async function run(subjectOf: (call: number) => string) {
+  async function run(subjectOf: (call: number) => string, options: { recordSuiteDispute?: (entry: SuiteDisputeEntry) => void } = {}) {
     const reg = new AtomRegistry(openDb(':memory:'));
     reg.create(3, { ...seed, description: 'tissue', systemPrompt: 'You are an L3.' });
     reg.create(2, seed);
@@ -409,7 +535,8 @@ describe('B3: through the real tissue, cell and molecules, with root acceptance 
       return ok(jsonText({ approved: true, reasoning: 'reviewed and approved' }));
     };
     const stats: RunStatSignal[] = [];
-    const ctx: RunContext & { llm: ReturnType<typeof makeCtx>['llm'] } = { ...makeCtx(), tools, recordRunStat: (signal) => { stats.push(signal); } };
+    const ctx: RunContext & { llm: ReturnType<typeof makeCtx>['llm'] } = { ...makeCtx(), tools, recordRunStat: (signal) => { stats.push(signal); },
+      ...(options.recordSuiteDispute ? { recordSuiteDispute: options.recordSuiteDispute } : {}) };
     for (let i = 0; i < 800; i++) ctx.llm.enqueue(respond);
     const tasks: Task[] = [];
     const passes: Result[] = [];
@@ -428,7 +555,13 @@ describe('B3: through the real tissue, cell and molecules, with root acceptance 
       }),
     });
     const prompts = ctx.llm.calls.map((req) => `${req.systemPrompt}\n${req.userContent}`);
-    return { outcome, tasks, passes, acceptances, stats, suiteRuns, prompts,
+    // Everything a request carries to a transport but its live handles
+    // (signal, executor, observers) and the fresh uuids that label it for the
+    // recorder: its lane and each cited context block's id. The cited text
+    // itself is folded into the system prompt, which stays compared.
+    const requests = ctx.llm.calls.map(({ branchId: _branchId, signal: _signal, executor: _executor, onToolInvocation: _observer, tools: declared, context, ...req }) =>
+      JSON.stringify({ ...req, tools: declared?.map((tool) => tool.name), context: context?.map(({ id: _id, ...block }) => block) }));
+    return { outcome, tasks, passes, acceptances, stats, suiteRuns, prompts, requests,
       calls: ctx.llm.calls.map((req) => `${req.role}:${req.actor?.name ?? ''}`) };
   }
 
@@ -457,6 +590,49 @@ describe('B3: through the real tissue, cell and molecules, with root acceptance 
     for (const text of [...disputed.prompts, ...disputed.passes.map((result) => result.summary),
       ...disputed.acceptances.map((acceptance) => acceptance.reasoning)]) {
       expect(text).not.toContain('SUITE DISPUTE');
+    }
+  }, 60_000);
+  it('passes the record hook through the tissue\'s and the cell\'s forks and the depth attempt, one entry per count', async () => {
+    const record = recorded();
+    const disputed = await run((call) => `version-${call}`, { recordSuiteDispute: record.record });
+    expect(record.counted()).toHaveLength(disputed.stats.filter((signal) => signal === 'suite-dispute').length);
+    expect(record.counted()).toHaveLength(1);
+    const [entry] = record.counted();
+    // Counted in the cell's loop over the molecule: tier 2 owns the suite, in
+    // the depth runner's first attempt, in the lane the cell's dispatch forked.
+    expect(entry).toMatchObject({ attempt: 1, suiteDigest: DIGEST, owner: { tier: 2 }, suite: SUITE });
+    expect(entry!.branchId).toMatch(/^[0-9a-f-]{36}$/);
+    // The branch retry's three verifications and the cell's own fallback, in the same lane.
+    expect(record.later().map((later) => [later.producedBy.tier, later.producedBy.viaFallback, later.observation.subjectDigest]))
+      .toEqual([[1, false, 'version-3'], [1, false, 'version-4'], [1, false, 'version-5'], [2, true, 'version-6']]);
+    expect(record.later().every((later) => later.countId === entry!.id && later.attempt === 1 && later.branchId === entry!.branchId)).toBe(true);
+    const control = await run(() => 'version-0', { recordSuiteDispute: recorded().record });
+    expect(control.stats).not.toContain('suite-dispute');
+  }, 60_000);
+
+  it('leaves every request to a model byte-identical when the recorder throws, or records', async () => {
+    // One frozen clock for every run: the fallback's trace window prints times.
+    const frozen = () => vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-17T06:00:00.000Z') });
+    const thrown: string[] = [];
+    const record = recorded();
+    try {
+      frozen();
+      const faulted = await run((call) => `version-${call}`, { recordSuiteDispute: (entry) => { thrown.push(entry.type); throw new Error('trace unavailable'); } });
+      frozen();
+      const recording = await run((call) => `version-${call}`, { recordSuiteDispute: record.record });
+      frozen();
+      const control = await run((call) => `version-${call}`);
+      expect(thrown).toEqual(['counted']);
+      expect(record.counted()).toHaveLength(1);
+      expect(control.stats).toContain('suite-dispute');
+      for (const other of [faulted, recording]) {
+        expect(other.requests).toHaveLength(control.requests.length);
+        expect(other.requests).toEqual(control.requests);
+        expect(other.stats).toEqual(control.stats);
+        expect(other.suiteRuns).toBe(control.suiteRuns);
+      }
+    } finally {
+      vi.useRealTimers();
     }
   }, 60_000);
 });

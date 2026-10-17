@@ -191,6 +191,10 @@ can only report that it cannot be.
   test, and NOTHING called it; this is that caller. The publication row stays
   the idempotency boundary, and the manifest is revalidated against the
   workspace, so a workspace that changed since delivery is refused.
+- `disputes` prints the suite-dispute report (`src/projects/suiteDisputes.ts`,
+  the platform MCP tool's body) as JSON. It opens the store read-only, before
+  the command's writable opens, and journals nothing: possession of the
+  machine is the credential here, as for `list`.
 - `titles` names the runs that ENDED before short titles existed, across every
   organisation, through `backfillRunTitles` — the run end's own call and
   write-once method ([src/projects](../projects/AGENTS.md)). A dry run until

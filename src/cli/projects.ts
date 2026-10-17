@@ -18,6 +18,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import Database from 'better-sqlite3';
 import { AuthStore } from '../auth/store.js';
 import { planShowsAttribution } from '../contracts/accountPlan.js';
 import { snapshotProviderRegistry } from '../auth/providers.js';
@@ -33,7 +34,9 @@ import { backfillRunTitles, hostRunTitler } from '../projects/runTitle.js';
 import { PreviewStore } from '../preview/store.js';
 import { recordDeliveredPreview } from '../preview/service.js';
 import { GitHubPublisher } from '../projects/publisher.js';
-import { ProjectStateConflict, ProjectStore } from '../projects/store.js';
+import { hasProjectTables, ProjectStateConflict, ProjectStore } from '../projects/store.js';
+import { ProjectHttpError } from '../projects/service.js';
+import { suiteDisputeReport } from '../projects/suiteDisputes.js';
 import { hostSubscriptionSummary, runPayerDetail } from '../contracts/runPayers.js';
 import { GitHubStore } from '../github/store.js';
 import { GitHubAppClient } from '../github/client.js';
@@ -63,6 +66,17 @@ usage:
                           [--criteria <file>] [--db path]
   npm run projects -- publish --project <slug-or-id> --as <who> --run <run-id> [--db path]
   npm run projects -- titles [--apply] [--db path]
+  npm run projects -- disputes [--view rows|review] [--suite <digest>] [--since <iso>]
+                               [--until <iso>] [--offset <n>] [--limit <n>] [--db path]
+
+disputes:
+  The suite-dispute report, the same body as the platform MCP tool
+  atoma_suite_disputes: every counted suite dispute of every organisation, one
+  unit per suite digest, ordered by first count, with its outcome as of now.
+  READ-ONLY: the store is opened read-only, and no journal row is written
+  (possession of the machine is the credential here; the MCP tool journals
+  each organisation it reads). Prints JSON. --view rows (default) carries no
+  text; --view review and --suite carry UNTRUSTED model-authored text.
 
 titles:
   Names every ENDED run of every organisation that has no short title yet —
@@ -125,6 +139,10 @@ flags:
   --run <run-id>             the delivered run to publish (publish only)
   --timeout <seconds>        run budget, 60..7200, default ${DEFAULT_PROJECT_RUN_TIMEOUT_MS / 1000} (run only)
   --apply                    name the listed runs (titles only; otherwise a dry run)
+  --view <rows|review>       the report's view (disputes only)
+  --suite <digest>           one unit in full, by digest or a 16+ character prefix (disputes only)
+  --since / --until <iso>    units first counted in this window (disputes only)
+  --offset / --limit <n>     page the units, at most 20 a page (disputes only)
   --help                     show this help`;
 
 function safeTerminal(value: string): string {
@@ -317,6 +335,46 @@ function resolveProject(
   return matches[0]!;
 }
 
+/**
+ * The suite-dispute report (`src/projects/suiteDisputes.ts`), the body the
+ * platform MCP tool `atoma_suite_disputes` mounts. READ-ONLY: a read-only
+ * handle and no DDL, so it can run beside the live server. Possession of the
+ * machine is the credential, as for every command here, so no receipt is
+ * journaled; the MCP door journals each organisation it reads.
+ */
+async function printSuiteDisputes(dbPath: string, flags: Record<string, string | undefined>): Promise<void> {
+  if (!hasProjectTables(dbPath)) fail(`no project control plane in ${dbPath}`);
+  const whole = (name: string): number | undefined => {
+    const raw = flags[name];
+    if (raw === undefined) return undefined;
+    const value = Number(raw);
+    if (raw.trim() === '' || !Number.isSafeInteger(value)) fail(`--${name} must be a whole number`);
+    return value;
+  };
+  const args = {
+    ...(flags['since'] !== undefined ? { since: flags['since'] } : {}),
+    ...(flags['until'] !== undefined ? { until: flags['until'] } : {}),
+    ...(whole('offset') !== undefined ? { offset: whole('offset') } : {}),
+    ...(whole('limit') !== undefined ? { limit: whole('limit') } : {}),
+    ...(flags['view'] !== undefined ? { view: flags['view'] } : {}),
+    ...(flags['suite'] !== undefined ? { suiteDigest: flags['suite'] } : {}),
+  };
+  const auth = AuthStore.openReadOnly(dbPath);
+  const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+  try {
+    const store = new ProjectStore(db, { initialize: false });
+    const orgIds = (auth?.listOrganisations() ?? []).map((organisation) => organisation.orgId);
+    const report = await suiteDisputeReport({ store, orgIds }, args);
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  } catch (error) {
+    if (error instanceof ProjectHttpError) fail(error.message);
+    throw error;
+  } finally {
+    db.close();
+    auth?.close();
+  }
+}
+
 async function main(): Promise<void> {
   applyCheckoutDotenvForSourceEntry();
   const args = parseCliArgs(process.argv, {
@@ -334,6 +392,12 @@ async function main(): Promise<void> {
       'visibility',
       'prompt',
       'timeout',
+      'view',
+      'suite',
+      'since',
+      'until',
+      'offset',
+      'limit',
     ],
     undeclared: 'discard',
   });
@@ -347,6 +411,11 @@ async function main(): Promise<void> {
   const dbPath = typeof dbFlag === 'string' && dbFlag.length > 0 ? dbFlag : storeDbPath();
   if (!existsSync(dbPath)) {
     fail(`no product store at ${dbPath} — start the visualizer once, or pass --db`);
+  }
+  // Before the writable opens below: this command reads, and nothing else.
+  if (command === 'disputes') {
+    await printSuiteDisputes(dbPath, args.flags);
+    return;
   }
   const auth = AuthStore.open(dbPath);
   const projects = ProjectStore.open(dbPath);

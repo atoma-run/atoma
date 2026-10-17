@@ -53,7 +53,8 @@ Neighbours:
   platform-admin flag, or the operator on the ungated loopback — everything
   above plus operator runs, skill analytics (`stats`, `review`), the four
   writes, ledger, the operator corpus, friction, the journal, every
-  organisation, the Decision calibration (below), and who may spend the host's own
+  organisation, the Decision calibration and the suite-dispute report (both
+  below), and who may spend the host's own
   login (`atoma_subscription_delegates`, the third door onto
   [src/auth](../auth/AGENTS.md)'s one body). A platform admin READS every
   organisation and WRITES only in its active one, exactly as the HTTP routes.
@@ -432,6 +433,22 @@ Neighbours:
   forgets them on purpose: a measurement is read now, and its figures go into
   the decision record through a person.
 
+## The suite-dispute report (`suiteDisputes.ts`)
+
+- `atoma_suite_disputes` (platform, `needs: ['auth', 'projects']`,
+  `readOnlyHint`) is the door onto `src/projects/suiteDisputes.ts`, whose
+  other door is `npm run projects -- disputes`: the units of the
+  [pre-registered measurement](../../benchmark/suite-dispute-2026-10-17/PREREGISTRATION.md),
+  read from every organisation's run traces. Arguments it cannot answer are
+  refused first; then each foreign organisation is journaled as an
+  `mcp.trace` cross-organisation read before any trace is opened, as the
+  calibration does, and a failed audit refuses the call. It asks no model.
+- `view=rows` (the default) carries no text — keys, run ids, revision,
+  counts, outcome, `listDigest` — and is what the measurement saves verbatim;
+  `view=review` and `suiteDigest` carry bounded model text marked UNTRUSTED.
+  Pages hold at most 20 units under a fixed `until`; its loose `outputSchema`
+  names only what its three views share.
+
 ## Changing the catalogue
 
 - `atoma_run_question` reads a saved blocking choice; `_answer` records only the
@@ -485,7 +502,7 @@ Neighbours:
   With it come a behavioural test in `tests/mcp-http.test.ts` (which tier sees
   it, what it refuses), the release smoke if it is operator-visible, and the
   README sentence `docs:check` derives from the table (the spelled-out count
-  in `scripts/repo-facts.mjs` runs to fifty-four; extend the table before the
+  in `scripts/repo-facts.mjs` runs to seventy; extend the table before the
   catalogue passes it). Removing or renaming one is a compatibility change for
   every registered client and is stated in the changelog.
 - `server.json` (repository root) is the MCP Registry entry for the deployed
