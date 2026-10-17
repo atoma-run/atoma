@@ -7,7 +7,7 @@ WORKDIR /app
 COPY docker/launcher-package.json ./package.json
 RUN npm install --omit=dev --no-audit --no-fund
 COPY dist/launcher ./dist/launcher
-COPY dist/contracts/projectHosting.js dist/contracts/launcher.js dist/contracts/launcherRpc.js dist/contracts/launcherVolumes.js dist/contracts/launcherWorker.js dist/contracts/workerProtocol.js ./dist/contracts/
+COPY dist/contracts/projectHosting.js dist/contracts/launcher.js dist/contracts/launcherRpc.js dist/contracts/launcherVolumes.js dist/contracts/launcherWorker.js dist/contracts/readRuns.js dist/contracts/artifactInventory.js dist/contracts/taskExecution.js dist/contracts/scriptEnvelope.js dist/contracts/workerProtocol.js ./dist/contracts/
 # The operator supplies a private socket directory, Docker's socket and a
 # dedicated workspace mount at the SAME absolute path as on the engine host.
 # No product store, credentials, skills or run corpus belongs in this image.
