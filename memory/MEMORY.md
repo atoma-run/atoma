@@ -14,7 +14,7 @@
 ## Current work
 - [Crystal caustic state](crystal-caustic-state.md) — 2026-10-17: facing + caustic fixes committed locally (50c15882, dfa4c921), not pushed; strokes invisible, 3 options to test
 - [Parent-tests review fixes state](parent-tests-review-fixes-state.md) — deployed; 10-17: outside-copy absent paths, suite regex check, review host facts (532d6e35), dispute count (21b0e5ce)
-- [Left-aside items state](left-aside-items-state.md) — 2026-10-17: 4 commits shipped unreviewed; RO mount + module-reach fact paused (gate passed)
+- [Left-aside items state](left-aside-items-state.md) — 2026-10-18: all 5 items shipped, 6 commits owe an adversarial review (RO mount first)
 - [Suite module reach](suite-module-reach.md) — 2026-10-17: host fact names written modules no suite reaches; gate passed; stop rule to apply
 - [Suite dispute measurement](suite-dispute-measurement.md) — pre-registered: ≥20 disputes, ≥50% wrong suites before any line or routing
 - [Read runs](read-runs.md) — 10-17: atoma_run_start readRunIds copies other runs to .atoma-runs/node_modules/<id>/; host compares criteria-named files
