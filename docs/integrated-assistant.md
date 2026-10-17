@@ -114,7 +114,11 @@ saved project ID before serialization; no other project's entry or catalogue
 cursor reaches the model. A project beyond the first catalogue page is found
 by following the cursor, so its name and repository still reach the model and
 the confirmation card. Its saved brief, readiness and latest run are read by
-that same ID. Instructions keep replies in
+that same ID. The latest run reaches the model with what decides the next step
+first (status, client acceptance, publication, a pending client question,
+recorded progress), then its goal, then its saved files as a count, their
+total size and the first paths, up to 3,000 characters of them: never the
+whole manifest, which alone can exceed the context bound. Instructions keep replies in
 that project, including when old messages mentioned another one. Saved messages
 remain unchanged. This is saved Atoma context,
 not a claim to inspect live GitHub or local files.

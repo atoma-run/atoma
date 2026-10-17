@@ -3,25 +3,36 @@ import { ConnectedAssistantModels } from '../src/viz/assistantModels.js';
 import type { makeTransportClient } from '../src/run/providers.js';
 import { TASKS_EXTENSION } from '../src/mcp/taskWire.js';
 import { conversationReadResultSchema } from '../src/contracts/assistant.js';
-import type { LlmCompletionRequest } from '../src/core/types.js';
+import type { LlmCompletionRequest, LlmCompletionResponse } from '../src/core/types.js';
 import { Conversations } from '../src/projects/conversations.js';
 import { randomUUID } from 'node:crypto';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import Database from 'better-sqlite3';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi, type Mock } from 'vitest';
 import { AssistantGrants } from '../src/auth/assistantGrants.js';
-import type { Viewer } from '../src/auth/store.js';
+import type { AuthStore, Viewer } from '../src/auth/store.js';
 import type { AssistantRequest, AssistantView } from '../src/contracts/assistant.js';
+import { closeStoreHandles } from '../src/core/stores.js';
+import { GitHubStore } from '../src/github/store.js';
 import { McpHttpHost } from '../src/mcp/http.js';
+import { acquireRunLease } from '../src/mcp/runLock.js';
 import { mcpHostWiring } from '../src/mcp/server.js';
-import type { ProjectService } from '../src/projects/service.js';
+import { ProjectRunCoordinator, type ProjectRunDriver } from '../src/projects/coordinator.js';
+import { ProjectService } from '../src/projects/service.js';
 import type { ProjectStore } from '../src/projects/store.js';
 import { AssistantService } from '../src/viz/assistant.js';
 import { assistantHttp } from '../src/viz/assistantHttp.js';
 import { connectAssistantMcp } from '../src/viz/assistantMcp.js';
 import { AssistantStore } from '../src/viz/assistantStore.js';
+import { haystackTestEnvironment } from './helpers/haystack.js';
+import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
+import { ANTHROPIC_PINS } from './tier-pins.js';
 
 const servers: Server[] = [], hosts: McpHttpHost[] = [], databases: Database.Database[] = [];
+const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
   for (const host of hosts.splice(0)) await host.close();
   for (const server of servers.splice(0)) {
@@ -29,39 +40,20 @@ afterEach(async () => {
     await new Promise<void>(resolve => server.close(() => resolve()));
   }
   databases.splice(0).forEach(db => db.close());
+  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+  closeStoreHandles();
 });
 
-async function fixture(otherProjectId?: string) {
+type Complete = (request?: LlmCompletionRequest) => Promise<LlmCompletionResponse>;
+
+/** The browser door and the loopback MCP in front of a project service; inference is `complete`. */
+async function serve(viewer: Viewer, projects: { service: ProjectService; store: ProjectStore; auth: AuthStore | null },
+  complete: Mock<Complete>) {
   const db = new Database(':memory:'); databases.push(db);
-  const viewer: Viewer = { principalId: randomUUID(), orgId: randomUUID(), role: 'org:owner', platformAdmin: true,
-    displayName: 'Alice', orgName: 'A', kind: 'human', displayNameSource: 'provider' };
   let session: Viewer | null = viewer;
-  const projectId = randomUUID(), runId = randomUUID();
   const grants = new AssistantGrants();
-  const run = { projectId, projectRunId: runId, orgId: viewer.orgId, requestedByPrincipalId: viewer.principalId,
-    status: 'running', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), endedAt: null };
-  const start = vi.fn(async () => run);
-  const create = vi.fn(async () => ({ projectId }));
-  const projectService = {
-    createProjectFromInput: create,
-    projectPage: vi.fn((caller: Viewer) => {
-      expect(caller.platformAdmin).toBe(false); expect(caller.orgId).toBe(viewer.orgId);
-      return { projects: [{ projectId, name: 'Stock tracker' },
-        ...(otherProjectId ? [{ projectId: otherProjectId, name: 'Minesweeper' }] : [])], nextCursor: null };
-    }),
-    listInstallations: () => [{ installationId: '123', accountLogin: 'example', status: 'active' }],
-    projectContext: (_caller: Viewer, id: string) => ({ context: { projectId: id, version: 0, brief: null, decisions: [], change: null }, history: [], nextBeforeVersion: null }),
-    projectReadiness: () => ({ ready: true }),
-    projectRunsPage: () => ({ runs: [], nextCursor: null }),
-    startProjectRunFromInput: start, runTaskBudgetMs: () => 60_000,
-    projectRunStatus: () => run, projectRunState: () => run,
-    runsRequestedBy: () => [run],
-  } as unknown as ProjectService;
-  const complete = vi.fn(async (_request?: LlmCompletionRequest) => ({ text: JSON.stringify({ message: 'Review this goal.',
-    proposal: { kind: 'start_run', projectId, goal: 'Build stock alerts', acceptanceCriteria: [] } }),
-    stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 100 } }));
   const store = new AssistantStore(db);
-  const conversations = new Conversations(store, projectService);
+  const conversations = new Conversations(store, projects.service);
   const transport = vi.fn<typeof makeTransportClient>(() => ({ complete }));
   const orgKey = vi.fn((): string | null => 'customer-key');
   const subscriptions = {
@@ -106,14 +98,74 @@ async function fixture(otherProjectId?: string) {
       if (token === 'external-test') return { kind: 'principal', viewer, tokenId: 'external' };
       const resolved = grants.resolve(token);
       return resolved ? { kind: 'principal', ...resolved } : null;
-    }, ...mcpHostWiring({ conversations, projects: { service: projectService, store: {} as ProjectStore }, auth: null, journal: null, operatorRuns: false }),
+    }, ...mcpHostWiring({ conversations, projects: { service: projects.service, store: projects.store }, auth: projects.auth, journal: null, operatorRuns: false }),
   }); hosts.push(mcp);
   const post = (input: AssistantRequest, headers: Record<string, string> = {}) => fetch(`${url}/api/assistant`, {
     method: 'POST', headers: { cookie: 'session=test', origin: url, 'content-type': 'application/json', ...headers }, body: JSON.stringify(input),
   });
-  const message: AssistantRequest = { kind: 'message', version: 0, projectId: null, text: 'Build stock alerts', requestId: randomUUID() };
-  return { db, store, models, transport, orgKey, subscriptions, url, viewer, projectId, runId, complete, start, create, message, post,
+  return { db, store, models, transport, orgKey, subscriptions, url, post,
     external: () => connectAssistantMcp(new URL(`${url}/mcp`), 'atoma.test', 'external-test'), setSession: (value: Viewer | null) => { session = value; } };
+}
+
+async function fixture(otherProjectId?: string) {
+  const viewer: Viewer = { principalId: randomUUID(), orgId: randomUUID(), role: 'org:owner', platformAdmin: true,
+    displayName: 'Alice', orgName: 'A', kind: 'human', displayNameSource: 'provider' };
+  const projectId = randomUUID(), runId = randomUUID();
+  const run = { projectId, projectRunId: runId, orgId: viewer.orgId, requestedByPrincipalId: viewer.principalId,
+    status: 'running', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), endedAt: null };
+  const start = vi.fn(async () => run);
+  const create = vi.fn(async () => ({ projectId }));
+  const projectService = {
+    createProjectFromInput: create,
+    projectPage: vi.fn((caller: Viewer) => {
+      expect(caller.platformAdmin).toBe(false); expect(caller.orgId).toBe(viewer.orgId);
+      return { projects: [{ projectId, name: 'Stock tracker' },
+        ...(otherProjectId ? [{ projectId: otherProjectId, name: 'Minesweeper' }] : [])], nextCursor: null };
+    }),
+    listInstallations: () => [{ installationId: '123', accountLogin: 'example', status: 'active' }],
+    projectContext: (_caller: Viewer, id: string) => ({ context: { projectId: id, version: 0, brief: null, decisions: [], change: null }, history: [], nextBeforeVersion: null }),
+    projectReadiness: () => ({ ready: true }),
+    projectRunsPage: () => ({ runs: [], nextCursor: null }),
+    startProjectRunFromInput: start, runTaskBudgetMs: () => 60_000,
+    projectRunStatus: () => run, projectRunState: () => run,
+    runsRequestedBy: () => [run],
+  } as unknown as ProjectService;
+  const complete = vi.fn<Complete>(async () => ({ text: JSON.stringify({ message: 'Review this goal.',
+    proposal: { kind: 'start_run', projectId, goal: 'Build stock alerts', acceptanceCriteria: [] } }),
+    stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 100 } }));
+  const served = await serve(viewer, { service: projectService, store: {} as ProjectStore, auth: null }, complete);
+  const message: AssistantRequest = { kind: 'message', version: 0, projectId: null, text: 'Build stock alerts', requestId: randomUUID() };
+  return { ...served, viewer, projectId, runId, complete, start, create, message };
+}
+
+/**
+ * The same doors over the REAL project service: its coordinator and SQLite
+ * store, runs saved as a delivery saves them, the MCP's own readers. The run
+ * child is replaced at the driver seam; inference is mocked.
+ */
+async function storeFixture() {
+  // Retention refuses a symlinked ancestor; macOS aliases tmpdir() through /private.
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-assistant-store-')));
+  cleanups.push(() => rmSync(root, { recursive: true, force: true }));
+  const f = projectRetrievalFixture(root);
+  const driver = vi.fn<ProjectRunDriver>(async () => 'must not launch');
+  const coordinator = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath, projectsRoot: root, driver,
+    hostEnv: { ...haystackTestEnvironment(root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'private-test-key' },
+    acquireLease: id => acquireRunLease(id, join(root, 'lease.db')) });
+  cleanups.push(async () => { await coordinator.waitForIdle(); coordinator.stopQueue(); });
+  const github = GitHubStore.open(f.dbPath);
+  github.linkInstallation({ installationId: '123', orgId: f.viewer.orgId, accountId: '123', accountLogin: 'owner',
+    targetType: 'Organization', repositorySelection: 'all', permissions: { contents: 'write', administration: 'write' },
+    connectedByPrincipalId: f.viewer.principalId });
+  const service = new ProjectService({ store: f.projects, coordinator, github });
+  const complete = vi.fn<Complete>(async () => ({ text: JSON.stringify({ message: 'Noted.', proposal: null }),
+    stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 100 } }));
+  const served = await serve(f.viewer, { service, store: f.projects, auth: f.auth }, complete);
+  const message = (text: string, version = 0): AssistantRequest => ({ kind: 'message', version, projectId: f.project.projectId,
+    text, requestId: randomUUID() });
+  /** What the model was shown on its `call`th request: the recorded context, before the conversation. */
+  const context = (call = 0) => complete.mock.calls[call]![0]!.userContent.split('\nConversation (oldest first):\n')[0]!;
+  return { ...f, ...served, root, driver, coordinator, service, complete, message, context };
 }
 
 it('drives the actual HTTP MCP with a delegated member bearer and starts a task only on browser confirmation', async () => {
@@ -327,4 +379,41 @@ it.each([
   const refused = await f.post({ ...f.message, modelChoice, version: view.conversation.version, requestId: randomUUID() });
   expect(refused.status).toBe(409);
   expect(f.complete).toHaveBeenCalledOnce();
+});
+
+it('shows the model the newest run\'s acceptance, publication and progress beside a delivery-sized manifest', async () => {
+  const f = await storeFixture();
+  // Attica's newest delivery listed 148 files in 21,733 characters of manifest
+  // (2026-10-17), more than the model's 20,000-character context on its own:
+  // the cut fell inside it, before the facts atoma_run_status lists after it.
+  const files = Object.fromEntries(Array.from({ length: 170 }, (_, i) =>
+    [`tests/attica-control-${String(i).padStart(3, '0')}-regression.test.js`, `case ${i}\n`]));
+  const { run } = f.makeRun(files);
+  expect(JSON.stringify(run.artifactManifest).length).toBeGreaterThan(21_733);
+  const response = await f.post(f.message('What should the next run change?'));
+  expect(response.status, await response.clone().text()).toBe(200);
+  const shown = f.context();
+  expect(shown).not.toContain('[Context truncated');
+  const latest = (JSON.parse(shown.replace(/^Recorded Atoma context:\n/, '')) as { latestRun: Record<string, unknown> }).latestRun;
+  expect(latest).toMatchObject({ projectRunId: run.projectRunId, status: 'delivered', awaitingClientAcceptance: true,
+    clientAcceptance: null, publication: null, awaitingClientAnswer: false,
+    progress: { stage: 'finished', message: 'Run delivered.' }, goal: run.goal });
+  // The decisive facts come first, the goal next, the saved files last.
+  const keys = Object.keys(latest);
+  expect(keys.indexOf('awaitingClientAcceptance')).toBeLessThan(keys.indexOf('goal'));
+  expect(keys.at(-1)).toBe('savedFiles');
+  // Counts and the first paths, never the hashes.
+  const saved = latest['savedFiles'] as { count: number; bytes: number; paths: string[]; pathsOmitted: number };
+  expect(saved).toMatchObject({ count: 170, bytes: run.artifactManifest!.totalBytes });
+  expect(saved.paths).toEqual(run.artifactManifest!.files.slice(0, saved.paths.length).map(file => file.path));
+  expect(saved.paths.length + saved.pathsOmitted).toBe(170);
+  expect(saved.paths.join('').length).toBeLessThanOrEqual(3_000);
+  expect(shown).not.toContain(run.artifactManifest!.files[0]!.sha256);
+  // Every other reader still gets the whole manifest.
+  const external = await f.external();
+  try {
+    const status = await external.call('atoma_run_status', { projectId: f.project.projectId, runId: run.projectRunId }) as {
+      artifactManifest: { files: unknown[] } };
+    expect(status.artifactManifest.files).toHaveLength(170);
+  } finally { await external.close(); }
 });

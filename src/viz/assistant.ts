@@ -21,6 +21,46 @@ function bounded(value: unknown, max = 20_000): string {
   const text = JSON.stringify(value);
   return text.length > max ? `${text.slice(0, max)}\n[Context truncated; do not infer omitted evidence.]` : text;
 }
+/**
+ * What the model reads of the newest run, in this order: what decides the
+ * next proposal (its state, client acceptance and publication, a question
+ * awaiting the client, recorded progress), then where it came from, when,
+ * what it cost and what it asked. Its saved files follow as counts and the
+ * first paths.
+ */
+const LATEST_RUN_FACTS = ['projectRunId', 'title', 'status', 'statusMessage', 'error', 'awaitingClientAcceptance',
+  'clientAcceptance', 'publication', 'awaitingClientAnswer', 'clientQuestion', 'checkpoint', 'progress',
+  'acceptedReferenceRunId', 'rerunOf', 'resumeOf', 'baseRunId', 'readRunIds', 'depth', 'bytesExpiredAt',
+  'createdAt', 'endedAt', 'durationS', 'costUsd', 'goal'] as const;
+/** The newest run's saved paths the model reads, in manifest order, by their characters; the rest are counted. */
+const LATEST_RUN_PATH_CHARS = 3_000;
+
+/**
+ * The newest run as the model reads it. `atoma_run_status` carries the whole
+ * artifact manifest, and a delivery's can fill the context bound on its own
+ * (Attica's newest, 21,733 characters, 2026-10-17): the cut fell inside it,
+ * so the publication, acceptance and progress listed after it never reached
+ * the model. The status reader itself is unchanged for every other client.
+ */
+function latestRunContext(status: Record<string, unknown>): Record<string, unknown> {
+  const context: Record<string, unknown> = {};
+  for (const key of LATEST_RUN_FACTS) if (status[key] !== undefined) context[key] = status[key];
+  if (status['artifactManifest'] === null || typeof status['artifactManifest'] !== 'object') return context;
+  const manifest = object(status['artifactManifest']);
+  const files = list(manifest, 'files');
+  const paths: string[] = [];
+  let chars = 0;
+  for (const file of files) {
+    const path = file['path'];
+    if (typeof path !== 'string' || chars + path.length > LATEST_RUN_PATH_CHARS) break;
+    paths.push(path);
+    chars += path.length;
+  }
+  context['savedFiles'] = { ...(typeof manifest['delivery'] === 'string' ? { delivery: manifest['delivery'] } : {}),
+    count: files.length, bytes: manifest['totalBytes'], paths,
+    ...(paths.length < files.length ? { pathsOmitted: files.length - paths.length } : {}) };
+  return context;
+}
 
 const SYSTEM = [
   'You are the assistant inside Atoma. Help a person create a software project or improve an existing one.',
@@ -166,7 +206,7 @@ export class AssistantService {
       const runs = await mcp.call('atoma_project_runs', { projectId: selectedId, view: 'compact', limit: 1 });
       context['runs'] = runs;
       const runId = list(runs, 'runs')[0]?.['projectRunId'];
-      if (typeof runId === 'string') context['latestRun'] = await mcp.call('atoma_run_status', { projectId: selectedId, runId });
+      if (typeof runId === 'string') context['latestRun'] = latestRunContext(object(await mcp.call('atoma_run_status', { projectId: selectedId, runId })));
     }
     mcp.signal?.throwIfAborted();
     const systemPrompt = selectedId ? [SYSTEM,
