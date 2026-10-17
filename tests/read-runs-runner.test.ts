@@ -93,6 +93,7 @@ describe('a tenant run that reads another run', () => {
     const calls: LlmCompletionRequest[] = [];
     let leafName = '';
     let firstCall: { readonly copied: boolean; readonly env: string | undefined } | undefined;
+    let refusal = '';
     const perform = async (req: LlmCompletionRequest, name: string, args: Record<string, unknown>) => {
       const startedAt = Date.now();
       const value = await req.executor!.execute(name, args);
@@ -112,15 +113,19 @@ describe('a tenant run that reads another run', () => {
       else if (req.role === 'plan') reply = { reasoning: 'Restore the file', proposedAction: 'Copy the saved bytes back', expectedOutput: 'Restored file' };
       else if (req.role === 'execute') {
         const read = await perform(req, 'read_file', { path }) as { content: string };
+        // The model's write tools refuse a copy (second review 2026-10-17).
+        refusal = await req.executor!.execute('write_file', { path, content: 'the run\'s own' }).then(() => 'written', (error: Error) => error.message);
         await perform(req, 'write_file', { path: 'browser/collect-xe-browser.js', content: read.content });
         if (copyState !== 'intact') {
-          // A copy is writable, as every workspace file is to its owner: a
-          // change is detected, not prevented. Linux stamps ctimes one jiffy
-          // wide, and a model's change comes later than that.
+          // A shell can still change a copy as its owner: detected, not
+          // prevented. A restore in the wrong direction, from a draft the run
+          // wrote. Linux stamps ctimes one jiffy wide, and a model's change
+          // comes later than that.
           await new Promise((resolve) => setTimeout(resolve, 30));
-          await perform(req, 'write_file', { path, content: 'export const collect = () => "the run\'s own";\n' });
+          await perform(req, 'write_file', { path: 'draft.js', content: 'export const collect = () => "the run\'s own";\n' });
+          await perform(req, 'run_shell', { command: 'cp', args: ['draft.js', path] });
           // Put back to its bytes: equal again, and still reported.
-          if (copyState === 'touched') await perform(req, 'write_file', { path, content: read.content });
+          if (copyState === 'touched') await perform(req, 'run_shell', { command: 'cp', args: ['browser/collect-xe-browser.js', path] });
         }
         reply = { output: { files: ['browser/collect-xe-browser.js'] }, summary: 'Restored from the read run' };
       } else throw new Error(`Unexpected request: ${req.role}`);
@@ -135,6 +140,7 @@ describe('a tenant run that reads another run', () => {
       expect(await handle.settled).toEqual({ outcome: 'delivered' });
       // Copied before the first model call, and the hand-off gone from the environment.
       expect(firstCall).toEqual({ copied: true, env: undefined });
+      expect(refusal).toMatch(/^write_file: refuse to write into \.atoma-runs\//);
       expect(logs).toContain(`read runs copied: 2 files (${t.read.run.artifactManifest!.totalBytes} bytes) of 1 run(s), with their saved modes, into .atoma-runs/`);
       const files: string[] = [];
       const walk = (dir: string, prefix = ''): void => {
@@ -244,10 +250,12 @@ describe('a tenant run that reads another run', () => {
     const handle = await startTask(['--container', '--depth', 'short', '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', 'Restore the file.']);
     try {
       const settled = await handle.settled;
-      // The first attempt, its copies included, stays in its archive.
+      // The first attempt stays in its archive, never its copies: they are
+      // copied again, and an archive would keep another run's bytes past its
+      // retention (second review 2026-10-17).
       const archive = `${t.workspace}.prev1`;
       expect(existsSync(join(archive, 'abandoned.txt'))).toBe(true);
-      expect(existsSync(join(archive, '.atoma-runs', t.read.run.projectRunId, 'browser/control-server.js'))).toBe(true);
+      expect(existsSync(join(archive, '.atoma-runs'))).toBe(false);
       if (changed) {
         expect(settled.outcome).toBe('failed');
         expect(enteredDeep).toBe(false);

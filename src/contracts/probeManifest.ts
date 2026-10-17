@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Script } from 'node:vm';
 import { webEntryIdentity } from './webCheck.js';
-import { namesReadRunCopy, READ_RUNS_DIRECTORY } from './readRuns.js';
+import { namesReadRunCopy, reachesReadRunCopies, READ_RUNS_DIRECTORY } from './readRuns.js';
 
 export { webEntryIdentity };
 
@@ -606,11 +606,14 @@ export interface InheritedProbeManifest {
  * changes nothing a replayer would have done.
  *
  * One more drop is an INHERITANCE rule, not a malformation, so the health
- * check never reports it: an entry that names a path INTO a read-run copy
- * (`.atoma-runs/<run id>/…`, src/contracts/readRuns.ts) replays only where that
- * copy existed, and no later run holds one. The id is required: a command
- * that only mentions the directory is usually an exclusion
- * (`--ignore-pattern '.atoma-runs/**'`) and replays anywhere (review 2026-10-17).
+ * check never reports it: an entry that reaches INTO a read-run copy
+ * (src/contracts/readRuns.ts) replays only where that copy existed, and no
+ * later run holds one. A path naming a run id (`.atoma-runs/<run id>/…`) in
+ * any replayed field; in a command also a glob where the id would be
+ * (`.atoma-runs/*\/x.js`) and a shell entering the directory (`cd
+ * .atoma-runs`). A command that leaves the copies out (`--ignore-pattern
+ * '.atoma-runs/**'`, a `!` glob) replays anywhere and is kept, and so is a
+ * variable holding the directory, which no reader can follow (reviews 2026-10-17).
  */
 /** The entry with its run-varying stdout omitted, when that stdout names a bound port. */
 function portBearingStdoutRepair(entry: unknown): Record<string, unknown> | null {
@@ -622,13 +625,16 @@ function portBearingStdoutRepair(entry: unknown): Record<string, unknown> | null
 }
 
 /**
- * An entry that names a path into a read-run copy in anything a replay runs or
- * compares: a shell command or its recorded output, a web entry's page, smoke,
- * interactions or expected result, an http entry's host-stamped server
- * `entry`, request path or body. Only the free-text `note` is not read.
+ * An entry that reaches into a read-run copy in anything a replay runs or
+ * compares: a shell command (`reachesReadRunCopies`: an id, a glob where the
+ * id would be, `cd .atoma-runs`) or its recorded output, a web entry's page,
+ * smoke, interactions or expected result, an http entry's host-stamped server
+ * `entry`, request path or body (a path naming a run id). Only the free-text
+ * `note` is not read.
  */
 function namesReadRunCopyEntry(entry: unknown): boolean {
   if (!isPlainRecord(entry)) return false;
+  if (probeEntryKind(entry) === 'shell' && typeof entry['cmd'] === 'string' && reachesReadRunCopies(entry['cmd'])) return true;
   const names = (value: unknown, depth: number): boolean =>
     typeof value === 'string' ? namesReadRunCopy(value)
       : depth < 3 && value !== null && typeof value === 'object'
@@ -656,7 +662,7 @@ export function inheritProbeManifest(raw: string): InheritedProbeManifest {
   let repaired = 0;
   entries.forEach((entry, i) => {
     if (namesReadRunCopyEntry(entry)) {
-      problems.push(`entry #${i}: names a path into ${READ_RUNS_DIRECTORY}/<run id>/, a read-run copy a later run does not hold`);
+      problems.push(`entry #${i}: reaches into ${READ_RUNS_DIRECTORY}/, the read-run copies a later run does not hold`);
       return;
     }
     const found = probeEntryProblems(entry, i);

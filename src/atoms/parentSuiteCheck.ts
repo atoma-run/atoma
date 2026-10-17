@@ -320,17 +320,22 @@ export function suiteTestFileImports(cwd: string, source: string): string[] {
 }
 
 /**
- * A suite that names the read-run copies (`.atoma-runs`) can never pass: the
+ * A parent suite cannot read the read-run copies (`.atoma-runs`): the
  * runner's snapshot of the workspace leaves them out (src/tools/parentTests.ts),
- * so the suite reads ENOENT in every round and the child is rejected for a
- * suite it cannot change (review 2026-10-17, against run 2e6bdcfc's criterion
- * "byte-identical to their versions in run 50019ee0"). Refused every time.
+ * so a suite reading one gets ENOENT in every round and its child is
+ * rejected for a suite it cannot change (review 2026-10-17, against run
+ * 2e6bdcfc's criterion "byte-identical to their versions in run 50019ee0").
+ * Every mention is refused, an exclusion or a comment included: narrowed to
+ * paths with an id, `join('.atoma-runs', id)` would pass. Removing the
+ * mention is enough, so the message says that and never that the suite
+ * "can never pass" (second review). Refused every time.
  */
 export function readRunCopiesRefusal(label: string, source: string): string | undefined {
   if (!mentionsReadRunCopies(source)) return undefined;
-  return `Acceptance suite ${label} names ${READ_RUNS_DIRECTORY}, which the parent-owned runner's copy of the workspace leaves out, ` +
-    'so it can never pass. Prove a restore or a comparison with another run\'s saved files with sha256sum or diff in a shell ' +
-    'subtask, or rely on the host, which compares the files the criteria name with the read runs\' saved files at acceptance. Revise the suite.';
+  return `Acceptance suite ${label} names ${READ_RUNS_DIRECTORY}, which a parent-owned suite cannot read: the runner's copy ` +
+    'of the workspace leaves it out. Remove the mention; prove a restore or a comparison with another run\'s saved files ' +
+    'with sha256sum or diff in a shell subtask (the host also compares the files the criteria name with the read runs\' ' +
+    'saved files at acceptance). Revise the suite.';
 }
 
 /**

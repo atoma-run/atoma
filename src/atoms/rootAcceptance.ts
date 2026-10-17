@@ -9,7 +9,7 @@ import { establishesDomInteraction, fileReadsNeedingReadback, renderBrowserInput
 import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contracts/depthRouting.js';
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
 import { checkGroundTruth } from './groundTruth.js';
-import { commandTestScripts, criteriaFilesBlock, criteriaNamedPaths, ROOT_CRITERIA_SOURCE_CHARS } from './fileEvidence.js';
+import { commandTestScripts, criteriaFilesBlock, ROOT_CRITERIA_SOURCE_CHARS } from './fileEvidence.js';
 import { llmVerdict, renderTransportEvidence } from './verdict.js';
 import { reviewAcceptanceCriteria } from './criteriaReview.js';
 import { renderParentTestsBlock } from './parentTestsBlock.js';
@@ -547,8 +547,8 @@ export async function acceptRootResult(args: {
   // model's sha256sum surviving the transport cut (run 2e6bdcfc).
   const readRunsBlock = reviewing ? [
     ctx.readRunCopies ? renderReadRunCopies(ctx.readRunCopies()) : '',
-    ctx.compareReadRunFiles ? renderReadRunFiles(ctx.compareReadRunFiles(criteriaNamedPaths(
-      [...checklist.map((item) => item.behaviour), ...(task.criteria ?? []).map((criterion) => criterion.behaviour)]))) : '',
+    ctx.compareReadRunFiles ? renderReadRunFiles(ctx.compareReadRunFiles(
+      [...checklist.map((item) => item.behaviour), ...(task.criteria ?? []).map((criterion) => criterion.behaviour)])) : '',
   ].filter(Boolean).join('\n') : '';
   const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';
   const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems, earlier) : '';

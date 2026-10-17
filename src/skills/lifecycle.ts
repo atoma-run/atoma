@@ -1199,6 +1199,16 @@ export class SkillLifecycle {
       args.ctx.logger.warn(`[${this.host.name}] skill "${args.skillId}" not compiled: ${READ_RUN_COPY_REFUSAL}`);
       return;
     }
+    // The compile EXAMPLE is this run's subtask and summary, and may spell a
+    // copy's path the recipe does not: postponed without a stamp, as a
+    // Decision "no" is, so a later clean example still compiles (second
+    // review 2026-10-17). A stamp would refuse the recipe for its example.
+    if (namesReadRunCopy(args.subTask.description) || namesReadRunCopy(args.result.summary)) {
+      args.ctx.logger.info(
+        `[${this.host.name}] skill "${args.skillId}" compile postponed: its example names a read-run copy (${READ_RUNS_DIRECTORY}/<run id>); reconsidering at the next credited success`
+      );
+      return;
+    }
     const userContent = buildCompileSkillPrompt({
       skillId: skill.id,
       skillDescription: skill.description,
@@ -1305,11 +1315,16 @@ export class SkillLifecycle {
     // rides the existing anti-thrash stamp: generation-scoped, so an
     // evolved compiler gets one fresh shot, and `skills reset` remains
     // the operator override after review.
-    // The compile example (this run's subtask and summary) may spell a copy's
-    // path; a script naming one is refused like a flagged one.
-    const scanFlags = [...scanScriptBody(compiled.body, {
+    // A script naming a copy's path is never kept. Its example was checked
+    // above, so the path came from nowhere the recipe owns: no stamp, as for
+    // an example, and nothing saved.
+    if (recipeNamesReadRunCopy({ body: compiled.body })) {
+      args.ctx.logger.warn(`[${this.host.name}] skill "${args.skillId}" compiled script not kept: ${READ_RUN_COPY_REFUSAL}`);
+      return;
+    }
+    const scanFlags = scanScriptBody(compiled.body, {
       allowLoopbackNetwork: hostAllowsLoopbackNetwork(args.hostTools ?? []),
-    }), ...(recipeNamesReadRunCopy({ body: compiled.body }) ? [READ_RUN_COPY_REFUSAL] : [])];
+    });
     if (scanFlags.length > 0) {
       const reason = `static scan flagged the compiled body: ${scanFlags.join(', ')}`;
       args.ctx.logger.warn(

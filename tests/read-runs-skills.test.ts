@@ -89,7 +89,7 @@ describe('a recipe that names a read-run copy', () => {
     expect(skills.loadFor(namespace)).toEqual([]);
   });
 
-  it('is never compiled: a recipe naming one costs no call, and a script naming one is refused and stamped', async () => {
+  it('is never compiled: a recipe naming one costs no call, and an example naming one postpones without a stamp', async () => {
     // Learned before the rule: no compile call at all.
     skills.save(namespace, { id: 'legacy-restore', description: 'Restore', whenToUse: 'When restoring a saved file', kind: 'llm',
       body: `1. run_shell cp ${COPY}/browser/collect.js browser/collect.js` });
@@ -97,18 +97,26 @@ describe('a recipe that names a read-run copy', () => {
     await lifecycle.tryPromoteSkill({ l1Name: namespace, skillId: 'legacy-restore', subTask: task, result: approved, ctx: legacy });
     expect(legacy.llm.calls).toHaveLength(0);
     expect(skills.loadFor(namespace).find((skill) => skill.id === 'legacy-restore')).toMatchObject({ kind: 'llm' });
-    // A general recipe, compiled from this run's example: the compiler bakes the run's copy in.
+    // A general recipe whose compile EXAMPLE (this run's subtask) names a copy:
+    // postponed at no cost and never stamped (second review 2026-10-17), so a
+    // later clean example still compiles it.
     skills.save(namespace, { id: 'general-restore', description: 'Restore', whenToUse: 'When restoring a saved file', kind: 'llm',
-      body: '1. run_shell cp .atoma-runs/<run id>/<file> <file>' });
-    const compiling = makeCtx();
-    compiling.llm.enqueueText(jsonText({ promotable: true, language: 'node', writes: ['browser/collect.js'],
-      body: `import fs from 'node:fs';\nfs.copyFileSync('${COPY}/browser/collect.js', 'browser/collect.js');\n` +
-        "console.log(JSON.stringify({ output: { files: ['browser/collect.js'] }, summary: 'Restored' }));\n" }));
-    await lifecycle.tryPromoteSkill({ l1Name: namespace, skillId: 'general-restore', subTask: task, result: approved, ctx: compiling });
-    expect(compiling.llm.calls).toHaveLength(1);
-    const general = skills.loadFor(namespace).find((skill) => skill.id === 'general-restore')!;
-    expect(general.kind).toBe('llm');
-    expect(general.promotionRefusedReason).toContain('it names a read-run copy (.atoma-runs/<run id>), a path one run held');
+      body: '1. run_shell sha256sum the restored file and its saved copy, and compare them' });
+    const postponed = makeCtx();
+    await lifecycle.tryPromoteSkill({ l1Name: namespace, skillId: 'general-restore', subTask: task, result: approved, ctx: postponed });
+    expect(postponed.llm.calls).toHaveLength(0);
+    const waiting = skills.loadFor(namespace).find((skill) => skill.id === 'general-restore')!;
+    expect(waiting.kind).toBe('llm');
+    expect(waiting.promotionRefusedAt).toBeUndefined();
+    const clean = makeCtx();
+    clean.llm.enqueueText(jsonText({ promotable: true, language: 'node', writes: [],
+      body: "import { createHash } from 'node:crypto';\nimport fs from 'node:fs';\n" +
+        "const digest = (path) => createHash('sha256').update(fs.readFileSync(path)).digest('hex');\n" +
+        "console.log(JSON.stringify({ output: { equal: digest(process.argv[2]) === digest(process.argv[3]) }, summary: 'Compared' }));\n" }));
+    await lifecycle.tryPromoteSkill({ l1Name: namespace, skillId: 'general-restore', subTask: { description: 'Check browser/collect.js against its saved version.' },
+      result: { summary: 'Compared the two digests' }, ctx: clean });
+    expect(clean.llm.calls).toHaveLength(1);
+    expect(skills.loadFor(namespace).find((skill) => skill.id === 'general-restore')).toMatchObject({ kind: 'script' });
   });
 
   it('is never written by a revision', async () => {

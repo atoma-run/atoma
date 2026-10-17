@@ -1,6 +1,6 @@
 import { previousSeedRun } from './coordinator.js';
 import { ProjectStore } from './store.js';
-import { RunCheckpointStore } from '../run/checkpoint.js';
+import { RunCheckpointStore, projectRunContinuable } from '../run/checkpoint.js';
 import { organisationIdSchema, projectIdSchema, projectRunIdSchema } from '../contracts/projects.js';
 import type Database from 'better-sqlite3';
 import { lstatSync, rmSync } from 'node:fs';
@@ -41,6 +41,12 @@ export function retentionPlan(db: Database.Database, projectsRoot: string, works
   const columns = db.prepare('PRAGMA table_info(project_runs)').all() as { name: string }[];
   const deletedFilter = columns.some(column => column.name === 'bytes_deleted_at') ? 'AND r.bytes_deleted_at IS NULL' : '';
   const hasCheckpoints = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='run_checkpoints'").get());
+  // Read on the caller's handle, which the plan command opens read-only. A
+  // checkpoint this binary cannot read holds, never releases.
+  const continuable = (reader: { project_run_id: string; org_id: string; status: string }): boolean => {
+    try { return projectRunContinuable(db, reader.project_run_id, reader.org_id, reader.status); }
+    catch { return true; }
+  };
   const rows = db.prepare(`SELECT r.*, p.status AS project_status FROM project_runs r
     JOIN projects p ON p.project_id = r.project_id AND p.org_id = r.org_id
     WHERE r.status IN ('delivered','partial','failed','cancelled') AND r.ended_at <= ?
@@ -76,14 +82,18 @@ export function retentionPlan(db: Database.Database, projectsRoot: string, works
       "SELECT 1 FROM project_runs WHERE base_run_id = ? AND status IN ('queued','running')"
     ).get(row.project_run_id)) held = 'active iteration base';
     // A run that a run not yet over reads (src/contracts/readRuns.ts): queued
-    // or running, or holding a checkpoint it may still be continued from
-    // (paused, or interrupted and recoverable), whose sealed workspace keeps
-    // the copies. Its bytes are never recorded deleted while a run can still
-    // read them (review 2026-10-17).
-    if (columns.some(column => column.name === 'read_run_ids_json') && db.prepare(
-      `SELECT 1 FROM project_runs r, json_each(r.read_run_ids_json) AS id WHERE id.value = ? AND (r.status IN ('queued','running')${
-        hasCheckpoints ? " OR EXISTS (SELECT 1 FROM run_checkpoints c WHERE c.id = r.project_run_id AND c.state <> 'finished')" : ''})`
-    ).get(row.project_run_id)) held = 'active read run';
+    // or running, or able to be continued (paused, or interrupted and
+    // recoverable: `projectRunContinuable`, the predicate the copies' removal
+    // reads), whose sealed workspace keeps the copies. Its bytes are
+    // never recorded deleted while a run can still read them, and a reader
+    // cancelled or crashed past continuing holds nothing (reviews 2026-10-17).
+    if (columns.some(column => column.name === 'read_run_ids_json')) {
+      const readers = db.prepare(`SELECT r.project_run_id, r.org_id, r.status FROM project_runs r, json_each(r.read_run_ids_json) AS id
+        WHERE id.value = ?`).all(row.project_run_id) as Array<{ project_run_id: string; org_id: string; status: string }>;
+      if (readers.some(reader => reader.status === 'queued' || reader.status === 'running' || (hasCheckpoints && continuable(reader)))) {
+        held = 'active read run';
+      }
+    }
     const publication = db.prepare("SELECT 1 FROM project_publications WHERE project_run_id = ? AND status <> 'published'").get(row.project_run_id);
     if (publication) held = 'unfinished publication';
     if (columns.some(column => column.name === 'resume_of_run_id') && db.prepare(

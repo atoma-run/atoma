@@ -191,11 +191,13 @@ Neighbours:
   project it was written for; every manifest is re-hashed. After the seed copy,
   at launch and at the deepening restart, each entry is copied through
   `readManifestArtifact` to `.atoma-runs/<runId>/<path>` as a new file with its
-  saved mode (0755 for `100755`, else 0644; directories 0755), and its identity
-  (device, inode, ctime, mode) is kept; a continuation keeps its sealed copies
-  and takes their identities after the restore. A mismatch is a
-  `RunnerConfigError` before any model call, or fails the restart with `.prevN`
-  intact. Root acceptance reads `ctx.readRunCopies` and `ctx.compareReadRunFiles`
+  saved mode (0755 for `100755`, else 0644; directories 0755), and the identity
+  (device, inode, ctime, mode) of every copied file and directory is kept; a
+  continuation keeps its sealed copies and takes their identities after the
+  restore. The restart removes the copies before it archives the first attempt
+  (`.prevN` never holds them). A mismatch is a `RunnerConfigError` before any
+  model call, or fails the restart with `.prevN` intact. Root acceptance reads
+  `ctx.readRunCopies` and `ctx.compareReadRunFiles` (the criteria texts)
   ([decision](../../docs/decisions/read-runs-2026-10-17.md)).
 
 ## Platform run limits
@@ -377,7 +379,8 @@ Neighbours:
   file its source's bits, so every file restored from a copy was read-only
   (`edit_file` failed EACCES, the next seed kept 0444) and a saved script lost
   its executable bit while its sha256 matched; the mode never stopped the
-  workspace's owner. A change is detected instead (`checkReadRunCopies`).
+  workspace's owner's shell. The write tools refuse a copy instead, and a
+  shell's change is detected (`checkReadRunCopies`).
 
 - Replaying from the last checkpoint after an interrupted phase is refused:
   external effects and phase credits are not rolled back with files. Persist

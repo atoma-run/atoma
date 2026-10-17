@@ -7,6 +7,7 @@ import {
   READ_RUNS_DIRECTORY,
   readRunCopyMode,
   readRunsIndexSchema,
+  savedPathsNamed,
   type ReadRunCopyCheck,
   type ReadRunFileComparison,
   type ReadRunFileComparisons,
@@ -17,7 +18,6 @@ import {
   ArtifactPolicyError,
   artifactManifestHash,
   DEFAULT_ARTIFACT_LIMITS,
-  normalizeArtifactPath,
   readManifestArtifact,
   secureReadWorkspaceFile,
 } from '../projects/artifacts.js';
@@ -64,21 +64,54 @@ interface CopyIdentity {
   readonly ctimeNs: bigint;
   readonly mode: bigint;
 }
-/** Keyed `<runId>/<path>`. */
-export type ReadRunCopyIdentities = ReadonlyMap<string, CopyIdentity>;
+/** A copy's directory as the host left it, with the names it held. */
+interface DirectoryIdentity extends CopyIdentity {
+  readonly names: readonly string[];
+}
+/**
+ * Every copied file (`<runId>/<path>`) and every directory (`.atoma-runs`
+ * itself as `''`, then `<runId>` and `<runId>/<dir>`) as the host left them.
+ * Files alone missed a whole copy moved aside, duplicated, edited, compared
+ * and moved back: every file kept its identity (review 2026-10-17, second pass).
+ */
+export interface ReadRunCopyIdentities {
+  readonly files: ReadonlyMap<string, CopyIdentity>;
+  readonly directories: ReadonlyMap<string, DirectoryIdentity>;
+}
 const identityKey = (runId: string, path: string): string => `${runId}/${path}`;
 
-function identityOf(path: string): CopyIdentity | undefined {
+function statIdentity(path: string, kind: 'file' | 'directory'): CopyIdentity | undefined {
   try {
     const stat = lstatSync(path, { bigint: true });
-    return stat.isFile() ? { dev: stat.dev, ino: stat.ino, ctimeNs: stat.ctimeNs, mode: stat.mode } : undefined;
+    return (kind === 'file' ? stat.isFile() : stat.isDirectory())
+      ? { dev: stat.dev, ino: stat.ino, ctimeNs: stat.ctimeNs, mode: stat.mode } : undefined;
   } catch {
     return undefined;
   }
 }
+const identityOf = (path: string): CopyIdentity | undefined => statIdentity(path, 'file');
+
+function directoryIdentityOf(path: string): DirectoryIdentity | undefined {
+  const identity = statIdentity(path, 'directory');
+  if (!identity) return undefined;
+  try { return { ...identity, names: readdirSync(path).sort() }; } catch { return undefined; }
+}
 
 const sameIdentity = (a: CopyIdentity, b: CopyIdentity): boolean =>
   a.dev === b.dev && a.ino === b.ino && a.ctimeNs === b.ctimeNs && a.mode === b.mode;
+
+/**
+ * A directory moved or modified since the host left it: another inode, or the
+ * same one whose ctime moved while it holds the same names. A ctime moved by
+ * names added or removed is explained by them, and they are reported as such
+ * (installing an old version inside a copy adds `node_modules`).
+ */
+function directoryTouched(recorded: DirectoryIdentity, now: DirectoryIdentity | undefined): boolean {
+  if (!now) return false;
+  if (now.dev !== recorded.dev || now.ino !== recorded.ino) return true;
+  if (now.ctimeNs === recorded.ctimeNs && now.mode === recorded.mode) return false;
+  return now.names.length === recorded.names.length && now.names.every((name, i) => name === recorded.names[i]);
+}
 
 const copyTarget = (workspaceRoot: string, runId: string, file: Pick<ArtifactFile, 'path'>): string =>
   join(workspaceRoot, READ_RUNS_DIRECTORY, runId, ...file.path.split('/'));
@@ -87,7 +120,7 @@ export interface ReadRunCopyReport {
   readonly runs: number;
   readonly files: number;
   readonly bytes: number;
-  /** Each copy's identity right after it was written, for `checkReadRunCopies`. */
+  /** Each copy's identity right after it was written, its directories' too, for `checkReadRunCopies`. */
   readonly identities: ReadRunCopyIdentities;
 }
 
@@ -104,9 +137,10 @@ export interface ReadRunCopyReport {
  * source's bits, so 0444 copies made every file restored from them read-only
  * (`edit_file` then failed EACCES, and the next run's seed copy kept 0444) and
  * dropped the executable bit a saved script had. Directories are 0755, and a
- * read-only mode never stopped the workspace's owner anyway. So a change to a
- * copy is DETECTED, not prevented: `checkReadRunCopies` compares bytes and
- * mode, and tells a copy changed and put back by its identity.
+ * read-only mode never stopped the workspace's owner's shell anyway. The
+ * model's write tools refuse a copy (src/tools/readRunCopies.ts); a change a
+ * shell makes is DETECTED: `checkReadRunCopies` compares bytes and mode, and
+ * tells a copy changed and put back, or a directory swapped, by its identity.
  *
  * THROWS on the first file that no longer matches, and on a workspace that
  * already holds the directory: a run starts from copies it can trust or not
@@ -116,7 +150,6 @@ export function materialiseReadRuns(workspaceRoot: string, index: ReadRunsIndex)
   mkdirSync(workspaceRoot, { recursive: true });
   const base = join(workspaceRoot, READ_RUNS_DIRECTORY);
   mkdirSync(base, { mode: 0o755 });
-  const identities = new Map<string, CopyIdentity>();
   let files = 0;
   let bytes = 0;
   for (const entry of index.readRuns) {
@@ -135,30 +168,43 @@ export function materialiseReadRuns(workspaceRoot: string, index: ReadRunsIndex)
       writeFileSync(target, content, { flag: 'wx', mode });
       // The mode a umask cannot narrow: every reader of the workspace may read it.
       chmodSync(target, mode);
-      const identity = identityOf(target);
-      if (identity) identities.set(identityKey(entry.runId, file.path), identity);
       files += 1;
       bytes += content.length;
     }
   }
-  return { runs: index.readRuns.length, files, bytes, identities };
+  return { runs: index.readRuns.length, files, bytes, identities: captureReadRunCopies(workspaceRoot, index) };
 }
 
 /**
- * The copies' identities as the workspace holds them now: the baseline a
- * continuation takes after its sealed workspace was restored (new files, new
- * inodes), before any tool can touch them. A file that is not there, or not a
- * regular file, gets none.
+ * The copies' identities as the workspace holds them now, files and
+ * directories: taken right after the copy, and the baseline a continuation
+ * takes after its sealed workspace was restored (new files, new inodes),
+ * before any tool can touch them. A file that is not there, or not a regular
+ * file, gets none; nor does a directory that is not a real one. The walk stops
+ * at the workspace entry limit.
  */
 export function captureReadRunCopies(workspaceRoot: string, index: ReadRunsIndex): ReadRunCopyIdentities {
-  const identities = new Map<string, CopyIdentity>();
+  const files = new Map<string, CopyIdentity>();
+  const directories = new Map<string, DirectoryIdentity>();
+  const base = join(workspaceRoot, READ_RUNS_DIRECTORY);
+  const top = directoryIdentityOf(base);
+  if (top) directories.set('', top);
+  let visited = 0;
+  const walk = (directory: string, key: string): void => {
+    if (++visited > WORKSPACE_LIMITS.maxEntries) return;
+    const identity = directoryIdentityOf(directory);
+    if (!identity) return;
+    directories.set(key, identity);
+    for (const name of identity.names) walk(join(directory, name), `${key}/${name}`);
+  };
   for (const entry of index.readRuns) {
+    walk(join(base, entry.runId), entry.runId);
     for (const file of entry.manifest.files) {
       const identity = identityOf(copyTarget(workspaceRoot, entry.runId, file));
-      if (identity) identities.set(identityKey(entry.runId, file.path), identity);
+      if (identity) files.set(identityKey(entry.runId, file.path), identity);
     }
   }
-  return identities;
+  return { files, directories };
 }
 
 function realDirectory(path: string): boolean {
@@ -200,7 +246,7 @@ export function checkReadRunCopies(workspaceRoot: string, index: ReadRunsIndex, 
           note('changed', file.path);
           continue;
         }
-        const recorded = identities?.get(identityKey(entry.runId, file.path));
+        const recorded = identities?.files.get(identityKey(entry.runId, file.path));
         const now = identityOf(copyTarget(workspaceRoot, entry.runId, file));
         if (recorded && (!now || !sameIdentity(recorded, now))) note('touched', file.path);
       } catch (error) {
@@ -224,27 +270,30 @@ export function checkReadRunCopies(workspaceRoot: string, index: ReadRunsIndex, 
       };
       walk(root, '');
     }
-    return { runId: entry.runId, files: entry.manifest.files.length, ...found };
+    // A directory of this copy, or `.atoma-runs` itself, moved or modified
+    // with its names unchanged: a whole copy swapped aside and back.
+    let swapped = false;
+    for (const [key, recorded] of identities?.directories ?? []) {
+      if (key !== '' && key !== entry.runId && !key.startsWith(`${entry.runId}/`)) continue;
+      const path = key === '' ? base : join(base, ...key.split('/'));
+      if (directoryTouched(recorded, directoryIdentityOf(path))) { swapped = true; break; }
+    }
+    return { runId: entry.runId, files: entry.manifest.files.length, ...found, directoryTouched: swapped };
   });
 }
 
 /**
- * THE HOST'S COMPARISON at root acceptance: each workspace path the criteria
- * name that a read run saved, this run's file read on the host (the artifact
- * jail, O_NOFOLLOW, sha256 and mode) against the saved manifest entry. Never
+ * THE HOST'S COMPARISON at root acceptance: each saved path of a read run that
+ * the criteria name (`savedPathsNamed`: the manifest's own paths, found in the
+ * criteria text), this run's file read on the host (the artifact jail,
+ * O_NOFOLLOW, sha256 and mode) against the saved manifest entry. Never
  * through the model-facing `read_file`, which marks a file read and so
- * disarms `write_file`'s blind-overwrite refusal. A path no read run saved,
- * or that is not a canonical workspace path, is not compared; past
- * `READ_RUN_FILES_COMPARED` such paths are counted, not read. Never throws.
+ * disarms `write_file`'s blind-overwrite refusal. Past
+ * `READ_RUN_FILES_COMPARED` named paths are counted, not read. Never throws.
  */
-export function compareReadRunFiles(workspaceRoot: string, index: ReadRunsIndex, paths: readonly string[]): ReadRunFileComparisons {
+export function compareReadRunFiles(workspaceRoot: string, index: ReadRunsIndex, criteria: readonly string[]): ReadRunFileComparisons {
   const saved = index.readRuns.map((entry) => ({ runId: entry.runId, files: new Map(entry.manifest.files.map((file) => [file.path, file])) }));
-  const wanted: string[] = [];
-  for (const raw of paths) {
-    let path: string;
-    try { path = normalizeArtifactPath(raw); } catch { continue; }
-    if (!wanted.includes(path) && saved.some((run) => run.files.has(path))) wanted.push(path);
-  }
+  const wanted = savedPathsNamed(criteria, new Set(saved.flatMap((run) => [...run.files.keys()])));
   const compared = wanted.slice(0, READ_RUN_FILES_COMPARED).map((path): ReadRunFileComparison => {
     const holders = saved.flatMap((run) => {
       const file = run.files.get(path);

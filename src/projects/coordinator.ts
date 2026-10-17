@@ -7,7 +7,7 @@ import type { AnswerClientQuestion } from '../contracts/clientQuestion.js';
 import { encodeProjectContext, PROJECT_CONTEXT_ENV } from '../contracts/projectContext.js';
 import { encodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
 import { encodeReadRunsIndex, READ_RUNS_DIRECTORY, READ_RUNS_ENV, READ_RUNS_INDEX_FILENAME } from '../contracts/readRuns.js';
-import { RunCheckpointStore, canonicalCheckpointWorkspacePath } from '../run/checkpoint.js';
+import { RunCheckpointStore, canonicalCheckpointWorkspacePath, projectedCheckpointStatus } from '../run/checkpoint.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
 import { GitHubAccessRequiredError } from './publisher.js';
@@ -15,7 +15,7 @@ import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexMode
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
 import { randomUUID } from 'node:crypto';
 import { migratePlatformSkills, reconcilePlatformSkills } from '../skills/migratePlatform.js';
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -1460,7 +1460,17 @@ export class ProjectRunCoordinator {
     if (this.active.size > 0) {
       throw new Error('reconcileInterrupted is a boot-time operation; runs are active');
     }
+    const interrupted = this.store.listLiveRunTraces();
     const recovered = this.store.reconcileInterrupted('interrupted by server restart');
+    // A run the restart failed never reaches its own end: its read-run copies
+    // go now, unless its checkpoint lets it be continued (second review
+    // 2026-10-17). Synchronous: this is boot, before any run starts.
+    for (const { orgId, projectRunId } of interrupted) {
+      const run = this.store.getProjectRun(orgId, projectRunId);
+      const copies = run ? this.releasableReadRunCopies(run) : null;
+      try { if (copies) rmSync(copies, { recursive: true, force: true }); }
+      catch (error) { process.stderr.write(`[atoma projects] read-run copies of ${projectRunId} were not released: ${String(error)}\n`); }
+    }
     new LearningQueue(this.dbPath).recover();
     this.resumeLearning();
     this.resumeQueuedRuns();
@@ -1635,13 +1645,8 @@ export class ProjectRunCoordinator {
   }
 
   checkpointStatus(run: ProjectRun) {
-    const status = this.checkpoints.projectStatus(run.projectRunId, run.orgId);
-    if (!status) return undefined;
     // A boundary is only offered after the project finalizer released its lease.
-    if (['recoverable', 'blocked'].includes(status.state) && !['failed', 'partial'].includes(run.status)) return { ...status, state: 'unavailable' as const };
-    if (status.state === 'paused' && run.status !== 'partial') return { ...status, state: 'unavailable' as const };
-    if (['running', 'pause_requested'].includes(status.state) && run.status !== 'running') return { ...status, state: 'unavailable' as const };
-    return status;
+    return projectedCheckpointStatus(this.checkpoints.projectStatus(run.projectRunId, run.orgId), run.status);
   }
 
   clientQuestion(run: ProjectRun) {
@@ -1756,21 +1761,33 @@ export class ProjectRunCoordinator {
   }
 
   /**
-   * A FINISHED run's read-run copies, removed once nothing can read them
-   * again (review 2026-10-17): its delivery, publication, preview, corpus and
-   * the next run's seed all leave `.atoma-*` out, and its manifest is built,
-   * so after the run they only kept another run's bytes past that run's own
-   * retention. A run that can still be continued (paused, or interrupted and
-   * recoverable) keeps them: its continuation starts from that workspace.
-   * Asynchronous, so up to `MAX_READ_RUN_FILES` unlinks never hold the
-   * server's event loop; `rm` removes a link where the directory was, never
-   * what it points at.
+   * A FINISHED run's read-run copies, or none: the directory to remove once
+   * nothing can read them again (reviews 2026-10-17). Its delivery,
+   * publication, preview, corpus and the next run's seed all leave `.atoma-*`
+   * out, and its manifest is built, so after the run they only kept another
+   * run's bytes past that run's own retention. A run that can still be
+   * continued (`RunCheckpointStore.continuable`, the predicate the retention
+   * hold reads too) keeps them: its continuation starts from that workspace.
+   */
+  private releasableReadRunCopies(run: ProjectRun): string | null {
+    if (!run.readRunIds || !['delivered', 'partial', 'failed', 'cancelled'].includes(run.status)) return null;
+    if (this.checkpoints.continuable(run.projectRunId, run.orgId, run.status)) return null;
+    return path.join(run.hostPaths.workspacePath, READ_RUNS_DIRECTORY);
+  }
+
+  /**
+   * At a run's end: its own copies, and those of the run it continued, whose
+   * checkpoint it consumed, since a paused run that is continued never ends
+   * again itself. Asynchronous, so up to `MAX_READ_RUN_FILES` unlinks never
+   * hold the server's event loop; `rm` removes a link where the directory
+   * was, never what it points at.
    */
   private async releaseReadRunCopies(run: ProjectRun): Promise<void> {
-    if (!run.readRunIds || !['delivered', 'partial', 'failed', 'cancelled'].includes(run.status)) return;
-    const continuable = this.checkpointStatus(run)?.state;
-    if (continuable === 'paused' || continuable === 'recoverable') return;
-    await rm(path.join(run.hostPaths.workspacePath, READ_RUNS_DIRECTORY), { recursive: true, force: true });
+    const source = run.resumeOf ? this.store.getProjectRun(run.orgId, run.resumeOf) : null;
+    for (const ended of [run, ...(source ? [source] : [])]) {
+      const copies = this.releasableReadRunCopies(ended);
+      if (copies) await rm(copies, { recursive: true, force: true });
+    }
   }
 
   /**

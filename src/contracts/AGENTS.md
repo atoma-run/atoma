@@ -321,9 +321,12 @@ Neighbours:
 - `readRuns.ts` is the one home of read runs: the directory (`.atoma-runs`), the
   caps (three runs, 64 MiB, 10,000 files), `ATOMA_READ_RUNS`, the launch index,
   the copies' modes, the `readRuns` task input, its guidance, the acceptor's
-  lines (per copy, per compared file) and two predicates: `namesReadRunCopy` (a
-  path INTO a copy, run id required: the probe-inheritance drop and the skills
-  refusal) and `mentionsReadRunCopies` (any mention: the parent-suite refusal).
+  lines (per copy, per compared file), `savedPathsNamed` (the saved paths a
+  criterion names, found at a path boundary) and three predicates:
+  `namesReadRunCopy` (a path INTO a copy, run id required: inheritance and the
+  skills refusal), `reachesReadRunCopies` (a command: also a glob where the id
+  would be, or `cd .atoma-runs`; never an exclusion argument) and
+  `mentionsReadRunCopies` (any mention: the parent-suite refusal).
   Browser-safe: the copy, its check and the comparison live in
   `src/run/readRuns.ts`. A stored list is read back by spelling
   (`storedReadRunIdsSchema`). [Decision](../../docs/decisions/read-runs-2026-10-17.md).

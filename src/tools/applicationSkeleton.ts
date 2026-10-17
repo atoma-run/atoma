@@ -1,6 +1,7 @@
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { ToolSandbox } from './sandbox.js';
+import { readRunCopyWriteRefusal, writesIntoReadRunCopies } from './readRunCopies.js';
 import lockfile from './applicationSkeleton.lock.json' with { type: 'json' };
 
 /**
@@ -109,6 +110,7 @@ export function scaffoldApplication(sandbox: ToolSandbox, argv: readonly string[
     throw new Error('Usage: atoma-scaffold <web|node|fullstack> [empty-directory]');
   }
   const root = sandbox.resolve(target);
+  if (writesIntoReadRunCopies(sandbox, target)) throw new Error(readRunCopyWriteRefusal('atoma-scaffold'));
   try {
     // `.atoma-*` entries are the host's (read-run copies, scratch inputs, the
     // probe record), never application work: a seed holding only

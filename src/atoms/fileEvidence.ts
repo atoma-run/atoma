@@ -156,15 +156,6 @@ function namedFileExcerpt(content: string, words: ReadonlySet<string>, allowance
 }
 
 /**
- * The workspace paths a criterion text spells ("docs/ERRORS.md",
- * "browser/collect-xe-browser.js"), once each, in order: the read-back's own
- * reading, shared with the root's read-run comparison (src/contracts/readRuns.ts).
- */
-export function criteriaNamedPaths(texts: readonly string[]): string[] {
-  return [...new Set(texts.flatMap((text) => [...text.matchAll(NAMED_PATH)].map((match) => match[1]!)))];
-}
-
-/**
  * The files the CRITERIA name, read back by the host, so a criterion about a
  * document is judged on the document. Production run dc45c95b (2026-09-27):
  * "README documents every route with a curl example" was judged met on "README
@@ -183,7 +174,7 @@ export async function criteriaFilesBlock(
   if (!ctx.tools?.has('read_file') || (checklist.length === 0 && refreshPaths.length === 0 && commandTests.length === 0)) return '';
   const tools = baseExecutorOf(ctx.tools);
   const text = checklist.map((item) => item.behaviour).join('\n');
-  const wanted: string[] = criteriaNamedPaths([text]);
+  const wanted: string[] = [...text.matchAll(NAMED_PATH)].map((match) => match[1]!);
   if (checklist.length > 0 && tools.has('list_files')) {
     try {
       const listed = (await tools.execute('list_files', { path: '.' })) as { entries?: Array<{ name?: string; kind?: string }> } | null;

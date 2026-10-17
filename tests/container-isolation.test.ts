@@ -513,6 +513,19 @@ describeDocker('a read-run copy in a containerised run', () => {
     expect(lstatSync(join(workspace, 'bin/run.sh')).mode & 0o777).toBe(0o755);
   }, 60_000);
 
+  // Second review 2026-10-17: the model's write tools refuse a copy inside the
+  // worker too, where they run; a shell is detected, not refused.
+  it('the worker\'s write_file and edit_file refuse a copy, under any spelling', async () => {
+    for (const path of [`${copy}/browser/collect.js`, `./${copy}/browser/new.js`]) {
+      await expect(exec.execute('write_file', { path, content: 'the run\'s own' })).rejects.toThrow(/write_file: refuse to write into \.atoma-runs\//);
+    }
+    await exec.execute('read_file', { path: `${copy}/browser/collect.js` });
+    await expect(exec.execute('edit_file', { path: `${copy}/browser/collect.js`, old_string: 'SAVED', new_string: 'EDITED' }))
+      .rejects.toThrow(/edit_file: refuse to write into \.atoma-runs\//);
+    expect(readFileSync(join(workspace, copy, 'browser/collect.js'), 'utf8')).toBe('SAVED_BYTES_OF_THE_OTHER_RUN');
+    expect(existsSync(join(workspace, copy, 'browser/new.js'))).toBe(false);
+  }, 60_000);
+
   it('a write to the copy from the worker is detected by the host, even once its bytes are back', async () => {
     expect(checkReadRunCopies(workspace, index, identities)[0]).toMatchObject({ changedCount: 0, missingCount: 0, touchedCount: 0 });
     await new Promise((resolve) => setTimeout(resolve, 30));

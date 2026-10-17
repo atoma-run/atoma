@@ -13,11 +13,17 @@ workspace) and, for launcher layouts, the separate run-owned workspace parent
 catalogue, operator runs, registry, payer rows, publications, verdicts or
 `lifecycle_events`. Project run rows and artifact manifest metadata survive.
 
-Two references hold bytes beyond eligibility: the newest delivered run of an
-active project (the next run's seed), and an unfinished publication. The plan
-names these holds; there is no force flag. Archive the project to release its
-seed hold, or complete the publication to release its hold. This is a
-dependency-aware 90-day retention window, not an unconditional erasure deadline.
+Several references hold bytes beyond eligibility, and the plan names each:
+the newest delivered or partial run of an active project (the next run's
+seed), its accepted reference, the base of a queued or running iteration, a
+run another run reads (`readRunIds`) while that reader is queued, running or
+can still be continued (paused, or interrupted and recoverable), an unfinished
+publication, the source of a queued or running continuation, and a paused
+continuation itself. A reader that was cancelled, or crashed before it could
+be continued, holds nothing. There is no force flag. Archive the project to
+release its seed hold, or complete the publication to release its hold. This
+is a dependency-aware 90-day retention window, not an unconditional erasure
+deadline. The plan reads checkpoints on its read-only handle.
 
 ```bash
 npm run projects:maintenance -- retention

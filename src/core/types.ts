@@ -1103,12 +1103,12 @@ export interface RunContext {
    */
   readonly readRunCopies?: () => readonly import('../contracts/readRuns.js').ReadRunCopyCheck[];
   /**
-   * The host's comparison of this run's files at `paths` (the ones the
-   * criteria name) with each read run's saved entry, read on the host and
-   * never through a model-facing tool. Root acceptance renders one line per
-   * path a read run saved; absent for a run that read none.
+   * The host's comparison of this run's files with each read run's saved
+   * entry, for every saved path the `criteria` texts name, read on the host
+   * and never through a model-facing tool. Root acceptance renders one line
+   * per such path; absent for a run that read none.
    */
-  readonly compareReadRunFiles?: (paths: readonly string[]) => import('../contracts/readRuns.js').ReadRunFileComparisons;
+  readonly compareReadRunFiles?: (criteria: readonly string[]) => import('../contracts/readRuns.js').ReadRunFileComparisons;
   /**
    * Optional prefilter-cache observer — see `CacheHitInfo`. Same
    * observer-only contract as `recordTrust` / `recordSkill`: absent, the

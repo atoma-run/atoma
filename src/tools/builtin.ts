@@ -5,6 +5,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer } from 'node:net';
 import { createHash, randomUUID } from 'node:crypto';
 import { FILE_OBSERVATION_ONLY_ARG, MAX_FILE_PAGE_CHARS, MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
+import { readRunCopyWriteRefusal, writesIntoReadRunCopies } from './readRunCopies.js';
 import type { Tool, Logger } from '../core/types.js';
 import { sandboxChildEnv, type ToolSandbox } from './sandbox.js';
 import { scaffoldApplication } from './applicationSkeleton.js';
@@ -371,6 +372,7 @@ export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
       const path = expectString(args, 'path');
       const content = expectString(args, 'content');
       const abs = opts.sandbox.resolve(path);
+      if (writesIntoReadRunCopies(opts.sandbox, path)) throw new Error(readRunCopyWriteRefusal('write_file'));
       const isManifest = isProbeManifestPath(opts.sandbox, path);
       if (isManifest) throw new Error(manifestHandWriteRefusal('write_file'));
       const blind = blindOverwrite(opts.sandbox, path, abs);
@@ -430,6 +432,7 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
       }
       const identical = oldString === newString;
       const abs = opts.sandbox.resolve(path);
+      if (writesIntoReadRunCopies(opts.sandbox, path)) throw new Error(readRunCopyWriteRefusal('edit_file'));
       if (!existsSync(abs)) {
         throw new Error(`edit_file: no such file "${path}" — use write_file to create it first`);
       }

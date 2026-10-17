@@ -60,6 +60,78 @@ function ownerAlive(row: Pick<Row, 'host' | 'pid' | 'released'>): boolean {
   catch (error) { return (error as NodeJS.ErrnoException).code !== 'ESRCH'; }
 }
 
+/**
+ * A project run's checkpoint as every reader presents it: the run's own status
+ * decides which states it can be in. A boundary is offered only once the
+ * project finalizer has settled the run, and a live state only while it runs.
+ */
+export function projectedCheckpointStatus(status: ProjectCheckpointStatus | undefined, runStatus: string): ProjectCheckpointStatus | undefined {
+  if (!status) return undefined;
+  if (['recoverable', 'blocked'].includes(status.state) && !['failed', 'partial'].includes(runStatus)) return { ...status, state: 'unavailable' as const };
+  if (status.state === 'paused' && runStatus !== 'partial') return { ...status, state: 'unavailable' as const };
+  if (['running', 'pause_requested'].includes(status.state) && runStatus !== 'running') return { ...status, state: 'unavailable' as const };
+  return status;
+}
+
+/**
+ * THE ONE DEFINITION of "this project run can still be continued": paused at
+ * a boundary, or interrupted and recoverable. A cancelled or crashed run whose
+ * row stayed 'running', and a blocked one, cannot. The read-run copies' removal
+ * and the retention hold on the runs they copy both ask this, so neither keeps
+ * what the other lets go (second review 2026-10-17).
+ */
+export function checkpointContinuable(status: ProjectCheckpointStatus | undefined): boolean {
+  return status?.state === 'paused' || status?.state === 'recoverable';
+}
+
+function recoveryRow(db: Database.Database, id: string): RecoveryRow | undefined {
+  return db.prepare('SELECT * FROM run_checkpoint_recovery WHERE id=?').get(id) as RecoveryRow | undefined;
+}
+
+function recoveryReasonOf(db: Database.Database, id: string, data: RunCheckpoint, released = false): ProjectCheckpointStatus['reason'] {
+  const r = recoveryRow(db, id);
+  if (!r || !data.snapshotId || (!data.completed.length && !data.clientQuestionId)) return 'incomplete';
+  if (r.blocked) return r.blocked as ProjectCheckpointStatus['reason'];
+  if (db.prepare("SELECT 1 FROM run_checkpoint_actions WHERE id=? AND seq>? AND kind='model' AND state<>'done' LIMIT 1").get(id, r.boundary_seq)) return 'model_pending';
+  if (db.prepare("SELECT 1 FROM run_checkpoint_actions WHERE id=? AND seq>? AND kind='tool' AND state='pending' LIMIT 1").get(id, r.boundary_seq)) return 'tool_pending';
+  if (!released && r.deadline <= Date.now()) return 'budget_exhausted';
+  if (!released && data.processes === null && !data.worker) return 'backend_unknown';
+  return undefined;
+}
+
+function pauseRequestedOf(db: Database.Database, id: string): boolean {
+  return !!db.prepare('SELECT 1 FROM run_checkpoint_pauses WHERE id = ?').get(id);
+}
+
+/**
+ * A project run's checkpoint state, by reads alone, on any handle of the
+ * product store: offline retention plans on a read-only one, where a
+ * `RunCheckpointStore` (which creates its tables) must never open.
+ */
+export function readProjectCheckpointStatus(db: Database.Database, id: string, orgId: string): ProjectCheckpointStatus | undefined {
+  const row = db.prepare(`SELECT state, released, pid, host,
+    json_extract(payload, '$.scope.orgId') AS org,
+    json_array_length(payload, '$.completed') AS completed,
+    json_array_length(payload, '$.root.plan.subtasks') AS total
+    FROM run_checkpoints WHERE id = ?`).get(id) as
+    { state: string; released: number; pid: number; host: string; org: string; completed: number; total: number | null } | undefined;
+  if (!row || row.org !== orgId) return undefined;
+  if (row.state !== 'finished' && !row.released && row.host === hostname() && !ownerAlive(row)) {
+    const payload = db.prepare('SELECT payload FROM run_checkpoints WHERE id=?').get(id) as { payload: string };
+    const parsed = runCheckpointSchema.safeParse(JSON.parse(payload.payload));
+    const reason = parsed.success ? recoveryReasonOf(db, id, parsed.data) : 'incomplete';
+    return { state: reason ? 'blocked' : 'recoverable', ...(reason ? { reason } : {}), completed: row.completed, total: row.total ?? 0 };
+  }
+  return { state: row.state === 'finished' ? 'unavailable'
+    : row.state === 'ready' && row.released ? 'paused'
+    : pauseRequestedOf(db, id) ? 'pause_requested' : 'running', completed: row.completed, total: row.total ?? 0 };
+}
+
+/** `checkpointContinuable` for one project run, read from its checkpoint row and its status. */
+export function projectRunContinuable(db: Database.Database, id: string, orgId: string, runStatus: string): boolean {
+  return checkpointContinuable(projectedCheckpointStatus(readProjectCheckpointStatus(db, id, orgId), runStatus));
+}
+
 /** One table in the product store. A CAS claim consumes a boundary exactly once. */
 export class RunCheckpointStore {
   private readonly db: Database.Database;
@@ -78,37 +150,20 @@ export class RunCheckpointStore {
   }
 
   private recovery(id: string): RecoveryRow | undefined {
-    return this.db.prepare('SELECT * FROM run_checkpoint_recovery WHERE id=?').get(id) as RecoveryRow | undefined;
+    return recoveryRow(this.db, id);
   }
 
   private recoveryReason(id: string, data: RunCheckpoint, released = false): ProjectCheckpointStatus['reason'] {
-    const r = this.recovery(id);
-    if (!r || !data.snapshotId || (!data.completed.length && !data.clientQuestionId)) return 'incomplete';
-    if (r.blocked) return r.blocked as ProjectCheckpointStatus['reason'];
-    if (this.db.prepare("SELECT 1 FROM run_checkpoint_actions WHERE id=? AND seq>? AND kind='model' AND state<>'done' LIMIT 1").get(id, r.boundary_seq)) return 'model_pending';
-    if (this.db.prepare("SELECT 1 FROM run_checkpoint_actions WHERE id=? AND seq>? AND kind='tool' AND state='pending' LIMIT 1").get(id, r.boundary_seq)) return 'tool_pending';
-    if (!released && r.deadline <= Date.now()) return 'budget_exhausted';
-    if (!released && data.processes === null && !data.worker) return 'backend_unknown';
-    return undefined;
+    return recoveryReasonOf(this.db, id, data, released);
   }
 
   projectStatus(id: string, orgId: string): ProjectCheckpointStatus | undefined {
-    const row = this.db.prepare(`SELECT state, released, pid, host,
-      json_extract(payload, '$.scope.orgId') AS org,
-      json_array_length(payload, '$.completed') AS completed,
-      json_array_length(payload, '$.root.plan.subtasks') AS total
-      FROM run_checkpoints WHERE id = ?`).get(id) as
-      { state: string; released: number; pid: number; host: string; org: string; completed: number; total: number | null } | undefined;
-    if (!row || row.org !== orgId) return undefined;
-    if (row.state !== 'finished' && !row.released && row.host === hostname() && !ownerAlive(row)) {
-      const payload = this.db.prepare('SELECT payload FROM run_checkpoints WHERE id=?').get(id) as { payload: string };
-      const parsed = runCheckpointSchema.safeParse(JSON.parse(payload.payload));
-      const reason = parsed.success ? this.recoveryReason(id, parsed.data) : 'incomplete';
-      return { state: reason ? 'blocked' : 'recoverable', ...(reason ? { reason } : {}), completed: row.completed, total: row.total ?? 0 };
-    }
-    return { state: row.state === 'finished' ? 'unavailable'
-      : row.state === 'ready' && row.released ? 'paused'
-      : this.pauseRequested(id) ? 'pause_requested' : 'running', completed: row.completed, total: row.total ?? 0 };
+    return readProjectCheckpointStatus(this.db, id, orgId);
+  }
+
+  /** `checkpointContinuable` for one project run, read from its row and status. */
+  continuable(id: string, orgId: string, runStatus: string): boolean {
+    return projectRunContinuable(this.db, id, orgId, runStatus);
   }
 
   requestPause(id: string, orgId: string): void {
@@ -117,7 +172,7 @@ export class RunCheckpointStore {
     this.db.prepare('INSERT OR IGNORE INTO run_checkpoint_pauses (id) VALUES (?)').run(id);
   }
   pauseRequested(id: string): boolean {
-    return !!this.db.prepare('SELECT 1 FROM run_checkpoint_pauses WHERE id = ?').get(id);
+    return pauseRequestedOf(this.db, id);
   }
 
   /** Consume the source and claim a separate segment in one transaction.

@@ -138,15 +138,18 @@ export function readRunsInput(index: ReadRunsIndex): ReadRunInput[] {
 
 /**
  * The text the run's planners, executors and validators read beside
- * `readRuns`, and only then. About 164 tokens (654 characters at four a
+ * `readRuns`, and only then. About 165 tokens (659 characters at four a
  * token), in every prompt of such a run. What it answers, each from the
- * review of 2026-10-17: deleting or editing a copy makes it worthless and no
- * pass gets it back; a parent-owned suite never sees the copies, so a suite
- * comparing with them fails every round; and a whole-tree lint or test run
- * finds them, where excluding them in the project's configuration conflicts
- * with the TypeScript rule against hiding source.
+ * reviews of 2026-10-17: deleting or editing a copy makes it worthless and no
+ * pass gets it back (write_file and edit_file also refuse them); a
+ * parent-owned suite never sees the copies, so a suite comparing with them
+ * fails every round; and a whole-tree lint or test run finds them, where
+ * excluding them in the project's configuration conflicts with the
+ * TypeScript rule against hiding source. Of later runs it says only what is
+ * true of all of them: a continuation and a comparison rerun read the same
+ * runs again, but no run is seeded with these copies.
  */
-export const READ_RUNS_GUIDANCE = "readRuns are copies of other runs' saved files, chosen by the client; the host keeps them out of every delivery and later run. Leave them in place and unchanged; read, compare or copy from them as the task asks. Parent-owned suites cannot read them: prove a restore or comparison with sha256sum or diff in a shell step (the host also compares the files the criteria name at acceptance). A check run inside them proves nothing about this run's files. Run a tool that walks the whole tree (eslint ., a test runner's default include) on a copy of the workspace without .atoma-runs rather than change the project's configuration, unless the task allows that.";
+export const READ_RUNS_GUIDANCE = "readRuns are copies of other runs' saved files, chosen by the client; the host never delivers them or seeds them into the next run. Leave them in place and unchanged; read, compare or copy from them as the task asks. Parent-owned suites cannot read them: prove a restore or comparison with sha256sum or diff in a shell step (the host also compares the files the criteria name at acceptance). A check run inside them proves nothing about this run's files. Run a tool that walks the whole tree (eslint ., a test runner's default include) on a copy of the workspace without .atoma-runs rather than change the project's configuration, unless the task allows that.";
 
 /**
  * What the host found when it checked one copy against its manifest, just
@@ -171,11 +174,18 @@ export interface ReadRunCopyCheck {
   /** Names the run added inside the copy: a separate fact, never a mismatch of the saved files. */
   readonly added: readonly string[];
   readonly addedCount: number;
+  /**
+   * A directory of the copy (or `.atoma-runs` itself) was replaced or moved
+   * after the copy, its names unchanged: a whole copy swapped aside, edited,
+   * compared and swapped back keeps every file's identity (review 2026-10-17,
+   * second pass). A change explained by names added or removed is not this.
+   */
+  readonly directoryTouched: boolean;
 }
 
-/** No saved file changed, went missing or was changed and put back. Added names do not count. */
+/** No saved file changed, went missing or was changed and put back, and no directory was swapped. Added names do not count. */
 export function readRunCopyIntact(check: ReadRunCopyCheck): boolean {
-  return check.changedCount === 0 && check.missingCount === 0 && check.touchedCount === 0;
+  return check.changedCount === 0 && check.missingCount === 0 && check.touchedCount === 0 && !check.directoryTouched;
 }
 
 /** A name the run chose, JSON-encoded and bounded: it must not print a line of its own into a host block. */
@@ -196,17 +206,21 @@ export function renderReadRunCopies(checks: readonly ReadRunCopyCheck[]): string
     const run = check.runId.slice(0, 8);
     const added = check.addedCount === 0 ? '' : ` It also holds ${check.addedCount === 1 ? 'a name' : `${check.addedCount} names`} ` +
       `the run added, which no saved file of that run is: ${listedPaths(check.added, check.addedCount)}.`;
+    const directory = 'a directory of it was moved or modified';
     if (check.changedCount === 0 && check.missingCount === 0) {
-      if (check.touchedCount === 0) {
+      if (check.touchedCount === 0 && !check.directoryTouched) {
         return `${head} still holds the ${check.files} saved files of run ${run} byte for byte, with their saved modes.${added}`;
       }
-      return `${head} holds the ${check.files} saved files of run ${run} byte for byte now, but ${listedPaths(check.touched, check.touchedCount)} ` +
-        `${check.touchedCount === 1 ? 'was' : 'were'} changed after the copy: a comparison made meanwhile may be wrong.${added}`;
+      const touched = [...(check.directoryTouched ? [directory] : []),
+        ...(check.touchedCount ? [`${listedPaths(check.touched, check.touchedCount)} ${check.touchedCount === 1 ? 'was' : 'were'} changed`] : [])];
+      return `${head} holds the ${check.files} saved files of run ${run} byte for byte now, but ${touched.join(', and ')} ` +
+        `after the copy: a comparison made meanwhile may be wrong.${added}`;
     }
     const differences = [
       ...(check.changedCount ? [`changed (bytes or mode): ${listedPaths(check.changed, check.changedCount)}`] : []),
       ...(check.missingCount ? [`missing: ${listedPaths(check.missing, check.missingCount)}`] : []),
       ...(check.touchedCount ? [`changed after the copy, equal again: ${listedPaths(check.touched, check.touchedCount)}`] : []),
+      ...(check.directoryTouched ? [`${directory} after the copy`] : []),
     ].join('; ');
     return `${head} NO LONGER matches the saved files of run ${run} (${differences}). ` +
       `A comparison with this copy proves nothing about that run.${added}`;
@@ -239,6 +253,46 @@ export interface ReadRunFileComparisons {
   readonly omitted: number;
 }
 
+/** What may continue a path: a match followed by one of these names a longer path. */
+const CONTINUES_PATH = /^(?:[\w/-]|\.[\w-])/;
+/** What may precede a path: a match preceded by one of these is part of a longer path. */
+const EXTENDS_PATH = /[\w.\-/]/;
+/** A root document a criterion may name by its stem ("README"), as the criteria read-back reads it. */
+const ROOT_DOCUMENT = /^([^/]{4,})\.(?:md|markdown|txt)$/i;
+
+/**
+ * The saved paths a criterion text names, in the order the text first names
+ * them: each read run's manifest path itself, found at a path boundary, a
+ * leading `./` or `/` accepted, a sentence's closing period too
+ * ("browser/x.js."), never inside a longer path (`src/browser/x.js`,
+ * `browser/x.js.bak`); and a saved root document by its stem ("README" for
+ * `README.md`). The read-back's own extension list missed `.tsx`, `bin/cli`,
+ * `Makefile`, images and `./x.js`, so a restore criterion got no host line
+ * (review 2026-10-17, second pass).
+ */
+export function savedPathsNamed(texts: readonly string[], saved: Iterable<string>): string[] {
+  const text = texts.join('\n');
+  const hits = new Map<string, number>();
+  for (const path of saved) {
+    for (let from = 0; ;) {
+      const at = text.indexOf(path, from);
+      if (at < 0) break;
+      from = at + 1;
+      if (CONTINUES_PATH.test(text.slice(at + path.length, at + path.length + 2))) continue;
+      const start = at >= 2 && text.startsWith('./', at - 2) ? at - 2 : text[at - 1] === '/' ? at - 1 : at;
+      if (start > 0 && EXTENDS_PATH.test(text[start - 1]!)) continue;
+      hits.set(path, at);
+      break;
+    }
+    const stem = ROOT_DOCUMENT.exec(path)?.[1];
+    if (stem && !hits.has(path)) {
+      const named = new RegExp(`(?<![\\w./-])${stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w/-]|\\.[\\w-])`, 'i').exec(text);
+      if (named) hits.set(path, named.index);
+    }
+  }
+  return [...hits.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).map(([path]) => path);
+}
+
 /** One host line per criteria-named path a read run saved. A fact beside the judgement, never a verdict. */
 export function renderReadRunFiles(comparisons: ReadRunFileComparisons): string {
   const lines = comparisons.compared.map((comparison) => {
@@ -267,10 +321,12 @@ const RUN_ID_PATTERN = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]
 
 /**
  * A path INTO a copy: the directory as a whole path component, then a run id
- * (quotes may wrap either component). The id is required on purpose: a command
- * that only mentions the directory is usually the exclusion the guidance asks
- * for (`--ignore-pattern '.atoma-runs/**'`, `vitest --exclude '**\/.atoma-runs/**'`),
- * and dropping it lost a seeded run's lint replay (review 2026-10-17).
+ * (quotes may wrap either component). The id is required here: a text that
+ * only mentions the directory is often a command that excludes the copies
+ * (`--ignore-pattern '.atoma-runs/**'`, `vitest --exclude '**\/.atoma-runs/**'`),
+ * which replays anywhere, and dropping it lost a seeded run's lint replay
+ * (review 2026-10-17). Commands that reach the copies without an id are
+ * `reachesReadRunCopies`'s.
  */
 const NAMES_READ_RUN_COPY = new RegExp(`(?:^|[^\\w.-])["']?${READ_RUNS_PATTERN}["']?/+["']?${RUN_ID_PATTERN}(?![0-9a-fA-F-])`);
 
@@ -286,13 +342,60 @@ export function namesReadRunCopy(text: string): boolean {
   return NAMES_READ_RUN_COPY.test(text);
 }
 
+/** The directory, then a glob where a run id would be: `.atoma-runs/*\/x.js`, `".atoma-runs"/**\/x.js`. */
+const GLOB_INTO_READ_RUNS = new RegExp(`(?:^|[^\\w.-])["']?${READ_RUNS_PATTERN}["']?/+["']?[*?[{]`, 'g');
+/** A shell entering the directory: `cd .atoma-runs && …`, `pushd ./.atoma-runs`. */
+const ENTERS_READ_RUNS = new RegExp(`(?:^|[;&|(\\s"'])(?:cd|pushd)\\s+["']?(?:\\./)?${READ_RUNS_PATTERN}(?=[/"'\\s;&|)]|$)`);
+/** An option whose argument is a pattern to leave out: `--exclude`, `--ignore-pattern`, `--exclude-dir`, `--ignore`. */
+const EXCLUSION_OPTION = /^--?[\w-]*(?:exclude|ignore)[\w-]*$/i;
+
+/**
+ * Whether the shell word holding `at` is a pattern a command leaves out
+ * rather than a path it reads: a negated glob (`--glob '!.atoma-runs/**'`),
+ * the argument of an exclusion option, inline or next (`--exclude=…`,
+ * `--ignore-pattern '…'`), or a find path negated or pruned (`-not -path`,
+ * `! -path`, `-path … -prune`). Words split on whitespace; quotes are ignored.
+ */
+function exclusionArgument(command: string, at: number): boolean {
+  const wordStart = command.slice(0, at).search(/\S*$/);
+  const prefix = command.slice(wordStart, at).replace(/["']/g, '');
+  if (prefix.startsWith('!') || /^--?[\w-]*(?:exclude|ignore)[\w-]*=/i.test(prefix)) return true;
+  const before = command.slice(0, wordStart).trimEnd().split(/\s+/).map((word) => word.replace(/["']/g, ''));
+  const previous = before.at(-1) ?? '';
+  if (EXCLUSION_OPTION.test(previous)) return true;
+  if (!/^-i?(?:path|wholename)$/.test(previous)) return false;
+  const after = command.slice(at).split(/\s+/);
+  return before.at(-2) === '-not' || before.at(-2) === '!' || after[1] === '-prune';
+}
+
+/**
+ * Whether a shell COMMAND reaches into the copies: a path naming a run id
+ * (`namesReadRunCopy`), a glob where the id would be that is not a pattern
+ * the command leaves out (`diff -q x.js .atoma-runs/*\/x.js`), or a shell
+ * entering the directory (`cd .atoma-runs && sha256sum *\/x.js`). Such a
+ * recorded command fails where the copies are absent, so the seed copy drops
+ * it (review 2026-10-17, second pass). A variable holding the directory
+ * (`D=.atoma-runs; cat $D/…`) is out of reach: no reader of a command string
+ * can follow it.
+ */
+export function reachesReadRunCopies(command: string): boolean {
+  if (namesReadRunCopy(command) || ENTERS_READ_RUNS.test(command)) return true;
+  for (const match of command.matchAll(GLOB_INTO_READ_RUNS)) {
+    const at = match.index + match[0].indexOf(READ_RUNS_DIRECTORY);
+    if (!exclusionArgument(command, at)) return true;
+  }
+  return false;
+}
+
 /** The directory itself, anywhere, as a whole name: `.atoma-runs`, `'.atoma-runs/'`, `**\/.atoma-runs/**`. */
 const MENTIONS_READ_RUNS = new RegExp(`(?:^|[^\\w.-])${READ_RUNS_PATTERN}(?![\\w.-])`);
 
 /**
  * Whether a text mentions the copies' directory at all. A parent-owned suite
- * that does can never pass: the suite runs on a snapshot that leaves the
- * copies out (src/tools/parentTests.ts), so it is refused at plan time.
+ * cannot read it: the suite runs on a snapshot that leaves the copies out
+ * (src/tools/parentTests.ts), so a suite mentioning it is refused at plan
+ * time. Any mention, not only a path with an id: `join('.atoma-runs', id)`
+ * spells none.
  */
 export function mentionsReadRunCopies(text: string): boolean {
   return MENTIONS_READ_RUNS.test(text);

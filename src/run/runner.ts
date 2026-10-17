@@ -4,8 +4,8 @@ import { withRecoveryEffects } from '../core/recoveryEffects.js';
 import { assertCheckpointWorkerAbsent } from '../launcher/checkpointRecovery.js';
 import { assertProjectRunAuthority } from '../projects/runAuthority.js';
 import { ledgerDbPath, setLedgerScope, type LedgerScope } from '../core/ledger.js';
-import { dirname, resolve } from 'node:path';
-import { cpSync, existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { cpSync, existsSync, mkdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { setMaxListeners } from 'node:events';
 import { PlanParseError, RunnerConfigError } from '../core/errors.js';
@@ -1332,6 +1332,10 @@ async function startTaskInternal(
           if (!backend.drain) throw new Error('Depth routing backend cannot confirm process exit');
           await backend.drain();
           signal.throwIfAborted();
+          // The read-run copies never enter the first attempt's archive: they
+          // are copied again below, and in `.prevN` they kept another run's
+          // bytes past that run's retention (second review 2026-10-17).
+          if (readRuns) rmSync(join(workspaceRoot, READ_RUNS_DIRECTORY), { recursive: true, force: true });
           prepareWorkspace(workspaceRoot, true);
           // A seeded run restarts from its SEED, not from nothing: see
           // `seedWorkspace`. A failed copy throws and fails the run, with the
@@ -1427,7 +1431,7 @@ async function startTaskInternal(
     // and the files the criteria name compared with the saved entries.
     ...(readRuns ? {
       readRunCopies: () => checkReadRunCopies(workspaceRoot, readRuns, readRunIdentities),
-      compareReadRunFiles: (paths: readonly string[]) => compareReadRunFiles(workspaceRoot, readRuns, paths),
+      compareReadRunFiles: (criteria: readonly string[]) => compareReadRunFiles(workspaceRoot, readRuns, criteria),
     } : {}),
     // Prefilter decisions replayed from the on-disk cache: the LLM call
     // that did NOT happen still deserves a card.

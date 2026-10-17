@@ -98,17 +98,19 @@ describe('inheritProbeManifest', () => {
     expect(inheritProbeManifest(out.text!)).toMatchObject({ text: out.text, repaired: 0, dropped: 0 });
   });
 
-  // docs/decisions/read-runs-2026-10-17.md: a check of a path INTO a read-run
+  // docs/decisions/read-runs-2026-10-17.md: a check reaching INTO a read-run
   // copy replays only where that copy existed, and a later run never holds one.
-  // The run id is required (review 2026-10-17): a command that only mentions
-  // the directory is the exclusion the guidance asks for, and replays anywhere.
-  it('drops an entry naming a path into a read-run copy, keeps one that only excludes the copies, and never reports either', () => {
+  // A command that only excludes the copies replays anywhere (reviews 2026-10-17).
+  it('drops an entry reaching into a read-run copy, keeps one that only excludes the copies, and never reports either', () => {
     const copy = '.atoma-runs/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a';
     const dropped = [
       { cmd: `cmp ${copy}/browser/collect-xe-browser.js browser/collect-xe-browser.js`, exitCode: 0 },
       { cmd: `diff -r ".atoma-runs"/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser browser`, exitCode: 0 },
       // The command names no copy, its recorded output does: a replay without the copy prints otherwise.
       { cmd: 'find . -name collect-xe-browser.js', exitCode: 0, stdout: `./browser/collect-xe-browser.js\n./${copy}/browser/collect-xe-browser.js\n` },
+      // No id, still into the copies (second review): silent on success, exit 2 where they are absent.
+      { cmd: 'diff -q browser/collect-xe-browser.js .atoma-runs/*/browser/collect-xe-browser.js', exitCode: 0 },
+      { cmd: 'cd .atoma-runs && sha256sum */browser/collect-xe-browser.js', exitCode: 0 },
       { probe: 'web', file: `${copy}/index.html`, smoke: 'document.title', expected: '"Old page"' },
       { probe: 'web', file: `./${copy}/index.html`, smoke: 'document.title', expected: '"Old page"' },
       // The old server started from the copy: its host-stamped entry, and a request served from the copy.
@@ -119,6 +121,10 @@ describe('inheritProbeManifest', () => {
       { cmd: "npx eslint . --max-warnings 0 --ignore-pattern '.atoma-runs/**'", exitCode: 0 },
       { cmd: "npx vitest run --exclude '**/.atoma-runs/**'", exitCode: 0 },
       { cmd: 'grep -r TODO src --exclude-dir=.atoma-runs', exitCode: 1 },
+      { cmd: "rg --glob '!.atoma-runs/**' TODO", exitCode: 1 },
+      { cmd: "find . -not -path './.atoma-runs/*' -name '*.test.js'", exitCode: 0 },
+      // A variable holding the directory is out of reach: no reader of a command can follow it.
+      { cmd: 'D=.atoma-runs; ls $D', exitCode: 0 },
       { probe: 'http', method: 'GET', path: '/.atoma-runs/x', status: 404 },
       // A note is free text, never replayed.
       { probe: 'http', method: 'GET', path: '/api/items', status: 200, serverKind: 'node', entry: 'src/api.js', note: `same as ${copy}/src/api.js` },
@@ -130,7 +136,7 @@ describe('inheritProbeManifest', () => {
     const out = inheritProbeManifest(raw);
     expect(out).toMatchObject({ kept: kept.length, dropped: dropped.length, repaired: 0 });
     expect((JSON.parse(out.text!) as { entries: unknown[] }).entries).toEqual(kept);
-    expect(out.problems).toEqual([0, 1, 2, 3].map((i) => `entry #${i}: names a path into .atoma-runs/<run id>/, a read-run copy a later run does not hold`));
+    expect(out.problems).toEqual([0, 1, 2, 3].map((i) => `entry #${i}: reaches into .atoma-runs/, the read-run copies a later run does not hold`));
     // A manifest naming no copy is still inherited byte for byte.
     const clean = JSON.stringify({ version: 1, entries: kept });
     expect(inheritProbeManifest(clean)).toMatchObject({ text: clean, dropped: 0 });
