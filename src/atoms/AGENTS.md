@@ -365,6 +365,15 @@ load-bearing.
   semantic review. The mechanical half of the delegation review owns the suite
   API check (`parentSuiteCheck.ts`): what the runner's integrity guard refuses
   is refused in the parent's plan, so no child is rejected for it. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
+  Before any review, reviewed root plans and cell plans get the suite regex
+  check (`suiteRegexPrecheck`, run 2e6bdcfc): an invalid regex literal refuses
+  every time, an escaped backslash before a class letter once per planner and
+  pattern, then reaches the review as a host fact (reject-once-then-honour).
+  The same zero-token precheck refuses a test-file import once per planner and
+  states every suite finding in one refusal; the review then reads
+  `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves), from
+  `list_files` alone: a host `read_file` marks files read and disarms
+  `write_file`'s blind-overwrite refusal. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
 
 - One text states what a parent suite can run and how browser-only behaviour is
   proven (`PARENT_TEST_RUNNER_SCOPE`: a `validate_html` subtask, with the
@@ -678,6 +687,10 @@ load-bearing.
 
 ## Intentional choices and rejected shortcuts
 
+- Sampled delegation-review votes (2026-10-17): a majority of three approves a
+  defect the review misses two times in three more often (0.74), unanimity
+  refuses sound plans into a failed run, and samples share one misreading.
+  Host facts on the suites replaced them.
 - Approved method hooks collect version-bound prompt lessons for all three ranks; root refusal discards them. Fixed author/reviewer prompts, bounded evidence and preservation rules: [prompt consolidation](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 Read the archived sections before changing something that merely looks odd.

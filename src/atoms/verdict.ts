@@ -887,7 +887,7 @@ export function renderTransportEvidence(
 
 export async function llmVerdict(args: {
   /** Mandatory scope classification and executable-test check, never a trust shortcut. */
-  delegationContract?: { plan: Plan; allowDiscovery: boolean; previousRefusals?: readonly string[] };
+  delegationContract?: { plan: Plan; allowDiscovery: boolean; previousRefusals?: readonly string[]; hostFacts?: readonly string[] };
   /** Defaults to VALIDATION_PARAMS; only the root delegation review passes its own (src/core/AGENTS.md). */
   params?: GenerationParams;
   ctx: RunContext;
@@ -1081,6 +1081,8 @@ export async function llmVerdict(args: {
     args.delegationContract ? inheritedObligationsNote(args.task) : '',
     args.delegationContract ? previousRefusalsNote(args.delegationContract.previousRefusals ?? []) : '',
     args.delegationContract ? routingIndexNote(args.delegationContract.plan) : '',
+    // Host-computed facts about this plan's suites (`suiteRegexPrecheck`), never a verdict.
+    args.delegationContract ? (args.delegationContract.hostFacts ?? []).join('\n') : '',
   ]
     .filter(Boolean)
     .join('\n');

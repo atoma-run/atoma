@@ -3,10 +3,12 @@ import { chai } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { L3Atom, ROOT_PLAN_ATTEMPTS } from '../src/atoms/L3Atom.js';
-import { enforceParsedDelegationReview } from '../src/atoms/delegationReview.js';
-import { parentSuiteRefusal, parentSuiteUnsupported } from '../src/atoms/parentSuiteCheck.js';
+import { L2Atom } from '../src/atoms/L2Atom.js';
+import { l3StrategySchema, parsePlanPair } from '../src/atoms/json.js';
+import { enforceParsedDelegationReview, planSuites } from '../src/atoms/delegationReview.js';
+import { parentSuiteRefusal, parentSuiteRegexFindings, parentSuiteUnsupported, suiteRegexPrecheck } from '../src/atoms/parentSuiteCheck.js';
 import { VITEST_BUILTIN_MATCHERS, type DelegationReview } from '../src/contracts/parentTests.js';
-import type { Result } from '../src/core/types.js';
+import type { Plan, Result } from '../src/core/types.js';
 import { makeCtx } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
 
@@ -169,4 +171,239 @@ describe('a root plan whose suite the runner would refuse', () => {
   function suite(source: string) {
     return { requirement: 'signed addition', cwd: '.', source };
   }
+});
+
+/**
+ * Run 2e6bdcfc (2026-10-16): a cell's plan reply carried `\\\\s` in its JSON,
+ * so the suite the runner executed matched a literal backslash followed by
+ * "s". It failed eight times byte for byte, spent a ladder and a root
+ * acceptance, and no reviewer named it. Checked at plan time, at zero tokens.
+ */
+describe('regular expressions a suite cannot mean', () => {
+  // The TypeScript the runner executes, as two escaping layers made it.
+  const overEscaped = String.raw`  expect(script).toMatch(/!\\s+-name\\s+['"]x\\.test\\.js['"]/);`;
+  const intended = String.raw`  expect(script).toMatch(/!\s+-name\s+['"]x\.test\.js['"]/);`;
+  const suiteOf = (...body: string[]) => lines("import { test, expect } from 'vitest';", "import { script } from './scripts.ts';", "test('excludes', () => {", ...body, '});');
+  /** A planner's reply, through the parser the root and every cell use. */
+  const parsedSuite = (source: string): string => {
+    const plan = { reasoning: 'one module', subtasks: [{ description: 'Exclude the browser suites', outputs: ['scripts.ts'],
+      acceptanceTests: { requirement: 'npm test excludes the browser suites', cwd: '.', source } }], aggregation: { mode: 'concat' }, expectedOutput: 'scripts.ts' };
+    const text = JSON.stringify([{ strategy: 'reuse', target: 'Cell', reasoning: 'r' }, plan]);
+    return parsePlanPair(text, l3StrategySchema, 'end_turn').plan.subtasks[0]!.acceptanceTests!.source;
+  };
+
+  it('finds the escaped backslashes of the recorded shape after the plan parser, and nothing in the intended one', () => {
+    expect(parentSuiteRegexFindings(parsedSuite(suiteOf(overEscaped)))).toEqual([{
+      kind: 'escaped-backslash', form: 'literal', line: 4, pattern: String.raw`/!\\s+-name\\s+['"]x\\.test\\.js['"]/`,
+      key: String.raw`/!\\s+-name\\s+['"]x\\.test\\.js['"]/`, detail: [String.raw`\\s`, String.raw`\\.`],
+    }]);
+    expect(parentSuiteRegexFindings(parsedSuite(suiteOf(intended)))).toEqual([]);
+  });
+
+  it('reads RegExp strings and String.raw, refuses an invalid pattern, and never reads strings or comments', () => {
+    const findings = parentSuiteRegexFindings(suiteOf(
+      String.raw`  expect('a1').toMatch(new RegExp('\\\\d'));`,
+      String.raw`  expect('a1').toMatch(RegExp(String.raw` + '`\\\\w`' + String.raw`, 'u'));`,
+      String.raw`  expect('a1').toMatch(new RegExp('\\d'));`,
+      String.raw`  expect('(').toMatch(/a\\(b/);`,
+      String.raw`  const text = '/x\\\\s/'; // /y\\s/`,
+    ));
+    expect(findings.map(finding => [finding.kind, finding.line, finding.detail[0]?.slice(0, 20)])).toEqual([
+      ['escaped-backslash', 4, String.raw`\\d`],
+      ['escaped-backslash', 5, String.raw`\\w`],
+      ['invalid', 7, 'Invalid regular expr'],
+    ]);
+  });
+
+  it('admits ordinary patterns, including a literal backslash before a non-class character', () => {
+    expect(parentSuiteRegexFindings(suiteOf(
+      String.raw`  expect('a/b').toMatch(/[\\/]/);`,
+      String.raw`  expect('C:\\Users').toMatch(/^C:\\Users$/);`,
+      String.raw`  expect('555-1234').toMatch(/^\d{3}-\d{4}$/);`,
+      String.raw`  expect(' ').toMatch(/^\s*$/u);`,
+    ))).toEqual([]);
+  });
+
+  it('refuses an escaped backslash once per pattern and run, then hands it to the review as a host fact', () => {
+    const memo = new Set<string>();
+    const suites = [{ label: 'on subtask 0', source: suiteOf(overEscaped) }];
+    const first = suiteRegexPrecheck(suites, memo, 'cell:A');
+    expect(first.refusal).toContain('Acceptance suite on subtask 0, line 4');
+    expect(first.refusal).toContain(String.raw`\\s, \\. each match a literal backslash followed by the next character`);
+    expect(first.refusal).toContain(String.raw`for /\s/ write \\s in the JSON string, never \\\\s. Halve every doubled backslash in that pattern.`);
+    const kept = suiteRegexPrecheck(suites, memo, 'cell:A');
+    expect(kept.refusal).toBeUndefined();
+    expect(kept.facts).toHaveLength(1);
+    expect(kept.facts[0]).toMatch(/^HOST FACT: Acceptance suite on subtask 0, line 4: .* approve only if the text under test contains those backslashes and the suite's requirement says so\.$/);
+  });
+
+  it('refuses an invalid pattern every time: that suite module can never load', () => {
+    const memo = new Set<string>();
+    const suites = [{ label: 'for the plan integration', source: suiteOf(String.raw`  expect('(').toMatch(/a\\(b/);`) }];
+    expect(suiteRegexPrecheck(suites, memo, 'cell:A').refusal).toContain('is invalid');
+    expect(suiteRegexPrecheck(suites, memo, 'cell:A').refusal).toContain('so the suite module cannot load');
+  });
+
+  // Review 2026-10-17 of the first version of this check.
+  it('never refuses an invalid RegExp string: it throws only when its line runs, and a suite may test that', () => {
+    expect(parentSuiteRegexFindings(suiteOf("  expect(() => new RegExp('(')).toThrow(SyntaxError);", "  expect(() => new RegExp('a', 'gg')).toThrow();"))).toEqual([]);
+  });
+
+  it('reads a RegExp string whatever its flags, and gives the escaping rule of strings', () => {
+    const line = String.raw`  expect('a b').toMatch(new RegExp('a\\\\sb', flags));`;
+    expect(parentSuiteRegexFindings(suiteOf(line))).toMatchObject([{ kind: 'escaped-backslash', form: 'string', line: 4, detail: [String.raw`\\s`] }]);
+    const refusal = suiteRegexPrecheck([{ label: 'on subtask 0', source: suiteOf(line) }], new Set(), 'cell:A').refusal;
+    expect(refusal).toContain(String.raw`for new RegExp('\\s') write \\\\s in the JSON string, never \\\\\\\\s`);
+    expect(refusal).not.toContain('a regex literal holds one backslash');
+  });
+
+  it('names a pattern in two suites twice, and tells each planner once', () => {
+    const memo = new Set<string>();
+    const two = [{ label: 'on subtask 0', source: suiteOf(overEscaped) }, { label: 'on subtask 1', source: suiteOf(overEscaped) }];
+    const first = suiteRegexPrecheck(two, memo, 'cell:A');
+    expect(first.refusal).toContain('Acceptance suite on subtask 0, line 4');
+    expect(first.refusal).toContain('Acceptance suite on subtask 1, line 4');
+    expect(first.facts).toEqual([]);
+    expect(suiteRegexPrecheck(two, memo, 'cell:B').refusal).toContain('Acceptance suite on subtask 0, line 4');
+    expect(suiteRegexPrecheck(two, memo, 'cell:A').facts).toHaveLength(2);
+  });
+
+  it('numbers the remaining suites from zero on a resumed plan, as the review and the planner see them', () => {
+    const plan = makePlan({ subtasks: [{ description: 'done' }, { description: 'done too' },
+      { description: 'left', acceptanceTests: { requirement: 'r', cwd: '.', source: suiteOf(overEscaped) } }] });
+    expect(planSuites(plan, 2).map(suite => suite.label)).toEqual(['on subtask 0', 'for the plan integration']);
+  });
+
+  // Second review 2026-10-17.
+  it('names an invalid literal whatever the number of other findings, remembers whole patterns, and advises String.raw', () => {
+    const many = [1, 2, 3, 4, 5].map(n => String.raw`  expect('x').toMatch(/a${n}\\s/);`);
+    const invalid = String.raw`  expect('(').toMatch(/a\\(b/);`;
+    expect(suiteRegexPrecheck([{ label: 'on subtask 0', source: suiteOf(...many, invalid) }], new Set(), 'p').refusal).toContain('is invalid');
+    const long = (tail: string) => String.raw`  expect('x').toMatch(/` + 'a'.repeat(90) + String.raw`\\s${tail}/);`;
+    const memo = new Set<string>();
+    expect(suiteRegexPrecheck([{ label: 'on subtask 0', source: suiteOf(long('1')) }], memo, 'p').refusal).toBeDefined();
+    expect(suiteRegexPrecheck([{ label: 'on subtask 0', source: suiteOf(long('2')) }], memo, 'p').refusal).toBeDefined();
+    const raw = String.raw`  expect('a b').toMatch(new RegExp(String.raw` + '`a\\\\sb`' + '));';
+    expect(suiteRegexPrecheck([{ label: 'on subtask 0', source: suiteOf(raw) }], new Set(), 'p').refusal)
+      .toContain(String.raw`a String.raw template holds one backslash per escape: for String.raw` + '`\\s`' + String.raw` write \\s in the JSON string, never \\\\s`);
+  });
+
+  describe('in the root review and in a cell plan review', () => {
+    const databases: ReturnType<typeof openDb>[] = [];
+    afterEach(() => {
+      for (const db of databases.splice(0)) db.close();
+    });
+    const actors = () => {
+      const db = openDb(':memory:');
+      databases.push(db);
+      const registry = new AtomRegistry(db);
+      const seed = { description: 'module author', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' };
+      const tissue = L3Atom.buildWithModel(registry.create(3, seed), registry, 'mock');
+      const cellType = registry.create(2, seed);
+      return { tissue, cell: L2Atom.fromType(registry.getByName(cellType.name)!, registry) };
+    };
+    const planWith = (body: string) => makePlan({ subtasks: [{ description: 'Exclude the browser suites', outputs: ['scripts.ts'],
+      acceptanceTests: { requirement: 'npm test excludes the browser suites', cwd: '.', source: suiteOf(body) } }] });
+    const approval = JSON.stringify({ approved: true, reasoning: 'scope reviewed', delegationReview: review(1) });
+    const done: Result = { output: {}, summary: 'done', trace: [], producedBy: { name: 'cell', tier: 2, viaFallback: false } };
+
+    it('replans the root before any review, then reviews a kept pattern with the host fact', async () => {
+      const { tissue } = actors();
+      const ctx = makeCtx();
+      const plan = vi.spyOn(tissue, 'plan').mockResolvedValue(planWith(overEscaped));
+      vi.spyOn(tissue, 'execute').mockResolvedValue(done);
+      ctx.llm.enqueueText(approval);
+
+      await tissue.handle({ description: 'Exclude the browser suites from npm test' }, ctx);
+
+      expect(plan).toHaveBeenCalledTimes(2);
+      expect(String(plan.mock.calls[1]?.[2])).toContain('Acceptance suite on subtask 0, line 4');
+      const reviews = ctx.llm.calls.filter(call => call.userContent.includes('== REQUIRED DELEGATION CONTRACT REVIEW =='));
+      expect(reviews).toHaveLength(1);
+      expect(reviews[0]!.userContent).toContain('HOST FACT: Acceptance suite on subtask 0, line 4');
+    });
+
+    it('reviews a corrected root plan without the fact', async () => {
+      const { tissue } = actors();
+      const ctx = makeCtx();
+      const plan = vi.spyOn(tissue, 'plan').mockResolvedValueOnce(planWith(overEscaped)).mockResolvedValue(planWith(intended));
+      vi.spyOn(tissue, 'execute').mockResolvedValue(done);
+      ctx.llm.enqueueText(approval);
+
+      await tissue.handle({ description: 'Exclude the browser suites from npm test' }, ctx);
+
+      expect(plan).toHaveBeenCalledTimes(2);
+      const reviews = ctx.llm.calls.filter(call => call.userContent.includes('== REQUIRED DELEGATION CONTRACT REVIEW =='));
+      expect(reviews).toHaveLength(1);
+      expect(reviews[0]!.userContent).not.toContain('HOST FACT');
+    });
+
+    it('remembers a finding as told only when the refusal was sent, after the caller\'s own precheck', async () => {
+      const { tissue } = actors();
+      const ctx = makeCtx();
+      const parallel = planWith(overEscaped);
+      const sequential = { ...planWith(overEscaped), aggregation: { mode: 'sequential' as const } };
+      const proposals = [parallel, sequential, sequential];
+      const feedback: string[][] = [];
+      ctx.llm.enqueueText(approval);
+      const reviewed = (tissue as unknown as { reviewedRootPlan: (args: unknown, ctx: unknown) => Promise<unknown> }).reviewedRootPlan({
+        propose: (previous: readonly string[]) => { feedback.push([...previous]); return Promise.resolve(proposals.shift()!); },
+        precheck: (next: Plan) => next.aggregation.mode === 'sequential' ? undefined : 'Remaining plan rejected before review: return sequential.',
+        reviewTask: { description: 'Exclude the browser suites' }, from: 0, allowDiscovery: false, continuation: true,
+      }, ctx);
+
+      await expect(reviewed).resolves.toBeDefined();
+      expect(feedback).toHaveLength(3);
+      expect(feedback[2]!.join(' ')).toContain('Acceptance suite on subtask 0, line 4');
+      const reviews = ctx.llm.calls.filter(call => call.userContent.includes('== REQUIRED DELEGATION CONTRACT REVIEW =='));
+      expect(reviews).toHaveLength(1);
+      expect(reviews[0]!.userContent).toContain('HOST FACT: Acceptance suite on subtask 0, line 4');
+    });
+
+    it('keeps a suite finding in the planner\'s feedback after a later review refusal', async () => {
+      const { tissue } = actors();
+      const ctx = makeCtx();
+      const proposals = [planWith(overEscaped), planWith(intended), planWith(overEscaped)];
+      const feedback: string[][] = [];
+      ctx.llm.enqueueText(JSON.stringify({ approved: false, reasoning: 'Another gap in the plan.' }));
+      ctx.llm.enqueueText(approval);
+      const reviewed = (tissue as unknown as { reviewedRootPlan: (args: unknown, ctx: unknown) => Promise<unknown> }).reviewedRootPlan({
+        propose: (previous: readonly string[]) => { feedback.push([...previous]); return Promise.resolve(proposals.shift()!); },
+        reviewTask: { description: 'Exclude the browser suites' }, from: 0, allowDiscovery: false, continuation: false,
+      }, ctx);
+
+      await expect(reviewed).resolves.toBeDefined();
+      expect(feedback).toHaveLength(3);
+      expect(feedback[2]!.join(' ')).toContain('Acceptance suite on subtask 0, line 4');
+      expect(feedback[2]!.join(' ')).toContain('Another gap in the plan.');
+      const reviews = ctx.llm.calls.filter(call => call.userContent.includes('== REQUIRED DELEGATION CONTRACT REVIEW =='));
+      expect(reviews[1]!.userContent).toContain('HOST FACT: Acceptance suite on subtask 0, line 4');
+    });
+
+    it('tells each task of a cell once: another subtask of the same cell type is another prompt', async () => {
+      const { tissue, cell } = actors();
+      const ctx = makeCtx();
+      for (const description of ['Exclude the browser suites', 'Exclude the slow suites']) {
+        const verdict = await tissue.validatePlan(cell, planWith(overEscaped), { description }, ctx);
+        expect(verdict).toMatchObject({ approved: false, delegationRefusal: 'plan' });
+      }
+      expect(ctx.llm.calls).toHaveLength(0);
+    });
+
+    it('refuses a cell plan without a review call, then reviews it with the fact when kept', async () => {
+      const { tissue, cell } = actors();
+      const ctx = makeCtx();
+      const task = { description: 'Exclude the browser suites' };
+
+      const first = await tissue.validatePlan(cell, planWith(overEscaped), task, ctx);
+      expect(first).toMatchObject({ approved: false, delegationRefusal: 'plan' });
+      expect(first.reasoning).toContain('Acceptance suite on subtask 0, line 4');
+      expect(ctx.llm.calls).toHaveLength(0);
+
+      ctx.llm.enqueueText(approval);
+      await tissue.validatePlan(cell, planWith(overEscaped), task, ctx);
+      expect(ctx.llm.calls).toHaveLength(1);
+      expect(ctx.llm.calls[0]!.userContent).toContain('HOST FACT: Acceptance suite on subtask 0, line 4');
+    });
+  });
 });

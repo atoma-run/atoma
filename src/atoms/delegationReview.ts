@@ -138,34 +138,53 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
       indices.some(i => i >= plan.subtasks.length)) {
     return delegationRefusal('Delegation review must classify every subtask exactly once using its zero-based index.', 'reviewer');
   }
+  // Every plan finding in ONE refusal, so the planner hears them in one round (2026-10-17); fan-out stays its own kind.
+  const findings: string[] = [];
   if (plan.replanAfter && (!allowDiscovery || plan.subtasks.some(s => s.outputs?.length) ||
       review.subtasks.some(s => s.kind !== 'inspection') || review.integration.kind !== 'inspection')) {
-    return delegationRefusal('replanAfter is allowed once at L3 for a read-only inspection-only plan. Remove implementation and writes from discovery.', 'plan');
+    findings.push('replanAfter is allowed once at L3 for a read-only inspection-only plan. Remove implementation and writes from discovery.');
   }
   const missing = review.subtasks.filter(s => s.kind === 'vitest' && !plan.subtasks[s.index]?.acceptanceTests);
-  if (missing.length || (review.integration.kind === 'vitest' && !plan.acceptanceTests)) {
-    return delegationRefusal(`Missing parent-owned acceptanceTests on ${[
+  // "When branches implement interacting application modules": one tested
+  // branch interacts with no other, and its own suite is the integration
+  // (run 760fef4c's c3379f8c was refused for want of a second copy of it).
+  const integration = review.integration.kind === 'vitest' && !plan.acceptanceTests &&
+    review.subtasks.filter(s => s.kind === 'vitest').length >= 2;
+  if (missing.length || integration) {
+    findings.push(`Missing parent-owned acceptanceTests on ${[
       ...missing.map(s => `subtask ${s.index} (${s.reason})`),
-      ...(review.integration.kind === 'vitest' && !plan.acceptanceTests ? ['plan integration'] : []),
-    ].join('; ')}. Supply executable suites before implementation, or request a genuine inspection-only discovery plan at L3.`, 'plan');
+      ...(integration ? ['plan integration'] : []),
+    ].join('; ')}. Supply executable suites before implementation, or request a genuine inspection-only discovery plan at L3.`);
   }
   // APIs the runner's integrity guard refuses: the parent's choice, refused before a child is blamed for it.
-  const suites = [
-    ...plan.subtasks.map((subtask, index) => ({ label: `on subtask ${index}`, suite: subtask.acceptanceTests })),
-    { label: 'for the plan integration', suite: plan.acceptanceTests },
-  ];
-  for (const { label, suite } of suites) {
-    const refusal = suite ? parentSuiteRefusal(label, suite.source) : undefined;
-    if (refusal) return delegationRefusal(refusal, 'plan');
+  for (const { label, source } of planSuites(plan)) {
+    const refusal = source ? parentSuiteRefusal(label, source) : undefined;
+    if (refusal) findings.push(refusal);
   }
   const depends = (a: number, b: number): boolean =>
     (plan.subtasks[a]?.dependsOn ?? []).some(i => i < a && (i === b || depends(i, b)));
   const parallelPair = plan.aggregation.mode !== 'sequential' && plan.subtasks.some((_, a) =>
     plan.subtasks.some((_, b) => a < b && !depends(a, b) && !depends(b, a)));
+  if (findings.length) return delegationRefusal(findings.join(' '), 'plan');
+  // Kept apart: on a resumed run a fan-out refusal ends the plan, and a plan
+  // refusal asking to fan out would contradict its sequential precheck.
   if (review.independentWork && !parallelPair) {
     return delegationRefusal(`Independent work must have parallel child branches with real dependencies: ${review.parallelReason}`, 'fan-out');
   }
   return undefined;
+}
+
+/**
+ * Every suite a plan carries, labelled as refusals name them. `from` skips
+ * completed phases and numbers the rest from zero, as the review and the
+ * replanning planner both see them.
+ */
+export function planSuites(plan: Plan, from = 0): Array<{ label: string; source: string | undefined; cwd: string }> {
+  return [
+    ...plan.subtasks.slice(from).map((subtask, index) => ({ label: `on subtask ${index}`, source: subtask.acceptanceTests?.source,
+      cwd: subtask.acceptanceTests?.cwd ?? '.' })),
+    { label: 'for the plan integration', source: plan.acceptanceTests?.source, cwd: plan.acceptanceTests?.cwd ?? '.' },
+  ];
 }
 
 /** What of a task the root review judged; one helper so the fresh and resumed sides cannot drift. */
