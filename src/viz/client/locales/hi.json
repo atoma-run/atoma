@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "बंद",
   "tuning.wireframe.lines": "केवल किनारे",
   "tuning.wireframe.overlay": "दृश्य के ऊपर",
-  "tuning.wireframe.reloads": "वायरफ़्रेम बदलने पर पेज फिर से लोड होता है और WebGL का उपयोग होता है।"
+  "tuning.wireframe.reloads": "वायरफ़्रेम बदलने पर पेज फिर से लोड होता है और WebGL का उपयोग होता है।",
+  "assistant.readRuns_one": "इस पिछले run की सहेजी गई फ़ाइलें पढ़ता है",
+  "assistant.readRuns_other": "इन {{count}} पिछले run की सहेजी गई फ़ाइलें पढ़ता है",
+  "assistant.readRunsNotice": "run को पढ़ने, उनसे पुनर्स्थापित करने या उनकी तुलना करने के लिए प्रतियाँ मिलती हैं; वे कभी भेजी या प्रकाशित नहीं की जातीं।"
 }

@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "বন্ধ",
   "tuning.wireframe.lines": "শুধু প্রান্তরেখা",
   "tuning.wireframe.overlay": "দৃশ্যের উপরে",
-  "tuning.wireframe.reloads": "ওয়্যারফ্রেম পরিবর্তন করলে পৃষ্ঠাটি পুনরায় লোড হয় এবং WebGL ব্যবহার করে।"
+  "tuning.wireframe.reloads": "ওয়্যারফ্রেম পরিবর্তন করলে পৃষ্ঠাটি পুনরায় লোড হয় এবং WebGL ব্যবহার করে।",
+  "assistant.readRuns_one": "এই আগের run-এর সংরক্ষিত ফাইলগুলো পড়ে",
+  "assistant.readRuns_other": "আগের এই {{count}}টি run-এর সংরক্ষিত ফাইলগুলো পড়ে",
+  "assistant.readRunsNotice": "run-টি পড়া, পুনরুদ্ধার করা বা তুলনা করার জন্য কপি পায়; সেগুলো কখনো সরবরাহ বা প্রকাশ করা হয় না।"
 }

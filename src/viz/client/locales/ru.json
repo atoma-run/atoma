@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "Выкл.",
   "tuning.wireframe.lines": "Только рёбра",
   "tuning.wireframe.overlay": "Поверх сцены",
-  "tuning.wireframe.reloads": "Изменение каркаса перезагружает страницу и использует WebGL."
+  "tuning.wireframe.reloads": "Изменение каркаса перезагружает страницу и использует WebGL.",
+  "assistant.readRuns_one": "Читает сохранённые файлы этого более раннего run",
+  "assistant.readRuns_other": "Читает сохранённые файлы этих более ранних run (количество: {{count}})",
+  "assistant.readRunsNotice": "Run получает копии для чтения, восстановления из них или сравнения с ними; они никогда не передаются и не публикуются."
 }

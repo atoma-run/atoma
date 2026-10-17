@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "Désactivé",
   "tuning.wireframe.lines": "Arêtes uniquement",
   "tuning.wireframe.overlay": "Par-dessus la scène",
-  "tuning.wireframe.reloads": "Modifier le mode filaire recharge la page et utilise WebGL."
+  "tuning.wireframe.reloads": "Modifier le mode filaire recharge la page et utilise WebGL.",
+  "assistant.readRuns_one": "Lit les fichiers enregistrés de ce run précédent",
+  "assistant.readRuns_other": "Lit les fichiers enregistrés de ces {{count}} runs précédents",
+  "assistant.readRunsNotice": "Le run reçoit des copies à consulter, à utiliser pour une restauration ou une comparaison ; elles ne sont jamais livrées ni publiées."
 }

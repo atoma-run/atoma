@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "Nonaktif",
   "tuning.wireframe.lines": "Hanya tepi",
   "tuning.wireframe.overlay": "Di atas adegan",
-  "tuning.wireframe.reloads": "Mengubah kerangka kawat akan memuat ulang halaman dan menggunakan WebGL."
+  "tuning.wireframe.reloads": "Mengubah kerangka kawat akan memuat ulang halaman dan menggunakan WebGL.",
+  "assistant.readRuns_one": "Membaca file tersimpan dari run sebelumnya ini",
+  "assistant.readRuns_other": "Membaca file tersimpan dari {{count}} run sebelumnya ini",
+  "assistant.readRunsNotice": "Run mendapatkan salinan untuk dibaca, dijadikan sumber pemulihan, atau dibandingkan; salinan tersebut tidak pernah dikirim atau dipublikasikan."
 }

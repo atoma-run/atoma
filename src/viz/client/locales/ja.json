@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "オフ",
   "tuning.wireframe.lines": "エッジのみ",
   "tuning.wireframe.overlay": "シーン上に重ねる",
-  "tuning.wireframe.reloads": "ワイヤーフレームを変更するとページが再読み込みされ、WebGLが使用されます。"
+  "tuning.wireframe.reloads": "ワイヤーフレームを変更するとページが再読み込みされ、WebGLが使用されます。",
+  "assistant.readRuns_one": "この以前のrunで保存されたファイルを読み取ります",
+  "assistant.readRuns_other": "これら{{count}}件の以前のrunで保存されたファイルを読み取ります",
+  "assistant.readRunsNotice": "runには、読み取り、復元、比較に使用するコピーが渡されますが、配信や公開はされません。"
 }

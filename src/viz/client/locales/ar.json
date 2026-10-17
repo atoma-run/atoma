@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "إيقاف",
   "tuning.wireframe.lines": "الحواف فقط",
   "tuning.wireframe.overlay": "فوق المشهد",
-  "tuning.wireframe.reloads": "يؤدي تغيير الإطار السلكي إلى إعادة تحميل الصفحة واستخدام WebGL."
+  "tuning.wireframe.reloads": "يؤدي تغيير الإطار السلكي إلى إعادة تحميل الصفحة واستخدام WebGL.",
+  "assistant.readRuns_one": "يقرأ الملفات المحفوظة لعملية run السابقة هذه",
+  "assistant.readRuns_other": "يقرأ الملفات المحفوظة لعدد {{count}} من عمليات run السابقة",
+  "assistant.readRunsNotice": "يحصل run على نُسخ لقراءتها أو الاستعادة منها أو المقارنة بها؛ ولا تُسلَّم أو تُنشر مطلقًا."
 }

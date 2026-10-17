@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "بند",
   "tuning.wireframe.lines": "صرف کنارے",
   "tuning.wireframe.overlay": "منظر کے اوپر",
-  "tuning.wireframe.reloads": "وائر فریم تبدیل کرنے سے صفحہ دوبارہ لوڈ ہوتا ہے اور WebGL استعمال ہوتا ہے۔"
+  "tuning.wireframe.reloads": "وائر فریم تبدیل کرنے سے صفحہ دوبارہ لوڈ ہوتا ہے اور WebGL استعمال ہوتا ہے۔",
+  "assistant.readRuns_one": "اس سابقہ run کی محفوظ کردہ فائلیں پڑھتا ہے",
+  "assistant.readRuns_other": "ان {{count}} سابقہ run کی محفوظ کردہ فائلیں پڑھتا ہے",
+  "assistant.readRunsNotice": "run کو پڑھنے، ان سے بحال کرنے یا ان کے ساتھ موازنہ کرنے کے لیے نقول ملتی ہیں؛ یہ کبھی فراہم یا شائع نہیں کی جاتیں۔"
 }

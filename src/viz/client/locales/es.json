@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "Desactivada",
   "tuning.wireframe.lines": "Solo aristas",
   "tuning.wireframe.overlay": "Sobre la escena",
-  "tuning.wireframe.reloads": "Cambiar la estructura alámbrica recarga la página y usa WebGL."
+  "tuning.wireframe.reloads": "Cambiar la estructura alámbrica recarga la página y usa WebGL.",
+  "assistant.readRuns_one": "Lee los archivos guardados de este run anterior",
+  "assistant.readRuns_other": "Lee los archivos guardados de estos {{count}} runs anteriores",
+  "assistant.readRunsNotice": "El run obtiene copias para leerlas, restaurar a partir de ellas o compararlas; nunca se entregan ni publican."
 }

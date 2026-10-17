@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "Desativada",
   "tuning.wireframe.lines": "Apenas arestas",
   "tuning.wireframe.overlay": "Sobre a cena",
-  "tuning.wireframe.reloads": "Alterar a estrutura de arame recarrega a página e utiliza WebGL."
+  "tuning.wireframe.reloads": "Alterar a estrutura de arame recarrega a página e utiliza WebGL.",
+  "assistant.readRuns_one": "Lê os ficheiros guardados no run anterior",
+  "assistant.readRuns_other": "Lê os ficheiros guardados nos {{count}} runs anteriores",
+  "assistant.readRunsNotice": "O run recebe cópias para ler, usar para restaurar ou comparar; nunca são entregues nem publicadas."
 }

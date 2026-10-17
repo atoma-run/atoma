@@ -2199,5 +2199,8 @@
   "tuning.wireframe.off": "Aus",
   "tuning.wireframe.lines": "Nur Kanten",
   "tuning.wireframe.overlay": "Über der Szene",
-  "tuning.wireframe.reloads": "Beim Ändern des Drahtgitters wird die Seite neu geladen und WebGL verwendet."
+  "tuning.wireframe.reloads": "Beim Ändern des Drahtgitters wird die Seite neu geladen und WebGL verwendet.",
+  "assistant.readRuns_one": "Liest die gespeicherten Dateien dieses früheren Runs",
+  "assistant.readRuns_other": "Liest die gespeicherten Dateien dieser {{count}} früheren Runs",
+  "assistant.readRunsNotice": "Der Run erhält Kopien, um sie zu lesen, daraus Dateien wiederherzustellen oder sie für Vergleiche zu verwenden; sie werden nie ausgeliefert oder veröffentlicht."
 }
