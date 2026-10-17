@@ -14,6 +14,7 @@
 ## Current work
 - [Crystal caustic state](crystal-caustic-state.md) — 2026-10-17: facing + caustic fixes committed locally (50c15882, dfa4c921), not pushed; strokes invisible, 3 options to test
 - [Parent-tests review fixes state](parent-tests-review-fixes-state.md) — deployed; 10-17: outside-copy absent paths, suite regex check, review host facts (532d6e35), dispute count (21b0e5ce)
+- [Left-aside items state](left-aside-items-state.md) — 2026-10-17: 4 commits shipped unreviewed; RO mount + module-reach fact paused (gate passed)
 - [Suite dispute measurement](suite-dispute-measurement.md) — pre-registered: ≥20 disputes, ≥50% wrong suites before any line or routing
 - [Read runs](read-runs.md) — 10-17: atoma_run_start readRunIds copies other runs to .atoma-runs/node_modules/<id>/; host compares criteria-named files
 - [Account plan screen](account-plan-screen.md) — Your plan screen; org plan set by operator `auth set-plan` (2026-10-16); Pro/Team drop the Atoma mark
