@@ -480,9 +480,16 @@ export function markFacetNearness(depth: number): number {
  * — and that group is hidden after the refraction pass. The lower half of a
  * wedge vanished around 255–260° of the turn, even with the bead undrawn:
  * the bouncing light still owns a Z, and the split still read it.
+ *
+ * `facing` is `AtomaMarkFacetFrame.facing`, the cosine toward the EYE — never
+ * the normal's Z. The camera sits 2.05 radii away, and a Z test treated one
+ * or two faces turned away from it as front glass on 236 of 360 degrees; they
+ * then popped into the refracted interior with up to 39% of their screen
+ * area at once, eight times a turn (2026-10-17). Toward the eye, a face
+ * changes side exactly when it is seen edge-on, with no area left to pop.
  */
-export function markFacetIsFrontGlass(part: MarkFacetPart, normalZ: number): boolean {
-  return part === 'outer' && normalZ > 0;
+export function markFacetIsFrontGlass(part: MarkFacetPart, facing: number): boolean {
+  return part === 'outer' && facing > 0;
 }
 
 /**
@@ -492,18 +499,18 @@ export function markFacetIsFrontGlass(part: MarkFacetPart, normalZ: number): boo
  * bead's virtual image, so a copy of the filament can sit on the glass you
  * are looking through — the shader drops everything else on this predicate.
  */
-export function markFacetIsNearCavityWall(part: MarkFacetPart, normalZ: number): boolean {
-  return part === 'inner' && normalZ < 0;
+export function markFacetIsNearCavityWall(part: MarkFacetPart, facing: number): boolean {
+  return part === 'inner' && facing < 0;
 }
 
 /**
  * An outer hull face that points AWAY from the camera. The bead's light
  * leaves the crystal through these, toward the scene field behind it. Front
  * glass is the other half of the same partition; an exactly edge-on face
- * (normal Z of 0) throws neither at the viewer nor at the field.
+ * (`facing` of 0) throws neither at the viewer nor at the field.
  */
-export function markFacetIsRearGlass(part: MarkFacetPart, normalZ: number): boolean {
-  return part === 'outer' && normalZ < 0;
+export function markFacetIsRearGlass(part: MarkFacetPart, facing: number): boolean {
+  return part === 'outer' && facing < 0;
 }
 
 /**
@@ -622,6 +629,12 @@ export interface AtomaMarkFacetFrame {
   normal: MarkVec3;
   /** Rotated centroid; the depth sort and the cavity/bead groups read its z. */
   centroid: MarkVec3;
+  /**
+   * Cosine between the normal and the direction from the centroid to the eye
+   * at (0, 0, ATOMA_MARK_CAMERA_Z): positive faces the camera. What every
+   * front/rear partition reads — see `markFacetIsFrontGlass`.
+   */
+  facing: number;
   /**
    * 0..1 flash: how much of the bead's arrival against a cavity wall belongs to
    * THIS facet. Both facets of a wedge — the cavity wall the bead lands on and
@@ -966,7 +979,7 @@ function collectRearSpills(
   const spills: AtomaMarkRearSpill[] = [];
   for (const [index, meshFacet] of ATOMA_MARK_MESH.facets.entries()) {
     const shaded = facets[index]!;
-    if (!markFacetIsRearGlass(meshFacet.part, shaded.normal[2])) continue;
+    if (!markFacetIsRearGlass(meshFacet.part, shaded.facing)) continue;
     const toFace: MarkVec3 = [
       shaded.centroid[0] - core3[0],
       shaded.centroid[1] - core3[1],
@@ -980,9 +993,10 @@ function collectRearSpills(
       toFace[2] / dist,
     ]), 0);
     if (incidence <= 0) continue;
-    // Octahedron |n.z| max is 1/sqrt(3); scale so a fully presented rear
-    // table is 1.
-    const rear = clamp(-shaded.normal[2] * Math.sqrt(3));
+    // How fully the table is presented, scaled so a face seen at the
+    // octahedron's usual 1/sqrt(3) is 1. Zero when edge-on, so a face joins
+    // or leaves the rear set without its pool popping.
+    const rear = clamp(-shaded.facing * Math.sqrt(3));
     const material = markMaterialForOctant(meshFacet.octant);
     // Colour is the taxonomy stain. Absorption already shaped the diamond in
     // the shell, so the field path only normalises its transmission here.
@@ -1156,8 +1170,8 @@ export function collectPointerFieldSpills(
   const spills: AtomaMarkRearSpill[] = [];
   for (const [index, meshFacet] of ATOMA_MARK_MESH.facets.entries()) {
     const shaded = frame.facets[index]!;
-    if (!markFacetIsRearGlass(meshFacet.part, shaded.normal[2])) continue;
-    const rear = clamp(-shaded.normal[2] * Math.sqrt(3));
+    if (!markFacetIsRearGlass(meshFacet.part, shaded.facing)) continue;
+    const rear = clamp(-shaded.facing * Math.sqrt(3));
     const material = markMaterialForOctant(meshFacet.octant);
     const exitStain = 0.42 + 0.58 * (material.transmit / maxTransmit);
     const intensity = clamp(gemEnter * rear * (entryStain * 0.45 + exitStain * 0.55));
@@ -1845,10 +1859,13 @@ export function buildAtomaMarkFrame(elapsedMs: number): AtomaMarkFrame {
       wallNormal[1] += normal[1] * share;
       wallNormal[2] += normal[2] * share;
     }
+    const centroid = apply(rows, facet.centroid);
+    const toEye: MarkVec3 = [-centroid[0], -centroid[1], ATOMA_MARK_CAMERA_Z - centroid[2]];
     return {
       facet: facet.triangle,
       normal,
-      centroid: apply(rows, facet.centroid),
+      centroid,
+      facing: dot(normal, toEye) / Math.max(1e-6, Math.hypot(...toEye)),
       contact: contactFlash * share,
     };
   });
@@ -1868,19 +1885,19 @@ export function buildAtomaMarkFrame(elapsedMs: number): AtomaMarkFrame {
     .map((_facet, index) => index)
     .sort((left, right) => facets[left]!.centroid[2] - facets[right]!.centroid[2]);
   const frontOrder = order.filter((index) =>
-    markFacetIsFrontGlass(ATOMA_MARK_MESH.facets[index]!.part, facets[index]!.normal[2])
+    markFacetIsFrontGlass(ATOMA_MARK_MESH.facets[index]!.part, facets[index]!.facing)
   );
   const backOrder: number[] = [];
   const midOrder: number[] = [];
   for (const index of order) {
     const part = ATOMA_MARK_MESH.facets[index]!.part;
-    const normalZ = facets[index]!.normal[2];
-    if (markFacetIsFrontGlass(part, normalZ)) continue;
+    const facing = facets[index]!.facing;
+    if (markFacetIsFrontGlass(part, facing)) continue;
     // Near cavity walls carry only the bead's virtual image (the shader
     // drops their body). Mid, so they sit in front of the real filament
     // and behind the front glass — a reflection on the glass you look
     // through, never a card over the far hull.
-    if (markFacetIsNearCavityWall(part, normalZ)) {
+    if (markFacetIsNearCavityWall(part, facing)) {
       midOrder.push(index);
       continue;
     }

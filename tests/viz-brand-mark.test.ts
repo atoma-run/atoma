@@ -763,23 +763,36 @@ describe('Atoma GPU brand mark', () => {
 
   it('splits the shell into near glass and far walls, with nothing straddling', () => {
     // This is what puts the bead INSIDE: the renderer paints away-facing walls,
-    // then the bead, then camera-facing glass over it. The solid is convex, so
-    // every away-facing face must be behind every camera-facing one — if that
-    // ever fails, one wall would be painted on the wrong side of the bead.
+    // then the bead, then camera-facing glass over it. Convexity makes that
+    // order exact, under the near camera's perspective too: a rear outer face
+    // is always covered by the front glass, and a cavity wall lies behind the
+    // bead exactly when the eye and the bead are on the same side of its
+    // plane. Comparing centroid Z instead was the orthographic shortcut, and
+    // the camera at 2.05 radii breaks it (2026-10-17).
+    const eye = [0, 0, ATOMA_MARK_CAMERA_Z] as const;
+    const side = (normal: readonly number[], from: readonly number[], to: readonly number[]) =>
+      normal[0]! * (to[0]! - from[0]!) + normal[1]! * (to[1]! - from[1]!) + normal[2]! * (to[2]! - from[2]!);
     for (let ms = 0; ms < 20_000; ms += 137) {
       const frame = buildAtomaMarkFrame(ms);
       const cameraFacing = frame.facets.map((facet, index) => {
         const outer = ATOMA_MARK_MESH.facets[index]!.part === 'outer';
-        return outer ? facet.normal[2] > 0 : facet.normal[2] < 0;
+        return outer ? facet.facing > 0 : facet.facing < 0;
       });
       const walls = frame.facets.filter((_facet, index) => !cameraFacing[index]!);
       const glass = frame.facets.filter((_facet, index) => cameraFacing[index]!);
       expect(walls.length, `at ${ms}ms`).toBeGreaterThan(0);
       expect(glass.length, `at ${ms}ms`).toBeGreaterThan(0);
-      expect(
-        Math.max(...walls.map((facet) => facet.centroid[2])),
-        `at ${ms}ms`
-      ).toBeLessThan(Math.min(...glass.map((facet) => facet.centroid[2])));
+      for (const [index, facet] of frame.facets.entries()) {
+        const eyeSide = side(facet.normal, facet.centroid, eye);
+        // Facing is measured toward the EYE, not along Z.
+        expect(Math.sign(facet.facing), `facet ${index} at ${ms}ms`).toBe(Math.sign(eyeSide));
+        if (ATOMA_MARK_MESH.facets[index]!.part !== 'inner') continue;
+        // The bead is inside every cavity plane (inner normals point inward)…
+        const beadSide = side(facet.normal, facet.centroid, frame.core3);
+        expect(beadSide, `bead inside cavity plane ${index} at ${ms}ms`).toBeGreaterThan(0);
+        // …so a far wall (eye on the bead's side) is behind it, a near one in front.
+        expect(cameraFacing[index], `cavity wall ${index} at ${ms}ms`).toBe(eyeSide < 0);
+      }
       // The near glass of the outer hull must sit nearer than the cavity's near
       // glass — a viewer looking through the outer wall sees the cavity BEHIND it,
       // never in front. `order` is far → near, so the outer facet comes LAST.
@@ -796,6 +809,58 @@ describe('Atoma GPU brand mark', () => {
     }
   });
 
+  it('calls a face front glass exactly when it shows its front on screen', () => {
+    // The camera is near (2.05 radii), so "faces the camera" is a question
+    // about the EYE, not about the normal's Z. On screen that is the winding:
+    // a face turned away projects mirrored. The Z test disagreed with it on
+    // 236 of 360 degrees (2026-10-17).
+    const signedArea = (frame: ReturnType<typeof buildAtomaMarkFrame>, index: number) => {
+      const [a, b, c] = ATOMA_MARK_MESH.facets[index]!.points.map((point) => frame.projected[point]!);
+      // Screen y points down; negate so a camera-facing face is positive.
+      return -((b!.x - a!.x) * (c!.y - a!.y) - (c!.x - a!.x) * (b!.y - a!.y)) / 2;
+    };
+    for (let degrees = 0; degrees < 360; degrees += 0.5) {
+      const frame = buildAtomaMarkFrame(markElapsedMsFromTurnDegrees(degrees));
+      for (const [index, facet] of ATOMA_MARK_MESH.facets.entries()) {
+        if (facet.part !== 'outer') continue;
+        const area = signedArea(frame, index);
+        if (Math.abs(area) < 1e-3) continue;
+        expect(markFacetIsFrontGlass(facet.part, frame.facets[index]!.facing), `facet ${index} at ${degrees}°`)
+          .toBe(area > 0);
+      }
+    }
+  });
+
+  it('changes a face\'s side only when it is seen edge-on, so nothing pops', () => {
+    // Eight times a turn a face left the front glass while it still covered up
+    // to 39% of its screen area, and reappeared at once in the refracted
+    // interior. Toward the eye, the switch happens with the face edge-on.
+    const area = (frame: ReturnType<typeof buildAtomaMarkFrame>, index: number) => {
+      const [a, b, c] = ATOMA_MARK_MESH.facets[index]!.points.map((point) => frame.projected[point]!);
+      return Math.abs((b!.x - a!.x) * (c!.y - a!.y) - (c!.x - a!.x) * (b!.y - a!.y)) / 2;
+    };
+    const outer = [...ATOMA_MARK_MESH.facets.entries()].filter(([, facet]) => facet.part === 'outer');
+    const largest = new Map<number, number>();
+    const step = 0.1;
+    let previous = buildAtomaMarkFrame(0);
+    let switches = 0;
+    for (let degrees = step; degrees <= 360; degrees += step) {
+      const frame = buildAtomaMarkFrame(markElapsedMsFromTurnDegrees(degrees));
+      for (const [index] of outer) {
+        largest.set(index, Math.max(largest.get(index) ?? 0, area(frame, index)));
+        const before = previous.frontOrder.includes(index);
+        const after = frame.frontOrder.includes(index);
+        if (before === after) continue;
+        switches += 1;
+        // Both sides of the switch: the face is a sliver, not a slab.
+        expect(Math.min(area(previous, index), area(frame, index)), `facet ${index} at ${degrees.toFixed(1)}°`)
+          .toBeLessThan(0.02 * ATOMA_MARK_LOCAL_SIZE * ATOMA_MARK_LOCAL_SIZE);
+      }
+      previous = frame;
+    }
+    expect(switches).toBeGreaterThan(0);
+  });
+
   it('keeps every camera-facing outer facet in the front glass, even when the bead is nearer', () => {
     // 255–260°: the bead sits near the camera, so a Z-split against it sent
     // the LOWER triangle of each near wedge into the hidden backdrop pass.
@@ -809,9 +874,9 @@ describe('Atoma GPU brand mark', () => {
       let facingOuter = 0;
       let nearCavity = 0;
       for (const [index, facet] of ATOMA_MARK_MESH.facets.entries()) {
-        const normalZ = frame.facets[index]!.normal[2];
-        const isFront = markFacetIsFrontGlass(facet.part, normalZ);
-        const isNearCavity = markFacetIsNearCavityWall(facet.part, normalZ);
+        const facing = frame.facets[index]!.facing;
+        const isFront = markFacetIsFrontGlass(facet.part, facing);
+        const isNearCavity = markFacetIsNearCavityWall(facet.part, facing);
         expect(front.has(index), `facet ${index} at ${degrees}°`).toBe(isFront);
         if (isNearCavity) {
           expect(mid.has(index), `near cavity ${index} at ${degrees}° image-only`)
@@ -918,7 +983,7 @@ describe('Atoma GPU brand mark', () => {
       const frame = buildAtomaMarkFrame(markElapsedMsFromTurnDegrees(degrees));
       let rearCount = 0;
       for (const [index, facet] of ATOMA_MARK_MESH.facets.entries()) {
-        const z = frame.facets[index]!.normal[2];
+        const z = frame.facets[index]!.facing;
         const isRear = markFacetIsRearGlass(facet.part, z);
         const isFront = markFacetIsFrontGlass(facet.part, z);
         expect(isFront && isRear, `${degrees}° facet ${index} both`).toBe(false);
@@ -931,7 +996,7 @@ describe('Atoma GPU brand mark', () => {
       expect(rearCount, `${degrees}° has a back of the lantern`).toBeGreaterThanOrEqual(3);
       const spilled = new Set(frame.rearSpills.map((spill) => spill.facet));
       for (const [index, facet] of ATOMA_MARK_MESH.facets.entries()) {
-        if (!markFacetIsRearGlass(facet.part, frame.facets[index]!.normal[2])) continue;
+        if (!markFacetIsRearGlass(facet.part, frame.facets[index]!.facing)) continue;
         expect(spilled.has(index), `${degrees}° missing rear ${index}`).toBe(true);
       }
       for (const spill of frame.rearSpills) {
