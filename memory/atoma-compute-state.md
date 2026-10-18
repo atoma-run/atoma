@@ -256,3 +256,12 @@ Windows acceptance until the client application tests. Image-only publication
 uses a `compute-images-*` tag, builds/tests native Linux amd64 and arm64, pushes
 four GHCR images and preserves digest receipts as Actions artifacts. It does not
 merge the feature branch, create an application release or deploy production.
+
+Publication completed: `compute-images-20261018-2`, revision b0e263be,
+Actions run 39123606814. Four public GHCR packages, each linux/amd64 + arm64;
+90 tests passed and one hybrid-weight test skipped per architecture. Anonymous
+manifest/config hashes, architecture and revision checked for all eight images.
+Receipts/checksums: records/releases/compute-images-2026-10-18/.
+Owner approved temporary organization public-package permission; restored to
+disabled after making the four packages public. Native desktop acceptance and
+capacity measurements remain deferred/unexecuted. Base retrieval is BM25.

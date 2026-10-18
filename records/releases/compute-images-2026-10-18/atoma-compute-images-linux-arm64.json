@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "revision": "b0e263bec4de63524a01a2c80f0820dda3e60e55",
+  "architecture": "arm64",
+  "images": {
+    "worker": {
+      "reference": "ghcr.io/atoma-run/atoma/compute-worker@sha256:73add5a6fbff3ba0a8e773f692bf6a41952c194d235ea46616caabc8249779f2",
+      "contentDigest": "sha256:7adbdc5891ce45d7ddf17d39151500ecce0dfaa8dc5fab4c756de5b430740940"
+    },
+    "workspace": {
+      "reference": "ghcr.io/atoma-run/atoma/compute-workspace@sha256:481bc214139f1741acdae839b89067b7a25207531c29408d2a04e7d157307ae6",
+      "contentDigest": "sha256:d61725eb168121389d6b0b2978b85e50af2503422aa7289fbe7d5b08adea791c"
+    },
+    "preview": {
+      "reference": "ghcr.io/atoma-run/atoma/compute-preview@sha256:0d1ba33590ac9529724399d15390401e4a210ee1193554cdc51cdb9c2d175d0c",
+      "contentDigest": "sha256:168d0cd33d4569bb21ebcfddfc984597033a3d38a06bc09ea30b64801a0bb5b2"
+    },
+    "retrieval": {
+      "reference": "ghcr.io/atoma-run/atoma/compute-retrieval@sha256:dff4454f0f7fae7f912847f63cd1d21b276ab759534f34f5ee756f87ce2d8ab0",
+      "contentDigest": "sha256:887bd67942f36352aa950434858d5657cf43aedc8504febe9b27bd403ac27383"
+    }
+  }
+}
