@@ -19,8 +19,11 @@ project grants. Connection and execution generations are separate. Disconnect,
 revocation or expiry never prove workload exit or release its slot. Reconnection
 requires an exact launcher stop report before admission. Membership downgrade
 and project archival fence assignments in the same database transaction, so
-restoring access cannot resurrect old work. This domain has no HTTP/WSS door yet;
-audit/rate limits, run-target receipts and coordinator integration remain pending.
+restoring access cannot resurrect old work. The explicit `computeGateway`/`computeConnection` WSS adapter is not mounted by
+production. It requires direct TLS, bounded frames and one outstanding workspace
+command. Lost responses are indeterminate; every dispatch, result and heartbeat
+rechecks current authority. Browser pairing, audit/rate limits, run-target receipts
+and coordinator integration remain pending.
 
 ## Deployment preference
 

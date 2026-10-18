@@ -70,8 +70,10 @@ are contract operations; neither requires the concrete backend type.
 
 ## Local and separate service modes
 
-`ComputeLease` is a one-generation desktop lease guard, not yet connected to a
-desktop launcher. Authenticated heartbeat acknowledgements renew from dispatch
+`computeClient.ts` connects an explicitly bound private workspace handler over
+outbound WSS. It verifies TLS, serializes commands and refuses repeated ids or
+another execution generation; it does not launch Docker or reconnect itself.
+`ComputeLease` guards this channel, but engine teardown remains caller-injected. Authenticated heartbeat acknowledgements renew from dispatch
 time, never receipt time. Monotonic and wall deadlines jointly detect expiry and
 sleep; every operation must call `assertActive`. Expiry starts cleanup once.
 Only engine-confirmed cleanup may resolve its callback; failure stays unconfirmed.

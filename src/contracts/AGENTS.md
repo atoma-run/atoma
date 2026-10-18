@@ -20,6 +20,11 @@ shapes. A connection generation fences sockets; a separate execution generation
 fences workload effects. Advertised resources are not independently verified
 proof. Server admission requires an operator-approved app version and image digest.
 
+`computeProtocol.ts` wraps private workspace commands in run/generation/request
+identities on the authenticated WSS channel. Its 1 MiB frame budget includes the
+envelope; transfer chunks stay bounded by `checkpointTransfer.ts`. Tools and
+previews are not accepted on this control channel.
+
 `workspaceProtocol.ts` is a private runtime channel, separate from
 `workerProtocol.ts` and all element declarations. It has no caller-selected
 root or arbitrary command. Replies reuse the owning evidence schemas; guards

@@ -115,3 +115,19 @@ supersedes the first foundation check's failures against a stale local image.
 The current development machine has Docker Desktop/Linux ARM64. No valid
 macOS code-signing identity was available when inspected. Windows and Mac x64
 acceptance and signed distribution are not established by local ARM64 tests.
+
+## Private WSS workspace transport
+
+Implemented an explicit direct-TLS gateway and outbound client using the existing
+workspace RPC and device store. Each dispatch/result and workload heartbeat checks
+current authority. One outstanding command, bounded frames and terminal timeout
+prevent automatic replay of unknown effects. A real WSS test exports a checkpoint
+through the existing runtime. The app-side lease invokes teardown on connection
+loss; failures remain unconfirmed. The adapter is not mounted in production and
+has no engine launch or tool/preview channel yet. Review:
+[device control](../reviews/atoma-compute-device-control-2026-10-18.md#wss-transport-follow-up).
+
+WSS verification: `release:check:static` passed and the full test half passed
+7,531 tests (10 skipped), across 516 passing files (2 skipped). Twenty new TLS
+tests include byte-exact checkpoint transfer and a failed SQLite disconnect write.
+The separate workspace image still matches the compiled bundle byte for byte.

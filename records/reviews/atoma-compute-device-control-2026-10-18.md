@@ -47,3 +47,41 @@ the audit journal, WSS request identity and dispatch fencing, persistent run-tar
 receipts, local engine integration, orphan reconciliation and independent trust
 validation. The internal `ComputeActor` is supplied by a trusted authenticated
 adapter; accepting it from request JSON would violate this design.
+
+## WSS transport follow-up
+
+The explicit TLS gateway and outbound client now exercise workspace control on
+real encrypted sockets. They remain unmounted in production. This is a private
+transport foundation, not a customer-device admission path.
+
+Reviewed accepted mechanisms:
+- A gateway accepts direct TLS only, never a forwarded-proto claim, and refuses
+  browser Origin headers. WS compression is disabled; frames are capped at 1 MiB,
+  authentication at 4 KiB/5 seconds, and the gateway at 32 live connections.
+  Public deployment still requires IP/identity rate limits and audit wiring.
+- The app verifies certificates and hostnames, follows no redirects, and sends
+  credentials only in the encrypted hello. No credentials enter diagnostic errors.
+- Each request and accepted reply rechecks the product store's current authority.
+  Connection and execution generations are independent. The watchdog and each
+  heartbeat recheck the dispatched workload, so grant withdrawal cannot renew it.
+- One outstanding workspace command prevents privileged import/guard races.
+  Timeout, malformed response, disconnect or mismatched identity terminates the
+  channel, rejects pending effects as indeterminate, and retains the device slot.
+  No automatic reconnect, retry or stop acknowledgement is implemented.
+- The client binds one launcher-selected execution and handler; repeated request
+  ids, overlapping requests and other generations fail closed. The local lease
+  must be active before execution and before returning a result. Work already
+  dispatched can finish after disconnection; its result is discarded and only the
+  launcher teardown callback can establish local stop. A failed callback stays
+  unconfirmed.
+
+Limits: the client binding is currently a trusted injection seam, not the final
+assignment negotiation or engine boot reconciler. It does not launch Docker,
+carry tools/previews, release a device slot, or enable remote runs in the runner.
+The network frame cap is intentionally lower than private process RPC; an
+oversized bounded workspace inventory fails rather than allocating arbitrarily.
+TLS termination through a reverse proxy is not enabled by this adapter.
+
+A failed SQLite disconnect write cannot prevent socket teardown or turn an
+unknown operation into success: the persisted lease remains bounded, and the
+slot is not released. The final transport suite tests this with query-only SQLite.

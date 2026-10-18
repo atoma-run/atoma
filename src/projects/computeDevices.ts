@@ -184,6 +184,9 @@ export class ComputeDeviceStore {
       return { session: { deviceId: row.device_id, sessionId, generation: row.connection_generation + 1 }, leaseUntil };
     }).immediate();
   }
+  validateSession(session: ComputeSession): void {
+    this.fenceExpiry(session, () => { this.session(session); });
+  }
   heartbeat(credential: string, session: ComputeSession): number {
     return this.fenceExpiry(session, () => this.db.transaction(() => {
       this.credentialSession(credential, session);
