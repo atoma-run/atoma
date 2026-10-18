@@ -49,3 +49,13 @@ No Apple Developer or Windows signing certificates are configured. Native
 installer CI and full release verification are recorded separately after they
 complete. A GUI smoke with a fake runtime does not prove Docker/WSL2 execution
 on Windows or Docker execution on Intel macOS. No such claim is made here.
+
+The release static half passed (types, lint, docs, dependency audit, builds and
+compiled smokes). The complete test half reported 7,617 passing tests and one
+failure in the existing MCP listen-stream quota test (200 versus 429); that
+file passed all 18 tests when rerun alone. Container isolation passed against
+the published immutable ARM worker image, including packaged Vitest acceptance.
+The final Mac ARM DMG/ZIP were built, package contents asserted, DMG checksum
+verified, and the actual packaged application opened successfully. Clean CI
+remains the deployment gate; the first full local invocation is not recorded
+as an all-green run.

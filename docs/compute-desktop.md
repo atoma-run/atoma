@@ -9,6 +9,9 @@ browser. Choose **Prepare and connect** to download the pinned components, check
 Docker and connect. In Atoma project settings, explicitly allow and select this
 computer. The application never grants itself project access.
 
+An existing terminal-client pairing is reused. Run only one client on a computer:
+stop the terminal client before connecting the desktop application.
+
 The four views show connection, diagnostics, activity and resources. Closing the
 window keeps it running in the menu bar/system tray. Quitting stops local work;
 it waits for engine confirmation and refuses to claim success when Docker cannot
