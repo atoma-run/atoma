@@ -39,6 +39,7 @@ it('starts an installed verified Docker and waits for actual engine readiness', 
   expect(await preparation.ensureRunning(new AbortController().signal)).toBe(true);
   expect(preparation.snapshot().stage).toBe('ready');
   expect(inspections).toBe(2);
+  expect(mocks.commands).toHaveBeenCalledWith('/usr/bin/codesign', ['--verify', '--strict', '--test-requirement', '=anchor apple generic and certificate leaf[subject.OU] = "9BNSXJN65R"', '/Applications/Docker.app'], expect.any(Object));
 });
 it('refuses to start a replacement application with a different publisher', async () => {
   mocks.exists.mockReturnValue(true);

@@ -36,7 +36,7 @@ function addDockerPath(path: string): void {
 }
 async function verifyDocker(path: string, signal?: AbortSignal): Promise<void> {
   if (process.platform === 'darwin') {
-    await command('/usr/bin/codesign', ['--verify', '--strict', path], signal);
+    await command('/usr/bin/codesign', ['--verify', '--strict', '--test-requirement', '=anchor apple generic and certificate leaf[subject.OU] = "9BNSXJN65R"', path], signal);
     const result = await exec('/usr/bin/codesign', ['-dv', path], { timeout: 15_000, maxBuffer: 128 * 1024, signal });
     if (!/^TeamIdentifier=9BNSXJN65R$/m.test(result.stderr)) throw new Error('Docker publisher verification failed');
   } else {
