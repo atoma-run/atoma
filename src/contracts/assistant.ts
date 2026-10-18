@@ -103,7 +103,8 @@ export const assistantViewSchema = z.object({
   subscriptions: z.array(accountSubscriptionStatusSchema).max(2).optional(),
   nextBefore: z.number().int().positive().nullable().default(null),
   /** The run the conversation presents: the project's newest, else the one this conversation started. */
-  run: assistantRunSchema.extend({ status: z.string(), traceId: z.string().nullable(), costUsd: z.number().nullable(), error: z.string().nullable() }).nullable(),
+  run: assistantRunSchema.extend({ status: z.string(), traceId: z.string().nullable(), costUsd: z.number().nullable(), error: z.string().nullable(),
+    endedAt: z.string().datetime().nullable() }).nullable(),
 });
 export type AssistantView = z.infer<typeof assistantViewSchema>;
 

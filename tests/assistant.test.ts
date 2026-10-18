@@ -103,6 +103,18 @@ describe('the integrated assistant', () => {
     expect((await f.service.view(f.scope, f.mcp)).run).toBeNull();
   });
 
+  it('passes the run completion instant through to the conversation view', async () => {
+    const f = fixture(start);
+    const call = f.call.getMockImplementation()!;
+    f.call.mockImplementation(async (name, args, task) => name === 'atoma_run_status'
+      ? { projectId, projectRunId: runId, status: 'failed', endedAt: '2026-10-18T10:00:00.000Z',
+        costUsd: 0.7, traceId: 'trace', error: 'runner finished with outcome error' }
+      : call(name, args, task));
+    expect((await f.service.view(f.service.scope(f.viewer, projectId), f.mcp)).run).toMatchObject({
+      status: 'failed', endedAt: '2026-10-18T10:00:00.000Z',
+    });
+  });
+
   it('keeps a delivery awaiting acceptance in view behind later cancelled or comparison runs', async () => {
     type Row = { id: string; status: string; awaiting?: boolean; rerunOf?: string };
     const presented = async (history: Row[]) => {

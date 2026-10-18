@@ -132,7 +132,8 @@ export class AssistantService {
     const run: AssistantView['run'] = target && status ? { ...target,
       status: typeof status['status'] === 'string' ? status['status'] : 'unknown', traceId: typeof status['traceId'] === 'string' ? status['traceId'] : null,
       costUsd: typeof status['costUsd'] === 'number' ? status['costUsd'] : null,
-      error: typeof status['error'] === 'string' ? status['error'] : null } : null;
+      error: typeof status['error'] === 'string' ? status['error'] : null,
+      endedAt: typeof status['endedAt'] === 'string' ? status['endedAt'] : null } : null;
     const choices = await this.models.choices(scope);
     const subscriptions = await this.models.subscriptions(scope);
     const selected = choices.find(choice => choice.id === conversation.modelChoice);

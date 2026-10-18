@@ -34,7 +34,7 @@ function deliveryReview(): RunReview {
 }
 function deliveredView() {
   const data = view();
-  data.run = { projectId, runId: 'run-1', status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null };
+  data.run = { projectId, runId: 'run-1', status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null, endedAt: null };
   data.conversation.lastRun = { projectId, runId: 'run-1' };
   return data;
 }
@@ -279,7 +279,7 @@ it('shows refreshing relative message ages with the exact timestamp available on
 it('shows run status, opens the existing run view and separates conversation cost', async () => {
   vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
   const data = view();
-  data.run = { projectId, runId: 'run-1', status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null };
+  data.run = { projectId, runId: 'run-1', status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null, endedAt: null };
   data.conversation.lastRun = { projectId, runId: 'run-1' };
   data.conversation.costUsd = 0.0012;
   data.conversation.inputTokens = 900;
@@ -467,6 +467,25 @@ it('keeps a conversation without messages at its natural height while a run show
     conversation: { ...data.conversation, version: 1, messages: [{ role: 'assistant', text: 'A shared update', at: '2026-10-09T10:00:00.000Z' }] } }); });
   expect(await screen.findByText('A shared update')).toBeVisible();
   expect(useGpuStore.getState().projectAssistantCompact).toBe(false);
+});
+
+it('places a finished run before a later question and shows its completion time', async () => {
+  const data = deliveredView();
+  data.run = { ...data.run!, status: 'failed', endedAt: '2026-10-18T10:00:00.000Z', error: 'runner finished with outcome error' };
+  data.conversation.messages = [
+    { role: 'receipt', text: 'assistant.runStarted', at: '2026-10-18T09:00:00.000Z' },
+    { role: 'user', text: 'Why did the run fail?', at: '2026-10-18T10:01:00.000Z' },
+  ];
+  panel(data);
+  const log = await screen.findByRole('log');
+  const items = within(log).getAllByRole('article');
+  expect(items).toHaveLength(3);
+  expect(items[0]).toHaveTextContent('Run requested.');
+  expect(items[1]).toHaveTextContent('Run failed');
+  expect(items[2]).toHaveTextContent('Why did the run fail?');
+  const time = items[1]!.querySelector('time');
+  expect(time).toHaveAttribute('dateTime', data.run.endedAt);
+  expect(time).toHaveAttribute('title', timestampTooltip(data.run.endedAt!, 'en'));
 });
 
 it('expands the empty card when a shared message arrives', async () => {

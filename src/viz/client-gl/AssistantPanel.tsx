@@ -93,6 +93,15 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   const quiet = !waiting && older.length === 0 && !conversation?.messages.length && !before &&
     (!proposal || proposal.state === 'done');
   const finishedRun = shownRun && ['delivered', 'partial', 'failed', 'cancelled'].includes(shownRun.status) ? shownRun : null;
+  const messages = [...older, ...(conversation?.messages ?? [])];
+  const endedAtMs = finishedRun?.endedAt ? Date.parse(finishedRun.endedAt) : NaN;
+  const firstLaterMessage = Number.isFinite(endedAtMs) ? messages.findIndex(message => Date.parse(message.at) > endedAtMs) : -1;
+  const resultPosition = firstLaterMessage < 0 ? messages.length : firstLaterMessage;
+  const timeline: Array<{ kind: 'message'; message: typeof messages[number]; index: number } | { kind: 'result' }> =
+    messages.map((message, index) => ({ kind: 'message', message, index }));
+  if (finishedRun) timeline.splice(resultPosition, 0, { kind: 'result' });
+  const resultCard = finishedRun ? <AssistantRunResult key={`${scopeKey}:${finishedRun.runId}`} scopeKey={scopeKey}
+    target={{ projectId: finishedRun.projectId, runId: finishedRun.runId }} run={finishedRun} locale={locale} now={now} t={t} onRun={onRun} /> : null;
   const empty = quiet && !finishedRun;
   const newProjectPrompt = empty && !projectId && !shownRun;
   const compact = externalAgentOpen || Boolean(query.data && choices.length > 0 && quiet && !error && !query.isError);
@@ -220,7 +229,10 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     <div className={`gpu-assistant-log${empty ? ' gpu-assistant-log--empty' : ''}${revealClass(reveal)}`} hidden={newProjectPrompt} ref={log} role="log" aria-label={t('assistant.conversation')} aria-live="polite" aria-relevant="additions">
       {before ? <button type="button" disabled={loadingHistory} onClick={() => void loadOlder()}>{t('assistant.olderMessages')}</button> : null}
       {empty && conversation && projectId ? <p className="gpu-assistant-empty">{t('assistant.existingHint')}</p> : null}
-      {[...older, ...(conversation?.messages ?? [])].map((message, i) => <article key={message.id ?? `${message.at}:${i}`} className={`gpu-assistant-message gpu-assistant-message--${message.role}`}>
+      {timeline.map(entry => {
+        if (entry.kind === 'result') return resultCard;
+        const { message } = entry;
+        return <article key={message.id ?? `${message.at}:${entry.index}`} className={`gpu-assistant-message gpu-assistant-message--${message.role}`}>
         <div className="gpu-assistant-message-meta"><strong>{t(message.role === 'user' ? 'assistant.you' : message.role === 'receipt' ? 'assistant.receipt' : 'assistant.title')}</strong>
           {message.origin === 'mcp' ? <span>{t('assistant.sharedFrom', { client: message.clientLabel ?? 'MCP' })}</span> : null}
           <time dateTime={message.at} title={timestampTooltip(message.at, locale) ?? message.at}>
@@ -231,9 +243,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
           {message.projectId ? <button type="button" onClick={() => onProject(message.projectId!)}><ButtonIcon kind="folder" />{t('assistant.openProject')}</button> : null}
           {message.run ? <button type="button" onClick={() => onRun(message.run!, query.data?.run?.runId === message.run!.runId ? query.data.run.traceId : null)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button> : null}
         </div> : null}
-      </article>)}
-      {finishedRun ? <AssistantRunResult key={`${scopeKey}:${finishedRun.runId}`} scopeKey={scopeKey}
-        target={{ projectId: finishedRun.projectId, runId: finishedRun.runId }} run={finishedRun} t={t} onRun={onRun} /> : null}
+        </article>;
+      })}
       {proposal && proposal.state !== 'done' ? <article className="gpu-assistant-proposal" aria-label={t('assistant.proposal')}>
         <h3>{t('assistant.proposal')}</h3>
         {proposal.action.kind === 'create_project' ? <>

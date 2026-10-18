@@ -3,11 +3,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AssistantRun, AssistantView } from '../../contracts/assistant.js';
 import { api } from '../client/data-api.js';
 import { ButtonIcon } from './ButtonIcon.js';
+import { relativeTime, timestampTooltip } from './renderer/relative-time.js';
 import { parentTestCardLine } from './run-result.js';
 
 /** Current host receipts, not a generated reply or a rewrite of the conversation journal. */
-export function AssistantRunResult({ scopeKey, target, run, t, onRun }: {
+export function AssistantRunResult({ scopeKey, target, run, locale, now, t, onRun }: {
   scopeKey: string; target: AssistantRun; run: NonNullable<AssistantView['run']>;
+  locale: string; now: number;
   t: (key: string, vars?: Record<string, unknown>) => string;
   onRun: (run: AssistantRun, traceId: string | null) => void;
 }) {
@@ -47,7 +49,9 @@ export function AssistantRunResult({ scopeKey, target, run, t, onRun }: {
   }
 
   return <article className="gpu-assistant-message gpu-assistant-message--receipt gpu-assistant-result" aria-label={t('assistant.runResult')}>
-    <div className="gpu-assistant-message-meta"><strong>{t('assistant.receipt')}</strong></div>
+    <div className="gpu-assistant-message-meta"><strong>{t('assistant.receipt')}</strong>
+      {run.endedAt ? <time dateTime={run.endedAt} title={timestampTooltip(run.endedAt, locale) ?? run.endedAt}>
+        {relativeTime(run.endedAt, t, locale, now) || run.endedAt}</time> : null}</div>
     <p><strong>{t(`assistant.outcome.${run.status}`)}</strong>
       {run.costUsd !== null ? ` · $${run.costUsd.toFixed(2)}` : ''}</p>
     {run.error ? <p>{run.error}</p> : null}

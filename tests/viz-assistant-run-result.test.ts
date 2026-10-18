@@ -54,9 +54,9 @@ function review(tests: RunParentTests): RunReview {
 function card(tests: RunParentTests): string {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   client.setQueryData(['viz', 'run-review', 'scope', target.projectId, target.runId], review(tests));
-  const run = { ...target, status: 'delivered', traceId: 'trace-1', costUsd: 0.25, error: null };
+  const run = { ...target, status: 'delivered', traceId: 'trace-1', costUsd: 0.25, error: null, endedAt: null };
   return renderToStaticMarkup(createElement(QueryClientProvider, { client },
-    createElement(AssistantRunResult, { scopeKey: 'scope', target, run, t, onRun: () => {} })));
+    createElement(AssistantRunResult, { scopeKey: 'scope', target, run, locale: 'en', now: Date.parse('2026-10-18T12:00:00Z'), t, onRun: () => {} })));
 }
 
 describe('the receipt card at the acceptance moment', () => {
