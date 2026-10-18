@@ -15,6 +15,7 @@ import type { LlmCompletionRequest } from '../src/core/types.js';
 import { buildTierClients } from '../src/run/providers.js';
 import { resetHostLifecycleSnapshotForTests, startTask } from '../src/run/runner.js';
 import { containerToolBackend, localToolBackend } from '../src/run/toolBackend.js';
+import { startWorkspaceProcess } from '../src/run/workspaceProcess.js';
 import { parseRunLog } from '../src/cli/burnin.js';
 
 vi.mock('../src/run/toolBackend.js', async original => ({
@@ -32,7 +33,9 @@ vi.mock('../src/run/providers.js', async original => ({
  */
 
 const roots: string[] = [];
-afterEach(() => {
+const workspaceServices: ReturnType<typeof startWorkspaceProcess>[] = [];
+afterEach(async () => {
+  for (const service of workspaceServices.splice(0)) await service.close();
   vi.unstubAllEnvs(); vi.restoreAllMocks(); resetHostLifecycleSnapshotForTests();
   setLedgerScope(null);
   closeStoreHandles();
@@ -92,8 +95,11 @@ function tenant(options: { tenant?: boolean } = {}) {
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 
 describe('a tenant run that reads another run', () => {
-  it.skipIf(process.platform === 'win32').each(['intact', 'touched', 'changed'] as const)('copies its saved files with their modes before any model call, every prompt says where, and the acceptor reads the copy and the named file (%s)', async copyState => {
+  it.skipIf(process.platform === 'win32').each((['intact', 'touched', 'changed'] as const).flatMap(copyState =>
+    [{ copyState, remote: false }, { copyState, remote: true }]))('copies and accepts referenced files ($copyState; process workspace: $remote)', async ({ copyState, remote }) => {
     const t = tenant();
+    const workspaceService = remote ? startWorkspaceProcess({ root: t.workspace, readRunsIndex: t.indexPath }) : undefined;
+    if (workspaceService) workspaceServices.push(workspaceService);
     const logs: string[] = [];
     for (const method of ['log', 'warn', 'error'] as const) {
       vi.spyOn(console, method).mockImplementation((...parts: unknown[]) => { logs.push(parts.map(String).join(' ')); });
@@ -140,7 +146,7 @@ describe('a tenant run that reads another run', () => {
       return { text: JSON.stringify(reply), stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
     } } });
     const handle = await startTask(['--container', '--depth', 'short', '--no-learn-skills', '--no-promote-skills', '--no-direct-skills',
-      `Restore browser/collect-xe-browser.js to the bytes of run ${t.read.run.projectRunId}.`], { seedCatalog(seed, canonical) {
+      `Restore browser/collect-xe-browser.js to the bytes of run ${t.read.run.projectRunId}.`], { ...(workspaceService ? { workspaceRuntime: workspaceService.runtime } : {}), seedCatalog(seed, canonical) {
       canonical(seed);
       leafName = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 1)!.name;
     } });

@@ -435,7 +435,9 @@ jobs:
       - run: npm run build:worker:dev
       - run: test -f dist/tools/worker.js && test -f dist/contracts/probeManifest.js
       - run: npm run build:preview
-      - run: npx vitest run tests/container-isolation.test.ts tests/preview-egress.test.ts tests/preview-terminal-container.test.ts
+      - run: npm run build:workspace
+      - run: npx vitest run tests/container-isolation.test.ts tests/preview-egress.test.ts tests/preview-terminal-container.test.ts tests/workspace-service-container.test.ts
         env:
           CI_REQUIRE_DOCKER: "1"
           ATOMA_TEST_PREVIEW_IMAGE: atoma-preview:latest
+          ATOMA_TEST_WORKSPACE_IMAGE: atoma-workspace:latest

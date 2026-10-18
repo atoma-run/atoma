@@ -32,12 +32,12 @@ export const startingSnapshotSchema = z.object({
 export type StartingSnapshot = z.infer<typeof startingSnapshotSchema>;
 
 /** The delivered side: the seed's own paths read again, and the files that are new. */
-export interface DeliveredSnapshot {
-  readonly files: readonly WorkspaceFileSnapshot[];
-  readonly added: readonly WorkspaceFileSnapshot[];
-  readonly addedTruncated: boolean;
-  readonly unreadable?: readonly string[];
-}
+export const deliveredSnapshotSchema = z.object({
+  files: z.array(workspaceFileSnapshotSchema).readonly(),
+  added: z.array(workspaceFileSnapshotSchema).readonly(),
+  addedTruncated: z.boolean(), unreadable: z.array(z.string()).readonly().optional(),
+}).strict().readonly();
+export type DeliveredSnapshot = z.infer<typeof deliveredSnapshotSchema>;
 
 export interface StartingFileChange {
   readonly path: string;

@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /**
  * WHAT A READ-ONLY PHASE CHANGED, AND WHAT THE RUNTIME PUT BACK — a
  * mechanical fact the phase's validator and the root acceptor read, never a
@@ -37,61 +39,42 @@ export const READ_ONLY_TASK_LINE =
  * added it (a directory's path ends in `/`). `restored` is false when the
  * runtime could not put it back, and `reason` says why.
  */
-export interface ReadOnlyRestoredPath {
-  readonly path: string;
-  readonly change: 'changed' | 'removed' | 'created';
-  /** Bytes at the phase's start, for a regular file that existed then. */
-  readonly before?: number;
-  /** Bytes when the phase ended, for a regular file that existed then. */
-  readonly after?: number;
-  readonly restored: boolean;
-  readonly reason?: string;
-}
+export const readOnlyRestoredPathSchema = z.object({
+  path: z.string(), change: z.enum(['changed', 'removed', 'created']),
+  before: z.number().nonnegative().optional(), after: z.number().nonnegative().optional(),
+  restored: z.boolean(), reason: z.string().optional(),
+}).strict().readonly();
+export type ReadOnlyRestoredPath = z.infer<typeof readOnlyRestoredPathSchema>;
 
-export interface ReadOnlyRestoration {
-  /** The phase's description, as its plan stated it (cut to a line). */
-  readonly phase: string;
-  readonly attempt: number;
-  /** What the phase changed and the runtime put back, or failed to. */
-  readonly paths: readonly ReadOnlyRestoredPath[];
-  /**
-   * What the phase changed that the runtime deliberately left as it is: a
-   * SQLite database and its sidecars, which a live process may hold open,
-   * and a file a process was writing when the phase started (a log). A fact
-   * for the reader, never a restoration: it alone does not make one matter.
-   */
-  readonly left: readonly ReadOnlyRestoredPath[];
-  /**
-   * The photograph could not see everything: past its cap, or inside a
-   * directory it could not list. Nothing there was compared, and nothing the
-   * phase added there was removed.
-   */
-  readonly partial: boolean;
-  /** The workspace could not be photographed at all: NOTHING was restored. */
-  readonly unguarded?: string;
-  /** The attestation event ids this execution recorded (see `staleObservations`). */
-  readonly observations: readonly string[];
-  /**
-   * The paths among `paths` the phase changed ITSELF (`executionOwns`): what
-   * makes a restoration DAMAGE rather than a side effect of verifying (a
-   * server rewriting its data file, a log).
-   */
-  readonly written: readonly string[];
-}
+/** Mechanical restoration report; observations refer to the original execution. */
+export const readOnlyRestorationSchema = z.object({
+  phase: z.string(), attempt: z.number().int().positive(),
+  paths: z.array(readOnlyRestoredPathSchema).readonly(),
+  /** SQLite databases/sidecars and active files deliberately left intact. */
+  left: z.array(readOnlyRestoredPathSchema).readonly(),
+  /** Unseen directories or entries past the cap were neither compared nor removed. */
+  partial: z.boolean(),
+  /** Nothing was restored because the workspace could not be photographed. */
+  unguarded: z.string().optional(),
+  observations: z.array(z.string()).readonly(),
+  /** Paths the execution itself wrote: damage, rather than verifier side effects. */
+  written: z.array(z.string()).readonly(),
+}).strict().readonly();
+export type ReadOnlyRestoration = z.infer<typeof readOnlyRestorationSchema>;
 
-/** What the atom side hands the host when an execution ends. */
-export interface ReadOnlyExecutionRecord {
-  /** Attestation event ids the execution recorded. */
-  readonly observations?: readonly string[];
-  /** Workspace paths its element writes (`write_file`, `edit_file`) named, as the tools were asked. */
-  readonly writes?: readonly string[];
-  /** The entry file of every Node server it started. */
-  readonly serverEntries?: readonly string[];
-  /** The request of every `run_shell` and `record_probe` call it made, as attested. */
-  readonly commands?: readonly string[];
-  /** Every change is its own: a compiled script ran, and nothing else did. */
-  readonly ownsEveryChange?: true;
-}
+/** Attested requests, not model-authored descriptions of what changed. */
+export const readOnlyExecutionRecordSchema = z.object({
+  observations: z.array(z.string()).readonly().optional(),
+  /** Workspace paths named by write_file and edit_file requests. */
+  writes: z.array(z.string()).readonly().optional(),
+  /** Entry file of each Node server the execution started. */
+  serverEntries: z.array(z.string()).readonly().optional(),
+  /** Attested run_shell and record_probe requests. */
+  commands: z.array(z.string()).readonly().optional(),
+  /** A compiled script ran alone and owns every change. */
+  ownsEveryChange: z.literal(true).optional(),
+}).strict().readonly();
+export type ReadOnlyExecutionRecord = z.infer<typeof readOnlyExecutionRecordSchema>;
 
 /** One read-only execution in flight: `end` restores and reports, and never throws. */
 export interface ReadOnlyPhaseGuard {

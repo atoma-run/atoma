@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import type { ToolExecutor } from '../core/types.js';
 import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { classifyDeliveredWorkspace } from '../preview/descriptor.js';
+import { secureReadWorkspaceFile, DEFAULT_ARTIFACT_LIMITS } from '../projects/artifacts.js';
+import type { InheritedWorkspaceState, WorkspaceRuntime } from '../contracts/workspaceRuntime.js';
 import {
   checkDigest,
   DEAD_CHECK_FIELD,
@@ -150,12 +152,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * the next seed), and the rename replaces the name itself, never what a link
  * or a second hard link points at.
  */
-function rewriteManifest(root: string, text: string): boolean {
+export function rewriteManifest(root: string, text: string, expected?: string): boolean {
   const path = join(root, PROBE_MANIFEST_FILENAME);
   const temp = join(root, `${PROBE_MANIFEST_FILENAME}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`);
   let opened = false;
   try {
     if (!lstatSync(path).isFile()) return false;
+    if (expected !== undefined && readReplayManifest(root) !== expected) return false;
     const fd = openSync(temp, 'wx');
     opened = true;
     try {
@@ -169,6 +172,24 @@ function rewriteManifest(root: string, text: string): boolean {
     if (opened) rmSync(temp, { force: true });
     return false;
   }
+}
+
+function readReplayManifest(root: string): string {
+  return secureReadWorkspaceFile(root, PROBE_MANIFEST_FILENAME, DEFAULT_ARTIFACT_LIMITS, path => {
+    if (path !== PROBE_MANIFEST_FILENAME) throw new Error('Only the probe manifest may be read');
+  }).bytes.toString('utf8');
+}
+
+/** Filesystem half of replay initialization, run before any model tool call. */
+export function readInheritedWorkspaceState(root: string): InheritedWorkspaceState | null {
+  try {
+    const manifest = readReplayManifest(root);
+    const index = indexInheritedChecks(manifest);
+    if (!index?.checks.length) return null;
+    const descriptor = classifyDeliveredWorkspace(root);
+    return { manifest, classification: descriptor.kind ?? descriptor.unavailableReason ?? 'unknown',
+      regularFiles: [...new Set(index.checks.filter(item => regularWorkspaceFile(root, item.check.file)).map(item => item.check.file))] };
+  } catch { return null; }
 }
 
 export function pageUrl(origin: string, file: string): string {
@@ -198,26 +219,35 @@ export function inheritedChecksFor(args: {
    * dead at this start: such a run marks and removes nothing.
    */
   readonly seedLanded?: boolean;
+  /** Prepared on the execution host; replay policy and tool calls stay on Atoma. */
+  readonly workspace?: { state: InheritedWorkspaceState | null; replaceManifest: WorkspaceRuntime['replaceManifest'] };
 }): InheritedChecksRuntime | undefined {
   const limits: InheritedReplayLimits = { ...DEFAULT_INHERITED_REPLAY_LIMITS, ...args.limits };
   const now = args.now ?? Date.now;
   let raw: string;
   try {
-    const manifest = join(args.workspaceRoot, PROBE_MANIFEST_FILENAME);
-    if (!lstatSync(manifest).isFile()) return undefined;
-    raw = readFileSync(manifest, 'utf8');
+    if (args.workspace) {
+      if (!args.workspace.state) return undefined;
+      raw = args.workspace.state.manifest;
+    } else {
+      const manifest = join(args.workspaceRoot, PROBE_MANIFEST_FILENAME);
+      if (!lstatSync(manifest).isFile()) return undefined;
+      raw = readFileSync(manifest, 'utf8');
+    }
   } catch {
     return undefined;
   }
   const index = indexInheritedChecks(raw);
   const inherited = index?.checks ?? [];
   if (!index || inherited.length === 0) return undefined;
-  const classification = classifyDeliveredWorkspace(args.workspaceRoot);
-  if (classification.kind !== 'static') {
-    args.log(`inherited checks: ${inherited.length} not replayed, the workspace is not a static page (${classification.kind ?? classification.unavailableReason ?? 'unknown'})`);
+  const descriptor = args.workspace ? undefined : classifyDeliveredWorkspace(args.workspaceRoot);
+  const classification = args.workspace?.state?.classification ?? descriptor?.kind ?? descriptor?.unavailableReason ?? 'unknown';
+  if (classification !== 'static') {
+    args.log(`inherited checks: ${inherited.length} not replayed, the workspace is not a static page (${classification})`);
     return undefined;
   }
-  const selected: IndexedCheck[] = inherited.filter((item) => regularWorkspaceFile(args.workspaceRoot, item.check.file)).slice(0, limits.maxChecks);
+  const selected: IndexedCheck[] = inherited.filter((item) => args.workspace
+    ? args.workspace.state?.regularFiles.includes(item.check.file) : regularWorkspaceFile(args.workspaceRoot, item.check.file)).slice(0, limits.maxChecks);
   const checks = selected.map((item) => item.check);
   const tools = args.executor();
   if (checks.length === 0 || !tools.has('start_static_server') || !tools.has('validate_html')) return undefined;
@@ -375,7 +405,7 @@ export function inheritedChecksFor(args: {
         return [record];
       });
       const text = `${JSON.stringify({ ...index.document, version: 1, entries }, null, 2)}\n`;
-      if (entries.length > 0 && rewriteManifest(args.workspaceRoot, text)) {
+      if (entries.length > 0 && (args.workspace ? await args.workspace.replaceManifest(text) : rewriteManifest(args.workspaceRoot, text))) {
         rewritten = text;
       } else {
         markedDead = 0; pruned = 0; revived = 0;
@@ -450,10 +480,15 @@ export function inheritedChecksFor(args: {
     waiting(): void {
       callWaiting = true;
     },
-    reseeded(): void {
+    reseeded(): void | Promise<void> {
       // The seed copy wrote the manifest this replay read, without its marks;
       // any other manifest is left as it is.
       if (rewritten === undefined) return;
+      if (args.workspace) {
+        return args.workspace.replaceManifest(rewritten, raw).then(written => {
+          if (!written) args.log('inherited checks: the dead marks could not be written again after the restart');
+        });
+      }
       try {
         if (readFileSync(join(args.workspaceRoot, PROBE_MANIFEST_FILENAME), 'utf8') !== raw) return;
       } catch {

@@ -749,7 +749,7 @@ describe('durable sequential run continuation', () => {
       await cp.beforePhase(0, phase(1));
       await expect(cp.afterPhase(0, { output: { ok: true }, summary: 'phase 1 done', producedBy: { name: 'Cell', tier: 2, viaFallback: false },
         trace: [{ kind: 'verdict-result', payload: { approved: true } }] } as never)).rejects.toThrow();
-      cp.release();
+      await cp.release();
     });
     expect(store.projectStatus(sourceId, 'org')?.state).toBe('paused');
     // Another run of the commons has no retrieval corpus: Meristem moves on.
@@ -804,7 +804,7 @@ describe('durable sequential run continuation', () => {
         trace: [{ kind: 'verdict-result', ts: '0', atom: 'Meristem', payload: { approved: true, reasoning: 'reviewed' } }],
         parentTests: [{ suiteDigest: 'd', workspaceDigest: 'w', status: 'unavailable', cause: 'runner-error', passed: 0, failed: 0, skipped: 0,
           details: 'crashed', judged: true }] });
-      cp.release();
+      await cp.release();
     });
     expect(warnings).toContain('Durable continuation disabled: this phase did not close with a complete approved result');
     expect(data.completed).toEqual([]);

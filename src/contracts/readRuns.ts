@@ -169,33 +169,18 @@ export const READ_RUNS_GUIDANCE = "readRuns are copies of other runs' saved file
  * before root acceptance. Each list holds at most `READ_RUN_COPY_LISTED_PATHS`
  * paths; the counts are complete.
  */
-export interface ReadRunCopyCheck {
-  readonly runId: string;
-  readonly files: number;
-  /** Saved files whose bytes or mode differ now, or that are no longer regular files. */
-  readonly changed: readonly string[];
-  readonly changedCount: number;
-  readonly missing: readonly string[];
-  readonly missingCount: number;
-  /**
-   * Saved files whose bytes and mode match again, but whose identity or ctime
-   * moved since the host wrote them: changed and put back, so a comparison
-   * made in between may have read other bytes. Userspace cannot reset a ctime.
-   */
-  readonly touched: readonly string[];
-  readonly touchedCount: number;
-  /** Names the run added inside the copy: a separate fact, never a mismatch of the saved files. */
-  readonly added: readonly string[];
-  readonly addedCount: number;
-  /**
-   * A directory of the copy, or one above it (`.atoma-runs`, its
-   * `node_modules`), was replaced or moved after the copy, its names
-   * unchanged: a whole copy swapped aside, edited, compared and swapped back
-   * keeps every file's identity (review 2026-10-17, second pass). A change
-   * explained by names added or removed is not this.
-   */
-  readonly directoryTouched: boolean;
-}
+export const readRunCopyCheckSchema = z.object({
+  runId: z.string(), files: z.number().int().nonnegative(),
+  changed: z.array(z.string()).readonly(), changedCount: z.number().int().nonnegative(),
+  missing: z.array(z.string()).readonly(), missingCount: z.number().int().nonnegative(),
+  /** Bytes/mode match again, but inode or ctime moved: changed and put back. */
+  touched: z.array(z.string()).readonly(), touchedCount: z.number().int().nonnegative(),
+  /** Added names are separate facts, not mismatches of saved files. */
+  added: z.array(z.string()).readonly(), addedCount: z.number().int().nonnegative(),
+  /** Copy/ancestor directory moved without a name change; file identities alone miss this. */
+  directoryTouched: z.boolean(),
+}).strict().readonly();
+export type ReadRunCopyCheck = z.infer<typeof readRunCopyCheckSchema>;
 
 /** No saved file changed, went missing or was changed and put back, and no directory was swapped. Added names do not count. */
 export function readRunCopyIntact(check: ReadRunCopyCheck): boolean {
@@ -249,23 +234,21 @@ export function renderReadRunCopies(checks: readonly ReadRunCopyCheck[]): string
  * 50019ee0") otherwise rested on a model's sha256sum surviving the root's
  * transport cut.
  */
-export interface ReadRunFileComparison {
-  readonly path: string;
-  /** This run's file at `path`: a regular file the host read, nothing there, or something else. */
-  readonly here: 'file' | 'absent' | 'unreadable';
-  readonly against: ReadonlyArray<{
-    readonly runId: string;
-    /** Only when `here` is `file`. */
-    readonly bytes?: 'equal' | 'differ';
-    readonly mode?: { readonly here: ArtifactFile['mode']; readonly saved: ArtifactFile['mode'] };
-  }>;
-}
-
-export interface ReadRunFileComparisons {
-  readonly compared: readonly ReadRunFileComparison[];
-  /** Named paths a read run saved, past `READ_RUN_FILES_COMPARED`: not compared. */
-  readonly omitted: number;
-}
+export const readRunFileComparisonSchema = z.object({
+  path: z.string(), here: z.enum(['file', 'absent', 'unreadable']),
+  against: z.array(z.object({
+    runId: z.string(), bytes: z.enum(['equal', 'differ']).optional(),
+    mode: z.object({ here: artifactManifestSchema.shape.files.element.shape.mode,
+      saved: artifactManifestSchema.shape.files.element.shape.mode }).readonly().optional(),
+  }).strict().readonly()).readonly(),
+}).strict().readonly();
+export type ReadRunFileComparison = z.infer<typeof readRunFileComparisonSchema>;
+export const readRunFileComparisonsSchema = z.object({
+  compared: z.array(readRunFileComparisonSchema).readonly(),
+  /** Named saved paths past READ_RUN_FILES_COMPARED, left unexamined. */
+  omitted: z.number().int().nonnegative(),
+}).strict().readonly();
+export type ReadRunFileComparisons = z.infer<typeof readRunFileComparisonsSchema>;
 
 /** What may continue a path: a match followed by one of these names a longer path. */
 const CONTINUES_PATH = /^(?:[\w/-]|\.[\w-])/;

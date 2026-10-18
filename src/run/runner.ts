@@ -58,8 +58,8 @@ import { RecordingRegistry } from '../viz/recordingRegistry.js';
 import { containerToolBackend, localToolBackend, withMcpConnectorBackend, withProjectRetrievalBackend } from './toolBackend.js';
 import { decodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
 import { READ_RUN_COPIES_DIRECTORY, READ_RUNS_DIRECTORY, READ_RUNS_ENV, type ReadRunsIndex } from '../contracts/readRuns.js';
-import { captureReadRunCopies, checkReadRunCopies, compareReadRunFiles, ensureReadRunMountPoint, legacyReadRunCopy, materialiseReadRuns, readReadRunsIndex,
-  removeReadRunCopies, type ReadRunCopyIdentities } from './readRuns.js';
+import { ensureReadRunMountPoint, legacyReadRunCopy, materialiseReadRuns, readReadRunsIndex,
+  removeReadRunCopies } from './readRuns.js';
 import { openConnectorRuntime } from '../connectors/runtime.js';
 import { emptyConnectorService, type McpConnectorService } from '../tools/mcpConnectors.js';
 import { validateProjectRetrievalBinding, type ProjectRetrievalBinding } from '../tools/projectRetrieval.js';
@@ -86,9 +86,8 @@ import { seedTissueCatalog } from './tissues.js';
 import { selectTissue, tissueForRun } from './tissueRouting.js';
 import { capturePlatformTissueAuthor, platformTissueAuthor, type TissueAuthor } from './tissueAuthor.js';
 import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
-import { readRoutingRepository } from './routingRepository.js';
-import { describeSeedManifest, seedWorkspace, snapshotDeliveredWorkspace, snapshotStartingWorkspace } from './workspace.js';
-import { readOnlyPhasesFor } from './readOnlyPhase.js';
+import { localWorkspaceRuntime } from './workspaceRuntime.js';
+import { describeSeedManifest, seedWorkspace, snapshotStartingWorkspace } from './workspace.js';
 import { gatedExecutor, inheritedChecksFor } from './inheritedChecks.js';
 import { decodeStandingHttpEvidence, STANDING_HTTP_EVIDENCE_ENV } from '../contracts/standingHttpEvidence.js';
 import { modelFacingExecutor } from '../core/attestation.js';
@@ -616,6 +615,8 @@ async function startTaskInternal(
     projectRetrieval?: ProjectRetrievalBinding;
     /** Trusted test/library seam; production uses the separate learning process. */
     launchLearning?: typeof spawnApprovedLearning;
+    /** Internal workspace capability; the caller owns its transport lifetime. */
+    workspaceRuntime?: import('../contracts/workspaceRuntime.js').WorkspaceRuntime;
   }
 ): Promise<RunHandle> {
   // PROVIDER CREDENTIALS ARE A PER-RUN VALUE (invariant T10). `providerEnv`
@@ -1131,7 +1132,6 @@ async function startTaskInternal(
   // leaves out). A continuation's sealed workspace already holds them. Each
   // copy's identity is kept as the host wrote it: root acceptance tells a
   // copy changed and put back from one never touched (review 2026-10-17).
-  let readRunIdentities: ReadRunCopyIdentities | undefined;
   const copyReadRuns = (): void => {
     if (!readRuns) return;
     const report = materialiseReadRuns(workspaceRoot, readRuns);
@@ -1157,6 +1157,7 @@ async function startTaskInternal(
     // Claim before a backend can touch the workspace. A losing resumer starts no tools.
     try {
       checkpoint = new SequentialCheckpoint(data, checkpointStore, {
+        ...(opts?.workspaceRuntime ? { workspace: opts.workspaceRuntime } : {}),
         fresh: !savedCheckpoint, automatic: !!checkpointAuthority,
         ...(checkpointAuthority ? { assessClientQuestion: (task: Task, next: import('../core/types.js').SubtaskSpec, completed: readonly Result[]) => assessClientQuestion(task, next, completed, ctx) } : {}),
         ...(savedCheckpoint && checkpointAuthority ? { source: savedCheckpoint } : {}), pauseAfter: args.pauseAfterPhase, deadlineAt,
@@ -1204,7 +1205,8 @@ async function startTaskInternal(
   }
   // Capture the starting repository before a backend or inherited probe can
   // run its code. The prompt remains the task; these bounded bytes are context.
-  const routingRepository = args.baseline ? undefined : readRoutingRepository(workspaceRoot);
+  const workspace = opts?.workspaceRuntime ?? localWorkspaceRuntime({ root: workspaceRoot, readRuns: readRuns ?? undefined, log: line => consoleLogger.warn(line) });
+  const routingRepository = args.baseline ? undefined : await workspace.routingRepository();
 
   // Local by default; `--container` moves the tool layer into a container
   // with only the workspace mounted and no route out. The swap is possible
@@ -1238,7 +1240,7 @@ async function startTaskInternal(
   // The copies' identities, once the worker that mounts them exists and
   // before any tool call: Docker Desktop moves the mount source's ctime at
   // container start. At launch and in a continuation alike.
-  if (readRuns) readRunIdentities = captureReadRunCopies(workspaceRoot, readRuns);
+  await workspace.captureReadRuns();
   checkpoint?.backendReady();
   // THE INHERITED CHECKS (docs/decisions/inherited-checks-replay-2026-10-01.md): a
   // seeded static-page run replays, now, the browser checks earlier runs
@@ -1247,6 +1249,7 @@ async function startTaskInternal(
   // checks that held. The replay's own calls go to the backend directly.
   const inheritedChecks = (seedRoot || savedCheckpoint) && args.depth && !args.baseline
     ? inheritedChecksFor({
+        workspace: { state: await workspace.inheritedState(), replaceManifest: (text, expected) => workspace.replaceManifest(text, expected) },
         workspaceRoot, executor: () => backend.executor, signal, deadlineAt, log: (line) => console.log(line),
         seedLanded: !!savedCheckpoint || decodePreviousLanding(process.env[PREVIOUS_LANDING_ENV]).length > 0,
       })
@@ -1369,13 +1372,13 @@ async function startTaskInternal(
           seed();
           copyReadRuns();
           if (readRuns) ensureReadRunMountPoint(workspaceRoot);
-          inheritedChecks?.reseeded();
+          await inheritedChecks?.reseeded();
           const replacement = await makeBackend();
           if (signal.aborted) {
             await replacement.cleanup();
             signal.throwIfAborted();
           }
-          if (readRuns) readRunIdentities = captureReadRunCopies(workspaceRoot, readRuns);
+          await workspace.captureReadRuns();
           backend = replacement;
           return runTools(backend.executor);
         },
@@ -1449,20 +1452,20 @@ async function startTaskInternal(
     // remotely), by the control plane, once per reviewed acceptance.
     ...(startingSnapshot ? (() => {
       const start = startingSnapshot;
-      return { startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(workspaceRoot, start) } };
+      return { startingWorkspace: { start, now: () => workspace.deliveredSnapshot(start) } };
     })() : {}),
     // A phase the root plan gave no outputs is photographed and restored on
     // the same host path (src/contracts/readOnlyPhase.ts): a deepening
     // re-seeds that path, and a phase never spans two attempts.
-    readOnlyPhases: readOnlyPhasesFor(workspaceRoot, (line) => consoleLogger.warn(line)),
+    readOnlyPhases: workspace.readOnlyPhases,
     ...(inheritedChecks ? { inheritedChecks } : {}),
     // The seed lineage's host-recorded HTTP probes, for root acceptance (standingHttpEvidence).
     ...(() => { const standing = decodeStandingHttpEvidence(process.env[STANDING_HTTP_EVIDENCE_ENV]); return standing.length > 0 ? { standingHttpEvidence: standing } : {}; })(),
     // The read-run copies checked again, on the host path the tools write to,
     // and the files the criteria name compared with the saved entries.
     ...(readRuns ? {
-      readRunCopies: () => checkReadRunCopies(workspaceRoot, readRuns, readRunIdentities),
-      compareReadRunFiles: (criteria: readonly string[]) => compareReadRunFiles(workspaceRoot, readRuns, criteria),
+      readRunCopies: () => workspace.checkReadRuns(),
+      compareReadRunFiles: (criteria: readonly string[]) => workspace.compareReadRuns(criteria),
     } : {}),
     // Prefilter decisions replayed from the on-disk cache: the LLM call
     // that did NOT happen still deserves a card.
@@ -1778,7 +1781,7 @@ async function startTaskInternal(
         try {
           // The boundary drained before it sealed; this is the same settled drain.
           await checkpoint.quiesce();
-          checkpoint.release();
+          await checkpoint.release();
           recorder.endRun({ result: { output: err.result.output, summary: err.result.summary,
             producedBy: err.result.producedBy, refusal: err.result.refusal } });
           console.log(formatRunStatsEpilogue(machineRunStats('partial', metrics, runSignals, [err.message])));

@@ -148,11 +148,11 @@ export function observedLayoutsBlock(ctx: RunContext, stale: ReadonlySet<string>
 }
 
 /** What a seeded run did to the files it started from; undefined for an unseeded run or an unreadable workspace. */
-function startingComparison(ctx: RunContext): StartingWorkspaceComparison | undefined {
+async function startingComparison(ctx: RunContext): Promise<StartingWorkspaceComparison | undefined> {
   const seeded = ctx.startingWorkspace;
   if (!seeded) return undefined;
   try {
-    return compareStartingWorkspace(seeded.start, seeded.now());
+    return compareStartingWorkspace(seeded.start, await seeded.now());
   } catch {
     return undefined;
   }
@@ -492,7 +492,7 @@ export async function acceptRootResult(args: {
   // Read once for the replay's trigger, and reused by the STARTING WORKSPACE
   // block: the acceptance replays serve files and write none (the start
   // replay's dead marks touch only the manifest, which no snapshot reads).
-  const comparison = ctx.inheritedChecks && !gates.rejection ? startingComparison(ctx) : undefined;
+  const comparison = ctx.inheritedChecks && !gates.rejection ? await startingComparison(ctx) : undefined;
   const inherited = await inheritedReplay(ctx, comparison);
   const inheritedItems = inherited?.items ?? [];
   // A remediation answers what this run's previous acceptance listed. Unless
@@ -539,15 +539,15 @@ export async function acceptRootResult(args: {
   const namedFilesBlock = reviewing ? await criteriaFilesBlock(ctx, judgementsAsked ? checklist : [],
     [...new Set(fileReadsNeedingReadback(records, transport.eventIds).values())], task.description, ROOT_CRITERIA_SOURCE_CHARS,
     commandTestScripts(records)) : '';
-  const startingBlock = reviewing ? renderStartingWorkspace(comparison ?? startingComparison(ctx)) : '';
+  const startingBlock = reviewing ? renderStartingWorkspace(comparison ?? await startingComparison(ctx)) : '';
   // The other runs' files this run was given, checked against their manifests
   // now (a copy the run changed proves nothing about the run it came from),
   // and the host's own comparison of each file the criteria name with the
   // saved entries: "restore to the bytes of run X" no longer rests on a
   // model's sha256sum surviving the transport cut (run 2e6bdcfc).
   const readRunsBlock = reviewing ? [
-    ctx.readRunCopies ? renderReadRunCopies(ctx.readRunCopies()) : '',
-    ctx.compareReadRunFiles ? renderReadRunFiles(ctx.compareReadRunFiles(
+    ctx.readRunCopies ? renderReadRunCopies(await ctx.readRunCopies()) : '',
+    ctx.compareReadRunFiles ? renderReadRunFiles(await ctx.compareReadRunFiles(
       [...checklist.map((item) => item.behaviour), ...(task.criteria ?? []).map((criterion) => criterion.behaviour)])) : '',
   ].filter(Boolean).join('\n') : '';
   const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';

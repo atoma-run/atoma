@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildTierClients } from '../src/run/providers.js';
 import { startTask, resetHostLifecycleSnapshotForTests } from '../src/run/runner.js';
+import { startWorkspaceProcess } from '../src/run/workspaceProcess.js';
 import {  } from '../src/run/setup.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { PREVIOUS_LANDING_ENV } from '../src/contracts/runLanding.js';
@@ -35,9 +36,11 @@ const STALE = { probe: 'web', file: 'index.html', smoke: "(() => ({ ok: window._
 
 describe('a seeded static-page run', () => {
   it.each([
-    ['delivered', false],
-    ['landed', true],
-  ])('replays the inherited checks before any molecule touches the page, and shows the acceptor the one the delivery broke (seed run %s)', async (_label, landed) => {
+    ['delivered/local', false, false],
+    ['landed/local', true, false],
+    ['delivered/process', false, true],
+    ['landed/process', true, true],
+  ])('replays the inherited checks before any molecule touches the page, and shows the acceptor the one the delivery broke (seed run %s)', async (_label, landed, remote) => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-inherited-runner-'));
     const workspace = join(root, 'workspace');
     const seedDir = join(root, 'seed');
@@ -91,8 +94,10 @@ describe('a seeded static-page run', () => {
       return { text: JSON.stringify(reply), stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 50 }, servedModel: 'claude-haiku-4-5-20251001' };
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
+    const service = remote ? startWorkspaceProcess({ root: workspace }) : undefined;
     try {
-      handle = await startTask(['--depth', 'short', '--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Change the long-break line']);
+      handle = await startTask(['--depth', 'short', '--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Change the long-break line'],
+        service ? { workspaceRuntime: service.runtime } : undefined);
       await handle.settled;
       expect(baselineDoneAtFirstToolCall).toBe(true);
       const baseline = logs.find((line) => line.startsWith('inherited checks: '))!;
@@ -113,6 +118,7 @@ describe('a seeded static-page run', () => {
       }
     } finally {
       await handle?.shutdown();
+      await service?.close();
       closeStoreHandles();
       rmSync(root, { recursive: true, force: true });
     }

@@ -1082,7 +1082,7 @@ export interface RunContext {
    */
   readonly startingWorkspace?: {
     readonly start: import('../contracts/startingWorkspace.js').StartingSnapshot;
-    readonly now: () => import('../contracts/startingWorkspace.js').DeliveredSnapshot;
+    readonly now: () => import('../contracts/startingWorkspace.js').DeliveredSnapshot | Promise<import('../contracts/startingWorkspace.js').DeliveredSnapshot>;
   };
   /**
    * The host's photograph and restore of READ-ONLY phases (`Task.readOnly`,
@@ -1090,7 +1090,7 @@ export interface RunContext {
    * Absent in library and test contexts: a phase marked read-only then runs
    * like any other. Forwarded by `forkBranch`; its restorations are the run's.
    */
-  readonly readOnlyPhases?: import('../contracts/readOnlyPhase.js').ReadOnlyPhases;
+  readonly readOnlyPhases?: import('../contracts/workspaceRuntime.js').RuntimeReadOnlyPhases;
   /**
    * The host's replay of the browser checks earlier runs recorded, for a
    * seeded static-page run (`src/run/inheritedChecks.ts`,
@@ -1112,14 +1112,14 @@ export interface RunContext {
    * them NOW. Root acceptance renders one line per read run; absent for a run
    * that read none.
    */
-  readonly readRunCopies?: () => readonly import('../contracts/readRuns.js').ReadRunCopyCheck[];
+  readonly readRunCopies?: () => readonly import('../contracts/readRuns.js').ReadRunCopyCheck[] | Promise<readonly import('../contracts/readRuns.js').ReadRunCopyCheck[]>;
   /**
    * The host's comparison of this run's files with each read run's saved
    * entry, for every saved path the `criteria` texts name, read on the host
    * and never through a model-facing tool. Root acceptance renders one line
    * per such path; absent for a run that read none.
    */
-  readonly compareReadRunFiles?: (criteria: readonly string[]) => import('../contracts/readRuns.js').ReadRunFileComparisons;
+  readonly compareReadRunFiles?: (criteria: readonly string[]) => import('../contracts/readRuns.js').ReadRunFileComparisons | Promise<import('../contracts/readRuns.js').ReadRunFileComparisons>;
   /**
    * Optional prefilter-cache observer — see `CacheHitInfo`. Same
    * observer-only contract as `recordTrust` / `recordSkill`: absent, the

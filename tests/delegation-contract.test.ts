@@ -1218,7 +1218,7 @@ describe('capability routing under the root review', () => {
           trace: [{ kind: 'verdict-result', ts: '0', atom: tissue.name, payload: { approved: true, reasoning: 'reviewed' } }],
         };
         await expect(writer.afterPhase(0, built)).rejects.toThrow();
-        writer.release();
+        await writer.release();
       });
       const saved = store.read(id);
       expect(saved.root?.approval).toEqual(approval);

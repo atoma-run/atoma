@@ -16,6 +16,8 @@ import { parentTestsGrantNothing } from '../core/parentTests.js';
 import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
 import { outOfPhaseBudget } from '../core/limits.js';
 import { checkpointWorkspaceDigest, readCheckpointWorkspace, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
+import { CheckpointReceiver } from './checkpointTransfer.js';
+import type { CheckpointTransferHeader } from '../contracts/checkpointTransfer.js';
 export { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
 import { PhaseBoundaryPause, runCheckpointSchema, type RootDelegationApproval, type RootPhaseCheckpoint, type RunCheckpoint, type ProjectCheckpointStatus } from '../contracts/runCheckpoint.js';
 import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
@@ -270,8 +272,31 @@ export class RunCheckpointStore {
 
   boundary(data: RunCheckpoint, owner: string, question?: ClientQuestion): void {
     const before = readCheckpointWorkspace(data.workspace);
+    this.commitBoundary(data, owner, () => saveCheckpointWorkspace(this.db, data.workspace, before), question);
+  }
+
+  /** Attach a fully received snapshot; incomplete transfer rows have no authority. */
+  boundaryFromSnapshot(data: RunCheckpoint, owner: string, snapshot: { id: string; digest: string }, question?: ClientQuestion): void {
+    this.commitBoundary(data, owner, () => {
+      const transfer = this.db.prepare('SELECT 1 FROM run_checkpoint_transfers WHERE snapshot=? AND checkpoint_id=? AND owner=? AND expires_at>?')
+        .get(snapshot.id, data.id, owner, Date.now());
+      const row = this.db.prepare('SELECT digest FROM run_checkpoint_snapshots WHERE id=?').get(snapshot.id) as { digest: string } | undefined;
+      if (!transfer || !row || row.digest !== snapshot.digest) throw new Error('Checkpoint snapshot is unavailable');
+      this.db.prepare('DELETE FROM run_checkpoint_transfers WHERE snapshot=?').run(snapshot.id);
+      return snapshot;
+    }, question);
+  }
+
+  receiveWorkspace(data: RunCheckpoint, owner: string, header: CheckpointTransferHeader): CheckpointReceiver {
+    if (!this.db.prepare("SELECT 1 FROM run_checkpoints WHERE id=? AND owner=? AND state='running'").get(data.id, owner)) {
+      throw new Error('Checkpoint is not owned by this run');
+    }
+    return new CheckpointReceiver(this.db, header, { checkpointId: data.id, owner });
+  }
+
+  private commitBoundary(data: RunCheckpoint, owner: string, capture: () => { id: string; digest: string }, question?: ClientQuestion): void {
     this.db.transaction(() => {
-      const snapshot = saveCheckpointWorkspace(this.db, data.workspace, before);
+      const snapshot = capture();
       if (question) recordClientQuestion(this.db, data, question);
       data.snapshotId = snapshot.id;
       data.workspaceDigest = snapshot.digest;
@@ -320,10 +345,14 @@ export class RunCheckpointStore {
 
   pruneSnapshots(): void {
     this.db.transaction(() => {
+      this.db.prepare('DELETE FROM run_checkpoint_transfers WHERE expires_at<=?').run(Date.now());
       this.db.exec(`DELETE FROM run_checkpoint_files WHERE snapshot IN (SELECT id FROM run_checkpoint_snapshots
-        WHERE id NOT IN (SELECT json_extract(payload,'$.snapshotId') FROM run_checkpoints WHERE state<>'finished' AND json_extract(payload,'$.snapshotId') IS NOT NULL));
-        DELETE FROM run_checkpoint_snapshots WHERE id NOT IN (SELECT json_extract(payload,'$.snapshotId') FROM run_checkpoints
-          WHERE state<>'finished' AND json_extract(payload,'$.snapshotId') IS NOT NULL)`);
+        WHERE id NOT IN (SELECT snapshot FROM run_checkpoint_transfers) AND id NOT IN (SELECT json_extract(payload,'$.snapshotId') FROM run_checkpoints WHERE state<>'finished' AND json_extract(payload,'$.snapshotId') IS NOT NULL));
+        DELETE FROM run_checkpoint_snapshots WHERE id NOT IN (SELECT snapshot FROM run_checkpoint_transfers)
+          AND id NOT IN (SELECT json_extract(payload,'$.snapshotId') FROM run_checkpoints
+          WHERE state<>'finished' AND json_extract(payload,'$.snapshotId') IS NOT NULL);
+        DELETE FROM run_checkpoint_files WHERE snapshot NOT IN (SELECT id FROM run_checkpoint_snapshots)
+          AND snapshot NOT IN (SELECT snapshot FROM run_checkpoint_transfers)`);
     }).immediate();
   }
 
@@ -425,6 +454,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     processes: () => RunCheckpoint['processes'];
     worker?: () => RunCheckpoint['worker'];
     restoreWorkspace?: () => void;
+    workspace?: Pick<import('../contracts/workspaceRuntime.js').WorkspaceRuntime, 'checkpointDigest' | 'checkpointExport'>;
     assessClientQuestion?: (task: Task, next: SubtaskSpec, completed: readonly Result[]) => Promise<ClientQuestion | null>;
   }) {
     if (options.source) ({ owner: this.owner, sourceState: this.sourceState } = store.continueProject(options.source, data));
@@ -494,7 +524,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
         // Same degradation as afterPhase (code review 2026-10-09, 1.6): content
         // the snapshot refuses (an oversized file, an escaping link) disables
         // the checkpoint and the run goes on unasked, its backend untouched.
-        try { checkpointWorkspaceDigest(this.data.workspace); } catch (error) {
+        try { await this.workspaceDigest(); } catch (error) {
           this.finalizing();
           if (!this.options.automatic) throw error;
           this.options.warn?.('Durable continuation unavailable: workspace snapshot could not be committed; the client question was not asked');
@@ -505,7 +535,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
         this.data.worker = this.options.worker?.();
         this.data.consumed = this.options.account();
         this.data.remainingMs = Math.max(0, this.options.deadlineAt - Date.now());
-        this.store.boundary(this.data, this.owner, question);
+        await this.sealBoundary(question);
         this.state = 'ready';
         this.paused = true;
         const last = this.data.completed.at(-1);
@@ -580,7 +610,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
       if (pausing) {
         // Unsupported content keeps the run going on its live backend; only a
         // sealable tree is worth stopping the run's processes for.
-        checkpointWorkspaceDigest(this.data.workspace);
+        await this.workspaceDigest();
         stopping = true;
         await this.quiesce();
       }
@@ -589,7 +619,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
       this.data.consumed = this.options.account();
       this.data.remainingMs = Math.max(0, this.options.deadlineAt - Date.now());
       this.state = 'ready';
-      this.store.boundary(this.data, this.owner);
+      await this.sealBoundary();
     } catch (error) {
       this.finalizing();
       // A drained backend cannot carry the run further.
@@ -623,7 +653,29 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     this.state = 'finished';
     this.active = false;
   }
-  release(): void {
+  private workspaceDigest(): Promise<string> {
+    return this.options.workspace?.checkpointDigest() ?? Promise.resolve(checkpointWorkspaceDigest(this.data.workspace));
+  }
+
+  private async sealBoundary(question?: ClientQuestion): Promise<void> {
+    if (!this.options.workspace) { this.store.boundary(this.data, this.owner, question); return; }
+    const exporting = await this.options.workspace.checkpointExport();
+    let receiver: CheckpointReceiver | undefined;
+    let snapshot: { id: string; digest: string };
+    try {
+      receiver = this.store.receiveWorkspace(this.data, this.owner, exporting.header);
+      for await (const frame of exporting.frames()) {
+        if (frame.kind === 'entry') receiver.begin(frame.entry);
+        else receiver.append(frame.offset, frame.bytes);
+      }
+      snapshot = receiver.finish();
+    } catch (error) { receiver?.abort(); throw error; }
+    finally { await exporting.close(); }
+    this.store.boundaryFromSnapshot(this.data, this.owner, snapshot, question);
+  }
+
+  release(): void | Promise<void> {
+    if (this.options.workspace) return this.releaseRemote();
     if (this.state === 'ready') {
       if (checkpointWorkspaceDigest(this.data.workspace) !== this.data.workspaceDigest) {
         this.finalizing();
@@ -631,6 +683,15 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
       }
       this.store.write(this.data, this.owner, 'ready', true);
     }
+  }
+
+  private async releaseRemote(): Promise<void> {
+    if (this.state !== 'ready') return;
+    if (await this.workspaceDigest() !== this.data.workspaceDigest) {
+      this.finalizing();
+      throw new Error('Workspace changed during shutdown; checkpoint cannot be resumed');
+    }
+    this.store.write(this.data, this.owner, 'ready', true);
   }
 }
 

@@ -309,7 +309,8 @@ load-bearing.
 - Every execution of a read-only phase — the child's, a branch's, the
   parent's fallback, a compiled script's — runs between a host photograph of
   the workspace and its restoration (`withinReadOnlyPhase` through
-  `SupervisionHooks.aroundExecute`, once, where the phase starts; host half in
+  `SupervisionHooks.aroundExecute`, once, where the phase starts; both begin
+  and end are awaited across the private workspace boundary; implementation in
   [src/run](../run/AGENTS.md)). The mark itself inherits: every task below
   the phase is `readOnly` too, so its validators read `READ_ONLY_TASK_LINE`, a
   failed final validation is a review finding (`read-only-validation-failed`)

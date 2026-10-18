@@ -413,7 +413,7 @@ export async function withinReadOnlyPhase<R extends Result | null>(
   const recorded = (): readonly AttestationRecord[] => (ctx.attestations?.forAttempt(attempt) ?? []).slice(recordedBefore);
   const end = async () => {
     const records = recorded();
-    const restoration = guard.end({
+    const restoration = await guard.end({
       observations: records.map((record) => record.eventId),
       writes: requestedPaths(records, ['write_file', 'edit_file'], 'path'),
       serverEntries: requestedPaths(records, ['start_node_server'], 'entry'),
@@ -428,7 +428,7 @@ export async function withinReadOnlyPhase<R extends Result | null>(
     if (restoration.paths.some((path) => path.restored)) await stopServersStarted(ctx, records);
     return restoration;
   };
-  const guard = phases.begin(task.description, attempt);
+  const guard = await phases.begin(task.description, attempt);
   let result: R;
   try {
     result = await execute();

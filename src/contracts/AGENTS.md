@@ -13,6 +13,16 @@ Neighbours:
 - [`src/platform`](../platform/AGENTS.md) — the closed event-kind vocabulary
 - [`src/atoms`](../atoms/AGENTS.md) — the plan and verdict shapes
 
+## Workspace control protocol
+
+`workspaceProtocol.ts` is a private runtime channel, separate from
+`workerProtocol.ts` and all element declarations. It has no caller-selected
+root or arbitrary command. Replies reuse the owning evidence schemas; guards
+are opaque service-local handles. Snapshot bytes and filesystem identities
+never ride in a guard reply. `checkpointTransfer.ts` defines bounded chunks
+and portable relative paths; its receiver reuses the local checkpoint digest
+encoding instead of inventing a second snapshot identity.
+
 ## Schemas and examples
 
 - Contract examples are parsed at module load. A schema/example mismatch must

@@ -585,11 +585,11 @@ describe('the host replay of a run', () => {
     expect(marked).toContain('"deadSince"');
     // The restart's seed copy writes back the manifest the replay read.
     writeFileSync(join(root, '.atoma-probes.json'), raw);
-    runtime.reseeded();
+    await runtime.reseeded();
     expect(readFileSync(join(root, '.atoma-probes.json'), 'utf8')).toBe(marked);
     const other = manifest([web(LONG_BREAK)]);
     writeFileSync(join(root, '.atoma-probes.json'), other);
-    runtime.reseeded();
+    await runtime.reseeded();
     expect(readFileSync(join(root, '.atoma-probes.json'), 'utf8')).toBe(other);
   });
 

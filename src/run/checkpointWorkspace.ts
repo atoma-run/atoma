@@ -1,9 +1,18 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID, type Hash } from 'node:crypto';
 import { constants, closeSync, fstatSync, lstatSync, openSync, readSync, readdirSync, readlinkSync, realpathSync, mkdirSync, writeFileSync, symlinkSync, chmodSync, renameSync, rmSync, existsSync } from 'node:fs';
 import { join, relative, resolve, isAbsolute, dirname } from 'node:path';
 import type Database from 'better-sqlite3';
 import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
 export interface SnapshotEntry { path: string; kind: 'directory' | 'file' | 'symlink'; mode: number; content: Buffer }
+/** One digest encoding for local capture and streamed checkpoint import. */
+export function hashCheckpointEntry(hash: Hash, entry: SnapshotEntry): void {
+  if (entry.kind === 'directory') hash.update(JSON.stringify(['directory', entry.path, entry.mode]));
+  else if (entry.kind === 'symlink') hash.update(JSON.stringify(['symlink', entry.path, entry.content.toString(), entry.mode]));
+  else {
+    hash.update(JSON.stringify(['file', entry.path, entry.mode, entry.content.length]));
+    hash.update(entry.content);
+  }
+}
 /** Seal every entry, including scratch and dependencies. No filtered publication inventory; relative internal links keep their identity. */
 export function checkpointWorkspaceDigest(root: string, entry?: (value: SnapshotEntry) => void): string {
   if (realpathSync(root) !== resolve(root) || !lstatSync(root).isDirectory()) {
@@ -28,7 +37,7 @@ export function checkpointWorkspaceDigest(root: string, entry?: (value: Snapshot
         throw new Error('Checkpoint workspace exceeds entry/path limits');
       }
       if (stat.isDirectory()) {
-        hash.update(JSON.stringify(['directory', rel, stat.mode]));
+        hashCheckpointEntry(hash, { path: rel, kind: 'directory', mode: stat.mode, content: Buffer.alloc(0) });
         entry?.({ path: rel, kind: 'directory', mode: stat.mode, content: Buffer.alloc(0) });
         visit(path, logicalPath);
       } else if (stat.isFile() && stat.nlink === 1) {
@@ -54,8 +63,7 @@ export function checkpointWorkspaceDigest(root: string, entry?: (value: Snapshot
           if (length !== stat.size || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs) {
             throw new Error('Checkpoint workspace changed while reading');
           }
-          hash.update(JSON.stringify(['file', rel, stat.mode, length]));
-          hash.update(data.subarray(0, length));
+          hashCheckpointEntry(hash, { path: rel, kind: 'file', mode: stat.mode, content: data.subarray(0, length) });
           entry?.({ path: rel, kind: 'file', mode: stat.mode, content: data.subarray(0, length) });
         } finally { closeSync(fd); }
       } else if (stat.isSymbolicLink()) {
@@ -64,7 +72,7 @@ export function checkpointWorkspaceDigest(root: string, entry?: (value: Snapshot
         if (isAbsolute(target) || resolved === '..' || resolved.startsWith('../') || isAbsolute(resolved)) {
           throw new Error('Checkpoint workspace contains an escaping link or special file');
         }
-        hash.update(JSON.stringify(['symlink', rel, target, stat.mode]));
+        hashCheckpointEntry(hash, { path: rel, kind: 'symlink', mode: stat.mode, content: Buffer.from(target) });
         entry?.({ path: rel, kind: 'symlink', mode: stat.mode, content: Buffer.from(target) });
       } else throw new Error('Checkpoint workspace contains a link or special file');
     }
@@ -78,7 +86,10 @@ export function initializeCheckpointWorkspaces(db: Database.Database): void {
   db.exec(`CREATE TABLE IF NOT EXISTS run_checkpoint_files (
     snapshot TEXT NOT NULL, path TEXT NOT NULL, kind TEXT NOT NULL, mode INTEGER NOT NULL,
     content BLOB NOT NULL, PRIMARY KEY(snapshot,path)
-  ); CREATE TABLE IF NOT EXISTS run_checkpoint_snapshots (id TEXT PRIMARY KEY, digest TEXT NOT NULL, root_mode INTEGER NOT NULL DEFAULT 493)`);
+  ); CREATE TABLE IF NOT EXISTS run_checkpoint_snapshots (id TEXT PRIMARY KEY, digest TEXT NOT NULL, root_mode INTEGER NOT NULL DEFAULT 493);
+  CREATE TABLE IF NOT EXISTS run_checkpoint_transfers (
+    snapshot TEXT PRIMARY KEY, checkpoint_id TEXT, owner TEXT, expires_at INTEGER NOT NULL
+  )`);
   if (!(db.prepare('PRAGMA table_info(run_checkpoint_snapshots)').all() as { name: string }[]).some(c => c.name === 'root_mode')) {
     db.exec('ALTER TABLE run_checkpoint_snapshots ADD COLUMN root_mode INTEGER NOT NULL DEFAULT 493');
   }

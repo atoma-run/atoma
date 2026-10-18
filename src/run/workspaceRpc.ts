@@ -1,0 +1,119 @@
+import { randomUUID } from 'node:crypto';
+import type { WorkspaceRuntime, RuntimePhaseGuard } from '../contracts/workspaceRuntime.js';
+import { workspaceCommandSchema, workspaceReplySchema, type WorkspaceCommand, type WorkspaceReply } from '../contracts/workspaceProtocol.js';
+import type { ReadOnlyRestoration } from '../contracts/readOnlyPhase.js';
+import type { CheckpointExport, CheckpointExportFrame } from '../contracts/checkpointTransfer.js';
+
+/** Lives beside the filesystem, outside the model-controlled worker process. */
+export function workspaceCommandHandler(runtime: WorkspaceRuntime): (input: unknown) => Promise<WorkspaceReply> {
+  const guards = new Map<string, Promise<RuntimePhaseGuard>>();
+  const exports = new Map<string, { snapshot: CheckpointExport; frames: AsyncGenerator<CheckpointExportFrame>; expiresAt: number }>();
+  return async input => {
+    const command = workspaceCommandSchema.parse(input);
+    for (const [handle, exporting] of exports) {
+      if (Date.now() >= exporting.expiresAt) { await exporting.snapshot.close(); exports.delete(handle); }
+    }
+    switch (command.method) {
+      case 'checkpoint-digest': return { method: command.method, value: await runtime.checkpointDigest() };
+      case 'checkpoint-open': {
+        if (exports.size) throw new Error('A checkpoint export is already active');
+        const snapshot = await runtime.checkpointExport();
+        const handle = randomUUID();
+        exports.set(handle, { snapshot, frames: snapshot.frames(), expiresAt: Date.now() + 30 * 60_000 });
+        return { method: command.method, value: { handle, header: snapshot.header } };
+      }
+      case 'checkpoint-next': {
+        const exporting = exports.get(command.handle);
+        if (!exporting) throw new Error('Unknown checkpoint export');
+        const next = await exporting.frames.next();
+        if (next.done) { exports.delete(command.handle); return { method: command.method, value: { kind: 'end' } }; }
+        return { method: command.method, value: next.value.kind === 'entry' ? next.value
+          : { kind: 'chunk', offset: next.value.offset, data: Buffer.from(next.value.bytes).toString('base64') } };
+      }
+      case 'checkpoint-close': {
+        await exports.get(command.handle)?.snapshot.close(); exports.delete(command.handle);
+        return { method: command.method, value: null };
+      }
+      case 'inherited-state': return { method: command.method, value: await runtime.inheritedState() };
+      case 'replace-manifest': return { method: command.method, value: await runtime.replaceManifest(command.text, command.expected) };
+      case 'routing': return { method: command.method, value: await runtime.routingRepository() };
+      case 'delivered': return { method: command.method, value: await runtime.deliveredSnapshot(command.start) };
+      case 'capture-read-runs': await runtime.captureReadRuns(); return { method: command.method, value: null };
+      case 'check-read-runs': return { method: command.method, value: await runtime.checkReadRuns() };
+      case 'compare-read-runs': return { method: command.method, value: await runtime.compareReadRuns(command.criteria) };
+      case 'begin-read-only': {
+        // Read-only phases are sequential. An overlap could undo another phase's work.
+        if (guards.size) throw new Error('A read-only workspace phase is already active');
+        const handle = randomUUID();
+        const guard = runtime.readOnlyPhases.begin(command.phase, command.attempt);
+        guards.set(handle, guard);
+        try { await guard; }
+        catch (error) { guards.delete(handle); throw error; }
+        return { method: command.method, value: handle };
+      }
+      case 'end-read-only': {
+        const guard = guards.get(command.handle);
+        if (!guard) throw new Error('Unknown workspace phase');
+        const value = await (await guard).end(command.record);
+        guards.delete(command.handle);
+        return { method: command.method, value };
+      }
+    }
+  };
+}
+
+/** No photographs, file identities or file contents cross the read-only phase API. */
+type ReplyValues = { [R in WorkspaceReply as R['method']]: R['value'] };
+export function remoteWorkspaceRuntime(send: (command: WorkspaceCommand) => Promise<unknown>): WorkspaceRuntime {
+  async function call<C extends WorkspaceCommand>(command: C): Promise<ReplyValues[C['method']]> {
+    const reply = workspaceReplySchema.parse(await send(command));
+    if (reply.method !== command.method) throw new Error('Workspace response method mismatch');
+    return reply.value as ReplyValues[C['method']];
+  }
+  const restorations: ReadOnlyRestoration[] = [];
+  return {
+    checkpointDigest: () => call({ method: 'checkpoint-digest' }),
+    checkpointExport: async () => {
+      const { handle, header } = await call({ method: 'checkpoint-open' });
+      let closed = false;
+      let started = false;
+      const close = async () => {
+        if (closed) return;
+        closed = true;
+        await call({ method: 'checkpoint-close', handle });
+      };
+      return { header, close, async *frames() {
+        if (started || closed) throw new Error('Checkpoint export is closed');
+        started = true;
+        try {
+          while (!closed) {
+            const next = await call({ method: 'checkpoint-next', handle });
+            if (next.kind === 'end') { closed = true; return; }
+            yield next.kind === 'entry' ? next : { kind: 'chunk' as const, offset: next.offset, bytes: Buffer.from(next.data, 'base64') };
+          }
+        } finally { await close(); }
+      } };
+    },
+    inheritedState: () => call({ method: 'inherited-state' }),
+    replaceManifest: (text, expected) => call({ method: 'replace-manifest', text, expected }),
+    routingRepository: () => call({ method: 'routing' }),
+    deliveredSnapshot: start => call({ method: 'delivered', start }),
+    captureReadRuns: async () => { await call({ method: 'capture-read-runs' }); },
+    checkReadRuns: () => call({ method: 'check-read-runs' }),
+    compareReadRuns: criteria => call({ method: 'compare-read-runs', criteria }),
+    readOnlyPhases: {
+      restorations: () => restorations,
+      begin: async (phase, attempt) => {
+        const handle = await call({ method: 'begin-read-only', phase, attempt });
+        let ended: Promise<ReadOnlyRestoration> | undefined;
+        return { end: record => {
+          // Cache the promise, including failure: never replay an uncertain restore.
+          ended ??= call({ method: 'end-read-only', handle, record: record ?? {} }).then(value => {
+            restorations.push(value); return value;
+          });
+          return ended;
+        } };
+      },
+    },
+  };
+}

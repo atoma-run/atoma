@@ -207,6 +207,32 @@ Neighbours:
   exists, before any tool call (Docker Desktop moves the source's ctime)
   ([decision](../../docs/decisions/read-runs-2026-10-17.md)).
 
+## Workspace control boundary
+
+- `WorkspaceRuntime` is the private async capability for routing evidence,
+  delivery comparisons, read-run identities, inherited manifest operations and
+  read-only guards. The runner awaits it; synchronous library contexts remain
+  supported. `localWorkspaceRuntime` owns the existing filesystem algorithms.
+- `workspaceService` serves the same operations over a versioned, bounded
+  protocol in a separate process. It is never a model-facing tool or part of
+  the element worker. `workspaceProcess` exercises that boundary locally;
+  `startTask` accepts a trusted `workspaceRuntime` injection whose caller owns
+  teardown. This does NOT yet make the runner independent of a shared filesystem:
+  preparation, restart/deepening and final export still require integration.
+- Photographs and read-run inode identities stay in the workspace service.
+  Restore acknowledgements are never replayed after a transport failure.
+  The shipped bundle is `dist/workspace-service/service.mjs`, built from
+  compiled output; `docker/workspace.Dockerfile` packages that bundle alone.
+- Checkpoint imports buffer at most one bounded file. Unfinished imports have
+  no snapshot row. Transfer reservations protect bytes against concurrent
+  pruning for 30 minutes; attachment verifies the claimed checkpoint/owner,
+  digest and reservation inside the boundary transaction. Network waits never
+  hold that transaction. Expired reservations and orphaned bytes are pruned.
+- Sequential checkpoints can seal through the workspace capability after
+  process drain. Stable bytes are spooled privately on the execution host,
+  streamed in bounded chunks and attached atomically; release verifies the
+  execution-host digest without reading the host workspace path.
+
 ## Platform run limits
 
 - The runner reads the instance's run limits from the product store at launch

@@ -377,7 +377,7 @@ export interface InheritedChecksRuntime {
    * After `ready`, once a deepening copied the seed back: puts the run-start
    * replay's dead marks on the manifest again, when it is the one it read.
    */
-  reseeded(): void;
+  reseeded(): void | Promise<void>;
 }
 
 /* ─────────────────────── what the acceptor reads ─────────────────────── */
