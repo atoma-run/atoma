@@ -24,6 +24,7 @@ export async function connectComputeWorkspace(options: {
   execute?: (command: WorkspaceCommand) => Promise<WorkspaceReply>;
   preview?: (identity: ComputePreviewIdentity, command: ComputePreviewCommand) => Promise<unknown>;
   stopWorkloads: () => Promise<void>;
+  onDisconnect?: () => void;
   tools?: ToolExecutor & { drain(): Promise<void> };
   /** Optional deployment CA; certificate and hostname validation remain enabled. */
   ca?: string;
@@ -58,6 +59,7 @@ export async function connectComputeWorkspace(options: {
     if (!closed) {
       closed = true; transferAbort.abort(); clearInterval(heartbeat); clearTimeout(deadline);
       if (control) { clearTimeout(control.timer); control.reject(new Error('Compute control indeterminate')); control = undefined; }
+      try { options.onDisconnect?.(); } catch { /* UI observers cannot prevent teardown. */ }
       socket.terminate(); rejectReady(new Error('Compute connection lost; reconciliation required'));
     }
     return lease.stop().then(confirmed => { resolveFinished(confirmed); return confirmed; });

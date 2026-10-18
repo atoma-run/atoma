@@ -13,7 +13,7 @@ const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
 let output: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   mocks.home = realpathSync(mkdtempSync(join(tmpdir(), 'compute-cli-')));
-  Object.defineProperty(process, 'platform', { value: 'darwin' });
+  Object.defineProperty(process, 'platform', { value: originalPlatform.value === 'win32' ? 'win32' : 'darwin' });
   output = vi.spyOn(console, 'log').mockImplementation(() => {});
   mocks.save.mockReset(); mocks.pull.mockReset(); mocks.diagnose.mockReset();
 });

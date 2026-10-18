@@ -15,7 +15,8 @@
     "benchmark/**/*.mjs",
     "benchmark/**/*.ts",
     "eslint.config.js",
-    "*.config.ts"
+    "*.config.ts",
+    "desktop/**/*.cjs"
   ],
   "exclude": [
     "node_modules",

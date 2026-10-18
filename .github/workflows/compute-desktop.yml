@@ -1,0 +1,114 @@
+name: Compute desktop
+on:
+  workflow_dispatch:
+    inputs:
+      signed:
+        description: Sign and notarize installers (requires configured signing secrets)
+        type: boolean
+        default: false
+      publish:
+        description: Publish the signed stable desktop release
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            platform: mac
+            architecture: arm64
+          - runner: macos-15-intel
+            platform: mac
+            architecture: x64
+          - runner: windows-latest
+            platform: win
+            architecture: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    env:
+      ATOMA_COMPUTE_SIGNED: ${{ inputs.signed && '1' || '0' }}
+      ATOMA_COMPUTE_ARCH: ${{ matrix.architecture }}
+      CSC_LINK: ${{ matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_LINK || secrets.ATOMA_WINDOWS_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_PASSWORD || secrets.ATOMA_WINDOWS_CSC_PASSWORD }}
+      APPLE_API_KEY_CONTENT: ${{ secrets.ATOMA_APPLE_API_KEY }}
+      APPLE_API_KEY_ID: ${{ secrets.ATOMA_APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.ATOMA_APPLE_API_ISSUER }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+          cache: npm
+      - name: Check release authorization and signing configuration
+        shell: bash
+        env:
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          if [[ "$PUBLISH" == true && "$ATOMA_COMPUTE_SIGNED" != 1 ]]; then
+            echo 'Unsigned installers cannot be published as the stable desktop release'; exit 1
+          fi
+          if [[ "$ATOMA_COMPUTE_SIGNED" == 1 && -z "$CSC_LINK" ]]; then
+            echo 'Configure the platform signing certificate before a signed build'; exit 1
+          fi
+      - name: Provision notarization key
+        if: inputs.signed && matrix.platform == 'mac'
+        shell: bash
+        run: |
+          test -n "$APPLE_API_KEY_CONTENT" && test -n "$APPLE_API_KEY_ID" && test -n "$APPLE_API_ISSUER"
+          key="$RUNNER_TEMP/atoma-notarization.p8"
+          umask 077
+          printf '%s' "$APPLE_API_KEY_CONTENT" > "$key"
+          echo "APPLE_API_KEY=$key" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: node node_modules/electron/install.js
+      - run: npm run typecheck
+      - run: npx vitest run tests/compute-desktop.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
+      - run: npm run compute:desktop:build
+      - run: node scripts/compute-desktop-smoke.mjs
+      - name: Package native installer
+        shell: bash
+        run: npx electron-builder --config desktop/electron-builder.cjs --${{ matrix.platform }} --${{ matrix.architecture }} --publish never
+      - name: Remove notarization key
+        if: always() && matrix.platform == 'mac'
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/atoma-notarization.p8"
+      - name: Create download checksums
+        run: node scripts/compute-desktop-checksums.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compute-desktop-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: |
+            dist/compute-installers/*.dmg
+            dist/compute-installers/*.zip
+            dist/compute-installers/*.exe
+            dist/compute-installers/*.blockmap
+            dist/compute-installers/latest*.yml
+            dist/compute-installers/*.sha256
+          if-no-files-found: error
+  publish:
+    if: inputs.publish && inputs.signed
+    needs: desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: compute-desktop-*
+          path: installers
+          merge-multiple: true
+      - name: Publish verified signed desktop assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          cd installers
+          for checksum in *.sha256; do sha256sum -c "$checksum"; done
+          gh release view compute-desktop-stable >/dev/null 2>&1 || gh release create compute-desktop-stable --target "$REVISION" --title 'Atoma Compute' --notes 'Signed Atoma Compute installers for macOS and Windows. Docker Desktop is required.' --latest=false
+          gh release upload compute-desktop-stable ./* --clobber

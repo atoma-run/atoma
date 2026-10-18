@@ -34,7 +34,7 @@ export class ComputeMachine {
   allocations() { return this.inventory.list(); }
   transferProgress() { return this.transfers.list(); }
   diskStatus() { return { freeBytes: this.freeDisk ?? null, reserveBytes: COMPUTE_DISK_RESERVE_BYTES }; }
-  connect(options: { url: string; credential: string; capabilities: ComputeCapabilities; ca?: string }) {
+  connect(options: { url: string; credential: string; capabilities: ComputeCapabilities; ca?: string; onDisconnect?: () => void }) {
     // A new socket is allowed only after the old lease's engine teardown.
     // The inventory lock remains held; no previous execution is reactivated.
     if (!this.closed && this.connection?.state() === 'stopped') {
@@ -45,7 +45,7 @@ export class ComputeMachine {
     this.connecting = true;
     return this.connectionAttempt = this.startConnection(options);
   }
-  private async startConnection(options: { url: string; credential: string; capabilities: ComputeCapabilities; ca?: string }) {
+  private async startConnection(options: { url: string; credential: string; capabilities: ComputeCapabilities; ca?: string; onDisconnect?: () => void }) {
     try {
       await DesktopCompute.reconcile(this.inventory.machineId(), this.options.workerImage);
       for (const row of this.inventory.list()) this.inventory.stopped(row.execution);

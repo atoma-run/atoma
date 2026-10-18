@@ -339,3 +339,14 @@ capability cross RPC. The browser image, persistent profile, private desktop and
 public-only egress proxy are fixed by the host. CDP/VNC never publish ports. Source is
 read-only; per-project `/data` survives every stop. No deletion API exists.
 See [project hosting](../../docs/project-hosting.md) for supported limitations.
+
+## Desktop companion
+
+`desktopApp/` packages Electron around `computeApplication.ts`, the same lifecycle
+used by the CLI. Only its utility process imports the engine-owning launcher.
+The bundled renderer is sandboxed, isolated, has no Node or network access, and
+uses the closed `contracts/computeDesktop.ts` IPC. Main validates the sender frame
+and opens only fixed destinations or a validated one-use Atoma pairing URL.
+Closing hides the window; quitting/updates wait for confirmed workload teardown.
+Unsigned previews never install updates. Stable publication requires platform
+signatures and macOS notarization; images stay pinned in `computeImages.ts`.

@@ -106,6 +106,15 @@ describe('the Vite bundle boundary', () => {
     expect(Object.keys(result.metafile.inputs).some(path => path.endsWith('/locales/en.json'))).toBe(true);
   });
 
+  it.each(['main.ts', 'renderer.tsx'])('bundles desktop %s independently of Vite output', async entry => {
+    const result = await build({ entryPoints: [`src/launcher/desktopApp/${entry}`], bundle: true,
+      platform: entry === 'main.ts' ? 'node' : 'browser', format: 'cjs', target: 'es2022', write: false, metafile: true,
+      external: ['electron'], loader: { '.css': 'empty' }, outdir: 'out', define: { DESKTOP_SIGNED: 'false' } });
+    const imports = Object.values(result.metafile.outputs).flatMap(output => output.imports);
+    expect(imports.filter(value => value.path.startsWith('.') || value.path.includes('/viz/'))).toEqual([]);
+    expect(Object.keys(result.metafile.inputs).some(path => path.endsWith('/locales/en.json'))).toBe(true);
+  });
+
   it('has no server-side runtime import from src/viz/client/', () => {
     const offenders: string[] = [];
     for (const file of sourceFiles('src')) {
@@ -118,6 +127,8 @@ describe('the Vite bundle boundary', () => {
       // Explicit server bundle: viz-build packages this route and its JSON
       // catalogs outside client/. The release smoke imports and renders the
       // packaged route after Vite, and the closure test below bars React.
+      // Electron has its own explicit bundles; their closures are exercised below.
+      if (normalised === 'src/launcher/desktopApp/main.ts' || normalised === 'src/launcher/desktopApp/renderer.tsx') continue;
       if (normalised === 'src/viz/push/routes.ts' || normalised === 'src/viz/computeCopy.ts') continue;
       for (const specifier of runtimeImportSpecifiers(readFileSync(file, 'utf8'))) {
         if (!specifier.startsWith('.')) continue;

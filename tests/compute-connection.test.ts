@@ -774,3 +774,21 @@ it.skipIf(!process.env['ATOMA_TEST_WORKSPACE_IMAGE'] || !process.env['ATOMA_TEST
       if (volumes.length) docker(['volume', 'rm', ...volumes]);
     }
   }, 90_000);
+
+
+it('reports connection loss to the desktop before engine teardown has completed', async () => {
+  const owner = actor(), paired = pairing(owner);
+  let finish!: () => void;
+  const cleanup = new Promise<void>(resolve => { finish = resolve; });
+  const disconnected = vi.fn();
+  const connection = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    execution: { runId: randomUUID(), generation: 1 }, ca: readFileSync(join(root, 'cert'), 'utf8'),
+    execute: async () => { throw new Error('Unreachable'); }, onDisconnect: disconnected, stopWorkloads: () => cleanup });
+  const stopped = vi.fn();
+  const closure = connection.close().then(stopped);
+  try {
+    expect(disconnected).toHaveBeenCalledOnce(); expect(stopped).not.toHaveBeenCalled();
+    expect(connection.state()).toBe('stopping');
+  } finally { finish(); await closure; }
+  expect(stopped).toHaveBeenCalledWith(true);
+});

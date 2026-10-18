@@ -83,10 +83,14 @@ export class DesktopCompute {
     });
   }
 
-  static async pullImages(config: Pick<ComputeClientSettings, 'workspaceImage' | 'workerImage' | 'retrievalImage' | 'previewImage'>): Promise<void> {
-    for (const reference of [image.parse(config.workspaceImage), image.parse(config.workerImage), ...(config.retrievalImage ? [image.parse(config.retrievalImage)] : []), ...(config.previewImage ? [image.parse(config.previewImage)] : [])]) {
-      if (reference.includes('@')) await exec('docker', ['pull', reference], { timeout: 15 * 60_000, maxBuffer: 1024 * 1024 });
+  static async pullImages(config: Pick<ComputeClientSettings, 'workspaceImage' | 'workerImage' | 'retrievalImage' | 'previewImage'>, progress?: (completed: number, total: number) => void, signal?: AbortSignal): Promise<void> {
+    const images = [image.parse(config.workspaceImage), image.parse(config.workerImage), ...(config.retrievalImage ? [image.parse(config.retrievalImage)] : []), ...(config.previewImage ? [image.parse(config.previewImage)] : [])];
+    let completed = 0; progress?.(completed, images.length);
+    for (const reference of images) {
+      signal?.throwIfAborted();
+      if (reference.includes('@')) await exec('docker', ['pull', reference], { timeout: 15 * 60_000, maxBuffer: 1024 * 1024, signal });
       else await docker(['image', 'inspect', reference]);
+      progress?.(++completed, images.length);
     }
   }
   static async diagnoseClient(config: Pick<ComputeClientSettings, 'workspaceImage' | 'workerImage' | 'retrievalImage' | 'previewImage'>) {
