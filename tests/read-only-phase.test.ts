@@ -518,7 +518,8 @@ describe('a read-only phase in a run', () => {
         aggregation: { mode: 'concat' }, expectedOutput: 'interfaces' } as unknown };
     const { llm: base, validations } = roleLlm(options);
     let plans = 0, active = 0, peak = 0;
-    const concurrent = Promise.withResolvers<void>();
+    let releaseConcurrent!: () => void;
+    const concurrent = new Promise<void>(resolve => { releaseConcurrent = resolve; });
     const prompts: string[] = [];
     const llm: RunContext['llm'] = { complete: async req => {
       if (req.role === 'plan' && req.actor?.tier === 3 && ++plans === 2) {
@@ -535,8 +536,8 @@ describe('a read-only phase in a run', () => {
         prompts.push(req.userContent);
         if (plans === 1) {
           peak = Math.max(peak, ++active);
-          if (active === branches) concurrent.resolve();
-          await concurrent.promise;
+          if (active === branches) releaseConcurrent();
+          await concurrent;
           active--;
         }
       }
