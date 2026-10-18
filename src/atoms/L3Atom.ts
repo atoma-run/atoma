@@ -517,9 +517,16 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       // synthesis dropped the scheduler interface a branch had read, the replan
       // could not inspect again, and three plans tested invented adapters.
       const inspection: Plan = { ...approved.plan, aggregation: { mode: 'concat' } };
-      const discovery = await this.execute({ ...task, readOnly: true,
+      const discoveryTask: Task = { ...task, readOnly: true,
         criteria: task.criteria?.map(item => ({ ...item, unassigned: true })),
-      }, inspection, { ...ctx, rootCheckpoint: undefined });
+      };
+      // Discovery branches share one workspace and may overlap. Photograph
+      // the whole group once and restore after dispatch has joined every
+      // branch. Per-branch restoration would undo a sibling's live work; the
+      // remote workspace correctly refuses overlapping guards.
+      const discovery = await withinReadOnlyPhase(ctx, discoveryTask, () => this.execute(
+        discoveryTask, inspection, { ...ctx, rootCheckpoint: undefined, readOnlyPhases: undefined }
+      ));
       if (discovery.refusal || discovery.unfinishedPhases?.length || parentTestFindings(discovery).reject.length > 0) return discovery;
       currentTask = { ...task, inputs: { ...task.inputs, repositoryDiscovery: discoveryInputs(inspection, discovery) } };
       approved = await this.prepareRootDelegation(currentTask, ctx, false);

@@ -36,8 +36,8 @@ Neighbours:
   Missing classified suites or parallel branches block dispatch even beside
   approved:true. Three root attempts (a plan parse failure counts); no unreviewed
   fallback. L3 `replanAfter:true` is read-only discovery, once, then the host
-  replans; never a checkpoint prefix. Output-collision coaching runs first; its
-  fail-open result is still reviewed. Never coerce concat to sequential.
+  replans; never a checkpoint prefix. Parallel discovery shares one photograph, restored after every branch settles.
+  Output-collision coaching runs first; its fail-open result is still reviewed. Never coerce concat to sequential.
 - Escalation branches a type and toggles parent fallback in a `try/finally`.
   Persist capability prompts only; task text, seed instructions and diagnostics
   belong to the current instance. Validator diagnostics are fallible evidence.

@@ -22,6 +22,7 @@ import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
+import { startWorkspaceProcess } from '../src/run/workspaceProcess.js';
 import { withinReadOnlyPhase } from '../src/atoms/dispatch.js';
 import { acceptRootResult, observedLayoutsBlock } from '../src/atoms/rootAcceptance.js';
 import { attestingExecutor, createAttestationLog } from '../src/core/attestation.js';
@@ -509,14 +510,15 @@ const fixThenVerify = (l2: string, mode: 'sequential' | 'concat' = 'sequential')
 });
 
 describe('a read-only phase in a run', () => {
-  it('restores a single discovery branch before replanning and keeps root criteria contextual until implementation', async () => {
+  it.each([1, 2])('restores %i discovery branches through the workspace process before replanning', async (branches) => {
     const { reg, l3Type, l2Type, l1Type } = registryWithTiers();
     const root = workspace({ 'index.html': 'seeded bytes' });
     const options = { l2: l2Type.name, l1: l1Type.name, l2Prefilter: 'reuse' as const,
-      l3Plan: { reasoning: 'inspect first', replanAfter: true, subtasks: [{ description: 'inspect exports', preferredChild: l2Type.name }],
-        aggregation: { mode: 'sequential' }, expectedOutput: 'interfaces' } as unknown };
+      l3Plan: { reasoning: 'inspect first', replanAfter: true, subtasks: Array.from({ length: branches }, (_, i) => ({ description: `inspect exports ${i}`, preferredChild: l2Type.name })),
+        aggregation: { mode: 'concat' }, expectedOutput: 'interfaces' } as unknown };
     const { llm: base, validations } = roleLlm(options);
-    let plans = 0;
+    let plans = 0, active = 0, peak = 0;
+    const concurrent = Promise.withResolvers<void>();
     const prompts: string[] = [];
     const llm: RunContext['llm'] = { complete: async req => {
       if (req.role === 'plan' && req.actor?.tier === 3 && ++plans === 2) {
@@ -527,21 +529,33 @@ describe('a read-only phase in a run', () => {
       }
       if (req.role === 'validate-plan' && req.userContent.includes('== REQUIRED DELEGATION CONTRACT REVIEW ==') &&
           req.userContent.includes('"replanAfter":true')) return { ...reply({ approved: true, reasoning: 'discovery only', delegationReview: {
-        subtasks: [{ index: 0, kind: 'inspection', reason: 'inspect exports only' }], integration: { kind: 'inspection', reason: 'read-only discovery' },
-        independentWork: false, parallelReason: 'one inspection' } }), stopReason: 'end_turn' };
-      if (req.role === 'execute') prompts.push(req.userContent);
+        subtasks: Array.from({ length: branches }, (_, index) => ({ index, kind: 'inspection', reason: 'inspect exports only' })), integration: { kind: 'inspection', reason: 'read-only discovery' },
+        independentWork: branches > 1, parallelReason: 'independent inspections' } }), stopReason: 'end_turn' };
+      if (req.role === 'execute') {
+        prompts.push(req.userContent);
+        if (plans === 1) {
+          peak = Math.max(peak, ++active);
+          if (active === branches) concurrent.resolve();
+          await concurrent.promise;
+          active--;
+        }
+      }
       return base.complete(req);
     } };
-    const ctx = runCtx(root, llm);
-    await L3Atom.buildWithModel(l3Type, reg, FALLBACK_OPUS).handle({ description: 'Build the application',
-      criteria: [{ id: 'c1', source: 'user', behaviour: 'The completed application works' }] }, ctx);
-    expect(plans).toBe(2);
-    expect(validations.some(text => text.includes('Task: inspect exports') && text.includes(READ_ONLY_TASK_LINE))).toBe(true);
-    expect(prompts[0]).not.toContain('Acceptance criteria this phase must prove');
-    expect(prompts[1]).not.toContain(READ_ONLY_TASK_LINE);
-    expect(prompts[1]).toContain('Acceptance criteria this phase must prove');
-    expect(read(root, 'index.html')).toBe('written by: build the reviewed page');
-    expect(ctx.readOnlyPhases!.restorations()).toHaveLength(1);
+    const process = startWorkspaceProcess({ root });
+    const ctx = { ...runCtx(root, llm), readOnlyPhases: process.runtime.readOnlyPhases };
+    try {
+      await L3Atom.buildWithModel(l3Type, reg, FALLBACK_OPUS).handle({ description: 'Build the application',
+        criteria: [{ id: 'c1', source: 'user', behaviour: 'The completed application works' }] }, ctx);
+      expect(plans).toBe(2);
+      expect(peak).toBe(branches);
+      expect(validations.some(text => text.includes('Task: inspect exports') && text.includes(READ_ONLY_TASK_LINE))).toBe(true);
+      expect(prompts[0]).not.toContain('Acceptance criteria this phase must prove');
+      expect(prompts[branches]).not.toContain(READ_ONLY_TASK_LINE);
+      expect(prompts[branches]).toContain('Acceptance criteria this phase must prove');
+      expect(read(root, 'index.html')).toBe('written by: build the reviewed page');
+      expect(ctx.readOnlyPhases.restorations()).toHaveLength(1);
+    } finally { await process.close(); }
   });
 
   it("puts back what the tissue's outputless phase wrote, before its result is judged, and credits its cell nothing (run 04ea696f)", async () => {
