@@ -144,3 +144,28 @@ it.skipIf(!workspaceImage || !workerImage)('recovers recorded volumes for export
     rmSync(state, { recursive: true, force: true });
   }
 }, 90_000);
+
+it.skipIf(!workspaceImage || !workerImage)('permits registry egress only through the isolated desktop proxy and reconciles its networks', async () => {
+  const machineId = randomUUID(), worker = await docker(['image', 'inspect', '--format', '{{.Id}}', workerImage!]);
+  const runtime = new DesktopCompute({ machineId, egress: true, workerImage: worker,
+    workspaceImage: await docker(['image', 'inspect', '--format', '{{.Id}}', workspaceImage!]) });
+  const filter = `label=dev.atoma.compute=${machineId}`;
+  try {
+    await runtime.open(); await runtime.command({ method: 'prepare', clean: false });
+    const allowed = await runtime.executor.execute('fetch_url', { url: 'https://registry.npmjs.org/left-pad/latest', timeoutMs: 20_000 });
+    expect(allowed).toMatchObject({ status: 200 });
+    const denied = await runtime.executor.execute('fetch_url', { url: 'http://host.docker.internal:4111/api/runs', timeoutMs: 3000 });
+    expect(denied).toMatchObject({ ok: false, error: expect.any(String) });
+    const workerId = await docker(['ps', '-q', '--filter', filter, '--filter', 'label=dev.atoma.compute.kind=worker']);
+    const bypass = await docker(['exec', workerId, 'node', '-e',
+      "const net=require('node:net');const s=net.connect(443,'1.1.1.1');s.on('connect',()=>{process.stdout.write('REACHED');s.destroy()});s.on('error',()=>process.stdout.write('DENIED'));s.setTimeout(2000,()=>{process.stdout.write('DENIED');s.destroy()})"]);
+    expect(bypass).toBe('DENIED');
+    await runtime.drain();
+    await DesktopCompute.reconcile(machineId, worker);
+  } finally {
+    await runtime.close();
+    await DesktopCompute.reconcile(machineId, worker);
+    const volumes = (await docker(['volume', 'ls', '-q', '--filter', filter])).split('\n').filter(Boolean);
+    if (volumes.length) await docker(['volume', 'rm', ...volumes]);
+  }
+}, 90_000);

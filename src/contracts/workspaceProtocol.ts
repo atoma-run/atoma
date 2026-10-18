@@ -1,3 +1,4 @@
+import { previewClassificationSchema } from './preview.js';
 import { z } from 'zod';
 import { readOnlyExecutionRecordSchema, readOnlyRestorationSchema } from './readOnlyPhase.js';
 import { startingSnapshotSchema, deliveredSnapshotSchema } from './startingWorkspace.js';
@@ -5,7 +6,7 @@ import { readRunCopyCheckSchema, readRunFileComparisonsSchema } from './readRuns
 import { routingRepositorySchema } from './tissueRouting.js';
 import { artifactManifestSchema } from './artifactInventory.js';
 import { inheritedWorkspaceStateSchema, workspaceSourceSchema, workspaceSourceBindingSchema, artifactExportOptionsSchema } from './workspaceRuntime.js';
-import { checkpointTransferHeaderSchema, checkpointWireFrameSchema } from './checkpointTransfer.js';
+import { checkpointConfirmationSchema, checkpointTransferHeaderSchema, checkpointWireFrameSchema } from './checkpointTransfer.js';
 
 export const WORKSPACE_PROTOCOL_VERSION = 1;
 export const WORKSPACE_FRAME_BYTES = 32 * 1024 * 1024;
@@ -22,7 +23,9 @@ export const workspaceCommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('ensure-read-runs') }).strict(),
   z.object({ method: z.literal('canonical-path') }).strict(),
   z.object({ method: z.literal('checkpoint-digest') }).strict(),
+  z.object({ method: z.literal('classify-preview') }).strict(),
   z.object({ method: z.literal('artifact-open'), options: artifactExportOptionsSchema }).strict(),
+  z.object({ method: z.literal('checkpoint-confirmed'), confirmation: checkpointConfirmationSchema }).strict(),
   z.object({ method: z.literal('checkpoint-open') }).strict(),
   z.object({ method: z.literal('checkpoint-next'), handle: z.string().uuid() }).strict(),
   z.object({ method: z.literal('checkpoint-close'), handle: z.string().uuid() }).strict(),
@@ -52,7 +55,9 @@ export const workspaceReplySchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('ensure-read-runs'), value: z.string().nullable() }).strict(),
   z.object({ method: z.literal('canonical-path'), value: z.string() }).strict(),
   z.object({ method: z.literal('checkpoint-digest'), value: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+  z.object({ method: z.literal('classify-preview'), value: previewClassificationSchema }).strict(),
   z.object({ method: z.literal('artifact-open'), value: z.object({ handle: z.string().uuid(), header: checkpointTransferHeaderSchema, manifest: artifactManifestSchema }).strict() }).strict(),
+  z.object({ method: z.literal('checkpoint-confirmed'), value: z.null() }).strict(),
   z.object({ method: z.literal('checkpoint-open'), value: z.object({ handle: z.string().uuid(), header: checkpointTransferHeaderSchema }).strict() }).strict(),
   z.object({ method: z.literal('checkpoint-next'), value: checkpointWireFrameSchema }).strict(),
   z.object({ method: z.literal('checkpoint-close'), value: z.null() }).strict(),

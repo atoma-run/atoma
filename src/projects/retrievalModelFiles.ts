@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { lstat, readdir } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, posix } from 'node:path';
 import type { ProjectRetrievalCallContext } from '../tools/projectRetrieval.js';
 import { assertRetrievalTime, projectRetrievalHash } from './retrievalCorpus.js';
 
@@ -15,7 +15,7 @@ export async function haystackModelRevision(root: string, context: ProjectRetrie
     const file = join(root, relative); const before = await lstat(file);
     if (before.isSymbolicLink()) throw new Error('model symlinks are not admitted');
     if (before.isDirectory()) {
-      for (const name of (await readdir(file)).filter(n => !n.startsWith('.')).sort()) await visit(join(relative, name));
+      for (const name of (await readdir(file)).filter(n => !n.startsWith('.')).sort()) await visit(posix.join(relative, name));
       return;
     }
     if (!before.isFile() || hashes.length >= 1000 || (bytes += before.size) > 4 * 1024 ** 3) throw new Error('model files exceed experiment limits');

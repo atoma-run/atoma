@@ -50,3 +50,36 @@ it('excludes a real second launcher and releases ownership on process death with
     try { expect(recovered.find(execution)?.state).toBe('unconfirmed'); } finally { recovered.close(); }
   } finally { child.kill('SIGKILL'); await exited; }
 });
+
+it('recovers only the same stopped run in a fresh execution generation', () => {
+  const inventory = new ComputeInventory(root()), old = { runId: randomUUID(), generation: 1 };
+  try {
+    const source = inventory.reserve(old); inventory.active(old);
+    expect(() => inventory.reserve({ ...old, generation: 2 }, old)).toThrow('reconciliation');
+    inventory.stopped(old);
+    expect(() => inventory.reserve({ runId: randomUUID(), generation: 2 }, old)).toThrow('earlier allocation');
+    expect(() => inventory.reserve({ ...old, generation: 0 }, old)).toThrow();
+    const recovered = inventory.reserve({ ...old, generation: 2 }, old);
+    expect(recovered.allocationId).toBe(source.allocationId);
+    expect(inventory.find(old)?.state).toBe('stopped');
+    expect(inventory.find(recovered.execution)?.state).toBe('allocating');
+  } finally { inventory.close(); }
+});
+
+it('retains only host-confirmed checkpoints across process restarts and fences stale confirmation', () => {
+  const path = root(), execution = { runId: randomUUID(), generation: 1 };
+  const confirmation = { snapshotId: randomUUID(), digest: 'a'.repeat(64), completed: 2, confirmedAt: new Date().toISOString() };
+  const inventory = new ComputeInventory(path);
+  inventory.reserve(execution);
+  expect(() => inventory.confirmCheckpoint(execution, confirmation)).toThrow('active');
+  inventory.active(execution);
+  inventory.confirmCheckpoint(execution, confirmation);
+  expect(() => inventory.confirmCheckpoint({ ...execution, generation: 2 }, confirmation)).toThrow('Unknown');
+  inventory.close();
+  const restored = new ComputeInventory(path);
+  try {
+    expect(restored.find(execution)).toMatchObject({ state: 'unconfirmed', checkpoint: confirmation });
+    restored.stopped(execution);
+    expect(() => restored.confirmCheckpoint(execution, confirmation)).toThrow('active');
+  } finally { restored.close(); }
+});

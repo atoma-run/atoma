@@ -124,3 +124,67 @@ resource sharing/disk bounds, persistent local recovery inventory, remote retrie
 and preview relay, Electron screens/secure credentials, signed multi-platform images
 and installers, and the preregistered capacity measurements. No admission increase
 or production activation is authorized by these tests.
+
+## Completed integration review, 2026-10-18
+
+This section supersedes the remaining-implementation list above. The coordinator,
+browser pairing, WSS endpoint, audit/rate limiting, headless secure credentials,
+local recovery inventory, resource/disk guards, remote retrieval, preview relay
+and project settings are now implemented. Electron and signed application
+installers are explicitly excluded by the owner.
+
+Additional failure boundaries checked during integration:
+
+- Finalization never replays an uncertain command. The host persists its result
+  before transfer; a fresh recovery generation only exports the retained copy.
+- A published checkpoint remains valid if its client notification is lost. The
+  client displays only the confirmation it actually received and persisted.
+- Preview stream slots release on idle expiry. Terminal origin/grant checks run
+  before either hosted or remote forwarding, and arbitrary local ports are not
+  expressible in the remote contract.
+- Shared static byte policy initially imported the broad project contract, which
+  pulled model catalogue modules into the preview bundle. The minimal artifact
+  contract replaces that import; closure tests enforce the absence of control
+  modules while retaining one implementation of the filesystem jail.
+- Model content pins use POSIX relative paths on every OS. A nested-file test
+  fixes the cross-platform identity rather than accepting different Windows pins.
+- Reconnection refreshes resource diagnostics. A disk probe that completes after
+  a new connection cannot close that newer generation. Failed Docker cleanup
+  remains unconfirmed, including during low-disk shutdown.
+- Model staging is excluded from ordinary release archives. The derived retrieval
+  image is an explicit separate packaging operation, never a silent download.
+
+No test here establishes customer hardware as trustworthy for the global catalogue.
+Remote observations remain tainted; project delivery and independent shared-trust
+promotion are separate decisions. No capacity claim or admission uplift is made.
+
+The image workflow is called explicitly by the release workflow after source
+publication. It does not rely on a `release.published` event emitted by
+`GITHUB_TOKEN`, which would not trigger another workflow. Manual dispatch remains
+validation-only. Native image publication itself is still unexecuted locally.
+
+## Final local verification
+
+On macOS Apple Silicon / Docker Desktop Linux ARM64, with Node 24.20.0:
+
+- `npm run release:check:static`: passed, including documentation, both TypeScript
+  configurations, lint, audit (zero vulnerabilities), build and compiled smokes.
+- Full `npm test -- --maxWorkers=2`: 7,611 passed, 10 skipped; 528 passing files
+  and one wholly skipped file. All explicit worker/workspace/retrieval/hybrid/
+  preview test-image variables selected freshly rebuilt isolated images.
+- The full run includes 36 worker-isolation tests, 38 WSS connection/lifecycle
+  tests, actual BM25 and hybrid model execution, and all three Docker preview
+  modes. The gVisor-only preview suite remains skipped on Docker Desktop.
+- `npm run viz:smoke`: passed, including compiled TLS pairing, keyboard consent,
+  project grant/target selection, disconnected status, checkpoint recovery,
+  responsive project surfaces and WebGPU/WebGL paths. Desktop/mobile Compute
+  screenshots were visually inspected.
+- Workflow YAML syntax and staged/unstaged whitespace checks passed. No active
+  Compute-labelled Docker workload remained after the suite.
+
+The first full attempt exposed an obsolete preview COPY expectation and the
+existing fixed-delay asynchronous page smoke under load. The closure assertion
+was updated and strengthened; the browser assertion passed in isolation and in
+the complete two-worker run without relaxing its condition or timeout. These
+results do not represent a capacity benchmark, native Windows/Mac Intel testing,
+published image acceptance, or production activation.

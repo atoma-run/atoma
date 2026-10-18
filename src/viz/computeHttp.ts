@@ -39,7 +39,9 @@ export class ComputeHttp {
   private readonly consents = new Map<string, { code: string; sessionHash: string; orgId: string; principalId: string; expiresAt: number }>();
   private readonly rate = new BoundedFixedWindowRateLimiter(30, 60_000, 1024);
   constructor(private readonly options: { devices: ComputeDeviceStore; gate: AuthGate; origin: URL;
-    proxies: TrustedProxySnapshot; emit: PlatformEventSink }) {
+    proxies: TrustedProxySnapshot; emit: PlatformEventSink;
+    pendingRuns?: (orgId: string, projectId: string, principalId: string) => { runId: string }[];
+    finalize?: (orgId: string, runId: string, principalId: string) => Promise<unknown> }) {
     if (options.origin.protocol !== 'https:') throw new Error('Compute requires HTTPS');
   }
   loginReturn(req: IncomingMessage): { location: string; cookie: string } | undefined {
@@ -119,6 +121,18 @@ export class ComputeHttp {
           this.audit(actor, 'project-grant-changed', { deviceId: device[1]!, projectId: input.projectId, allowed: input.allowed });
         }
         json(res, 200, { ok: true }); return true;
+      }
+      const finalization = pathname.match(/^\/api\/compute\/runs\/([a-f0-9-]{36})\/finalize$/);
+      if (finalization && req.method === 'POST' && this.options.finalize) {
+        z.object({}).strict().parse(JSON.parse(await body(req)));
+        await this.options.finalize(actor.orgId, finalization[1]!, actor.principalId);
+        json(res, 200, { ok: true }); return true;
+      }
+      const projectView = pathname.match(/^\/api\/compute\/projects\/([a-f0-9-]{36})$/);
+      if (projectView && req.method === 'GET') {
+        const view = devices.projectView(actor, projectView[1]!);
+        json(res, 200, { ...view, pendingRuns: this.options.pendingRuns?.(actor.orgId, projectView[1]!, actor.principalId) ?? [] });
+        return true;
       }
       const project = pathname.match(/^\/api\/compute\/projects\/([a-f0-9-]{36})\/target$/);
       if (project && req.method === 'PUT') {

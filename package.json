@@ -7,7 +7,7 @@
   "type": "module",
   "description": "Three-tier LLM agent orchestration with persisted types, earned trust, and symmetric supervision",
   "scripts": {
-    "build": "tsc -p tsconfig.json && npm run build:workspace-service && npm run build:preview-terminal && npm run mcp:build && npm run viz:build",
+    "build": "tsc -p tsconfig.json && npm run build:workspace-service && npm run build:compute-retrieval && npm run build:compute-preview && npm run build:preview-terminal && npm run mcp:build && npm run viz:build",
     "launcher": "node dist/launcher/main.js",
     "launcher:dev": "tsx src/launcher/main.ts",
     "build:web": "docker build -f docker/web.Dockerfile -t atoma-web:latest .",
@@ -17,7 +17,7 @@
     "build:worker": "docker build -f docker/worker.Dockerfile -t atoma-worker:latest .",
     "build:worker:dev": "npm run build && npm run build:worker",
     "build:preview": "docker build -f docker/preview.Dockerfile -t atoma-preview:latest .",
-    "build:preview:dev": "npm run build:preview-terminal && npm run build:preview",
+    "build:preview:dev": "npm run build:preview-terminal && node scripts/build-compute-preview.mjs --source && npm run build:preview",
     "build:preview-terminal": "node scripts/build-preview-terminal.mjs",
     "preview:smoke:terminal": "node scripts/preview-terminal-smoke.mjs",
     "preview:demo": "tsx scripts/preview-demo.mjs",
@@ -49,7 +49,7 @@
     "assayer": "node dist/cli/assayer.js",
     "assayer:dev": "tsx src/cli/assayer.ts",
     "release:check": "npm run release:check:static && npm test",
-    "release:check:static": "npm run docs:check && npm run typecheck && npm run lint && npm audit && npm run build && npm run application:skeleton:smoke && node scripts/release-smoke.mjs && node scripts/auth-release-smoke.mjs && npm run auth -- --help && npm run doctor -- --help && npm run analyst -- --help && npm run mender -- --help && npm run assayer -- --help && npm run backup -- --help && npm run projects:maintenance -- --help && npm run settings -- --help",
+    "release:check:static": "npm run docs:check && npm run typecheck && npm run lint && npm audit && npm run build && npm run application:skeleton:smoke && node scripts/release-smoke.mjs && node scripts/auth-release-smoke.mjs && npm run auth -- --help && npm run doctor -- --help && npm run analyst -- --help && npm run mender -- --help && npm run assayer -- --help && npm run backup -- --help && npm run projects:maintenance -- --help && npm run settings -- --help && npm run compute -- --help",
     "settings": "node dist/cli/settings.js",
     "settings:dev": "tsx src/cli/settings.ts",
     "release:container-smoke": "node scripts/release-container-smoke.mjs",
@@ -91,7 +91,11 @@
     "build:hosting": "docker build -f docker/hosting.Dockerfile -t atoma-hosting:latest .",
     "application:skeleton:smoke": "node scripts/application-skeleton-smoke.mjs",
     "build:workspace-service": "node scripts/build-workspace-service.mjs",
-    "build:workspace": "docker build -f docker/workspace.Dockerfile -t atoma-workspace:latest ."
+    "build:workspace": "docker build -f docker/workspace.Dockerfile -t atoma-workspace:latest .",
+    "compute": "node dist/cli/compute.js",
+    "compute:dev": "tsx src/cli/compute.ts",
+    "build:compute-retrieval": "node scripts/build-compute-retrieval.mjs",
+    "build:compute-preview": "node scripts/build-compute-preview.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",

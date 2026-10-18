@@ -18,7 +18,7 @@ import {
   sha256Schema,
   type ArtifactFile,
   type ArtifactManifest,
-} from '../contracts/projects.js';
+} from '../contracts/artifactInventory.js';
 
 /**
  * Machine-owned publication manifest builder.

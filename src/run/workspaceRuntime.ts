@@ -1,3 +1,4 @@
+import { classifyDeliveredWorkspace } from '../preview/descriptor.js';
 import type { WorkspaceRuntime, AsyncReadOnlyPhases } from '../contracts/workspaceRuntime.js';
 import { READ_RUNS_DIRECTORY, READ_RUN_COPIES_DIRECTORY, type ReadRunsIndex } from '../contracts/readRuns.js';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
@@ -48,6 +49,7 @@ export function localWorkspaceRuntime(options: {
       if (sources.readRuns) options.readRuns = { ...sources.readRuns,
         readRuns: sources.readRuns.readRuns.map(run => ({ ...run, workspacePath: join(options.sourceRoot!, run.runId) })) };
     },
+    classifyPreview: async () => classifyDeliveredWorkspace(options.root),
     artifactExport: async input => captureArtifactExport(options.root, input),
     importSource: async (source, header) => {
       if (prepared) throw new Error('Workspace sources are frozen after preparation');

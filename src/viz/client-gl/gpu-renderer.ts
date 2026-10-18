@@ -177,6 +177,7 @@ export interface GpuDataSnapshot {
   workspace?: WorkspaceBrowserData;
   deploymentSettings?: import('./project-deployment.js').DeploymentSettingsView;
   connectorSettings?: import('./project-connectors.js').ConnectorSettingsView | null;
+  computeSettings?: import('./project-compute.js').ComputeSettingsView | null;
   githubInstallations: VizGitHubInstallation[];
   adminOrganisations: VizAdminOrganisation[];
   adminInvitation: VizAdminInvitation | null;

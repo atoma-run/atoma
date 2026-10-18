@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync, symlinkSync } from 'node:fs';
@@ -232,6 +233,14 @@ describe('experimental Haystack host boundary', () => {
     vi.stubEnv('OPENAI_API_KEY', 'synthetic-key'); vi.stubEnv('PYTHONPATH', root);
     try { const { tool } = await bind('env'); expect(await tool.execute({ query: 'price' })).toMatchObject({ ok: true }); }
     finally { vi.unstubAllEnvs(); }
+  });
+  it('pins nested model names with portable POSIX separators', async () => {
+    const model = join(root, 'portable-model');
+    mkdirSync(join(model, 'nested'), { recursive: true });
+    writeFileSync(join(model, 'nested', 'weights'), 'v1');
+    const content = createHash('sha256').update('v1').digest('hex');
+    expect(await haystackModelRevision(model, retrievalContext())).toBe(
+      projectRetrievalHash(JSON.stringify([['nested/weights', content]])));
   });
   it('pins model content and refuses changed weights and symlinks', async () => {
     const input = await fixture();

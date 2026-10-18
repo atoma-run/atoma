@@ -2477,3 +2477,37 @@ it('keeps an unavailable customer target queued without taking a hosted lease or
     await coordinator.waitForIdle();
   }
 });
+
+it('dispatches an admitted customer run and preserves pending delivery across coordinator restart', async () => {
+  const { ComputeDispatchPendingError } = await import('../src/projects/computeDispatch.js');
+  const f = fixture(), db = new Database(f.dbPath);
+  db.prepare('UPDATE projects SET execution_target_json=? WHERE project_id=?')
+    .run(JSON.stringify({ kind: 'customer-device', deviceId: randomUUID() }), f.project.projectId);
+  db.close();
+  const driver = vi.fn(async () => 'host orchestration'), finished = vi.fn();
+  const drive = vi.fn(async (_run: import('../src/contracts/projects.js').ProjectRun, hostDriver: ProjectRunDriver, input: SpawnRunOptions) => {
+    await hostDriver(input); throw new ComputeDispatchPendingError();
+  });
+  const compute = {
+    readiness: () => ({ status: 'ready' as const, session: { deviceId: randomUUID(), sessionId: randomUUID(), generation: 1 } }),
+    drive, recover: async () => { throw new ComputeDispatchPendingError(); }, interruptedStopped: () => false,
+  };
+  const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+    hostEnv: { ...haystackTestEnvironment(f.root), PATH: process.env['PATH'], ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
+    driver, compute: () => compute, acquireLease: async () => lease(), onRunFinished: finished });
+  try {
+    const run = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+      projectId: f.project.projectId, request: { goal: 'Remote task', idempotencyKey: 'remote-dispatch' } });
+    await coordinator.waitForIdle();
+    expect(drive).toHaveBeenCalledOnce(); expect(driver).toHaveBeenCalledOnce(); expect(finished).not.toHaveBeenCalled();
+    expect(f.store.getProjectRun(f.viewer.orgId, run.projectRunId)?.status).toBe('running');
+    coordinator.reconcileInterrupted();
+    expect(f.store.getProjectRun(f.viewer.orgId, run.projectRunId)?.status).toBe('running');
+    await expect(coordinator.retryComputeFinalization(f.viewer.orgId, run.projectRunId, randomUUID())).rejects.toThrow('unavailable');
+    await expect(coordinator.retryComputeFinalization(f.viewer.orgId, run.projectRunId, f.viewer.principalId)).rejects.toThrow('pending');
+    expect(f.store.getProjectRun(f.viewer.orgId, run.projectRunId)?.status).toBe('running');
+    compute.interruptedStopped = () => true;
+    expect((await coordinator.retryComputeFinalization(f.viewer.orgId, run.projectRunId, f.viewer.principalId)).status).toBe('failed');
+    expect(driver).toHaveBeenCalledOnce();
+  } finally { coordinator.stopQueue(); }
+});

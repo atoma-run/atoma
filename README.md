@@ -305,6 +305,10 @@ runs additionally require Docker and a Haystack search runtime, described in
 the [development setup guide](docs/development-setup.md).
 A fresh checkout contains no learned state.
 
+For opt-in execution on a paired macOS or Windows computer with Docker Desktop,
+see [Atoma Compute](docs/compute.md). Its headless client runs the workspace, tools,
+search and previews locally while Atoma retains orchestration and saved results.
+
 To host an instance for others, follow the [packaged stack](docs/packaged-stack.md),
 [deployment](docs/automatic-deployment.md), [GitHub App](docs/github-app-setup.md)
 and [preview](docs/preview-deployment.md) guides, and back the state up

@@ -1,3 +1,4 @@
+import type { PreviewClassification } from './preview.js';
 import type { ReadOnlyExecutionRecord, ReadOnlyPhaseGuard, ReadOnlyPhases, ReadOnlyRestoration } from './readOnlyPhase.js';
 import type { ReadRunCopyCheck, ReadRunFileComparisons } from './readRuns.js';
 import type { DeliveredSnapshot, StartingSnapshot } from './startingWorkspace.js';
@@ -50,6 +51,7 @@ export type RuntimePhaseGuard = ReadOnlyPhaseGuard | Awaited<ReturnType<AsyncRea
 export interface WorkspaceRuntime {
   bindSources?(sources: WorkspaceSourceBinding): Promise<void>;
   importSource(source: WorkspaceSource, header: CheckpointTransferHeader): Promise<WorkspaceRestoration>;
+  classifyPreview(): Promise<PreviewClassification>;
   artifactExport(options: ArtifactExportOptions): Promise<ArtifactExport>;
   importWorkspace(header: CheckpointTransferHeader, archive: boolean): Promise<WorkspaceRestoration>;
   /** Sources are bound by the launcher, never supplied by a model command. */
@@ -61,6 +63,7 @@ export interface WorkspaceRuntime {
   ensureReadRuns(): Promise<string | null>;
   canonicalPath(): Promise<string>;
   checkpointDigest(): Promise<string>;
+  confirmCheckpoint?(confirmation: import('./checkpointTransfer.js').CheckpointConfirmation): Promise<void>;
   checkpointExport(): Promise<import('./checkpointTransfer.js').CheckpointExport>;
   routingRepository(): Promise<RoutingRepository>;
   deliveredSnapshot(start: StartingSnapshot): Promise<DeliveredSnapshot>;

@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 bash \
 ENV NODE_ENV=production PORT=8080
 RUN useradd -m -u 10002 preview && mkdir -p /app && chown preview /app
 COPY dist/preview-terminal/ /opt/atoma-terminal/
+COPY dist/compute-preview/static.mjs dist/compute-preview/relay.mjs /opt/atoma-compute/
 USER preview
 WORKDIR /app
 EXPOSE 8080

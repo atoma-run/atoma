@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createServer, request as httpRequest, type Server } from 'node:http';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { once } from 'node:events';
+import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -485,7 +486,7 @@ describe('browser grant retention and server expiry', () => {
 });
 
 describe('terminal input authorisation', () => {
-  it('checks the grant and exact origin before forwarding any keystrokes', async () => {
+  it.each(['hosted', 'remote'] as const)('checks the grant and exact origin before forwarding any %s keystrokes', async transport => {
     let forwarded = 0;
     const upstream = createServer((_req, res) => { forwarded++; res.end('ok'); });
     upstreams.push(upstream);
@@ -494,7 +495,12 @@ describe('terminal input authorisation', () => {
     const address = upstream.address();
     if (!address || typeof address === 'string') throw new Error('missing port');
     const { port, claims } = await gateway({ orgId: ORG, projectRunId: RUN, generation: 1,
-      kind: 'node', mode: 'terminal', upstreamPort: address.port, allowedHosts: [] });
+      kind: 'node', mode: 'terminal', allowedHosts: [],
+      ...(transport === 'hosted' ? { upstreamPort: address.port } : { connect: async () => {
+        const socket = connect(address.port, '127.0.0.1');
+        await once(socket, 'connect');
+        return socket;
+      } }) });
     const cookie = await grantCookie(port, claims);
     const rejectedHeaders: Array<Record<string, string>> = [
       { cookie },

@@ -1,3 +1,4 @@
+import { Duplex } from 'node:stream';
 import {
   createServer,
   request as httpRequest,
@@ -5,6 +6,7 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
+import { PREVIEW_CONTENT_TYPES } from './contentTypes.js';
 import { extname } from 'node:path';
 import { ArtifactPolicyError, DEFAULT_ARTIFACT_LIMITS } from '../projects/artifacts.js';
 import {
@@ -57,6 +59,8 @@ export interface PreviewRoute {
   readonly mode?: 'terminal';
   /** Loopback port of the relay, for a node preview. */
   readonly upstreamPort?: number;
+  /** Launcher-issued remote instance, never an arbitrary network destination. */
+  readonly connect?: () => Promise<Duplex>;
   /** Filesystem root of the materialised copy, for a static preview. */
   readonly workspaceRoot?: string;
   /** Effective approved hosts, for the CSP. */
@@ -115,24 +119,7 @@ export interface RunningPreviewGateway {
   close(): Promise<void>;
 }
 
-const CONTENT_TYPES: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8',
-  '.htm': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.ico': 'image/x-icon',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-  '.txt': 'text/plain; charset=utf-8',
-};
+
 
 /**
  * The gateway's own page, served on the preview origin.
@@ -338,7 +325,7 @@ export function startPreviewGateway(
       }
       const headers = {
         ...policy,
-        'content-type': CONTENT_TYPES[extname(candidate).toLowerCase()] ?? 'application/octet-stream',
+        'content-type': PREVIEW_CONTENT_TYPES[extname(candidate).toLowerCase()] ?? 'application/octet-stream',
       };
       const body = attribute && isAttributableResponse(200, headers)
         ? Buffer.concat([read, Buffer.from(ATTRIBUTION_BADGE_HTML, 'utf8')])
@@ -365,7 +352,7 @@ export function startPreviewGateway(
     attribute: boolean
   ): void {
     const port = route.upstreamPort;
-    if (port === undefined) return refuse(res);
+    if (port === undefined && !route.connect) return refuse(res);
     const headers = sanitizeRequestHeaders(req.headers);
     // A page must arrive uncompressed for the badge to be appended to it; the
     // public proxy compresses what leaves the gateway anyway.
@@ -374,6 +361,10 @@ export function startPreviewGateway(
       {
         host: '127.0.0.1',
         port,
+        ...(route.connect ? { createConnection: (_options, callback) => {
+          void route.connect!().then(socket => callback(null, socket), () => callback(new Error('Remote preview unavailable'), new Duplex()));
+          return undefined;
+        } } : {}),
         method: req.method ?? 'GET',
         path: req.url ?? '/',
         headers,

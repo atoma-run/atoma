@@ -90,7 +90,7 @@ class HaystackProcess {
 export async function createHaystackRetrievalBinding(input: {
   authority: ProjectRetrievalBinding; corpus: PreparedProjectRetrievalCorpus;
   python: string; settings: HaystackSettings; runtimeSha256?: string; context: ProjectRetrievalCallContext;
-  cacheDbPath?: string;
+  cacheDbPath?: string; cacheMaxDatabaseBytes?: number;
   onPreparationStats?: (stats: { documents: number; cacheHits: number; computed: number;
     pythonInitMs: number; cacheExportMs: number }) => void;
 }): Promise<ProjectRetrievalBinding> {
@@ -124,7 +124,8 @@ export async function createHaystackRetrievalBinding(input: {
     }
     if (settings.mode === 'hybrid-rerank' && scope.kind === 'tenant' && input.cacheDbPath && input.runtimeSha256) {
       try { cache = new ProjectEmbeddingCache(input.cacheDbPath, scope.orgId, scope.projectId,
-        retrievalEncoderKey(settings.embeddingRevision, input.runtimeSha256)); }
+        retrievalEncoderKey(settings.embeddingRevision, input.runtimeSha256),
+        input.cacheMaxDatabaseBytes ? { maxDatabaseBytes: input.cacheMaxDatabaseBytes } : undefined); }
       catch { /* A cache fault never removes project search. */ }
     }
     const prepared = [...passages].map(([id, p]) => {

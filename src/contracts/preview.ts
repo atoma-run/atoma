@@ -159,17 +159,11 @@ export const previewEgressHostsSchema = z
  * mind about what a run produced would be describing a workspace that has not
  * changed, and the run corpus is evidence.
  */
-export const previewDescriptorSchema = z
-  .object({
-    projectRunId: projectRunIdSchema,
-    projectId: projectIdSchema,
-    orgId: organisationIdSchema,
+export const previewClassificationSchema = z.object({
     availability: previewAvailabilitySchema,
     kind: previewKindSchema.nullable(),
     entry: previewEntrySchema.nullable(),
     unavailableReason: previewUnavailableReasonSchema.nullable(),
-    requestedHosts: previewEgressHostsSchema,
-    createdAt: instantSchema,
   })
   .strict()
   .superRefine((descriptor, ctx) => {
@@ -222,6 +216,15 @@ export const previewDescriptorSchema = z
       });
     }
   });
+export type PreviewClassification = z.infer<typeof previewClassificationSchema>;
+export const previewDescriptorSchema = previewClassificationSchema.safeExtend({
+  projectRunId: projectRunIdSchema,
+  projectId: projectIdSchema,
+  orgId: organisationIdSchema,
+  requestedHosts: previewEgressHostsSchema,
+  createdAt: instantSchema,
+});
+
 
 /* ───────────────────────────────── instance ───────────────────────────────── */
 

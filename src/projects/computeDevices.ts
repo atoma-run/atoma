@@ -1,3 +1,4 @@
+import { COMPUTE_RUN_RESOURCES, computeProjectViewSchema, type ComputeProjectView } from '../contracts/computeProject.js';
 import { executionTargetSchema, executionTargetSettingSchema } from '../contracts/executionTarget.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
@@ -27,6 +28,13 @@ CREATE TABLE IF NOT EXISTS compute_devices (
        (run_id IS NOT NULL AND project_id IS NOT NULL AND assignment_state IS NOT NULL)),
  FOREIGN KEY(run_id,org_id) REFERENCES project_runs(project_run_id,org_id),
  FOREIGN KEY(project_id,org_id) REFERENCES projects(project_id,org_id)
+);
+CREATE TABLE IF NOT EXISTS compute_device_machines (
+ device_id TEXT PRIMARY KEY REFERENCES compute_devices(device_id), machine_id TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS compute_stop_reports (
+ device_id TEXT NOT NULL REFERENCES compute_devices(device_id), run_id TEXT NOT NULL REFERENCES project_runs(project_run_id),
+ generation INTEGER NOT NULL, stopped_at INTEGER NOT NULL, PRIMARY KEY(device_id,run_id,generation)
 );
 CREATE TABLE IF NOT EXISTS compute_device_projects (
  device_id TEXT NOT NULL REFERENCES compute_devices(device_id), project_id TEXT NOT NULL REFERENCES projects(project_id),
@@ -136,6 +144,23 @@ export class ComputeDeviceStore {
       .all(actor.orgId, Number(admin), actor.principalId) as { device_id: string }[];
     return rows.map(row => this.inspect(actor, row.device_id));
   }
+  projectView(actor: ComputeActor, projectId: string): ComputeProjectView {
+    const role = this.member(actor);
+    const project = this.db.prepare("SELECT execution_target_json FROM projects WHERE project_id=? AND org_id=? AND status='active'")
+      .get(z.string().uuid().parse(projectId), actor.orgId) as { execution_target_json: string | null } | undefined;
+    if (!project) throw new Error('Compute project unavailable');
+    return computeProjectViewSchema.parse({ projectId, target: project.execution_target_json ? JSON.parse(project.execution_target_json) : { kind: 'hosted' },
+      canEdit: ['org:owner', 'org:admin'].includes(role), devices: this.list(actor).map(device => {
+        const row = this.device(device.deviceId);
+        const caps = row.capabilities ? computeCapabilitiesSchema.parse(JSON.parse(row.capabilities)) : undefined;
+        const availability = device.revoked ? 'access-unavailable' : !device.connected ? 'disconnected' : device.assignment ? 'busy'
+          : !device.accepting ? 'not-accepting' : !caps || !this.policy.appVersions.has(caps.appVersion) || !this.policy.imageDigests.has(caps.imageDigest) || !caps.services?.includes('retrieval')
+            ? 'version-incompatible' : caps.cpus < COMPUTE_RUN_RESOURCES.cpus || caps.memoryBytes < COMPUTE_RUN_RESOURCES.memoryBytes || caps.diskBytes < COMPUTE_RUN_RESOURCES.diskBytes
+              ? 'resources-insufficient' : 'ready';
+        return { deviceId: device.deviceId, name: device.name, revoked: device.revoked, availability,
+          allowed: Boolean(this.db.prepare('SELECT 1 FROM compute_device_projects WHERE device_id=? AND project_id=?').get(device.deviceId, projectId)) };
+      }) });
+  }
   beginPairing(input: { secretHash: string; name: string }): { code: string; expiresAt: number } {
     const hash = secretHash.parse(input.secretHash), name = nameSchema.parse(input.name);
     return this.db.transaction(() => {
@@ -214,6 +239,16 @@ export class ComputeDeviceStore {
         assignment_state=CASE WHEN run_id IS NULL THEN NULL ELSE 'indeterminate' END WHERE device_id=?`).run(deviceId);
     }).immediate();
   }
+  /** A credential remains bound to its persistent local engine inventory. */
+  bindMachine(credential: string, machineId: string): void {
+    z.string().uuid().parse(machineId);
+    this.db.transaction(() => {
+      const row = this.authenticated(credential);
+      this.db.prepare('INSERT OR IGNORE INTO compute_device_machines VALUES(?,?)').run(row.device_id, machineId);
+      const bound = this.db.prepare('SELECT machine_id FROM compute_device_machines WHERE device_id=?').pluck().get(row.device_id);
+      if (bound !== machineId) throw new Error('Compute machine inventory changed; pair this installation again');
+    }).immediate();
+  }
   connect(credential: string, input: ComputeCapabilities): { session: ComputeSession; leaseUntil: number; recovery: ComputeAssignment | null } {
     const capabilities = computeCapabilitiesSchema.parse(input);
     return this.db.transaction(() => {
@@ -246,6 +281,12 @@ export class ComputeDeviceStore {
       this.credentialSession(credential, session);
       this.db.prepare('UPDATE compute_devices SET accepting=? WHERE device_id=?').run(Number(accepting), session.deviceId);
     }).immediate());
+  }
+  /** Host-only socket lookup; assign still checks receipt and tenant authority. */
+  currentSession(deviceId: string): ComputeSession | undefined {
+    const row = this.device(deviceId);
+    if (!row.session_id || row.revoked || row.lease_until <= this.now()) return undefined;
+    return { deviceId, sessionId: row.session_id, generation: row.connection_generation };
   }
   /** Readiness is advisory; assign repeats every check inside its write transaction. */
   admission(actor: ComputeActor, runId: string, input: ComputeResources): ComputeAdmission {
@@ -325,8 +366,41 @@ export class ComputeDeviceStore {
     this.fenceExpiry(session, () => this.db.transaction(() => {
       const row = this.credentialSession(credential, session);
       if (row.run_id !== runId || row.execution_generation !== generation) throw new Error('Compute execution unavailable');
+      this.db.prepare('INSERT OR IGNORE INTO compute_stop_reports VALUES(?,?,?,?)').run(row.device_id, runId, generation, this.now());
       this.db.prepare('UPDATE compute_devices SET run_id=NULL,project_id=NULL,assignment_state=NULL WHERE device_id=?').run(row.device_id);
     }).immediate());
+  }
+  authorizePreview(session: ComputeSession, runId: string): void {
+    this.fenceExpiry(session, () => {
+      const device = this.session(session);
+      const run = this.db.prepare(`SELECT project_id,execution_target_json FROM project_runs
+        WHERE project_run_id=? AND org_id=? AND status IN ('running','delivered')`).get(runId, device.org_id) as
+        { project_id: string; execution_target_json: string | null } | undefined;
+      if (!run) throw new Error('Compute preview unavailable');
+      const target = executionTargetSchema.parse(run.execution_target_json ? JSON.parse(run.execution_target_json) : { kind: 'hosted' });
+      if (target.kind !== 'customer-device' || target.deviceId !== device.device_id) throw new Error('Compute preview unavailable');
+      this.projectAllowed(device, run.project_id);
+    });
+  }
+  supports(session: ComputeSession, service: 'retrieval' | 'preview'): boolean {
+    this.validateSession(session);
+    const row = this.session(session);
+    return !!computeCapabilitiesSchema.parse(JSON.parse(row.capabilities!)).services?.includes(service);
+  }
+  executionOrganisation(session: ComputeSession, runId: string, generation: number): string {
+    this.authorizeOperation(session, runId, generation);
+    return this.session(session).org_id;
+  }
+  confirmedStop(deviceId: string, runId: string, generation: number): boolean {
+    return Boolean(this.db.prepare('SELECT 1 FROM compute_stop_reports WHERE device_id=? AND run_id=? AND generation=?').get(deviceId, runId, generation));
+  }
+  /** Covers a crash after assignment and before the dispatch journal insert.
+   * A recorded stop is necessary, and a newer assignment must not be live. */
+  confirmedRunStop(deviceId: string, runId: string): boolean {
+    return Boolean(this.db.prepare(`SELECT 1 FROM compute_stop_reports s
+      WHERE s.device_id=? AND s.run_id=? AND NOT EXISTS
+      (SELECT 1 FROM compute_devices d WHERE d.device_id=s.device_id AND d.run_id=s.run_id)
+      LIMIT 1`).get(deviceId, runId));
   }
   inspect(actor: ComputeActor, deviceId: string) {
     const row = this.manage(actor, deviceId), connected = !row.revoked && row.session_id !== null && row.lease_until > this.now();

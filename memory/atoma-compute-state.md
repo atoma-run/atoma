@@ -116,3 +116,135 @@ Compiled Compute browser consent passes TLS, keyboard and responsive checks.
 The full viz:smoke also passed (MCP consent, Compute consent, WebGPU and WebGL
 application journeys). Final gateway review rejects unsupported upgrade paths
 when it is the only upgrade consumer; its focused TLS regression passed afterward.
+
+
+## Continuation after owner correction (2026-10-18, work in progress)
+
+The owner explicitly objected to stopping at milestones: finish ALL remaining
+non-Electron scope. Do not end another turn asking whether to continue. No
+subagents (current developer restriction). Current isolated checkout remains
+`/Users/mgtf/.codex/worktrees/atoma-compute/atoma`, branch `codex/atoma-compute`.
+HEAD still e0ccd118; the following changes are uncommitted and must be preserved.
+
+Implemented this continuation:
+- Actual coordinator/customer dispatcher, host process bridge, abort orchestration
+  on WSS loss; remote queued runs use ordinary org/model/orchestration leases.
+- Product-store finalization journal, bounded durable driver result, streamed
+  byte-verified delivery. Running remote rows survive server boot; no terminal
+  event or read-copy cleanup while pending. Explicit authenticated requester-only
+  POST `/api/compute/runs/:id/finalize` recovers transfer in a fresh generation.
+- Export-only recovery assignment identifies an older same-run local allocation;
+  local inventory preserves generation aliases, denies cross-run reuse. Engine
+  stop reports are persisted independently of timeout; explicit reconciliation
+  can fail an interrupted run only after exact confirmed stop, enabling normal
+  checkpoint eligibility. No commands or model calls are replayed.
+- Separate residual host memory reserve `ATOMA_COMPUTE_HOST_MEMORY_RESERVE_MB`,
+  defaults to existing hosted reserve (no optimistic reduction); queue skips
+  unavailable devices and independently considers memory admission.
+- Headless CLI `compute`/`compute:dev`: pair, doctor, pull pinned images, start,
+  status, forget. Node24 + native macOS/Windows; requires Docker Desktop/WSL2.
+  macOS Keychain via security stdin; Windows DPAPI CurrentUser ciphertext.
+  Native macOS secure-store roundtrip tested. CLI is currently one connection
+  per start; requires start again after disconnection. No Electron code.
+- Desktop proxied registry egress reuses existing sidecar and policy, defaults on
+  in CLI config, --no-network during pair disables. Machine reconciliation owns
+  proxy/networks too; direct outbound TCP and host control access denied.
+
+New files staged explicitly: src/projects/computeDispatch.ts,
+src/launcher/computeCredential.ts, src/cli/compute.ts,
+tests/compute-cli.test.ts, tests/compute-credential.test.ts. Existing modified
+files not yet all staged. No unrelated checkout edits.
+
+Validation this continuation (not yet full release):
+- `/tmp/compute-dispatch-docker.log`: 140 tests across connection/devices/inventory/
+  coordinator; includes real Docker export-only recovery on fresh WSS generation.
+- `/tmp/compute-egress-tests.log`: 5 real Docker desktop tests, including registry
+  access, denied host service, denied direct TCP bypass, network cleanup.
+- `/tmp/compute-client-tests.log`: 5 tests including actual macOS Keychain roundtrip
+  (`ATOMA_TEST_SYSTEM_KEYCHAIN=1` explicit opt-in only); mocked CLI pairing.
+- `/tmp/compute-client-types.log`: typecheck both tsconfigs passed before latest
+  tiny CPU/docs edit. Targeted lint passed earlier; rerun all changed files.
+- Native diagnoseClient tested separately; session 58189 result may need polling.
+
+Important pending: full release/build/browser checks for current changes;
+shared runtime resource budget/disk enforcement; CLI live controls; actual remote
+Haystack and previews; project/device choice/status UI; multiarch distribution,
+real 1/5/10 preregistered benchmark and external hardware acceptance. Existing
+host retrieval still executes server-side; do not claim full offload yet.
+
+## Retrieval and preview continuation (2026-10-18, still uncommitted)
+
+Supersedes the pending implementation list above, not the final validation status:
+- Remote Haystack is wired through the private host bridge and an independent WSS
+  channel. Selected source bytes are archived without host extraction; client
+  extraction/indexing/search runs in a private network-none image/volume. Host
+  revalidates corpus scope and every returned reference. Bounded local embedding
+  SQLite cache (256 MiB); no product database on client. Actual Docker BM25/PDF
+  test passes; real hybrid model provisioning/acceptance remains.
+- CLI now requires workspace/worker/retrieval/preview immutable images, advertises
+  service capabilities, reconnects only after confirmed local teardown, reconciles
+  before the new generation, and never resumes interrupted work automatically.
+- Project target/grant/status UI and device controls are implemented. Pending
+  finalization UI, actionable query failures and final browser smoke remain.
+- Remote preview controller/manager/gateway stream, separate local copy, fixed
+  container-local port relay through docker exec (no published port), stop/lease
+  cleanup implemented. Static Docker preview test passes; WSS preview revocation
+  and concurrent workspace test passes. Additional terminal/Node/gateway and
+  restart tests remain. Idle relay slots now release on timeout.
+- Workspace classify-preview operation shares hosted classification. Dispatcher
+  stores its remote observation in product DB after verifying the returned entry
+  exists in received artifacts, preserving custom Node entries excluded with the
+  internal probe manifest. Coordinator passes it to descriptor recording.
+- Resource envelope now 5 CPUs/6 GiB RAM/4 GiB disk including retrieval/preview
+  proxies. Resource status includes both egress proxies. Dynamic disk enforcement,
+  retention, transfer progress and last server-confirmed checkpoint remain.
+
+Images built locally (ARM64 only): atoma-retrieval:compute-verification,
+atoma-preview:compute-verification, atoma-workspace:compute-development,
+atoma-worker:compute-verification. Rebuild workspace/preview bundles after the
+latest classification change before testing compiled container paths again.
+Latest focused logs: /tmp/compute-retrieval-docker.log (5 passed),
+/tmp/compute-preview-tests.log (22 passed, actual Docker),
+/tmp/compute-classification-tests.log (77 passed, 1 opt-in skipped),
+/tmp/compute-wss-preview-tests.log (118 passed, 3 opt-in skipped).
+Typecheck passed before latest small changes; final release still NOT passed:
+last full run had one Docker bind failure under suite load, focused rerun passed.
+No capacity measurements or distributed images yet; no Windows/Mac Intel hardware
+validation. No Electron, production runs, paid calls or deployment performed.
+
+## Final non-Electron integration (2026-10-18, verification in progress)
+
+Supersedes pending implementation items above:
+- Actual offline Docker hybrid embeddings/reranking + PDF extraction passed using
+  local BGE and MiniLM weights. No paid calls. Optional weights staged only in
+  ignored dist/compute-models and excluded from ordinary release archives.
+- Pending-finalization requester UI, actionable load failures, live controls,
+  dynamic disk guard, transfer bandwidth/progress and persisted server checkpoint
+  confirmations are implemented. Reconnect refreshes advertised resources.
+- Actual Docker static, custom-entry Node and terminal previews pass; remote
+  gateway terminal origin/grant parity is tested. Static bundle import closure
+  was narrowed to the artifact contract to exclude control/model modules.
+- Native Linux amd64/arm64 build/test/publish workflow added, called explicitly
+  by the release workflow after source publication; manual dispatch validates
+  only. This avoids GITHUB_TOKEN event suppression. Not yet published/run.
+- Design record rewritten to current scope, docs/compute.md documents actual
+  behavior and limitations. No Electron, no ceiling increase, no resource-saving
+  claim. Capacity protocol is preregistered; faithful fleet/hardware acceptance
+  and capacity measurement are not established by one ARM64 developer machine.
+
+Latest verification: release:check:static passed in /tmp/compute-release-static-final.log.
+All five isolated images rebuilt from current dist, including hybrid derived image
+(/tmp/compute-images-final.log). Full suite currently session 5970, maxWorkers=2,
+all explicit Docker image envs, log /tmp/compute-full-final.log. Earlier full suite
+had an obsolete image-closure expectation (fixed and strengthened) and a browser
+400ms async-page race (passes isolated; no production behavior weakened).
+Browser smoke must run after full suite. Update review with final results, commit
+all own changes in this isolated checkout, push codex/atoma-compute, update PR25
+using gh api and /tmp/atoma-compute-headless-pr-body.md. Never push main here.
+
+Final local checks passed: release static; full suite 7,611 passed / 10 skipped
+(528 files passed / 1 skipped), including fresh Docker hybrid retrieval and all
+preview modes; full viz:smoke passed. Desktop/mobile screenshots inspected.
+No active Compute-labelled containers remain. Frozen capacity corpus and exact
+hashes now accompany the preregistration (60 batches / 320 runs); no capacity
+measurements claimed. README and .env.example link/document opt-in activation.

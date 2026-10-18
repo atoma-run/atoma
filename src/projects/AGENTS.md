@@ -19,11 +19,16 @@ project grants. Connection and execution generations are separate. Disconnect,
 revocation or expiry never prove workload exit or release its slot. Reconnection
 requires an exact launcher stop report before admission. Membership downgrade
 and project archival fence assignments in the same database transaction, so
-restoring access cannot resurrect old work. The explicit `computeGateway`/`computeConnection` WSS adapter is not mounted by
-production. It requires direct TLS, bounded frames and one outstanding workspace
-command. Lost responses are indeterminate; every dispatch, result and heartbeat
-rechecks current authority. Browser pairing, audit/rate limits
-and coordinator dispatch remain pending.
+restoring access cannot resurrect old work. The opt-in `computeGateway`/`computeConnection` adapter requires verified TLS
+provenance, bounded frames and one outstanding workspace command. Browser
+pairing requires current identity, one-use consent, exact origin and app-secret
+proof. Every dispatch, result and heartbeat rechecks authority. `computeDispatch`
+bridges the existing host child to that connection. Loss aborts host orchestration;
+no command is replayed. Its product-store journal preserves incomplete delivery
+across server restart. Explicit finalization binds a fresh export-only generation
+to the recorded local allocation; only verified received bytes become delivered.
+A persisted launcher stop report, never a deadline, permits closing an interrupted
+run and consulting its normal checkpoint eligibility.
 
 Project execution targets default to hosted and are copied into immutable run
 receipts. Continuations inherit the source receipt, even if the project changed.

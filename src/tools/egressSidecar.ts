@@ -1,3 +1,4 @@
+import type { ContainerLauncher } from '../contracts/launcher.js';
 import { connectContainerLauncher } from '../launcher/connect.js';
 import {
   EGRESS_ASYNC_CLEANUP_BUDGET_MS,
@@ -80,6 +81,8 @@ export const EgressExitRegistry = LauncherExitRegistry;
 export type EgressExitRegistry = LauncherExitRegistry;
 
 export interface EgressSidecarDependencies {
+  /** A desktop owner supplies its local engine boundary explicitly. */
+  readonly launcher?: ContainerLauncher;
   /** Injectable Docker boundary for command-level lifecycle tests. */
   readonly runDocker?: AsyncDockerRunner;
   /** Readiness is log-based in production; tests can acknowledge it directly. */
@@ -101,7 +104,7 @@ export async function startEgressSidecar(
   deps: EgressSidecarDependencies = {}
 ): Promise<EgressSidecar> {
   const now = deps.now ?? Date.now;
-  const launcher = await connectContainerLauncher({
+  const launcher = deps.launcher ?? await connectContainerLauncher({
     image: opts.image,
     ...(deps.runDocker ? { runDocker: deps.runDocker } : {}),
     ...(deps.waitUntilReady ? { waitUntilReady: deps.waitUntilReady } : {}),

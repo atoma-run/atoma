@@ -12,7 +12,7 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
-- [Atoma Compute implementation](atoma-compute-state.md) — 2026-10-18: isolated branch; workspace/checkpoint RPC, persisted targets, WSS tools/assignment and Docker desktop profile implemented; coordinator, UI and distribution remain
+- [Atoma Compute implementation](atoma-compute-state.md) — 2026-10-18: isolated branch; non-Electron execution, headless client, recovery, retrieval and previews implemented; final verification and PR update in progress
 - [Crystal caustic state](crystal-caustic-state.md) — 2026-10-17: facing + caustic fixes committed locally (50c15882, dfa4c921), not pushed; strokes invisible, 3 options to test
 - [Parent-tests review fixes state](parent-tests-review-fixes-state.md) — deployed; 10-17: outside-copy absent paths, suite regex check, review host facts (532d6e35), dispute count (21b0e5ce)
 - [Left-aside items state](left-aside-items-state.md) — 2026-10-18: all 5 items shipped, 6 commits owe an adversarial review (RO mount first)

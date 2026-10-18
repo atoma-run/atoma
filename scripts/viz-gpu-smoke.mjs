@@ -2070,6 +2070,7 @@ try {
       await accountPage.setRequestInterception(true);
       const principalId = '11111111-2222-3333-4444-555555555555';
       const projectId = 'aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb';
+      const computeDeviceId = 'cccccccc-1111-4222-8333-dddddddddddd';
       const stubs = {
         '/auth/whoami': {
           enabled: true,
@@ -2092,6 +2093,8 @@ try {
         // Organisation MCP connectors (8c094613): none connected. Unstubbed,
         // Settings and the project page each logged a 404 the account
         // diagnostics count as a failure.
+        [`/api/compute/projects/${projectId}`]: { projectId, target: { kind: 'hosted' }, canEdit: true, devices: [
+          { deviceId: computeDeviceId, name: 'Ada’s computer', allowed: false, revoked: false, availability: 'disconnected' } ] },
         '/api/org/mcp-servers': { servers: [], encryptionReady: true, canManage: true },
         [`/api/projects/${projectId}/mcp-servers`]: { servers: [], enabled: [], canEdit: true },
         '/api/org': {
@@ -2310,6 +2313,19 @@ try {
             url: null, error: null, address: null, candidate: null,
           }) });
           return;
+        }
+        if (path === `/api/compute/devices/${computeDeviceId}/projects` && request.method() === 'POST') {
+          const body = JSON.parse(request.postData());
+          if (body.projectId !== projectId) throw new Error('Wrong compute project grant');
+          stubs[`/api/compute/projects/${projectId}`].devices[0].allowed = body.allowed;
+          void request.respond({ status: 200, contentType: 'application/json', body: '{}' }); return;
+        }
+        if (path === `/api/compute/projects/${projectId}/target` && request.method() === 'PUT') {
+          const body = JSON.parse(request.postData());
+          const current = stubs[`/api/compute/projects/${projectId}`];
+          if (JSON.stringify(body.expected) !== JSON.stringify(current.target)) throw new Error('Missing compute target CAS');
+          current.target = body.target;
+          void request.respond({ status: 200, contentType: 'application/json', body: '{}' }); return;
         }
         if (path === `/api/projects/${projectId}/deployment` && request.method() === 'PUT') {
           stubs['/api/projects'][0].deploymentDestination = JSON.parse(request.postData()).destination;
@@ -2778,8 +2794,6 @@ try {
       await accountPage.waitForFunction(() => document.querySelector('input[name="deployment-destination"][aria-describedby="deployment-description-atoma"]')?.checked);
       if (stubs['/api/projects'][0].deploymentDestination) throw new Error('Selecting a destination saved without confirmation');
       await accountPage.screenshot({ path: '/tmp/atoma-project-deployment-settings.png' });
-      await accountPage.mouse.move(800, 650);
-      await accountPage.mouse.wheel({ deltaY: 900 });
       await waitForHitTarget(accountPage, 'deployment.save', 'Save preference cannot be reached');
       await clickAccountTarget('deployment.save');
       await accountPage.waitForFunction(() => document.body.textContent.includes('Preference saved.'));
@@ -2794,6 +2808,52 @@ try {
       await clickAccountTarget('project.section.conversation');
       await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
       console.log('Deployment preference ok: explicit save, retained selection, desktop and narrow settings');
+      await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+      await clickAccountTarget('project.section.settings');
+      await accountPage.waitForSelector('section[aria-label="Run execution"]');
+      await accountPage.evaluate(() => {
+        const section = document.querySelector('section[aria-label="Run execution"]');
+        const radio = section.querySelectorAll('input[type="radio"]')[1];
+        if (!radio.disabled) throw new Error('Unapproved compute device selectable');
+        [...section.querySelectorAll('button')].find(button => button.textContent.includes('Allow this project')).focus();
+      });
+      await accountPage.keyboard.press('Space');
+      await accountPage.waitForFunction(() => !document.querySelectorAll('input[name="compute-target"]')[1]?.disabled);
+      await accountPage.evaluate(() => document.querySelectorAll('input[name="compute-target"]')[1].focus());
+      await accountPage.keyboard.press('Space');
+      if (stubs[`/api/compute/projects/${projectId}`].target.kind !== 'hosted') throw new Error('Compute selection saved without confirmation');
+      await accountPage.waitForFunction(() => [...document.querySelectorAll('section[aria-label="Run execution"] button')].some(button => button.textContent.includes('Save execution target')));
+      await accountPage.evaluate(() => [...document.querySelectorAll('section[aria-label="Run execution"] button')].find(button => button.textContent.includes('Save execution target')).focus());
+      await accountPage.keyboard.press('Space');
+      await accountPage.waitForFunction(() => ![...document.querySelectorAll('section[aria-label="Run execution"] button')].some(button => button.textContent.includes('Save execution target')));
+      if (stubs[`/api/compute/projects/${projectId}`].target.deviceId !== computeDeviceId) throw new Error('Compute target did not persist');
+      const showComputeCard = async () => {
+        await accountPage.evaluate(() => document.activeElement?.blur());
+        const viewport = accountPage.viewport();
+        await accountPage.mouse.move(viewport.width * .75, viewport.height * .75);
+        for (let attempt = 0; attempt < 18; attempt++) {
+          const visible = await accountPage.evaluate(() => {
+            const handle = globalThis.__ATOMA_GPU__;
+            const target = handle.hitTargets().find(row => row.id === 'compute.choose.hosted');
+            if (!target) return false;
+            const point = handle.projectRendererPoint(target.x, target.y);
+            return point.y > 160 && point.y < window.innerHeight - 260;
+          });
+          if (visible) return;
+          await accountPage.mouse.wheel({ deltaY: 120 });
+          await accountPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        }
+        throw new Error('Compute settings card cannot be reached by scrolling');
+      };
+      await showComputeCard();
+      await accountPage.screenshot({ path: '/tmp/atoma-compute-project-settings.png' });
+      await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
+      await showComputeCard();
+      await accountPage.screenshot({ path: '/tmp/atoma-compute-project-settings-mobile.png' });
+      await accountPage.evaluate(() => document.activeElement?.blur());
+      await clickAccountTarget('project.section.conversation');
+      console.log('Compute settings ok: explicit project grant, keyboard selection, CAS save, disconnected status');
+
 
       // The notification invitation can cover the upstream checkbox after
       // narrowing the window. Dismiss it through its real customer control.

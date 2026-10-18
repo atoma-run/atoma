@@ -42,6 +42,8 @@ jobs:
           root="atoma-${GITHUB_REF_NAME}"
           mkdir -p "release/${root}"
           cp -R dist docker scripts docs deploy src "release/${root}/"
+          # Optional operator model staging is not part of the source release.
+          rm -rf "release/${root}/dist/compute-models"
           # The benchmark write-ups, not the driver logs or CSVs: `docs:check`
           # counts the rounds the README argues from, inside the extracted install.
           mkdir -p "release/${root}/benchmark"
@@ -86,3 +88,12 @@ jobs:
             --verify-tag \
             --title "atoma ${GITHUB_REF_NAME}" \
             --notes-file CHANGELOG.md
+
+  compute-images:
+    needs: release
+    uses: ./.github/workflows/compute-images.yml
+    permissions:
+      contents: write
+      packages: write
+    with:
+      release-tag: ${{ github.ref_name }}

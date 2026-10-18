@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "name": "compute-capacity-fixed-corpus",
+  "network": "No public downloads during measurement; preloaded immutable images and model weights.",
+  "files": {
+    "package.json": "{\"name\": \"compute-capacity-fixture\", \"private\": true, \"scripts\": {\"build\": \"node build.mjs\", \"test\": \"node --test sum.test.mjs\"}, \"type\": \"module\"}\n",
+    "sum.mjs": "export const sum = values => values.reduce((total, value) => total + value, 0);\n",
+    "sum.test.mjs": "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { sum } from './sum.mjs';\ntest('sum',()=>{assert.equal(sum([1,2,3]),6);assert.equal(sum([]),0);assert.equal(sum([-2,2]),0)});\n",
+    "build.mjs": "import { mkdirSync, copyFileSync } from 'node:fs';\nmkdirSync('build',{recursive:true});copyFileSync('app.mjs','build/app.mjs');\n",
+    "app.mjs": "import { createServer } from 'node:http';\nconst html = '<!doctype html><title>Counter</title><button id=\"add\">Add</button><output id=\"value\">0</output><script>document.querySelector(\"#add\").onclick=()=>{document.querySelector(\"#value\").value=String(Number(document.querySelector(\"#value\").value)+1)}</script>';\ncreateServer((req,res)=>{res.setHeader('content-type','text/html');res.end(html)}).listen(Number(process.env.PORT || 8080),'0.0.0.0');\n",
+    "docs/terms.md": "# Terms\nThe annual plan costs 190 euros. Support is available Monday to Friday.\n"
+  },
+  "pdfFixture": "tests/fixtures/retrieval-documents/pricing.pdf",
+  "phases": [
+    {
+      "id": "build-and-test",
+      "commands": [
+        "npm run build",
+        "npm test"
+      ],
+      "scorer": "Both commands exit 0; build/app.mjs is byte-identical to app.mjs."
+    },
+    {
+      "id": "browser",
+      "entry": "app.mjs",
+      "interactions": [
+        {
+          "type": "click",
+          "selector": "#add"
+        }
+      ],
+      "smoke": "document.querySelector('#value').value === '1'",
+      "scorer": "Real Chromium returns ok:true; request starts a fresh browser context."
+    },
+    {
+      "id": "read-only",
+      "mutate": {
+        "path": "sum.mjs",
+        "content": "corrupted\n"
+      },
+      "scorer": "The shared phase guard restores the exact original sum.mjs and reports the mutation."
+    },
+    {
+      "id": "retrieval",
+      "query": "What is the annual price?",
+      "mode": "hybrid-rerank",
+      "scorer": "Returned citations belong to the admitted corpus and include docs/terms.md; its passage contains 190. PDF extraction succeeds."
+    },
+    {
+      "id": "checkpoint",
+      "scorer": "Seal in product SQLite; restore through the arm runtime into a fresh generation; compare every fixture path, mode and digest."
+    },
+    {
+      "id": "preview",
+      "mode": "app",
+      "entry": "build/app.mjs",
+      "scorer": "Open through the authorized gateway; real browser clicks #add and reads 1; opening an unauthorized generation is refused."
+    },
+    {
+      "id": "delivery",
+      "scorer": "Verified published manifest matches every declared fixture file plus build/app.mjs; close all owned workloads."
+    }
+  ],
+  "model": "Deterministic scripted responses invoke exactly these tools in this order; no inference service or paid call.",
+  "payload": {
+    "path": "payload.bin",
+    "bytes": 8388608,
+    "byteValue": 65,
+    "purpose": "Fixed streaming/checkpoint payload; bounded chunks, never a single server-side workspace buffer."
+  }
+}

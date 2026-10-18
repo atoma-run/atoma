@@ -461,7 +461,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     processes: () => RunCheckpoint['processes'];
     worker?: () => RunCheckpoint['worker'];
     restoreWorkspace?: () => void | Promise<void>;
-    workspace?: Pick<import('../contracts/workspaceRuntime.js').WorkspaceRuntime, 'checkpointDigest' | 'checkpointExport'>;
+    workspace?: Pick<import('../contracts/workspaceRuntime.js').WorkspaceRuntime, 'checkpointDigest' | 'checkpointExport' | 'confirmCheckpoint'>;
     assessClientQuestion?: (task: Task, next: SubtaskSpec, completed: readonly Result[]) => Promise<ClientQuestion | null>;
   }) {
     if (options.source) ({ owner: this.owner, sourceState: this.sourceState } = store.continueProject(options.source, data));
@@ -683,6 +683,11 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     } catch (error) { receiver?.abort(); throw error; }
     finally { await exporting.close(); }
     this.store.boundaryFromSnapshot(this.data, this.owner, snapshot, question);
+    // The device display is informational: losing this acknowledgement cannot
+    // roll back the checkpoint already committed in the product store.
+    try { await this.options.workspace.confirmCheckpoint?.({ snapshotId: snapshot.id, digest: snapshot.digest,
+      completed: this.data.completed.length, confirmedAt: new Date().toISOString() }); }
+    catch { this.options.warn?.('Checkpoint saved; client confirmation unavailable'); }
   }
 
   release(): void | Promise<void> {

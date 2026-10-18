@@ -1,3 +1,6 @@
+import { ComputePreviewController, type RemotePreviewRuntime } from '../preview/computeController.js';
+import { COMPUTE_RUN_RESOURCES } from '../contracts/computeProject.js';
+import { ComputeDispatcher, ComputeDispatchStore } from '../projects/computeDispatch.js';
 import { HostingClient } from '../launcher/hostingClient.js';
 import { HostingService, probeHostedApplication } from '../projects/hostingService.js';
 import { HostingStore } from '../projects/hostingStore.js';
@@ -859,6 +862,7 @@ interface ProjectsRuntime {
 
 /** One namer for both doors that assign a hosting address: saving the destination, and deploying. */
 const HOSTING_NAMER = hostHostingSubdomainNamer(process.env);
+const computeDispatcher: { current?: ComputeDispatcher } = {};
 const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
   if (!AUTH_RUNTIME) return null;
   const dbPath = DBS[0]!.path;
@@ -917,6 +921,7 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
   const previewStore = PreviewStore.open(dbPath);
   const coordinator = new ProjectRunCoordinator({
     store: projectStore,
+    compute: (): ComputeDispatcher | undefined => computeDispatcher.current,
     queuedRunAllowed: (id, orgId) => AUTH!.store!.listOrganisationsForPrincipal(id).some(membership => membership.orgId === orgId && membership.role !== 'org:viewer'),
     dbPath,
     projectsRoot: PROJECTS_ROOT,
@@ -1156,6 +1161,7 @@ function previewOffReason(): string | null {
     : 'ATOMA_PREVIEW is not set';
 }
 
+const computePreviewRuntime: { current?: RemotePreviewRuntime } = {};
 const PREVIEW_RUNTIME_PROMISE: Promise<PreviewRuntime | null> = (async () => {
   if (!PROJECTS_RUNTIME || !AUTH_RUNTIME) return null;
   if (!previewEnabled(process.env)) return null;
@@ -1174,6 +1180,20 @@ const PREVIEW_RUNTIME_PROMISE: Promise<PreviewRuntime | null> = (async () => {
     previewRuntime: config.runtime,
   });
   const manager = new PreviewManager({
+    remote: {
+      owns: (orgId, projectId, runId) => {
+        const run = PROJECTS_RUNTIME.store.getProjectRun(orgId, runId);
+        return run?.projectId === projectId && run.executionTarget.kind === 'customer-device';
+      },
+      start: input => {
+        if (!computePreviewRuntime.current) throw new Error('Compute preview unavailable');
+        return computePreviewRuntime.current.start(input);
+      },
+      stop: (orgId, runId, generation) => {
+        if (!computePreviewRuntime.current) throw new Error('Compute preview stop unconfirmed');
+        return computePreviewRuntime.current.stop(orgId, runId, generation);
+      },
+    },
     store: previewStore,
     launcher,
     routes,
@@ -1577,7 +1597,9 @@ const COMPUTE = (() => {
   }
   const devices = ComputeDeviceStore.open(DBS[0]!.path, policy);
   return { devices, http: new ComputeHttp({ devices, gate: AUTH, origin: AUTH_RUNTIME.publicOrigin,
-    proxies: AUTH_RUNTIME.trustedProxies, emit }) };
+    proxies: AUTH_RUNTIME.trustedProxies, emit,
+    pendingRuns: (orgId, projectId, principalId) => PROJECTS_RUNTIME.coordinator.pendingComputeRuns(orgId, projectId, principalId),
+    finalize: (orgId, runId, principalId): Promise<unknown> => PROJECTS_RUNTIME.coordinator.retryComputeFinalization(orgId, runId, principalId) }) };
 })();
 const MCP_OAUTH = AUTH_RUNTIME && AUTH?.store ? new McpOAuth({
   gate: AUTH,
@@ -2644,7 +2666,22 @@ const server = createServer((req, res) => {
 });
 
 const COMPUTE_GATEWAY = COMPUTE ? attachComputeGateway(server, COMPUTE.devices, () => {},
-  AUTH_RUNTIME!.trustedProxies, () => !deploymentPaused(process.env) && !peekDeploymentPending()) : null;
+  AUTH_RUNTIME!.trustedProxies, () => !deploymentPaused(process.env) && !peekDeploymentPending(), (orgId, execution, action) => {
+    const run = PROJECTS_RUNTIME!.store.getProjectRun(orgId, execution.runId);
+    if (!run || run.executionTarget.kind !== 'customer-device') throw new Error('Compute run unavailable');
+    if (action === 'pause') PROJECTS_RUNTIME!.coordinator.pause(run);
+    else PROJECTS_RUNTIME!.coordinator.cancel(orgId, run.projectRunId);
+  }) : null;
+computeDispatcher.current = COMPUTE && COMPUTE_GATEWAY ? new ComputeDispatcher({
+  devices: COMPUTE.devices, journal: ComputeDispatchStore.open(DBS[0]!.path),
+  connectionFor: session => COMPUTE_GATEWAY.connectionFor(session),
+  resources: COMPUTE_RUN_RESOURCES,
+}) : undefined;
+computePreviewRuntime.current = COMPUTE && COMPUTE_GATEWAY && PROJECTS_RUNTIME ? new ComputePreviewController({
+  devices: COMPUTE.devices, projects: PROJECTS_RUNTIME.store,
+  connectionFor: session => COMPUTE_GATEWAY.connectionFor(session),
+  unavailable: (orgId, runId, generation) => PREVIEW_RUNTIME?.manager.remoteUnavailable(orgId, runId, generation),
+}) : undefined;
 server.once('close', () => COMPUTE_GATEWAY?.close());
 process.once('exit', () => COMPUTE_GATEWAY?.close());
 

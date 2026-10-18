@@ -873,3 +873,28 @@ describe('explicit terminal preview', () => {
     expect(previews.getInstance(a.orgId, runId)).toBeNull();
   });
 });
+
+it('uses the remote preview destination without touching the host workspace and revokes its grant on disconnect', async () => {
+  const a = actor('remote-preview'), projectId = seedProject(a, 'remote-preview');
+  const runId = seedDeliveredRun(a, projectId, 'remote-preview');
+  const launcher = new WorkspaceOnlyLauncher(join(root, 'remote-copies'));
+  const hostCopy = vi.spyOn(launcher, 'createWorkspace');
+  const workspaceOf = vi.fn(() => { throw new Error('Remote workspace must never be read on the host'); });
+  const routes = new PreviewRouteTable();
+  const remote = { owns: () => true, start: vi.fn(async () => ({ imageDigest: `sha256:${'a'.repeat(64)}`, runtime: 'runc' as const,
+    connect: async () => { throw new Error('Device disconnected'); } })), stop: vi.fn(async () => { throw new Error('No stop acknowledgement'); }) };
+  const manager = new PreviewManager({ store: previews, launcher, routes, claims, config, workspaceOf, remote, probe: async () => { throw new Error('Remote previews do not use the host probe'); } });
+  const service = new PreviewHttpService({ manager, store: previews, projects });
+  const opened = await service.open(viewerFor(a), projectId, runId, {});
+  const url = new URL(opened.body.url!), generation = opened.body.summary.generation;
+  const redeemed = claims.redeem(url.hash.slice(1), url.hostname);
+  expect(redeemed.ok).toBe(true);
+  expect(opened.body.summary.state).toBe('ready');
+  expect(remote.start).toHaveBeenCalledWith(expect.objectContaining({ source: 'delivered', runId, generation }));
+  expect(hostCopy).not.toHaveBeenCalled(); expect(workspaceOf).not.toHaveBeenCalled();
+  manager.remoteUnavailable(a.orgId, runId, generation);
+  expect(previews.getInstance(a.orgId, runId)).toMatchObject({ state: 'failed', errorCode: 'runtime-unavailable' });
+  if (redeemed.ok) expect(claims.authorise(redeemed.token, { orgId: a.orgId, projectRunId: runId, generation, host: url.hostname })).toBeNull();
+  await service.stop(viewerFor(a), projectId, runId);
+  expect(previews.getInstance(a.orgId, runId)?.state).toBe('failed');
+});

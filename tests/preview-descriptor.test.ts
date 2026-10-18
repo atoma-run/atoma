@@ -651,6 +651,14 @@ describe('building the immutable descriptor', () => {
     });
   });
 
+  it('preserves the remote entry observation after the internal manifest is excluded from delivery', () => {
+    const root = workspace({ 'custom.mjs': '// entry\n' });
+    expect(classifyDeliveredWorkspace(root).availability).toBe('unavailable');
+    expect(buildPreviewDescriptor({ ...IDS, workspaceRoot: root, now: NOW,
+      remoteClassification: { availability: 'available', kind: 'node', entry: 'custom.mjs', unavailableReason: null },
+    })).toMatchObject({ availability: 'available', kind: 'node', entry: 'custom.mjs' });
+  });
+
   it('produces a schema-valid unavailable row carrying the classifier reason', () => {
     const root = workspace({ 'notes.md': '# what I did\n' });
     const descriptor = buildPreviewDescriptor({ ...IDS, workspaceRoot: root, now: NOW });

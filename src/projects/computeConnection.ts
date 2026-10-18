@@ -1,3 +1,5 @@
+import { computePreviewCommandSchema, computePreviewIdentitySchema, type ComputePreviewIdentity, type ComputePreviewCommand, type ComputePreviewReply } from '../contracts/computePreview.js';
+import { computeRetrievalCommandSchema, type ComputeRetrievalCommand, type ComputeRetrievalReply } from '../contracts/computeRetrieval.js';
 import { computeToolCommandSchema, type ComputeToolCommand } from '../contracts/computeTools.js';
 import { workerCallTimeoutMs } from '../contracts/commandTimeouts.js';
 import WebSocket, { type RawData } from 'ws';
@@ -15,18 +17,28 @@ export class ComputeIndeterminateError extends Error {
 /** One authenticated socket generation. The caller must supply a TLS-protected
  * socket with compression disabled and maxPayload=COMPUTE_FRAME_BYTES.
  * No public endpoint or coordinator admission is enabled by this module. */
+export type ComputeRunControl = (orgId: string, execution: ComputeExecution, action: 'pause' | 'stop') => void | Promise<void>;
 export class ComputeConnection {
   private session?: ComputeSession;
   private credential = '';
   private heartbeatId = 0;
+  private controlId = 0;
+  private controlling = false;
   private next = 0;
   private execution?: ComputeExecution;
   private recovery?: ComputeExecution;
   private drainingTools = false;
   private closed = false;
+  private readonly interruption = new AbortController();
+  get signal(): AbortSignal { return this.interruption.signal; }
   private readonly watchdog: ReturnType<typeof setInterval>;
   private readonly helloDeadline: ReturnType<typeof setTimeout>;
   private readonly tools = new Map<number, { method: ComputeToolCommand['method']; execution: ComputeExecution; resolve: (result: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  private previewIdentity?: ComputePreviewIdentity;
+  private readonly previews = new Map<number, { identity: ComputePreviewIdentity; method: ComputePreviewCommand['method'];
+    resolve(value: ComputePreviewReply): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
+  private retrieval?: { id: number; execution: ComputeExecution; method: ComputeRetrievalCommand['method'];
+    resolve(value: ComputeRetrievalReply): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
   private binding?: { id: number; resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
   private pending?: {
     id: number; execution: ComputeExecution; method: WorkspaceCommand['method'];
@@ -35,7 +47,7 @@ export class ComputeConnection {
   };
 
   constructor(private readonly socket: WebSocket, private readonly devices: ComputeDeviceStore,
-    private readonly timeoutMs = 120_000) {
+    private readonly timeoutMs = 120_000, private readonly control?: ComputeRunControl) {
     this.helloDeadline = setTimeout(() => this.close(), 5000);
     this.helloDeadline.unref();
     this.watchdog = setInterval(() => {
@@ -50,6 +62,7 @@ export class ComputeConnection {
   private validate(): void {
     if (!this.session) throw new Error('Compute transport unavailable');
     this.devices.validateSession(this.session);
+    if (this.previewIdentity) this.devices.authorizePreview(this.session, this.previewIdentity.runId);
     if (this.execution) this.devices.authorizeOperation(this.session, this.execution.runId, this.execution.generation);
   }
   identity(): ComputeSession | undefined { return this.session && !this.closed ? { ...this.session } : undefined; }
@@ -69,6 +82,7 @@ export class ComputeConnection {
       const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
       if (!this.session) {
         const hello = computeHelloSchema.parse(parsed);
+        this.devices.bindMachine(hello.credential, hello.machineId);
         const connected = this.devices.connect(hello.credential, hello.capabilities);
         this.session = connected.session;
         this.recovery = connected.recovery ? { runId: connected.recovery.runId, generation: connected.recovery.generation } : undefined;
@@ -79,6 +93,26 @@ export class ComputeConnection {
       }
       this.validate();
       const frame = computeClientFrameSchema.parse(parsed);
+      if (frame.kind === 'machine-control') {
+        if (this.controlling || frame.id <= this.controlId) throw new Error('Compute control busy or replayed');
+        this.controlId = frame.id; this.controlling = true;
+        const command = frame.command;
+        void (async () => {
+          let ok = false;
+          try {
+            if (command.action === 'accepting') this.devices.setAccepting(this.credential, this.session!, command.value);
+            else {
+              if (!this.control || command.execution.runId !== this.execution?.runId || command.execution.generation !== this.execution.generation) throw new Error('Compute control unavailable');
+              const orgId = this.devices.executionOrganisation(this.session!, command.execution.runId, command.execution.generation);
+              await this.control(orgId, command.execution, command.action);
+            }
+            ok = true;
+          } catch { /* Bounded response; control details never cross organizations. */ }
+          finally { this.controlling = false; }
+          try { this.send({ kind: 'machine-result', id: frame.id, ok }); } catch { this.close(); }
+        })();
+        return;
+      }
       if (frame.kind === 'heartbeat') {
         if (frame.id <= this.heartbeatId) throw new Error('Replayed heartbeat');
         this.devices.heartbeat(this.credential, this.session);
@@ -99,6 +133,27 @@ export class ComputeConnection {
         if (!binding || binding.id !== frame.id || frame.execution.runId !== this.execution?.runId ||
           frame.execution.generation !== this.execution.generation) throw new Error('Unexpected assignment');
         clearTimeout(binding.timer); this.binding = undefined; binding.resolve(); return;
+      }
+      if (frame.kind === 'preview-result') {
+        const pending = this.previews.get(frame.response.id);
+        if (!pending || JSON.stringify(frame.identity) !== JSON.stringify(pending.identity)) throw new Error('Unexpected preview result');
+        this.devices.authorizePreview(this.session, pending.identity.runId);
+        if (frame.response.ok && frame.response.reply.method !== pending.method) throw new Error('Mismatched preview result');
+        clearTimeout(pending.timer); this.previews.delete(frame.response.id);
+        if (frame.response.ok) {
+          if (pending.method === 'stop') this.previewIdentity = undefined;
+          pending.resolve(frame.response.reply);
+        } else pending.reject(new Error('Compute preview unavailable'));
+        return;
+      }
+      if (frame.kind === 'retrieval-result') {
+        const pending = this.retrieval;
+        if (!pending || frame.response.id !== pending.id || frame.execution.runId !== pending.execution.runId ||
+          frame.execution.generation !== pending.execution.generation) throw new Error('Unexpected retrieval result');
+        if (frame.response.ok && frame.response.reply.method !== pending.method) throw new Error('Mismatched retrieval result');
+        clearTimeout(pending.timer); this.retrieval = undefined;
+        if (frame.response.ok) pending.resolve(frame.response.reply); else pending.reject(new Error('Compute retrieval unavailable'));
+        return;
       }
       if (frame.kind === 'tool-result') {
         const pending = this.tools.get(frame.response.id);
@@ -125,16 +180,17 @@ export class ComputeConnection {
   }
   /** Reserve through the store first, then bind the issued generation locally.
    * Failed or lost acknowledgement retains the assignment as indeterminate. */
-  bind(execution: ComputeExecution): Promise<void> {
+  bind(execution: ComputeExecution, recover?: ComputeExecution): Promise<void> {
     try {
       const target = computeExecutionSchema.parse(execution);
+      if (recover && (computeExecutionSchema.parse(recover).runId !== target.runId || recover.generation >= target.generation)) throw new Error('Invalid recovery generation');
       if (this.closed || !this.session || this.execution || this.pending || this.tools.size) throw new Error('Compute assignment unavailable');
       this.devices.authorizeOperation(this.session, target.runId, target.generation);
       this.execution = target;
       return new Promise((resolve, reject) => {
         const id = ++this.next, timer = setTimeout(() => this.close(), this.timeoutMs);
         timer.unref(); this.binding = { id, resolve, reject, timer };
-        try { this.send({ kind: 'assign', id, execution: target }); } catch { this.close(); }
+        try { this.send({ kind: 'assign', id, execution: target, ...(recover ? { recover } : {}) }); } catch { this.close(); }
       });
     } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute assignment failed')); }
   }
@@ -158,6 +214,37 @@ export class ComputeConnection {
       });
     } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute request failed')); }
   }
+  requestPreview(input: ComputePreviewIdentity, commandInput: ComputePreviewCommand): Promise<ComputePreviewReply> {
+    try {
+      const identity = computePreviewIdentitySchema.parse(input), command = computePreviewCommandSchema.parse(commandInput);
+      if (this.closed || !this.session || this.previews.size >= 20) throw new Error('Compute preview unavailable');
+      this.devices.authorizePreview(this.session, identity.runId);
+      if (command.method === 'start') {
+        if (this.previewIdentity) throw new Error('Compute preview busy');
+        this.previewIdentity = identity;
+      } else if (JSON.stringify(this.previewIdentity) !== JSON.stringify(identity)) throw new Error('Compute preview generation unavailable');
+      const frame = { kind: 'preview-command' as const, id: ++this.next, identity, command };
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => this.close(), this.timeoutMs); timer.unref();
+        this.previews.set(frame.id, { identity, method: command.method, resolve, reject, timer });
+        try { this.send(frame); } catch { this.close(); }
+      });
+    } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute preview request failed')); }
+  }
+  requestRetrieval(execution: ComputeExecution, input: ComputeRetrievalCommand): Promise<ComputeRetrievalReply> {
+    try {
+      const command = computeRetrievalCommandSchema.parse(input), target = computeExecutionSchema.parse(execution);
+      if (this.closed || !this.session || this.binding || this.retrieval) throw new Error('Compute retrieval unavailable or busy');
+      this.devices.authorizeOperation(this.session, target.runId, target.generation);
+      const frame = { kind: 'retrieval-command' as const, id: ++this.next, execution: target, command };
+      if (Buffer.byteLength(JSON.stringify(frame)) > COMPUTE_FRAME_BYTES) throw new Error('Compute frame too large');
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => this.close(), command.method === 'prepare' ? 30 * 60_000 : this.timeoutMs);
+        timer.unref(); this.retrieval = { id: frame.id, execution: target, method: command.method, resolve, reject, timer };
+        try { this.send(frame); } catch { this.close(); }
+      });
+    } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute retrieval request failed')); }
+  }
   requestTool(execution: ComputeExecution, input: ComputeToolCommand): Promise<unknown> {
     try {
       const command = computeToolCommandSchema.parse(input), target = computeExecutionSchema.parse(execution);
@@ -179,9 +266,13 @@ export class ComputeConnection {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    this.interruption.abort(new ComputeIndeterminateError());
     clearTimeout(this.helloDeadline); clearInterval(this.watchdog);
     for (const pending of this.tools.values()) { clearTimeout(pending.timer); pending.reject(new ComputeIndeterminateError()); }
     this.tools.clear();
+    for (const pending of this.previews.values()) { clearTimeout(pending.timer); pending.reject(new ComputeIndeterminateError()); }
+    this.previews.clear();
+    if (this.retrieval) { clearTimeout(this.retrieval.timer); this.retrieval.reject(new ComputeIndeterminateError()); this.retrieval = undefined; }
     if (this.binding) { clearTimeout(this.binding.timer); this.binding.reject(new ComputeIndeterminateError()); this.binding = undefined; }
     if (this.pending) {
       clearTimeout(this.pending.timer);

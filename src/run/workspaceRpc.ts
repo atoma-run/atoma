@@ -62,6 +62,7 @@ export function workspaceCommandHandler(runtime: WorkspaceRuntime): ((input: unk
       case 'ensure-read-runs': return { method: command.method, value: await runtime.ensureReadRuns() };
       case 'canonical-path': return { method: command.method, value: await runtime.canonicalPath() };
       case 'checkpoint-digest': return { method: command.method, value: await runtime.checkpointDigest() };
+      case 'classify-preview': return { method: command.method, value: await runtime.classifyPreview() };
       case 'artifact-open': {
         if (exports.size || guards.size) throw new Error('Workspace control operation is still active');
         const snapshot = await runtime.artifactExport(command.options);
@@ -69,6 +70,7 @@ export function workspaceCommandHandler(runtime: WorkspaceRuntime): ((input: unk
         exports.set(handle, { snapshot, frames: snapshot.frames(), expiresAt: Date.now() + 30 * 60_000 });
         return { method: command.method, value: { handle, header: snapshot.header, manifest: snapshot.manifest } };
       }
+      case 'checkpoint-confirmed': await runtime.confirmCheckpoint?.(command.confirmation); return { method: command.method, value: null };
       case 'checkpoint-open': {
         if (exports.size) throw new Error('A checkpoint export is already active');
         const snapshot = await runtime.checkpointExport();
@@ -176,6 +178,7 @@ export function remoteWorkspaceRuntime(send: (command: WorkspaceCommand) => Prom
     bindSources: async sources => { await call({ method: 'bind-sources', sources }); },
     importSource: async (source, header) => importing(await call({ method: 'import-open', header, archive: false, source })),
     importWorkspace: async (header, archive) => importing(await call({ method: 'import-open', header, archive })),
+    classifyPreview: () => call({ method: 'classify-preview' }),
     artifactExport: async options => {
       const opened = await call({ method: 'artifact-open', options });
       return { ...exporting(opened), manifest: opened.manifest };
@@ -187,6 +190,7 @@ export function remoteWorkspaceRuntime(send: (command: WorkspaceCommand) => Prom
     ensureReadRuns: () => call({ method: 'ensure-read-runs' }),
     canonicalPath: () => call({ method: 'canonical-path' }),
     checkpointDigest: () => call({ method: 'checkpoint-digest' }),
+    confirmCheckpoint: async confirmation => { await call({ method: 'checkpoint-confirmed', confirmation }); },
     checkpointExport: async () => exporting(await call({ method: 'checkpoint-open' })),
     inheritedState: () => call({ method: 'inherited-state' }),
     replaceManifest: (text, expected) => call({ method: 'replace-manifest', text, expected }),

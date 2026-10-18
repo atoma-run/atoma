@@ -1,3 +1,4 @@
+import { checkpointConfirmationSchema, type CheckpointConfirmation } from '../contracts/checkpointTransfer.js';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { chmodSync, closeSync, existsSync, fsyncSync, lstatSync, openSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -55,13 +56,21 @@ export class ComputeInventory {
     computeExecutionSchema.parse(execution);
     return this.list().find(row => row.execution.runId === execution.runId && row.execution.generation === execution.generation);
   }
-  reserve(input: ComputeExecution): ComputeLocalAllocation {
+  reserve(input: ComputeExecution, recover?: ComputeExecution): ComputeLocalAllocation {
     this.assertOpen();
     const execution = computeExecutionSchema.parse(input);
     if (this.journal.allocations.length >= 1000) throw new Error('Compute inventory is full; retained volumes require cleanup');
     if (this.journal.allocations.some(row => row.state !== 'stopped') || this.find(execution)) throw new Error('Compute allocation requires reconciliation or a new generation');
-    const row: ComputeLocalAllocation = { execution, allocationId: randomUUID(), state: 'allocating', createdAt: Date.now() };
+    const source = recover ? this.find(recover) : undefined;
+    if (recover && (!source || source.state !== 'stopped' || recover.runId !== execution.runId || recover.generation >= execution.generation)) throw new Error('Recovery requires a stopped earlier allocation of this run');
+    const row: ComputeLocalAllocation = { execution, allocationId: source?.allocationId ?? randomUUID(), state: 'allocating', createdAt: Date.now() };
     this.journal.allocations.push(row); this.persist(); return structuredClone(row);
+  }
+  confirmCheckpoint(execution: ComputeExecution, input: CheckpointConfirmation): void {
+    this.assertOpen();
+    const row = this.row(execution);
+    if (row.state !== 'active') throw new Error('Checkpoint confirmation requires an active execution');
+    row.checkpoint = checkpointConfirmationSchema.parse(input); this.persist();
   }
   active(execution: ComputeExecution): void {
     this.assertOpen();

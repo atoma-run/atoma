@@ -132,7 +132,9 @@ export class ProjectRetrievalLaunchStore {
       }
       // The receipt records the corpus as ingested: an unextractable document
       // is omitted there, and its bytes stay in the archived snapshot.
-      const corpus = await prepareProjectRetrievalCorpus(sourceRoot, manifest, context, {}, { omitUnextractable: true });
+      const corpus = run.executionTarget.kind === 'customer-device'
+        ? { manifest, generation: retrievalGeneration(manifest, retrievalConfigForManifest(manifest)) }
+        : await prepareProjectRetrievalCorpus(sourceRoot, manifest, context, {}, { omitUnextractable: true });
       const scope = projectRetrievalScopeSchema.parse({ kind: 'tenant', runId,
         orgId: run.orgId, projectId: run.projectId, principalId: run.requestedByPrincipalId,
         corpusId: corpus.manifest.corpusId, snapshotId: corpus.manifest.snapshotId,

@@ -1,3 +1,4 @@
+import { computeRetrievalCommandSchema } from './computeRetrieval.js';
 import { z } from 'zod';
 import { workspaceCommandSchema } from './workspaceProtocol.js';
 import { computeToolCommandSchema } from './computeTools.js';
@@ -8,6 +9,7 @@ export const computeBridgeAddressSchema = z.object({ socket: z.string().min(1).m
 export const computeBridgeRequestSchema = z.object({ id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   call: z.discriminatedUnion('channel', [
     z.object({ channel: z.literal('workspace'), command: workspaceCommandSchema }).strict(),
+    z.object({ channel: z.literal('retrieval'), command: computeRetrievalCommandSchema }).strict(),
     z.object({ channel: z.literal('tools'), command: computeToolCommandSchema }).strict(),
   ]) }).strict();
 export type ComputeBridgeCall = z.infer<typeof computeBridgeRequestSchema>['call'];

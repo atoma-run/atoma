@@ -33,6 +33,12 @@ if (pressurePush.title !== 'Atoma — host under pressure' ||
 
 const { computePairCopy } = await import('../dist/viz/computeCopy.js');
 await import('../dist/viz/computeHttp.js');
+await import('../dist/cli/compute.js');
+await import('../dist/preview/computeController.js');
+for (const file of ['workspace-service/service.mjs', 'compute-retrieval/service.mjs', 'compute-retrieval/package.json',
+  'compute-retrieval/retrieval-haystack.py', 'compute-preview/copy.mjs', 'compute-preview/static.mjs', 'compute-preview/relay.mjs']) {
+  if (!existsSync(resolve(root, 'dist', file))) throw new Error(`packaged Compute runtime missing: ${file}`);
+}
 if (computePairCopy('title') !== 'Connect this computer') throw new Error('packaged compute consent catalog missing');
 
 // Also runs on the production host after npm ci --omit=dev, before activation.

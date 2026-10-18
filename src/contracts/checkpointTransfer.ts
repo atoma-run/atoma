@@ -32,3 +32,10 @@ export const checkpointWireFrameSchema = z.discriminatedUnion('kind', [
     data: z.string().min(4).max(4 * Math.ceil(CHECKPOINT_CHUNK_BYTES / 3)).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/) }).strict(),
   z.object({ kind: z.literal('end') }).strict(),
 ]);
+
+/** Informational acknowledgement sent only after atomic host publication. */
+export const checkpointConfirmationSchema = z.object({
+  snapshotId: z.string().min(1).max(200), digest: z.string().regex(/^[a-f0-9]{64}$/),
+  completed: z.number().int().nonnegative(), confirmedAt: z.string().datetime(),
+}).strict();
+export type CheckpointConfirmation = z.infer<typeof checkpointConfirmationSchema>;

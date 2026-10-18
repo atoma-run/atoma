@@ -102,7 +102,7 @@ function actor(label: string): Actor {
 }
 
 /** A delivered run in Alice's org, plus a Bob who owns nothing of it. */
-function scene(slug = 'weather-lab'): Scene {
+function scene(slug = 'weather-lab', remote = false): Scene {
   const alice = actor('Alice');
   const bob = actor('Bob');
   const project = projects.createProject({
@@ -119,6 +119,7 @@ function scene(slug = 'weather-lab'): Scene {
       },
     },
   });
+  if (remote) db.prepare('UPDATE projects SET execution_target_json=? WHERE project_id=?').run(JSON.stringify({ kind: 'customer-device', deviceId: randomUUID() }), project.projectId);
   const run = projects.createProjectRun({
     orgId: alice.orgId,
     projectId: project.projectId,
@@ -730,4 +731,14 @@ describe('previewSummary — the only shape a browser receives', () => {
       })
     ).toMatchObject({ availability: 'unavailable', reason: 'legacy-run', generation: 0 });
   });
+});
+
+it.each([false, true])('does not infer remote workload stop on server restart (remote=%s)', remote => {
+  const s = scene('boot-preview', remote);
+  preview.openInstance({ orgId: s.alice.orgId, projectRunId: s.projectRunId });
+  preview.markReady({ orgId: s.alice.orgId, projectRunId: s.projectRunId, generation: 1,
+    imageDigest: IMAGE_DIGEST, runtime: remote ? 'runc' : 'runsc', expiresAt: '2026-09-01T11:00:00.000Z' });
+  expect(preview.reconcileInterrupted()).toBe(1);
+  expect(preview.getInstance(s.alice.orgId, s.projectRunId)).toMatchObject(remote
+    ? { state: 'failed', errorCode: 'runtime-unavailable' } : { state: 'stopped', errorCode: null });
 });

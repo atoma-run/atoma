@@ -77,11 +77,17 @@ another execution generation; it does not launch Docker or reconnect itself.
 time, never receipt time. Monotonic and wall deadlines jointly detect expiry and
 sleep; every operation must call `assertActive`. Expiry starts cleanup once.
 Only engine-confirmed cleanup may resolve its callback; failure stays unconfirmed.
-A closed guard cannot be revived by a late response or reused after reconnect.
+The headless CLI keeps credentials in macOS Keychain or Windows DPAPI
+CurrentUser, never plaintext config, argv or environment. Pairing, image pulling
+and Docker resource changes are explicit; diagnostic probes do not alter Docker
+settings. A closed guard cannot be revived by a late response or reused after reconnect.
 
 `DesktopCompute` owns the desktop-only profile: immutable image identities,
 Linux named volumes, no host binds, non-root read-only containers, capped CPU,
-RAM/swap and processes, and network none. Tools receive only `current/`; the
+RAM/swap and processes, and network none by default. The headless client
+explicitly selects the existing per-run isolated egress proxy for package
+registries; `--no-network` disables it. Engine-confirmed boot reconciliation
+also removes that machine’s proxy and both networks. Tools receive only `current/`; the
 private control service alone mounts the snapshot spool. A drained worker cannot
 restart until explicit next-attempt activation. Close confirms engine absence
 and preserves volumes; boot reconciliation requires the app's single-instance

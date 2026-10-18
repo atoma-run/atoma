@@ -1,0 +1,146 @@
+# Atoma Compute
+
+Atoma Compute runs tools, the Linux workspace, Chromium, builds, tests, document
+extraction, Haystack and temporary previews on a paired computer. Atoma retains
+orchestration, models, credentials, permissions, accounting, the shared catalogue,
+verified checkpoints and delivered files. Existing projects use hosted execution.
+Permanent application hosting is a separate service.
+
+## Headless client
+
+The client requires the repository's pinned Node 24 release and Docker Desktop.
+Use the native Windows Node installation with Docker Desktop's WSL2 backend;
+run the client in macOS Terminal or Windows PowerShell. The desktop graphical
+application is outside this implementation.
+
+Install the release's Node dependencies with `npm ci --omit=dev`. From its root,
+pair using the immutable image references supplied by the Atoma operator:
+
+```sh
+npm run compute -- pair --server https://atoma.run --name "My computer" \
+  --workspace-image REGISTRY/workspace@sha256:DIGEST \
+  --worker-image REGISTRY/worker@sha256:DIGEST \
+  --retrieval-image REGISTRY/retrieval@sha256:DIGEST \
+  --preview-image REGISTRY/preview@sha256:DIGEST
+npm run compute -- pull
+npm run compute -- doctor
+npm run compute -- start
+```
+
+Use one line for the pairing command in PowerShell. Replace each placeholder
+with its actual reference; mutable tags are refused. The image architecture must
+match the computer. Pairing prints an HTTPS browser link: sign in and confirm
+the organisation. Its one-use code is bound to a secret held by the client.
+Credentials are saved in macOS Keychain or Windows DPAPI CurrentUser storage.
+
+In the project's settings, explicitly allow the machine to access that project,
+then select it as the execution target. Each run keeps its original target even
+if the project setting changes. Waiting states explain disconnection, occupancy,
+resource shortage, incompatible versions or removed access.
+
+`start` accepts these commands:
+
+- `status`: allocations, the last server-confirmed checkpoint, transfer byte/file
+  counts, available Linux disk and workload CPU/RAM/process usage.
+- `drain`: refuse new runs while current work continues.
+- `accept`: accept new runs again.
+- `pause`: request suspension at the next approved sequential phase boundary.
+- `stop`: request cancellation; the acknowledgement is not proof of process exit.
+
+Ctrl+C stops workloads and exits. The client remains attached to this terminal;
+closing it is not a background application workflow. `compute status` in another
+terminal reads the durable allocation journal and current Docker workload usage.
+`compute forget` removes the local credential only when the client is not running;
+revoke the machine in Atoma as well to withdraw its server-side access.
+
+## Isolation and resources
+
+One run and one preview share a declared envelope of 5 CPUs and 6 GiB RAM.
+Admission requires at least 4 GiB free Linux disk. During work a periodic check
+stops the connection if less than 1 GiB remains or Docker becomes unavailable.
+This is a free-space guard, not a filesystem quota. Docker settings are never
+changed automatically. Retained run volumes remain available for recovery;
+insufficient space refuses subsequent allocations rather than deleting evidence.
+
+The launcher alone has Docker access. Workspaces are named Linux volumes; no
+home directory or arbitrary repository is mounted. Workloads are non-root,
+non-privileged, have read-only root filesystems and CPU/RAM/process limits.
+The workspace control service and retrieval corpus/cache have separate volumes.
+The desktop profile uses Docker's standard runtime and is not equivalent to
+production gVisor isolation.
+
+Tool networking uses the existing isolated package-registry proxy policy.
+Pair with `--no-network` to disable it. Retrieval runs without network access;
+hybrid embeddings and reranking require an operator-provisioned retrieval image
+containing pinned offline models. The embedding cache is disposable, limited to
+256 MiB and keyed by organisation, project and model identity. It contains no
+product database. Bulk workspace and corpus transfers share an 8 MiB/s budget;
+heartbeats, commands and previews have independent channels.
+
+## Disconnection and recovery
+
+An outbound WSS connection needs no incoming port or router configuration.
+Loss of heartbeats expires the local lease and triggers workload teardown.
+Operations already dispatched remain indeterminate and are never replayed.
+Only engine-confirmed teardown allows a new connection to reconcile the old
+execution generation. Reconnection does not resume the interrupted run.
+
+After reconnecting the computer, use **Reconcile and finish transfer** in the
+project's Compute settings for a pending run. A completed run can export its
+remaining files in a fresh, export-only generation. An interrupted execution
+must first have its stop confirmed; normal checkpoint eligibility then decides
+whether continuation is possible. Otherwise, start a new run. Checkpoints and
+files received incompletely cannot be published. Saved deliverables remain
+readable while the computer is offline.
+
+Previews use a separate local copy and retain the gateway's origins, permissions,
+generations and expiry. The relay can connect only to a launcher-issued preview,
+never to a caller-selected local URL or port. Disconnecting makes the preview
+unavailable. Restarting the Atoma server never asserts that a client workload
+has stopped.
+
+## Operator activation
+
+Activation is opt-in through `ATOMA_COMPUTE_ENABLED=1`, with explicit comma-separated
+`ATOMA_COMPUTE_APP_VERSIONS` and `ATOMA_COMPUTE_IMAGE_DIGESTS` allowlists. The latter
+admits the worker content digest reported by the client. Authenticated HTTPS
+project hosting and the existing trusted-proxy configuration are required.
+Route WSS upgrades for `/compute/v1` through the same public origin.
+
+`ATOMA_COMPUTE_HAYSTACK_CONFIG` selects the client retrieval runtime/model
+identities; when absent, `ATOMA_HAYSTACK_CONFIG` is reused. Its runtime identity
+must match the retrieval image, not a different server Python installation.
+Client model paths are fixed at `/models/embedding` and `/models/reranker`.
+Provider keys, GitHub credentials and customer MCP credentials stay on Atoma.
+
+The residual host reserve `ATOMA_COMPUTE_HOST_MEMORY_RESERVE_MB` defaults to the
+hosted reserve. Organisation, model and orchestration admission limits still
+apply. Do not increase the global ceiling until the registered capacity
+experiment has measured residual host consumption. Remote observations do not
+automatically earn positive shared trust or promote catalogue recipes.
+
+## Image packaging
+
+The **Compute images** workflow builds and tests Linux amd64 and arm64 images on
+native runners. Manual dispatch validates without publishing. The release workflow calls it
+after publishing the source archive; it uploads the tested images to GHCR and adds an architecture-specific JSON receipt
+and checksum to that release. Pair using its `reference` values; the server worker
+allowlist uses the receipt's worker `contentDigest`. Native Linux validation does
+not replace macOS Docker Desktop or Windows/WSL2 acceptance.
+
+The base retrieval image supports BM25. To build a hybrid image from already
+provisioned local models, run after `npm run build`:
+
+```sh
+node scripts/build-compute-models.mjs --embedding /absolute/models/embedding \
+  --reranker /absolute/models/reranker --query-prefix 'MODEL_SPECIFIC_PREFIX'
+docker build -f docker/compute-retrieval-models.Dockerfile \
+  --build-arg RETRIEVAL_IMAGE=REGISTRY/retrieval@sha256:DIGEST \
+  -t YOUR_HYBRID_IMAGE .
+```
+
+The helper verifies content pins before and after copying, excludes download
+metadata and never downloads weights. The image contains `/models/models.json`
+with the two content revisions and query prefix. Publish and pin this derived
+image as well; `doctor` reports its Python runtime identity for the host's
+`ATOMA_COMPUTE_HAYSTACK_CONFIG`.

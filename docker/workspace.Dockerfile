@@ -4,7 +4,8 @@
 FROM node:24-slim
 WORKDIR /app
 COPY dist/workspace-service/service.mjs /app/service.mjs
-RUN mkdir /workspace /snapshots && chown 10001:10001 /workspace /snapshots
+COPY dist/compute-preview/copy.mjs /app/preview-copy.mjs
+RUN mkdir /workspace /snapshots /preview && chown 10001:10001 /workspace /snapshots /preview
 USER 10001:10001
 ENV ATOMA_WORKSPACE_ROOT=/workspace/current
 ENV TMPDIR=/snapshots

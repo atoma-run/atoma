@@ -1,3 +1,4 @@
+import { useProjectCompute } from './project-compute.js';
 import { useProjectDeployment } from './project-deployment.js';
 import { WELCOME_LEGAL_LINKS } from './legal-links.js';
 import { useProjectConnectors } from './project-connectors.js';
@@ -292,6 +293,8 @@ function GpuAppContent({
   // Read only where it is shown: a selected project's Settings section.
   const connectors = useProjectConnectors(selectedProject?.projectId ?? null,
     state.view === 'projects' && state.projectSection === 'settings' && !!selectedProject && !!authSnapshot);
+  const compute = useProjectCompute(selectedProject?.projectId ?? null,
+    state.view === 'projects' && state.projectSection === 'settings' && !!selectedProject && !!authSnapshot && authSnapshot.viewer.role !== 'org:viewer');
   const projectRunsQuery = useProjectRuns(
     selectedProject?.projectId ?? null,
     (state.view === 'projects' || state.view === 'runs') && !!selectedProject
@@ -956,6 +959,7 @@ function GpuAppContent({
     }
     if ((id.startsWith('deployment.') || id.startsWith('hosting.'))) { deployment.activate(id); return; }
     if (id === 'connectors.openSettings') { store.openSettings('mcpServers'); return; }
+    if (id.startsWith('compute.')) { compute.activate(id); return; }
     if (id.startsWith('connectors.')) { connectors.activate(id); return; }
     if (id.startsWith('project.section.')) {
       if (!store.selectedProjectId) return;
@@ -1178,6 +1182,8 @@ function GpuAppContent({
     }
   }, [
     activateAuth,
+    compute,
+    connectors,
     deployment,
     queryClient,
     resultProjectId,
@@ -1280,6 +1286,7 @@ function GpuAppContent({
     workspace,
     deploymentSettings: deployment.view,
     connectorSettings: connectors.view,
+    computeSettings: compute.view,
     projects: projectsQuery.data ?? [],
     githubRecovery,
     projectRuns: resultProjectId && resultProjectRunsQuery.data
@@ -1312,6 +1319,7 @@ function GpuAppContent({
   }), [
     deployment.view,
     connectors.view,
+    compute.view,
     githubRecovery,
     workspace,
     accountError,
@@ -1465,6 +1473,7 @@ function GpuAppContent({
           /> : null}
           deploymentSettings={deployment.view}
           connectorSettings={connectors.view}
+          computeSettings={compute.view}
           onRenameAddress={deployment.renameAddress}
           workspace={workspace}
           mcpAccessState={mcpAccessState}

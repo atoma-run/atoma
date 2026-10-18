@@ -43,6 +43,7 @@ export function recordDeliveredPreview(
       projectId: subject.projectId,
       projectRunId: subject.projectRunId,
       workspaceRoot: subject.workspaceRoot,
+      ...(subject.remoteClassification ? { remoteClassification: subject.remoteClassification } : {}),
       ...(now ? { now } : {}),
     })
   );

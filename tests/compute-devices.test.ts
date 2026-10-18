@@ -13,7 +13,7 @@ let db: Database.Database, projects: ProjectStore, devices: ComputeDeviceStore, 
 const imageDigest = `sha256:${'a'.repeat(64)}`;
 const policy = { appVersions: new Set(['test-1']), imageDigests: new Set([imageDigest]) };
 const capabilities = { protocol: 1 as const, appVersion: 'test-1', platform: 'darwin' as const, architecture: 'arm64' as const,
-  imageDigest, cpus: 4, memoryBytes: 8 * 1024 ** 3, diskBytes: 100 * 1024 ** 3 };
+  services: ['workspace', 'tools', 'retrieval'] as ('workspace' | 'tools' | 'retrieval')[], imageDigest, cpus: 8, memoryBytes: 8 * 1024 ** 3, diskBytes: 100 * 1024 ** 3 };
 const resources = { cpus: 2, memoryBytes: 2 * 1024 ** 3, diskBytes: 1024 ** 3 };
 beforeEach(() => {
   db = new Database(':memory:'); db.pragma('foreign_keys=ON'); db.exec(AUTH_TABLES_DDL);
@@ -187,7 +187,7 @@ it('keeps existing work authorized when draining admission, but refuses another 
 
 it('refuses resource shortages and unapproved runtime versions without occupying the device', () => {
   const f = fixture();
-  expect(() => devices.assign(f.owner, f.session, f.runId, { ...resources, cpus: 8 })).toThrow('resources');
+  expect(() => devices.assign(f.owner, f.session, f.runId, { ...resources, cpus: capabilities.cpus + 1 })).toThrow('resources');
   const incompatible = devices.connect(f.paired.credential, { ...capabilities, imageDigest: `sha256:${'b'.repeat(64)}` }).session;
   expect(() => devices.assign(f.owner, incompatible, f.runId, resources)).toThrow('incompatible');
   expect(devices.inspect(f.owner, f.paired.deviceId).assignment).toBeNull();
@@ -268,7 +268,7 @@ it('requires current project-admin authority, a grant and a matching previous ta
 it('reports device-specific admission reasons without reserving a run or blocking another device', () => {
   const f = fixture();
   expect(devices.admission(f.owner, f.runId, resources)).toEqual({ status: 'ready', session: f.session });
-  expect(devices.admission(f.owner, f.runId, { ...resources, cpus: 8 })).toMatchObject({ reason: 'resources-insufficient' });
+  expect(devices.admission(f.owner, f.runId, { ...resources, cpus: capabilities.cpus + 1 })).toMatchObject({ reason: 'resources-insufficient' });
   devices.setAccepting(f.paired.credential, f.session, false);
   expect(devices.admission(f.owner, f.runId, resources)).toMatchObject({ reason: 'not-accepting' });
   devices.setAccepting(f.paired.credential, f.session, true);
@@ -281,4 +281,17 @@ it('reports device-specific admission reasons without reserving a run or blockin
   expect(devices.admission(f.owner, f.runId, resources)).toMatchObject({ reason: 'version-incompatible' });
   devices.revoke(f.owner, f.paired.deviceId);
   expect(devices.admission(f.owner, f.runId, resources)).toMatchObject({ reason: 'access-unavailable' });
+});
+
+it('projects only organization-owned device choices and reports machine wait reasons', () => {
+  const f = fixture();
+  expect(devices.projectView(f.owner, f.projectId)).toMatchObject({ canEdit: true,
+    devices: [{ deviceId: f.paired.deviceId, allowed: true, availability: 'ready' }] });
+  expect(() => devices.projectView(actor(), f.projectId)).toThrow('unavailable');
+  devices.disconnect(f.session);
+  expect(devices.projectView(f.owner, f.projectId).devices[0]?.availability).toBe('disconnected');
+  devices.connect(f.paired.credential, { ...capabilities, memoryBytes: 1024 });
+  expect(devices.projectView(f.owner, f.projectId).devices[0]?.availability).toBe('resources-insufficient');
+  devices.grantProject(f.owner, f.paired.deviceId, f.projectId, false);
+  expect(devices.projectView(f.owner, f.projectId).devices[0]?.allowed).toBe(false);
 });

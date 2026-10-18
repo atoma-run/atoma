@@ -2896,7 +2896,7 @@ END;
     const orphanRuns = this.db
       .prepare(
         `SELECT org_id, project_run_id, status FROM project_runs
-         WHERE status = 'running'`
+         WHERE status = 'running' AND COALESCE(json_extract(execution_target_json, '$.kind'), 'hosted') = 'hosted'`
       )
       .all() as { org_id: string; project_run_id: string; status: string }[];
     for (const row of orphanRuns) {

@@ -4,6 +4,7 @@ import { servableCheckFile } from '../contracts/webCheck.js';
 import {
   previewDescriptorSchema,
   type PreviewDescriptor,
+  type PreviewClassification,
   type PreviewUnavailableReason,
 } from '../contracts/preview.js';
 import { PROBE_MANIFEST_FILENAME, probeEntryKind, probeManifestSchema } from '../contracts/probeManifest.js';
@@ -32,12 +33,7 @@ const NODE_ENTRY_FALLBACKS = ['server.js', 'index.js', 'app.js'] as const;
 const STATIC_INDEX = 'index.html';
 const JS_ENTRY = /\.(?:c|m)?js$/i;
 
-export interface PreviewClassification {
-  readonly availability: 'available' | 'unavailable';
-  readonly kind: 'static' | 'node' | null;
-  readonly entry: string | null;
-  readonly unavailableReason: PreviewUnavailableReason | null;
-}
+export type { PreviewClassification } from '../contracts/preview.js';
 
 function unavailable(reason: PreviewUnavailableReason): PreviewClassification {
   return { availability: 'unavailable', kind: null, entry: null, unavailableReason: reason };
@@ -308,9 +304,10 @@ export function buildPreviewDescriptor(input: {
   readonly orgId: string;
   readonly workspaceRoot: string;
   readonly requestedHosts?: readonly string[];
+  readonly remoteClassification?: PreviewClassification;
   readonly now?: Date;
 }): PreviewDescriptor {
-  const classification = classifyDeliveredWorkspace(input.workspaceRoot);
+  const classification = input.remoteClassification ?? classifyDeliveredWorkspace(input.workspaceRoot);
   return previewDescriptorSchema.parse({
     projectRunId: input.projectRunId,
     projectId: input.projectId,

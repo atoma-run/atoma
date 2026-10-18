@@ -214,7 +214,7 @@ describe('worker image closure — everything the worker imports must be in the 
 
 /**
  * The PREVIEW image is the opposite guard: the worker's must CONTAIN
- * everything it imports; this one contains only the standalone terminal bundle.
+ * everything it imports; this one contains only the standalone preview runtimes.
  *
  * Member code can read the image, so control-plane and element code must stay
  * outside it. Isolation lives in the launcher's flags and network topology.
@@ -227,9 +227,19 @@ describe('preview image — no control-plane or element code', () => {
     .filter((line) => !line.trim().startsWith('#'))
     .join('\n');
 
-  it('copies only the standalone terminal runtime', () => {
+  it('copies only the standalone terminal, static server and fixed relay runtimes', () => {
     const copies = [...instructions.matchAll(/^COPY\s+(.+)$/gm)].map((m) => m[1]!.trim());
-    expect(copies).toEqual(['dist/preview-terminal/ /opt/atoma-terminal/']);
+    expect(copies).toEqual([
+      'dist/preview-terminal/ /opt/atoma-terminal/',
+      'dist/compute-preview/static.mjs dist/compute-preview/relay.mjs /opt/atoma-compute/',
+    ]);
+    for (const entry of ['computeStatic', 'computeRelay']) {
+      const graph = importClosure(resolve(SRC, `preview/${entry}.ts`));
+      expect([...graph.files].filter(file => {
+        const name = relative(SRC, file).split(sep).join('/');
+        return !name.startsWith('preview/') && !name.startsWith('contracts/') && name !== 'projects/artifacts.ts';
+      })).toEqual([]);
+    }
   });
 
   it('installs the PTY interpreter but never deliverable dependencies', () => {

@@ -14,7 +14,7 @@ let db: Database.Database, projects: ProjectStore, devices: ComputeDeviceStore, 
 const imageDigest = `sha256:${'a'.repeat(64)}`;
 const policy = { appVersions: new Set(['test-1']), imageDigests: new Set([imageDigest]) };
 const capabilities = { protocol: 1 as const, appVersion: 'test-1', platform: 'darwin' as const, architecture: 'arm64' as const,
-  imageDigest, cpus: 4, memoryBytes: 8 * 1024 ** 3, diskBytes: 100 * 1024 ** 3 };
+  services: ['workspace', 'tools', 'retrieval', 'preview'] as ('workspace' | 'tools' | 'retrieval' | 'preview')[], imageDigest, cpus: 4, memoryBytes: 8 * 1024 ** 3, diskBytes: 100 * 1024 ** 3 };
 const resources = { cpus: 2, memoryBytes: 2 * 1024 ** 3, diskBytes: 1024 ** 3 };
 beforeEach(() => {
   db = new Database(':memory:'); db.pragma('foreign_keys=ON'); db.exec(AUTH_TABLES_DDL);
@@ -56,6 +56,7 @@ import { COMPUTE_FRAME_BYTES, computeServerFrameSchema } from '../src/contracts/
 
 let root: string, server: Server, gateway: ReturnType<typeof attachComputeGateway>;
 let url: string, peers: ComputeConnection[], clients: WebSocket[];
+const controls = vi.fn();
 beforeAll(() => {
   root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-compute-tls-')));
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(root, 'key'),
@@ -63,9 +64,9 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 beforeEach(async () => {
-  peers = []; clients = [];
+  peers = []; clients = []; controls.mockReset();
   server = createServer({ key: readFileSync(join(root, 'key')), cert: readFileSync(join(root, 'cert')) });
-  gateway = attachComputeGateway(server, devices, peer => peers.push(peer));
+  gateway = attachComputeGateway(server, devices, peer => peers.push(peer), { addresses: [] }, () => true, controls);
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Missing listener');
@@ -91,7 +92,7 @@ async function connected() {
   devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
   const runId = run(owner, p.projectId);
   const ws = await client(), ready = message(ws);
-  ws.send(JSON.stringify({ kind: 'hello', version: 1, credential: paired.credential, capabilities }));
+  ws.send(JSON.stringify({ kind: 'hello', version: 1, credential: paired.credential, machineId: paired.deviceId, capabilities }));
   const frame = await ready;
   if (frame.kind !== 'ready') throw new Error('Expected handshake');
   const execution = devices.assign(owner, frame.session, runId, resources);
@@ -131,7 +132,7 @@ it.each(['disconnect', 'revocation', 'generation', 'method', 'request-id'] as co
 
 it('does not let a stale socket close the replacement connection or reactivate its workload', async () => {
   const f = await connected(), ws = await client(), ready = message(ws);
-  ws.send(JSON.stringify({ kind: 'hello', version: 1, credential: f.paired.credential, capabilities }));
+  ws.send(JSON.stringify({ kind: 'hello', version: 1, credential: f.paired.credential, machineId: f.paired.deviceId, capabilities }));
   const replacement = await ready;
   if (replacement.kind !== 'ready') throw new Error('Expected handshake');
   f.peer.close();
@@ -208,7 +209,7 @@ it('uses the outbound client, local lease and existing workspace runtime for a r
   const handler = workspaceCommandHandler(localWorkspaceRuntime({ root: workspace, log: () => {} }));
   let stops = 0;
   const execution = { runId, generation: 1 };
-  const connection = await connectComputeWorkspace({ url, credential: paired.credential, capabilities, execution,
+  const connection = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities, execution,
     ca: readFileSync(join(root, 'cert'), 'utf8'), execute: handler, stopWorkloads: async () => { stops++; } });
   try {
     expect(connection.state()).toBe('active');
@@ -234,7 +235,7 @@ it('uses the outbound client, local lease and existing workspace runtime for a r
 it('does not acknowledge a failed launcher teardown as stopped after the socket disappears', async () => {
   const owner = actor(), paired = pairing(owner), execution = { runId: randomUUID(), generation: 1 };
   let stops = 0;
-  const connection = await connectComputeWorkspace({ url, credential: paired.credential, capabilities, execution,
+  const connection = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities, execution,
     ca: readFileSync(join(root, 'cert'), 'utf8'), execute: async () => { throw new Error('Must not execute'); },
     stopWorkloads: async () => { stops++; throw new Error('Engine unavailable'); } });
   peers.at(-1)!.close();
@@ -243,7 +244,7 @@ it('does not acknowledge a failed launcher teardown as stopped after the socket 
 });
 
 it('refuses plaintext endpoints before constructing a connection', async () => {
-  await expect(connectComputeWorkspace({ url: url.replace('wss:', 'ws:'), credential: '', capabilities,
+  await expect(connectComputeWorkspace({ url: url.replace('wss:', 'ws:'), credential: '', machineId: randomUUID(), capabilities,
     execution: { runId: randomUUID(), generation: 1 }, execute: async () => { throw new Error('Unreachable'); },
     stopWorkloads: async () => {} })).rejects.toThrow('WSS');
 });
@@ -270,7 +271,7 @@ it('executes real tools through their separate WSS channel and exports the works
   const runId = run(owner, p.projectId), execution = { runId, generation: 1 }, workspace = join(root, randomUUID());
   const local = localToolBackend({ workspaceRoot: workspace, logger: silentLogger() });
   const handler = workspaceCommandHandler(localWorkspaceRuntime({ root: workspace, log: () => {} }));
-  const client = await connectComputeWorkspace({ url, credential: paired.credential, capabilities, execution,
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities, execution,
     ca: readFileSync(join(root, 'cert'), 'utf8'), execute: handler, stopWorkloads: () => local.cleanup(),
     tools: { ...local.executor, has: name => local.executor.has(name), execute: (name, args) => local.executor.execute(name, args), drain: () => local.drain!() } });
   try {
@@ -315,7 +316,7 @@ it('binds a server-issued execution only after local allocation and fences comma
   let release!: () => void;
   const allocated = new Promise<void>(resolve => { release = resolve; });
   const assign = vi.fn(async () => { await allocated; return { execute: handler }; });
-  const client = await connectComputeWorkspace({ url, credential: paired.credential, capabilities,
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
     ca: readFileSync(join(root, 'cert'), 'utf8'), assign, stopWorkloads: () => handler.close() });
   try {
     const execution = { runId, generation: devices.assign(owner, client.session, runId, resources).generation };
@@ -337,7 +338,7 @@ it('waits for an in-flight local allocation before confirming teardown after con
   const allocated = new Promise<void>(resolve => { release = resolve; });
   const assign = vi.fn(async () => { await allocated; return { execute: async () => { throw new Error('Must not run'); } }; });
   const stop = vi.fn(async () => {});
-  const client = await connectComputeWorkspace({ url, credential: paired.credential, capabilities,
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
     ca: readFileSync(join(root, 'cert'), 'utf8'), assign, stopWorkloads: stop });
   try {
     const execution = { runId, generation: devices.assign(owner, client.session, runId, resources).generation };
@@ -373,7 +374,7 @@ it.skipIf(!process.env['ATOMA_TEST_WORKSPACE_IMAGE'] || !process.env['ATOMA_TEST
     const runtime = new DesktopCompute({ machineId,
       workspaceImage: docker(['image', 'inspect', '--format', '{{.Id}}', process.env['ATOMA_TEST_WORKSPACE_IMAGE']!]),
       workerImage: docker(['image', 'inspect', '--format', '{{.Id}}', process.env['ATOMA_TEST_WORKER_IMAGE']!]) });
-    const client = await connectComputeWorkspace({ url, credential: paired.credential, capabilities,
+    const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
       ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: () => runtime.close(),
       assign: async () => { await runtime.open(); return { execute: command => runtime.command(command), tools: runtime.executor }; } });
     try {
@@ -427,7 +428,7 @@ it.each([true, false])('reconciles the old generation after reconnect only with 
   let release!: () => void;
   const wait = new Promise<void>(resolve => { release = resolve; });
   const reconcile = vi.fn(async () => { await wait; if (!confirmed) throw new Error('Docker unavailable'); });
-  const connecting = connectComputeWorkspace({ url, credential: f.paired.credential, capabilities,
+  const connecting = connectComputeWorkspace({ url, credential: f.paired.credential, machineId: f.paired.deviceId, capabilities,
     ca: readFileSync(join(root, 'cert'), 'utf8'), reconcile,
     assign: async () => ({ execute: async () => { throw new Error('Must not run'); } }), stopWorkloads: async () => {} });
   const rejected = confirmed ? undefined : expect(connecting).rejects.toThrow('reconciliation');
@@ -474,7 +475,7 @@ it('accepts forwarded TLS only from an explicitly trusted proxy and locates exac
     const ws = new WebSocket(endpoint, { headers: { 'x-forwarded-proto': 'https' } });
     clients.push(ws); await once(ws, 'open');
     const response = message(ws);
-    ws.send(JSON.stringify({ kind: 'hello', version: 1, credential: paired.credential, capabilities }));
+    ws.send(JSON.stringify({ kind: 'hello', version: 1, credential: paired.credential, machineId: paired.deviceId, capabilities }));
     const ready = await response;
     if (ready.kind !== 'ready') throw new Error('Expected ready');
     expect(proxy.connectionFor(ready.session)?.identity()).toEqual(ready.session);
@@ -504,15 +505,271 @@ it.skipIf(!process.env['ATOMA_TEST_WORKSPACE_IMAGE'] || !process.env['ATOMA_TEST
       await peer.request(execution, { method: 'prepare', clean: false });
       await peer.requestTool(execution, { method: 'invoke', name: 'write_file', args: { path: 'proof.txt', content: 'retained' } });
       expect(() => new ComputeMachine(config)).toThrow(/locked/i);
-      peer.close(); await machine.close(); await machine.close();
+      peer.close();
+      expect(await client.finished).toBe(true);
+      // The native client reconnects using the same inventory owner, without
+      // constructing a new machine or replaying the previous execution.
+      const fresh = await machine.connect(connection);
+      expect(fresh.session.generation).toBeGreaterThan(client.session.generation);
+      expect(devices.inspect(owner, paired.deviceId).assignment).toBeNull();
+      await machine.close(); await machine.close();
       machine = new ComputeMachine(config);
       expect(machine.allocations()).toMatchObject([{ execution, state: 'stopped' }]);
-      await machine.connect(connection);
+      const reconnected = await machine.connect(connection);
       expect(devices.inspect(owner, paired.deviceId).assignment).toBeNull();
       expect(docker(['ps', '-aq', '--filter', filter])).toBe('');
       await expect(peers.at(-1)!.request(execution, { method: 'prepare', clean: true })).rejects.toThrow();
+      const recovered = { runId, generation: devices.assign(owner, reconnected.session, runId, resources).generation };
+      const recoveryPeer = peers.at(-1)!;
+      await recoveryPeer.bind(recovered, execution);
+      const recoveredWorkspace = remoteWorkspaceRuntime(command => recoveryPeer.request(recovered, command));
+      const output = join(root, `recovered-${randomUUID()}`);
+      await receiveArtifactExport(await recoveredWorkspace.artifactExport({ allowEmpty: false }), output);
+      expect(readFileSync(join(output, 'proof.txt'), 'utf8')).toBe('retained');
+      await expect(recoveredWorkspace.prepare(true)).rejects.toThrow();
+      expect(machine.allocations()).toHaveLength(2);
     } finally {
       await machine.close();
+      const volumes = docker(['volume', 'ls', '-q', '--filter', filter]).split('\n').filter(Boolean);
+      if (volumes.length) docker(['volume', 'rm', ...volumes]);
+    }
+  }, 90_000);
+
+import { ComputeDispatcher, ComputeDispatchStore, ComputeDispatchPendingError } from '../src/projects/computeDispatch.js';
+import { connectComputeBridge } from '../src/run/computeBridge.js';
+import { COMPUTE_BRIDGE_ENV } from '../src/contracts/computeBridge.js';
+import { formatRunStatsEpilogue } from '../src/contracts/runStats.js';
+
+it.each(['complete', 'lost-command', 'lost-transfer'] as const)('dispatches the real bridge and preserves remote recovery evidence: %s', async scenario => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const folder = join(root, randomUUID());
+  const workspace = localWorkspaceRuntime({ root: join(folder, 'remote'), log: () => {} });
+  await workspace.prepare(true);
+  writeFileSync(join(folder, 'remote', 'result.txt'), 'remote delivery');
+  const handler = workspaceCommandHandler(workspace);
+  const receipt = projects.createProjectRun({ orgId: owner.orgId, projectId: p.projectId, principalId: owner.principalId,
+    request: { idempotencyKey: randomUUID(), goal: 'Compute dispatch' },
+    hostPaths: { workspacePath: join(folder, 'received'), runsPath: join(folder, 'traces'), logPath: join(folder, 'run.log') } })!.run;
+  const manifestPath = join(folder, 'declared.json');
+  writeFileSync(manifestPath, JSON.stringify({ version: 1, runId: receipt.projectRunId, generatedAt: new Date().toISOString(), outputs: ['result.txt'] }));
+  const drain = vi.fn(async () => {});
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: async () => {},
+    assign: async () => ({ execute: async command => {
+      if (scenario === 'lost-transfer' && command.method === 'artifact-open') throw new Error('Lost transport');
+      return handler(command);
+    }, tools: { has: () => true, execute: async () => null, drain } }) });
+  const journal = new ComputeDispatchStore(db);
+  const dispatcher = new ComputeDispatcher({ devices, journal, resources, connectionFor: session => gateway.connectionFor(session) });
+  expect(dispatcher.readiness(receipt).status).toBe('ready');
+  projects.transitionProjectRun({ orgId: owner.orgId, projectRunId: receipt.projectRunId, from: 'queued', to: 'running' });
+  const driver = vi.fn(async (input: Parameters<import('../src/projects/coordinator.js').ProjectRunDriver>[0]) => {
+    expect(input.env?.['PRIVATE_MODEL_KEY']).toBe('host-only');
+    const bridge = await connectComputeBridge(JSON.parse(input.env![COMPUTE_BRIDGE_ENV]!));
+    try {
+      await bridge.send({ channel: 'workspace', command: { method: 'validate-sources' } });
+      if (scenario === 'lost-command') {
+        peers.at(-1)!.close();
+        await vi.waitFor(() => expect(input.signal?.aborted).toBe(true));
+      }
+      return formatRunStatsEpilogue({ outcome: 'delivered', costUsd: 0, llmCalls: 0, opusCalls: 0, sonnetCalls: 0, haikuCalls: 0, otherCalls: 0,
+        deterministicPhases: 0, deepenings: 0, rootRemediations: 0, landingRemediations: 0, unjudgedRemediations: 0,
+        discardedLessons: 0, triggerRejections: 0, suiteDisputes: 0, landingReasons: [], escalations: 0, learnedSkills: 0,
+        learnedEventSkills: 0, promotions: 0, refusals: 0, compileErrors: 0, demotions: 0, dispatchFallbacks: 0, uncoveredObligations: 0 });
+    } finally { bridge.close(); }
+  });
+  try {
+    const result = dispatcher.drive(receipt, driver, { goal: receipt.goal, timeoutMs: 5000, logPath: receipt.hostPaths.logPath,
+      env: { PRIVATE_MODEL_KEY: 'host-only' } }, manifestPath);
+    if (scenario === 'complete') {
+      await result;
+      expect(readFileSync(join(receipt.hostPaths.workspacePath, 'result.txt'), 'utf8')).toBe('remote delivery');
+      expect(journal.inspect(receipt.projectRunId)?.phase).toBe('transferred');
+      expect(drain).toHaveBeenCalledOnce();
+    } else {
+      await expect(result).rejects.toBeInstanceOf(ComputeDispatchPendingError);
+      expect(journal.inspect(receipt.projectRunId)?.phase).toBe(scenario === 'lost-command' ? 'interrupted' : 'finalizing');
+    }
+    expect(driver).toHaveBeenCalledOnce();
+    expect(devices.inspect(owner, paired.deviceId).assignment?.state).toBe('indeterminate');
+    projects.reconcileInterrupted('server restarted');
+    expect(projects.getProjectRun(owner.orgId, receipt.projectRunId)?.status).toBe('running');
+    if (scenario === 'lost-transfer') {
+      await client.close();
+      const previous = { runId: receipt.projectRunId, generation: journal.inspect(receipt.projectRunId)!.generation };
+      const recovery = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+        ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: async () => {},
+        reconcile: async execution => { expect(execution).toEqual(previous); },
+        assign: async (execution, recover) => {
+          expect(recover).toEqual(previous); expect(execution.generation).toBeGreaterThan(previous.generation);
+          return { execute: handler };
+        } });
+      try {
+        await dispatcher.recover(projects.getProjectRun(owner.orgId, receipt.projectRunId)!, manifestPath);
+        expect(readFileSync(join(receipt.hostPaths.workspacePath, 'result.txt'), 'utf8')).toBe('remote delivery');
+        expect(journal.inspect(receipt.projectRunId)?.phase).toBe('transferred');
+        expect(driver).toHaveBeenCalledOnce();
+      } finally { await recovery.close(); }
+    }
+  } finally { await client.close(); }
+});
+
+it('rejects a replacement inventory even when it presents the existing device credential', async () => {
+  const f = await connected(); f.peer.close();
+  const ws = await client(), closed = once(ws, 'close');
+  ws.send(JSON.stringify({ kind: 'hello', version: 1, credential: f.paired.credential, machineId: randomUUID(), capabilities }));
+  await closed;
+  expect(devices.inspect(f.owner, f.paired.deviceId).assignment?.state).toBe('indeterminate');
+});
+
+it.skipIf(!process.env['ATOMA_TEST_WORKSPACE_IMAGE'] || !process.env['ATOMA_TEST_WORKER_IMAGE'])(
+  'reconciles an assignment lost before its first frame without allocating or replaying work', async () => {
+    const { ComputeMachine } = await import('../src/launcher/computeMachine.js');
+    const owner = actor(), paired = pairing(owner), p = project(owner);
+    devices.grantProject(owner, paired.deviceId, p.projectId, true);
+    devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+    const runId = run(owner, p.projectId);
+    const docker = (args: string[]) => execFileSync('docker', args, { encoding: 'utf8', timeout: 30_000 }).trim();
+    const config = { stateRoot: realpathSync(mkdtempSync(join(root, 'pre-dispatch-'))),
+      workspaceImage: docker(['image', 'inspect', '--format', '{{.Id}}', process.env['ATOMA_TEST_WORKSPACE_IMAGE']!]),
+      workerImage: docker(['image', 'inspect', '--format', '{{.Id}}', process.env['ATOMA_TEST_WORKER_IMAGE']!]) };
+    let machine = new ComputeMachine(config);
+    const filter = `label=dev.atoma.compute=${machine.machineId()}`;
+    const options = { url, credential: paired.credential, capabilities, ca: readFileSync(join(root, 'cert'), 'utf8') };
+    try {
+      const connected = await machine.connect(options);
+      const execution = devices.assign(owner, connected.session, runId, resources);
+      peers.at(-1)!.close(); await machine.close();
+      const dispatcher = new ComputeDispatcher({ devices, journal: new ComputeDispatchStore(db), resources, connectionFor: session => gateway.connectionFor(session) });
+      const receipt = projects.getProjectRun(owner.orgId, runId)!;
+      expect(dispatcher.interruptedStopped(receipt)).toBe(false);
+      expect(devices.confirmedStop(paired.deviceId, runId, execution.generation)).toBe(false);
+      machine = new ComputeMachine(config); await machine.connect(options);
+      expect(devices.confirmedStop(paired.deviceId, runId, execution.generation)).toBe(true);
+      expect(dispatcher.interruptedStopped(receipt)).toBe(true);
+      expect(devices.inspect(owner, paired.deviceId).assignment).toBeNull();
+      expect(docker(['ps', '-aq', '--filter', filter])).toBe('');
+      expect(docker(['volume', 'ls', '-q', '--filter', filter])).toBe('');
+    } finally { await machine.close(); }
+  }, 90_000);
+
+it('accepts device-owner controls only for the bound execution and keeps refusal of new runs durable', async () => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId);
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: async () => {},
+    assign: async () => ({ execute: async () => { throw new Error('No workspace command expected'); } }) });
+  try {
+    await expect(client.requestControl('pause')).rejects.toThrow('unavailable');
+    await client.requestControl('accepting', false);
+    expect(devices.admission(owner, runId, resources)).toEqual({ status: 'waiting', reason: 'not-accepting' });
+    await client.requestControl('accepting', true);
+    const execution = { runId, generation: devices.assign(owner, client.session, runId, resources).generation };
+    await peers.at(-1)!.bind(execution);
+    await client.requestControl('pause');
+    expect(controls).toHaveBeenLastCalledWith(owner.orgId, execution, 'pause');
+    await client.requestControl('stop');
+    expect(controls).toHaveBeenLastCalledWith(owner.orgId, execution, 'stop');
+    await client.requestControl('accepting', false);
+    expect(devices.inspect(owner, paired.deviceId).accepting).toBe(false);
+    // The acknowledgement means requested, never stopped.
+    expect(devices.inspect(owner, paired.deviceId).assignment?.state).toBe('active');
+  } finally { await client.close(); }
+});
+
+it('keeps retrieval independent of workspace and tools and fences its results on revocation', async () => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId);
+  let finish!: () => void;
+  const started = vi.fn();
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: async () => {},
+    assign: async () => ({ execute: async () => ({ method: 'validate-sources', value: null }),
+      retrieval: async () => { started(); await new Promise<void>(resolve => { finish = resolve; }); return { method: 'prepare', value: null }; } }) });
+  try {
+    const execution = { runId, generation: devices.assign(owner, client.session, runId, resources).generation }, peer = peers.at(-1)!;
+    await peer.bind(execution);
+    const pending = peer.requestRetrieval(execution, { method: 'prepare' });
+    const rejected = expect(pending).rejects.toBeInstanceOf(ComputeIndeterminateError);
+    await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
+    await expect(peer.requestRetrieval(execution, { method: 'prepare' })).rejects.toThrow('busy');
+    await expect(peer.request(execution, { method: 'validate-sources' })).resolves.toEqual({ method: 'validate-sources', value: null });
+    devices.revoke(owner, paired.deviceId); finish();
+    await rejected;
+    expect(devices.inspect(owner, paired.deviceId).assignment?.state).toBe('indeterminate');
+  } finally { finish?.(); await client.close(); }
+});
+
+it('relays previews independently and invalidates pending traffic on device revocation', async () => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId);
+  projects.transitionProjectRun({ orgId: owner.orgId, projectRunId: runId, from: 'queued', to: 'running' });
+  let finish!: () => void;
+  const reading = vi.fn(), stop = vi.fn();
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: async () => { stop(); },
+    preview: async (_identity, command) => {
+      if (command.method === 'start') return { method: 'start', value: { kind: 'static', entry: 'index.html', imageDigest } };
+      if (command.method === 'read') {
+        reading(); await new Promise<void>(resolve => { finish = resolve; });
+        return { method: 'read', value: null };
+      }
+      throw new Error('Unexpected preview command');
+    },
+    assign: async () => ({ execute: async () => ({ method: 'validate-sources', value: null }) }) });
+  try {
+    const peer = peers.at(-1)!, identity = { runId, generation: 1, instanceId: randomUUID() };
+    const execution = { runId, generation: devices.assign(owner, client.session, runId, resources).generation };
+    await peer.bind(execution);
+    await expect(peer.requestPreview(identity, { method: 'start', source: 'in-flight', mode: 'app', copyMaxBytes: 1024,
+      allowedHosts: [], attribution: true, hardMs: 60_000 })).resolves.toMatchObject({ method: 'start' });
+    await expect(peer.requestPreview({ ...identity, generation: 2 }, { method: 'connect' })).rejects.toThrow();
+    const pending = peer.requestPreview(identity, { method: 'read', stream: randomUUID() });
+    const rejected = expect(pending).rejects.toBeInstanceOf(ComputeIndeterminateError);
+    await vi.waitFor(() => expect(reading).toHaveBeenCalledOnce());
+    await expect(peer.request(execution, { method: 'validate-sources' })).resolves.toMatchObject({ method: 'validate-sources' });
+    devices.revoke(owner, paired.deviceId); finish();
+    await rejected;
+    await vi.waitFor(() => expect(stop).toHaveBeenCalledOnce());
+    expect(devices.inspect(owner, paired.deviceId).assignment?.state).toBe('indeterminate');
+  } finally { finish?.(); await client.close(); }
+});
+
+it.skipIf(!process.env['ATOMA_TEST_WORKSPACE_IMAGE'] || !process.env['ATOMA_TEST_WORKER_IMAGE'])(
+  'stops actual workloads on low disk and keeps their server assignment indeterminate until reconciliation', async () => {
+    const { ComputeMachine } = await import('../src/launcher/computeMachine.js');
+    const owner = actor(), paired = pairing(owner), p = project(owner);
+    devices.grantProject(owner, paired.deviceId, p.projectId, true);
+    devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+    const runId = run(owner, p.projectId);
+    const docker = (args: string[]) => execFileSync('docker', args, { encoding: 'utf8', timeout: 30_000 }).trim();
+    const machine = new ComputeMachine({ stateRoot: realpathSync(mkdtempSync(join(root, 'disk-machine-'))),
+      workspaceImage: docker(['image', 'inspect', '--format', '{{.Id}}', process.env['ATOMA_TEST_WORKSPACE_IMAGE']!]),
+      workerImage: docker(['image', 'inspect', '--format', '{{.Id}}', process.env['ATOMA_TEST_WORKER_IMAGE']!]) });
+    const filter = `label=dev.atoma.compute=${machine.machineId()}`;
+    const disk = vi.spyOn(DesktopCompute.prototype, 'freeDiskBytes').mockResolvedValueOnce(8 * 1024 ** 3).mockResolvedValue(0);
+    try {
+      const client = await machine.connect({ url, credential: paired.credential, capabilities, ca: readFileSync(join(root, 'cert'), 'utf8') });
+      const execution = { runId, generation: devices.assign(owner, client.session, runId, resources).generation };
+      const peer = peers.at(-1)!; await peer.bind(execution);
+      await peer.request(execution, { method: 'prepare', clean: false });
+      await peer.requestTool(execution, { method: 'invoke', name: 'write_file', args: { path: 'proof.txt', content: 'retained under disk pressure' } });
+      expect(await client.finished).toBe(true);
+      expect(machine.diskStatus().freeBytes).toBe(0);
+      expect(machine.allocations()).toMatchObject([{ execution, state: 'stopped' }]);
+      await vi.waitFor(() => expect(devices.inspect(owner, paired.deviceId).assignment?.state).toBe('indeterminate'));
+      expect(docker(['ps', '-aq', '--filter', filter])).toBe('');
+      expect(docker(['volume', 'ls', '-q', '--filter', filter])).not.toBe('');
+    } finally {
+      disk.mockRestore(); await machine.close();
       const volumes = docker(['volume', 'ls', '-q', '--filter', filter]).split('\n').filter(Boolean);
       if (volumes.length) docker(['volume', 'rm', ...volumes]);
     }

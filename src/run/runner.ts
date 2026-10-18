@@ -620,6 +620,7 @@ async function startTaskInternal(
     /** Host-only provisioning after run/corpus authority has been validated. */
     prepareWorkspaceSources?: (input: { seedRoot?: string; readRuns?: ReadRunsIndex }) => Promise<void>;
     /** Internal execution-host factory; connector and budget wrappers remain host-owned. */
+    openProjectRetrieval?: typeof openProjectRunHaystack;
     createToolBackend?: () => Promise<import('./toolBackend.js').ToolBackend>;
   }
 ): Promise<RunHandle> {
@@ -1023,7 +1024,7 @@ async function startTaskInternal(
     // Retrieval runs in the container like everything else a tenant run does.
     if (!args.container) throw new RunnerConfigError('project retrieval requires container isolation');
     try {
-      const prepared = openProjectRunHaystack(projectPaths, haystackLaunch);
+      const prepared = (opts?.openProjectRetrieval ?? openProjectRunHaystack)(projectPaths, haystackLaunch);
       retrievalBinding = prepared.binding; prepareRetrieval = prepared.prepare;
     } catch { throw new RunnerConfigError('project retrieval launch is unavailable or denied'); }
   }

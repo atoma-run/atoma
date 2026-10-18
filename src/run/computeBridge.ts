@@ -103,7 +103,7 @@ export async function connectComputeBridge(input: unknown) {
     const request = computeBridgeRequestSchema.parse({ id: ++id, call });
     return new Promise((resolve, reject) => {
       const timeout = call.channel === 'tools' && call.command.method === 'invoke'
-        ? workerCallTimeoutMs(call.command.name, call.command.args, 120_000) : 120_000;
+        ? workerCallTimeoutMs(call.command.name, call.command.args, 120_000) : call.channel === 'retrieval' && call.command.method === 'prepare' ? 30 * 60_000 : 120_000;
       const timer = setTimeout(close, timeout); timer.unref();
       pending.set(id, { resolve, reject, timer });
       try { write(socket, request); } catch { close(); }

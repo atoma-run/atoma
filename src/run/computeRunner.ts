@@ -1,3 +1,5 @@
+import { openProjectRunComputeRetrieval } from '../projects/computeRetrieval.js';
+import type { openProjectRunHaystack } from '../projects/retrievalHaystackLaunch.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -21,7 +23,9 @@ export async function computeRunnerOptions(address: unknown) {
     const declarations = catalogue.toolDecls;
     await catalogue.cleanup();
     const workspaceRuntime = remoteWorkspaceRuntime(command => bridge.send({ channel: 'workspace', command }));
-    return { close: bridge.close, workspaceRuntime,
+    const openProjectRetrieval: typeof openProjectRunHaystack = (input, config) =>
+      openProjectRunComputeRetrieval(input, config, command => bridge.send({ channel: 'retrieval', command }));
+    return { close: bridge.close, workspaceRuntime, openProjectRetrieval,
       prepareWorkspaceSources: async (input: { seedRoot?: string; readRuns?: ReadRunsIndex }) => {
         // Host paths never cross the remote boundary. The service resolves ids in its private source volume.
         await workspaceRuntime.bindSources!({ seed: Boolean(input.seedRoot),

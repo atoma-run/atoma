@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, realpathSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -35,6 +35,14 @@ describe('private workspace runtime', () => {
     expect(await remote.deliveredSnapshot(start)).toEqual(await local.deliveredSnapshot(start));
     await remote.captureReadRuns();
     expect(await remote.checkReadRuns()).toEqual([]);
+  });
+
+  it('classifies previews on the execution filesystem across the private process', async () => {
+    const { root, local, remote } = fixture();
+    writeFileSync(join(root, 'index.html'), '<h1>Preview</h1>');
+    expect(await remote.classifyPreview()).toEqual(await local.classifyPreview());
+    expect(await remote.classifyPreview()).toMatchObject({ availability: 'available', kind: 'static' });
+    await expect(workspaceCommandHandler(local)({ method: 'classify-preview', root: '/etc' })).rejects.toThrow();
   });
 
   it('awaits the photograph and restore in the production supervision hook', async () => {
@@ -86,17 +94,24 @@ describe('private workspace runtime', () => {
 });
 
 
-it.each([false, true])('seals a sequential boundary without host files, or refuses a disconnected transfer (disconnect=%s)', async disconnect => {
+it.each([[false, false], [false, true], [true, false]])('seals a sequential boundary without host files (transferLost=%s, confirmationLost=%s)', async (disconnect, confirmationLost) => {
   const { root, remote, process } = fixture();
   const product = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-workspace-product-'))); roots.push(product);
   const store = new RunCheckpointStore(join(product, 'product.db'));
   const data = runCheckpointSchema.parse({ version: 1, id: randomUUID(), goal: 'Test remote checkpoint', workspace: '/unavailable-on-host',
     policy: '{}', actor: null, checklist: null, root: null, completed: [], workspaceDigest: null, processes: [],
     consumed: { tokens: 0, costUsd: 0 }, remainingMs: 60000, lastRunId: null });
+  const confirmed = vi.fn(async (confirmation: import('../src/contracts/checkpointTransfer.js').CheckpointConfirmation) => {
+    expect(confirmation.snapshotId).toBe(data.snapshotId);
+    expect(confirmation.completed).toBe(1);
+    store.materialize(data, join(product, 'confirmed-copy'), false);
+    expect(readFileSync(join(product, 'confirmed-copy/README.md'), 'utf8')).toBe('shutdown persisted');
+    if (confirmationLost) throw new Error('Confirmation lost');
+  });
   await withRecoveryEffects(async () => {
     const checkpoint = new SequentialCheckpoint(data, store, { fresh: true, pauseAfter: 1,
       account: () => ({ tokens: 5, costUsd: 0 }), deadlineAt: Date.now() + 60000,
-      settle: async () => {}, processes: () => [], workspace: { ...remote, checkpointExport: async () => {
+      settle: async () => {}, processes: () => [], workspace: { ...remote, confirmCheckpoint: confirmed, checkpointExport: async () => {
         const exporting = await remote.checkpointExport();
         return { ...exporting, async *frames() {
           for await (const frame of exporting.frames()) {
@@ -117,6 +132,7 @@ it.each([false, true])('seals a sequential boundary without host files, or refus
     else await expect(sealing).rejects.toBeInstanceOf(PhaseBoundaryPause);
     await checkpoint.release();
   });
+  expect(confirmed).toHaveBeenCalledTimes(disconnect ? 0 : 1);
   if (disconnect) {
     expect(() => store.read(data.id)).toThrow('not at a resumable');
     expect(data.snapshotId).toBeUndefined();

@@ -1,3 +1,4 @@
+import { ComputeDispatchPendingError, type ComputeDispatcher } from './computeDispatch.js';
 import { ClientQuestionConflict } from '../run/clientQuestions.js';
 import { LearningQueue } from '../skills/learningQueue.js';
 import { spawnApprovedLearning } from '../run/learningProcess.js';
@@ -133,6 +134,7 @@ export interface ProjectCoordinatorOptions {
   readonly projectsRoot?: string;
   readonly skillsDir?: string;
   readonly driver?: ProjectRunDriver;
+  readonly compute?: () => (Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' | 'interruptedStopped'> & Partial<Pick<ComputeDispatcher, 'previewClassification'>>) | undefined;
   readonly learningDriver?: typeof spawnApprovedLearning;
   readonly acquireLease?: RunLeaseAcquirer;
   /**
@@ -276,6 +278,7 @@ export interface ProjectCoordinatorOptions {
 
 /** What the coordinator knows about a delivered run's deliverable. */
 export interface DeliveredPreviewSubject {
+  readonly remoteClassification?: import('../contracts/preview.js').PreviewClassification;
   readonly orgId: string;
   readonly projectId: string;
   readonly projectRunId: string;
@@ -1287,6 +1290,7 @@ export class ProjectRunCoordinator {
   private readonly root: string;
   private readonly skillsRoot: string;
   private readonly driver: ProjectRunDriver;
+  private readonly compute?: () => (Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' | 'interruptedStopped'> & Partial<Pick<ComputeDispatcher, 'previewClassification'>>) | undefined;
   private readonly learningDriver: typeof spawnApprovedLearning;
   private readonly acquireLease: RunLeaseAcquirer;
   private readonly yieldBackground?: () => Promise<boolean>;
@@ -1328,9 +1332,10 @@ export class ProjectRunCoordinator {
   private readonly active = new Map<string, ActiveRun>();
   private readonly idleWaiters = new Set<() => void>();
   private readonly memoryReserveBytes: number;
+  private readonly computeMemoryReserveBytes: number;
   private readonly memoryProbe: () => HostMemory | null;
   /** When each run still in `active` was admitted: the ones still ramping up. */
-  private readonly admittedAt = new Map<string, number>();
+  private readonly admittedAt = new Map<string, { at: number; reserveBytes: number }>();
   /** Deferral EPISODES: the queue re-checks every 250 ms, and one wait is one deferral. */
   private memoryDeferrals = 0;
   private memoryDeferring = false;
@@ -1347,6 +1352,7 @@ export class ProjectRunCoordinator {
     migratePlatformSkills({ dbPath: this.dbPath, projectsRoot: this.root, skillsRoot: this.skillsRoot });
     reconcilePlatformSkills({ db: this.dbPath, skillsRoot: this.skillsRoot });
     this.driver = options.driver ?? spawnRun;
+    this.compute = options.compute;
     this.learningDriver = options.learningDriver ?? spawnApprovedLearning;
     this.acquireLease = options.acquireLease ?? ((id, scope) => acquireRunLease(id, undefined, scope));
     this.yieldBackground = options.yieldBackground;
@@ -1387,18 +1393,20 @@ export class ProjectRunCoordinator {
     projectRunTimeoutMs(this.hostEnv, this.explicitTimeoutMs);
     // Same rule: a malformed reserve refuses the boot, not every run after it.
     this.memoryReserveBytes = runMemoryReserveBytes(this.hostEnv);
+    this.computeMemoryReserveBytes = this.hostEnv['ATOMA_COMPUTE_HOST_MEMORY_RESERVE_MB'] === undefined ? this.memoryReserveBytes
+      : runMemoryReserveBytes({ [RUN_MEMORY_RESERVE_ENV]: this.hostEnv['ATOMA_COMPUTE_HOST_MEMORY_RESERVE_MB'] });
     this.memoryProbe = options.memoryProbe ?? (() => readHostMemory());
   }
 
   /** See `RUN_MEMORY_RESERVE_ENV`. True when a new run may start beside the running ones. */
-  private memoryAdmits(): boolean {
-    if (this.memoryReserveBytes === 0 || this.active.size === 0) return true;
+  private memoryAdmits(target: 'hosted' | 'customer-device' = 'hosted'): boolean {
+    const reserveBytes = target === 'customer-device' ? this.computeMemoryReserveBytes : this.memoryReserveBytes;
+    if (reserveBytes === 0 || this.active.size === 0) return true;
     const memory = this.memoryProbe();
     if (!memory) return true;
     const now = Date.now();
-    let ramping = 0;
-    for (const [runId, at] of this.admittedAt) if (this.active.has(runId) && now - at < RUN_MEMORY_RAMP_MS) ramping++;
-    const requiredBytes = this.memoryReserveBytes * (1 + ramping);
+    let requiredBytes = reserveBytes;
+    for (const [runId, admitted] of this.admittedAt) if (this.active.has(runId) && now - admitted.at < RUN_MEMORY_RAMP_MS) requiredBytes += admitted.reserveBytes;
     if (memory.availableBytes >= requiredBytes) {
       this.memoryDeferring = false;
       return true;
@@ -1471,7 +1479,7 @@ export class ProjectRunCoordinator {
     // held by `waitForIdle`.
     for (const { orgId, projectRunId } of interrupted) {
       const run = this.store.getProjectRun(orgId, projectRunId);
-      if (!run?.readRunIds) continue;
+      if (!run?.readRunIds || run.status === 'running') continue;
       const releasing: Promise<void> = this.releaseReadRunCopies(run).catch((error: unknown) => {
         process.stderr.write(`[atoma projects] read-run copies of ${projectRunId} were not released: ${String(error)}\n`);
       }).finally(() => {
@@ -1948,7 +1956,7 @@ export class ProjectRunCoordinator {
       lease?.release();
       return { run, created: false };
     }
-    if (run.executionTarget.kind === 'customer-device') { lease?.release(); return { run, created: true }; }
+    if (run.executionTarget.kind === 'customer-device') { lease?.release(); this.resumeQueuedRuns(); return { run, created: true }; }
     if (!lease) {
       this.resumeQueuedRuns();
       return { run, created: true };
@@ -1965,13 +1973,15 @@ export class ProjectRunCoordinator {
   }
 
   private async launchReservedRun(run: ProjectRun, lease: RunLease, rerun: RerunOrigin | null, admittedTimeoutMs?: number): Promise<{ run: ProjectRun; created: boolean }> {
-    if (run.executionTarget.kind !== 'hosted') { lease.release(); throw new Error('Customer compute dispatch is not configured'); }
+    const compute = run.executionTarget.kind === 'customer-device' ? this.compute?.() : undefined;
+    if (run.executionTarget.kind === 'customer-device' && !compute) { lease.release(); throw new Error('Customer compute dispatch is not configured'); }
     const input = { orgId: run.orgId, projectId: run.projectId, principalId: run.requestedByPrincipalId };
     let timeoutMs: number;
     let retrievalLaunch: ReturnType<typeof readHaystackLaunch>;
     try {
       timeoutMs = admittedTimeoutMs ?? projectRunTimeoutMs(this.hostEnv, run.requestedTimeoutMs, this.platformLimits());
-      retrievalLaunch = readHaystackLaunch(this.hostEnv);
+      retrievalLaunch = readHaystackLaunch(run.executionTarget.kind === 'customer-device' && this.hostEnv['ATOMA_COMPUTE_HAYSTACK_CONFIG']
+        ? { [HAYSTACK_LAUNCH_ENV]: this.hostEnv['ATOMA_COMPUTE_HAYSTACK_CONFIG'] } : this.hostEnv);
     } catch (error) { lease.release(); throw error; }
     const project = this.store.getProject(input.orgId, input.projectId);
     if (!project) {
@@ -2053,7 +2063,7 @@ export class ProjectRunCoordinator {
       // Inventory lookup and lease acquisition may have yielded to another
       // admission. Recheck immediately before the synchronous start + active
       // registration, so simultaneous organisations cannot spend one reserve.
-      if (!this.memoryAdmits()) {
+      if (!this.memoryAdmits(run.executionTarget.kind)) {
         lease.release();
         this.resumeQueuedRuns();
         return { run, created: true };
@@ -2086,7 +2096,7 @@ export class ProjectRunCoordinator {
       principalId: input.principalId,
       controller,
     });
-    this.admittedAt.set(run.projectRunId, Date.now());
+    this.admittedAt.set(run.projectRunId, { at: Date.now(), reserveBytes: compute ? this.computeMemoryReserveBytes : this.memoryReserveBytes });
 
     let driven: Promise<string>;
     try {
@@ -2101,7 +2111,10 @@ export class ProjectRunCoordinator {
       // (`PROJECT_RUN_PREPARATION_TIMEOUT_MS`) and are no longer billed to the
       // run budget. See that constant for the measurement.
       const preparationDeadlineAt = Date.now() + PROJECT_RUN_PREPARATION_TIMEOUT_MS;
-      const launch = () => this.driver({
+      const launch = () => {
+        const driver: ProjectRunDriver = compute
+          ? input => compute.drive(run, this.driver, input, paths.artifactManifestPath) : this.driver;
+        return driver({
         goal: run.goal,
         timeoutMs,
         logPath: paths.logPath,
@@ -2121,6 +2134,7 @@ export class ProjectRunCoordinator {
         env: environment,
         onSpawn: (pid) => lease.attachChild(pid),
       });
+      };
       let launched = false;
       driven = (async () => {
         const preparationSignal = AbortSignal.any([
@@ -2369,6 +2383,9 @@ export class ProjectRunCoordinator {
             projectId: reservedRun.projectId,
             projectRunId: reservedRun.projectRunId,
             workspaceRoot: reservedRun.hostPaths.workspacePath,
+            ...(reservedRun.executionTarget.kind === 'customer-device' ? {
+              remoteClassification: this.compute?.()?.previewClassification?.(reservedRun.projectRunId),
+            } : {}),
           });
         } catch (error) {
           process.stderr.write(
@@ -2381,7 +2398,7 @@ export class ProjectRunCoordinator {
     } catch (error) {
       try {
         const current = this.store.getProjectRun(reservedRun.orgId, reservedRun.projectRunId);
-        if (current?.status === 'running') {
+        if (current?.status === 'running' && !(error instanceof ComputeDispatchPendingError)) {
           const tracePath = path.join(
             reservedRun.hostPaths.runsPath,
             `${reservedRun.projectRunId}.json`
@@ -2415,7 +2432,7 @@ export class ProjectRunCoordinator {
       if (reservedRun.readRunIds) {
         try {
           const ended = this.store.getProjectRun(reservedRun.orgId, reservedRun.projectRunId);
-          if (ended) await this.releaseReadRunCopies(ended);
+          if (ended && ended.status !== 'running') await this.releaseReadRunCopies(ended);
         } catch (error) {
           process.stderr.write(`[atoma projects] read-run copies of ${reservedRun.projectRunId} were not released: ${String(error)}\n`);
         }
@@ -2590,12 +2607,18 @@ export class ProjectRunCoordinator {
     if (this.queuePumping || this.queueStopped) return;
     this.queuePumping = true;
     try {
+      let hostedMemoryWaiting = false;
       for (const queued of this.store.listQueuedRuns()) {
         if (this.queueStopped) break;
-        if (queued.executionTarget.kind === 'customer-device') continue;
+        if (queued.executionTarget.kind === 'hosted' && hostedMemoryWaiting) continue;
+        if (queued.executionTarget.kind === 'customer-device' && this.compute?.()?.readiness(queued).status !== 'ready') continue;
         if (this.store.runCapacity(queued.orgId).maxConcurrent === 0) continue;
-        // FIFO: the head waits for memory, and nobody overtakes it.
-        if (!this.memoryAdmits()) break;
+        // Each target has its own residual-host reserve. A waiting device
+        // cannot prevent another target with sufficient resources from starting.
+        if (!this.memoryAdmits(queued.executionTarget.kind)) {
+          if (queued.executionTarget.kind === 'hosted') hostedMemoryWaiting = true;
+          continue;
+        }
         let lease: RunLease;
         try { lease = await this.acquireLeasePreempting(`project:${queued.projectRunId}`, queued.orgId); }
         catch (error) {
@@ -2678,6 +2701,40 @@ export class ProjectRunCoordinator {
         manifest: run.artifactManifest, manifestHash: run.artifactManifestHash });
     } finally { lease.release(); }
     return run;
+  }
+
+  pendingComputeRuns(orgId: string, projectId: string, principalId: string): { runId: string }[] {
+    return (this.store.listProjectRuns(orgId, projectId) ?? []).filter(run =>
+      run.executionTarget.kind === 'customer-device' && run.status === 'running' &&
+      run.requestedByPrincipalId === principalId && !this.active.has(run.projectRunId))
+      .slice(0, 100).map(run => ({ runId: run.projectRunId }));
+  }
+
+  /** Resume only the verified delivery transfer after an explicit request. */
+  async retryComputeFinalization(orgId: string, projectRunId: string, principalId: string): Promise<ProjectRun> {
+    const run = this.store.getProjectRun(orgId, projectRunId);
+    if (!run || run.executionTarget.kind !== 'customer-device' || run.status !== 'running' ||
+        run.requestedByPrincipalId !== principalId || (this.queuedRunAllowed && !this.queuedRunAllowed(principalId, orgId))) {
+      throw new ProjectStateConflict('Compute finalization unavailable');
+    }
+    const compute = this.compute?.(), project = this.store.getProject(orgId, run.projectId);
+    if (!compute || !project || project.status !== 'active' || this.active.has(projectRunId)) throw new ProjectStateConflict('Compute run is active or unavailable');
+    if (compute.interruptedStopped(run)) {
+      return this.store.transitionProjectRun({ orgId, projectRunId, from: 'running', to: 'failed',
+        error: 'Customer execution interrupted; launcher confirmed stop. Resume only from an eligible confirmed checkpoint, or start a new run.' })!;
+    }
+    const lease = await this.acquireLeasePreempting(`project:${projectRunId}`, orgId);
+    if (this.active.has(projectRunId) || this.store.getProjectRun(orgId, projectRunId)?.status !== 'running') {
+      lease.release(); throw new ProjectStateConflict('Compute run changed');
+    }
+    const controller = new AbortController();
+    this.active.set(projectRunId, { orgId, principalId, controller });
+    const manifestPath = projectRunHostLayout(this.root, orgId, run.projectId, projectRunId).artifactManifestPath;
+    const driven = compute.recover(run, manifestPath).catch(() => { throw new ComputeDispatchPendingError(); });
+    await this.finish(project, run, manifestPath, driven, lease, controller.signal);
+    const finalized = this.store.getProjectRun(orgId, projectRunId)!;
+    if (finalized.status === 'running') throw new ProjectStateConflict('Compute finalization remains pending; reconnect the machine and reconcile its stopped execution before retrying');
+    return finalized;
   }
 
   cancel(orgId: string, projectRunId: string): ProjectRun | null {

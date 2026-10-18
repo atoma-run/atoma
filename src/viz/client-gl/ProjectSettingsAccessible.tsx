@@ -1,3 +1,4 @@
+import { computeTargetKey, type ComputeSettingsView } from './project-compute.js';
 import { useState } from 'react';
 import { ButtonIcon } from './ButtonIcon.js';
 import { buttonIconKind } from './button-icons.js';
@@ -5,10 +6,11 @@ import { HOSTING_SUBDOMAIN_MAX } from '../../contracts/projectDeployment.js';
 import { deploymentCopy, hostingCopy, type DeploymentSettingsView } from './project-deployment.js';
 import { connectorsCopy, type ConnectorSettingsView } from './project-connectors.js';
 
-export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress, connectors }: {
+export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress, connectors, compute }: {
   view: DeploymentSettingsView; t: (key: string, vars?: Record<string, unknown>) => string; onActivate: (id: string) => void;
   onRenameAddress?: (subdomain: string) => void;
   connectors?: ConnectorSettingsView | null;
+  compute?: ComputeSettingsView | null;
 }) {
   const copy = deploymentCopy(view);
   const hosted = hostingCopy(view);
@@ -32,6 +34,7 @@ export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress
       {hosted.stop ? control(hosted.stop) : null}
       <p>{t('hosting.private')}</p>
     </section> : null}
+    {compute ? <ComputeSection view={compute} t={t} onActivate={onActivate} /> : null}
     <h2>{t('deployment.title')}</h2><p>{t('deployment.intro')}</p>
     <fieldset disabled={!view.canEdit || view.busy}>
       <legend>{t('deployment.title')}</legend>
@@ -103,4 +106,33 @@ function AddressForm({ label, domain, view, t, onSave, onCancel }: {
     <button type="submit" disabled={view.renameBusy || value.trim().toLowerCase() === label}><ButtonIcon kind="save" />{t('hosting.renameSave')}</button>
     <button type="button" onClick={onCancel}><ButtonIcon kind="close" />{t('hosting.renameCancel')}</button>
   </form>;
+}
+
+function ComputeSection({ view, t, onActivate }: { view: ComputeSettingsView; t: (key: string) => string; onActivate: (id: string) => void }) {
+  if (view.loadFailed) return <section aria-label={t('compute.title')}><h2>{t('compute.title')}</h2>
+    <p role="alert">{t('compute.loadFailed')}</p><button type="button" onClick={() => onActivate('compute.refresh')}>{t('compute.refresh')}</button></section>;
+  const selected = computeTargetKey(view.selected), saved = computeTargetKey(view.project.target);
+  return <section aria-label={t('compute.title')} aria-busy={view.busy}>
+    <h2>{t('compute.title')}</h2><p>{t('compute.intro')}</p>
+    <fieldset disabled={!view.project.canEdit || view.busy}>
+      <legend>{t('compute.target')}</legend>
+      <label><input type="radio" name="compute-target" checked={selected === 'hosted'} onChange={() => onActivate('compute.choose.hosted')} />{t('compute.hosted')}</label>
+      {view.project.devices.map(device => <div key={device.deviceId}>
+        <label><input type="radio" name="compute-target" checked={selected === device.deviceId} disabled={!device.allowed || device.revoked}
+          onChange={() => onActivate(`compute.choose.${device.deviceId}`)} />{device.name}</label>
+        <p>{t(`compute.availability.${device.availability}`)} · {t(device.allowed ? 'compute.allowed' : 'compute.notAllowed')}</p>
+        {!device.revoked ? <button type="button" onClick={() => onActivate(`compute.grant.${device.deviceId}`)}><ButtonIcon kind={device.allowed ? 'close' : 'check'} />
+          {t(device.allowed ? 'compute.removeAccess' : 'compute.allowProject')}</button> : null}
+      </div>)}
+    </fieldset>
+    {!view.project.devices.length ? <p>{t('compute.empty')}</p> : null}
+    <p>{t('compute.scope')}</p>
+    {(view.project.pendingRuns ?? []).map(run => <div key={run.runId}>
+      <p>{t('compute.pending')} · {run.runId.slice(0, 8)}</p>
+      <button type="button" disabled={view.busy} onClick={() => onActivate(`compute.finalize.${run.runId}`)}>{t('compute.finalize')}</button>
+    </div>)}
+    {!view.project.canEdit ? <p>{t('deployment.adminOnly')}</p> : null}
+    {view.notice !== 'idle' ? <p role={view.notice === 'saved' ? 'status' : 'alert'}>{t(`compute.${view.notice}`)}</p> : null}
+    {selected !== saved ? <button type="button" disabled={!view.project.canEdit || view.busy} onClick={() => onActivate('compute.save')}><ButtonIcon kind="check" />{t('compute.save')}</button> : null}
+  </section>;
 }

@@ -625,12 +625,15 @@ export class PreviewStore {
    */
   reconcileInterrupted(now?: Date): number {
     const at = (now ?? new Date()).toISOString();
+    const targetColumn = (this.db.prepare('PRAGMA table_info(project_runs)').all() as { name: string }[]).some(column => column.name === 'execution_target_json');
+    const remote = targetColumn ? `EXISTS(SELECT 1 FROM project_runs r WHERE r.project_run_id=project_run_preview_instances.project_run_id
+      AND json_extract(r.execution_target_json,'$.kind')='customer-device')` : '0';
     return this.db
       .prepare(
         `UPDATE project_run_preview_instances
-         SET state = 'stopped', last_stop_reason = 'crash', ready_at = NULL,
+         SET state = CASE WHEN ${remote} THEN 'failed' ELSE 'stopped' END, last_stop_reason = 'crash', ready_at = NULL,
              expires_at = NULL, image_digest = NULL, runtime = NULL,
-             error_code = NULL, updated_at = ?
+             error_code = CASE WHEN ${remote} THEN 'runtime-unavailable' ELSE NULL END, updated_at = ?
          WHERE state IN ('starting','ready','stopping')`
       )
       .run(at).changes;

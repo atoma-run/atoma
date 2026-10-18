@@ -1,3 +1,4 @@
+import { computeTargetKey } from '../../project-compute.js';
 import { Container } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { deploymentCopy, hostingCopy, type HostingTone } from '../../project-deployment.js';
@@ -99,6 +100,39 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
     if (!view.canEdit) line(snapshot.t('deployment.adminOnly'));
     if (copy.status) line(snapshot.t(copy.status), { color: view.status === 'failed' || view.status === 'conflict' ? GPU_COLORS.error : GPU_COLORS.muted });
     if (copy.showSave) buttonRow([{ id: 'deployment.save', disabled: copy.saveDisabled }], 240);
+  });
+
+  const compute = snapshot.data.computeSettings;
+  if (compute) card(() => {
+    if (compute.loadFailed) {
+      line(snapshot.t('compute.title'), { size: 16, weight: '600', color: GPU_COLORS.text, gap: 6 });
+      line(snapshot.t('compute.loadFailed'), { color: GPU_COLORS.error });
+      buttonRow([{ id: 'compute.refresh' }], 280);
+      return;
+    }
+    const selected = computeTargetKey(compute.selected), saved = computeTargetKey(compute.project.target);
+    const disabled = !compute.project.canEdit || compute.busy;
+    line(snapshot.t('compute.title'), { size: 16, weight: '600', color: GPU_COLORS.text, gap: 6 });
+    line(snapshot.t('compute.intro'));
+    buttonRow([{ id: 'compute.choose.hosted', label: 'compute.hosted', disabled }], 280, () => selected === 'hosted');
+    for (const device of compute.project.devices) {
+      if (pane.visible(y, y + BUTTON_HEIGHT)) ctx.button(content, `compute.choose.${device.deviceId}`, 'button', device.name,
+        PAD, y, Math.min(inner, 360), BUTTON_HEIGHT, selected === device.deviceId, snapshot.onActivate,
+        undefined, false, false, undefined, undefined, undefined, disabled || !device.allowed || device.revoked);
+      y += BUTTON_HEIGHT + 4;
+      line(`${snapshot.t(`compute.availability.${device.availability}`)} · ${snapshot.t(device.allowed ? 'compute.allowed' : 'compute.notAllowed')}`, { size: 12 });
+      if (!device.revoked && compute.project.canEdit) buttonRow([{ id: `compute.grant.${device.deviceId}`,
+        label: device.allowed ? 'compute.removeAccess' : 'compute.allowProject', disabled }], 280);
+    }
+    if (!compute.project.devices.length) line(snapshot.t('compute.empty'));
+    line(snapshot.t('compute.scope'), { size: 12 });
+    for (const run of compute.project.pendingRuns ?? []) {
+      line(`${snapshot.t('compute.pending')} · ${run.runId.slice(0, 8)}`, { size: 12 });
+      buttonRow([{ id: `compute.finalize.${run.runId}`, label: 'compute.finalize', disabled: compute.busy }], 280);
+    }
+    if (!compute.project.canEdit) line(snapshot.t('deployment.adminOnly'));
+    if (compute.notice !== 'idle') line(snapshot.t(`compute.${compute.notice}`), { color: compute.notice === 'saved' ? GPU_COLORS.muted : GPU_COLORS.error });
+    if (selected !== saved) buttonRow([{ id: 'compute.save', disabled }], 280);
   });
 
   const connectors = snapshot.data.connectorSettings;

@@ -1,0 +1,68 @@
+name: Compute images
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release-tag:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            architecture: amd64
+          - runner: ubuntu-24.04-arm
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Build native images from packaged code
+        env:
+          REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker build --label "org.opencontainers.image.revision=${REVISION}" -f docker/worker.Dockerfile -t atoma-worker:compute-ci .
+          docker build --label "org.opencontainers.image.revision=${REVISION}" -f docker/workspace.Dockerfile -t atoma-workspace:compute-ci .
+          docker build --label "org.opencontainers.image.revision=${REVISION}" -f docker/preview.Dockerfile -t atoma-preview:compute-ci .
+          docker build --label "org.opencontainers.image.revision=${REVISION}" -f docker/compute-retrieval.Dockerfile -t atoma-retrieval:compute-ci .
+      - name: Verify packaged isolation, retrieval, transfers and preview
+        run: npx vitest run tests/container-isolation.test.ts tests/workspace-service-container.test.ts tests/desktop-compute.test.ts tests/compute-connection.test.ts tests/compute-retrieval.test.ts tests/compute-preview.test.ts
+        env:
+          CI_REQUIRE_DOCKER: '1'
+          ATOMA_TEST_ACCEPTANCE_IMAGE: atoma-worker:compute-ci
+          ATOMA_TEST_WORKER_IMAGE: atoma-worker:compute-ci
+          ATOMA_TEST_WORKSPACE_IMAGE: atoma-workspace:compute-ci
+          ATOMA_TEST_PREVIEW_IMAGE: atoma-preview:compute-ci
+          ATOMA_TEST_RETRIEVAL_IMAGE: atoma-retrieval:compute-ci
+      - name: Publish verified architecture digests
+        if: inputs.release-tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_ACTOR: ${{ github.actor }}
+          REPOSITORY: ${{ github.repository }}
+          REVISION: ${{ github.sha }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_ACTOR" --password-stdin
+          node scripts/publish-compute-images.mjs

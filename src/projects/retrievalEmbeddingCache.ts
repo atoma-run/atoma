@@ -34,10 +34,15 @@ function validVector(vector: Buffer, dimension: number): boolean {
 export class ProjectEmbeddingCache {
   private readonly db: Database.Database;
   constructor(dbPath: string, private readonly orgId: string, private readonly projectId: string,
-    private readonly encoderKey: string) {
+    private readonly encoderKey: string, options?: { maxDatabaseBytes: number }) {
     this.db = new Database(dbPath, { timeout: 0 });
     try {
       this.db.pragma('busy_timeout = 0');
+      if (options) {
+        if (!Number.isSafeInteger(options.maxDatabaseBytes) || options.maxDatabaseBytes < 65536 || options.maxDatabaseBytes > MAX_TOTAL_BYTES) throw new Error('Invalid local cache bound');
+        const pageSize = this.db.pragma('page_size', { simple: true }) as number;
+        this.db.pragma(`max_page_count = ${Math.floor(options.maxDatabaseBytes / pageSize)}`);
+      }
       this.db.exec(DDL);
     } catch (error) { this.db.close(); throw error; }
   }

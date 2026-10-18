@@ -1,3 +1,4 @@
+import type { RemotePreviewRuntime } from './computeController.js';
 import type { PreviewErrorCode, PreviewInstance, PreviewSummary } from '../contracts/preview.js';
 import type { ContainerLauncher } from '../contracts/launcher.js';
 import { mintPreviewClaim, PreviewClaimRegistry } from './claims.js';
@@ -30,6 +31,7 @@ import { readPreviewSummary } from './service.js';
  */
 
 export interface PreviewManagerDeps {
+  readonly remote?: RemotePreviewRuntime;
   readonly store: PreviewStore;
   readonly launcher: ContainerLauncher;
   readonly routes: PreviewRouteTable;
@@ -246,6 +248,11 @@ export class PreviewManager {
       const approved = store.listApprovedHosts(input.orgId, input.projectId);
       const allowed = terminal ? [] : effectiveEgressHosts(requestedHosts, approved, this.deps.config.allowedHosts).allowed;
 
+      if (this.deps.remote?.owns(input.orgId, input.projectId, input.projectRunId)) {
+        await this.startRemote(input, generation, 'delivered', allowed);
+        return this.claimFor(input, generation, requestedHosts);
+      }
+
       if (!terminal && descriptor?.kind === 'static') {
         // No container at all: the gateway serves the copy. It still gets an
         // origin, a generation and a claim, because those are what bound WHO
@@ -333,7 +340,7 @@ export class PreviewManager {
       } catch {
         /* the row moved on; the teardown below is what matters */
       }
-      await this.teardownGeneration(input.orgId, input.projectRunId, generation);
+      await this.teardownGeneration(input.orgId, input.projectId, input.projectRunId, generation);
       throw error;
     }
   }
@@ -395,6 +402,10 @@ export class PreviewManager {
     try {
       // Write, then check — see `openDelivered`.
       this.assertNoDeploymentWaiting();
+      if (this.deps.remote?.owns(input.orgId, input.projectId, input.projectRunId)) {
+        await this.startRemote(input, generation, 'in-flight', this.deps.config.allowedHosts ?? []);
+        return this.claimFor(input, generation, []);
+      }
       const workspace = await this.deps.launcher.createWorkspace(ownerId);
       if (!workspace.hostPath) throw new PreviewRuntimeError('internal', 'no host-side copy');
       const sourceRoot = this.deps.workspaceOf(input.orgId, input.projectId, input.projectRunId);
@@ -490,7 +501,7 @@ export class PreviewManager {
       } catch {
         /* the row moved on; the teardown is what matters */
       }
-      await this.teardownGeneration(input.orgId, input.projectRunId, generation);
+      await this.teardownGeneration(input.orgId, input.projectId, input.projectRunId, generation);
       throw error;
     }
   }
@@ -606,7 +617,7 @@ export class PreviewManager {
       }
     }
 
-    await this.teardownGeneration(orgId, projectRunId, generation);
+    await this.teardownGeneration(orgId, projectId, projectRunId, generation);
 
     try {
       this.deps.store.finishStop({
@@ -623,11 +634,40 @@ export class PreviewManager {
     return this.status(orgId, projectId, projectRunId);
   }
 
+  /** A socket loss withdraws access immediately; it is not a stop receipt. */
+  remoteUnavailable(orgId: string, projectRunId: string, generation: number): void {
+    const host = `${previewGenerationHost(orgId, projectRunId, generation)}.${this.deps.config.domain}`;
+    this.deps.routes.delete(host); this.deps.claims.revokeRun(orgId, projectRunId, generation);
+    try { this.deps.store.markFailed({ orgId, projectRunId, generation, errorCode: 'runtime-unavailable', now: new Date(this.now()) }); }
+    catch { /* A later generation owns the instance row. */ }
+  }
+
+  private async startRemote(input: PreviewOpenInput, generation: number, source: 'delivered' | 'in-flight', allowedHosts: readonly string[]): Promise<void> {
+    const running = await this.deps.remote!.start({ orgId: input.orgId, projectId: input.projectId, runId: input.projectRunId,
+      ...(source === 'delivered' ? { classification: this.deps.store.getDescriptor(input.orgId, input.projectRunId) ?? undefined } : {}),
+      generation, source, mode: input.mode ?? 'app', allowedHosts, copyMaxBytes: this.deps.config.copyMaxBytes,
+      attribution: this.deps.attribution?.(input.orgId) ?? true, hardMs: this.deps.config.hardMs });
+    const host = `${previewGenerationHost(input.orgId, input.projectRunId, generation)}.${this.deps.config.domain}`;
+    this.deps.routes.set(host, { orgId: input.orgId, projectRunId: input.projectRunId, generation, kind: 'node',
+      ...(input.mode === 'terminal' ? { mode: 'terminal' as const } : {}), connect: () => running.connect(), allowedHosts });
+    this.deps.store.markReady({ orgId: input.orgId, projectRunId: input.projectRunId, generation,
+      imageDigest: running.imageDigest, runtime: running.runtime, expiresAt: new Date(this.now() + this.deps.config.hardMs).toISOString(), now: new Date(this.now()) });
+  }
+
   /** Clean only the generation that allocated resources, including failed starts. */
-  private async teardownGeneration(orgId: string, projectRunId: string, generation: number): Promise<void> {
+  private async teardownGeneration(orgId: string, projectId: string, projectRunId: string, generation: number): Promise<void> {
     const host = `${previewGenerationHost(orgId, projectRunId, generation)}.${this.deps.config.domain}`;
     this.deps.routes.delete(host);
     this.deps.claims.revokeRun(orgId, projectRunId, generation);
+    const instance = this.deps.store.getInstance(orgId, projectRunId);
+    if (instance && this.deps.remote?.owns(orgId, projectId, projectRunId)) {
+      try { await this.deps.remote.stop(orgId, projectRunId, generation); }
+      catch {
+        try { this.deps.store.markFailed({ orgId, projectRunId, generation, errorCode: 'runtime-unavailable', now: new Date(this.now()) }); }
+        catch { /* A newer generation owns the row. */ }
+      }
+      return;
+    }
     const ownerId = this.ownerId(projectRunId, generation);
     await teardownPreview(
       { launcher: this.deps.launcher, ...(this.deps.log ? { log: this.deps.log } : {}) },
