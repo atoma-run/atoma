@@ -1,6 +1,6 @@
 import { openProjectRunComputeRetrieval } from '../projects/computeRetrieval.js';
 import type { openProjectRunHaystack } from '../projects/retrievalHaystackLaunch.js';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { connectComputeBridge } from './computeBridge.js';
@@ -9,6 +9,7 @@ import { localToolBackend } from './toolBackend.js';
 import { remoteWorkspaceRuntime } from './workspaceRpc.js';
 import { provisionWorkspaceSource } from './workspaceImport.js';
 import { captureCheckpointExport } from './checkpointExport.js';
+import { seedWorkspace } from './workspace.js';
 import { captureManifestExport } from './artifactTransfer.js';
 import type { ReadRunsIndex } from '../contracts/readRuns.js';
 import { consoleLogger } from './runner.js';
@@ -30,7 +31,15 @@ export async function computeRunnerOptions(address: unknown) {
         // Host paths never cross the remote boundary. The service resolves ids in its private source volume.
         await workspaceRuntime.bindSources!({ seed: Boolean(input.seedRoot),
           ...(input.readRuns ? { readRuns: { ...input.readRuns, readRuns: input.readRuns.readRuns.map(run => ({ ...run, workspacePath: 'remote-source' })) } } : {}) });
-        if (input.seedRoot) await provisionWorkspaceSource(workspaceRuntime, { kind: 'seed' }, captureCheckpointExport(input.seedRoot));
+        if (input.seedRoot) {
+          // Repository seeds may share hard links with the server's cache. Apply
+          // the hosted seed copy before sealing; checkpoints still reject aliases.
+          const staging = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-compute-seed-')));
+          try {
+            seedWorkspace(input.seedRoot, staging);
+            await provisionWorkspaceSource(workspaceRuntime, { kind: 'seed' }, captureCheckpointExport(staging));
+          } finally { rmSync(staging, { recursive: true, force: true }); }
+        }
         for (const run of input.readRuns?.readRuns ?? []) {
           await provisionWorkspaceSource(workspaceRuntime, { kind: 'read-run', runId: run.runId }, captureManifestExport(run.workspacePath, run.manifest));
         }

@@ -50,8 +50,8 @@ it('rejects an unknown in-flight effect on loss without resending it', async () 
 });
 
 
-it('provisions a seed through the runner bridge and keeps host-only source paths private', async () => {
-  const { mkdtempSync, realpathSync, mkdirSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
+it.each(['hard-linked', 'escaping-link'] as const)('provisions only safe %s seeds through the runner bridge', async kind => {
+  const { mkdtempSync, realpathSync, mkdirSync, writeFileSync, readFileSync, rmSync, linkSync, statSync, existsSync, symlinkSync } = await import('node:fs');
   const { join } = await import('node:path');
   const { tmpdir } = await import('node:os');
   const { localWorkspaceRuntime } = await import('../src/run/workspaceRuntime.js');
@@ -59,7 +59,11 @@ it('provisions a seed through the runner bridge and keeps host-only source paths
   const { computeRunnerOptions } = await import('../src/run/computeRunner.js');
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'compute-runner-')));
   const source = join(root, 'host-source'), target = join(root, 'device-current');
-  mkdirSync(source); writeFileSync(join(source, 'README.md'), 'saved source');
+  mkdirSync(source); writeFileSync(join(root, 'cached-readme'), 'saved source');
+  linkSync(join(root, 'cached-readme'), join(source, 'README.md'));
+  mkdirSync(join(source, 'node_modules')); writeFileSync(join(source, 'node_modules', 'excluded'), 'dependency');
+  const { checkpointWorkspaceDigest } = await import('../src/run/checkpointWorkspace.js');
+  expect(() => checkpointWorkspaceDigest(source)).toThrow('link or special file');
   const handler = workspaceCommandHandler(localWorkspaceRuntime({ root: target, sourceRoot: join(root, 'device-private'), log: () => {} }));
   const commands: unknown[] = [];
   const server = await serveComputeBridge(async call => {
@@ -70,9 +74,22 @@ it('provisions a seed through the runner bridge and keeps host-only source paths
   let runtime: Awaited<ReturnType<typeof computeRunnerOptions>> | undefined;
   try {
     runtime = await computeRunnerOptions(server.address);
+    if (kind === 'escaping-link') {
+      symlinkSync(join(root, 'cached-readme'), join(source, 'escape'));
+      await expect(runtime.prepareWorkspaceSources({ seedRoot: source })).rejects.toThrow('escaping link');
+      expect(existsSync(target)).toBe(false);
+      return;
+    }
     await runtime.prepareWorkspaceSources({ seedRoot: source });
+    expect(statSync(join(source, 'README.md')).nlink).toBe(2);
+    expect(readFileSync(join(root, 'cached-readme'), 'utf8')).toBe('saved source');
     rmSync(source, { recursive: true });
     await runtime.workspaceRuntime.prepare(false);
+    expect(readFileSync(join(target, 'README.md'), 'utf8')).toBe('saved source');
+    expect(statSync(join(target, 'README.md')).nlink).toBe(1);
+    expect(existsSync(join(target, 'node_modules'))).toBe(false);
+    writeFileSync(join(target, 'README.md'), 'attempt');
+    await runtime.workspaceRuntime.restart();
     expect(readFileSync(join(target, 'README.md'), 'utf8')).toBe('saved source');
     expect(JSON.stringify(commands)).not.toContain(source);
     expect((await runtime.createToolBackend()).provenance).toBe('customer-device');

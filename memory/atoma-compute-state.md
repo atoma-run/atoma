@@ -440,3 +440,17 @@ Clean CI `39150604970` and automatic native CI `39150604991` passed.
 Translated native release workflow `39150822086` passed on all three platforms
 and published all installers/checksums at `compute-desktop-preview-20261018-3`.
 The setup download links now target that verified preview.
+
+## Repository seed transfer refusal — 2026-10-18
+
+Production run `30769ff9-6531-48d3-9943-1d8ccd16c9b7` failed before trace/model
+startup. MCP runner log (read to end) identified `captureCheckpointExport` from
+`computeRunner.prepareWorkspaceSources`: “Checkpoint workspace contains a link
+or special file”. Read-only SSH confirmed regular source files with nlink=3.
+`materialiseRepositorySeed` intentionally shares immutable source inodes; hosted
+execution calls `seedWorkspace`, which creates independent files. Remote execution
+had sealed the raw source instead. It now applies the same seed preparation to a
+private temporary copy before checkpoint export, with cleanup on every exit.
+Checkpoint hard-link and escaping-link refusals remain unchanged. Bridge tests
+exercise hard-linked source transfer, dependency exclusion, source preservation,
+deepening and refusal of an escaping link. No user run is restarted for testing.
