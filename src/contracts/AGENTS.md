@@ -15,6 +15,11 @@ Neighbours:
 
 ## Workspace control protocol
 
+`computeDevice.ts` owns desktop capability, session, resource and assignment
+shapes. A connection generation fences sockets; a separate execution generation
+fences workload effects. Advertised resources are not independently verified
+proof. Server admission requires an operator-approved app version and image digest.
+
 `workspaceProtocol.ts` is a private runtime channel, separate from
 `workerProtocol.ts` and all element declarations. It has no caller-selected
 root or arbitrary command. Replies reuse the owning evidence schemas; guards

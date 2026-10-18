@@ -10,6 +10,18 @@ Neighbours:
 - [`src/github`](../github/AGENTS.md) — where publication lands
 - [`src/platform`](../platform/AGENTS.md) — the journal this domain emits into
 
+## Customer compute control
+
+`computeDevices.ts` is the private customer-compute control domain, sharing the
+product database. Pairing requires browser identity plus proof of the app's
+secret; only hashes persist. Every operation rechecks membership and explicit
+project grants. Connection and execution generations are separate. Disconnect,
+revocation or expiry never prove workload exit or release its slot. Reconnection
+requires an exact launcher stop report before admission. Membership downgrade
+and project archival fence assignments in the same database transaction, so
+restoring access cannot resurrect old work. This domain has no HTTP/WSS door yet;
+audit/rate limits, run-target receipts and coordinator integration remain pending.
+
 ## Deployment preference
 
 `deploymentDestination` is `none` (default), `atoma`, or `external`. The

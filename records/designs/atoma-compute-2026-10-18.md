@@ -39,6 +39,14 @@ trust without independent platform-controlled verification.
   partial or invalid transfer never exposes the final directory. The real-runner
   test exports after tool shutdown while its workspace service remains alive.
 
+- Private device control domain in the product database: secret-bound one-use
+  pairing, explicit project grants, credential revocation, connection/execution
+  fencing, one-run device admission and exact-generation stop reconciliation.
+- Local one-generation lease guard: dispatch-time renewal, sleep/clock-rewind
+  checks and engine-confirmed cleanup semantics. Not yet wired to a desktop
+  engine or network session. The [adversarial review](../reviews/atoma-compute-device-control-2026-10-18.md)
+  records the accepted mechanisms and their remaining integration assumptions.
+
 This is groundwork, NOT a usable customer-device execution target. The default
 runner still uses the local workspace implementation. There is no desktop app,
 remote device admission, customer WSS endpoint, or claim of resource savings.
@@ -54,8 +62,9 @@ remote device admission, customer WSS endpoint, or claim of resource savings.
 2. Bind authenticated chunk streams to the checkpoint receiver; admission must
    cap concurrent transfers and total reserved bytes. Reconcile abandoned
    uploads and reuse existing recovery-effect and spend barriers.
-3. Add device identity, browser pairing, revocation, project permissions,
-   generation-fenced WSS sessions and a client launcher with local leases.
+3. Expose the device control domain through authenticated, rate-limited browser
+   pairing and generation-fenced WSS sessions, with journaled authorization
+   changes. Wire the lease guard to the client launcher and engine reconciliation.
    Persist the selected execution target in the project and run receipt;
    preserve hosted defaults and separate device/server admission.
 4. Move Haystack extraction/indexing/inference and its disposable cache;
@@ -93,10 +102,10 @@ Imports leave the old target intact until validation and clean their private
 directory on a controlled disconnect. Docker archives a child of its volume,
 while the tool container sees only that child's subpath.
 
-Release verification after source/artifact transfer integration: the static half
+Release verification after the device/lease domain additions: the static half
 (`release:check:static`) passed, including types, lint, documentation, audit,
-build and compiled release smokes. The complete test half passed 7,488 tests
-in 513 files; 10 tests were skipped. The workspace image was rebuilt from packaged output under its isolated tag;
+build and compiled release smokes. The complete test half passed 7,511 tests
+in 515 files; 10 tests were skipped. The workspace image was rebuilt from packaged output under its isolated tag;
 its service bundle hash matches the final build exactly. The unchanged worker
 uses the previously verified isolated image. The run included all 36 worker container-isolation
 tests and the workspace container smoke, with `ATOMA_TEST_ACCEPTANCE_IMAGE`

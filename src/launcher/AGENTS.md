@@ -70,6 +70,13 @@ are contract operations; neither requires the concrete backend type.
 
 ## Local and separate service modes
 
+`ComputeLease` is a one-generation desktop lease guard, not yet connected to a
+desktop launcher. Authenticated heartbeat acknowledgements renew from dispatch
+time, never receipt time. Monotonic and wall deadlines jointly detect expiry and
+sleep; every operation must call `assertActive`. Expiry starts cleanup once.
+Only engine-confirmed cleanup may resolve its callback; failure stays unconfirmed.
+A closed guard cannot be revived by a late response or reused after reconnect.
+
 `connectContainerLauncher` selects the local backend when no
 `ATOMA_LAUNCHER_SOCKET` is configured, otherwise the separate Linux service.
 The configured socket must work; never fall back to Docker on the caller.
