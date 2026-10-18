@@ -141,5 +141,5 @@ jobs:
           REVISION: ${{ github.sha }}
         run: |
           cd installers
-          for checksum in *.sha256; do sha256sum -c "$checksum"; done
+          for checksum in *.dmg.sha256 *.exe.sha256; do sha256sum -c "$checksum"; done
           gh release create compute-desktop-preview-20261018-2 --target "$REVISION" --prerelease --latest=false --title 'Atoma Compute — guided setup preview' --notes 'Preview installers without publisher certificates. macOS and Windows may block installation. Docker Desktop is required; the app guides its setup. No automatic updates.' ./*.dmg ./*.exe ./*.dmg.sha256 ./*.exe.sha256
