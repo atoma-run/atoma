@@ -292,7 +292,7 @@ production environment file, with a preserved pre-activation backup, version
 0.4.0, both published worker reference digests and receipt haystackConfig.
 Admission ceilings unchanged. Worker allowlisting must use the digest in
 `reference`, NOT receipt `contentDigest` (which is the image configuration ID).
-CLI advertises the reference digest. Documentation corrected accordingly.
+CLI advertises the reference digest. Documentation corrected accordingly (1d41249e on the feature branch; runtime main remains 00b3779f).
 
 Mac ARM64 images are being pulled; worker/workspace/preview done, retrieval
 pending. Pairing browser confirmation prepared for Mac de Matthieu / Matthieu
@@ -301,3 +301,17 @@ started. Host disk has about 6.4 GiB left; monitor before workloads.
 Post-deploy MCP health returned Authentication required (pre-deploy call worked);
 production browser session and pairing endpoint work. Do not equate that
 connector session error with a production service outage.
+
+Pairing confirmed by the owner and completed successfully in production. Native
+credential stored by the CLI; no secret copied into documentation or logs.
+Convenience launcher: ~/.atoma/compute/start.command, pinned Node and isolated
+checkout. Removed only reproducible dist/compute-model-downloads and
+dist/compute-models staging to recover about 1.1 GiB; no volumes removed.
+
+All four published ARM64 images downloaded. CLI doctor passed against actual
+Docker Desktop 29.1.5, 14 CPUs, 18,832,355,328 bytes RAM, and exact published
+retrieval runtime SHA. Docker Linux disk reports 404 GB free, but native Mac
+host has only about 4.6 GiB free after installation; do not confuse these.
+Client started successfully with WSS production handshake, PTY session 82145.
+No project authorised. Native Terminal UI access was rejected by computer-use
+policy; launch file remains available for the owner to use independently.
