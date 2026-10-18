@@ -1335,6 +1335,9 @@ async function startTaskInternal(
           await workspace.restart();
           await inheritedChecks?.reseeded();
           const replacement = await makeBackend();
+          if ((replacement.provenance ?? 'hosted') !== (backend.provenance ?? 'hosted')) {
+            await replacement.cleanup(); throw new Error('Execution provenance cannot change during a run');
+          }
           if (signal.aborted) {
             await replacement.cleanup();
             signal.throwIfAborted();
@@ -1370,6 +1373,7 @@ async function startTaskInternal(
   let learningEnqueued = false;
 
   const ctx: RunContext = {
+    executionProvenance: backend.provenance ?? 'hosted',
     ...(checkpoint ? { rootCheckpoint: checkpoint } : {}),
     ...(args.depth ? { attestations: createAttestationLog((record) => recorder.recordAttestation(record)) } : {}),
     logger: consoleLogger,
@@ -1522,6 +1526,7 @@ async function startTaskInternal(
 
   const vizRun = recorder.beginRun(task, `${TRACE_LABEL_PREFIX}${runLabelFromGoal(goal, 80)}`, {
     ...(requestedRunId ? { runId: requestedRunId } : {}),
+    computeProvenance: backend.provenance ?? 'hosted',
     initialTypes: [
       ...registry.listByTier(1),
       ...registry.listByTier(2),

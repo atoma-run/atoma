@@ -1890,7 +1890,11 @@ export class ProjectRunCoordinator {
     try {
       // A run the host has no memory for joins the queue, like one past the
       // concurrent-run ceiling; the queue admits it when memory frees.
-      if (this.store.listQueuedRuns().length === 0 && this.memoryAdmits()) {
+      const requestedTarget = 'resumeOf' in input.request && input.request.resumeOf
+        ? this.store.getProjectRun(input.orgId, input.request.resumeOf)?.executionTarget
+        : this.store.getProject(input.orgId, input.projectId)?.executionTarget;
+      if (requestedTarget?.kind === 'hosted' &&
+        !this.store.listQueuedRuns().some(queued => queued.executionTarget.kind === 'hosted') && this.memoryAdmits()) {
         lease = await this.acquireLeasePreempting(`project:${candidateRunId}`, input.orgId);
       }
     } catch (error) {
@@ -1944,6 +1948,7 @@ export class ProjectRunCoordinator {
       lease?.release();
       return { run, created: false };
     }
+    if (run.executionTarget.kind === 'customer-device') { lease?.release(); return { run, created: true }; }
     if (!lease) {
       this.resumeQueuedRuns();
       return { run, created: true };
@@ -1960,6 +1965,7 @@ export class ProjectRunCoordinator {
   }
 
   private async launchReservedRun(run: ProjectRun, lease: RunLease, rerun: RerunOrigin | null, admittedTimeoutMs?: number): Promise<{ run: ProjectRun; created: boolean }> {
+    if (run.executionTarget.kind !== 'hosted') { lease.release(); throw new Error('Customer compute dispatch is not configured'); }
     const input = { orgId: run.orgId, projectId: run.projectId, principalId: run.requestedByPrincipalId };
     let timeoutMs: number;
     let retrievalLaunch: ReturnType<typeof readHaystackLaunch>;
@@ -2586,6 +2592,7 @@ export class ProjectRunCoordinator {
     try {
       for (const queued of this.store.listQueuedRuns()) {
         if (this.queueStopped) break;
+        if (queued.executionTarget.kind === 'customer-device') continue;
         if (this.store.runCapacity(queued.orgId).maxConcurrent === 0) continue;
         // FIFO: the head waits for memory, and nobody overtakes it.
         if (!this.memoryAdmits()) break;

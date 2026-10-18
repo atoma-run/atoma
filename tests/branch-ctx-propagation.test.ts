@@ -101,3 +101,12 @@ describe('forkBranch — field propagation', () => {
     expect(forkBranch(makeCtx(), 'branch-1').recordSuiteDispute).toBeUndefined();
   });
 });
+
+it('preserves customer provenance through nested forks and stamps observed results', async () => {
+  const root = { ...makeCtx(), executionProvenance: 'customer-device' as const,
+    tools: { has: () => true, execute: async () => ({ exitCode: 0, stdout: 'ok', stderr: '' }) } };
+  const inner = forkBranch(forkBranch(root, 'outer'), 'inner');
+  expect(inner.executionProvenance).toBe('customer-device');
+  await inner.tools!.execute('run_shell', { cmd: 'true' });
+  expect(inner.attestations!.forBranch('inner')).toMatchObject([{ provenance: 'customer-device', tool: 'run_shell' }]);
+});

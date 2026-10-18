@@ -81,9 +81,20 @@ describe('ContainerToolExecutor lifecycle', () => {
     if (state === 'auto-removed') await expect(worker.drain()).resolves.toBeUndefined();
     else await expect(worker.drain()).rejects.toThrow(state === 'remaining' ? 'refusing workspace replacement' : 'Engine unavailable');
     expect(runDocker.mock.calls.map(([args]) => args)).toEqual([
-      ['rm', '-f', worker.name], ['ps', '-a', '--filter', `name=^/${worker.name}$`, '--format', '{{.ID}}'],
+      ['rm', '-f', worker.name], ...Array.from({ length: state === 'remaining' ? 10 : 1 },
+        () => ['ps', '-a', '--filter', `name=^/${worker.name}$`, '--format', '{{.ID}}']),
     ]);
   });
+  it('waits for actual engine absence when auto-removal is still in progress', async () => {
+    let queries = 0;
+    const runDocker = vi.fn(async (args: string[]) => {
+      if (args[0] === 'rm') throw new Error('Removal already in progress');
+      return ++queries < 3 ? 'removing-id' : '';
+    });
+    await launcher.attachedWorkerLifecycle({ runDocker }).drain();
+    expect(queries).toBe(3);
+  });
+
   it('creates the workspace on the host BEFORE the engine is asked to mount it', async () => {
     // THE DEFECT THIS PINS, measured on a real project run (2026-09-02): a
     // bind-mount source that does not exist is created by the DAEMON, as root.

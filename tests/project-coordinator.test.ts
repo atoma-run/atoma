@@ -2446,3 +2446,34 @@ describe('a project run has a budget an operator can set', () => {
     ).toThrow(ProjectRunConfigurationError);
   });
 });
+
+it('keeps an unavailable customer target queued without taking a hosted lease or blocking another organization', async () => {
+  const f = fixture();
+  const db = new Database(f.dbPath);
+  db.prepare('UPDATE projects SET execution_target_json=? WHERE project_id=?')
+    .run(JSON.stringify({ kind: 'customer-device', deviceId: randomUUID() }), f.project.projectId);
+  db.close();
+  const second = AuthStore.open(f.dbPath).completeLogin({ provider: 'github', subject: 'hosted-peer', displayName: 'Peer',
+    email: null, emailVerified: false }, null)!.viewer;
+  const other = f.store.createProject({ orgId: second.orgId, principalId: second.principalId,
+    project: { name: 'Hosted', slug: 'hosted', repositoryTarget: { installationId: '2', owner: 'peer', name: 'hosted', visibility: 'private' } } });
+  const acquireLease = vi.fn(async () => lease());
+  const driver = vi.fn(async () => `${formatRunStatsEpilogue({ ...DELIVERED_STATS, outcome: 'failed' })}\n✖ stopped\n`);
+  const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+    hostEnv: { ...haystackTestEnvironment(f.root), PATH: process.env['PATH'], ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' }, driver, acquireLease });
+  let pending: string | undefined;
+  try {
+    const remote = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+      projectId: f.project.projectId, request: { goal: 'Remote task', idempotencyKey: 'remote-queue' } });
+    pending = remote.projectRunId;
+    expect(remote.status).toBe('queued'); expect(acquireLease).not.toHaveBeenCalled(); expect(driver).not.toHaveBeenCalled();
+    await coordinator.start({ orgId: second.orgId, principalId: second.principalId,
+      projectId: other.projectId, request: { goal: 'Hosted task', idempotencyKey: 'hosted-queue' } });
+    await vi.waitFor(() => expect(driver).toHaveBeenCalledTimes(1));
+    expect(f.store.getProjectRun(f.viewer.orgId, pending)?.status).toBe('queued');
+  } finally {
+    coordinator.stopQueue();
+    if (pending) f.store.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: pending, from: 'queued', to: 'cancelled' });
+    await coordinator.waitForIdle();
+  }
+});

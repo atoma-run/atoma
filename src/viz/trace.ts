@@ -139,6 +139,7 @@ export interface VizRegistryEvent {
  * terminal log — not whether the smoke/interactions were task-appropriate.
  */
 export interface VizToolEvent {
+  provenance?: import('../contracts/executionTarget.js').ExecutionProvenance;
   id: string;
   ts: number;
   kind: 'tool';
@@ -576,6 +577,7 @@ export function executionProvenance(root = fileURLToPath(new URL('../../', impor
 }
 
 export interface VizRun {
+  computeProvenance?: import('../contracts/executionTarget.js').ExecutionProvenance;
   provenance?: ReturnType<typeof executionProvenance>;
   /** `JEV_EXCLUSION_STAMPS`: this writer stamps `jevExcluded`. Absent on older traces. */
   jevExclusionStamps?: number;
@@ -693,7 +695,7 @@ export class TraceRecorder {
   beginRun(
     task: Task,
     label?: string,
-    opts?: { initialTypes?: readonly AtomType[]; runId?: string; tierModels?: VizTierModels }
+    opts?: { initialTypes?: readonly AtomType[]; runId?: string; tierModels?: VizTierModels; computeProvenance?: import('../contracts/executionTarget.js').ExecutionProvenance }
   ): VizRun {
     this.attempt = undefined;
     const generatedId = `${new Date()
@@ -710,6 +712,7 @@ export class TraceRecorder {
       task,
       startedAt: new Date().toISOString(),
       provenance: executionProvenance(),
+      ...(opts?.computeProvenance ? { computeProvenance: opts.computeProvenance } : {}),
       jevExclusionStamps: JEV_EXCLUSION_STAMPS,
       ...(opts?.tierModels ? { tierModels: { ...opts.tierModels } } : {}),
       events: [],
@@ -726,6 +729,7 @@ export class TraceRecorder {
 
   record(event: VizEvent): void {
     if (!this.run) return;
+    if (event.kind === 'tool' && this.run.computeProvenance) event = { ...event, provenance: this.run.computeProvenance };
     this.run.events.push(this.attempt === undefined ? event : { ...event, attempt: this.attempt });
     this.schedulePartialPersist();
   }

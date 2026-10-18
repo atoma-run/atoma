@@ -18,6 +18,7 @@ import { createMcpConnectorTools, mcpConnectorExecutor, type McpConnectorRunCont
  * by injection, without giving the worker store or credential access.
  */
 export interface ToolBackend {
+  readonly provenance?: import('../contracts/executionTarget.js').ExecutionProvenance;
   checkpointWorker?(): import('../contracts/runCheckpoint.js').RunCheckpoint['worker'];
   /** Absent means an ungraceful crash cannot prove this backend quiescent. */
   checkpointProcesses?(): import('../contracts/runCheckpoint.js').CheckpointProcess[];

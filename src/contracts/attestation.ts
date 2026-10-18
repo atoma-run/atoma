@@ -222,6 +222,7 @@ export function parseExecutionObservation(tool: string, args: Record<string, unk
  * would race the moment two fan-out lanes run at once.
  */
 export interface AttestationRecord {
+  readonly provenance?: import('./executionTarget.js').ExecutionProvenance;
   readonly eventId: string;
   readonly attempt?: number;
   readonly branchId?: string;

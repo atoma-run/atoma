@@ -1,8 +1,9 @@
+import { executionTargetSchema, executionTargetSettingSchema } from '../contracts/executionTarget.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import { COMPUTE_LEASE_MS, COMPUTE_PAIRING_MS, computeActorSchema, computeCapabilitiesSchema,
-  computeResourcesSchema, computeSessionSchema, type ComputeResources, type ComputeActor, type ComputeCapabilities, type ComputeSession, type ComputeAssignment } from '../contracts/computeDevice.js';
+  computeResourcesSchema, computeSessionSchema, type ComputeResources, type ComputeActor, type ComputeCapabilities, type ComputeSession, type ComputeAssignment, type ComputeAdmission } from '../contracts/computeDevice.js';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const pairingCode = z.string().regex(/^[A-Za-z0-9_-]{22}$/);
@@ -152,6 +153,26 @@ export class ComputeDeviceStore {
       return { deviceId, credential, orgId: pairing.org_id };
     }).immediate();
   }
+  /** Admin preference with optimistic concurrency; no run is moved by this edit. */
+  setProjectTarget(actor: ComputeActor, projectId: string, input: unknown): void {
+    const { target, expected } = executionTargetSettingSchema.parse(input);
+    this.db.transaction(() => {
+      if (!['org:owner', 'org:admin'].includes(this.member(actor))) throw new Error('Compute project administrator required');
+      const project = this.db.prepare("SELECT execution_target_json FROM projects WHERE project_id=? AND org_id=? AND status='active'")
+        .get(projectId, actor.orgId) as { execution_target_json: string | null } | undefined;
+      if (!project) throw new Error('Compute project unavailable');
+      const previous = executionTargetSchema.parse(project.execution_target_json ? JSON.parse(project.execution_target_json) : { kind: 'hosted' });
+      if (JSON.stringify(previous) !== JSON.stringify(expected)) throw new Error('Compute target changed; reload before saving');
+      if (target.kind === 'customer-device') {
+        const device = this.device(target.deviceId);
+        if (device.org_id !== actor.orgId || device.revoked) throw new Error('Compute device unavailable');
+        this.member({ orgId: device.org_id, principalId: device.principal_id });
+        this.projectAllowed(device, projectId);
+      }
+      this.db.prepare('UPDATE projects SET execution_target_json=?,updated_at=? WHERE project_id=? AND org_id=?')
+        .run(JSON.stringify(target), new Date(this.now()).toISOString(), projectId, actor.orgId);
+    }).immediate();
+  }
   grantProject(actor: ComputeActor, deviceId: string, projectId: string, allowed: boolean): void {
     this.db.transaction(() => {
       const row = this.manage(actor, deviceId);
@@ -174,14 +195,15 @@ export class ComputeDeviceStore {
         assignment_state=CASE WHEN run_id IS NULL THEN NULL ELSE 'indeterminate' END WHERE device_id=?`).run(deviceId);
     }).immediate();
   }
-  connect(credential: string, input: ComputeCapabilities): { session: ComputeSession; leaseUntil: number } {
+  connect(credential: string, input: ComputeCapabilities): { session: ComputeSession; leaseUntil: number; recovery: ComputeAssignment | null } {
     const capabilities = computeCapabilitiesSchema.parse(input);
     return this.db.transaction(() => {
       const row = this.authenticated(credential), sessionId = randomUUID(), leaseUntil = this.now() + COMPUTE_LEASE_MS;
       this.db.prepare(`UPDATE compute_devices SET session_id=?,connection_generation=connection_generation+1,lease_until=?,capabilities=?,
         assignment_state=CASE WHEN run_id IS NULL THEN NULL ELSE 'indeterminate' END WHERE device_id=?`)
         .run(sessionId, leaseUntil, JSON.stringify(capabilities), row.device_id);
-      return { session: { deviceId: row.device_id, sessionId, generation: row.connection_generation + 1 }, leaseUntil };
+      return { session: { deviceId: row.device_id, sessionId, generation: row.connection_generation + 1 }, leaseUntil,
+        recovery: row.run_id ? { runId: row.run_id, projectId: row.project_id!, generation: row.execution_generation, state: 'indeterminate' as const } : null };
     }).immediate();
   }
   validateSession(session: ComputeSession): void {
@@ -206,15 +228,48 @@ export class ComputeDeviceStore {
       this.db.prepare('UPDATE compute_devices SET accepting=? WHERE device_id=?').run(Number(accepting), session.deviceId);
     }).immediate());
   }
+  /** Readiness is advisory; assign repeats every check inside its write transaction. */
+  admission(actor: ComputeActor, runId: string, input: ComputeResources): ComputeAdmission {
+    const resources = computeResourcesSchema.parse(input);
+    this.member(actor);
+    const run = this.db.prepare("SELECT project_id, execution_target_json FROM project_runs WHERE project_run_id=? AND org_id=? AND requested_by_principal_id=? AND status='queued'")
+      .get(runId, actor.orgId, actor.principalId) as { project_id: string; execution_target_json: string | null } | undefined;
+    if (!run) throw new Error('Compute run unavailable');
+    const target = executionTargetSchema.parse(run.execution_target_json ? JSON.parse(run.execution_target_json) : { kind: 'hosted' });
+    if (target.kind !== 'customer-device') throw new Error('Compute run target mismatch');
+    let row: DeviceRow;
+    try {
+      row = this.device(target.deviceId);
+      if (row.org_id !== actor.orgId || row.revoked) throw new Error('Unavailable');
+      this.member({ orgId: row.org_id, principalId: row.principal_id });
+      this.projectAllowed(row, run.project_id);
+    } catch { return { status: 'waiting', reason: 'access-unavailable' }; }
+    if (!row.session_id || row.lease_until <= this.now()) {
+      if (row.session_id) this.disconnect({ deviceId: row.device_id, sessionId: row.session_id, generation: row.connection_generation });
+      return { status: 'waiting', reason: 'disconnected' };
+    }
+    if (row.run_id) return { status: 'waiting', reason: 'busy' };
+    if (!row.accepting) return { status: 'waiting', reason: 'not-accepting' };
+    const capabilities = computeCapabilitiesSchema.parse(JSON.parse(row.capabilities!));
+    if (!this.policy.appVersions.has(capabilities.appVersion) || !this.policy.imageDigests.has(capabilities.imageDigest)) {
+      return { status: 'waiting', reason: 'version-incompatible' };
+    }
+    if (capabilities.cpus < resources.cpus || capabilities.memoryBytes < resources.memoryBytes || capabilities.diskBytes < resources.diskBytes) {
+      return { status: 'waiting', reason: 'resources-insufficient' };
+    }
+    return { status: 'ready', session: { deviceId: row.device_id, sessionId: row.session_id, generation: row.connection_generation } };
+  }
   /** Host-only admission. A receipt must already exist; no device can invent a run. */
   assign(actor: ComputeActor, session: ComputeSession, runId: string, resources: ComputeResources): ComputeAssignment {
     computeResourcesSchema.parse(resources);
     return this.fenceExpiry(session, () => this.db.transaction(() => {
       this.member(actor);
       const row = this.session(session);
-      const run = this.db.prepare("SELECT project_id FROM project_runs WHERE project_run_id=? AND org_id=? AND requested_by_principal_id=? AND status IN ('queued','running')")
-        .get(runId, actor.orgId, actor.principalId) as { project_id: string } | undefined;
+      const run = this.db.prepare("SELECT project_id, execution_target_json FROM project_runs WHERE project_run_id=? AND org_id=? AND requested_by_principal_id=? AND status IN ('queued','running')")
+        .get(runId, actor.orgId, actor.principalId) as { project_id: string; execution_target_json: string | null } | undefined;
       if (!run || row.org_id !== actor.orgId) throw new Error('Compute run unavailable');
+      const target = executionTargetSchema.parse(run.execution_target_json ? JSON.parse(run.execution_target_json) : { kind: 'hosted' });
+      if (target.kind !== 'customer-device' || target.deviceId !== row.device_id) throw new Error('Compute run target mismatch');
       this.projectAllowed(row, run.project_id);
       const capabilities = computeCapabilitiesSchema.parse(JSON.parse(row.capabilities!));
       if (!this.policy.appVersions.has(capabilities.appVersion) || !this.policy.imageDigests.has(capabilities.imageDigest)) throw new Error('Compute version incompatible');

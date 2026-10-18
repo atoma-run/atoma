@@ -22,8 +22,17 @@ and project archival fence assignments in the same database transaction, so
 restoring access cannot resurrect old work. The explicit `computeGateway`/`computeConnection` WSS adapter is not mounted by
 production. It requires direct TLS, bounded frames and one outstanding workspace
 command. Lost responses are indeterminate; every dispatch, result and heartbeat
-rechecks current authority. Browser pairing, audit/rate limits, run-target receipts
-and coordinator integration remain pending.
+rechecks current authority. Browser pairing, audit/rate limits
+and coordinator dispatch remain pending.
+
+Project execution targets default to hosted and are copied into immutable run
+receipts. Continuations inherit the source receipt, even if the project changed.
+Only an owner/admin may change a target, with a compare-and-set and explicit
+device project grant. Device admission explains unavailable capacity without
+acquiring a hosted slot; remote receipts must never launch on the hosted driver.
+The WSS bind acknowledgement follows local allocation; loss during allocation
+is indeterminate and cannot free the persisted assignment. Tools use a separate
+bounded concurrent channel; their acknowledged drain leaves workspace RPC alive.
 
 ## Deployment preference
 

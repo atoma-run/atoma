@@ -1,3 +1,5 @@
+import { computeToolCommandSchema, type ComputeToolCommand } from '../contracts/computeTools.js';
+import { workerCallTimeoutMs } from '../contracts/commandTimeouts.js';
 import WebSocket, { type RawData } from 'ws';
 import { computeHelloSchema, computeClientFrameSchema, computeExecutionSchema, COMPUTE_FRAME_BYTES,
   type ComputeExecution, type ComputeServerFrame } from '../contracts/computeProtocol.js';
@@ -19,9 +21,13 @@ export class ComputeConnection {
   private heartbeatId = 0;
   private next = 0;
   private execution?: ComputeExecution;
+  private recovery?: ComputeExecution;
+  private drainingTools = false;
   private closed = false;
   private readonly watchdog: ReturnType<typeof setInterval>;
   private readonly helloDeadline: ReturnType<typeof setTimeout>;
+  private readonly tools = new Map<number, { method: ComputeToolCommand['method']; execution: ComputeExecution; resolve: (result: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  private binding?: { id: number; resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
   private pending?: {
     id: number; execution: ComputeExecution; method: WorkspaceCommand['method'];
     resolve: (reply: WorkspaceReply) => void; reject: (error: Error) => void;
@@ -63,10 +69,12 @@ export class ComputeConnection {
       const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
       if (!this.session) {
         const hello = computeHelloSchema.parse(parsed);
-        this.session = this.devices.connect(hello.credential, hello.capabilities).session;
+        const connected = this.devices.connect(hello.credential, hello.capabilities);
+        this.session = connected.session;
+        this.recovery = connected.recovery ? { runId: connected.recovery.runId, generation: connected.recovery.generation } : undefined;
         this.credential = hello.credential;
         clearTimeout(this.helloDeadline);
-        this.send({ kind: 'ready', version: 1, session: this.session });
+        this.send({ kind: 'ready', version: 1, session: this.session, recovery: this.recovery ?? null });
         return;
       }
       this.validate();
@@ -76,6 +84,32 @@ export class ComputeConnection {
         this.devices.heartbeat(this.credential, this.session);
         this.heartbeatId = frame.id;
         this.send({ kind: 'heartbeat', id: frame.id });
+        return;
+      }
+      if (frame.kind === 'stopped') {
+        if (!this.recovery || frame.execution.runId !== this.recovery.runId || frame.execution.generation !== this.recovery.generation) {
+          throw new Error('Unexpected stop report');
+        }
+        this.devices.acknowledgeStopped(this.credential, this.session, frame.execution.runId, frame.execution.generation);
+        this.recovery = undefined;
+        this.send({ kind: 'reconciled', id: frame.id, execution: frame.execution }); return;
+      }
+      if (frame.kind === 'assigned') {
+        const binding = this.binding;
+        if (!binding || binding.id !== frame.id || frame.execution.runId !== this.execution?.runId ||
+          frame.execution.generation !== this.execution.generation) throw new Error('Unexpected assignment');
+        clearTimeout(binding.timer); this.binding = undefined; binding.resolve(); return;
+      }
+      if (frame.kind === 'tool-result') {
+        const pending = this.tools.get(frame.response.id);
+        if (!pending || frame.execution.runId !== pending.execution.runId || frame.execution.generation !== pending.execution.generation) {
+          throw new Error('Unexpected tool result');
+        }
+        this.devices.authorizeOperation(this.session, pending.execution.runId, pending.execution.generation);
+        clearTimeout(pending.timer); this.tools.delete(frame.response.id);
+        if (pending.method === 'drain') this.drainingTools = false;
+        if (frame.response.ok) pending.resolve(frame.response.result);
+        else pending.reject(new Error(frame.response.error));
         return;
       }
       const pending = this.pending;
@@ -89,12 +123,27 @@ export class ComputeConnection {
       else pending.reject(new Error('Remote workspace operation failed'));
     } catch { this.close(); }
   }
+  /** Reserve through the store first, then bind the issued generation locally.
+   * Failed or lost acknowledgement retains the assignment as indeterminate. */
+  bind(execution: ComputeExecution): Promise<void> {
+    try {
+      const target = computeExecutionSchema.parse(execution);
+      if (this.closed || !this.session || this.execution || this.pending || this.tools.size) throw new Error('Compute assignment unavailable');
+      this.devices.authorizeOperation(this.session, target.runId, target.generation);
+      this.execution = target;
+      return new Promise((resolve, reject) => {
+        const id = ++this.next, timer = setTimeout(() => this.close(), this.timeoutMs);
+        timer.unref(); this.binding = { id, resolve, reject, timer };
+        try { this.send({ kind: 'assign', id, execution: target }); } catch { this.close(); }
+      });
+    } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute assignment failed')); }
+  }
   /** Single flight also serializes privileged workspace imports and guards.
    * Busy callers are refused before dispatch, never buffered for later replay. */
   request(execution: ComputeExecution, input: WorkspaceCommand): Promise<WorkspaceReply> {
     try {
       const command = workspaceCommandSchema.parse(input), target = computeExecutionSchema.parse(execution);
-      if (this.closed || !this.session) throw new Error('Compute transport unavailable');
+      if (this.closed || !this.session || this.binding) throw new Error('Compute transport unavailable');
       if (this.pending) throw new Error('Compute workspace busy');
       this.devices.authorizeOperation(this.session, target.runId, target.generation);
       // Check size before dispatch: a local oversized request has no remote effect.
@@ -109,10 +158,31 @@ export class ComputeConnection {
       });
     } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute request failed')); }
   }
+  requestTool(execution: ComputeExecution, input: ComputeToolCommand): Promise<unknown> {
+    try {
+      const command = computeToolCommandSchema.parse(input), target = computeExecutionSchema.parse(execution);
+      if (this.closed || !this.session || this.binding) throw new Error('Compute transport unavailable');
+      if (this.drainingTools || (command.method !== 'drain' && this.tools.size >= 32)) throw new Error('Compute tool capacity exceeded');
+      this.devices.authorizeOperation(this.session, target.runId, target.generation);
+      const frame = { kind: 'tool-command' as const, id: ++this.next, execution: target, command };
+      if (Buffer.byteLength(JSON.stringify(frame)) > COMPUTE_FRAME_BYTES) throw new Error('Compute frame too large');
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => this.close(), command.method === 'invoke'
+          ? workerCallTimeoutMs(command.name, command.args, this.timeoutMs) : this.timeoutMs);
+        timer.unref(); this.execution = target;
+        this.drainingTools = command.method === 'drain';
+        this.tools.set(frame.id, { method: command.method, execution: target, resolve, reject, timer });
+        try { this.send(frame); } catch { this.close(); }
+      });
+    } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute request failed')); }
+  }
   close(): void {
     if (this.closed) return;
     this.closed = true;
     clearTimeout(this.helloDeadline); clearInterval(this.watchdog);
+    for (const pending of this.tools.values()) { clearTimeout(pending.timer); pending.reject(new ComputeIndeterminateError()); }
+    this.tools.clear();
+    if (this.binding) { clearTimeout(this.binding.timer); this.binding.reject(new ComputeIndeterminateError()); this.binding = undefined; }
     if (this.pending) {
       clearTimeout(this.pending.timer);
       this.pending.reject(new ComputeIndeterminateError());

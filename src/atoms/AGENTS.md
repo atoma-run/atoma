@@ -694,9 +694,9 @@ load-bearing.
   suite over `PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS` (12,000) is refused by `parsePlanPair`, clean
   or salvaged, after both schemas accept; restore readers keep the schema's 32,000. Each suite is a
   self-contained file: never advise shared setup across suites.
-- Feedback on a refused plan reply travels on the planner channel (`Atom.plan`'s third argument,
-  `PREVIOUS PLAN ATTEMPT:`), never in `task.constraints`: the prefilter key hashes constraints and
+- Feedback on a refused plan reply travels on the planner channel (`Atom.plan`'s third argument, `PREVIOUS PLAN ATTEMPT:`), never in `task.constraints`: the prefilter key hashes constraints and
   children inherit them. The L3 root sends the last review refusal plus the latest parse message.
+- Customer-device evidence cannot credit shared trust, learn recipes/prompts or promote types; L2/L3 and direct dispatch require independent hosted validation for credit.
 
 ## Intentional choices and rejected shortcuts
 

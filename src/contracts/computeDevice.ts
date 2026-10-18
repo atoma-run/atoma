@@ -27,3 +27,11 @@ export const computeAssignmentSchema = z.object({
   state: z.enum(['active', 'indeterminate']),
 }).strict();
 export type ComputeAssignment = z.infer<typeof computeAssignmentSchema>;
+
+export const computeAdmissionSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('ready'), session: computeSessionSchema }).strict(),
+  z.object({ status: z.literal('waiting'), reason: z.enum([
+    'disconnected', 'busy', 'resources-insufficient', 'version-incompatible', 'not-accepting', 'access-unavailable',
+  ]) }).strict(),
+]);
+export type ComputeAdmission = z.infer<typeof computeAdmissionSchema>;

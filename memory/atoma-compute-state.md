@@ -50,3 +50,32 @@ assignment negotiation, public rate limits/audit and engine wiring remain pendin
 Final WSS revision: 20 real TLS integration tests pass; release static checks and
 all 516 test files pass (2 skipped). The workspace image bundle hash matches the
 final compiled bundle. Direct-TLS adapter remains unmounted in production.
+
+Current integration revision (uncommitted until verification): immutable hosted/
+customer-device project and run targets, owner CAS assignment settings and
+per-device admission reasons. Remote queued runs do not consume hosted admission
+and cannot fall back to the hosted driver. Full remote coordinator dispatch is
+still pending. WSS now carries concurrent tools plus an explicit assignment
+acknowledgement after local allocation; connection loss joins allocation before
+engine teardown. Customer observations are stamped in trace/attestation and do
+not credit/promote shared positive trust or learn recipes/prompts.
+
+DesktopCompute now launches pinned workspace/worker images in named Linux volumes
+with no host binds. The private service survives worker drain to seal/export.
+Real ARM64 Docker + TLS tests cover assignment, writes, engine-confirmed drain,
+checkpoint bytes and disconnect teardown. A measured Docker auto-remove race
+was corrected by bounded engine-absence polling, never a timeout-as-stop claim.
+There is no Electron app, public pairing API or enabled remote coordinator yet.
+
+WSS reconnect now includes the prior execution identity and requires a fresh
+launcher reconciliation callback plus an exact acknowledged stop report. Failed
+engine reconciliation retains the indeterminate assignment. Deepening's explicit
+workspace restart requires confirmed tool drain and reactivates a new attempt.
+
+Verification of this integration: release:check:static passed; the full suite with
+rebuilt isolated worker/workspace images passed 7,548 tests (10 skipped), 517 files
+passed (2 skipped). An additional targeted run of all 27 TLS tests passed after
+extending the real-container case to the actual mocked-model runner: unusable host
+workspace, remote write, shutdown/drain, verified artifact receipt and checkpoint.
+Fresh-worker CI now includes both desktop/runtime and TLS integration suites.
+Workspace bundle SHA-256: 9155e25a1356c351814f38cadec032959a84357d5e26e80844055ec5aad60bc8.

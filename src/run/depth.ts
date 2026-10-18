@@ -440,7 +440,7 @@ export async function runDepthTask(args: {
       mechanicalPlanRejections: new Set(), mechanicalResultRejections: new Set(),
       dispatchedScriptSignatures: new Map(),
       ...(tools ? { tools: attestingExecutor(tools, attestations, undefined,
-        (message) => ctx.logger.warn(message), attempt)! } : {}),
+        (message) => ctx.logger.warn(message), attempt, ctx.executionProvenance)! } : {}),
       recordPhaseCoverage: (record) => { phaseCoverage.push(record); ctx.recordPhaseCoverage?.(record); },
       beforeFallback: (parent) => {
         // A mutualized peer is still the entry supervisor in the short

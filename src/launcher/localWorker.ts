@@ -53,6 +53,8 @@ export class LocalContainerToolExecutor implements ToolExecutor {
   constructor(
     private readonly opts: {
       workspaceHostPath: string;
+      /** Desktop launcher-owned volume, after the private service prepared current/. */
+      managedWorkspace?: { volume: string; machineId: string; readOnlyRunCopies?: boolean };
       image?: string;
       /** Opt into proxied egress; omit for the default no-network run. */
       egress?: { network: string; proxyHost: string; proxyPort: number };
@@ -96,7 +98,7 @@ export class LocalContainerToolExecutor implements ToolExecutor {
       // time, so every containerised project run on a fresh workspace was
       // read-only to its own agent.
       try {
-        mkdirSync(this.opts.workspaceHostPath, { recursive: true });
+        if (!this.opts.managedWorkspace) mkdirSync(this.opts.workspaceHostPath, { recursive: true });
       } catch (error) {
         reject(
           new Error(
@@ -109,7 +111,8 @@ export class LocalContainerToolExecutor implements ToolExecutor {
       }
       let readOnlyRunCopiesSource: string | undefined;
       try {
-        if (this.opts.readOnlyRunCopies) readOnlyRunCopiesSource = verifiedRunCopiesSource(this.opts.workspaceHostPath);
+        if (this.opts.managedWorkspace?.readOnlyRunCopies) readOnlyRunCopiesSource = '/workspace/current/.atoma-runs';
+        else if (this.opts.readOnlyRunCopies) readOnlyRunCopiesSource = verifiedRunCopiesSource(this.opts.workspaceHostPath);
       } catch (error) {
         reject(error instanceof Error ? error : new Error(String(error)));
         return;
@@ -117,6 +120,8 @@ export class LocalContainerToolExecutor implements ToolExecutor {
       const args = workerRunArgs({
         image: this.opts.image ?? DEFAULT_WORKER_IMAGE,
         workspaceHostPath: this.opts.workspaceHostPath,
+        ...(this.opts.managedWorkspace ? { workspaceVolume: this.opts.managedWorkspace.volume,
+          volumeSubpath: 'current' as const, computeMachineId: this.opts.managedWorkspace.machineId } : {}),
         ...(user ? { user } : {}),
         ...(this.opts.egress ? { egress: this.opts.egress } : {}),
         ...(readOnlyRunCopiesSource ? { readOnlyRunCopiesSource } : {}),

@@ -85,3 +85,42 @@ TLS termination through a reverse proxy is not enabled by this adapter.
 A failed SQLite disconnect write cannot prevent socket teardown or turn an
 unknown operation into success: the persisted lease remains bounded, and the
 slot is not released. The final transport suite tests this with query-only SQLite.
+
+## Execution receipts, tools and desktop profile
+
+The project target is copied into the run reservation transaction. A continuation
+inherits its source receipt, and SQLite refuses later receipt changes. Target
+changes require current organisation authority, explicit project grant and CAS.
+Remote queued receipts neither take a hosted lease nor block another organisation's
+hosted run. The coordinator deliberately refuses remote dispatch until its remote
+lifecycle/finalization integration exists; no automatic hosted fallback is present.
+
+Adversarial cases exercised: a caller changes project target after reservation;
+an administrator selects another organisation's device; a viewer changes target;
+resources or image version do not match; tool names try to reach private workspace
+operations; commands arrive before assignment acknowledgement; the connection dies
+while allocation is pending; reconnect tries to reuse a generation; reconciliation
+fails in the engine. Allocation is joined before teardown. Only an exact stop report
+on the new authenticated session releases the old assignment, not reconnect or time.
+That report is still customer-origin evidence, not independent proof for shared trust.
+
+Customer provenance follows nested contexts and tool attestations. Positive type
+and recipe credit, recipe learning/promotion and prompt learning are withheld for
+remote executions; results can still be accepted for the owning project's delivery.
+Negative failure paths are unchanged. This is not a blanket isolation of every
+catalogue mutation, nor an independent hosted validation service.
+
+Real Docker Desktop ARM64 tests exercise pinned content images, named Linux volumes,
+non-root read-only root filesystems, network none and no bind mounts. Tools receive
+only the current workspace subpath. The private control service survives tool drain
+and exports bytes over TLS; disconnect removes containers before reporting local
+stop. A real concurrent test exposed Docker's automatic removal race: `rm -f` can
+lose to an in-progress `--rm`. Bounded polling now succeeds only on an actual empty
+engine query; a still-present container or engine failure remains unconfirmed.
+
+Remaining release blockers include remote coordinator dispatch/finalization,
+authenticated browser pairing and endpoint integration, audit/rate limiting,
+resource sharing/disk bounds, persistent local recovery inventory, remote retrieval
+and preview relay, Electron screens/secure credentials, signed multi-platform images
+and installers, and the preregistered capacity measurements. No admission increase
+or production activation is authorized by these tests.

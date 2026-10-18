@@ -131,3 +131,36 @@ WSS verification: `release:check:static` passed and the full test half passed
 7,531 tests (10 skipped), across 516 passing files (2 skipped). Twenty new TLS
 tests include byte-exact checkpoint transfer and a failed SQLite disconnect write.
 The separate workspace image still matches the compiled bundle byte for byte.
+
+## Target receipts and desktop execution integration
+
+Projects now persist an execution preference; every new run freezes that target,
+and continuation receipts retain their source target. The private admin setter
+checks explicit grants and uses compare-and-set. Device admission exposes bounded
+waiting reasons. The existing coordinator skips remote receipts and never falls
+back to hosted compute; its actual remote dispatch remains to be connected.
+
+The WSS protocol now separates concurrent tool calls from serialized workspace
+operations. A host-issued assignment is acknowledged after local allocation,
+and disconnection joins that allocation before engine teardown. Reconnection
+names the previous generation; only a confirmed local reconciliation report on
+the fresh session releases it. A command with an unknown effect is not replayed.
+
+`DesktopCompute` launches immutable images in private Linux named volumes with
+the desktop isolation profile, keeping snapshot control separate from tools.
+An explicit restart follows confirmed tool drain. Real Docker Desktop ARM64 tests
+cover the profile and the full TLS assignment → file write → drain → checkpoint
+transfer → disconnect sequence. These are runtime integration tests, not a usable
+Electron distribution or production coordinator acceptance.
+
+Remote evidence is recorded as customer-device provenance throughout trace and
+attestation contexts. Positive shared trust, recipe credit/learning/promotion and
+prompt learning require independent hosted validation. The comparison protocol
+remains preregistered but unexecuted; no resource reduction is claimed.
+
+Integration verification: release static checks passed; the full suite passed
+7,548 tests (10 skipped), with 517 passing files (2 skipped), using rebuilt
+isolated images. The subsequent 27-test TLS run also exercised the real runner
+with simulated models, an unusable host workspace path, remote Docker tools,
+and a verified final artifact received on the host. Fresh-worker CI runs these
+new container/TLS cases. This proves the runner seam, not coordinator/UI delivery.

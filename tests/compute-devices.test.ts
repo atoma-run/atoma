@@ -46,8 +46,10 @@ function run(owner: ComputeActor, projectId: string) {
     hostPaths: { workspacePath: '/not-used/workspace', runsPath: '/not-used/runs', logPath: '/not-used/log' } })!.run.projectRunId;
 }
 function fixture() {
-  const owner = actor(), paired = pairing(owner), p = project(owner), runId = run(owner, p.projectId);
+  const owner = actor(), paired = pairing(owner), p = project(owner);
   devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId);
   const { session } = devices.connect(paired.credential, capabilities);
   return { owner, paired, projectId: p.projectId, runId, session };
 }
@@ -99,6 +101,7 @@ it('keeps another idle device admissible while one device holds an indeterminate
   devices.disconnect(f.session);
   const second = pairing(f.owner), secondProject = project(f.owner);
   devices.grantProject(f.owner, second.deviceId, secondProject.projectId, true);
+  devices.setProjectTarget(f.owner, secondProject.projectId, { target: { kind: 'customer-device', deviceId: second.deviceId }, expected: { kind: 'hosted' } });
   const session = devices.connect(second.credential, capabilities).session;
   const assignment = devices.assign(f.owner, session, run(f.owner, secondProject.projectId), resources);
   expect(assignment.state).toBe('active');
@@ -227,4 +230,55 @@ it('refuses a finished run and keeps archived-project work indeterminate even af
   db.prepare("UPDATE projects SET status='archived' WHERE project_id=?").run(f.projectId);
   db.prepare("UPDATE projects SET status='active' WHERE project_id=?").run(f.projectId);
   expect(devices.inspect(f.owner, f.paired.deviceId).assignment?.state).toBe('indeterminate');
+});
+
+it('pins each run target, retains legacy hosted defaults and refuses assigning a hosted receipt', () => {
+  const owner = actor(), paired = pairing(owner), p = project(owner), hosted = run(owner, p.projectId);
+  expect(projects.getProject(owner.orgId, p.projectId)?.executionTarget).toEqual({ kind: 'hosted' });
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  const { session } = devices.connect(paired.credential, capabilities);
+  expect(() => devices.assign(owner, session, hosted, resources)).toThrow('target mismatch');
+  const target = { kind: 'customer-device', deviceId: paired.deviceId };
+  devices.setProjectTarget(owner, p.projectId, { target, expected: { kind: 'hosted' } });
+  expect(projects.getProjectRun(owner.orgId, hosted)?.executionTarget).toEqual({ kind: 'hosted' });
+  db.prepare("UPDATE project_runs SET status='failed' WHERE project_run_id=?").run(hosted);
+  const remote = run(owner, p.projectId);
+  expect(projects.getProjectRun(owner.orgId, remote)?.executionTarget).toEqual(target);
+  expect(() => db.prepare('UPDATE project_runs SET execution_target_json=? WHERE project_run_id=?')
+    .run(JSON.stringify({ kind: 'hosted' }), remote)).toThrow('immutable');
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'hosted' }, expected: target });
+  expect(projects.getProjectRun(owner.orgId, remote)?.executionTarget).toEqual(target);
+  const continuation = projects.createProjectRun({ orgId: owner.orgId, projectId: p.projectId, principalId: owner.principalId,
+    request: { idempotencyKey: randomUUID(), goal: 'Continue remote', resumeOf: remote },
+    hostPaths: { workspacePath: '/unused', runsPath: '/unused', logPath: '/unused' } })!.run;
+  expect(continuation.executionTarget).toEqual(target);
+});
+
+it('requires current project-admin authority, a grant and a matching previous target', () => {
+  const f = fixture(), target = { kind: 'customer-device', deviceId: f.paired.deviceId };
+  expect(() => devices.setProjectTarget(f.owner, f.projectId, { target, expected: { kind: 'hosted' } })).toThrow('changed');
+  const foreign = actor(), device = pairing(foreign);
+  expect(() => devices.setProjectTarget(f.owner, f.projectId, { target: { kind: 'customer-device', deviceId: device.deviceId }, expected: target })).toThrow('unavailable');
+  devices.grantProject(f.owner, f.paired.deviceId, f.projectId, false);
+  expect(() => devices.setProjectTarget(f.owner, f.projectId, { target, expected: target })).toThrow('project');
+  db.prepare("UPDATE auth_memberships SET role='org:member' WHERE principal_id=?").run(f.owner.principalId);
+  expect(() => devices.setProjectTarget(f.owner, f.projectId, { target: { kind: 'hosted' }, expected: target })).toThrow('administrator');
+});
+
+it('reports device-specific admission reasons without reserving a run or blocking another device', () => {
+  const f = fixture();
+  expect(devices.admission(f.owner, f.runId, resources)).toEqual({ status: 'ready', session: f.session });
+  expect(devices.admission(f.owner, f.runId, { ...resources, cpus: 8 })).toMatchObject({ reason: 'resources-insufficient' });
+  devices.setAccepting(f.paired.credential, f.session, false);
+  expect(devices.admission(f.owner, f.runId, resources)).toMatchObject({ reason: 'not-accepting' });
+  devices.setAccepting(f.paired.credential, f.session, true);
+  devices.assign(f.owner, f.session, f.runId, resources);
+  expect(devices.admission(f.owner, f.runId, resources)).toMatchObject({ reason: 'busy' });
+  devices.disconnect(f.session);
+  expect(devices.admission(f.owner, f.runId, resources)).toMatchObject({ reason: 'disconnected' });
+  const next = devices.connect(f.paired.credential, { ...capabilities, appVersion: 'unsupported' }).session;
+  devices.acknowledgeStopped(f.paired.credential, next, f.runId, 1);
+  expect(devices.admission(f.owner, f.runId, resources)).toMatchObject({ reason: 'version-incompatible' });
+  devices.revoke(f.owner, f.paired.deviceId);
+  expect(devices.admission(f.owner, f.runId, resources)).toMatchObject({ reason: 'access-unavailable' });
 });

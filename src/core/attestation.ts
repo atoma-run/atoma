@@ -76,7 +76,8 @@ export function attestingExecutor(
   log: AttestationLog | undefined,
   branchId: string | undefined,
   onError?: (message: string) => void,
-  attempt?: number
+  attempt?: number,
+  provenance?: import('../contracts/executionTarget.js').ExecutionProvenance
 ): ToolExecutor | undefined {
   if (!inner || !log) return inner;
   const base = baseExecutorOf(inner);
@@ -90,6 +91,7 @@ export function attestingExecutor(
         if (observation) {
           log.append({
             eventId: randomUUID(),
+            ...(provenance ? { provenance } : {}),
             ...(attempt !== undefined ? { attempt } : {}),
             ...(branchId !== undefined ? { branchId } : {}),
             tool: name,

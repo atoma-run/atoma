@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { WORKSPACE_FRAME_BYTES, WORKSPACE_PROTOCOL_VERSION, workspaceResponseSchema, type WorkspaceCommand } from '../contracts/workspaceProtocol.js';
 import { remoteWorkspaceRuntime } from './workspaceRpc.js';
@@ -18,6 +18,14 @@ export function startWorkspaceProcess(options: { root: string; seedRoot?: string
       ...(options.readRunsIndex ? { ATOMA_WORKSPACE_READ_RUNS: options.readRunsIndex } : {}) },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
+  return workspaceProcessChannel(child, options);
+}
+
+/** Transport over a trusted launcher's already-created stdio process. */
+export function workspaceProcessChannel(child: ChildProcessWithoutNullStreams,
+  options: { timeoutMs?: number; onLog?: (line: string) => void } = {}): {
+    runtime: WorkspaceRuntime; command(command: WorkspaceCommand): Promise<unknown>; close(): Promise<void>;
+  } {
   // Diagnostics are separate from RPC frames and bounded even for a broken service.
   let diagnostics = '';
   child.stderr.on('data', (chunk: Buffer) => {
@@ -71,5 +79,5 @@ export function startWorkspaceProcess(options: { root: string; seedRoot?: string
       child.stdin.write(frame);
     });
   };
-  return { runtime: remoteWorkspaceRuntime(send), close: async () => { fail(new Error('Workspace service stopped')); await closed; } };
+  return { runtime: remoteWorkspaceRuntime(send), command: send, close: async () => { fail(new Error('Workspace service stopped')); await closed; } };
 }

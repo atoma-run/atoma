@@ -1,3 +1,4 @@
+import { canCreditSharedKnowledge } from '../contracts/executionTarget.js';
 import { PARENT_TEST_PLANNING, PARALLEL_BRANCH_PLANNING } from '../contracts/parentTests.js';
 import { verifyParentTests, parentTestFindings } from '../core/parentTests.js';
 import { renderParentTestsBlock } from './parentTestsBlock.js';
@@ -1476,6 +1477,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         return fresh;
       },
       onApproved: async (child, result, verdict) => {
+        if (!canCreditSharedKnowledge(ctx.executionProvenance)) {
+          ctx.logger.info('Shared credit withheld: customer execution requires independent hosted validation');
+          return;
+        }
         // A read-only phase that changed files itself earns its cell no trust.
         if (result.readOnlyRestoration && restorationDamaged(result.readOnlyRestoration.restoration)) {
           ctx.logger.warn(`[${this.name}] ${child.name}: phase approved, but the runtime put back files it changed — trust success WITHHELD`);

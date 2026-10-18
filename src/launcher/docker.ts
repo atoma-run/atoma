@@ -126,8 +126,14 @@ export function attachedWorkerLifecycle(options: {
     // Auto-removal may have won the race. Only a successful engine query
     // proving absence can turn a failed removal into confirmed teardown.
     await quiet(runDocker, ['rm', '-f', name]);
-    const remaining = await runDocker(['ps', '-a', '--filter', `name=^/${name}$`, '--format', '{{.ID}}']);
-    if (remaining.trim()) throw new Error(`Worker ${name} still exists; refusing workspace replacement`);
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const remaining = await runDocker(['ps', '-a', '--filter', `name=^/${name}$`, '--format', '{{.ID}}']);
+      if (!remaining.trim()) return;
+      // Docker can report 'removal already in progress' while --rm finishes.
+      // Only an engine absence response succeeds; a deadline never does.
+      if (attempt < 9) await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    throw new Error(`Worker ${name} still exists; refusing workspace replacement`);
   } };
 }
 

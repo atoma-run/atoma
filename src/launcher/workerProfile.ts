@@ -37,6 +37,8 @@ export function workerRunArgs(opts: {
   image: string;
   workspaceHostPath: string;
   workspaceVolume?: string;
+  volumeSubpath?: 'current';
+  computeMachineId?: string;
   /** Launcher-created socket FILE, mounted read-only; never its control endpoint. */
   socketHostPath?: string;
   memory?: string;
@@ -73,9 +75,16 @@ export function workerRunArgs(opts: {
   if (opts.readOnlyRunCopiesSource !== undefined && /[,"'\n\r]/.test(opts.readOnlyRunCopiesSource)) {
     throw new Error('read-run copies mount refused: the path cannot be written as a mount option');
   }
+  if (opts.volumeSubpath && (!opts.workspaceVolume || !/^atoma-compute-[a-f0-9-]{36}-workspace$/.test(opts.workspaceVolume))) {
+    throw new Error('Desktop workspace must be launcher-owned');
+  }
+  if (opts.computeMachineId && !/^[a-f0-9-]{36}$/.test(opts.computeMachineId)) throw new Error('Invalid compute identity');
   return [
     'run',
     '--rm',
+    ...(opts.computeMachineId ? ['--init', '--read-only', '--pids-limit', '256',
+      '--memory-swap', opts.memory ?? '2g', '--tmpfs', '/tmp:rw,nosuid,nodev,size=1g',
+      '--label', `dev.atoma.compute=${opts.computeMachineId}`, '--label', 'dev.atoma.compute.kind=worker'] : []),
     ...(opts.socketHostPath ? ['-d', '--mount', `type=bind,src=${opts.socketHostPath},dst=/run/atoma-worker.sock,readonly`, '-e', 'ATOMA_WORKER_SOCKET=/run/atoma-worker.sock'] : ['-i']),
     // NO NETWORK ROUTE OUT. The container keeps its own loopback — verified:
     // a server started inside is reachable from inside — so the HTTP bucket
@@ -111,13 +120,13 @@ export function workerRunArgs(opts: {
     // ONLY the workspace. The atom registry, the skill bodies, the ledger and
     // other runs' traces are simply not on this filesystem, so the
     // `../../atoma-build.db` walk that works today finds nothing.
-    ...(opts.workspaceVolume ? ['--mount', `type=volume,src=${opts.workspaceVolume},dst=/workspace,volume-nocopy`]
+    ...(opts.workspaceVolume ? ['--mount', `type=volume,src=${opts.workspaceVolume},dst=/workspace,volume-nocopy${opts.volumeSubpath ? `,volume-subpath=${opts.volumeSubpath}` : ''}`]
       : ['-v', `${opts.workspaceHostPath}:/workspace`]),
     // Docker mounts by destination depth, so this lands on top of /workspace
     // whatever the argument order (proven against the real engine).
     ...(opts.readOnlyRunCopiesSource === undefined ? []
       : ['--mount', opts.workspaceVolume
-        ? `type=volume,src=${opts.workspaceVolume},dst=${READ_RUN_COPIES_MOUNT},volume-subpath=${READ_RUNS_DIRECTORY},readonly,volume-nocopy`
+        ? `type=volume,src=${opts.workspaceVolume},dst=${READ_RUN_COPIES_MOUNT},volume-subpath=${opts.volumeSubpath ? `${opts.volumeSubpath}/` : ''}${READ_RUNS_DIRECTORY},readonly,volume-nocopy`
         : `type=bind,src=${opts.readOnlyRunCopiesSource},dst=${READ_RUN_COPIES_MOUNT},readonly`]),
     '-w',
     '/workspace',

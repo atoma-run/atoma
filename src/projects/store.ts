@@ -444,6 +444,7 @@ export class ProjectStateConflict extends Error {
 }
 
 interface ProjectRow {
+  execution_target_json?: string | null;
   project_id: string;
   org_id: string;
   created_by_principal_id: string;
@@ -472,6 +473,7 @@ interface ProjectRow {
 }
 
 interface ProjectRunRow {
+  execution_target_json?: string | null;
   github_access_json?: string | null;
   project_run_id: string;
   project_id: string;
@@ -543,6 +545,7 @@ function parseJson(value: string, label: string): unknown {
 
 function projectFromRow(row: ProjectRow): Project {
   return projectSchema.parse({
+    executionTarget: row.execution_target_json ? parseJson(row.execution_target_json, 'execution target') : { kind: 'hosted' },
     projectId: row.project_id,
     orgId: row.org_id,
     createdByPrincipalId: row.created_by_principal_id,
@@ -611,6 +614,7 @@ function runFromRow(row: ProjectRunRow): ProjectRun {
   return projectRunSchema.parse({
     ...(row.github_access_json ? { githubAccess: parseJson(row.github_access_json, 'GitHub access') } : {}),
     projectRunId: row.project_run_id,
+    executionTarget: row.execution_target_json ? parseJson(row.execution_target_json, 'execution target') : { kind: 'hosted' },
     projectId: row.project_id,
     orgId: row.org_id,
     requestedByPrincipalId: row.requested_by_principal_id,
@@ -866,6 +870,8 @@ export class ProjectStore {
         ['projects', 'showcase'],
         ['projects', 'follow_upstream'],
         ['projects', 'deployment_destination'],
+        ['projects', 'execution_target_json'],
+        ['project_runs', 'execution_target_json'],
         ['projects', 'hosting_subdomain'],
         ['projects', 'hosting_subdomain_receipt_json'],
         ['project_runs', 'repository_base_json'],
@@ -890,6 +896,9 @@ export class ProjectStore {
         const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
         if (!columns.some(item => item.name === column)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`);
       }
+      this.db.exec(`CREATE TRIGGER IF NOT EXISTS run_execution_target_immutable BEFORE UPDATE OF execution_target_json ON project_runs
+        WHEN OLD.execution_target_json IS NOT NEW.execution_target_json
+        BEGIN SELECT RAISE(ABORT, 'run execution target is immutable'); END;`);
       if (!publicationColumns.includes('kept_remote')) this.db.exec('ALTER TABLE project_publications ADD COLUMN kept_remote INTEGER');
       this.db.exec(`CREATE TABLE IF NOT EXISTS project_delivery_acceptance (
         project_run_id TEXT PRIMARY KEY REFERENCES project_runs(project_run_id) ON DELETE CASCADE,
@@ -1753,8 +1762,8 @@ END;
              project_run_id, project_id, org_id, requested_by_principal_id, request_key,
              goal, status, workspace_path, runs_path, log_path, skills_path,
              rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms, resume_of_run_id, base_run_id, context_version,
-             read_run_ids_json
-           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             read_run_ids_json, execution_target_json
+           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           requestedRunId,
@@ -1776,7 +1785,8 @@ END;
           request.resumeOf ?? null,
           request.baseRunId ?? null,
           contextVersion ?? null,
-          encodeReadRunIds(readRunIds)
+          encodeReadRunIds(readRunIds),
+          JSON.stringify(request.resumeOf ? contextOrigin!.executionTarget : project.executionTarget)
         );
       if (acceptance) {
         // `source` NULL is a user list, which is every row written before

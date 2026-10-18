@@ -79,6 +79,15 @@ sleep; every operation must call `assertActive`. Expiry starts cleanup once.
 Only engine-confirmed cleanup may resolve its callback; failure stays unconfirmed.
 A closed guard cannot be revived by a late response or reused after reconnect.
 
+`DesktopCompute` owns the desktop-only profile: immutable image identities,
+Linux named volumes, no host binds, non-root read-only containers, capped CPU,
+RAM/swap and processes, and network none. Tools receive only `current/`; the
+private control service alone mounts the snapshot spool. A drained worker cannot
+restart until explicit next-attempt activation. Close confirms engine absence
+and preserves volumes; boot reconciliation requires the app's single-instance
+lock. This profile is not equivalent to gVisor. WSS assignment allocation is
+joined before teardown, preventing a late allocation from escaping a lost lease.
+
 `connectContainerLauncher` selects the local backend when no
 `ATOMA_LAUNCHER_SOCKET` is configured, otherwise the separate Linux service.
 The configured socket must work; never fall back to Docker on the caller.

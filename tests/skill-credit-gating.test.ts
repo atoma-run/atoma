@@ -198,6 +198,17 @@ describe('L2 supervise loop — usage-conditioned skill credit (end-to-end)', ()
     expect(resultCall.userContent).toMatch(/STEP 1: do the thing/);
   });
 
+  it('does not credit a shared type or recipe from an approved customer execution', async () => {
+    const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
+    const ctx = { ...makeCtx(), executionProvenance: 'customer-device' as const };
+    enqueueHappyPathUpToResult(ctx);
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'ok', activeSkillFollowed: true }));
+    const result = await neuron.handleDirect({ description: 'task' }, ctx);
+    expect(result.summary).toBe('ok');
+    expect(skills.loadFor(nsOf(reg, 'Water'))[0]!.successes).toBe(0);
+    expect(reg.getByName('Water')!.successes).toBe(0);
+  });
+
   it('bumps the skill on activeSkillFollowed: true', async () => {
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
     const ctx = makeCtx();

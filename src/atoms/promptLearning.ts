@@ -1,3 +1,4 @@
+import { canCreditSharedKnowledge } from '../contracts/executionTarget.js';
 import { createHash } from 'node:crypto';
 import type { Atom } from '../core/atom.js';
 import type { RunContext, Result, Task } from '../core/types.js';
@@ -27,7 +28,7 @@ A successful delivery alone is not evidence of an improved method. When uncertai
 /** Called only after the method-credit guards; root rejection drops this pass's deferred lessons. */
 export function deferPromptLearning(registry: AtomRegistry, atom: Atom, task: Task, result: Result,
   ctx: RunContext, feedback: readonly string[] = [], approval?: string): void {
-  if (!ctx.deferredLearning || process.env['ATOMA_SKILL_LEARN'] !== '1') return;
+  if (!canCreditSharedKnowledge(ctx.executionProvenance) || !ctx.deferredLearning || process.env['ATOMA_SKILL_LEARN'] !== '1') return;
   try {
     const type = registry.getByName(atom.name);
     if (!type || !atom.matchesRegistryVersion(type)) return;

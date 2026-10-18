@@ -1436,6 +1436,18 @@ describe('a direct dispatch is validated, and a script set aside is not run agai
     expect(skill().successes).toBe(1);
   });
 
+  it('executes a shared script on customer compute without crediting or promoting it', async () => {
+    const { executor } = makeExecutor({ exitCode: 0, stdout: `${ENVELOPE_LINE}\n`, stderr: '' });
+    const events: SkillEventInfo[] = [];
+    const ctx = { ...makeCtx(), executionProvenance: 'customer-device' as const,
+      tools: executor, jev: approvingJev(), recordSkill: (event: SkillEventInfo) => events.push(event) };
+    queuePrefilters(ctx);
+    const result = await neuron().handleDirect({ description: 'scaffold the config' }, ctx);
+    expect(result.summary).toBe('script ran clean');
+    expect(events.some(event => event.op === 'credit-withheld')).toBe(true);
+    expect(skill()).toMatchObject({ successes: 0, failures: 0 });
+  });
+
   it('counts a deterministic phase below a tissue\'s read-only phase without crediting it (8738f263)', async () => {
     const { executor } = makeExecutor({ exitCode: 0, stdout: `${ENVELOPE_LINE}\n`, stderr: '' });
     const events: SkillEventInfo[] = [];

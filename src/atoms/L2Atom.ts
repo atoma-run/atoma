@@ -1,3 +1,4 @@
+import { canCreditSharedKnowledge } from '../contracts/executionTarget.js';
 import { PARENT_TEST_PLANNING, PARALLEL_BRANCH_PLANNING } from '../contracts/parentTests.js';
 import { markParentTestsJudged, verifyParentTests, withParentTestConsequences } from '../core/parentTests.js';
 import { renderParentTestsBlock } from './parentTestsBlock.js';
@@ -161,6 +162,7 @@ import type { SkillLesson } from '../contracts/skillLearning.js';
  * closed with the run's deadline by the time an approval comes.
  */
 async function learnAfterRoot(ctx: RunContext, owner: string, learn: (learnCtx: RunContext) => Promise<void>, lesson?: SkillLesson): Promise<void> {
+  if (!canCreditSharedKnowledge(ctx.executionProvenance)) return;
   if (!ctx.deferredLearning) return learn(ctx);
   ctx.deferredLearning.defer((signal) => learn(signal ? { ...ctx, signal } : ctx), owner, lesson);
 }
@@ -1070,7 +1072,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
                 // late to tell: no script run there is credited. An uncovered
                 // proof obligation withholds it as it withholds a molecule's.
                 const restoredHere = direct.readOnlyRestoration && restorationDamaged(direct.readOnlyRestoration.restoration);
-                const uncredited = restoredHere
+                const uncredited = !canCreditSharedKnowledge(ctx.executionProvenance)
+                  ? 'customer execution requires independent hosted validation' : restoredHere
                   ? 'the runtime put back the files it changed in a read-only phase'
                   : subTask.readOnly && !readOnlyHere
                     ? 'a read-only phase below a tissue is restored after this approval'
@@ -1906,6 +1909,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         return freshBranched;
       },
       onApproved: async (child, result, verdict) => {
+        if (!canCreditSharedKnowledge(ctx.executionProvenance)) {
+          ctx.logger.info('Shared credit withheld: customer execution requires independent hosted validation');
+          return;
+        }
         // PROOF-GATED METHOD CREDIT. The deliverable was approved on its
         // merits; what is withheld here is every claim about the METHOD that
         // produced it — the child type's trust success, the skill's credit,

@@ -1,3 +1,4 @@
+import { executionTargetSchema } from './executionTarget.js';
 import { z } from 'zod';
 import { deploymentDestinationSchema, hostingSubdomainSchema } from './projectDeployment.js';
 import { learningReceiptSchema } from './skillLearning.js';
@@ -288,6 +289,7 @@ export const projectSchema = z
     initialPrompt: projectPromptSchema,
     status: projectStatusSchema,
     deploymentDestination: deploymentDestinationSchema.default('none'),
+    executionTarget: executionTargetSchema.default({ kind: 'hosted' }),
     /** Assigned once, when the project is first given to Atoma hosting; null before. */
     hostingSubdomain: hostingSubdomainSchema.nullable().default(null),
     showcase: projectShowcaseSchema,
@@ -414,6 +416,7 @@ export const projectRunSchema = z
   .object({
     projectRunId: projectRunIdSchema,
     contextVersion: z.number().int().nonnegative().optional(),
+    executionTarget: executionTargetSchema.default({ kind: 'hosted' }),
     projectId: projectIdSchema,
     orgId: organisationIdSchema,
     requestedByPrincipalId: principalIdSchema,

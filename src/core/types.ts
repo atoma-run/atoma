@@ -955,6 +955,7 @@ export interface DeferredLearning {
 }
 
 export interface RunContext {
+  readonly executionProvenance?: import('../contracts/executionTarget.js').ExecutionProvenance;
   /** Root-only durable phase boundary; deliberately absent from child forks. */
   readonly rootCheckpoint?: import('../contracts/runCheckpoint.js').RootPhaseCheckpoint;
   /** Present only for the opt-in depth experiment. Forward unchanged across forks. */
