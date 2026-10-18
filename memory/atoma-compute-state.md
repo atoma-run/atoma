@@ -336,5 +336,9 @@ acceptance image (the unrelated atoma-worker:latest is stale). TLS setup browser
 smoke passed at 1366/375 px; full GPU smoke passed, including ordinary-owner
 onboarding and absence of the hosted choice. CI translated all new product copy
 in 3adcc61c; the following documentation push includes those catalogs in the
-immutable production artifact. Production deployment pending. MCP health was
-reachable again before deployment, with no active runs.
+immutable production artifact. Deployed 454f3c50 successfully: CI 39136217749,
+deployment 39136978467. Server current symlink and active service verified;
+French /compute/setup verified in the real production browser. Full prior CI
+39135841616 was green too. MCP health was reachable before deployment, with
+no active runs. The production Attica settings showed Mac de Matthieu Ready,
+project access allowed and selected (observed only; not changed in this task).
