@@ -1,0 +1,369 @@
+{
+  "fixtureSha256": "2edc5c98d05116d6dc88999590feeb70b87c089296626df307d23fc07c48079c",
+  "checks": [
+    {
+      "architecture": "arm64",
+      "queryLanguage": "en",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "en",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "fr",
+      "documentLanguage": "fr",
+      "expectedTopResult": "languages/fr/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "fr",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "de",
+      "documentLanguage": "de",
+      "expectedTopResult": "languages/de/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "de",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "es",
+      "documentLanguage": "es",
+      "expectedTopResult": "languages/es/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "es",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "pt",
+      "documentLanguage": "pt",
+      "expectedTopResult": "languages/pt/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "pt",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "ru",
+      "documentLanguage": "ru",
+      "expectedTopResult": "languages/ru/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "ru",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "zh",
+      "documentLanguage": "zh",
+      "expectedTopResult": "languages/zh/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "zh",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "ja",
+      "documentLanguage": "ja",
+      "expectedTopResult": "languages/ja/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "ja",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "ar",
+      "documentLanguage": "ar",
+      "expectedTopResult": "languages/ar/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "ar",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "hi",
+      "documentLanguage": "hi",
+      "expectedTopResult": "languages/hi/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "hi",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "bn",
+      "documentLanguage": "bn",
+      "expectedTopResult": "languages/bn/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "bn",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "ur",
+      "documentLanguage": "ur",
+      "expectedTopResult": "languages/ur/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "ur",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "id",
+      "documentLanguage": "id",
+      "expectedTopResult": "languages/id/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "arm64",
+      "queryLanguage": "id",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "en",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "en",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "fr",
+      "documentLanguage": "fr",
+      "expectedTopResult": "languages/fr/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "fr",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "de",
+      "documentLanguage": "de",
+      "expectedTopResult": "languages/de/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "de",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "es",
+      "documentLanguage": "es",
+      "expectedTopResult": "languages/es/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "es",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "pt",
+      "documentLanguage": "pt",
+      "expectedTopResult": "languages/pt/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "pt",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "ru",
+      "documentLanguage": "ru",
+      "expectedTopResult": "languages/ru/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "ru",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "zh",
+      "documentLanguage": "zh",
+      "expectedTopResult": "languages/zh/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "zh",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "ja",
+      "documentLanguage": "ja",
+      "expectedTopResult": "languages/ja/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "ja",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "ar",
+      "documentLanguage": "ar",
+      "expectedTopResult": "languages/ar/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "ar",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "hi",
+      "documentLanguage": "hi",
+      "expectedTopResult": "languages/hi/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "hi",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "bn",
+      "documentLanguage": "bn",
+      "expectedTopResult": "languages/bn/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "bn",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "ur",
+      "documentLanguage": "ur",
+      "expectedTopResult": "languages/ur/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "ur",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "id",
+      "documentLanguage": "id",
+      "expectedTopResult": "languages/id/0.txt",
+      "passed": true
+    },
+    {
+      "architecture": "amd64",
+      "queryLanguage": "id",
+      "documentLanguage": "en",
+      "expectedTopResult": "languages/en/0.txt",
+      "passed": true
+    }
+  ]
+}

@@ -265,3 +265,19 @@ Receipts/checksums: records/releases/compute-images-2026-10-18/.
 Owner approved temporary organization public-package permission; restored to
 disabled after making the four packages public. Native desktop acceptance and
 capacity measurements remain deferred/unexecuted. Base retrieval is BM25.
+
+## Multilingual images published (2026-10-18)
+
+User requested embedded hybrid models and support for all 13 Atoma locales.
+Tag compute-images-20261018-3 at a5b7bde7 published all four images on amd64/arm64,
+including E5-small multilingual + mMARCO MiniLMv2 weights (pinned upstream commits
+and SHA-256 in docker/compute-models.lock.json). Native image workflow
+39124781261 succeeded: 91 tests per architecture, no skips, including 26 actual
+hybrid searches per architecture (13 locales, same-language and English corpus).
+This is a small compatibility smoke, not a relevance benchmark. Prefixes are
+query/passage; documentPrefix now travels hosted/remote and keys cache isolation.
+Receipts in records/releases/compute-multilingual-2026-10-18 include ready-to-use
+haystackConfig. All eight manifest/config digests and anonymous access verified.
+No main merge/deployment or native desktop acceptance performed.
+Full CI for a5b7bde7 also passed (39124777321): 7,570/51 general tests,
+88 fresh-worker tests, 3 mender-isolation tests, static release checks.

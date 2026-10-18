@@ -43,7 +43,7 @@ jobs:
           mkdir -p "release/${root}"
           cp -R dist docker scripts docs deploy src "release/${root}/"
           # Optional operator model staging is not part of the source release.
-          rm -rf "release/${root}/dist/compute-models"
+          rm -rf "release/${root}/dist/compute-models" "release/${root}/dist/compute-model-downloads"
           # The benchmark write-ups, not the driver logs or CSVs: `docs:check`
           # counts the rounds the README argues from, inside the extracted install.
           mkdir -p "release/${root}/benchmark"

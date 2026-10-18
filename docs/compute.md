@@ -133,7 +133,7 @@ deploying the application; the workflow retains digest receipts as artifacts.
 Native Linux validation does
 not replace macOS Docker Desktop or Windows/WSL2 acceptance.
 
-Published retrieval images include pinned multilingual E5-small embeddings and
+[Published retrieval images](../records/releases/compute-multilingual-2026-10-18/README.md) include pinned multilingual E5-small embeddings and
 mMARCO MiniLMv2 reranking models. They support hybrid search offline across all
 13 Atoma locales (ar, bn, de, en, es, fr, hi, id, ja, pt, ru, ur, zh), including
 queries and documents in different languages. This is language coverage, not a
