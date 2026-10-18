@@ -361,9 +361,24 @@ pairing/preparation, background close, utility crash/reconnect and quit. Signing
 certificates are still absent (owner previously confirmed). Mac preview is
 ad-hoc signed; no unsigned build may enter the stable update feed.
 
-In progress: GitHub CI 39144034296 and native desktop build 39144044643 on
-`ed103f08`; translation bot will add the new 13-language copy. Rebuild desktop
-artifacts from the translated revision. Follow CI/deployment before claiming
-completion. Local release static checks passed, and 7,617 tests passed; the
-existing MCP listen-stream quota test failed once then passed all 18 tests in
-isolation. Published ARM worker isolation tests passed.
+The translated source revision is `61ea0fc9`. All three native jobs passed in
+[Compute desktop 39144467070](https://github.com/atoma-run/atoma/actions/runs/39144467070):
+Mac ARM, Mac Intel and Windows x64 installers, checksums, typechecks, focused
+lifecycle tests and real Electron GUI smokes. The initial matrix caught empty
+signing environment variables and the Intel runner's missing GPU; both are
+fixed. The CI smoke uses software rendering only on CI. All 2,364 source keys
+have translations in the 12 target catalogs (13 languages total).
+
+CI 39144034296 passed and deployed `ed103f08`. Final CI 39144466517 on
+`61ea0fc9` passed (7,594 tests, 51 deliberately skipped; dedicated container
+job passed separately). CodeQL passed. Deployment 39145364994 successfully
+activated that exact translated revision.
+Local release static checks passed, and 7,617 tests passed; the existing MCP
+listen-stream quota test failed once then passed all 18 tests in isolation and
+passed the complete first CI. Published ARM worker isolation tests passed.
+
+Local translated Mac installer:
+`dist/compute-installers/Atoma-Compute-0.4.0-mac-arm64.dmg`.
+Native CI artifacts are downloadable from the workflow above. No stable public
+release was published without signing certificates. Docker acceptance on Mac
+Intel/Windows remains separate from these GUI/installer checks.

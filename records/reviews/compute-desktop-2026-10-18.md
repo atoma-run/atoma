@@ -67,3 +67,20 @@ Unsigned package steps now remove signing environment variables entirely; the
 CI-only smoke selects software rendering while retaining the sandbox and all
 behavioral assertions. The same smoke passed locally with that CI setting.
 Windows passed the application tests and native smoke before packaging.
+
+## Final validation
+
+- Translated revision: `61ea0fc90bd0b404cd9351770eaa69ebfa6f2541`.
+- [Native matrix](https://github.com/atoma-run/atoma/actions/runs/39144467070):
+  Mac ARM64, Mac x64 and Windows x64 all passed and uploaded installers with
+  checksums. Intel software-rendered CI smoke passed without removing assertions.
+- [Complete CI](https://github.com/atoma-run/atoma/actions/runs/39144466517):
+  passed, including 7,594 unit/integration tests (51 deliberately skipped),
+  release static checks and separate fresh-worker/container isolation jobs.
+- CodeQL passed. [Production deployment](https://github.com/atoma-run/atoma/actions/runs/39145364994)
+  successfully activated the exact translated revision.
+- All 2,364 English keys have translations in the 12 target catalogs.
+
+The native matrix validates application behavior and packaging, not a real
+paid run or Docker Desktop/WSL2 execution on every target OS. The public stable
+installer channel remains unpublished until signing credentials exist.
