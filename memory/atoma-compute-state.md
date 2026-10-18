@@ -395,3 +395,21 @@ trigger image pulls. No local live CLI/Docker workload was stopped for testing.
 The new source copy is English only; main CI supplies the twelve target locales.
 Native preview publication is separate from the signed stable update channel.
 The website enables native download links only after their release exists.
+
+Guided setup validation: CI `39147365039` passed all jobs, including a fresh
+worker image; deployment `39148139678` activated source `7c049cbe`. The local
+full suite passed 7,620 tests with two failures against the stale default worker.
+The published worker passed those cases; a separate local Docker restart and a
+bind-mount transition failure were observed on retries, not hidden as passes.
+Clean CI worker isolation passed. Full `viz:smoke` and the new Electron smoke
+passed locally. The downloaded official Mac Docker DMG passed codesign verification
+with Docker team `9BNSXJN65R`; it was not opened or installed and was removed.
+
+All 2,401 keys are translated into twelve target languages. Native workflow
+`39147760300` passed on Mac ARM, Mac Intel and Windows x64 and published all three
+installers plus checksums at `compute-desktop-preview-20261018-2` from translated
+revision `40861877`. These are previews, not publisher-signed stable releases.
+The owner asked for Compute Desktop CI in parallel with Atoma CI: native validation
+now triggers automatically for source/client dependency changes on main and PRs.
+Publication remains manual and cannot be canceled by automatic validation; signing
+credentials are absent unless a signed manual build explicitly requests them.

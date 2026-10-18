@@ -77,3 +77,10 @@ Preview installers are separate from the signed stable feed and carry an explici
 notice about platform installation blocks. The native release workflow can publish
 an immutable preview after all three platform jobs pass. Real Docker installation,
 WSL reboot and license flows still require manual platform acceptance testing.
+
+Native validation starts automatically alongside Atoma CI on pushes to main and
+pull requests that touch the client or its dependencies. It produces installers
+as CI artifacts, without publishing a release. A manual workflow dispatch remains
+available for publication after translations and platform checks are complete.
+Automatic builds may supersede stale automatic builds; publication runs are never
+canceled by a newer validation run.

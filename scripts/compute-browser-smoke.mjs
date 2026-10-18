@@ -69,6 +69,7 @@ try {
     assert.equal(await page.$eval('h1', node => node.textContent), 'Connect your computer');
     assert.equal(await page.$eval('.setup-tabs a[aria-current]', node => node.textContent), 'Atoma Compute app');
     assert.ok(await page.evaluate(width => document.documentElement.scrollWidth <= width, width), 'Download view fits the screen');
+    if (process.env.ATOMA_COMPUTE_SCREENSHOTS) await page.screenshot({ path: join(process.env.ATOMA_COMPUTE_SCREENSHOTS, `setup-app-${width}.png`), fullPage: true });
     await page.focus('.setup-tabs a'); await page.keyboard.press('Tab');
     await Promise.all([page.waitForNavigation(), page.keyboard.press('Enter')]);
     assert.ok(page.url().includes('mode=manual'));

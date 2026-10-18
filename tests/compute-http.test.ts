@@ -122,7 +122,7 @@ it('defaults to app downloads with an explicit architecture choice and a manual 
   expect(response.status).toBe(200);
   const html = await response.text();
   expect(html).toContain('aria-current="page"');
-  expect(html).toContain('Installers are being prepared');
+  expect(html).toContain('Atoma-Compute-0.4.0-mac-arm64.dmg');
   expect(html).toContain('mode=manual');
   expect(html).not.toContain('npm ci');
   expect(html).toContain('not yet signed');

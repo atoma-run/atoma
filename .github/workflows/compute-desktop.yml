@@ -1,5 +1,19 @@
 name: Compute desktop
 on:
+  push:
+    branches: [main]
+    paths: &desktop-paths
+      - 'src/**'
+      - 'desktop/**'
+      - 'scripts/*compute-desktop*'
+      - 'tests/compute-*.test.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - '.nvmrc'
+      - '.github/workflows/compute-desktop.yml'
+  pull_request:
+    paths: *desktop-paths
   workflow_dispatch:
     inputs:
       signed:
@@ -16,6 +30,10 @@ on:
         default: false
 permissions:
   contents: read
+concurrency:
+  # Automatic validation can supersede stale builds; publication is never canceled.
+  group: compute-desktop-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'validation' }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 jobs:
   desktop:
     strategy:
@@ -36,11 +54,11 @@ jobs:
     env:
       ATOMA_COMPUTE_SIGNED: ${{ inputs.signed && '1' || '0' }}
       ATOMA_COMPUTE_ARCH: ${{ matrix.architecture }}
-      CSC_LINK: ${{ matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_LINK || secrets.ATOMA_WINDOWS_CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_PASSWORD || secrets.ATOMA_WINDOWS_CSC_PASSWORD }}
-      APPLE_API_KEY_CONTENT: ${{ secrets.ATOMA_APPLE_API_KEY }}
-      APPLE_API_KEY_ID: ${{ secrets.ATOMA_APPLE_API_KEY_ID }}
-      APPLE_API_ISSUER: ${{ secrets.ATOMA_APPLE_API_ISSUER }}
+      CSC_LINK: ${{ inputs.signed && (matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_LINK || secrets.ATOMA_WINDOWS_CSC_LINK) || '' }}
+      CSC_KEY_PASSWORD: ${{ inputs.signed && (matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_PASSWORD || secrets.ATOMA_WINDOWS_CSC_PASSWORD) || '' }}
+      APPLE_API_KEY_CONTENT: ${{ inputs.signed && secrets.ATOMA_APPLE_API_KEY || '' }}
+      APPLE_API_KEY_ID: ${{ inputs.signed && secrets.ATOMA_APPLE_API_KEY_ID || '' }}
+      APPLE_API_ISSUER: ${{ inputs.signed && secrets.ATOMA_APPLE_API_ISSUER || '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
