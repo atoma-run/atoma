@@ -413,3 +413,30 @@ The owner asked for Compute Desktop CI in parallel with Atoma CI: native validat
 now triggers automatically for source/client dependency changes on main and PRs.
 Publication remains manual and cannot be canceled by automatic validation; signing
 credentials are absent unless a signed manual build explicitly requests them.
+
+## Docker progress and platform guidance — 2026-10-18
+
+The user's old local desktop displayed 2/4 components, then a generic Docker
+error containing Windows advice on macOS. Docker was actually running; the two
+missing immutable images were retrieval and preview. Both were downloaded
+successfully on the same Mac; the original failure's exact cause is unconfirmed.
+Image pulls now stream bounded layer progress and elapsed time, with a one-hour
+per-image deadline and cancellation waiting for CLI exit. Existing digest-pinned
+images are reused locally. Download failures have their own action text rather
+than being misclassified as a stopped Docker engine. Native platform guidance
+and Docker installation controls reflect the detected prerequisite state.
+Mac installer verification also requires Apple's trust anchor and Docker's team.
+
+Focused process-boundary/cache/controller tests (12) and the Electron UI smoke
+passed locally. The smoke covers macOS errors without WSL2 text, no installation
+CTA when Docker is ready, and live search-component progress. Source changes
+landed as `4245139a` and `d9123901`; CI translated the new strings in `4300137e`.
+The existing local app bundle was backed up as `Atoma Compute.previous.app`,
+replaced with a packaged ARM64 build of `4300137e`, and reopened with its existing
+pairing. Clicking Prepare reused the four images and the actual UI reached
+French “Prêt / Tout est connecté”. No paid run was started.
+
+Clean CI `39150604970` and automatic native CI `39150604991` passed.
+Translated native release workflow `39150822086` passed on all three platforms
+and published all installers/checksums at `compute-desktop-preview-20261018-3`.
+The setup download links now target that verified preview.

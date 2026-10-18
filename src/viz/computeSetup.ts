@@ -3,7 +3,7 @@ import type { Locale } from '../contracts/locales.js';
 import { computeSetupCopy, computePairIcon } from './computeCopy.js';
 const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 export const COMPUTE_DESKTOP_AVAILABLE = true;
-export const COMPUTE_DESKTOP_RELEASE = 'https://github.com/atoma-run/atoma/releases/tag/compute-desktop-preview-20261018-2';
+export const COMPUTE_DESKTOP_RELEASE = 'https://github.com/atoma-run/atoma/releases/tag/compute-desktop-preview-20261018-3';
 const assets = { 'mac-arm64': 'Atoma-Compute-0.4.0-mac-arm64.dmg', 'mac-x64': 'Atoma-Compute-0.4.0-mac-x64.dmg', 'windows-x64': 'Atoma-Compute-0.4.0-win-x64.exe' } as const;
 /** Ordinary links keep both installation paths usable without JavaScript. */
 export function computeSetupView(locale: Locale, url: URL, userAgent: string, manualContent: string, available = COMPUTE_DESKTOP_AVAILABLE): string {
