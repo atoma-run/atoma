@@ -74,17 +74,17 @@ export function ensureModuleResolutionBoundary(root: string): void {
 }
 
 /** Returns the archive the workspace was moved to, when it was archived. */
-export function prepareWorkspace(root: string, clean: boolean): string | undefined {
+export function prepareWorkspace(root: string, clean: boolean, log: (line: string) => void = console.log): string | undefined {
   ensureModuleResolutionBoundary(root);
   if (!existsSync(root)) return undefined;
   const stale = readdirSync(root);
   if (stale.length === 0) return undefined;
   if (!clean) {
     const shown = stale.slice(0, 8).join(', ');
-    console.log(
+    log(
       `⚠ workspace is not empty (${stale.length} entries: ${shown}${stale.length > 8 ? ', …' : ''})`
     );
-    console.log(
+    log(
       '  stale artefacts appear in verification evidence — pass --clean-workspace to archive them'
     );
     return undefined;
@@ -97,7 +97,7 @@ export function prepareWorkspace(root: string, clean: boolean): string | undefin
   while (existsSync(join(parent, `${base}.prev${n}`))) n++;
   const archived = join(parent, `${base}.prev${n}`);
   renameSync(root, archived);
-  console.log(`workspace archived: ${archived} (${stale.length} entries) — starting clean`);
+  log(`workspace archived: ${archived} (${stale.length} entries) — starting clean`);
   return archived;
 }
 

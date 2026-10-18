@@ -10,6 +10,15 @@ export const WORKSPACE_PROTOCOL_VERSION = 1;
 export const WORKSPACE_FRAME_BYTES = 32 * 1024 * 1024;
 /** No caller-selected root, arbitrary command, or tool invocation on this channel. */
 export const workspaceCommandSchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('import-open'), header: checkpointTransferHeaderSchema, archive: z.boolean() }).strict(),
+  z.object({ method: z.literal('import-frame'), handle: z.string().uuid(), frame: checkpointWireFrameSchema }).strict(),
+  z.object({ method: z.literal('import-abort'), handle: z.string().uuid() }).strict(),
+  z.object({ method: z.literal('validate-sources') }).strict(),
+  z.object({ method: z.literal('prepare'), clean: z.boolean() }).strict(),
+  z.object({ method: z.literal('restart') }).strict(),
+  z.object({ method: z.literal('starting-snapshot') }).strict(),
+  z.object({ method: z.literal('ensure-read-runs') }).strict(),
+  z.object({ method: z.literal('canonical-path') }).strict(),
   z.object({ method: z.literal('checkpoint-digest') }).strict(),
   z.object({ method: z.literal('checkpoint-open') }).strict(),
   z.object({ method: z.literal('checkpoint-next'), handle: z.string().uuid() }).strict(),
@@ -29,6 +38,15 @@ export const workspaceRequestSchema = z.object({
   version: z.literal(WORKSPACE_PROTOCOL_VERSION), id: z.number().int().positive(), command: workspaceCommandSchema,
 }).strict();
 export const workspaceReplySchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('import-open'), value: z.string().uuid() }).strict(),
+  z.object({ method: z.literal('import-frame'), value: z.null() }).strict(),
+  z.object({ method: z.literal('import-abort'), value: z.null() }).strict(),
+  z.object({ method: z.literal('validate-sources'), value: z.null() }).strict(),
+  z.object({ method: z.literal('prepare'), value: z.null() }).strict(),
+  z.object({ method: z.literal('restart'), value: z.null() }).strict(),
+  z.object({ method: z.literal('starting-snapshot'), value: startingSnapshotSchema.nullable() }).strict(),
+  z.object({ method: z.literal('ensure-read-runs'), value: z.string().nullable() }).strict(),
+  z.object({ method: z.literal('canonical-path'), value: z.string() }).strict(),
   z.object({ method: z.literal('checkpoint-digest'), value: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   z.object({ method: z.literal('checkpoint-open'), value: z.object({ handle: z.string().uuid(), header: checkpointTransferHeaderSchema }).strict() }).strict(),
   z.object({ method: z.literal('checkpoint-next'), value: checkpointWireFrameSchema }).strict(),
@@ -46,5 +64,6 @@ export const workspaceReplySchema = z.discriminatedUnion('method', [
 export type WorkspaceReply = z.infer<typeof workspaceReplySchema>;
 export const workspaceResponseSchema = z.discriminatedUnion('ok', [
   z.object({ id: z.number().int().positive(), ok: z.literal(true), reply: workspaceReplySchema }).strict(),
-  z.object({ id: z.number().int().positive(), ok: z.literal(false), error: z.enum(['invalid-request', 'operation-failed']) }).strict(),
+  z.object({ id: z.number().int().positive(), ok: z.literal(false), error: z.enum(['invalid-request', 'operation-failed']),
+    message: z.string().max(8192).optional() }).strict(),
 ]);

@@ -16,7 +16,11 @@ attachment with expiring transfer reservations. Default execution remains hosted
 Remaining dependencies and capacity protocol are recorded in
 `records/designs/atoma-compute-2026-10-18.md` and
 `records/experiments/atoma-compute-capacity-protocol-2026-10-18.md`.
-Startup/seed/restore/deepening/final export still use host files. Device pairing,
+Preparation, bound-source seed/copy, deepening and streamed checkpoint restore
+now cross the private service boundary. The runner awaits asynchronous restore
+before launching tools. A backend factory seam supports a mocked-model run
+whose host workspace path is unusable. Device source provisioning, project
+continuation binding and final export still need integration. Device pairing,
 WSS, generations/leases, authorization/admission, remote tool transport,
 retrieval/previews, customer-proof trust policy and the Electron app remain.
 
@@ -25,3 +29,7 @@ packaged dist and tested under the isolated `atoma-workspace:compute-development
 tag; snapshot spool uses a separate control volume never given to tools.
 No macOS signing identity was installed. Windows/Mac x64 acceptance and signed
 distribution are unverified. No resource reduction has been measured.
+
+Lifecycle/restoration verification: `release:check:static` passed; full tests
+with both freshly built isolated images passed 7,476 tests (10 skipped),
+including 36 worker isolation tests and the separate workspace container smoke.

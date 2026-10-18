@@ -126,44 +126,73 @@ export function saveCheckpointWorkspace(db: Database.Database, root: string, bef
 export function restoreCheckpointWorkspace(db: Database.Database, snapshot: string, digest: string, target: string, archive: boolean): void {
   const recorded = db.prepare('SELECT digest,root_mode FROM run_checkpoint_snapshots WHERE id=?').get(snapshot) as { digest: string; root_mode: number } | undefined;
   if (recorded?.digest !== digest) throw new Error('Checkpoint snapshot is unavailable');
-  let ancestor = dirname(target);
-  while (!existsSync(ancestor)) ancestor = dirname(ancestor);
-  if (realpathSync(ancestor) !== resolve(ancestor)) throw new Error('Checkpoint destination is redirected');
-  mkdirSync(dirname(target), { recursive: true });
-  const parent = realpathSync(dirname(target));
-  if (parent !== resolve(dirname(target))) throw new Error('Checkpoint destination is redirected');
-  const temp = join(parent, `.checkpoint-${randomUUID()}`);
-  mkdirSync(temp, { mode: 0o700 });
+  const writer = new CheckpointWorkspaceWriter({ digest, rootMode: recorded.root_mode }, target, archive);
   try {
     const rows = db.prepare('SELECT path,kind,mode,content FROM run_checkpoint_files WHERE snapshot=? ORDER BY path').iterate(snapshot);
-    let entries = 0;
-    let bytes = 0;
-    const directories: { path: string; mode: number }[] = [];
-    const links: { path: string; target: string }[] = [];
-    for (const raw of rows) {
-      const e = raw as SnapshotEntry;
-      if (++entries > WORKSPACE_LIMITS.maxEntries || e.path.length > WORKSPACE_LIMITS.maxPathChars ||
-          !e.path || isAbsolute(e.path) || e.path.split(/[\\/]/).some(p => !p || p === '.' || p === '..') ||
-          !Buffer.isBuffer(e.content) || e.content.length > WORKSPACE_LIMITS.maxFileBytes ||
-          (bytes += e.content.length) > WORKSPACE_LIMITS.maxTotalBytes) throw new Error('Invalid checkpoint snapshot');
-      const path = join(temp, e.path);
-      if (e.kind === 'directory') { mkdirSync(path); directories.push({ path, mode: e.mode }); }
-      else if (e.kind === 'file') {
-        writeFileSync(path, e.content, { flag: 'wx', mode: e.mode & 0o777 });
-        chmodSync(path, e.mode & 0o777);
+    for (const raw of rows) writer.add(raw as SnapshotEntry);
+    writer.finish();
+  } finally { writer.abort(); }
+}
+
+/** The same restore algorithm for stored rows and execution-host transfers.
+ * Private files stay unreachable until every byte and link has been checked. */
+export class CheckpointWorkspaceWriter {
+  private readonly temp: string;
+  private entries = 0;
+  private bytes = 0;
+  private closed = false;
+  private readonly directories: { path: string; mode: number }[] = [];
+  private readonly links: { path: string; target: string }[] = [];
+
+  constructor(private readonly header: { digest: string; rootMode: number }, private readonly target: string, private readonly archive: boolean) {
+    let ancestor = dirname(target);
+    while (!existsSync(ancestor)) ancestor = dirname(ancestor);
+    if (realpathSync(ancestor) !== resolve(ancestor)) throw new Error('Checkpoint destination is redirected');
+    mkdirSync(dirname(target), { recursive: true });
+    const parent = realpathSync(dirname(target));
+    if (parent !== resolve(dirname(target))) throw new Error('Checkpoint destination is redirected');
+    this.temp = join(parent, `.checkpoint-${randomUUID()}`);
+    mkdirSync(this.temp, { mode: 0o700 });
+  }
+
+  add(e: SnapshotEntry): void {
+    if (this.closed) throw new Error('Checkpoint restoration is closed');
+    if (++this.entries > WORKSPACE_LIMITS.maxEntries || e.path.length > WORKSPACE_LIMITS.maxPathChars ||
+        !e.path || isAbsolute(e.path) || e.path.split(/[\\/]/).some(p => !p || p === '.' || p === '..') ||
+        !Buffer.isBuffer(e.content) || e.content.length > WORKSPACE_LIMITS.maxFileBytes ||
+        (this.bytes += e.content.length) > WORKSPACE_LIMITS.maxTotalBytes) throw new Error('Invalid checkpoint snapshot');
+    const path = join(this.temp, e.path);
+    if (e.kind === 'directory') { mkdirSync(path); this.directories.push({ path, mode: e.mode }); }
+    else if (e.kind === 'file') {
+      writeFileSync(path, e.content, { flag: 'wx', mode: e.mode & 0o777 });
+      chmodSync(path, e.mode & 0o777);
+    } else if (e.kind === 'symlink') {
+      const target = e.content.toString('utf8');
+      if (!Buffer.from(target).equals(e.content)) throw new Error('Invalid checkpoint link encoding');
+      this.links.push({ path, target });
+    }
+    else throw new Error('Invalid checkpoint entry');
+  }
+
+  finish(): void {
+    if (this.closed) throw new Error('Checkpoint restoration is closed');
+    try {
+      // Delayed links cannot redirect any entry creation.
+      for (const link of this.links) symlinkSync(link.target, link.path);
+      for (const dir of this.directories.reverse()) chmodSync(dir.path, dir.mode & 0o777);
+      if (checkpointWorkspaceDigest(this.temp) !== this.header.digest) throw new Error('Checkpoint snapshot digest mismatch');
+      chmodSync(this.temp, this.header.rootMode & 0o777);
+      if (existsSync(this.target)) {
+        if (!this.archive) throw new Error('Continuation workspace must be new');
+        renameSync(this.target, `${this.target}.interrupted-${randomUUID()}`);
       }
-      else if (e.kind === 'symlink') links.push({ path, target: e.content.toString() });
-      else throw new Error('Invalid checkpoint entry');
-    }
-    // Links cannot redirect any file creation: they are created last.
-    for (const link of links) symlinkSync(link.target, link.path);
-    for (const dir of directories.reverse()) chmodSync(dir.path, dir.mode & 0o777);
-    if (checkpointWorkspaceDigest(temp) !== digest) throw new Error('Checkpoint snapshot digest mismatch');
-    chmodSync(temp, recorded.root_mode & 0o777);
-    if (existsSync(target)) {
-      if (!archive) throw new Error('Continuation workspace must be new');
-      renameSync(target, `${target}.interrupted-${randomUUID()}`);
-    }
-    renameSync(temp, target);
-  } finally { rmSync(temp, { recursive: true, force: true }); }
+      renameSync(this.temp, this.target);
+    } finally { this.abort(); }
+  }
+
+  abort(): void {
+    if (this.closed) return;
+    this.closed = true;
+    rmSync(this.temp, { recursive: true, force: true });
+  }
 }

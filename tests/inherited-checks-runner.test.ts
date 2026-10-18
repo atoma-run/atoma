@@ -94,7 +94,7 @@ describe('a seeded static-page run', () => {
       return { text: JSON.stringify(reply), stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 50 }, servedModel: 'claude-haiku-4-5-20251001' };
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
-    const service = remote ? startWorkspaceProcess({ root: workspace }) : undefined;
+    const service = remote ? startWorkspaceProcess({ root: workspace, seedRoot: seedDir }) : undefined;
     try {
       handle = await startTask(['--depth', 'short', '--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Change the long-break line'],
         service ? { workspaceRuntime: service.runtime } : undefined);

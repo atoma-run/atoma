@@ -9,7 +9,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CHECKPOINT_CHUNK_BYTES } from '../src/contracts/checkpointTransfer.js';
 import { checkpointWorkspaceDigest, restoreCheckpointWorkspace, hashCheckpointEntry, type SnapshotEntry } from '../src/run/checkpointWorkspace.js';
-import { captureCheckpointExport } from '../src/run/checkpointExport.js';
+import { captureCheckpointExport, storedCheckpointExport } from '../src/run/checkpointExport.js';
+import { localWorkspaceRuntime } from '../src/run/workspaceRuntime.js';
+import { restoreWorkspaceExport } from '../src/run/workspaceImport.js';
 import { CheckpointReceiver } from '../src/run/checkpointTransfer.js';
 
 const roots: string[] = [];
@@ -137,4 +139,32 @@ it('streams a stable private capture while the live workspace continues to chang
   expect(readFileSync(join(root, 'export-restored/large'))).toEqual(Buffer.alloc(3 * CHECKPOINT_CHUNK_BYTES + 17, 42));
   expect(readFileSync(join(source, 'large'), 'utf8')).toBe('later live write');
   await expect(snapshot.frames().next()).rejects.toThrow('closed');
+});
+
+it('restores stored bytes through bounded export queries without holding a SQLite cursor across waits', async () => {
+  const { root, source } = fixture();
+  const path = join(root, 'export.db');
+  const db = new Database(path); databases.push(db); db.pragma('journal_mode = WAL');
+  const maintenance = new Database(path, { timeout: 50 }); databases.push(maintenance);
+  mkdirSync(join(source, 'a'));
+  writeFileSync(join(source, 'a/inner'), 'inside');
+  writeFileSync(join(source, 'a.txt'), Buffer.alloc(CHECKPOINT_CHUNK_BYTES + 9, 42));
+  const entries: SnapshotEntry[] = [];
+  const digest = checkpointWorkspaceDigest(source, entry => entries.push(entry));
+  const receiver = new CheckpointReceiver(db, { digest, rootMode: 0o755 });
+  for (const entry of entries) send(receiver, entry);
+  const imported = receiver.finish();
+  const exporting = storedCheckpointExport(db, imported.id, digest);
+  const target = join(root, 'stored-export');
+  await restoreWorkspaceExport(localWorkspaceRuntime({ root: target, log: () => undefined }), {
+    ...exporting, async *frames() {
+      for await (const frame of exporting.frames()) {
+        expect(db.inTransaction).toBe(false);
+        maintenance.prepare('UPDATE run_checkpoint_snapshots SET digest=digest WHERE id=?').run(imported.id);
+        expect(maintenance.pragma('wal_checkpoint(TRUNCATE)')).toEqual([{ busy: 0, log: 0, checkpointed: 0 }]);
+        yield frame;
+      }
+    },
+  }, false);
+  expect(checkpointWorkspaceDigest(target)).toBe(digest);
 });

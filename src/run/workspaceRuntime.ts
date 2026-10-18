@@ -1,22 +1,66 @@
 import type { WorkspaceRuntime, AsyncReadOnlyPhases } from '../contracts/workspaceRuntime.js';
-import type { ReadRunsIndex } from '../contracts/readRuns.js';
+import { READ_RUNS_DIRECTORY, READ_RUN_COPIES_DIRECTORY, type ReadRunsIndex } from '../contracts/readRuns.js';
+import { existsSync, mkdirSync, realpathSync } from 'node:fs';
+import { join } from 'node:path';
 import type { ReadOnlyPhases } from '../contracts/readOnlyPhase.js';
 import { readOnlyPhasesFor } from './readOnlyPhase.js';
 import { readRoutingRepository } from './routingRepository.js';
-import { snapshotDeliveredWorkspace } from './workspace.js';
+import { snapshotDeliveredWorkspace, snapshotStartingWorkspace, prepareWorkspace, seedWorkspace, describeSeedManifest } from './workspace.js';
 import { readInheritedWorkspaceState, rewriteManifest } from './inheritedChecks.js';
 import { captureCheckpointExport } from './checkpointExport.js';
 import { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
-import { captureReadRunCopies, checkReadRunCopies, compareReadRunFiles, type ReadRunCopyIdentities } from './readRuns.js';
+import { WorkspaceImport } from './workspaceImport.js';
+import { captureReadRunCopies, checkReadRunCopies, compareReadRunFiles, ensureReadRunMountPoint, legacyReadRunCopy,
+  materialiseReadRuns, removeReadRunCopies, type ReadRunCopyIdentities } from './readRuns.js';
 
 /** The hosted implementation and the workspace service share these exact operations. */
 export function localWorkspaceRuntime(options: {
   root: string;
+  seedRoot?: string;
   readRuns?: ReadRunsIndex;
   log: (line: string) => void;
 }): WorkspaceRuntime {
   let identities: ReadRunCopyIdentities | undefined;
+  const validateSources = async () => {
+    if (options.seedRoot && !existsSync(options.seedRoot)) throw new Error(`--seed: no such directory: ${options.seedRoot}`);
+  };
+  const seed = () => {
+    if (options.seedRoot) {
+      const report = seedWorkspace(options.seedRoot, options.root);
+      options.log(`workspace seeded from ${options.seedRoot} (${report.entries} entries)`);
+      const manifest = describeSeedManifest(report);
+      if (manifest) options.log(manifest);
+    }
+    if (options.readRuns) {
+      const report = materialiseReadRuns(options.root, options.readRuns);
+      options.log(`read runs copied: ${report.files} files (${report.bytes} bytes) of ${report.runs} run(s), with their saved modes, into ${READ_RUN_COPIES_DIRECTORY}/`);
+    }
+    mkdirSync(options.root, { recursive: true });
+  };
   return {
+    importWorkspace: async (header, archive) => new WorkspaceImport(options.root, header, archive),
+    validateSources,
+    prepare: async clean => { await validateSources(); prepareWorkspace(options.root, clean, options.log); seed(); },
+    restart: async () => {
+      // Archive first. A disappeared seed must leave the first attempt intact.
+      const archived = prepareWorkspace(options.root, true, options.log);
+      if (options.readRuns && archived) {
+        const failure = await removeReadRunCopies(join(archived, READ_RUNS_DIRECTORY));
+        if (failure) options.log(`read-run copies left in the archive ${archived}: ${failure}`);
+      }
+      seed();
+      if (options.readRuns) ensureReadRunMountPoint(options.root);
+      identities = undefined;
+    },
+    startingSnapshot: async () => options.seedRoot ? snapshotStartingWorkspace(options.seedRoot) : null,
+    ensureReadRuns: async () => {
+      if (!options.readRuns) return null;
+      const legacy = legacyReadRunCopy(options.root, options.readRuns);
+      if (legacy) return legacy;
+      ensureReadRunMountPoint(options.root);
+      return null;
+    },
+    canonicalPath: async () => realpathSync(options.root),
     checkpointDigest: async () => checkpointWorkspaceDigest(options.root),
     checkpointExport: async () => captureCheckpointExport(options.root),
     routingRepository: async () => readRoutingRepository(options.root),

@@ -1,19 +1,60 @@
 import { randomUUID } from 'node:crypto';
-import type { WorkspaceRuntime, RuntimePhaseGuard } from '../contracts/workspaceRuntime.js';
+import type { WorkspaceRuntime, RuntimePhaseGuard, WorkspaceRestoration } from '../contracts/workspaceRuntime.js';
 import { workspaceCommandSchema, workspaceReplySchema, type WorkspaceCommand, type WorkspaceReply } from '../contracts/workspaceProtocol.js';
 import type { ReadOnlyRestoration } from '../contracts/readOnlyPhase.js';
 import type { CheckpointExport, CheckpointExportFrame } from '../contracts/checkpointTransfer.js';
 
 /** Lives beside the filesystem, outside the model-controlled worker process. */
-export function workspaceCommandHandler(runtime: WorkspaceRuntime): (input: unknown) => Promise<WorkspaceReply> {
+export function workspaceCommandHandler(runtime: WorkspaceRuntime): ((input: unknown) => Promise<WorkspaceReply>) & { close(): Promise<void> } {
   const guards = new Map<string, Promise<RuntimePhaseGuard>>();
+  const imports = new Map<string, { receiver: WorkspaceRestoration; expiresAt: number }>();
   const exports = new Map<string, { snapshot: CheckpointExport; frames: AsyncGenerator<CheckpointExportFrame>; expiresAt: number }>();
-  return async input => {
+  const execute = async (input: unknown): Promise<WorkspaceReply> => {
     const command = workspaceCommandSchema.parse(input);
+    for (const [handle, importing] of imports) {
+      if (Date.now() >= importing.expiresAt) { await importing.receiver.abort(); imports.delete(handle); }
+    }
+    if (imports.size && command.method !== 'import-frame' && command.method !== 'import-abort') {
+      throw new Error('Workspace import is still active');
+    }
     for (const [handle, exporting] of exports) {
       if (Date.now() >= exporting.expiresAt) { await exporting.snapshot.close(); exports.delete(handle); }
     }
     switch (command.method) {
+      case 'import-open': {
+        if (guards.size || exports.size) throw new Error('Workspace control operation is still active');
+        const receiver = await runtime.importWorkspace(command.header, command.archive);
+        const handle = randomUUID();
+        imports.set(handle, { receiver, expiresAt: Date.now() + 30 * 60_000 });
+        return { method: command.method, value: handle };
+      }
+      case 'import-frame': {
+        const importing = imports.get(command.handle);
+        if (!importing) throw new Error('Unknown workspace import');
+        try {
+          const frame = command.frame;
+          if (frame.kind === 'entry') await importing.receiver.begin(frame.entry);
+          else if (frame.kind === 'chunk') await importing.receiver.append(frame.offset, Buffer.from(frame.data, 'base64'));
+          else { await importing.receiver.finish(); imports.delete(command.handle); }
+        } catch (error) {
+          await importing.receiver.abort(); imports.delete(command.handle); throw error;
+        }
+        return { method: command.method, value: null };
+      }
+      case 'import-abort': {
+        await imports.get(command.handle)?.receiver.abort(); imports.delete(command.handle);
+        return { method: command.method, value: null };
+      }
+      case 'validate-sources': await runtime.validateSources(); return { method: command.method, value: null };
+      case 'prepare': case 'restart': {
+        if (guards.size || exports.size) throw new Error('Workspace control operation is still active');
+        if (command.method === 'prepare') await runtime.prepare(command.clean);
+        else await runtime.restart();
+        return { method: command.method, value: null };
+      }
+      case 'starting-snapshot': return { method: command.method, value: await runtime.startingSnapshot() };
+      case 'ensure-read-runs': return { method: command.method, value: await runtime.ensureReadRuns() };
+      case 'canonical-path': return { method: command.method, value: await runtime.canonicalPath() };
       case 'checkpoint-digest': return { method: command.method, value: await runtime.checkpointDigest() };
       case 'checkpoint-open': {
         if (exports.size) throw new Error('A checkpoint export is already active');
@@ -60,6 +101,14 @@ export function workspaceCommandHandler(runtime: WorkspaceRuntime): (input: unkn
       }
     }
   };
+  return Object.assign(execute, { close: async () => {
+    const results = await Promise.allSettled([
+      ...[...imports.values()].map(item => Promise.resolve().then(() => item.receiver.abort())),
+      ...[...exports.values()].map(item => Promise.resolve().then(() => item.snapshot.close())),
+    ]);
+    imports.clear(); exports.clear();
+    if (results.some(result => result.status === 'rejected')) throw new Error('Workspace control cleanup failed');
+  } });
 }
 
 /** No photographs, file identities or file contents cross the read-only phase API. */
@@ -72,6 +121,32 @@ export function remoteWorkspaceRuntime(send: (command: WorkspaceCommand) => Prom
   }
   const restorations: ReadOnlyRestoration[] = [];
   return {
+    importWorkspace: async (header, archive) => {
+      const handle = await call({ method: 'import-open', header, archive });
+      let finished = false;
+      return {
+        begin: async entry => {
+          if (finished) throw new Error('Workspace import is closed');
+          await call({ method: 'import-frame', handle, frame: { kind: 'entry', entry } });
+        },
+        append: async (offset, bytes) => {
+          if (finished) throw new Error('Workspace import is closed');
+          await call({ method: 'import-frame', handle, frame: { kind: 'chunk', offset, data: Buffer.from(bytes).toString('base64') } });
+        },
+        finish: async () => {
+          if (finished) throw new Error('Workspace import is closed');
+          finished = true; // A lost commit acknowledgement must never be retried.
+          await call({ method: 'import-frame', handle, frame: { kind: 'end' } });
+        },
+        abort: async () => { finished = true; await call({ method: 'import-abort', handle }); },
+      };
+    },
+    validateSources: async () => { await call({ method: 'validate-sources' }); },
+    prepare: async clean => { await call({ method: 'prepare', clean }); },
+    restart: async () => { await call({ method: 'restart' }); },
+    startingSnapshot: () => call({ method: 'starting-snapshot' }),
+    ensureReadRuns: () => call({ method: 'ensure-read-runs' }),
+    canonicalPath: () => call({ method: 'canonical-path' }),
     checkpointDigest: () => call({ method: 'checkpoint-digest' }),
     checkpointExport: async () => {
       const { handle, header } = await call({ method: 'checkpoint-open' });

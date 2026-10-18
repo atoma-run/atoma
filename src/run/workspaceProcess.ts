@@ -5,7 +5,8 @@ import { remoteWorkspaceRuntime } from './workspaceRpc.js';
 import type { WorkspaceRuntime } from '../contracts/workspaceRuntime.js';
 
 /** Hosted process transport for exercising the same private RPC as customer compute. */
-export function startWorkspaceProcess(options: { root: string; readRunsIndex?: string; timeoutMs?: number }): {
+export function startWorkspaceProcess(options: { root: string; seedRoot?: string; readRunsIndex?: string; timeoutMs?: number;
+  onLog?: (line: string) => void }): {
   runtime: WorkspaceRuntime; close(): Promise<void>;
 } {
   const entry = fileURLToPath(new URL('./workspaceService.js', import.meta.url));
@@ -13,10 +14,20 @@ export function startWorkspaceProcess(options: { root: string; readRunsIndex?: s
   const child = spawn(process.execPath, [...(source ? ['--import', 'tsx'] : []), source ? entry.replace(/\.js$/, '.ts') : entry], {
     cwd: fileURLToPath(new URL('../../', import.meta.url)),
     env: { PATH: process.env['PATH'], ATOMA_WORKSPACE_ROOT: options.root,
+      ...(options.seedRoot ? { ATOMA_WORKSPACE_SEED: options.seedRoot } : {}),
       ...(options.readRunsIndex ? { ATOMA_WORKSPACE_READ_RUNS: options.readRunsIndex } : {}) },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
-  child.stderr.resume();
+  // Diagnostics are separate from RPC frames and bounded even for a broken service.
+  let diagnostics = '';
+  child.stderr.on('data', (chunk: Buffer) => {
+    diagnostics = (diagnostics + chunk.toString('utf8')).slice(-32768);
+    let newline: number;
+    while ((newline = diagnostics.indexOf('\n')) !== -1) {
+      (options.onLog ?? console.log)(diagnostics.slice(0, newline));
+      diagnostics = diagnostics.slice(newline + 1);
+    }
+  });
   let failure: Error | undefined;
   let nextId = 0;
   let buffer = Buffer.alloc(0);
@@ -42,7 +53,7 @@ export function startWorkspaceProcess(options: { root: string; readRunsIndex?: s
         if (!call) throw new Error('Unexpected workspace response');
         pending.delete(response.id);
         if (response.ok) call.resolve(response.reply);
-        else call.reject(new Error(`Workspace ${response.error}`));
+        else call.reject(new Error(`Workspace ${response.error}${response.message ? `: ${response.message}` : ''}`));
       }
     } catch { fail(new Error('Invalid workspace response')); }
   });

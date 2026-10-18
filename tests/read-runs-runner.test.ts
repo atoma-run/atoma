@@ -225,9 +225,14 @@ describe('a tenant run that reads another run', () => {
   // read-only: what `run_shell chmod -R a-w .atoma-runs` leaves. Removing the
   // copies before the archive failed that restart; archived first, they are
   // removed from the archive at best (third check 2026-10-17).
-  it.skipIf(process.platform === 'win32').each(['intact', 'changed', 'read-only'] as const)('a deepening copies the read run again, and one that changed fails the run with the first attempt archived (%s)', async variant => {
+  it.skipIf(process.platform === 'win32').each([
+    ['intact', false], ['changed', false], ['read-only', false],
+    ['intact', true], ['changed', true], ['read-only', true],
+  ] as const)('a deepening copies the read run again, and one that changed fails the run with the first attempt archived (%s; process=%s)', async (variant, remote) => {
     const changed = variant === 'changed';
     const t = tenant();
+    const service = remote ? startWorkspaceProcess({ root: t.workspace, readRunsIndex: t.indexPath }) : undefined;
+    if (service) workspaceServices.push(service);
     const logs: string[] = [];
     for (const method of ['log', 'warn', 'error'] as const) {
       vi.spyOn(console, method).mockImplementation((...parts: unknown[]) => { logs.push(parts.map(String).join(' ')); });
@@ -270,7 +275,8 @@ describe('a tenant run that reads another run', () => {
       } else throw new Error(`Unexpected mock request: ${req.role}`);
       return { text: JSON.stringify(reply), stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 50 } };
     } } });
-    const handle = await startTask(['--container', '--depth', 'short', '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', 'Restore the file.']);
+    const handle = await startTask(['--container', '--depth', 'short', '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', 'Restore the file.'],
+      service ? { workspaceRuntime: service.runtime } : undefined);
     try {
       const settled = await handle.settled;
       // The first attempt stays in its archive, never its copies: they are

@@ -4,8 +4,8 @@ import { withRecoveryEffects } from '../core/recoveryEffects.js';
 import { assertCheckpointWorkerAbsent } from '../launcher/checkpointRecovery.js';
 import { assertProjectRunAuthority } from '../projects/runAuthority.js';
 import { ledgerDbPath, setLedgerScope, type LedgerScope } from '../core/ledger.js';
-import { dirname, join, resolve } from 'node:path';
-import { cpSync, existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { cpSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { setMaxListeners } from 'node:events';
 import { PlanParseError, RunnerConfigError } from '../core/errors.js';
@@ -58,8 +58,7 @@ import { RecordingRegistry } from '../viz/recordingRegistry.js';
 import { containerToolBackend, localToolBackend, withMcpConnectorBackend, withProjectRetrievalBackend } from './toolBackend.js';
 import { decodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
 import { READ_RUN_COPIES_DIRECTORY, READ_RUNS_DIRECTORY, READ_RUNS_ENV, type ReadRunsIndex } from '../contracts/readRuns.js';
-import { ensureReadRunMountPoint, legacyReadRunCopy, materialiseReadRuns, readReadRunsIndex,
-  removeReadRunCopies } from './readRuns.js';
+import { readReadRunsIndex } from './readRuns.js';
 import { openConnectorRuntime } from '../connectors/runtime.js';
 import { emptyConnectorService, type McpConnectorService } from '../tools/mcpConnectors.js';
 import { validateProjectRetrievalBinding, type ProjectRetrievalBinding } from '../tools/projectRetrieval.js';
@@ -81,13 +80,14 @@ import {
 import { declaredArtifactManifestSchema } from '../contracts/artifactManifest.js';
 import type { LlmClient, Logger, Plan, Result, RunContext, Task } from '../core/types.js';
 import { GOAL_GUIDANCE } from './guidance.js';
-import { DEPTH_CONTRACT, RUN_DEFAULTS, RUN_ENV, TRACE_LABEL_PREFIX, prepareWorkspace, seedCatalog, type SeedContext } from './setup.js';
+import { DEPTH_CONTRACT, RUN_DEFAULTS, RUN_ENV, TRACE_LABEL_PREFIX, seedCatalog, type SeedContext } from './setup.js';
 import { seedTissueCatalog } from './tissues.js';
 import { selectTissue, tissueForRun } from './tissueRouting.js';
 import { capturePlatformTissueAuthor, platformTissueAuthor, type TissueAuthor } from './tissueAuthor.js';
 import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
 import { localWorkspaceRuntime } from './workspaceRuntime.js';
-import { describeSeedManifest, seedWorkspace, snapshotStartingWorkspace } from './workspace.js';
+import { restoreWorkspaceExport } from './workspaceImport.js';
+import { captureCheckpointExport } from './checkpointExport.js';
 import { gatedExecutor, inheritedChecksFor } from './inheritedChecks.js';
 import { decodeStandingHttpEvidence, STANDING_HTTP_EVIDENCE_ENV } from '../contracts/standingHttpEvidence.js';
 import { modelFacingExecutor } from '../core/attestation.js';
@@ -617,6 +617,8 @@ async function startTaskInternal(
     launchLearning?: typeof spawnApprovedLearning;
     /** Internal workspace capability; the caller owns its transport lifetime. */
     workspaceRuntime?: import('../contracts/workspaceRuntime.js').WorkspaceRuntime;
+    /** Internal execution-host factory; connector and budget wrappers remain host-owned. */
+    createToolBackend?: () => Promise<import('./toolBackend.js').ToolBackend>;
   }
 ): Promise<RunHandle> {
   // PROVIDER CREDENTIALS ARE A PER-RUN VALUE (invariant T10). `providerEnv`
@@ -857,9 +859,13 @@ async function startTaskInternal(
     throw new RunnerConfigError(`${callConflicts.join('; ')} (npm run settings -- list)`);
   }
   const seedRoot = args.seed ? resolve(args.seed) : undefined;
-  if (seedRoot && !existsSync(seedRoot)) {
-    throw new RunnerConfigError(`--seed: no such directory: ${seedRoot}`);
-  }
+  const workspaceRoot = (args.checkpoint && !opts?.workspaceRuntime ? canonicalCheckpointWorkspacePath : resolve)(
+    process.env[RUN_ENV.workspace] ?? RUN_DEFAULTS.workspace
+  );
+  const workspace = opts?.workspaceRuntime ?? localWorkspaceRuntime({ root: workspaceRoot, seedRoot,
+    readRuns: readRuns ?? undefined, log: line => console.log(line) });
+  try { await workspace.validateSources(); }
+  catch (error) { throw new RunnerConfigError((error as Error).message); }
   console.log(`run timeout: ${Math.round(timeoutMs / 1000)}s`);
   // TWO REASONS ONE RUN CAN BE CUT SHORT, ONE SIGNAL. The deadline is a timer
   // and fires on its own; a token or spend ceiling is only knowable when a
@@ -950,9 +956,6 @@ async function startTaskInternal(
     );
   }
 
-  const workspaceRoot = (args.checkpoint ? canonicalCheckpointWorkspacePath : resolve)(
-    process.env[RUN_ENV.workspace] ?? RUN_DEFAULTS.workspace
-  );
   const checkpointPolicy = JSON.stringify({
     selectors, acceptanceSpec, acceptanceSource, floor: DEPTH_CONTRACT.floor,
     learning: learning.enabled, promotion: promotion.enabled, direct: direct.enabled,
@@ -961,10 +964,13 @@ async function startTaskInternal(
   });
   if (savedCheckpoint) {
     try {
-      if (savedCheckpoint.policy !== checkpointPolicy || (!checkpointAuthority && (savedCheckpoint.interrupted ? resolve(workspaceRoot) : realpathSync(workspaceRoot)) !== savedCheckpoint.workspace)) {
+      const resumedPath = checkpointAuthority ? savedCheckpoint.workspace : opts?.workspaceRuntime ? await workspace.canonicalPath()
+        : savedCheckpoint.interrupted ? resolve(workspaceRoot) : realpathSync(workspaceRoot);
+      if (savedCheckpoint.policy !== checkpointPolicy || (!checkpointAuthority && resumedPath !== savedCheckpoint.workspace)) {
         throw new Error('Resume requires the same workspace, models, acceptance criteria and execution policy');
       }
-      if (!savedCheckpoint.interrupted && checkpointWorkspaceDigest(savedCheckpoint.workspace) !== savedCheckpoint.workspaceDigest) {
+      if (!savedCheckpoint.interrupted && (opts?.workspaceRuntime ? await workspace.checkpointDigest()
+        : checkpointWorkspaceDigest(savedCheckpoint.workspace)) !== savedCheckpoint.workspaceDigest) {
         throw new Error('Workspace changed since the checkpoint; resume refused');
       }
     } catch (error) { throw new RunnerConfigError((error as Error).message); }
@@ -1114,42 +1120,20 @@ async function startTaskInternal(
     );
   }
 
-  // Runs BEFORE the sandbox is constructed: ToolSandbox realpath-resolves
-  // its root at construction, so archiving the directory afterwards would
-  // leave every tool pointing at the archive.
-  if (!savedCheckpoint) prepareWorkspace(workspaceRoot, args.cleanWorkspace);
-  // Seed AFTER preparation — prepareWorkspace archives the whole directory, so
-  // copying first would archive the fixture along with the previous run.
-  const seed = (): void => {
-    if (!seedRoot) return;
-    const report = seedWorkspace(seedRoot, workspaceRoot);
-    console.log(`workspace seeded from ${seedRoot} (${report.entries} entries)`);
-    const manifestLine = describeSeedManifest(report);
-    if (manifestLine) console.log(manifestLine);
-  };
-  seed();
-  // The read-run copies, after the seed (whose own copies `seedWorkspace`
-  // leaves out). A continuation's sealed workspace already holds them. Each
-  // copy's identity is kept as the host wrote it: root acceptance tells a
-  // copy changed and put back from one never touched (review 2026-10-17).
-  const copyReadRuns = (): void => {
-    if (!readRuns) return;
-    const report = materialiseReadRuns(workspaceRoot, readRuns);
-    console.log(`read runs copied: ${report.files} files (${report.bytes} bytes) of ${report.runs} run(s), with their saved modes, into ${READ_RUN_COPIES_DIRECTORY}/`);
-  };
+  // Preparation and evidence stay on the execution filesystem, before tools start.
   if (!savedCheckpoint) {
-    try { copyReadRuns(); }
+    try { await workspace.prepare(args.cleanWorkspace); }
     catch (error) { throw new RunnerConfigError((error as Error).message); }
   }
-  const startingSnapshot = savedCheckpoint?.startingSnapshot ?? (seedRoot ? snapshotStartingWorkspace(seedRoot) : undefined);
+  const startingSnapshot = savedCheckpoint?.startingSnapshot ?? await workspace.startingSnapshot() ?? undefined;
   if (checkpointStore) {
-    if (!savedCheckpoint || !checkpointAuthority) mkdirSync(workspaceRoot, { recursive: true });
+    if (savedCheckpoint && !checkpointAuthority && !opts?.workspaceRuntime) mkdirSync(workspaceRoot, { recursive: true });
     const scope = checkpointAuthority ? { orgId: checkpointAuthority.orgId, projectId: checkpointAuthority.projectId,
       principalId: checkpointAuthority.requestedByPrincipalId, runId: checkpointAuthority.projectRunId } : undefined;
     const data: RunCheckpoint = savedCheckpoint && checkpointAuthority
       ? { ...savedCheckpoint, id: checkpointAuthority.projectRunId, workspace: resolve(workspaceRoot), scope }
       : savedCheckpoint ?? {
-      version: 1, id: checkpointAuthority?.projectRunId ?? randomUUID(), ...(scope ? { scope } : {}), goal, workspace: realpathSync(workspaceRoot), policy: checkpointPolicy,
+      version: 1, id: checkpointAuthority?.projectRunId ?? randomUUID(), ...(scope ? { scope } : {}), goal, workspace: await workspace.canonicalPath(), policy: checkpointPolicy,
       ...(startingSnapshot ? { startingSnapshot } : {}),
       actor: null, checklist: null, root: null, completed: [], workspaceDigest: null, processes: null,
       consumed: { tokens: 0, costUsd: 0 }, remainingMs: timeoutMs, lastRunId: null,
@@ -1162,6 +1146,11 @@ async function startTaskInternal(
         ...(checkpointAuthority ? { assessClientQuestion: (task: Task, next: import('../core/types.js').SubtaskSpec, completed: readonly Result[]) => assessClientQuestion(task, next, completed, ctx) } : {}),
         ...(savedCheckpoint && checkpointAuthority ? { source: savedCheckpoint } : {}), pauseAfter: args.pauseAfterPhase, deadlineAt,
         restoreWorkspace: savedCheckpoint && (checkpointAuthority || savedCheckpoint.interrupted) ? () => {
+          if (opts?.workspaceRuntime) {
+            const exporting = savedCheckpoint.snapshotId ? checkpointStore.exportWorkspace(savedCheckpoint)
+              : captureCheckpointExport(savedCheckpoint.workspace);
+            return restoreWorkspaceExport(workspace, exporting, !checkpointAuthority);
+          }
           if (savedCheckpoint.snapshotId) checkpointStore.materialize(savedCheckpoint, workspaceRoot, !checkpointAuthority);
           else {
             // Legacy graceful boundaries retain the verified whole-tree copy.
@@ -1182,30 +1171,19 @@ async function startTaskInternal(
           if (jevAudit && jevAudit.pendingCount() > 0) throw new Error('Deferred audit work is still in flight; checkpoint refused');
         },
       });
+      await checkpoint.ready;
     } catch (error) { throw new RunnerConfigError((error as Error).message); }
     console.log(`checkpoint: ${data.id}; completed phases: ${data.completed.length}; prior consumption: ${JSON.stringify(data.consumed)}`);
   }
-  // A continuation's copies came back with its sealed workspace, as new
-  // files. A workspace sealed before the copies moved under node_modules
-  // holds them where nothing reads them: refused, its source handed back
-  // untouched, as for a changed root actor.
-  if (readRuns && savedCheckpoint) {
-    const legacy = legacyReadRunCopy(workspaceRoot, readRuns);
+  // The service checks legacy copies and creates the read-only mount source.
+  try {
+    const legacy = await workspace.ensureReadRuns();
     if (legacy) {
       checkpoint?.refuseContinuation();
-      throw new RunnerConfigError(`read run ${legacy}: the saved workspace holds its copy at ${READ_RUNS_DIRECTORY}/${legacy}, ` +
+      throw new Error(`read run ${legacy}: the saved workspace holds its copy at ${READ_RUNS_DIRECTORY}/${legacy}, ` +
         `where runs before 2026-10-17 put it, not at ${READ_RUN_COPIES_DIRECTORY}/${legacy}; start a new run that reads it`);
     }
-  }
-  // The worker mounts `.atoma-runs` read-only from its first start, so it
-  // must be a real directory first.
-  if (readRuns) {
-    try { ensureReadRunMountPoint(workspaceRoot); }
-    catch (error) { throw new RunnerConfigError((error as Error).message); }
-  }
-  // Capture the starting repository before a backend or inherited probe can
-  // run its code. The prompt remains the task; these bounded bytes are context.
-  const workspace = opts?.workspaceRuntime ?? localWorkspaceRuntime({ root: workspaceRoot, readRuns: readRuns ?? undefined, log: line => consoleLogger.warn(line) });
+  } catch (error) { throw new RunnerConfigError((error as Error).message); }
   const routingRepository = args.baseline ? undefined : await workspace.routingRepository();
 
   // Local by default; `--container` moves the tool layer into a container
@@ -1215,7 +1193,7 @@ async function startTaskInternal(
   // run's delivered files for root acceptance (`startingWorkspace` below),
   // which reads the same bytes: the workspace is the mount.
   const makeBackend = async (): Promise<import('./toolBackend.js').ToolBackend> => {
-    const selectedBackend = args.container
+    const selectedBackend = opts?.createToolBackend ? await opts.createToolBackend() : args.container
     ? await containerToolBackend({
         workspaceRoot,
         ...(args.workerImage ? { image: args.workerImage } : {}),
@@ -1247,7 +1225,7 @@ async function startTaskInternal(
   // recorded, on the untouched seed. Every tool call of the run waits for
   // that replay, and root acceptance compares the delivered page against the
   // checks that held. The replay's own calls go to the backend directly.
-  const inheritedChecks = (seedRoot || savedCheckpoint) && args.depth && !args.baseline
+  const inheritedChecks = (startingSnapshot || savedCheckpoint) && args.depth && !args.baseline
     ? inheritedChecksFor({
         workspace: { state: await workspace.inheritedState(), replaceManifest: (text, expected) => workspace.replaceManifest(text, expected) },
         workspaceRoot, executor: () => backend.executor, signal, deadlineAt, log: (line) => console.log(line),
@@ -1354,24 +1332,7 @@ async function startTaskInternal(
           if (!backend.drain) throw new Error('Depth routing backend cannot confirm process exit');
           await backend.drain();
           signal.throwIfAborted();
-          const archived = prepareWorkspace(workspaceRoot, true);
-          // The read-run copies do not stay in the first attempt's archive:
-          // they are copied again below, and in `.prevN` they kept another
-          // run's bytes past that run's retention (second review 2026-10-17).
-          // Archived FIRST, as before, and removed from the archive at best:
-          // a shell's `chmod -R a-w` on them must never fail the restart
-          // (third check 2026-10-17).
-          if (readRuns && archived) {
-            const failure = await removeReadRunCopies(join(archived, READ_RUNS_DIRECTORY));
-            if (failure) consoleLogger.warn(`read-run copies left in the archive ${archived}: ${failure}`);
-          }
-          // A seeded run restarts from its SEED, not from nothing: see
-          // `seedWorkspace`. A failed copy throws and fails the run, with the
-          // first attempt still intact in its `.prevN` archive. So does a
-          // read run whose saved files no longer match their manifest.
-          seed();
-          copyReadRuns();
-          if (readRuns) ensureReadRunMountPoint(workspaceRoot);
+          await workspace.restart();
           await inheritedChecks?.reseeded();
           const replacement = await makeBackend();
           if (signal.aborted) {

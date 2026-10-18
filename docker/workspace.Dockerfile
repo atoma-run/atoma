@@ -6,6 +6,6 @@ WORKDIR /app
 COPY dist/workspace-service/service.mjs /app/service.mjs
 RUN mkdir /workspace /snapshots && chown 10001:10001 /workspace /snapshots
 USER 10001:10001
-ENV ATOMA_WORKSPACE_ROOT=/workspace
+ENV ATOMA_WORKSPACE_ROOT=/workspace/current
 ENV TMPDIR=/snapshots
 CMD ["node", "/app/service.mjs"]

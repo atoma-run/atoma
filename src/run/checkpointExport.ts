@@ -3,6 +3,40 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { CHECKPOINT_CHUNK_BYTES, checkpointTransferEntrySchema, type CheckpointExport } from '../contracts/checkpointTransfer.js';
 import { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
+import type Database from 'better-sqlite3';
+
+/** A completed checkpoint is immutable. Each SELECT finishes before yielding:
+ * neither a SQLite cursor nor a transaction survives a transport wait. */
+export function storedCheckpointExport(db: Database.Database, id: string, digest: string): CheckpointExport {
+  const row = db.prepare('SELECT digest,root_mode FROM run_checkpoint_snapshots WHERE id=?').get(id) as
+    { digest: string; root_mode: number } | undefined;
+  if (!row || row.digest !== digest) throw new Error('Checkpoint snapshot is unavailable');
+  let closed = false;
+  let started = false;
+  return { header: { digest, rootMode: row.root_mode }, close: () => { closed = true; }, async *frames() {
+    if (closed || started) throw new Error('Checkpoint export is closed');
+    started = true;
+    let after = '';
+    try {
+      for (;;) {
+        if (closed) throw new Error('Checkpoint export interrupted');
+        const row = db.prepare('SELECT path,kind,mode,length(content) AS size FROM run_checkpoint_files WHERE snapshot=? AND path>? ORDER BY path LIMIT 1')
+          .get(id, after);
+        if (!row) return;
+        const metadata = checkpointTransferEntrySchema.parse(row);
+        const content = db.prepare('SELECT content FROM run_checkpoint_files WHERE snapshot=? AND path=? AND length(content)=?')
+          .pluck().get(id, metadata.path, metadata.size) as Buffer | undefined;
+        if (!Buffer.isBuffer(content)) throw new Error('Checkpoint snapshot changed during export');
+        yield { kind: 'entry', entry: metadata };
+        for (let offset = 0; offset < content.length; offset += CHECKPOINT_CHUNK_BYTES) {
+          if (closed) throw new Error('Checkpoint export interrupted');
+          yield { kind: 'chunk', offset, bytes: content.subarray(offset, offset + CHECKPOINT_CHUNK_BYTES) };
+        }
+        after = metadata.path;
+      }
+    } finally { closed = true; }
+  } };
+}
 
 /**
  * Seal to private execution-host disk before transport starts. Reuse the two

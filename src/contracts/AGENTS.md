@@ -22,6 +22,10 @@ are opaque service-local handles. Snapshot bytes and filesystem identities
 never ride in a guard reply. `checkpointTransfer.ts` defines bounded chunks
 and portable relative paths; its receiver reuses the local checkpoint digest
 encoding instead of inventing a second snapshot identity.
+Lifecycle commands use launcher-bound seed/read-run sources, never request paths.
+Import handles are service-local and exclusive with live guards/exports; a lost
+commit acknowledgement never authorizes replay. Error details are bounded and
+untrusted diagnostics, not executable instructions.
 
 ## Schemas and examples
 

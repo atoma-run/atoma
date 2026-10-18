@@ -14,6 +14,7 @@ import { SKILL_PREFILTER_SYSTEM_PROMPT } from '../../src/atoms/cost.js';
 import { SkillRegistry } from '../../src/skills/registry.js';
 import { AtomRegistry } from '../../src/registry/atomRegistry.js';
 import { RunCheckpointStore, SequentialCheckpoint } from '../../src/run/checkpoint.js';
+import { startWorkspaceProcess } from '../../src/run/workspaceProcess.js';
 
 const root = process.env['CHECKPOINT_TEST_ROOT']!;
 let cellName = '';
@@ -148,8 +149,10 @@ if (process.env['CHECKPOINT_TEST_CRASH'] === 'credit') {
   };
 }
 const { startTask } = await import('../../src/run/runner.js');
+const workspaceService = process.env['CHECKPOINT_TEST_WORKSPACE_PROCESS'] === '1'
+  ? startWorkspaceProcess({ root: process.env['ATOMA_BUILD_WORKSPACE']! }) : undefined;
 try {
-  const handle = await startTask(process.argv.slice(2), { seedCatalog(seed, canonical) {
+  const handle = await startTask(process.argv.slice(2), { workspaceRuntime: workspaceService?.runtime, seedCatalog(seed, canonical) {
     canonical(seed);
     const leaf = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 1)!;
     leafName = leaf.name;
@@ -159,9 +162,11 @@ try {
   } });
   const outcome = await handle.settled;
   await handle.shutdown();
+  await workspaceService?.close();
   writeFileSync(join(root, 'report.json'), JSON.stringify({ ...outcome, checkpointId: handle.checkpointId, calls, rootReviews }));
   process.exit(outcome.outcome === 'failed' ? 1 : 0);
 } catch (error) {
+  await workspaceService?.close();
   console.error(error);
   writeFileSync(join(root, 'error-report.json'), JSON.stringify({ calls, rootReviews }));
   process.exit(2);

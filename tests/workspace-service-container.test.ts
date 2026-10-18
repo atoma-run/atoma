@@ -33,9 +33,10 @@ it.skipIf(!image)('restores changes made by a separate container on a Linux volu
     return response.reply;
   };
   const mutate = async (code: string) => (await execute('docker', ['run', '--rm', '--network', 'none',
-    '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--mount', `type=volume,src=${volume},dst=/workspace`,
+    '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--mount', `type=volume,src=${volume},dst=/workspace,volume-subpath=current`,
     '--entrypoint', 'node', image!, '-e', code], { timeout: 15_000 })).stdout;
   try {
+    await call({ method: 'prepare', clean: false });
     await call({ method: 'routing' });
     await mutate("require('node:fs').writeFileSync('/workspace/README.md', 'original')");
     const began = await call({ method: 'begin-read-only', phase: 'Inspect', attempt: 1 });
@@ -54,6 +55,11 @@ it.skipIf(!image)('restores changes made by a separate container on a Linux volu
     expect(bytes).toMatchObject({ method: 'checkpoint-next', value: { kind: 'chunk', data: Buffer.from('original').toString('base64') } });
     expect(await mutate("process.stdout.write(String(require('node:fs').readdirSync('/snapshots').length))")).toBe('0');
     await call({ method: 'checkpoint-close', handle: opened.value.handle });
+    await call({ method: 'restart' });
+    expect(await mutate("process.stdout.write(String(require('node:fs').existsSync('/workspace/README.md')))")).toBe('false');
+    // A volume mount itself cannot be renamed. The service archives its child,
+    // while tools only ever receive that child's subpath, never its siblings.
+    await mutate("require('node:fs').writeFileSync('/workspace/new.txt', 'second attempt')");
   } finally {
     await execute('docker', ['rm', '-f', name]).catch(() => undefined);
     await closed;

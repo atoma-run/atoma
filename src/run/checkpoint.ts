@@ -18,6 +18,7 @@ import { outOfPhaseBudget } from '../core/limits.js';
 import { checkpointWorkspaceDigest, readCheckpointWorkspace, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
 import { CheckpointReceiver } from './checkpointTransfer.js';
 import type { CheckpointTransferHeader } from '../contracts/checkpointTransfer.js';
+import { storedCheckpointExport } from './checkpointExport.js';
 export { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
 import { PhaseBoundaryPause, runCheckpointSchema, type RootDelegationApproval, type RootPhaseCheckpoint, type RunCheckpoint, type ProjectCheckpointStatus } from '../contracts/runCheckpoint.js';
 import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
@@ -270,6 +271,11 @@ export class RunCheckpointStore {
     restoreCheckpointWorkspace(this.db, data.snapshotId, data.workspaceDigest, target, archive);
   }
 
+  exportWorkspace(data: RunCheckpoint) {
+    if (!data.snapshotId || !data.workspaceDigest) throw new Error('Checkpoint snapshot is unavailable');
+    return storedCheckpointExport(this.db, data.snapshotId, data.workspaceDigest);
+  }
+
   boundary(data: RunCheckpoint, owner: string, question?: ClientQuestion): void {
     const before = readCheckpointWorkspace(data.workspace);
     this.commitBoundary(data, owner, () => saveCheckpointWorkspace(this.db, data.workspace, before), question);
@@ -436,6 +442,7 @@ export class RunCheckpointStore {
 /** Restore only a sealed boundary whose interrupted suffix has no irreversible
  * effects, unsettled model spend, or live processes. Proof is always fresh. */
 export class SequentialCheckpoint implements RootPhaseCheckpoint {
+  readonly ready: Promise<void>;
   private readonly owner: string;
   private readonly sourceState?: string;
   private restored = false;
@@ -453,17 +460,21 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     drain?: () => Promise<void>;
     processes: () => RunCheckpoint['processes'];
     worker?: () => RunCheckpoint['worker'];
-    restoreWorkspace?: () => void;
+    restoreWorkspace?: () => void | Promise<void>;
     workspace?: Pick<import('../contracts/workspaceRuntime.js').WorkspaceRuntime, 'checkpointDigest' | 'checkpointExport'>;
     assessClientQuestion?: (task: Task, next: SubtaskSpec, completed: readonly Result[]) => Promise<ClientQuestion | null>;
   }) {
     if (options.source) ({ owner: this.owner, sourceState: this.sourceState } = store.continueProject(options.source, data));
     else this.owner = store.claim(data, options.fresh);
     store.beginSegment(data, options.deadlineAt);
-    options.restoreWorkspace?.();
-    delete data.interrupted;
-    delete data.recoveryDeadlineAt;
-    store.write(data, this.owner, 'running');
+    const restored = options.restoreWorkspace?.();
+    const completeRestore = () => {
+      delete data.interrupted;
+      delete data.recoveryDeadlineAt;
+      store.write(data, this.owner, 'running');
+    };
+    if (restored) this.ready = restored.then(completeRestore);
+    else { completeRestore(); this.ready = Promise.resolve(); }
     setRecoveryEffectHandler(db => { if (this.active) store.blockMutation(data.id, this.owner, db); });
     this.prior = data.completed.map(result => ({ ...result, trace: [],
       summary: `[COMPLETED BEFORE RESTART — historical context; recheck runtime endpoints and evidence] ${result.summary}` }));

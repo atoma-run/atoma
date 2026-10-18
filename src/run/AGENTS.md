@@ -217,8 +217,10 @@ Neighbours:
   protocol in a separate process. It is never a model-facing tool or part of
   the element worker. `workspaceProcess` exercises that boundary locally;
   `startTask` accepts a trusted `workspaceRuntime` injection whose caller owns
-  teardown. This does NOT yet make the runner independent of a shared filesystem:
-  preparation, restart/deepening and final export still require integration.
+  teardown. Preparation, bound-source seeding, read-run copies and deepening
+  execute in that service. `createToolBackend` is the matching internal seam;
+  connector and budget wrappers still belong to the host. Source provisioning,
+  project continuation identity and final export still need device integration.
 - Photographs and read-run inode identities stay in the workspace service.
   Restore acknowledgements are never replayed after a transport failure.
   The shipped bundle is `dist/workspace-service/service.mjs`, built from
@@ -232,6 +234,15 @@ Neighbours:
   process drain. Stable bytes are spooled privately on the execution host,
   streamed in bounded chunks and attached atomically; release verifies the
   execution-host digest without reading the host workspace path.
+- Restoration uses the same `CheckpointWorkspaceWriter` for stored rows and
+  transferred entries. Entries go into a private sibling directory, links are
+  created last, and the existing target is archived only after digest validation.
+  The runner awaits `SequentialCheckpoint.ready` before starting a backend.
+  Stored exports finish each bounded SQL query before awaiting the transport.
+- A service volume contains `current` plus archives; tools receive only the
+  `current` volume subpath. Never try to rename a Docker mount point itself.
+  Snapshot spools have a separate control volume. EOF/termination cleans up
+  incomplete imports; crash-orphan reconciliation belongs to device admission.
 
 ## Platform run limits
 

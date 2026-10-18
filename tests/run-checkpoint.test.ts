@@ -29,11 +29,12 @@ import { withRecoveryEffects, setRecoveryEffectHandler } from '../src/core/recov
 
 const roots: string[] = [];
 afterEach(() => { closeStoreHandles(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
-function fixture() {
+function fixture(workspaceProcess = false) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-checkpoint-')));
   roots.push(root);
   const db = join(root, 'store.db');
   const env = { ...process.env, ...OLLAMA_PINS, CHECKPOINT_TEST_ROOT: root,
+    CHECKPOINT_TEST_WORKSPACE_PROCESS: workspaceProcess ? '1' : '0',
     ATOMA_DB_PATH: db, ATOMA_LEDGER_DB: db, ATOMA_SKILLS_DIR: join(root, 'skills'),
     ATOMA_RUNS_DIR: join(root, 'runs'), ATOMA_BUILD_WORKSPACE: join(root, 'workspace'),
     ATOMA_BUILD_TIMEOUT_MS: '600000', ATOMA_CONTAINER: '0', ATOMA_REQUIRE_ISOLATION: '0',
@@ -105,8 +106,8 @@ describe('durable sequential run continuation', () => {
     expect(f.run(['--resume', row.id], '', env).status).toBe(2);
   }, 90000);
 
-  it('recovers a SIGKILL inside a phase by restoring sealed bytes, preserving spend and not crediting the prefix twice', () => {
-    const f = fixture();
+  it.each([false, true])('recovers a SIGKILL inside a phase by restoring sealed bytes, preserving spend and not crediting the prefix twice (workspace process=%s)', remote => {
+    const f = fixture(remote);
     const env = { CHECKPOINT_TEST_NO_SKILL: '1' };
     const first = f.run(['--checkpoint', 'Write two files in sequence'], 'safe', env);
     expect(first.signal, first.stdout + first.stderr).toBe('SIGKILL');
@@ -164,8 +165,8 @@ describe('durable sequential run continuation', () => {
     expect(next.stderr).toContain('snapshot digest mismatch');
     expect(readFileSync(join(f.root, 'workspace', 'phase-two.txt'), 'utf8')).toBe('phase-two.txt');
   }, 90000);
-  it('restarts the real runner in another process, skips credited work and still accepts the delivery', () => {
-    const f = fixture();
+  it.each([false, true])('restarts the real runner in another process, skips credited work and still accepts the delivery (workspace process=%s)', remote => {
+    const f = fixture(remote);
     const first = f.run(['--pause-after-phase', '1', 'Write two files in sequence']);
     expect(first.status, first.stdout + first.stderr).toBe(0);
     const before = f.report();
