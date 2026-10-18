@@ -45,6 +45,7 @@ jobs:
           docker build --label "org.opencontainers.image.revision=${REVISION}" --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" -f docker/workspace.Dockerfile -t atoma-workspace:compute-ci .
           docker build --label "org.opencontainers.image.revision=${REVISION}" --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" -f docker/preview.Dockerfile -t atoma-preview:compute-ci .
           docker build --label "org.opencontainers.image.revision=${REVISION}" --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" -f docker/compute-retrieval.Dockerfile -t atoma-retrieval:compute-ci .
+          docker tag atoma-worker:compute-ci atoma-worker:latest
       - name: Verify packaged isolation, retrieval, transfers and preview
         run: npx vitest run tests/container-isolation.test.ts tests/workspace-service-container.test.ts tests/desktop-compute.test.ts tests/compute-connection.test.ts tests/compute-retrieval.test.ts tests/compute-preview.test.ts
         env:
