@@ -450,6 +450,9 @@ export class ProjectService {
     const problems: ServiceProblem[] = [];
     const mayStart = orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member');
     if (!mayStart) problems.push(serviceProblem(403, 'Starting work requires membership in the active organisation.'));
+    if (project.executionTarget.kind === 'hosted' && !viewer.platformAdmin) problems.push(serviceProblem(403,
+      'Runs on Atoma servers require a platform administrator.',
+      { code: 'configuration_required', nextAction: 'Connect a computer at /compute/setup, then authorise and select it in Project settings.' }));
     const capacity = this.store.runCapacity(orgId);
     if (capacity.active >= capacity.maxConcurrent) problems.push(serviceProblem(409, capacity.maxConcurrent === 0
       ? 'New runs are suspended for this organisation.' : 'The organisation already has its allowed outstanding work.',
@@ -459,7 +462,7 @@ export class ProjectService {
     if (!installation || installation.status !== 'active') problems.push(serviceProblem(409, 'An active GitHub installation is required.',
       { code: 'github_required', nextAction: 'Ask an organisation administrator to connect GitHub in Atoma Settings.' }));
     let configuration: ReturnType<ProjectRunCoordinator['configurationReadiness']> | null = null;
-    if (mayStart) {
+    if (mayStart && (project.executionTarget.kind !== 'hosted' || viewer.platformAdmin)) {
       try { configuration = this.coordinator.configurationReadiness(orgId, viewer.principalId, projectId); }
       catch { problems.push(serviceProblem(400, 'The configured models or host prerequisites cannot support this run.',
         { code: 'configuration_required', nextAction: 'Check your model selections and provider connection in Settings. Ask the instance administrator to check host prerequisites if they are already configured.' })); }

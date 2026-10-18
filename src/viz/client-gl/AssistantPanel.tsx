@@ -11,7 +11,7 @@ import { AssistantRunResult } from './AssistantRunResult.js';
 
 interface Props {
   scopeKey: string; projectId: string | null; locale: string;
-  externalAgentGuide?: ReactNode;
+  externalAgentGuide?: ReactNode; onboarding?: ReactNode;
   heading?: ReactNode;
   collapsed?: boolean;
   t: (key: string, vars?: Record<string, unknown>) => string;
@@ -24,7 +24,7 @@ interface Props {
  * its body, and the external-agent path takes over the body when opened.
  * The guide owns the frame, the veil and the collapse; this block fills it.
  */
-export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide, heading, collapsed = false, t, onSettings, onScopeChange, onProject, onRun }: Props) {
+export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide, onboarding, heading, collapsed = false, t, onSettings, onScopeChange, onProject, onRun }: Props) {
   const client = useQueryClient();
   const queryKey = ['viz', 'assistant', scopeKey, projectId];
   const conversationId = useRef<string | undefined>(undefined);
@@ -205,6 +205,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     </div> : null}
     </header>
     <div id="project-mcp-content" className="gpu-assistant-content" hidden={collapsed}>
+    {onboarding}
     <div className={`gpu-assistant-conversation${empty ? ' gpu-assistant-conversation--empty' : ''}`} hidden={externalAgentOpen}>
     {query.isError ? <div role="alert"><p>{t('assistant.failed')}</p><button onClick={() => void query.refetch()}>{t('assistant.retry')}</button></div> : null}
     {loaderVisible(reveal) ? <AtomaLoader section leaving={reveal === 'leaving'} label={t('assistant.loading')} /> : null}

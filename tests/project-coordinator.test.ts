@@ -2494,7 +2494,7 @@ it('dispatches an admitted customer run and preserves pending delivery across co
   };
   const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
     hostEnv: { ...haystackTestEnvironment(f.root), PATH: process.env['PATH'], ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
-    driver, compute: () => compute, acquireLease: async () => lease(), onRunFinished: finished });
+    driver, platformAdmins: () => false, compute: () => compute, acquireLease: async () => lease(), onRunFinished: finished });
   try {
     const run = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
       projectId: f.project.projectId, request: { goal: 'Remote task', idempotencyKey: 'remote-dispatch' } });
@@ -2510,4 +2510,28 @@ it('dispatches an admitted customer run and preserves pending delivery across co
     expect((await coordinator.retryComputeFinalization(f.viewer.orgId, run.projectRunId, f.viewer.principalId)).status).toBe('failed');
     expect(driver).toHaveBeenCalledOnce();
   } finally { coordinator.stopQueue(); }
+});
+
+it('refuses ordinary members on a legacy hosted target before taking a lease or reserving a run', async () => {
+  const f = fixture(), acquireLease = vi.fn(async () => lease()), driver = vi.fn<ProjectRunDriver>();
+  const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+    hostEnv: haystackTestEnvironment(f.root), driver, acquireLease, platformAdmins: () => false });
+  await expect(coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+    projectId: f.project.projectId, request: { goal: 'Must not run', idempotencyKey: 'hosted-denied' } })).rejects.toThrow('Connect a computer');
+  expect(acquireLease).not.toHaveBeenCalled(); expect(driver).not.toHaveBeenCalled();
+  expect(f.store.listProjectRuns(f.viewer.orgId, f.project.projectId)).toEqual([]);
+  coordinator.stopQueue();
+});
+
+it('rechecks platform authority after asynchronous lease acquisition', async () => {
+  const f = fixture(), driver = vi.fn<ProjectRunDriver>(), held = lease();
+  let admin = true;
+  const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+    hostEnv: haystackTestEnvironment(f.root), driver, platformAdmins: () => admin,
+    acquireLease: async () => { admin = false; return held; } });
+  await expect(coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+    projectId: f.project.projectId, request: { goal: 'Must not run after demotion', idempotencyKey: 'demoted' } })).rejects.toThrow('platform administrator');
+  expect(driver).not.toHaveBeenCalled(); expect(held.release).toHaveBeenCalled();
+  expect(f.store.listProjectRuns(f.viewer.orgId, f.project.projectId)?.[0]?.status).toBe('failed');
+  coordinator.stopQueue();
 });

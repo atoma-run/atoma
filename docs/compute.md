@@ -3,10 +3,17 @@
 Atoma Compute runs tools, the Linux workspace, Chromium, builds, tests, document
 extraction, Haystack and temporary previews on a paired computer. Atoma retains
 orchestration, models, credentials, permissions, accounting, the shared catalogue,
-verified checkpoints and delivered files. Existing projects use hosted execution.
+verified checkpoints and delivered files. Hosted execution is reserved for platform administrators. Other members must
+connect a computer and explicitly select it for each project before starting runs.
+Legacy hosted targets remain readable but cannot launch work for ordinary members.
 Permanent application hosting is a separate service.
 
 ## Headless client
+
+Start with **Connect a computer** in the Atoma welcome conversation or project
+settings. `/compute/setup` provides the compiled client download, SHA-256 verification,
+platform-specific pairing commands and the steps to select a machine for a project.
+Pairing alone grants no project access. The setup step reports connected and disconnected computers; existing deliveries remain accessible during setup.
 
 The client requires the repository's pinned Node 24 release and Docker Desktop.
 Use the native Windows Node installation with Docker Desktop's WSL2 backend;

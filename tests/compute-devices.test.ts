@@ -246,6 +246,8 @@ it('pins each run target, retains legacy hosted defaults and refuses assigning a
   expect(projects.getProjectRun(owner.orgId, remote)?.executionTarget).toEqual(target);
   expect(() => db.prepare('UPDATE project_runs SET execution_target_json=? WHERE project_run_id=?')
     .run(JSON.stringify({ kind: 'hosted' }), remote)).toThrow('immutable');
+  expect(() => devices.setProjectTarget(owner, p.projectId, { target: { kind: 'hosted' }, expected: target })).toThrow('platform administrator');
+  db.prepare('INSERT INTO auth_platform_admins VALUES(?,?,?)').run(owner.principalId, new Date().toISOString(), 'test');
   devices.setProjectTarget(owner, p.projectId, { target: { kind: 'hosted' }, expected: target });
   expect(projects.getProjectRun(owner.orgId, remote)?.executionTarget).toEqual(target);
   const continuation = projects.createProjectRun({ orgId: owner.orgId, projectId: p.projectId, principalId: owner.principalId,
@@ -294,4 +296,13 @@ it('projects only organization-owned device choices and reports machine wait rea
   expect(devices.projectView(f.owner, f.projectId).devices[0]?.availability).toBe('resources-insufficient');
   devices.grantProject(f.owner, f.paired.deviceId, f.projectId, false);
   expect(devices.projectView(f.owner, f.projectId).devices[0]?.allowed).toBe(false);
+});
+
+it('exposes hosted execution only for a current platform administrator, never an organisation owner', () => {
+  const owner = actor(), p = project(owner);
+  expect(devices.projectView(owner, p.projectId).hostedAllowed).toBe(false);
+  db.prepare('INSERT INTO auth_platform_admins VALUES(?,?,?)').run(owner.principalId, new Date().toISOString(), 'test');
+  expect(devices.projectView(owner, p.projectId).hostedAllowed).toBe(true);
+  db.prepare('DELETE FROM auth_platform_admins WHERE principal_id=?').run(owner.principalId);
+  expect(devices.projectView(owner, p.projectId).hostedAllowed).toBe(false);
 });

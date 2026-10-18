@@ -1,4 +1,5 @@
 /* global document, DOMMatrixReadOnly, DOMPoint, getComputedStyle, HTMLButtonElement, HTMLElement, HTMLInputElement, HTMLTextAreaElement, matchMedia, requestAnimationFrame, MutationObserver, WheelEvent, window, location, Worker */
+import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -2093,7 +2094,8 @@ try {
         // Organisation MCP connectors (8c094613): none connected. Unstubbed,
         // Settings and the project page each logged a 404 the account
         // diagnostics count as a failure.
-        [`/api/compute/projects/${projectId}`]: { projectId, target: { kind: 'hosted' }, canEdit: true, devices: [
+        '/api/compute/onboarding': { hostedAllowed: true, devices: [] },
+        [`/api/compute/projects/${projectId}`]: { projectId, target: { kind: 'hosted' }, hostedAllowed: true, canEdit: true, devices: [
           { deviceId: computeDeviceId, name: 'Ada’s computer', allowed: false, revoked: false, availability: 'disconnected' } ] },
         '/api/org/mcp-servers': { servers: [], encryptionReady: true, canManage: true },
         [`/api/projects/${projectId}/mcp-servers`]: { servers: [], enabled: [], canEdit: true },
@@ -2853,6 +2855,27 @@ try {
       await accountPage.evaluate(() => document.activeElement?.blur());
       await clickAccountTarget('project.section.conversation');
       console.log('Compute settings ok: explicit project grant, keyboard selection, CAS save, disconnected status');
+      stubs['/auth/whoami'].platformAdmin = false;
+      stubs['/api/compute/onboarding'].hostedAllowed = false;
+      stubs[`/api/compute/projects/${projectId}`].hostedAllowed = false;
+      await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+      await reopenProjectByDeepLink('Customer compute onboarding');
+      await accountPage.waitForFunction(() => [...document.querySelectorAll('h3')].some(node => node.textContent === 'Connect your computer before your first run'));
+      await accountPage.screenshot({ path: '/tmp/atoma-compute-customer-onboarding.png' });
+      await clickAccountTarget('project.section.settings');
+      await accountPage.waitForSelector('section[aria-label="Run execution"]');
+      assert.equal(await accountPage.evaluate(() => [...document.querySelectorAll('section[aria-label="Run execution"] label')]
+        .some(node => node.textContent.includes('Atoma servers'))), false, 'Ordinary owners have no hosted execution choice');
+      stubs['/auth/whoami'].platformAdmin = true;
+      stubs['/api/compute/onboarding'].hostedAllowed = true;
+      stubs[`/api/compute/projects/${projectId}`].hostedAllowed = true;
+      await reopenProjectByDeepLink('Restored administrator');
+      await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
+      await accountPage.waitForSelector('.gpu-project-mcp-own-agent > summary', { visible: true });
+      await accountPage.click('.gpu-project-mcp-own-agent > summary');
+      await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
+      console.log('Compute onboarding ok: ordinary owner setup is visible and hosted selection is absent');
+
 
 
       // The notification invitation can cover the upstream checkbox after

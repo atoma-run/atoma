@@ -30,8 +30,10 @@ to the recorded local allocation; only verified received bytes become delivered.
 A persisted launcher stop report, never a deadline, permits closing an interrupted
 run and consulting its normal checkpoint eligibility.
 
-Project execution targets default to hosted and are copied into immutable run
-receipts. Continuations inherit the source receipt, even if the project changed.
+Legacy project targets remain hosted and run receipts are immutable. On gated
+hosts, only a current platform admin may start hosted work; other members must
+pair and explicitly select a granted device. The coordinator rechecks this before
+admission and dispatch, including continuations and after asynchronous preparation. Continuations inherit the source receipt, even if the project changed.
 Only an owner/admin may change a target, with a compare-and-set and explicit
 device project grant. Device admission explains unavailable capacity without
 acquiring a hosted slot; remote receipts must never launch on the hosted driver.

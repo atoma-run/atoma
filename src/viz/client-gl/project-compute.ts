@@ -20,9 +20,10 @@ export function useProjectCompute(projectId: string | null, enabled: boolean) {
   const [busy, setBusy] = useState(false), inFlight = useRef(false);
   const key = `${projectId}:${query.data ? computeTargetKey(query.data.target) : ''}`;
   const view = useMemo<ComputeSettingsView | null>(() => query.data ? { project: query.data,
-    selected: edit?.key === key ? edit.target : query.data.target, busy, notice: notice?.projectId === projectId ? notice.value : 'idle', loadFailed: query.isError } : query.isError && projectId ? { project: { projectId, target: { kind: 'hosted' }, canEdit: false, devices: [] }, selected: { kind: 'hosted' }, busy, notice: 'failed', loadFailed: true } : null,
+    selected: edit?.key === key ? edit.target : query.data.target, busy, notice: notice?.projectId === projectId ? notice.value : 'idle', loadFailed: query.isError } : query.isError && projectId ? { project: { projectId, target: { kind: 'hosted' }, canEdit: false, hostedAllowed: false, devices: [] }, selected: { kind: 'hosted' }, busy, notice: 'failed', loadFailed: true } : null,
   [query.data, query.isError, edit, key, busy, notice, projectId]);
   const activate = useCallback((id: string) => {
+    if (id === 'compute.setup') { window.location.assign(`/compute/setup?lang=${encodeURIComponent(document.documentElement.lang)}`); return; }
     if (id === 'compute.refresh') { void query.refetch(); return; }
     if (!view || !projectId || inFlight.current) return;
     const pending = id.startsWith('compute.finalize.') ? view.project.pendingRuns?.find(run => run.runId === id.slice('compute.finalize.'.length)) : undefined;
@@ -43,7 +44,7 @@ export function useProjectCompute(projectId: string | null, enabled: boolean) {
     if (!view.project.canEdit || view.loadFailed) return;
     if (id.startsWith('compute.choose.')) {
       const deviceId = id.slice('compute.choose.'.length);
-      if (deviceId === 'hosted') setEdit({ key, target: { kind: 'hosted' } });
+      if (deviceId === 'hosted' && view.project.hostedAllowed) setEdit({ key, target: { kind: 'hosted' } });
       else if (view.project.devices.some(device => device.deviceId === deviceId && device.allowed && !device.revoked)) setEdit({ key, target: { kind: 'customer-device', deviceId } });
       return;
     }

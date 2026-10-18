@@ -16,7 +16,7 @@ function Harness() {
 }
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it('requires an explicit project grant, then saves the machine with a stale-target guard', async () => {
-  const state: ComputeProjectView = { projectId, canEdit: true, target: { kind: 'hosted' },
+  const state: ComputeProjectView = { projectId, hostedAllowed: false, canEdit: true, target: { kind: 'hosted' },
     devices: [{ deviceId, name: 'My computer', allowed: false, revoked: false, availability: 'disconnected' }] };
   const mutations: Array<{ url: string; body: unknown }> = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -34,6 +34,8 @@ it('requires an explicit project grant, then saves the machine with a stale-targ
   const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
   render(createElement(Harness), { wrapper });
   expect(await screen.findByRole('radio', { name: 'My computer' })).toBeDisabled();
+  expect(screen.queryByRole('radio', { name: 'compute.hosted' })).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'compute.connectComputer' })).toHaveAttribute('href', '/compute/setup');
   expect(screen.getByText(/compute.availability.disconnected/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'compute.allowProject' }));
   await waitFor(() => expect(screen.getByRole('radio', { name: 'My computer' })).toBeEnabled());
@@ -49,7 +51,7 @@ it('requires an explicit project grant, then saves the machine with a stale-targ
 
 it('offers an explicit pending-transfer action to its requester without project admin rights', async () => {
   const runId = '85124e11-3e28-4c96-80f7-dbc13db6b205';
-  const state: ComputeProjectView = { projectId, canEdit: false, target: { kind: 'customer-device', deviceId }, devices: [], pendingRuns: [{ runId }] };
+  const state: ComputeProjectView = { projectId, hostedAllowed: true, canEdit: false, target: { kind: 'customer-device', deviceId }, devices: [], pendingRuns: [{ runId }] };
   const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
     if (init) { state.pendingRuns = []; return new Response('{}'); }
     return new Response(JSON.stringify(state));
@@ -65,7 +67,7 @@ it('offers an explicit pending-transfer action to its requester without project 
 });
 it('shows an actionable loading failure instead of silently hiding compute settings', async () => {
   const fetcher = vi.fn().mockResolvedValueOnce(new Response('{}', { status: 500 }))
-    .mockResolvedValue(new Response(JSON.stringify({ projectId, canEdit: false, target: { kind: 'hosted' }, devices: [] })));
+    .mockResolvedValue(new Response(JSON.stringify({ projectId, hostedAllowed: true, canEdit: false, target: { kind: 'hosted' }, devices: [] })));
   vi.stubGlobal('fetch', fetcher);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);

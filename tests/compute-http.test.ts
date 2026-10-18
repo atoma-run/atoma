@@ -90,7 +90,29 @@ it('binds approval to the displayed session and consumes the consent token on a 
 });
 
 it('bounds unauthenticated pairing attempts before allocating additional receipts', async () => {
-  for (let i = 0; i < 30; i++) expect((await request('/api/compute/devices')).status).toBe(401);
+  for (let i = 0; i < 30; i++) expect((await request('/api/compute/pairings', { method: 'POST', body: '{}' })).status).toBe(409);
   const response = await request('/api/compute/pairings', { method: 'POST', body: '{}' });
   expect(response.status).toBe(429); expect(Number(response.headers.get('retry-after'))).toBeGreaterThan(0);
+});
+
+it('offers public setup with immutable downloads, checksum verification and both native architectures', async () => {
+  const response = await request('/compute/setup?lang=ar');
+  expect(response.status).toBe(200);
+  const html = await response.text();
+  expect(html).toContain('lang="ar" dir="rtl"');
+  expect(html).toContain('shasum -a 256'); expect(html).toContain('Get-FileHash');
+  expect(html).toContain('npm ci --omit=dev'); expect(html).toContain('node dist/cli/compute.js start');
+  expect(html).toContain('npm.cmd ci --omit=dev'); expect(html).toContain('Extraction failed');
+  expect(html).toContain('compute-client-20261018-1');
+  expect(html).not.toContain('latest');
+});
+it('requires current identity for the onboarding inventory and reports no implicit hosted permission', async () => {
+  expect((await request('/api/compute/onboarding')).status).toBe(401);
+  const response = await request('/api/compute/onboarding', { headers: { cookie } });
+  expect(await response.json()).toEqual({ hostedAllowed: false, devices: [] });
+});
+
+it('does not let onboarding polling consume the native pairing budget', async () => {
+  for (let i = 0; i < 35; i++) expect((await request('/api/compute/onboarding', { headers: { cookie } })).status).toBe(200);
+  expect((await begin()).code).toBeTruthy();
 });

@@ -1448,8 +1448,19 @@ export class ProjectRunCoordinator {
     return { built, principalCodexProfile, principalClaudeProfile };
   }
 
+  /** The ungated local operator has no identity resolver; gated hosts always supply one. */
+  private assertExecutionAccess(principalId: string, target: ProjectRun['executionTarget']): void {
+    let allowed = !this.platformAdmins;
+    try { allowed ||= this.platformAdmins?.(principalId) === true; } catch { /* Refuse when authority is unavailable. */ }
+    if (target.kind === 'hosted' && !allowed) {
+      throw new ProjectRunConfigurationError('Connect a computer and select it in Project settings. Runs on Atoma servers require a platform administrator.');
+    }
+  }
+
   /** No lease, row, directory, provider request or model discovery is created here. */
   configurationReadiness(orgId: string, principalId: string, projectId: string) {
+    const project = this.store.getProject(orgId, projectId);
+    if (project) this.assertExecutionAccess(principalId, project.executionTarget);
     const timeoutMs = this.runTimeoutMs();
     readHaystackLaunch(this.hostEnv);
     if (this.hostEnv['ATOMA_LAUNCHER_SOCKET'] && !this.hostEnv['ATOMA_LAUNCHER_WORKSPACE_ROOT']) {
@@ -1838,6 +1849,10 @@ export class ProjectRunCoordinator {
     ) ?? this.store.findLiveRunForSameRequest(input.orgId, input.projectId, input.principalId, input.request);
     const existing = findRetry();
     if (existing) return { run: existing, created: false };
+    const target = 'resumeOf' in input.request && input.request.resumeOf
+      ? this.store.getProjectRun(input.orgId, input.request.resumeOf)?.executionTarget
+      : this.store.getProject(input.orgId, input.projectId)?.executionTarget;
+    if (target) this.assertExecutionAccess(input.principalId, target);
     try {
       this.store.assertRunCapacity(input.orgId);
     } catch (error) {
@@ -1973,6 +1988,7 @@ export class ProjectRunCoordinator {
   }
 
   private async launchReservedRun(run: ProjectRun, lease: RunLease, rerun: RerunOrigin | null, admittedTimeoutMs?: number): Promise<{ run: ProjectRun; created: boolean }> {
+    this.assertExecutionAccess(run.requestedByPrincipalId, run.executionTarget);
     const compute = run.executionTarget.kind === 'customer-device' ? this.compute?.() : undefined;
     if (run.executionTarget.kind === 'customer-device' && !compute) { lease.release(); throw new Error('Customer compute dispatch is not configured'); }
     const input = { orgId: run.orgId, projectId: run.projectId, principalId: run.requestedByPrincipalId };
@@ -2068,6 +2084,7 @@ export class ProjectRunCoordinator {
         this.resumeQueuedRuns();
         return { run, created: true };
       }
+      this.assertExecutionAccess(run.requestedByPrincipalId, run.executionTarget);
       this.store.startProjectRun({
         orgId: input.orgId,
         projectRunId: run.projectRunId,
@@ -2112,6 +2129,7 @@ export class ProjectRunCoordinator {
       // run budget. See that constant for the measurement.
       const preparationDeadlineAt = Date.now() + PROJECT_RUN_PREPARATION_TIMEOUT_MS;
       const launch = () => {
+        this.assertExecutionAccess(run.requestedByPrincipalId, run.executionTarget);
         const driver: ProjectRunDriver = compute
           ? input => compute.drive(run, this.driver, input, paths.artifactManifestPath) : this.driver;
         return driver({

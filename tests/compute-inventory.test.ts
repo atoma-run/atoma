@@ -37,7 +37,7 @@ it('excludes a real second launcher and releases ownership on process death with
   const code = `import { ComputeInventory } from './src/launcher/computeInventory.ts';
     const inventory = new ComputeInventory(process.env.INVENTORY);
     inventory.reserve(JSON.parse(process.env.EXECUTION));
-    process.stdout.write('ready\\n'); setInterval(() => {}, 1000);`;
+    process.stdout.write('ready\\n'); setInterval(() => inventory.machineId(), 1000);`;
   const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', code], {
     env: { PATH: process.env['PATH'], INVENTORY: path, EXECUTION: JSON.stringify(execution) }, stdio: ['ignore', 'pipe', 'pipe'],
   });

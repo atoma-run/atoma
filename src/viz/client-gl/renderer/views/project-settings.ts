@@ -114,7 +114,8 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
     const disabled = !compute.project.canEdit || compute.busy;
     line(snapshot.t('compute.title'), { size: 16, weight: '600', color: GPU_COLORS.text, gap: 6 });
     line(snapshot.t('compute.intro'));
-    buttonRow([{ id: 'compute.choose.hosted', label: 'compute.hosted', disabled }], 280, () => selected === 'hosted');
+    buttonRow([{ id: 'compute.setup', label: 'compute.connectComputer' }], 280);
+    if (compute.project.hostedAllowed) buttonRow([{ id: 'compute.choose.hosted', label: 'compute.hosted', disabled }], 280, () => selected === 'hosted');
     for (const device of compute.project.devices) {
       if (pane.visible(y, y + BUTTON_HEIGHT)) ctx.button(content, `compute.choose.${device.deviceId}`, 'button', device.name,
         PAD, y, Math.min(inner, 360), BUTTON_HEIGHT, selected === device.deviceId, snapshot.onActivate,

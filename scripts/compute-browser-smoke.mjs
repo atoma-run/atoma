@@ -62,6 +62,18 @@ try {
   assert.equal(submittedOrigin, origin, 'Native form preserves its exact Origin');
   assert.equal(await page.$eval('h1', node => node.textContent), 'Computer connected');
   assert.equal(devices.redeemPairing(pending.code, secret).orgId, viewer.orgId);
+  for (const width of [1366, 375]) {
+    await page.setViewport({ width, height: 812 });
+    await page.goto(`${origin}/compute/setup`);
+    assert.equal(await page.$eval('h1', node => node.textContent), 'Connect your computer');
+    await page.focus('summary'); await page.keyboard.press('Enter');
+    assert.equal(await page.$eval('details', node => node.open), true, 'Installation commands work by keyboard');
+    assert.ok(await page.$eval('details code', node => node.textContent.includes('shasum -a 256')));
+    assert.ok(await page.evaluate(width => document.documentElement.scrollWidth <= width, width), 'Setup does not clip long pinned commands');
+    if (process.env.ATOMA_COMPUTE_SCREENSHOTS) await page.screenshot({
+      path: join(process.env.ATOMA_COMPUTE_SCREENSHOTS, `setup-${width}.png`), fullPage: true,
+    });
+  }
   console.log('compute browser: compiled TLS consent, responsive layout, keyboard confirmation and proof redemption verified');
 } finally {
   await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); db.close();

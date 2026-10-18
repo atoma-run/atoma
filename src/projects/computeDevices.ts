@@ -144,13 +144,16 @@ export class ComputeDeviceStore {
       .all(actor.orgId, Number(admin), actor.principalId) as { device_id: string }[];
     return rows.map(row => this.inspect(actor, row.device_id));
   }
+  private hostedAllowed(principalId: string): boolean {
+    return Boolean(this.db.prepare('SELECT 1 FROM auth_platform_admins WHERE principal_id=?').get(principalId));
+  }
   projectView(actor: ComputeActor, projectId: string): ComputeProjectView {
     const role = this.member(actor);
     const project = this.db.prepare("SELECT execution_target_json FROM projects WHERE project_id=? AND org_id=? AND status='active'")
       .get(z.string().uuid().parse(projectId), actor.orgId) as { execution_target_json: string | null } | undefined;
     if (!project) throw new Error('Compute project unavailable');
     return computeProjectViewSchema.parse({ projectId, target: project.execution_target_json ? JSON.parse(project.execution_target_json) : { kind: 'hosted' },
-      canEdit: ['org:owner', 'org:admin'].includes(role), devices: this.list(actor).map(device => {
+      hostedAllowed: this.hostedAllowed(actor.principalId), canEdit: ['org:owner', 'org:admin'].includes(role), devices: this.list(actor).map(device => {
         const row = this.device(device.deviceId);
         const caps = row.capabilities ? computeCapabilitiesSchema.parse(JSON.parse(row.capabilities)) : undefined;
         const availability = device.revoked ? 'access-unavailable' : !device.connected ? 'disconnected' : device.assignment ? 'busy'
@@ -207,6 +210,7 @@ export class ComputeDeviceStore {
       if (!project) throw new Error('Compute project unavailable');
       const previous = executionTargetSchema.parse(project.execution_target_json ? JSON.parse(project.execution_target_json) : { kind: 'hosted' });
       if (JSON.stringify(previous) !== JSON.stringify(expected)) throw new Error('Compute target changed; reload before saving');
+      if (target.kind === 'hosted' && !this.hostedAllowed(actor.principalId)) throw new Error('Hosted execution requires a platform administrator');
       if (target.kind === 'customer-device') {
         const device = this.device(target.deviceId);
         if (device.org_id !== actor.orgId || device.revoked) throw new Error('Compute device unavailable');

@@ -5,6 +5,7 @@ import { useProjectConnectors } from './project-connectors.js';
 import { FilePreview } from './FilePreview.js';
 import { CHEVRON_CSS_VARS } from './button-icons.js';
 import { TIMELINE_JUMP_PREFIX } from './renderer/timeline-minimap.js';
+import { ComputeOnboarding } from './ComputeOnboarding.js';
 import { AssistantPanel } from './AssistantPanel.js';
 import { workspaceIndexSchema } from '../../contracts/workspaceBrowser.js';
 import { latestWorkspaceRun, workspacePreviewPath, workspaceSplitForViewport } from './workspace-browser.js';
@@ -1461,6 +1462,8 @@ function GpuAppContent({
             key={`${authSnapshot.viewer.principalId}:${activeOrgId}:${state.selectedProjectId ?? 'new'}`}
             scopeKey={`${authSnapshot.viewer.principalId}:${activeOrgId}`}
             projectId={state.selectedProjectId} locale={state.locale} t={t} externalAgentGuide={externalAgentGuide}
+            onboarding={<ComputeOnboarding scopeKey={`${authSnapshot.viewer.principalId}:${activeOrgId}`}
+              projectId={state.selectedProjectId} locale={state.locale} t={t} />}
             heading={heading} collapsed={!state.selectedProjectId && state.projectMcpCollapsed}
             onSettings={tab => state.openSettings(tab)}
             onScopeChange={id => { state.selectProject(id); useGpuStore.setState({ projectMcpCollapsed: false }); }}

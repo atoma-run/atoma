@@ -315,3 +315,23 @@ host has only about 4.6 GiB free after installation; do not confuse these.
 Client started successfully with WSS production handshake, PTY session 82145.
 No project authorised. Native Terminal UI access was rejected by computer-use
 policy; launch file remains available for the owner to use independently.
+
+## Customer onboarding and hosted execution policy (2026-10-18)
+
+Owner requires ordinary customers to associate a computer; hosted project runs
+are platform-admin only. Implementation adds onboarding to the welcome/project
+conversation, `/compute/setup` with a pinned compiled archive and native commands,
+and session-scoped device status. Explicit per-project grant/selection remains.
+The coordinator enforces current platform authority at admission, queued dispatch,
+after asynchronous preparation and before invoking the hosted driver. Continuations
+retain their source target. Legacy hosted rows remain readable but ordinary members
+cannot launch them. Device settings hide/refuse hosted selection for non-admins.
+Ungated local operator behavior and permanent application hosting are unchanged.
+
+Compiled client release compute-client-20261018-1 published from exact CI artifact
+00b3779f; checksum/public assets verified, packaged CLI import closure tested on Mac.
+No Electron. Review: records/reviews/compute-onboarding-2026-10-18.md.
+Release verification passed: 7,608 tests, 25 opt-in skips, with the fresh Compute
+acceptance image (the unrelated atoma-worker:latest is stale). TLS setup browser
+smoke passed at 1366/375 px; full GPU smoke passed, including ordinary-owner
+onboarding and absence of the hosted choice. Production deployment pending.

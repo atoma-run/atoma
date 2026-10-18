@@ -56,7 +56,7 @@ vi.mock('../src/projects/runProgress.js', async (original) => {
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => { projection.corrupt = false; for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); closeStoreHandles(); });
 
-async function fixture(legacy = false, publisherFor?: (f: ReturnType<typeof projectRetrievalFixture>) => ProjectRunPublisher) {
+async function fixture(legacy = false, publisherFor?: (f: ReturnType<typeof projectRetrievalFixture>) => ProjectRunPublisher, restrictHosted = false) {
   const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-experience-'));
   cleanups.push(async () => { closeStoreHandles(); rmSync(root, { recursive: true, force: true }); });
   const f = projectRetrievalFixture(root);
@@ -64,6 +64,7 @@ async function fixture(legacy = false, publisherFor?: (f: ReturnType<typeof proj
   const coordinator = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath, projectsRoot: root,
     hostEnv: { ...haystackTestEnvironment(root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'private-test-key' }, driver,
     acquireLease: id => acquireRunLease(id, join(root, 'lease.db')),
+    ...(restrictHosted ? { platformAdmins: (id: string) => f.auth.isPlatformAdmin(id) } : {}),
     ...(publisherFor ? { publisher: publisherFor(f) } : {}) });
   const github = GitHubStore.open(f.dbPath);
   github.linkInstallation({ installationId: '123', orgId: f.viewer.orgId, accountId: '123', accountLogin: 'owner',
@@ -245,14 +246,17 @@ it('checks saved readiness without executing, reserving work or exposing credent
   const f = await fixture();
   const before = readdirSync(f.root).sort();
   const result = await f.call('atoma_project_readiness', { projectId: f.project.projectId });
-  expect(result.structuredContent).toMatchObject({ configured: true, canRequest: true, liveChecks: 'not-performed', problems: [] });
+  expect(result.structuredContent).toMatchObject({ configured: false, canRequest: true, liveChecks: 'not-performed',
+    problems: [expect.objectContaining({ code: 'configuration_required', nextAction: expect.stringContaining('/compute/setup') })] });
+  f.setViewer({ ...f.viewer, platformAdmin: true });
+  expect((await f.call('atoma_project_readiness', { projectId: f.project.projectId })).structuredContent).toMatchObject({ configured: true, problems: [] });
   expect(JSON.stringify(result)).not.toContain('private-test-key');
   expect(readdirSync(f.root).sort()).toEqual(before);
   expect(f.projects.listProjectRuns(f.viewer.orgId, f.project.projectId)).toEqual([]);
   expect(f.driver).not.toHaveBeenCalled();
   f.setViewer({ ...f.viewer, role: 'org:viewer' });
   expect((await f.call('atoma_project_readiness', { projectId: f.project.projectId })).structuredContent).toMatchObject({ configured: false, canRequest: false, configuration: null,
-    problems: [expect.objectContaining({ code: 'permission_denied', retryable: false })] });
+    problems: expect.arrayContaining([expect.objectContaining({ code: 'permission_denied', retryable: false })]) });
 });
 
 it.each([false, true])('compares saved inventories through a real MCP client (legacy=%s), with bounded pages and isolation', async legacy => {
@@ -868,4 +872,15 @@ it('reports omitted, invalid, oversized and absent learning evidence without hid
   expect(good.evidence[0]!.detail).toContain('[truncated]');
   expect(page.runs.find(run => run.projectRunId === corrupt.run.projectRunId)!.trace.status).toBe('invalid');
   expect(page.runs.find(run => run.projectRunId === oversized.run.projectRunId)!.trace.status).toBe('overCeiling');
+});
+
+it.each([false, true])('refuses hosted starts through the actual MCP wire for an organisation owner (legacy=%s)', async legacy => {
+  const f = await fixture(legacy, undefined, true);
+  const result = await f.client.callTool({ name: 'atoma_run_start', arguments: {
+    projectId: f.project.projectId, goal: 'Run only on my computer', idempotencyKey: 'hosted-policy-wire',
+  } });
+  expect(result.isError).toBe(true);
+  expect(JSON.stringify(result)).toContain('Connect a computer');
+  expect(f.projects.listProjectRuns(f.viewer.orgId, f.project.projectId)).toEqual([]);
+  expect(f.driver).not.toHaveBeenCalled();
 });
