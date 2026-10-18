@@ -133,11 +133,16 @@ export interface SeedReport {
  * reader can replay. The seed's read-run copies (`.atoma-runs`, at its top
  * level) are never inherited: they were given to the run that read them, and
  * a run reads only the runs its own request names (src/contracts/readRuns.ts).
+ * Installed dependencies (node_modules at any depth) and top-level run scratch
+ * are re-created by the next run, never multiplied with each seed. Sources,
+ * built deliverables, historical data and the inherited proof manifest remain.
  * The seed source is never modified.
  */
 export function seedWorkspace(seedRoot: string, workspaceRoot: string): SeedReport {
   mkdirSync(workspaceRoot, { recursive: true });
+  const sourceRoot = resolve(seedRoot);
   const readRunCopies = resolve(seedRoot, READ_RUNS_DIRECTORY);
+  const scratch = resolve(seedRoot, '.atoma-scratch');
   // Links are copied as written. Without `verbatimSymlinks`, cpSync rewrites a
   // relative link (`node_modules/.bin/vite -> ../vite/bin/vite.js`) into an
   // absolute one into the SEED, which the checkpoint digest refuses as
@@ -145,7 +150,10 @@ export function seedWorkspace(seedRoot: string, workspaceRoot: string): SeedRepo
   // questions and resume without an error (code review 2026-10-09, 1.5). A link
   // that leaves the tree stays refused by the checkpoint, as before.
   cpSync(seedRoot, workspaceRoot, { recursive: true, verbatimSymlinks: true,
-    filter: (source) => resolve(source) !== readRunCopies });
+    filter: (source) => {
+      const path = resolve(source);
+      return path === sourceRoot || (path !== readRunCopies && path !== scratch && basename(path) !== 'node_modules');
+    } });
   const entries = readdirSync(workspaceRoot).length;
   const manifestPath = join(workspaceRoot, PROBE_MANIFEST_FILENAME);
   let stat;

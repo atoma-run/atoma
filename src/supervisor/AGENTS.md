@@ -269,8 +269,10 @@ Neighbours:
   most `DEFAULT_MAX_DIFF_LINES` changed lines. Workflows, deploy scripts,
   hooks, dependencies and this subsystem's own code are a person's decision.
   Anything else is `refused`, nothing is pushed, and the worktree is KEPT for
-  inspection. ONE SCOPE, TWO READERS: the patterns the harness enforces and
-  the sentence the model reads (`MENDABLE_SCOPE`) are built from the same
+  inspection. Once commands and containers have settled, a retained worktree
+  loses only its root `node_modules` install; sources, tests and evidence stay,
+  and a dependency symlink is unlinked without following it.
+  ONE SCOPE, TWO READERS: the patterns the harness enforces and the sentence the model reads (`MENDABLE_SCOPE`) are built from the same
   lists. Prompt `m2` told the model to record a candidate's choice "in the
   subsystem `AGENTS.md` you changed", which this policy refuses at any depth,
   and the only candidate mended in production was refused the instant its

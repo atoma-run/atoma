@@ -345,8 +345,10 @@ Neighbours:
   corpus from nothing and seeded the next run from that. A seed that cannot be
   copied at restart fails the run with the first attempt in `.prevN`. The copy
   filters the inherited probe manifest ([src/contracts](../contracts/AGENTS.md)),
-  leaves out the seed's read-run copies (`.atoma-runs`)
-  and keeps links as written (`verbatimSymlinks`): a rewritten absolute
+  leaves out the seed's read-run copies (`.atoma-runs`), top-level
+  `.atoma-scratch`, and installed `node_modules` at any depth (reinstalled by
+  the next run; never remove them from a sealed checkpoint restore),
+  and keeps other links as written (`verbatimSymlinks`): a rewritten absolute
   `node_modules/.bin` link is an escaping link to the checkpoint, which then
   disabled pause, questions and resume for every seeded Node project.
 - `ATOMA_ACCEPTANCE_SPEC` is read and re-digested at LAUNCH

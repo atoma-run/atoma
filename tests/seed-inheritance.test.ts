@@ -187,6 +187,41 @@ describe('seedWorkspace', () => {
     expect(readFileSync(join(copy, 'collect.js'), 'utf8')).toBe('the read run');
   });
 
+  it('does not multiply installs or run scratch across seeds and deepening', () => {
+    const seed = tempDir('atoma-seed-src-');
+    const files = {
+      'node_modules/pkg/index.js': 'installed',
+      'browser/node_modules/pkg/index.js': 'nested install',
+      '.atoma-scratch/clean/node_modules/pkg/index.js': 'scratch install',
+      '.atoma-scratch/proof.txt': 'old scratch',
+      'package-lock.json': 'lock',
+      'browser/package.json': 'nested manifest',
+      'dist/index.js': 'built delivery',
+      'data/history.json': 'historical data',
+      'docs/.atoma-scratch/note.md': 'authored nested directory',
+      'docs/node_modules.md': 'documentation',
+    };
+    for (const [path, content] of Object.entries(files)) {
+      mkdirSync(join(seed, path, '..'), { recursive: true });
+      writeFileSync(join(seed, path), content);
+    }
+    const first = join(tempDir('atoma-seed-dst-'), 'workspace');
+    const deepened = join(tempDir('atoma-seed-dst-'), 'workspace');
+    seedWorkspace(seed, first);
+    seedWorkspace(first, deepened);
+    for (const workspace of [first, deepened]) {
+      expect(existsSync(join(workspace, 'node_modules'))).toBe(false);
+      expect(existsSync(join(workspace, 'browser/node_modules'))).toBe(false);
+      expect(existsSync(join(workspace, '.atoma-scratch'))).toBe(false);
+      for (const [path, content] of Object.entries(files).slice(4)) {
+        expect(readFileSync(join(workspace, path), 'utf8')).toBe(content);
+      }
+    }
+    for (const [path, content] of Object.entries(files)) {
+      expect(readFileSync(join(seed, path), 'utf8')).toBe(content);
+    }
+  });
+
   it('passes the maintenance benchmark seeds through byte for byte', () => {
     for (const name of ['tabstat', 'wclite']) {
       const seed = join(process.cwd(), 'benchmark', 'seeds', name);
@@ -228,18 +263,19 @@ describe('seedWorkspace', () => {
 
   // Code review 2026-10-09, 1.5: cpSync without `verbatimSymlinks` rewrote
   // `node_modules/.bin/vite -> ../vite/bin/vite.js` into an absolute link into
-  // the seed. The checkpoint refused it as escaping, so a seeded project run
-  // with installed dependencies lost pause, client questions and resume.
+  // the seed. Installs are now excluded; a vendored relative link must still
+  // preserve the same checkpoint and question boundary. The original escaping
+  // link disabled pause, client questions and resume for seeded projects.
   it.skipIf(process.platform === 'win32')('keeps relative links as written, so the seeded run can checkpoint and ask', async () => {
     const seed = tempDir('atoma-seed-src-');
-    mkdirSync(join(seed, 'node_modules', 'vite', 'bin'), { recursive: true });
-    mkdirSync(join(seed, 'node_modules', '.bin'), { recursive: true });
-    writeFileSync(join(seed, 'node_modules', 'vite', 'bin', 'vite.js'), '#!/usr/bin/env node\n');
-    symlinkSync('../vite/bin/vite.js', join(seed, 'node_modules', '.bin', 'vite'));
+    mkdirSync(join(seed, 'vendor', 'vite', 'bin'), { recursive: true });
+    mkdirSync(join(seed, 'vendor', '.bin'), { recursive: true });
+    writeFileSync(join(seed, 'vendor', 'vite', 'bin', 'vite.js'), '#!/usr/bin/env node\n');
+    symlinkSync('../vite/bin/vite.js', join(seed, 'vendor', '.bin', 'vite'));
     writeFileSync(join(seed, 'index.html'), '<p>hi</p>');
     const workspace = join(realpathSync(tempDir('atoma-seed-dst-')), 'workspace');
     seedWorkspace(seed, workspace);
-    expect(readlinkSync(join(workspace, 'node_modules', '.bin', 'vite'))).toBe('../vite/bin/vite.js');
+    expect(readlinkSync(join(workspace, 'vendor', '.bin', 'vite'))).toBe('../vite/bin/vite.js');
     expect(checkpointWorkspaceDigest(workspace)).toBe(checkpointWorkspaceDigest(realpathSync(seed)));
 
     // The phase-0 client-question boundary over the seeded tree commits.

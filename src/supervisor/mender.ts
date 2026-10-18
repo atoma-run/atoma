@@ -3,6 +3,7 @@ import { runCodexSupervisor } from './codexSession.js';
 import {
   appendFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -793,6 +794,16 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
       // The branch lives on the remote once pushed; locally it is only clutter.
       await git(options.repo, ['branch', '-D', branch], options.warn, { allowFailure: true });
     } else if (keepWorktree && existsSync(worktree)) {
+      // Preserve the refused edits and evidence, not a reinstallable dependency
+      // tree per attempt. Commands have settled and their containers are gone.
+      // Unlink symlinks/junctions explicitly; never recurse through a link.
+      try {
+        const dependencies = join(worktree, 'node_modules');
+        if (lstatSync(dependencies, { throwIfNoEntry: false })?.isSymbolicLink()) unlinkSync(dependencies);
+        else rmSync(dependencies, { recursive: true, force: true });
+      } catch (error) {
+        options.warn(`could not remove retained worktree dependencies: ${String(error)}`);
+      }
       options.log(`worktree kept for inspection: ${worktree} (branch ${branch})`);
     }
     releaseMenderLock(paths.lockPath);

@@ -351,6 +351,33 @@ describe('the mender, end to end against a real repository', () => {
     expect(f.journal.list({ kind: 'mender.refused' }).events[0]!.detail).toMatchObject({ worktreeKept: true });
   }, TIMEOUT_MS);
 
+  it.each(['directory', 'symlink'])('keeps refused edits but drops the %s install without following links', async (kind) => {
+    const f = fixture();
+    const outside = join(f.root, 'outside');
+    mkdirSync(outside);
+    writeFileSync(join(outside, 'keep.txt'), 'untouched');
+    const install = join(f.stubs, 'install.mjs');
+    writeFileSync(install, `
+      import { mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
+      if (${JSON.stringify(kind)} === 'symlink') {
+        symlinkSync(${JSON.stringify(outside)}, 'node_modules', 'junction');
+      } else {
+        mkdirSync('node_modules/pkg', { recursive: true });
+        writeFileSync('node_modules/pkg/index.js', 'installed');
+      }
+    `);
+    const options = f.options({}, { STUB_MODE: 'forbidden' });
+    await mendPending(f, { ...options, commands: { ...options.commands, install } });
+    const rec = record(f)!;
+    expect(rec.outcome).toBe('refused');
+    expect(worktrees(f)).toHaveLength(1);
+    expect(readFileSync(join(rec.worktree!, 'src/adder.mjs'), 'utf8')).toContain('a + b');
+    expect(readFileSync(join(rec.worktree!, 'tests/adder.test.mjs'), 'utf8')).toContain('add(1, 2)');
+    expect(existsSync(join(rec.worktree!, 'node_modules'))).toBe(false);
+    expect(readFileSync(join(outside, 'keep.txt'), 'utf8')).toBe('untouched');
+    expect(existsSync(join(f.supervisor, 'mender.lock'))).toBe(false);
+  }, TIMEOUT_MS);
+
   it('refuses a fix whose test already passes on the unfixed code', async () => {
     const f = fixture();
     await mendPending(f, f.options({}, { STUB_MODE: 'no-mechanism' }));
