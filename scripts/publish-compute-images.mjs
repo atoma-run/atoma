@@ -21,11 +21,17 @@ for (const kind of ['worker', 'workspace', 'preview', 'retrieval']) {
   if (!reference || !/@sha256:[a-f0-9]{64}$/.test(reference)) throw new Error('Registry did not confirm an immutable image');
   images[kind] = { reference, contentDigest: inspected.Id };
 }
+const retrievalModels = JSON.parse(docker(['run', '--rm', '--network', 'none', '--read-only', '--entrypoint', 'node',
+  'atoma-retrieval:compute-ci', '-e', "process.stdout.write(require('node:fs').readFileSync('/models/models.json','utf8'))"]));
+const retrievalRuntime = JSON.parse(docker(['run', '--rm', '--network', 'none', '--read-only', '--tmpfs', '/tmp',
+  '--entrypoint', '/opt/haystack/bin/python', 'atoma-retrieval:compute-ci', '-I', '/scripts/retrieval-haystack.py', '--identity']));
+const haystackConfig = { python: '/opt/haystack/bin/python', runtimeSha256: retrievalRuntime.sha256,
+  settings: { ...retrievalModels, embeddingPath: '/models/embedding', rerankerPath: '/models/reranker' } };
 const root = COMPUTE_RECEIPT_DIR || mkdtempSync(join(tmpdir(), 'compute-release-'));
 mkdirSync(root, { recursive: true });
 try {
   const name = `atoma-compute-images-linux-${ARCHITECTURE}.json`;
-  const bytes = JSON.stringify({ version: 1, revision: REVISION, architecture: ARCHITECTURE, images }, null, 2) + '\n';
+  const bytes = JSON.stringify({ version: 1, revision: REVISION, architecture: ARCHITECTURE, images, haystackConfig }, null, 2) + '\n';
   writeFileSync(join(root, name), bytes);
   writeFileSync(join(root, name + '.sha256'), `${createHash('sha256').update(bytes).digest('hex')}  ${name}\n`);
   if (RELEASE_TAG) execFileSync('gh', ['release', 'upload', RELEASE_TAG, join(root, name), join(root, name + '.sha256'), '--repo', REPOSITORY], { stdio: 'inherit' });

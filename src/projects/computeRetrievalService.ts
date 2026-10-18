@@ -63,7 +63,7 @@ export function computeRetrievalService(options: { root: string; python: string;
           const models = opened.models;
           binding = await createHaystackRetrievalBinding({ authority, corpus, python: options.python,
             runtimeSha256: models.runtimeSha256, settings: models.mode === 'bm25' ? { mode: 'bm25' }
-              : { mode: models.mode, queryPrefix: models.queryPrefix, embeddingRevision: models.embeddingRevision,
+              : { mode: models.mode, queryPrefix: models.queryPrefix, documentPrefix: models.documentPrefix, embeddingRevision: models.embeddingRevision,
                 rerankerRevision: models.rerankerRevision, embeddingPath: options.embeddingPath, rerankerPath: options.rerankerPath },
             context, cacheDbPath: options.cachePath, cacheMaxDatabaseBytes: 256 * 1024 ** 2 });
           return { method: command.method, value: null };

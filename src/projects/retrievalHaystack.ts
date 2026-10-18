@@ -124,7 +124,7 @@ export async function createHaystackRetrievalBinding(input: {
     }
     if (settings.mode === 'hybrid-rerank' && scope.kind === 'tenant' && input.cacheDbPath && input.runtimeSha256) {
       try { cache = new ProjectEmbeddingCache(input.cacheDbPath, scope.orgId, scope.projectId,
-        retrievalEncoderKey(settings.embeddingRevision, input.runtimeSha256),
+        retrievalEncoderKey(settings.embeddingRevision, input.runtimeSha256, settings.documentPrefix),
         input.cacheMaxDatabaseBytes ? { maxDatabaseBytes: input.cacheMaxDatabaseBytes } : undefined); }
       catch { /* A cache fault never removes project search. */ }
     }

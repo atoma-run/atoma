@@ -11,6 +11,9 @@ import { ProjectRetrievalLaunchStore } from '../src/projects/retrievalLaunch.js'
 import { computeRetrievalService } from '../src/projects/computeRetrievalService.js';
 import { openProjectRunComputeRetrieval } from '../src/projects/computeRetrieval.js';
 import { createProjectRetrievalTool } from '../src/tools/projectRetrieval.js';
+import modelLock from '../docker/compute-models.lock.json' with { type: 'json' };
+import languages from './fixtures/compute-retrieval-languages.json' with { type: 'json' };
+import { SUPPORTED_LOCALES } from '../src/contracts/locales.js';
 import type { ComputeRetrievalCommand, ComputeRetrievalReply } from '../src/contracts/computeRetrieval.js';
 
 let root: string;
@@ -18,9 +21,11 @@ beforeEach(() => { root = realpathSync(mkdtempSync(join(tmpdir(), 'compute-retri
 afterEach(() => { closeStoreHandles(); rmSync(root, { recursive: true, force: true }); });
 
 async function fixture(tamper?: (reply: ComputeRetrievalReply) => unknown,
-  remoteRuntime?: { config: ReturnType<typeof haystackTestRuntime>; send: (command: ComputeRetrievalCommand) => Promise<ComputeRetrievalReply> }) {
+  remoteRuntime?: { config: ReturnType<typeof haystackTestRuntime>; send: (command: ComputeRetrievalCommand) => Promise<ComputeRetrievalReply> }, multilingual = false) {
   const f = projectRetrievalFixture(root);
   const source = f.makeRun({ 'pricing.pdf': readFileSync(new URL('./fixtures/retrieval-documents/pricing.pdf', import.meta.url)),
+    ...(multilingual ? Object.fromEntries(Object.entries(languages).flatMap(([locale, entries]) =>
+      entries.slice(1).map((text, i) => [`languages/${locale}/${i}.txt`, text]))) : {}),
     'broken.pdf': 'not a PDF', 'docs/terms.md': '# Terms\nAnnual price: 190 euros.\n' });
   openStoreHandle(f.dbPath, '').prepare('UPDATE projects SET execution_target_json=? WHERE project_id=?')
     .run(JSON.stringify({ kind: 'customer-device', deviceId: randomUUID() }), f.project.projectId);
@@ -115,13 +120,26 @@ for (const mode of ['bm25', 'hybrid-rerank'] as const) it.skipIf(!process.env['A
         '-e', "process.stdout.write(require('node:fs').readFileSync('/models/models.json','utf8'))"])) as { mode: 'hybrid-rerank'; embeddingRevision: string; rerankerRevision: string; queryPrefix: string },
         embeddingPath: '/no-host-embedding', rerankerPath: '/no-host-reranker' };
       const f = await fixture(undefined, { config: { python: '/no-host-python', runtimeSha256: identity.sha256, settings },
-        send: command => runtime.retrievalCommand(command) });
+        send: command => runtime.retrievalCommand(command) }, mode === 'hybrid-rerank');
       const tool = createProjectRetrievalTool(f.prepared.binding, { signal: new AbortController().signal, deadlineAt: Date.now() + 120_000 });
       try {
         await f.prepared.prepare({ signal: new AbortController().signal, deadlineAt: Date.now() + 120_000 });
         const result = await tool.execute({ query: 'annual price' });
         expect(result.ok).toBe(true);
         if (result.ok) expect(result.passages.some(p => p.path === 'pricing.pdf')).toBe(true);
+        if (mode === 'hybrid-rerank') {
+          expect(Object.keys(languages).sort()).toEqual([...SUPPORTED_LOCALES].sort());
+          expect([...modelLock.languages].sort()).toEqual([...SUPPORTED_LOCALES].sort());
+          expect(settings).toMatchObject({ queryPrefix: modelLock.queryPrefix, documentPrefix: modelLock.documentPrefix });
+          for (const [locale, [query]] of Object.entries(languages)) {
+            for (const directory of [locale, 'en']) {
+              const localized = await tool.execute({ query, filters: { directories: [`languages/${directory}`] }, limit: 1 });
+              expect(localized.ok, `${locale} -> ${directory}`).toBe(true);
+              if (localized.ok) expect(localized.passages[0]?.path, `${locale} -> ${directory}`).toBe(`languages/${directory}/0.txt`);
+              console.info(`Multilingual retrieval passed: ${locale} -> ${directory}`);
+            }
+          }
+        }
         const containers = docker(['ps', '-q', '--filter', `label=dev.atoma.compute=${machineId}`, '--filter', 'label=dev.atoma.compute.kind=retrieval']);
         const inspect = JSON.parse(docker(['inspect', containers])) as { HostConfig: { NetworkMode: string; ReadonlyRootfs: boolean }; Mounts: { Destination: string; Type: string }[] }[];
         expect(inspect[0]?.HostConfig).toMatchObject({ NetworkMode: 'none', ReadonlyRootfs: true });

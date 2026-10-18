@@ -8,7 +8,7 @@ export const computeRetrievalModelsSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('bm25'), runtimeSha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   z.object({ mode: z.literal('hybrid-rerank'), runtimeSha256: z.string().regex(/^[a-f0-9]{64}$/),
     embeddingRevision: z.string().regex(/^[a-f0-9]{64}$/), rerankerRevision: z.string().regex(/^[a-f0-9]{64}$/),
-    queryPrefix: z.string().max(1000) }).strict(),
+    documentPrefix: z.string().max(1000).optional(), queryPrefix: z.string().max(1000) }).strict(),
 ]);
 export const computeRetrievalCommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('open'), scope: projectRetrievalScopeSchema,

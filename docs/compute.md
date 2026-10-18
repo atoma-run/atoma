@@ -110,6 +110,8 @@ Route WSS upgrades for `/compute/v1` through the same public origin.
 `ATOMA_COMPUTE_HAYSTACK_CONFIG` selects the client retrieval runtime/model
 identities; when absent, `ATOMA_HAYSTACK_CONFIG` is reused. Its runtime identity
 must match the retrieval image, not a different server Python installation.
+The published receipt includes a ready-to-use `haystackConfig` value for this
+environment variable; use the receipt matching the device architecture.
 Client model paths are fixed at `/models/embedding` and `/models/reranker`.
 Provider keys, GitHub credentials and customer MCP credentials stay on Atoma.
 
@@ -131,8 +133,26 @@ deploying the application; the workflow retains digest receipts as artifacts.
 Native Linux validation does
 not replace macOS Docker Desktop or Windows/WSL2 acceptance.
 
-The base retrieval image supports BM25. To build a hybrid image from already
-provisioned local models, run after `npm run build`:
+Published retrieval images include pinned multilingual E5-small embeddings and
+mMARCO MiniLMv2 reranking models. They support hybrid search offline across all
+13 Atoma locales (ar, bn, de, en, es, fr, hi, id, ja, pt, ru, ur, zh), including
+queries and documents in different languages. This is language coverage, not a
+claim of equal retrieval quality in each language. BM25 remains selectable.
+Models, source revisions, checksums and licenses are recorded in
+`docker/compute-models.lock.json`; the image retains model cards and licenses.
+The build downloads weights, but runtime execution cannot access the network.
+E5 uses `query: ` for questions and `passage: ` for documents; both prefixes
+must match the model receipt. Document prefix changes invalidate cached vectors.
+
+To reproduce the distributed models after `npm run build`:
+
+```sh
+python3 scripts/download-compute-models.py
+node scripts/build-compute-models.mjs --embedding dist/compute-model-downloads/embedding \
+  --reranker dist/compute-model-downloads/reranker --query-prefix 'query: ' --document-prefix 'passage: '
+```
+
+To build a custom hybrid image from already provisioned local models:
 
 ```sh
 node scripts/build-compute-models.mjs --embedding /absolute/models/embedding \

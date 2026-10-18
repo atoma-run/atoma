@@ -81,6 +81,7 @@ def main():
                             if not os.path.isabs(settings[key]) or not os.path.isdir(settings[key]):
                                 raise ValueError("model files are not provisioned locally")
                         embedder = SentenceTransformersDocumentEmbedder(model=settings["embeddingPath"], progress_bar=False,
+                                                                         prefix=settings.get("documentPrefix", ""),
                                                                          device=ComponentDevice.from_str("cpu"),
                                                                          local_files_only=True, trust_remote_code=False)
                         embedder.warm_up()

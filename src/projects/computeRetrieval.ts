@@ -70,7 +70,7 @@ export function openProjectRunComputeRetrieval(input: Parameters<typeof openProj
         const settings = config.settings;
         await call({ method: 'open', scope: source.scope, manifest: source.manifest, header: snapshot.header,
           models: settings.mode === 'bm25' ? { mode: 'bm25', runtimeSha256: config.runtimeSha256 }
-            : { mode: settings.mode, runtimeSha256: config.runtimeSha256, queryPrefix: settings.queryPrefix,
+            : { mode: settings.mode, runtimeSha256: config.runtimeSha256, queryPrefix: settings.queryPrefix, documentPrefix: settings.documentPrefix,
               embeddingRevision: settings.embeddingRevision, rerankerRevision: settings.rerankerRevision } });
         for await (const frame of snapshot.frames()) {
           assertRetrievalTime(context);

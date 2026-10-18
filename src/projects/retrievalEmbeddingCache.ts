@@ -18,9 +18,9 @@ const MAX_TOTAL_BYTES = 256 * 1024 * 1024;
 const MAX_VECTOR_BYTES = 4096 * 4;
 
 /** A content-derived key; the query prefix and reranker do not encode documents. */
-export function retrievalEncoderKey(embeddingRevision: string, runtimeSha256: string): string {
+export function retrievalEncoderKey(embeddingRevision: string, runtimeSha256: string, documentPrefix = ''): string {
   return projectRetrievalHash(JSON.stringify(['dense-document-v1', embeddingRevision, runtimeSha256,
-    'sentence-transformers', 'torch', 'cpu', 'float32', 'default-prefix-suffix-and-normalization']));
+    'sentence-transformers', 'torch', 'cpu', 'float32', 'default-suffix-and-normalization', documentPrefix]));
 }
 
 function validVector(vector: Buffer, dimension: number): boolean {

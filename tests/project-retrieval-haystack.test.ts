@@ -96,14 +96,14 @@ describe('experimental Haystack host boundary', () => {
     const dbPath = join(root, 'product.db');
     const python = executable('cache');
     const bindCorpus = async (files: Record<string, string>, snapshotId: string, projectId = 'project-a',
-      child = python) => {
+      child = python, documentPrefix?: string) => {
       const first = await prepareTestCorpus(root, files);
       const corpus = await prepareProjectRetrievalCorpus(root, { ...first.manifest, snapshotId }, retrievalContext());
       const scope = corpusScope(corpus, { runId: snapshotId, projectId, snapshotId, generation: corpus.generation });
       const authority: ProjectRetrievalBinding = { scope, service: {
         authorize: async () => true, search: async () => ({ ok: false, status: 'unavailable' }), dispose: async () => {},
       } };
-      const binding = await createHaystackRetrievalBinding({ authority, corpus, python: child, settings,
+      const binding = await createHaystackRetrievalBinding({ authority, corpus, python: child, settings: { ...settings, ...(documentPrefix === undefined ? {} : { documentPrefix }) },
         runtimeSha256: 'f'.repeat(64), cacheDbPath: dbPath, context: retrievalContext() });
       owned.push(binding);
       return { corpus, binding };
@@ -130,8 +130,11 @@ describe('experimental Haystack host boundary', () => {
     const rejected = await bindCorpus({ 'price.md': 'Annual price is 190 euros.\n', 'support.md': 'Contact the desk.\n' },
       'snapshot-e', 'project-a', executable('cache-reject'));
     await rejected.binding.service.dispose();
+    const prefixed = await bindCorpus({ 'price.md': 'Annual price is 190 euros.\n', 'support.md': 'Contact the desk.\n' },
+      'snapshot-prefix', 'project-a', python, 'passage: ');
+    await prefixed.binding.service.dispose();
     const calls = readFileSync(join(root, 'cache-calls.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
-    expect(calls.map(call => [call.computed, call.cached])).toEqual([[2, 0], [0, 2], [1, 1], [2, 0], [2, 0], [2, 0]]);
+    expect(calls.map(call => [call.computed, call.cached])).toEqual([[2, 0], [0, 2], [1, 1], [2, 0], [2, 0], [2, 0], [2, 0]]);
     expect(readFileSync(join(root, 'cache-rejections'), 'utf8')).toBe('rejected\n');
     expect(calls[0].inputs).toEqual(calls[1].inputs);
     expect(calls[1].inputs).toContain(retrievalEmbeddingText(second.corpus.passages[0]!));

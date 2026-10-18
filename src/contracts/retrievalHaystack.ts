@@ -10,7 +10,7 @@ const localPath = z.string().min(1).refine(isAbsolute, 'expected a host absolute
 export const haystackSettingsSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('bm25') }).strict(),
   z.object({ mode: z.literal('hybrid-rerank'), embeddingPath: localPath, rerankerPath: localPath,
-    queryPrefix: z.string().max(1000),
+    documentPrefix: z.string().max(1000).optional(), queryPrefix: z.string().max(1000),
     embeddingRevision: projectDocumentDigestSchema, rerankerRevision: projectDocumentDigestSchema }).strict(),
 ]);
 export const HAYSTACK_LAUNCH_ENV = 'ATOMA_HAYSTACK_CONFIG';
