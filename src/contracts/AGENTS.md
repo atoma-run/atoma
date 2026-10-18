@@ -25,7 +25,9 @@ encoding instead of inventing a second snapshot identity.
 Lifecycle commands use launcher-bound seed/read-run sources, never request paths.
 Import handles are service-local and exclusive with live guards/exports; a lost
 commit acknowledgement never authorizes replay. Error details are bounded and
-untrusted diagnostics, not executable instructions.
+untrusted diagnostics, not executable instructions. Source selectors carry only
+a seed discriminator or an authorized reference id. Artifact exports share the
+chunk channel but carry the publication inventory for independent byte validation.
 
 ## Schemas and examples
 

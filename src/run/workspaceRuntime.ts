@@ -9,6 +9,7 @@ import { snapshotDeliveredWorkspace, snapshotStartingWorkspace, prepareWorkspace
 import { readInheritedWorkspaceState, rewriteManifest } from './inheritedChecks.js';
 import { captureCheckpointExport } from './checkpointExport.js';
 import { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
+import { captureArtifactExport } from './artifactTransfer.js';
 import { WorkspaceImport } from './workspaceImport.js';
 import { captureReadRunCopies, checkReadRunCopies, compareReadRunFiles, ensureReadRunMountPoint, legacyReadRunCopy,
   materialiseReadRuns, removeReadRunCopies, type ReadRunCopyIdentities } from './readRuns.js';
@@ -21,6 +22,7 @@ export function localWorkspaceRuntime(options: {
   log: (line: string) => void;
 }): WorkspaceRuntime {
   let identities: ReadRunCopyIdentities | undefined;
+  let prepared = false;
   const validateSources = async () => {
     if (options.seedRoot && !existsSync(options.seedRoot)) throw new Error(`--seed: no such directory: ${options.seedRoot}`);
   };
@@ -38,10 +40,20 @@ export function localWorkspaceRuntime(options: {
     mkdirSync(options.root, { recursive: true });
   };
   return {
-    importWorkspace: async (header, archive) => new WorkspaceImport(options.root, header, archive),
+    artifactExport: async input => captureArtifactExport(options.root, input),
+    importSource: async (source, header) => {
+      if (prepared) throw new Error('Workspace sources are frozen after preparation');
+      const target = source.kind === 'seed' ? options.seedRoot
+        : options.readRuns?.readRuns.find(run => run.runId === source.runId)?.workspacePath;
+      if (!target) throw new Error('Workspace source is not authorized');
+      if (existsSync(target)) throw new Error('Workspace source already exists');
+      return new WorkspaceImport(target, header, false);
+    },
+    importWorkspace: async (header, archive) => { prepared = true; return new WorkspaceImport(options.root, header, archive); },
     validateSources,
-    prepare: async clean => { await validateSources(); prepareWorkspace(options.root, clean, options.log); seed(); },
+    prepare: async clean => { prepared = true; await validateSources(); prepareWorkspace(options.root, clean, options.log); seed(); },
     restart: async () => {
+      prepared = true;
       // Archive first. A disappeared seed must leave the first attempt intact.
       const archived = prepareWorkspace(options.root, true, options.log);
       if (options.readRuns && archived) {

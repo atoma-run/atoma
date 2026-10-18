@@ -219,8 +219,18 @@ Neighbours:
   `startTask` accepts a trusted `workspaceRuntime` injection whose caller owns
   teardown. Preparation, bound-source seeding, read-run copies and deepening
   execute in that service. `createToolBackend` is the matching internal seam;
-  connector and budget wrappers still belong to the host. Source provisioning,
-  project continuation identity and final export still need device integration.
+  connector and budget wrappers still belong to the host. Source provisioning and
+  artifact transfers use this private channel; device admission, project
+  continuation identity and coordinator finalization still need integration.
+- Source imports select only a launcher-bound seed or referenced run id, never a
+  path. Existing sources cannot be replaced; preparation/restoration freezes
+  imports. The launcher must keep sources outside every tool mount.
+- Artifact exports reuse the publication inventory, path jail and stable reads;
+  private spools contain no excluded dependency or secret-like paths. The host
+  receiver rejects unlisted entries and revalidates every byte before renaming
+  its private staging tree. This does not approve a delivery: the coordinator
+  must confirm process exit first and commit its existing delivery transaction
+  only after transfer success. It must retain pending finalization on disconnect.
 - Photographs and read-run inode identities stay in the workspace service.
   Restore acknowledgements are never replayed after a transport failure.
   The shipped bundle is `dist/workspace-service/service.mjs`, built from

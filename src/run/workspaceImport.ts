@@ -2,7 +2,13 @@ import { CHECKPOINT_CHUNK_BYTES, checkpointTransferEntrySchema, checkpointTransf
   type CheckpointTransferEntry, type CheckpointTransferHeader } from '../contracts/checkpointTransfer.js';
 import { CheckpointWorkspaceWriter } from './checkpointWorkspace.js';
 import type { CheckpointExport } from '../contracts/checkpointTransfer.js';
-import type { WorkspaceRuntime, WorkspaceRestoration } from '../contracts/workspaceRuntime.js';
+import type { WorkspaceRuntime, WorkspaceRestoration, WorkspaceSource } from '../contracts/workspaceRuntime.js';
+
+/** Source ids resolve only against launcher-owned bindings on the receiving host. */
+export async function provisionWorkspaceSource(workspace: Pick<WorkspaceRuntime, 'importSource'>,
+  source: WorkspaceSource, exporting: CheckpointExport): Promise<void> {
+  await restoreWorkspaceExport({ importWorkspace: header => workspace.importSource(source, header) }, exporting, false);
+}
 
 export async function restoreWorkspaceExport(workspace: Pick<WorkspaceRuntime, 'importWorkspace'>,
   exporting: CheckpointExport, archive: boolean): Promise<void> {

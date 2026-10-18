@@ -3,7 +3,20 @@ import type { ReadRunCopyCheck, ReadRunFileComparisons } from './readRuns.js';
 import type { DeliveredSnapshot, StartingSnapshot } from './startingWorkspace.js';
 import type { RoutingRepository } from './tissueRouting.js';
 import { z } from 'zod';
-import type { CheckpointTransferEntry, CheckpointTransferHeader } from './checkpointTransfer.js';
+import { deliveryKindSchema } from './taskExecution.js';
+import type { ArtifactManifest } from './artifactInventory.js';
+import type { CheckpointExport, CheckpointTransferEntry, CheckpointTransferHeader } from './checkpointTransfer.js';
+
+export const workspaceSourceSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('seed') }).strict(),
+  z.object({ kind: z.literal('read-run'), runId: z.string().uuid() }).strict(),
+]);
+export type WorkspaceSource = z.infer<typeof workspaceSourceSchema>;
+export const artifactExportOptionsSchema = z.object({
+  delivery: deliveryKindSchema.optional(), allowEmpty: z.boolean(),
+}).strict();
+export type ArtifactExportOptions = z.infer<typeof artifactExportOptionsSchema>;
+export interface ArtifactExport extends CheckpointExport { readonly manifest: ArtifactManifest }
 
 export interface WorkspaceRestoration {
   begin(entry: CheckpointTransferEntry): void | Promise<void>;
@@ -31,6 +44,8 @@ export type RuntimePhaseGuard = ReadOnlyPhaseGuard | Awaited<ReturnType<AsyncRea
 
 /** All identities and photographs stay on the filesystem's execution host. */
 export interface WorkspaceRuntime {
+  importSource(source: WorkspaceSource, header: CheckpointTransferHeader): Promise<WorkspaceRestoration>;
+  artifactExport(options: ArtifactExportOptions): Promise<ArtifactExport>;
   importWorkspace(header: CheckpointTransferHeader, archive: boolean): Promise<WorkspaceRestoration>;
   /** Sources are bound by the launcher, never supplied by a model command. */
   validateSources(): Promise<void>;

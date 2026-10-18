@@ -23,7 +23,9 @@ export function workspaceCommandHandler(runtime: WorkspaceRuntime): ((input: unk
     switch (command.method) {
       case 'import-open': {
         if (guards.size || exports.size) throw new Error('Workspace control operation is still active');
-        const receiver = await runtime.importWorkspace(command.header, command.archive);
+        if (command.source && command.archive) throw new Error('Source replacement is forbidden');
+        const receiver = command.source ? await runtime.importSource(command.source, command.header)
+          : await runtime.importWorkspace(command.header, command.archive);
         const handle = randomUUID();
         imports.set(handle, { receiver, expiresAt: Date.now() + 30 * 60_000 });
         return { method: command.method, value: handle };
@@ -56,6 +58,13 @@ export function workspaceCommandHandler(runtime: WorkspaceRuntime): ((input: unk
       case 'ensure-read-runs': return { method: command.method, value: await runtime.ensureReadRuns() };
       case 'canonical-path': return { method: command.method, value: await runtime.canonicalPath() };
       case 'checkpoint-digest': return { method: command.method, value: await runtime.checkpointDigest() };
+      case 'artifact-open': {
+        if (exports.size || guards.size) throw new Error('Workspace control operation is still active');
+        const snapshot = await runtime.artifactExport(command.options);
+        const handle = randomUUID();
+        exports.set(handle, { snapshot, frames: snapshot.frames(), expiresAt: Date.now() + 30 * 60_000 });
+        return { method: command.method, value: { handle, header: snapshot.header, manifest: snapshot.manifest } };
+      }
       case 'checkpoint-open': {
         if (exports.size) throw new Error('A checkpoint export is already active');
         const snapshot = await runtime.checkpointExport();
@@ -119,37 +128,7 @@ export function remoteWorkspaceRuntime(send: (command: WorkspaceCommand) => Prom
     if (reply.method !== command.method) throw new Error('Workspace response method mismatch');
     return reply.value as ReplyValues[C['method']];
   }
-  const restorations: ReadOnlyRestoration[] = [];
-  return {
-    importWorkspace: async (header, archive) => {
-      const handle = await call({ method: 'import-open', header, archive });
-      let finished = false;
-      return {
-        begin: async entry => {
-          if (finished) throw new Error('Workspace import is closed');
-          await call({ method: 'import-frame', handle, frame: { kind: 'entry', entry } });
-        },
-        append: async (offset, bytes) => {
-          if (finished) throw new Error('Workspace import is closed');
-          await call({ method: 'import-frame', handle, frame: { kind: 'chunk', offset, data: Buffer.from(bytes).toString('base64') } });
-        },
-        finish: async () => {
-          if (finished) throw new Error('Workspace import is closed');
-          finished = true; // A lost commit acknowledgement must never be retried.
-          await call({ method: 'import-frame', handle, frame: { kind: 'end' } });
-        },
-        abort: async () => { finished = true; await call({ method: 'import-abort', handle }); },
-      };
-    },
-    validateSources: async () => { await call({ method: 'validate-sources' }); },
-    prepare: async clean => { await call({ method: 'prepare', clean }); },
-    restart: async () => { await call({ method: 'restart' }); },
-    startingSnapshot: () => call({ method: 'starting-snapshot' }),
-    ensureReadRuns: () => call({ method: 'ensure-read-runs' }),
-    canonicalPath: () => call({ method: 'canonical-path' }),
-    checkpointDigest: () => call({ method: 'checkpoint-digest' }),
-    checkpointExport: async () => {
-      const { handle, header } = await call({ method: 'checkpoint-open' });
+  const exporting = ({ handle, header }: ReplyValues['checkpoint-open']): CheckpointExport => {
       let closed = false;
       let started = false;
       const close = async () => {
@@ -168,7 +147,42 @@ export function remoteWorkspaceRuntime(send: (command: WorkspaceCommand) => Prom
           }
         } finally { await close(); }
       } };
+  };
+  const restorations: ReadOnlyRestoration[] = [];
+  const importing = (handle: string): WorkspaceRestoration => {
+      let finished = false;
+      return {
+        begin: async entry => {
+          if (finished) throw new Error('Workspace import is closed');
+          await call({ method: 'import-frame', handle, frame: { kind: 'entry', entry } });
+        },
+        append: async (offset, bytes) => {
+          if (finished) throw new Error('Workspace import is closed');
+          await call({ method: 'import-frame', handle, frame: { kind: 'chunk', offset, data: Buffer.from(bytes).toString('base64') } });
+        },
+        finish: async () => {
+          if (finished) throw new Error('Workspace import is closed');
+          finished = true; // A lost commit acknowledgement must never be retried.
+          await call({ method: 'import-frame', handle, frame: { kind: 'end' } });
+        },
+        abort: async () => { finished = true; await call({ method: 'import-abort', handle }); },
+      };
+  };
+  return {
+    importSource: async (source, header) => importing(await call({ method: 'import-open', header, archive: false, source })),
+    importWorkspace: async (header, archive) => importing(await call({ method: 'import-open', header, archive })),
+    artifactExport: async options => {
+      const opened = await call({ method: 'artifact-open', options });
+      return { ...exporting(opened), manifest: opened.manifest };
     },
+    validateSources: async () => { await call({ method: 'validate-sources' }); },
+    prepare: async clean => { await call({ method: 'prepare', clean }); },
+    restart: async () => { await call({ method: 'restart' }); },
+    startingSnapshot: () => call({ method: 'starting-snapshot' }),
+    ensureReadRuns: () => call({ method: 'ensure-read-runs' }),
+    canonicalPath: () => call({ method: 'canonical-path' }),
+    checkpointDigest: () => call({ method: 'checkpoint-digest' }),
+    checkpointExport: async () => exporting(await call({ method: 'checkpoint-open' })),
     inheritedState: () => call({ method: 'inherited-state' }),
     replaceManifest: (text, expected) => call({ method: 'replace-manifest', text, expected }),
     routingRepository: () => call({ method: 'routing' }),

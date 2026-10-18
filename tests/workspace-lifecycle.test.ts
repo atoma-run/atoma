@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpath
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { startWorkspaceProcess } from '../src/run/workspaceProcess.js';
+import { receiveArtifactExport } from '../src/run/artifactTransfer.js';
 import { captureCheckpointExport } from '../src/run/checkpointExport.js';
 import { restoreWorkspaceExport } from '../src/run/workspaceImport.js';
 import { startTask, resetHostLifecycleSnapshotForTests } from '../src/run/runner.js';
@@ -125,4 +126,8 @@ it('runs the real runner with a host workspace path that cannot contain files', 
   try { await handle.settled; } finally { await handle.shutdown(); }
   expect(readFileSync(hostPath, 'utf8')).toBe('host sentinel');
   expect(readFileSync(join(workspace, 'result.txt'), 'utf8')).toBe('client result');
+  // The control service outlives tool shutdown and exports the final bytes.
+  const delivery = join(root, 'saved-delivery');
+  await receiveArtifactExport(await runtime.artifactExport({ allowEmpty: false }), delivery);
+  expect(readFileSync(join(delivery, 'result.txt'), 'utf8')).toBe('client result');
 });

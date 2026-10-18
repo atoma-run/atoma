@@ -32,6 +32,12 @@ trust without independent platform-controlled verification.
 - A trusted backend factory seam, with a mocked-model runner test whose host
   workspace path is a regular sentinel file while the execution host builds
   into its own directory. This does not implement a network tool transport.
+- Source provisioning through typed seed/reference selectors, resolving only
+  launcher-bound destinations and refusing replacement or imports after prepare.
+- Artifact export from a private filtered snapshot, with publication-policy
+  parity and independent receiving-host hash/mode/inventory validation. A
+  partial or invalid transfer never exposes the final directory. The real-runner
+  test exports after tool shutdown while its workspace service remains alive.
 
 This is groundwork, NOT a usable customer-device execution target. The default
 runner still uses the local workspace implementation. There is no desktop app,
@@ -39,8 +45,9 @@ remote device admission, customer WSS endpoint, or claim of resource savings.
 
 ## Remaining integration, in dependency order
 
-1. Provision the bound seed/read-run sources over authenticated transfers and
-   implement final artifact export. Bind project continuation identity to a
+1. Bind source/artifact transfers to authenticated device admission and the
+   project coordinator. Keep finalization pending until all bytes are verified,
+   and retain confirmed process-stop evidence. Bind project continuation identity to a
    device generation; operator checkpoint tests currently exercise the same
    execution-host path across process restarts. A new project continuation's
    source validation still needs its device binding.
@@ -60,6 +67,15 @@ remote device admission, customer WSS endpoint, or claim of resource savings.
 
 ## Local evidence
 
+Source/artifact transfer tests cover launcher-bound reference rejection,
+preparation/deepening after removing the server source, client-side reference
+identity checks, filtered private exports, false hashes, unlisted files,
+interrupted delivery, empty text delivery and transfer after tool shutdown.
+The container smoke provisions a private source through RPC and exports final
+artifacts from the packaged service. Device authentication and persistent
+finalization recovery are not established by these private-channel tests.
+
+
 The container smoke drives the packaged service in one container and modifies
 its Linux volume from another. The service restores the original file and
 neither workload receives a Docker socket or host-directory mount. Its image
@@ -77,11 +93,12 @@ Imports leave the old target intact until validation and clean their private
 directory on a controlled disconnect. Docker archives a child of its volume,
 while the tool container sees only that child's subpath.
 
-Release verification after lifecycle/restoration integration: the static half
+Release verification after source/artifact transfer integration: the static half
 (`release:check:static`) passed, including types, lint, documentation, audit,
-build and compiled release smokes. The complete test half passed 7,476 tests
-in 512 files; 10 tests were skipped. Both images were rebuilt from packaged
-output under isolated tags. The run included all 36 worker container-isolation
+build and compiled release smokes. The complete test half passed 7,488 tests
+in 513 files; 10 tests were skipped. The workspace image was rebuilt from packaged output under its isolated tag;
+its service bundle hash matches the final build exactly. The unchanged worker
+uses the previously verified isolated image. The run included all 36 worker container-isolation
 tests and the workspace container smoke, with `ATOMA_TEST_ACCEPTANCE_IMAGE`
 and `ATOMA_TEST_WORKSPACE_IMAGE` explicitly selecting those images. This
 supersedes the first foundation check's failures against a stale local image.

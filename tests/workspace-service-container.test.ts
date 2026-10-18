@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
-import { randomUUID } from 'node:crypto';
+import { hashCheckpointEntry } from '../src/run/checkpointWorkspace.js';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createInterface } from 'node:readline';
@@ -15,6 +16,7 @@ it.skipIf(!image)('restores changes made by a separate container on a Linux volu
   await execute('docker', ['volume', 'create', volume]);
   const child = spawn('docker', ['run', '--rm', '-i', '--name', name, '--network', 'none',
     '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
+    '--env', 'ATOMA_WORKSPACE_SEED=/snapshots/seed',
     '--memory', '256m', '--memory-swap', '256m', '--cpus', '1', '--pids-limit', '64',
     '--mount', `type=volume,src=${volume},dst=/workspace`,
     '--mount', `type=volume,src=${snapshots},dst=/snapshots`, image!], { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -36,8 +38,21 @@ it.skipIf(!image)('restores changes made by a separate container on a Linux volu
     '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--mount', `type=volume,src=${volume},dst=/workspace,volume-subpath=current`,
     '--entrypoint', 'node', image!, '-e', code], { timeout: 15_000 })).stdout;
   try {
+    const seedBytes = Buffer.from('provisioned source');
+    const digest = createHash('sha256');
+    hashCheckpointEntry(digest, { path: 'seed.txt', kind: 'file', mode: 0o100644, content: seedBytes });
+    const importing = await call({ method: 'import-open', source: { kind: 'seed' }, archive: false,
+      header: { digest: digest.digest('hex'), rootMode: 0o755 } });
+    if (importing.method !== 'import-open') throw new Error('Wrong response');
+    await call({ method: 'import-frame', handle: importing.value,
+      frame: { kind: 'entry', entry: { path: 'seed.txt', kind: 'file', mode: 0o100644, size: seedBytes.length } } });
+    await call({ method: 'import-frame', handle: importing.value,
+      frame: { kind: 'chunk', offset: 0, data: seedBytes.toString('base64') } });
+    await call({ method: 'import-frame', handle: importing.value, frame: { kind: 'end' } });
     await call({ method: 'prepare', clean: false });
     await call({ method: 'routing' });
+    expect(await mutate("process.stdout.write(require('node:fs').readFileSync('/workspace/seed.txt'))")).toBe('provisioned source');
+    expect(await mutate("process.stdout.write(String(require('node:fs').existsSync('/snapshots/seed')))")).toBe('false');
     await mutate("require('node:fs').writeFileSync('/workspace/README.md', 'original')");
     const began = await call({ method: 'begin-read-only', phase: 'Inspect', attempt: 1 });
     if (began.method !== 'begin-read-only') throw new Error('Wrong response');
@@ -59,7 +74,14 @@ it.skipIf(!image)('restores changes made by a separate container on a Linux volu
     expect(await mutate("process.stdout.write(String(require('node:fs').existsSync('/workspace/README.md')))")).toBe('false');
     // A volume mount itself cannot be renamed. The service archives its child,
     // while tools only ever receive that child's subpath, never its siblings.
-    await mutate("require('node:fs').writeFileSync('/workspace/new.txt', 'second attempt')");
+    await mutate("require('node:fs').writeFileSync('/workspace/new.txt', 'second attempt'); require('node:fs').writeFileSync('/workspace/.env', 'private')");
+    const artifacts = await call({ method: 'artifact-open', options: { allowEmpty: false } });
+    if (artifacts.method !== 'artifact-open') throw new Error('Wrong response');
+    expect(artifacts.value.manifest.files.map(file => file.path)).toEqual(['new.txt', 'seed.txt']);
+    await call({ method: 'checkpoint-next', handle: artifacts.value.handle });
+    expect(await call({ method: 'checkpoint-next', handle: artifacts.value.handle }))
+      .toMatchObject({ value: { kind: 'chunk', data: Buffer.from('second attempt').toString('base64') } });
+    await call({ method: 'checkpoint-close', handle: artifacts.value.handle });
   } finally {
     await execute('docker', ['rm', '-f', name]).catch(() => undefined);
     await closed;
