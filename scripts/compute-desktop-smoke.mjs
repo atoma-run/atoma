@@ -21,6 +21,7 @@ if(data.command.action==='drain') state={...state,accepting:false};
 if(data.command.action==='disconnect') state={...state,connected:false,phase:'idle'};
 send();process.parentPort.postMessage({kind:'reply',id:data.id,ok:true}); });send();`);
 await writeFile(harness, `const {app,BrowserWindow}=require('electron');const assert=require('node:assert/strict');const fs=require('node:fs/promises');const path=require('node:path');const os=require('node:os');
+if(process.env.CI)app.disableHardwareAcceleration();
 app.setPath('userData',${JSON.stringify(profile)});app.commandLine.appendSwitch('lang','en-US');
 process.argv.push('--compute-smoke');require('./main.cjs');
 (async()=>{await app.whenReady();let w;

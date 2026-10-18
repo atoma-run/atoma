@@ -71,7 +71,11 @@ jobs:
       - run: node scripts/compute-desktop-smoke.mjs
       - name: Package native installer
         shell: bash
-        run: npx electron-builder --config desktop/electron-builder.cjs --${{ matrix.platform }} --${{ matrix.architecture }} --publish never
+        run: |
+          if [[ "$ATOMA_COMPUTE_SIGNED" != 1 ]]; then
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER
+          fi
+          npx electron-builder --config desktop/electron-builder.cjs --${{ matrix.platform }} --${{ matrix.architecture }} --publish never
       - name: Remove notarization key
         if: always() && matrix.platform == 'mac'
         shell: bash

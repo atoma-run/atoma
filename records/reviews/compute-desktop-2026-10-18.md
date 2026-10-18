@@ -59,3 +59,11 @@ The final Mac ARM DMG/ZIP were built, package contents asserted, DMG checksum
 verified, and the actual packaged application opened successfully. Clean CI
 remains the deployment gate; the first full local invocation is not recorded
 as an all-green run.
+
+The first native CI matrix exposed two environment-specific failures: an empty
+CSC_LINK was interpreted as the working directory by electron-builder, and the
+Intel macOS runner's virtual GPU could not initialize EGL for screenshots.
+Unsigned package steps now remove signing environment variables entirely; the
+CI-only smoke selects software rendering while retaining the sandbox and all
+behavioral assertions. The same smoke passed locally with that CI setting.
+Windows passed the application tests and native smoke before packaging.

@@ -342,3 +342,28 @@ French /compute/setup verified in the real production browser. Full prior CI
 39135841616 was green too. MCP health was reachable before deployment, with
 no active runs. The production Attica settings showed Mac de Matthieu Ready,
 project access allowed and selected (observed only; not changed in this task).
+
+## Desktop companion — 2026-10-18
+
+User approved Electron after the CLI-only onboarding proved too technical.
+Implemented in `d72f9c40` (pushed with review/docs as `ed103f08`): sandboxed
+local renderer, separate utility process sharing the CLI lifecycle, four views,
+OS credential reuse, fixed pairing origin, digest-pinned preparation, activity,
+resource/checkpoint display, confirmed shutdown and crash reconciliation.
+Electron embeds Node. Docker Desktop remains required. No local paid run or
+project-access mutation was made. The existing terminal client must be stopped
+before connecting the GUI; the inventory lock prevents competing clients.
+
+Native packaging: Mac ARM DMG/ZIP built locally, eight-file package assertion,
+checksum verified and real packaged application opened. Native GUI smoke uses
+an isolated fake runtime/profile; it covers denied generic IPC, Node isolation,
+pairing/preparation, background close, utility crash/reconnect and quit. Signing
+certificates are still absent (owner previously confirmed). Mac preview is
+ad-hoc signed; no unsigned build may enter the stable update feed.
+
+In progress: GitHub CI 39144034296 and native desktop build 39144044643 on
+`ed103f08`; translation bot will add the new 13-language copy. Rebuild desktop
+artifacts from the translated revision. Follow CI/deployment before claiming
+completion. Local release static checks passed, and 7,617 tests passed; the
+existing MCP listen-stream quota test failed once then passed all 18 tests in
+isolation. Published ARM worker isolation tests passed.
