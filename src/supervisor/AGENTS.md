@@ -95,7 +95,8 @@ Neighbours:
   refusals (capacity, a duplicate, a changed connection), so a start refused
   there still costs the analysis its session; it restarts from scratch.
 - The mender model and checks stay in disposable Docker containers: 4 GiB RAM,
-  no additional swap, one CPU, 512 MiB tmpfs, one Vitest worker. Host Codex is
+  no additional swap, one CPU, 512 MiB tmpfs, one Vitest worker, and no core
+  dumps (`core=0:0`; six retained crashes consumed gigabytes on 2026-10-18). Host Codex is
   text-only and holds a dedicated ChatGPT profile; the harness alone holds the
   GitHub publisher token. Never give containers product state or credentials.
 - Chromium and its libraries live in the mender image, with Puppeteer downloads

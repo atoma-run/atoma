@@ -52,6 +52,7 @@ export const runIsolatedMenderCommand: typeof runCommand = async (spec, extraArg
       ...(options.input !== undefined || options.onLine ? ['--interactive'] : []),
       '--cap-drop=ALL', '--security-opt=no-new-privileges', '--read-only',
       '--pids-limit=512', '--memory=4g', '--memory-swap=4g', '--cpus=1',
+      '--ulimit', 'core=0:0',
       '--user', `${uid}:${gid}`,
       '--tmpfs', '/tmp:rw,nosuid,nodev,exec,size=512m',
       '--mount', `type=bind,src=${options.cwd},dst=/work`,

@@ -47,3 +47,12 @@ refusal; the external target is untouched. The three new regression cases
 failed on the original code. After the fix, 90 seed/inherited-check/mender
 pipeline tests passed, along with both TypeScript configurations, lint and
 documentation checks. CI remains the full release gate.
+
+A follow-up traversal found six ELF core dumps in retained worktrees,
+1.2–2.3 billion bytes each (sparse files consume less allocated storage).
+These are archived with gzip on the separate system volume, with a complete
+decompressed SHA-256 check before each original is unlinked. Their host
+archive directory is `/var/tmp/atoma-core-archives-20261018` (mode 0700).
+Future mender containers set both the soft and hard core limit to zero;
+the existing real container isolation test reads `/proc/self/limits` to
+verify this production boundary. CI builds and tests that container.

@@ -61,6 +61,7 @@ describe.skipIf(process.env['ATOMA_MENDER_CONTAINER_TESTS'] !== '1')('mender con
       const cp = require('node:child_process');
       if (process.env.GH_TOKEN || process.env.GITHUB_TOKEN) process.exit(10);
       if (process.env.VITEST_MAX_WORKERS !== '1') process.exit(21);
+      if (!/^Max core file size +0 +0 +bytes *$/m.test(fs.readFileSync('/proc/self/limits', 'utf8').trim())) process.exit(24);
       if (fs.existsSync('/sys/fs/cgroup/memory.max') && fs.readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim() !== '4294967296') process.exit(22);
       if (fs.existsSync('/sys/fs/cgroup/memory.swap.max') && fs.readFileSync('/sys/fs/cgroup/memory.swap.max', 'utf8').trim() !== '0') process.exit(23);
       if (fs.existsSync(${JSON.stringify(secretPath)})) process.exit(11);
