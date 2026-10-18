@@ -77,6 +77,12 @@ await build({
   sourcemap: true,
 });
 
+await build({
+  entryPoints: [fileURLToPath(new URL('../src/viz/computeCopy.ts', import.meta.url))],
+  outfile: fileURLToPath(new URL('../dist/viz/computeCopy.js', import.meta.url)),
+  bundle: true, packages: 'external', platform: 'node', format: 'esm', target: 'node24', sourcemap: true,
+});
+
 // The viz server serves these exact bytes with Content-Encoding: br. Building
 // them once avoids compressing a multi-megabyte module on the first request.
 const clientDir = fileURLToPath(new URL('../dist/viz/client', import.meta.url));

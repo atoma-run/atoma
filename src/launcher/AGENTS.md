@@ -88,6 +88,14 @@ and preserves volumes; boot reconciliation requires the app's single-instance
 lock. This profile is not equivalent to gVisor. WSS assignment allocation is
 joined before teardown, preventing a late allocation from escaping a lost lease.
 
+`ComputeMachine` holds `ComputeInventory` ownership before any engine access.
+The empty SQLite mutex is OS-released; the separate bounded fsynced JSON journal
+contains only operational allocation identities, never product data or credentials.
+Restart marks unfinished allocations unconfirmed. Engine reconciliation precedes
+WSS stop acknowledgement; an unknown allocation cannot prove another installation
+stopped. Recorded volumes may reopen for export only, with no tools or resume.
+Per-instance labels protect an existing control container from duplicate cleanup.
+
 `connectContainerLauncher` selects the local backend when no
 `ATOMA_LAUNCHER_SOCKET` is configured, otherwise the separate Linux service.
 The configured socket must work; never fall back to Docker on the caller.

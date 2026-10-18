@@ -2,6 +2,7 @@ import { executionTargetSchema, executionTargetSettingSchema } from '../contract
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
+import { openStoreHandle } from '../core/stores.js';
 import { COMPUTE_LEASE_MS, COMPUTE_PAIRING_MS, computeActorSchema, computeCapabilitiesSchema,
   computeResourcesSchema, computeSessionSchema, type ComputeResources, type ComputeActor, type ComputeCapabilities, type ComputeSession, type ComputeAssignment, type ComputeAdmission } from '../contracts/computeDevice.js';
 
@@ -64,6 +65,11 @@ interface DeviceRow {
 /** Private control-plane domain. No network entrypoint and no engine access.
  * Uses the existing product connection, after auth/project schema initialization. */
 export class ComputeDeviceStore {
+  static open(dbPath: string, policy: { appVersions: ReadonlySet<string>; imageDigests: ReadonlySet<string> }): ComputeDeviceStore {
+    if (!dbPath) throw new Error('ComputeDeviceStore requires the selected product DB path');
+    return new ComputeDeviceStore(openStoreHandle(dbPath, DDL), policy);
+  }
+
   constructor(private readonly db: Database.Database, private readonly policy: {
     appVersions: ReadonlySet<string>; imageDigests: ReadonlySet<string>;
   }, private readonly now: () => number = Date.now) { db.exec(DDL); }
@@ -117,6 +123,19 @@ export class ComputeDeviceStore {
     return this.session(session);
   }
 
+  pairingDescription(code: string): { name: string } {
+    pairingCode.parse(code);
+    const row = this.db.prepare('SELECT name FROM compute_pairings WHERE code_hash=? AND expires_at>? AND org_id IS NULL')
+      .get(digest(code), this.now()) as { name: string } | undefined;
+    if (!row) throw new Error('Compute pairing unavailable');
+    return row;
+  }
+  list(actor: ComputeActor) {
+    const role = this.member(actor), admin = ['org:owner', 'org:admin'].includes(role);
+    const rows = this.db.prepare('SELECT device_id FROM compute_devices WHERE org_id=? AND (? OR principal_id=?) ORDER BY name,device_id LIMIT 100')
+      .all(actor.orgId, Number(admin), actor.principalId) as { device_id: string }[];
+    return rows.map(row => this.inspect(actor, row.device_id));
+  }
   beginPairing(input: { secretHash: string; name: string }): { code: string; expiresAt: number } {
     const hash = secretHash.parse(input.secretHash), name = nameSchema.parse(input.name);
     return this.db.transaction(() => {

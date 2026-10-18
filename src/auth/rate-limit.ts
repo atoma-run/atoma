@@ -1,5 +1,6 @@
 import type { IncomingMessage } from 'node:http';
 import { isIP } from 'node:net';
+import { TLSSocket } from 'node:tls';
 
 export const VIZ_TRUSTED_PROXIES_ENV = 'ATOMA_VIZ_TRUSTED_PROXIES';
 
@@ -141,4 +142,11 @@ export class BoundedFixedWindowRateLimiter {
 function retryAfter(resetAt: number, now: number): number {
   if (!Number.isFinite(resetAt)) return 1;
   return Math.max(1, Math.ceil((resetAt - now) / 1_000));
+}
+
+/** TLS transport provenance for native HTTP/WSS clients. Forwarding is trusted
+ * only from the same exact peer boundary used by login address admission. */
+export function isSecureRequest(req: IncomingMessage, trusted: TrustedProxySnapshot): boolean {
+  return req.socket instanceof TLSSocket && req.socket.encrypted ||
+    trusted.addresses.includes(req.socket.remoteAddress ?? '') && req.headers['x-forwarded-proto'] === 'https';
 }

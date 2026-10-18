@@ -172,7 +172,8 @@ npm run viz:mark-turn:analyze
   re-exports them, so there is one definition behind both import paths. The
   abandoned threshold exceeds plausible LLM/tool activity (currently 12 min).
 - NOTHING outside `client/` and `client-gl/` may import `src/viz/client/*` at
-  runtime. `viz:build` EMPTIES `dist/viz/client/`, so the `.js` tsc emitted
+  runtime, except the explicitly bundled push routes and `computeCopy.ts`
+  catalog closures, both verified after Vite by the release smoke. `viz:build` EMPTIES `dist/viz/client/`, so the `.js` tsc emitted
   there is gone by the end of `npm run build` and a compiled server importing
   it dies with ERR_MODULE_NOT_FOUND — invisible to typecheck, lint and
   `tests/`, all of which run from source. `tests/viz-client-bundle-boundary`

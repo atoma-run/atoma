@@ -43,7 +43,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   if (!root) throw new Error('Workspace root is required');
   const index = process.env['ATOMA_WORKSPACE_READ_RUNS'];
   const runtime = localWorkspaceRuntime({ root, ...(index ? { readRuns: readReadRunsIndex(index) } : {}),
-    seedRoot: process.env['ATOMA_WORKSPACE_SEED'],
+    seedRoot: process.env['ATOMA_WORKSPACE_SEED'], sourceRoot: process.env['ATOMA_WORKSPACE_SOURCE_ROOT'],
     log: line => process.stderr.write(`${line}\n`) });
   process.once('SIGTERM', () => process.stdin.destroy());
   serveWorkspace(runtime, process.stdin, process.stdout).catch(() => { process.exitCode = 1; process.stdin.destroy(); });

@@ -2202,5 +2202,17 @@
   "push.pressure.storeSlow_one": "Store: {{count}} slow transaction, longest {{slowestMs}} ms",
   "push.pressure.storeSlow_other": "Store: {{count}} slow transactions, longest {{slowestMs}} ms",
   "push.pressure.memoryLow": "Memory: {{availableMb}} MiB available; active runs: {{activeRuns}}; reserve: {{reserveMb}} MiB",
-  "push.pressure.unknown": "Host resource pressure detected"
+  "push.pressure.unknown": "Host resource pressure detected",
+  "compute.pair.title": "Connect this computer",
+  "compute.pair.subtitle": "Atoma Compute runs project tools on your computer.",
+  "compute.pair.notice": "Continue only if you started this connection yourself. The computer name is supplied by the application.",
+  "compute.pair.device": "Computer",
+  "compute.pair.account": "Account",
+  "compute.pair.organisation": "Organisation",
+  "compute.pair.allow": "Connect computer",
+  "compute.pair.cancel": "Cancel",
+  "compute.pair.scope": "Projects must be authorised separately before this computer can accept runs.",
+  "compute.pair.done": "Computer connected",
+  "compute.pair.return": "Return to Atoma Compute to finish connecting.",
+  "compute.pair.error": "This connection could not be confirmed. Restart pairing in Atoma Compute."
 }

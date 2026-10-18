@@ -21,6 +21,10 @@ export function workspaceCommandHandler(runtime: WorkspaceRuntime): ((input: unk
       if (Date.now() >= exporting.expiresAt) { await exporting.snapshot.close(); exports.delete(handle); }
     }
     switch (command.method) {
+      case 'bind-sources': {
+        if (imports.size || exports.size || guards.size || !runtime.bindSources) throw new Error('Source binding unavailable');
+        await runtime.bindSources(command.sources); return { method: command.method, value: null };
+      }
       case 'import-open': {
         if (guards.size || exports.size) throw new Error('Workspace control operation is still active');
         if (command.source && command.archive) throw new Error('Source replacement is forbidden');
@@ -169,6 +173,7 @@ export function remoteWorkspaceRuntime(send: (command: WorkspaceCommand) => Prom
       };
   };
   return {
+    bindSources: async sources => { await call({ method: 'bind-sources', sources }); },
     importSource: async (source, header) => importing(await call({ method: 'import-open', header, archive: false, source })),
     importWorkspace: async (header, archive) => importing(await call({ method: 'import-open', header, archive })),
     artifactExport: async options => {

@@ -72,6 +72,7 @@ export const platformEventKindSchema = z.enum([
   'project.repository_attention',
   'project.upstream_follow_changed',
   'project.deployment_preference_changed',
+  'compute.access_changed',
   /** Which of the organisation's MCP servers this project's runs may call. */
   'project.mcp_servers_changed',
   'project.hosting_changed',
@@ -409,6 +410,7 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'project.repository_attention': 'warning',
   'project.upstream_follow_changed': 'security',
   'project.deployment_preference_changed': 'info',
+  'compute.access_changed': 'security',
   'project.mcp_servers_changed': 'security',
   'project.hosting_changed': 'info',
   'project.hosting_failed': 'warning',

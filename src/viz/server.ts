@@ -22,7 +22,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, extname, relative, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { requestWaitsForDeployment } from './deployment.js';
+import { requestWaitsForDeployment, deploymentPaused } from './deployment.js';
 import Database from 'better-sqlite3';
 import { SkillRegistry } from '../skills/registry.js';
 import { decodeRunCursor, pageRunIndex, readBoundedRunFile, sortRunIndex, summarizeTraceFile } from './runIndex.js';
@@ -246,6 +246,10 @@ import {
   type ResidentAnalyst,
 } from '../supervisor/resident.js';
 import { analystProvider } from '../supervisor/session.js';
+import { ComputeHttp } from './computeHttp.js';
+import { ComputeDeviceStore } from '../projects/computeDevices.js';
+import { computeConfiguration } from '../projects/computeConfiguration.js';
+import { attachComputeGateway } from '../projects/computeGateway.js';
 import { McpOAuth } from '../auth/mcpOAuth.js';
 import { McpHttpHost, mcpMaxRequestMsFromEnv } from '../mcp/http.js';
 import type { McpCaller } from '../mcp/identity.js';
@@ -1565,6 +1569,16 @@ const MCP_DEPS: McpToolDeps = {
       }
     : {}),
 };
+const COMPUTE = (() => {
+  const policy = computeConfiguration(process.env);
+  if (!policy) return null;
+  if (!AUTH_RUNTIME || !AUTH?.store || !PROJECTS_RUNTIME || AUTH_RUNTIME.publicOrigin.protocol !== 'https:') {
+    throw new Error('Atoma Compute requires authenticated HTTPS project hosting');
+  }
+  const devices = ComputeDeviceStore.open(DBS[0]!.path, policy);
+  return { devices, http: new ComputeHttp({ devices, gate: AUTH, origin: AUTH_RUNTIME.publicOrigin,
+    proxies: AUTH_RUNTIME.trustedProxies, emit }) };
+})();
 const MCP_OAUTH = AUTH_RUNTIME && AUTH?.store ? new McpOAuth({
   gate: AUTH,
   origin: AUTH_RUNTIME.publicOrigin,
@@ -2629,6 +2643,11 @@ const server = createServer((req, res) => {
   });
 });
 
+const COMPUTE_GATEWAY = COMPUTE ? attachComputeGateway(server, COMPUTE.devices, () => {},
+  AUTH_RUNTIME!.trustedProxies, () => !deploymentPaused(process.env) && !peekDeploymentPending()) : null;
+server.once('close', () => COMPUTE_GATEWAY?.close());
+process.once('exit', () => COMPUTE_GATEWAY?.close());
+
 const LOGIN_RATE_WINDOW_MS = 60_000;
 const LOGIN_RATE_MAX = 20;
 const LOGIN_RATE_MAX_BUCKETS = 1_024;
@@ -2696,6 +2715,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     return;
   }
 
+  if (COMPUTE && await COMPUTE.http.handle(req, res, url)) return;
   if (MCP_OAUTH && await MCP_OAUTH.handle(req, res, url)) return;
 
   if (pathname === '/mcp') {
@@ -3014,9 +3034,11 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         }
         const issued = issueSession(authStore, outcome.viewer, { secure: AUTH_RUNTIME.secureCookies });
         const mcpReturn = MCP_OAUTH?.loginReturn(req);
-        writeAuthRedirect(res, mcpReturn?.location ?? '/', [
+        const computeReturn = COMPUTE?.http.loginReturn(req);
+        writeAuthRedirect(res, computeReturn?.location ?? mcpReturn?.location ?? '/', [
           issued.setCookie,
           ...(mcpReturn ? [mcpReturn.cookie] : []),
+          ...(computeReturn ? [computeReturn.cookie] : []),
           clearCookie(OAUTH_TX_COOKIE, AUTH_RUNTIME.secureCookies, '/auth'),
         ]);
       } catch (error) {

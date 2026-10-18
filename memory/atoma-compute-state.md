@@ -1,7 +1,7 @@
 # Atoma Compute implementation state — 2026-10-18
 
-The owner requested the whole customer-compute plan. It is NOT complete and
-there is no usable customer-device target or desktop application yet.
+The owner requests the whole customer-compute plan EXCEPT Electron. It is NOT
+complete and there is no usable customer-device project execution target yet.
 
 Work is isolated on `codex/atoma-compute`, in the managed worktree
 `/Users/mgtf/.codex/worktrees/atoma-compute/atoma`. Do not deploy this as a
@@ -79,3 +79,40 @@ extending the real-container case to the actual mocked-model runner: unusable ho
 workspace, remote write, shutdown/drain, verified artifact receipt and checkpoint.
 Fresh-worker CI now includes both desktop/runtime and TLS integration suites.
 Workspace bundle SHA-256: 9155e25a1356c351814f38cadec032959a84357d5e26e80844055ec5aad60bc8.
+
+Latest scope: the user requests all remaining work EXCEPT Electron. Do not keep
+Electron as an outstanding deliverable. The rest is not complete.
+
+New increment: opt-in server HTTP pairing + WSS mounting with strict deployment
+version/digest policy, exact proxy TLS trust, rate caps and deployment freeze;
+one-use session/org-bound browser consent and secret-free audit; private
+host-child compute bridge consumed by build-app; runner source provisioning after
+scope validation; one-use dynamically bound sources in the private service; exact
+saved-manifest transfers and a real-container regression for read-only copies.
+Browser consent compiled/TLS/keyboard/responsive smoke is in viz:smoke. Production
+activation is NOT performed. The coordinator still refuses remote dispatch.
+
+The initial full suite of this increment exposed runTask arity and the explicit
+server-catalog bundle allowlist; both were corrected and targeted regressions
+passed. Container acceptance must use ATOMA_TEST_ACCEPTANCE_IMAGE with the
+isolated rebuilt image; the shared :latest image is stale and must not be replaced.
+Final verification/commit details follow below once complete.
+
+Headless lifecycle increment: ComputeInventory holds an OS-released SQLite mutex
+and a separate atomic/fsynced bounded JSON operational journal (no product data
+or credentials). ComputeMachine connects it to Docker and WSS reconciliation;
+real-process tests cover exclusion/SIGKILL persistence, and real TLS+Docker tests
+cover reconnect without replay. DesktopCompute accepts locally recorded allocation
+UUIDs and an export-only recovery mode; real Docker verifies retained bytes,
+read-only reference mounts, and that duplicate/foreign instances cannot remove
+the existing control container. A distributable CLI/OS credential vault, remote
+coordinator/finalization, retrieval, previews, project UI and measurements remain.
+
+Final source verification for this increment: release:check:static passed;
+full tests with isolated acceptance/worker/workspace images passed 7,568 tests,
+10 skipped, 521 files passed and 2 skipped. The final workspace bundle and image
+both hash to a55a462621135a3d595632ac038198578eef76078eede0194e8eda82f5e8d271.
+Compiled Compute browser consent passes TLS, keyboard and responsive checks.
+The full viz:smoke also passed (MCP consent, Compute consent, WebGPU and WebGL
+application journeys). Final gateway review rejects unsupported upgrade paths
+when it is the only upgrade consumer; its focused TLS regression passed afterward.

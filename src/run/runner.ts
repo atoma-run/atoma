@@ -617,6 +617,8 @@ async function startTaskInternal(
     launchLearning?: typeof spawnApprovedLearning;
     /** Internal workspace capability; the caller owns its transport lifetime. */
     workspaceRuntime?: import('../contracts/workspaceRuntime.js').WorkspaceRuntime;
+    /** Host-only provisioning after run/corpus authority has been validated. */
+    prepareWorkspaceSources?: (input: { seedRoot?: string; readRuns?: ReadRunsIndex }) => Promise<void>;
     /** Internal execution-host factory; connector and budget wrappers remain host-owned. */
     createToolBackend?: () => Promise<import('./toolBackend.js').ToolBackend>;
   }
@@ -864,7 +866,7 @@ async function startTaskInternal(
   );
   const workspace = opts?.workspaceRuntime ?? localWorkspaceRuntime({ root: workspaceRoot, seedRoot,
     readRuns: readRuns ?? undefined, log: line => console.log(line) });
-  try { await workspace.validateSources(); }
+  try { if (!opts?.prepareWorkspaceSources) await workspace.validateSources(); }
   catch (error) { throw new RunnerConfigError((error as Error).message); }
   console.log(`run timeout: ${Math.round(timeoutMs / 1000)}s`);
   // TWO REASONS ONE RUN CAN BE CUT SHORT, ONE SIGNAL. The deadline is a timer
@@ -1041,6 +1043,10 @@ async function startTaskInternal(
   }
   if (readRuns && (runScope.orgId !== readRuns.orgId || runScope.projectId !== readRuns.projectId)) {
     throw new RunnerConfigError('read runs were launched for another project');
+  }
+  if (opts?.prepareWorkspaceSources) {
+    await opts.prepareWorkspaceSources({ seedRoot, readRuns: readRuns ?? undefined });
+    await workspace.validateSources();
   }
   const recorder = new TraceRecorder(runsDir);
   const db = openDb(dbPath);
@@ -1840,7 +1846,7 @@ async function startTaskInternal(
  * so any server the run started stays reachable, and SIGINT/SIGTERM tear the
  * run down (trace closed as cancelled when mid-flight) before exiting 0.
  */
-export async function runTask(argv: readonly string[]): Promise<void> {
+export async function runTask(argv: readonly string[], opts: Parameters<typeof startTask>[1] = undefined): Promise<void> {
   // `--help` is answered BEFORE startTask: the runner discards unknown flags
   // by contract, so `build-app --help` used to fall through to a
   // DEFAULT GOAL and start a real, quota-spending run (2026-09-07).
@@ -1850,7 +1856,7 @@ export async function runTask(argv: readonly string[]): Promise<void> {
   }
   let run: RunHandle;
   try {
-    run = await startTask(argv);
+    run = await startTask(argv, opts);
   } catch (err) {
     if (err instanceof RunnerConfigError) {
       console.error(err.message);

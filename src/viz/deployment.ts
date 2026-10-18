@@ -9,6 +9,7 @@ export const DEPLOYMENT_MARKER_PREFIX = 'guard';
 const STATEFUL_GET_PATHS = new Set([
   '/auth/login',
   '/oauth/authorize',
+  '/compute/pair',
   '/auth/callback',
   '/auth/github/connect',
   '/auth/github/authorize',

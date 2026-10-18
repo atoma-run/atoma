@@ -332,6 +332,7 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   'project.repository_synced': null,
   'project.upstream_follow_changed': null,
   'project.deployment_preference_changed': null,
+  'compute.access_changed': null,
   'project.mcp_servers_changed': null,
   'project.hosting_changed': null,
   'project.hosting_failed': null,

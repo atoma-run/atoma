@@ -62,3 +62,85 @@ it.skipIf(!workspaceImage || !workerImage)('runs tools in a managed Linux volume
     if (volumes.length) await docker(['volume', 'rm', ...volumes]);
   }
 }, 90_000);
+
+it.skipIf(!workspaceImage || !workerImage)('keeps dynamically provisioned reference copies read-only inside the real worker', async () => {
+  const { mkdtempSync, realpathSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { remoteWorkspaceRuntime } = await import('../src/run/workspaceRpc.js');
+  const { buildWorkspaceArtifactManifest } = await import('../src/projects/artifacts.js');
+  const { captureCheckpointExport } = await import('../src/run/checkpointExport.js');
+  const { provisionWorkspaceSource } = await import('../src/run/workspaceImport.js');
+  const { readRunCopyPath } = await import('../src/contracts/readRuns.js');
+  const machineId = randomUUID(), runId = randomUUID();
+  const source = realpathSync(mkdtempSync(join(tmpdir(), 'compute-reference-')));
+  writeFileSync(join(source, 'proof.txt'), 'saved reference');
+  const built = buildWorkspaceArtifactManifest({ workspaceRoot: source });
+  const runtime = new DesktopCompute({ machineId,
+    workspaceImage: await docker(['image', 'inspect', '--format', '{{.Id}}', workspaceImage!]),
+    workerImage: await docker(['image', 'inspect', '--format', '{{.Id}}', workerImage!]) });
+  const filter = `label=dev.atoma.compute=${machineId}`;
+  try {
+    await runtime.open();
+    const workspace = remoteWorkspaceRuntime(command => runtime.command(command));
+    await workspace.bindSources!({ seed: false, readRuns: { version: 1, orgId: randomUUID(), projectId: randomUUID(), runId: randomUUID(),
+      readRuns: [{ runId, status: 'delivered', endedAt: new Date().toISOString(), workspacePath: 'remote-source', manifest: built.manifest, manifestHash: built.hash }] } });
+    await provisionWorkspaceSource(workspace, { kind: 'read-run', runId }, captureCheckpointExport(source));
+    await workspace.prepare(false); await workspace.captureReadRuns();
+    const copy = `${readRunCopyPath(runId)}/proof.txt`;
+    expect(JSON.stringify(await runtime.executor.execute('read_file', { path: copy }))).toContain('saved reference');
+    const result = await runtime.executor.execute('run_shell', { cmd: `printf changed > '${copy}'` });
+    expect(JSON.stringify(result)).toMatch(/read.only|denied|not permitted/i);
+    expect(await workspace.checkReadRuns()).toMatchObject([{ runId, changedCount: 0, touchedCount: 0, missingCount: 0 }]);
+  } finally {
+    await runtime.close(); await DesktopCompute.reconcile(machineId);
+    const volumes = (await docker(['volume', 'ls', '-q', '--filter', filter])).split('\n').filter(Boolean);
+    if (volumes.length) await docker(['volume', 'rm', ...volumes]);
+    rmSync(source, { recursive: true, force: true });
+  }
+}, 90_000);
+
+it.skipIf(!workspaceImage || !workerImage)('recovers recorded volumes for export without restarting workload execution', async () => {
+  const { mkdtempSync, realpathSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { ComputeInventory } = await import('../src/launcher/computeInventory.js');
+  const { remoteWorkspaceRuntime } = await import('../src/run/workspaceRpc.js');
+  const { receiveArtifactExport } = await import('../src/run/artifactTransfer.js');
+  const state = realpathSync(mkdtempSync(join(tmpdir(), 'compute-recovery-')));
+  let inventory = new ComputeInventory(state);
+  const machineId = inventory.machineId(), execution = { runId: randomUUID(), generation: 1 };
+  const allocation = inventory.reserve(execution);
+  const config = { machineId, allocationId: allocation.allocationId,
+    workspaceImage: await docker(['image', 'inspect', '--format', '{{.Id}}', workspaceImage!]),
+    workerImage: await docker(['image', 'inspect', '--format', '{{.Id}}', workerImage!]) };
+  let runtime = new DesktopCompute(config);
+  const filter = `label=dev.atoma.compute=${machineId}`;
+  try {
+    await runtime.open(); inventory.active(execution);
+    await runtime.command({ method: 'prepare', clean: false });
+    await runtime.executor.execute('write_file', { path: 'proof.txt', content: 'retained bytes' });
+    for (const machine of [machineId, randomUUID()]) {
+      const other = new DesktopCompute({ ...config, machineId: machine, recovery: true });
+      await expect(other.open()).rejects.toThrow('another launcher instance');
+      await expect(other.close()).rejects.toThrow('another launcher instance');
+      expect(JSON.stringify(await runtime.executor.execute('read_file', { path: 'proof.txt' }))).toContain('retained bytes');
+    }
+    await runtime.close(); inventory.close();
+    inventory = new ComputeInventory(state);
+    expect(inventory.find(execution)?.state).toBe('unconfirmed');
+    await DesktopCompute.reconcile(machineId); inventory.stopped(execution);
+    runtime = new DesktopCompute({ ...config, recovery: true });
+    await runtime.open();
+    await expect(runtime.command({ method: 'prepare', clean: true })).rejects.toThrow('export only');
+    await expect(runtime.executor.execute('write_file', { path: 'proof.txt', content: 'wrong' })).rejects.toThrow('unavailable');
+    const workspace = remoteWorkspaceRuntime(command => runtime.command(command));
+    await receiveArtifactExport(await workspace.artifactExport({ allowEmpty: false }), join(state, 'delivery'));
+    expect(readFileSync(join(state, 'delivery/proof.txt'), 'utf8')).toBe('retained bytes');
+  } finally {
+    await runtime.close(); inventory.close(); await DesktopCompute.reconcile(machineId);
+    const volumes = (await docker(['volume', 'ls', '-q', '--filter', filter])).split('\n').filter(Boolean);
+    if (volumes.length) await docker(['volume', 'rm', ...volumes]);
+    rmSync(state, { recursive: true, force: true });
+  }
+}, 90_000);

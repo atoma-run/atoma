@@ -164,3 +164,63 @@ isolated images. The subsequent 27-test TLS run also exercised the real runner
 with simulated models, an unusable host workspace path, remote Docker tools,
 and a verified final artifact received on the host. Fresh-worker CI runs these
 new container/TLS cases. This proves the runner seam, not coordinator/UI delivery.
+
+## Browser pairing and orchestration bridge increment
+
+Scope update from the owner: complete the remaining compute work **excluding
+Electron**. Desktop installers and Electron views are no longer part of this
+implementation request; a usable non-Electron client and backend remain required.
+
+The server now has opt-in HTTPS pairing and WSS admission. Enable only for
+integration work with `ATOMA_COMPUTE_ENABLED=1`, an explicit comma-separated
+`ATOMA_COMPUTE_APP_VERSIONS` list and `ATOMA_COMPUTE_IMAGE_DIGESTS` (sha256 content
+identities). Authenticated project hosting is required. Reverse-proxy TLS is
+accepted only from the deployment's existing exact trusted-proxy addresses.
+The default remains disabled. This is **not** an enabled run dispatch path:
+customer-device runs still wait in the coordinator.
+
+Native POST pairing requests reject browser cookies/origins. Browser consent
+shows the account and organisation, escapes the application-supplied name,
+requires an exact origin and binds a one-use consent token to the displayed
+session. Redemption still requires the application's independent secret.
+Requests, pending pairings, consent tokens and WSS peers have bounded admission.
+Device lists, revocations, explicit project grants and CAS target settings are
+org-authorized; access changes enter the existing audit journal. No token,
+secret or pairing code is journaled. The compiled consent page is verified in
+Chromium at desktop/mobile/landscape sizes, including native keyboard form
+submission over TLS. Its catalog and shared action icons have a standalone
+server bundle, checked after Vite has removed the client output directory.
+
+The host child can use a one-use, bounded private Unix-socket bridge carrying
+workspace and tool channels. `build-app` consumes and removes the bridge
+capability before starting the existing runner. Host-only source provisioning
+runs after corpus/project authority checks. Seed transfer and exact saved
+read-run manifests cross the bridge; host paths are replaced with inert labels,
+and the workspace service derives destinations in its private source volume.
+Referenced identities are captured on that destination filesystem. Binding is
+one-use and forbidden after preparation. A real Docker regression proves the
+reference copy is mounted read-only, including when `ensureReadRuns` correctly
+returns null (meaning no legacy-layout error).
+
+Still required before customer use: coordinator dispatch and durable pending
+finalization/reconciliation; headless client packaging, OS credential storage and
+shared resource/disk budgeting; remote Haystack and previews; project machine controls/status; distributable
+multiarchitecture runtime images and the preregistered capacity measurements.
+Neither this increment nor passing tests establishes the 50% resource target.
+
+The headless `ComputeMachine` lifecycle now holds a local single-owner inventory
+before touching Docker. Its OS-released SQLite mutex is separate from its
+fsynced operational JSON journal, following the existing launcher-volume pattern;
+there is no product data or credential in either file. Allocations are recorded
+before engine effects, survive a killed process, and become unconfirmed on
+restart. A second owner is excluded across actual processes. Only successful
+engine reconciliation permits a stop receipt on the new WSS session. Unknown
+allocations cannot acknowledge a former installation's stop.
+
+A recorded allocation can reopen its volumes in export-only recovery mode.
+Preparation, restoration, tools and next-attempt activation are refused there;
+a real Docker test transfers retained bytes after reopening. Volume labels and
+per-instance control labels prevent an unsuccessful duplicate launcher from
+removing an existing instance. This is a library lifecycle, not yet a distributed
+CLI with OS credential storage, and the server's durable finalization/recovery
+workflow still needs to consume it.

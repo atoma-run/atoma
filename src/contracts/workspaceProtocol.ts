@@ -4,13 +4,14 @@ import { startingSnapshotSchema, deliveredSnapshotSchema } from './startingWorks
 import { readRunCopyCheckSchema, readRunFileComparisonsSchema } from './readRuns.js';
 import { routingRepositorySchema } from './tissueRouting.js';
 import { artifactManifestSchema } from './artifactInventory.js';
-import { inheritedWorkspaceStateSchema, workspaceSourceSchema, artifactExportOptionsSchema } from './workspaceRuntime.js';
+import { inheritedWorkspaceStateSchema, workspaceSourceSchema, workspaceSourceBindingSchema, artifactExportOptionsSchema } from './workspaceRuntime.js';
 import { checkpointTransferHeaderSchema, checkpointWireFrameSchema } from './checkpointTransfer.js';
 
 export const WORKSPACE_PROTOCOL_VERSION = 1;
 export const WORKSPACE_FRAME_BYTES = 32 * 1024 * 1024;
 /** No caller-selected root, arbitrary command, or tool invocation on this channel. */
 export const workspaceCommandSchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('bind-sources'), sources: workspaceSourceBindingSchema }).strict(),
   z.object({ method: z.literal('import-open'), header: checkpointTransferHeaderSchema, archive: z.boolean(), source: workspaceSourceSchema.optional() }).strict(),
   z.object({ method: z.literal('import-frame'), handle: z.string().uuid(), frame: checkpointWireFrameSchema }).strict(),
   z.object({ method: z.literal('import-abort'), handle: z.string().uuid() }).strict(),
@@ -40,6 +41,7 @@ export const workspaceRequestSchema = z.object({
   version: z.literal(WORKSPACE_PROTOCOL_VERSION), id: z.number().int().positive(), command: workspaceCommandSchema,
 }).strict();
 export const workspaceReplySchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('bind-sources'), value: z.null() }).strict(),
   z.object({ method: z.literal('import-open'), value: z.string().uuid() }).strict(),
   z.object({ method: z.literal('import-frame'), value: z.null() }).strict(),
   z.object({ method: z.literal('import-abort'), value: z.null() }).strict(),

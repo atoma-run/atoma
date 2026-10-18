@@ -130,3 +130,25 @@ it('transfers an empty text delivery and refuses an empty ordinary delivery', as
   const manifest = await receiveArtifactExport(captureArtifactExport(source, { allowEmpty: false, delivery: 'text' }), join(root, 'text'));
   expect(manifest).toMatchObject({ delivery: 'text', files: [], totalBytes: 0 });
 });
+
+
+it('binds source identities once over the process boundary and resolves all paths privately', async () => {
+  const { root, source, workspace } = fixture();
+  const runId = randomUUID(), built = buildWorkspaceArtifactManifest({ workspaceRoot: source });
+  const { runtime } = service({ root: workspace, sourceRoot: join(root, 'control-sources') });
+  await runtime.bindSources!({ seed: true, readRuns: { version: 1, orgId: randomUUID(), projectId: randomUUID(), runId: randomUUID(),
+    readRuns: [{ runId, status: 'delivered', endedAt: new Date().toISOString(), workspacePath: '/must-not-be-used',
+      manifest: built.manifest, manifestHash: built.hash }] } });
+  await expect(runtime.bindSources!({ seed: false })).rejects.toThrow('rebound');
+  await provisionWorkspaceSource(runtime, { kind: 'seed' }, captureCheckpointExport(source));
+  await provisionWorkspaceSource(runtime, { kind: 'read-run', runId }, captureCheckpointExport(source));
+  rmSync(source, { recursive: true });
+  await runtime.prepare(false); await runtime.captureReadRuns();
+  expect(await runtime.ensureReadRuns()).toBeNull();
+  expect(await runtime.checkReadRuns()).toMatchObject([{ runId, changedCount: 0, touchedCount: 0, missingCount: 0 }]);
+  writeFileSync(join(workspace, 'README.md'), 'attempt');
+  await runtime.restart();
+  expect(readFileSync(join(workspace, 'README.md'), 'utf8')).toBe('source bytes');
+  expect(readFileSync(join(workspace, readRunCopyPath(runId), 'README.md'), 'utf8')).toBe('source bytes');
+  expect(existsSync(join(root, 'control-sources', runId, 'README.md'))).toBe(true);
+});

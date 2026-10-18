@@ -18,11 +18,12 @@ import { captureReadRunCopies, checkReadRunCopies, compareReadRunFiles, ensureRe
 export function localWorkspaceRuntime(options: {
   root: string;
   seedRoot?: string;
+  sourceRoot?: string;
   readRuns?: ReadRunsIndex;
   log: (line: string) => void;
 }): WorkspaceRuntime {
   let identities: ReadRunCopyIdentities | undefined;
-  let prepared = false;
+  let prepared = false, sourcesBound = false;
   const validateSources = async () => {
     if (options.seedRoot && !existsSync(options.seedRoot)) throw new Error(`--seed: no such directory: ${options.seedRoot}`);
   };
@@ -40,6 +41,13 @@ export function localWorkspaceRuntime(options: {
     mkdirSync(options.root, { recursive: true });
   };
   return {
+    bindSources: async sources => {
+      if (!options.sourceRoot || prepared || sourcesBound || options.seedRoot || options.readRuns) throw new Error('Workspace sources cannot be rebound');
+      sourcesBound = true;
+      if (sources.seed) options.seedRoot = join(options.sourceRoot, 'seed');
+      if (sources.readRuns) options.readRuns = { ...sources.readRuns,
+        readRuns: sources.readRuns.readRuns.map(run => ({ ...run, workspacePath: join(options.sourceRoot!, run.runId) })) };
+    },
     artifactExport: async input => captureArtifactExport(options.root, input),
     importSource: async (source, header) => {
       if (prepared) throw new Error('Workspace sources are frozen after preparation');

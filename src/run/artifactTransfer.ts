@@ -28,6 +28,12 @@ function validateManifest(input: ArtifactManifest): ArtifactManifest {
 /** Caller confirms process exit first. Spool only publishable files, privately. */
 export function captureArtifactExport(root: string, options: ArtifactExportOptions): ArtifactExport {
   const { manifest } = buildWorkspaceArtifactManifest({ workspaceRoot: root, ...options });
+  return captureManifestExport(root, manifest);
+}
+
+/** Export exactly a host-authorized saved manifest, including its recorded modes. */
+export function captureManifestExport(root: string, input: ArtifactManifest): ArtifactExport {
+  const manifest = validateManifest(input);
   const temporary = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-artifact-export-')));
   try {
     for (const file of manifest.files) {

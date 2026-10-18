@@ -445,3 +445,75 @@ it.each([true, false])('reconciles the old generation after reconnect only with 
     expect(devices.inspect(f.owner, f.paired.deviceId).assignment?.state).toBe('indeterminate');
   }
 });
+
+it('accepts forwarded TLS only from an explicitly trusted proxy and locates exact session generations', async () => {
+  const { createServer: httpServer } = await import('node:http');
+  const http = httpServer();
+  let admissionCount = 0;
+  let proxy = attachComputeGateway(http, devices, () => { admissionCount++; });
+  http.listen(0, '127.0.0.1'); await once(http, 'listening');
+  const address = http.address();
+  if (!address || typeof address === 'string') throw new Error('Missing listener');
+  const endpoint = `ws://127.0.0.1:${address.port}/compute/v1`;
+  const refused = async (headers: Record<string, string>, path = '/compute/v1') => {
+    const ws = new WebSocket(new URL(path, endpoint), { headers, handshakeTimeout: 1000 });
+    const failure = new Promise<string>(resolve => ws.once('error', error => resolve(error.message)));
+    const error = await failure; ws.terminate();
+    expect(error).not.toMatch(/timed out/i);
+  };
+  try {
+    await refused({ 'x-forwarded-proto': 'https' }, '/unsupported-upgrade');
+    await refused({ 'x-forwarded-proto': 'https' });
+    expect(admissionCount).toBe(0);
+    proxy.close(); proxy = attachComputeGateway(http, devices, () => { admissionCount++; }, { addresses: ['127.0.0.1'] });
+    await refused({ 'x-forwarded-proto': 'http' });
+    await refused({ 'x-forwarded-proto': 'https', origin: 'https://attacker.example' });
+    await refused({ 'x-forwarded-proto': 'https', cookie: 'session=browser' });
+    expect(admissionCount).toBe(0);
+    const owner = actor(), paired = pairing(owner);
+    const ws = new WebSocket(endpoint, { headers: { 'x-forwarded-proto': 'https' } });
+    clients.push(ws); await once(ws, 'open');
+    const response = message(ws);
+    ws.send(JSON.stringify({ kind: 'hello', version: 1, credential: paired.credential, capabilities }));
+    const ready = await response;
+    if (ready.kind !== 'ready') throw new Error('Expected ready');
+    expect(proxy.connectionFor(ready.session)?.identity()).toEqual(ready.session);
+    expect(proxy.connectionFor({ ...ready.session, generation: ready.session.generation + 1 })).toBeUndefined();
+    expect(admissionCount).toBe(1);
+  } finally { proxy.close(); await new Promise<void>(resolve => http.close(() => resolve())); }
+});
+
+it.skipIf(!process.env['ATOMA_TEST_WORKSPACE_IMAGE'] || !process.env['ATOMA_TEST_WORKER_IMAGE'])(
+  'reconciles a headless machine journal before reconnecting and never restarts its old generation', async () => {
+    const { ComputeMachine } = await import('../src/launcher/computeMachine.js');
+    const owner = actor(), paired = pairing(owner), p = project(owner);
+    devices.grantProject(owner, paired.deviceId, p.projectId, true);
+    devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+    const runId = run(owner, p.projectId);
+    const docker = (args: string[]) => execFileSync('docker', args, { encoding: 'utf8', timeout: 30_000 }).trim();
+    const config = { stateRoot: realpathSync(mkdtempSync(join(root, 'machine-'))),
+      workspaceImage: docker(['image', 'inspect', '--format', '{{.Id}}', process.env['ATOMA_TEST_WORKSPACE_IMAGE']!]),
+      workerImage: docker(['image', 'inspect', '--format', '{{.Id}}', process.env['ATOMA_TEST_WORKER_IMAGE']!]) };
+    let machine = new ComputeMachine(config);
+    const filter = `label=dev.atoma.compute=${machine.machineId()}`;
+    const connection = { url, credential: paired.credential, capabilities, ca: readFileSync(join(root, 'cert'), 'utf8') };
+    try {
+      const client = await machine.connect(connection);
+      const execution = { runId, generation: devices.assign(owner, client.session, runId, resources).generation };
+      const peer = peers.at(-1)!; await peer.bind(execution);
+      await peer.request(execution, { method: 'prepare', clean: false });
+      await peer.requestTool(execution, { method: 'invoke', name: 'write_file', args: { path: 'proof.txt', content: 'retained' } });
+      expect(() => new ComputeMachine(config)).toThrow(/locked/i);
+      peer.close(); await machine.close(); await machine.close();
+      machine = new ComputeMachine(config);
+      expect(machine.allocations()).toMatchObject([{ execution, state: 'stopped' }]);
+      await machine.connect(connection);
+      expect(devices.inspect(owner, paired.deviceId).assignment).toBeNull();
+      expect(docker(['ps', '-aq', '--filter', filter])).toBe('');
+      await expect(peers.at(-1)!.request(execution, { method: 'prepare', clean: true })).rejects.toThrow();
+    } finally {
+      await machine.close();
+      const volumes = docker(['volume', 'ls', '-q', '--filter', filter]).split('\n').filter(Boolean);
+      if (volumes.length) docker(['volume', 'rm', ...volumes]);
+    }
+  }, 90_000);

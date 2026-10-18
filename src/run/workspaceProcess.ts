@@ -5,7 +5,7 @@ import { remoteWorkspaceRuntime } from './workspaceRpc.js';
 import type { WorkspaceRuntime } from '../contracts/workspaceRuntime.js';
 
 /** Hosted process transport for exercising the same private RPC as customer compute. */
-export function startWorkspaceProcess(options: { root: string; seedRoot?: string; readRunsIndex?: string; timeoutMs?: number;
+export function startWorkspaceProcess(options: { root: string; seedRoot?: string; sourceRoot?: string; readRunsIndex?: string; timeoutMs?: number;
   onLog?: (line: string) => void }): {
   runtime: WorkspaceRuntime; close(): Promise<void>;
 } {
@@ -15,6 +15,7 @@ export function startWorkspaceProcess(options: { root: string; seedRoot?: string
     cwd: fileURLToPath(new URL('../../', import.meta.url)),
     env: { PATH: process.env['PATH'], ATOMA_WORKSPACE_ROOT: options.root,
       ...(options.seedRoot ? { ATOMA_WORKSPACE_SEED: options.seedRoot } : {}),
+      ...(options.sourceRoot ? { ATOMA_WORKSPACE_SOURCE_ROOT: options.sourceRoot } : {}),
       ...(options.readRunsIndex ? { ATOMA_WORKSPACE_READ_RUNS: options.readRunsIndex } : {}) },
     stdio: ['pipe', 'pipe', 'pipe'],
   });

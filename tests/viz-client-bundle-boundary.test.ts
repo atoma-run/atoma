@@ -96,9 +96,9 @@ describe('the Vite bundle boundary', () => {
     expect(inputs.filter(path => path.endsWith('contracts/parentTests.ts'))).toEqual([]);
   });
 
-  it('bundles the push catalogs into a server closure with no client runtime imports or React', async () => {
+  it.each(['src/viz/push/routes.ts', 'src/viz/computeCopy.ts'])('bundles %s into a server closure with no client runtime imports or React', async entryPoint => {
     const result = await build({
-      entryPoints: ['src/viz/push/routes.ts'], bundle: true, packages: 'external',
+      entryPoints: [entryPoint], bundle: true, packages: 'external',
       platform: 'node', format: 'esm', target: 'node24', write: false, metafile: true,
     });
     const imports = Object.values(result.metafile.outputs).flatMap(output => output.imports);
@@ -118,7 +118,7 @@ describe('the Vite bundle boundary', () => {
       // Explicit server bundle: viz-build packages this route and its JSON
       // catalogs outside client/. The release smoke imports and renders the
       // packaged route after Vite, and the closure test below bars React.
-      if (normalised === 'src/viz/push/routes.ts') continue;
+      if (normalised === 'src/viz/push/routes.ts' || normalised === 'src/viz/computeCopy.ts') continue;
       for (const specifier of runtimeImportSpecifiers(readFileSync(file, 'utf8'))) {
         if (!specifier.startsWith('.')) continue;
         const resolved = relative(process.cwd(), resolve(dirname(file), specifier));

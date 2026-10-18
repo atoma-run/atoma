@@ -12,8 +12,18 @@
  * AGENTS.md has caught poisoning a whole batch.
  */
 import { runTask } from '../run/runner.js';
+import { COMPUTE_BRIDGE_ENV } from '../contracts/computeBridge.js';
+import { computeRunnerOptions } from '../run/computeRunner.js';
 
-runTask(process.argv.slice(2)).catch((err) => {
+async function main() {
+  const argv = process.argv.slice(2), configured = process.env[COMPUTE_BRIDGE_ENV];
+  delete process.env[COMPUTE_BRIDGE_ENV];
+  // Help must remain quota-free and never require a running bridge.
+  if (!configured || argv.includes('--help') || argv.includes('-h')) return runTask(argv);
+  const runtime = await computeRunnerOptions(JSON.parse(configured) as unknown);
+  try { await runTask(argv, runtime); } finally { runtime.close(); }
+}
+main().catch((err) => {
   console.error(err);
   process.exit(1);
 });

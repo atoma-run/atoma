@@ -31,6 +31,10 @@ if (pressurePush.title !== 'Atoma — host under pressure' ||
   throw new Error('packaged push catalog failed to render host pressure');
 }
 
+const { computePairCopy } = await import('../dist/viz/computeCopy.js');
+await import('../dist/viz/computeHttp.js');
+if (computePairCopy('title') !== 'Connect this computer') throw new Error('packaged compute consent catalog missing');
+
 // Also runs on the production host after npm ci --omit=dev, before activation.
 await import('./sqlite-release-smoke.mjs');
 await import('./retrieval-project-smoke.mjs');

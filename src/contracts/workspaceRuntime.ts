@@ -3,9 +3,13 @@ import type { ReadRunCopyCheck, ReadRunFileComparisons } from './readRuns.js';
 import type { DeliveredSnapshot, StartingSnapshot } from './startingWorkspace.js';
 import type { RoutingRepository } from './tissueRouting.js';
 import { z } from 'zod';
+import { readRunsIndexSchema } from './readRuns.js';
 import { deliveryKindSchema } from './taskExecution.js';
 import type { ArtifactManifest } from './artifactInventory.js';
 import type { CheckpointExport, CheckpointTransferEntry, CheckpointTransferHeader } from './checkpointTransfer.js';
+
+export const workspaceSourceBindingSchema = z.object({ seed: z.boolean(), readRuns: readRunsIndexSchema.optional() }).strict();
+export type WorkspaceSourceBinding = z.infer<typeof workspaceSourceBindingSchema>;
 
 export const workspaceSourceSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('seed') }).strict(),
@@ -44,6 +48,7 @@ export type RuntimePhaseGuard = ReadOnlyPhaseGuard | Awaited<ReturnType<AsyncRea
 
 /** All identities and photographs stay on the filesystem's execution host. */
 export interface WorkspaceRuntime {
+  bindSources?(sources: WorkspaceSourceBinding): Promise<void>;
   importSource(source: WorkspaceSource, header: CheckpointTransferHeader): Promise<WorkspaceRestoration>;
   artifactExport(options: ArtifactExportOptions): Promise<ArtifactExport>;
   importWorkspace(header: CheckpointTransferHeader, archive: boolean): Promise<WorkspaceRestoration>;
