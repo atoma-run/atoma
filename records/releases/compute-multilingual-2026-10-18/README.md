@@ -31,7 +31,7 @@ checked against the receipts, Linux architecture and source revision.
 were accepted by Atoma's compiled launch schema. Set
 `ATOMA_COMPUTE_HAYSTACK_CONFIG` to the matching receipt's `haystackConfig`; use
 `images.retrieval.reference` when pairing the client. Keep all image pins from
-the same architecture receipt. Worker allowlisting uses its `contentDigest`.
+the same architecture receipt. Worker allowlisting uses the digest after `@` in its worker `reference`, matching the client handshake. `contentDigest` identifies the image configuration and is not the admission value.
 
 Local `release:check:static` and targeted Haystack/cache/configuration tests passed.
 [Full CI at the published revision](https://github.com/atoma-run/atoma/actions/runs/39124777321)

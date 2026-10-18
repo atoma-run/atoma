@@ -281,3 +281,23 @@ haystackConfig. All eight manifest/config digests and anonymous access verified.
 No main merge/deployment or native desktop acceptance performed.
 Full CI for a5b7bde7 also passed (39124777321): 7,570/51 general tests,
 88 fresh-worker tests, 3 mender-isolation tests, static release checks.
+
+## Production activation and existing CLI (2026-10-18)
+
+Owner chose the existing headless client and atoma.run UI; Electron is again
+out of scope. No Electron dependencies or code were created. Main 00b3779f
+passed CI 39131749011 and deployed successfully in 39132264503. Server current
+symlink and active systemd service verified. Compute enabled in the existing
+production environment file, with a preserved pre-activation backup, version
+0.4.0, both published worker reference digests and receipt haystackConfig.
+Admission ceilings unchanged. Worker allowlisting must use the digest in
+`reference`, NOT receipt `contentDigest` (which is the image configuration ID).
+CLI advertises the reference digest. Documentation corrected accordingly.
+
+Mac ARM64 images are being pulled; worker/workspace/preview done, retrieval
+pending. Pairing browser confirmation prepared for Mac de Matthieu / Matthieu
+Foillard's organisation; user approval pending. No project grant or paid run
+started. Host disk has about 6.4 GiB left; monitor before workloads.
+Post-deploy MCP health returned Authentication required (pre-deploy call worked);
+production browser session and pairing endpoint work. Do not equate that
+connector session error with a production service outage.

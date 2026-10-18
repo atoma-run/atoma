@@ -127,7 +127,7 @@ The **Compute images** workflow builds and tests Linux amd64 and arm64 images on
 native runners. Manual dispatch validates without publishing. The release workflow calls it
 after publishing the source archive; it uploads the tested images to GHCR and adds an architecture-specific JSON receipt
 and checksum to that release. Pair using its `reference` values; the server worker
-allowlist uses the receipt's worker `contentDigest`. For an image-only publication, push an explicit `compute-images-*` tag at the
+allowlist uses the digest after `@` in the receipt's worker `reference` (the manifest identity reported by the client), not `contentDigest` (the image configuration identity). For an image-only publication, push an explicit `compute-images-*` tag at the
 verified revision. This publishes the same four images without releasing or
 deploying the application; the workflow retains digest receipts as artifacts.
 Native Linux validation does
