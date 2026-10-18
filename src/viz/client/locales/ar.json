@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "التحقق مجددًا",
   "compute.app.preparation.consent": "راجع شروط ترخيص Docker ووافق على أذونات النظام. لا تقبلها Atoma نيابةً عنك.",
   "compute.app.preparation.resume": "بعد التثبيت أو إعادة التشغيل، افتح Compute مجددًا. ستستمر عملية الإعداد التي بدأتها بمجرد أن يصبح Docker جاهزًا.",
-  "compute.setup.appSoon": "يجري إعداد أدوات التثبيت. يمكنك استخدام التثبيت اليدوي في هذه الأثناء."
+  "compute.setup.appSoon": "يجري إعداد أدوات التثبيت. يمكنك استخدام التثبيت اليدوي في هذه الأثناء.",
+  "compute.app.issue.download": "تعذّر تنزيل أحد المكونات. تحقّق من اتصالك بالإنترنت وحالة Docker، ثم أعد المحاولة. ستُعاد الاستفادة من طبقات الصورة المكتملة.",
+  "compute.app.issue.docker.mac": "افتح Docker Desktop وانتظر حتى يبدأ تشغيله، ثم أعد المحاولة.",
+  "compute.app.issue.docker.windows": "افتح Docker Desktop، وفعّل واجهته الخلفية WSL2، وانتظر حتى يبدأ تشغيله، ثم أعد المحاولة.",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop غير جاهز. افتحه، وأكمل إعداده وشاشة الترخيص، ثم أعد المحاولة.",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop غير جاهز. افتحه، وأكمل إعداده، وحدّد حاويات Linux التي تستخدم WSL2، ثم أعد المحاولة.",
+  "compute.app.prepareDetected": "Docker Desktop قيد التشغيل بالفعل. سيعيد Compute استخدام المكونات المثبّتة، وينزّل المكونات المفقودة، ثم يتحقّق من الموارد ويتصل.",
+  "compute.app.dockerHelp": "دليل تثبيت Docker",
+  "compute.app.requirements.mac": "يتطلب Docker Desktop مع 5 وحدات معالجة مركزية وذاكرة وصول عشوائي بسعة 6 GiB على الأقل.",
+  "compute.app.requirements.windows": "يتطلب Docker Desktop مع حاويات Linux تستخدم WSL2، و5 وحدات معالجة مركزية وذاكرة وصول عشوائي بسعة 6 GiB على الأقل.",
+  "compute.app.component.workspace": "جارٍ إعداد مكوّن مساحة العمل",
+  "compute.app.component.tools": "جارٍ إعداد مكوّن الأدوات",
+  "compute.app.component.search": "جارٍ إعداد البحث في المستندات. هذا هو أكبر تنزيل وقد يستغرق عدة دقائق.",
+  "compute.app.component.preview": "جارٍ إعداد مكوّن المعاينة",
+  "compute.app.imageProgress": "طبقات الصورة الجاهزة: {{ready}} من أصل {{total}} · الوقت المنقضي {{minutes}}:{{seconds}}"
 }

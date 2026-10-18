@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "重新检查",
   "compute.app.preparation.consent": "你需要查看 Docker 的许可条款并批准系统权限。Atoma 不会代你接受。",
   "compute.app.preparation.resume": "安装或重启后，请重新打开 Compute。Docker 就绪后，你已开始的准备流程将继续。",
-  "compute.setup.appSoon": "安装程序正在准备中。在此期间，你可以使用手动安装。"
+  "compute.setup.appSoon": "安装程序正在准备中。在此期间，你可以使用手动安装。",
+  "compute.app.issue.download": "无法下载某个组件。请检查互联网连接和 Docker 状态，然后重试。已完成的镜像层将被复用。",
+  "compute.app.issue.docker.mac": "打开 Docker Desktop，等待其运行后重试。",
+  "compute.app.issue.docker.windows": "打开 Docker Desktop，启用其 WSL2 后端，等待其运行后重试。",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop 尚未就绪。请打开它，完成设置和许可证确认，然后重试。",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop 尚未就绪。请打开它，完成设置，选择使用 WSL2 的 Linux 容器，然后重试。",
+  "compute.app.prepareDetected": "Docker Desktop 已在运行。Compute 将复用已安装的组件，下载缺失的组件，然后检查资源并连接。",
+  "compute.app.dockerHelp": "Docker 安装指南",
+  "compute.app.requirements.mac": "需要 Docker Desktop，并至少分配 5 个 CPU 和 6 GiB 内存。",
+  "compute.app.requirements.windows": "需要 Docker Desktop，使用基于 WSL2 的 Linux 容器，并至少分配 5 个 CPU 和 6 GiB 内存。",
+  "compute.app.component.workspace": "正在准备工作区组件",
+  "compute.app.component.tools": "正在准备工具组件",
+  "compute.app.component.search": "正在准备文档搜索。这是最大的下载项，可能需要几分钟。",
+  "compute.app.component.preview": "正在准备预览组件",
+  "compute.app.imageProgress": "{{ready}}/{{total}} 个镜像层已就绪 · 已用时 {{minutes}}:{{seconds}}"
 }

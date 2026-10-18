@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "もう一度確認",
   "compute.app.preparation.consent": "Dockerのライセンス条項を確認し、システム権限を承認してください。Atomaがお客様に代わって同意することはありません。",
   "compute.app.preparation.resume": "インストールまたは再起動の後、Computeを再度開いてください。開始した準備は、Dockerの準備ができると続行されます。",
-  "compute.setup.appSoon": "インストーラーを準備中です。それまでは手動インストールをご利用いただけます。"
+  "compute.setup.appSoon": "インストーラーを準備中です。それまでは手動インストールをご利用いただけます。",
+  "compute.app.issue.download": "コンポーネントをダウンロードできませんでした。インターネット接続とDockerの状態を確認してから、再試行してください。完了済みのイメージレイヤーは再利用されます。",
+  "compute.app.issue.docker.mac": "Docker Desktopを開き、起動するまで待ってから再試行してください。",
+  "compute.app.issue.docker.windows": "Docker Desktopを開き、WSL2バックエンドを有効にして、起動するまで待ってから再試行してください。",
+  "compute.app.preparation.start-failed.mac": "Docker Desktopの準備ができていません。開いてセットアップとライセンス画面の手続きを完了し、再試行してください。",
+  "compute.app.preparation.start-failed.windows": "Docker Desktopの準備ができていません。開いてセットアップを完了し、WSL2を使用するLinuxコンテナを選択してから、再試行してください。",
+  "compute.app.prepareDetected": "Docker Desktopはすでに起動しています。Computeはインストール済みのコンポーネントを再利用し、不足しているものをダウンロードしてから、リソースを確認して接続します。",
+  "compute.app.dockerHelp": "Dockerインストールガイド",
+  "compute.app.requirements.mac": "5個以上のCPUと6 GiB以上のRAMを割り当てたDocker Desktopが必要です。",
+  "compute.app.requirements.windows": "WSL2を使用するLinuxコンテナが有効で、5個以上のCPUと6 GiB以上のRAMを割り当てたDocker Desktopが必要です。",
+  "compute.app.component.workspace": "ワークスペースコンポーネントを準備しています",
+  "compute.app.component.tools": "ツールコンポーネントを準備しています",
+  "compute.app.component.search": "ドキュメント検索を準備しています。これは最も容量の大きいダウンロードで、数分かかる場合があります。",
+  "compute.app.component.preview": "プレビューコンポーネントを準備しています",
+  "compute.app.imageProgress": "イメージレイヤー{{total}}個中{{ready}}個の準備が完了・経過時間{{minutes}}:{{seconds}}"
 }

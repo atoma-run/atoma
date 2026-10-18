@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "دوبارہ جانچیں",
   "compute.app.preparation.consent": "آپ Docker کی لائسنس کی شرائط کا جائزہ لیتے اور سسٹم کی اجازتیں منظور کرتے ہیں۔ Atoma آپ کی طرف سے انہیں قبول نہیں کرتا۔",
   "compute.app.preparation.resume": "تنصیب یا دوبارہ شروع کرنے کے بعد Compute دوبارہ کھولیں۔ Docker تیار ہوتے ہی آپ کی شروع کردہ تیاری جاری ہو جائے گی۔",
-  "compute.setup.appSoon": "انسٹالرز تیار کیے جا رہے ہیں۔ اس دوران آپ دستی تنصیب استعمال کر سکتے ہیں۔"
+  "compute.setup.appSoon": "انسٹالرز تیار کیے جا رہے ہیں۔ اس دوران آپ دستی تنصیب استعمال کر سکتے ہیں۔",
+  "compute.app.issue.download": "ایک جزو ڈاؤن لوڈ نہیں ہو سکا۔ اپنا انٹرنیٹ کنکشن اور Docker کی حالت چیک کریں، پھر دوبارہ کوشش کریں۔ مکمل شدہ امیج لیئرز دوبارہ استعمال کی جائیں گی۔",
+  "compute.app.issue.docker.mac": "Docker Desktop کھولیں اور اس کے چلنے تک انتظار کریں، پھر دوبارہ کوشش کریں۔",
+  "compute.app.issue.docker.windows": "Docker Desktop کھولیں، اس کا WSL2 بیک اینڈ فعال کریں اور اس کے چلنے تک انتظار کریں، پھر دوبارہ کوشش کریں۔",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop تیار نہیں ہے۔ اسے کھولیں، اس کا سیٹ اپ اور لائسنس اسکرین مکمل کریں، پھر دوبارہ کوشش کریں۔",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop تیار نہیں ہے۔ اسے کھولیں، اس کا سیٹ اپ مکمل کریں، WSL2 کے ساتھ Linux کنٹینرز منتخب کریں، پھر دوبارہ کوشش کریں۔",
+  "compute.app.prepareDetected": "Docker Desktop پہلے ہی چل رہا ہے۔ Compute نصب شدہ اجزا دوبارہ استعمال کرے گا، غیر موجود اجزا ڈاؤن لوڈ کرے گا، پھر وسائل چیک کر کے منسلک ہو جائے گا۔",
+  "compute.app.dockerHelp": "Docker کی تنصیب کی رہنما ہدایات",
+  "compute.app.requirements.mac": "کم از کم 5 CPUs اور 6 GiB RAM کے ساتھ Docker Desktop درکار ہے۔",
+  "compute.app.requirements.windows": "WSL2 استعمال کرنے والے Linux کنٹینرز، کم از کم 5 CPUs اور 6 GiB RAM کے ساتھ Docker Desktop درکار ہے۔",
+  "compute.app.component.workspace": "ورک اسپیس جزو تیار کیا جا رہا ہے",
+  "compute.app.component.tools": "ٹولز کا جزو تیار کیا جا رہا ہے",
+  "compute.app.component.search": "دستاویز کی تلاش تیار کی جا رہی ہے۔ یہ سب سے بڑا ڈاؤن لوڈ ہے اور اس میں کئی منٹ لگ سکتے ہیں۔",
+  "compute.app.component.preview": "پیش منظر کا جزو تیار کیا جا رہا ہے",
+  "compute.app.imageProgress": "{{total}} میں سے {{ready}} امیج لیئرز تیار · گزرا وقت {{minutes}}:{{seconds}}"
 }

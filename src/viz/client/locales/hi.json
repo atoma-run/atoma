@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "फिर से जाँचें",
   "compute.app.preparation.consent": "आप Docker की लाइसेंस शर्तों की समीक्षा करते हैं और सिस्टम अनुमतियाँ स्वीकार करते हैं। Atoma आपकी ओर से इन्हें स्वीकार नहीं करता।",
   "compute.app.preparation.resume": "इंस्टॉलेशन या रीस्टार्ट के बाद Compute को फिर से खोलें। Docker के तैयार होते ही आपके द्वारा शुरू की गई तैयारी जारी हो जाएगी।",
-  "compute.setup.appSoon": "इंस्टॉलर तैयार किए जा रहे हैं। इस बीच आप मैन्युअल इंस्टॉलेशन का उपयोग कर सकते हैं।"
+  "compute.setup.appSoon": "इंस्टॉलर तैयार किए जा रहे हैं। इस बीच आप मैन्युअल इंस्टॉलेशन का उपयोग कर सकते हैं।",
+  "compute.app.issue.download": "एक घटक डाउनलोड नहीं किया जा सका। अपना इंटरनेट कनेक्शन और Docker की स्थिति जाँचें, फिर दोबारा प्रयास करें। पूरी हो चुकी इमेज लेयर का फिर से उपयोग किया जाएगा।",
+  "compute.app.issue.docker.mac": "Docker Desktop खोलें और उसके चालू होने तक प्रतीक्षा करें, फिर दोबारा प्रयास करें।",
+  "compute.app.issue.docker.windows": "Docker Desktop खोलें, उसका WSL2 बैकएंड सक्षम करें और उसके चालू होने तक प्रतीक्षा करें, फिर दोबारा प्रयास करें।",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop तैयार नहीं है। इसे खोलें, इसका सेटअप और लाइसेंस स्क्रीन पूरी करें, फिर दोबारा प्रयास करें।",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop तैयार नहीं है। इसे खोलें, इसका सेटअप पूरा करें, WSL2 वाले Linux कंटेनर चुनें, फिर दोबारा प्रयास करें।",
+  "compute.app.prepareDetected": "Docker Desktop पहले से चालू है। Compute इंस्टॉल किए गए घटकों का फिर से उपयोग करेगा, अनुपलब्ध घटकों को डाउनलोड करेगा, फिर संसाधनों की जाँच करके कनेक्ट करेगा।",
+  "compute.app.dockerHelp": "Docker इंस्टॉलेशन गाइड",
+  "compute.app.requirements.mac": "कम-से-कम 5 CPU और 6 GiB RAM वाला Docker Desktop आवश्यक है।",
+  "compute.app.requirements.windows": "WSL2 का उपयोग करने वाले Linux कंटेनर, कम-से-कम 5 CPU और 6 GiB RAM वाला Docker Desktop आवश्यक है।",
+  "compute.app.component.workspace": "वर्कस्पेस घटक तैयार किया जा रहा है",
+  "compute.app.component.tools": "टूल्स घटक तैयार किया जा रहा है",
+  "compute.app.component.search": "दस्तावेज़ खोज तैयार की जा रही है। यह सबसे बड़ा डाउनलोड है और इसमें कई मिनट लग सकते हैं।",
+  "compute.app.component.preview": "प्रीव्यू घटक तैयार किया जा रहा है",
+  "compute.app.imageProgress": "{{total}} में से {{ready}} इमेज लेयर तैयार · बीता समय {{minutes}}:{{seconds}}"
 }

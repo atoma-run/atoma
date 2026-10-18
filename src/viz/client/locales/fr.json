@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "Vérifier à nouveau",
   "compute.app.preparation.consent": "Tu vérifies les conditions de licence de Docker et approuves les autorisations système. Atoma ne les accepte pas à ta place.",
   "compute.app.preparation.resume": "Après l’installation ou un redémarrage, rouvre Compute. Une préparation déjà lancée reprendra dès que Docker sera prêt.",
-  "compute.setup.appSoon": "Les programmes d’installation sont en cours de préparation. En attendant, tu peux utiliser l’installation manuelle."
+  "compute.setup.appSoon": "Les programmes d’installation sont en cours de préparation. En attendant, tu peux utiliser l’installation manuelle.",
+  "compute.app.issue.download": "Un composant n’a pas pu être téléchargé. Vérifie ta connexion Internet et l’état de Docker, puis réessaie. Les couches d’image déjà téléchargées seront réutilisées.",
+  "compute.app.issue.docker.mac": "Ouvre Docker Desktop et attends qu’il soit en cours d’exécution, puis réessaie.",
+  "compute.app.issue.docker.windows": "Ouvre Docker Desktop, active son backend WSL2 et attends qu’il soit en cours d’exécution, puis réessaie.",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop n’est pas prêt. Ouvre-le, termine sa configuration et accepte sa licence, puis réessaie.",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop n’est pas prêt. Ouvre-le, termine sa configuration, sélectionne les conteneurs Linux avec WSL2, puis réessaie.",
+  "compute.app.prepareDetected": "Docker Desktop est déjà en cours d’exécution. Compute réutilisera les composants installés, téléchargera ceux qui manquent, puis vérifiera les ressources et se connectera.",
+  "compute.app.dockerHelp": "Guide d’installation de Docker",
+  "compute.app.requirements.mac": "Nécessite Docker Desktop avec au moins 5 processeurs et 6 Gio de RAM.",
+  "compute.app.requirements.windows": "Nécessite Docker Desktop avec des conteneurs Linux utilisant WSL2, au moins 5 processeurs et 6 Gio de RAM.",
+  "compute.app.component.workspace": "Préparation du composant workspace",
+  "compute.app.component.tools": "Préparation du composant d’outils",
+  "compute.app.component.search": "Préparation de la recherche documentaire. C’est le téléchargement le plus volumineux et il peut prendre plusieurs minutes.",
+  "compute.app.component.preview": "Préparation du composant d’aperçu",
+  "compute.app.imageProgress": "{{ready}} couches d’image sur {{total}} prêtes · temps écoulé {{minutes}}:{{seconds}}"
 }

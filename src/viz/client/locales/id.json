@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "Periksa lagi",
   "compute.app.preparation.consent": "Anda meninjau ketentuan lisensi Docker dan menyetujui izin sistem. Atoma tidak menyetujuinya untuk Anda.",
   "compute.app.preparation.resume": "Setelah instalasi atau mulai ulang, buka kembali Compute. Penyiapan yang Anda mulai akan berlanjut setelah Docker siap.",
-  "compute.setup.appSoon": "Penginstal sedang disiapkan. Sementara itu, Anda dapat menggunakan instalasi manual."
+  "compute.setup.appSoon": "Penginstal sedang disiapkan. Sementara itu, Anda dapat menggunakan instalasi manual.",
+  "compute.app.issue.download": "Komponen tidak dapat diunduh. Periksa koneksi internet dan status Docker, lalu coba lagi. Lapisan image yang telah selesai akan digunakan kembali.",
+  "compute.app.issue.docker.mac": "Buka Docker Desktop dan tunggu hingga berjalan, lalu coba lagi.",
+  "compute.app.issue.docker.windows": "Buka Docker Desktop, aktifkan backend WSL2, dan tunggu hingga berjalan, lalu coba lagi.",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop belum siap. Buka aplikasi tersebut, selesaikan penyiapan dan layar lisensinya, lalu coba lagi.",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop belum siap. Buka aplikasi tersebut, selesaikan penyiapannya, pilih kontainer Linux dengan WSL2, lalu coba lagi.",
+  "compute.app.prepareDetected": "Docker Desktop sudah berjalan. Compute akan menggunakan kembali komponen yang terinstal, mengunduh yang belum tersedia, lalu memeriksa sumber daya dan menghubungkan.",
+  "compute.app.dockerHelp": "Panduan instalasi Docker",
+  "compute.app.requirements.mac": "Memerlukan Docker Desktop dengan minimal 5 CPU dan RAM 6 GiB.",
+  "compute.app.requirements.windows": "Memerlukan Docker Desktop dengan kontainer Linux yang menggunakan WSL2, minimal 5 CPU dan RAM 6 GiB.",
+  "compute.app.component.workspace": "Menyiapkan komponen ruang kerja",
+  "compute.app.component.tools": "Menyiapkan komponen alat",
+  "compute.app.component.search": "Menyiapkan pencarian dokumen. Ini adalah unduhan terbesar dan dapat memerlukan waktu beberapa menit.",
+  "compute.app.component.preview": "Menyiapkan komponen pratinjau",
+  "compute.app.imageProgress": "{{ready}} dari {{total}} lapisan image siap · waktu berlalu {{minutes}}:{{seconds}}"
 }

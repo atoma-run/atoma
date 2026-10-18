@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "আবার পরীক্ষা করুন",
   "compute.app.preparation.consent": "আপনি Docker-এর লাইসেন্সের শর্তাবলি পর্যালোচনা করবেন এবং সিস্টেমের অনুমতিগুলো দেবেন। Atoma আপনার হয়ে সেগুলো গ্রহণ করে না।",
   "compute.app.preparation.resume": "ইনস্টলেশন বা পুনরায় চালু করার পর Compute আবার খুলুন। Docker প্রস্তুত হলে আপনার শুরু করা প্রস্তুতি-প্রক্রিয়া চলতে থাকবে।",
-  "compute.setup.appSoon": "ইনস্টলারগুলো প্রস্তুত করা হচ্ছে। এর মধ্যে আপনি ম্যানুয়াল ইনস্টলেশন ব্যবহার করতে পারেন।"
+  "compute.setup.appSoon": "ইনস্টলারগুলো প্রস্তুত করা হচ্ছে। এর মধ্যে আপনি ম্যানুয়াল ইনস্টলেশন ব্যবহার করতে পারেন।",
+  "compute.app.issue.download": "একটি কম্পোনেন্ট ডাউনলোড করা যায়নি। আপনার ইন্টারনেট সংযোগ ও Docker-এর স্থিতি পরীক্ষা করে আবার চেষ্টা করুন। সম্পন্ন হওয়া ইমেজ লেয়ারগুলো পুনরায় ব্যবহার করা হবে।",
+  "compute.app.issue.docker.mac": "Docker Desktop খুলে এটি চালু হওয়া পর্যন্ত অপেক্ষা করুন, তারপর আবার চেষ্টা করুন।",
+  "compute.app.issue.docker.windows": "Docker Desktop খুলুন, এর WSL2 ব্যাকএন্ড সক্রিয় করুন এবং এটি চালু হওয়া পর্যন্ত অপেক্ষা করুন, তারপর আবার চেষ্টা করুন।",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop প্রস্তুত নয়। এটি খুলুন, সেটআপ ও লাইসেন্স স্ক্রিনের ধাপগুলো সম্পন্ন করুন, তারপর আবার চেষ্টা করুন।",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop প্রস্তুত নয়। এটি খুলুন, সেটআপ সম্পন্ন করুন, WSL2-সহ Linux কনটেইনার নির্বাচন করুন, তারপর আবার চেষ্টা করুন।",
+  "compute.app.prepareDetected": "Docker Desktop ইতিমধ্যেই চলছে। Compute ইনস্টল করা কম্পোনেন্টগুলো পুনরায় ব্যবহার করবে, অনুপস্থিতগুলো ডাউনলোড করবে, তারপর রিসোর্স পরীক্ষা করে সংযোগ স্থাপন করবে।",
+  "compute.app.dockerHelp": "Docker ইনস্টলেশন নির্দেশিকা",
+  "compute.app.requirements.mac": "কমপক্ষে ৫টি CPU ও ৬ GiB RAM-সহ Docker Desktop প্রয়োজন।",
+  "compute.app.requirements.windows": "WSL2 ব্যবহারকারী Linux কনটেইনার, কমপক্ষে ৫টি CPU ও ৬ GiB RAM-সহ Docker Desktop প্রয়োজন।",
+  "compute.app.component.workspace": "ওয়ার্কস্পেস কম্পোনেন্ট প্রস্তুত করা হচ্ছে",
+  "compute.app.component.tools": "টুলস কম্পোনেন্ট প্রস্তুত করা হচ্ছে",
+  "compute.app.component.search": "ডকুমেন্ট সার্চ প্রস্তুত করা হচ্ছে। এটি সবচেয়ে বড় ডাউনলোড এবং এতে কয়েক মিনিট সময় লাগতে পারে।",
+  "compute.app.component.preview": "প্রিভিউ কম্পোনেন্ট প্রস্তুত করা হচ্ছে",
+  "compute.app.imageProgress": "{{total}}টি ইমেজ লেয়ারের মধ্যে {{ready}}টি প্রস্তুত · অতিবাহিত সময় {{minutes}}:{{seconds}}"
 }

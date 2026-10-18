@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "Comprobar de nuevo",
   "compute.app.preparation.consent": "Tú revisas los términos de licencia de Docker y apruebas los permisos del sistema. Atoma no los acepta por ti.",
   "compute.app.preparation.resume": "Después de la instalación o de reiniciar, vuelve a abrir Compute. La preparación que iniciaste continuará cuando Docker esté listo.",
-  "compute.setup.appSoon": "Los instaladores se están preparando. Mientras tanto, puedes usar la instalación manual."
+  "compute.setup.appSoon": "Los instaladores se están preparando. Mientras tanto, puedes usar la instalación manual.",
+  "compute.app.issue.download": "No se pudo descargar un componente. Comprueba tu conexión a Internet y el estado de Docker y vuelve a intentarlo. Las capas de imagen completadas se reutilizan.",
+  "compute.app.issue.docker.mac": "Abre Docker Desktop y espera hasta que esté en ejecución; después, vuelve a intentarlo.",
+  "compute.app.issue.docker.windows": "Abre Docker Desktop, habilita su backend WSL2 y espera hasta que esté en ejecución; después, vuelve a intentarlo.",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop no está listo. Ábrelo, completa la configuración y la pantalla de licencia y vuelve a intentarlo.",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop no está listo. Ábrelo, completa la configuración, selecciona los contenedores Linux con WSL2 y vuelve a intentarlo.",
+  "compute.app.prepareDetected": "Docker Desktop ya está en ejecución. Compute reutilizará los componentes instalados, descargará los que falten, comprobará los recursos y se conectará.",
+  "compute.app.dockerHelp": "Guía de instalación de Docker",
+  "compute.app.requirements.mac": "Requiere Docker Desktop con al menos 5 CPU y 6 GiB de RAM.",
+  "compute.app.requirements.windows": "Requiere Docker Desktop con contenedores Linux mediante WSL2, al menos 5 CPU y 6 GiB de RAM.",
+  "compute.app.component.workspace": "Preparando el componente del espacio de trabajo",
+  "compute.app.component.tools": "Preparando el componente de herramientas",
+  "compute.app.component.search": "Preparando la búsqueda de documentos. Es la descarga más grande y puede tardar varios minutos.",
+  "compute.app.component.preview": "Preparando el componente de vista previa",
+  "compute.app.imageProgress": "Capas de imagen listas: {{ready}} de {{total}} · tiempo transcurrido: {{minutes}}:{{seconds}}"
 }

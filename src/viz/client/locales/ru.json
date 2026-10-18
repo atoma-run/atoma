@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "Проверить ещё раз",
   "compute.app.preparation.consent": "Вы самостоятельно ознакомитесь с условиями лицензии Docker и предоставите системные разрешения. Atoma не принимает их за вас.",
   "compute.app.preparation.resume": "После установки или перезагрузки снова откройте Compute. Начатая подготовка продолжится, когда Docker будет готов.",
-  "compute.setup.appSoon": "Установщики готовятся. Пока можно воспользоваться ручной установкой."
+  "compute.setup.appSoon": "Установщики готовятся. Пока можно воспользоваться ручной установкой.",
+  "compute.app.issue.download": "Не удалось скачать компонент. Проверьте подключение к интернету и состояние Docker, затем повторите попытку. Уже скачанные слои образа будут использованы повторно.",
+  "compute.app.issue.docker.mac": "Откройте Docker Desktop и дождитесь его запуска, затем повторите попытку.",
+  "compute.app.issue.docker.windows": "Откройте Docker Desktop, включите бэкенд WSL2 и дождитесь его запуска, затем повторите попытку.",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop не готов. Откройте его, завершите настройку и примите условия лицензии, затем повторите попытку.",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop не готов. Откройте его, завершите настройку, выберите контейнеры Linux с WSL2, затем повторите попытку.",
+  "compute.app.prepareDetected": "Docker Desktop уже запущен. Compute повторно использует установленные компоненты, скачает недостающие, затем проверит ресурсы и подключится.",
+  "compute.app.dockerHelp": "Руководство по установке Docker",
+  "compute.app.requirements.mac": "Требуется Docker Desktop с выделенными ресурсами: не менее 5 ЦП и 6 ГиБ ОЗУ.",
+  "compute.app.requirements.windows": "Требуется Docker Desktop с контейнерами Linux на базе WSL2 и выделенными ресурсами: не менее 5 ЦП и 6 ГиБ ОЗУ.",
+  "compute.app.component.workspace": "Подготовка компонента рабочей области",
+  "compute.app.component.tools": "Подготовка компонента инструментов",
+  "compute.app.component.search": "Подготовка поиска по документам. Это самый большой объём загрузки, поэтому процесс может занять несколько минут.",
+  "compute.app.component.preview": "Подготовка компонента предпросмотра",
+  "compute.app.imageProgress": "Готово слоёв образа: {{ready}} из {{total}} · прошло {{minutes}}:{{seconds}}"
 }

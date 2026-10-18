@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "Erneut prüfen",
   "compute.app.preparation.consent": "Sie prüfen die Docker-Lizenzbedingungen und genehmigen Systemberechtigungen. Atoma stimmt ihnen nicht in Ihrem Namen zu.",
   "compute.app.preparation.resume": "Öffnen Sie Compute nach der Installation oder einem Neustart erneut. Eine begonnene Vorbereitung wird fortgesetzt, sobald Docker bereit ist.",
-  "compute.setup.appSoon": "Die Installationsprogramme werden vorbereitet. In der Zwischenzeit können Sie die manuelle Installation verwenden."
+  "compute.setup.appSoon": "Die Installationsprogramme werden vorbereitet. In der Zwischenzeit können Sie die manuelle Installation verwenden.",
+  "compute.app.issue.download": "Eine Komponente konnte nicht heruntergeladen werden. Prüfen Sie Ihre Internetverbindung und den Docker-Status und versuchen Sie es erneut. Bereits heruntergeladene Image-Layer werden wiederverwendet.",
+  "compute.app.issue.docker.mac": "Öffnen Sie Docker Desktop und warten Sie, bis es ausgeführt wird. Versuchen Sie es dann erneut.",
+  "compute.app.issue.docker.windows": "Öffnen Sie Docker Desktop, aktivieren Sie das WSL2-Backend und warten Sie, bis es ausgeführt wird. Versuchen Sie es dann erneut.",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop ist nicht bereit. Öffnen Sie es, schließen Sie die Einrichtung und den Lizenzdialog ab und versuchen Sie es dann erneut.",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop ist nicht bereit. Öffnen Sie es, schließen Sie die Einrichtung ab, wählen Sie Linux-Container mit WSL2 aus und versuchen Sie es dann erneut.",
+  "compute.app.prepareDetected": "Docker Desktop wird bereits ausgeführt. Compute verwendet installierte Komponenten wieder, lädt die fehlenden herunter, prüft anschließend die Ressourcen und stellt die Verbindung her.",
+  "compute.app.dockerHelp": "Docker-Installationsanleitung",
+  "compute.app.requirements.mac": "Erfordert Docker Desktop mit mindestens 5 CPUs und 6 GiB RAM.",
+  "compute.app.requirements.windows": "Erfordert Docker Desktop mit Linux-Containern unter WSL2 sowie mindestens 5 CPUs und 6 GiB RAM.",
+  "compute.app.component.workspace": "Workspace-Komponente wird vorbereitet",
+  "compute.app.component.tools": "Tools-Komponente wird vorbereitet",
+  "compute.app.component.search": "Dokumentsuche wird vorbereitet. Dies ist der größte Download und kann mehrere Minuten dauern.",
+  "compute.app.component.preview": "Vorschaukomponente wird vorbereitet",
+  "compute.app.imageProgress": "{{ready}} von {{total}} Image-Layern bereit · verstrichen: {{minutes}}:{{seconds}}"
 }

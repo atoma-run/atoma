@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "Verificar novamente",
   "compute.app.preparation.consent": "Deve rever os termos da licença do Docker e aprovar as permissões do sistema. A Atoma não os aceita por si.",
   "compute.app.preparation.resume": "Após a instalação ou um reinício, reabra o Compute. Qualquer preparação iniciada continuará assim que o Docker estiver pronto.",
-  "compute.setup.appSoon": "Os instaladores estão a ser preparados. Entretanto, pode utilizar a instalação manual."
+  "compute.setup.appSoon": "Os instaladores estão a ser preparados. Entretanto, pode utilizar a instalação manual.",
+  "compute.app.issue.download": "Não foi possível transferir um componente. Verifique a ligação à Internet e o estado do Docker e tente novamente. As camadas da imagem já concluídas serão reutilizadas.",
+  "compute.app.issue.docker.mac": "Abra o Docker Desktop e aguarde até estar em execução. Depois, tente novamente.",
+  "compute.app.issue.docker.windows": "Abra o Docker Desktop, ative o respetivo backend WSL2 e aguarde até estar em execução. Depois, tente novamente.",
+  "compute.app.preparation.start-failed.mac": "O Docker Desktop não está pronto. Abra-o, conclua a configuração e o ecrã da licença e tente novamente.",
+  "compute.app.preparation.start-failed.windows": "O Docker Desktop não está pronto. Abra-o, conclua a configuração, selecione contentores Linux com WSL2 e tente novamente.",
+  "compute.app.prepareDetected": "O Docker Desktop já está em execução. O Compute reutilizará os componentes instalados, transferirá os que faltam, verificará os recursos e estabelecerá a ligação.",
+  "compute.app.dockerHelp": "Guia de instalação do Docker",
+  "compute.app.requirements.mac": "Requer o Docker Desktop com, pelo menos, 5 CPUs e 6 GiB de RAM.",
+  "compute.app.requirements.windows": "Requer o Docker Desktop com contentores Linux que utilizem WSL2, pelo menos 5 CPUs e 6 GiB de RAM.",
+  "compute.app.component.workspace": "A preparar o componente do espaço de trabalho",
+  "compute.app.component.tools": "A preparar o componente de ferramentas",
+  "compute.app.component.search": "A preparar a pesquisa de documentos. Esta é a maior transferência e pode demorar vários minutos.",
+  "compute.app.component.preview": "A preparar o componente de pré-visualização",
+  "compute.app.imageProgress": "Camadas da imagem prontas: {{ready}} de {{total}} · tempo decorrido: {{minutes}}:{{seconds}}"
 }
