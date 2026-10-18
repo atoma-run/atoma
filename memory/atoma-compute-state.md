@@ -334,4 +334,7 @@ No Electron. Review: records/reviews/compute-onboarding-2026-10-18.md.
 Release verification passed: 7,608 tests, 25 opt-in skips, with the fresh Compute
 acceptance image (the unrelated atoma-worker:latest is stale). TLS setup browser
 smoke passed at 1366/375 px; full GPU smoke passed, including ordinary-owner
-onboarding and absence of the hosted choice. Production deployment pending.
+onboarding and absence of the hosted choice. CI translated all new product copy
+in 3adcc61c; the following documentation push includes those catalogs in the
+immutable production artifact. Production deployment pending. MCP health was
+reachable again before deployment, with no active runs.
