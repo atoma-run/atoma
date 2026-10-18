@@ -48,7 +48,7 @@ export function ComputeApp() {
     </aside>
     <main><header><span className="eyebrow">{t('eyebrow')}</span><span className={`status ${state?.connected ? 'ready' : ''}`} role="status">{t(`phase.${state?.phase ?? 'loading'}`)}</span></header>
       {failed ? <div className="notice" role="alert">{t('commandFailed')} <button onClick={() => action({ action: 'refresh' })}>{t('retry')}</button></div> : null}
-      {state?.issue ? <div className="notice" role="alert">{t(`issue.${state.issue}`)}</div> : null}
+      {state?.issue ? <div className="notice" role="alert">{t(state.issue === 'docker' ? `issue.docker.${state.preparation?.target === 'windows-x64' ? 'windows' : 'mac'}` : `issue.${state.issue}`)}</div> : null}
       {view === 'connection' ? <>
         <h1>{t(state?.connected ? 'readyTitle' : 'welcome')}</h1><p className="lead">{t(state?.connected ? 'readyBody' : 'intro')}</p>
         <ol className="steps">{['account', 'prepare', 'run'].map((key, i) => <li key={key} className={(i === 0 && state?.paired) || (i === 1 && state?.connected) ? 'complete' : ''}><span>{i + 1}</span>{t(`step.${key}`)}</li>)}</ol>
@@ -58,27 +58,27 @@ export function ComputeApp() {
             <label>{t('computerName')}<input maxLength={120} value={name ?? state.deviceName} onChange={event => setName(event.target.value)} disabled={busy} /></label>
             <button className="primary" disabled={busy || !(name ?? state.deviceName).trim()} onClick={() => action({ action: 'pair', name: (name ?? state.deviceName).trim() })}>{t('pair')}</button>
           </> : state.connected ? <><h2>{t('connectedTitle')}</h2><p>{t('chooseProject')}</p><button className="primary" onClick={() => open('atoma')}>{t('openAtoma')}</button><p className="fine">{t('background')}</p></> : <>
-            <h2>{t('prepareTitle')}</h2><p>{t('prepareBody')}</p>
-            {state.download ? <><progress max={state.download.total} value={state.download.completed} aria-label={t('download')} /><p>{t('downloadProgress', { completed: state.download.completed, total: state.download.total })}</p></> : null}
+            <h2>{t('prepareTitle')}</h2><p>{t(state.preparation?.stage === 'ready' ? 'prepareDetected' : 'prepareBody')}</p>
+            {state.download ? <><progress max={state.download.total} value={state.download.completed} aria-label={t('download')} /><p>{t('downloadProgress', { completed: state.download.completed, total: state.download.total })}</p>{state.phase === 'downloading' && state.download.completed < state.download.total ? <p role="status">{t(`component.${['workspace', 'tools', 'search', 'preview'][state.download.completed]}`)}{state.imageProgress ? <> · {t('imageProgress', { ready: state.imageProgress.readyLayers, total: state.imageProgress.layers, minutes: Math.floor(state.imageProgress.elapsedSeconds / 60), seconds: String(state.imageProgress.elapsedSeconds % 60).padStart(2, '0') })}</> : null}</p> : null}</> : null}
             <button className="primary" disabled={busy} onClick={() => action({ action: 'prepare' })}>{t('prepare')}</button>
             <button disabled={busy} onClick={() => action({ action: 'connect' })}>{t('connect')}</button>
-            <button className="text" onClick={() => open('docker')}>{t('getDocker')}</button>
+            
           </>}
           {(busy || state?.preparationPending) && state?.phase !== 'stopping' ? <button onClick={() => action({ action: 'cancel' })} disabled={pending}>{t('cancel')}</button> : null}
         </section>
         {state?.preparation && !state.connected ? <section className="card" aria-live="polite">
-          <h2>{t('preparation.title')}</h2><p>{t(`preparation.${state.preparation.stage}`)}</p>
+          <h2>{t('preparation.title')}</h2><p>{t(state.preparation.stage === 'start-failed' ? `preparation.start-failed.${state.preparation.target === 'windows-x64' ? 'windows' : 'mac'}` : `preparation.${state.preparation.stage}`)}</p>
           {state.preparation.stage === 'installer-download' ? <><progress max={state.preparation.totalBytes ?? undefined} value={state.preparation.totalBytes ? state.preparation.downloadedBytes : undefined} aria-label={t('preparation.installer-download')} /><p>{bytes(state.preparation.downloadedBytes)}</p></> : null}
           {['install-required', 'download-failed', 'installer-open'].includes(state.preparation.stage) ? <button className="primary" disabled={busy} onClick={() => action({ action: 'install-docker' })}><ButtonIcon kind="download" />{t('preparation.installDocker')}</button> : null}
           {state.preparation.stage === 'wsl-required' ? <button className="primary" disabled={busy} onClick={() => action({ action: 'install-wsl' })}><ButtonIcon kind="download" />{t('preparation.installWsl')}</button> : null}
-          <button disabled={busy} onClick={() => action({ action: 'refresh' })}><ButtonIcon kind="refresh" />{t('preparation.check')}</button><button onClick={() => open('docker')}>{t('getDocker')}</button>
-          <p className="fine">{t('preparation.consent')}</p><p className="fine">{t('preparation.resume')}</p>
+          <button disabled={busy} onClick={() => action({ action: 'refresh' })}><ButtonIcon kind="refresh" />{t('preparation.check')}</button>{state?.preparation && state.preparation.stage !== 'ready' && state.preparation.stage !== 'starting' ? <button onClick={() => open('docker')}>{t('dockerHelp')}</button> : null}
+          {state.preparation.stage !== 'ready' && state.preparation.stage !== 'starting' ? <p className="fine">{t('preparation.consent')}</p> : null}{state.preparationPending ? <p className="fine">{t('preparation.resume')}</p> : null}
         </section> : null}<p className="fine">{t('privacy')}</p>
       </> : view === 'diagnostic' ? <>
         <h1>{t('nav.diagnostic')}</h1><p className="lead">{t('diagnosticBody')}</p>
         <section className="card"><h2>Docker Desktop</h2><p>{state?.diagnostic ? t('diagnosticOk', { version: state.diagnostic.version }) : t('diagnosticNeeded')}</p>
-          <button className="primary" disabled={busy || state?.connected || !state?.paired} onClick={() => action({ action: 'diagnose' })}>{t('diagnose')}</button><button onClick={() => open('docker')}>{t('getDocker')}</button>
-          <p className="fine">{t('requirements')}</p></section>
+          <button className="primary" disabled={busy || state?.connected || !state?.paired} onClick={() => action({ action: 'diagnose' })}>{t('diagnose')}</button>{state?.preparation && state.preparation.stage !== 'ready' && state.preparation.stage !== 'starting' ? <button onClick={() => open('docker')}>{t('dockerHelp')}</button> : null}
+          <p className="fine">{t(state?.preparation?.target === 'windows-x64' ? 'requirements.windows' : 'requirements.mac')}</p></section>
       </> : view === 'activity' ? <>
         <h1>{t('nav.activity')}</h1><p className="lead">{t(state?.accepting ? 'accepting' : 'draining')}</p>
         <section className="card"><h2>{active.length ? t('working') : t('idle')}</h2>{active.map(row => <p key={row.allocationId}>{t(`allocation.${row.state}`)} · <code>{row.execution.runId.slice(0, 8)}</code></p>)}

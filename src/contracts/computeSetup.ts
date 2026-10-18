@@ -20,3 +20,6 @@ export const DOCKER_DOWNLOADS = {
   'mac-x64': 'https://desktop.docker.com/mac/main/amd64/Docker.dmg',
   'windows-x64': 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe',
 } as const;
+
+export const computeImageProgressSchema = z.object({ elapsedSeconds: z.number().int().nonnegative(), layers: z.number().int().min(0).max(256), readyLayers: z.number().int().min(0).max(256) });
+export type ComputeImageProgress = z.infer<typeof computeImageProgressSchema>;

@@ -1,3 +1,5 @@
+import { pullComputeImage } from './computeImagePull.js';
+import type { ComputeImageProgress } from '../contracts/computeSetup.js';
 import { computeFreeDisk } from './computeDisk.js';
 import { launcherUnitName } from './names.js';
 import { COMPUTE_RUN_RESOURCES } from '../contracts/computeProject.js';
@@ -83,13 +85,17 @@ export class DesktopCompute {
     });
   }
 
-  static async pullImages(config: Pick<ComputeClientSettings, 'workspaceImage' | 'workerImage' | 'retrievalImage' | 'previewImage'>, progress?: (completed: number, total: number) => void, signal?: AbortSignal): Promise<void> {
+  static async pullImages(config: Pick<ComputeClientSettings, 'workspaceImage' | 'workerImage' | 'retrievalImage' | 'previewImage'>, progress?: (completed: number, total: number) => void, signal?: AbortSignal, detail?: (progress: ComputeImageProgress) => void): Promise<void> {
     const images = [image.parse(config.workspaceImage), image.parse(config.workerImage), ...(config.retrievalImage ? [image.parse(config.retrievalImage)] : []), ...(config.previewImage ? [image.parse(config.previewImage)] : [])];
     let completed = 0; progress?.(completed, images.length);
     for (const reference of images) {
       signal?.throwIfAborted();
-      if (reference.includes('@')) await exec('docker', ['pull', reference], { timeout: 15 * 60_000, maxBuffer: 1024 * 1024, signal });
-      else await docker(['image', 'inspect', reference]);
+      let installed = false;
+      try { await docker(['image', 'inspect', reference]); installed = true; } catch { signal?.throwIfAborted(); }
+      if (!installed) {
+        if (!reference.includes('@')) throw new Error('Pinned local image is unavailable');
+        await pullComputeImage(reference, value => detail?.(value), signal);
+      }
       progress?.(++completed, images.length);
     }
   }

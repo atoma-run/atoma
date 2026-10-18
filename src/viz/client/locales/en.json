@@ -2399,5 +2399,19 @@
   "compute.app.preparation.check": "Check again",
   "compute.app.preparation.consent": "You review Docker’s license terms and approve system permissions. Atoma does not accept them for you.",
   "compute.app.preparation.resume": "After installation or a restart, reopen Compute. A preparation you started will continue once Docker is ready.",
-  "compute.setup.appSoon": "Installers are being prepared. You can use the manual installation in the meantime."
+  "compute.setup.appSoon": "Installers are being prepared. You can use the manual installation in the meantime.",
+  "compute.app.issue.download": "A component could not be downloaded. Check your Internet connection and Docker’s status, then retry. Completed image layers are reused.",
+  "compute.app.issue.docker.mac": "Open Docker Desktop and wait until it is running, then retry.",
+  "compute.app.issue.docker.windows": "Open Docker Desktop, enable its WSL2 backend and wait until it is running, then retry.",
+  "compute.app.preparation.start-failed.mac": "Docker Desktop is not ready. Open it, complete its setup and license screen, then retry.",
+  "compute.app.preparation.start-failed.windows": "Docker Desktop is not ready. Open it, complete its setup, select Linux containers with WSL2, then retry.",
+  "compute.app.prepareDetected": "Docker Desktop is already running. Compute will reuse installed components, download the missing ones, then check resources and connect.",
+  "compute.app.dockerHelp": "Docker installation guide",
+  "compute.app.requirements.mac": "Requires Docker Desktop with at least 5 CPUs and 6 GiB RAM.",
+  "compute.app.requirements.windows": "Requires Docker Desktop with Linux containers using WSL2, at least 5 CPUs and 6 GiB RAM.",
+  "compute.app.component.workspace": "Preparing the workspace component",
+  "compute.app.component.tools": "Preparing the tools component",
+  "compute.app.component.search": "Preparing document search. This is the largest download and can take several minutes.",
+  "compute.app.component.preview": "Preparing the preview component",
+  "compute.app.imageProgress": "{{ready}} of {{total}} image layers ready · elapsed {{minutes}}:{{seconds}}"
 }

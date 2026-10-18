@@ -22,7 +22,7 @@ export function desktopIssue(error: unknown): ComputeDesktopState['issue'] {
  * remains in the same application lifecycle as the terminal client. */
 export class ComputeDesktopController {
   private value: ComputeDesktopState = { preparationPending: false, preparation: null, paired: false, connected: false, accepting: true, phase: 'idle', issue: null,
-    deviceName: hostname().slice(0, 120), download: null, diagnostic: null, allocations: [], transfers: [], resources: [] };
+    deviceName: hostname().slice(0, 120), download: null, imageProgress: null, diagnostic: null, allocations: [], transfers: [], resources: [] };
   private task?: Promise<void>;
   private abort?: AbortController;
   private control?: (action: 'accept' | 'drain' | 'pause' | 'stop') => Promise<void>;
@@ -68,7 +68,8 @@ export class ComputeDesktopController {
     if (!['pair', 'install-docker', 'install-wsl'].includes(command.action) && !this.value.paired) throw new Error('Pair this computer first');
     this.abort = new AbortController();
     const hooks: ComputeApplicationHooks = { signal: this.abort.signal, appVersion: this.version,
-      pairing: url => this.openPairing(url), download: (completed, total) => this.patch({ download: { completed, total } }),
+      pairing: url => this.openPairing(url), download: (completed, total) => this.patch({ download: { completed, total }, imageProgress: null }),
+      imageProgress: imageProgress => this.patch({ imageProgress }),
       connection: connected => this.patch({ connected, phase: connected ? 'connected' : this.value.phase === 'connected' ? 'connecting' : this.value.phase }),
       controls: (control, status) => { this.control = control; this.status = status; },
       diagnostic: result => { const disk = statfsSync(this.root); this.patch({ diagnostic: { ...result, hostDiskBytes: disk.bavail * disk.bsize } }); },
@@ -109,7 +110,7 @@ export class ComputeDesktopController {
         // Cancellation is successful only if the shared lifecycle completed its
         // cleanup; an engine failure is never disguised as an ordinary cancel.
         if (error instanceof Error && error.name === 'AbortError') this.patch({ phase: 'idle', connected: false });
-        else this.patch({ phase: 'error', connected: false, issue: desktopIssue(error) });
+        else this.patch({ phase: 'error', connected: false, issue: this.value.phase === 'downloading' ? 'download' : desktopIssue(error) });
       } finally { this.control = undefined; this.status = undefined; this.task = undefined; this.abort = undefined; }
     })();
   }

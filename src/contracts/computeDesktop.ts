@@ -1,5 +1,5 @@
 import type { Locale } from './locales.js';
-import { computePreparationSchema } from './computeSetup.js';
+import { computePreparationSchema, computeImageProgressSchema } from './computeSetup.js';
 import { z } from 'zod';
 import { computeLocalAllocationSchema } from './computeLocal.js';
 export const computeDesktopCommandSchema = z.discriminatedUnion('action', [
@@ -12,8 +12,9 @@ export const computeDesktopStateSchema = z.object({
   preparation: computePreparationSchema.nullable().default(null),
   paired: z.boolean(), connected: z.boolean(), accepting: z.boolean(),
   phase: z.enum(['idle', 'pairing', 'downloading', 'diagnosing', 'connecting', 'connected', 'stopping', 'error']),
-  issue: z.enum(['docker', 'resources', 'busy', 'connection', 'credential', 'pairing', 'stop-unconfirmed', 'unsupported', 'setup']).nullable(),
+  issue: z.enum(['download', 'docker', 'resources', 'busy', 'connection', 'credential', 'pairing', 'stop-unconfirmed', 'unsupported', 'setup']).nullable(),
   deviceName: z.string().max(120),
+  imageProgress: computeImageProgressSchema.nullable().default(null),
   download: z.object({ completed: z.number().int().min(0).max(4), total: z.number().int().min(1).max(4) }).nullable(),
   diagnostic: z.object({ cpus: z.number(), memoryBytes: z.number(), diskBytes: z.number(), hostDiskBytes: z.number(), version: z.string().max(80) }).nullable(),
   allocations: z.array(computeLocalAllocationSchema).max(20),

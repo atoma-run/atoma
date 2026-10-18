@@ -18,6 +18,8 @@ process.parentPort.on('message', ({data}) => { if(data.command.action==='pair') 
 if(data.command.action==='install-docker') state={...state,preparation:{...state.preparation,stage:'installer-open'}};
 if(data.command.action==='stop'){process.exit(9);return;}
 if(data.command.action==='prepare'||data.command.action==='connect') state={...state,connected:true,phase:'connected',diagnostic:{cpus:8,memoryBytes:8589934592,diskBytes:20000000000,hostDiskBytes:100000000000,version:'29.1.5'}};
+if(data.command.action==='diagnose') state={...state,issue:'docker',preparation:{...state.preparation,stage:'ready'}};
+if(data.command.action==='refresh') state={...state,issue:null,phase:'downloading',download:{completed:2,total:4},imageProgress:{elapsedSeconds:125,layers:12,readyLayers:4}};
 if(data.command.action==='drain') state={...state,accepting:false};
 if(data.command.action==='disconnect') state={...state,connected:false,phase:'idle'};
 send();process.parentPort.postMessage({kind:'reply',id:data.id,ok:true}); });send();`);
@@ -39,6 +41,14 @@ await web.executeJavaScript('window.compute.command({action:"install-docker"})')
 await new Promise(r=>setTimeout(r,100));
 assert.equal(await web.executeJavaScript('document.body.textContent.includes("Complete the Docker installation")'),true);
 await web.executeJavaScript('window.compute.command({action:"pair",name:"My computer"})');
+await web.executeJavaScript('window.compute.command({action:"diagnose"})');
+await new Promise(r=>setTimeout(r,100));
+assert.equal(await web.executeJavaScript('document.body.textContent.includes("WSL2")'),false);
+assert.equal(await web.executeJavaScript('[...document.querySelectorAll("button")].some(b=>b.textContent.includes("Docker installation guide") || b.textContent.includes("Download and open Docker installer") || b.textContent.includes("Get Docker Desktop"))'),false);
+await web.executeJavaScript('window.compute.command({action:"refresh"})');
+await new Promise(r=>setTimeout(r,100));
+assert.equal(await web.executeJavaScript('document.body.textContent.includes("4 of 12 image layers ready")'),true);
+assert.equal(await web.executeJavaScript('document.body.textContent.includes("document search")'),true);
 await web.executeJavaScript('window.compute.command({action:"prepare"})');
 for(let i=0;i<50;i++){if(await web.executeJavaScript('document.querySelector("h1").textContent')==='Your computer is ready')break;await new Promise(r=>setTimeout(r,100));}
 assert.equal(await web.executeJavaScript('document.querySelector("h1").textContent'),'Your computer is ready');

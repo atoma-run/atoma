@@ -1,3 +1,4 @@
+import type { ComputeImageProgress } from '../contracts/computeSetup.js';
 import { createInterface } from 'node:readline';
 import { parseArgs } from 'node:util';
 import { mkdirSync, lstatSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
@@ -67,6 +68,7 @@ export interface ComputeApplicationHooks {
   connection?: (connected: boolean) => void;
   controls?: (control: (action: 'accept' | 'drain' | 'pause' | 'stop') => Promise<void>, status: () => Promise<ComputeLiveStatus>) => void;
   diagnostic?: (result: Awaited<ReturnType<typeof DesktopCompute.diagnoseClient>>) => void;
+  imageProgress?: (progress: ComputeImageProgress) => void;
   download?: (completed: number, total: number) => void;
 }
 /** Shared headless and graphical client lifecycle; no renderer or model can call this directly. */
@@ -125,7 +127,7 @@ export async function computeMain(argv: string[], hooks: ComputeApplicationHooks
     finally { inventory.close(); }
     return;
   }
-  if (command === 'pull') { await DesktopCompute.pullImages(config, hooks.download, hooks.signal); console.log('Pinned images downloaded.'); return; }
+  if (command === 'pull') { await DesktopCompute.pullImages(config, hooks.download, hooks.signal, hooks.imageProgress); console.log('Pinned images downloaded.'); return; }
   const diagnostic = await DesktopCompute.diagnoseClient(config);
   hooks.diagnostic?.(diagnostic);
   hooks.signal?.throwIfAborted();

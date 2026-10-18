@@ -87,3 +87,11 @@ it('cancel removes pending preparation and does not resume after Docker becomes 
   await app.execute({ action: 'cancel' }); await app.refresh(); expect(run).not.toHaveBeenCalled();
   expect(prep.remember).toHaveBeenLastCalledWith(false);
 });
+
+it('reports an image transfer failure as a download issue, not missing Docker', async () => {
+  paired();
+  const run = vi.fn(async () => { throw new Error('docker pull: network timeout'); });
+  const app = new ComputeDesktopController('0.4.0', vi.fn(), vi.fn(), run, root, preparation);
+  await app.execute({ action: 'prepare' });
+  await vi.waitFor(() => expect(app.snapshot().issue).toBe('download'));
+});
