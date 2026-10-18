@@ -382,3 +382,16 @@ Local translated Mac installer:
 Native CI artifacts are downloadable from the workflow above. No stable public
 release was published without signing certificates. Docker acceptance on Mac
 Intel/Windows remains separate from these GUI/installer checks.
+
+## Guided setup implementation — 2026-10-18
+
+The setup page now has app/manual navigation and conservative OS selection;
+Mac user-agent "Intel" is not treated as a physical chip. Desktop prerequisite
+checks and fixed Docker installer downloads run in the utility process, with
+publisher verification before opening. Windows WSL installation/update requires
+an explicit action and the OS elevation prompt. Pending preparation is distinct
+from a run and survives reopen; Cancel clears it. Missing prerequisites cannot
+trigger image pulls. No local live CLI/Docker workload was stopped for testing.
+The new source copy is English only; main CI supplies the twelve target locales.
+Native preview publication is separate from the signed stable update channel.
+The website enables native download links only after their release exists.

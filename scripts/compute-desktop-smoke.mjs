@@ -9,12 +9,13 @@ const out = join(root, 'dist/compute-desktop');
 const profile = await mkdtemp(join(tmpdir(), 'atoma-desktop-smoke-'));
 const fixture = join(out, 'runtime-smoke.mjs');
 const harness = join(out, 'smoke.cjs');
-const state = { paired: false, connected: false, accepting: true, phase: 'idle', issue: null, deviceName: 'My computer', download: null, diagnostic: null, allocations: [], transfers: [], resources: [] };
+const state = { preparation: { target: 'mac-arm64', osVersion: '24', stage: 'install-required', downloadedBytes: 0, totalBytes: null }, paired: false, connected: false, accepting: true, phase: 'idle', issue: null, deviceName: 'My computer', download: null, diagnostic: null, allocations: [], transfers: [], resources: [] };
 await writeFile(fixture, `import { DatabaseSync } from 'node:sqlite';
 const db = new DatabaseSync(':memory:'); db.exec('CREATE TABLE proof (id INTEGER)'); db.close();
 let state = ${JSON.stringify(state)};
 const send = () => process.parentPort.postMessage({kind:'state',state});
 process.parentPort.on('message', ({data}) => { if(data.command.action==='pair') state={...state,paired:true};
+if(data.command.action==='install-docker') state={...state,preparation:{...state.preparation,stage:'installer-open'}};
 if(data.command.action==='stop'){process.exit(9);return;}
 if(data.command.action==='prepare'||data.command.action==='connect') state={...state,connected:true,phase:'connected',diagnostic:{cpus:8,memoryBytes:8589934592,diskBytes:20000000000,hostDiskBytes:100000000000,version:'29.1.5'}};
 if(data.command.action==='drain') state={...state,accepting:false};
@@ -33,6 +34,10 @@ assert.equal(web.getLastWebPreferences().sandbox,true);assert.equal(web.getLastW
 assert.equal(await web.executeJavaScript('document.querySelector("h1").textContent'),'Make this computer ready for Atoma');
 await fs.writeFile(path.join(os.tmpdir(),'atoma-compute-desktop-connection.png'),(await web.capturePage()).toPNG());
 assert.equal(await web.executeJavaScript('window.compute.command({action:"shell"}).then(()=>false,()=>true)'),true);
+assert.equal(await web.executeJavaScript('[...document.querySelectorAll("button")].some(b=>b.textContent.includes("Download and open Docker installer"))'),true);
+await web.executeJavaScript('window.compute.command({action:"install-docker"})');
+await new Promise(r=>setTimeout(r,100));
+assert.equal(await web.executeJavaScript('document.body.textContent.includes("Complete the Docker installation")'),true);
 await web.executeJavaScript('window.compute.command({action:"pair",name:"My computer"})');
 await web.executeJavaScript('window.compute.command({action:"prepare"})');
 for(let i=0;i<50;i++){if(await web.executeJavaScript('document.querySelector("h1").textContent')==='Your computer is ready')break;await new Promise(r=>setTimeout(r,100));}

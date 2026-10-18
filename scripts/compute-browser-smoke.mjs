@@ -11,6 +11,7 @@ import puppeteer from 'puppeteer';
 import { AuthStore } from '../dist/auth/store.js';
 import { ProjectStore } from '../dist/projects/store.js';
 import { ComputeDeviceStore } from '../dist/projects/computeDevices.js';
+import { COMPUTE_DESKTOP_AVAILABLE } from '../dist/viz/computeSetup.js';
 import { ComputeHttp } from '../dist/viz/computeHttp.js';
 import { issueSession, sessionTokenFromCookieHeader, authCookieName, SESSION_COOKIE } from '../dist/auth/sessions.js';
 
@@ -66,6 +67,11 @@ try {
     await page.setViewport({ width, height: 812 });
     await page.goto(`${origin}/compute/setup`);
     assert.equal(await page.$eval('h1', node => node.textContent), 'Connect your computer');
+    assert.equal(await page.$eval('.setup-tabs a[aria-current]', node => node.textContent), 'Atoma Compute app');
+    assert.ok(await page.evaluate(width => document.documentElement.scrollWidth <= width, width), 'Download view fits the screen');
+    await page.focus('.setup-tabs a'); await page.keyboard.press('Tab');
+    await Promise.all([page.waitForNavigation(), page.keyboard.press('Enter')]);
+    assert.ok(page.url().includes('mode=manual'));
     await page.focus('summary'); await page.keyboard.press('Enter');
     assert.equal(await page.$eval('details', node => node.open), true, 'Installation commands work by keyboard');
     assert.ok(await page.$eval('details code', node => node.textContent.includes('shasum -a 256')));
@@ -74,6 +80,17 @@ try {
       path: join(process.env.ATOMA_COMPUTE_SCREENSHOTS, `setup-${width}.png`), fullPage: true,
     });
   }
+  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+  await page.goto(`${origin}/compute/setup`);
+  if (COMPUTE_DESKTOP_AVAILABLE) assert.ok(await page.$eval('a.download', node => node.href.endsWith('win-x64.exe')));
+  await page.goto(`${origin}/compute/setup?os=mac-arm64`);
+  if (COMPUTE_DESKTOP_AVAILABLE) assert.ok(await page.$eval('a.download', node => node.href.endsWith('mac-arm64.dmg')));
+  await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+  await page.goto(`${origin}/compute/setup`);
+  assert.equal(await page.$('a.download'), null, 'Mac UA does not guess the physical chip');
+  await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)');
+  await page.goto(`${origin}/compute/setup`);
+  assert.equal(await page.$('a.download'), null, 'Phone is not offered an executable');
   console.log('compute browser: compiled TLS consent, responsive layout, keyboard confirmation and proof redemption verified');
 } finally {
   await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); db.close();

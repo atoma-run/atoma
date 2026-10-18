@@ -96,7 +96,7 @@ it('bounds unauthenticated pairing attempts before allocating additional receipt
 });
 
 it('offers public setup with immutable downloads, checksum verification and both native architectures', async () => {
-  const response = await request('/compute/setup?lang=ar');
+  const response = await request('/compute/setup?lang=ar&mode=manual');
   expect(response.status).toBe(200);
   const html = await response.text();
   expect(html).toContain('lang="ar" dir="rtl"');
@@ -115,4 +115,15 @@ it('requires current identity for the onboarding inventory and reports no implic
 it('does not let onboarding polling consume the native pairing budget', async () => {
   for (let i = 0; i < 35; i++) expect((await request('/api/compute/onboarding', { headers: { cookie } })).status).toBe(200);
   expect((await begin()).code).toBeTruthy();
+});
+
+it('defaults to app downloads with an explicit architecture choice and a manual fallback', async () => {
+  const response = await request('/compute/setup?lang=en&os=mac-arm64');
+  expect(response.status).toBe(200);
+  const html = await response.text();
+  expect(html).toContain('aria-current="page"');
+  expect(html).toContain('Installers are being prepared');
+  expect(html).toContain('mode=manual');
+  expect(html).not.toContain('npm ci');
+  expect(html).toContain('not yet signed');
 });

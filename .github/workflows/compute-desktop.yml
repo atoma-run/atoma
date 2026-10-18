@@ -6,6 +6,10 @@ on:
         description: Sign and notarize installers (requires configured signing secrets)
         type: boolean
         default: false
+      preview:
+        description: Publish preview installers without publisher certificates
+        type: boolean
+        default: false
       publish:
         description: Publish the signed stable desktop release
         type: boolean
@@ -66,7 +70,7 @@ jobs:
       - run: npm ci
       - run: node node_modules/electron/install.js
       - run: npm run typecheck
-      - run: npx vitest run tests/compute-desktop.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
+      - run: npx vitest run tests/compute-desktop.test.ts tests/compute-preparation.test.ts tests/compute-preparation-runtime.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
       - run: npm run compute:desktop:build
       - run: node scripts/compute-desktop-smoke.mjs
       - name: Package native installer
@@ -116,3 +120,26 @@ jobs:
           for checksum in *.sha256; do sha256sum -c "$checksum"; done
           gh release view compute-desktop-stable >/dev/null 2>&1 || gh release create compute-desktop-stable --target "$REVISION" --title 'Atoma Compute' --notes 'Signed Atoma Compute installers for macOS and Windows. Docker Desktop is required.' --latest=false
           gh release upload compute-desktop-stable ./* --clobber
+
+  preview:
+    if: inputs.preview && !inputs.signed && !inputs.publish
+    needs: desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: compute-desktop-*
+          path: installers
+          merge-multiple: true
+      - name: Publish verified preview installers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          cd installers
+          for checksum in *.sha256; do sha256sum -c "$checksum"; done
+          gh release create compute-desktop-preview-20261018-2 --target "$REVISION" --prerelease --latest=false --title 'Atoma Compute — guided setup preview' --notes 'Preview installers without publisher certificates. macOS and Windows may block installation. Docker Desktop is required; the app guides its setup. No automatic updates.' ./*.dmg ./*.exe ./*.dmg.sha256 ./*.exe.sha256

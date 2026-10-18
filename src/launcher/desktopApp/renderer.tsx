@@ -1,3 +1,4 @@
+import { ButtonIcon } from '../../viz/client-gl/ButtonIcon.js';
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { ComputeDesktopApi, ComputeDesktopCommand, ComputeDesktopState } from '../../contracts/computeDesktop.js';
@@ -63,8 +64,16 @@ export function ComputeApp() {
             <button disabled={busy} onClick={() => action({ action: 'connect' })}>{t('connect')}</button>
             <button className="text" onClick={() => open('docker')}>{t('getDocker')}</button>
           </>}
-          {busy && state?.phase !== 'stopping' ? <button onClick={() => action({ action: 'cancel' })} disabled={pending}>{t('cancel')}</button> : null}
-        </section><p className="fine">{t('privacy')}</p>
+          {(busy || state?.preparationPending) && state?.phase !== 'stopping' ? <button onClick={() => action({ action: 'cancel' })} disabled={pending}>{t('cancel')}</button> : null}
+        </section>
+        {state?.preparation && !state.connected ? <section className="card" aria-live="polite">
+          <h2>{t('preparation.title')}</h2><p>{t(`preparation.${state.preparation.stage}`)}</p>
+          {state.preparation.stage === 'installer-download' ? <><progress max={state.preparation.totalBytes ?? undefined} value={state.preparation.totalBytes ? state.preparation.downloadedBytes : undefined} aria-label={t('preparation.installer-download')} /><p>{bytes(state.preparation.downloadedBytes)}</p></> : null}
+          {['install-required', 'download-failed', 'installer-open'].includes(state.preparation.stage) ? <button className="primary" disabled={busy} onClick={() => action({ action: 'install-docker' })}><ButtonIcon kind="download" />{t('preparation.installDocker')}</button> : null}
+          {state.preparation.stage === 'wsl-required' ? <button className="primary" disabled={busy} onClick={() => action({ action: 'install-wsl' })}><ButtonIcon kind="download" />{t('preparation.installWsl')}</button> : null}
+          <button disabled={busy} onClick={() => action({ action: 'refresh' })}><ButtonIcon kind="refresh" />{t('preparation.check')}</button><button onClick={() => open('docker')}>{t('getDocker')}</button>
+          <p className="fine">{t('preparation.consent')}</p><p className="fine">{t('preparation.resume')}</p>
+        </section> : null}<p className="fine">{t('privacy')}</p>
       </> : view === 'diagnostic' ? <>
         <h1>{t('nav.diagnostic')}</h1><p className="lead">{t('diagnosticBody')}</p>
         <section className="card"><h2>Docker Desktop</h2><p>{state?.diagnostic ? t('diagnosticOk', { version: state.diagnostic.version }) : t('diagnosticNeeded')}</p>

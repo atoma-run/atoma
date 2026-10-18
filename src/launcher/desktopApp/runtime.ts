@@ -20,5 +20,7 @@ port.on('message', event => {
   void controller.execute(parsed.data.command).then(() => send({ kind: 'reply', id: parsed.data.id, ok: true }),
     () => send({ kind: 'reply', id: parsed.data.id, ok: false }));
 });
-setInterval(() => { void controller.refresh(); }, 3000);
+setInterval(() => { void controller.refresh().catch(() => {}); }, 3000);
 send({ kind: 'state', state: controller.snapshot() });
+
+void controller.initialize().catch(() => {});

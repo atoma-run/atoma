@@ -56,3 +56,24 @@ node scripts/compute-desktop-smoke.mjs
 
 This smoke drives the real Electron sandbox and IPC with an isolated fake runtime;
 it never pairs an account or starts a paid project run.
+
+## Guided setup
+
+`/compute/setup` opens the app-download view by default; `mode=manual` retains
+the verified terminal installation instructions. Browser hints suggest a system,
+with explicit overrides. A Mac browser does not reliably identify the physical
+chip: users select Apple Silicon or Intel using About This Mac.
+
+The utility process checks the native OS, Docker Desktop and Windows WSL2.
+The app can download and open the fixed official Docker installer after verifying
+its publisher, or start an installed Docker application. The installer retains
+license acceptance and OS authorization. On Windows, a separate explicit action
+opens the elevated WSL installation/update prompt; disabled firmware virtualization
+requires the manufacturer's instructions. Preparation waits for Docker readiness
+before image pulls. Pending preparation survives reopening; Cancel clears it.
+It does not resume a run or replay an indeterminate command.
+
+Preview installers are separate from the signed stable feed and carry an explicit
+notice about platform installation blocks. The native release workflow can publish
+an immutable preview after all three platform jobs pass. Real Docker installation,
+WSL reboot and license flows still require manual platform acceptance testing.

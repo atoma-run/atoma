@@ -1,3 +1,4 @@
+import { computeSetupView } from './computeSetup.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
 import { createHash, randomBytes } from 'node:crypto';
@@ -32,7 +33,7 @@ function page(res: ServerResponse, title: string, content: string, status = 200,
     'referrer-policy': 'same-origin', 'x-frame-options': 'DENY', 'x-content-type-options': 'nosniff',
     'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'" });
   res.end(`<!doctype html><html lang="${escape(locale)}" dir="${localeDirection(isLocale(locale) ? locale : 'en')}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} · Atoma</title><style>
-:root{color-scheme:dark;font:16px/1.5 system-ui,sans-serif;color:#e7eeeb;background:#101918}*{box-sizing:border-box}body{margin:0;min-height:100svh;display:flex;padding:24px}main{width:100%;max-width:600px;margin:auto;padding:28px;border:1px solid #34463f;border-radius:20px;background:#15211d;overflow-wrap:anywhere}h1{font-size:30px;line-height:1.2}p,dt{color:#b8c8bf}pre{direction:ltr;text-align:left;unicode-bidi:plaintext;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:#0c1410;border-radius:8px;font-size:13px}summary{cursor:pointer;padding:12px 0}dl{padding:16px;background:#1c2b24;border-radius:12px}dd{margin:0 0 12px;font-weight:600}button,a{display:inline-flex;align-items:center;gap:8px;font:inherit;min-height:44px;padding:10px 18px;border-radius:9px}button{cursor:pointer;border:1px solid #b2e5c4;background:#b2e5c4;color:#102519;font-weight:600}a{color:#c0d2c5}button:hover{background:#c8f2d6}a:hover{background:#263b31}button:active,a:active{opacity:.85}button:focus-visible,a:focus-visible{outline:3px solid #b2e5c4;outline-offset:4px}.actions{display:flex;gap:12px;flex-wrap:wrap}@media(max-width:480px){body{padding:12px}main{padding:20px}h1{font-size:26px}}
+:root{color-scheme:dark;font:16px/1.5 system-ui,sans-serif;color:#e7eeeb;background:#101918}*{box-sizing:border-box}body{margin:0;min-height:100svh;display:flex;padding:24px}main{width:100%;max-width:600px;margin:auto;padding:28px;border:1px solid #34463f;border-radius:20px;background:#15211d;overflow-wrap:anywhere}h1{font-size:30px;line-height:1.2}p,dt{color:#b8c8bf}pre{direction:ltr;text-align:left;unicode-bidi:plaintext;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:#0c1410;border-radius:8px;font-size:13px}summary{cursor:pointer;padding:12px 0}dl{padding:16px;background:#1c2b24;border-radius:12px}dd{margin:0 0 12px;font-weight:600}button,a{display:inline-flex;align-items:center;gap:8px;font:inherit;min-height:44px;padding:10px 18px;border-radius:9px}button{cursor:pointer;border:1px solid #b2e5c4;background:#b2e5c4;color:#102519;font-weight:600}a{color:#c0d2c5}button:hover{background:#c8f2d6}a:hover{background:#263b31}button:active,a:active{opacity:.85}button:focus-visible,a:focus-visible{outline:3px solid #b2e5c4;outline-offset:4px}.setup-tabs{display:flex;gap:8px;border-bottom:1px solid #34463f;padding-bottom:12px;margin-bottom:24px}.setup-tabs a{flex:1;min-width:0;text-align:center;justify-content:center}.setup-tabs a[aria-current],.actions a[aria-current]{background:#263b31;box-shadow:inset 0 -3px #b2e5c4}.download{background:#b2e5c4;color:#102519;font-weight:600}.notice{border-inline-start:3px solid #b2e5c4;padding-inline-start:16px}li{margin-block:12px}.actions{display:flex;gap:12px;flex-wrap:wrap}@media(max-width:480px){body{padding:12px}main{padding:20px}h1{font-size:26px}}
 </style><main><p>Atoma Compute</p><h1>${escape(title)}</h1>${content}</main></html>`);
 }
 
@@ -94,12 +95,12 @@ export class ComputeHttp {
           return `<pre><code>${escape(script)}</code></pre>`;
         };
         page(res, computeSetupCopy('title', locale),
-          `<h2>${copy('prerequisites')}</h2><p>${copy('requirements')}</p><p><a href="https://nodejs.org/en/download">Node.js</a><a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a></p>` +
+          computeSetupView(locale, url, req.headers['user-agent'] ?? '', `<h2>${copy('prerequisites')}</h2><p>${copy('requirements')}</p><p><a href="https://nodejs.org/en/download">Node.js</a><a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a></p>` +
           `<h2>${copy('install')}</h2><p>${copy('installHelp')}</p><p><a href="${COMPUTE_CLIENT_DOWNLOAD}">${copy('download')}</a><a href="${COMPUTE_CLIENT_DOWNLOAD}.sha256">${copy('checksum')}</a></p><p>${copy('architecture')}</p>` +
           `<details><summary>macOS · Apple Silicon</summary>${commands(false, 'arm64')}</details>` +
           `<details><summary>macOS · Intel</summary>${commands(false, 'amd64')}</details><details><summary>Windows x64 · PowerShell</summary>${commands(true, 'amd64')}</details>` +
           `<h2>${copy('start')}</h2><p>${copy('startHelp')}</p><pre><code>node dist/cli/compute.js pull\nnode dist/cli/compute.js doctor\nnode dist/cli/compute.js start</code></pre>` +
-          `<h2>${copy('project')}</h2><p>${copy('projectHelp')}</p><a href="/">${copy('back')}</a>`, 200, locale);
+          `<h2>${copy('project')}</h2><p>${copy('projectHelp')}</p><a href="/">${copy('back')}</a>`), 200, locale);
         return true;
       }
       const viewer = gate.resolve(req);

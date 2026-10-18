@@ -1,12 +1,15 @@
 import type { Locale } from './locales.js';
+import { computePreparationSchema } from './computeSetup.js';
 import { z } from 'zod';
 import { computeLocalAllocationSchema } from './computeLocal.js';
 export const computeDesktopCommandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('pair'), name: z.string().trim().min(1).max(120) }).strict(),
-  z.object({ action: z.enum(['prepare', 'diagnose', 'connect', 'disconnect', 'accept', 'drain', 'pause', 'stop', 'refresh', 'cancel']) }).strict(),
+  z.object({ action: z.enum(['install-docker', 'install-wsl', 'prepare', 'diagnose', 'connect', 'disconnect', 'accept', 'drain', 'pause', 'stop', 'refresh', 'cancel']) }).strict(),
 ]);
 export type ComputeDesktopCommand = z.infer<typeof computeDesktopCommandSchema>;
 export const computeDesktopStateSchema = z.object({
+  preparationPending: z.boolean().default(false),
+  preparation: computePreparationSchema.nullable().default(null),
   paired: z.boolean(), connected: z.boolean(), accepting: z.boolean(),
   phase: z.enum(['idle', 'pairing', 'downloading', 'diagnosing', 'connecting', 'connected', 'stopping', 'error']),
   issue: z.enum(['docker', 'resources', 'busy', 'connection', 'credential', 'pairing', 'stop-unconfirmed', 'unsupported', 'setup']).nullable(),
