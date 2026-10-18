@@ -248,3 +248,11 @@ preview modes; full viz:smoke passed. Desktop/mobile screenshots inspected.
 No active Compute-labelled containers remain. Frozen capacity corpus and exact
 hashes now accompany the preregistration (60 batches / 320 runs); no capacity
 measurements claimed. README and .env.example link/document opt-in activation.
+
+## Image publication requested (2026-10-18)
+
+Owner explicitly authorized publishing Docker images and deferred native Mac/
+Windows acceptance until the client application tests. Image-only publication
+uses a `compute-images-*` tag, builds/tests native Linux amd64 and arm64, pushes
+four GHCR images and preserves digest receipts as Actions artifacts. It does not
+merge the feature branch, create an application release or deploy production.
