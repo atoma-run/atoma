@@ -59,7 +59,7 @@ export function ComputeApp() {
       <p className="aside-note">{t('companion')}</p>
       <label className="language">{t('language')}<select value={locale} onChange={event => { if (isLocale(event.target.value)) setLocale(event.target.value); }}>{SUPPORTED_LOCALES.map(item => <option key={item} value={item}>{LOCALE_NAMES[item]}</option>)}</select></label>
     </aside>
-    <main><header><span className="eyebrow">{t('eyebrow')}</span><span className={`status ${state?.connected && current?.state !== 'unconfirmed' ? 'ready' : ''}`} role="status">{t(statusKey)}</span></header>
+    <main className={view === 'resources' ? 'resources-view' : undefined}><header><span className="eyebrow">{t('eyebrow')}</span><span className={`status ${state?.connected && current?.state !== 'unconfirmed' ? 'ready' : ''}`} role="status">{t(statusKey)}</span></header>
       {failed ? <div className="notice" role="alert">{t('commandFailed')} <button onClick={() => action({ action: 'refresh' })}>{t('retry')}</button></div> : null}
       {state?.issue ? <div className="notice" role="alert">{t(state.issue === 'docker' ? `issue.docker.${state.preparation?.target === 'windows-x64' ? 'windows' : 'mac'}` : `issue.${state.issue}`)}</div> : null}
       {view === 'connection' ? <>

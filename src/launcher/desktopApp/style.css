@@ -19,3 +19,14 @@
 }
 
 .resource-settings{margin:0}.resource-settings summary{cursor:pointer;min-height:44px;padding:10px 0;color:var(--accent)}.budget-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}.resource-settings[open]{padding-bottom:16px}
+
+@media(min-width:701px){
+  .resources-view{padding-top:12px;padding-bottom:12px}
+  .resources-view h1{margin:12px 0 8px}
+  .resources-view .lead{margin-bottom:12px}
+  .resources-view .card{padding:16px;margin-bottom:10px}
+  .resources-view .metrics .card{padding:14px}
+  .resources-view .resource-row{padding:4px 0}
+  .resources-view .fine{margin-top:8px}
+  .resources-view footer{margin-top:8px}
+}
