@@ -11,7 +11,7 @@ import { ComputeCredential } from './computeCredential.js';
 import { ComputeMachine } from './computeMachine.js';
 import { ComputeInventory } from './computeInventory.js';
 import { DesktopCompute } from './desktopCompute.js';
-import { computeClientSettingsSchema, computeImageSchema, computeLocalJournalSchema, type ComputeClientSettings } from '../contracts/computeLocal.js';
+import { computeClientSettingsSchema, computeImageSchema, computeLocalJournalSchema, resolveComputeBudget, type ComputeResourceBudget, type ComputeClientSettings } from '../contracts/computeLocal.js';
 import { computeCapabilitiesSchema } from '../contracts/computeDevice.js';
 
 const HELP = `Atoma Compute (headless, macOS / Windows)
@@ -43,6 +43,12 @@ function jsonFile(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8')) as unknown;
 }
 export function computeSettings(root: string): ComputeClientSettings { return computeClientSettingsSchema.parse(jsonFile(join(root, 'settings.json'))); }
+export function saveComputeBudget(root: string, budget: ComputeResourceBudget): void {
+  const config = computeClientSettingsSchema.parse({ ...computeSettings(root), resourceBudget: budget });
+  const temporary = join(root, `settings-${randomBytes(8).toString('hex')}.pending`);
+  writeFileSync(temporary, JSON.stringify(config), { mode: 0o600, flag: 'wx', flush: true });
+  renameSync(temporary, join(root, 'settings.json'));
+}
 async function post(origin: string, path: string, body: unknown, signal?: AbortSignal): Promise<unknown> {
   const response = await fetch(new URL(path, origin), { method: 'POST', redirect: 'error', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
     headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -59,7 +65,7 @@ async function post(origin: string, path: string, body: unknown, signal?: AbortS
   if (!response.ok) throw new Error(response.status === 409 ? 'pairing-pending' : 'Pairing request refused');
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
 }
-export type ComputeLiveStatus = { allocations: ReturnType<ComputeMachine['allocations']>; transfers: ReturnType<ComputeMachine['transferProgress']>; disk: ReturnType<ComputeMachine['diskStatus']>; resources: Awaited<ReturnType<typeof DesktopCompute.resourceUsage>> };
+export type ComputeLiveStatus = { resourceBudget?: ComputeResourceBudget; allocations: ReturnType<ComputeMachine['allocations']>; transfers: ReturnType<ComputeMachine['transferProgress']>; disk: ReturnType<ComputeMachine['diskStatus']>; resources: Awaited<ReturnType<typeof DesktopCompute.resourceUsage>> };
 export interface ComputeApplicationHooks {
   signal?: AbortSignal;
   reconnect?: () => boolean;
@@ -133,7 +139,9 @@ export async function computeMain(argv: string[], hooks: ComputeApplicationHooks
   hooks.signal?.throwIfAborted();
   if (command === 'doctor') { console.log(JSON.stringify(diagnostic, null, 2)); return; }
   if (!config.retrievalImage || !config.previewImage) throw new Error('Pair this installation with pinned retrieval and preview images before accepting runs');
-  const machine = new ComputeMachine({ stateRoot: root, workspaceImage: config.workspaceImage, workerImage: config.workerImage, retrievalImage: config.retrievalImage, previewImage: config.previewImage, egress: config.egress });
+  const budget = resolveComputeBudget(diagnostic, config.resourceBudget);
+  const machine = new ComputeMachine({ stateRoot: root, workspaceImage: config.workspaceImage, workerImage: config.workerImage, retrievalImage: config.retrievalImage, previewImage: config.previewImage, egress: config.egress,
+    resourceBudget: async () => resolveComputeBudget(await DesktopCompute.diagnose(), computeSettings(root).resourceBudget) });
   const exiting = new AbortController();
   const stop = () => { exiting.abort(); void machine.close().catch(() => { process.exitCode = 1; }); };
   process.once('SIGINT', stop); process.once('SIGTERM', stop);
@@ -141,8 +149,8 @@ export async function computeMain(argv: string[], hooks: ComputeApplicationHooks
   if (hooks.signal?.aborted) stop();
   try {
     const capabilities = computeCapabilitiesSchema.parse({ protocol: 1, appVersion: hooks.appVersion ?? z.object({ version: z.string().min(1) }).parse(JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))).version, platform: process.platform, architecture: process.arch,
-      services: ['workspace', 'tools', 'retrieval', 'preview'], imageDigest: config.workerImage.slice(config.workerImage.lastIndexOf('sha256:')), cpus: diagnostic.cpus,
-      memoryBytes: diagnostic.memoryBytes, diskBytes: diagnostic.diskBytes });
+      services: ['workspace', 'tools', 'retrieval', 'preview'], imageDigest: config.workerImage.slice(config.workerImage.lastIndexOf('sha256:')), cpus: budget.cpus,
+      memoryBytes: budget.memoryGiB * 1024 ** 3, diskBytes: diagnostic.diskBytes });
     const connectionOptions = { onDisconnect: () => hooks.connection?.(false), url: config.origin.replace(/^https:/, 'wss:') + '/compute/v1',
       credential: await new ComputeCredential(root, config.origin, config.deviceId).read(), capabilities };
     let connected = await machine.connect(connectionOptions);
@@ -151,7 +159,7 @@ export async function computeMain(argv: string[], hooks: ComputeApplicationHooks
       if (action === 'accept' || action === 'drain') await connected.requestControl('accepting', action === 'accept');
       else await connected.requestControl(action);
     };
-    const status = async (): Promise<ComputeLiveStatus> => ({ allocations: machine.allocations(), transfers: machine.transferProgress(), disk: machine.diskStatus(), resources: await DesktopCompute.resourceUsage(machine.machineId()) });
+    const status = async (): Promise<ComputeLiveStatus> => ({ resourceBudget: machine.resourceBudget(), allocations: machine.allocations(), transfers: machine.transferProgress(), disk: machine.diskStatus(), resources: await DesktopCompute.resourceUsage(machine.machineId()) });
     hooks.controls?.(control, status);
     console.log('Connected. Commands: accept (new runs), drain (no new runs), pause (next approved phase), stop, status. Ctrl+C stops work and exits.');
     const input = hooks.controls ? undefined : createInterface({ input: process.stdin, terminal: false });
@@ -178,8 +186,9 @@ export async function computeMain(argv: string[], hooks: ComputeApplicationHooks
         // A failed reconnect is actionable and exits; commands with uncertain
         // effects are never retried. A fresh successful session accepts new work.
         const refreshed = await DesktopCompute.diagnoseClient(config);
+        const refreshedBudget = resolveComputeBudget(refreshed, computeSettings(root).resourceBudget);
         connected = await machine.connect({ ...connectionOptions, capabilities: { ...capabilities,
-          cpus: refreshed.cpus, memoryBytes: refreshed.memoryBytes, diskBytes: refreshed.diskBytes } });
+          cpus: refreshedBudget.cpus, memoryBytes: refreshedBudget.memoryGiB * 1024 ** 3, diskBytes: refreshed.diskBytes } });
         hooks.connection?.(true);
         console.log('Connected; accepting only fresh authorized assignments.');
       }

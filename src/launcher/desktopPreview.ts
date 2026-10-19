@@ -103,7 +103,7 @@ export class DesktopPreview {
   private labels() { return ['--label', `dev.atoma.compute=${this.config.machineId}`, '--label', 'dev.atoma.compute.kind=preview', '--label', `dev.atoma.compute.instance=${this.identity.instanceId}`]; }
   private bounds(memory: string) {
     return ['--user', '10001:10001', '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--memory', memory,
-      '--memory-swap', memory, '--cpus', '0.5', '--pids-limit', '128', '--log-opt', 'max-size=1m', '--log-opt', 'max-file=1',
+      '--memory-swap', memory, '--cpus', '0.5', '--pids-limit', '128', '--log-opt', 'max-size=1m', '--log-opt', 'max-file=1', '--log-opt', 'compress=false',
       '--tmpfs', '/tmp:rw,nosuid,nodev,size=128m,uid=10001,gid=10001'];
   }
   private async traffic(command: ComputePreviewCommand): Promise<ComputePreviewReply> {

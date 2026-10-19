@@ -1,3 +1,5 @@
+import { computeSettings } from '../src/launcher/computeApplication.js';
+import { recommendedComputeBudget, resolveComputeBudget, computeWorkloadBudget } from '../src/contracts/computeLocal.js';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -94,4 +96,41 @@ it('reports an image transfer failure as a download issue, not missing Docker', 
   const app = new ComputeDesktopController('0.4.0', vi.fn(), vi.fn(), run, root, preparation);
   await app.execute({ action: 'prepare' });
   await vi.waitFor(() => expect(app.snapshot().issue).toBe('download'));
+});
+
+it('recommends bounded budgets and includes concurrent preview and proxy overhead', () => {
+  expect(recommendedComputeBudget({ cpus: 14, memoryBytes: 17.5 * 1024 ** 3 })).toEqual({ cpus: 9, memoryGiB: 10 });
+  expect(recommendedComputeBudget({ cpus: 5, memoryBytes: 6 * 1024 ** 3 })).toEqual({ cpus: 5, memoryGiB: 6 });
+  for (const cpus of [5, 8, 14, 32, 64]) for (const memoryGiB of [6, 8, 16, 64]) {
+    const split = computeWorkloadBudget({ cpus, memoryGiB });
+    expect(split.tools.cpus + split.search.cpus + 2).toBe(cpus);
+    expect(split.tools.memoryGiB + split.search.memoryGiB + 2).toBe(memoryGiB);
+    expect(split.tools.cpus).toBeGreaterThanOrEqual(2);
+    expect(split.search.memoryGiB).toBeGreaterThanOrEqual(2);
+  }
+  expect(() => resolveComputeBudget({ cpus: 8, memoryBytes: 8 * 1024 ** 3 }, { cpus: 9, memoryGiB: 6 })).toThrow('exceeds');
+  expect(() => resolveComputeBudget({ cpus: 8, memoryBytes: 8 * 1024 ** 3 }, { cpus: 5, memoryGiB: 9 })).toThrow('exceeds');
+  expect(computeDesktopCommandSchema.safeParse({ action: 'resources', budget: { cpus: 0, memoryGiB: 6 } }).success).toBe(false);
+});
+it('persists resource changes while connected without stopping or modifying the current allocation', async () => {
+  paired(); const control = vi.fn(async () => {});
+  const diagnostic = { cpus: 14, memoryBytes: 17.5 * 1024 ** 3, diskBytes: 20 * 1024 ** 3, version: '29', system: 'Docker Desktop', isolation: 'desktop-containers' as const };
+  const run = vi.fn(async (_args: string[], hooks?: ComputeApplicationHooks) => {
+    hooks?.diagnostic?.(diagnostic);
+    hooks?.controls?.(control, async () => ({ resourceBudget: { cpus: 9, memoryGiB: 10 }, allocations: [], transfers: [], resources: [], disk: { freeBytes: null, reserveBytes: 1024 } }));
+    hooks?.connection?.(true);
+    await new Promise<void>(resolve => hooks?.signal?.addEventListener('abort', () => resolve()));
+  });
+  const app = new ComputeDesktopController('0.4.0', vi.fn(), vi.fn(), run, root, preparation);
+  await app.execute({ action: 'connect' });
+  await vi.waitFor(() => expect(app.snapshot().connected).toBe(true));
+  await app.refresh();
+  expect(app.snapshot().resourceBudget).toEqual({ cpus: 9, memoryGiB: 10 });
+  await app.execute({ action: 'resources', budget: { cpus: 12, memoryGiB: 12 } });
+  expect(computeSettings(root).resourceBudget).toEqual({ cpus: 12, memoryGiB: 12 });
+  expect(app.snapshot().activeResourceBudget).toEqual({ cpus: 9, memoryGiB: 10 });
+  expect(control).not.toHaveBeenCalled(); expect(run).toHaveBeenCalledOnce();
+  await expect(app.execute({ action: 'resources', budget: { cpus: 15, memoryGiB: 12 } })).rejects.toThrow('exceeds');
+  expect(computeSettings(root).resourceBudget?.cpus).toBe(12);
+  await app.stop();
 });

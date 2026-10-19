@@ -3,12 +3,12 @@ import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync } from 'nod
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { computeMain, type ComputeApplicationHooks } from '../src/launcher/computeApplication.js';
-const m = vi.hoisted(() => ({ home: '', connect: vi.fn(), close: vi.fn(), read: vi.fn(), diagnose: vi.fn(), control: vi.fn() }));
+import { computeMain, saveComputeBudget, type ComputeApplicationHooks } from '../src/launcher/computeApplication.js';
+const m = vi.hoisted(() => ({ home: '', connect: vi.fn(), close: vi.fn(), read: vi.fn(), diagnose: vi.fn(), control: vi.fn(), construct: vi.fn() }));
 vi.mock('node:os', async original => ({ ...await original<typeof import('node:os')>(), homedir: () => m.home }));
 vi.mock('../src/launcher/computeCredential.js', () => ({ ComputeCredential: class { read = m.read; } }));
-vi.mock('../src/launcher/desktopCompute.js', () => ({ DesktopCompute: { diagnoseClient: m.diagnose } }));
-vi.mock('../src/launcher/computeMachine.js', () => ({ ComputeMachine: class { connect = m.connect; close = m.close; } }));
+vi.mock('../src/launcher/desktopCompute.js', () => ({ DesktopCompute: { diagnoseClient: m.diagnose, diagnose: m.diagnose } }));
+vi.mock('../src/launcher/computeMachine.js', () => ({ ComputeMachine: class { constructor(options: unknown) { m.construct(options); } connect = m.connect; close = m.close; } }));
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
 beforeEach(() => {
   vi.resetAllMocks(); vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -43,4 +43,17 @@ it('uses the existing control protocol and refuses to reconnect a drained deskto
   await computeMain(['start'], { appVersion: '0.4.0', controls: value => { control = value; }, reconnect: () => false });
   await control!('drain'); await control!('pause');
   expect(m.control.mock.calls).toEqual([['accepting', false], ['pause']]); expect(m.connect).toHaveBeenCalledOnce();
+});
+
+it('reads the saved budget for each new assignment and advertises the initial selected capacity', async () => {
+  m.diagnose.mockResolvedValue({ cpus: 14, memoryBytes: 17.5 * 1024 ** 3, diskBytes: 20 * 1024 ** 3 });
+  m.connect.mockResolvedValue({ requestControl: m.control, finished: Promise.resolve(true) });
+  await computeMain(['start'], { appVersion: '0.4.0', controls: () => {}, reconnect: () => false });
+  expect(m.connect.mock.calls[0]![0].capabilities).toMatchObject({ cpus: 9, memoryBytes: 10 * 1024 ** 3 });
+  const options = m.construct.mock.calls[0]![0] as { resourceBudget: () => Promise<unknown> };
+  expect(await options.resourceBudget()).toEqual({ cpus: 9, memoryGiB: 10 });
+  saveComputeBudget(join(m.home, '.atoma', 'compute'), { cpus: 12, memoryGiB: 12 });
+  expect(await options.resourceBudget()).toEqual({ cpus: 12, memoryGiB: 12 });
+  m.diagnose.mockResolvedValue({ cpus: 8, memoryBytes: 8 * 1024 ** 3 });
+  await expect(options.resourceBudget()).rejects.toThrow('exceeds');
 });

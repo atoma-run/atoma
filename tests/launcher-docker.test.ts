@@ -265,6 +265,7 @@ describe('launcher preview profiles', () => {
     expect(args).toContain('/data:rw,nosuid,nodev,size=512m');
     expect(args).toContain('--read-only');
     expect(args[args.indexOf('--runtime') + 1]).toBe('runsc');
+    expect(args.filter((value, index) => args[index - 1] === '--log-opt')).toContain('compress=false');
     expect(args[args.indexOf('--memory') + 1]).toBe('1g');
     expect(args.some((value) => value.startsWith('HTTP_PROXY='))).toBe(false);
     // A free organisation's terminal keeps the banner: nothing is passed.
@@ -350,6 +351,7 @@ describe('launcher preview profiles', () => {
 
     const args = calls[0]!;
     expect(args[args.indexOf('--runtime') + 1]).toBe('runsc');
+    expect(args.filter((value, index) => args[index - 1] === '--log-opt')).toContain('compress=false');
     expect(args).toContain('--read-only');
     expect(args[args.indexOf('--cap-drop') + 1]).toBe('ALL');
     expect(args[args.indexOf('--security-opt') + 1]).toBe('no-new-privileges');

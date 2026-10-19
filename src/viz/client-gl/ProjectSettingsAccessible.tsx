@@ -1,4 +1,4 @@
-import { computeTargetKey, type ComputeSettingsView } from './project-compute.js';
+import { COMPUTE_CONTACT_HREF, computeTargetKey, showComputeSetup, type ComputeSettingsView } from './project-compute.js';
 import { useState } from 'react';
 import { ButtonIcon } from './ButtonIcon.js';
 import { buttonIconKind } from './button-icons.js';
@@ -114,10 +114,13 @@ function ComputeSection({ view, t, onActivate }: { view: ComputeSettingsView; t:
   const selected = computeTargetKey(view.selected), saved = computeTargetKey(view.project.target);
   return <section aria-label={t('compute.title')} aria-busy={view.busy}>
     <h2>{t('compute.title')}</h2><p>{t('compute.intro')}</p>
-    <a href="/compute/setup">{t('compute.connectComputer')}</a>
+    {showComputeSetup(view.project) ? <a href="/compute/setup">{t('compute.connectComputer')}</a> : null}
     <fieldset disabled={!view.project.canEdit || view.busy}>
       <legend>{t('compute.target')}</legend>
-      {view.project.hostedAllowed ? <label><input type="radio" name="compute-target" checked={selected === 'hosted'} onChange={() => onActivate('compute.choose.hosted')} />{t('compute.hosted')}</label> : null}
+      <label><input type="radio" name="compute-target" checked={selected === 'hosted'} disabled={!view.project.hostedAllowed}
+        aria-describedby={!view.project.hostedAllowed ? 'compute-hosted-beta' : undefined}
+        onChange={() => onActivate('compute.choose.hosted')} />{t('compute.hosted')}</label>
+      {!view.project.hostedAllowed ? <p id="compute-hosted-beta">{t('compute.hostedBeta')} <a href={COMPUTE_CONTACT_HREF}>{t('compute.contact')}</a></p> : null}
       {view.project.devices.map(device => <div key={device.deviceId}>
         <label><input type="radio" name="compute-target" checked={selected === device.deviceId} disabled={!device.allowed || device.revoked}
           onChange={() => onActivate(`compute.choose.${device.deviceId}`)} />{device.name}</label>

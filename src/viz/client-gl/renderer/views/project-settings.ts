@@ -1,4 +1,4 @@
-import { computeTargetKey } from '../../project-compute.js';
+import { computeTargetKey, showComputeSetup } from '../../project-compute.js';
 import { Container } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { deploymentCopy, hostingCopy, type HostingTone } from '../../project-deployment.js';
@@ -114,8 +114,13 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
     const disabled = !compute.project.canEdit || compute.busy;
     line(snapshot.t('compute.title'), { size: 16, weight: '600', color: GPU_COLORS.text, gap: 6 });
     line(snapshot.t('compute.intro'));
-    buttonRow([{ id: 'compute.setup', label: 'compute.connectComputer' }], 280);
-    if (compute.project.hostedAllowed) buttonRow([{ id: 'compute.choose.hosted', label: 'compute.hosted', disabled }], 280, () => selected === 'hosted');
+    if (showComputeSetup(compute.project)) buttonRow([{ id: 'compute.setup', label: 'compute.connectComputer' }], 280);
+    buttonRow([{ id: 'compute.choose.hosted', label: 'compute.hosted', disabled: disabled || !compute.project.hostedAllowed }],
+      280, () => selected === 'hosted');
+    if (!compute.project.hostedAllowed) {
+      line(snapshot.t('compute.hostedBeta'), { size: 12, gap: 8 });
+      buttonRow([{ id: 'compute.contact', label: 'compute.contact' }], 280);
+    }
     for (const device of compute.project.devices) {
       if (pane.visible(y, y + BUTTON_HEIGHT)) ctx.button(content, `compute.choose.${device.deviceId}`, 'button', device.name,
         PAD, y, Math.min(inner, 360), BUTTON_HEIGHT, selected === device.deviceId, snapshot.onActivate,

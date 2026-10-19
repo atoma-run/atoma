@@ -790,6 +790,9 @@ export class DockerLauncher implements ContainerLauncher {
         `max-size=${PREVIEW_LOG_MAX_SIZE}`,
         '--log-opt',
         'max-file=1',
+        // A single log file cannot use Docker Desktop's default compression.
+        '--log-opt',
+        'compress=false',
         // Fixed application variables and, when enabled, derived proxy values.
         // Never spread the parent's credentials or control-plane store paths.
         '-e',

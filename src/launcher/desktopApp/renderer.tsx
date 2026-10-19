@@ -1,3 +1,4 @@
+import { recommendedComputeBudget, type ComputeResourceBudget } from '../../contracts/computeLocal.js';
 import { ButtonIcon } from '../../viz/client-gl/ButtonIcon.js';
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -17,6 +18,7 @@ export function ComputeApp() {
   const [locale, setLocale] = useState(initialLocale);
   const [view, setView] = useState('connection');
   const [name, setName] = useState<string>();
+  const [budgetDraft, setBudgetDraft] = useState<ComputeResourceBudget>();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const t = (key: string, vars?: Record<string, unknown>) => translate(locale, `compute.app.${key}`, vars);
@@ -38,6 +40,17 @@ export function ComputeApp() {
   const open = (link: 'atoma' | 'docker' | 'updates') => { void window.compute.open(link).catch(() => setFailed(true)); };
   const busy = pending || Boolean(state && !['idle', 'error', 'connected'].includes(state.phase));
   const active = state?.allocations.filter(row => row.state !== 'stopped') ?? [];
+  const current = active.find(row => row.state === 'unconfirmed') ?? active[0];
+  const working = state?.connected && current && current.state !== 'unconfirmed' && state.phase === 'connected';
+  const statusKey = state?.phase === 'connected' && current ? `allocation.${current.state}` : `phase.${state?.phase ?? 'loading'}`;
+  const resourceLabel = (name: string) => {
+    if (name.startsWith('atoma-worker-')) return t('service.tools');
+    if (name.endsWith('-retrieval')) return t('service.search');
+    if (name.endsWith('-control')) return t('service.workspace');
+    if (name.startsWith('atoma-proxy-')) return t('service.network');
+    if (name.includes('preview')) return t('service.preview');
+    return name;
+  };
   const checkpoints = state?.allocations.filter(row => row.checkpoint).sort((a, b) => (b.checkpoint?.confirmedAt ?? '').localeCompare(a.checkpoint?.confirmedAt ?? '')) ?? [];
   const bytes = (value: number) => `${(value / 1024 ** 3).toLocaleString(locale, { maximumFractionDigits: 1 })} GiB`;
   return <div className="shell">
@@ -46,18 +59,18 @@ export function ComputeApp() {
       <p className="aside-note">{t('companion')}</p>
       <label className="language">{t('language')}<select value={locale} onChange={event => { if (isLocale(event.target.value)) setLocale(event.target.value); }}>{SUPPORTED_LOCALES.map(item => <option key={item} value={item}>{LOCALE_NAMES[item]}</option>)}</select></label>
     </aside>
-    <main><header><span className="eyebrow">{t('eyebrow')}</span><span className={`status ${state?.connected ? 'ready' : ''}`} role="status">{t(`phase.${state?.phase ?? 'loading'}`)}</span></header>
+    <main><header><span className="eyebrow">{t('eyebrow')}</span><span className={`status ${state?.connected && current?.state !== 'unconfirmed' ? 'ready' : ''}`} role="status">{t(statusKey)}</span></header>
       {failed ? <div className="notice" role="alert">{t('commandFailed')} <button onClick={() => action({ action: 'refresh' })}>{t('retry')}</button></div> : null}
       {state?.issue ? <div className="notice" role="alert">{t(state.issue === 'docker' ? `issue.docker.${state.preparation?.target === 'windows-x64' ? 'windows' : 'mac'}` : `issue.${state.issue}`)}</div> : null}
       {view === 'connection' ? <>
-        <h1>{t(state?.connected ? 'readyTitle' : 'welcome')}</h1><p className="lead">{t(state?.connected ? 'readyBody' : 'intro')}</p>
-        <ol className="steps">{['account', 'prepare', 'run'].map((key, i) => <li key={key} className={(i === 0 && state?.paired) || (i === 1 && state?.connected) ? 'complete' : ''}><span>{i + 1}</span>{t(`step.${key}`)}</li>)}</ol>
+        <h1>{t(working ? 'working' : state?.connected ? 'readyTitle' : 'welcome')}</h1><p className="lead">{t(working ? 'runningBody' : state?.connected ? 'readyBody' : 'intro')}</p>
+        {!state?.connected ? <ol className="steps">{['account', 'prepare', 'run'].map((key, i) => <li key={key} className={(i === 0 && state?.paired) || (i === 1 && state?.connected) ? 'complete' : ''}><span>{i + 1}</span>{t(`step.${key}`)}</li>)}</ol> : null}
         <section className="card">
           {!state ? <p>{t('phase.loading')}</p> : !state.paired ? <>
             <h2>{t('accountTitle')}</h2><p>{t('accountBody')}</p>
             <label>{t('computerName')}<input maxLength={120} value={name ?? state.deviceName} onChange={event => setName(event.target.value)} disabled={busy} /></label>
             <button className="primary" disabled={busy || !(name ?? state.deviceName).trim()} onClick={() => action({ action: 'pair', name: (name ?? state.deviceName).trim() })}>{t('pair')}</button>
-          </> : state.connected ? <><h2>{t('connectedTitle')}</h2><p>{t('chooseProject')}</p><button className="primary" onClick={() => open('atoma')}>{t('openAtoma')}</button><p className="fine">{t('background')}</p></> : <>
+          </> : state.connected ? <><h2>{t(current ? `allocation.${current.state}` : state.allocations.length ? 'idle' : 'connectedTitle')}</h2>{current ? <p>{t('runIdentifier', { id: current.execution.runId.slice(0, 8) })}</p> : <p>{t(state.allocations.length ? 'waitingBody' : 'chooseProject')}</p>}{current ? <button className="primary" onClick={() => setView('activity')}>{t('viewActivity')}</button> : null}<button className="primary" onClick={() => open('atoma')}>{t('openAtoma')}</button><p className="fine">{t('background')}</p></> : <>
             <h2>{t('prepareTitle')}</h2><p>{t(state.preparation?.stage === 'ready' ? 'prepareDetected' : 'prepareBody')}</p>
             {state.download ? <><progress max={state.download.total} value={state.download.completed} aria-label={t('download')} /><p>{t('downloadProgress', { completed: state.download.completed, total: state.download.total })}</p>{state.phase === 'downloading' && state.download.completed < state.download.total ? <p role="status">{t(`component.${['workspace', 'tools', 'search', 'preview'][state.download.completed]}`)}{state.imageProgress ? <> · {t('imageProgress', { ready: state.imageProgress.readyLayers, total: state.imageProgress.layers, minutes: Math.floor(state.imageProgress.elapsedSeconds / 60), seconds: String(state.imageProgress.elapsedSeconds % 60).padStart(2, '0') })}</> : null}</p> : null}</> : null}
             <button className="primary" disabled={busy} onClick={() => action({ action: 'prepare' })}>{t('prepare')}</button>
@@ -91,8 +104,22 @@ export function ComputeApp() {
       </> : <>
         <h1>{t('nav.resources')}</h1><p className="lead">{t('resourcesBody')}</p>
         <div className="metrics">{[['cpu', state?.diagnostic?.cpus.toString()], ['ram', state?.diagnostic && bytes(state.diagnostic.memoryBytes)], ['disk', state?.diagnostic && bytes(state.diagnostic.hostDiskBytes)]].map(([key, value]) => <section className="card" key={key}><h2>{t(`resource.${key}`)}</h2><strong>{value ?? '—'}</strong></section>)}</div>
-        <section className="card"><h2>{t('usage')}</h2>{state?.resources.length ? state.resources.map(row => <p key={row.workload}>{row.cpuPercent.toFixed(1)}% CPU · {row.memory}</p>) : <p>{t('idle')}</p>}<p className="fine">{t('resourceBudget')}</p></section>
-        <button onClick={() => open('updates')}>{t('updates')}</button>
+        <section className="card"><h2>{t('usage')}</h2>{state?.resources.length ? state.resources.map(row => <div className="resource-row" key={row.workload}><h3>{resourceLabel(row.workload)}</h3><p>{row.cpuPercent.toLocaleString(locale, { maximumFractionDigits: 1 })}% CPU · {row.memory}</p></div>) : <p>{t('idle')}</p>}<p className="fine">{t('resourceBudget')}</p></section>
+        {state?.diagnostic && state.resourceBudget && <details className="resource-settings"><summary>{t('budget.title')} · {state.resourceBudget.cpus} CPU · {state.resourceBudget.memoryGiB} GiB</summary>
+          <p className="fine">{t('budget.help')}</p>
+          <form onSubmit={event => { event.preventDefault(); void command({ action: 'resources', budget: budgetDraft ?? state.resourceBudget! }); }}>
+            <div className="budget-fields">
+              <label>{t('budget.cpu')}<input type="number" min="5" max={state.diagnostic.cpus} step="1" required value={(budgetDraft ?? state.resourceBudget).cpus} onChange={event => setBudgetDraft({ ...(budgetDraft ?? state.resourceBudget!), cpus: event.currentTarget.valueAsNumber })}/></label>
+              <label>{t('budget.memory')}<input type="number" min="6" max={Math.floor(state.diagnostic.memoryBytes / 1024 ** 3)} step="1" required value={(budgetDraft ?? state.resourceBudget).memoryGiB} onChange={event => setBudgetDraft({ ...(budgetDraft ?? state.resourceBudget!), memoryGiB: event.currentTarget.valueAsNumber })}/></label>
+            </div>
+            <button type="submit" disabled={pending}>{t('budget.save')}</button>
+            <button type="button" onClick={() => setBudgetDraft(recommendedComputeBudget(state.diagnostic!))}>{t('budget.recommended')}</button>
+          </form>
+          <p className="fine">{t('budget.nextRun')}</p>
+          {current && state.activeResourceBudget && <p className="fine">{t('budget.active', { cpus: state.activeResourceBudget.cpus, memory: state.activeResourceBudget.memoryGiB })}</p>}
+          <button onClick={() => open('updates')}>{t('updates')}</button>
+        </details>}
+        {!state?.resourceBudget && <button onClick={() => open('updates')}>{t('updates')}</button>}
       </>}
       <footer><span>{t('footer')}</span>{state?.connected ? <button disabled={pending} onClick={() => { if (window.confirm(t('stopConfirm'))) action({ action: 'disconnect' }); }}>{t('disconnect')}</button> : null}</footer>
     </main>

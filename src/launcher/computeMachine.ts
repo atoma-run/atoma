@@ -1,3 +1,4 @@
+import type { ComputeResourceBudget } from '../contracts/computeLocal.js';
 import { COMPUTE_DISK_RESERVE_BYTES } from './computeDisk.js';
 import { COMPUTE_RUN_RESOURCES } from '../contracts/computeProject.js';
 import { ComputeTransfers } from './computeTransfers.js';
@@ -17,6 +18,7 @@ export class ComputeMachine {
   private freeDisk?: number;
   private readonly transfers = new ComputeTransfers();
   private readonly inventory: ComputeInventory;
+  private budget?: ComputeResourceBudget;
   private runtime?: DesktopCompute;
   private preview?: DesktopPreview;
   private execution?: ComputeExecution;
@@ -26,10 +28,11 @@ export class ComputeMachine {
   private recoveryAttempt?: Promise<DesktopCompute>;
   private closed = false;
   private closing?: Promise<void>;
-  constructor(private readonly options: { stateRoot: string;
+  constructor(private readonly options: { stateRoot: string; resourceBudget?: () => Promise<ComputeResourceBudget>;
     workspaceImage: DesktopComputeConfiguration['workspaceImage']; workerImage: DesktopComputeConfiguration['workerImage']; retrievalImage?: DesktopComputeConfiguration['retrievalImage']; previewImage?: string; egress?: boolean }) {
     this.inventory = new ComputeInventory(options.stateRoot);
   }
+  resourceBudget() { return this.budget; }
   machineId(): string { return this.inventory.machineId(); }
   allocations() { return this.inventory.list(); }
   transferProgress() { return this.transfers.list(); }
@@ -64,8 +67,9 @@ export class ComputeMachine {
           if (this.closed) throw new Error('Compute assignment cancelled');
           const allocation = this.inventory.reserve(execution, recover);
           this.execution = execution;
+          this.budget = await this.options.resourceBudget?.();
           const runtime = new DesktopCompute({ machineId: this.inventory.machineId(), allocationId: allocation.allocationId,
-            workspaceImage: this.options.workspaceImage, workerImage: this.options.workerImage, retrievalImage: this.options.retrievalImage, recovery: Boolean(recover), egress: this.options.egress });
+            resourceBudget: this.budget, workspaceImage: this.options.workspaceImage, workerImage: this.options.workerImage, retrievalImage: this.options.retrievalImage, recovery: Boolean(recover), egress: this.options.egress });
           this.runtime = runtime;
           try {
             await runtime.open();

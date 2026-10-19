@@ -23,12 +23,13 @@ class HaystackProcess {
   private ordinal = 0;
   constructor(python: string) {
     if (!isAbsolute(python)) throw new Error('Haystack requires an absolute host Python executable');
+    const threads = Math.max(1, Math.min(64, Math.floor(Number(process.env['ATOMA_COMPUTE_RETRIEVAL_CPUS']) || 1))).toString();
     this.child = spawn(python, ['-I', '-u', fileURLToPath(new URL('../../scripts/retrieval-haystack.py', import.meta.url))], {
       stdio: ['pipe', 'pipe', 'pipe'], detached: true,
       // No HOME, provider credentials, tracing destination, Python injection, or product paths.
       env: { PATH: process.env['PATH'], LANG: 'C.UTF-8', HAYSTACK_TELEMETRY_ENABLED: 'False',
         HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', HF_HUB_DISABLE_TELEMETRY: '1',
-        TOKENIZERS_PARALLELISM: 'false', OMP_NUM_THREADS: '1', MKL_NUM_THREADS: '1' },
+        TOKENIZERS_PARALLELISM: 'false', OMP_NUM_THREADS: threads, MKL_NUM_THREADS: threads },
     });
     this.exited = once(this.child, 'close').catch(() => {});
     this.child.on('error', () => this.stop());

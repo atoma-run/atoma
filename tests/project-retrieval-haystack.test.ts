@@ -58,7 +58,8 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
        computed:computed.size, cached:documents.filter(d => !!d.cachedEmbedding).length,
        inputs:documents.map(d => d.embeddingText)}) + '\\n');
    }
-   if(mode === 'env' && (process.env.OPENAI_API_KEY || process.env.HOME || process.env.PYTHONPATH || process.env.HF_HUB_OFFLINE !== '1')) process.exit(2);
+   if(mode === 'threads' && (process.env.OMP_NUM_THREADS !== '3' || process.env.MKL_NUM_THREADS !== '3')) process.exit(2);
+   if(mode === 'env' && (process.env.OPENAI_API_KEY || process.env.HOME || process.env.PYTHONPATH || process.env.HF_HUB_OFFLINE !== '1' || process.env.OMP_NUM_THREADS !== '1' || process.env.MKL_NUM_THREADS !== '1')) process.exit(2);
    reply({kind:'ready',id:0,version:mode === 'version' ? '0.0.0' : '3.1.1',documents:documents.length,
      ...(mode === 'cache' || mode === 'cache-reject' ? {runtimeSha256:'f'.repeat(64),dimension:2,computed:computed.size} : {})});
  } else if(mode === 'hang') { /* keep stdin open until cancellation */ }
@@ -231,6 +232,11 @@ describe('experimental Haystack host boundary', () => {
     input.authority.service.authorize.mockResolvedValue('yes' as never);
     await expect(createHaystackRetrievalBinding({ ...input, python: executable() })).rejects.toThrow('denied');
     expect(() => readFileSync(join(root, 'pid'))).toThrow();
+  });
+  it('passes the desktop CPU budget through the isolated Python process environment', async () => {
+    vi.stubEnv('ATOMA_COMPUTE_RETRIEVAL_CPUS', '3');
+    try { const { tool } = await bind('threads'); expect(await tool.execute({ query: 'price' })).toMatchObject({ ok: true }); }
+    finally { vi.unstubAllEnvs(); }
   });
   it('does not inherit host secrets or enable model downloads', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'synthetic-key'); vi.stubEnv('PYTHONPATH', root);

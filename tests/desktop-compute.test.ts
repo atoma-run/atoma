@@ -15,7 +15,7 @@ it('refuses mutable images before contacting the engine', () => {
 
 it.skipIf(!workspaceImage || !workerImage)('runs tools in a managed Linux volume and seals after engine-confirmed drain', async () => {
   const machineId = randomUUID();
-  const runtime = new DesktopCompute({ machineId,
+  const runtime = new DesktopCompute({ machineId, resourceBudget: { cpus: 9, memoryGiB: 10 },
     workspaceImage: await docker(['image', 'inspect', '--format', '{{.Id}}', workspaceImage!]),
     workerImage: await docker(['image', 'inspect', '--format', '{{.Id}}', workerImage!]) });
   const filter = `label=dev.atoma.compute=${machineId}`;
@@ -29,10 +29,11 @@ it.skipIf(!workspaceImage || !workerImage)('runs tools in a managed Linux volume
     expect(ids).toHaveLength(2);
     for (const id of ids) {
       const units = JSON.parse(await docker(['inspect', id])) as Array<{
-        HostConfig: { NetworkMode: string; ReadonlyRootfs: boolean; Privileged: boolean; CapDrop: string[] };
+        HostConfig: { NanoCpus: number; Memory: number; MemorySwap: number; NetworkMode: string; ReadonlyRootfs: boolean; Privileged: boolean; CapDrop: string[] };
         Config: { User: string }; Mounts: Array<{ Type: string; Destination: string }>;
       }>;
       expect(units[0]!.HostConfig).toMatchObject({ NetworkMode: 'none', ReadonlyRootfs: true, Privileged: false, CapDrop: ['ALL'] });
+      if (units[0]!.HostConfig.Memory > 512 * 1024 ** 2) expect(units[0]!.HostConfig).toMatchObject({ NanoCpus: 5e9, Memory: 5 * 1024 ** 3, MemorySwap: 5 * 1024 ** 3 });
       expect(units[0]!.Config.User).toBe('10001:10001');
       expect(units[0]!.Mounts.every(mount => mount.Type !== 'bind')).toBe(true);
     }

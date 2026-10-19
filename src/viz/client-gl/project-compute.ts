@@ -6,6 +6,8 @@ export interface ComputeSettingsView {
   project: ComputeProjectView; selected: ExecutionTarget; busy: boolean;
   loadFailed?: boolean; notice: 'idle' | 'saved' | 'failed' | 'conflict';
 }
+export const COMPUTE_CONTACT_HREF = 'mailto:mgf@iotanet.net?subject=Atoma%20Compute';
+export function showComputeSetup(project: ComputeProjectView): boolean { return project.devices.length === 0; }
 export function computeTargetKey(target: ExecutionTarget): string { return target.kind === 'hosted' ? 'hosted' : target.deviceId; }
 export function useProjectCompute(projectId: string | null, enabled: boolean) {
   const query = useQuery({ queryKey: ['compute', projectId], enabled: enabled && !!projectId, retry: false, refetchInterval: enabled ? 10_000 : false,
@@ -24,6 +26,7 @@ export function useProjectCompute(projectId: string | null, enabled: boolean) {
   [query.data, query.isError, edit, key, busy, notice, projectId]);
   const activate = useCallback((id: string) => {
     if (id === 'compute.setup') { window.location.assign(`/compute/setup?lang=${encodeURIComponent(document.documentElement.lang)}`); return; }
+    if (id === 'compute.contact') { window.location.assign(COMPUTE_CONTACT_HREF); return; }
     if (id === 'compute.refresh') { void query.refetch(); return; }
     if (!view || !projectId || inFlight.current) return;
     const pending = id.startsWith('compute.finalize.') ? view.project.pendingRuns?.find(run => run.runId === id.slice('compute.finalize.'.length)) : undefined;

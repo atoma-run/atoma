@@ -112,7 +112,7 @@ for (const mode of ['bm25', 'hybrid-rerank'] as const) it.skipIf(!process.env['A
     const retrievalImage = image(mode === 'hybrid-rerank' ? 'ATOMA_TEST_RETRIEVAL_HYBRID_IMAGE' : 'ATOMA_TEST_RETRIEVAL_IMAGE'), machineId = randomUUID();
     const identity = JSON.parse(docker(['run', '--rm', '--network', 'none', '--entrypoint', '/opt/haystack/bin/python',
       retrievalImage, '-I', '/scripts/retrieval-haystack.py', '--identity'])) as { sha256: string };
-    const runtime = new DesktopCompute({ machineId, retrievalImage,
+    const runtime = new DesktopCompute({ machineId, retrievalImage, resourceBudget: { cpus: 9, memoryGiB: 10 },
       workspaceImage: image('ATOMA_TEST_WORKSPACE_IMAGE'), workerImage: image('ATOMA_TEST_WORKER_IMAGE') });
     try {
       await runtime.open();
@@ -141,8 +141,9 @@ for (const mode of ['bm25', 'hybrid-rerank'] as const) it.skipIf(!process.env['A
           }
         }
         const containers = docker(['ps', '-q', '--filter', `label=dev.atoma.compute=${machineId}`, '--filter', 'label=dev.atoma.compute.kind=retrieval']);
-        const inspect = JSON.parse(docker(['inspect', containers])) as { HostConfig: { NetworkMode: string; ReadonlyRootfs: boolean }; Mounts: { Destination: string; Type: string }[] }[];
-        expect(inspect[0]?.HostConfig).toMatchObject({ NetworkMode: 'none', ReadonlyRootfs: true });
+        const inspect = JSON.parse(docker(['inspect', containers])) as { HostConfig: { NetworkMode: string; ReadonlyRootfs: boolean; NanoCpus: number; Memory: number; MemorySwap: number }; Config: { Env: string[] }; Mounts: { Destination: string; Type: string }[] }[];
+        expect(inspect[0]?.HostConfig).toMatchObject({ NetworkMode: 'none', ReadonlyRootfs: true, NanoCpus: 2e9, Memory: 3 * 1024 ** 3, MemorySwap: 3 * 1024 ** 3 });
+        expect(inspect[0]?.Config.Env).toContain('ATOMA_COMPUTE_RETRIEVAL_CPUS=2');
         expect(inspect[0]?.Mounts.every(m => m.Type !== 'bind')).toBe(true);
         expect(inspect[0]?.Mounts.map(m => m.Destination)).not.toContain('/workspace');
       } finally { await tool.close(); await f.service.close(); }

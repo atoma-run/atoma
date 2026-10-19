@@ -17,6 +17,26 @@ window keeps it running in the menu bar/system tray. Quitting stops local work;
 it waits for engine confirmation and refuses to claim success when Docker cannot
 confirm teardown. A disconnected run requires explicit recovery in Atoma.
 
+## Resource limits
+
+Resources shows Docker's available capacity separately from Atoma's assigned
+budget. Expand **Resources assigned to Atoma** to change the CPU and memory
+limits, or restore the recommended values. Save applies the choice to subsequent
+run assignments, including after restarting the app. Existing runs keep their
+original limits; saving does not stop or restart them.
+
+The recommendation uses about 70% of Docker CPUs and 60% of Docker memory,
+leaving at least two CPUs and 2 GiB when capacity permits. The minimum supported
+budget is 5 CPUs and 6 GiB. Limits cannot exceed Docker's available capacity;
+if Docker capacity shrinks below a saved budget, lower it before the next run.
+The app never changes Docker Desktop's own settings.
+
+The budget includes tools/builds, document search, workspace control, network
+proxies and one preview. These are ceilings, not reserved or continuously busy
+CPU cores. Model calls still execute through Atoma, and sequential work cannot
+use every available CPU. The resource editor shows the current run's budget
+separately when a saved change is waiting for the next run.
+
 ## Build and distribution
 
 Use the pinned Node version and `npm ci`, then:

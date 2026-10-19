@@ -17,9 +17,9 @@ import { BUILTIN_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
 import { LocalContainerToolExecutor } from './localWorker.js';
 
 const exec = promisify(execFile);
-import { computeImageSchema as image, type ComputeClientSettings } from '../contracts/computeLocal.js';
+import { computeImageSchema as image, computeResourceBudgetSchema, computeWorkloadBudget, type ComputeClientSettings } from '../contracts/computeLocal.js';
 const configuration = z.object({ machineId: z.string().uuid(), workspaceImage: image, workerImage: image, retrievalImage: image.optional(),
-  allocationId: z.string().uuid().optional(), egress: z.boolean().optional(), recovery: z.boolean().optional() }).strict()
+  resourceBudget: computeResourceBudgetSchema.optional(), allocationId: z.string().uuid().optional(), egress: z.boolean().optional(), recovery: z.boolean().optional() }).strict()
   .refine(value => !value.recovery || Boolean(value.allocationId), 'Recovery requires a recorded allocation identity');
 export type DesktopComputeConfiguration = z.infer<typeof configuration>;
 
@@ -198,6 +198,7 @@ export class DesktopCompute {
     return service.execute(command);
   }
   private async startRetrieval() {
+    const budget = computeWorkloadBudget(this.config.resourceBudget).search;
     const cache = `atoma-compute-${this.config.machineId}-embeddings`;
     const corpus = `${this.retrievalName}-data`;
     await docker(['volume', 'create', '--label', `dev.atoma.compute=${this.config.machineId}`, corpus]);
@@ -209,8 +210,8 @@ export class DesktopCompute {
     const child = spawn('docker', ['run', '--rm', '-i', '--init', '--name', this.retrievalName,
       '--label', `dev.atoma.compute=${this.config.machineId}`, '--label', 'dev.atoma.compute.kind=retrieval',
       '--label', `dev.atoma.compute.instance=${this.instanceId}`, '--network', 'none', '--user', '10001:10001',
-      '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--memory', '2g', '--memory-swap', '2g',
-      '--cpus', '1', '--pids-limit', '96', '--tmpfs', '/tmp:rw,nosuid,nodev,size=256m,uid=10001,gid=10001',
+      '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--memory', `${budget.memoryGiB}g`, '--memory-swap', `${budget.memoryGiB}g`,
+      '--cpus', String(budget.cpus), '--env', `ATOMA_COMPUTE_RETRIEVAL_CPUS=${budget.cpus}`, '--pids-limit', '96', '--tmpfs', '/tmp:rw,nosuid,nodev,size=256m,uid=10001,gid=10001',
       '--mount', `type=volume,src=${corpus},dst=/retrieval`,
       '--mount', `type=volume,src=${cache},dst=/cache`, this.config.retrievalImage!], { stdio: ['pipe', 'pipe', 'pipe'] });
     return this.retrieval = computeRetrievalProcess(child);
@@ -253,6 +254,7 @@ export class DesktopCompute {
       if (this.config.egress) this.egress = await startEgressSidecar({ runId: `compute-${this.config.machineId}`, image: this.config.workerImage },
         { launcher: createContainerLauncher({ image: this.config.workerImage }) });
       const worker = new LocalContainerToolExecutor({ workspaceHostPath: '/workspace/current',
+        resourceBudget: computeWorkloadBudget(this.config.resourceBudget).tools,
         image: this.config.workerImage, ...(this.egress ? { egress: this.egress } : {}), containerUser: '10001:10001', forwardWorkerLogs: false,
         managedWorkspace: { volume: this.workspaceVolume, machineId: this.config.machineId, readOnlyRunCopies: this.readRunCopies } });
       this.worker = worker;

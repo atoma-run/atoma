@@ -72,7 +72,7 @@ def main():
                     if mode == "hybrid-rerank":
                         import torch
                         from haystack.utils import ComponentDevice
-                        torch.set_num_threads(1)
+                        torch.set_num_threads(max(1, min(64, int(os.environ.get("OMP_NUM_THREADS", "1")))))
                         from haystack_integrations.components.embedders.sentence_transformers import (
                             SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder,
                         )

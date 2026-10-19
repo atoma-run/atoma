@@ -52,9 +52,11 @@ describe('ContainerToolExecutor lifecycle', () => {
     const worker = fakeWorker(4242);
     const spawnFn = vi.fn((_command: string, args: string[]) => {
       expect(args.slice(0, 3)).toEqual(['run', '--name', 'atoma-worker-owned']);
+      expect(args[args.indexOf('--cpus') + 1]).toBe('4');
+      expect(args[args.indexOf('--memory') + 1]).toBe('5g');
       return worker;
     }) as unknown as ContainerSpawn;
-    const executor = new ContainerToolExecutor({ workspaceHostPath: root, spawnFn, forwardWorkerLogs: false });
+    const executor = new ContainerToolExecutor({ workspaceHostPath: root, spawnFn, forwardWorkerLogs: false, resourceBudget: { cpus: 4, memoryGiB: 5 } });
     try {
       await executor.start();
       worker.emit('exit', 1);

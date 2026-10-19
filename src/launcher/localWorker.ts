@@ -1,3 +1,4 @@
+import type { computeWorkloadBudget } from '../contracts/computeLocal.js';
 import { workerCallTimeoutMs } from '../contracts/commandTimeouts.js';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -52,6 +53,7 @@ export class LocalContainerToolExecutor implements ToolExecutor {
 
   constructor(
     private readonly opts: {
+      resourceBudget?: ReturnType<typeof computeWorkloadBudget>['tools'];
       workspaceHostPath: string;
       /** Desktop launcher-owned volume, after the private service prepared current/. */
       managedWorkspace?: { volume: string; machineId: string; readOnlyRunCopies?: boolean };
@@ -118,6 +120,7 @@ export class LocalContainerToolExecutor implements ToolExecutor {
         return;
       }
       const args = workerRunArgs({
+        ...(this.opts.resourceBudget ? { cpus: String(this.opts.resourceBudget.cpus), memory: `${this.opts.resourceBudget.memoryGiB}g` } : {}),
         image: this.opts.image ?? DEFAULT_WORKER_IMAGE,
         workspaceHostPath: this.opts.workspaceHostPath,
         ...(this.opts.managedWorkspace ? { workspaceVolume: this.opts.managedWorkspace.volume,

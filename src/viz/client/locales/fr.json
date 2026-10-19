@@ -2413,5 +2413,22 @@
   "compute.app.component.tools": "Préparation du composant d’outils",
   "compute.app.component.search": "Préparation de la recherche documentaire. C’est le téléchargement le plus volumineux et il peut prendre plusieurs minutes.",
   "compute.app.component.preview": "Préparation du composant d’aperçu",
-  "compute.app.imageProgress": "{{ready}} couches d’image sur {{total}} prêtes · temps écoulé {{minutes}}:{{seconds}}"
+  "compute.app.imageProgress": "{{ready}} couches d’image sur {{total}} prêtes · temps écoulé {{minutes}}:{{seconds}}",
+  "compute.app.runningBody": "Cet ordinateur exécute un run pour Atoma. Suis son activité ici et laisse Compute ouvert en arrière-plan.",
+  "compute.app.waitingBody": "Cet ordinateur est connecté et attend le prochain run. Démarre-le depuis ton projet dans Atoma.",
+  "compute.app.viewActivity": "Voir l’activité du run",
+  "compute.app.runIdentifier": "Run {{id}}",
+  "compute.app.service.tools": "Outils et builds",
+  "compute.app.service.search": "Recherche documentaire",
+  "compute.app.service.preview": "Aperçu",
+  "compute.app.service.workspace": "Workspace et points de contrôle",
+  "compute.app.service.network": "Accès réseau",
+  "compute.app.budget.title": "Ressources attribuées à Atoma",
+  "compute.app.budget.help": "Définis une limite commune de processeurs et de mémoire pour les outils, la recherche documentaire et un aperçu. Ces valeurs sont des plafonds, pas une consommation permanente. Les paramètres de Docker Desktop ne changent pas.",
+  "compute.app.budget.cpu": "Limite de processeurs",
+  "compute.app.budget.memory": "Limite de mémoire (Gio)",
+  "compute.app.budget.save": "Enregistrer les limites",
+  "compute.app.budget.recommended": "Utiliser les valeurs recommandées",
+  "compute.app.budget.nextRun": "Les limites enregistrées s’appliquent au prochain run. Le run en cours conserve les siennes.",
+  "compute.app.budget.active": "Run en cours : {{cpus}} processeurs · {{memory}} Gio"
 }

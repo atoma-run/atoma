@@ -15,6 +15,17 @@ function Harness() {
     compute: compute.view, t: key => key, onActivate: compute.activate });
 }
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it('shows pairing when no computer exists and keeps hosted execution available to platform admins', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ projectId, hostedAllowed: true, canEdit: true,
+    target: { kind: 'hosted' }, devices: [] }))));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
+  render(createElement(Harness), { wrapper });
+  expect(await screen.findByRole('radio', { name: 'compute.hosted' })).toBeEnabled();
+  expect(screen.getByRole('link', { name: 'compute.connectComputer' })).toHaveAttribute('href', '/compute/setup');
+  expect(screen.queryByText('compute.hostedBeta')).not.toBeInTheDocument();
+  client.clear();
+});
 it('requires an explicit project grant, then saves the machine with a stale-target guard', async () => {
   const state: ComputeProjectView = { projectId, hostedAllowed: false, canEdit: true, target: { kind: 'hosted' },
     devices: [{ deviceId, name: 'My computer', allowed: false, revoked: false, availability: 'disconnected' }] };
@@ -34,8 +45,10 @@ it('requires an explicit project grant, then saves the machine with a stale-targ
   const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
   render(createElement(Harness), { wrapper });
   expect(await screen.findByRole('radio', { name: 'My computer' })).toBeDisabled();
-  expect(screen.queryByRole('radio', { name: 'compute.hosted' })).not.toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'compute.connectComputer' })).toHaveAttribute('href', '/compute/setup');
+  expect(screen.getByRole('radio', { name: 'compute.hosted' })).toBeDisabled();
+  expect(screen.getByText('compute.hostedBeta')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'compute.contact' })).toHaveAttribute('href', 'mailto:mgf@iotanet.net?subject=Atoma%20Compute');
+  expect(screen.queryByRole('link', { name: 'compute.connectComputer' })).not.toBeInTheDocument();
   expect(screen.getByText(/compute.availability.disconnected/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'compute.allowProject' }));
   await waitFor(() => expect(screen.getByRole('radio', { name: 'My computer' })).toBeEnabled());

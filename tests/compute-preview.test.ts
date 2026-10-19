@@ -68,8 +68,9 @@ it.skipIf(images.some(key => !process.env[key])).each(['static', 'node', 'termin
     } finally { socket.destroy(); }
     const name = `atoma-compute-preview-${identity.instanceId}`;
     expect(await docker(['port', name])).toBe('');
-    const settings = JSON.parse(await docker(['inspect', name])) as { HostConfig: { NetworkMode: string; ReadonlyRootfs: boolean }; Mounts: { Type: string; Destination: string }[] }[];
+    const settings = JSON.parse(await docker(['inspect', name])) as { HostConfig: { NetworkMode: string; ReadonlyRootfs: boolean; LogConfig: { Config: Record<string, string> } }; Mounts: { Type: string; Destination: string }[] }[];
     expect(settings[0]?.HostConfig).toMatchObject({ NetworkMode: 'none', ReadonlyRootfs: true });
+    expect(settings[0]?.HostConfig.LogConfig.Config['compress']).toBe('false');
     expect(settings[0]?.Mounts.every(m => m.Type !== 'bind')).toBe(true);
     await preview.close();
     await expect(preview.execute(identity, { method: 'connect' })).rejects.toThrow('unavailable');

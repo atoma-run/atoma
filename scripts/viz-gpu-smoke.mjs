@@ -2864,8 +2864,15 @@ try {
       await accountPage.screenshot({ path: '/tmp/atoma-compute-customer-onboarding.png' });
       await clickAccountTarget('project.section.settings');
       await accountPage.waitForSelector('section[aria-label="Run execution"]');
-      assert.equal(await accountPage.evaluate(() => [...document.querySelectorAll('section[aria-label="Run execution"] label')]
-        .some(node => node.textContent.includes('Atoma servers'))), false, 'Ordinary owners have no hosted execution choice');
+      assert.deepEqual(await accountPage.evaluate(() => {
+        const section = document.querySelector('section[aria-label="Run execution"]');
+        const hosted = [...section.querySelectorAll('label')].find(node => node.textContent.includes('Atoma servers'));
+        return { hostedVisible: Boolean(hosted), hostedDisabled: hosted?.querySelector('input')?.disabled,
+          betaExplained: section.textContent.includes('Unavailable during the beta'),
+          contact: section.querySelector('a[href^="mailto:"]')?.textContent,
+          setupVisible: [...section.querySelectorAll('a')].some(node => node.textContent.includes('Connect a computer')) };
+      }), { hostedVisible: true, hostedDisabled: true, betaExplained: true, contact: 'Contact Atoma', setupVisible: false },
+      'Ordinary owners see the disabled beta option and contact path without redundant setup');
       stubs['/auth/whoami'].platformAdmin = true;
       stubs['/api/compute/onboarding'].hostedAllowed = true;
       stubs[`/api/compute/projects/${projectId}`].hostedAllowed = true;
@@ -2874,7 +2881,7 @@ try {
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent > summary', { visible: true });
       await accountPage.click('.gpu-project-mcp-own-agent > summary');
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
-      console.log('Compute onboarding ok: ordinary owner setup is visible and hosted selection is absent');
+      console.log('Compute onboarding ok: ordinary owner sees disabled hosted beta option and contact path');
 
 
 
