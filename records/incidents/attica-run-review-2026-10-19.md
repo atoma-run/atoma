@@ -71,3 +71,16 @@ files passed (58 tests), including the isolated parent runner boundary. Both
 TypeScript configurations, full lint, docs checks and `git diff --check` passed.
 No paid replay was used to claim that the model would now approve this plan;
 what is verified is that it receives the previously omitted source.
+
+## Numbered source inspection
+
+The same b04565ec summary contains eight `run_shell` refusals of `nl` (first
+`fdef5e44-bde7-4de2-8eee-2911e4afac27`, last
+`ae065d64-064c-42d3-8dfd-d595d9976aeb`). The default allowlist already admits
+read-only inspection utilities, including `cat`, `head`, `sed`, and `od`.
+`nl` joins that existing class. `bash -c` could already run it; this removes
+friction without adding a new capability. Explicit per-tool restrictions still
+win. A regression runs actual numbered-file output including a blank line,
+then confirms an explicit echo-only allowlist refuses the same command. It
+failed before the addition. This fixes the observed refusal, not a promise
+that the model would otherwise have recovered from it.

@@ -931,6 +931,8 @@ export const DEFAULT_SHELL_ALLOWLIST: readonly string[] = [
   // Read-only inspection — the `cat`/`ls` class.
   'ls',
   'cat',
+  // Attica b04565ec: eight refused numbered-source reads; same class as cat/od.
+  'nl',
   'head',
   'tail',
   'wc',

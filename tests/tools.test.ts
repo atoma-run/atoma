@@ -221,6 +221,27 @@ describe('runShellTool', () => {
     }
   });
 
+  it('numbers source lines with nl while preserving explicit command restrictions', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-numbered-source-'));
+    const sandbox = new ToolSandbox(root);
+    try {
+      writeFileSync(join(root, 'source.ts'), 'first\n\nthird\n');
+      const sh = runShellTool({ sandbox });
+      const result = await sh.execute({ command: 'nl', args: ['-ba', 'source.ts'] }) as {
+        exitCode: number; stdout: string;
+      };
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim().split('\n').map(line => line.trim()))
+        .toEqual(['1\tfirst', '2', '3\tthird']);
+      const restricted = runShellTool({ sandbox, shellAllowlist: ['echo'] });
+      await expect(restricted.execute({ command: 'nl', args: ['source.ts'] }))
+        .rejects.toThrow(/not in allowlist/);
+    } finally {
+      await sandbox.cleanup();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('the default allowlist covers the measured friction, and states where network belongs', async () => {
     // grep (6 rejections), head (5) and chmod (3) were the measured
     // friction across archived traces; curl (3) is deliberately still
