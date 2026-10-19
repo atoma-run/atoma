@@ -12,7 +12,11 @@ import { ComputeInventory } from '../src/launcher/computeInventory.js';
 import type { ComputeApplicationHooks } from '../src/launcher/computeApplication.js';
 let root: string;
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
-beforeEach(() => { root = realpathSync(mkdtempSync(join(tmpdir(), 'compute-desktop-'))); Object.defineProperty(process, 'platform', { value: 'darwin' }); });
+beforeEach(() => {
+  root = realpathSync(mkdtempSync(join(tmpdir(), 'compute-desktop-')));
+  // Keep native Windows filesystem semantics while admitting Linux test hosts.
+  Object.defineProperty(process, 'platform', { value: platform.value === 'win32' ? 'win32' : 'darwin' });
+});
 afterEach(() => { Object.defineProperty(process, 'platform', platform); rmSync(root, { recursive: true, force: true }); });
 const preparation = { inspect: vi.fn(async () => ({ target: 'mac-arm64' as const, osVersion: '24', stage: 'ready' as const, downloadedBytes: 0, totalBytes: null })), ensureRunning: vi.fn(async () => true), installDocker: vi.fn(async () => {}), installWsl: vi.fn(async () => {}), pending: () => false, remember: vi.fn() };
 function paired() {
