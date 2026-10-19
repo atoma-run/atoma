@@ -78,6 +78,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   const projectRuns = useQuery({ queryKey: ['viz', 'project', readRunsProjectId, 'runs'],
     queryFn: () => api.projectRuns(readRunsProjectId!), enabled: readRunIds.length > 0 && readRunsProjectId !== null, staleTime: 5_000 });
   const shownRun = query.data?.run ?? null;
+  const runInProgress = shownRun?.status === 'queued' || shownRun?.status === 'running';
   const modelChoice = selection ?? conversation?.modelChoice ?? '';
   const choices = query.data?.choices ?? [];
   const selected = choices.find(choice => choice.id === modelChoice);
@@ -136,7 +137,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   }, [fitContents]);
 
   async function submit(kind: 'message' | 'confirm') {
-    if (!conversation || waiting || (kind === 'message' && (!canSend || !draft.trim()))) return;
+    if (!conversation || waiting || (kind === 'message' && (runInProgress || !canSend || !draft.trim()))) return;
     const previous = pending.current;
     const request: AssistantRequest = previous && previous.kind === kind &&
       (previous.kind === 'confirm' ? previous.proposalId === proposal?.id : previous.text === draft.trim() && previous.modelChoice === modelChoice)
@@ -283,7 +284,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       <button type="button" onClick={() => onRun({ projectId: shownRun.projectId, runId: shownRun.runId }, shownRun.traceId)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
     </div> : null}
     {error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
-    <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>
+    {runInProgress ? <p role="status">{t('assistant.runInProgress')}</p> : <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>
       <label htmlFor="assistant-message" className={newProjectPrompt ? 'gpu-assistant-empty' : undefined}>{t(newProjectPrompt ? 'assistant.newHint' : 'assistant.message')}</label>
       <textarea id="assistant-message" ref={composer} value={draft} maxLength={4000} rows={2} enterKeyHint="send"
         placeholder={waiting ? '' : t('assistant.placeholder')} disabled={waiting || !canSend}
@@ -296,7 +297,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       <div className="gpu-assistant-footer">{hasUsage ? <small title={t('assistant.cost', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}>{t('assistant.cost', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}</small> : null}
         <button type="submit" className="gpu-assistant-primary" disabled={waiting || !draft.trim() || !canSend}>
           <ButtonIcon kind={waiting ? 'clock' : 'send'} />{t(waiting ? 'assistant.working' : 'assistant.send')}</button></div>
-    </form>
+    </form>}
     </div>
     {externalAgentOpen && error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
     <details className="gpu-project-mcp-own-agent" open={externalAgentOpen}

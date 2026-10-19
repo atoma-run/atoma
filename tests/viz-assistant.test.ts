@@ -469,6 +469,29 @@ it('keeps a conversation without messages at its natural height while a run show
   expect(useGpuStore.getState().projectAssistantCompact).toBe(false);
 });
 
+it.each(['delivered', 'partial', 'failed', 'cancelled'])('hides the composer during queued and running runs and restores its draft after %s', async status => {
+  vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
+  const request = vi.spyOn(api, 'assistantRequest').mockResolvedValue(view());
+  const data = deliveredView(); data.run = null;
+  const { client, props } = panel(data);
+  await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
+  await userEvent.type(screen.getByRole('textbox'), 'Keep this draft');
+  const run = { ...deliveredView().run!, status: 'queued' };
+  for (const liveStatus of ['queued', 'running']) {
+    await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], { ...data, run: { ...run, status: liveStatus } }); });
+    await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+    expect(screen.getByText('A run is queued or in progress. You can request a change after its result is available.')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Open run' }));
+    expect(props.onRun).toHaveBeenLastCalledWith({ projectId, runId: run.runId }, run.traceId);
+  }
+  await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], { ...data, run: { ...run, status } }); });
+  expect(await screen.findByRole('textbox')).toHaveValue('Keep this draft');
+  expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+  expect(screen.queryByText('A run is queued or in progress. You can request a change after its result is available.')).not.toBeInTheDocument();
+  expect(request).not.toHaveBeenCalled();
+});
+
 it('places a finished run before a later question and shows its completion time', async () => {
   const data = deliveredView();
   data.run = { ...data.run!, status: 'failed', endedAt: '2026-10-18T10:00:00.000Z', error: 'runner finished with outcome error' };

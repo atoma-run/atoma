@@ -2031,6 +2031,7 @@
   "assistant.working": "Working…",
   "assistant.uncertain": "The action’s outcome is unconfirmed. Check Projects and Runs before requesting another action.",
   "assistant.runStatus": "Run: {{status}}",
+  "assistant.runInProgress": "A run is queued or in progress. You can request a change after its result is available.",
   "assistant.message": "Your message",
   "assistant.placeholder": "Describe your idea or the next change…",
   "assistant.cost": "Conversation: ${{cost}} API-equivalent estimate · run usage separate",
