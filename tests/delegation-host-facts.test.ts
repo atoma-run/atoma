@@ -240,6 +240,39 @@ describe('the host facts block', () => {
     expect(await runParentTests(box, [JSON.stringify(suite(fixed))], 60_000)).toMatchObject({ status: 'passed', passed: 1 });
   }, 90_000);
 
+  it('shows the late validation-before-browser branch of imported modules at the Attica run size', async () => {
+    // b04565ec: the reviewer saw only a 3,559-character server head and
+    // claimed an invalid /api/start request would launch a browser.
+    const padding = '// current state request response session fixture target\n';
+    const route = `export function start(maxPages: number) {
+  if (maxPages < 1) return { status: 400 };
+  throw new Error('browser launch would occur only after validation');
+}`;
+    const server = padding.repeat(390) + route;
+    const { root, ctx } = workspace({
+      'server.ts': server,
+      'store.ts': padding.repeat(150) + 'export const store = 1;',
+      'collector.ts': padding.repeat(440) + 'export const collector = 1;',
+      'fixture.ts': padding.repeat(45) + 'export const fixture = 1;',
+    });
+    const source = `import { test, expect } from 'vitest';
+import { start } from './server.ts';
+import { store } from './store.ts';
+import { collector } from './collector.ts';
+import { fixture } from './fixture.ts';
+test('invalid start cannot launch the browser', () => {
+  expect(start(0).status).toBe(400);
+  expect(store + collector + fixture).toBe(3);
+});`;
+    const block = await planSuiteFactsBlock(facts(source, []), ctx);
+    expect(block).toContain(JSON.stringify(server));
+    expect(block).toContain(JSON.stringify(route).slice(1, -1));
+    const box = new ToolSandbox(root);
+    boxes.push(box);
+    expect(await runParentTests(box, [JSON.stringify(suite(source))], 60_000))
+      .toMatchObject({ status: 'passed', passed: 1 });
+  }, 90_000);
+
   it('bounds imported source, deduplicates it, and reports unreadable content without inventing absence', async () => {
     const { ctx } = workspace(Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`src/m${i}.ts`, `export const m${i} = ${i};`])));
     const calls: Array<Record<string, unknown>> = [];
