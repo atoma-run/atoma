@@ -2432,5 +2432,6 @@
   "compute.app.budget.save": "Сохранить ограничения",
   "compute.app.budget.recommended": "Использовать рекомендуемые значения",
   "compute.app.budget.nextRun": "Сохранённые ограничения применятся при запуске следующего run. Ограничения текущего run не изменятся.",
-  "compute.app.budget.active": "Текущий run: {{cpus}} CPU · {{memory}} ГиБ"
+  "compute.app.budget.active": "Текущий run: {{cpus}} CPU · {{memory}} ГиБ",
+  "assistant.runInProgress": "run поставлен в очередь или выполняется. Запросить изменение можно после получения результата."
 }

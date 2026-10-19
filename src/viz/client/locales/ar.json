@@ -2432,5 +2432,6 @@
   "compute.app.budget.save": "حفظ الحدود",
   "compute.app.budget.recommended": "استخدام القيم الموصى بها",
   "compute.app.budget.nextRun": "تُطبّق الحدود المحفوظة عند بدء run التالي. يحتفظ run الحالي بحدوده.",
-  "compute.app.budget.active": "run الحالي: {{cpus}} CPU · {{memory}} GiB"
+  "compute.app.budget.active": "run الحالي: {{cpus}} CPU · {{memory}} GiB",
+  "assistant.runInProgress": "هناك run في قائمة الانتظار أو قيد التنفيذ. يمكنك طلب تغيير بعد توفر نتيجته."
 }

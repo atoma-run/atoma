@@ -2432,5 +2432,6 @@
   "compute.app.budget.save": "حدود محفوظ کریں",
   "compute.app.budget.recommended": "تجویز کردہ اقدار استعمال کریں",
   "compute.app.budget.nextRun": "محفوظ کردہ حدود اگلا run شروع ہونے پر لاگو ہوں گی۔ موجودہ run کی حدود برقرار رہیں گی۔",
-  "compute.app.budget.active": "موجودہ run: {{cpus}} CPU · {{memory}} GiB"
+  "compute.app.budget.active": "موجودہ run: {{cpus}} CPU · {{memory}} GiB",
+  "assistant.runInProgress": "ایک run قطار میں ہے یا جاری ہے۔ اس کا نتیجہ دستیاب ہونے کے بعد آپ تبدیلی کی درخواست کر سکتے ہیں۔"
 }

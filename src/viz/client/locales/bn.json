@@ -2432,5 +2432,6 @@
   "compute.app.budget.save": "সীমা সংরক্ষণ করুন",
   "compute.app.budget.recommended": "প্রস্তাবিত মান ব্যবহার করুন",
   "compute.app.budget.nextRun": "পরবর্তী run শুরু হলে সংরক্ষিত সীমা প্রযোজ্য হবে। বর্তমান run-এর সীমা অপরিবর্তিত থাকবে।",
-  "compute.app.budget.active": "বর্তমান run: {{cpus}} CPU · {{memory}} GiB"
+  "compute.app.budget.active": "বর্তমান run: {{cpus}} CPU · {{memory}} GiB",
+  "assistant.runInProgress": "একটি run সারিতে আছে বা চলছে। এর ফলাফল পাওয়া গেলে আপনি পরিবর্তনের অনুরোধ করতে পারবেন।"
 }

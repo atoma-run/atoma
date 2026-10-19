@@ -2432,5 +2432,6 @@
   "compute.app.budget.save": "Limits speichern",
   "compute.app.budget.recommended": "Empfohlene Werte verwenden",
   "compute.app.budget.nextRun": "Gespeicherte Limits gelten ab dem nächsten Run. Für den aktuellen Run gelten weiterhin seine Limits.",
-  "compute.app.budget.active": "Aktueller Run: {{cpus}} CPU · {{memory}} GiB"
+  "compute.app.budget.active": "Aktueller Run: {{cpus}} CPU · {{memory}} GiB",
+  "assistant.runInProgress": "Ein run ist in der Warteschlange oder wird ausgeführt. Sie können eine Änderung anfordern, sobald das Ergebnis verfügbar ist."
 }

@@ -2432,5 +2432,6 @@
   "compute.app.budget.save": "上限を保存",
   "compute.app.budget.recommended": "推奨値を使用",
   "compute.app.budget.nextRun": "保存した上限は、次のrunの開始時に適用されます。現在のrunには既存の上限が維持されます。",
-  "compute.app.budget.active": "現在のrun：{{cpus}} CPU・{{memory}} GiB"
+  "compute.app.budget.active": "現在のrun：{{cpus}} CPU・{{memory}} GiB",
+  "assistant.runInProgress": "runは待機中または進行中です。結果が利用可能になった後で変更をリクエストできます。"
 }

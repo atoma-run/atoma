@@ -2432,5 +2432,6 @@
   "compute.app.budget.save": "सीमाएँ सहेजें",
   "compute.app.budget.recommended": "अनुशंसित मान इस्तेमाल करें",
   "compute.app.budget.nextRun": "सहेजी गई सीमाएँ अगला run शुरू होने पर लागू होंगी। मौजूदा run की सीमाएँ बनी रहेंगी।",
-  "compute.app.budget.active": "मौजूदा run: {{cpus}} CPU · {{memory}} GiB"
+  "compute.app.budget.active": "मौजूदा run: {{cpus}} CPU · {{memory}} GiB",
+  "assistant.runInProgress": "कोई run कतार में है या जारी है। उसका परिणाम उपलब्ध होने के बाद आप बदलाव का अनुरोध कर सकते हैं।"
 }

@@ -2432,5 +2432,6 @@
   "compute.app.budget.save": "Simpan batas",
   "compute.app.budget.recommended": "Gunakan nilai yang disarankan",
   "compute.app.budget.nextRun": "Batas yang disimpan berlaku saat run berikutnya dimulai. Run saat ini tetap menggunakan batasnya.",
-  "compute.app.budget.active": "Run saat ini: {{cpus}} CPU · {{memory}} GiB"
+  "compute.app.budget.active": "Run saat ini: {{cpus}} CPU · {{memory}} GiB",
+  "assistant.runInProgress": "Sebuah run sedang dalam antrean atau sedang berlangsung. Anda dapat meminta perubahan setelah hasilnya tersedia."
 }

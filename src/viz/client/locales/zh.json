@@ -2432,5 +2432,6 @@
   "compute.app.budget.save": "保存限制",
   "compute.app.budget.recommended": "使用推荐值",
   "compute.app.budget.nextRun": "已保存的限制将在下一个 run 启动时生效。当前 run 仍使用现有限制。",
-  "compute.app.budget.active": "当前 run：{{cpus}} CPU · {{memory}} GiB"
+  "compute.app.budget.active": "当前 run：{{cpus}} CPU · {{memory}} GiB",
+  "assistant.runInProgress": "一个run正在排队或进行中。结果可用后，你可以请求更改。"
 }

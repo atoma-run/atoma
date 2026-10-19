@@ -2432,5 +2432,6 @@
   "compute.app.budget.save": "Guardar limites",
   "compute.app.budget.recommended": "Usar valores recomendados",
   "compute.app.budget.nextRun": "Os limites guardados são aplicados quando o próximo run começar. O run atual mantém os seus limites.",
-  "compute.app.budget.active": "Run atual: {{cpus}} CPU · {{memory}} GiB"
+  "compute.app.budget.active": "Run atual: {{cpus}} CPU · {{memory}} GiB",
+  "assistant.runInProgress": "Um run está em fila ou em curso. Pode solicitar uma alteração quando o resultado estiver disponível."
 }
