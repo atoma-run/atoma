@@ -2430,5 +2430,7 @@
   "compute.app.budget.save": "Enregistrer les limites",
   "compute.app.budget.recommended": "Utiliser les valeurs recommandées",
   "compute.app.budget.nextRun": "Les limites enregistrées s’appliquent au prochain run. Le run en cours conserve les siennes.",
-  "compute.app.budget.active": "Run en cours : {{cpus}} processeurs · {{memory}} Gio"
+  "compute.app.budget.active": "Run en cours : {{cpus}} processeurs · {{memory}} Gio",
+  "compute.hostedBeta": "Indisponible pendant la bêta. Contacte Atoma pour demander de la puissance de calcul sur les serveurs Atoma.",
+  "compute.contact": "Contacter Atoma"
 }
