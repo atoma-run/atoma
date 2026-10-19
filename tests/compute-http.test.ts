@@ -125,5 +125,5 @@ it('defaults to app downloads with an explicit architecture choice and a manual 
   expect(html).toContain('Atoma-Compute-0.4.0-mac-arm64.dmg');
   expect(html).toContain('mode=manual');
   expect(html).not.toContain('npm ci');
-  expect(html).toContain('not yet signed');
+  expect(html).toContain('Unsigned previews may require extra approval');
 });

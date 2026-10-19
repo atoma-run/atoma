@@ -53,9 +53,11 @@ credentials and workspaces are not included. No Electron native-module rebuild
 is needed: the local inventory uses embedded Node's SQLite implementation.
 
 The **Compute desktop** workflow builds and tests macOS arm64, macOS x64 and
-Windows x64. An unsigned workflow run produces downloadable test artifacts,
-not a stable public release. Native Docker/run acceptance remains separate from
-the application smoke and requires Docker Desktop on the target machine.
+Windows x64 in parallel with the main CI. Once both pass for the same source
+revision, it publishes an immutable release for that revision and updates the
+public `compute-desktop-current` download channel. Without publisher
+credentials the channel contains unsigned preview installers; native Docker/run
+acceptance remains separate and requires Docker Desktop on the target machine.
 
 Stable builds require Developer ID signing/notarization on macOS and a Windows
 code-signing certificate. Configure `ATOMA_MAC_CSC_LINK`,
@@ -65,10 +67,13 @@ and `ATOMA_APPLE_API_ISSUER` as CI secrets. The Apple API key secret contains th
 it as a private temporary file for notarization and removes it afterward.
 Never commit certificates, passwords or API keys.
 
-Run the workflow with `signed` and `publish` enabled to publish the signed stable
-channel. Each architecture has its own update manifest. Updates are requested
-explicitly from Resources, require confirmation, and install only after work
-has stopped. Unsigned test builds link to the release page instead.
+When all signing and notarization secrets are configured, pushes to main build
+signed installers and automatically update both `compute-desktop-stable` and the
+public download channel after CI succeeds. A manual `workflow_dispatch` can
+still request a preview or a signed publication. Each architecture has its own
+update manifest. Updates are requested explicitly from Resources, require
+confirmation, and install only after work has stopped. Unsigned previews link
+to the release page instead.
 
 ```sh
 node scripts/compute-desktop-smoke.mjs
@@ -99,8 +104,9 @@ an immutable preview after all three platform jobs pass. Real Docker installatio
 WSL reboot and license flows still require manual platform acceptance testing.
 
 Native validation starts automatically alongside Atoma CI on pushes to main and
-pull requests that touch the client or its dependencies. It produces installers
-as CI artifacts, without publishing a release. A manual workflow dispatch remains
-available for publication after translations and platform checks are complete.
-Automatic builds may supersede stale automatic builds; publication runs are never
+pull requests that touch the client or its dependencies. Pull requests produce
+CI artifacts only. Main pushes update the release channel only after the full CI
+for that exact revision succeeds. A newer code revision cannot be replaced by an
+older build that finishes later; translation-only commits may follow their
+source revision without invalidating its installer. Publication runs are not
 canceled by a newer validation run.

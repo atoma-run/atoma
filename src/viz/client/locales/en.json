@@ -2375,7 +2375,7 @@
   "compute.setup.unknownSystem": "Choose the computer where you will install Atoma Compute.",
   "compute.setup.detectedSystem": "We selected a system based on your browser. You can choose a different computer below.",
   "compute.setup.downloadApp": "Download Atoma Compute",
-  "compute.setup.previewNotice": "Preview release: these installers are not yet signed with publisher certificates. macOS or Windows may block installation. A signed release is needed for a seamless installation.",
+  "compute.setup.previewNotice": "Check the current release details before installing. Unsigned previews may require extra approval from macOS or Windows.",
   "compute.setup.releaseDetails": "Release details",
   "compute.setup.nextSteps": "After downloading",
   "compute.setup.windowsInstall": "Open the installer, then open Atoma Compute from the Start menu.",

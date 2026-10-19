@@ -2373,7 +2373,7 @@
   "compute.setup.unknownSystem": "Escolha o computador onde irá instalar o Atoma Compute.",
   "compute.setup.detectedSystem": "Selecionámos um sistema com base no seu navegador. Pode escolher outro computador abaixo.",
   "compute.setup.downloadApp": "Transferir o Atoma Compute",
-  "compute.setup.previewNotice": "Versão de pré-visualização: estes instaladores ainda não estão assinados com certificados do editor. O macOS ou o Windows podem bloquear a instalação. É necessária uma versão assinada para uma instalação sem interrupções.",
+  "compute.setup.previewNotice": "",
   "compute.setup.releaseDetails": "Detalhes da versão",
   "compute.setup.nextSteps": "Após a transferência",
   "compute.setup.windowsInstall": "Abra o instalador e, em seguida, abra o Atoma Compute no menu Iniciar.",

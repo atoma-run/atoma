@@ -31,11 +31,56 @@ on:
 permissions:
   contents: read
 concurrency:
-  # Automatic validation can supersede stale builds; publication is never canceled.
-  group: compute-desktop-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'validation' }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  # Keep each revision's installers available until its CI verdict. A later
+  # push must not cancel a publication already in progress.
+  group: compute-desktop-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.sha }}
+  cancel-in-progress: false
 jobs:
+  signing:
+    runs-on: ubuntu-latest
+    outputs:
+      signed: ${{ steps.mode.outputs.signed }}
+    steps:
+      - id: mode
+        name: Select signed release when all publisher credentials exist
+        shell: bash
+        env:
+          REQUEST_SIGNED: ${{ inputs.signed }}
+          REQUEST_PREVIEW: ${{ inputs.preview }}
+          REQUEST_PUBLISH: ${{ inputs.publish }}
+          MAC_CERT: ${{ secrets.ATOMA_MAC_CSC_LINK }}
+          MAC_PASSWORD: ${{ secrets.ATOMA_MAC_CSC_PASSWORD }}
+          WINDOWS_CERT: ${{ secrets.ATOMA_WINDOWS_CSC_LINK }}
+          WINDOWS_PASSWORD: ${{ secrets.ATOMA_WINDOWS_CSC_PASSWORD }}
+          APPLE_KEY: ${{ secrets.ATOMA_APPLE_API_KEY }}
+          APPLE_KEY_ID: ${{ secrets.ATOMA_APPLE_API_KEY_ID }}
+          APPLE_ISSUER: ${{ secrets.ATOMA_APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          if [[ "$REQUEST_PREVIEW" == true && "$REQUEST_PUBLISH" == true ]]; then
+            echo 'Choose preview or stable publication, not both'; exit 1
+          fi
+          if [[ "$REQUEST_PREVIEW" == true && "$REQUEST_SIGNED" == true ]]; then
+            echo 'A preview publication uses unsigned installers'; exit 1
+          fi
+          ready=1
+          for value in "$MAC_CERT" "$MAC_PASSWORD" "$WINDOWS_CERT" "$WINDOWS_PASSWORD" "$APPLE_KEY" "$APPLE_KEY_ID" "$APPLE_ISSUER"; do
+            if [[ -z "$value" ]]; then ready=0; fi
+          done
+          if [[ "$REQUEST_PUBLISH" == true && "$REQUEST_SIGNED" != true ]]; then
+            echo 'Stable publication requires a signed build'; exit 1
+          fi
+          if [[ "$REQUEST_SIGNED" == true && "$ready" != 1 ]]; then
+            echo 'Publisher signing and notarization credentials are incomplete'; exit 1
+          fi
+          if [[ "$REQUEST_SIGNED" == true || ( "$GITHUB_EVENT_NAME" == push && "$ready" == 1 ) ]]; then
+            echo 'signed=1' >> "$GITHUB_OUTPUT"
+          else
+            echo 'signed=0' >> "$GITHUB_OUTPUT"
+          fi
+
   desktop:
+    needs: signing
     strategy:
       fail-fast: false
       matrix:
@@ -52,13 +97,13 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     env:
-      ATOMA_COMPUTE_SIGNED: ${{ inputs.signed && '1' || '0' }}
+      ATOMA_COMPUTE_SIGNED: ${{ needs.signing.outputs.signed }}
       ATOMA_COMPUTE_ARCH: ${{ matrix.architecture }}
-      CSC_LINK: ${{ inputs.signed && (matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_LINK || secrets.ATOMA_WINDOWS_CSC_LINK) || '' }}
-      CSC_KEY_PASSWORD: ${{ inputs.signed && (matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_PASSWORD || secrets.ATOMA_WINDOWS_CSC_PASSWORD) || '' }}
-      APPLE_API_KEY_CONTENT: ${{ inputs.signed && secrets.ATOMA_APPLE_API_KEY || '' }}
-      APPLE_API_KEY_ID: ${{ inputs.signed && secrets.ATOMA_APPLE_API_KEY_ID || '' }}
-      APPLE_API_ISSUER: ${{ inputs.signed && secrets.ATOMA_APPLE_API_ISSUER || '' }}
+      CSC_LINK: ${{ needs.signing.outputs.signed == '1' && (matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_LINK || secrets.ATOMA_WINDOWS_CSC_LINK) || '' }}
+      CSC_KEY_PASSWORD: ${{ needs.signing.outputs.signed == '1' && (matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_PASSWORD || secrets.ATOMA_WINDOWS_CSC_PASSWORD) || '' }}
+      APPLE_API_KEY_CONTENT: ${{ needs.signing.outputs.signed == '1' && secrets.ATOMA_APPLE_API_KEY || '' }}
+      APPLE_API_KEY_ID: ${{ needs.signing.outputs.signed == '1' && secrets.ATOMA_APPLE_API_KEY_ID || '' }}
+      APPLE_API_ISSUER: ${{ needs.signing.outputs.signed == '1' && secrets.ATOMA_APPLE_API_ISSUER || '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -77,7 +122,7 @@ jobs:
             echo 'Configure the platform signing certificate before a signed build'; exit 1
           fi
       - name: Provision notarization key
-        if: inputs.signed && matrix.platform == 'mac'
+        if: needs.signing.outputs.signed == '1' && matrix.platform == 'mac'
         shell: bash
         run: |
           test -n "$APPLE_API_KEY_CONTENT" && test -n "$APPLE_API_KEY_ID" && test -n "$APPLE_API_ISSUER"
@@ -115,49 +160,94 @@ jobs:
             dist/compute-installers/latest*.yml
             dist/compute-installers/*.sha256
           if-no-files-found: error
-  publish:
-    if: inputs.publish && inputs.signed
-    needs: desktop
+  release:
+    if: github.event_name == 'push' || inputs.publish || inputs.preview
+    needs: [signing, desktop]
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/checkout@v7
         with:
-          pattern: compute-desktop-*
-          path: installers
-          merge-multiple: true
-      - name: Publish verified signed desktop assets
+          fetch-depth: 0
+      - name: Wait for the same revision's main CI
+        if: github.event_name == 'push'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           REVISION: ${{ github.sha }}
         run: |
+          set -euo pipefail
+          for attempt in {1..120}; do
+            result="$(gh api "repos/${GH_REPO}/actions/workflows/ci.yml/runs?head_sha=${REVISION}&event=push&per_page=10" --jq '.workflow_runs[0].conclusion // "pending"')"
+            case "$result" in
+              success) exit 0 ;;
+              failure|cancelled|timed_out|action_required) echo "Main CI ended: $result"; exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo 'Main CI did not finish within 30 minutes'; exit 1
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: compute-desktop-*
+          path: installers
+          merge-multiple: true
+      - name: Verify every installer and update asset
+        shell: bash
+        run: |
+          set -euo pipefail
           cd installers
           for checksum in *.sha256; do sha256sum -c "$checksum"; done
-          gh release view compute-desktop-stable >/dev/null 2>&1 || gh release create compute-desktop-stable --target "$REVISION" --title 'Atoma Compute' --notes 'Signed Atoma Compute installers for macOS and Windows. Docker Desktop is required.' --latest=false
-          gh release upload compute-desktop-stable ./* --clobber
-
-  preview:
-    if: inputs.preview && !inputs.signed && !inputs.publish
-    needs: desktop
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v5
-        with:
-          pattern: compute-desktop-*
-          path: installers
-          merge-multiple: true
-      - name: Publish verified preview installers
+          for pattern in 'Atoma-Compute-*-mac-arm64.dmg' 'Atoma-Compute-*-mac-x64.dmg' 'Atoma-Compute-*-win-x64.exe'; do
+            matches=( $pattern )
+            [[ ${#matches[@]} == 1 && -f "${matches[0]}" ]] || { echo "Missing or duplicate installer: $pattern"; exit 1; }
+          done
+      - name: Publish the immutable revision and current download channel
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           REVISION: ${{ github.sha }}
+          SIGNED: ${{ needs.signing.outputs.signed }}
         run: |
+          set -euo pipefail
           cd installers
-          for checksum in *.dmg.sha256 *.exe.sha256; do sha256sum -c "$checksum"; done
-          gh release create compute-desktop-preview-20261018-3 --target "$REVISION" --prerelease --latest=false --title 'Atoma Compute — guided setup preview' --notes 'Preview installers without publisher certificates. macOS and Windows may block installation. Docker Desktop is required; the app guides its setup. No automatic updates.' ./*.dmg ./*.exe ./*.dmg.sha256 ./*.exe.sha256
+          if [[ "$SIGNED" == 1 ]]; then
+            revision_tag="compute-desktop-signed-${REVISION:0:12}"
+            title='Atoma Compute — signed release'
+            notes="Signed and notarized installers from ${REVISION}. Docker Desktop is required."
+            assets=(./*)
+            kind=()
+          else
+            revision_tag="compute-desktop-preview-${REVISION:0:12}"
+            title='Atoma Compute — preview'
+            notes="Unsigned preview from ${REVISION}. macOS and Windows may block installation. Docker Desktop is required. No automatic updates."
+            assets=(./*.dmg ./*.exe ./*.dmg.sha256 ./*.exe.sha256)
+            kind=(--prerelease)
+          fi
+          if ! gh release view "$revision_tag" >/dev/null 2>&1; then
+            gh release create "$revision_tag" --target "$REVISION" --latest=false "${kind[@]}" --title "$title" --notes "$notes" "${assets[@]}"
+          else
+            gh release upload "$revision_tag" "${assets[@]}" --clobber
+          fi
+          # A newer source revision supersedes this one. A translation-only
+          # commit may advance main without producing another Desktop build.
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$REVISION" origin/main; then exit 0; fi
+          changed="$(git diff --name-only "$REVISION" origin/main)"
+          if grep -Ev '^src/viz/client/locales/[^/]+\.json$' <<< "$changed" | grep -q .; then
+            echo 'Newer source revision will update the download channel'; exit 0
+          fi
+          update_channel() {
+            local channel_tag="$1"
+            if gh release view "$channel_tag" >/dev/null 2>&1; then
+              gh release upload "$channel_tag" "${assets[@]}" --clobber
+              gh release edit "$channel_tag" --notes "$notes"
+            else
+              gh release create "$channel_tag" --target "$REVISION" --latest=false "${kind[@]}" --title "$title" --notes "$notes" "${assets[@]}"
+            fi
+          }
+          if [[ "$SIGNED" == 1 ]]; then update_channel compute-desktop-stable; fi
+          update_channel compute-desktop-current

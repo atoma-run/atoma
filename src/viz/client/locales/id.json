@@ -2373,7 +2373,7 @@
   "compute.setup.unknownSystem": "Pilih komputer tempat Anda akan menginstal Atoma Compute.",
   "compute.setup.detectedSystem": "Kami memilih sistem berdasarkan peramban Anda. Anda dapat memilih komputer lain di bawah ini.",
   "compute.setup.downloadApp": "Unduh Atoma Compute",
-  "compute.setup.previewNotice": "Rilis pratinjau: penginstal ini belum ditandatangani dengan sertifikat penerbit. macOS atau Windows mungkin memblokir instalasi. Rilis bertanda tangan diperlukan agar instalasi berjalan lancar.",
+  "compute.setup.previewNotice": "",
   "compute.setup.releaseDetails": "Detail rilis",
   "compute.setup.nextSteps": "Setelah mengunduh",
   "compute.setup.windowsInstall": "Buka penginstal, lalu buka Atoma Compute dari menu Mulai.",

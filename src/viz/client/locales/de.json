@@ -2373,7 +2373,7 @@
   "compute.setup.unknownSystem": "Wählen Sie den Computer aus, auf dem Sie Atoma Compute installieren möchten.",
   "compute.setup.detectedSystem": "Wir haben anhand Ihres Browsers ein System ausgewählt. Unten können Sie einen anderen Computer auswählen.",
   "compute.setup.downloadApp": "Atoma Compute herunterladen",
-  "compute.setup.previewNotice": "Vorabversion: Diese Installationsprogramme sind noch nicht mit Herausgeberzertifikaten signiert. macOS oder Windows blockiert möglicherweise die Installation. Für eine reibungslose Installation ist eine signierte Version erforderlich.",
+  "compute.setup.previewNotice": "",
   "compute.setup.releaseDetails": "Versionsdetails",
   "compute.setup.nextSteps": "Nach dem Herunterladen",
   "compute.setup.windowsInstall": "Öffnen Sie das Installationsprogramm und anschließend Atoma Compute über das Startmenü.",

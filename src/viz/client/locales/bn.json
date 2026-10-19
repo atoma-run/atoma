@@ -2373,7 +2373,7 @@
   "compute.setup.unknownSystem": "যে কম্পিউটারে Atoma Compute ইনস্টল করবেন সেটি বেছে নিন।",
   "compute.setup.detectedSystem": "আপনার ব্রাউজারের ভিত্তিতে আমরা একটি সিস্টেম নির্বাচন করেছি। নিচে অন্য কম্পিউটার বেছে নিতে পারেন।",
   "compute.setup.downloadApp": "Atoma Compute ডাউনলোড করুন",
-  "compute.setup.previewNotice": "প্রিভিউ রিলিজ: এই ইনস্টলারগুলো এখনও প্রকাশকের সার্টিফিকেট দিয়ে স্বাক্ষরিত নয়। macOS বা Windows ইনস্টলেশন বাধাগ্রস্ত করতে পারে। নির্বিঘ্ন ইনস্টলেশনের জন্য স্বাক্ষরিত রিলিজ প্রয়োজন।",
+  "compute.setup.previewNotice": "",
   "compute.setup.releaseDetails": "রিলিজের বিবরণ",
   "compute.setup.nextSteps": "ডাউনলোড করার পর",
   "compute.setup.windowsInstall": "ইনস্টলারটি খুলুন, তারপর Start মেনু থেকে Atoma Compute খুলুন।",
