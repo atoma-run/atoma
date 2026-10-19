@@ -185,12 +185,15 @@ export function projectRetrievalCitation(passage: ProjectRetrievalPassage): z.in
 export const projectRetrievalCoverageSchema = z.object({ eligible: z.number().int().nonnegative(),
   indexed: z.number().int().nonnegative(), omitted: z.number().int().nonnegative() }).strict();
 
+export const PROJECT_RETRIEVAL_DIAGNOSTIC_MAX_CHARS = 1000;
+
 export const projectRetrievalResponseSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), status: z.literal('ok'), ...sourceBinding,
     coverage: projectRetrievalCoverageSchema.optional(),
     passages: z.array(projectRetrievalPassageSchema).max(100), truncated: z.boolean() }).strict(),
   z.object({ ok: z.literal(false),
-    status: z.enum(['denied', 'invalid_request', 'unavailable', 'cancelled', 'timed_out']) }).strict(),
+    status: z.enum(['denied', 'invalid_request', 'unavailable', 'cancelled', 'timed_out']),
+    message: z.string().min(1).max(PROJECT_RETRIEVAL_DIAGNOSTIC_MAX_CHARS).optional() }).strict(),
 ]);
 export type ProjectRetrievalResponse = z.infer<typeof projectRetrievalResponseSchema>;
 export type ProjectRetrievalFailure = Extract<ProjectRetrievalResponse, { ok: false }>;

@@ -84,3 +84,32 @@ win. A regression runs actual numbered-file output including a blank line,
 then confirms an explicit echo-only allowlist refuses the same command. It
 failed before the addition. This fixes the observed refusal, not a promise
 that the model would otherwise have recovered from it.
+
+## Verification run: opaque retrieval refusals
+
+Owner-authorized verification run `d543fe1d-c89e-493f-958e-43d0080ae10a`
+started at 11:46:09 UTC with the previous goal, five criteria and retained base
+cafd0d69. Its trace confirms d09e7f62, including both earlier fixes. This
+investigation found six `search_project_docs` refusals: events `44f5625f`,
+`3e22282a`, `6954ba65`, `a0d229bc`, `e2b2c096` and `24c8d41a`.
+Every request uses `limit: 20` (schema maximum 10), and excerpts of 5,000 to
+12,000 bytes (maximum 4,096). The tool returns only `invalid_request`; the
+worker repeatedly changes filters, leaving both invalid values unchanged.
+This is not a Haystack connectivity failure: refusal precedes authorization,
+readiness and search. Static reports consequently cannot use retrieval evidence.
+
+The tool now returns a bounded optional failure message naming the schema's
+rejected fields and constraints. Diagnostics come from the existing schema;
+query normalization failures advise a shorter plain-text query. Admission,
+request bounds and result limits are unchanged. The original query is not
+copied into the diagnostic; control characters are removed and text is capped
+at 1,000 characters. Historical failures without a message remain valid.
+
+A production-path regression replays the exact observed invalid bounds,
+checks both field names and maxima, proves no service dispatch, then submits
+a valid corrected request. It fails before the fix and passes afterwards.
+Additional cases cover oversized query privacy, oversized/control-bearing
+format diagnostics and normalization refusal. The retrieval and compute-relay
+suites pass: 87 tests, five environment-gated skips. This proves diagnostic
+availability, not that an agent necessarily follows it. The in-flight run
+continues on its immutable d09e7f62 runtime and does not receive this new fix.

@@ -72,9 +72,44 @@ describe('project retrieval request and authority boundary', () => {
 
   it.each(['orgId', 'projectId', 'principalId', 'path', 'sql', 'filter', 'generation', 'url'])('rejects model-supplied %s before dispatch', async key => {
     const binding = retrievalTestBinding();
-    expect(await host(binding).execute({ query: 'price', [key]: '/host/private' })).toEqual({ ok: false, status: 'invalid_request' });
+    expect(await host(binding).execute({ query: 'price', [key]: '/host/private' })).toMatchObject({ ok: false, status: 'invalid_request' });
     expect(binding.service.authorize).not.toHaveBeenCalled();
     expect(binding.service.search).not.toHaveBeenCalled();
+  });
+
+  it('explains the invalid bounds from Attica d543fe1d and accepts a corrected request', async () => {
+    const binding = retrievalTestBinding();
+    const tool = host(binding);
+    const result = await tool.execute({ query: 'Docker', limit: 20, maxExcerptBytes: 12000 });
+    expect(result).toMatchObject({ ok: false, status: 'invalid_request' });
+    expect(result).toHaveProperty('message', expect.stringContaining('limit'));
+    expect(result).toHaveProperty('message', expect.stringContaining('10'));
+    expect(result).toHaveProperty('message', expect.stringContaining('maxExcerptBytes'));
+    expect(result).toHaveProperty('message', expect.stringContaining('4096'));
+    expect(projectRetrievalResponseSchema.safeParse(result).success).toBe(true);
+    expect(binding.service.authorize).not.toHaveBeenCalled();
+    expect(binding.service.search).not.toHaveBeenCalled();
+    expect(await tool.execute({ query: 'Docker', limit: 5, maxExcerptBytes: 1600 }))
+      .toMatchObject({ ok: true });
+    expect(binding.service.search).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds diagnostics and does not echo an oversized query', async () => {
+    const binding = retrievalTestBinding();
+    const result = await host(binding).execute({ query: 'private-value'.repeat(100) });
+    expect(result).toHaveProperty('message', expect.any(String));
+    expect(JSON.stringify(result)).not.toContain('private-value');
+    expect(JSON.stringify(result).length).toBeLessThan(1100);
+    expect(projectRetrievalResponseSchema.safeParse(result).success).toBe(true);
+    expect(binding.service.search).not.toHaveBeenCalled();
+    expect(await host(binding).execute({ query: '--- * : ()' }))
+      .toHaveProperty('message', expect.stringContaining('query'));
+    const noisy = projectRetrievalResponseSchema.parse(await host(binding).execute({
+      query: 'price', filters: { formats: ['\n' + 'x'.repeat(2000)] },
+    }));
+    if (noisy.ok) throw new Error('invalid format was admitted');
+    expect(noisy.message).not.toMatch(/\p{Cc}/u);
+    expect(noisy.message?.length).toBeLessThanOrEqual(1000);
   });
 
   it('requires explicit scope and authority, and never converts missing tenant identity to operator scope', () => {
@@ -392,7 +427,7 @@ describe('a search waits for a backend still preparing', () => {
 
   it('refuses an invalid request at once, and never waits past the run', async () => {
     const { binding, service } = slow();
-    expect(await host(binding).execute({})).toEqual({ ok: false, status: 'invalid_request' });
+    expect(await host(binding).execute({})).toMatchObject({ ok: false, status: 'invalid_request' });
     expect(service.ready).not.toHaveBeenCalled();
     const late = host(binding, { signal: new AbortController().signal, deadlineAt: Date.now() + 80 });
     expect(await late.execute({ query: 'price' })).toEqual({ ok: false, status: 'timed_out' });

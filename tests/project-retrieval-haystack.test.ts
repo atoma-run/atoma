@@ -175,7 +175,7 @@ describe('experimental Haystack host boundary', () => {
     });
     for (const filters of [{ orgId: 'other' }, { snapshotId: 'other' }, { paths: ['../secret.md'] },
       { directories: ['docs/'] }, { formats: ['exe'] }, { paths: [] }]) {
-      expect(await tool.execute({ query: 'price', filters })).toEqual({ ok: false, status: 'invalid_request' });
+      expect(await tool.execute({ query: 'price', filters })).toMatchObject({ ok: false, status: 'invalid_request' });
     }
   });
   it('preserves NFC text for semantic search across the child boundary', async () => {

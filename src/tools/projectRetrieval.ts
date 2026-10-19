@@ -1,5 +1,6 @@
 import {
   DEFAULT_PROJECT_RETRIEVAL_LIMITS, PROJECT_RETRIEVAL_TOOL_NAME, PROJECT_DOCUMENT_FORMATS,
+  PROJECT_RETRIEVAL_DIAGNOSTIC_MAX_CHARS,
   parseProjectRetrievalQuery, projectRetrievalLimitsSchema, projectRetrievalRequestSchema,
   projectRetrievalResponseSchema, projectRetrievalScopeSchema,
   projectRetrievalCitation,
@@ -125,7 +126,16 @@ export function createProjectRetrievalTool(binding: ProjectRetrievalBinding, run
     async execute(args: Record<string, unknown>): Promise<ProjectRetrievalResponse> {
       if (runSignal.aborted) return failure('cancelled');
       const query = parseProjectRetrievalQuery(args, limits);
-      if (!query) return failure('invalid_request');
+      if (!query) {
+        // Attica d543fe1d retried six invalid bounds without learning which
+        // argument failed. Reuse the request schema; never echo the query.
+        const parsed = projectRetrievalRequestSchema.safeParse(args);
+        const message = parsed.success
+          ? 'query must contain searchable letters or numbers and fit the run query limits; try a shorter plain-text query.'
+          : parsed.error.issues.slice(0, 4).map(issue => `${JSON.stringify(issue.path)}: ${issue.message}`).join('; ');
+        return { ...failure('invalid_request'), message: message.replace(/\p{Cc}/gu, ' ')
+          .slice(0, PROJECT_RETRIEVAL_DIAGNOSTIC_MAX_CHARS) };
+      }
       const { ready } = service as { ready?(this: void): Promise<void> };
       if (ready) {
         const waited = await untilReady(ready, runSignal, deadlineAt);
