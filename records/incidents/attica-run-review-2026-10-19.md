@@ -113,3 +113,59 @@ format diagnostics and normalization refusal. The retrieval and compute-relay
 suites pass: 87 tests, five environment-gated skips. This proves diagnostic
 availability, not that an agent necessarily follows it. The in-flight run
 continues on its immutable d09e7f62 runtime and does not receive this new fix.
+
+
+## Follow-up results and Compute component identity
+
+The broad verification ended failed ($3.4591 equivalent, 60 model calls).
+All 664 summary events were paged to the end. Its final plan `5f65c6c4` and
+review `b7132574` confirm missing collector, pacing, CAPTCHA and active-concurrency
+coverage; no false refusal was established there. No application installation,
+check or build was proved. Review `dbea1692` did receive the full server and store
+without cut markers, exercising the source-context correction.
+
+A separately scoped offline run, `e107d0a7-70c7-4cf8-9722-25c4ee81f57c`,
+delivered at 12:22 UTC ($0.1214 equivalent, 13 calls). All 91 summary events
+were read. Recorded probe `30f49b67` executes the real createServer and AtticaStore
+against a loopback fixture: `maxPages: 0` returns HTTP 400 with the positive-integer
+error, and before/after states remain idle, `active: false`, `rows: 0`. The first
+attempt's temporary harness failed; the corrected second attempt exited 0.
+This is one negative-route proof, not full Attica acceptance. Saved manifests
+show all 175 application files unchanged; publication and client acceptance
+remain absent. No browser or external collection was used.
+
+Direct numbered reads still failed (8a9636ad and2d6e6c4c). The paired Mac's
+worker was pinned to digest `7af8dc09`, whose OCI revision is `a5b7bde7`, preceding
+the nl fix. Host trace revision `dbbcbbbe` describes the coordinator; it does
+not establish the device's worker version. Immutable pins are intentional.
+The desktop companion applied its bundled pins only during initial pairing,
+so explicit preparation reused the old components after an application upgrade.
+
+Image release `compute-images-20261019-1` builds exact `dbbcbbbe`. Both native
+architectures passed packaged isolation, transfer, retrieval and preview tests
+in [Actions 39251440402](https://github.com/atoma-run/atoma/actions/runs/39251440402). Checksummed receipts are preserved under
+`records/releases/compute-images-2026-10-19/`. All eight public manifests,
+configuration hashes, Linux architectures and OCI source revisions were
+independently checked anonymously. The server allowlist retains the old worker
+references and adds the two verified new references; normal deployment activates
+that configuration. Docker and production services were not manually restarted.
+
+Explicit desktop preparation now selects all four bundled verified pins before
+pulling, under local inventory ownership and only after confirmed teardown.
+Opening/diagnostics and headless pull keep their configured identities. Existing
+pairing, resource budgets and credentials survive. Controller regressions cover
+pin refresh before pull, preservation, diagnostic non-mutation, competing clients
+and unfinished workloads. A packaged-worker regression reproduces the observed
+`record_probe nl` refusal against the old immutable image; it is included in the
+same container test suite used by image publication and required CI.
+
+
+Local verification: both TypeScript configurations, lint, docs checks, 16
+controller/application tests, native ARM64 packaging and the Electron GUI
+smoke pass. Full release static checks pass; the full test run has 7,648 passes,
+34 intentional skips and one failure: Docker Desktop's bind-mounted workspace
+replacement does not expose fresh.txt on the host after a rename. The isolated
+repeat fails identically; no test was weakened. This is the already recorded
+Mac bind-mount transition issue, distinct from Compute's named-volume runtime.
+The two native Linux image-publication suites passed this boundary. Required
+clean CI remains the deployment gate.

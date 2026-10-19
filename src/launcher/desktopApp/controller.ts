@@ -5,7 +5,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { COMPUTE_IMAGES } from '../../contracts/computeImages.js';
 import { computeDesktopCommandSchema, computeDesktopStateSchema, type ComputeDesktopCommand, type ComputeDesktopState } from '../../contracts/computeDesktop.js';
-import { computeMain, computeSettings, computeStateRoot, saveComputeBudget, type ComputeApplicationHooks, type ComputeLiveStatus } from '../computeApplication.js';
+import { computeMain, computeSettings, computeStateRoot, saveComputeBudget, useBundledComputeImages, type ComputeApplicationHooks, type ComputeLiveStatus } from '../computeApplication.js';
 
 export const DESKTOP_ORIGIN = 'https://atoma.run';
 export function desktopIssue(error: unknown): ComputeDesktopState['issue'] {
@@ -102,6 +102,7 @@ export class ComputeDesktopController {
             this.waiting = true; this.patch({ phase: 'idle' }); return;
           }
           this.waiting = false; this.preparation.remember(false); this.patch({ preparationPending: false });
+          useBundledComputeImages(this.root);
           this.patch({ phase: 'downloading' }); await this.run(['pull'], hooks);
           this.patch({ phase: 'diagnosing' }); await this.run(['doctor'], hooks);
           this.patch({ phase: 'connecting', accepting: true }); await this.run(['start'], hooks);

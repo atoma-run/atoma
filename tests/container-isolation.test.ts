@@ -657,6 +657,23 @@ describeDocker('read-run copies beside whole-tree tools in a containerised run',
 // isolated tag explicitly, so a stale shared :latest cannot masquerade as proof.
 const acceptanceImage = process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'];
 describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('compiled parent-test worker', () => {
+  it('records numbered source inspection with the packaged shell allowlist', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-numbered-source-image-'));
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    try {
+      writeFileSync(join(workspace, 'source.ts'), 'first\n\nthird\n');
+      const result = await executor.execute('record_probe', { cmd: 'nl -ba source.ts', note: 'Numbered source inspection' }) as {
+        exitCode: number; stdout: string; recorded: boolean;
+      };
+      expect(result).toMatchObject({ exitCode: 0, recorded: true });
+      expect(result.stdout.trim().split('\n').map(line => line.trim())).toEqual(['1\tfirst', '2', '3\tthird']);
+    } finally {
+      await executor.drain();
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it('keeps supervisor observation from authorizing a child overwrite across the worker boundary', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'atoma-observation-image-'));
     const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,

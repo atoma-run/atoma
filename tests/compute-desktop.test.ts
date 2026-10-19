@@ -1,4 +1,4 @@
-import { computeSettings } from '../src/launcher/computeApplication.js';
+import { computeSettings, saveComputeBudget } from '../src/launcher/computeApplication.js';
 import { recommendedComputeBudget, resolveComputeBudget, computeWorkloadBudget } from '../src/contracts/computeLocal.js';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { ComputeDesktopController } from '../src/launcher/desktopApp/controller.js';
 import { computeDesktopCommandSchema } from '../src/contracts/computeDesktop.js';
+import { COMPUTE_IMAGES } from '../src/contracts/computeImages.js';
+import { ComputeInventory } from '../src/launcher/computeInventory.js';
 import type { ComputeApplicationHooks } from '../src/launcher/computeApplication.js';
 let root: string;
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
@@ -35,8 +37,15 @@ it('pairs through the shared client with native pinned images and no credential 
 });
 it('prepares, reports progress, connects, drains and waits for confirmed cleanup on quit', async () => {
   paired(); const control = vi.fn(async () => {}); let release!: () => void; let stopping = false;
+  saveComputeBudget(root, { cpus: 12, memoryGiB: 12 });
+  const before = computeSettings(root);
   const run = vi.fn(async (args: string[], hooks?: ComputeApplicationHooks) => {
-    if (args[0] === 'pull') hooks?.download?.(4, 4);
+    if (args[0] === 'pull') {
+      const images = COMPUTE_IMAGES[process.arch === 'arm64' ? 'arm64' : 'amd64'];
+      expect(computeSettings(root)).toEqual({ ...before, workerImage: images.worker, workspaceImage: images.workspace,
+        previewImage: images.preview, retrievalImage: images.retrieval });
+      hooks?.download?.(4, 4);
+    }
     if (args[0] === 'start') {
       hooks?.controls?.(control, async () => ({ allocations: [], transfers: [], resources: [], disk: { freeBytes: null, reserveBytes: 1024 } }));
       hooks?.connection?.(true);
@@ -54,6 +63,34 @@ it('prepares, reports progress, connects, drains and waits for confirmed cleanup
   const done = vi.fn(); const quit = app.stop().then(done);
   await vi.waitFor(() => expect(stopping).toBe(true)); expect(done).not.toHaveBeenCalled();
   release(); await quit; expect(app.snapshot().phase).toBe('idle');
+});
+it('keeps existing pins when opening, refreshing or diagnosing an existing pairing', async () => {
+  paired(); const before = computeSettings(root);
+  const app = new ComputeDesktopController('0.4.0', vi.fn(), vi.fn(), vi.fn(async () => {}), root, preparation);
+  await app.initialize(); await app.refresh(); await app.execute({ action: 'diagnose' });
+  await vi.waitFor(() => expect(app.snapshot().phase).toBe('idle'));
+  expect(computeSettings(root)).toEqual(before);
+});
+it('refuses image replacement while another client owns the inventory', async () => {
+  paired(); const before = computeSettings(root);
+  const owner = new ComputeInventory(root);
+  try {
+    const run = vi.fn(async () => {});
+    const app = new ComputeDesktopController('0.4.0', vi.fn(), vi.fn(), run, root, preparation);
+    await app.execute({ action: 'prepare' });
+    await vi.waitFor(() => expect(app.snapshot().issue).toBe('busy'));
+    expect(run).not.toHaveBeenCalled(); expect(computeSettings(root)).toEqual(before);
+  } finally { owner.close(); }
+});
+it('requires confirmed workload teardown before refreshing component pins', async () => {
+  paired(); const before = computeSettings(root);
+  const owner = new ComputeInventory(root);
+  owner.reserve({ runId: randomUUID(), generation: 1 }); owner.close();
+  const run = vi.fn(async () => {});
+  const app = new ComputeDesktopController('0.4.0', vi.fn(), vi.fn(), run, root, preparation);
+  await app.execute({ action: 'prepare' });
+  await vi.waitFor(() => expect(app.snapshot().issue).toBe('stop-unconfirmed'));
+  expect(run).not.toHaveBeenCalled(); expect(computeSettings(root)).toEqual(before);
 });
 it('never reports successful shutdown when engine stop remains unconfirmed', async () => {
   paired();

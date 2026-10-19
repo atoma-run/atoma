@@ -82,6 +82,11 @@ CurrentUser, never plaintext config, argv or environment. Pairing, image pulling
 and Docker resource changes are explicit; diagnostic probes do not alter Docker
 settings. A closed guard cannot be revived by a late response or reused after reconnect.
 
+Explicit desktop preparation refreshes all four pins from the bundled verified
+`computeImages.ts` release before pulling. It requires local inventory ownership
+and confirmed teardown of earlier workloads. Opening, diagnostics and headless
+`pull` retain the configured pins; pairing, budgets and credentials survive upgrades.
+
 `DesktopCompute` owns the desktop-only profile: immutable image identities,
 Linux named volumes, no host binds, non-root read-only containers, capped CPU,
 RAM/swap and processes, and network none by default. The headless client

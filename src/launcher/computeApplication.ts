@@ -13,6 +13,7 @@ import { ComputeInventory } from './computeInventory.js';
 import { DesktopCompute } from './desktopCompute.js';
 import { computeClientSettingsSchema, computeImageSchema, computeLocalJournalSchema, resolveComputeBudget, type ComputeResourceBudget, type ComputeClientSettings } from '../contracts/computeLocal.js';
 import { computeCapabilitiesSchema } from '../contracts/computeDevice.js';
+import { COMPUTE_IMAGES } from '../contracts/computeImages.js';
 
 const HELP = `Atoma Compute (headless, macOS / Windows)
 
@@ -45,9 +46,25 @@ function jsonFile(path: string): unknown {
 export function computeSettings(root: string): ComputeClientSettings { return computeClientSettingsSchema.parse(jsonFile(join(root, 'settings.json'))); }
 export function saveComputeBudget(root: string, budget: ComputeResourceBudget): void {
   const config = computeClientSettingsSchema.parse({ ...computeSettings(root), resourceBudget: budget });
+  saveSettings(root, config);
+}
+function saveSettings(root: string, config: ComputeClientSettings): void {
   const temporary = join(root, `settings-${randomBytes(8).toString('hex')}.pending`);
   writeFileSync(temporary, JSON.stringify(config), { mode: 0o600, flag: 'wx', flush: true });
   renameSync(temporary, join(root, 'settings.json'));
+}
+/** Explicit desktop preparation selects this application's verified components.
+ * Diagnostics and headless pull keep the user's configured image identities. */
+export function useBundledComputeImages(root: string): void {
+  const inventory = new ComputeInventory(root);
+  try {
+    if (inventory.list().some(row => row.state !== 'stopped')) throw new Error('Compute workload teardown must be confirmed before updating images');
+    const images = COMPUTE_IMAGES[process.arch === 'arm64' ? 'arm64' : 'amd64'];
+    const config = computeClientSettingsSchema.parse({ ...computeSettings(root),
+      workerImage: images.worker, workspaceImage: images.workspace,
+      retrievalImage: images.retrieval, previewImage: images.preview });
+    saveSettings(root, config);
+  } finally { inventory.close(); }
 }
 async function post(origin: string, path: string, body: unknown, signal?: AbortSignal): Promise<unknown> {
   const response = await fetch(new URL(path, origin), { method: 'POST', redirect: 'error', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
