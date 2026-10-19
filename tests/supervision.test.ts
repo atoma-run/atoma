@@ -12,6 +12,7 @@ import type {
 } from '../src/core/types.js';
 import {
   MAX_SAME_MARKER_REJECTS,
+  MAX_PLANS_WITHOUT_EXECUTION,
   MAX_SAME_REASON_REJECTS,
   detectPolicyMarker,
   normalizeReason,
@@ -813,6 +814,47 @@ describe('superviseLoop', () => {
   });
 
   describe('branch-retry on escalation', () => {
+    it('caps root replanning across a type branch when no execution opens', async () => {
+      const parent = new FakeParent();
+      const original = new FakeChild('orig');
+      const replacement = new FakeChild('branched');
+      for (let i = 0; i < MAX_SAME_REASON_REJECTS; i++) {
+        parent.queuePlanVerdict({ approved: false, reasoning: 'same dead end', modifications: {}, scope: 'ephemeral' });
+      }
+      parent.queuePlanVerdict({ approved: false, reasoning: 'a different dead end', modifications: {}, scope: 'ephemeral' });
+      const hooks: SupervisionHooks<FakeChild> = {
+        applyByScope: async c => c,
+        branchOnEscalation: async () => replacement,
+      };
+
+      const result = await superviseLoop(parent, original, { description: 'go' }, makeCtx({ limits: { maxPlanIterations: 20, maxExecIterations: 20 } }), hooks);
+
+      expect(original.planCount + replacement.planCount).toBe(MAX_PLANS_WITHOUT_EXECUTION);
+      expect(original.execCount + replacement.execCount).toBe(0);
+      expect(result.producedBy.viaFallback).toBe(true);
+    });
+
+    it('allows the branched child to execute at the no-progress boundary', async () => {
+      const parent = new FakeParent();
+      const original = new FakeChild('orig');
+      const replacement = new FakeChild('branched');
+      for (let i = 0; i < MAX_SAME_REASON_REJECTS; i++) {
+        parent.queuePlanVerdict({ approved: false, reasoning: 'same dead end', modifications: {}, scope: 'ephemeral' });
+      }
+      parent.queuePlanVerdict({ approved: true, reasoning: 'executable now' });
+      parent.queueResultVerdict({ approved: true, reasoning: 'done' });
+      const hooks: SupervisionHooks<FakeChild> = {
+        applyByScope: async c => c,
+        branchOnEscalation: async () => replacement,
+      };
+
+      const result = await superviseLoop(parent, original, { description: 'go' }, makeCtx({ limits: { maxPlanIterations: 20, maxExecIterations: 20 } }), hooks);
+
+      expect(original.planCount + replacement.planCount).toBe(MAX_PLANS_WITHOUT_EXECUTION);
+      expect(replacement.execCount).toBe(1);
+      expect(result.producedBy.viaFallback).toBe(false);
+    });
+
     it('installs a branched child returned by branchOnEscalation and runs one more cycle before parent fallback', async () => {
       const parent = new FakeParent();
       const original = new FakeChild('orig');
@@ -912,7 +954,7 @@ describe('superviseLoop', () => {
       // the second escalation falls through to the parent fallback.
       expect(branchCalls).toBe(2);
       expect(original.planCount).toBe(MAX_SAME_REASON_REJECTS);
-      expect(replacement.planCount).toBe(MAX_SAME_REASON_REJECTS);
+      expect(replacement.planCount).toBe(MAX_PLANS_WITHOUT_EXECUTION - MAX_SAME_REASON_REJECTS);
       expect(parent.selfPlans).toBe(1);
       expect(parent.selfExecs).toBe(1);
       expect(result.producedBy.viaFallback).toBe(true);

@@ -159,6 +159,9 @@ export const MAX_SAME_MARKER_REJECTS = 3;
  */
 export const MAX_PLAN_REVIEW_FAULTS = 2;
 
+/** A cross-branch bound on plans reviewed without any intervening execution. */
+export const MAX_PLANS_WITHOUT_EXECUTION = 4;
+
 /**
  * Normalize a verdict's reasoning for repeat-detection comparisons:
  * lowercase, strip punctuation, collapse whitespace. Exported so tests and
@@ -265,6 +268,9 @@ export async function superviseLoop<C extends Atom>(
   // the iteration counters and rejection-streak trackers) before giving up
   // to the parent fallback. Second escalation falls through.
   let hasTriedBranch = false;
+  // Unlike planIter, task progress (execution), not a planner type branch,
+  // resets this streak.
+  let plansWithoutExecution = 0;
 
   // The outer loop exists purely to reset the per-cycle state
   // (counters + trackers) when a branch-retry happens. In the common case
@@ -302,6 +308,9 @@ export async function superviseLoop<C extends Atom>(
 
     try {
       while (true) {
+        if (plansWithoutExecution >= MAX_PLANS_WITHOUT_EXECUTION) {
+          throw new EscalationSignal('plan');
+        }
         if (planIter >= ctx.limits.maxPlanIterations) {
           throw new EscalationSignal('plan');
         }
@@ -331,6 +340,7 @@ export async function superviseLoop<C extends Atom>(
           continue;
         }
         planFeedback = [];
+        plansWithoutExecution++;
         trace.push({ kind: 'plan', ts: now(), atom: current.name, payload: plan });
 
         const v1 = await parent.validatePlan(current, plan, task, ctx);
@@ -403,6 +413,7 @@ export async function superviseLoop<C extends Atom>(
 
         if (ctx.signal.aborted) throw ctx.signal.reason ?? new Error('aborted');
 
+        plansWithoutExecution = 0;
         const result = await run(() => current.execute(task, plan, ctx));
         trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: result });
 
