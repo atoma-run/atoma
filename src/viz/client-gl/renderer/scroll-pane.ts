@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Rectangle } from 'pixi.js';
 import { GPU_COLORS } from '../theme.js';
 import { CAST_SHADOW_MAX_THROW_PX } from './cast-shadow.js';
 
@@ -123,19 +123,32 @@ export interface ScrollbarThumbOptions {
   maxScroll: number;
 }
 
+export function scrollbarGeometry(options: ScrollbarThumbOptions) {
+  const thumbHeight = Math.min(options.height, Math.max(28,
+    options.height * options.height / (options.height + options.maxScroll)));
+  const travel = options.height - thumbHeight;
+  const ratio = Math.min(1, Math.max(0, options.scrollY / options.maxScroll));
+  return { thumbHeight, travel, thumbY: options.y + travel * ratio };
+}
+
+/** Metadata remains weak: a view rebuild must not retain old display objects. */
+export const scrollbarOptions = new WeakMap<Container, ScrollbarThumbOptions>();
+
 export function drawScrollbarThumb(parent: Container, options: ScrollbarThumbOptions): void {
   const { x, y, width, height, maxScroll } = options;
   if (maxScroll <= 0 || height <= 0) return;
-  const thumbHeight = Math.max(28, height * Math.min(1, height / (height + maxScroll)));
-  const ratio = Math.min(1, Math.max(0, options.scrollY / maxScroll));
-  const thumbY = y + (height - thumbHeight) * ratio;
+  const { thumbHeight, thumbY } = scrollbarGeometry(options);
   const scrollbar = new Graphics();
-  scrollbar.roundRect(x + width - 8, y, 3, height, 2);
+  scrollbar.position.set(x + width - 8, y);
+  scrollbar.roundRect(0, 0, 3, height, 2);
   scrollbar.fill({ color: GPU_COLORS.border, alpha: 0.55 });
-  scrollbar.roundRect(x + width - 8, thumbY, 3, thumbHeight, 2);
+  scrollbar.roundRect(0, thumbY - y, 3, thumbHeight, 2);
   scrollbar.fill({ color: GPU_COLORS.primary, alpha: 0.9 });
   scrollbar.label = 'scrollbar-thumb';
-  scrollbar.eventMode = 'none';
+  scrollbar.eventMode = 'static';
+  scrollbar.cursor = 'ns-resize';
+  scrollbar.hitArea = new Rectangle(-6, 0, 14, height);
+  scrollbarOptions.set(scrollbar, options);
   parent.addChild(scrollbar);
 }
 
@@ -147,6 +160,7 @@ export function createScrollPane(parent: Container, options: ScrollPaneOptions):
   const layer = new Container();
   layer.position.set(x, y);
   const content = new Container();
+  content.label = 'scroll-pane-content';
   content.position.set(0, -scrollY);
   layer.addChild(content);
   parent.addChild(layer);

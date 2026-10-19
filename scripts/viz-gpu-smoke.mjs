@@ -1353,6 +1353,50 @@ try {
         { timeout: READY_TIMEOUT_MS },
         label
       );
+      if (label === 'Docs') {
+        await waitForSceneCamera(page, 'focus');
+        await page.waitForFunction(() => globalThis.__ATOMA_GPU__.hitTargets().some(target => target.id.startsWith('docs.theme.')));
+        const scrollbarPoint = async (fraction) => {
+          // React can publish new scene objects before Pixi has painted their
+          // transforms. Native input must target a painted frame.
+          await page.evaluate(() => new Promise(resolve =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          return await page.evaluate((part) => {
+            const handle = globalThis.__ATOMA_GPU__;
+            const bar = handle.app.stage.getChildByLabel('scrollbar-thumb', true);
+            if (!bar?.hitArea) throw new Error('Docs scrollbar did not arm');
+            const area = bar.hitArea;
+            const point = bar.toGlobal({ x: area.x + area.width / 2, y: area.y + area.height * part });
+            return handle.projectRendererPoint(point.x, point.y);
+          }, fraction);
+        };
+        const scrollOffset = () => page.evaluate(() => {
+          const content = globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('scroll-pane-content', true);
+          if (!content) throw new Error('Docs scroll content did not arm');
+          return content.y;
+        });
+        const thumb = await scrollbarPoint(0.01);
+        await page.mouse.move(thumb.x, thumb.y);
+        await page.mouse.down();
+        await page.mouse.move(thumb.x - 40, thumb.y + 50, { steps: 5 });
+        await page.waitForFunction(() =>
+          globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('scroll-pane-content', true)?.y < -1
+        );
+        await page.mouse.up();
+        const dragged = await scrollOffset();
+        const track = await scrollbarPoint(0.85);
+        await page.mouse.click(track.x, track.y);
+        await page.waitForFunction((before) =>
+          globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('scroll-pane-content', true)?.y < before,
+        {}, dragged);
+        const top = await scrollbarPoint(0.05);
+        await page.mouse.click(top.x, top.y);
+        await page.waitForFunction(() =>
+          Math.abs(globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('scroll-pane-content', true)?.y ?? Infinity) < 0.5
+        );
+        await page.mouse.move(640, 400);
+        console.log('viz scrollbar: thumb drag outside track, track click and return to top passed');
+      }
     }
     await waitForSceneCamera(page, 'focus');
 

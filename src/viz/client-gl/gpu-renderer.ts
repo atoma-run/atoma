@@ -1,3 +1,4 @@
+import { ScrollbarInteraction } from './renderer/scrollbar-interaction.js';
 import { buttonIconKind, BUTTON_ICON_SPACE, BUTTON_ICON_SIZE, CHEVRON_SIZE, CHEVRON_SPACE, type ButtonIconKind } from './button-icons.js';
 import { drawButtonIcon, drawChevron } from './renderer/button-icon.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
@@ -861,6 +862,8 @@ export class GpuRenderer {
     };
   }
 
+  private scrollbarInteraction: ScrollbarInteraction | null = null;
+
   private readonly wheel = (event: WheelEvent) => {
     if (!this.snapshot) return;
     event.preventDefault();
@@ -1507,6 +1510,11 @@ export class GpuRenderer {
     };
     // eslint-disable-next-line @typescript-eslint/unbound-method -- The ticker supplies the Application context.
     this.app.ticker.add(this.app.render, this.app, UPDATE_PRIORITY.LOW);
+    this.scrollbarInteraction = new ScrollbarInteraction(
+      this.stage, window,
+      (x, y) => this.clientToRendererPosition(x, y),
+      (x, y, delta) => this.scrollAt(x, y, delta, false)
+    );
     this.app.canvas.addEventListener('wheel', this.wheel, { passive: false });
     // Touch scrolling reads the browser's pan; it never cancels it (passive).
     this.app.canvas.addEventListener('touchstart', this.touchStart, { passive: true });
@@ -1607,6 +1615,8 @@ export class GpuRenderer {
     // destroyed Application (2026-08-27, 3.14). One frame wide, and reachable
     // every HMR reload. Nulling it here is what makes those guards false.
     this.snapshot = null;
+    this.scrollbarInteraction?.destroy();
+    this.scrollbarInteraction = null;
     this.pendingSnapshot = null;
     this.dropDeferredRefresh();
     this.onDeferredRender = null;
