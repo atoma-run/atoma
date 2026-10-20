@@ -17,9 +17,8 @@ import type { FetchLike } from './guardedFetch.js';
  *   write is guarded by the URL it was obtained for;
  * - a pending authorization is memory-only, expires, and is bound to the
  *   browser session, principal, organisation and connection that began it;
- * - refreshes of one connection are serialised in this process, which is the
- *   one writer of its rotating refresh token (the run process only ever
- *   receives an access token);
+ * - refreshes and authorization writes are serialized across host generations
+ *   in the primary store (the run process only receives an access token);
  * - every request goes through the guarded fetch.
  */
 
@@ -197,6 +196,14 @@ export class ConnectorOAuth {
     this.now = options.now ?? Date.now;
   }
 
+  /** One deadline for discovery, registration and exchange together, inside
+   * the credential mutex. It expires before the web unit's shutdown grace. */
+  private exchangeFetch(): FetchLike {
+    const deadline = AbortSignal.timeout(60_000);
+    return (url, init) => this.options.fetch(url, { ...init,
+      signal: init?.signal ? AbortSignal.any([deadline, init.signal]) : deadline });
+  }
+
   private encryption(): SecretEncryptionContext {
     if (!this.options.encryption) throw new ConnectorAuthorizationError('Secret storage is not configured on this instance.');
     return this.options.encryption;
@@ -225,7 +232,7 @@ export class ConnectorOAuth {
     let result: string;
     try {
       result = await this.options.store.serializeOAuth(row.org_id, row.server_id, () =>
-        auth(provider, { serverUrl: row.url, ...(row.oauth_scope ? { scope: row.oauth_scope } : {}), fetchFn: this.options.fetch }));
+        auth(provider, { serverUrl: row.url, ...(row.oauth_scope ? { scope: row.oauth_scope } : {}), fetchFn: this.exchangeFetch() }));
     } catch (error) {
       throw new ConnectorAuthorizationError(describeAuthError(error));
     }
@@ -266,7 +273,7 @@ export class ConnectorOAuth {
       { verifier: pending.verifier, ignoreStoredTokens: true, now: this.now });
     try {
       const result = await this.options.store.serializeOAuth(row.org_id, row.server_id, () =>
-        auth(provider, { serverUrl: row.url, authorizationCode: input.code, fetchFn: this.options.fetch }));
+        auth(provider, { serverUrl: row.url, authorizationCode: input.code, fetchFn: this.exchangeFetch() }));
       if (result !== 'AUTHORIZED') throw new ConnectorAuthorizationError('The server did not issue tokens.');
     } catch (error) {
       if (error instanceof ConnectorAuthorizationError) throw error;
@@ -337,7 +344,7 @@ export class ConnectorOAuth {
     try {
       const provider = new RowOAuthProvider(this.options.store, row, encryption, this.options.redirectUrl, { now: this.now });
       // REDIRECT means no refresh was possible: a person must authorize again.
-      if (await auth(provider, { serverUrl: row.url, fetchFn: this.options.fetch }) !== 'AUTHORIZED') {
+      if (await auth(provider, { serverUrl: row.url, fetchFn: this.exchangeFetch() }) !== 'AUTHORIZED') {
         refused = { ok: false, reason: 'authorization_required' };
       }
     } catch {

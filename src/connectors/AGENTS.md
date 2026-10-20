@@ -96,7 +96,8 @@ Decision of record:
   ACCESS header only: the refresh token never leaves the server process,
   which owns rotation. The primary-store credential mutex serializes refresh
   and interactive authorization across web and executor generations; each
-  refresh re-reads the row after acquisition.
+  refresh re-reads the row after acquisition. OAuth discovery/registration/token
+  exchange share a 60-second deadline, within the web shutdown grace.
 - Best effort past a token's lifetime: a server whose tokens live an hour
   cannot cover a two-hour run, so the freshest token still valid is handed
   over and an expiry mid-run surfaces as `unavailable` on a call. A token
