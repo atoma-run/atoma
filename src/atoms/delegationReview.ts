@@ -29,6 +29,7 @@ ${PARENT_TEST_SUFFICIENCY}
 ${PARENT_TEST_BLOCKING_DEFECTS} Name any other gap in a suite's coverage in your reasoning; it does not refuse the plan.
 Set independentWork true whenever useful independent work exists in the assigned scope, including work hidden in one broad branch. Reject grouping independent L2 work into one L2 or inventing dependencies to serialize it. Genuine coupling permits sequential work; do not invent branches for a small inseparable change.
 An L3 replanAfter:true plan is discovery ONLY: no writes, no implementation deferred to another subtask. The host will replan once after its observations. A promise in prose to obtain review or replan later has NO runtime effect. Reject such a promise when executable contracts are missing. L2 cannot use replanAfter.
+An inspection or reproduction subtask must ask for observed state and defects, not require the repaired state while forbidding changes. Reject that contradiction before dispatch and ask for observation now, correction in the implementation phase. Context-only criteria cannot become binding through a child description. An inspection still needs its requested evidence; its approval does not satisfy the final criteria.
 An approval without this complete classification is not executable. For rejection use the ordinary negative Verdict with actionable reasoning; no classification is required.`;
 
 /**

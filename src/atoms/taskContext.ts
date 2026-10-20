@@ -2,6 +2,7 @@ import type { AggregationSpec, Plan, SubtaskSpec, Task } from '../core/types.js'
 import { REASONING_EXECUTION_GUIDANCE, REASONING_PLAN_GUIDANCE, TEXT_DELIVERY_CONTEXT, TEXT_DELIVERY_GUIDANCE } from '../contracts/taskExecution.js';
 import { renderTextLayouts } from './textLayout.js';
 import { READ_RUNS_GUIDANCE } from '../contracts/readRuns.js';
+import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
 
 /** Stable trace boundary between a task's multiline description and runtime guidance. */
 export const TASK_CONTEXT_HEADER = '== TASK CONTEXT ==';
@@ -29,6 +30,7 @@ export const PLANNING_SCOPE_GUIDANCE = [
   'Delegate only the current Task: every child task must contribute to its requested outcome.',
   'originalTask supplies facts and constraints, not permission to perform other phases of the root goal.',
   'A checklist or analysis phase returns that checklist or analysis; do not replace it with production of the final deliverable.',
+  'Do not turn a desired final state into the success condition of an inspection or reproduction phase. Ask it to observe whether the condition holds and report defects with evidence; assign repair and proof of the corrected state to an implementation phase. Context-only criteria remain context in every child description.',
   'Use previousStepResult as completed work to inspect or extend, not a request to regenerate it.',
   PREVIOUS_OBSERVATIONS_GUIDANCE,
 ].join('\n');
@@ -108,7 +110,12 @@ export function delegatedCriteria(parent: Task, subtasks: readonly SubtaskSpec[]
 /** The plan-shape line a planner holding criteria reads; '' when it holds none. */
 export function criteriaAssignmentLine(task: Task): string {
   if (!task.criteria?.length) return '';
-  return `Give each subtask "criteria": ["<id>", ...], the acceptance criteria ids (${task.criteria.map((item) => item.id).join(', ')}) it proves; the runtime hands it their exact text as its requirements. Assign every id to the subtask that checks it, one spanning phases to the last of them. An id no subtask names is only context for the last phase, and nothing proves it before root acceptance.`;
+  const binding = task.criteria.filter(item => item.source === 'user' && !item.unassigned);
+  const context = task.criteria.filter(item => item.source !== 'user' || item.unassigned);
+  return [
+    binding.length > 0 ? `Give each subtask "criteria": ["<id>", ...], the acceptance criteria ids (${binding.map(item => item.id).join(', ')}) it proves; the runtime hands it their exact text as its requirements. Assign every id to the subtask that checks it, one spanning phases to the last of them. An id no subtask names is only context for the last phase, and nothing proves it before root acceptance.` : '',
+    context.length > 0 ? `Context-only criteria (${context.map(item => item.id).join(', ')}) may be named in a subtask's "criteria" to route relevant observations. Naming them does not make them requirements or demand their final state in this phase. Keep child descriptions within the current task; the root acceptor still judges every criterion.` : '',
+  ].filter(Boolean).join('\n');
 }
 
 /** Shared task evidence for model and Jev validation; the current phase remains the scope. */
@@ -151,6 +158,7 @@ export function taskContextLines(task: Task, options: {
   }
   return [
     task.originalTask ? DELEGATED_SCOPE_GUIDANCE : '',
+    task.readOnly ? READ_ONLY_TASK_LINE : '',
     // A reasoning task holds no tools (L2Atom and L3Atom fallback `hasTools`,
     // L1 `reasoningPrompt`), so it writes no application, and
     // `delegatedTaskContext` forces reasoning on every descendant of a

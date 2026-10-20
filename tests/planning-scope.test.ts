@@ -6,10 +6,42 @@ import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { makeCtx, jsonTextPair, jsonText } from './helpers.js';
 import type { Task } from '../src/core/types.js';
+import { READ_ONLY_TASK_LINE } from '../src/contracts/readOnlyPhase.js';
 
 const seed = { description: 'constrained writing', systemPrompt: 'Always use separate modeling, drafting, audit, correction and finalization phases.', tools: [], params: {}, createdBy: 'test' };
 
 describe('runtime planning scope for existing catalog agents', () => {
+  it.each([2, 3] as const)('keeps discovery criteria as context in the tier %i planner', async tier => {
+    const db = openDb(':memory:');
+    try {
+      const reg = new AtomRegistry(db);
+      const child = reg.create(tier === 2 ? 1 : 2, seed);
+      const parent = reg.create(tier, seed);
+      const atom = tier === 2 ? L2Atom.fromType(parent, reg) : L3Atom.fromType(parent, reg);
+      const task: Task = {
+        description: 'Inspect the normalizer and reproduce its existing failure without changing files.',
+        originalTask: { description: 'Remove the unwanted normalized id alias and preserve the source id.' },
+        readOnly: true,
+        criteria: [{ id: 'c1', behaviour: 'The normalized row has no id alias.', source: 'user', unassigned: true }],
+      };
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(jsonText({ kind: 'escalate', reasoning: 'Inspect first' }));
+      ctx.llm.enqueue(req => {
+        expect(req.userContent).toContain(READ_ONLY_TASK_LINE);
+        expect(req.userContent).toContain('they add no requirement to this phase');
+        expect(req.userContent).not.toContain('the runtime hands it their exact text as its requirements');
+        expect(req.userContent).toContain('Do not turn a desired final state into the success condition of an inspection');
+        return { text: jsonTextPair({ strategy: 'reuse', target: child.name, reasoning: 'fits' }, {
+          reasoning: 'observe the current state, including defects',
+          subtasks: [{ description: task.description, criteria: ['c1'] }],
+          aggregation: { mode: 'concat' }, expectedOutput: 'observations and current failures',
+        }), stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
+      });
+      await atom.plan(task, ctx);
+      expect(task.criteria?.[0]?.unassigned).toBe(true);
+    } finally { db.close(); }
+  });
+
   // The TypeScript policy reaches tool-mode planners only: a reasoning task
   // holds no tools and builds nothing (review 2026-10-16, group F).
   it.each([
