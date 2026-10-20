@@ -18,6 +18,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import { setTimeout as delay } from 'node:timers/promises';
 import Database from 'better-sqlite3';
 import { AuthStore } from '../auth/store.js';
 import { planShowsAttribution } from '../contracts/accountPlan.js';
@@ -47,6 +48,7 @@ import { PlatformSettingsStore } from '../platform/settings.js';
 import { eventLabel } from '../contracts/platformEvents.js';
 import {
   createProjectInputSchema,
+  idempotencyKeySchema,
   DEFAULT_REPOSITORY_VISIBILITY,
   projectSlugFromName,
 } from '../contracts/projects.js';
@@ -54,6 +56,7 @@ import { storeDbPath } from '../core/stores.js';
 import { parseCliArgs } from './args.js';
 import { parseChecklistLines, type ApprovedChecklistInput } from '../contracts/acceptanceChecklist.js';
 import { applyCheckoutDotenvForSourceEntry } from './loadDotenv.js';
+import { executorSocket } from '../projects/executorTransport.js';
 
 const USAGE = `atoma projects — organisation-scoped runs
 
@@ -137,7 +140,8 @@ flags:
   --project <slug-or-id>     target project (required for run and publish)
   --as <id-or-email>         principal the run is attributed to (required)
   --run <run-id>             the delivered run to publish (publish only)
-  --timeout <seconds>        run budget, 60..7200, default ${DEFAULT_PROJECT_RUN_TIMEOUT_MS / 1000} (run only)
+  --timeout <seconds>        standalone run budget, 60..7200, default ${DEFAULT_PROJECT_RUN_TIMEOUT_MS / 1000}
+  --idempotency-key <key>    reuse this exact run after a disconnected CLI (run only)
   --apply                    name the listed runs (titles only; otherwise a dry run)
   --view <rows|review>       the report's view (disputes only)
   --suite <digest>           one unit in full, by digest or a 16+ character prefix (disputes only)
@@ -392,6 +396,7 @@ async function main(): Promise<void> {
       'visibility',
       'prompt',
       'timeout',
+      'idempotency-key',
       'view',
       'suite',
       'since',
@@ -637,8 +642,15 @@ async function main(): Promise<void> {
   }
 
   const previewStore = PreviewStore.open(dbPath);
+  const selectedExecutorSocket = executorSocket();
+  if (selectedExecutorSocket && timeoutMs !== undefined) {
+    fail('--timeout cannot override an independent executor budget; omit it to use the configured host budget');
+  }
+  const requestKey = idempotencyKeySchema.safeParse(args.flags['idempotency-key'] ?? randomUUID());
+  if (!requestKey.success) fail('invalid --idempotency-key (expected an opaque ASCII token, 1..128 characters)');
   const coordinator = new ProjectRunCoordinator({
     store: projects,
+    executorSocket: selectedExecutorSocket,
     queuedRunAllowed: (id, orgId) => auth.listOrganisationsForPrincipal(id).some(membership => membership.orgId === orgId && membership.role !== 'org:viewer'),
     dbPath,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
@@ -758,13 +770,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { run, created } = await coordinator.startOutcome({
+  const { run, created, admissionJournaled } = await coordinator.startOutcome({
     orgId: target.orgId,
     principalId: principal.principalId,
     projectId: target.projectId,
-    request: { goal, idempotencyKey: randomUUID(), ...(criteria ? { acceptanceChecklist: criteria } : {}) },
+    request: { goal, idempotencyKey: requestKey.data, ...(criteria ? { acceptanceChecklist: criteria } : {}) },
   });
-  if (created) events.append({
+  if (created && !admissionJournaled) events.append({
     kind: 'run.started',
     actorType: 'cli',
     actorId: null,
@@ -777,7 +789,15 @@ async function main(): Promise<void> {
 
   // The coordinator drives the run in the background; wait for it so the
   // command's exit code means something, and so the operator sees the end.
-  await coordinator.waitForIdle();
+  if (selectedExecutorSocket) {
+    // The independent host owns execution. Watch only this durable receipt;
+    // unrelated queued work must neither block exit nor be driven by the CLI.
+    while (['queued', 'running'].includes(projects.getProjectRun(target.orgId, run.projectRunId)?.status ?? '')) {
+      await delay(250);
+    }
+  } else {
+    await coordinator.waitForIdle();
+  }
   const finished = projects.getProjectRun(target.orgId, run.projectRunId);
   const status = finished?.status ?? 'unknown';
   process.stdout.write(`\nrun ${run.projectRunId} ${status}\n`);

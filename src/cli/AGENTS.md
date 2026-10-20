@@ -175,6 +175,13 @@ can only report that it cannot be.
   subscription-transport door still asks the coordinator's authority — the CLI
   refuses early, naming BOTH ways in (`grant-admin`, `grant-subscription`),
   rather than letting the coordinator reject it later.
+- With `ATOMA_EXECUTOR_SOCKET`, project admission/publication goes to the same
+  independent host as the web. The CLI polls only its run receipt to completion;
+  disconnecting it neither cancels nor transfers the workload. An explicit
+  `--idempotency-key` reattaches even after the run ended. An unavailable socket
+  never falls back to a local driver, and executor-recorded admission is not
+  journaled twice. The independent host uses its configured budget; a CLI
+  `--timeout` override is refused rather than silently ignored.
 - A project slug is unique per organisation, not per instance. An ambiguous
   reference is refused, never guessed.
 - Delivery waits for client testing and explicit acceptance through the MCP.
