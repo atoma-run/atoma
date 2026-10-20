@@ -38,3 +38,24 @@ would defeat the concurrency protection; none is accepted. Only the unique
 candidate run is excluded, after it acquired the lease. The subsystem's
 intentional choices retain read-only observation and one coordinator; this fix
 adds no alternative admission mechanism or heuristic.
+
+## Verification
+
+The 99 focused coordinator, maintenance and executor-process tests pass. Both
+TypeScript projects, lint, dependency audit, the production build and all compiled
+release smokes pass, including the packaged version of this process regression.
+The complete local suite reports 7,727 passed, 32 skipped and one failure: Docker
+Desktop retains the archived bind-mount inode in the already diagnosed
+`container-isolation` workspace replacement case (`fresh.txt` is absent from the
+replacement directory). That test and the engine were left unchanged. The fresh
+Linux worker-image job for CI `39414908902` passes. That complete CI subsequently
+passed: 7,708 tests passed and 52 were intentionally skipped; static release,
+worker-image and credential-isolation jobs all succeeded.
+
+Deployment `39416150592` activated `ba76a141` at 11:37 UTC. The original queued
+Attica request started at `2026-10-20T11:37:19.220Z`, without a replacement run or
+operational database edit. Its lease belonged to executor PID `1314176`, child
+PGID `1317950`; the web ran separately as PID `1315320`. The device recorded an
+active assignment for that same run, connection generation 37 and execution
+generation 11. This confirms that the correction unblocked the real admission;
+it does not yet establish the outcome of Attica's application checks.
