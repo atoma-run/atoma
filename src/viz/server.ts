@@ -480,6 +480,9 @@ function resolveDbs(): { id: string; label: string; path: string; exists: boolea
 }
 
 const DBS = resolveDbs();
+// The explicit --db flag is the primary store for default-path consumers too
+// (operator receipts, credential mutexes and children), including executors.
+process.env['ATOMA_DB_PATH'] = DBS[0]!.path;
 // Skill bodies from `--skills-dir`, their trust from the primary store this
 // server serves — the cached writable handle the admin ledger already uses,
 // so the Skills tab and `/api/admin/ledger` read one file (W4).

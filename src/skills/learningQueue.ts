@@ -58,6 +58,13 @@ export class LearningQueue {
     }
   }
 
+  /** Account credentials remain in use when another executor owns learning. */
+  hasActivePrincipal(principalId: string): boolean {
+    const owners = this.db.prepare("SELECT pid, fingerprint FROM skill_learning_jobs WHERE status = 'running' AND json_extract(payload, '$.scope.principalId') = ?")
+      .all(principalId) as Pick<LearningQueueRow, 'pid' | 'fingerprint'>[];
+    return owners.some(owner => owner.pid !== null && recordedProcessLive(owner.pid, owner.fingerprint ?? ''));
+  }
+
   pending(): LearningJob[] {
     return (this.db.prepare("SELECT payload FROM skill_learning_jobs WHERE status = 'pending' ORDER BY updated_at, run_id").all() as { payload: string }[])
       .map(row => learningJobSchema.parse(JSON.parse(row.payload)));

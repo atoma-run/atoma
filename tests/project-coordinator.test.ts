@@ -997,10 +997,15 @@ describe('ProjectRunCoordinator', () => {
       expect(coordinator.hasActiveRunForPrincipal(f.viewer.principalId)).toBe(true);
       const queue = new LearningQueue(dbPath);
       expect(queue.claim(job.runId)).toBe(true);
+      const frontend = new ProjectRunCoordinator({ store: f.store, dbPath, projectsRoot: f.root,
+        skillsDir: join(f.root, 'skills'), executorSocket: join(f.root, 'active.sock') });
+      expect(frontend.hasActiveRunForPrincipal(f.viewer.principalId)).toBe(true);
+      expect(frontend.hasActiveRunForPrincipal(randomUUID())).toBe(false);
       queue.recordCall(job.runId, { model: job.model, inputTokens: 10, outputTokens: 10,
         cacheCreationInputTokens: 0, cacheReadInputTokens: 0, durationMs: 1, stopReason: 'end_turn' });
       await waiting;
       queue.finish(job.runId, 'completed');
+      expect(frontend.hasActiveRunForPrincipal(f.viewer.principalId)).toBe(false);
     });
     const driver: ProjectRunDriver = async options => {
       const env = options.env!;

@@ -2851,7 +2851,7 @@ export class ProjectRunCoordinator {
 
   /** Disconnecting a profile cannot race a run that already captured it. */
   hasActiveRunForPrincipal(principalId: string): boolean {
-    if (this.store.hasRunningRunForPrincipal(principalId)) return true;
+    if (this.store.hasRunningRunForPrincipal(principalId) || new LearningQueue(this.dbPath).hasActivePrincipal(principalId)) return true;
     if (this.learningPrincipal === principalId) return true;
     for (const active of this.active.values()) {
       if (active.principalId === principalId) return true;

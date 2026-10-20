@@ -5,11 +5,13 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
+import { request as httpRequest } from 'node:http';
+import { once } from 'node:events';
 import { haystackTestRuntime } from './fixtures/haystack-test-runtime.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -180,8 +182,8 @@ async function smoke() {
     assert.equal(next.exitCode, null, 'new executor must keep accepting');
     console.log(`executor smoke (${source ? 'source' : 'packaged'}): cutover, rollback, reattach, cancellation, no replay, retirement passed`);
   } finally {
-    for (const processChild of children) if (processChild.exitCode === null) processChild.kill('SIGKILL');
-    await Promise.all(children.map(child => child.exitCode !== null ? undefined : new Promise(done => child.once('exit', done))));
+    for (const processChild of children) if (processChild.exitCode === null && processChild.signalCode === null) processChild.kill('SIGKILL');
+    await Promise.all(children.map(child => child.exitCode !== null || child.signalCode !== null ? undefined : new Promise(done => child.once('exit', done))));
     closeStoreHandles(); rmSync(root, { recursive: true, force: true });
     if (previousLease === undefined) delete process.env.ATOMA_MCP_RUN_LOCK;
     else process.env.ATOMA_MCP_RUN_LOCK = previousLease;
@@ -189,6 +191,45 @@ async function smoke() {
     else process.env.ATOMA_EXECUTOR_SOCKET = previousSocket;
     if (previousDb === undefined) delete process.env.ATOMA_DB_PATH;
     else process.env.ATOMA_DB_PATH = previousDb;
+  }
+}
+
+async function serverBootSmoke() {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'aexec-boot-')));
+  mkdirSync(join(root, 'home'));
+  const own = join(root, 'generation.sock'), active = join(root, 'active.sock'), device = join(root, 'device.sock');
+  const child = spawn(process.execPath, [...(source ? ['--import', join(repo, 'node_modules/tsx/dist/loader.mjs')] : []),
+    join(repo, tree, `viz/server.${ext}`), '--host', '127.0.0.1', '--port', '0', '--db', join(root, 'product.db'), '--dir', join(root, 'runs')], {
+    cwd: root, env: { PATH: process.env.PATH, HOME: join(root, 'home'),
+      ATOMA_VIZ_AUTH: '1', ATOMA_VIZ_PUBLIC_ORIGIN: 'https://atoma.test',
+      ATOMA_AUTH_GITHUB_CLIENT_ID: 'quota-free-test', ATOMA_AUTH_GITHUB_CLIENT_SECRET: 'quota-free-test',
+      ATOMA_RUN_EXECUTOR: '1', ATOMA_EXECUTOR_SOCKET: active, ATOMA_EXECUTOR_OWN_SOCKET: own,
+      ATOMA_EXECUTOR_COMPUTE_SOCKET: device, ATOMA_MCP_RUN_LOCK: join(root, 'lease.db'),
+      ATOMA_VIZ_ANALYST: '0', ATOMA_VIZ_ASSAYER: '0', ATOMA_COMPUTE_ENABLED: '1',
+      ATOMA_COMPUTE_APP_VERSIONS: '0.4.0', ATOMA_COMPUTE_IMAGE_DIGESTS: 'sha256:' + 'a'.repeat(64),
+      ATOMA_ACCOUNT_PROFILES_ROOT: join(root, 'profiles'), ATOMA_PROJECTS_ROOT: join(root, 'projects') }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = ''; child.stdout.on('data', data => output += data); child.stderr.on('data', data => output += data);
+  try {
+    await until(async () => {
+      if (child.exitCode !== null || child.signalCode !== null) throw new Error(`real server executor exited: ${output}`);
+      try { return (await callExecutor(own, { method: 'health' })).ready; } catch { return false; }
+    }, 'real authenticated executor boot');
+    assert.equal(existsSync(join(root, 'atoma.db')), false, '--db must govern operator receipts too');
+    const status = await new Promise((resolveStatus, reject) => {
+      const req = httpRequest({ socketPath: device, path: '/host-rpc', agent: false }, res => {
+        res.resume(); res.once('end', () => resolveStatus(res.statusCode));
+      });
+      req.once('error', reject); req.end();
+    });
+    assert.equal(status, 404, 'public Compute socket must not expose execution RPC');
+    symlinkSync(own, active); await delay(350);
+    assert.equal((await callExecutor(own, { method: 'health' })).selected, true);
+    unlinkSync(active); writeFileSync(own + '.retire', 'retire');
+    await until(() => child.exitCode === 0, 'real executor retirement');
+    console.log('executor server boot: authenticated runtime, primary store, device isolation and retirement passed');
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) { const exited = once(child, 'exit'); child.kill('SIGKILL'); await exited; }
+    rmSync(root, { recursive: true, force: true });
   }
 }
 
@@ -200,4 +241,4 @@ if (process.argv.includes('--frontend')) {
   console.log(JSON.stringify(await frontend.startOutcome(JSON.parse(process.argv[i + 2]))));
   closeStoreHandles();
 } else if (process.argv.includes('--child')) { const i = process.argv.indexOf('--child'); await child(process.argv[i + 1], process.argv[i + 2]); }
-else await smoke();
+else { await smoke(); await serverBootSmoke(); }

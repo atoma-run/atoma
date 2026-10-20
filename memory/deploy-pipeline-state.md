@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: a287b345-0cde-4c2f-9dc4-24d010fe43ba
-  modified: 2026-09-30T07:15:48.264Z
+  modified: 2026-10-20
 ---
 
 **Current code contract (2026-10-20, `00d96a50`):** ordinary compatible releases use independent executor generations. Read [the deployment guide](../docs/automatic-deployment.md) and [the design/verification record](../records/designs/independent-run-executors-2026-10-20.md). New admissions follow `/home/atoma/executors/active.sock`; old generations finish their own runs on immutable releases and revision-specific worker images. Cancellation and operator status survive a web restart through the primary store. Compute WSS follows `/home/atoma/compute/active.sock` directly from nginx. The first legacy migration and a changed `EXECUTOR_COMPATIBILITY` still use the full drain; incompatible maintenance verifies every old executor idle and stops all old writers before activation.
