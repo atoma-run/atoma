@@ -1,5 +1,5 @@
 import type { VizProjectRun } from '../client/types.js';
-import { runCost } from '../client/run-utils.js';
+import { fmtTokenCount, runCost } from '../client/run-utils.js';
 import { projectOverview } from './project-overview.js';
 import { useGpuStore } from './store.js';
 
@@ -24,7 +24,7 @@ export function ProjectOverviewAccessible({ runs, t }: {
     <ul>
       <li>{t('projects.overview.runCount')}: {overview.runCount}</li>
       <li>{t('projects.overview.llmCost')}: {runCost(overview.llmCostUsd)}</li>
-      <li>{t('projects.overview.tokens')}: {overview.tokens.toLocaleString(locale)}</li>
+      <li>{t('projects.overview.tokens')}: {fmtTokenCount(overview.tokens, locale)}</li>
       <li>{t('projects.overview.llmCalls')}: {overview.llmCalls.toLocaleString(locale)}</li>
       <li>{t('projects.overview.jevCalls')}: {overview.jevCalls.toLocaleString(locale)}</li>
     </ul>

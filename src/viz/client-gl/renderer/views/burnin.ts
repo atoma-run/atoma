@@ -2,7 +2,7 @@ import { Container, Graphics, Rectangle } from 'pixi.js';
 import { CHEVRON_SIZE } from '../../button-icons.js';
 import { drawChevron } from '../button-icon.js';
 import type { Ticker } from 'pixi.js';
-import { fmtCost } from '../../../client/run-utils.js';
+import { fmtCost, runDuration } from '../../../client/run-utils.js';
 import type { BurninRow } from '../../../client/types.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
@@ -211,7 +211,7 @@ function drawBurninChart(
     tooltipTitle.text = truncate(nearest.row.taskId, 32);
     tooltipMeta.text =
       `${nearest.row.family} · ${fmtCost(nearest.row.costUsd)} · ` +
-      `${nearest.row.durationS ?? '?'}s · ${nearest.row.outcome}`;
+      `${runDuration(nearest.row.durationS == null ? undefined : nearest.row.durationS * 1000, snapshot.t)} · ${nearest.row.outcome}`;
     tooltip.position.set(
       Math.max(8, Math.min(width - 218, nearest.x + 12)),
       Math.max(8, Math.min(height - 62, nearest.y - 62))
@@ -388,11 +388,12 @@ export function drawBurnin(
   const delivered = rows.filter((row) => row.outcome === 'delivered').length;
   const costs = rows.flatMap((row) => row.costUsd === null ? [] : [row.costUsd]);
   const durations = rows.flatMap((row) => row.durationS === null ? [] : [row.durationS]);
+  const p90Duration = quantile(durations, 0.9);
   const stats = [
     [snapshot.t('burnin.runsSelected'), String(rows.length)],
     [snapshot.t('burnin.deliveryRate'), `${Math.round(delivered / Math.max(1, rows.length) * 100)}%`],
     [snapshot.t('burnin.medianCost'), fmtCost(quantile(costs, 0.5))],
-    [snapshot.t('burnin.p90Duration'), `${quantile(durations, 0.9) ?? '—'}s`],
+    [snapshot.t('burnin.p90Duration'), runDuration(p90Duration == null ? undefined : p90Duration * 1000, snapshot.t)],
   ];
   const burninStatAccents = [
     GPU_COLORS.primary,
@@ -458,7 +459,7 @@ export function drawBurnin(
       color: row.outcome === 'delivered' ? GPU_COLORS.success : GPU_COLORS.error,
     });
     ctx.text(pane.content, truncate(row.taskId, 60), left + 30, rowY + 4, { size: 10, width: inner * 0.5 });
-    ctx.text(pane.content, `${fmtCost(row.costUsd)} · ${row.durationS ?? '?'}s`, left + inner * 0.58, rowY + 4, {
+    ctx.text(pane.content, `${fmtCost(row.costUsd)} · ${runDuration(row.durationS == null ? undefined : row.durationS * 1000, snapshot.t)}`, left + inner * 0.58, rowY + 4, {
       size: 10,
       color: GPU_COLORS.muted,
     });

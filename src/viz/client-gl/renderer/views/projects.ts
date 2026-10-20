@@ -9,7 +9,7 @@ import { BUTTON_ICON_SPACE, CHEVRON_SIZE, CHEVRON_SPACE } from '../../button-ico
 import { drawChevron } from '../button-icon.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
-import { fmtMs, runCost } from '../../../client/run-utils.js';
+import { fmtTokenCount, runDuration, runCost } from '../../../client/run-utils.js';
 import { timestampTooltip } from '../relative-time.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR, VIEW_FRAME_TITLE_SIZE, VIEW_FRAME_TITLE_Y } from '../view-frame.js';
@@ -170,8 +170,8 @@ function runCopyLines(ctx: RendererCtx, copy: string, width: number): string[] {
 function runCardLayout(ctx: RendererCtx, snapshot: GpuRenderSnapshot, run: VizProjectRun, width: number, newest: boolean) {
   const textWidth = Math.max(1, width - RUN_CARD_PAD * 2);
   const metrics = [
-    run.durationS == null ? '—' : fmtMs(run.durationS * 1000),
-    snapshot.t('projects.runTokens', { value: run.tokens?.toLocaleString(snapshot.state.locale) ?? '—' }),
+    runDuration(run.durationS == null ? undefined : run.durationS * 1000, snapshot.t),
+    snapshot.t('projects.runTokens', { value: fmtTokenCount(run.tokens ?? undefined, snapshot.state.locale) || '—' }),
     snapshot.t('projects.runLlmCalls', { value: run.llmCalls?.toLocaleString(snapshot.state.locale) ?? '—' }),
     snapshot.t('projects.runJevCalls', { value: run.jevCalls == null ? '—'
       : (run.jevCallsLowerBound ? '≥ ' : '') + run.jevCalls.toLocaleString(snapshot.state.locale) }),

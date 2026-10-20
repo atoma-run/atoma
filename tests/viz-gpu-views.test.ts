@@ -3675,6 +3675,30 @@ describe('drawProjects', () => {
     }
   });
 
+  it.each([360, 1280])('uses readable duration and token units on project run cards at width %s', width => {
+    const project = guidanceProject();
+    const run: VizProjectRun = {
+      projectId: project.projectId, projectRunId: 'readable-metrics', traceId: 'readable-metrics-trace',
+      goal: 'Validate the application offline', status: 'partial', costUsd: 7.45,
+      durationS: 5118.30, tokens: 8_616_288, llmCalls: 228, jevCalls: 167,
+      error: null, createdAt: '2026-10-20T00:00:00.000Z', endedAt: '2026-10-20T01:25:18.300Z', publication: null,
+    };
+    const draw = (value: VizProjectRun) => {
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot({ view: 'projects', projectSection: 'runs', selectedProjectId: project.projectId }, {
+        auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: [value] },
+      }), width, 900);
+      return ctx.texts.map(text => text.value).join('\n');
+    };
+    const text = draw(run);
+    expect(text).toContain('1h 25m');
+    expect(text).toContain('Tokens: 8.6M');
+    expect(text).not.toContain('5118.30s');
+    expect(text).not.toContain('8,616,288');
+    expect(draw({ ...run, durationS: null, tokens: null })).toContain('Tokens: —');
+    expect(draw({ ...run, durationS: 0, tokens: 0 })).toContain('Tokens: 0');
+  });
+
   it.each([320, 528, 1000, 1600])('contains checkpoint copy and actions in each measured card at width %s', width => {
     const project = guidanceProject();
     const runs: VizProjectRun[] = ['running', 'paused', 'blocked', 'recoverable'].map((state, index) => ({
@@ -3892,7 +3916,7 @@ describe('drawProjects', () => {
       const metrics = ctx.texts.find(text => String(text.value).includes('Decision API calls:'))!;
       expect(metrics.value).toContain(lowerBound ? 'Decision API calls: ≥ 9' : 'Decision API calls: 9');
       if (lowerBound) expect(ctx.tooltips.some(tooltip => tooltip.text.includes('Minimum confirmed'))).toBe(true);
-      expect(metrics.value).toContain('Tokens: 12,500');
+      expect(metrics.value).toContain('Tokens: 12.5k');
       expect(metrics.value).toContain('LLM calls: 7');
       expect(metrics.x).toBe(card.x + 16);
       expect(metrics.y).toBeGreaterThan(card.y + 30);

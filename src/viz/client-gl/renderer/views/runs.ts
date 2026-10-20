@@ -8,7 +8,6 @@ import {
   buildAtomMap,
   coerceEventFilters,
   fmtCost,
-  fmtMs,
   inFlightLlmEvents,
   isRunLive,
   runElapsedMs,
@@ -1160,7 +1159,7 @@ export function drawRuns(
   const endedMs = run.endedAt ? Date.parse(run.endedAt) : NaN;
   const runOver = status !== 'live' && status !== 'abandoned';
   const endFacts = [
-    fmtMs(run.durationMs),
+    runDuration(run.durationMs, snapshot.t),
     snapshot.t('runs.calls', { count: run.totals?.calls ?? 0 }),
     fmtCost(run.totals?.costUsd),
     clockTime(endedMs),

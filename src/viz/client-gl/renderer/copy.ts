@@ -2,6 +2,7 @@ import { isStandingCoverage } from '../../../contracts/acceptanceChecklist.js';
 import { clockTime } from '../../client/date-format.js';
 import {
   fmtCost,
+  fmtTokenCount,
   fmtMs,
   isRunLive,
   toolArgSummary,
@@ -237,12 +238,7 @@ export function modelPairLabel(model?: string, servedModel?: string): string {
 }
 
 /** 5842 → `5.8k`, 827777 → `828k`. Cards have no room for seven digits. */
-export function fmtTokenCount(value: number | undefined): string {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return '';
-  if (value < 1000) return String(Math.round(value));
-  if (value < 100_000) return `${(value / 1000).toFixed(1)}k`;
-  return `${Math.round(value / 1000)}k`;
-}
+export { fmtTokenCount } from '../../client/run-utils.js';
 
 /**
  * The economics of one call: what it read, what it wrote, and how much of the

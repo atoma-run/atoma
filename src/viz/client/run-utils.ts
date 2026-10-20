@@ -218,6 +218,23 @@ export function fmtMs(ms?: number): string {
   return ms > 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
 }
 
+/** Compact token totals share units across run cards, summaries and call receipts. */
+export function fmtTokenCount(value: number | undefined, locale?: string): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return '';
+  const units = ['', 'k', 'M', 'B', 'T'] as const;
+  let scaled = value;
+  let unit = 0;
+  while (scaled >= 1000 && unit < units.length - 1) { scaled /= 1000; unit += 1; }
+  let digits = unit > 0 && scaled < 100 ? 1 : 0;
+  // Rounding must not turn a value below the next unit into "1000k".
+  if (Number(scaled.toFixed(digits)) >= 1000 && unit < units.length - 1) {
+    scaled /= 1000; unit += 1; digits = 1;
+  }
+  const label = locale ? scaled.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+    : scaled.toFixed(digits);
+  return label + units[unit];
+}
+
 export function fmtCost(cost?: number | null): string {
   return cost == null ? '—' : `$${cost.toFixed(4)}`;
 }

@@ -339,6 +339,10 @@ function gatedStubs() {
       goal: 'Correct the collector: request handling, normalization and CSV tests',
       checkpoint: { state: 'paused', completed: 2, total: 3 } });
   }
+  if (has('--readable-metrics')) Object.assign(runs[0], {
+    status: 'partial', durationS: 5118.30, tokens: 8616288, llmCalls: 228, jevCalls: 167,
+    costUsd: 7.45, checkpoint: undefined,
+  });
   if (resultArtwork) Object.assign(runs[0], {
     traceId: 'run-fixture', goal: artworkGoal,
     artifactManifest: { version: 1, source: 'workspace', totalBytes: 16000,

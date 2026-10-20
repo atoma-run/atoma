@@ -3,7 +3,7 @@ import type { VizProject, VizProjectRun } from '../../../client/types.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
-import { fmtCost, runCost, runDuration } from '../../../client/run-utils.js';
+import { fmtCost, fmtTokenCount, runCost, runDuration } from '../../../client/run-utils.js';
 import { timestampTooltip } from '../relative-time.js';
 import { drawChevron } from '../button-icon.js';
 import { CHEVRON_SIZE } from '../../button-icons.js';
@@ -127,9 +127,7 @@ function percent(value: number, locale: string): string {
   return new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 }).format(value);
 }
 
-function compact(value: number, locale: string): string {
-  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
-}
+
 
 function whole(value: number, locale: string): string {
   return value.toLocaleString(locale);
@@ -145,10 +143,10 @@ export function overviewSliceDetail(t: Translate, slice: OverviewSlice, overview
       count: slice.calls, value: whole(slice.calls, locale),
     }) + (slice.requests !== undefined ? ` · ${t('projects.overview.detail.requests', { value: whole(slice.requests, locale) })}` : ''),
     t('projects.overview.detail.tokens', {
-      input: compact(slice.inputTokens, locale), output: compact(slice.outputTokens, locale),
+      input: fmtTokenCount(slice.inputTokens, locale), output: fmtTokenCount(slice.outputTokens, locale),
     }) + (slice.cacheReadInputTokens + slice.cacheCreationInputTokens > 0
       ? ` · ${t('projects.overview.detail.cache', {
-        read: compact(slice.cacheReadInputTokens, locale), written: compact(slice.cacheCreationInputTokens, locale),
+        read: fmtTokenCount(slice.cacheReadInputTokens, locale), written: fmtTokenCount(slice.cacheCreationInputTokens, locale),
       })}` : ''),
     t('projects.overview.detail.perRun', { cost: cost(slice.costUsd / Math.max(1, slice.runs)), count: slice.runs }),
   ];
@@ -261,7 +259,7 @@ function drawBody(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Contain
     heading(t('projects.overview.usage'));
     row(t('projects.overview.llmCost'), runCost(overview.llmCostUsd),
       t('projects.overview.llmCostHint', { value: cost(overview.llmCostUsd ?? 0), average: cost((overview.llmCostUsd ?? 0) / overview.runCount) }));
-    row(t('projects.overview.tokens'), compact(overview.tokens, locale), whole(overview.tokens, locale));
+    row(t('projects.overview.tokens'), fmtTokenCount(overview.tokens, locale), whole(overview.tokens, locale));
     row(t('projects.overview.llmCalls'), whole(overview.llmCalls, locale));
     row(t('projects.overview.jevCalls'), (overview.jevCallsLowerBound ? '≥ ' : '') + whole(overview.jevCalls, locale),
       overview.jevCallsLowerBound ? t('projects.runJevCallsLowerBound') : null);

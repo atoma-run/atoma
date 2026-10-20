@@ -79,6 +79,11 @@ describe('fmtTokenCount', () => {
     expect(fmtTokenCount(106)).toBe('106');
     expect(fmtTokenCount(5842)).toBe('5.8k');
     expect(fmtTokenCount(827_777)).toBe('828k');
+    expect(fmtTokenCount(8_616_288)).toBe('8.6M');
+    expect(fmtTokenCount(1_200_000_000)).toBe('1.2B');
+    expect(fmtTokenCount(999_999)).toBe('1.0M');
+    expect(fmtTokenCount(999_999_999)).toBe('1.0B');
+    expect(fmtTokenCount(8_616_288, 'fr')).toBe('8,6M');
   });
 
   it('returns nothing rather than a misleading zero for a missing count', () => {

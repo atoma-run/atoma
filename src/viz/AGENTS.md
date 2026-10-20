@@ -165,6 +165,10 @@ fail closed as before. The web service's executor dependency is one-way only.
 - Navigation mesh shadows use the same Pixi cast-shadow painter as the rest of
   the scene. Feed it a neutral white alpha mask derived from the live mesh
   render; tinting the coloured face texture directly creates dark colour chips.
+- Whole-run durations use `client/run-utils.ts`'s `runDuration`, including
+  project cards, timeline bookends and burn-in. `fmtTokenCount` in that same
+  module is the shared compact token formatter (k/M/B/T), re-exported by
+  `renderer/copy.ts`; exact receipt timing keeps `fmtMs` precision.
 - Human-readable product dates go through `client/date-format.ts`: use the
   locale-aware absolute formatter for persisted timestamps and omit seconds by
   default. Keep seconds only on operational surfaces where sub-minute ordering
