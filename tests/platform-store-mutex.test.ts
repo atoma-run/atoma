@@ -53,3 +53,37 @@ it('waits for a live process and reclaims its credential mutex only after its de
     expect(db.prepare('SELECT count(*) AS n FROM platform_mutation_leases').get()).toEqual({ n: 0 });
   } finally { child?.kill('SIGKILL'); db.close(); rmSync(dir, { recursive: true, force: true }); }
 }, 10_000);
+
+it('finishes an owned credential exchange during graceful shutdown and refuses new ones', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atoma-mutex-'));
+  const file = join(dir, 'store.db');
+  const db = new Database(file);
+  let child: ChildProcess | undefined;
+  try {
+    child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
+      import Database from 'better-sqlite3';
+      import { withStoreMutex, quiesceStoreMutexes } from './src/platform/storeMutex.ts';
+      const db = new Database(process.argv[1]);
+      db.exec('CREATE TABLE result (value TEXT)');
+      process.once('SIGTERM', async () => {
+        const drained = quiesceStoreMutexes();
+        try { await withStoreMutex(db, 'new', async () => {}); process.exit(2); }
+        catch { /* Refused during shutdown. */ }
+        await drained;
+        process.exit(0);
+      });
+      await withStoreMutex(db, 'credential', async () => {
+        console.log('owned');
+        await new Promise(resolve => setTimeout(resolve, 250));
+        db.prepare('INSERT INTO result VALUES (?)').run('rotated and committed');
+      });
+    `, file], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const [chunk] = await once(child.stdout!, 'data');
+    expect(String(chunk)).toContain('owned');
+    const exited = once(child, 'exit');
+    child.kill('SIGTERM');
+    expect(await exited).toEqual([0, null]);
+    expect(db.prepare('SELECT value FROM result').get()).toEqual({ value: 'rotated and committed' });
+    expect(db.prepare('SELECT count(*) AS n FROM platform_mutation_leases').get()).toEqual({ n: 0 });
+  } finally { child?.kill('SIGKILL'); db.close(); rmSync(dir, { recursive: true, force: true }); }
+}, 10_000);

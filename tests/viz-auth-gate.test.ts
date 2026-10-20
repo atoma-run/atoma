@@ -1875,13 +1875,11 @@ describe('viz auth gate (process level)', () => {
     expect(body.watch.intervalMs).toBeGreaterThan(0);
     expect(body.watch.incumbent).toBeNull();
 
-    // And the watch is not why the server refuses to die. `waitForExit`
-    // escalates to SIGKILL after thirty seconds, so the signal it actually
-    // died from is the assertion: SIGTERM means the term worked, SIGKILL
-    // would mean something held the loop open.
+    // SIGTERM finishes credential exchanges and exits normally. The watch
+    // must not keep shutdown alive until waitForExit escalates to SIGKILL.
     running.process.kill('SIGTERM');
-    await waitForExit(running.process);
-    expect(running.process.signalCode).toBe('SIGTERM');
+    expect(await waitForExit(running.process)).toBe(0);
+    expect(running.process.signalCode).toBeNull();
   });
 
   it('lets an operator switch the watch off without losing the visualizer', async () => {
