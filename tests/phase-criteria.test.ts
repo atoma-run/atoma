@@ -4,7 +4,7 @@ import { openDb } from '../src/registry/db.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { TRUST_THRESHOLD_SUCCESSES } from '../src/atoms/cost.js';
 import { subtaskSpecSchema } from '../src/atoms/json.js';
-import { delegatedCriteria, taskContextLines } from '../src/atoms/taskContext.js';
+import { criteriaAssignmentLine, delegatedCriteria, taskContextLines } from '../src/atoms/taskContext.js';
 import { remediationTask, withAcceptanceChecklist } from '../src/run/depth.js';
 import type { AcceptanceInfo } from '../src/contracts/depthRouting.js';
 import type { Task } from '../src/core/types.js';
@@ -138,6 +138,24 @@ describe('acceptance criteria reach the phase that proves them', () => {
     const lines = taskContextLines({ description: 'p', originalTask: { description: 'r' }, criteria: drafted }).join('\n');
     expect(lines).toContain('they add no requirement to this phase');
     expect(lines).not.toContain('must prove');
+  });
+
+  it('assigns binding and context criteria separately without weakening either at the root', () => {
+    const root = withAcceptanceChecklist({ description: 'r' }, checklist, 'user');
+    const task: Task = { ...root, originalTask: { description: 'r' }, criteria: root.criteria?.map(item =>
+      item.id === 'c2' ? { ...item, unassigned: true } : item.id === 'c3' ? { ...item, source: 'drafted' } : item) };
+    const assignment = criteriaAssignmentLine(task);
+    expect(assignment).toContain('acceptance criteria ids (c1) it proves');
+    expect(assignment).toContain('Context-only criteria (c2, c3)');
+    expect(assignment).toContain('Naming them does not make them requirements');
+    expect(criteriaAssignmentLine(root)).toContain('acceptance criteria ids (c1, c2, c3) it proves');
+    // Even a model naming a context-only id cannot promote it at dispatch.
+    const child = delegatedCriteria(task, [
+      { description: 'inspect', criteria: ['c2', 'c3'] }, { description: 'verify', criteria: ['c1'] },
+    ], 0, true);
+    const rendered = taskContextLines({ description: 'inspect', originalTask: task.originalTask, ...child }).join('\n');
+    expect(rendered).toContain('they add no requirement to this phase');
+    expect(rendered).not.toContain('Acceptance criteria this phase must prove');
   });
 
   it('a remediation pass hears only the criteria the acceptor did not judge met', () => {

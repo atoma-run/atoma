@@ -5,7 +5,6 @@ import { parseVerdict } from './json.js';
 import { transportWitnesses } from '../contracts/witness.js';
 import { probeGroundTruth } from './groundTruth.js';
 import { BUILTIN_TOOL_NAMES, HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
-import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
 import { TASK_CONTEXT_HEADER, taskContextLines } from './taskContext.js';
 import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 import { TEXT_VERIFICATION_GUIDANCE } from '../contracts/taskExecution.js';
@@ -1081,7 +1080,6 @@ export async function llmVerdict(args: {
     `Task: ${args.task.description}`,
     TASK_CONTEXT_HEADER,
     ...taskContextLines(args.task),
-    args.task.readOnly ? READ_ONLY_TASK_LINE : '',
     args.targetContext ? `Delegation target(s):\n${args.targetContext}` : '',
     `${args.subject}: ${JSON.stringify(args.payload)}`,
     args.subject === 'RESULT' ? renderTextLayouts(args.task, (args.payload as Result).output) : '',
