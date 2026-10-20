@@ -1447,9 +1447,12 @@ export class ProjectRunCoordinator {
   }
 
   /** See `RUN_MEMORY_RESERVE_ENV`. True when a new run may start beside the running ones. */
-  private memoryAdmits(target: 'hosted' | 'customer-device' = 'hosted'): boolean {
+  private memoryAdmits(target: 'hosted' | 'customer-device' = 'hosted', reservedRunId?: string): boolean {
     const reserveBytes = target === 'customer-device' ? this.computeMemoryReserveBytes : this.memoryReserveBytes;
-    const reservations = this.externalExecution ? peekRunLeases(undefined, true).filter(owner => owner.runId.startsWith('project:')) : undefined;
+    // After asynchronous configuration this run already owns its lease. The
+    // base reserve below accounts for it; only OTHER runs reserve growth room.
+    const reservations = this.externalExecution ? peekRunLeases(undefined, true)
+      .filter(owner => owner.runId.startsWith('project:') && owner.runId !== `project:${reservedRunId}`) : undefined;
     if (reserveBytes === 0 || (reservations ? reservations.length === 0 : this.active.size === 0)) return true;
     const memory = this.memoryProbe();
     if (!memory) return true;
@@ -2145,7 +2148,7 @@ export class ProjectRunCoordinator {
       // Inventory lookup and lease acquisition may have yielded to another
       // admission. Recheck immediately before the synchronous start + active
       // registration, so simultaneous organisations cannot spend one reserve.
-      if (!this.memoryAdmits(run.executionTarget.kind)) {
+      if (!this.memoryAdmits(run.executionTarget.kind, run.projectRunId)) {
         lease.release();
         this.resumeQueuedRuns();
         return { run, created: true };

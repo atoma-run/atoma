@@ -51,9 +51,12 @@ async function child(root, generation) {
   const coordinator = new ProjectRunCoordinator({ store, dbPath, projectsRoot: root, skillsDir: join(root, 'skills'),
     hostEnv: { ...process.env, [HAYSTACK_LAUNCH_ENV]: JSON.stringify(haystackTestRuntime(root)),
       ATOMA_MODEL_L1: 'api:anthropic:claude-haiku-4-5', ATOMA_MODEL_L2: 'api:anthropic:claude-sonnet-4-6',
-      ATOMA_MODEL_L3: 'api:anthropic:claude-opus-4-6', ANTHROPIC_API_KEY: 'quota-free-mock' },
+      ATOMA_MODEL_L3: 'api:anthropic:claude-opus-4-6', ANTHROPIC_API_KEY: 'quota-free-mock',
+      ATOMA_RUN_MEMORY_RESERVE_MB: '2048' },
     platformAdmins: () => true,
     dispatchAllowed: () => executorSelected(active, own),
+    memoryProbe: () => ({ availableBytes: Number(readFileSync(join(root, 'memory-gib'), 'utf8')) * 1024 ** 3,
+      totalBytes: 8 * 1024 ** 3, swapTotalBytes: 0, swapFreeBytes: 0 }),
     driver: async input => {
       appendFileSync(join(root, 'launches'), `${input.goal}:${generation}\n`);
       const env = input.env;
@@ -94,6 +97,7 @@ async function smoke() {
   const previousDb = process.env.ATOMA_DB_PATH;
   try {
     const dbPath = join(root, 'product.db');
+    writeFileSync(join(root, 'memory-gib'), '1');
     process.env.ATOMA_MCP_RUN_LOCK = join(root, 'lease.db');
     const auth = AuthStore.open(dbPath), store = ProjectStore.open(dbPath);
     const owners = ['one', 'two', 'three'].map(subject => auth.completeLogin({ provider: 'github', subject,
@@ -127,7 +131,11 @@ async function smoke() {
       fileURLToPath(import.meta.url), ...(source ? ['--source'] : []), '--frontend', root, JSON.stringify(input(0, 'A'))],
     { cwd: repo, timeout: 20_000 });
     const a = JSON.parse(admitted.stdout);
+    await until(() => store.getProjectRun(owners[0].orgId, a.run.projectRunId).status === 'running',
+      'first run must not count its own lease as competing memory');
+    writeFileSync(join(root, 'memory-gib'), '5');
     const c = await callExecutor(active, { method: 'start', input: input(2, 'C') });
+    await until(() => store.getProjectRun(owners[2].orgId, c.run.projectRunId).status === 'running', 'second launch');
     await until(() => existsSync(join(root, 'launches')), 'first launch');
     await callExecutor(active, { method: 'preview-start', input: { orgId: owners[0].orgId,
       projectId: projects[0].projectId, runId: a.run.projectRunId, generation: 1,
@@ -143,6 +151,12 @@ async function smoke() {
     await until(() => existsSync(join(root, 'preview-stops')), 'orphaned preview retirement');
     assert.equal(store.getProjectRun(owners[0].orgId, a.run.projectRunId).status, 'running');
     const b = await callExecutor(active, { method: 'start', input: input(1, 'B') });
+    assert.equal(b.run.status, 'queued', 'old generation reservations must still protect memory');
+    await delay(350);
+    assert.equal(store.getProjectRun(owners[1].orgId, b.run.projectRunId).status, 'queued');
+    writeFileSync(join(root, 'memory-gib'), '7');
+    await until(() => store.getProjectRun(owners[1].orgId, b.run.projectRunId).status === 'running',
+      'new generation starts when all three distinct reserves fit');
     assert.equal((await callExecutor(active, { method: 'start', input: input(0, 'A') })).run.projectRunId, a.run.projectRunId);
     await assert.rejects(callExecutor(join(root, 'one.sock'), { method: 'start', input: input(1, 'D') }), /switching versions/);
     writeFileSync(join(root, 'B.release'), 'finish');

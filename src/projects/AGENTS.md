@@ -568,7 +568,8 @@ Operator commands and offline prerequisites: [W9/W10](../../docs/project-mainten
 The coordinator can additionally queue on Linux `MemAvailable` with
 `ATOMA_RUN_MEMORY_RESERVE_MB` (unset/0 disables it). The first run remains
 admissible; recent admissions reserve growth headroom for seven minutes.
-Recheck after asynchronous preparation, immediately before starting the run.
+Recheck after asynchronous preparation, immediately before starting the run;
+exclude that run's already-acquired lease, since its base reserve counts it once.
 Operational ramp-up: [maintenance](../../docs/project-maintenance.md#memory-aware-admission-and-store-pressure).
 
 ## A landed run, from the tenant's side
