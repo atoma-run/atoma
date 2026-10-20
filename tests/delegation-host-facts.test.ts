@@ -16,7 +16,7 @@ import { ToolSandbox } from '../src/tools/sandbox.js';
 import { defaultBuiltinTools } from '../src/tools/builtin.js';
 import { InMemoryToolRegistry } from '../src/tools/registry.js';
 import { runParentTests } from '../src/tools/parentTests.js';
-import type { Plan, Result, ToolExecutor } from '../src/core/types.js';
+import type { LlmCompletionRequest, LlmCompletionResponse, Plan, Result, ToolExecutor } from '../src/core/types.js';
 import { makeCtx, silentLogger } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
 
@@ -392,6 +392,65 @@ test('invalid start cannot launch the browser', () => {
     expect(reviews).toHaveLength(1);
     expect(reviews[0]!.userContent).toContain('- subtask 0 suite (cwd .): ./src/a.ts → src/a.ts, exists.');
     expect(reviews[0]!.userContent).toContain('export const a = () => 1;');
+  });
+
+  it.each([false, true])('repairs a refused root plan using the observed interface (parse retry: %s)', async parseRetry => {
+    const module = 'export const schedule = { nextDueAt: 1234 };\n';
+    const { ctx } = workspace({ 'scheduler.ts': module });
+    const db = openDb(':memory:');
+    databases.push(db);
+    const registry = new AtomRegistry(db);
+    const seed = { description: 'module author', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' };
+    const cell = registry.create(2, seed);
+    const tissue = L3Atom.buildWithModel(registry.create(3, seed), registry, 'mock');
+    const done: Result = { output: {}, summary: 'done', trace: [], producedBy: { name: cell.name, tier: 2, viaFallback: false } };
+    vi.spyOn(tissue, 'execute').mockResolvedValue(done);
+    let planCalls = 0;
+    const response = (value: unknown): LlmCompletionResponse => ({ text: JSON.stringify(value), stopReason: 'end_turn',
+      usage: { inputTokens: 1, outputTokens: 1 } });
+    const route = (request: LlmCompletionRequest): LlmCompletionResponse => {
+      if (request.role === 'prefilter') return response({ kind: 'reuse', target: cell.name, confidence: 'high', reasoning: 'fits' });
+      if (request.role === 'plan') {
+        planCalls++;
+        if (parseRetry && planCalls === 2) return { ...response(null), text: 'not a plan' };
+        const field = request.userContent.includes('Task: A separate scheduler task') || request.userContent.includes(module.trim())
+          ? 'nextDueAt' : 'nextRunAt';
+        const plan = facts("import { test, expect } from 'vitest';\nimport { schedule } from './scheduler.ts';\n" +
+          `test('due time', () => { expect(schedule.${field}).toBe(1234); });`, ['scheduler.ts']);
+        return response([{ strategy: 'reuse', target: cell.name, reasoning: 'test the current interface' }, plan]);
+      }
+      if (request.role === 'validate-plan') {
+        const encoded = /^PLAN: (.*)$/m.exec(request.userContent)?.[1];
+        const plan = JSON.parse(encoded!) as Plan;
+        // Like the incident's first review, prose can name the wrong interface.
+        if (plan.subtasks[0]!.acceptanceTests!.source.includes('schedule.nextRunAt')) {
+          return response({ approved: false, reasoning: 'The suite does not prove the due time.',
+            modifications: { additionalContext: 'Use nextRunAt from the real scheduler.' }, scope: 'ephemeral' });
+        }
+        return response({ approved: true, reasoning: 'The suite uses the observed interface.', delegationReview: review(['vitest']) });
+      }
+      throw new Error(`Unexpected ${request.role} call`);
+    };
+    for (let i = 0; i < 30; i++) ctx.llm.enqueue(route);
+    const task = { description: 'Verify the scheduler due time', constraints: ['offline only'] };
+    await expect(tissue.handle(task, ctx)).resolves.toBe(done);
+    const prompts = ctx.llm.calls.filter(call => call.role === 'plan').map(call => call.userContent);
+    expect(prompts).toHaveLength(parseRetry ? 3 : 2);
+    expect(prompts[0]).not.toContain(module.trim());
+    expect(prompts[1]).toContain('HOST OBSERVATIONS FROM THE PREVIOUS PLAN REVIEW');
+    expect(prompts[1]).toContain(module.trim());
+    expect(prompts[1]).toContain('Use nextRunAt from the real scheduler.');
+    if (parseRetry) {
+      expect(prompts[2]).toContain(module.trim());
+      expect(prompts[2]!.split('HOST OBSERVATIONS FROM THE PREVIOUS PLAN REVIEW')).toHaveLength(2);
+    }
+    expect(task).toEqual({ description: 'Verify the scheduler due time', constraints: ['offline only'] });
+    for (const call of ctx.llm.calls.filter(call => call.role === 'prefilter')) expect(call.userContent).not.toContain(module.trim());
+    await expect(ctx.tools.execute('write_file', { path: 'scheduler.ts', content: 'export {};\n' }))
+      .rejects.toThrow('nothing in this run has read it');
+    await tissue.handle({ description: 'A separate scheduler task' }, ctx);
+    expect(ctx.llm.calls.filter(call => call.role === 'plan').at(-1)!.userContent)
+      .not.toContain('HOST OBSERVATIONS FROM THE PREVIOUS PLAN REVIEW');
   });
 
   it('refuses a suite naming the read-run copies before any review, and the planner hears why', async () => {

@@ -34,7 +34,7 @@ Neighbours:
   over. Such an escalation, or a plan budget spent on unparseable replies with
   nothing judged, records no failure and branches no type (`blameless`).
   Missing classified suites or parallel branches block dispatch even beside
-  approved:true. Three root attempts (a plan parse failure counts); no unreviewed
+  approved:true. Five root attempts (a plan parse failure counts); no unreviewed
   fallback. L3 `replanAfter:true` is read-only discovery, once, then the host
   replans; never a checkpoint prefix. Parallel discovery shares one photograph, restored after every branch settles.
   Output-collision coaching runs first; its fail-open result is still reviewed. Never coerce concat to sequential.
@@ -383,7 +383,8 @@ load-bearing.
   `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves, bounded imported
   source, and `parentSuiteReach.ts`'s line on written modules no suite imports, names
   or calls into, withheld on any open walk or bound). Observation-only reads withhold
-  overwrite permission. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
+  overwrite permission. A refused root's latest bounded facts reach its next planner, including parse retries,
+  as untrusted feedback; omissions establish nothing. No carry-over to another task. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
 - A SUITE DISPUTE (`taskSuiteDispute`, measured only): the task's own suite failed with one failing set on 3+ runs over 2+
   `subjectDigest`s, looked for where the loop escalates. Counted once per suite per attempt (`suiteDisputes`), logged and recorded in the
   trace for a [pre-registered](../../benchmark/suite-dispute-2026-10-17/PREREGISTRATION.md) classification; no routing, no text a run's models read ([decision](../../docs/decisions/parent-owned-tests-2026-10-16.md#a-suite-that-fails-the-same-way-on-every-implementation-measured-only)).
@@ -694,8 +695,7 @@ load-bearing.
   suite over `PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS` (12,000) is refused by `parsePlanPair`, clean
   or salvaged, after both schemas accept; restore readers keep the schema's 32,000. Each suite is a
   self-contained file: never advise shared setup across suites.
-- Feedback on a refused plan reply travels on the planner channel (`Atom.plan`'s third argument, `PREVIOUS PLAN ATTEMPT:`), never in `task.constraints`: the prefilter key hashes constraints and
-  children inherit them. The L3 root sends the last review refusal plus the latest parse message.
+- Feedback uses `Atom.plan`'s third argument, never task constraints (prefilter-keyed and inherited). The root retains all refusals/requests, the latest parse message and bounded host facts.
 - Customer-device evidence cannot credit shared trust, learn recipes/prompts or promote types; L2/L3 and direct dispatch require independent hosted validation for credit.
 
 ## Intentional choices and rejected shortcuts
