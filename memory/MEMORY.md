@@ -35,7 +35,7 @@
 - [Windows portability state](windows-portability-state.md) — audit verdicts, open defects, report URL
 - [Public domain atoma.run](public-domain-atoma-run.md) — VPS 46.225.4.14; atoma.iotanet.net still proxies (no 301)
 - [Server dev checkout](server-dev-checkout.md) — ~/dev/atoma on the server's 50 GB volume
-- [Deploy pipeline state](deploy-pipeline-state.md) — deploys wait for work; reinstall the activator on host-deploy.sh changes; stale-lease fix; a deploy run is LISTED under main's HEAD, read REVISION or the run name
+- [Deploy pipeline state](deploy-pipeline-state.md) — compatible releases use independent executors; verify root activator/bootstrap and active sockets; legacy/incompatible releases drain; read the deployed REVISION, not workflow HEAD
 - [OpenClaw host on atoma.run](openclaw-host-atoma-run.md) — ChatGPT subscription via native ~/.codex, gpt-5.6-sol
 
 ## Owner decisions and their state

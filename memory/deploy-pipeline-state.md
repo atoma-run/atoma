@@ -1,12 +1,18 @@
 ---
 name: deploy-pipeline-state
-description: "2026-09-27 deploy pipeline — deploys wait for running work, root activator reinstalled from 000dc15, CI ~5.5 min, stale-lease recovery procedure"
+description: "2026-10-20 independent executor generations for compatible releases; legacy/incompatible drain, root activator bootstrap and verification"
 metadata:
   node_type: memory
   type: project
   originSessionId: a287b345-0cde-4c2f-9dc4-24d010fe43ba
   modified: 2026-09-30T07:15:48.264Z
 ---
+
+**Current code contract (2026-10-20, `00d96a50`):** ordinary compatible releases use independent executor generations. Read [the deployment guide](../docs/automatic-deployment.md) and [the design/verification record](../records/designs/independent-run-executors-2026-10-20.md). New admissions follow `/home/atoma/executors/active.sock`; old generations finish their own runs on immutable releases and revision-specific worker images. Cancellation and operator status survive a web restart through the primary store. Compute WSS follows `/home/atoma/compute/active.sock` directly from nginx. The first legacy migration and a changed `EXECUTOR_COMPATIBILITY` still use the full drain; incompatible maintenance verifies every old executor idle and stops all old writers before activation.
+
+**Host state is verified, never inferred from deployed application code:** the root-owned activator must be reinstalled from a verified release, together with the pruning helper, and the one-time `deploy/install-executor-proxy.sh` must install the nginx includes. Then rerun deployment of that verified revision. Check `readlink /home/atoma/executors/active.sock`, `systemctl show atoma-executor@<revision>.service -p MainPID -p ActiveState`, and the selected release's `node dist/cli/executor.js --health <socket>` as the service user. A compatible deploy logs `activation: compatible executors` and does not publish the global pending-deployment marker or take the run lease. A web `Wants`/`After` drop-in restarts the selected executor after reboot; stopping the web does not stop its cgroup. Never restart a running executor to deploy a compatible release. The optional mender refresh is a separate serialized systemd job, outside the product lease.
+
+The dated state below describes the earlier global-drain implementation; the compatibility maintenance path retains its ownership and stale-lease rules.
 
 Since 55e9229 + 000dc15 (2026-09-27) a production deploy WAITS for running work instead of being refused: a `mcp_deployment_pending` row in `/home/atoma/state/mcp-run-lock.db` closes the slot to new takers, `ATOMA_DEPLOY_WAIT_SECONDS` defaults to 1800, deploy.yml job timeout is 75 min. The release is prepared before `systemctl stop` (outage ≈ stop/switch/start), and the mender refresh copies the release's `dist` and skips `npm ci` through `node_modules/.atoma-install-stamp`. The mender watch loop pauses at 3 open same-repo `mender/` PRs.
 

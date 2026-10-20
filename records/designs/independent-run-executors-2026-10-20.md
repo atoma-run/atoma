@@ -106,3 +106,7 @@ ownership and duplicate listeners, unknown commands, bidirectional preview
 streams, preserving preparing device connections, and cross-process journal
 subscriptions without producer-bus replay. Full release verification is required
 before activation; the first production transition still drains legacy work.
+
+The final code passed the complete [Linux branch CI](https://github.com/atoma-run/atoma/actions/runs/39405506765): static release verification, the general suite, a fresh worker/preview/workspace image with enforced container isolation, and mender credential isolation. `npm run viz:smoke` passed on the development machine. A separate quota-free boot of the actual compiled authenticated server in executor mode verified private health, the public Compute socket refusing host RPC, selection and retirement.
+
+Local `npm run release:check` completed its static half and then reported 7,725 passing tests, 32 skipped and one failure: Docker Desktop retained the old bind-mount inode after the workspace directory was archived/recreated. Rebuilding a separate verification image reproduced the same failure, and a direct probe showed writes reaching the archived directory although Docker inspect still named the original path. The tool backend and test were unchanged. The exact container test passed with a fresh image on native Linux; no test was weakened or skipped to hide the local failure, and Docker was not restarted.
