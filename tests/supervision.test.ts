@@ -12,7 +12,6 @@ import type {
 } from '../src/core/types.js';
 import {
   MAX_SAME_MARKER_REJECTS,
-  MAX_PLANS_WITHOUT_EXECUTION,
   MAX_SAME_REASON_REJECTS,
   detectPolicyMarker,
   normalizeReason,
@@ -32,12 +31,11 @@ import { join } from 'node:path';
 import { resetPrefilterCacheForTests } from '../src/atoms/prefilterCache.js';
 
 class FakeChild extends Atom {
-  readonly tier: Tier = 1;
   readonly model = 'fake';
   public planCount = 0;
   public execCount = 0;
 
-  constructor(public label: string) {
+  constructor(public label: string, readonly tier: Tier = 1) {
     super({
       name: `child:${label}`,
       ordinal: 0,
@@ -62,20 +60,19 @@ class FakeChild extends Atom {
       output: `${this.label}:output`,
       summary: `${this.label}:summary`,
       trace: [],
-      producedBy: { tier: 1, name: this.name, viaFallback: this.isFallbackMode() },
+      producedBy: { tier: this.tier, name: this.name, viaFallback: this.isFallbackMode() },
     };
   }
 }
 
 class FakeParent extends Atom implements Supervisor<FakeChild> {
-  readonly tier: Tier = 2;
   readonly model = 'fake-parent';
   private planVerdicts: Verdict[] = [];
   private resultVerdicts: Verdict[] = [];
   public selfPlans = 0;
   public selfExecs = 0;
 
-  constructor() {
+  constructor(readonly tier: Tier = 2) {
     super({
       name: 'parent',
       ordinal: 0,
@@ -115,7 +112,7 @@ class FakeParent extends Atom implements Supervisor<FakeChild> {
       output: 'parent-output',
       summary: 'self-exec',
       trace: [],
-      producedBy: { tier: 2, name: this.name, viaFallback: this.isFallbackMode() },
+      producedBy: { tier: this.tier, name: this.name, viaFallback: this.isFallbackMode() },
     };
   }
 }
@@ -231,7 +228,7 @@ describe('superviseLoop', () => {
       execCount = 0;
       override async execute(): Promise<Result> {
         this.execCount++;
-        return { output: 'child-output', summary: 's', trace: [], producedBy: { tier: 1, name: this.name, viaFallback: false } };
+        return { output: 'child-output', summary: 's', trace: [], producedBy: { tier: this.tier, name: this.name, viaFallback: false } };
       }
     }
     const makeChild = (): RealPlanL1 => new RealPlanL1({ name: 'Urea', ordinal: 1, systemPrompt: 's', tools: [], params: {} });
@@ -272,7 +269,7 @@ describe('superviseLoop', () => {
       let strategyAtExecute: unknown;
       cell.execute = async function (this: L2Atom) {
         strategyAtExecute = (this as unknown as { pendingStrategy: unknown }).pendingStrategy;
-        return { output: 'cell-output', summary: 's', trace: [], producedBy: { tier: 2, name: this.name, viaFallback: false } };
+        return { output: 'cell-output', summary: 's', trace: [], producedBy: { tier: this.tier, name: this.name, viaFallback: false } };
       };
       const plan = { reasoning: 'r', subtasks: [{ description: 'Implement', acceptanceTests: { requirement: 'digits', cwd: '.',
         source: "import { test, expect } from 'vitest';\ntest('d', () => expect('4').toMatch(/\\d/));" } }], aggregation: { mode: 'sequential' }, expectedOutput: 'o' };
@@ -333,7 +330,7 @@ describe('superviseLoop', () => {
         const type = registry.create(2, { ...seed, description: 'cell', systemPrompt: 'delegate' });
         const cell = L2Atom.fromType(type, registry);
         cell.execute = async function (this: L2Atom) {
-          return { output: 'cell-output', summary: 's', trace: [], producedBy: { tier: 2, name: this.name, viaFallback: false } };
+          return { output: 'cell-output', summary: 's', trace: [], producedBy: { tier: this.tier, name: this.name, viaFallback: false } };
         };
         const plan = { reasoning: 'r', subtasks: [{ description: 'Implement' }], aggregation: { mode: 'sequential' }, expectedOutput: 'o' };
         const good = JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'parsed' }, plan]);
@@ -814,10 +811,10 @@ describe('superviseLoop', () => {
   });
 
   describe('branch-retry on escalation', () => {
-    it('caps root replanning across a type branch when no execution opens', async () => {
-      const parent = new FakeParent();
-      const original = new FakeChild('orig');
-      const replacement = new FakeChild('branched');
+    it('caps tissue-supervised cell replanning across a type branch when no execution opens', async () => {
+      const parent = new FakeParent(3);
+      const original = new FakeChild('orig', 2);
+      const replacement = new FakeChild('branched', 2);
       for (let i = 0; i < MAX_SAME_REASON_REJECTS; i++) {
         parent.queuePlanVerdict({ approved: false, reasoning: 'same dead end', modifications: {}, scope: 'ephemeral' });
       }
@@ -827,17 +824,17 @@ describe('superviseLoop', () => {
         branchOnEscalation: async () => replacement,
       };
 
-      const result = await superviseLoop(parent, original, { description: 'go' }, makeCtx({ limits: { maxPlanIterations: 20, maxExecIterations: 20 } }), hooks);
+      const result = await superviseLoop(parent, original, { description: 'go' }, makeCtx(), hooks);
 
-      expect(original.planCount + replacement.planCount).toBe(MAX_PLANS_WITHOUT_EXECUTION);
+      expect(original.planCount + replacement.planCount).toBe(makeCtx().limits.maxPlanIterations + 1);
       expect(original.execCount + replacement.execCount).toBe(0);
       expect(result.producedBy.viaFallback).toBe(true);
     });
 
     it('allows the branched child to execute at the no-progress boundary', async () => {
-      const parent = new FakeParent();
-      const original = new FakeChild('orig');
-      const replacement = new FakeChild('branched');
+      const parent = new FakeParent(3);
+      const original = new FakeChild('orig', 2);
+      const replacement = new FakeChild('branched', 2);
       for (let i = 0; i < MAX_SAME_REASON_REJECTS; i++) {
         parent.queuePlanVerdict({ approved: false, reasoning: 'same dead end', modifications: {}, scope: 'ephemeral' });
       }
@@ -848,9 +845,69 @@ describe('superviseLoop', () => {
         branchOnEscalation: async () => replacement,
       };
 
-      const result = await superviseLoop(parent, original, { description: 'go' }, makeCtx({ limits: { maxPlanIterations: 20, maxExecIterations: 20 } }), hooks);
+      const result = await superviseLoop(parent, original, { description: 'go' }, makeCtx(), hooks);
 
-      expect(original.planCount + replacement.planCount).toBe(MAX_PLANS_WITHOUT_EXECUTION);
+      expect(original.planCount + replacement.planCount).toBe(makeCtx().limits.maxPlanIterations + 1);
+      expect(replacement.execCount).toBe(1);
+      expect(result.producedBy.viaFallback).toBe(false);
+    });
+
+    it.each([1, 3, 5, 20])('reserves a replacement review with a configured plan budget of %i', async budget => {
+      const parent = new FakeParent(3);
+      const original = new FakeChild('orig', 2);
+      const replacement = new FakeChild('branched', 2);
+      for (let i = 0; i < budget; i++) {
+        parent.queuePlanVerdict({ approved: false, reasoning: `distinct refusal ${i}`, modifications: {}, scope: 'ephemeral' });
+      }
+      parent.queuePlanVerdict({ approved: true, reasoning: 'recovered' });
+      parent.queueResultVerdict({ approved: true, reasoning: 'done' });
+      const result = await superviseLoop(parent, original, { description: 'go' },
+        makeCtx({ limits: { maxPlanIterations: budget, maxExecIterations: 5 } }),
+        { applyByScope: async c => c, branchOnEscalation: async () => replacement });
+      expect(original.planCount).toBe(budget);
+      expect(replacement.planCount).toBe(1);
+      expect(replacement.execCount).toBe(1);
+      expect(result.producedBy.viaFallback).toBe(false);
+    });
+
+    it.each(['original', 'replacement'])('does not spend the cross-branch budget on a %s reviewer fault', async faultAt => {
+      const parent = new FakeParent(3);
+      const original = new FakeChild('orig', 2);
+      const replacement = new FakeChild('branched', 2);
+      const fault: Verdict = { approved: false, reasoning: 'review failed', delegationRefusal: 'reviewer', modifications: {}, scope: 'ephemeral' };
+      if (faultAt === 'original') parent.queuePlanVerdict(fault);
+      for (let i = 0; i < 3; i++) {
+        parent.queuePlanVerdict({ approved: false, reasoning: 'same dead end', modifications: {}, scope: 'ephemeral' });
+      }
+      if (faultAt === 'replacement') parent.queuePlanVerdict(fault);
+      parent.queuePlanVerdict({ approved: true, reasoning: 'recovered' });
+      parent.queueResultVerdict({ approved: true, reasoning: 'done' });
+      const onFailed = vi.fn();
+      const result = await superviseLoop(parent, original, { description: 'go' }, makeCtx(),
+        { applyByScope: async c => c, branchOnEscalation: async () => replacement, onFailed });
+      expect(original.planCount + replacement.planCount).toBe(5);
+      expect(replacement.execCount).toBe(1);
+      expect(onFailed).toHaveBeenCalledTimes(1);
+      expect(result.producedBy.viaFallback).toBe(false);
+    });
+
+    it('resets the cross-branch budget when execution starts', async () => {
+      const parent = new FakeParent(3);
+      const original = new FakeChild('orig', 2);
+      const replacement = new FakeChild('branched', 2);
+      for (let cycle = 0; cycle < 2; cycle++) {
+        for (let i = 0; i < 2; i++) {
+          parent.queuePlanVerdict({ approved: false, reasoning: `refusal ${i}`, modifications: {}, scope: 'ephemeral' });
+        }
+        parent.queuePlanVerdict({ approved: true, reasoning: 'execute' });
+      }
+      parent.queueResultVerdict({ approved: false, reasoning: 'needs repair', modifications: {}, scope: 'ephemeral' });
+      parent.queueResultVerdict({ approved: true, reasoning: 'done' });
+      const result = await superviseLoop(parent, original, { description: 'go' }, makeCtx(),
+        { applyByScope: async c => c, branchOnEscalation: async () => replacement });
+      expect(original.planCount).toBe(3);
+      expect(replacement.planCount).toBe(3);
+      expect(original.execCount).toBe(1);
       expect(replacement.execCount).toBe(1);
       expect(result.producedBy.viaFallback).toBe(false);
     });
@@ -954,7 +1011,7 @@ describe('superviseLoop', () => {
       // the second escalation falls through to the parent fallback.
       expect(branchCalls).toBe(2);
       expect(original.planCount).toBe(MAX_SAME_REASON_REJECTS);
-      expect(replacement.planCount).toBe(MAX_PLANS_WITHOUT_EXECUTION - MAX_SAME_REASON_REJECTS);
+      expect(replacement.planCount).toBe(MAX_SAME_REASON_REJECTS);
       expect(parent.selfPlans).toBe(1);
       expect(parent.selfExecs).toBe(1);
       expect(result.producedBy.viaFallback).toBe(true);

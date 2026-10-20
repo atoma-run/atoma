@@ -159,9 +159,6 @@ export const MAX_SAME_MARKER_REJECTS = 3;
  */
 export const MAX_PLAN_REVIEW_FAULTS = 2;
 
-/** A cross-branch bound on plans reviewed without any intervening execution. */
-export const MAX_PLANS_WITHOUT_EXECUTION = 4;
-
 /**
  * Normalize a verdict's reasoning for repeat-detection comparisons:
  * lowercase, strip punctuation, collapse whitespace. Exported so tests and
@@ -271,6 +268,12 @@ export async function superviseLoop<C extends Atom>(
   // Unlike planIter, task progress (execution), not a planner type branch,
   // resets this streak.
   let plansWithoutExecution = 0;
+  // Tissue → cell supervision only. Reuse the configured plan allowance and
+  // reserve one substantive review for the replacement; molecule retries keep
+  // their existing budgets. Root L3 plans have their own bounded review loop.
+  const maxPlansWithoutExecution = parent.tier === 3
+    ? ctx.limits.maxPlanIterations + 1
+    : Number.POSITIVE_INFINITY;
 
   // The outer loop exists purely to reset the per-cycle state
   // (counters + trackers) when a branch-retry happens. In the common case
@@ -308,7 +311,7 @@ export async function superviseLoop<C extends Atom>(
 
     try {
       while (true) {
-        if (plansWithoutExecution >= MAX_PLANS_WITHOUT_EXECUTION) {
+        if (plansWithoutExecution >= maxPlansWithoutExecution) {
           throw new EscalationSignal('plan');
         }
         if (planIter >= ctx.limits.maxPlanIterations) {
@@ -340,7 +343,6 @@ export async function superviseLoop<C extends Atom>(
           continue;
         }
         planFeedback = [];
-        plansWithoutExecution++;
         trace.push({ kind: 'plan', ts: now(), atom: current.name, payload: plan });
 
         const v1 = await parent.validatePlan(current, plan, task, ctx);
@@ -361,6 +363,7 @@ export async function superviseLoop<C extends Atom>(
           if (reviewFaults >= MAX_PLAN_REVIEW_FAULTS) throw new EscalationSignal('review');
           continue;
         }
+        plansWithoutExecution++;
         trace.push({ kind: 'verdict-plan', ts: now(), atom: parent.name, payload: v1 });
         if (!v1.approved) {
           judgements++;
