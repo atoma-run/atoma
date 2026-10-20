@@ -380,7 +380,7 @@ load-bearing.
   pattern, then reaches the review as a host fact (reject-once-then-honour).
   The same zero-token precheck refuses a test-file import once per planner and
   states every suite finding in one refusal; the review then reads
-  `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves, bounded imported
+  `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves; `parentSuiteSources.ts` follows relative dependencies within six observation-only source reads, direct imports first;
   source, and `parentSuiteReach.ts`'s line on written modules no suite imports, names
   or calls into, withheld on any open walk or bound). Observation-only reads withhold
   overwrite permission. A refused root's latest bounded facts reach its next planner, including parse retries,

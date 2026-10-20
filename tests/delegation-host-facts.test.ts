@@ -240,6 +240,80 @@ describe('the host facts block', () => {
     expect(await runParentTests(box, [JSON.stringify(suite(fixed))], 60_000)).toMatchObject({ status: 'passed', passed: 1 });
   }, 90_000);
 
+  it('shows contracts behind a compiled entrypoint before reviewing field, CSV and HTTP assertions', async () => {
+    const implementation = `const { rows, csv } = require('./records.js');
+exports.listings = () => rows;
+exports.csv = () => csv;
+exports.route = (method) => method === 'POST' ? 404 : 400;
+`;
+    const records = `exports.rows = [{ identifiant: '101' }, { identifiant: '102' }];
+exports.csv = 'source,url,identifiant\\nxe.gr,fixture/101,101\\nxe.gr,fixture/102,102';
+`;
+    const { root, ctx } = workspace({
+      'package.json': '{"type":"commonjs"}',
+      'browser/entry.cjs': "module.exports = require('../dist/server.cjs');\n",
+      'dist/server.cjs': implementation,
+      'dist/records.js': records,
+    });
+    const wrong = `import { test, expect } from 'vitest';
+import { listings, csv, route } from './browser/entry.cjs';
+test('identifiers', () => expect(listings().map(row => String(row.id))).toEqual(['101', '102']));
+test('CSV identifiers', () => expect(csv().split('\\n').slice(1).map(line => line.split(',')[0])).toEqual(['101', '102']));
+test('unknown API', () => expect(route('GET')).toBe(404));`;
+    const plan = facts(wrong, []);
+    const block = await planSuiteFactsBlock(plan, ctx);
+    expect(block).toContain(JSON.stringify(implementation));
+    expect(block).toContain(JSON.stringify(records));
+    const db = openDb(':memory:');
+    databases.push(db);
+    const registry = new AtomRegistry(db);
+    const tissue = L3Atom.buildWithModel(registry.create(3, {
+      description: 'module author', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test',
+    }), registry, 'mock');
+    vi.spyOn(tissue, 'plan').mockResolvedValue(plan);
+    vi.spyOn(tissue, 'execute').mockResolvedValue({ output: {}, summary: 'done', trace: [],
+      producedBy: { name: 'cell', tier: 2, viaFallback: false } });
+    ctx.llm.enqueueText(JSON.stringify({ approved: true, reasoning: 'scope reviewed', delegationReview: review(['vitest']) }));
+    await tissue.handle({ description: 'Verify current compiled contracts' }, ctx);
+    const request = ctx.llm.calls.find(call => call.userContent.includes('== REQUIRED DELEGATION CONTRACT REVIEW =='))!;
+    expect(request.userContent).toContain(JSON.stringify(implementation));
+    expect(request.userContent).toContain(JSON.stringify(records));
+    const box = new ToolSandbox(root);
+    boxes.push(box);
+    const observed = await runParentTests(box, [JSON.stringify(suite(wrong))], 60_000);
+    expect(observed, observed.details + '\n' + observed.output).toMatchObject({ status: 'failed', failed: 3 });
+    const corrected = wrong.replace('String(row.id)', 'String(row.identifiant)')
+      .replace("line.split(',')[0]", "line.split(',')[csv().split('\\n')[0].split(',').indexOf('identifiant')]")
+      .replace("route('GET')", "route('POST')");
+    expect(await runParentTests(box, [JSON.stringify(suite(corrected))], 60_000))
+      .toMatchObject({ status: 'passed', passed: 3 });
+    for (const file of ['browser/entry.cjs', 'dist/server.cjs', 'dist/records.js']) {
+      await expect(ctx.tools.execute('write_file', { path: file, content: 'module.exports = {};\n' }))
+        .rejects.toThrow('nothing in this run has read it');
+    }
+  }, 90_000);
+
+  it('bounds dependency reads, keeps direct imports first, and never leaves the suite cwd', async () => {
+    const { ctx } = workspace({
+      'outside.ts': 'DO NOT READ OUTSIDE THE COPY',
+      'app/entry.ts': "export { value } from './cycle.js';\nimport '../outside.ts';\nimport './missing.js';\n",
+      'app/cycle.ts': "export { value } from './entry.js';\n" + Array.from({ length: 8 }, (_, i) => `import './m${i}.js';`).join('\n'),
+      ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`app/m${i}.ts`, `export const m${i} = ${i};`])),
+    });
+    const calls: Array<Record<string, unknown>> = [];
+    const tools: ToolExecutor = { has: name => ctx.tools.has(name), execute: async (name, args) => {
+      if (name === 'read_file') calls.push(args);
+      return await ctx.tools.execute(name, args);
+    } };
+    const block = await planSuiteFactsBlock(facts("import './entry.js';\nimport './m7.js';", [], 'app'), { ...ctx, tools });
+    expect(calls.map(call => call['path']).slice(0, 2)).toEqual(['app/entry.ts', 'app/m7.ts']);
+    expect(calls).toHaveLength(6);
+    expect(calls.every(call => call['observationOnly'] === true)).toBe(true);
+    expect(block).toContain('Additional imported source files omitted or unavailable');
+    expect(block).not.toContain('DO NOT READ OUTSIDE');
+    expect(block).not.toContain('missing.js → not present');
+  });
+
   it('shows the late validation-before-browser branch of imported modules at the Attica run size', async () => {
     // b04565ec: the reviewer saw only a 3,559-character server head and
     // claimed an invalid /api/start request would launch a browser.
@@ -287,7 +361,7 @@ test('invalid start cannot launch the browser', () => {
     const block = await planSuiteFactsBlock(facts(source, []), { ...ctx, tools });
     expect(calls).toHaveLength(6);
     expect(calls.every(args => args['observationOnly'] === true)).toBe(true);
-    expect(block).toContain('2 additional imported source files omitted');
+    expect(block).toContain('Additional imported source files omitted or unavailable');
     expect(block).toContain('current read unavailable');
     expect(block).toContain('This establishes no current content or absence');
     expect(block).toContain('not a prohibition on changes the task requests');
