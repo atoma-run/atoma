@@ -49,8 +49,7 @@ Neighbours:
   version is undone by the next run; the wholesale operator repair is
   `scripts/repair-atom-prompts.mjs`.
   Fallback uses an explicit direct-executor system role, not the delegator role.
-- `pendingStrategy` couples `plan()` and `execute()` on the same instance. Never
-  call `execute()` without the corresponding plan.
+- `pendingStrategy` couples `plan()` and `execute()` on the same instance. Never call `execute()` without the corresponding plan.
 - A resumed root restores its saved plan, strategy and digest-bound approval (re-enforced
   mechanically, not re-judged); answers or a refused legacy plan replan only the suffix.
   Root-only checkpoints never enter forks; dispatch skips the prefix before selecting or crediting.
@@ -281,7 +280,8 @@ load-bearing.
   but tests assigned to a forthcoming phase are not current-phase prerequisites.
   Current defects/checks and final root acceptance stay strict. A child cannot
   defer its own requirements. Paired replay: `benchmark/reservation-transactions-2026-10-05/`.
-- `llm-synthesize` merges text without tools; file assembly requires an L1 phase.
+- `llm-synthesize` reads exact task criteria and bounded host tool/suite observations beside fallible branch reports; it grants no proof credit.
+  File assembly requires an L1 phase. [Attica evidence losses](../../records/incidents/attica-recipe-evidence-2026-10-20.md).
 - Aggregation is behavioral: `concat` and `llm-synthesize` dispatch orthogonal
   subtasks in parallel; `sequential` dispatches shared-artifact phases in order
   and threads `previousStepSummary` plus declared `outputs` as
@@ -584,7 +584,7 @@ load-bearing.
   and report through their ground-truth block — attested, they read as the
   child's evidence and covered checklist items by looking (review 1.4, 2.4).
   The latest 8 browser lines are always shown, then the latest PASSING run of each other check (actions, smoke, size) of a page no later write or observation changed, within a third of the budget (7f80148d lost a reload and a keyboard proof to 150 later calls);
-  file reads reserve up to half the 24,000-character budget and keep at least a quarter; recorded probes follow, one per command, newest first (43682d38 lost a mutation proof to a
+  file reads reserve up to half the 24,000-character budget and keep at least a quarter; both shell tools follow, latest per request/branch, recorded probes first (43682d38 lost a mutation proof to a
   retry's re-runs), then the execution suffix. Excerpts and omissions establish no coverage of unseen assertions.
 - ROOT ACCEPTANCE REPLAYS THE BROWSER CHECKS EARLIER RUNS RECORDED, the one
   exception to "supervisors never replay" (owner decision 2026-10-01,

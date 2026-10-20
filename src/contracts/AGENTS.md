@@ -174,6 +174,7 @@ chunk channel but carry the publication inventory for independent byte validatio
 
 ## Parent-test records
 
+- `parentTests.ts` also owns the shared sufficiency guidance: a child-authored test helper is not an independent oracle, and factory delegation alone cannot prove product behavior. Plans may declare not-yet-implemented interfaces; assertions still follow the requested contract. [Review](../../records/incidents/attica-recipe-evidence-2026-10-20.md).
 - `parentTestRecord.ts` is the browser-safe home of the persisted parent-test
   record (`persistedParentTestSchema`, written by `persistedParentTests`), the
   superseded rule core's gates use, and `summarizeParentTests`, the ONE

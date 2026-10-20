@@ -6,6 +6,7 @@ import { deferPromptLearning } from './promptLearning.js';
 import { Atom, type Peerable, type Supervisor } from '../core/atom.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { branchRecordCount, executorEvidence } from './executorEvidence.js';
+import { synthesisContextLines } from './synthesisContext.js';
 import { fallbackObligationLines, proveFallback } from './fallbackProof.js';
 import type {
   GenerationParams,
@@ -2249,6 +2250,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     const userContent = [
       `You are "${this.name}" (tier 2). Synthesise a single result from ${subResults.length} sub-results.`,
       `Original task: ${parentTask.description}`,
+      ...synthesisContextLines(parentTask, subResults),
       aggregation.instruction
         ? `Merge instruction: ${aggregation.instruction}`
         : 'Merge instruction: combine the sub-results into one coherent final deliverable.',

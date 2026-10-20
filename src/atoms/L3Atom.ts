@@ -5,6 +5,7 @@ import { renderParentTestsBlock } from './parentTestsBlock.js';
 import { deferPromptLearning } from './promptLearning.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { branchRecordCount, executorEvidence } from './executorEvidence.js';
+import { synthesisContextLines } from './synthesisContext.js';
 import { fallbackObligationLines, proveFallback } from './fallbackProof.js';
 import { Atom, type Supervisor } from '../core/atom.js';
 import type {
@@ -1598,6 +1599,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     const userContent = [
       `You are tissue "${this.name}" (tier 3). Synthesise a single result from ${subResults.length} sub-results.`,
       `Original task: ${parentTask.description}`,
+      ...synthesisContextLines(parentTask, subResults),
       aggregation.instruction
         ? `Merge instruction: ${aggregation.instruction}`
         : 'Merge instruction: combine the sub-results into one coherent final deliverable.',

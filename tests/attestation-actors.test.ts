@@ -285,6 +285,41 @@ describe('the attested browser observation', () => {
 });
 
 describe('the result validator prompt', () => {
+  it('retains executed shell checks through later inspection, including the latest failing rerun (Attica ba6b0a21)', async () => {
+    const names = ['read_file', 'run_shell'];
+    const child = new L1Atom({ name: 'Methane', ordinal: 2, systemPrompt: 'verify', tools: names.map(declare), params: {} });
+    const attestations = createAttestationLog();
+    const base: ToolExecutor = {
+      has: name => names.includes(name),
+      execute: async (name, args) => name === 'read_file'
+        ? { path: args['path'], content: 'source excerpt '.repeat(120) }
+        : { exitCode: args['note'] === 'failed rerun' ? 1 : 0, stdout: `observed ${String(args['note'])}` },
+    };
+    const ctx = { ...makeCtx(), attestations, attempt: 1, currentBranchId: 'repair',
+      tools: attestingExecutor(base, attestations, 'repair', undefined, 1)! };
+    ctx.llm.enqueue(async req => {
+      await req.executor!.execute('run_shell', { cmd: 'npm ci', note: 'clean install' });
+      await req.executor!.execute('run_shell', { cmd: 'npm run check', note: 'initial pass' });
+      await req.executor!.execute('run_shell', { cmd: 'npm run check', note: 'failed rerun' });
+      for (let i = 0; i < 40; i++) await req.executor!.execute('read_file', { path: `src/file${i}.ts` });
+      return reply({ output: 'partial', summary: 'Some requirements remain unverified.' });
+    });
+    const task = { description: 'Install and check the application' };
+    const result = await child.execute(task, makePlan({ proposedAction: 'verify' }), ctx);
+    ctx.llm.enqueue(reply({ approved: false, reasoning: 'The latest check failed' }));
+    await llmVerdict({ ctx, model: 'mock', supervisorName: 'Cell', supervisorTier: 2,
+      child, task, subject: 'RESULT', payload: { output: result.output, summary: result.summary },
+      evidence: result.evidence, groundTruthBlock: '' });
+    const prompt = ctx.llm.calls.at(-1)!.userContent;
+    expect(prompt).toContain('observed clean install');
+    expect(prompt).toContain('observed failed rerun');
+    expect(prompt).toContain('"exitCode":1');
+    expect(prompt).not.toContain('observed initial pass');
+    const rendered = renderTransportEvidence(result.evidence);
+    expect(rendered.omitted).toBeGreaterThan(0);
+    expect(rendered.lines.join('\n').length).toBeLessThanOrEqual(MAX_TOOL_EVIDENCE_CHARS);
+  });
+
   it('keeps inspected assertions after a long API verification', async () => {
     const names = ['read_file', 'run_shell', 'fetch_url'];
     const child = new L1Atom({ name: 'Methane', ordinal: 2, systemPrompt: 'Verify the existing app', tools: names.map(declare), params: {} });
@@ -368,6 +403,46 @@ describe('the result validator prompt', () => {
     expect([...kept].filter(id => id.startsWith('read-')).length).toBeGreaterThan(0);
     expect(rendered.lines.reduce((total, line) => total + line.length, 0)).toBeLessThanOrEqual(MAX_TOOL_EVIDENCE_CHARS);
     expect(rendered.omitted).toBeGreaterThan(0);
+  });
+
+  it('does not collapse shell checks with different arguments or branches', () => {
+    const command = (eventId: string, branchId: string, file: string, note: string, exitCode: number) => ({
+      eventId, tool: 'run_shell', branchId, attempt: 1,
+      observation: parseExecutionObservation('run_shell', { cmd: 'node', args: [file], note }, { exitCode })!,
+    });
+    const records = [
+      command('left-a', 'left', 'a.js', 'first', 1),
+      command('left-b-old', 'left', 'b.js', 'first', 0),
+      command('right-a', 'right', 'a.js', 'first', 0),
+      command('left-b-new', 'left', 'b.js', 'rerun', 1),
+      ...Array.from({ length: 40 }, (_, i) => ({ eventId: `read-${i}`, tool: 'read_file',
+        observation: parseExecutionObservation('read_file', { path: `src/${i}.ts` }, { content: 'x'.repeat(1500) })! })),
+    ];
+    const lines = renderObservations(records);
+    const rendered = renderTransportEvidence(records.map((record, i) => ({ source: 'transport-observed',
+      eventId: record.eventId, tool: record.tool, observed: lines[i]! })));
+    expect([...rendered.eventIds]).toEqual(expect.arrayContaining(['left-a', 'right-a', 'left-b-new']));
+    expect(rendered.eventIds.has('left-b-old')).toBe(false);
+    expect(rendered.lines.join('\n').length).toBeLessThanOrEqual(MAX_TOOL_EVIDENCE_CHARS);
+  });
+
+  it('reserves a recorded check through shell noise but shows its later direct failure', () => {
+    const command = (eventId: string, tool: string, cmd: string, exitCode: number) => ({
+      eventId, tool, attempt: 1, branchId: 'repair',
+      observation: parseExecutionObservation(tool, { cmd }, { exitCode, stdout: 'x'.repeat(1400) })!,
+    });
+    const records = [
+      command('recorded-pass', 'record_probe', 'npm run check', 0),
+      command('direct-failure', 'run_shell', 'npm run check', 1),
+      ...Array.from({ length: 40 }, (_, i) => command(`inspect-${i}`, 'run_shell', `grep item${i} server.ts`, 0)),
+    ];
+    const lines = renderObservations(records);
+    const rendered = renderTransportEvidence(records.map((record, i) => ({ source: 'transport-observed',
+      eventId: record.eventId, tool: record.tool, observed: lines[i]! })));
+    expect(rendered.eventIds.has('direct-failure')).toBe(true);
+    expect(rendered.eventIds.has('recorded-pass')).toBe(false);
+    expect(rendered.lines.join('\n')).toContain('"exitCode":1');
+    expect(rendered.lines.join('\n').length).toBeLessThanOrEqual(MAX_TOOL_EVIDENCE_CHARS);
   });
 
   it('keeps the browser observations however many file reads follow them', async () => {
