@@ -94,8 +94,9 @@ Decision of record:
   writes `ATOMA_MCP_CONNECTORS` into the child's allowlisted environment —
   the channel organisation provider keys already take. The child receives an
   ACCESS header only: the refresh token never leaves the server process,
-  which is therefore the one writer of a rotating token. Refreshes of one
-  connection are serialised there.
+  which owns rotation. The primary-store credential mutex serializes refresh
+  and interactive authorization across web and executor generations; each
+  refresh re-reads the row after acquisition.
 - Best effort past a token's lifetime: a server whose tokens live an hour
   cannot cover a two-hour run, so the freshest token still valid is handed
   over and an expiry mid-run surfaces as `unavailable` on a call. A token

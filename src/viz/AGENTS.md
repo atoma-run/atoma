@@ -51,6 +51,18 @@ npm run viz:mark-turn -- --pointer
 npm run viz:mark-turn:analyze
 ```
 
+## Execution lifetime
+
+`ATOMA_EXECUTOR_SOCKET` makes this process a frontend for the independent
+project/operator execution hosts. Internal `ATOMA_RUN_EXECUTOR=1` reuses the
+same runtime wiring behind the private socket, without a public web listener,
+preview gateway or hosting gateway. Resident analyst/assayer work lives in the
+selected executor too, drains there, and can yield across generations. This is one
+coordinator setup, not an alternative run implementation. The compute WSS
+listener belongs to the executor and nginx reaches it directly; web restarts
+cannot cut executing device connections. Preview grants remain ephemeral and
+fail closed as before. The web service's executor dependency is one-way only.
+
 ## Trace projection and the GPU client
 
 - Viz projects immutable traces at the typed boundary. Do not mutate raw trace

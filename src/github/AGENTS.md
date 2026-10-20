@@ -209,6 +209,10 @@ Neighbours:
 - Signed `push` deliveries yield a typed injected `onPush` observation after
   delivery deduplication. GitHub owns no project lookup or notification policy.
 
+Rotating user tokens are read, refreshed and saved under the primary-store
+credential mutex shared by web and executor generations. Login/connect writes
+use the same mutex; an old host cannot overwrite a concurrent rotation.
+
 ## Intentional choices and rejected shortcuts
 
 - Trusting `installation_id` as it arrives on `/auth/github/setup`: refused.

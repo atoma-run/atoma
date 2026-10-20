@@ -396,6 +396,15 @@ chunk channel but carry the publication inventory for independent byte validatio
   Model-facing texts say "literal relative imports" and never promise more.
   A repository sync that takes remote content stops inheritance across that boundary.
 
+## Executor coexistence
+
+`executor.ts` owns the host-private command shapes, including the remote preview
+start input shared with preview's runtime. `executorVersion.ts` owns the numeric
+compatibility boundary. Increment it before an incompatible writer, storage,
+lease or RPC change; compatible generations share the primary store and commons.
+The activator drains on a mismatch, including rollback. Public identity and
+membership checks remain in the existing HTTP/MCP project services.
+
 ## Intentional choices and rejected shortcuts
 
 - A second definition of manifest merge semantics, near a writer that needs

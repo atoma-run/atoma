@@ -181,7 +181,7 @@ Neighbours:
   reattach as before. Operator runs remain exclusive through in-memory state
   and the same lease store (`~/.atoma/mcp-run-lock.db`, machine-global).
   Stale lease recovery must validate PIDs/PGIDs safely. Deployment
-  waits for EVERY reservation through `acquireRunLeaseWithoutRecovery` and never
+  in legacy/incompatible mode waits for EVERY reservation through `acquireRunLeaseWithoutRecovery` and never
   recovers a row that may still have a run behind it. The one row any taker
   there reclaims is a dead owner's that recorded NO process group — what a
   killed analysis, mend, maintenance or guard leaves — because there is
@@ -207,6 +207,16 @@ Neighbours:
 - Stale-lease recovery is VISIBLE: `atoma_operator_run_start` reports what it
   reaped, and `atoma_operator_run_status` with no in-memory match reports the
   cross-process lease row instead of amnesia.
+
+## Independent execution hosts
+
+With `ATOMA_EXECUTOR_SOCKET`, operator starts delegate to the selected host.
+Their bounded public records and cancellation requests live in the primary
+store (`operatorExecution.ts`); progress listeners observe those receipts.
+Project tasks keep their existing durable run identities. A frontend's exit
+signals no remotely owned run. The host still uses the single `spawnRun`
+driver, process-group cleanup and global lease; boot recovery checks live
+owners rather than assuming a different process's run is abandoned.
 
 ## Runs are tasks (`tasks.ts`)
 

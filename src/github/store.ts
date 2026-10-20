@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { withStoreMutex } from '../platform/storeMutex.js';
 import Database from 'better-sqlite3';
 import { openStoreHandle, storeDbPath } from '../core/stores.js';
 import { canonicalGitHubId } from './config.js';
@@ -314,6 +315,9 @@ export function newGitHubConnectState(random: (size: number) => Buffer = randomB
 
 export class GitHubStore {
   private readonly db: Database.Database;
+  serializeUserToken<T>(principalId: string, work: () => Promise<T>): Promise<T> {
+    return withStoreMutex(this.db, `github-token:${principalId}`, work);
+  }
 
   constructor(db: Database.Database) {
     this.db = db;

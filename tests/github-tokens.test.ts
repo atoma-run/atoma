@@ -103,7 +103,7 @@ describe('GitHub user-to-server tokens', () => {
     expect(resolved).toBe('ghu_live-access');
   });
 
-  it('refreshes inside the expiry margin and persists the rotated pair', async () => {
+  it('serializes concurrent clients inside the expiry margin and persists one rotated pair', async () => {
     const config = appConfig();
     persistGitHubUserTokens({
       github,
@@ -118,7 +118,10 @@ describe('GitHub user-to-server tokens', () => {
       },
       now: NOW,
     });
+    let refreshes = 0;
     const fakeFetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      refreshes++;
+      await new Promise(resolve => setTimeout(resolve, 30));
       const body = init?.body;
       if (!(body instanceof URLSearchParams)) throw new Error('expected form body');
       expect(body.get('grant_type')).toBe('refresh_token');
@@ -132,15 +135,13 @@ describe('GitHub user-to-server tokens', () => {
       }), { headers: { 'content-type': 'application/json' } });
     }) as typeof fetch;
 
-    const resolved = await resolveGitHubUserAccessToken({
-      github,
-      config,
-      provider: githubProvider(),
-      principalId,
-      now: NOW + 1_000,
-      fetchImpl: fakeFetch,
+    const resolve = (store: GitHubStore) => resolveGitHubUserAccessToken({
+      github: store, config, provider: githubProvider(), principalId,
+      now: NOW + 1_000, fetchImpl: fakeFetch,
     });
-    expect(resolved).toBe('ghu_rotated');
+    expect(await Promise.all([resolve(github), resolve(new GitHubStore(db))]))
+      .toEqual(['ghu_rotated', 'ghu_rotated']);
+    expect(refreshes).toBe(1);
     const stored = github.getUserAuthorization(principalId)!;
     expect(decryptGitHubToken({
       envelope: stored.accessToken,

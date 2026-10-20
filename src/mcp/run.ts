@@ -37,6 +37,8 @@
  */
 
 import { narrowedRunTimeoutCeilingMs } from '../contracts/platformSettings.js';
+import { callExecutor, executorSocket } from '../projects/executorTransport.js';
+import { operatorCancellationRequested, operatorExecutions, requestOperatorCancellation, saveOperatorExecution } from './operatorExecution.js';
 import { HAYSTACK_LAUNCH_ENV } from '../contracts/retrievalHaystack.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { existsSync } from 'node:fs';
@@ -113,6 +115,7 @@ export interface RunRecordPublic {
 }
 
 interface RunRecord {
+  lastSavedAt?: number;
   readonly runId: string;
   status: RunRecordPublic['status'];
   readonly goal: string;
@@ -319,6 +322,7 @@ function remember(r: RunRecord): void {
 }
 
 function finishRun(record: RunRecord): void {
+  persistOperator(record, true);
   // release() is a SQLite DELETE and can throw (SQLITE_BUSY past the
   // busy_timeout, disk I/O, ~/.atoma removed mid-run). It must never keep
   // the slot occupied: this function runs inside `void driven.then(...)`,
@@ -360,6 +364,7 @@ function requestCancellation(record: RunRecord, reason: string): void {
   record.status = 'cancelling';
   record.hint = `Cancellation requested: ${reason}. Waiting for the child process group to exit.`;
   record.abort.abort(new Error(reason));
+  persistOperator(record, true);
 }
 
 /**
@@ -378,6 +383,14 @@ export async function startRun(
   driver: RunDriver | undefined = spawnRun,
   acquireLease: RunLeaseAcquirer | undefined = (id) => acquireRunLease(id)
 ): Promise<RunRecordPublic> {
+  const socket = executorSocket();
+  if (socket && process.env['ATOMA_RUN_EXECUTOR'] !== '1') {
+    try {
+      const record = await callExecutor<RunRecordPublic>(socket, { method: 'operator-start', input });
+      watchRemoteOperator(record);
+      return record;
+    } catch (error) { throw new RunRejected(error instanceof Error ? error.message : 'Run executor unavailable'); }
+  }
   if (inFlight) {
     throw new RunRejected(
       `a run is already in flight (${inFlight.runId}, started ${inFlight.startedAt}). atoma serialises runs: the build workspace is shared, trace attribution is newest-file-wins, and concurrent runs make the cost numbers incomparable. If it is the run you started, follow it with atoma_operator_run_status; otherwise wait for it or call atoma_operator_run_cancel.`
@@ -389,7 +402,9 @@ export async function startRun(
   const startedAtMs = Date.now();
   const stamp = new Date(startedAtMs).toISOString().replace(/[:.]/g, '-');
   const runId = `mcp-${stamp}-${++seq}`;
-  const logPath = join(root, 'burnin', 'logs', 'mcp', `${runId}.log`);
+  const logPath = process.env['ATOMA_RUN_EXECUTOR'] === '1'
+    ? join(runsDirPath(), '..', 'operator-logs', `${runId}.log`)
+    : join(root, 'burnin', 'logs', 'mcp', `${runId}.log`);
   let lease: RunLease;
   try {
     lease = await acquireLease(runId);
@@ -415,6 +430,7 @@ export async function startRun(
   };
   remember(record);
   inFlight = record;
+  persistOperator(record, true);
 
   const runsDir = runsDirPath();
   // Fire and forget: the promise is the record's own completion handler. It
@@ -440,6 +456,7 @@ export async function startRun(
       onChunk: (chunk) => {
         record.chunks++;
         record.tail = (record.tail + chunk).slice(-PROGRESS_TAIL_CHARS);
+        persistOperator(record);
         for (const listener of outputListeners) {
           try {
             listener({ runId, chunk, chunks: record.chunks, tail: record.tail });
@@ -532,6 +549,18 @@ function foreignLeaseReport(): unknown {
 }
 
 export function runStatus(opts: { runId?: string } = {}): unknown {
+  if (executorSocket() && process.env['ATOMA_RUN_EXECUTOR'] !== '1') {
+    const runs = operatorExecutions();
+    const live = runs.find(run => run.status === 'running' || run.status === 'cancelling');
+    const crossProcessLease = live ? undefined : foreignLeaseReport();
+    if (opts.runId) {
+      const run = runs.find(run => run.runId === opts.runId);
+      return run ? { ...run, caveat: RUN_OUTPUT_CAVEAT } : { note: `no run with id "${opts.runId}"`,
+        ...(crossProcessLease !== undefined ? { crossProcessLease } : {}) };
+    }
+    return { inFlight: live?.runId ?? null, caveat: RUN_OUTPUT_CAVEAT, runs,
+      ...(crossProcessLease !== undefined ? { crossProcessLease } : {}) };
+  }
   if (opts.runId) {
     const r = records.get(opts.runId);
     if (r) return { ...publish(r), caveat: RUN_OUTPUT_CAVEAT };
@@ -558,6 +587,12 @@ export function runStatus(opts: { runId?: string } = {}): unknown {
  * processes per web run.
  */
 export function cancelRun(opts: { runId?: string } = {}): unknown {
+  if (executorSocket() && process.env['ATOMA_RUN_EXECUTOR'] !== '1') {
+    const run = operatorExecutions().find(run => opts.runId ? run.runId === opts.runId : ['running', 'cancelling'].includes(run.status));
+    if (!run) return { note: 'no run in flight' };
+    if (run.status === 'running') requestOperatorCancellation(run.runId);
+    return { cancelled: run.runId, note: 'Cancellation requested from the run executor; the slot remains held until the process group exits.', run };
+  }
   const target = opts.runId ? records.get(opts.runId) : inFlight;
   if (!target) return { note: opts.runId ? `no run with id "${opts.runId}"` : 'no run in flight' };
   if (target.status !== 'running') return { note: `run ${target.runId} is already ${target.status}`, run: publish(target) };
@@ -567,6 +602,41 @@ export function cancelRun(opts: { runId?: string } = {}): unknown {
     note: 'SIGTERM sent to the run’s process group; SIGKILL follows after a 5s grace window. The slot remains occupied until the child exits and the trace is closed. Read atoma_operator_run_status for the final status.',
     run: publish(target),
   };
+}
+
+/** The host polls durable requests even when the web process that recorded them has gone. */
+export function pollOperatorControls(): void {
+  if (inFlight && operatorCancellationRequested(inFlight.runId)) requestCancellation(inFlight, 'requested through atoma_operator_run_cancel');
+}
+
+export function operatorExecutionIdle(): boolean { return inFlight === null; }
+
+function persistOperator(record: RunRecord, force = false): void {
+  if (process.env['ATOMA_RUN_EXECUTOR'] !== '1' || (!force && Date.now() - (record.lastSavedAt ?? 0) < 250)) return;
+  try { saveOperatorExecution(publish(record)); record.lastSavedAt = Date.now(); }
+  catch (error) { console.error('[mcp] operator receipt could not be persisted', error); }
+}
+
+function watchRemoteOperator(initial: RunRecordPublic): void {
+  let previous = initial;
+  const timer = setInterval(() => {
+    try {
+      const current = operatorExecutions().find(run => run.runId === initial.runId);
+      if (!current) { clearInterval(timer); return; }
+      if (current.progress.chunks !== previous.progress.chunks) for (const listener of outputListeners) {
+        try { listener({ runId: current.runId, chunks: current.progress.chunks, tail: current.progress.tail, chunk: current.progress.tail }); }
+        catch { /* A detached session cannot block another subscriber or completion. */ }
+      }
+      previous = current;
+      if (!['running', 'cancelling'].includes(current.status)) {
+        clearInterval(timer);
+        for (const listener of finishListeners) {
+          try { listener(current); } catch { /* A detached session cannot block completion. */ }
+        }
+      }
+    } catch (error) { console.error('[mcp] executor progress unavailable', error); }
+  }, 250);
+  timer.unref();
 }
 
 /** Graceful server shutdown: abort the active group and wait for its exit. */

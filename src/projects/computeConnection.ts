@@ -47,7 +47,8 @@ export class ComputeConnection {
   };
 
   constructor(private readonly socket: WebSocket, private readonly devices: ComputeDeviceStore,
-    private readonly timeoutMs = 120_000, private readonly control?: ComputeRunControl) {
+    private readonly timeoutMs = 120_000, private readonly control?: ComputeRunControl,
+    private readonly connected?: (session: ComputeSession) => void) {
     this.helloDeadline = setTimeout(() => this.close(), 5000);
     this.helloDeadline.unref();
     this.watchdog = setInterval(() => {
@@ -66,6 +67,7 @@ export class ComputeConnection {
     if (this.execution) this.devices.authorizeOperation(this.session, this.execution.runId, this.execution.generation);
   }
   identity(): ComputeSession | undefined { return this.session && !this.closed ? { ...this.session } : undefined; }
+  executing(): boolean { return Boolean(this.execution); }
   private send(frame: ComputeServerFrame): void {
     const text = JSON.stringify(frame);
     if (this.closed || this.socket.readyState !== WebSocket.OPEN ||
@@ -85,6 +87,7 @@ export class ComputeConnection {
         this.devices.bindMachine(hello.credential, hello.machineId);
         const connected = this.devices.connect(hello.credential, hello.capabilities);
         this.session = connected.session;
+        this.connected?.(this.session);
         this.recovery = connected.recovery ? { runId: connected.recovery.runId, generation: connected.recovery.generation } : undefined;
         this.credential = hello.credential;
         clearTimeout(this.helloDeadline);

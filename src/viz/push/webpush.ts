@@ -200,6 +200,9 @@ export async function sendWebPush(input: {
   const body = new Uint8Array(encryptWebPushPayload(input.keys, input.payload));
   const doFetch = input.fetchImpl ?? fetch;
   const response = await doFetch(endpoint.href, {
+    // A retiring executor waits for its journal-driven notifications too.
+    // A stalled push service must not retain that generation indefinitely.
+    signal: AbortSignal.timeout(15_000),
     method: 'POST',
     headers: {
       'content-type': 'application/octet-stream',

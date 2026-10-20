@@ -10,6 +10,20 @@ Neighbours:
 - [`src/github`](../github/AGENTS.md) — where publication lands
 - [`src/platform`](../platform/AGENTS.md) — the journal this domain emits into
 
+## Independent run executors
+
+With `ATOMA_EXECUTOR_SOCKET`, the web coordinator delegates admission and
+publication to a private generation host. It never drives or reconciles runs.
+The executor owns the existing coordinator/runner, durable lease, finalization,
+naming and deferred learning; no second task table or orchestration loop exists.
+Cancellation is a request in the primary store, polled by the owning executor.
+Boot recovery preserves runs/publications with live lease owners across generations.
+A draining generation dispatches no queued work and exits only after explicit
+retirement and its own work completes. The active socket is resolved on every
+command (no HTTP keep-alive pool across a symlink switch). Compatibility changes
+are owned by `src/contracts/executorVersion.ts`; see
+[deployment](../../docs/automatic-deployment.md).
+
 ## Customer compute control
 
 `computeDevices.ts` is the private customer-compute control domain, sharing the

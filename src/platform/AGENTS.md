@@ -68,6 +68,22 @@ Neighbours:
   (security, journal only). Push movement coalesces by read-back since the last
   run start, never by a project flag or a journal uniqueness constraint.
 
+## Process boundaries
+
+`storeMutex.ts` serializes rotating connector/GitHub credentials across web and
+executor generations in the primary store, without holding a SQLite transaction
+over the network. A live owner is never displaced; PID/birth identity permits
+reclaim only after death. Graceful web shutdown finishes owned exchanges before
+exiting, and executor retirement waits for them.
+
+`subscribe` remains the producer-local notification bus: each journaled fact
+can produce one push from its writer. `subscribePersisted` is a bounded shared
+cursor for transient MCP resource subscribers and the resident analyst across
+executor processes. It starts at the current sequence, reads at most 256 rows
+per tick and never re-emits onto the push bus. Subscribers share one timer;
+the last unsubscribe stops it. Pending asynchronous local listeners hold a
+retiring execution host until their notifications have settled.
+
 ## Cross-organisation reads
 
 `recordCrossOrgRead` is the strict exception to fail-open append: a missing

@@ -4,6 +4,8 @@ import { LearningQueue } from '../skills/learningQueue.js';
 import { spawnApprovedLearning } from '../run/learningProcess.js';
 import { deploymentPaused } from '../viz/deployment.js';
 import { peekDeploymentPending } from '../mcp/runLock.js';
+import { peekRunLeases } from '../mcp/runLock.js';
+import { callExecutor } from './executorTransport.js';
 import type { AnswerClientQuestion } from '../contracts/clientQuestion.js';
 import { encodeProjectContext, PROJECT_CONTEXT_ENV } from '../contracts/projectContext.js';
 import { encodeConnectorLaunch, MCP_CONNECTORS_ENV, type ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
@@ -12,7 +14,7 @@ import { RunCheckpointStore, canonicalCheckpointWorkspacePath, projectedCheckpoi
 import { removeReadRunCopies } from '../run/readRuns.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
-import { GitHubAccessRequiredError } from './publisher.js';
+import { GitHubAccessRequiredError, PublicationSupersededError } from './publisher.js';
 import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexModelInventory } from '../contracts/codexModels.js';
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
 import { randomUUID } from 'node:crypto';
@@ -127,6 +129,10 @@ export interface ProjectRunFinishedEvent {
 }
 
 export interface ProjectCoordinatorOptions {
+  /** Host-owned executor socket; a frontend never owns a run driver. */
+  readonly executorSocket?: string;
+  /** Rechecked before every new admission/queue dispatch, including after awaits. */
+  readonly dispatchAllowed?: () => boolean;
   readonly store: ProjectStore;
   readonly dbPath: string;
   readonly hostEnv?: NodeJS.ProcessEnv;
@@ -1282,6 +1288,43 @@ export function projectRunHostLayout(
 }
 
 export class ProjectRunCoordinator {
+  private executorError(error: unknown): Error {
+    if (error instanceof Error) {
+      if (error.name === 'ProjectRunBusy' || error.name === 'ExecutorUnavailable') return new ProjectRunBusy(error.message);
+      if (error.name === 'ProjectRunConfigurationError') return new ProjectRunConfigurationError(error.message);
+      if (error.name === 'ProjectStateConflict') return new ProjectStateConflict(error.message);
+      if (error.name === 'PublicationSupersededError') return new PublicationSupersededError(error.message);
+      if (error.name === 'GitHubAccessRequiredError' && 'access' in error) {
+        return new GitHubAccessRequiredError(error.access as ConstructorParameters<typeof GitHubAccessRequiredError>[0]);
+      }
+      return error;
+    }
+    return new Error('Run executor request failed');
+  }
+
+  /** Called by the independent host, never by a public reader. */
+  pollRunControls(): void {
+    for (const [runId, active] of this.active) {
+      if (this.store.runCancellationRequested(active.orgId, runId)) active.controller.abort(new Error('project run cancelled'));
+    }
+  }
+
+  executionIdle(): boolean {
+    return this.active.size === 0 && this.detached.size === 0 && !this.queuePumping && !this.learningPumping && this.publicationsInFlight === 0;
+  }
+
+  hasActiveComputeDevice(deviceId: string): boolean {
+    for (const [runId] of this.active) {
+      const run = this.store.getProjectRunAnyOrg(runId);
+      if (run?.executionTarget.kind === 'customer-device' && run.executionTarget.deviceId === deviceId) return true;
+    }
+    return false;
+  }
+
+  private readonly executorSocket?: string;
+  private readonly dispatchAllowed: () => boolean;
+  private readonly externalExecution: boolean;
+  private publicationsInFlight = 0;
   private readonly principalCodexModelsFor?: (principalId: string) => Promise<CodexModelInventory>;
   private readonly store: ProjectStore;
   private readonly dbPath: string;
@@ -1342,6 +1385,9 @@ export class ProjectRunCoordinator {
   private lastMemoryDeferral: RunMemoryAdmission['lastDeferral'] = null;
 
   constructor(options: ProjectCoordinatorOptions) {
+    this.executorSocket = options.executorSocket;
+    this.externalExecution = Boolean(options.executorSocket || options.dispatchAllowed);
+    this.dispatchAllowed = options.dispatchAllowed ?? (() => true);
     this.store = options.store;
     this.queuedRunAllowed = options.queuedRunAllowed;
     this.dbPath = path.resolve(options.dbPath);
@@ -1349,8 +1395,10 @@ export class ProjectRunCoordinator {
     this.hostEnv = { ...(options.hostEnv ?? process.env) };
     this.root = path.resolve(options.projectsRoot ?? DEFAULT_PROJECTS_ROOT);
     this.skillsRoot = path.resolve(skillsDirPath(options.skillsDir, this.hostEnv));
-    migratePlatformSkills({ dbPath: this.dbPath, projectsRoot: this.root, skillsRoot: this.skillsRoot });
-    reconcilePlatformSkills({ db: this.dbPath, skillsRoot: this.skillsRoot });
+    if (!this.executorSocket) {
+      migratePlatformSkills({ dbPath: this.dbPath, projectsRoot: this.root, skillsRoot: this.skillsRoot });
+      reconcilePlatformSkills({ db: this.dbPath, skillsRoot: this.skillsRoot });
+    }
     this.driver = options.driver ?? spawnRun;
     this.compute = options.compute;
     this.learningDriver = options.learningDriver ?? spawnApprovedLearning;
@@ -1401,12 +1449,18 @@ export class ProjectRunCoordinator {
   /** See `RUN_MEMORY_RESERVE_ENV`. True when a new run may start beside the running ones. */
   private memoryAdmits(target: 'hosted' | 'customer-device' = 'hosted'): boolean {
     const reserveBytes = target === 'customer-device' ? this.computeMemoryReserveBytes : this.memoryReserveBytes;
-    if (reserveBytes === 0 || this.active.size === 0) return true;
+    const reservations = this.externalExecution ? peekRunLeases(undefined, true).filter(owner => owner.runId.startsWith('project:')) : undefined;
+    if (reserveBytes === 0 || (reservations ? reservations.length === 0 : this.active.size === 0)) return true;
     const memory = this.memoryProbe();
     if (!memory) return true;
     const now = Date.now();
     let requiredBytes = reserveBytes;
-    for (const [runId, admitted] of this.admittedAt) if (this.active.has(runId) && now - admitted.at < RUN_MEMORY_RAMP_MS) requiredBytes += admitted.reserveBytes;
+    if (reservations) {
+      for (const owner of reservations) if (now - Date.parse(owner.acquiredAt) < RUN_MEMORY_RAMP_MS) {
+        const run = this.store.getProjectRunAnyOrg(owner.runId.slice('project:'.length));
+        requiredBytes += run?.executionTarget.kind === 'customer-device' ? this.computeMemoryReserveBytes : this.memoryReserveBytes;
+      }
+    } else for (const [runId, admitted] of this.admittedAt) if (this.active.has(runId) && now - admitted.at < RUN_MEMORY_RAMP_MS) requiredBytes += admitted.reserveBytes;
     if (memory.availableBytes >= requiredBytes) {
       this.memoryDeferring = false;
       return true;
@@ -1419,7 +1473,8 @@ export class ProjectRunCoordinator {
   }
 
   memoryAdmission(): RunMemoryAdmission {
-    return { reserveMb: Math.round(this.memoryReserveBytes / MIB), activeRuns: this.active.size,
+    return { reserveMb: Math.round(this.memoryReserveBytes / MIB), activeRuns: this.externalExecution
+      ? peekRunLeases(undefined, true).filter(owner => owner.runId.startsWith('project:')).length : this.active.size,
       deferrals: this.memoryDeferrals, lastDeferral: this.lastMemoryDeferral };
   }
 
@@ -1479,11 +1534,14 @@ export class ProjectRunCoordinator {
    * anything is active in-memory — those rows have live drivers.
    */
   reconcileInterrupted(): { runs: number; publications: number } {
+    if (this.executorSocket) return { runs: 0, publications: 0 };
     if (this.active.size > 0) {
       throw new Error('reconcileInterrupted is a boot-time operation; runs are active');
     }
     const interrupted = this.store.listLiveRunTraces();
-    const recovered = this.store.reconcileInterrupted('interrupted by server restart');
+    const protectedIds = new Set(peekRunLeases(undefined, true)
+      .filter(owner => /^(project|publication):/.test(owner.runId)).map(owner => owner.runId.slice(owner.runId.indexOf(':') + 1)));
+    const recovered = this.store.reconcileInterrupted('interrupted by executor restart', protectedIds);
     // A run the restart failed never reaches its own end: its read-run copies
     // go now, and those of the run it continued, as at any end, unless a
     // checkpoint lets one be continued (reviews 2026-10-17). Detached, and
@@ -1843,12 +1901,20 @@ export class ProjectRunCoordinator {
     readonly principalId: string;
     readonly projectId: string;
     readonly request: StartProjectRunInput;
-  }): Promise<{ readonly run: ProjectRun; readonly created: boolean }> {
+  }): Promise<{ readonly run: ProjectRun; readonly created: boolean; readonly admissionJournaled?: boolean }> {
+    if (this.executorSocket) {
+      try { return await callExecutor(this.executorSocket, { method: 'start', input }); }
+      catch (error) { throw this.executorError(error); }
+    }
+    if (!this.dispatchAllowed()) throw new ProjectRunBusy('Run executor is switching versions; retry the same request');
     const findRetry = () => this.store.findProjectRunForRequest(
       input.orgId, input.projectId, input.principalId, input.request
     ) ?? this.store.findLiveRunForSameRequest(input.orgId, input.projectId, input.principalId, input.request);
     const existing = findRetry();
     if (existing) return { run: existing, created: false };
+    if (this.externalExecution && this.queuedRunAllowed && !this.queuedRunAllowed(input.principalId, input.orgId)) {
+      throw new ProjectStateConflict('The requester is no longer authorized to start a run');
+    }
     const target = 'resumeOf' in input.request && input.request.resumeOf
       ? this.store.getProjectRun(input.orgId, input.request.resumeOf)?.executionTarget
       : this.store.getProject(input.orgId, input.projectId)?.executionTarget;
@@ -2085,6 +2151,7 @@ export class ProjectRunCoordinator {
         return { run, created: true };
       }
       this.assertExecutionAccess(run.requestedByPrincipalId, run.executionTarget);
+      if (this.externalExecution && this.queuedRunAllowed && !this.queuedRunAllowed(input.principalId, input.orgId)) throw new ProjectStateConflict('The requester is no longer authorized to start a run');
       this.store.startProjectRun({
         orgId: input.orgId,
         projectRunId: run.projectRunId,
@@ -2540,7 +2607,7 @@ export class ProjectRunCoordinator {
 
   /** Learning is outside delivery and its lease, with the original payer re-authorized on every launch. */
   private resumeLearning(delayed = false): void {
-    if (this.learningPumping || this.queueStopped) return;
+    if (this.executorSocket || !this.dispatchAllowed() || this.learningPumping || this.queueStopped) return;
     if (!delayed) {
       clearTimeout(this.learningTimer);
       this.learningTimer = undefined;
@@ -2556,13 +2623,13 @@ export class ProjectRunCoordinator {
   }
 
   private async drainLearning(): Promise<void> {
-    if (this.learningPumping || this.queueStopped) return;
+    if (this.executorSocket || !this.dispatchAllowed() || this.learningPumping || this.queueStopped) return;
     this.learningPumping = true;
     const queue = new LearningQueue(this.dbPath);
     try {
       queue.recover();
       for (const job of queue.pending()) {
-        if (this.queueStopped) break;
+        if (this.queueStopped || !this.dispatchAllowed()) break;
         if (deploymentPaused(this.hostEnv) || peekDeploymentPending()) break;
         if (!job.scope) continue;
         const run = this.store.getProjectRun(job.scope.orgId, job.runId);
@@ -2612,7 +2679,9 @@ export class ProjectRunCoordinator {
 
   /** Resume persisted work, also used after a lease release or server restart. */
   resumeQueuedRuns(): void {
+    if (this.executorSocket || !this.dispatchAllowed()) return;
     this.queueStopped = false;
+    if (this.externalExecution) this.resumeLearning(true);
     if (this.queueTimer || this.queuePumping || this.store.listQueuedRuns().length === 0) return;
     this.queueTimer = setTimeout(() => {
       this.queueTimer = undefined;
@@ -2622,12 +2691,12 @@ export class ProjectRunCoordinator {
   }
 
   private async drainQueue(): Promise<void> {
-    if (this.queuePumping || this.queueStopped) return;
+    if (this.executorSocket || !this.dispatchAllowed() || this.queuePumping || this.queueStopped) return;
     this.queuePumping = true;
     try {
       let hostedMemoryWaiting = false;
       for (const queued of this.store.listQueuedRuns()) {
-        if (this.queueStopped) break;
+        if (this.queueStopped || !this.dispatchAllowed()) break;
         if (queued.executionTarget.kind === 'hosted' && hostedMemoryWaiting) continue;
         if (queued.executionTarget.kind === 'customer-device' && this.compute?.()?.readiness(queued).status !== 'ready') continue;
         if (this.store.runCapacity(queued.orgId).maxConcurrent === 0) continue;
@@ -2692,6 +2761,11 @@ export class ProjectRunCoordinator {
    * upload, so a workspace that changed since delivery is a refusal.
    */
   async retryPublication(orgId: string, projectRunId: string): Promise<ProjectRun | null> {
+    if (this.executorSocket) {
+      try { return await callExecutor(this.executorSocket, { method: 'publish', orgId, runId: projectRunId }); }
+      catch (error) { throw this.executorError(error); }
+    }
+    if (!this.dispatchAllowed()) throw new ProjectRunBusy('Run executor is switching versions; retry publication');
     if (!this.publisher) {
       throw new ProjectRunConfigurationError('GitHub App is not configured on this deployment');
     }
@@ -2714,22 +2788,28 @@ export class ProjectRunCoordinator {
       process.stderr.write(`[atoma projects] publication refused, slot busy: ${error.message}\n`);
       throw new ProjectRunBusy(`publication waits for the run slot; the client acceptance is kept. ${tenantBusyMessage(error.owner, error.condition, 'publish')}`);
     }
+    this.publicationsInFlight++;
     try {
       await this.publisher.publish({ project, run, workspaceRoot: run.hostPaths.workspacePath,
         manifest: run.artifactManifest, manifestHash: run.artifactManifestHash });
-    } finally { lease.release(); }
+    } finally { this.publicationsInFlight--; lease.release(); }
     return run;
   }
 
   pendingComputeRuns(orgId: string, projectId: string, principalId: string): { runId: string }[] {
+    const live = new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
     return (this.store.listProjectRuns(orgId, projectId) ?? []).filter(run =>
       run.executionTarget.kind === 'customer-device' && run.status === 'running' &&
-      run.requestedByPrincipalId === principalId && !this.active.has(run.projectRunId))
+      run.requestedByPrincipalId === principalId && !this.active.has(run.projectRunId) && !live.has(`project:${run.projectRunId}`))
       .slice(0, 100).map(run => ({ runId: run.projectRunId }));
   }
 
   /** Resume only the verified delivery transfer after an explicit request. */
   async retryComputeFinalization(orgId: string, projectRunId: string, principalId: string): Promise<ProjectRun> {
+    if (this.executorSocket) {
+      try { return await callExecutor(this.executorSocket, { method: 'compute-finalize', orgId, runId: projectRunId, principalId }); }
+      catch (error) { throw this.executorError(error); }
+    }
     const run = this.store.getProjectRun(orgId, projectRunId);
     if (!run || run.executionTarget.kind !== 'customer-device' || run.status !== 'running' ||
         run.requestedByPrincipalId !== principalId || (this.queuedRunAllowed && !this.queuedRunAllowed(principalId, orgId))) {
@@ -2764,12 +2844,14 @@ export class ProjectRunCoordinator {
       return cancelled;
     }
     const active = this.active.get(projectRunId);
+    if (current.status === 'running') this.store.requestRunCancellation(orgId, projectRunId);
     if (active?.orgId === orgId) active.controller.abort(new Error('project run cancelled'));
     return current;
   }
 
   /** Disconnecting a profile cannot race a run that already captured it. */
   hasActiveRunForPrincipal(principalId: string): boolean {
+    if (this.store.hasRunningRunForPrincipal(principalId)) return true;
     if (this.learningPrincipal === principalId) return true;
     for (const active of this.active.values()) {
       if (active.principalId === principalId) return true;

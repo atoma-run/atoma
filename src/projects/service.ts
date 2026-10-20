@@ -939,6 +939,26 @@ export class ProjectService {
     return this.coordinator.runTaskBudgetMs();
   }
 
+  /** One event builder for legacy admission and the independent owning host. */
+  journalRunStarted(run: ProjectRun): void {
+    this.events({
+      kind: 'run.started',
+      actorType: 'principal',
+      actorId: run.requestedByPrincipalId,
+      orgId: run.orgId,
+      projectId: run.projectId,
+      runId: run.projectRunId,
+      summary: run.status === 'queued' ? `Run queued: ${eventLabel(run.goal, 120)}` : run.rerunOf
+        ? `Comparison rerun started: ${eventLabel(run.goal, 100)}`
+        : `Run started: ${eventLabel(run.goal, 120)}`,
+      // Ids only, never text: which runs' saved files this one was given.
+      ...(run.rerunOf || run.readRunIds ? { detail: {
+        ...(run.rerunOf ? { rerunOf: run.rerunOf } : {}),
+        ...(run.readRunIds ? { readRunIds: run.readRunIds } : {}),
+      } } : {}),
+    });
+  }
+
   /** The same start from an already-parsed payload: the MCP's door. */
   async startProjectRunFromInput(viewer: Viewer, projectId: string, body: unknown): Promise<unknown> {
     if (!roleAtLeast(viewer.role, 'org:member')) {
@@ -950,7 +970,7 @@ export class ProjectService {
       fields: [...new Set(input.error.issues.map(issue => issue.path.join('.')))],
     });
     try {
-      const { run, created } = await this.coordinator.startOutcome({
+      const { run, created, admissionJournaled } = await this.coordinator.startOutcome({
         orgId: viewer.orgId,
         principalId: viewer.principalId,
         projectId,
@@ -959,22 +979,7 @@ export class ProjectService {
       // The GOAL is model-facing prose of arbitrary length and content; only
       // its bounded label reaches the journal, and never the whole prompt.
       // A retry or a re-sent start returns the existing run: journaled once.
-      if (created) this.events({
-        kind: 'run.started',
-        actorType: 'principal',
-        actorId: viewer.principalId,
-        orgId: viewer.orgId,
-        projectId,
-        runId: run.projectRunId,
-        summary: run.status === 'queued' ? `Run queued: ${eventLabel(run.goal, 120)}` : run.rerunOf
-          ? `Comparison rerun started: ${eventLabel(run.goal, 100)}`
-          : `Run started: ${eventLabel(run.goal, 120)}`,
-        // Ids only, never text: which runs' saved files this one was given.
-        ...(run.rerunOf || run.readRunIds ? { detail: {
-          ...(run.rerunOf ? { rerunOf: run.rerunOf } : {}),
-          ...(run.readRunIds ? { readRunIds: run.readRunIds } : {}),
-        } } : {}),
-      });
+      if (created && !admissionJournaled) this.journalRunStarted(run);
       const publication = this.store.getPublicationForRun(viewer.orgId, run.projectRunId);
       return this.present(run, publication);
     } catch (error) {

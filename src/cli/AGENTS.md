@@ -300,7 +300,7 @@ npm run settings:dev -- list
 
 ## Intentional choices and rejected shortcuts
 
-- A deployment that retries until it lands in a gap: rejected. The mender
+- A legacy/incompatible deployment that retries until it lands in a gap: rejected. The mender
   chained mends with no gap and member runs can too; a retry only wins by
   luck. A waiting deployment closes the door to new work instead, and
   interrupting what is running (a mend, a preview, an analysis) to deploy

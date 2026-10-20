@@ -403,13 +403,13 @@ export async function completeGitHubUserCallback(input: {
       { provider: input.provider, accessToken: tokens.accessToken },
       input.fetchImpl
     );
-    persistGitHubUserTokens({
+    await input.github.serializeUserToken(input.viewer.principalId, async () => persistGitHubUserTokens({
       github: input.github,
       config: input.config,
       principalId: input.viewer.principalId,
       githubSubject: identity.subject,
       tokens,
-    });
+    }));
     if (input.installationId) {
       const installation = await input.client.verifyInstallation({
         userAccessToken: tokens.accessToken,

@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { withStoreMutex } from '../platform/storeMutex.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { openStoreHandle } from '../core/stores.js';
 import { decryptBoundSecret, encryptBoundSecret } from '../core/secretCrypto.js';
@@ -186,6 +187,9 @@ export class ConnectorStore {
   }
 
   private stamp(): string { return this.now().toISOString(); }
+  serializeOAuth<T>(orgId: string, serverId: string, work: () => Promise<T>): Promise<T> {
+    return withStoreMutex(this.db, `connector:${orgId}:${serverId}`, work);
+  }
 
   private validUrl(raw: string): string {
     const url = connectorUrl(raw, { loopbackForTests: this.options.loopbackForTests === true });

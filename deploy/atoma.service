@@ -14,7 +14,7 @@ EnvironmentFile=/home/atoma/config/atoma.env
 ExecStart=/usr/bin/node /home/atoma/current/dist/viz/server.js --host 127.0.0.1 --port 4111
 Restart=on-failure
 RestartSec=5
-TimeoutStopSec=30
+TimeoutStopSec=90
 UMask=0077
 
 [Install]

@@ -67,51 +67,53 @@ export async function resolveGitHubUserAccessToken(input: {
   readonly now?: number;
   readonly fetchImpl?: typeof fetch;
 }): Promise<string> {
-  const now = input.now ?? Date.now();
-  const authorization = input.github.getUserAuthorization(input.principalId);
-  if (!authorization) {
-    throw new Error('no GitHub user authorization is stored for this principal');
-  }
-  const accessExpiresAt = Date.parse(authorization.accessExpiresAt);
-  if (!Number.isFinite(accessExpiresAt)) {
-    throw new Error('GitHub user access token expiry is invalid');
-  }
-  if (accessExpiresAt - GITHUB_USER_TOKEN_MARGIN_MS > now) {
-    return decryptGitHubToken({
-      envelope: authorization.accessToken,
-      expectedKind: 'access',
+  return input.github.serializeUserToken(input.principalId, async () => {
+    const now = input.now ?? Date.now();
+    const authorization = input.github.getUserAuthorization(input.principalId);
+    if (!authorization) {
+      throw new Error('no GitHub user authorization is stored for this principal');
+    }
+    const accessExpiresAt = Date.parse(authorization.accessExpiresAt);
+    if (!Number.isFinite(accessExpiresAt)) {
+      throw new Error('GitHub user access token expiry is invalid');
+    }
+    if (accessExpiresAt - GITHUB_USER_TOKEN_MARGIN_MS > now) {
+      return decryptGitHubToken({
+        envelope: authorization.accessToken,
+        expectedKind: 'access',
+        principalId: input.principalId,
+        key: input.config.tokenEncryptionKey,
+        keyId: input.config.tokenEncryptionKeyId,
+      });
+    }
+    if (!authorization.refreshToken || !authorization.refreshExpiresAt) {
+      throw new Error('GitHub user access token is expired and no refresh token is stored');
+    }
+    const refreshExpiresAt = Date.parse(authorization.refreshExpiresAt);
+    if (!Number.isFinite(refreshExpiresAt) || refreshExpiresAt <= now) {
+      throw new Error('GitHub user refresh token is expired');
+    }
+    const refreshToken = decryptGitHubToken({
+      envelope: authorization.refreshToken,
+      expectedKind: 'refresh',
       principalId: input.principalId,
       key: input.config.tokenEncryptionKey,
       keyId: input.config.tokenEncryptionKeyId,
     });
-  }
-  if (!authorization.refreshToken || !authorization.refreshExpiresAt) {
-    throw new Error('GitHub user access token is expired and no refresh token is stored');
-  }
-  const refreshExpiresAt = Date.parse(authorization.refreshExpiresAt);
-  if (!Number.isFinite(refreshExpiresAt) || refreshExpiresAt <= now) {
-    throw new Error('GitHub user refresh token is expired');
-  }
-  const refreshToken = decryptGitHubToken({
-    envelope: authorization.refreshToken,
-    expectedKind: 'refresh',
-    principalId: input.principalId,
-    key: input.config.tokenEncryptionKey,
-    keyId: input.config.tokenEncryptionKeyId,
+    const rotated = await refreshAccessToken(
+      { provider: input.provider, refreshToken },
+      input.fetchImpl
+    );
+    persistGitHubUserTokens({
+      github: input.github,
+      config: input.config,
+      principalId: input.principalId,
+      githubSubject: authorization.githubSubject,
+      tokens: rotated,
+      now,
+    });
+    return rotated.accessToken;
   });
-  const rotated = await refreshAccessToken(
-    { provider: input.provider, refreshToken },
-    input.fetchImpl
-  );
-  persistGitHubUserTokens({
-    github: input.github,
-    config: input.config,
-    principalId: input.principalId,
-    githubSubject: authorization.githubSubject,
-    tokens: rotated,
-    now,
-  });
-  return rotated.accessToken;
 }
 
 /** Persist tokens from a GitHub login or connect callback. Failures are the caller's. */
@@ -124,16 +126,18 @@ export async function persistGitHubUserTokensFromAccessToken(input: {
   readonly fetchImpl?: typeof fetch;
   readonly now?: number;
 }): Promise<void> {
-  const identity = await fetchProviderIdentity(
-    { provider: input.provider, accessToken: input.tokens.accessToken },
-    input.fetchImpl
-  );
-  persistGitHubUserTokens({
-    github: input.github,
-    config: input.config,
-    principalId: input.principalId,
-    githubSubject: identity.subject,
-    tokens: input.tokens,
-    now: input.now,
+  await input.github.serializeUserToken(input.principalId, async () => {
+    const identity = await fetchProviderIdentity(
+      { provider: input.provider, accessToken: input.tokens.accessToken },
+      input.fetchImpl
+    );
+    persistGitHubUserTokens({
+      github: input.github,
+      config: input.config,
+      principalId: input.principalId,
+      githubSubject: identity.subject,
+      tokens: input.tokens,
+      now: input.now,
+    });
   });
 }

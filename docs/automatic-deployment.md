@@ -1,7 +1,7 @@
 # Automatic deployment after GitHub CI
 
-This guide describes the production auto-deployment path: one compiled Atoma
-process on an existing Linux host, with Docker Engine available to its
+This guide describes the production auto-deployment path: a compiled Atoma web/API process and independent versioned run executors
+on an existing Linux host, with Docker Engine available to its
 in-process launcher and a reverse proxy in front. The separate
 [packaged Linux stack](packaged-stack.md) provides the web/launcher/Caddy
 container topology; it has its own provisioning and acceptance guide.
@@ -22,31 +22,73 @@ and repository configuration described here before it can deploy.
    `production` GitHub environment. Pull requests can never reach its secrets.
 3. The deployment job downloads the artifact from that exact CI run, verifies
    its digest, and streams it over SSH with strict host-key checking.
-4. The root-owned host activator takes a host-local deployment lock and starts
-   the drain guard, which WAITS for running work rather than refusing it
-   (`ATOMA_DEPLOY_WAIT_SECONDS`, default 5400: one project run at its default budget, with its preparation and backstops). The guard first announces the
-   deployment in the machine-global lease store: from then on no run,
-   analysis, mend, maintenance or campaign may take the slot and no new preview
-   may start, while open previews are no longer kept alive by their heartbeat.
-   Nothing already running is interrupted. The guard takes the run lease
-   without stale recovery the moment it frees, waits for the last previews and
-   publications, and only then writes the deployment marker that freezes
-   writes. It refuses (exit 75) at its deadline, and at once when waiting
-   cannot end well: a gone owner's lease that recorded a process group (a run
-   may survive behind it), a retrieval campaign, or project rows marked live
-   while no run holds the slot. A row a killed analysis, mend or guard left —
-   no process group, nothing to reap — it takes over and says so.
-5. While the old service still serves, it installs production dependencies,
-   runs the compiled release smoke and builds an immutable `atoma-worker:<sha>`
-   image; then it stops the old service, moves `atoma-worker:latest`,
-   atomically switches `/home/atoma/current` and starts the new one. The
-   outage is the stop, the switch and the start. A redeploy of the running
-   revision stops first, because its dependencies are the running ones.
-6. A failure while preparing leaves the old generation running, untouched.
-   Any failure after service shutdown restores the previous release symlink,
-   worker tag and service; this includes a failed loopback health check.
-   The lease guard also removes the admission marker if its parent dies without
-   running shell cleanup. GitHub then verifies the public HTTPS path too.
+4. The root-owned activator verifies the execution compatibility number of
+   both releases and the running executor. Compatible releases coexist: no
+   deployment announcement, global run lease or admission freeze is taken.
+   The first transition from a legacy web-owned coordinator, a rollback to
+   one, or a changed compatibility number uses the full drain described below.
+5. It prepares the new release and its revision-specific worker image. Each
+   executor is an independent `atoma-executor@<sha>.service`, running from
+   `/home/atoma/releases/<sha>` with that revision's worker image. Updating or
+   stopping `atoma.service` never stops an executor's process group.
+6. After the candidate executor passes its health check, the activator
+   atomically switches the private admission socket and `/home/atoma/current`,
+   then starts the new web/API/MCP process. New runs use the selected executor;
+   runs already admitted retain their original code, image, lease, finalizer
+   and accounting. Queued requests retain their existing durable run rows.
+7. Until the web health check succeeds, the previous executor stays available
+   for rollback even if idle. After success it stops admitting work and exits
+   when its runs, finalization, naming and pending host work finish. Release
+   retention protects running processes and their immutable directories.
+8. Activation failure restores the previous release, admission socket, worker
+   tag and web service. A candidate that already admitted work drains rather
+   than being killed. The optional mender refresh runs as a separate systemd
+   job after activation and holds no product run lease.
+
+The web can briefly disconnect while its process restarts. Project task/run
+identity and cancellation survive through the existing product store, so clients
+reconnect and read the same run; they never need to start it again. Ephemeral
+preview grants still fail closed on web restart and members reopen the preview.
+Atoma Compute device connections go directly from nginx to the independent
+executor gateway, so a web restart does not disconnect executing devices.
+
+### Compatibility and exceptional maintenance
+
+`src/contracts/executorVersion.ts` owns `EXECUTOR_COMPATIBILITY`. Increment it
+before shipping an incompatible shared-store migration, lease, executor RPC or
+commons-writer contract. During ordinary coexistence, schema changes must be
+additive and readable by both generations; never remove or reinterpret a field
+an old executor can still use. Rollback obeys the same compatibility check.
+
+The legacy/incompatible path closes new admissions with the existing deployment
+pending row, lets running work finish, then takes the global lease and freezes
+writes for activation. `ATOMA_DEPLOY_WAIT_SECONDS` defaults to 5400. A deadline or
+unverifiable surviving work refuses with exit 75. This maintenance path remains
+necessary for incompatible writers, rather than being imposed on every release.
+
+### Enable independent executors on an existing host
+
+After deploying and verifying a release containing the executor:
+
+```bash
+sudo install -o root -g root -m 0755 /home/atoma/current/deploy/host-deploy.sh /usr/local/sbin/atoma-deploy
+sudo install -o root -g root -m 0644 /home/atoma/current/scripts/prune-deploy-releases.mjs /usr/local/sbin/atoma-prune-releases.mjs
+sudo /home/atoma/current/deploy/install-executor-proxy.sh
+```
+
+The proxy installer validates nginx and reloads it without closing existing
+connections. Its upstream falls back to the legacy web gateway until the first
+executor is active. For another nginx site layout, include
+`deploy/compute-executor-location.nginx.conf` inside the HTTPS server and install
+`deploy/compute-executor.nginx.conf` at HTTP scope. The public compute socket
+exposes only the authenticated device protocol; the execution RPC socket stays
+in a separate service-owned `0700` directory and is never a workload mount.
+
+Rerun the deployment job for that verified revision. This first activation still
+drains legacy work, installs the independent executor unit and web drop-in, and
+switches admission. Subsequent compatible deployments use the coexistence path.
+A same-revision redeploy never reinstalls an executing generation's dependencies
+or rebuilds its worker image in place.
 
 Runtime stores, traces, skills, workspaces and secrets never enter a release
 directory. The supported host layout puts every application byte on the
@@ -397,32 +439,29 @@ prepare correction PRs. Both reserve the existing machine-global run slot;
 Docker limits the executable checks independently of the service's memory cap.
 A person merges, and the merge follows the deployment path above.
 
-The activator moves that clone to the deployed revision at the END of every
-deployment — fetch, checkout, `npm ci` only when the lockfile or the Node
-version changed since the last install, the release's own compiled `dist`
-(built by CI from the same revision and verified by digest, so what `tsc`
-would write), the `atoma-mender:local` image, the unit file, restart — after
-the application is healthy and outside the rollback section. That rebuild
-used to take about 90 s of every deployment, mostly `npm ci` and `tsc` on the
-4 GB host. A refresh failure leaves the mender STOPPED on its previous
-checkout and fails the deployment run so it is seen, but never restores the
-previous application generation. A host without a mender (no clone at
-`ATOMA_DEPLOY_MENDER_CHECKOUT`, no `ATOMA_DEPLOY_MENDER_ENV`) skips the phase.
-`install-mender.sh` remains the first installation and the manual recovery.
-The activator itself is root-owned and installed by hand: after changing
-`deploy/host-deploy.sh` or `scripts/prune-deploy-releases.mjs`, reinstall both
-root-owned files from the verified release using the installation commands above.
+After application health verification, the activator schedules a separate
+root-owned `atoma-mender-refresh-<sha>` systemd job. Refreshes serialize on their
+own lock and resolve the current release after acquiring it, so a queued job
+cannot pin the clone to an obsolete revision. The job gracefully stops the
+mender, fetches/checks out the deployed revision, reinstalls only when the
+lockfile or Node version changed, copies the CI-built `dist`, rebuilds the
+mender image and restarts its unit. It never reserves the product run slot.
+A refresh failure appears in that systemd job and leaves the mender stopped;
+it cannot roll back the healthy application. A host without a mender skips it.
+`install-mender.sh` remains the first installation and manual recovery path.
 
-After application health verification the write freeze is lifted at once, so the
-new generation takes logins, settings and previews during what follows; the run
-lease stays with the guard, so no run starts beside the mender's rebuild. While
-the deployment lock and drain lease are still held, release retention keeps the five most recent release directories,
-the active and previous generations, and any release referenced by a process,
-top-level deployment symlink, or nested mount. Only obsolete directories with a
-matching `REVISION` receipt are removed. Runtime state and Docker images are not
-part of this cleanup. An unreadable process inventory or invalid receipt skips
-cleanup with a warning; it does not roll back a healthy application. Watch these
-warnings and disk usage: retention bounds old code, not growing runtime data.
+The activator and pruning helper are root-owned trust anchors. After changing
+`deploy/host-deploy.sh` or `scripts/prune-deploy-releases.mjs`, reinstall them from
+the verified release. The activator installs the verified executor template and
+mender-refresh helper itself.
+
+Release retention runs after activation, under the deployment lock. It keeps
+five recent releases, current/previous releases, and every release referenced
+by a process, top-level symlink or nested mount. An executor's cwd and command
+line protect its release for its entire lifetime. Only obsolete directories
+with matching revision receipts are removed; stores and Docker images are
+outside this cleanup. An unreadable inventory refuses cleanup with a warning,
+without rolling back a healthy application.
 
 Follow [the production supervisor guide](supervisor-codex-production.md) for
 installation, GitHub configuration cleanup, and end-to-end verification.
@@ -451,32 +490,17 @@ deployments without deleting credentials.
 
 ## Operational boundaries
 
-- The first automatic cutover from a version that predates the deployment
-  marker must be performed in a manually drained window. Every later version
-  closes new write admission before taking the run lease.
-- Busy runtime state is WAITED FOR, never cancelled or recovered. Refusing at
-  once turned every deployment into a bet on a gap between two pieces of work:
-  on 2026-09-27 the mender chained mends back to back and two deployments in a
-  row were refused, and at a steady run rate the slot never frees at all. A
-  member who starts a run while a deployment waits is told the instance is
-  about to update; with one run slot, that start would have been refused
-  behind the running work anyway. When the wait reaches its deadline the
-  deployment fails with exit 75: re-run the completed workflow after the work
-  finishes. `ATOMA_DEPLOY_WAIT_SECONDS=0` restores the immediate refusal.
-- The guard runs from the release being replaced, so the first deployment of a
-  release that learned to wait still refuses busy work, and waiting also
-  needs the activator installed from such a release (reinstall it as above).
-  A drain log that never says `drain: waiting up to …` comes from an
-  activator that predates waiting.
-- The deploy workflow's job timeout (130 minutes) covers the default wait plus
-  the 30 minutes the activation and the mender rebuild always had; raising
-  `ATOMA_DEPLOY_WAIT_SECONDS` means raising that timeout with it. Waiting also
-  needs the service user to be able to write the directory of
-  `ATOMA_DEPLOY_LOCK_PATH`, because the guard writes the freeze itself; when it
-  cannot, the activator says so and freezes and refuses as before.
+- Ordinary compatible deployments do not wait for running user work. The
+  legacy/incompatible maintenance path waits rather than cancelling or
+  recovering busy work, refuses at its deadline, and keeps the original
+  ownership/fingerprint rules. Reinstall the root-owned activator when its
+  implementation changes; deploying application code alone cannot update it.
+- The workflow's 130-minute limit still covers exceptional maintenance with
+  the default 5400-second drain. Raising that drain requires adjusting the
+  workflow limit too. An ordinary coexistence deployment uses neither wait.
 - The worker image follows the control-plane revision. The preview image does
   not: production preview configuration is pinned to a registry digest by
   contract, so publishing and rotating that digest remains a separate release
   operation.
-- Releases are retained under `/home/atoma/releases`. Pruning is deliberately
-  not automated until backup/retention policy is accepted.
+- Releases are retained under `/home/atoma/releases`; automatic retention
+  protects every generation still referenced by a live process.

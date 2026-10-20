@@ -224,7 +224,8 @@ export class ConnectorOAuth {
     const provider = new RowOAuthProvider(this.options.store, row, encryption, this.options.redirectUrl, { state, ignoreStoredTokens: true, now: this.now });
     let result: string;
     try {
-      result = await auth(provider, { serverUrl: row.url, ...(row.oauth_scope ? { scope: row.oauth_scope } : {}), fetchFn: this.options.fetch });
+      result = await this.options.store.serializeOAuth(row.org_id, row.server_id, () =>
+        auth(provider, { serverUrl: row.url, ...(row.oauth_scope ? { scope: row.oauth_scope } : {}), fetchFn: this.options.fetch }));
     } catch (error) {
       throw new ConnectorAuthorizationError(describeAuthError(error));
     }
@@ -264,7 +265,8 @@ export class ConnectorOAuth {
     const provider = new RowOAuthProvider(this.options.store, row, this.encryption(), this.options.redirectUrl,
       { verifier: pending.verifier, ignoreStoredTokens: true, now: this.now });
     try {
-      const result = await auth(provider, { serverUrl: row.url, authorizationCode: input.code, fetchFn: this.options.fetch });
+      const result = await this.options.store.serializeOAuth(row.org_id, row.server_id, () =>
+        auth(provider, { serverUrl: row.url, authorizationCode: input.code, fetchFn: this.options.fetch }));
       if (result !== 'AUTHORIZED') throw new ConnectorAuthorizationError('The server did not issue tokens.');
     } catch (error) {
       if (error instanceof ConnectorAuthorizationError) throw error;
@@ -292,7 +294,8 @@ export class ConnectorOAuth {
   accessToken(row: ConnectorRow, validUntil: number): Promise<AccessResult> {
     const id = row.server_id;
     const previous = this.refreshing.get(id) ?? Promise.resolve();
-    const next = previous.then(() => this.accessTokenNow(row.org_id, id, validUntil))
+    const next = previous.then(() => this.options.store.serializeOAuth(row.org_id, id,
+      () => this.accessTokenNow(row.org_id, id, validUntil)))
       .catch((): AccessResult => ({ ok: false, reason: 'authorization_failed' }));
     const tail = next.then(() => undefined);
     this.refreshing.set(id, tail);

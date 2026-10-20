@@ -148,6 +148,7 @@ async function fakeCustomer(): Promise<{ server: Server; state: FakeState }> {
 let dir: string;
 let customer: Awaited<ReturnType<typeof fakeCustomer>>;
 let service: ConnectorService;
+let peerService: ConnectorService;
 let events: PlatformEventInput[];
 let dbFile: string;
 let clock: number;
@@ -165,7 +166,7 @@ beforeEach(async () => {
   customer = await fakeCustomer();
   events = [];
   clock = Date.now();
-  service = new ConnectorService({
+  const options = {
     store: ConnectorStore.open(dbFile, { loopbackForTests: true }),
     encryption: { key: createSecretKey(randomBytes(32)), keyId: 'k1' },
     fetch: connectorFetch({ loopbackForTests: true }),
@@ -174,7 +175,9 @@ beforeEach(async () => {
     projectInOrg: (orgId, projectId) => orgId === 'org' && projectId === 'proj',
     loopbackForTests: true,
     now: () => clock,
-  });
+  } satisfies ConstructorParameters<typeof ConnectorService>[0];
+  service = new ConnectorService(options);
+  peerService = new ConnectorService({ ...options, store: ConnectorStore.open(dbFile, { loopbackForTests: true }) });
 });
 
 afterEach(async () => {
@@ -269,7 +272,7 @@ describe('a customer MCP server behind OAuth', () => {
     // Ten minutes later, two runs need a token valid past the current one's expiry.
     clock += 10 * 60_000;
     const far = clock + 2 * 3600_000;
-    const [a, b] = await Promise.all([service.launchFor('org', 'proj', far), service.launchFor('org', 'proj', far)]);
+    const [a, b] = await Promise.all([service.launchFor('org', 'proj', far), peerService.launchFor('org', 'proj', far)]);
     expect(a!.connectors[0]!.status).toBe('ready');
     expect(b!.connectors[0]!.status).toBe('ready');
     // No token of this server lives two hours (expires_in 3600): the first launch

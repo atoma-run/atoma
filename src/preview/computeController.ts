@@ -4,14 +4,13 @@ import type { ProjectStore } from '../projects/store.js';
 import type { ComputeDeviceStore } from '../projects/computeDevices.js';
 import type { ComputeConnection } from '../projects/computeConnection.js';
 import type { ComputeSession } from '../contracts/computeDevice.js';
-import type { PreviewClassification } from '../contracts/preview.js';
 import type { ComputePreviewIdentity } from '../contracts/computePreview.js';
 import { openComputePreviewStream } from './computeStream.js';
+import type { ExecutorPreviewStart } from '../contracts/executor.js';
 
 export interface RemotePreviewRuntime {
   owns(orgId: string, projectId: string, runId: string): boolean;
-  start(input: { orgId: string; projectId: string; runId: string; generation: number; source: 'delivered' | 'in-flight';
-    classification?: PreviewClassification; mode: 'app' | 'terminal'; copyMaxBytes: number; allowedHosts: readonly string[]; attribution: boolean; hardMs: number }): Promise<{
+  start(input: Omit<ExecutorPreviewStart, 'allowedHosts'> & { allowedHosts: readonly string[] }): Promise<{
       connect(): Promise<Duplex>; imageDigest: string; runtime: 'runc';
     }>;
   stop(orgId: string, runId: string, generation: number): Promise<void>;

@@ -71,8 +71,10 @@ Neighbours:
 
 ## Where each stage runs
 
-- Production hosts the sentinel and resident read-only analyst inside the viz
-  server (`ATOMA_VIZ_ANALYST=1`), and a SEPARATE `atoma-mender.service` over a
+- Production hosts the sentinel in the web process. With independent execution,
+  the selected executor hosts the resident analyst (`ATOMA_VIZ_ANALYST=1`) and
+  assayer, drains their in-flight work, and admits no new background job after
+  demotion; the legacy path still hosts them in viz. A SEPARATE `atoma-mender.service` uses a
   dedicated clone. This shared-host arrangement was explicitly selected by the
   operator on 2026-09-06; it replaces the GitHub Actions mender.
 - Verdicts and mend records persist under `ATOMA_SUPERVISOR_DIR`, outside

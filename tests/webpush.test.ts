@@ -121,6 +121,7 @@ describe('sendWebPush', () => {
     expect(result).toEqual({ ok: true, status: 201, gone: false });
     expect(fetchImpl).toHaveBeenCalledOnce();
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
     expect(url).toBe('https://push.example.net/send/abc123');
     expect(init.method).toBe('POST');
     const headers = init.headers as Record<string, string>;

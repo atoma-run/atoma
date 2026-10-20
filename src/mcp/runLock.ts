@@ -631,7 +631,7 @@ export function acquireRunLeaseWithoutRecovery(
  * under BEGIN IMMEDIATE with fingerprint checks. An absent/torn store is
  * "nothing to report", never a throw in a status poll.
  */
-export function peekRunLeases(path = mcpRunLockPath()): RunLockOwner[] {
+export function peekRunLeases(path = mcpRunLockPath(), liveOnly = false): RunLockOwner[] {
   if (!existsSync(path)) return [];
   let db: Database.Database;
   try {
@@ -641,7 +641,7 @@ export function peekRunLeases(path = mcpRunLockPath()): RunLockOwner[] {
   }
   try {
     const rows = db.prepare('SELECT * FROM mcp_run_lease ORDER BY singleton').all() as LeaseRow[];
-    return rows.map(toOwner);
+    return rows.filter(row => !liveOnly || !ownerIsGone(row)).map(toOwner);
   } catch {
     // Missing table (a foreign file at this path) or a torn store: a status
     // reader has nothing to say about it.

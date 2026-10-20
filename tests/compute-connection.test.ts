@@ -112,6 +112,16 @@ it('authenticates over TLS and round-trips the private workspace command with a 
   expect(await result).toEqual({ method: 'prepare', value: null });
 });
 
+it('keeps an admitted device connected during preparation while idle devices move to the new executor', async () => {
+  const f = await connected();
+  expect(f.peer.executing()).toBe(false); // Assigned in SQLite, not bound to the tool driver yet.
+  gateway.closeIdle(session => session.deviceId === f.session.deviceId);
+  const heartbeat = message(f.ws); f.ws.send(JSON.stringify({ kind: 'heartbeat', id: 1 }));
+  expect(await heartbeat).toEqual({ kind: 'heartbeat', id: 1 });
+  const closed = once(f.ws, 'close'); gateway.closeIdle(); await closed;
+  expect(f.ws.readyState).toBe(WebSocket.CLOSED);
+});
+
 it.each(['disconnect', 'revocation', 'generation', 'method', 'request-id'] as const)('fences pending effects on %s without replay or slot release', async failure => {
   const f = await connected(), command = message(f.ws);
   const result = f.peer.request(f.execution, { method: 'restart' });

@@ -1,0 +1,23 @@
+[Unit]
+Description=Atoma run executor generation %i
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+RequiresMountsFor=/home/atoma
+
+[Service]
+Type=simple
+User=atoma
+Group=atoma
+WorkingDirectory=/home/atoma/releases/%i
+EnvironmentFile=/home/atoma/config/atoma.env
+# ExecStart overrides EnvironmentFile too: an old host setting must never
+# redirect a generation to the mutable current release or worker tag.
+ExecStart=/usr/bin/env ATOMA_RUN_EXECUTOR=1 ATOMA_EXECUTOR_SOCKET=/home/atoma/executors/active.sock ATOMA_EXECUTOR_OWN_SOCKET=/home/atoma/executors/%i.sock ATOMA_EXECUTOR_COMPUTE_SOCKET=/home/atoma/compute/%i.sock ATOMA_WORKER_IMAGE=atoma-worker:%i /usr/bin/node /home/atoma/releases/%i/dist/viz/server.js --host 127.0.0.1 --port 0
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=30
+UMask=0077
+
+# Independent of atoma.service: stopping the web never stops this cgroup.

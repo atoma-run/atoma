@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
 const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8');
 const hostDeploy = readFileSync('deploy/host-deploy.sh', 'utf8');
+const menderRefresh = readFileSync('deploy/refresh-mender.sh', 'utf8');
 const sshCommand = readFileSync('deploy/ssh-command.sh', 'utf8');
 const service = readFileSync('deploy/atoma.service', 'utf8');
 const deployEnv = readFileSync('deploy/deploy.env.example', 'utf8');
@@ -14,6 +15,80 @@ const preflight = readFileSync('src/cli/deploy-preflight.ts', 'utf8');
 const releaseSmoke = readFileSync('scripts/release-smoke.mjs', 'utf8');
 
 describe('post-CI deployment pipeline', () => {
+  it.each([
+    { old: 1, next: 1, healthy: true, active: true, rolling: 1 },
+    { old: 1, next: 2, healthy: true, active: true, rolling: 0 },
+    { old: 2, next: 1, healthy: true, active: true, rolling: 0 },
+    { old: 1, next: 1, healthy: false, active: true, rolling: 0 },
+    { old: 1, next: 1, healthy: true, active: false, rolling: 0 },
+  ])('selects coexistence only with compatible live executors: %j', scenario => {
+    const root = mkdtempSync(join(tmpdir(), 'executor-compat-'));
+    try {
+      const old = join(root, 'old'), next = join(root, 'next'), executors = join(root, 'executors');
+      mkdirSync(executors);
+      for (const [release, protocol] of [[old, scenario.old], [next, scenario.next]] as const) {
+        mkdirSync(join(release, 'dist/contracts'), { recursive: true }); mkdirSync(join(release, 'dist/cli'));
+        writeFileSync(join(release, 'package.json'), '{"type":"module"}');
+        writeFileSync(join(release, 'dist/contracts/executorVersion.js'), `export const EXECUTOR_COMPATIBILITY = ${protocol};`);
+        writeFileSync(join(release, 'dist/cli/executor.js'), `process.exit(${scenario.healthy ? 0 : 1});`);
+      }
+      if (scenario.active) symlinkSync(join(executors, `${'a'.repeat(40)}.sock`), join(executors, 'active.sock'));
+      const begin = hostDeploy.indexOf('executor_protocol() {'), end = hostDeploy.indexOf('\n# The guard runs', begin);
+      const ran = spawnSync('bash', ['-c', `set -Eeuo pipefail
+OLD_RELEASE="$1"; TARGET_RELEASE="$2"; EXECUTOR_ROOT="$3"; ACTIVE_EXECUTOR="$3/active.sock"
+OLD_EXECUTOR=""; ROLLING=0; TARGET_EXECUTOR=0
+run_as_service() { local cwd="$1"; shift; (cd "$cwd" && "$@"); }
+run_as_service_with_app_env() { :; }
+fail() { echo "$*" >&2; exit 1; }
+${hostDeploy.slice(begin, end)}
+echo "mode=$ROLLING"`, 'test', old, next, executors], { encoding: 'utf8' });
+      expect(ran.status, ran.stderr).toBe(0);
+      expect(ran.stdout).toContain(`mode=${scenario.rolling}`);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it('renders immutable executor paths and reboot wiring without expanding host path data', () => {
+    const root = mkdtempSync(join(tmpdir(), 'executor-unit-'));
+    try {
+      const unit = join(root, 'unit'), dropin = join(root, 'dropin'), revision = 'b'.repeat(40);
+      writeFileSync(unit, readFileSync('deploy/atoma-executor@.service'));
+      const begin = hostDeploy.indexOf("<<'PY'\n") + 7, end = hostDeploy.indexOf('\nPY', begin);
+      const hostRoot = `${root}/literal $HOME % paths`;
+      const ran = spawnSync('python3', ['-', unit, hostRoot, `${hostRoot}/config/atoma.env`, 'atoma', 'atoma', dropin, revision], {
+        encoding: 'utf8', input: hostDeploy.slice(begin, end),
+      });
+      expect(ran.status, ran.stderr).toBe(0);
+      const rendered = readFileSync(unit, 'utf8');
+      expect(rendered).toContain('literal $$HOME %% paths/releases/%i/dist/viz/server.js');
+      expect(rendered).toContain('ATOMA_WORKER_IMAGE=atoma-worker:%i');
+      expect(rendered).toContain('KillMode=control-group');
+      expect(rendered).not.toMatch(/^(?:PartOf|BindsTo|Requires)=atoma\.service/m);
+      expect(readFileSync(dropin, 'utf8')).toContain(`Wants=atoma-executor@${revision}.service`);
+      expect(readFileSync(dropin, 'utf8')).toContain('Environment="ATOMA_EXECUTOR_SOCKET=');
+      expect(hostDeploy.indexOf('touch "${OLD_EXECUTOR}.retire"')).toBeGreaterThan(hostDeploy.indexOf('fail "new generation failed health verification"'));
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it.each([0, 1])('stops old writers only after verified idle on maintenance, rolling=%i', rolling => {
+    const root = mkdtempSync(join(tmpdir(), 'executor-drain-'));
+    try {
+      const generation = 'c'.repeat(40), log = join(root, 'calls');
+      writeFileSync(join(root, `${generation}.sock.json`), '{}');
+      const begin = hostDeploy.indexOf('if [[ "${ROLLING}" -eq 0 && -n "${OLD_EXECUTOR}" ]]; then');
+      const end = hostDeploy.indexOf('\nsystemctl stop "${SERVICE_NAME}"', begin);
+      const ran = spawnSync('bash', ['-c', `set -Eeuo pipefail
+ROLLING="$1"; EXECUTOR_ROOT="$2"; OLD_EXECUTOR=present; OLD_RELEASE=old; EXECUTOR_DRAIN_DEADLINE=$((SECONDS + 5)); calls=0
+run_as_service() { calls=$((calls + 1)); echo "check $calls" >> "$EXECUTOR_ROOT/calls"; (( calls > 1 )); }
+systemctl() { echo "$*" >> "$EXECUTOR_ROOT/calls"; }
+sleep() { :; }
+fail() { exit 1; }; refuse() { exit 75; }
+${hostDeploy.slice(begin, end)}`, 'test', String(rolling), root], { encoding: 'utf8' });
+      expect(ran.status, ran.stderr).toBe(0);
+      if (rolling) expect(() => readFileSync(log)).toThrow();
+      else expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual(['check 1', 'check 2', `stop atoma-executor@${generation}.service`]);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
   it('packages the exact verified main revision and no runtime state', () => {
     expect(ci).toContain('root="atoma-${GITHUB_SHA}"');
     expect(ci).toContain('printf \'%s\\n\' "${GITHUB_SHA}" > "deployment/${root}/REVISION"');
@@ -124,20 +199,21 @@ describe('post-CI deployment pipeline', () => {
     // mender failure can never restore the previous application generation.
     const healthy = hostDeploy.indexOf('fail "new generation failed health verification"');
     const closed = hostDeploy.lastIndexOf('ACTIVATION_STARTED=0');
-    const refresh = hostDeploy.indexOf('\nrefresh_mender\n');
+    const refresh = hostDeploy.indexOf('systemd-run --quiet --collect');
     expect(healthy).toBeGreaterThan(0);
     expect(closed).toBeGreaterThan(healthy);
     expect(refresh).toBeGreaterThan(closed);
+    expect(hostDeploy).toContain('systemd-run --quiet --collect');
     // A host without a mender skips; a present one is moved to THIS revision,
     // rebuilt with its image and unit, and restarted.
-    expect(hostDeploy).toContain('echo "mender: not installed on this host');
-    expect(hostDeploy).toContain('git checkout --quiet --detach "$MENDER_REVISION"');
-    expect(hostDeploy).toContain('docker build -f docker/mender.Dockerfile -t atoma-mender:local .');
-    expect(hostDeploy).toContain('"/etc/systemd/system/${MENDER_SERVICE}"');
-    expect(hostDeploy).toContain('systemctl start "${MENDER_SERVICE}"');
+    expect(menderRefresh).toContain('echo "mender: not installed on this host');
+    expect(menderRefresh).toContain('git checkout --quiet --detach "$MENDER_REVISION"');
+    expect(menderRefresh).toContain('docker build -f docker/mender.Dockerfile -t atoma-mender:local .');
+    expect(menderRefresh).toContain('"/etc/systemd/system/${MENDER_SERVICE}"');
+    expect(menderRefresh).toContain('systemctl start "${MENDER_SERVICE}"');
     // Failure is reported, not hidden, and names the application as deployed.
-    expect(hostDeploy).toContain('(the application itself is deployed)');
-    expect(hostDeploy).toContain('ATOMA_DEPLOY_MENDER_CHECKOUT');
+    expect(menderRefresh).toContain('(the application itself is deployed)');
+    expect(menderRefresh).toContain('ATOMA_DEPLOY_MENDER_CHECKOUT');
     expect(readFileSync('deploy/deploy.env.example', 'utf8')).toContain('ATOMA_DEPLOY_MENDER_ENV=');
   });
 
@@ -187,7 +263,7 @@ describe('post-CI deployment pipeline', () => {
     const healthy = hostDeploy.indexOf('echo "deployed ${REVISION} to ${SERVICE_NAME}"');
     const lifted = hostDeploy.indexOf('rm -f -- "${MARKER_PATH}"', healthy);
     expect(lifted).toBeGreaterThan(healthy);
-    expect(lifted).toBeLessThan(hostDeploy.indexOf('\nrefresh_mender\n'));
+    expect(lifted).toBeLessThan(hostDeploy.indexOf('systemd-run --quiet --collect'));
     // The job outlives the longest wait plus activation and mender refresh.
     expect(workflow).toContain('timeout-minutes: 130');
     expect(deployEnv).toContain('ATOMA_DEPLOY_WAIT_SECONDS=5400');
@@ -197,9 +273,8 @@ describe('post-CI deployment pipeline', () => {
     // 2026-09-27: the install, the smoke and the image build ran with the
     // service stopped — about 30 s of outage on every deployment.
     const prepare = hostDeploy.indexOf('if [[ "${TARGET_RELEASE}" != "${OLD_RELEASE}" ]]; then\n  prepare_release\n');
-    const stop = hostDeploy.indexOf(
-      'ACTIVATION_STARTED=1\nsystemctl stop "${SERVICE_NAME}"\n(( PREPARED )) || prepare_release\n'
-    );
+    const stop = hostDeploy.indexOf('\nsystemctl stop "${SERVICE_NAME}"', hostDeploy.indexOf('ACTIVATION_STARTED=1'));
+    expect(hostDeploy.indexOf('(( PREPARED )) || prepare_release', stop)).toBeGreaterThan(stop);
     expect(prepare).toBeGreaterThan(0);
     expect(stop).toBeGreaterThan(prepare);
     const body = hostDeploy.slice(hostDeploy.indexOf('prepare_release() {'), prepare);
@@ -221,7 +296,7 @@ describe('post-CI deployment pipeline', () => {
       expect(start).toBeGreaterThan(0);
       return script.slice(start, end);
     };
-    for (const script of [hostDeploy, install]) {
+    for (const script of [menderRefresh, install]) {
       for (const [before, after, status] of [
         ['https://github.com/mgtf/atoma.git', 'https://github.com/atoma-run/atoma.git', 0],
         ['https://github.com/mgtf/atoma', 'https://github.com/atoma-run/atoma.git', 0],
@@ -246,7 +321,7 @@ describe('post-CI deployment pipeline', () => {
   it('rebuilds the mender from the verified release, reinstalling only for a changed lockfile', () => {
     // 2026-09-27: `npm ci` and `tsc` took about 90 s of every deployment on
     // the 4 GB host, with the run lease held throughout.
-    const refresh = hostDeploy.slice(hostDeploy.indexOf('refresh_mender() {'), hostDeploy.indexOf('\nrefresh_mender\n'));
+    const refresh = menderRefresh.slice(menderRefresh.indexOf('refresh_mender() {'), menderRefresh.indexOf('\nrefresh_mender\n'));
     expect(refresh).toContain('MENDER_RELEASE_DIST="${TARGET_RELEASE}/dist"');
     expect(refresh).toContain('cp -a "$MENDER_RELEASE_DIST" dist');
     expect(refresh).not.toContain('npx tsc');

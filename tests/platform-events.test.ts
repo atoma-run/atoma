@@ -55,6 +55,22 @@ function login(overrides: Partial<PlatformEventInput> = {}): PlatformEventInput 
 }
 
 describe('platform event contract', () => {
+  it('follows committed foreign-process rows once, without replaying the producer push bus', async () => {
+    const { log, dbPath } = openLogAt();
+    const other = PlatformEventLog.open(dbPath);
+    const persisted: number[] = [], local: number[] = [];
+    other.append(login()); // Rows before subscription are not transient notifications.
+    const stopLocal = log.subscribe(event => { local.push(event.seq); });
+    const stop = log.subscribePersisted(event => { persisted.push(event.seq); });
+    try {
+      const foreign = other.append(login()), own = log.append(login());
+      await vi.waitFor(() => expect(persisted).toEqual([foreign!.seq, own!.seq]));
+      expect(local).toEqual([own!.seq]);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      expect(persisted).toEqual([foreign!.seq, own!.seq]);
+    } finally { stop(); stopLocal(); }
+  });
+
   it('assigns exactly one severity to every kind', () => {
     for (const kind of platformEventKindSchema.options) {
       expect(severityForKind(kind), kind).toBe(PLATFORM_EVENT_SEVERITY[kind]);

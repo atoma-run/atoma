@@ -184,6 +184,10 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 
 ${projectRunsTable('project_runs')}
+CREATE TABLE IF NOT EXISTS project_run_cancel_requests (
+  project_run_id TEXT PRIMARY KEY REFERENCES project_runs(project_run_id),
+  requested_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS project_publications (
   publication_id                TEXT PRIMARY KEY,
   project_run_id                TEXT NOT NULL UNIQUE,
@@ -2918,7 +2922,7 @@ END;
    * and validation all apply; a row that races a concurrent transition is
    * skipped, not fatal. Queued rows remain durable and are dispatched after boot.
    */
-  reconcileInterrupted(errorInput: string): { runs: number; publications: number } {
+  reconcileInterrupted(errorInput: string, protectedRunIds: ReadonlySet<string> = new Set()): { runs: number; publications: number } {
     const error = boundedError(errorInput) ?? 'interrupted';
     let runs = 0;
     const orphanRuns = this.db
@@ -2928,6 +2932,7 @@ END;
       )
       .all() as { org_id: string; project_run_id: string; status: string }[];
     for (const row of orphanRuns) {
+      if (protectedRunIds.has(row.project_run_id)) continue;
       try {
         this.transitionProjectRun({
           orgId: row.org_id,
@@ -2944,10 +2949,11 @@ END;
     let publications = 0;
     const orphanPublications = this.db
       .prepare(
-        `SELECT org_id, publication_id FROM project_publications WHERE status = 'publishing'`
+        `SELECT org_id, publication_id, project_run_id FROM project_publications WHERE status = 'publishing'`
       )
-      .all() as { org_id: string; publication_id: string }[];
+      .all() as { org_id: string; publication_id: string; project_run_id: string }[];
     for (const row of orphanPublications) {
+      if (protectedRunIds.has(row.project_run_id)) continue;
       try {
         this.transitionPublication({
           orgId: row.org_id,
@@ -2962,6 +2968,21 @@ END;
       }
     }
     return { runs, publications };
+  }
+
+  requestRunCancellation(orgId: string, runId: string): void {
+    this.db.prepare(`INSERT OR IGNORE INTO project_run_cancel_requests
+      SELECT project_run_id, ? FROM project_runs WHERE org_id = ? AND project_run_id = ? AND status = 'running'`)
+      .run(new Date().toISOString(), orgId, runId);
+  }
+
+  runCancellationRequested(orgId: string, runId: string): boolean {
+    return !!this.db.prepare(`SELECT 1 FROM project_run_cancel_requests c JOIN project_runs r USING(project_run_id)
+      WHERE r.org_id = ? AND r.project_run_id = ?`).get(orgId, runId);
+  }
+
+  hasRunningRunForPrincipal(principalId: string): boolean {
+    return !!this.db.prepare("SELECT 1 FROM project_runs WHERE requested_by_principal_id = ? AND status = 'running' LIMIT 1").get(principalId);
   }
 
   close(): void {

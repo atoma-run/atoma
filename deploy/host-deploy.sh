@@ -79,7 +79,7 @@ valid_absolute_path "${MENDER_ENV}" || fail "ATOMA_DEPLOY_MENDER_ENV must be a n
 [[ -f "${APP_ENV}" && ! -L "${APP_ENV}" ]] || fail "application environment is missing or symlinked: ${APP_ENV}"
 id "${SERVICE_USER}" >/dev/null 2>&1 || fail "service user does not exist: ${SERVICE_USER}"
 
-for command in node npm docker curl systemctl runuser tar sha256sum realpath getent flock findmnt soffice timeout; do
+for command in node npm docker curl systemctl systemd-run python3 runuser tar sha256sum realpath getent flock findmnt soffice timeout; do
   command -v "${command}" >/dev/null 2>&1 || fail "required command is missing: ${command}"
 done
 
@@ -94,6 +94,14 @@ DEPLOY_ROOT="$(realpath -e "${DEPLOY_ROOT}")"
 [[ "${DEPLOY_ROOT}" != "/" ]] || fail "resolved deployment root cannot be /"
 RELEASES="${DEPLOY_ROOT}/releases"
 CURRENT="${DEPLOY_ROOT}/current"
+EXECUTOR_ROOT="${DEPLOY_ROOT}/executors"
+ACTIVE_EXECUTOR="${EXECUTOR_ROOT}/active.sock"
+OWN_EXECUTOR="${EXECUTOR_ROOT}/${REVISION}.sock"
+COMPUTE_ROOT="${DEPLOY_ROOT}/compute"
+OLD_EXECUTOR=""
+ROLLING=0
+TARGET_EXECUTOR=0
+EXECUTOR_STARTED=0
 SERVICE_HOME="$(getent passwd "${SERVICE_USER}" | cut -d: -f6)"
 SERVICE_GROUP="$(id -gn "${SERVICE_USER}")"
 [[ -n "${SERVICE_HOME}" && -d "${SERVICE_HOME}" ]] || fail "service user has no home directory"
@@ -106,6 +114,10 @@ exec 9>"${DEPLOY_ROOT}/.deployment.lock"
 flock -n 9 || fail "another deployment is already active"
 
 WORK_DIR="$(mktemp -d "${DEPLOY_ROOT}/.incoming-${REVISION}.XXXXXX")"
+EXECUTOR_DROPIN="/etc/systemd/system/${SERVICE_NAME}.d/executor.conf"
+if [[ -f "${EXECUTOR_DROPIN}" ]]; then
+  cp -a "${EXECUTOR_DROPIN}" "${WORK_DIR}/previous-executor.conf"
+fi
 BUNDLE="${WORK_DIR}/atoma-${REVISION}.tar.gz"
 ARCHIVE_ROOT="atoma-${REVISION}"
 TARGET_RELEASE="${RELEASES}/${REVISION}"
@@ -121,6 +133,34 @@ restore_previous_generation() {
   [[ -n "${OLD_RELEASE:-}" ]] || return 0
   echo "deployment activation failed; restoring ${OLD_REVISION}" >&2
   systemctl stop "${SERVICE_NAME}" || true
+  if [[ "${ROLLING}" -eq 0 && "${EXECUTOR_STARTED}" -eq 1 ]]; then
+    # The global guard prevented every admission in an incompatible/initial
+    # activation. Stop this idle candidate before old writers start again.
+    systemctl stop "atoma-executor@${REVISION}.service" || true
+  fi
+  if [[ -f "${WORK_DIR}/previous-executor.conf" ]]; then
+    cp -a "${WORK_DIR}/previous-executor.conf" "${EXECUTOR_DROPIN}"
+  else
+    rm -f -- "${EXECUTOR_DROPIN}"
+  fi
+  systemctl daemon-reload
+  if [[ -n "${OLD_EXECUTOR}" ]]; then
+    rm -f -- "${EXECUTOR_ROOT}/.rollback.sock"
+    ln -s "${OLD_EXECUTOR}" "${EXECUTOR_ROOT}/.rollback.sock"
+    mv -Tf "${EXECUTOR_ROOT}/.rollback.sock" "${ACTIVE_EXECUTOR}"
+    ln -sfn "${COMPUTE_ROOT}/$(basename "${OLD_EXECUTOR}")" "${COMPUTE_ROOT}/.rollback.sock"
+    mv -Tf "${COMPUTE_ROOT}/.rollback.sock" "${COMPUTE_ROOT}/active.sock"
+    rm -f -- "${OLD_EXECUTOR}.retire"
+    systemctl start "atoma-executor@$(basename "${OLD_EXECUTOR}" .sock).service" || true
+  elif [[ "${TARGET_EXECUTOR}" -eq 1 ]]; then
+    rm -f -- "${ACTIVE_EXECUTOR}"
+    rm -f -- "${COMPUTE_ROOT}/active.sock"
+  fi
+  # Never kill a candidate that may already have admitted a run. It drains
+  # independently after the old admission pointer is restored.
+  if [[ "${TARGET_EXECUTOR}" -eq 1 && "${OWN_EXECUTOR}" != "${OLD_EXECUTOR}" ]]; then
+    touch "${OWN_EXECUTOR}.retire"
+  fi
   local rollback_link="${DEPLOY_ROOT}/.rollback-${OLD_REVISION}"
   rm -f -- "${rollback_link}"
   ln -s "${OLD_RELEASE}" "${rollback_link}"
@@ -234,6 +274,32 @@ elif [[ -e "${CURRENT}" ]]; then
   fail "current must be a symlink"
 fi
 
+executor_protocol() {
+  local release="$1"
+  [[ -f "${release}/dist/contracts/executorVersion.js" ]] || return 1
+  run_as_service "${release}" node --input-type=module -e \
+    'import { pathToFileURL } from "node:url"; console.log((await import(pathToFileURL(process.argv[1]))).EXECUTOR_COMPATIBILITY)' \
+    "${release}/dist/contracts/executorVersion.js"
+}
+if [[ -f "${TARGET_RELEASE}/dist/cli/executor.js" ]]; then
+  TARGET_EXECUTOR=1
+  configured_socket="$(run_as_service_with_app_env "${TARGET_RELEASE}" bash -c 'printf %s "${ATOMA_EXECUTOR_SOCKET:-}"')"
+  [[ -z "${configured_socket}" || "${configured_socket}" == "${ACTIVE_EXECUTOR}" ]] || fail "application environment points to a different executor socket"
+fi
+if [[ -L "${ACTIVE_EXECUTOR}" ]]; then
+  OLD_EXECUTOR="$(readlink "${ACTIVE_EXECUTOR}")"
+  [[ "${OLD_EXECUTOR}" == "${EXECUTOR_ROOT}/"*.sock && "$(basename "${OLD_EXECUTOR}" .sock)" =~ ^[0-9a-f]{40}$ ]] || fail "invalid active executor"
+fi
+if [[ "${TARGET_EXECUTOR}" -eq 1 && -n "${OLD_RELEASE}" && -n "${OLD_EXECUTOR}" ]]; then
+  old_protocol="$(executor_protocol "${OLD_RELEASE}" || true)"
+  new_protocol="$(executor_protocol "${TARGET_RELEASE}" || true)"
+  if [[ "${old_protocol}" =~ ^[1-9][0-9]*$ && "${new_protocol}" == "${old_protocol}" ]] &&
+      run_as_service "${OLD_RELEASE}" timeout 5 node dist/cli/executor.js --health "${OLD_EXECUTOR}" >/dev/null 2>&1; then
+    ROLLING=1
+    echo "activation: compatible executors; existing runs keep their release and admissions remain open"
+  fi
+fi
+
 # The guard runs from the OLD release, so what it can do is that release's:
 # the first deployment after waiting was introduced still refuses busy work.
 # Captured rather than piped into `grep -q`, whose early exit would kill the
@@ -269,7 +335,8 @@ guard_exited() {
   fail "runtime drain failed (exit ${guard_status}): $(<"${GUARD_LOG}")"
 }
 
-if [[ -n "${OLD_RELEASE}" ]]; then
+if [[ -n "${OLD_RELEASE}" && "${ROLLING}" -eq 0 ]]; then
+  EXECUTOR_DRAIN_DEADLINE=$((SECONDS + WAIT_SECONDS))
   MARKER_PATH="$(run_as_service_with_app_env "${OLD_RELEASE}" bash -c 'printf %s "${ATOMA_DEPLOY_LOCK_PATH:-}"')"
   valid_absolute_path "${MARKER_PATH}" || fail "ATOMA_DEPLOY_LOCK_PATH must be configured as an absolute path"
   # Created when absent, for the service user who reads it — and never
@@ -364,10 +431,76 @@ PREPARED=0
 if [[ "${TARGET_RELEASE}" != "${OLD_RELEASE}" ]]; then
   prepare_release
   PREPARED=1
+elif [[ "${TARGET_EXECUTOR}" -eq 1 && "${OLD_EXECUTOR}" == "${OWN_EXECUTOR}" ]]; then
+  # An immutable generation may still be executing. Reinstalling its modules
+  # or rebuilding its image in place would mix code within that run.
+  PREPARED=1
 fi
 ACTIVATION_STARTED=1
+if [[ "${ROLLING}" -eq 0 && -n "${OLD_EXECUTOR}" ]]; then
+  # A compatibility boundary must stop ALL old writers, not just the web or
+  # selected generation. Naming/notifications can outlive the run lease.
+  for receipt in "${EXECUTOR_ROOT}"/*.sock.json; do
+    [[ -f "${receipt}" ]] || continue
+    generation="$(basename "${receipt}" .sock.json)"
+    [[ "${generation}" =~ ^[0-9a-f]{40}$ ]] || fail "invalid executor receipt"
+    while [[ -f "${receipt}" ]]; do
+      idle_status=0
+      run_as_service "${OLD_RELEASE}" timeout 5 node dist/cli/executor.js --idle "${EXECUTOR_ROOT}/${generation}.sock" >/dev/null 2>&1 || idle_status=$?
+      [[ "${idle_status}" -eq 0 ]] && break
+      (( SECONDS < EXECUTOR_DRAIN_DEADLINE )) || refuse "executor ${generation} did not become verifiably idle before maintenance"
+      sleep 1
+    done
+    systemctl stop "atoma-executor@${generation}.service"
+  done
+fi
 systemctl stop "${SERVICE_NAME}"
+if [[ "${ROLLING}" -eq 1 ]]; then
+  # Those browser grants no longer exist. Reclaim remote previews without
+  # waiting for their hard lifetime and without touching executing devices.
+  for receipt in "${EXECUTOR_ROOT}"/*.sock.json; do
+    [[ -f "${receipt}" ]] || continue
+    run_as_service "${OLD_RELEASE}" timeout 5 node dist/cli/executor.js --retire-previews "${receipt%.json}" >/dev/null 2>&1 || true
+  done
+fi
 (( PREPARED )) || prepare_release
+
+if [[ "${TARGET_EXECUTOR}" -eq 1 ]]; then
+  # The executor unit is deliberately independent of the web unit. Only a
+  # verified release supplies its template; root owns the installed copy.
+  install -d -m 0700 -o "${SERVICE_USER}" -g "${SERVICE_GROUP}" "${EXECUTOR_ROOT}"
+  install -d -m 0755 -o "${SERVICE_USER}" -g "${SERVICE_GROUP}" "${COMPUTE_ROOT}"
+  install -o root -g root -m 0644 "${TARGET_RELEASE}/deploy/atoma-executor@.service" /etc/systemd/system/atoma-executor@.service
+  install -d -m 0755 "/etc/systemd/system/${SERVICE_NAME}.d"
+  # Render only host-owned path/account settings; do not run release code as
+  # root. Quoted systemd arguments preserve spaces, literal '$' and '%'.
+  python3 - /etc/systemd/system/atoma-executor@.service "${DEPLOY_ROOT}" "${APP_ENV}" "${SERVICE_USER}" "${SERVICE_GROUP}" "${EXECUTOR_DROPIN}" "${REVISION}" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1]); root, app_env, user, group = sys.argv[2:6]
+def quoted(value, command=False):
+    value = value.replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%').replace('{instance}', '%i')
+    if command: value = value.replace('$', '$$')
+    return '"' + value + '"'
+generation = root + '/releases/{instance}'
+args = ['ATOMA_RUN_EXECUTOR=1', 'ATOMA_EXECUTOR_SOCKET=' + root + '/executors/active.sock',
+        'ATOMA_EXECUTOR_OWN_SOCKET=' + root + '/executors/{instance}.sock',
+        'ATOMA_EXECUTOR_COMPUTE_SOCKET=' + root + '/compute/{instance}.sock',
+        'ATOMA_WORKER_IMAGE=atoma-worker:{instance}', '/usr/bin/node', generation + '/dist/viz/server.js']
+values = {'RequiresMountsFor': quoted(root), 'User': user, 'Group': group,
+          'WorkingDirectory': quoted(generation), 'EnvironmentFile': quoted(app_env),
+          'ExecStart': '/usr/bin/env ' + ' '.join(quoted(v, True) for v in args) + ' --host 127.0.0.1 --port 0'}
+p.write_text('\n'.join(k + '=' + values[k] if (k := line.split('=', 1)[0]) in values else line
+                       for line in p.read_text().splitlines()) + '\n')
+revision = sys.argv[7]
+Path(sys.argv[6]).write_text('[Unit]\nWants=atoma-executor@' + revision + '.service\nAfter=atoma-executor@' + revision +
+                           '.service\n[Service]\nTimeoutStopSec=90\nEnvironment=' + quoted('ATOMA_EXECUTOR_SOCKET=' + root + '/executors/active.sock') + '\n')
+PY
+  # Wants/After starts the selected generation again after a host reboot.
+  # There is no reverse PartOf/BindsTo: stopping the web cannot stop runs.
+  rm -f -- "${OWN_EXECUTOR}.retire"
+  systemctl daemon-reload
+fi
 
 if [[ -n "${OLD_REVISION}" ]] && docker image inspect atoma-worker:latest >/dev/null 2>&1; then
   WORKER_ROLLBACK_TAG="atoma-worker:rollback-${OLD_REVISION}"
@@ -380,6 +513,29 @@ NEXT_LINK="${DEPLOY_ROOT}/.current-${REVISION}"
 ln -s "${TARGET_RELEASE}" "${NEXT_LINK}"
 mv -Tf "${NEXT_LINK}" "${CURRENT}"
 
+if [[ "${TARGET_EXECUTOR}" -eq 1 ]]; then
+  EXECUTOR_STARTED=1
+  systemctl start "atoma-executor@${REVISION}.service"
+  executor_ready=0
+  for _ in {1..30}; do
+    if run_as_service "${TARGET_RELEASE}" timeout 5 node dist/cli/executor.js --health "${OWN_EXECUTOR}" >/dev/null 2>&1; then
+      executor_ready=1; break
+    fi
+    sleep 1
+  done
+  [[ "${executor_ready}" -eq 1 ]] || fail "new executor failed health verification"
+  ln -s "${OWN_EXECUTOR}" "${EXECUTOR_ROOT}/.next.sock"
+  mv -Tf "${EXECUTOR_ROOT}/.next.sock" "${ACTIVE_EXECUTOR}"
+  ln -s "${COMPUTE_ROOT}/${REVISION}.sock" "${COMPUTE_ROOT}/.next.sock"
+  mv -Tf "${COMPUTE_ROOT}/.next.sock" "${COMPUTE_ROOT}/active.sock"
+elif [[ -n "${OLD_EXECUTOR}" ]]; then
+  # A rollback across the compatibility boundary reached here only after
+  # the ordinary full drain. Retire the empty external host, restore legacy wiring.
+  rm -f -- "${ACTIVE_EXECUTOR}" "/etc/systemd/system/${SERVICE_NAME}.d/executor.conf"
+  rm -f -- "${COMPUTE_ROOT}/active.sock"
+  systemctl daemon-reload
+fi
+
 systemctl start "${SERVICE_NAME}"
 HEALTHY=0
 for _ in {1..30}; do
@@ -391,11 +547,15 @@ for _ in {1..30}; do
 done
 [[ "${HEALTHY}" -eq 1 ]] || fail "new generation failed health verification"
 
+if [[ -n "${OLD_EXECUTOR}" && "${OLD_EXECUTOR}" != "${OWN_EXECUTOR}" ]]; then
+  touch "${OLD_EXECUTOR}.retire"
+fi
+
 ACTIVATION_STARTED=0
 echo "deployed ${REVISION} to ${SERVICE_NAME}"
 # The new generation is healthy: writes and previews resume now, not after
-# the retention prune and the mender refresh below. The guard keeps the run
-# lease until EXIT, so no run starts beside the mender's rebuild.
+# the retention prune below. A maintenance guard releases its run lease at
+# EXIT; the independent mender refresh never holds that lease.
 if [[ -n "${MARKER_PATH}" ]]; then
   rm -f -- "${MARKER_PATH}"
 fi
@@ -414,56 +574,14 @@ fi
 # describe the new one. This phase runs AFTER the application is healthy and
 # AFTER the rollback section closed: a mender that cannot be refreshed is
 # reported and left STOPPED on its previous checkout, never a reason to
-# restore the previous application generation. No mend is in flight here —
-# the drain guard still holds the machine run lease until this script exits.
-refresh_mender() {
-  if [[ ! -d "${MENDER_CHECKOUT}/.git" || ! -f "${MENDER_ENV}" || -L "${MENDER_ENV}" ]]; then
-    echo "mender: not installed on this host (${MENDER_CHECKOUT}, ${MENDER_ENV}); skipping"
-    return 0
-  fi
-  for command in git gh; do
-    command -v "${command}" >/dev/null 2>&1 || fail "mender refresh needs ${command}"
-  done
-  [[ -f "${TARGET_RELEASE}/deploy/atoma-mender.service" ]] || fail "release ships no mender unit"
-  systemctl stop "${MENDER_SERVICE}" || true
-  # The rebuild was about 90 s of every deployment, the run lease held
-  # throughout (2026-09-27): a full `npm ci` (43 s) and `tsc` (39 s) on this
-  # 4 GB host. Dependencies change only with the lockfile or the runtime, so
-  # an identical pair skips the reinstall; and the release was compiled by CI
-  # from this same revision and lockfile and verified by digest before this
-  # activation, so its `dist` is what `tsc` would write here.
-  if ! runuser -u "${SERVICE_USER}" -- env HOME="${SERVICE_HOME}" MENDER_REVISION="${REVISION}" \
-      MENDER_REMOTE="${MENDER_REMOTE}" MENDER_RELEASE_DIST="${TARGET_RELEASE}/dist" bash -c '
-    set -Eeuo pipefail
-    set -a; source "$1"; set +a
-    cd "$2"
-    origin="$(git remote get-url origin)"
-    # The repository moved from mgtf/atoma (2026-10-08): a clone made before
-    # follows the move, any other origin is still refused.
-    if [[ $origin == https://github.com/mgtf/atoma || $origin == https://github.com/mgtf/atoma.git ]]; then
-      git remote set-url origin "$MENDER_REMOTE"
-      origin="$MENDER_REMOTE"
-    fi
-    [[ $origin == "$MENDER_REMOTE" ]] || { echo "mender checkout has another origin" >&2; exit 2; }
-    [[ -z $(git status --porcelain) ]] || { echo "mender checkout is dirty; preserve and inspect it" >&2; exit 2; }
-    git fetch --quiet origin main
-    git checkout --quiet --detach "$MENDER_REVISION"
-    stamp="$(sha256sum package-lock.json | cut -d" " -f1) $(node --version)"
-    if [[ "$(cat node_modules/.atoma-install-stamp 2>/dev/null || true)" != "$stamp" ]]; then
-      HUSKY=0 npm ci
-      printf "%s\n" "$stamp" > node_modules/.atoma-install-stamp
-    fi
-    rm -rf dist
-    cp -a "$MENDER_RELEASE_DIST" dist
-    docker build -f docker/mender.Dockerfile -t atoma-mender:local .
-    node dist/cli/mender.js --help >/dev/null
-  ' bash "${MENDER_ENV}" "${MENDER_CHECKOUT}"; then
-    fail "mender refresh failed; ${MENDER_SERVICE} is stopped on its previous checkout — inspect ${MENDER_CHECKOUT} or rerun deploy/install-mender.sh (the application itself is deployed)"
-  fi
-  install -o root -g root -m 0644 "${TARGET_RELEASE}/deploy/atoma-mender.service" \
-    "/etc/systemd/system/${MENDER_SERVICE}"
-  systemctl daemon-reload
-  systemctl start "${MENDER_SERVICE}"
-  echo "mender: ${MENDER_SERVICE} refreshed to ${REVISION}"
-}
-refresh_mender
+# restore the previous application generation. The separate refresh job
+# performs its own graceful mender stop before changing that checkout.
+# The app is healthy and admits runs. Refreshing the optional mender is a
+# separate systemd job; its graceful stop/build never blocks this deployment
+# and never holds the global run lease while user work is executing.
+install -o root -g root -m 0755 "${TARGET_RELEASE}/deploy/refresh-mender.sh" /usr/local/sbin/atoma-refresh-mender
+if [[ -d "${MENDER_CHECKOUT}/.git" && -f "${MENDER_ENV}" ]]; then
+  systemd-run --quiet --collect --unit="atoma-mender-refresh-${REVISION}" \
+    --setenv="ATOMA_DEPLOY_CONFIG=${CONFIG_PATH}" /usr/local/sbin/atoma-refresh-mender ||
+    echo "WARNING: mender refresh could not be scheduled; application remains deployed" >&2
+fi

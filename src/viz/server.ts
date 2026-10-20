@@ -1,3 +1,11 @@
+import { chmodSync, unlinkSync, lstatSync } from 'node:fs';
+import { recordComputeExecutor } from '../projects/computeExecutor.js';
+import { ExecutorComputePreview } from '../preview/executorCompute.js';
+import { executorSocket, executorSelected } from '../projects/executorTransport.js';
+import { callExecutor } from '../projects/executorTransport.js';
+import { executorForOwner, executorSnapshot } from '../projects/executorDiscovery.js';
+import { quiesceStoreMutexes, storeMutexesIdle } from '../platform/storeMutex.js';
+import { startExecutorHost } from '../projects/executorHost.js';
 import { ComputePreviewController, type RemotePreviewRuntime } from '../preview/computeController.js';
 import { COMPUTE_RUN_RESOURCES } from '../contracts/computeProject.js';
 import { ComputeDispatcher, ComputeDispatchStore } from '../projects/computeDispatch.js';
@@ -269,7 +277,7 @@ import { isLegalPath, LEGAL_PATHS, LEGAL_SECURITY_HEADERS, renderLegalPage, serv
 // The MCP run lease, read for CONTEXT only (which pid holds the run slot) and
 // never as a detector. `src/sentinel/watch.ts` already reaches for it, so this
 // adds a name, not a dependency.
-import { mcpRunLockPath, peekDeploymentPending } from '../mcp/runLock.js';
+import { mcpRunLockPath, peekDeploymentPending, peekRunLeases } from '../mcp/runLock.js';
 
 /**
  * Tiny read-only HTTP server that exposes runs/*.json produced by
@@ -351,6 +359,10 @@ function parseArgs(argv: string[]): Cli {
 }
 
 const cli = parseArgs(process.argv.slice(2));
+const EXECUTOR_MODE = process.env['ATOMA_RUN_EXECUTOR'] === '1';
+const EXECUTOR_SOCKET = executorSocket();
+const EXECUTOR_OWN_SOCKET = process.env['ATOMA_EXECUTOR_OWN_SOCKET'];
+if (EXECUTOR_MODE && (!EXECUTOR_SOCKET || !EXECUTOR_OWN_SOCKET)) throw new Error('Executor mode requires active and own sockets');
 const RUNS_DIR = resolve(cli.dir);
 const PROJECTS_ROOT = resolve(process.env['ATOMA_PROJECTS_ROOT'] ?? DEFAULT_PROJECTS_ROOT);
 const BURNIN_CSV = resolve(process.env['ATOMA_BURNIN_CSV'] ?? './burnin/results.csv');
@@ -871,6 +883,12 @@ interface ProjectsRuntime {
 
 /** One namer for both doors that assign a hosting address: saving the destination, and deploying. */
 const HOSTING_NAMER = hostHostingSubdomainNamer(process.env);
+async function yieldLocalBackground(): Promise<boolean> {
+  const [analyst, assayer] = await Promise.all([
+    ANALYST?.yieldForRun() ?? Promise.resolve(false), ASSAYER?.yieldForRun() ?? Promise.resolve(false),
+  ]);
+  return analyst || assayer;
+}
 const computeDispatcher: { current?: ComputeDispatcher } = {};
 const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
   if (!AUTH_RUNTIME) return null;
@@ -929,6 +947,8 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
   // Same consolidated product store, opened through its own DDL constant.
   const previewStore = PreviewStore.open(dbPath);
   const coordinator = new ProjectRunCoordinator({
+    ...(!EXECUTOR_MODE && EXECUTOR_SOCKET ? { executorSocket: EXECUTOR_SOCKET } : {}),
+    ...(EXECUTOR_MODE ? { dispatchAllowed: () => executorSelected(EXECUTOR_SOCKET!, EXECUTOR_OWN_SOCKET!) } : {}),
     store: projectStore,
     compute: (): ComputeDispatcher | undefined => computeDispatcher.current,
     queuedRunAllowed: (id, orgId) => AUTH!.store!.listOrganisationsForPrincipal(id).some(membership => membership.orgId === orgId && membership.role !== 'org:viewer'),
@@ -938,11 +958,12 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     // A member's run preempts this host's post-run analysis (owner decision
     // 2026-09-27). Read at call time: the analyst is armed further down.
     yieldBackground: async () => {
-      const [analyst, assayer] = await Promise.all([
-        ANALYST?.yieldForRun() ?? Promise.resolve(false),
-        ASSAYER?.yieldForRun() ?? Promise.resolve(false),
-      ]);
-      return analyst || assayer;
+      if (await yieldLocalBackground()) return true;
+      if (!EXECUTOR_SOCKET) return false;
+      const owner = peekRunLeases(undefined, true).find(owner => /^(analyst|assayer):/.test(owner.runId));
+      if (!owner || owner.ownerPid === process.pid) return false;
+      const socket = executorForOwner(EXECUTOR_SOCKET, owner.ownerPid);
+      return socket ? await callExecutor<boolean>(socket, { method: 'yield-background' }) : false;
     },
     ...(publisher ? { publisher } : {}),
     // Describe the deliverable while the workspace is still this run's. The
@@ -1065,7 +1086,7 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
   const recovered = coordinator.reconcileInterrupted();
   // Previews die with the process that launched them, so a row left in a live
   // state describes containers that no longer exist. Same boot, same rule.
-  const recoveredPreviews = previewStore.reconcileInterrupted();
+  const recoveredPreviews = EXECUTOR_MODE ? 0 : previewStore.reconcileInterrupted();
   if (recoveredPreviews > 0) {
     process.stderr.write(
       `[atoma viz] recovered ${recoveredPreviews} interrupted preview(s) after a restart\n`
@@ -1172,6 +1193,7 @@ function previewOffReason(): string | null {
 
 const computePreviewRuntime: { current?: RemotePreviewRuntime } = {};
 const PREVIEW_RUNTIME_PROMISE: Promise<PreviewRuntime | null> = (async () => {
+  if (EXECUTOR_MODE) return null;
   if (!PROJECTS_RUNTIME || !AUTH_RUNTIME) return null;
   if (!previewEnabled(process.env)) return null;
   const config = snapshotPreviewConfig(process.env, {
@@ -1275,6 +1297,7 @@ const PREVIEW_RUNTIME_PROMISE: Promise<PreviewRuntime | null> = (async () => {
 })();
 
 const HOSTING_RUNTIME_PROMISE = (async () => {
+  if (EXECUTOR_MODE) return null;
   if (!PROJECTS_RUNTIME || !AUTH_RUNTIME) return null;
   const config = hostingConfig(process.env, AUTH_RUNTIME.publicOrigin.origin);
   if (!config) return null;
@@ -1402,7 +1425,7 @@ function sentinelReferences(): TrajectoryReferenceSource[] {
  * while project runs are in flight, journaled as `server.pressure`. Gated
  * only, like the sentinel: the journal is the channel it speaks on.
  */
-const HOST_PRESSURE: HostPressureWatch | null = EVENTS
+const HOST_PRESSURE: HostPressureWatch | null = EVENTS && !EXECUTOR_MODE
   ? new HostPressureWatch({
       storePath: DBS[0]!.path,
       emit,
@@ -1416,6 +1439,7 @@ HOST_PRESSURE?.start();
 const SENTINEL_BOOTED_AT = new Date().toISOString();
 
 const SENTINEL: ResidentSentinel | null = (() => {
+  if (EXECUTOR_MODE) return null;
   if (!EVENTS) return null;
   if (cli.noSentinel) return null;
   if (!vizSentinelEnabled()) return null;
@@ -1456,6 +1480,7 @@ const SENTINEL: ResidentSentinel | null = (() => {
 /** Why the analyst is off although `ATOMA_VIZ_ANALYST` asked for it, when that is the case. */
 let ANALYST_REFUSED: string | null = null;
 const ANALYST: ResidentAnalyst | null = (() => {
+  if (EXECUTOR_SOCKET && !EXECUTOR_MODE) return null;
   if (!EVENTS || !PROJECTS_RUNTIME) return null;
   if (!vizAnalystEnabled()) return null;
   const journal = EVENTS;
@@ -1496,9 +1521,9 @@ const ANALYST: ResidentAnalyst | null = (() => {
     warn: log,
   };
   const resident = startResidentAnalyst({
-    subscribe: (listener) => journal.subscribe(listener),
+    subscribe: (listener) => EXECUTOR_SOCKET ? journal.subscribePersisted(listener) : journal.subscribe(listener),
     analyse: (runId, signal) => analyseTarget(resolveTarget(runId, options), { ...options, signal }),
-    isActive: () => anyRunActive({ runsDir: RUNS_DIR, leasePath: mcpRunLockPath() }),
+    isActive: () => (EXECUTOR_MODE && !executorSelected(EXECUTOR_SOCKET!, EXECUTOR_OWN_SOCKET!)) || anyRunActive({ runsDir: RUNS_DIR, leasePath: mcpRunLockPath() }),
     quietMs: analystQuietMsFromEnv() ?? undefined,
     logger: log,
   });
@@ -1520,6 +1545,7 @@ const ANALYST: ResidentAnalyst | null = (() => {
  */
 let ASSAYER_REFUSED: string | null = null;
 const ASSAYER: ResidentAssayer | null = (() => {
+  if (EXECUTOR_SOCKET && !EXECUTOR_MODE) return null;
   if (!EVENTS || !PROJECTS_RUNTIME) return null;
   if (!vizAssayerEnabled()) return null;
   try {
@@ -1551,7 +1577,7 @@ const ASSAYER: ResidentAssayer | null = (() => {
   };
   return startResidentAssayer({
     assay: (signal) => assayNext({ ...options, signal }),
-    isActive: () => anyRunActive({ runsDir: RUNS_DIR, leasePath: mcpRunLockPath() }),
+    isActive: () => (EXECUTOR_MODE && !executorSelected(EXECUTOR_SOCKET!, EXECUTOR_OWN_SOCKET!)) || anyRunActive({ runsDir: RUNS_DIR, leasePath: mcpRunLockPath() }),
     logger: log,
   });
 })();
@@ -1573,13 +1599,16 @@ const MCP_DEPS: McpToolDeps = {
   benchmarkStart: retrievalCampaignHost(repoRoot(), BENCHMARK_RUNS.root),
   projects: PROJECTS_RUNTIME ? { service: PROJECTS_RUNTIME.projects, store: PROJECTS_RUNTIME.store } : null,
   auth: AUTH?.store ?? null,
-  journal: EVENTS,
+  journal: EXECUTOR_MODE ? null : EVENTS && EXECUTOR_SOCKET ? {
+    list: query => EVENTS.list(query), subscribe: listener => EVENTS.subscribePersisted(listener),
+  } : EVENTS,
   operatorRuns: true,
   emit,
   // Read at call time: the preview runtime comes up after the bind.
   preview: () => PREVIEW_RUNTIME?.service ?? null,
   sentinel: () => sentinelHealth(),
-  analyst: () => ANALYST?.health() ?? null,
+  analyst: () => ANALYST?.health() ?? (EXECUTOR_SOCKET
+    ? executorSnapshot<{ analyst: ReturnType<ResidentAnalyst['health']> | null }>(EXECUTOR_SOCKET)?.analyst ?? null : null),
   // Read at call time, after MCP_HOST below exists: no tool runs before the bind.
   mcpHealth: () => MCP_HOST.health(),
   hostPressure: () => HOST_PRESSURE?.health() ?? null,
@@ -2675,23 +2704,40 @@ const server = createServer((req, res) => {
   });
 });
 
-const COMPUTE_GATEWAY = COMPUTE ? attachComputeGateway(server, COMPUTE.devices, () => {},
-  AUTH_RUNTIME!.trustedProxies, () => !deploymentPaused(process.env) && !peekDeploymentPending(), (orgId, execution, action) => {
+if (!EXECUTOR_MODE) process.once('SIGTERM', () => {
+  // Rotating credentials must commit before this web process disappears.
+  // New exchanges are refused; already-running exchanges finish in place.
+  server.close();
+  void quiesceStoreMutexes().finally(() => process.exit(0));
+});
+
+let COMPUTE_GATEWAY: ReturnType<typeof attachComputeGateway> | null = null;
+function attachComputeRuntime(target: import('node:http').Server, privateUnix = false): void {
+COMPUTE_GATEWAY = COMPUTE ? attachComputeGateway(target, COMPUTE.devices, () => {},
+  AUTH_RUNTIME!.trustedProxies, () => !deploymentPaused(process.env) && !peekDeploymentPending() &&
+    (!EXECUTOR_MODE || executorSelected(EXECUTOR_SOCKET!, EXECUTOR_OWN_SOCKET!)), (orgId, execution, action) => {
     const run = PROJECTS_RUNTIME!.store.getProjectRun(orgId, execution.runId);
     if (!run || run.executionTarget.kind !== 'customer-device') throw new Error('Compute run unavailable');
     if (action === 'pause') PROJECTS_RUNTIME!.coordinator.pause(run);
     else PROJECTS_RUNTIME!.coordinator.cancel(orgId, run.projectRunId);
-  }) : null;
+  }, privateUnix ? { trustedUnixProxy: true,
+    connected: session => recordComputeExecutor(DBS[0]!.path, session, EXECUTOR_OWN_SOCKET!),
+  } : undefined) : null;
 computeDispatcher.current = COMPUTE && COMPUTE_GATEWAY ? new ComputeDispatcher({
   devices: COMPUTE.devices, journal: ComputeDispatchStore.open(DBS[0]!.path),
-  connectionFor: session => COMPUTE_GATEWAY.connectionFor(session),
+  connectionFor: session => COMPUTE_GATEWAY!.connectionFor(session),
   resources: COMPUTE_RUN_RESOURCES,
 }) : undefined;
 computePreviewRuntime.current = COMPUTE && COMPUTE_GATEWAY && PROJECTS_RUNTIME ? new ComputePreviewController({
   devices: COMPUTE.devices, projects: PROJECTS_RUNTIME.store,
-  connectionFor: session => COMPUTE_GATEWAY.connectionFor(session),
+  connectionFor: session => COMPUTE_GATEWAY!.connectionFor(session),
   unavailable: (orgId, runId, generation) => PREVIEW_RUNTIME?.manager.remoteUnavailable(orgId, runId, generation),
 }) : undefined;
+}
+if (!EXECUTOR_SOCKET) attachComputeRuntime(server);
+else if (!EXECUTOR_MODE && COMPUTE && PROJECTS_RUNTIME) {
+  computePreviewRuntime.current = new ExecutorComputePreview(DBS[0]!.path, PROJECTS_RUNTIME.store, COMPUTE.devices);
+}
 server.once('close', () => COMPUTE_GATEWAY?.close());
 process.once('exit', () => COMPUTE_GATEWAY?.close());
 
@@ -3068,13 +3114,14 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
           tokens.accessTokenExpiresInSeconds
         ) {
           try {
-            persistGitHubUserTokens({
-              github: PROJECTS_RUNTIME.githubStore,
-              config: PROJECTS_RUNTIME.githubConfig,
+            const runtime = PROJECTS_RUNTIME;
+            await runtime.githubStore.serializeUserToken(outcome.viewer.principalId, async () => persistGitHubUserTokens({
+              github: runtime.githubStore,
+              config: runtime.githubConfig!,
               principalId: outcome.viewer.principalId,
               githubSubject: identity.subject,
               tokens,
-            });
+            }));
           } catch (error) {
             console.error('[viz github] failed to persist login tokens', error);
           }
@@ -5640,7 +5687,44 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   send(res, 404, 'not found', 'text/plain; charset=utf-8');
 }
 
-server.listen(cli.port, cli.host, () => {
+if (EXECUTOR_MODE) {
+  if (!PROJECTS_RUNTIME) throw new Error('Executor requires the authenticated project runtime');
+  let computeServer: import('node:http').Server | undefined;
+  await startExecutorHost({ socket: EXECUTOR_OWN_SOCKET!, activeSocket: EXECUTOR_SOCKET!,
+    release: resolve(HERE, '../..'), coordinator: PROJECTS_RUNTIME.coordinator,
+    preview: () => computePreviewRuntime.current,
+    onRunAdmitted: run => PROJECTS_RUNTIME.projects.journalRunStarted(run),
+    workIdle: () => !ANALYST?.health().inFlight && !ASSAYER?.health().inFlight && (EVENTS?.listenersIdle() ?? true) && storeMutexesIdle(),
+    yieldBackground: yieldLocalBackground,
+    snapshot: () => ({ analyst: ANALYST?.health() ?? null, assayer: ASSAYER?.health() ?? null }),
+    initialize: async () => {
+      if (!COMPUTE) return;
+      const socket = process.env['ATOMA_EXECUTOR_COMPUTE_SOCKET'];
+      if (!socket || !socket.startsWith('/') || Buffer.byteLength(socket) > 100) throw new Error('Compute executor requires its public Unix socket');
+      // The private RPC listener is already owned by this process. Only now
+      // may a stale public socket from that same dead generation be removed.
+      if (existsSync(socket)) {
+        if (!lstatSync(socket).isSocket()) throw new Error('Compute gateway path is not a socket');
+        unlinkSync(socket);
+      }
+      computeServer = createServer((_req, res) => res.writeHead(404).end());
+      attachComputeRuntime(computeServer, true);
+      await new Promise<void>((done, reject) => { computeServer!.once('error', reject); computeServer!.listen(socket, done); });
+      // This is the authenticated device protocol only, as on loopback TCP.
+      // It never exposes the host-private execution RPC listener.
+      chmodSync(socket, 0o666);
+      computeServer.once('close', () => { try { unlinkSync(socket); } catch { /* A prior cleanup may already have removed it. */ } });
+    },
+    onDemoted: () => COMPUTE_GATEWAY?.closeIdle(session => PROJECTS_RUNTIME.coordinator.hasActiveComputeDevice(session.deviceId)),
+    retirementConfirmed: () => existsSync(`${EXECUTOR_OWN_SOCKET}.retire`),
+    onIdle: () => {
+      COMPUTE_GATEWAY?.close();
+      if (computeServer) computeServer.close(() => process.exit(0));
+      else process.exit(0);
+    },
+  });
+  console.log(`Atoma run executor — ${EXECUTOR_OWN_SOCKET}`);
+} else server.listen(cli.port, cli.host, () => {
   console.log(`Atoma viz server — http://${cli.host}:${cli.port}/`);
   if (AUTH) {
     console.log(

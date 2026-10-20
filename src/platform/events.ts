@@ -206,6 +206,10 @@ function rowToEvent(row: EventRow): PlatformEvent {
 export class PlatformEventLog {
   private readonly db: Database.Database;
   private readonly listeners = new Set<PlatformEventListener>();
+  private readonly persistedListeners = new Set<PlatformEventListener>();
+  private persistedTimer?: ReturnType<typeof setInterval>;
+  private persistedCursor = 0;
+  private readonly pendingListeners = new Set<Promise<void>>();
   private readonly now: () => Date;
 
   private constructor(db: Database.Database, now?: () => Date) {
@@ -228,6 +232,29 @@ export class PlatformEventLog {
   subscribe(listener: PlatformEventListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  /** Transient readers (MCP resources/analyst) follow committed rows across
+   * executor processes. Push delivery keeps the producer's subscribe bus. */
+  subscribePersisted(listener: PlatformEventListener): () => void {
+    if (!this.persistedTimer) {
+      this.persistedCursor = (this.db.prepare('SELECT COALESCE(MAX(seq),0) AS seq FROM platform_events').get() as { seq: number }).seq;
+      this.persistedTimer = setInterval(() => {
+        try {
+          const rows = this.db.prepare('SELECT * FROM platform_events WHERE seq > ? ORDER BY seq LIMIT 256').all(this.persistedCursor) as EventRow[];
+          for (const row of rows) {
+            this.persistedCursor = row.seq;
+            this.publish(rowToEvent(row), this.persistedListeners);
+          }
+        } catch (error) { warnOnce('persisted subscription failed', error); }
+      }, 250);
+      this.persistedTimer.unref();
+    }
+    this.persistedListeners.add(listener);
+    return () => {
+      this.persistedListeners.delete(listener);
+      if (this.persistedListeners.size === 0) { clearInterval(this.persistedTimer); this.persistedTimer = undefined; }
+    };
   }
 
   /**
@@ -270,17 +297,20 @@ export class PlatformEventLog {
     };
   }
 
-  private publish(stored: PlatformEvent): void {
-    for (const listener of this.listeners) {
+  private publish(stored: PlatformEvent, listeners = this.listeners): void {
+    for (const listener of listeners) {
       try {
-        void Promise.resolve(listener(stored)).catch((error: unknown) => {
+        const pending = Promise.resolve(listener(stored)).catch((error: unknown) => {
           warnOnce(`listener for ${stored.kind} rejected`, error);
-        });
+        }).finally(() => this.pendingListeners.delete(pending));
+        this.pendingListeners.add(pending);
       } catch (error) {
         warnOnce(`listener for ${stored.kind} threw`, error);
       }
     }
   }
+
+  listenersIdle(): boolean { return this.pendingListeners.size === 0; }
 
   append(input: PlatformEventInput): PlatformEvent | null {
     let stored: PlatformEvent;
