@@ -79,7 +79,7 @@ valid_absolute_path "${MENDER_ENV}" || fail "ATOMA_DEPLOY_MENDER_ENV must be a n
 [[ -f "${APP_ENV}" && ! -L "${APP_ENV}" ]] || fail "application environment is missing or symlinked: ${APP_ENV}"
 id "${SERVICE_USER}" >/dev/null 2>&1 || fail "service user does not exist: ${SERVICE_USER}"
 
-for command in node npm docker curl systemctl systemd-run python3 runuser tar sha256sum realpath getent flock findmnt soffice timeout; do
+for command in node npm docker curl systemctl systemd-run systemd-analyze python3 runuser tar sha256sum realpath getent flock findmnt soffice timeout; do
   command -v "${command}" >/dev/null 2>&1 || fail "required command is missing: ${command}"
 done
 
@@ -436,6 +436,37 @@ elif [[ "${TARGET_EXECUTOR}" -eq 1 && "${OLD_EXECUTOR}" == "${OWN_EXECUTOR}" ]];
   # or rebuilding its image in place would mix code within that run.
   PREPARED=1
 fi
+# Parse the exact rendered unit BEFORE stopping any serving process. Scalar
+# paths (WorkingDirectory/EnvironmentFile) and word lists have different syntax.
+if [[ "${TARGET_EXECUTOR}" -eq 1 ]]; then
+  cp "${TARGET_RELEASE}/deploy/atoma-executor@.service" "${WORK_DIR}/atoma-executor@.service"
+  python3 - "${WORK_DIR}/atoma-executor@.service" "${DEPLOY_ROOT}" "${APP_ENV}" "${SERVICE_USER}" "${SERVICE_GROUP}" "${WORK_DIR}/executor.conf" "${REVISION}" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1]); root, app_env, user, group = sys.argv[2:6]
+def quoted(value, command=False):
+    value = value.replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%').replace('{instance}', '%i')
+    if command: value = value.replace('$', '$$')
+    return '"' + value + '"'
+def scalar_path(value):
+    # These directives consume one raw path, not a quoted word list.
+    return value.replace('%', '%%').replace('{instance}', '%i')
+generation = root + '/releases/{instance}'
+args = ['ATOMA_RUN_EXECUTOR=1', 'ATOMA_EXECUTOR_SOCKET=' + root + '/executors/active.sock',
+        'ATOMA_EXECUTOR_OWN_SOCKET=' + root + '/executors/{instance}.sock',
+        'ATOMA_EXECUTOR_COMPUTE_SOCKET=' + root + '/compute/{instance}.sock',
+        'ATOMA_WORKER_IMAGE=atoma-worker:{instance}', '/usr/bin/node', generation + '/dist/viz/server.js']
+values = {'RequiresMountsFor': quoted(root), 'User': user, 'Group': group,
+          'WorkingDirectory': scalar_path(generation), 'EnvironmentFile': scalar_path(app_env),
+          'ExecStart': '/usr/bin/env ' + ' '.join(quoted(v, True) for v in args) + ' --host 127.0.0.1 --port 0'}
+p.write_text('\n'.join(k + '=' + values[k] if (k := line.split('=', 1)[0]) in values else line
+                       for line in p.read_text().splitlines()) + '\n')
+revision = sys.argv[7]
+Path(sys.argv[6]).write_text('[Unit]\nWants=atoma-executor@' + revision + '.service\nAfter=atoma-executor@' + revision +
+                           '.service\n[Service]\nTimeoutStopSec=90\nEnvironment=' + quoted('ATOMA_EXECUTOR_SOCKET=' + root + '/executors/active.sock') + '\n')
+PY
+  systemd-analyze verify --man=no "${WORK_DIR}/atoma-executor@.service"
+fi
 ACTIVATION_STARTED=1
 if [[ "${ROLLING}" -eq 0 && -n "${OLD_EXECUTOR}" ]]; then
   # A compatibility boundary must stop ALL old writers, not just the web or
@@ -470,32 +501,10 @@ if [[ "${TARGET_EXECUTOR}" -eq 1 ]]; then
   # verified release supplies its template; root owns the installed copy.
   install -d -m 0700 -o "${SERVICE_USER}" -g "${SERVICE_GROUP}" "${EXECUTOR_ROOT}"
   install -d -m 0755 -o "${SERVICE_USER}" -g "${SERVICE_GROUP}" "${COMPUTE_ROOT}"
-  install -o root -g root -m 0644 "${TARGET_RELEASE}/deploy/atoma-executor@.service" /etc/systemd/system/atoma-executor@.service
+  install -o root -g root -m 0644 "${WORK_DIR}/atoma-executor@.service" /etc/systemd/system/atoma-executor@.service
   install -d -m 0755 "/etc/systemd/system/${SERVICE_NAME}.d"
-  # Render only host-owned path/account settings; do not run release code as
-  # root. Quoted systemd arguments preserve spaces, literal '$' and '%'.
-  python3 - /etc/systemd/system/atoma-executor@.service "${DEPLOY_ROOT}" "${APP_ENV}" "${SERVICE_USER}" "${SERVICE_GROUP}" "${EXECUTOR_DROPIN}" "${REVISION}" <<'PY'
-from pathlib import Path
-import sys
-p = Path(sys.argv[1]); root, app_env, user, group = sys.argv[2:6]
-def quoted(value, command=False):
-    value = value.replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%').replace('{instance}', '%i')
-    if command: value = value.replace('$', '$$')
-    return '"' + value + '"'
-generation = root + '/releases/{instance}'
-args = ['ATOMA_RUN_EXECUTOR=1', 'ATOMA_EXECUTOR_SOCKET=' + root + '/executors/active.sock',
-        'ATOMA_EXECUTOR_OWN_SOCKET=' + root + '/executors/{instance}.sock',
-        'ATOMA_EXECUTOR_COMPUTE_SOCKET=' + root + '/compute/{instance}.sock',
-        'ATOMA_WORKER_IMAGE=atoma-worker:{instance}', '/usr/bin/node', generation + '/dist/viz/server.js']
-values = {'RequiresMountsFor': quoted(root), 'User': user, 'Group': group,
-          'WorkingDirectory': quoted(generation), 'EnvironmentFile': quoted(app_env),
-          'ExecStart': '/usr/bin/env ' + ' '.join(quoted(v, True) for v in args) + ' --host 127.0.0.1 --port 0'}
-p.write_text('\n'.join(k + '=' + values[k] if (k := line.split('=', 1)[0]) in values else line
-                       for line in p.read_text().splitlines()) + '\n')
-revision = sys.argv[7]
-Path(sys.argv[6]).write_text('[Unit]\nWants=atoma-executor@' + revision + '.service\nAfter=atoma-executor@' + revision +
-                           '.service\n[Service]\nTimeoutStopSec=90\nEnvironment=' + quoted('ATOMA_EXECUTOR_SOCKET=' + root + '/executors/active.sock') + '\n')
-PY
+  install -o root -g root -m 0644 "${WORK_DIR}/executor.conf" "${EXECUTOR_DROPIN}"
+
   # Wants/After starts the selected generation again after a host reboot.
   # There is no reverse PartOf/BindsTo: stopping the web cannot stop runs.
   rm -f -- "${OWN_EXECUTOR}.retire"

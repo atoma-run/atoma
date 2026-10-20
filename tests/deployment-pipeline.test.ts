@@ -50,7 +50,7 @@ echo "mode=$ROLLING"`, 'test', old, next, executors], { encoding: 'utf8' });
   it('renders immutable executor paths and reboot wiring without expanding host path data', () => {
     const root = mkdtempSync(join(tmpdir(), 'executor-unit-'));
     try {
-      const unit = join(root, 'unit'), dropin = join(root, 'dropin'), revision = 'b'.repeat(40);
+      const unit = join(root, 'atoma-executor@.service'), dropin = join(root, 'dropin'), revision = 'b'.repeat(40);
       writeFileSync(unit, readFileSync('deploy/atoma-executor@.service'));
       const begin = hostDeploy.indexOf("<<'PY'\n") + 7, end = hostDeploy.indexOf('\nPY', begin);
       const hostRoot = `${root}/literal $HOME % paths`;
@@ -62,6 +62,20 @@ echo "mode=$ROLLING"`, 'test', old, next, executors], { encoding: 'utf8' });
       expect(rendered).toContain('literal $$HOME %% paths/releases/%i/dist/viz/server.js');
       expect(rendered).toContain('ATOMA_WORKER_IMAGE=atoma-worker:%i');
       expect(rendered).toContain('KillMode=control-group');
+      expect(rendered).toContain(`WorkingDirectory=${hostRoot.replaceAll('%', '%%')}/releases/%i`);
+      expect(rendered).toContain(`EnvironmentFile=${hostRoot.replaceAll('%', '%%')}/config/atoma.env`);
+      if (process.platform === 'linux') {
+        // Real parser regression: quoting scalar paths passed string checks
+        // but systemd refused the production unit before it could start.
+        writeFileSync(join(root, 'docker.service'), '[Service]\nType=oneshot\nExecStart=/usr/bin/true\n');
+        const verified = spawnSync('systemd-analyze', ['verify', '--man=no', unit], {
+          encoding: 'utf8', env: { ...process.env, SYSTEMD_UNIT_PATH: `${root}:` },
+        });
+        expect(verified.status, verified.stderr || verified.error?.message).toBe(0);
+        expect(verified.stderr).not.toMatch(/(?:WorkingDirectory|EnvironmentFile)= path is not absolute/);
+      }
+      expect(hostDeploy.indexOf('systemd-analyze verify --man=no')).toBeLessThan(hostDeploy.indexOf('ACTIVATION_STARTED=1'));
+
       expect(rendered).not.toMatch(/^(?:PartOf|BindsTo|Requires)=atoma\.service/m);
       expect(readFileSync(dropin, 'utf8')).toContain(`Wants=atoma-executor@${revision}.service`);
       expect(readFileSync(dropin, 'utf8')).toContain('Environment="ATOMA_EXECUTOR_SOCKET=');
