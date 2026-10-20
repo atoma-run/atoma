@@ -198,6 +198,7 @@ export const api = {
   }) => mutateJson<{ subscribed: boolean }>('/api/push/subscribe', body),
   unsubscribePush: (body: { endpoint: string }) =>
     mutateJson<{ removed: boolean }>('/api/push/unsubscribe', body),
+  adminStats: (days: import('../../contracts/platformStats.js').PlatformStatsDays) => fetchJson<import('../../contracts/platformStats.js').PlatformStats>(`/api/admin/stats?days=${days}`),
   adminOrganisations: () => fetchJson<VizAdminOrganisation[]>('/api/admin/organisations'),
   // The journal reads as PAGES, newest first: `before` is the exclusive `seq`
   // cursor the previous page handed back, so a boundary can neither repeat

@@ -6,6 +6,7 @@ import { VIZ_WIREFRAME } from './wireframe.js';
 type ThreeModule = typeof import('./nav-icon-three-runtime.js');
 
 export type NavIconKind =
+  | 'platform'
   | 'projects'
   | 'runs'
   | 'docs'
@@ -20,6 +21,7 @@ export type NavIconKind =
   | 'tuning';
 
 const CONTROL_ICON: Readonly<Record<string, NavIconKind>> = {
+  'nav.platform': 'platform',
   'nav.projects': 'projects',
   'nav.runs': 'runs',
   'nav.liveRuns': 'runs',
@@ -36,6 +38,7 @@ const CONTROL_ICON: Readonly<Record<string, NavIconKind>> = {
 };
 
 const MODEL_FILE: Readonly<Record<NavIconKind, string>> = {
+  platform: 'chart',
   projects: 'folder',
   runs: 'play',
   docs: 'file-text',

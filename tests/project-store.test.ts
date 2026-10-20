@@ -1172,3 +1172,20 @@ it('migrates old projects to no deployment and keeps saved preferences across re
   store = new ProjectStore(db);
   expect(store.getProject(owner.orgId, project.projectId)!.deploymentDestination).toBe('external');
 });
+
+
+it('aggregates platform project stats across orgs with cohort and current-live counts separated', () => {
+  const alice = actor('Alice'); const bob = actor('Bob');
+  const project = createProject(alice); const other = createProject(bob, 'other');
+  const run = store.createProjectRun({ orgId: alice.orgId, projectId: project.projectId, principalId: alice.principalId,
+    request: runRequest('stats'), hostPaths: hostPaths('stats') })!.run;
+  store.transitionProjectRun({ orgId: alice.orgId, projectRunId: run.projectRunId, from: 'queued', to: 'running' });
+  store.transitionProjectRun({ orgId: alice.orgId, projectRunId: run.projectRunId, from: 'running', to: 'delivered', traceId: 'trace', stats: deliveredStats });
+  const old = store.createProjectRun({ orgId: bob.orgId, projectId: other.projectId, principalId: bob.principalId,
+    request: runRequest('old'), hostPaths: hostPaths('old') })!.run;
+  db.prepare('UPDATE project_runs SET created_at = ? WHERE project_run_id = ?').run('2001-01-01T00:00:00.000Z', old.projectRunId);
+  const stats = store.platformStats('2020-01-01T00:00:00.000Z', new Date(Date.now() + 1000).toISOString());
+  expect(stats).toMatchObject({ projects: 2, activeProjects: 2, runs: 2, periodRuns: 1, queued: 1,
+    running: 0, delivered: 1, failed: 0, unmeteredRuns: 0, recordedCostUsd: deliveredStats.costUsd });
+  expect(stats.daily.reduce((n, row) => n + row.count, 0)).toBe(1);
+});

@@ -800,6 +800,34 @@ const PLATFORM_ADMIN_FOUNDERS_SQL = `SELECT m.org_id, m.principal_id FROM auth_m
                        AND e.created_at <= m.created_at)`;
 
 export class ProjectStore {
+  /** Aggregate project work across the platform; the HTTP caller requires platform admin. */
+  platformStats(since: string, now: string): import('../contracts/platformStats.js').PlatformProjectStats {
+    const totals = this.db.prepare(`SELECT COUNT(*) AS projects, COALESCE(SUM(status = 'active'), 0) AS activeProjects FROM projects`)
+      .get() as { projects: number; activeProjects: number };
+    const runs = (this.db.prepare('SELECT COUNT(*) AS count FROM project_runs').get() as { count: number }).count;
+    const live = this.db.prepare(`SELECT COALESCE(SUM(status = 'queued'), 0) AS queued,
+      COALESCE(SUM(status = 'running'), 0) AS running FROM project_runs`).get() as { queued: number; running: number };
+    const period = this.db.prepare(`SELECT COUNT(*) AS periodRuns,
+      COALESCE(SUM(status = 'delivered'), 0) AS delivered, COALESCE(SUM(status = 'partial'), 0) AS partial,
+      COALESCE(SUM(status = 'failed'), 0) AS failed, COALESCE(SUM(status = 'cancelled'), 0) AS cancelled,
+      SUM(json_extract(stats_json, '$.costUsd')) AS recordedCostUsd,
+      COALESCE(SUM(json_type(stats_json, '$.costUsd') IS NULL OR json_type(stats_json, '$.costUsd') = 'null'), 0) AS unmeteredRuns
+      FROM project_runs WHERE created_at >= ? AND created_at <= ?`).get(since, now) as {
+        periodRuns: number; delivered: number; partial: number; failed: number; cancelled: number;
+        recordedCostUsd: number | null; unmeteredRuns: number;
+      };
+    const learningCost = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'skill_learning_jobs'").get()
+      ? (this.db.prepare(`SELECT COALESCE(SUM(j.cost_usd), 0) AS cost FROM skill_learning_jobs j
+        JOIN project_runs r ON r.project_run_id = j.run_id WHERE r.created_at >= ? AND r.created_at <= ?`)
+        .get(since, now) as { cost: number }).cost : 0;
+    return { ...totals, runs, ...live, ...period,
+      recordedCostUsd: period.periodRuns === 0 ? 0 : period.recordedCostUsd === null ? null : period.recordedCostUsd + learningCost,
+      daily: this.db.prepare(`SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS count
+        FROM project_runs WHERE created_at >= ? AND created_at <= ? GROUP BY day ORDER BY day`)
+        .all(since, now) as Array<{ day: string; count: number }>,
+    };
+  }
+
   hasActiveLearningForPrincipal(principalId: string): boolean {
     if (!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'skill_learning_jobs'").get()) return false;
     return !!this.db.prepare("SELECT 1 FROM skill_learning_jobs WHERE status = 'running' AND json_extract(payload, '$.scope.principalId') = ? LIMIT 1").get(principalId);

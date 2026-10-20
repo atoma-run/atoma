@@ -318,19 +318,21 @@ npm run viz:mark-turn:analyze
   project routes do not exist, so Projects shows its explanatory empty state
   and the DOM mutation form is absent.
 - Handheld onboarding is required (owner reaffirmed 2026-10-02): crystal → Continue → white-out → mobile notice → Continue after two seconds → ordinary login/product entry. `isHandheldDevice()` (`client-gl/handheld.ts`) is the ONE pointer-capability predicate; `?atomaHandheld=1` rehearses it. Canvas and DOM entry share `useHandheldWhiteout`; the scene unmounts at white, reduced motion skips the animation, and acknowledgement persists in sessionStorage across OAuth/reloads. Before acknowledgement, neither a stored desktop entry nor a live device change may bypass the notice. Do not remove this journey as a “temporary disclaimer” or replace it with direct login without an explicit owner request. `viz:shot --handheld` proves the canvas path.
-- The ADMIN PLANE is SIX views, one per job — Live runs, Organisations (`admin`), the
-  platform journal, the catalogue ledger, the Sentinel, and Announcements —
-  under one nav heading. It was one tab holding several: three questions on one
-  screen, and one scroll position between them, so the journal could never page
-  past its first page. `ADMIN_VIEWS` in `store.ts` is the one list and the rail
-  reads it; each view's query is enabled on ITS OWN view. Announcements is the
-  plane's only WRITE surface and is last for that reason. It draws a frame and
-  nothing else: the composer is DOM filling the frame's content box, so unlike
-  every other overlay here it has no GL content to reserve space against — the
-  height contract is inverted, and the test pins the CSS box to
-  `view-frame.ts`. It rode at the foot of the organisation list before, which
-  put a broadcast composer under a screen nobody opens to broadcast and cost
-  that list 260px on every visit.
+- The rail's job grouping lives in `SIDEBAR_GROUPS` (`store.ts`): Workspace
+  holds projects, runs, the registry, skills and docs; Operate holds Live runs,
+  Burn-in, the journal, ledger and Sentinel; Admin holds Platform, Organisations
+  (`admin`) and Announcements. Grouping never changes permissions: the gated
+  member still sees only Workspace, and ungated developers have no admin data.
+  Each query is enabled on its own view. Platform (`platform`,
+  `/api/admin/stats`) reads the bounded operational aggregates defined in
+  [src/platform](../platform/AGENTS.md#operational-statistics), with the GPU and
+  semantic DOM sharing one presentation model. It refreshes every 30 seconds
+  while open and distinguishes unavailable traffic from measured zero.
+- Announcements draws a frame and nothing else: the composer is DOM filling
+  the frame's content box, so unlike every other overlay here it has no GL
+  content to reserve space against. The height contract is inverted, and the
+  test pins the CSS box to `view-frame.ts`. It rode at the foot of the
+  organisation list before, costing that list 260px on every visit.
 - Live runs (`liveRuns`, `/api/admin/live-runs`) reads the transactional running
   set across organisations, including preparation before a trace exists. It
   polls only on its own view, audits foreign reads and exposes no host paths.

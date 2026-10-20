@@ -1,3 +1,4 @@
+import { PlatformStatsAccessible } from './PlatformStatsAccessible.js';
 import { ProjectSettingsAccessible } from './ProjectSettingsAccessible.js';
 import { ButtonIcon } from './ButtonIcon.js';
 import { WELCOME_LEGAL_LINKS } from './legal-links.js';
@@ -173,6 +174,8 @@ function AccessibleDocs({
 }
 
 export function DomBridge({
+  platformStats = null,
+  platformDays = 30,
   runs,
   run = null,
   adminLiveRuns = [],
@@ -208,6 +211,8 @@ export function DomBridge({
   preview = null,
   onActivate,
 }: {
+  platformStats?: import('../../contracts/platformStats.js').PlatformStats | null;
+  platformDays?: import('../../contracts/platformStats.js').PlatformStatsDays;
   runs: RunIndexEntry[];
   run?: VizRun | null;
   adminLiveRuns?: import('../../contracts/projects.js').PlatformLiveRun[];
@@ -599,6 +604,8 @@ export function DomBridge({
             onClick={() => onActivate?.(`runs.project.back.${entry.projectId}`)}><ButtonIcon kind="back" />{t('runs.backToProject')}</button> : null;
         })() : null}
         {view === 'runs' && run ? <AccessibleRunActivity run={run} t={t} /> : null}
+        {view === 'platform' && auth?.viewer.platformAdmin ? <PlatformStatsAccessible
+          stats={platformStats} days={platformDays} locale={locale} t={t} onActivate={onActivate} /> : null}
         {view === 'liveRuns' && auth?.viewer.platformAdmin ? (
           <section aria-label={t('nav.liveRuns')}>
             <p>{t('liveRuns.scope')}</p>

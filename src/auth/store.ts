@@ -678,6 +678,30 @@ function personalOrganisationName(displayName: string): string {
 }
 
 export class AuthStore {
+  /** Platform totals contain no identity, email or session token. */
+  platformStats(since: string, now: string): import('../contracts/platformStats.js').PlatformAccountStats {
+    const count = (sql: string, ...args: string[]) => (this.db.prepare(sql).get(...args) as { n: number }).n;
+    const dayAgo = new Date(new Date(now).getTime() - 86_400_000).toISOString();
+    return {
+      accounts: count("SELECT COUNT(*) AS n FROM auth_principals WHERE kind = 'human'"),
+      organisations: count('SELECT COUNT(*) AS n FROM auth_organisations'),
+      signups: count("SELECT COUNT(*) AS n FROM auth_principals WHERE kind = 'human' AND created_at >= ? AND created_at <= ?", since, now),
+      activeUsers24h: count(`SELECT COUNT(DISTINCT principal_id) AS n FROM (
+        SELECT s.principal_id FROM auth_sessions s JOIN auth_principals p USING(principal_id)
+        WHERE p.kind = 'human' AND s.expires_at > ? AND s.last_seen_at >= ?
+        UNION SELECT t.principal_id FROM auth_api_tokens t JOIN auth_principals p USING(principal_id)
+        WHERE p.kind = 'human' AND t.revoked_at IS NULL AND t.last_used_at >= ?
+      )`, now, dayAgo, dayAgo),
+      pendingInvitations: count('SELECT COUNT(*) AS n FROM auth_invitations WHERE consumed_at IS NULL AND expires_at > ?', now),
+      daily: this.db.prepare(`SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS count
+        FROM auth_principals WHERE kind = 'human' AND created_at >= ? AND created_at <= ? GROUP BY day ORDER BY day`)
+        .all(since, now) as Array<{ day: string; count: number }>,
+      recent: this.db.prepare(`SELECT display_name AS displayName, created_at AS createdAt FROM auth_principals
+        WHERE kind = 'human' AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC, principal_id LIMIT 8`)
+        .all(since, now) as Array<{ displayName: string; createdAt: string }>,
+    };
+  }
+
   readonly mcpOAuth: McpOAuthStore;
   /** Local credential-GC ownership, never an API identity or a copied DB row. */
   readonly subscriptionProfileOwner: string;

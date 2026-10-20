@@ -85,6 +85,25 @@ import { assertMobileProjects } from './viz-mobile-probe.mjs';
 import { assertTimelineMinimap } from './viz-timeline-probe.mjs';
 import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../src/contracts/platformSettings.ts';
 
+/** Deterministic operational data for reviewing the platform overview. */
+function platformStatsFixture(days = 30) {
+  const now = new Date('2026-10-20T10:00:00.000Z');
+  const since = new Date(now.getTime() - (days - 1) * 86400000); since.setUTCHours(0, 0, 0, 0);
+  const daily = Array.from({ length: days }, (_, i) => ({ day: new Date(since.getTime() + i * 86400000).toISOString().slice(0, 10),
+    requests: 200 + i * 35, pageLoads: 20 + i, clientErrors: i % 4, serverErrors: i % 12 === 0 ? 1 : 0, durationMs: (200 + i * 35) * 42 }));
+  const totals = daily.reduce((a, row) => ({ requests: a.requests + row.requests, pageLoads: a.pageLoads + row.pageLoads,
+    clientErrors: a.clientErrors + row.clientErrors, serverErrors: a.serverErrors + row.serverErrors, durationMs: a.durationMs + row.durationMs }),
+    { requests: 0, pageLoads: 0, clientErrors: 0, serverErrors: 0, durationMs: 0 });
+  return { generatedAt: now.toISOString(), since: since.toISOString(), days, uptimeSeconds: 183600,
+    accounts: { accounts: 284, organisations: 196, signups: 38, activeUsers24h: 42, pendingInvitations: 7,
+      daily: daily.map((row, i) => ({ day: row.day, count: i % 4 })),
+      recent: [{ displayName: 'Ada Lovelace', createdAt: now.toISOString() }] },
+    projects: { projects: 132, activeProjects: 118, runs: 904, periodRuns: 71, queued: 1, running: 3,
+      delivered: 52, partial: 8, failed: 5, cancelled: 2, recordedCostUsd: 24.38, unmeteredRuns: 4,
+      daily: daily.map((row, i) => ({ day: row.day, count: i % 6 })) },
+    traffic: { startedAt: since.toISOString(), totals, daily, surfaces: [{ surface: 'pages', ...totals }] } };
+}
+
 // `/api/runs` is paged since 2026-10-14; the fixtures stay plain lists.
 function runIndexPageStub(runs, params) {
   const projectId = params.get('projectId');
@@ -344,6 +363,7 @@ function gatedStubs() {
       organisations: [{ id: 'org-a', name: 'Analytical Engines', role: 'org:owner' }],
       providers: [{ id: 'github', label: 'GitHub' }],
     },
+    '/api/admin/stats': platformStatsFixture(),
     '/api/admin/live-runs': [
       { projectRunId: 'cccccccc-1111-4222-8333-dddddddddd10', projectId,
         projectName: 'Stopwatch', projectSlug: 'stopwatch',
@@ -1035,6 +1055,7 @@ try {
           let stub = stubs[path] ?? (/^\/api\/projects\/[^/]+\/runs\/[^/]+\/preview$/.test(path)
             ? stubs[`/api/projects/${path.split('/')[3]}/runs/run-fixture/preview`]
             : undefined);
+          if (path === '/api/admin/stats') stub = platformStatsFixture(Number(new URL(request.url()).searchParams.get('days') ?? 30));
           if (path === '/api/runs' && Array.isArray(stub)) stub = runIndexPageStub(stub, new URL(request.url()).searchParams);
           if (stub !== undefined) {
             void request.respond({
@@ -2014,6 +2035,31 @@ try {
         await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 400)));
       }
     }
+    if (has('--platform-stats-probe')) {
+      if (!authed || !platformAdmin || view !== 'Platform') throw new Error('--platform-stats-probe requires --auth --platform-admin --view "Platform"');
+      for (const days of [7, 90, 30]) {
+        await page.waitForFunction(days => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const row = handle?.hitTargets().find(row => row.id === `platform.period.${days}`);
+          if (!row || document.querySelector('.gpu-scene-camera')?.dataset.sceneCameraMotion !== 'settled' ||
+              document.querySelector('.gpu-cube')?.dataset.cubeTurn !== 'idle') return false;
+          const point = handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
+          return document.elementFromPoint(point.x, point.y)?.classList.contains('gpu-ui-canvas');
+        }, { timeout: READY_TIMEOUT_MS }, days);
+        const point = await page.evaluate(async days => {
+          for (let frame = 0; frame < 2; frame++) await new Promise(resolve => requestAnimationFrame(resolve));
+          const handle = globalThis.__ATOMA_GPU__;
+          const row = handle.hitTargets().find(row => row.id === `platform.period.${days}`);
+          return handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
+        }, days);
+        await page.mouse.click(point.x, point.y);
+        await page.waitForFunction(count => document.querySelectorAll('.gpu-a11y-bridge tbody tr').length === count, {}, days);
+      }
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(row => row.id === 'platform.period.30'), { timeout: READY_TIMEOUT_MS });
+      await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 450)));
+      console.log('platform stats probe: 7/90/30-day reporting and semantic daily data passed');
+    }
+
     if (has('--live-runs-probe')) {
       if (!authed || !platformAdmin || view !== 'Live runs') throw new Error('--live-runs-probe requires --auth --platform-admin --view "Live runs"');
       const first = stubs['/api/admin/live-runs'][0];

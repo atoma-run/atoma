@@ -194,6 +194,7 @@ const VIEW_LOADING_KEYS: Readonly<Record<string, string>> = {
   registry: 'loading.registry',
   skills: 'loading.skills',
   burnin: 'loading.burnin',
+  platform: 'loading.platform',
   admin: 'loading.organisations',
   journal: 'loading.journal',
   ledger: 'loading.ledger',

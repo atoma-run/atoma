@@ -182,6 +182,24 @@ Design, polling basis and deferred tests: [W11](../../docs/decisions/cross-org-r
   `summary` is rendered as sent, on the same reasoning the audit journal
   renders a server summary raw. Only the form's own chrome is a catalog key.
 
+## Operational statistics
+
+`traffic.ts` aggregates completed origin HTTP requests into bounded daily/surface
+counters in the primary product store, retained for 90 UTC calendar days. It
+stores no IP, user agent, cookie, URL, query or subject id. Assets and health
+probes are excluded; polling, bots and MCP are included. Page loads count
+successful GETs to the fixed HTML routes, not unique visitors or SPA navigation.
+Collection start is durable; no pre-collection traffic is invented. Failure to
+record is fail-open and logged once; an unreadable snapshot is unavailable,
+never reported as zero. The server's existing retention tick sweeps it.
+
+`/api/admin/stats` is platform-admin only. Auth and project stores own their
+aggregate reads; the shared shape is `contracts/platformStats.ts`. Periods are
+7/30/90 UTC calendar days including today. Account/project totals are lifetime;
+active accounts use recent live sessions/API-token use. Runs and costs use the
+request-created cohort; queued/running are current. Costs include recorded
+learning and explicitly disclose missing metering. No trace files are scanned.
+
 ## Intentional choices and rejected shortcuts
 
 - Calling the notifier directly, from the domain that knows it wants a push:

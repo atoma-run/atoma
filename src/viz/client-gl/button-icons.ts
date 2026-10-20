@@ -43,6 +43,7 @@ export const CHEVRON_CSS_VARS = {
 
 /** Control identities, never translated copy, determine GPU pictograms. */
 export function buttonIconKind(id: string): ButtonIconKind {
+  if (id.startsWith('platform.period.')) return 'clock';
   if (id.startsWith('liveRuns.run.')) return 'play';
   if (id === 'project.section.conversation') return 'send';
   if (id === 'project.section.runs') return 'play';

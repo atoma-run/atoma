@@ -815,6 +815,7 @@ describe('viz auth gate (process level)', () => {
       providerEnv(provider, base)
     );
     await waitReady(running, `${base}/auth/whoami`);
+    expect((await fetch(`${base}/api/admin/stats`)).status).toBe(401);
 
     const jar = new CookieJar();
     expect((await fetchWithJar(jar, `${base}/auth/login?provider=github`)).status).toBe(200);
@@ -838,7 +839,7 @@ describe('viz auth gate (process level)', () => {
     for (const path of ['/api/skills', '/api/registries']) {
       expect((await fetch(`${base}${path}`, { headers: cookie })).status).toBe(200);
     }
-    for (const path of ['/api/burnin', '/api/admin/organisations', '/api/admin/settings']) {
+    for (const path of ['/api/burnin', '/api/admin/stats', '/api/admin/organisations', '/api/admin/settings']) {
       const refused = await fetch(`${base}${path}`, { headers: cookie });
       expect(refused.status).toBe(403);
     }
@@ -877,6 +878,17 @@ describe('viz auth gate (process level)', () => {
     expect(await (await fetch(`${base}/api/runs/${benchmark.start.runId}`, { headers: cookie })).json()).toEqual(benchmark.trace);
     expect((await fetch(`${base}/api/burnin`, { headers: cookie })).status).toBe(200);
 
+    const statsResponse = await fetch(`${base}/api/admin/stats?days=7`, { headers: cookie });
+    expect(statsResponse.status).toBe(200);
+    const { platformStatsSchema } = await import('../src/contracts/platformStats.js');
+    const stats = platformStatsSchema.parse(await statsResponse.json());
+    expect(stats.days).toBe(7);
+    expect(stats.accounts.accounts).toBeGreaterThanOrEqual(2);
+    expect(stats.accounts.organisations).toBe(2);
+    expect(stats.traffic?.totals.requests).toBeGreaterThan(0);
+    expect(stats.traffic?.totals.clientErrors).toBeGreaterThan(0);
+    expect((await fetch(`${base}/api/admin/stats?days=365`, { headers: cookie })).status).toBe(400);
+    expect((await fetch(`${base}/api/admin/stats`, { method: 'POST', headers: { ...cookie, origin: base } })).status).toBe(405);
     const organisations = await fetch(`${base}/api/admin/organisations`, { headers: cookie });
     expect(organisations.status).toBe(200);
     const listed = await organisations.json() as Array<{
@@ -1006,6 +1018,7 @@ describe('viz auth gate (process level)', () => {
     ).toBe(0);
     expect((await fetch(`${base}/api/burnin`, { headers: cookie })).status).toBe(403);
     expect((await fetch(`${base}/api/admin/organisations`, { headers: cookie })).status).toBe(403);
+    expect((await fetch(`${base}/api/admin/stats`, { headers: cookie })).status).toBe(403);
     expect((await fetch(`${base}/api/admin/settings`, { headers: cookie })).status).toBe(403);
   });
 

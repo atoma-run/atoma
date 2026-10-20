@@ -13,3 +13,5 @@ Official source and download references:
 
 The selected FBX files were converted to glTF 2.0 GLB, welded, simplified for
 their 34px display size, and quantised. No raster textures are embedded.
+
+`chart.glb` is an original procedural bar-chart mesh created for Atoma and dedicated to the public domain under CC0 1.0.

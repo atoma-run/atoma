@@ -205,6 +205,8 @@ import { buildTierClients } from '../run/providers.js';
 import { RoutingLlmClient } from '../core/llmRouting.js';
 import type { LlmClient } from '../core/types.js';
 import { eventsRetentionDays, PlatformEventLog } from '../platform/events.js';
+import { PlatformTrafficStore, observePlatformRequest } from '../platform/traffic.js';
+import { platformStatsDaysSchema, platformStatsSince, type PlatformStats } from '../contracts/platformStats.js';
 import { RUN_RETENTION_DAYS } from '../projects/retention.js';
 import { HostPressureWatch } from '../platform/hostPressure.js';
 import { readHostMemory } from '../core/hostMemory.js';
@@ -590,6 +592,12 @@ const SECRET_ENCRYPTION = (() => {
  * of those exist on the ungated developer path. Declared before the sweep
  * timer below, which is its retention driver.
  */
+const TRAFFIC: PlatformTrafficStore | null = (() => {
+  if (!AUTH_RUNTIME) return null;
+  try { return PlatformTrafficStore.open(DBS[0]!.path); }
+  catch (error) { console.error('[viz traffic] collection unavailable', error); return null; }
+})();
+
 const EVENTS: PlatformEventLog | null = AUTH_RUNTIME
   ? PlatformEventLog.open(DBS[0]!.path)
   : null;
@@ -705,6 +713,7 @@ if (AUTH?.store) {
     // Retention rides the same tick: one timer, two bounded tables. The log
     // sweeps fail-open on its own, so it needs no try/catch here.
     EVENTS?.sweep();
+    TRAFFIC?.sweep();
   }, 5 * 60 * 1000);
   sweepTimer.unref();
 }
@@ -2655,6 +2664,7 @@ function decodePathComponent(value: string): string | null {
 }
 
 const server = createServer((req, res) => {
+  if (TRAFFIC) observePlatformRequest(TRAFFIC, req, res);
   void handle(req, res).catch((error: unknown) => {
     console.error('[viz] request failed', error);
     if (!res.headersSent) {
@@ -4169,6 +4179,24 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         return;
       }
       const authStore = AUTH.store!;
+      if (pathname === '/api/admin/stats') {
+        if (!methodAllowed(req, res, 'GET')) return;
+        const days = platformStatsDaysSchema.safeParse(Number(url.searchParams.get('days') ?? 30));
+        if (!days.success) { sendJson(res, 400, { error: 'days must be 7, 30 or 90' }); return; }
+        const now = new Date();
+        const generatedAt = now.toISOString();
+        const since = platformStatsSince(days.data, now);
+        let traffic: PlatformStats['traffic'] = null;
+        try { traffic = TRAFFIC?.snapshot(since, generatedAt) ?? null; }
+        catch (error) { console.error('[viz traffic] snapshot unavailable', error); }
+        const snapshot: PlatformStats = {
+          generatedAt, since, days: days.data, uptimeSeconds: process.uptime(),
+          accounts: authStore.platformStats(since, generatedAt),
+          projects: PROJECTS_RUNTIME?.store.platformStats(since, generatedAt) ?? null, traffic,
+        };
+        sendJson(res, 200, snapshot);
+        return;
+      }
       // THE AUDIT JOURNAL. Newest-first, cursor-paged on `seq` — the same
       // reading direction as the runs timeline. `before` is exclusive so a
       // page boundary can neither repeat nor skip a row, which ordering by

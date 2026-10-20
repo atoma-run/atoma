@@ -128,6 +128,7 @@ describe('catalog copy is drawable', () => {
 describe('navigation icon identity', () => {
   it('gives every rail destination and utility its own pictogram', () => {
     const ids = [
+      'nav.platform',
       'nav.projects',
       'nav.runs',
       'nav.docs',
@@ -186,7 +187,7 @@ beforeEach(() => {
     burninPreset: 'all',
     burninPage: 1,
     selectedDocsTheme: 'quick',
-    scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
+    scrollY: { platform: 0, projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
     entered: false,
   });
 });

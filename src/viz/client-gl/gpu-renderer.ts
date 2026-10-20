@@ -184,6 +184,7 @@ export interface GpuDataSnapshot {
   connectorSettings?: import('./project-connectors.js').ConnectorSettingsView | null;
   computeSettings?: import('./project-compute.js').ComputeSettingsView | null;
   githubInstallations: VizGitHubInstallation[];
+  platformStats?: import('../../contracts/platformStats.js').PlatformStats | null;
   adminOrganisations: VizAdminOrganisation[];
   adminInvitation: VizAdminInvitation | null;
   adminError: string | null;
@@ -507,6 +508,7 @@ import { drawBurnin } from './renderer/views/burnin.js';
 import { drawDocs } from './renderer/views/docs.js';
 import { drawProjects, projectSectionLayout, projectsGuideLayoutHeight, PROJECTS_MCP_GUIDE_TOP } from './renderer/views/projects.js';
 import { projectAsideReserve } from './renderer/views/project-overview.js';
+import { drawPlatform } from './renderer/views/platform.js';
 import { drawAdmin } from './renderer/views/admin.js';
 import { drawJournal } from './renderer/views/journal.js';
 import { drawLedger } from './renderer/views/ledger.js';
@@ -2207,6 +2209,9 @@ export class GpuRenderer {
             drawProjects(this, snapshot, contentWidth, layoutHeight);
             break;
           }
+          case 'platform':
+            drawPlatform(this, snapshot, contentWidth, layoutHeight);
+            break;
           case 'admin':
             drawAdmin(this, snapshot, contentWidth, layoutHeight);
             break;

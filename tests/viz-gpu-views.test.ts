@@ -1,4 +1,6 @@
 import { relativeTime } from '../src/viz/client-gl/renderer/relative-time.js';
+import { drawPlatform } from '../src/viz/client-gl/renderer/views/platform.js';
+import { platformStatsFixture } from './helpers/platformStats.js';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -681,11 +683,12 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     burninPage: 1,
     journalSeverity: 'all',
     journalFamily: 'all',
+    platformDays: 30,
     selectedDocsTheme: 'quick',
     appearanceTheme: 'nocturne',
     appearanceTransitionTarget: null,
     themeDropdownOpen: false,
-    scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
+    scrollY: { platform: 0, projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
     entered: true,
     handheld: false,
     handheldAccepted: false,
@@ -2071,7 +2074,7 @@ describe('visibleViews', () => {
     const base = { failure: false, signingOut: false, switchingOrganisationId: null };
     // Gate off: classic operator surfaces, no admin plane.
     expect(visibleViews(null)).toEqual([
-      'projects', 'runs', 'registry', 'skills', 'burnin', 'docs',
+      'projects', 'runs', 'registry', 'skills', 'docs', 'burnin',
     ]);
     // No `launch` tab anywhere: describing how to phrase a goal is not a view
     // of its own, it is part of the form that starts the run.
@@ -2081,15 +2084,15 @@ describe('visibleViews', () => {
     // exist to poison the global data error. Docs stays: it is static prose,
     // not a fetch of gated data.
     expect(visibleViews({ ...base, viewer })).toEqual(['projects', 'runs', 'registry', 'skills', 'docs']);
-    // The admin plane is SIX destinations, one per job, not one tab holding
+    // Platform-only surfaces each have their own destination, one per job, not one tab holding
     // organisations, the journal, the ledger and the sentinel at once — and
     // the composer that used to ride at the foot of the organisation list is
     // one of them, not a form bolted onto a screen about something else.
     expect(
       visibleViews({ ...base, viewer: { ...viewer, platformAdmin: true } })
     ).toEqual([
-      'projects', 'runs', 'registry', 'skills', 'burnin', 'docs',
-      'liveRuns', 'admin', 'journal', 'ledger', 'sentinel', 'announce',
+      'projects', 'runs', 'registry', 'skills', 'docs',
+      'liveRuns', 'burnin', 'journal', 'ledger', 'sentinel', 'platform', 'admin', 'announce',
     ]);
   });
 
@@ -4775,7 +4778,7 @@ describe('drawRegistry scrolling honesty', () => {
         {
           view: 'registry',
           scrollY: {
-            projects: 0,
+            platform: 0, projects: 0,
             runs: 0,
             registry: unscrolled.scrollMax.registry!,
             skills: 0,
@@ -5193,7 +5196,7 @@ describe('drawBurnin scroll, pagination and lifecycle columns', () => {
         {
           view: 'burnin',
           burninPage: 2,
-          scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: 500, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
+          scrollY: { platform: 0, projects: 0, runs: 0, registry: 0, skills: 0, burnin: 500, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
         },
         data
       ),
@@ -5244,7 +5247,7 @@ describe('drawBurnin scroll, pagination and lifecycle columns', () => {
       makeSnapshot(
         {
           view: 'burnin',
-          scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: SCROLL, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
+          scrollY: { platform: 0, projects: 0, runs: 0, registry: 0, skills: 0, burnin: SCROLL, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
         },
         data
       ),
@@ -6735,7 +6738,7 @@ describe('drawRuns behavior', () => {
       makeSnapshot(
         {
           scrollY: {
-            projects: 0,
+            platform: 0, projects: 0,
             runs: ctx.scrollMax.runs!,
             registry: 0,
             skills: 0,
@@ -8499,5 +8502,38 @@ describe('drawLiveRuns', () => {
     drawLiveRuns(full, makeSnapshot({ view: 'liveRuns' }, { adminLiveRuns: Array.from({ length: 20 }, () => runs[0]!) }), 360, 600);
     expect(full.scrollMax.liveRuns).toBeGreaterThan(1000);
     expect(full.buttons.length).toBeLessThan(20);
+  });
+});
+
+
+describe('platform overview', () => {
+  it('balances operator tools and administration while keeping member access unchanged', () => {
+    const admin = { viewer: { platformAdmin: true } };
+    expect(visibleViews(admin)).toEqual(SIDEBAR_GROUPS.flatMap(group => group.views));
+    expect(SIDEBAR_GROUPS.find(group => group.key === 'operate')?.views).toEqual(['liveRuns', 'burnin', 'journal', 'ledger', 'sentinel']);
+    expect(SIDEBAR_GROUPS.find(group => group.key === 'admin')?.views).toEqual(['platform', 'admin', 'announce']);
+    expect(isRoutableView('platform', makeAuth())).toBe(false);
+    expect(isRoutableView('platform', null)).toBe(false);
+    expect(isRoutableView('platform', admin)).toBe(true);
+  });
+  it('does not turn unavailable project statistics into zero active projects', () => {
+    const ctx = createRecordingCtx();
+    const stats = platformStatsFixture(); stats.projects = null;
+    drawPlatform(ctx, makeSnapshot({ view: 'platform' }, { platformStats: stats }), 1280, 720);
+    expect(ctx.texts.some(text => text.value === '0 active projects')).toBe(false);
+    expect(ctx.texts.some(text => text.value === '—')).toBe(true);
+  });
+  it.each([360, 800, 1400])('renders measured totals and scrollable charts at %ipx', width => {
+    const ctx = createRecordingCtx();
+    const snapshot = makeSnapshot({ view: 'platform' }, { platformStats: platformStatsFixture() });
+    drawPlatform(ctx, snapshot, width, 720);
+    expect(ctx.buttons.map(button => button.id)).toEqual(['platform.period.7', 'platform.period.30', 'platform.period.90']);
+    expect(ctx.texts.some(text => text.value === 'Registered accounts')).toBe(true);
+    expect(ctx.texts.some(text => text.value.includes('Traffic collection began'))).toBe(true);
+    expect(ctx.scrollMax.platform).toBeGreaterThan(0);
+    for (const button of ctx.buttons) {
+      expect(button.width).toBeGreaterThan(0);
+      expect(button.x + button.width).toBeLessThanOrEqual(width);
+    }
   });
 });

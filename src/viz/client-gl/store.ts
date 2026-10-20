@@ -32,6 +32,7 @@ export type SettingsTab = (typeof SETTINGS_TABS)[number];
 export { DOC_THEMES, type DocsThemeKey } from './docs-content.js';
 
 export type ViewName =
+  | 'platform'
   | 'projects'
   | 'runs'
   | 'registry'
@@ -46,29 +47,10 @@ export type ViewName =
   | 'announce'
   | 'settings';
 
-/**
- * The admin plane, one view per JOB rather than one tab holding four.
- *
- * `admin` keeps its key (organisations and invitations) because it is the
- * stored scroll key, the doc theme and the route every existing link uses;
- * its LABEL is what changed. The journal, the catalogue ledger and the
- * sentinel each answer a different question and each needs its own scroll
- * position and its own filters — which one stacked view could not give them.
- *
- * `announce` is the plane's only WRITE surface, and it is last for that
- * reason: the other views report platform activity, this one reaches every
- * subscriber's pocket. It rode at the foot of the organisation list, which
- * put a broadcast composer under a screen nobody opens to broadcast, and cost
- * that list 260px of height on every visit.
+/** Platform-only permissions, independent of which sidebar group a job belongs to.
+ * `admin` retains the organisations route used by existing links.
  */
-export const ADMIN_VIEWS: readonly ViewName[] = [
-  'liveRuns',
-  'admin',
-  'journal',
-  'ledger',
-  'sentinel',
-  'announce',
-];
+export const ADMIN_VIEWS: readonly ViewName[] = ['liveRuns', 'journal', 'ledger', 'sentinel', 'platform', 'admin', 'announce'];
 
 /**
  * ONE definition of which nav tabs a viewer gets — the DOM tablist and the
@@ -86,9 +68,9 @@ export const ADMIN_VIEWS: readonly ViewName[] = [
  * The member guide explains how to review those goals.
  */
 export function visibleViews(auth: { viewer: { platformAdmin: boolean } } | null): ViewName[] {
-  if (!auth) return ['projects', 'runs', 'registry', 'skills', 'burnin', 'docs'];
+  if (!auth) return ['projects', 'runs', 'registry', 'skills', 'docs', 'burnin'];
   if (auth.viewer.platformAdmin) {
-    return ['projects', 'runs', 'registry', 'skills', 'burnin', 'docs', ...ADMIN_VIEWS];
+    return SIDEBAR_GROUPS.flatMap(group => group.views).slice();
   }
   return ['projects', 'runs', 'registry', 'skills', 'docs'];
 }
@@ -114,8 +96,8 @@ export function visibleViews(auth: { viewer: { platformAdmin: boolean } } | null
  */
 export const SIDEBAR_GROUPS: readonly { key: string; views: readonly ViewName[] }[] = [
   { key: 'workspace', views: ['projects', 'runs', 'registry', 'skills', 'docs'] },
-  { key: 'operate', views: ['burnin'] },
-  { key: 'admin', views: ADMIN_VIEWS },
+  { key: 'operate', views: ['liveRuns', 'burnin', 'journal', 'ledger', 'sentinel'] },
+  { key: 'admin', views: ['platform', 'admin', 'announce'] },
 ];
 
 /**
@@ -265,6 +247,7 @@ export interface GpuUiState {
   /** Journal filters. Server-side: filtering paged rows would thin the pages. */
   journalSeverity: string;
   journalFamily: string;
+  platformDays: import('../../contracts/platformStats.js').PlatformStatsDays;
   selectedDocsTheme: DocsThemeKey;
   appearanceTheme: AppearanceTheme;
   appearanceTransitionTarget: AppearanceTheme | null;
@@ -513,11 +496,13 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   burninPage: 1,
   journalSeverity: 'all',
   journalFamily: 'all',
+  platformDays: 30,
   selectedDocsTheme: 'quick',
   appearanceTheme: initialAppearanceTheme(),
   appearanceTransitionTarget: null,
   themeDropdownOpen: false,
   scrollY: {
+    platform: 0,
     projects: 0,
     runs: 0,
     registry: 0,
