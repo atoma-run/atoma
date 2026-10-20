@@ -12,6 +12,7 @@ import {
   inFlightLlmEvents,
   isRunLive,
   runElapsedMs,
+  runDuration,
   runHeading,
   runStatus,
   runUsageValue,
@@ -67,6 +68,7 @@ import {
   detailToneColor,
   eventAccent,
   gpuEventCardCopy,
+  fmtTokenCount,
   nowDescription,
   scalar,
   timelineBranchColor,
@@ -1521,12 +1523,12 @@ function drawRunStatGrid(
   const usageValue = (value: string): string =>
     runUsageValue(run, value, snapshot.t, inFlight.length);
   const stats: [string, string][] = [
-    [snapshot.t('summary.duration'), fmtMs(runElapsedMs(run))],
+    [snapshot.t('summary.duration'), runDuration(runElapsedMs(run), snapshot.t)],
     [
       snapshot.t('summary.llmCalls'),
       inFlight.length ? `${completedCalls} (+${inFlight.length})` : scalar(run.totals?.calls, '0'),
     ],
-    [snapshot.t('summary.tokens'), usageValue(`${run.totals?.inputTokens ?? 0}/${run.totals?.outputTokens ?? 0}`)],
+    [snapshot.t('summary.tokens'), usageValue(`${fmtTokenCount(run.totals?.inputTokens ?? 0)}/${fmtTokenCount(run.totals?.outputTokens ?? 0)}`)],
     [snapshot.t('summary.cost'), usageValue(fmtCost(run.totals?.costUsd))],
   ];
   const accents = [GPU_COLORS.cyan, GPU_COLORS.tiers[3], GPU_COLORS.primary, GPU_COLORS.success];

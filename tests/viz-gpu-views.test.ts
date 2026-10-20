@@ -7231,7 +7231,7 @@ describe('render groups — per-frame animation stays off the root batch', () =>
       ...run, totals, endedAt: new Date().toISOString(),
       events: [start, makeLlmEvent('receipt')],
     });
-    expect(final).toContain('26/7360');
+    expect(final).toContain('26/7.4k');
     expect(final).toContain('$0.5514');
     expect(final).not.toContain('Awaiting usage');
   });
