@@ -11,6 +11,11 @@ import { projectRunHostLayout } from '../src/projects/coordinator.js';
 import { serveExecutor } from '../src/projects/executorTransport.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 
+const CLI_TIMEOUT_MS = 10_000;
+
+// Five sequential cold CLI processes each get their own deadline, plus one
+// allowance for fixture setup/cleanup. A slow child cannot consume this whole
+// scenario budget; spawn kills it at CLI_TIMEOUT_MS and its assertions fail.
 it('delegates CLI admission, waits for its own queued run and reattaches after completion', async () => {
   const root = mkdtempSync(join(tmpdir(), 'pcli-'));
   chmodSync(root, 0o700);
@@ -42,6 +47,8 @@ it('delegates CLI admission, waits for its own queued run and reattaches after c
       cwd: root, env: { PATH: process.env['PATH'], HOME: root, ATOMA_DB_PATH: f.dbPath,
         ATOMA_EXECUTOR_SOCKET: socket, ATOMA_MCP_RUN_LOCK: join(root, 'lease.db') },
       stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: CLI_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
     });
     children.push(child);
     let output = '';
@@ -52,24 +59,31 @@ it('delegates CLI admission, waits for its own queued run and reattaches after c
   try {
     const first = cli();
     await vi.waitFor(() => {
-      if (first.child.exitCode !== null) throw new Error(first.output());
+      if (first.child.exitCode !== null || first.child.signalCode !== null) {
+        throw new Error(`CLI exited before admission (${first.child.exitCode ?? first.child.signalCode}): ${first.output()}`);
+      }
       expect(runId).toBeDefined();
-    }, { timeout: 10_000 });
+    }, { timeout: CLI_TIMEOUT_MS });
     expect(first.child.exitCode).toBeNull();
     first.child.kill('SIGTERM');
     await first.ended;
     expect(f.projects.getProjectRun(f.viewer.orgId, runId!)?.status).toBe('queued');
     const resumed = cli();
-    await vi.waitFor(() => expect(calls).toHaveLength(2), { timeout: 10_000 });
+    await vi.waitFor(() => {
+      if (resumed.child.exitCode !== null || resumed.child.signalCode !== null) {
+        throw new Error(`CLI exited before reattachment (${resumed.child.exitCode ?? resumed.child.signalCode}): ${resumed.output()}`);
+      }
+      expect(calls).toHaveLength(2);
+    }, { timeout: CLI_TIMEOUT_MS });
     expect(resumed.child.exitCode).toBeNull();
     f.projects.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: runId!, from: 'queued', to: 'running' });
     await new Promise(resolve => setTimeout(resolve, 350));
     expect(resumed.child.exitCode).toBeNull();
     f.projects.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: runId!, from: 'running', to: 'failed', error: 'Quota-free test completion' });
-    expect((await resumed.ended)[0]).toBe(1);
+    expect((await resumed.ended)[0], resumed.output()).toBe(1);
     expect(resumed.output()).toContain(`run ${runId!} failed`);
     const completedRetry = cli();
-    expect((await completedRetry.ended)[0]).toBe(1);
+    expect((await completedRetry.ended)[0], completedRetry.output()).toBe(1);
     expect(completedRetry.output()).toContain(`run ${runId!} failed`);
     expect(calls).toEqual(['cli-retry-key', 'cli-retry-key', 'cli-retry-key']);
     expect(f.projects.listProjectRuns(f.viewer.orgId, f.project.projectId)).toHaveLength(1);
@@ -78,11 +92,11 @@ it('delegates CLI admission, waits for its own queued run and reattaches after c
       expect(journal.prepare("SELECT COUNT(*) AS n FROM platform_events WHERE kind='run.started'").get()).toEqual({ n: 0 });
     } finally { journal.close(); }
     const malformed = cli('invalid key');
-    expect((await malformed.ended)[0]).toBe(1);
+    expect((await malformed.ended)[0], malformed.output()).toBe(1);
     expect(malformed.output()).toContain('invalid --idempotency-key');
     await new Promise<void>(resolve => server.close(() => resolve()));
     const unavailable = cli();
-    expect((await unavailable.ended)[0]).toBe(1);
+    expect((await unavailable.ended)[0], unavailable.output()).toBe(1);
     expect(unavailable.output()).toContain('Run executor unavailable');
     expect(calls).toHaveLength(3);
   } finally {
@@ -92,4 +106,4 @@ it('delegates CLI admission, waits for its own queued run and reattaches after c
     closeStoreHandles();
     rmSync(root, { recursive: true, force: true });
   }
-}, 20_000);
+}, 6 * CLI_TIMEOUT_MS);
