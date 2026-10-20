@@ -350,6 +350,13 @@ Neighbours:
   digest reads any event carrying `error` as a RUN error, so a Decision outage
   would have become defect verdicts and mender pull requests against a run
   that did nothing wrong.
+- Tissue → cell supervision shares a substantive plan-review budget across
+  its one type-branch retry: configured `maxPlanIterations` plus one review
+  reserved for the replacement, reset on execution. Reviewer faults spend
+  only their existing fault budget. Molecule supervision and the separate
+  bounded L3 root-plan review retain their existing budgets. A new fixed
+  four-plan ceiling across every tier was rejected: it counted reviewer
+  faults and could install a replacement without letting it plan.
 - `DEFAULT_LIMITS.maxExecIterations` and its comparison are pinned by tests;
   change semantics only with an explicit migration of the effective budget.
 - A runtime price overlay beside `modelCatalog.json` (a host file or env the

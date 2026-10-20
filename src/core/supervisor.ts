@@ -265,6 +265,15 @@ export async function superviseLoop<C extends Atom>(
   // the iteration counters and rejection-streak trackers) before giving up
   // to the parent fallback. Second escalation falls through.
   let hasTriedBranch = false;
+  // Unlike planIter, task progress (execution), not a planner type branch,
+  // resets this streak.
+  let plansWithoutExecution = 0;
+  // Tissue → cell supervision only. Reuse the configured plan allowance and
+  // reserve one substantive review for the replacement; molecule retries keep
+  // their existing budgets. Root L3 plans have their own bounded review loop.
+  const maxPlansWithoutExecution = parent.tier === 3
+    ? ctx.limits.maxPlanIterations + 1
+    : Number.POSITIVE_INFINITY;
 
   // The outer loop exists purely to reset the per-cycle state
   // (counters + trackers) when a branch-retry happens. In the common case
@@ -302,6 +311,9 @@ export async function superviseLoop<C extends Atom>(
 
     try {
       while (true) {
+        if (plansWithoutExecution >= maxPlansWithoutExecution) {
+          throw new EscalationSignal('plan');
+        }
         if (planIter >= ctx.limits.maxPlanIterations) {
           throw new EscalationSignal('plan');
         }
@@ -351,6 +363,7 @@ export async function superviseLoop<C extends Atom>(
           if (reviewFaults >= MAX_PLAN_REVIEW_FAULTS) throw new EscalationSignal('review');
           continue;
         }
+        plansWithoutExecution++;
         trace.push({ kind: 'verdict-plan', ts: now(), atom: parent.name, payload: v1 });
         if (!v1.approved) {
           judgements++;
@@ -403,6 +416,7 @@ export async function superviseLoop<C extends Atom>(
 
         if (ctx.signal.aborted) throw ctx.signal.reason ?? new Error('aborted');
 
+        plansWithoutExecution = 0;
         const result = await run(() => current.execute(task, plan, ctx));
         trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: result });
 
