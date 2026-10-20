@@ -1,3 +1,4 @@
+import { relativeTime } from '../src/viz/client-gl/renderer/relative-time.js';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -307,6 +308,7 @@ function fitStub(value: string, maxWidth: number, options?: { size?: number }): 
 
 function createRecordingCtx(): RecordingCtx {
   const ctx: RecordingCtx = {
+    relativeTime,
     // No renderer here, on purpose. The crystal's refraction pass needs one and
     // must SKIP itself without one — these tests are the standing proof that the
     // mark still builds and lays out in a context that cannot render off-screen.
@@ -642,6 +644,9 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     resultDetailsOpen: false,
     selectedEventId: null,
     contextRawOpen: false,
+    // Existing geometry fixtures exercise the full technical pane. Readable
+    // pane tests below explicitly use the product's default (false).
+    eventTechnicalOpen: true,
     selectedAtomName: null,
     selectedRegistryId: null,
     selectedRegistryAtom: null,
@@ -725,6 +730,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     setRunFilters: noop,
     toggleBranchHeading: noop,
     toggleContextRaw: noop,
+    toggleEventTechnical: noop,
     toggleRunSummary: noop,
     showRunActivity: noop,
     selectActivityFile: noop,
@@ -1695,7 +1701,8 @@ describe('the nav rail', () => {
   it('stops inactive rendering and rebuilds only the latest snapshot on return', () => {
     let focused = true;
     let hidden = false;
-    vi.stubGlobal('document', { get hidden() { return hidden; }, hasFocus: () => focused });
+    vi.stubGlobal('document', { get hidden() { return hidden; }, hasFocus: () => focused,
+      addEventListener: vi.fn(), removeEventListener: vi.fn() });
     const renderer = new GpuRenderer();
     const start = vi.fn();
     const stop = vi.fn();
@@ -1728,7 +1735,56 @@ describe('the nav rail', () => {
       expect(rebuild).toHaveBeenCalledExactlyOnceWith(latest);
       expect(start).toHaveBeenCalledOnce();
     } finally {
+      focused = false;
+      internals.syncRenderActivity();
       vi.unstubAllGlobals();
+    }
+  });
+
+  it('refreshes relative dates without new data and catches up after losing focus', () => {
+    vi.useFakeTimers();
+    const at = Date.parse('2026-10-20T12:00:00Z');
+    vi.setSystemTime(at);
+    let focused = true;
+    vi.stubGlobal('document', { hidden: false, hasFocus: () => focused,
+      addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    const renderer = new GpuRenderer();
+    const snapshot = makeSnapshot({ view: 'runs' });
+    const internals = renderer as unknown as {
+      initialized: boolean; app: unknown; snapshot: GpuRenderSnapshot;
+      relativeTimes: { clear: () => void }; syncRenderActivity: () => void;
+    };
+    internals.initialized = true;
+    internals.app = { start: vi.fn(), stop: vi.fn() };
+    internals.snapshot = snapshot;
+    let label = renderer.relativeTime(at, snapshot.t, 'en');
+    const redraw = vi.spyOn(renderer, 'render').mockImplementation(() => {
+      internals.relativeTimes.clear();
+      label = renderer.relativeTime(at, snapshot.t, 'en');
+      return true;
+    });
+    renderer.onDeferredRender = vi.fn();
+    try {
+      internals.syncRenderActivity();
+      vi.advanceTimersByTime(44_000);
+      expect(redraw).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1000);
+      expect(redraw).toHaveBeenCalledExactlyOnceWith(snapshot, true);
+      expect(label).toBe('a minute ago');
+      expect(renderer.onDeferredRender).toHaveBeenCalledOnce();
+      focused = false;
+      internals.syncRenderActivity();
+      vi.advanceTimersByTime(60_000);
+      expect(redraw).toHaveBeenCalledOnce();
+      focused = true;
+      internals.syncRenderActivity();
+      expect(label).toBe('a few minutes ago');
+      expect(redraw).toHaveBeenCalledTimes(2);
+    } finally {
+      focused = false;
+      internals.syncRenderActivity();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
     }
   });
 
@@ -6128,6 +6184,26 @@ describe('drawRuns behavior', () => {
     }
   });
 
+  it('opens an action on its explanation and keeps the full technical payload available', () => {
+    const event: VizEvent = { id: 'edit', kind: 'tool', name: 'edit_file', ts: 1,
+      actor: { name: 'RNA', tier: 1 }, args: { path: 'app.ts', old_string: 'OLD SOURCE', new_string: 'NEW SOURCE' },
+      result: { ok: true, path: 'app.ts', replacements: 1, bytes: 14868 } };
+    const data = { run: makeRun([event]) };
+    const readable = createRecordingCtx();
+    drawRuns(readable, makeSnapshot({ selectedEventId: event.id, eventTechnicalOpen: false }, data), WIDTH, HEIGHT);
+    expect(readable.texts.map(text => text.value)).toContain('Updating a file');
+    expect(readable.texts.map(text => text.value)).toContain('This action completed');
+    expect(readable.texts.map(text => text.value)).not.toContain('OLD SOURCE');
+    expect(readable.texts.map(text => text.value)).not.toContain('Arguments');
+    expect(readable.buttons.find(button => button.id === 'detail.technical.toggle')?.label).toBe('Show technical details');
+    const technical = createRecordingCtx();
+    drawRuns(technical, makeSnapshot({ selectedEventId: event.id, eventTechnicalOpen: true }, data), WIDTH, HEIGHT);
+    expect(technical.texts.map(text => text.value)).toContain('OLD SOURCE');
+    expect(technical.texts.map(text => text.value)).toContain('NEW SOURCE');
+    expect(technical.atomButtons.some(button => button.id === 'participant.atom.RNA')).toBe(true);
+    expect(technical.buttons.find(button => button.id === 'detail.technical.toggle')?.label).toBe('Back to the explanation');
+  });
+
   it('renders registry participants as tiered controls without duplicate identity cards', () => {
     const event: VizEvent = {
       id: 'credit', kind: 'registry', ts: 1, op: 'recordSuccess',
@@ -7533,6 +7609,84 @@ describe('FPS follow-ups', () => {
       expect(target.y).toBeGreaterThanOrEqual(viewport.top);
       expect(target.y + target.height).toBeLessThanOrEqual(viewport.top + viewport.height);
     }
+  });
+
+  it('anchors a live refresh to the action being read and commits the new wheel offset', () => {
+    const events = Array.from({ length: 200 }, (_, i) => makeLlmEvent(`e${i}`));
+    const first = makeSnapshot({ view: 'runs', scrollY: { ...makeSnapshot().state.scrollY, runs: 2437 } },
+      { run: makeRun(events) });
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, first, 1280, 800);
+    const renderer = new GpuRenderer();
+    renderer.metrics = ctx.metrics;
+    const internal = renderer as unknown as {
+      snapshot: GpuRenderSnapshot;
+      renderScene(snapshot: GpuRenderSnapshot): void;
+      syncLightThemeMarkFilter(light: boolean): void;
+      renderTimed(snapshot: GpuRenderSnapshot, force: boolean): boolean;
+    };
+    internal.snapshot = first;
+    vi.spyOn(internal, 'syncLightThemeMarkFilter').mockImplementation(() => {});
+    const anchor = ctx.eventCards.find(card => card.y > ctx.metrics.timelineViewport!.top + 80)!;
+    let painted = createRecordingCtx();
+    const draw = vi.spyOn(internal, 'renderScene').mockImplementation(snapshot => {
+      internal.snapshot = snapshot;
+      painted = createRecordingCtx();
+      drawRuns(painted, snapshot, 1280, 800);
+    });
+    const onScroll = vi.fn();
+    const next = { ...first, onScroll, data: { ...first.data,
+      run: makeRun([...events, makeLlmEvent('new-1'), makeLlmEvent('new-2')]),
+    } };
+    internal.renderTimed(next, true);
+    expect(draw.mock.calls[0]![0].state.scrollY.runs).toBe(2517);
+    expect(painted.eventCards.find(card => card.id === anchor.id)?.y).toBe(anchor.y);
+    expect(onScroll).toHaveBeenCalledExactlyOnceWith('runs', 80);
+    // The store commit must neither apply the insertion twice nor rebuild.
+    const paintedSnapshot = internal.snapshot;
+    const committed = { ...internal.snapshot, state: { ...internal.snapshot.state,
+      scrollY: { ...internal.snapshot.state.scrollY },
+    } };
+    expect(renderer.render(committed)).toBe(false);
+    expect(internal.snapshot).toBe(paintedSnapshot);
+    expect(draw).toHaveBeenCalledTimes(1);
+    expect(onScroll).toHaveBeenCalledTimes(1);
+    internal.snapshot = first;
+    internal.renderTimed({ ...next, state: { ...first.state,
+      scrollY: { ...first.state.scrollY, runs: 0 },
+    } }, true);
+    expect(internal.snapshot.state.scrollY.runs).toBe(0);
+    expect(onScroll).toHaveBeenCalledTimes(1);
+    // Choosing another filter or run is deliberate navigation.
+    internal.snapshot = first;
+    internal.renderTimed({ ...next, state: { ...first.state,
+      runFilters: { ...first.state.runFilters, kind: 'tool' },
+    } }, true);
+    expect(internal.snapshot.state.scrollY.runs).toBe(2437);
+    internal.snapshot = first;
+    internal.renderTimed({ ...next, data: { ...next.data, run: makeRun(events, { id: 'other' }) } }, true);
+    expect(onScroll).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([0, 2437])('preserves independent minimap browsing when live rows arrive (cards at %s)', scrollY => {
+    const events = Array.from({ length: 200 }, (_, i) => makeLlmEvent(`e${i}`));
+    const first = makeSnapshot({ scrollY: { ...makeSnapshot().state.scrollY, runs: scrollY } },
+      { run: makeRun(events) });
+    const before = createRecordingCtx();
+    drawRuns(before, first, 1280, 800);
+    before.timelineMinimapScroll!.move(735);
+    const position = before.timelineMinimapPosition!.position;
+    const row = Math.floor(position);
+    const id = before.metrics.timelineViewport!.eventIds[row - 1]!;
+    const barY = before.metrics.hitTargets.find(target => target.id === `run.timeline.row.${row}`)!.y;
+    const after = createRecordingCtx();
+    after.timelineMinimapPosition = before.timelineMinimapPosition;
+    drawRuns(after, { ...first, state: { ...first.state,
+      scrollY: { ...first.state.scrollY, runs: scrollY === 0 ? 0 : scrollY + 80 },
+    }, data: { ...first.data, run: makeRun([...events, makeLlmEvent('new-1'), makeLlmEvent('new-2')]) } }, 1280, 800);
+    expect(after.timelineMinimapPosition!.position).toBe(position + 2);
+    expect(after.metrics.timelineViewport!.eventIds[row + 1]).toBe(id);
+    expect(after.metrics.hitTargets.find(target => target.id === `run.timeline.row.${row + 2}`)!.y).toBeCloseTo(barY);
   });
 
   it('keeps a bounded minimap fixed while its timeline scrolls and maps clicks to filtered rows', () => {

@@ -30,6 +30,7 @@ npm run viz:shot -- --auth --view Runs --branch-heading-probe # inherited brief:
 npm run viz:shot -- --auth --view Runs --activate run.filter.branch.p1 # click a canvas target before capture; comma-separate IDs for a sequence
 npm run viz:shot -- --auth --view Runs --event-participants-probe # tiered initiator/target controls and atom navigation
 npm run viz:shot -- --auth --view Runs --planning-detail-probe # task and plan first; readable skill and raw context toggle
+npm run viz:shot -- --auth --view Runs --recorded-run /path/to/evidence.json --detail-gallery /path/to/captures # local replay of saved MCP events
 npm run viz:shot -- --auth --view Runs --skill-context-probe # readable skill recipe and recorded-context toggle through canvas clicks
 npm run viz:shot -- --auth --view Runs --run-picker-probe # project-scoped search, counts and canvas selection
 npm run viz:shot -- --auth --view Runs --result     # final answer, copy and download controls
@@ -82,6 +83,15 @@ the result after scrolling. Use `--camera overview` or `--camera focus` to
 exercise either camera pose. The same probe is part of `viz:smoke`.
 
 ## What each mode renders
+
+`--recorded-run` accepts a saved object with `runId`, `capturedAt`, `summaries`
+(paged MCP trace summaries) and full `events` read through the MCP's event
+reader. Optional `goal` and `projectId` preserve the run context. It replays
+only these saved bytes, with absent API data returning 404 rather than reading
+the local store. `--detail-gallery` selects each event, resets its disclosure
+through the normal store action, and saves its right-hand pane plus an
+event-ID manifest. This is a source-development replay, not a new run or a
+claim of live verification; no recorded command is executed.
 
 - **No flags** — whatever an anonymous browser gets. With the checkout `.env`
   arming the auth gate (the usual state here) that is the **login gate**, and

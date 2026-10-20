@@ -164,3 +164,61 @@ export async function assertTimelineMinimap(page, { leaveHovered = false } = {})
   }
   console.log('viz timeline minimap ok: consecutive bounded bars, independent scrolling, immediate preview, oldest/newest navigation, matching event detail');
 }
+
+/** Real HTTP delta -> React query -> canvas rebuild, while both panes are away from the top. */
+export async function assertLiveTimelineAnchoring(page, appendEvents) {
+  const read = () => page.evaluate(() => {
+    const targets = globalThis.__ATOMA_GPU__.hitTargets();
+    return {
+      cards: targets.filter(target => target.id.startsWith('event.')).map(({ id, y }) => ({ id, y })),
+      bars: targets.filter(target => target.id.startsWith('run.timeline.row.')).map(({ id, y }) => ({ id, y })),
+    };
+  });
+  const wheel = async (id, deltaY) => {
+    const point = await page.evaluate(targetId => {
+      const handle = globalThis.__ATOMA_GPU__;
+      const target = handle.hitTargets().find(entry => entry.id === targetId);
+      if (!target) throw new Error(`Missing timeline target: ${targetId}`);
+      return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+    }, id);
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.wheel({ deltaY });
+    await page.evaluate(async () => {
+      for (let frame = 0; frame < 5; frame++) await new Promise(resolve => requestAnimationFrame(resolve));
+    });
+  };
+  const initial = await read();
+  await wheel(initial.cards[2].id, 2437);
+  await page.waitForFunction(() => globalThis.__ATOMA_GPU__.hitTargets()
+    .filter(target => target.id.startsWith('run.timeline.row.'))
+    .some(target => Number(target.id.split('.').at(-1)) > 40));
+  const scrolled = await read();
+  await wheel(scrolled.bars[Math.floor(scrolled.bars.length / 2)].id, 735);
+  const before = await read();
+  const anchorIndex = Math.floor(before.cards.length / 2);
+  const anchor = before.cards[anchorIndex];
+  const rowPitch = before.cards[anchorIndex + 1].y - anchor.y;
+  const bar = before.bars[Math.floor(before.bars.length / 2)];
+  const shiftedBar = `run.timeline.row.${Number(bar.id.split('.').at(-1)) + 2}`;
+  await appendEvents();
+  await page.waitForFunction(({ anchor, shiftedBar, barY }) => {
+    const targets = globalThis.__ATOMA_GPU__.hitTargets();
+    const card = targets.find(target => target.id === anchor.id);
+    const bar = targets.find(target => target.id === shiftedBar);
+    return card && bar && Math.abs(card.y - anchor.y) < 0.1 && Math.abs(bar.y - barY) < 0.1;
+  }, { timeout: 30_000 }, { anchor, shiftedBar, barY: bar.y });
+  // The next gesture must use the corrected store offset, without snapping back.
+  await wheel(anchor.id, 40);
+  await page.waitForFunction(({ anchor, rowPitch }) => {
+    const card = globalThis.__ATOMA_GPU__.hitTargets().find(target => target.id === anchor.id);
+    // Camera scaling and retained-window rebuilds change the painted delta.
+    // A small forward gesture must stay within one row, never jump backwards.
+    return card && card.y < anchor.y && card.y >= anchor.y - rowPitch - 0.1;
+  }, { timeout: 10_000 }, { anchor, rowPitch }).catch(async error => {
+    console.error('Live anchor next wheel:', JSON.stringify({ anchor, rowPitch, actual: await read() }));
+    throw error;
+  });
+  const after = await read();
+  await wheel(after.cards[2].id, -1000000);
+  console.log('viz live timeline anchoring ok: HTTP insert preserves card and independent minimap, next wheel stays continuous');
+}

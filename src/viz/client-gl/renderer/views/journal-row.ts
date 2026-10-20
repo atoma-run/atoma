@@ -3,7 +3,7 @@ import type { VizPlatformEvent } from '../../../client/types.js';
 import type { RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS } from '../../theme.js';
 import { truncate } from '../copy.js';
-import { relativeTime, timestampTooltip } from '../relative-time.js';
+import { timestampTooltip } from '../relative-time.js';
 
 /**
  * ONE journal row, drawn in one place.
@@ -83,7 +83,7 @@ export function drawJournalRow(
   // parse shows its RAW value rather than an empty column, so bad data from a
   // newer server is visible instead of silently blank.
   const stamp = relative
-    ? relativeTime(event.at, relative.t, relative.locale) || truncate(event.at, 19)
+    ? ctx.relativeTime(event.at, relative.t, relative.locale) || truncate(event.at, 19)
     : options.withDate
       ? clockDate(event.at)
       : clockTime(event.at);

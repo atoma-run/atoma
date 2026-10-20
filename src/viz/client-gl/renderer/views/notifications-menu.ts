@@ -5,7 +5,7 @@ import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { truncate } from '../copy.js';
 import { drawScrollbarThumb } from '../scroll-pane.js';
 import { SEVERITY_COLORS } from './journal-row.js';
-import { relativeTime, timestampTooltip } from '../relative-time.js';
+import { timestampTooltip } from '../relative-time.js';
 import { anchoredMenuPosition, type LocaleMenuAnchor } from './locale-menu.js';
 import { notificationTarget, type NotificationViewer } from '../../notification-target.js';
 import { drawLoadingNotice } from '../loading-notice.js';
@@ -407,7 +407,7 @@ function drawNotificationRow(
   dot.eventMode = 'none';
   parent.addChild(dot);
 
-  const stamp = relativeTime(row.at, snapshot.t, snapshot.state.locale) || truncate(row.at, 19);
+  const stamp = ctx.relativeTime(row.at, snapshot.t, snapshot.state.locale) || truncate(row.at, 19);
   const stampWidth = Math.min(118, ctx.measureText(stamp, { size: 9 }) + 4);
   const stampX = x + innerWidth - stampWidth;
   ctx.text(parent, stamp, stampX, y + 9, {

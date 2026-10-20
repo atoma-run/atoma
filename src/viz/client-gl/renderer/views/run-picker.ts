@@ -5,7 +5,6 @@ import { sidebarWidthForViewport, GPU_COLORS, GPU_LAYOUT } from '../../theme.js'
 import { buildRunPicker, runsInPickerScope, runPickerTotalsLabel, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT, RUN_PICKER_GROUP_HEIGHT, RUN_PICKER_HEADER_HEIGHT } from '../../run-picker.js';
 import { RUN_STATUS_GLYPH, runIndexStatus } from '../../../client/run-utils.js';
 import { fmtTokenCount } from '../copy.js';
-import { relativeTime } from '../relative-time.js';
 import { drawScrollbarThumb } from '../scroll-pane.js';
 import { runsPaneLayout, runsPickerControlLayout, RUN_STATUS_COLOR } from './runs.js';
 
@@ -135,7 +134,7 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
         ? `${fmtTokenCount(run.tokens)} ${snapshot.t('runs.picker.tokens')}`
         : '';
       const second = [
-        relativeTime(run.startedAt, snapshot.t, snapshot.state.locale),
+        ctx.relativeTime(run.startedAt, snapshot.t, snapshot.state.locale),
         spent,
       ].filter(Boolean).join(' · ');
       if (second) {

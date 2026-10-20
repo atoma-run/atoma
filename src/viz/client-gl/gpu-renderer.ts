@@ -1,4 +1,8 @@
 import { ScrollbarInteraction } from './renderer/scrollbar-interaction.js';
+import { buildTimelineLayout } from '../client/timeline-layout.js';
+import { coerceEventFilters } from '../client/run-utils.js';
+import { anchoredTimelineScroll } from './renderer/timeline-scroll.js';
+import { RelativeTimeView } from './relative-time-clock.js';
 import { buttonIconKind, BUTTON_ICON_SPACE, BUTTON_ICON_SIZE, CHEVRON_SIZE, CHEVRON_SPACE, type ButtonIconKind } from './button-icons.js';
 import { drawButtonIcon, drawChevron } from './renderer/button-icon.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
@@ -628,6 +632,13 @@ export class GpuRenderer {
   private host: HTMLElement | null = null;
   private initialized = false;
   private suspended = false;
+  private readonly relativeTimes = new RelativeTimeView(() => {
+    if (!this.suspended && this.snapshot && this.render(this.snapshot, true)) this.onDeferredRender?.();
+  });
+
+  relativeTime(at: string | number, t: GpuRenderSnapshot['t'], locale: string): string {
+    return this.relativeTimes.format(at, t, locale);
+  }
   private pendingSnapshot: GpuRenderSnapshot | null = null;
   /** A live run's refresh waiting for a still reader (`renderer/live-refresh.ts`). */
   private deferredRefresh: {
@@ -649,6 +660,7 @@ export class GpuRenderer {
     const suspended = document.hidden || !document.hasFocus();
     this.suspended = suspended;
     if (suspended) {
+      this.relativeTimes.stop();
       const waiting = this.deferredRefresh?.snapshot;
       this.dropDeferredRefresh();
       if (waiting) this.pendingSnapshot = waiting;
@@ -659,6 +671,7 @@ export class GpuRenderer {
     const pending = this.pendingSnapshot;
     this.pendingSnapshot = null;
     if (pending && this.render(pending, true)) this.onDeferredRender?.();
+    this.relativeTimes.start();
     this.app.start();
   };
   private snapshot: GpuRenderSnapshot | null = null;
@@ -674,6 +687,7 @@ export class GpuRenderer {
   timelineMinimapScroll: { bounds: Rectangle; move: (delta: number) => void; select: (eventId: string) => void } | null = null;
   timelineMinimapPosition: {
     key: string; position: number; scrollY: number; selectedEventId: string | null;
+    eventIds: readonly string[];
   } | null = null;
   /** Carries a clicked bar's position across the selection/scroll rebuild. */
   timelineMinimapMotion: {
@@ -1614,6 +1628,8 @@ export class GpuRenderer {
     // so a frame scheduled just before teardown ran `renderScene` on a
     // destroyed Application (2026-08-27, 3.14). One frame wide, and reachable
     // every HMR reload. Nulling it here is what makes those guards false.
+    this.relativeTimes.stop();
+    this.relativeTimes.clear();
     this.snapshot = null;
     this.scrollbarInteraction?.destroy();
     this.scrollbarInteraction = null;
@@ -1738,6 +1754,9 @@ export class GpuRenderer {
     }
     if (!forceRebuild && previous) {
       const change = classifySnapshotChange(snapshot, previous);
+      // An anchor commit updates the store to the scene already on screen.
+      // Keep the scene's identity for pending transition callbacks too.
+      if (change === 'none') return false;
       if ((change === 'live-refresh' || change === 'live-refresh+scroll') &&
           this.deferLiveRefresh(snapshot)) {
         if (change === 'live-refresh') return false;
@@ -1758,11 +1777,31 @@ export class GpuRenderer {
    */
   private renderTimed(snapshot: GpuRenderSnapshot, forceRebuild: boolean, scrollOnly = false): boolean {
     const startedAt = performance.now();
+    const previous = this.snapshot;
+    const viewport = this.metrics.timelineViewport;
+    let anchorDelta = 0;
+    if (!scrollOnly && previous?.state.view === 'runs' && snapshot.state.view === 'runs' &&
+        viewport && previous.data.run?.id === snapshot.data.run?.id && snapshot.data.run &&
+        previous.data.run?.events !== snapshot.data.run.events &&
+        JSON.stringify(previous.state.runFilters) === JSON.stringify(snapshot.state.runFilters)) {
+      const timeline = buildTimelineLayout(snapshot.data.run.events,
+        coerceEventFilters(snapshot.data.run.events, snapshot.state.runFilters), { newestFirst: true });
+      const offset = snapshot.state.scrollY.runs;
+      const anchored = anchoredTimelineScroll(viewport.eventIds, timeline, offset,
+        viewport.contentTopPadding, viewport.rowHeight);
+      anchorDelta = anchored - offset;
+      if (anchorDelta) snapshot = { ...snapshot, state: { ...snapshot.state,
+        scrollY: { ...snapshot.state.scrollY, runs: anchored },
+      } };
+    }
     let rendered = true;
     try {
       if (scrollOnly) rendered = this.tryScrollRuns(snapshot);
       else if (forceRebuild || !this.tryScrollRuns(snapshot)) this.renderScene(snapshot);
       this.syncLightThemeMarkFilter(snapshot.state.appearanceTheme === 'snow');
+      // Commit only when the refresh actually lands, including deferred ones.
+      // The next wheel gesture and keyboard jump read this same offset.
+      if (anchorDelta) snapshot.onScroll('runs', anchorDelta);
     } finally {
       if (rendered) {
         this.metrics.renderMs = performance.now() - startedAt;
@@ -1903,6 +1942,7 @@ export class GpuRenderer {
   };
 
   private renderScene(snapshot: GpuRenderSnapshot) {
+    this.relativeTimes.clear();
     this.lastRebuildAt = performance.now();
     // A rebuild centres the window wherever it is drawn.
     if (this.runsRecenterTimer) clearTimeout(this.runsRecenterTimer);
@@ -1989,7 +2029,7 @@ export class GpuRenderer {
         ? snapshot.state.runActivityOpen
           ? `activity:${snapshot.state.selectedRunId}:${snapshot.state.runActivityFile ?? ''}:${snapshot.state.runActivityPage}`
           : snapshot.state.selectedEventId
-          ? `event:${snapshot.state.selectedEventId}`
+          ? `event:${snapshot.state.selectedEventId}:${snapshot.state.eventTechnicalOpen ? 'technical' : 'readable'}`
           : snapshot.state.selectedAtomName
             ? `agent:${snapshot.state.selectedAtomName}`
             : null
@@ -5572,6 +5612,7 @@ export type RendererCtx = Pick<
   | 'root'
   | 'markRoot'
   | 'text'
+  | 'relativeTime'
   | 'repositoryIcon'
   | 'privateRepositoryIcon'
   | 'linkRegion'

@@ -116,7 +116,7 @@ export function classifySnapshotChange(
     for (const key of Object.keys(next.state) as (keyof GpuRenderSnapshot['state'])[]) {
       if (next.state[key] === previous.state[key]) continue;
       if (key !== 'scrollY') return 'other';
-      scroll = true;
+      if (!sameMember(next.state.scrollY, previous.state.scrollY)) scroll = true;
     }
   }
   let refresh = false;

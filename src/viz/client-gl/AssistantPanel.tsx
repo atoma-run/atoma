@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AssistantRequest, AssistantRun, AssistantView } from '../../contracts/assistant.js';
 import { api } from '../client/data-api.js';
-import { relativeTime, timestampTooltip } from './renderer/relative-time.js';
+import { RelativeTime } from './RelativeTime.js';
 import { useGpuStore } from './store.js';
 import { AtomaLoader, loaderVisible, revealClass, useLoadingReveal } from './AtomaLoader.js';
 import { ButtonIcon } from './ButtonIcon.js';
@@ -43,7 +43,6 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   const [editingModel, setEditingModel] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now);
   const [externalAgentOpen, setExternalAgentOpen] = useState(false);
   const pending = useRef<AssistantRequest | null>(null);
   const mounted = useRef(true);
@@ -53,10 +52,6 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   // No focus on mount: the card is on screen whenever Projects is, and a
   // textarea stealing focus from the canvas on every visit would be a defect.
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
   const conversation = query.data?.conversation;
   const hasUsage = (conversation?.inputTokens ?? 0) > 0 || (conversation?.outputTokens ?? 0) > 0;
   useEffect(() => {
@@ -102,7 +97,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     messages.map((message, index) => ({ kind: 'message', message, index }));
   if (finishedRun) timeline.splice(resultPosition, 0, { kind: 'result' });
   const resultCard = finishedRun ? <AssistantRunResult key={`${scopeKey}:${finishedRun.runId}`} scopeKey={scopeKey}
-    target={{ projectId: finishedRun.projectId, runId: finishedRun.runId }} run={finishedRun} locale={locale} now={now} t={t} onRun={onRun} /> : null;
+    target={{ projectId: finishedRun.projectId, runId: finishedRun.runId }} run={finishedRun} locale={locale} t={t} onRun={onRun} /> : null;
   const empty = quiet && !finishedRun;
   const newProjectPrompt = empty && !projectId && !shownRun;
   const compact = externalAgentOpen || Boolean(query.data && choices.length > 0 && quiet && !error && !query.isError);
@@ -236,8 +231,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
         return <article key={message.id ?? `${message.at}:${entry.index}`} className={`gpu-assistant-message gpu-assistant-message--${message.role}`}>
         <div className="gpu-assistant-message-meta"><strong>{t(message.role === 'user' ? 'assistant.you' : message.role === 'receipt' ? 'assistant.receipt' : 'assistant.title')}</strong>
           {message.origin === 'mcp' ? <span>{t('assistant.sharedFrom', { client: message.clientLabel ?? 'MCP' })}</span> : null}
-          <time dateTime={message.at} title={timestampTooltip(message.at, locale) ?? message.at}>
-            {relativeTime(message.at, t, locale, now) || message.at}</time></div>
+          <RelativeTime at={message.at} locale={locale} t={t} /></div>
         {message.role === 'assistant' ? <AssistantMarkdown text={message.text} />
           : <p>{message.role === 'receipt' ? t(message.text) : message.text}</p>}
         {message.projectId || message.run ? <div className="gpu-assistant-message-actions">
@@ -265,7 +259,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
               // An id the cached list does not hold shows alone; a title is model text, never markup.
               return <li key={runId}>{run?.title ? <>{run.title} · </> : null}<code>{runId.slice(0, 8)}</code>
                 {run ? <> · {t(`projects.runStatus.${run.status}`)}</> : null}
-                {at ? <> · <time dateTime={at} title={timestampTooltip(at, locale) ?? at}>{relativeTime(at, t, locale, now) || at}</time></> : null}</li>;
+                {at ? <> · <RelativeTime at={at} locale={locale} t={t} /></> : null}</li>;
             })}</ul>
           </div> : null}
           <p>{t('assistant.runCostNotice')}</p></>}

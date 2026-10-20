@@ -1,3 +1,4 @@
+import { anchoredTimelineRow, anchoredTimelineScroll } from './timeline-scroll.js';
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx, GpuHitTarget } from '../gpu-renderer.js';
 import { timelineItemHolds, type TimelineLayout } from '../../client/timeline-layout.js';
@@ -55,14 +56,25 @@ export function drawTimelineMinimap(
   let offset = viewport.scrollY;
   let firstRow = 0;
   let railOffset = 0;
-  const key = JSON.stringify([snapshot.data.run?.id, snapshot.state.runFilters, totalRows]);
+  const key = JSON.stringify([snapshot.data.run?.id, snapshot.state.runFilters]);
   let motion = ctx.timelineMinimapMotion?.key === key ? ctx.timelineMinimapMotion : null;
   const previous = ctx.timelineMinimapPosition?.key === key ? ctx.timelineMinimapPosition : null;
+  const changedRows = previous && previous.eventIds !== viewport.eventIds &&
+    (previous.eventIds.length !== viewport.eventIds.length ||
+      previous.eventIds.some((id, index) => id !== viewport.eventIds[index]));
+  const previousScroll = previous && changedRows
+    ? anchoredTimelineScroll(previous.eventIds, timeline, previous.scrollY,
+      viewport.contentTopPadding, viewport.rowHeight)
+    : previous?.scrollY;
+  const previousPosition = previous && changedRows
+    ? anchoredTimelineRow(previous.eventIds, timeline, previous.position, viewport.rowOffset)
+    : previous?.position;
+  if (changedRows) motion = null;
   // A manual card scroll can cross the retained window and rebuild the scene.
   // Only an unarmed bar click is allowed to carry a tween across that jump.
-  if (previous && previous.scrollY !== offset && motion?.target !== null) motion = null;
+  if (previous && previousScroll !== offset && motion?.target !== null) motion = null;
   const position = ctx.timelineMinimapPosition = {
-    key, position: previous?.position ?? 0, scrollY: offset,
+    key, position: previousPosition ?? 0, scrollY: offset, eventIds: viewport.eventIds,
     selectedEventId: snapshot.state.selectedEventId,
   };
   const selectedIndex = timeline.items.findIndex(item => timelineItemHolds(item, snapshot.state.selectedEventId));
@@ -195,7 +207,7 @@ export function drawTimelineMinimap(
     const centreRow = (offset + viewport.height / 2 - viewport.contentTopPadding) / viewport.rowHeight;
     const viewportTarget = offset <= 0 ? 0 : offset >= maximum ? maxFirst
       : Math.max(0, Math.min(maxFirst, Math.floor(centreRow - tickCount / 2)));
-    const target = motion?.target ?? (initial && previous?.scrollY === offset ? position.position : viewportTarget);
+    const target = motion?.target ?? (initial && previousScroll === offset ? position.position : viewportTarget);
     if (motion && !prefersReducedMotion()) {
       motion.target = target;
       place(motion.position);

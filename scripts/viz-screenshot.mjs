@@ -57,6 +57,9 @@
  *                        exercising the real return transition.
  *   --tuning             Open the floating Scene Tuning window.
  *   --activate <ids>     Click comma-separated canvas hit target IDs before capture.
+ *   --recorded-run <file> Replay a saved MCP event snapshot, with --auth --view Runs.
+ *   --detail-gallery <dir> With --recorded-run, capture each saved event's right pane.
+ *   --recorded-event <id> With --recorded-run, select one saved event (also on narrow screens).
  *   --login-gate         An anonymous visitor on a gated instance that serves
  *                        the legal pages: /auth/whoami is stubbed with one
  *                        provider and `legal: true` (not with --auth).
@@ -72,7 +75,7 @@
  *   --width/--height     Viewport (default 1600x900, deviceScaleFactor 2).
  */
 import { spawn } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -98,6 +101,12 @@ function arg(name, fallback = null) {
 const has = (name) => process.argv.includes(name);
 
 const view = arg('--view', 'Projects');
+const recordedEvidence = has('--recorded-run') ? JSON.parse(await readFile(resolve(arg('--recorded-run')), 'utf8')) : null;
+if (recordedEvidence && arg('--url') && !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(arg('--url')).hostname)) {
+  throw new Error('--recorded-run only supports a local source-development server');
+}
+const recordedEvents = recordedEvidence ? [...new Map(recordedEvidence.events.map(event => [event.id, event])).values()]
+  .sort((a, b) => a.ts - b.ts) : [];
 const authed = has('--auth');
 const platformAdmin = has('--platform-admin');
 const settingsTab = arg('--settings-tab', 'general');
@@ -871,6 +880,13 @@ try {
   });
   try {
     const page = await browser.newPage();
+    if (recordedEvidence) {
+      await page.evaluateOnNewDocument(capturedAt => {
+        // Replays show ages at evidence capture time, never today's age of an
+        // old excerpt. Performance/animation clocks continue normally.
+        Date.now = () => capturedAt;
+      }, Date.parse(recordedEvidence.capturedAt));
+    }
     if (handheld) {
       // A phone: touch is the ONLY pointer, so `(any-pointer: coarse) and
       // (any-hover: none)` must come true from Chrome's own emulation — the
@@ -903,6 +919,21 @@ try {
     });
 
     const stubs = authed ? gatedStubs() : {};
+    if (recordedEvidence) {
+      if (!authed || view !== 'Runs') throw new Error('--recorded-run requires --auth --view Runs');
+      const summary = recordedEvidence.summaries[0];
+      const run = { ...summary, events: recordedEvents, task: { description: recordedEvidence.goal ?? summary.label },
+        id: recordedEvidence.runId, eventsFrom: 0, eventsTotal: recordedEvents.length };
+      if (run.durationMs === undefined && run.endedAt) run.durationMs = Date.parse(run.endedAt) - Date.parse(run.startedAt);
+      delete run.nextOffset;
+      stubs['/api/runs'] = [{ id: run.id, label: run.label, startedAt: run.startedAt,
+        projectId: recordedEvidence.projectId, projectName: 'Attica property flipping collector' }];
+      stubs[`/api/runs/${run.id}`] = run;
+      for (const event of recordedEvents.filter(event => event.kind === 'skill' && event.skillId)) {
+        const owner = event.l1AtomId ?? event.l1Name;
+        if (owner) stubs[`/api/skills/${encodeURIComponent(owner)}/${encodeURIComponent(event.skillId)}`] = null;
+      }
+    }
     if (authed) {
       if (assistantLinksProbe) {
         const projectId = stubs['/api/projects'][0].projectId;
@@ -1012,6 +1043,11 @@ try {
               headers: { 'cache-control': 'no-store' },
               body: JSON.stringify(stub),
             });
+            return;
+          }
+          if (recordedEvidence && path.startsWith('/api/')) {
+            void request.respond({ status: 404, contentType: 'application/json',
+              body: JSON.stringify({ error: 'Not included in this recorded snapshot' }) });
             return;
           }
         } catch {
@@ -1867,6 +1903,7 @@ try {
         await page.mouse.click(point.x, point.y);
       };
       await click('event.participants-fixture');
+      await click('detail.technical.toggle');
       await page.screenshot({ path: outPath });
       await click('participant.atom.Protoplast');
       await page.waitForFunction(() => {
@@ -1879,6 +1916,7 @@ try {
         return texts.includes('Protoplast') && !globalThis.__ATOMA_GPU__.hitTargets().some(entry => entry.id === 'participant.atom.RNA');
       }, { timeout: READY_TIMEOUT_MS });
       await click('event.participants-fixture');
+      await click('detail.technical.toggle');
       if (viewport.width < 1100) await page.setViewport(viewport);
       await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === 'participant.atom.RNA'),
         { timeout: READY_TIMEOUT_MS });
@@ -1913,6 +1951,7 @@ try {
           : texts.includes('Build an interactive HTML widget') && !texts.some(text => text.includes('TRUST BOUNDARY:'));
       }, { timeout: READY_TIMEOUT_MS }, raw);
       await click(has('--planning-detail-probe') ? 'event.planning-detail-fixture' : 'event.skill-context-fixture');
+      await click('detail.technical.toggle');
       if (detailViewport.width < 1100) await page.setViewport(detailViewport);
       await assertText(false);
       await click('context.raw.toggle');
@@ -2049,6 +2088,46 @@ try {
         throw new Error('--touch-probe requires --auth --select-first and the Projects view');
       }
       await assertMobileProjects(page, gatedStubs()['/api/projects'][0].projectId);
+    }
+    const selectRecordedEvent = async id => {
+      const previousRender = await page.$eval('.gpu-ui-host', node => node.dataset.gpuRenderCount);
+      await page.evaluate(async eventId => {
+        const { useGpuStore } = await import('/store.ts');
+        useGpuStore.getState().selectEvent(eventId);
+      }, id);
+      await page.waitForFunction(previous => document.querySelector('.gpu-ui-host')?.dataset.gpuRenderCount !== previous,
+        { timeout: READY_TIMEOUT_MS }, previousRender);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    };
+    if (recordedEvidence && has('--recorded-event')) {
+      const id = arg('--recorded-event');
+      if (!recordedEvents.some(event => event.id === id)) throw new Error('Event is absent from the recorded snapshot');
+      await selectRecordedEvent(id);
+    }
+    if (recordedEvidence && has('--detail-gallery')) {
+      const directory = resolve(arg('--detail-gallery'));
+      await mkdir(directory, { recursive: true });
+      const manifest = [];
+      for (const [index, event] of recordedEvents.entries()) {
+        // Local source replay only: select the saved event through the same
+        // store action as a timeline click, including resetting disclosure state.
+        await selectRecordedEvent(event.id);
+        const clip = await page.evaluate(() => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const summary = handle.hitTargets().find(row => row.id === 'run.summary.toggle');
+          if (!summary) throw new Error('Recorded-run gallery needs a desktop split view');
+          const left = Math.max(0, Math.floor(handle.projectRendererPoint(summary.x, summary.y).x) - 12);
+          return { x: left, y: 0, width: Math.floor(globalThis.innerWidth - left), height: globalThis.innerHeight };
+        });
+        const filename = `${String(index + 1).padStart(3, '0')}-${event.kind}-${event.role ?? event.name ?? event.op ?? 'step'}.png`
+          .replace(/[^a-zA-Z0-9_.-]/g, '-');
+        await page.screenshot({ path: resolve(directory, filename), clip });
+        manifest.push({ filename, eventId: event.id, kind: event.kind, role: event.role, name: event.name, op: event.op,
+          label: event.label, branchId: event.branchId });
+      }
+      await writeFile(resolve(directory, 'manifest.json'), JSON.stringify({ runId: recordedEvidence.runId,
+        capturedAt: recordedEvidence.capturedAt, replay: true, events: manifest }, null, 2));
+      console.log(`Recorded-run detail gallery: ${manifest.length} screenshots in ${directory}`);
     }
     await page.screenshot({ path: outPath });
     const capturedViewport = page.viewport();

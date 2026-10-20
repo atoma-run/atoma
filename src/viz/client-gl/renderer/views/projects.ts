@@ -10,7 +10,7 @@ import { drawChevron } from '../button-icon.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { fmtMs, runCost } from '../../../client/run-utils.js';
-import { relativeTime, timestampTooltip } from '../relative-time.js';
+import { timestampTooltip } from '../relative-time.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR, VIEW_FRAME_TITLE_SIZE, VIEW_FRAME_TITLE_Y } from '../view-frame.js';
 import { drawResultPanel } from './result.js';
@@ -791,7 +791,7 @@ export function drawProjects(
       const runCount = project.runCount ?? runsByProject[project.projectId]?.length;
       const lastRunAt = project.lastRunAt ?? runsByProject[project.projectId]?.[0]?.createdAt;
       const lastRunAgo = lastRunAt
-        ? relativeTime(lastRunAt, snapshot.t, snapshot.state.locale)
+        ? ctx.relativeTime(lastRunAt, snapshot.t, snapshot.state.locale)
         : '';
       const metadata = [
         // First, so a narrow card truncates the dates rather than this.
@@ -871,7 +871,7 @@ export function drawProjects(
         rail.circle(railX, cursor + 16, 4).fill(runStatusColor);
         pane.content.addChild(rail);
         const cost = run.costUsd === null ? '' : ' · ' + runCost(run.costUsd);
-        const date = relativeTime(run.createdAt, snapshot.t, snapshot.state.locale) || run.createdAt;
+        const date = ctx.relativeTime(run.createdAt, snapshot.t, snapshot.state.locale) || run.createdAt;
         const runTitle = run.title ?? run.goal.replace(/\s+/g, ' ');
         if (run.traceId) {
           ctx.button(pane.content, 'project.run.' + run.traceId, 'button',

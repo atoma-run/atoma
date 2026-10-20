@@ -68,6 +68,7 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'result.copy') return 'copy';
   if (id === 'result.details') return 'code';
   if (id === 'context.raw.toggle') return 'code';
+  if (id === 'detail.technical.toggle') return 'code';
   if (/^result.download$/.test(id)) return 'download';
   if (id === 'run.preview.stop') return 'stop';
   if (/^run.preview\./.test(id)) return 'eye';

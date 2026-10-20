@@ -49,6 +49,8 @@ beforeEach(() => {
     sceneCameraMode: 'overview',
     locale: 'en',
     selectedRunId: 'run-1',
+    selectedEventId: null,
+    eventTechnicalOpen: false,
     runActivityOpen: false,
     runActivityFile: null,
     runActivityPage: 0,
@@ -122,6 +124,22 @@ function EntryFadeProbe() {
 }
 
 describe('full-GL minimal DOM bridge', () => {
+  it('exposes the action explanation and technical disclosure to the keyboard', () => {
+    useGpuStore.setState({ selectedEventId: 'edit' });
+    const onActivate = vi.fn();
+    render(createElement(DomBridge, { runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onActivate,
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+      run: { id: 'run-1', label: 'Build the page', startedAt: '2026-10-20T00:00:00Z', events: [
+        { id: 'edit', kind: 'tool', name: 'edit_file', ts: 1, result: { ok: true }, args: { path: 'app.ts' } },
+      ] } }));
+    expect(screen.getByRole('region', { name: 'Updating a file' })).toHaveTextContent('This action completed');
+    fireEvent.click(screen.getByRole('button', { name: 'Show technical details' }));
+    expect(onActivate).toHaveBeenCalledWith('detail.technical.toggle');
+    act(() => useGpuStore.getState().toggleEventTechnical());
+    expect(screen.getByRole('button', { name: 'Back to the explanation' })).toHaveAttribute('aria-expanded', 'true');
+    expect(useGpuStore.getState().selectedEventId).toBe('edit');
+  });
+
   it('navigates filtered timeline steps through the same activation as the canvas', () => {
     const onActivate = vi.fn();
     useGpuStore.setState({ runFilters: { kind: 'tool', role: 'all', branchId: 'all' }, resultRunId: null });

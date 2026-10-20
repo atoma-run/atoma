@@ -923,6 +923,10 @@ function GpuAppContent({
       store.toggleContextRaw();
       return;
     }
+    if (id === 'detail.technical.toggle') {
+      store.toggleEventTechnical();
+      return;
+    }
     if (id === 'run.summary.toggle') {
       store.toggleRunSummary();
       return;

@@ -9,7 +9,7 @@ import puppeteer from 'puppeteer';
 import { assertLiveRuns } from './viz-live-runs-probe.mjs';
 import { assertLiveMarkBead, assertPointerLitMark } from './viz-mark-bead-probe.mjs';
 import { assertMobileProjects } from './viz-mobile-probe.mjs';
-import { assertTimelineMinimap } from './viz-timeline-probe.mjs';
+import { assertTimelineMinimap, assertLiveTimelineAnchoring } from './viz-timeline-probe.mjs';
 import { fileViewerFixtures } from './file-viewer-fixtures.mjs';
 import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../dist/contracts/platformSettings.js';
 
@@ -3877,7 +3877,7 @@ try {
       livePage.on('request', (request) => {
         if (request.url().includes('/api/runs/')) tracePolls += 1;
       });
-      await livePage.goto(`http://127.0.0.1:${livePort}/`, { waitUntil: 'load' });
+      await livePage.goto(`http://127.0.0.1:${livePort}/?atomaDiag=1`, { waitUntil: 'load' });
       await livePage.waitForSelector('.gpu-ui-host[data-gpu-backend]', { timeout: READY_TIMEOUT_MS });
       await passArrivalGate(livePage);
       // The trace poll under test only runs while the RUNS view is open.
@@ -3914,6 +3914,28 @@ try {
         await livePage.evaluate(() => new Promise((resolve) => setTimeout(resolve, 250)));
         afterEvent = await readCount();
       }
+
+      // Enough distinct rows to browse both panes before the next real delta.
+      for (let index = 0; index < 200; index++) liveRun.events.push({
+        id: `anchor-seed-${index}`, kind: 'llm', role: 'execute', ts: Date.now() - 200 + index,
+      });
+      await writeRun();
+      await livePage.waitForFunction(() => globalThis.__ATOMA_GPU__.hitTargets()
+        .some(target => target.id === 'event.anchor-seed-199'), { timeout: READY_TIMEOUT_MS }).catch(async error => {
+          console.error('Live anchor setup:', await livePage.evaluate(() => ({
+            visible: document.visibilityState, focus: document.hasFocus(),
+            targets: globalThis.__ATOMA_GPU__?.hitTargets().map(target => target.id),
+            text: document.querySelector('.gpu-a11y-bridge')?.textContent?.slice(-2000),
+          })));
+          throw error;
+        });
+      await assertLiveTimelineAnchoring(livePage, async () => {
+        liveRun.events.push(
+          { id: 'anchor-new-1', kind: 'llm', role: 'execute', ts: Date.now() },
+          { id: 'anchor-new-2', kind: 'llm', role: 'execute', ts: Date.now() + 1 }
+        );
+        await writeRun();
+      });
 
       liveStats = {
         idlePolls,

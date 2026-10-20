@@ -66,7 +66,7 @@ npm run viz:mark-turn:analyze
   goes there, never back into the class.
 - Scrollable GPU content goes through `createScrollPane` (bounded + masked);
   the wheel handler FAILS CLOSED on `scrollMax`, so a view that never declares
-  its max does not scroll. Wheel ticks and one-finger touch drags share ONE router (`scrollAt`): the drag names its pane from where the finger LANDED and converts travel through the live camera. The canvas declares `touch-action: pan-y`, never `none` — the browser's `pointercancel` on a recognised pan is what keeps Pixi from reporting a tap on the row the finger began on (2026-09-15: a phone could neither scroll nor read the rail). Cull by skipping draws, not by stopping the layout cursor. A pane DECLARES its `air` (required): the free floor around it where a cast shadow may land. The mask grows into it — top only at scroll start, bottom only at scroll end, sides always, capped at the shadow's reach — because a mask flush against a card cuts its shadow on a line no light draws. Air over flat text counts; space under a raised neighbour (tabs, buttons, another panel, a popup edge) is `0`. A hand-made scroll mask uses the same `scrollPaneClipRect`. Detail panes report `detailBounds`/`detailScrollMax`. Runs retains a bounded row window under a fixed mask. Reproject hit targets and shadow anchors on scroll; window crossings, changed data/selection/filters, resize and camera travel rebuild, and a window left with under half its overscan re-centres in the first still pause, so a crossing rarely lands mid-gesture. Retained listeners dispatch to the latest React callback.
+  its max does not scroll. Wheel ticks and one-finger touch drags share ONE router (`scrollAt`): the drag names its pane from where the finger LANDED and converts travel through the live camera. The canvas declares `touch-action: pan-y`, never `none` — the browser's `pointercancel` on a recognised pan is what keeps Pixi from reporting a tap on the row the finger began on (2026-09-15: a phone could neither scroll nor read the rail). Cull by skipping draws, not by stopping the layout cursor. A pane DECLARES its `air` (required): the free floor around it where a cast shadow may land. The mask grows into it — top only at scroll start, bottom only at scroll end, sides always, capped at the shadow's reach — because a mask flush against a card cuts its shadow on a line no light draws. Air over flat text counts; space under a raised neighbour (tabs, buttons, another panel, a popup edge) is `0`. A hand-made scroll mask uses the same `scrollPaneClipRect`. Detail panes report `detailBounds`/`detailScrollMax`. Runs retains a bounded row window under a fixed mask. Reproject hit targets and shadow anchors on scroll; window crossings, changed data/selection/filters, resize and camera travel rebuild, and a window left with under half its overscan re-centres in the first still pause, so a crossing rarely lands mid-gesture. Retained listeners dispatch to the latest React callback. Live inserts preserve the action being read (including batched-tool membership) and its fractional row offset; only a reader already at the top follows new rows. The minimap keeps its independent action anchor across refreshes, with run/filter identity separate from row count.
 - `prefersReducedMotion()` (`renderer/motion.ts`) is the only reduced-motion
   source in the GL client. Every animation system consults it and JUMPS to its
   final state — exit effects are skipped entirely, never left running.
@@ -118,6 +118,11 @@ npm run viz:mark-turn:analyze
   so every relative stamp keeps the exact instant reachable in a bubble, and a
   stamp this bundle cannot parse shows its RAW value rather than an empty
   column — the same tolerance journal rows apply to kind and severity.
+  Relative labels age without server data or page reloads: DOM timestamps use
+  `client-gl/RelativeTime.tsx`, canvas views use `ctx.relativeTime`, and both
+  subscribe to `relative-time-clock.ts`. The canvas rebuilds only when wording
+  changes (including layout and hover regions), pauses on blur, and catches up
+  on focus; the shared clock stops while hidden and when its last subscriber leaves.
 - A Pixi filter that OUTLIVES one `render()` must never sit `enabled = false`
   across a GC window without `buffer.autoGarbageCollect = false` on its uniform
   buffer. Pixi skips disabled filters, so the buffer stops being touched, ages
@@ -427,6 +432,11 @@ npm run viz:mark-turn:analyze
   Generated HTML remains source text.
 - Runs' Progress reader projects recorded branch lifecycles and tool receipts
   through `client-gl/run-activity.ts`, shared by GPU and accessibility views.
+  Event details open on `client/event-explanation.ts`'s plain-language action,
+  outcome and assigned task. The full original pane stays behind technical
+  disclosure, reset on event/run selection. A saved probe is not necessarily
+  a passed check; a completed operation never establishes delivery acceptance.
+  Unknown events and missing receipts stay readable without invented success.
   Only successful `write_file`/`edit_file` receipts count as changed files;
   failed and unconfirmed attempts stay visible, and shell/compiled changes are
   not inferred. Branch closure is not approval. Edits are submitted excerpts,

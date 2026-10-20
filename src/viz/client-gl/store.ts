@@ -231,6 +231,7 @@ export interface GpuUiState {
   resultDetailsOpen: boolean;
   selectedEventId: string | null;
   contextRawOpen: boolean;
+  eventTechnicalOpen: boolean;
   selectedAtomName: string | null;
   selectedRegistryId: string | null;
   selectedRegistryAtom: string | null;
@@ -356,6 +357,7 @@ export interface GpuUiState {
   setRunFilters: (filters: EventFilters) => void;
   toggleBranchHeading: () => void;
   toggleContextRaw: () => void;
+  toggleEventTechnical: () => void;
   toggleRunSummary: () => void;
   showRunActivity: (open: boolean) => void;
   selectActivityFile: (path: string | null) => void;
@@ -471,6 +473,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedRunId: null,
   selectedEventId: null,
   contextRawOpen: false,
+  eventTechnicalOpen: false,
   runActivityOpen: false,
   runActivityFile: null,
   runActivityPage: 0, runActivityExpandedChanges: {},
@@ -679,6 +682,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     set({
       selectedRunId,
       contextRawOpen: false,
+      eventTechnicalOpen: false,
       runActivityOpen: false,
       runActivityFile: null,
       runActivityPage: 0, runActivityExpandedChanges: {},
@@ -695,6 +699,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     set({
       selectedEventId,
       contextRawOpen: false,
+      eventTechnicalOpen: false,
       runActivityOpen: false,
       resultRunId: null,
       selectedAtomName: null,
@@ -769,6 +774,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     set((state) => ({ branchHeadingExpanded: !state.branchHeadingExpanded })),
   toggleContextRaw: () =>
     set((state) => ({ contextRawOpen: !state.contextRawOpen })),
+  toggleEventTechnical: () =>
+    set((state) => ({ eventTechnicalOpen: !state.eventTechnicalOpen })),
   toggleRunSummary: () =>
     set((state) => ({ runSummaryExpanded: !state.runSummaryExpanded })),
   setSearch: (kind, value) =>

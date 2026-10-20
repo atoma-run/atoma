@@ -19,6 +19,7 @@ import type { RunIndexEntry, VizGitHubInstallation, VizProject, VizRun } from '.
 import { AccessibleRunActivity } from './AccessibleRunActivity.js';
 import { buildTimelineLayout } from '../client/timeline-layout.js';
 import { coerceEventFilters } from '../client/run-utils.js';
+import { explainEvent } from '../client/event-explanation.js';
 import { TIMELINE_JUMP_PREFIX } from './renderer/timeline-minimap.js';
 import type { ComponentProps, ReactNode } from 'react';
 import { useLayoutEffect, useMemo, useState } from 'react';
@@ -277,6 +278,10 @@ export function DomBridge({
   const handheldBlocked = useGpuStore((state) => state.handheldBlocked);
   const locale = useGpuStore((state) => state.locale);
   const selectedRunId = useGpuStore((state) => state.selectedRunId);
+  const selectedEventId = useGpuStore(state => state.selectedEventId);
+  const eventTechnicalOpen = useGpuStore(state => state.eventTechnicalOpen);
+  const selectedEvent = run?.events.find(event => event.id === selectedEventId);
+  const eventExplanation = run && selectedEvent ? explainEvent(selectedEvent, run, t) : null;
   const workspaceRunId = useGpuStore(state => state.workspaceRunId);
   const selectedProjectId = useGpuStore((state) => state.selectedProjectId);
   const projectSection = useGpuStore((state) => state.projectSection);
@@ -487,6 +492,15 @@ export function DomBridge({
         ) : null}
         {view === 'runs' && run && onActivate ?
           <TimelineNavigator key={run.id} run={run} t={t} onActivate={onActivate} /> : null}
+        {view === 'runs' && eventExplanation && onActivate ? <section aria-label={eventExplanation.title}>
+          <h2>{eventExplanation.title}</h2>
+          <p>{eventExplanation.description}</p>
+          <dl>{eventExplanation.nodes.flatMap((node, index) => node.kind === 'field'
+            ? [<div key={`${node.key}:${index}`}><dt>{node.label}</dt><dd>{node.value}</dd></div>] : [])}</dl>
+          <button type="button" aria-expanded={eventTechnicalOpen} onClick={() => onActivate('detail.technical.toggle')}>
+            <ButtonIcon kind="code" />{t(eventTechnicalOpen ? 'detail.readable.showSummary' : 'detail.readable.showTechnical')}
+          </button>
+        </section> : null}
         {projectGuideEnabled && view === 'projects' && projects.length > 0 ? (
           <section aria-label={t('nav.projects')}>
             {projects.map((project) => (

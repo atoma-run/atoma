@@ -3,7 +3,7 @@ import { previewActions } from '../preview-control.js';
 import { BUTTON_ICON_SPACE, CHEVRON_SIZE, CHEVRON_SPACE } from '../../button-icons.js';
 import { drawChevron } from '../button-icon.js';
 import { Container, Graphics, Rectangle } from 'pixi.js';
-import { relativeTime, timestampTooltip } from '../relative-time.js';
+import { timestampTooltip } from '../relative-time.js';
 import {
   buildAtomMap,
   coerceEventFilters,
@@ -38,6 +38,7 @@ import type { AtomView, RunStatus } from '../../../client/run-utils.js';
 import { clockTime } from '../../../client/date-format.js';
 import { eventParticipants, eventDetailPayload } from '../../../client/event-participants.js';
 import { llmDetailNodes } from '../../../client/llm-detail.js';
+import { explainEvent } from '../../../client/event-explanation.js';
 import { skillContextDetail } from '../../../client/skill-context-detail.js';
 import type { VizEvent, VizRun } from '../../../client/types.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
@@ -493,7 +494,7 @@ export function drawRuns(
 
   // Keep the run's age directly below its status, sharing the right edge.
   // The exact instant remains available on hover in the reader's locale.
-  const startedAge = relativeTime(run.startedAt, snapshot.t, snapshot.state.locale);
+  const startedAge = ctx.relativeTime(run.startedAt, snapshot.t, snapshot.state.locale);
   const ageRight = statusX + statusWidth;
   const ageY = statusY + 26;
   const ageText = ctx.text(ctx.root, startedAge, ageRight, ageY, {
@@ -1773,7 +1774,73 @@ function drawPartialContinueControl(
 }
 
 
+/** The same batch navigation in the explanation and full technical pane. */
+function drawEventBatchControls(ctx: RendererCtx, snapshot: GpuRenderSnapshot, event: VizEvent,
+  batch: readonly VizEvent[], controls: Container, x: number, cursor: number, width: number): number {
+  const index = batch.findIndex((member) => member.id === event.id);
+  const labels = batchDetailCopyKeys(batch[0]?.name);
+  const previous = batch[index - 1];
+  const next = batch[index + 1];
+  cursor += ctx.text(ctx.root,
+    snapshot.t(labels.position, { position: index + 1, n: batch.length }),
+    x + 18, cursor, { size: 10, color: GPU_COLORS.muted, width: width - 36 }).height + 4;
+  const half = (width - 36 - 8) / 2;
+  ctx.button(controls, `run.batch.prev.${(previous ?? event).id}`, 'button',
+    snapshot.t(labels.previous),
+    x + 18, cursor, half, 30, false, snapshot.onActivate,
+    undefined, false, false, undefined, undefined, undefined, !previous, 'back');
+  ctx.button(controls, `run.batch.next.${(next ?? event).id}`, 'button',
+    snapshot.t(labels.next),
+    x + 26 + half, cursor, half, 30, false, snapshot.onActivate,
+    undefined, false, false, undefined, undefined, undefined, !next, 'forward');
+  cursor += 40;
+  return cursor;
+}
+
 function drawEventDetail(
+  ctx: RendererCtx,
+  snapshot: GpuRenderSnapshot,
+  run: VizRun,
+  event: VizEvent,
+  x: number, y: number, width: number, height: number,
+  batch?: readonly VizEvent[]
+) {
+  const technical = snapshot.state.eventTechnicalOpen;
+  if (technical) {
+    ctx.button(ctx.root, 'detail.technical.toggle', 'button', snapshot.t('detail.readable.showSummary'),
+      x + 18, y + 12, width - 36, 32, true, snapshot.onActivate);
+    drawTechnicalEventDetail(ctx, snapshot, run, event, x, y + 48, width, height - 48, batch);
+    return;
+  }
+  const explanation = explainEvent(event, run, snapshot.t);
+  const title = ctx.text(ctx.root, explanation.title, x + 18, y + 16,
+    { size: 15, weight: '700', color: eventAccent(event), width: width - 36 });
+  const descriptionY = y + 28 + title.height;
+  const description = ctx.text(ctx.root, explanation.description, x + 18, descriptionY,
+    { size: 12, color: GPU_COLORS.text, width: width - 36 });
+  let detailTop = descriptionY + description.height + 18;
+  if (batch) detailTop = drawEventBatchControls(ctx, snapshot, event, batch,
+    ctx.animatedLayer(ctx.root, 'event-batch-controls'), x, detailTop, width);
+  const toggleY = y + height - 48;
+  ctx.button(ctx.root, 'detail.technical.toggle', 'button', snapshot.t('detail.readable.showTechnical'),
+    x + 18, toggleY, width - 36, 32, false, snapshot.onActivate);
+  const detailBottom = toggleY - 14;
+  const detailHeight = Math.max(40, detailBottom - detailTop);
+  ctx.detailBounds = new Rectangle(x + 12, detailTop - 6, width - 24, detailHeight + 6);
+  const layer = new Container();
+  layer.label = `event-detail:${event.id}`;
+  ctx.root.addChild(layer);
+  layer.mask = ctx.detailMask(x + 12, detailTop - 6, width - 24, detailHeight + 6);
+  const contentBottom = drawStructuredDetailNodes(ctx, layer, explanation.nodes,
+    x + 18, detailTop, width - 42);
+  ctx.detailScrollMax = Math.max(0, contentBottom - detailBottom + 8);
+  ctx.detailScrollY = Math.min(ctx.detailScrollY, ctx.detailScrollMax);
+  layer.position.y = -ctx.detailScrollY;
+  drawScrollbarThumb(ctx.root, { x, y: detailTop, width, height: detailHeight,
+    scrollY: ctx.detailScrollY, maxScroll: ctx.detailScrollMax });
+}
+
+function drawTechnicalEventDetail(
   ctx: RendererCtx,
   snapshot: GpuRenderSnapshot,
   run: VizRun,
@@ -1828,27 +1895,7 @@ function drawEventDetail(
       size: 10, color: GPU_COLORS.muted, width: width - 36,
     }).height + 8;
   }
-  if (batch) {
-    // One card stands for the whole batch; the pane steps through its calls
-    // one at a time, each with its own full result and arguments.
-    const index = batch.findIndex((member) => member.id === event.id);
-    const labels = batchDetailCopyKeys(batch[0]?.name);
-    const previous = batch[index - 1];
-    const next = batch[index + 1];
-    headerBottom += ctx.text(ctx.root,
-      snapshot.t(labels.position, { position: index + 1, n: batch.length }),
-      x + 18, headerBottom, { size: 10, color: GPU_COLORS.muted, width: width - 36 }).height + 4;
-    const half = (width - 36 - 8) / 2;
-    ctx.button(controls, `run.batch.prev.${(previous ?? event).id}`, 'button',
-      snapshot.t(labels.previous),
-      x + 18, headerBottom, half, 30, false, snapshot.onActivate,
-      undefined, false, false, undefined, undefined, undefined, !previous, 'back');
-    ctx.button(controls, `run.batch.next.${(next ?? event).id}`, 'button',
-      snapshot.t(labels.next),
-      x + 26 + half, headerBottom, half, 30, false, snapshot.onActivate,
-      undefined, false, false, undefined, undefined, undefined, !next, 'forward');
-    headerBottom += 40;
-  }
+  if (batch) headerBottom = drawEventBatchControls(ctx, snapshot, event, batch, controls, x, headerBottom, width);
   // Preserve the pane's bottom while letting every event family share this header.
   const headerGrowth = Math.max(0, headerBottom - (y + 60));
   y += headerGrowth;

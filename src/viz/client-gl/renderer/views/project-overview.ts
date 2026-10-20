@@ -4,7 +4,7 @@ import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
 import { fmtCost, runCost, runDuration } from '../../../client/run-utils.js';
-import { relativeTime, timestampTooltip } from '../relative-time.js';
+import { timestampTooltip } from '../relative-time.js';
 import { drawChevron } from '../button-icon.js';
 import { CHEVRON_SIZE } from '../../button-icons.js';
 import { createScrollPane } from '../scroll-pane.js';
@@ -223,7 +223,7 @@ function drawBody(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Contain
     cursor += ROW;
   };
   const exact = (instant: string | null) => instant ? timestampTooltip(instant, locale) : null;
-  const ago = (instant: string | null) => instant ? relativeTime(instant, t, locale) || instant : '—';
+  const ago = (instant: string | null) => instant ? ctx.relativeTime(instant, t, locale) || instant : '—';
 
   if (withHeader) {
     drawHeader(ctx, snapshot, parent, x, cursor, width, lane);

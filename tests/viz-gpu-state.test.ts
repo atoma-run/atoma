@@ -265,6 +265,19 @@ describe('full-GL Zustand scene state', () => {
     expect(useGpuStore.getState().runSummaryExpanded).toBe(true);
   });
 
+  it('opens each event on its explanation and resets technical disclosure on navigation', () => {
+    const store = useGpuStore.getState();
+    store.selectEvent('first');
+    expect(useGpuStore.getState().eventTechnicalOpen).toBe(false);
+    store.toggleEventTechnical();
+    expect(useGpuStore.getState().eventTechnicalOpen).toBe(true);
+    store.selectEvent('second');
+    expect(useGpuStore.getState().eventTechnicalOpen).toBe(false);
+    store.toggleEventTechnical();
+    store.selectRun('another-run');
+    expect(useGpuStore.getState().eventTechnicalOpen).toBe(false);
+  });
+
   it('toggles the branch heading and re-expands it when the branch changes', () => {
     const store = useGpuStore.getState();
     store.setRunFilters({ kind: 'all', role: 'all', branchId: 'phase-2' });

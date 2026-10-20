@@ -4,7 +4,7 @@ import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { truncate } from '../copy.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR } from '../view-frame.js';
-import { relativeTime, timestampTooltip } from '../relative-time.js';
+import { timestampTooltip } from '../relative-time.js';
 
 /**
  * THE CATALOGUE LEDGER's tail — a SEPARATE record from the platform journal,
@@ -243,7 +243,7 @@ export function drawLedger(
   const rowX = columnX + 8;
   const rowRight = columnX + innerWidth - 8;
   const stampWidth = Math.min(innerWidth * 0.3, Math.max(0, ...ledger.map(entry =>
-    ctx.measureText(relativeTime(entry.at, snapshot.t, snapshot.state.locale) || truncate(entry.at, 19), { size: 9 }))));
+    ctx.measureText(ctx.relativeTime(entry.at, snapshot.t, snapshot.state.locale) || truncate(entry.at, 19), { size: 9 }))));
   const kindWidth = Math.min(innerWidth * 0.3, Math.max(0, ...ledger.map(entry => ctx.measureText(entry.kind, { size: 9, mono: true }))));
   const kindX = rowX + stampWidth + 14;
   const subjectX = compact ? rowX : kindX + kindWidth + 10;
@@ -254,7 +254,7 @@ export function drawLedger(
       ctx.text(
         pane.content,
         // Same tolerance as a journal row: an unparseable stamp shows raw.
-        relativeTime(entry.at, snapshot.t, snapshot.state.locale) || truncate(entry.at, 19),
+        ctx.relativeTime(entry.at, snapshot.t, snapshot.state.locale) || truncate(entry.at, 19),
         rowX,
         rowY,
         { size: 9, color: GPU_COLORS.muted, width: stampWidth, singleLine: true }
