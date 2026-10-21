@@ -42,7 +42,10 @@ no command is replayed. Its product-store journal preserves incomplete delivery
 across server restart. Explicit finalization binds a fresh export-only generation
 to the recorded local allocation; only verified received bytes become delivered.
 A persisted launcher stop report, never a deadline, permits closing an interrupted
-run and consulting its normal checkpoint eligibility.
+run and consulting its normal checkpoint eligibility. The selected executor
+reconciles confirmed interrupted stops during its control poll, including after
+a generation change; pending finalization transfers remain explicit. Public
+readers never perform this reconciliation.
 
 Legacy project targets remain hosted and run receipts are immutable. On gated
 hosts, only a current platform admin may start hosted work; other members must

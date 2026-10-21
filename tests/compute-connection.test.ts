@@ -802,3 +802,71 @@ it('reports connection loss to the desktop before engine teardown has completed'
   } finally { finish(); await closure; }
   expect(stopped).toHaveBeenCalledWith(true);
 });
+
+it('logs the first server close cause with pending identities and excludes private payloads', async () => {
+  const f = await connected(), lines: string[] = [];
+  const output = vi.spyOn(process.stderr, 'write').mockImplementation(chunk => { lines.push(String(chunk)); return true; });
+  try {
+    const command = message(f.ws);
+    const result = f.peer.request(f.execution, { method: 'replace-manifest', text: 'PRIVATE_FILE_CONTENT' });
+    const rejected = expect(result).rejects.toBeInstanceOf(ComputeIndeterminateError);
+    await command;
+    const closed = once(f.ws, 'close');
+    f.ws.close(1000, 'PRIVATE_CLOSE_REASON');
+    await rejected; await closed;
+    f.peer.close();
+    const records = lines.filter(line => line.startsWith('[atoma compute] ')).map(line => JSON.parse(line.slice(16)) as Record<string, unknown>);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ side: 'server', reason: 'socket-close', deviceId: f.paired.deviceId,
+      connectionGeneration: f.session.generation, runId: f.runId, executionGeneration: f.execution.generation,
+      closeCode: 1000, closeReasonBytes: 20, pending: [{ channel: 'workspace', id: 1, method: 'replace-manifest' }] });
+    expect(lines.join('')).not.toContain('PRIVATE_');
+    expect(lines.join('')).not.toContain(f.paired.credential);
+  } finally { output.mockRestore(); }
+});
+
+it('distinguishes a workspace RPC timeout from a socket close', async () => {
+  const f = await connected(), lines: string[] = [];
+  const output = vi.spyOn(process.stderr, 'write').mockImplementation(chunk => { lines.push(String(chunk)); return true; });
+  try {
+    vi.useFakeTimers();
+    const result = f.peer.request(f.execution, { method: 'restart' });
+    const rejected = expect(result).rejects.toBeInstanceOf(ComputeIndeterminateError);
+    await vi.advanceTimersByTimeAsync(120_001);
+    await rejected;
+    expect(lines.join('')).toContain('"reason":"workspace-timeout"');
+    expect(lines.join('')).toContain('"method":"restart"');
+    expect(lines.join('')).not.toContain('"reason":"socket-close"');
+  } finally { vi.useRealTimers(); output.mockRestore(); }
+});
+
+it('records client disconnect and confirmed cleanup in its durable diagnostic sink', async () => {
+  const owner = actor(), paired = pairing(owner), lines: string[] = [];
+  const stopped = vi.fn(async () => {});
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), assign: async () => { throw new Error('not assigned'); },
+    diagnostic: line => lines.push(line), stopWorkloads: stopped });
+  try {
+    peers.at(-1)!.close();
+    expect(await client.finished).toBe(true);
+    const records = lines.map(line => JSON.parse(line.slice(16)) as Record<string, unknown>);
+    expect(records.map(record => record.reason)).toEqual(['connected', 'socket-close', 'stop-confirmed']);
+    expect(records[1]).toMatchObject({ side: 'client', deviceId: paired.deviceId, closeCode: 1006 });
+    expect(stopped).toHaveBeenCalledOnce();
+    expect(lines.join('')).not.toContain(paired.credential);
+  } finally { await client.close(); }
+});
+
+
+it.each(['json', 'schema'] as const)('logs rejected %s frames without their contents', async kind => {
+  const f = await connected(), lines: string[] = [];
+  const output = vi.spyOn(process.stderr, 'write').mockImplementation(chunk => { lines.push(String(chunk)); return true; });
+  try {
+    const closed = once(f.ws, 'close');
+    f.ws.send(kind === 'json' ? 'PRIVATE_NOT_JSON' : JSON.stringify({ kind: 'heartbeat', id: 0, secret: 'PRIVATE_CONTENT' }));
+    await closed;
+    expect(lines.join('')).toContain('"reason":"invalid-frame"');
+    expect(lines.join('')).toContain(kind === 'json' ? '"failure":"json-decoding"' : '"failure":"schema-validation"');
+    expect(lines.join('')).not.toContain('PRIVATE');
+  } finally { output.mockRestore(); }
+});

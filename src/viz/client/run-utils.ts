@@ -60,9 +60,9 @@ export type RunStatus = 'live' | 'abandoned' | 'cancelled' | 'failed' | 'partial
  * labels one (timeline bookends, run header, pickers).
  *
  * Cancellation takes precedence over the error flag on purpose: a
- * signal-cancelled run records an error message BY DESIGN ("run cancelled by
- * user (signal received)"), and reporting that as a failure is the same lie
- * the burn-in CSV told until 2026-08-15 — a deliberate kill is not a fault.
+ * stopped runner records an error message BY DESIGN. This flag describes the
+ * trace shutdown, not who requested it. The project receipt separately records
+ * whether a cancellation was requested or Compute execution was interrupted.
  */
 export function runStatus(run: VizRun, now = Date.now()): RunStatus {
   if (run.cancelled) return 'cancelled';

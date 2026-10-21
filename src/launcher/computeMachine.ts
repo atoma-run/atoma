@@ -1,3 +1,4 @@
+import { computeDiagnosticLog } from './computeDiagnosticLog.js';
 import type { ComputeResourceBudget } from '../contracts/computeLocal.js';
 import { COMPUTE_DISK_RESERVE_BYTES } from './computeDisk.js';
 import { COMPUTE_RUN_RESOURCES } from '../contracts/computeProject.js';
@@ -53,7 +54,7 @@ export class ComputeMachine {
       await DesktopCompute.reconcile(this.inventory.machineId(), this.options.workerImage);
       for (const row of this.inventory.list()) this.inventory.stopped(row.execution);
       if (this.closed) throw new Error('Compute connection cancelled');
-      this.connection = await connectComputeWorkspace({ ...options, machineId: this.inventory.machineId(),
+      this.connection = await connectComputeWorkspace({ ...options, diagnostic: computeDiagnosticLog(this.options.stateRoot), machineId: this.inventory.machineId(),
         reconcile: async execution => {
           // The authenticated credential is bound to this inventory's machine
           // identity. Boot just proved every workload under that identity absent,

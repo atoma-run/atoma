@@ -42,11 +42,11 @@ export function attachComputeGateway(server: Server, devices: ComputeDeviceStore
   }, closeIdle(keep: (session: ComputeSession) => boolean = () => false) {
     for (const peer of peers) {
       const session = peer.identity();
-      if (!peer.executing() && !(session && keep(session))) peer.close();
+      if (!peer.executing() && !(session && keep(session))) peer.close('idle-cutover');
     }
   }, close() {
     server.off('upgrade', listener);
-    for (const peer of peers) peer.close();
+    for (const peer of peers) peer.close('gateway-shutdown');
     peers.clear(); sockets.close();
   } };
 }

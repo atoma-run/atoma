@@ -1,3 +1,4 @@
+import { displayedRunError } from '../../../../contracts/runShutdown.js';
 import { taxonomyForTier } from '../../../../core/taxonomy.js';
 import { previewActions } from '../preview-control.js';
 import { BUTTON_ICON_SPACE, CHEVRON_SIZE, CHEVRON_SPACE } from '../../button-icons.js';
@@ -1188,7 +1189,7 @@ export function drawRuns(
       0,
       statusColor,
       `${runOver ? snapshot.t('timeline.runEnded') : snapshot.t('timeline.runUnfinished')} · ${statusLabel}`,
-      run.error ?? '',
+      displayedRunError(run.error ?? ''),
       endFacts
     );
   }
@@ -1670,7 +1671,7 @@ function drawRunSummaryCard(
     FILTER_BLOCK_GAP;
   if (expanded) {
     if (run.error) {
-      const reason = ctx.text(block, run.error, padX, cursor, {
+      const reason = ctx.text(block, displayedRunError(run.error), padX, cursor, {
         size: RUNS_FACTS_SIZE,
         color: summaryStatusColor,
         width: innerWidth,

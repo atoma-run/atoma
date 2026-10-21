@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
+import { recordComputeDiagnostic, computeErrorCode, computeFailure, type ComputeCloseReason, type ComputeDiagnostic } from '../contracts/computeDiagnostics.js';
 import { computePreviewCommandSchema, computePreviewIdentitySchema, type ComputePreviewIdentity, type ComputePreviewCommand, type ComputePreviewReply } from '../contracts/computePreview.js';
 import { computeRetrievalCommandSchema, type ComputeRetrievalCommand, type ComputeRetrievalReply } from '../contracts/computeRetrieval.js';
 import { computeToolCommandSchema, type ComputeToolCommand } from '../contracts/computeTools.js';
@@ -19,6 +22,10 @@ export class ComputeIndeterminateError extends Error {
  * No public endpoint or coordinator admission is enabled by this module. */
 export type ComputeRunControl = (orgId: string, execution: ComputeExecution, action: 'pause' | 'stop') => void | Promise<void>;
 export class ComputeConnection {
+  private readonly connectionId = randomUUID();
+  private readonly openedAt = performance.now();
+  private lastReceiveAt = this.openedAt;
+  private lastHeartbeatAt?: number;
   private session?: ComputeSession;
   private credential = '';
   private heartbeatId = 0;
@@ -33,32 +40,32 @@ export class ComputeConnection {
   get signal(): AbortSignal { return this.interruption.signal; }
   private readonly watchdog: ReturnType<typeof setInterval>;
   private readonly helloDeadline: ReturnType<typeof setTimeout>;
-  private readonly tools = new Map<number, { method: ComputeToolCommand['method']; execution: ComputeExecution; resolve: (result: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  private readonly tools = new Map<number, { method: ComputeToolCommand['method']; execution: ComputeExecution; resolve: (result: unknown) => void; reject: (error: Error) => void; startedAt: number; timer: ReturnType<typeof setTimeout> }>();
   private previewIdentity?: ComputePreviewIdentity;
   private readonly previews = new Map<number, { identity: ComputePreviewIdentity; method: ComputePreviewCommand['method'];
-    resolve(value: ComputePreviewReply): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
+    resolve(value: ComputePreviewReply): void; reject(error: Error): void; startedAt: number; timer: ReturnType<typeof setTimeout> }>();
   private retrieval?: { id: number; execution: ComputeExecution; method: ComputeRetrievalCommand['method'];
-    resolve(value: ComputeRetrievalReply): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
-  private binding?: { id: number; resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
+    resolve(value: ComputeRetrievalReply): void; reject(error: Error): void; startedAt: number; timer: ReturnType<typeof setTimeout> };
+  private binding?: { id: number; resolve(): void; reject(error: Error): void; startedAt: number; timer: ReturnType<typeof setTimeout> };
   private pending?: {
     id: number; execution: ComputeExecution; method: WorkspaceCommand['method'];
     resolve: (reply: WorkspaceReply) => void; reject: (error: Error) => void;
-    timer: ReturnType<typeof setTimeout>;
+    startedAt: number; timer: ReturnType<typeof setTimeout>;
   };
 
   constructor(private readonly socket: WebSocket, private readonly devices: ComputeDeviceStore,
     private readonly timeoutMs = 120_000, private readonly control?: ComputeRunControl,
     private readonly connected?: (session: ComputeSession) => void) {
-    this.helloDeadline = setTimeout(() => this.close(), 5000);
+    this.helloDeadline = setTimeout(() => this.close('handshake-timeout'), 5000);
     this.helloDeadline.unref();
     this.watchdog = setInterval(() => {
       if (!this.session) return;
-      try { this.validate(); } catch { this.close(); }
+      try { this.validate(); } catch (error) { this.close('session-invalid', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
     }, 1000);
     this.watchdog.unref();
     socket.on('message', (data, binary) => this.receive(data, binary));
-    socket.on('error', () => this.close());
-    socket.on('close', () => this.close());
+    socket.on('error', error => this.close('socket-error', { errorCode: computeErrorCode(error) }));
+    socket.on('close', (code, reason) => this.close('socket-close', { closeCode: code, closeReasonBytes: reason.length }));
   }
   private validate(): void {
     if (!this.session) throw new Error('Compute transport unavailable');
@@ -74,10 +81,11 @@ export class ComputeConnection {
       Buffer.byteLength(text) > COMPUTE_FRAME_BYTES || this.socket.bufferedAmount > COMPUTE_FRAME_BYTES) {
       throw new Error('Compute transport unavailable');
     }
-    this.socket.send(text, error => { if (error) this.close(); });
+    this.socket.send(text, error => { if (error) this.close('send-error', { errorCode: computeErrorCode(error) }); });
   }
   private receive(data: RawData, binary: boolean): void {
     if (this.closed) return;
+    this.lastReceiveAt = performance.now();
     try {
       const bytes = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer);
       if (binary || bytes.length > (this.session ? COMPUTE_FRAME_BYTES : 4096)) throw new Error('Invalid frame');
@@ -90,6 +98,7 @@ export class ComputeConnection {
         this.connected?.(this.session);
         this.recovery = connected.recovery ? { runId: connected.recovery.runId, generation: connected.recovery.generation } : undefined;
         this.credential = hello.credential;
+        this.diagnostic('connected');
         clearTimeout(this.helloDeadline);
         this.send({ kind: 'ready', version: 1, session: this.session, recovery: this.recovery ?? null });
         return;
@@ -112,7 +121,7 @@ export class ComputeConnection {
             ok = true;
           } catch { /* Bounded response; control details never cross organizations. */ }
           finally { this.controlling = false; }
-          try { this.send({ kind: 'machine-result', id: frame.id, ok }); } catch { this.close(); }
+          try { this.send({ kind: 'machine-result', id: frame.id, ok }); } catch (error) { this.close('send-error', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
         })();
         return;
       }
@@ -120,6 +129,7 @@ export class ComputeConnection {
         if (frame.id <= this.heartbeatId) throw new Error('Replayed heartbeat');
         this.devices.heartbeat(this.credential, this.session);
         this.heartbeatId = frame.id;
+        this.lastHeartbeatAt = performance.now();
         this.send({ kind: 'heartbeat', id: frame.id });
         return;
       }
@@ -179,7 +189,7 @@ export class ComputeConnection {
       this.pending = undefined;
       if (frame.response.ok) pending.resolve(frame.response.reply);
       else pending.reject(new Error('Remote workspace operation failed'));
-    } catch { this.close(); }
+    } catch (error) { this.close('invalid-frame', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
   }
   /** Reserve through the store first, then bind the issued generation locally.
    * Failed or lost acknowledgement retains the assignment as indeterminate. */
@@ -191,9 +201,9 @@ export class ComputeConnection {
       this.devices.authorizeOperation(this.session, target.runId, target.generation);
       this.execution = target;
       return new Promise((resolve, reject) => {
-        const id = ++this.next, timer = setTimeout(() => this.close(), this.timeoutMs);
-        timer.unref(); this.binding = { id, resolve, reject, timer };
-        try { this.send({ kind: 'assign', id, execution: target, ...(recover ? { recover } : {}) }); } catch { this.close(); }
+        const id = ++this.next, timer = setTimeout(() => this.close('assignment-timeout'), this.timeoutMs);
+        timer.unref(); this.binding = { id, resolve, reject, startedAt: performance.now(), timer };
+        try { this.send({ kind: 'assign', id, execution: target, ...(recover ? { recover } : {}) }); } catch (error) { this.close('send-error', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
       });
     } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute assignment failed')); }
   }
@@ -209,11 +219,11 @@ export class ComputeConnection {
       const frame = { kind: 'workspace-command' as const, id: ++this.next, execution: target, command };
       if (Buffer.byteLength(JSON.stringify(frame)) > COMPUTE_FRAME_BYTES) throw new Error('Compute frame too large');
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => this.close(), this.timeoutMs);
+        const timer = setTimeout(() => this.close('workspace-timeout'), this.timeoutMs);
         timer.unref();
         this.execution = target;
-        this.pending = { id: frame.id, execution: target, method: command.method, resolve, reject, timer };
-        try { this.send(frame); } catch { this.close(); }
+        this.pending = { id: frame.id, execution: target, method: command.method, resolve, reject, startedAt: performance.now(), timer };
+        try { this.send(frame); } catch (error) { this.close('send-error', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
       });
     } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute request failed')); }
   }
@@ -228,9 +238,9 @@ export class ComputeConnection {
       } else if (JSON.stringify(this.previewIdentity) !== JSON.stringify(identity)) throw new Error('Compute preview generation unavailable');
       const frame = { kind: 'preview-command' as const, id: ++this.next, identity, command };
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => this.close(), this.timeoutMs); timer.unref();
-        this.previews.set(frame.id, { identity, method: command.method, resolve, reject, timer });
-        try { this.send(frame); } catch { this.close(); }
+        const timer = setTimeout(() => this.close('preview-timeout'), this.timeoutMs); timer.unref();
+        this.previews.set(frame.id, { identity, method: command.method, resolve, reject, startedAt: performance.now(), timer });
+        try { this.send(frame); } catch (error) { this.close('send-error', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
       });
     } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute preview request failed')); }
   }
@@ -242,9 +252,9 @@ export class ComputeConnection {
       const frame = { kind: 'retrieval-command' as const, id: ++this.next, execution: target, command };
       if (Buffer.byteLength(JSON.stringify(frame)) > COMPUTE_FRAME_BYTES) throw new Error('Compute frame too large');
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => this.close(), command.method === 'prepare' ? 30 * 60_000 : this.timeoutMs);
-        timer.unref(); this.retrieval = { id: frame.id, execution: target, method: command.method, resolve, reject, timer };
-        try { this.send(frame); } catch { this.close(); }
+        const timer = setTimeout(() => this.close('retrieval-timeout'), command.method === 'prepare' ? 30 * 60_000 : this.timeoutMs);
+        timer.unref(); this.retrieval = { id: frame.id, execution: target, method: command.method, resolve, reject, startedAt: performance.now(), timer };
+        try { this.send(frame); } catch (error) { this.close('send-error', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
       });
     } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute retrieval request failed')); }
   }
@@ -257,18 +267,34 @@ export class ComputeConnection {
       const frame = { kind: 'tool-command' as const, id: ++this.next, execution: target, command };
       if (Buffer.byteLength(JSON.stringify(frame)) > COMPUTE_FRAME_BYTES) throw new Error('Compute frame too large');
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => this.close(), command.method === 'invoke'
+        const timer = setTimeout(() => this.close('tool-timeout'), command.method === 'invoke'
           ? workerCallTimeoutMs(command.name, command.args, this.timeoutMs) : this.timeoutMs);
         timer.unref(); this.execution = target;
         this.drainingTools = command.method === 'drain';
-        this.tools.set(frame.id, { method: command.method, execution: target, resolve, reject, timer });
-        try { this.send(frame); } catch { this.close(); }
+        this.tools.set(frame.id, { method: command.method, execution: target, resolve, reject, startedAt: performance.now(), timer });
+        try { this.send(frame); } catch (error) { this.close('send-error', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
       });
     } catch (error) { return Promise.reject(error instanceof Error ? error : new Error('Compute request failed')); }
   }
-  close(): void {
+  private diagnostic(reason: ComputeCloseReason, extra: Pick<ComputeDiagnostic, 'errorCode' | 'closeCode' | 'closeReasonBytes' | 'failure'> = {}): void {
+    const now = performance.now();
+    const pending: ComputeDiagnostic['pending'] = [];
+    if (this.binding) pending.push({ channel: 'assignment', id: this.binding.id, ageMs: now - this.binding.startedAt });
+    if (this.pending) pending.push({ channel: 'workspace', id: this.pending.id, method: this.pending.method, ageMs: now - this.pending.startedAt });
+    if (this.retrieval) pending.push({ channel: 'retrieval', id: this.retrieval.id, method: this.retrieval.method, ageMs: now - this.retrieval.startedAt });
+    for (const [id, item] of this.tools) pending.push({ channel: 'tools', id, method: item.method, ageMs: now - item.startedAt });
+    for (const [id, item] of this.previews) pending.push({ channel: 'preview', id, method: item.method, ageMs: now - item.startedAt });
+    recordComputeDiagnostic({ at: new Date().toISOString(), side: 'server', reason, connectionId: this.connectionId,
+      ...(this.session ? { deviceId: this.session.deviceId, sessionId: this.session.sessionId, connectionGeneration: this.session.generation } : {}),
+      ...(this.execution ? { runId: this.execution.runId, executionGeneration: this.execution.generation } : {}),
+      ageMs: now - this.openedAt, lastReceiveAgoMs: now - this.lastReceiveAt,
+      lastHeartbeatAgoMs: this.lastHeartbeatAt === undefined ? null : now - this.lastHeartbeatAt,
+      socketState: this.socket.readyState, bufferedBytes: this.socket.bufferedAmount, pending, ...extra });
+  }
+  close(reason: ComputeCloseReason = 'local-close', extra: Pick<ComputeDiagnostic, 'errorCode' | 'closeCode' | 'closeReasonBytes' | 'failure'> = {}): void {
     if (this.closed) return;
     this.closed = true;
+    this.diagnostic(reason, extra);
     this.interruption.abort(new ComputeIndeterminateError());
     clearTimeout(this.helloDeadline); clearInterval(this.watchdog);
     for (const pending of this.tools.values()) { clearTimeout(pending.timer); pending.reject(new ComputeIndeterminateError()); }

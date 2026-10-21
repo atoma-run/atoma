@@ -154,9 +154,11 @@ describe('cancelled runs keep their economics', () => {
       expect(traceName).toBeDefined();
       const trace = JSON.parse(readFileSync(join(runsDir, traceName!), 'utf8')) as {
         cancelled?: boolean;
+        error?: string;
         totals?: { calls: number; costUsd: number };
       };
       expect(trace.cancelled).toBe(true);
+      expect(trace.error).toBe('run interrupted before completion (shutdown requested)');
       // THE invariant: trace and CSV never disagree about one run's cost.
       expect(trace.totals?.calls).toBe(stats.llmCalls);
       expect(Number((trace.totals?.costUsd ?? NaN).toFixed(4))).toBe(stats.costUsd);

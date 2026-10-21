@@ -15,7 +15,7 @@ export class ComputeLease {
 
   constructor(private readonly stopWorkloads: () => Promise<void>, private readonly clock = {
     monotonic: () => performance.now(), wall: () => Date.now(),
-  }) {
+  }, private readonly onExpire?: () => void) {
     this.deadline = { monotonic: clock.monotonic() + COMPUTE_LEASE_MS, wall: clock.wall() + COMPUTE_LEASE_MS };
     this.arm();
   }
@@ -26,7 +26,11 @@ export class ComputeLease {
   }
   private live(): boolean {
     if (this.phase !== 'waiting' && this.phase !== 'active') return false;
-    if (this.remaining() <= 0) { void this.stop(); return false; }
+    if (this.remaining() <= 0) {
+      // Notify before teardown so the first close records expiry, not a later socket event.
+      try { this.onExpire?.(); } finally { void this.stop(); }
+      return false;
+    }
     return true;
   }
   private arm(): void {

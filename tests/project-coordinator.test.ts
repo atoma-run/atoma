@@ -2540,3 +2540,70 @@ it('rechecks platform authority after asynchronous lease acquisition', async () 
   expect(f.store.listProjectRuns(f.viewer.orgId, f.project.projectId)?.[0]?.status).toBe('failed');
   coordinator.stopQueue();
 });
+
+it.each(['interrupted', 'cancelled', 'finalizing'] as const)(
+  'settles stopped Compute receipts after owner restart without dispatch or replay: %s', async phase => {
+    const { ComputeDeviceStore } = await import('../src/projects/computeDevices.js');
+    const { ComputeDispatcher, ComputeDispatchStore } = await import('../src/projects/computeDispatch.js');
+    const { createHash, randomBytes } = await import('node:crypto');
+    const f = fixture(), db = new Database(f.dbPath);
+    const digest = `sha256:${'a'.repeat(64)}`, owner = { orgId: f.viewer.orgId, principalId: f.viewer.principalId };
+    const devices = new ComputeDeviceStore(db, { appVersions: new Set(['test']), imageDigests: new Set([digest]) });
+    const secret = randomBytes(32).toString('base64url');
+    const pairing = devices.beginPairing({ name: 'Test computer', secretHash: createHash('sha256').update(secret).digest('hex') });
+    devices.confirmPairing(owner, pairing.code);
+    const device = devices.redeemPairing(pairing.code, secret);
+    devices.grantProject(owner, device.deviceId, f.project.projectId, true);
+    devices.setProjectTarget(owner, f.project.projectId, { target: { kind: 'customer-device', deviceId: device.deviceId }, expected: { kind: 'hosted' } });
+    const cap = { protocol: 1 as const, appVersion: 'test', platform: 'darwin' as const, architecture: 'arm64' as const,
+      services: ['workspace', 'tools', 'retrieval'] as ('workspace' | 'tools' | 'retrieval')[], imageDigest: digest,
+      cpus: 4, memoryBytes: 8 * 1024 ** 3, diskBytes: 10 * 1024 ** 3 };
+    devices.bindMachine(device.credential, device.deviceId);
+    const session = devices.connect(device.credential, cap).session;
+    const runId = randomUUID(), paths = projectRunHostLayout(f.root, owner.orgId, f.project.projectId, runId);
+    mkdirSync(paths.runsPath, { recursive: true });
+    const receipt = f.store.createProjectRun({ ...owner, projectId: f.project.projectId,
+      request: { goal: 'Offline reconciliation', idempotencyKey: runId }, projectRunId: runId,
+      hostPaths: { workspacePath: paths.workspacePath, runsPath: paths.runsPath, logPath: paths.logPath } })!.run;
+    f.store.transitionProjectRun({ orgId: owner.orgId, projectRunId: receipt.projectRunId, from: 'queued', to: 'running' });
+    writeFileSync(paths.logPath, formatRunStatsEpilogue({ ...DELIVERED_STATS, outcome: 'cancelled' }));
+    writeFileSync(join(paths.runsPath, `${receipt.projectRunId}.json`), JSON.stringify({ id: receipt.projectRunId }));
+    const resources = { cpus: 1, memoryBytes: 1024 ** 3, diskBytes: 1024 ** 3 };
+    const assignment = devices.assign(owner, session, receipt.projectRunId, resources);
+    const journal = new ComputeDispatchStore(db);
+    journal.begin(receipt.projectRunId, assignment.generation);
+    journal.phase(receipt.projectRunId, assignment.generation, phase === 'finalizing' ? 'finalizing' : 'interrupted');
+    if (phase === 'cancelled') f.store.requestRunCancellation(owner.orgId, receipt.projectRunId);
+    devices.disconnect(session);
+    const compute = new ComputeDispatcher({ devices, journal, resources, connectionFor: () => undefined });
+    const driver = vi.fn<ProjectRunDriver>(), finished = vi.fn();
+    const makeOwner = (external?: string) => new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: haystackTestEnvironment(f.root), compute: () => compute, driver, onRunFinished: finished,
+      ...(external ? { executorSocket: external } : {}) });
+    let coordinator = makeOwner();
+    try {
+      coordinator.pollRunControls();
+      expect(f.store.getProjectRun(owner.orgId, receipt.projectRunId)?.status).toBe('running');
+      coordinator.stopQueue();
+      // Recreate the execution owner, as after a compatible deployment.
+      const replacement = devices.connect(device.credential, cap).session;
+      devices.acknowledgeStopped(device.credential, replacement, receipt.projectRunId, assignment.generation);
+      const frontend = makeOwner('/not-used/executor.sock');
+      frontend.pollRunControls(); frontend.stopQueue();
+      expect(f.store.getProjectRun(owner.orgId, receipt.projectRunId)?.status).toBe('running');
+      coordinator = makeOwner(); coordinator.pollRunControls();
+      await Promise.resolve(); await Promise.resolve();
+      const ended = f.store.getProjectRun(owner.orgId, receipt.projectRunId)!;
+      if (phase === 'finalizing') {
+        expect(ended.status).toBe('running'); expect(finished).not.toHaveBeenCalled();
+      } else {
+        const status = phase === 'cancelled' ? 'cancelled' : 'failed';
+        expect(ended.status).toBe(status); expect(ended.endedAt).not.toBeNull();
+        expect(ended.stats).toMatchObject({ outcome: status, costUsd: 0.01, llmCalls: 1 });
+        expect(ended.traceId).toBe(receipt.projectRunId);
+        expect(finished).toHaveBeenCalledOnce();
+        coordinator.pollRunControls(); expect(finished).toHaveBeenCalledOnce();
+      }
+      expect(driver).not.toHaveBeenCalled();
+    } finally { coordinator.stopQueue(); db.close(); }
+  });

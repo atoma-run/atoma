@@ -61,3 +61,15 @@ it('does not report stopped before engine confirmation resolves', async () => {
   expect(f.lease.state()).toBe('stopping'); confirm();
   expect(await stopped).toBe(true); expect(f.lease.state()).toBe('stopped');
 });
+
+it('reports lease expiry exactly once before cleanup starts', async () => {
+  vi.useFakeTimers();
+  const events: string[] = [];
+  let wall = 0;
+  const lease = new ComputeLease(async () => { events.push('cleanup'); },
+    { monotonic: () => wall, wall: () => wall }, () => { events.push('expired'); });
+  lease.acknowledge(lease.heartbeatSent()); wall = COMPUTE_LEASE_MS + 1;
+  expect(() => lease.assertActive()).toThrow();
+  await lease.stop(); lease.state();
+  expect(events).toEqual(['expired', 'cleanup']);
+});

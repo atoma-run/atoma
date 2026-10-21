@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
+import { recordComputeDiagnostic, computeErrorCode, computeFailure, type ComputeCloseReason, type ComputeDiagnostic } from '../contracts/computeDiagnostics.js';
 import { ComputeBandwidth } from './computeBandwidth.js';
 import { computePreviewReplySchema, type ComputePreviewIdentity, type ComputePreviewCommand } from '../contracts/computePreview.js';
 import { computeRetrievalReplySchema, type ComputeRetrievalCommand } from '../contracts/computeRetrieval.js';
@@ -25,6 +28,7 @@ export async function connectComputeWorkspace(options: {
   preview?: (identity: ComputePreviewIdentity, command: ComputePreviewCommand) => Promise<unknown>;
   stopWorkloads: () => Promise<void>;
   onDisconnect?: () => void;
+  diagnostic?: (line: string) => void;
   tools?: ToolExecutor & { drain(): Promise<void> };
   /** Optional deployment CA; certificate and hostname validation remain enabled. */
   ca?: string;
@@ -42,8 +46,10 @@ export async function connectComputeWorkspace(options: {
   let recovery: ComputeExecution | null = null, reconciling = false;
   const hello = computeHelloSchema.parse({ kind: 'hello', version: 1, machineId: options.machineId, credential: options.credential, capabilities: options.capabilities });
   const bandwidth = new ComputeBandwidth(), transferAbort = new AbortController();
+  const connectionId = randomUUID(), openedAt = performance.now();
+  let lastReceiveAt = openedAt, lastHeartbeatAt: number | undefined;
   let allocation: Promise<void> | undefined;
-  const lease = new ComputeLease(async () => { await allocation; await options.stopWorkloads(); });
+  const lease = new ComputeLease(async () => { await allocation; await options.stopWorkloads(); }, undefined, () => { void close('lease-expired'); });
   const socket = new WebSocket(url, { ca: options.ca, maxPayload: COMPUTE_FRAME_BYTES,
     perMessageDeflate: false, followRedirects: false, handshakeTimeout: 5000 });
   let retrievalBusy = false, activePreviews = 0;
@@ -55,32 +61,49 @@ export async function connectComputeWorkspace(options: {
   const ready = new Promise<ComputeSession>((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
   let resolveFinished!: (confirmed: boolean) => void;
   const finished = new Promise<boolean>(resolve => { resolveFinished = resolve; });
-  const close = () => {
+  const diagnostic = (reason: ComputeCloseReason, extra: Pick<ComputeDiagnostic, 'errorCode' | 'closeCode' | 'closeReasonBytes' | 'failure'> = {}) => {
+    const now = performance.now();
+    recordComputeDiagnostic({ at: new Date().toISOString(), side: 'client', reason, connectionId,
+      ...(session ? { deviceId: session.deviceId, sessionId: session.sessionId, connectionGeneration: session.generation } : {}),
+      ...(execution ? { runId: execution.runId, executionGeneration: execution.generation } : {}),
+      ageMs: now - openedAt, lastReceiveAgoMs: now - lastReceiveAt,
+      lastHeartbeatAgoMs: lastHeartbeatAt === undefined ? null : now - lastHeartbeatAt,
+      socketState: socket.readyState, bufferedBytes: socket.bufferedAmount,
+      pending: [{ channel: 'workspace', count: Number(busy) }, { channel: 'tools', count: activeTools },
+        { channel: 'retrieval', count: Number(retrievalBusy) }, { channel: 'preview', count: activePreviews },
+        { channel: 'assignment', count: Number(assigning && !execution) }, { channel: 'control', count: Number(Boolean(control)) }], ...extra }, options.diagnostic);
+  };
+  let stopLogged = false;
+  const close = (reason: ComputeCloseReason = 'local-close', extra: Pick<ComputeDiagnostic, 'errorCode' | 'closeCode' | 'closeReasonBytes' | 'failure'> = {}) => {
     if (!closed) {
-      closed = true; transferAbort.abort(); clearInterval(heartbeat); clearTimeout(deadline);
+      closed = true; diagnostic(reason, extra); transferAbort.abort(); clearInterval(heartbeat); clearTimeout(deadline);
       if (control) { clearTimeout(control.timer); control.reject(new Error('Compute control indeterminate')); control = undefined; }
       try { options.onDisconnect?.(); } catch { /* UI observers cannot prevent teardown. */ }
       socket.terminate(); rejectReady(new Error('Compute connection lost; reconciliation required'));
     }
-    return lease.stop().then(confirmed => { resolveFinished(confirmed); return confirmed; });
+    return lease.stop().then(confirmed => {
+      if (!stopLogged) { stopLogged = true; diagnostic(confirmed ? 'stop-confirmed' : 'stop-unconfirmed'); }
+      resolveFinished(confirmed); return confirmed;
+    });
   };
   const send = (frame: unknown) => {
     const text = JSON.stringify(frame);
     if (closed || socket.readyState !== WebSocket.OPEN || Buffer.byteLength(text) > COMPUTE_FRAME_BYTES || socket.bufferedAmount > COMPUTE_FRAME_BYTES) {
       throw new Error('Compute transport unavailable');
     }
-    socket.send(text, error => { if (error) void close(); });
+    socket.send(text, error => { if (error) void close('send-error', { errorCode: computeErrorCode(error) }); });
   };
   const beat = () => {
-    try { send({ kind: 'heartbeat', id: lease.heartbeatSent() }); } catch { void close(); }
+    try { send({ kind: 'heartbeat', id: lease.heartbeatSent() }); } catch (error) { void close('heartbeat-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
   };
   const heartbeat = setInterval(() => { if (session) beat(); }, 5000); heartbeat.unref();
-  const deadline = setTimeout(() => { void close(); }, 5000); deadline.unref();
-  socket.on('open', () => { try { send(hello); } catch { void close(); } });
-  socket.on('error', () => { void close(); });
-  socket.on('close', () => { void close(); });
+  const deadline = setTimeout(() => { void close('handshake-timeout'); }, 5000); deadline.unref();
+  socket.on('open', () => { try { send(hello); } catch (error) { void close('send-error', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); } });
+  socket.on('error', error => { void close('socket-error', { errorCode: computeErrorCode(error) }); });
+  socket.on('close', (code, reason) => { void close('socket-close', { closeCode: code, closeReasonBytes: reason.length }); });
   socket.on('message', (data, binary) => {
     if (closed) return;
+    lastReceiveAt = performance.now();
     try {
       const bytes = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer);
       if (binary || bytes.length > COMPUTE_FRAME_BYTES) throw new Error('Invalid frame');
@@ -92,6 +115,8 @@ export async function connectComputeWorkspace(options: {
       if (!session) throw new Error('Missing handshake');
       if (frame.kind === 'heartbeat') {
         if (!lease.acknowledge(frame.id)) throw new Error('Invalid heartbeat');
+        if (lastHeartbeatAt === undefined) diagnostic('connected');
+        lastHeartbeatAt = performance.now();
         clearTimeout(deadline);
         if (!recovery) resolveReady(session);
         else if (!reconciling) {
@@ -102,7 +127,7 @@ export async function connectComputeWorkspace(options: {
             try {
               await options.reconcile!(target); lease.assertActive();
               send({ kind: 'stopped', id: 1, execution: target });
-            } catch { void close(); }
+            } catch (error) { void close('reconciliation-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
           })();
         }
         return;
@@ -132,7 +157,7 @@ export async function connectComputeWorkspace(options: {
             lease.assertActive();
             execution = frame.execution; local = bound;
             send({ kind: 'assigned', id: frame.id, execution });
-          } catch { void close(); }
+          } catch (error) { void close('assignment-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
         })();
         return;
       }
@@ -147,7 +172,7 @@ export async function connectComputeWorkspace(options: {
             send({ kind: 'preview-result', identity: frame.identity, response: { id: frame.id, ok: true, reply } });
           } catch {
             try { lease.assertActive(); send({ kind: 'preview-result', identity: frame.identity, response: { id: frame.id, ok: false, error: 'preview-unavailable' } }); }
-            catch { void close(); }
+            catch (error) { void close('preview-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
           } finally { activePreviews--; }
         })();
         return;
@@ -171,7 +196,7 @@ export async function connectComputeWorkspace(options: {
             send({ kind: 'retrieval-result', execution, response: { id: frame.id, ok: true, reply } });
           } catch {
             try { lease.assertActive(); send({ kind: 'retrieval-result', execution, response: { id: frame.id, ok: false, error: 'retrieval-unavailable' } }); }
-            catch { void close(); }
+            catch (error) { void close('retrieval-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
           } finally { retrievalBusy = false; }
         })();
         return;
@@ -194,12 +219,12 @@ export async function connectComputeWorkspace(options: {
             lease.assertActive();
             send({ kind: 'tool-result', execution, response: { id: frame.id, ok: true, result } });
           } catch (error) {
-            if (frame.command.method === 'drain') { void close(); return; }
+            if (frame.command.method === 'drain') { void close('tool-failed'); return; }
             try {
               lease.assertActive();
               send({ kind: 'tool-result', execution, response: { id: frame.id, ok: false,
                 error: error instanceof Error ? error.message.slice(0, 8192) : 'Tool failed' } });
-            } catch { void close(); }
+            } catch (error) { void close('tool-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
           } finally { activeTools--; if (frame.command.method === 'drain') draining = false; }
         })();
         return;
@@ -222,19 +247,19 @@ export async function connectComputeWorkspace(options: {
           if (reply.method !== frame.command.method) throw new Error('Mismatched workspace result');
           lease.assertActive();
           send({ kind: 'workspace-result', execution, response: { id: frame.id, ok: true, reply } });
-        } catch { void close(); }
+        } catch (error) { void close('workspace-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
         finally { busy = false; }
       })();
-    } catch { void close(); }
+    } catch (error) { void close('invalid-frame', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
   });
   const identity = await ready;
   const requestControl = (action: 'pause' | 'stop' | 'accepting', value?: boolean): Promise<void> => {
     if (closed || control || (action !== 'accepting' && !execution)) return Promise.reject(new Error('Compute control unavailable'));
     const command: ComputeControl = action === 'accepting' ? { action, value: value === true } : { action, execution: execution! };
     return new Promise((resolve, reject) => {
-      const id = ++controlId, timer = setTimeout(() => { void close(); }, 10_000); timer.unref();
+      const id = ++controlId, timer = setTimeout(() => { void close('control-timeout'); }, 10_000); timer.unref();
       control = { id, resolve, reject, timer };
-      try { lease.assertActive(); send({ kind: 'machine-control', id, command }); } catch { void close(); }
+      try { lease.assertActive(); send({ kind: 'machine-control', id, command }); } catch (error) { void close('control-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
     });
   };
   return { session: identity, close, finished, requestControl, state: () => lease.state() };

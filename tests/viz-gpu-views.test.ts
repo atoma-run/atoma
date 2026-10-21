@@ -1,3 +1,4 @@
+import { RUN_SHUTDOWN_MESSAGE } from '../src/contracts/runShutdown.js';
 import { relativeTime } from '../src/viz/client-gl/renderer/relative-time.js';
 import { drawPlatform } from '../src/viz/client-gl/renderer/views/platform.js';
 import { platformStatsFixture } from './helpers/platformStats.js';
@@ -7105,7 +7106,9 @@ describe('drawRuns — run status and timeline bookends', () => {
     expect(expandedTexts).toContain(t('run.summary').toUpperCase());
     expect(expandedTexts.some((value) => value.includes(`build-app: ${description.slice(0, 40)}`)))
       .toBe(false);
-    expect(expandedTexts).toContain(run.error);
+    expect(expandedTexts).toContain(RUN_SHUTDOWN_MESSAGE);
+    expect(expandedTexts).not.toContain(run.error);
+    expect(run.error).toBe('run cancelled by user (signal received)');
 
     const collapsed = createRecordingCtx();
     drawRuns(collapsed, makeSnapshot({ runSummaryExpanded: false }, { run }), WIDTH, HEIGHT);

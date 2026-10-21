@@ -1304,9 +1304,55 @@ export class ProjectRunCoordinator {
 
   /** Called by the independent host, never by a public reader. */
   pollRunControls(): void {
+    if (this.executorSocket) return;
+    this.reconcileStoppedComputeRuns();
     for (const [runId, active] of this.active) {
       if (this.store.runCancellationRequested(active.orgId, runId)) active.controller.abort(new Error('project run cancelled'));
     }
+  }
+
+  private nextComputeReconciliation = 0;
+
+  /** Only the selected execution owner settles stopped remote work. A closed
+   * socket or elapsed lease alone is never proof that the workload stopped. */
+  private reconcileStoppedComputeRuns(): void {
+    if (!this.dispatchAllowed() || Date.now() < this.nextComputeReconciliation) return;
+    this.nextComputeReconciliation = Date.now() + 1000;
+    const compute = this.compute?.();
+    if (!compute) return;
+    const protectedIds = new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
+    for (const item of this.store.listLiveRunTraces()) {
+      if (this.active.has(item.projectRunId) || protectedIds.has(`project:${item.projectRunId}`)) continue;
+      const run = this.store.getProjectRun(item.orgId, item.projectRunId);
+      if (run?.executionTarget.kind !== 'customer-device' || !compute.interruptedStopped(run)) continue;
+      this.settleStoppedComputeRun(run);
+    }
+  }
+
+  private settleStoppedComputeRun(run: ProjectRun): ProjectRun {
+    const cancelled = this.store.runCancellationRequested(run.orgId, run.projectRunId);
+    const status = cancelled ? 'cancelled' as const : 'failed' as const;
+    const tracePath = path.join(run.hostPaths.runsPath, `${run.projectRunId}.json`);
+    let stats: RunStats | undefined;
+    try {
+      const file = lstatSync(run.hostPaths.logPath);
+      if (file.isFile() && !file.isSymbolicLink() && file.size <= 64 * 1024 ** 2) {
+        stats = { ...parseRunLog(readFileSync(run.hostPaths.logPath, 'utf8')), outcome: status };
+      }
+    } catch { /* Missing historical accounting remains unknown. */ }
+    const settled = this.store.transitionProjectRun({ orgId: run.orgId, projectRunId: run.projectRunId,
+      from: 'running', to: status, ...(stats ? { stats } : {}),
+      ...(existsSync(tracePath) ? { traceId: run.projectRunId } : {}),
+      error: cancelled ? 'Run cancellation requested; Compute workload stop confirmed.'
+        : 'Compute execution interrupted; workload stop confirmed. No cancellation was requested. Resume only from an eligible confirmed checkpoint, or start a new run.' })!;
+    if (this.onRunFinished) {
+      void Promise.resolve().then(() => this.onRunFinished!({ orgId: settled.orgId, projectId: settled.projectId,
+        projectRunId: settled.projectRunId, principalId: settled.requestedByPrincipalId,
+        goal: settled.goal, status })).catch(() => {
+        process.stderr.write(`[atoma projects] run-finished listener failed for ${run.projectRunId}\n`);
+      });
+    }
+    return settled;
   }
 
   executionIdle(): boolean {
@@ -2684,6 +2730,7 @@ export class ProjectRunCoordinator {
   resumeQueuedRuns(): void {
     if (this.executorSocket || !this.dispatchAllowed()) return;
     this.queueStopped = false;
+    this.reconcileStoppedComputeRuns();
     if (this.externalExecution) this.resumeLearning(true);
     if (this.queueTimer || this.queuePumping || this.store.listQueuedRuns().length === 0) return;
     this.queueTimer = setTimeout(() => {
@@ -2821,8 +2868,7 @@ export class ProjectRunCoordinator {
     const compute = this.compute?.(), project = this.store.getProject(orgId, run.projectId);
     if (!compute || !project || project.status !== 'active' || this.active.has(projectRunId)) throw new ProjectStateConflict('Compute run is active or unavailable');
     if (compute.interruptedStopped(run)) {
-      return this.store.transitionProjectRun({ orgId, projectRunId, from: 'running', to: 'failed',
-        error: 'Customer execution interrupted; launcher confirmed stop. Resume only from an eligible confirmed checkpoint, or start a new run.' })!;
+      return this.settleStoppedComputeRun(run);
     }
     const lease = await this.acquireLeasePreempting(`project:${projectRunId}`, orgId);
     if (this.active.has(projectRunId) || this.store.getProjectRun(orgId, projectRunId)?.status !== 'running') {

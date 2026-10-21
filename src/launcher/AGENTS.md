@@ -75,7 +75,10 @@ outbound WSS. It verifies TLS, serializes commands and refuses repeated ids or
 another execution generation; it does not launch Docker or reconnect itself.
 `ComputeLease` guards this channel, but engine teardown remains caller-injected. Authenticated heartbeat acknowledgements renew from dispatch
 time, never receipt time. Monotonic and wall deadlines jointly detect expiry and
-sleep; every operation must call `assertActive`. Expiry starts cleanup once.
+sleep; every operation must call `assertActive`. Expiry starts cleanup once. Both ends log bounded transport causes and pending
+request metadata through `computeDiagnostics`; frame bodies, arbitrary exception
+messages and remote close text are excluded. The launcher retains two private
+1 MiB connection logs under its state root for desktop and CLI diagnosis.
 Only engine-confirmed cleanup may resolve its callback; failure stays unconfirmed.
 The headless CLI keeps credentials in macOS Keychain or Windows DPAPI
 CurrentUser, never plaintext config, argv or environment. Pairing, image pulling

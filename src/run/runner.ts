@@ -1,3 +1,4 @@
+import { RUN_SHUTDOWN_MESSAGE } from '../contracts/runShutdown.js';
 import { deferPromptLearning } from '../atoms/promptLearning.js';
 import { assessClientQuestion } from '../atoms/clientQuestion.js';
 import { withRecoveryEffects } from '../core/recoveryEffects.js';
@@ -1505,7 +1506,7 @@ async function startTaskInternal(
     if (recorder.currentRun !== null) {
       await jevAudit?.settle(JEV_AUDIT_SETTLE_MS);
       recorder.endRun({
-        error: 'run cancelled by user (signal received)',
+        error: RUN_SHUTDOWN_MESSAGE,
         cancelled: true,
       });
       // The machine epilogue must survive cancellation: without it the

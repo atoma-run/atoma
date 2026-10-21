@@ -95,8 +95,9 @@ execution generation. Reconnection does not resume the interrupted run.
 After reconnecting the computer, use **Reconcile and finish transfer** in the
 project's Compute settings for a pending run. A completed run can export its
 remaining files in a fresh, export-only generation. An interrupted execution
-must first have its stop confirmed; normal checkpoint eligibility then decides
-whether continuation is possible. Otherwise, start a new run. Checkpoints and
+must first have its stop confirmed. Atoma then closes that interrupted run
+automatically instead of leaving it live. It is marked failed unless a cancellation
+was requested; normal checkpoint eligibility decides whether continuation is possible. Otherwise, start a new run. Checkpoints and
 files received incompletely cannot be published. Saved deliverables remain
 readable while the computer is offline.
 
@@ -105,6 +106,21 @@ generations and expiry. The relay can connect only to a launcher-issued preview,
 never to a caller-selected local URL or port. Disconnecting makes the preview
 unavailable. Restarting the Atoma server never asserts that a client workload
 has stopped.
+
+## Connection diagnostics
+
+Compute keeps connection events in `~/.atoma/compute/connection.log` on the
+computer, rotating the previous file to `connection.log.1` at 1 MiB. Server events
+use the `[atoma compute]` prefix in the executor journal. Match device/session
+identities and connection/execution generations across the two logs.
+
+Events distinguish socket closure, transport errors, handshake and request
+timeouts, expired heartbeats, rejected frames and local shutdown. They include
+pending request ids and methods, heartbeat age and buffered byte counts. A
+separate local event records whether workload cleanup was confirmed. Credentials,
+file contents, command arguments, exception messages and remote close text are
+excluded. Historical closures cannot acquire diagnostics retroactively; desktop
+logging requires a Compute version containing this change.
 
 ## Operator activation
 

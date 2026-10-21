@@ -124,7 +124,7 @@ export class ComputeDispatcher {
       this.options.journal.phase(run.projectRunId, record.generation, 'transferred');
       return log;
     } catch { throw new ComputeDispatchPendingError(); }
-    finally { peer.close(); }
+    finally { peer.close('dispatch-finished'); }
   }
   async drive(run: ProjectRun, driver: ProjectRunDriver, input: Parameters<ProjectRunDriver>[0], manifestPath: string): Promise<string> {
     if (run.executionTarget.kind !== 'customer-device') throw new Error('Compute dispatch requires a customer device receipt');
@@ -159,7 +159,7 @@ export class ComputeDispatcher {
       if (!finalizing && this.options.journal.inspect(run.projectRunId)) this.options.journal.phase(run.projectRunId, execution.generation, 'interrupted');
       throw new ComputeDispatchPendingError();
     } finally {
-      try { await bridge?.close(); } finally { peer.close(); }
+      try { await bridge?.close(); } finally { peer.close(finalizing ? 'dispatch-finished' : 'dispatch-interrupted'); }
       // Closing requests local lease teardown. It is never an exit assertion;
       // the slot remains held until a fresh launcher confirms the exact stop.
     }
