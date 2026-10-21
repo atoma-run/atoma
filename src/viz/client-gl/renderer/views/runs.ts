@@ -260,7 +260,7 @@ export const RUNS_FACTS_SIZE = 11;
 const EVENT_BRANCH_TAG_SIZE = 9;
 
 /**
- * Roughly two lines of the 13px summary title at the right pane's width.
+ * Roughly two lines of the compact summary text at the right pane's width.
  * Collapsing is about giving the event detail room, not about hiding the run.
  */
 const COLLAPSED_TITLE_CHARS = 110;
@@ -1593,8 +1593,8 @@ function drawRunSummaryCard(
     padX,
     cursor,
     {
-      size: 13,
-      weight: '700',
+      size: 12,
+      weight: '400',
       color: GPU_COLORS.text,
       width: innerWidth - 8,
     }
