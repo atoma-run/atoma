@@ -340,7 +340,7 @@ Neighbours:
   the mender's first pull request): when the acceptor judged exactly one
   criterion unmet and the refusal holds nothing else — no gate finding, no
   probe contradiction, no unproven floor item, no other criterion uncovered
-  or with a width not laid out — the pass also receives
+  or unjudged, or with a width not laid out — the pass also receives
   `rootRemediationScope`: that criterion and its reason, the criteria judged
   met, and the instruction to keep their deliverables and answer the WHOLE
   refusal. A fact, never a restriction: the verdict may name another reason

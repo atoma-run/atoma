@@ -115,7 +115,7 @@ function soleRefusalReason(acceptance: AcceptanceInfo, criterionId: string): boo
   if (inherited && baselineEstablishedNothing({ selected: inherited.selected ?? 0, kept: inherited.kept ?? 0 })) return false;
   if (acceptance.floorCoverage.some((item) => item.status === 'uncovered')) return false;
   return !(acceptance.checklist ?? []).some((item) => item.id !== criterionId && (
-    item.status === 'uncovered' || (item.layouts ?? []).some((layout) => layout.status !== 'passed')
+    item.judgement?.met !== true || item.status === 'uncovered' || (item.layouts ?? []).some((layout) => layout.status !== 'passed')
   ));
 }
 

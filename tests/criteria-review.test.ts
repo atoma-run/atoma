@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { snapshotDeliveredWorkspace, snapshotStartingWorkspace } from '../src/run/workspace.js';
 import { reviewAcceptanceCriteria } from '../src/atoms/criteriaReview.js';
+import { phaseCriteriaOf } from '../src/contracts/acceptanceChecklist.js';
 import { DEPENDENCY_LANDING_INPUT, remediationTask } from '../src/run/depth.js';
 import { textReviewReference } from '../src/atoms/textReview.js';
 import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
@@ -362,5 +363,48 @@ describe('root review disagreement on observed evidence', () => {
       expect((await accept(ctx)).approved).toBe(false);
       expect(ctx.llm.calls).toHaveLength(2);
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+
+describe('refused criterion disagreements reach remediation', () => {
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/attica-criterion-disagreement-2026-10-21.json', import.meta.url), 'utf8')) as {
+    goal: string;
+    checklist: Array<{ id: string; behaviour: string; check: { kind: 'review' } }>;
+    globalVerdict: { approved: boolean; reasoning: string };
+    focusedVerdicts: Array<{ approved: boolean; reasoning: string }>;
+  };
+
+  it('keeps the recorded test-coverage disagreement open beside the rejected entrypoint criterion', async () => {
+    const ctx = makeCtx();
+    for (const verdict of [fixture.globalVerdict, ...fixture.focusedVerdicts]) {
+      ctx.llm.enqueue({ ...reply([]), text: jsonText(verdict) });
+    }
+    const original = { description: fixture.goal, criteria: phaseCriteriaOf(fixture.checklist, 'user') };
+    const accepted = await acceptRootResult({ actor, task: original, result, ctx, floor: [], phaseCoverage: [],
+      checklist: fixture.checklist, checklistOrigin: { source: 'user' } });
+    expect(accepted.approved).toBe(false);
+    expect(accepted.reasoning).toContain('excludes actual suites');
+    expect(accepted.checklist?.find(item => item.id === 'c3')?.judgement?.met).toBe(false);
+    expect(accepted.checklist?.find(item => item.id === 'c4')?.judgement).toBeUndefined();
+    const followUp = remediationTask(original, accepted);
+    expect(followUp.criteria?.map(item => item.id)).toEqual(['c3', 'c4']);
+    expect(followUp.inputs).not.toHaveProperty('rootRemediationScope');
+    expect(ctx.llm.calls).toHaveLength(3);
+  });
+
+  it('does not record a focused approval as resolved when the existing disagreement reread fails', async () => {
+    const ctx = makeCtx();
+    const required = [{ id: 'c1', behaviour: 'The existing browser assertion passes.', check: { kind: 'review' as const } }];
+    ctx.llm.enqueue(reply([{ id: 'c1', met: false, reason: 'The assertion is missing.' }], false));
+    ctx.llm.enqueue(reply([{ id: 'c1', met: true, reason: 'The assertion is visible.' }]));
+    ctx.llm.enqueue(() => { throw new Error('provider unavailable'); });
+    const original = { description: 'Preserve browser coverage.', criteria: phaseCriteriaOf(required, 'user') };
+    const accepted = await acceptRootResult({ actor, task: original, result, ctx, floor: [], phaseCoverage: [],
+      checklist: required, checklistOrigin: { source: 'user' } });
+    expect(accepted.approved).toBe(false);
+    expect(accepted.checklist?.[0]?.judgement).toBeUndefined();
+    expect(remediationTask(original, accepted).criteria).toEqual(phaseCriteriaOf(required, 'user'));
+    expect(ctx.llm.calls).toHaveLength(3);
   });
 });

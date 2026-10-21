@@ -1,0 +1,107 @@
+{
+  "runId": "c4d800e0-4510-432b-b71c-844ad4e06672",
+  "globalEvent": "f6b90a75-6a19-4207-9ccf-34ba928f8950",
+  "focusedEvents": [
+    "b44dd734-1464-4fb5-90f2-a2233c6100ef",
+    "3a506443-6bed-4dff-a363-4ea7ac721207"
+  ],
+  "goal": "Finish the concrete regressions in retained partial a99ef64e-ee8b-47b5-8afa-df7b6115671e (manifest14fb02e02bc3169b1e8d866fc025a725bd31957a543a4ded86e141a54617335f). Its seven independent current-document cases and twelve restart cases now pass; keep those identity/checkpoint protections. Inspect only the affected contracts, not a repository-wide inventory.\n\nFix browser/captcha-document.ts: scanning all HTML for Cloudflare, challenge or turnstile rejects ordinary parsed property descriptions. Real collection-triggered detail/search pauses must resolve with those words in ordinary listing data, including raw JSON and visible description text. A real challenge envelope alongside valid parser metadata must still refuse. Preserve URL/context/detail identity, durable refusal, zero verification navigation and explicit resume with subsequent navigation.\n\nRestore fixtures/xe-browser-server.ts behavior lost in migration: /page/2?scenario=denial must return403; the synthetic approval button must perform the original /approve then /page/2 flow. Restore page(2) and page(2,\"normal\") to challenge unless approved. Keep genuine search HTML without invented detail articles. Repair tests/attica-control-captcha.vitest.test.ts and affected legacy helpers by triggering CAPTCHA through real collect(), then resolving the same current page; seeded savePause plus direct detail goto is not a valid positive setup. Preserve assertions and existing negative cases. Repair or remove unused fault fixtures: createContractFixture.resolve must survive later goto, empty stays empty, and fault(\"unresolved\") must restore the challenge rather than do nothing.\n\nRemove the four unused added root facades collect-attica.ts, collect-spitogatos.ts, collect-xe-live.ts, import-spitogatos-browser.ts and only their generated build outputs: their compiled relative dependencies are missing/self-referential. Preserve the original supported .mjs/.js entrypoints byte-for-byte. Do not execute/import collect-spitogatos.mjs or its source facade: its unconditional main() performs live fetches. Do not invent aliases or expand migration. Keep strict coverage of actual application TypeScript; only host reference/scratch directories may be excluded.\n\nRun ordinary npm ci, npm run check, npm run build in a disposable executable /workspace clean copy, recursively excluding itself, node_modules, dist, .git and host scratch/reference/read-run directories. Preserve failures; record final commands on final source. Existing browser regressions may use timeoutMs300000 when local Chromium is available; otherwise report unavailable, not passed. Do not put scaffold-reference existence assertions in parent suites: that copy excludes .atoma-skeleton. If a reference is needed use run_shell command:\"atoma-scaffold\", args:[\"fullstack\",\".atoma-skeleton\"] directly, never inside a compound shell command or by fabricating its files. Record starting hashes before changes; keep all48 data/evidence files and original supported entrypoints byte-identical. Offline synthetic fixtures/package registries only; no property-site traffic, personal profiles, hosting, acceptance or publication.",
+  "checklist": [
+    {
+      "id": "c1",
+      "behaviour": "Ordinary parsed listing descriptions resolve CAPTCHA while a genuine challenge envelope with parser metadata remains refused.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "id": "c2",
+      "behaviour": "Faithful fixture refusal/approval behavior and real collector-triggered CAPTCHA tests pass without fabricated navigation or seeded success.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "id": "c3",
+      "behaviour": "Unused broken added facades are removed safely while original supported entrypoints remain unchanged.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "id": "c4",
+      "behaviour": "Ordinary clean-copy npm ci/check/build pass and all starting historical data/evidence files remain byte-identical.",
+      "check": {
+        "kind": "review"
+      }
+    }
+  ],
+  "globalVerdict": {
+    "approved": false,
+    "reasoning": "c1 and c2 are supported by focused assertions and parent fixture tests. c3 lacks observed byte-level preservation for all supported .mjs/.js entrypoints. c4 is not met: the current test script explicitly excludes actual suites, contrary to the requirement that only host scratch/reference directories may be excluded.",
+    "modifications": {
+      "additionalContext": "Restore full application test coverage in package scripts; exclude only permitted host scratch/reference directories. Independently hash and verify every original supported .mjs/.js entrypoint byte-for-byte, then rerun clean-copy npm ci, npm run check, and npm run build."
+    },
+    "scope": "ephemeral",
+    "criteria": [
+      {
+        "id": "c1",
+        "met": true,
+        "reason": "tests/captcha-document.vitest.test.ts asserts ordinary challenge vocabulary in parsed listing data is accepted and a challenge marker beside valid metadata is rejected."
+      },
+      {
+        "id": "c2",
+        "met": true,
+        "reason": "Parent-observed xe-restoration tests pass 2/2, and focused control CAPTCHA evidence exercises start-triggered pause, verification, durable refusal, and subsequent resume."
+      },
+      {
+        "id": "c3",
+        "met": false,
+        "reason": "Removal evidence exists, but observed hashes cover only collect-attica.mjs and collect-spitogatos.mjs; preservation of all supported .mjs/.js entrypoints is not independently shown."
+      },
+      {
+        "id": "c4",
+        "met": false,
+        "reason": "Clean-copy commands pass, but current package scripts visibly exclude actual suites including attica-durability, spitogatos-browser, xe-live, and browser suites, violating the coverage constraint."
+      }
+    ]
+  },
+  "focusedVerdicts": [
+    {
+      "approved": true,
+      "reasoning": "Both supplied criteria are supported by current source and observed passing executions.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "tests/captcha-document.vitest.test.ts asserts ordinary descriptions containing Cloudflare/challenge/turnstile resolve for search and detail, while parser metadata plus a challenge envelope returns false. The targeted Vitest run observed all 13 tests passing."
+        },
+        {
+          "id": "c2",
+          "met": true,
+          "reason": "Parent tests observed 2/2 fixture cases passing: resolution survives later goto, empty remains empty, and unresolved fault restores a challenge. The TypeScript control test starts collection with detail CAPTCHA, observes pause, verifies without navigation, and targeted Vitest execution passed."
+        }
+      ]
+    },
+    {
+      "approved": false,
+      "scope": "ephemeral",
+      "modifications": {
+        "additionalContext": "Provide byte-identity hashes or equivalent evidence for every original supported .mjs/.js entrypoint, not only collect-attica.mjs and collect-spitogatos.mjs."
+      },
+      "reasoning": "c3 lacks complete preservation evidence; c4 is supported by successful clean-copy npm ci/check/build and protected-file hash verification.",
+      "criteria": [
+        {
+          "id": "c3",
+          "met": false,
+          "reason": "Added facades and their dist outputs are absent, and hashes are shown for collect-attica.mjs and collect-spitogatos.mjs. Preservation of every original supported .mjs/.js entrypoint is not verified; no complete entrypoint inventory/hash evidence is visible."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "Clean-copy npm ci exited 0; npm run check exited 0; a separate clean-copy npm run build exited 0. sha256sum -c /tmp/protected-start exited 0 with the shown data/evidence files reporting OK, supporting byte identity."
+        }
+      ]
+    }
+  ]
+}

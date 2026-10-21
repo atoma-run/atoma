@@ -105,7 +105,7 @@ Neighbours:
   passes `reviewAcceptanceCriteria`: concurrent batches of at most two items,
   on the cheapest tier, with host evidence but no result report or global
   verdict. Those judgments replace the global call's checklist judgments;
-  any unmet item or refused batch prevents delivery. Invalid, truncated,
+  any unmet item or refused batch prevents delivery. Unresolved refused disagreements stay unjudged for remediation. Invalid, truncated,
   missing, duplicate or unexplained judgments mean an incomplete review,
   never approval or a claimed implementation defect. Transport cancellation
   still propagates. Drafted lists, text and landings keep their existing paths.
