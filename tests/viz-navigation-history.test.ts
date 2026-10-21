@@ -60,6 +60,44 @@ describe('browser history over the store navigation', () => {
     expect(navigationHash({ ...base, view: 'docs' })).toBe(`#/docs/${base.selectedDocsTheme}`);
   });
 
+  it.each(['conversation', 'runs', 'preview', 'files', 'result', 'settings'] as const)(
+    'pushes, reloads and restores the project %s tab', async (section) => {
+      useGpuStore.getState().selectProject('project/one');
+      const pushed = start();
+      const conversationEntry = history.state as unknown;
+      useGpuStore.getState().selectProjectSection(section);
+      await settle();
+      const hash = `#/projects/project%2Fone${section === 'conversation' ? '' : `/${section}`}`;
+      expect(location.hash).toBe(hash);
+      expect(pushed()).toBe(section === 'conversation' ? 0 : 1);
+      const tabEntry = history.state as unknown;
+      pop(conversationEntry);
+      await settle();
+      expect(useGpuStore.getState().projectSection).toBe('conversation');
+      pop(tabEntry);
+      await settle();
+      expect(useGpuStore.getState().projectSection).toBe(section);
+      expect(pushed()).toBe(section === 'conversation' ? 0 : 1);
+      stops.pop()!();
+      useGpuStore.getState().selectProject('another-project');
+      history.replaceState(null, '', hash);
+      expect(restoreNavigationFromUrl({ routable })).toBe(true);
+      expect(useGpuStore.getState()).toMatchObject({
+        view: 'projects', selectedProjectId: 'project/one', projectSection: section,
+      });
+    }
+  );
+
+  it('defaults old project links and history entries, and unknown tabs, to the conversation', () => {
+    expect(parseNavigationHash('#/projects/p', routable)?.projectSection).toBe('conversation');
+    expect(parseNavigationHash('#/projects/p/unknown', routable)?.projectSection).toBe('conversation');
+    expect(parseNavigationHash('#/projects/p/%E0%A4%A', routable)?.projectSection).toBe('conversation');
+    expect(parseNavigationHash('#/projects', routable)?.projectSection).toBe('conversation');
+    expect(parseNavigationEntry({ 'atoma.viz.navigation': {
+      view: 'projects', selectedProjectId: 'p', scope: 'p:o',
+    } }, 'p:o', routable)?.projectSection).toBe('conversation');
+  });
+
   it('parses a fragment back to a focused location, or to nothing', () => {
     const theme = useGpuStore.getState().selectedDocsTheme;
     expect(parseNavigationHash('', routable)).toBeNull();

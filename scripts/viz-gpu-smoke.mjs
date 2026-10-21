@@ -2557,13 +2557,17 @@ try {
       // deep link reopens it directly: there is no row to click, and the
       // project's own tabs are what the page must show.
       const reopenProjectByDeepLink = async (describe) => {
+        const expectedHash = new URL(accountPage.url()).hash;
         await accountPage.reload({ waitUntil: 'load' });
         await passArrivalGate(accountPage);
         const hash = new URL(accountPage.url()).hash;
-        if (hash !== `#/projects/${encodeURIComponent(projectId)}`) {
+        if (hash !== expectedHash) {
           throw new Error(`${describe}: reload lost the project deep link (${hash || 'no fragment'})`);
         }
         await waitForHitTarget(accountPage, 'project.section.preview', `${describe}: not reopened by its deep link`);
+        // These scenarios continue in the guide; reload preserves the tab,
+        // so returning to the conversation is now an explicit navigation.
+        await clickAccountTarget('project.section.conversation');
       };
       const targetIds = () =>
         accountPage.evaluate(() =>
@@ -2891,6 +2895,28 @@ try {
         await accountPage.screenshot({ path: '/tmp/atoma-deployment-settings-failure.png' });
         throw new Error(await accountPage.evaluate(() => JSON.stringify({ text: document.body.innerText.slice(-4500), targets: globalThis.__ATOMA_GPU__?.hitTargets().map(row => row.id) })), { cause: error });
       });
+      // Project tabs are destinations: drive their real Pixi controls and
+      // verify the URL, browser traversal, and a fresh page on the deep link.
+      for (const section of ['runs', 'preview', 'files', 'result', 'settings', 'conversation']) {
+        await clickAccountTarget(`project.section.${section}`);
+        const expectedHash = `${expectedProjectHash}${section === 'conversation' ? '' : `/${section}`}`;
+        await accountPage.waitForFunction(hash => location.hash === hash, {}, expectedHash);
+        await accountPage.waitForFunction(tab =>
+          document.querySelector(`#project-tab-${tab}`)?.getAttribute('aria-selected') === 'true', {}, section);
+      }
+      await accountPage.goBack();
+      await accountPage.waitForFunction(() =>
+        location.hash.endsWith('/settings') && document.querySelector('#project-tab-settings')?.getAttribute('aria-selected') === 'true');
+      await accountPage.goForward();
+      await accountPage.waitForFunction(() =>
+        document.querySelector('#project-tab-conversation')?.getAttribute('aria-selected') === 'true');
+      await clickAccountTarget('project.section.settings');
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await waitForHitTarget(accountPage, 'deployment.choose.atoma', 'Project settings deep link did not survive reload');
+      await accountPage.waitForFunction(() =>
+        location.hash.endsWith('/settings') && document.querySelector('#project-tab-settings')?.getAttribute('aria-selected') === 'true');
+      console.log('Project tab routes ok: all six Pixi controls, Back/Forward and reload');
       await clickAccountTarget('deployment.choose.atoma');
       await accountPage.waitForFunction(() => document.querySelector('input[name="deployment-destination"][aria-describedby="deployment-description-atoma"]')?.checked);
       if (stubs['/api/projects'][0].deploymentDestination) throw new Error('Selecting a destination saved without confirmation');

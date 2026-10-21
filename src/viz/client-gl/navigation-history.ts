@@ -30,6 +30,7 @@ export interface NavigationLocation {
   readonly view: ViewName;
   readonly sceneCameraMode: GpuUiState['sceneCameraMode'];
   readonly selectedProjectId: string | null;
+  readonly projectSection: GpuUiState['projectSection'];
   readonly selectedRunId: string | null;
   readonly selectedRegistryAtom: string | null;
   readonly selectedSkill: { readonly l1Name: string; readonly id: string } | null;
@@ -41,6 +42,7 @@ export function navigationLocation(state: GpuUiState): NavigationLocation {
     view: state.view,
     sceneCameraMode: state.sceneCameraMode,
     selectedProjectId: state.selectedProjectId,
+    projectSection: state.projectSection,
     selectedRunId: state.selectedRunId,
     selectedRegistryAtom: state.selectedRegistryAtom,
     selectedSkill: state.selectedSkill,
@@ -52,6 +54,7 @@ const FIELDS = [
   'view',
   'sceneCameraMode',
   'selectedProjectId',
+  'projectSection',
   'selectedRunId',
   'selectedRegistryAtom',
   'selectedSkill',
@@ -110,7 +113,9 @@ export function navigationHash(location: NavigationLocation): string {
   }
   const subject = ((): string[] => {
     switch (location.view) {
-      case 'projects': return segment(location.selectedProjectId);
+      case 'projects': return location.selectedProjectId
+        ? [...segment(location.selectedProjectId), ...(location.projectSection === 'conversation' ? [] : [location.projectSection])]
+        : [];
       case 'runs': return segment(location.selectedRunId);
       case 'registry': return segment(location.selectedRegistryAtom);
       case 'skills':
@@ -140,6 +145,14 @@ function decodedId(value: string | undefined): string | null {
   }
 }
 
+const PROJECT_SECTIONS: readonly GpuUiState['projectSection'][] = [
+  'conversation', 'runs', 'preview', 'files', 'result', 'settings',
+];
+
+function projectSection(value: unknown): GpuUiState['projectSection'] {
+  return PROJECT_SECTIONS.find((section) => section === value) ?? 'conversation';
+}
+
 /**
  * The location a fragment names, or null when it names none the viewer can
  * open: an empty fragment, a view they do not hold, a half-named skill. A
@@ -160,6 +173,7 @@ export function parseNavigationHash(
     view,
     sceneCameraMode: 'focus',
     selectedProjectId: view === 'projects' ? first : null,
+    projectSection: view === 'projects' && first ? projectSection(parts[1]) : 'conversation',
     selectedRunId: view === 'runs' ? first : null,
     selectedRegistryAtom: view === 'registry' ? first : null,
     selectedSkill: null,
@@ -186,6 +200,9 @@ function applyLocation(location: NavigationLocation): void {
   const store = useGpuStore.getState();
   if (store.selectedRunId !== location.selectedRunId) store.selectRun(location.selectedRunId);
   if (store.selectedProjectId !== location.selectedProjectId) store.selectProject(location.selectedProjectId);
+  if (useGpuStore.getState().projectSection !== location.projectSection) {
+    useGpuStore.getState().selectProjectSection(location.projectSection);
+  }
   if (store.selectedDocsTheme !== location.selectedDocsTheme) store.selectDocsTheme(location.selectedDocsTheme);
   useGpuStore.setState({
     view: location.view,
@@ -240,6 +257,7 @@ export function parseNavigationEntry(
     view: raw['view'] as ViewName,
     sceneCameraMode: raw['sceneCameraMode'] === 'focus' ? 'focus' : 'overview',
     selectedProjectId: id(raw['selectedProjectId']),
+    projectSection: projectSection(raw['projectSection']),
     selectedRunId: id(raw['selectedRunId']),
     selectedRegistryAtom: id(raw['selectedRegistryAtom']),
     selectedSkill: skillName && skillId ? { l1Name: skillName, id: skillId } : null,
