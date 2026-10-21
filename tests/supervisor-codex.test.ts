@@ -6,7 +6,7 @@ import { EXAMPLE_SUPERVISOR_VERDICT, SUPERVISOR_VERDICT_JSON_SCHEMA, supervisorV
 import { analyseRun } from '../src/supervisor/analyst.js';
 import { createEvidenceReader } from '../src/supervisor/codexReader.js';
 import { codexOutputSchema, codexSupervisorConfig, restoreOptionalFields, runCodexSupervisor } from '../src/supervisor/codexSession.js';
-import { analystProvider, menderProvider } from '../src/supervisor/session.js';
+import { analystProvider, menderProvider, runCommand } from '../src/supervisor/session.js';
 import { writeCodexStub } from './supervisorCodexFixture.js';
 
 const roots: string[] = [];
@@ -87,6 +87,30 @@ it('finds a section heading whatever its case, and says how to read past it', ()
 });
 
 describe.skipIf(process.platform === 'win32')('Codex supervisor process boundaries', () => {
+  it('returns bounded command tails with explicit truncation to the model', async () => {
+    const root = fixture();
+    const stub = join(root, 'noisy-command-session.mjs'), producer = join(root, 'producer.mjs'), log = join(root, 'commands.jsonl');
+    writeFileSync(producer, `process.stdout.write('x'.repeat(2_000_000) + 'OUT-END'); process.stderr.write('e'.repeat(2_000_000) + 'ERR-END');`);
+    writeCodexStub(stub, { report: {}, log, command: `${process.execPath} ${producer}` });
+    const result = await runCodexSupervisor({ command: stub,
+      provider: { selector: 'sub:openai:gpt-5.6-sol', transport: 'codex', codexHome: join(root, 'auth'), model: 'gpt-5.6-sol', source: 'mender', baseUrl: null, authToken: null },
+      cwd: root, prompt: 'x', hardening: 'x', schema: SUPERVISOR_VERDICT_JSON_SCHEMA, timeoutMs: 10_000,
+      execute: runCommand,
+    });
+    expect(result.code).toBe(0);
+    const messages = readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line) as {
+      id?: number; result?: { success: boolean; contentItems: { text: string }[] };
+    });
+    const response = messages.find(message => message.id === 12)?.result;
+    expect(response?.success).toBe(true);
+    const output = JSON.parse(response!.contentItems[0]!.text) as { code: number; stdout: string; stderr: string };
+    expect(output).toMatchObject({ code: 0, stdoutTruncated: true, stderrTruncated: true });
+    expect(output.stdout).toHaveLength(16_000);
+    expect(output.stderr).toHaveLength(8_000);
+    expect(output.stdout.endsWith('OUT-END')).toBe(true);
+    expect(output.stderr.endsWith('ERR-END')).toBe(true);
+  });
+
   it.each(['initialize', 'thread/start', 'turn/start'])('identifies a rejected %s without persisting provider prose', async (method) => {
     const root = fixture(); const stub = join(root, 'rejected.mjs');
     writeCodexStub(stub, { report: {}, log: join(root, 'rejected.jsonl'),

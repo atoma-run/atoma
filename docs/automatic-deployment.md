@@ -449,6 +449,12 @@ mender image and restarts its unit. It never reserves the product run slot.
 A refresh failure appears in that systemd job and leaves the mender stopped;
 it cannot roll back the healthy application. A host without a mender skips it.
 `install-mender.sh` remains the first installation and manual recovery path.
+Unlike the independent refresh, it also changes the application's environment:
+it takes both deployment and mender-refresh locks, closes admission with the
+existing `deploy-preflight --hold --wait-ms` guard, and waits for active work
+before stopping services. It holds the lease and write-freeze until Atoma is
+restarted, including on installation failure. A cancelled wait releases its
+announcement without stopping the application.
 
 The activator and pruning helper are root-owned trust anchors. After changing
 `deploy/host-deploy.sh` or `scripts/prune-deploy-releases.mjs`, reinstall them from

@@ -179,6 +179,48 @@ const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body)
 });
 
 describe('McpAccess API lifecycle', () => {
+  it.each([401, 403, 404, 503])('shows a failed creation (%i) inside MCP and clears it on a successful retry', async (status) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(reply(tokenList))
+      .mockResolvedValueOnce(reply({ error: 'private server diagnostic' }, status))
+      .mockResolvedValueOnce(reply(minted, 201))
+      .mockResolvedValueOnce(reply(tokenList)));
+    const onError = vi.fn();
+    render(createElement(McpAccess, { t, locale: 'en', onError }));
+    await openManual();
+    const create = screen.getByRole('button', { name: 'Create token' });
+    await waitFor(() => expect(create).toBeEnabled());
+    await userEvent.click(create);
+    const message = t(status === 401 ? 'settings.mcpSignInAgain' : status === 403 ? 'settings.mcpForbidden'
+      : status === 404 ? 'settings.mcpApiMissing' : 'settings.mcpUnavailable');
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.queryByTestId('mcp-token')).toBeNull();
+    expect(create).toBeEnabled();
+    // GpuApp's callback belongs to the hidden General panel: the MCP surface
+    // must own this error instead of depending on its parent to display it.
+    expect(onError).not.toHaveBeenCalledWith(expect.any(String));
+    await userEvent.click(create);
+    expect(await screen.findByTestId('mcp-token')).toHaveTextContent(minted.token);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows a failed revocation in MCP, retains the connection, and allows retry', async () => {
+    const token = { tokenId: 't1', orgId: 'o', orgName: 'Org', label: 'laptop', createdAt: minted.createdAt, lastUsedAt: null, revokedAt: null };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(reply({ ...tokenList, tokens: [token] }))
+      .mockResolvedValueOnce(reply({ error: 'unavailable' }, 503))
+      .mockResolvedValueOnce(reply({ revoked: true }))
+      .mockResolvedValueOnce(reply(tokenList)));
+    render(createElement(McpAccess, { t, locale: 'en', onError: vi.fn() }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Revoke' }));
+    expect(await screen.findByRole('alert')).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(t('settings.mcpUnavailable'));
+    expect(screen.getByText('laptop')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    await screen.findByText(t('settings.mcpRevoked'));
+    expect(screen.queryByText('laptop')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('turns an API 404 into actionable guidance and recovers through Retry', async () => {
     const fetcher = vi.fn().mockResolvedValueOnce(reply({ error: 'not found' }, 404))
       .mockResolvedValueOnce(reply(tokenList));

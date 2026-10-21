@@ -27,6 +27,7 @@ export interface McpAccessPanelProps {
   readonly tokens: readonly VizApiToken[];
   readonly loading: boolean;
   readonly error: string | null;
+  readonly actionError?: string | null;
   readonly busy: boolean;
   readonly status: string | null;
   /** The token just minted, plaintext, shown once. */
@@ -94,6 +95,7 @@ export function McpAccessPanel({
   tokens,
   loading,
   error,
+  actionError,
   busy,
   status,
   minted,
@@ -143,6 +145,7 @@ export function McpAccessPanel({
         {t('settings.mcpTitle')}
       </p>
       <p className="gpu-org-models-hint">{t(operator ? 'settings.mcpLocalHint' : 'settings.mcpHint')}</p>
+      {actionError ? <p className="gpu-subscription-message gpu-subscription-error" role="alert">{actionError}</p> : null}
       {error ? (
         <div className="gpu-subscription-message gpu-subscription-error" role="alert">
           <p>{t('settings.mcpLoadFailed')}: {error}</p>
@@ -281,6 +284,7 @@ export interface McpAccessProps {
 export function McpAccess({ t, locale, onError }: McpAccessProps) {
   const [data, setData] = useState<VizApiTokens | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -315,6 +319,7 @@ export function McpAccess({ t, locale, onError }: McpAccessProps) {
     locked.current = true;
     setBusy(true);
     setStatus(null);
+    setActionError(null);
     onError(null);
     try {
       await work();
@@ -322,7 +327,7 @@ export function McpAccess({ t, locale, onError }: McpAccessProps) {
       const refreshed = await refresh();
       if (mounted.current) setStatus(refreshed ? t(successKey) : t('settings.mcpChangedRefreshFailed'));
     } catch (failure) {
-      if (mounted.current) onError(errorMessage(failure, t));
+      if (mounted.current) setActionError(errorMessage(failure, t));
     } finally {
       locked.current = false;
       if (mounted.current) setBusy(false);
@@ -342,6 +347,7 @@ export function McpAccess({ t, locale, onError }: McpAccessProps) {
       tokens={data?.tokens ?? []}
       loading={loading}
       error={error}
+      actionError={actionError}
       busy={busy}
       status={status}
       minted={minted}

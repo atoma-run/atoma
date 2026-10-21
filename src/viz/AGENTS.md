@@ -716,6 +716,7 @@ fail closed as before. The web service's executor dependency is one-way only.
   resets when the active identity/org changes and never re-reads a secret.
   GET describes ungated operator access; mutations there return 409. A failed
   refresh preserves a newly minted secret for copying.
+  Token mutation failures appear inside MCP, separately from load errors, and clear on retry; General's hidden account-error surface must not own them.
 - `/api/account/subscriptions*` is self-scoped from the resolved session and
   never accepts a principal id. Status is secret-free; device login material
   is memory-only; connect/cancel/disconnect are same-origin and require

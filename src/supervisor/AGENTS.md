@@ -229,6 +229,12 @@ Neighbours:
   remain intact. Each command is bounded to 120 seconds and the remaining
   session clock; queued commands are cancelled when the session ends and
   active containers are reaped before releasing the worktree or auth lease.
+  Command capture is bounded to 1,048,576 UTF-16 units per stream. Diagnostic
+  Codex commands retain tails and explicitly report truncation; control
+  commands (git and complete JSON results) fail and reap on overflow so a
+  partial result cannot pass publication policy. JSONL messages are dispatched
+  independently of transcript capture, but a single oversized line also
+  terminates and reaps its producer.
   The auth-only temporary Codex HOME stays outside every command container.
   The dedicated local ChatGPT profile owns its refresh lifecycle. The host publisher token needs Contents and Pull requests write only; no Secrets permission. Never share the analyst profile or renew this profile elsewhere.
 - THE EXIT CONTRACT IS THE MANUAL BURN-IN LOOP'S, proven mechanically: the

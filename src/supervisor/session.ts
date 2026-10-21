@@ -56,7 +56,13 @@ export interface CommandResult {
   readonly code: number | null;
   readonly stdout: string;
   readonly stderr: string;
+  readonly stdoutTruncated?: boolean;
+  readonly stderrTruncated?: boolean;
 }
+
+// UTF-16 code units: at most 2 MiB of retained text per stream. Control
+// commands must fail on overflow rather than parse an incomplete git/JSON result.
+export const COMMAND_OUTPUT_LIMIT = 1_048_576;
 
 export interface RunCommandOptions {
   readonly cwd: string;
@@ -64,6 +70,8 @@ export interface RunCommandOptions {
   readonly timeoutMs: number;
   readonly input?: string;
   readonly onLog?: (line: string) => void;
+  /** Diagnostic output may retain only its tail; structured results must stay complete. */
+  readonly outputMode?: 'tail';
   /** JSONL duplex protocol; callbacks run in the trusted harness. */
   readonly onLine?: (line: string, send: (message: unknown) => void, end: () => void) => void;
   /** Model-authored mender commands run without networking. */
@@ -79,7 +87,7 @@ export interface RunCommandOptions {
 /**
  * Run to completion with a wall clock, capturing both streams. A non-zero
  * exit is a RESULT the caller reads, not a throw; the promise rejects only
- * when the process cannot start or the timeout fires.
+ * when the process cannot start, is stopped, or exceeds its output bound.
  */
 export function runCommand(
   spec: string,
@@ -99,6 +107,8 @@ export function runCommand(
     });
     let stdout = '';
     let stderr = '';
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
     let settled = false;
     let timedOut = false;
     let closed = false;
@@ -113,6 +123,7 @@ export function runCommand(
     const terminate = (reason: Error | null, note: string) => {
       if (settled || timedOut) return;
       timedOut = true;
+      clearTimeout(timer);
       stopReason = reason;
       options.onLog?.(note);
       // The existing run-group primitive confirms disappearance, including
@@ -135,19 +146,40 @@ export function runCommand(
     if (options.signal?.aborted) abort();
     else options.signal?.addEventListener('abort', abort, { once: true });
     let lines = '';
+    const overflow = (stream: string) => {
+      const message = `command ${stream} exceeded ${COMMAND_OUTPUT_LIMIT} characters`;
+      terminate(new Error(message), `${message}; terminating: ${resolved.command}`);
+    };
     child.stdout?.setEncoding('utf8');
     child.stdout?.on('data', (chunk: string) => {
-      stdout += chunk;
+      if (timedOut || settled) return;
+      const next = stdout + chunk;
+      if (next.length > COMMAND_OUTPUT_LIMIT) {
+        if (options.outputMode !== 'tail') { overflow('stdout'); return; }
+        stdoutTruncated = true;
+      }
+      stdout = next.slice(-COMMAND_OUTPUT_LIMIT);
       if (!options.onLine) return;
       lines += chunk;
       let newline: number;
       while ((newline = lines.indexOf('\n')) !== -1) {
+        if (newline > COMMAND_OUTPUT_LIMIT) { lines = ''; overflow('protocol line'); return; }
         const line = lines.slice(0, newline);
         lines = lines.slice(newline + 1);
         options.onLine(line, (message) => { child.stdin?.write(`${JSON.stringify(message)}\n`); }, () => { child.stdin?.end(); });
       }
+      if (lines.length > COMMAND_OUTPUT_LIMIT) { lines = ''; overflow('protocol line'); }
     });
-    child.stderr?.on('data', (chunk: Buffer | string) => (stderr += String(chunk)));
+    child.stderr?.setEncoding('utf8');
+    child.stderr?.on('data', (chunk: string) => {
+      if (timedOut || settled) return;
+      const next = stderr + chunk;
+      if (next.length > COMMAND_OUTPUT_LIMIT) {
+        if (options.outputMode !== 'tail') { overflow('stderr'); return; }
+        stderrTruncated = true;
+      }
+      stderr = next.slice(-COMMAND_OUTPUT_LIMIT);
+    });
     child.on('error', (error) => {
       if (settled) return;
       settled = true;
@@ -162,7 +194,10 @@ export function runCommand(
       settled = true;
       clearTimeout(timer);
       options.signal?.removeEventListener('abort', abort);
-      resolveRun({ code, stdout, stderr });
+      resolveRun({ code, stdout, stderr,
+        ...(stdoutTruncated ? { stdoutTruncated: true } : {}),
+        ...(stderrTruncated ? { stderrTruncated: true } : {}),
+      });
     });
     child.stdin?.on('error', () => { /* close/error owns the result */ });
     if (options.input !== undefined) {

@@ -115,7 +115,7 @@ export async function runCodexSupervisor(options: CodexSupervisorOptions): Promi
     const startedAt = Date.now();
     started = true;
     const result = await runCommand(options.command, args, {
-      cwd: jail, env, timeoutMs: options.timeoutMs,
+      cwd: jail, env, timeoutMs: options.timeoutMs, outputMode: 'tail',
       ...(options.onLog ? { onLog: options.onLog } : {}),
       ...(options.signal ? { signal: options.signal } : {}),
       input: `${JSON.stringify({ id: 1, method: 'initialize', params: { clientInfo: { name: 'atoma-supervisor', version: '1' }, capabilities: { experimentalApi: true } } })}\n`,
@@ -157,10 +157,13 @@ export async function runCodexSupervisor(options: CodexSupervisorOptions): Promi
                   // The session's own stop reaches the command it is waiting
                   // on: a mender stop must not sit out its 120-second bound.
                   const executed = await options.execute('sh', ['-c', request.command], {
-                    cwd: options.cwd, env: {}, network: 'none', timeoutMs: Math.min(MENDER_COMMAND_BOUND_MS, remaining),
+                    cwd: options.cwd, env: {}, network: 'none', timeoutMs: Math.min(MENDER_COMMAND_BOUND_MS, remaining), outputMode: 'tail',
                     ...(options.signal ? { signal: options.signal } : {}),
                   });
-                  output = JSON.stringify({ code: executed.code, stdout: executed.stdout.slice(-16_000), stderr: executed.stderr.slice(-8_000) });
+                  output = JSON.stringify({ code: executed.code, stdout: executed.stdout.slice(-16_000), stderr: executed.stderr.slice(-8_000),
+                    stdoutTruncated: executed.stdoutTruncated === true || executed.stdout.length > 16_000,
+                    stderrTruncated: executed.stderrTruncated === true || executed.stderr.length > 8_000,
+                  });
                   success = executed.code === 0;
                 } catch { output = 'Command failed or refused by the isolated executor'; }
                 if (accepting) send({ id: message['id'], result: { contentItems: [{ type: 'inputText', text: output }], success } });

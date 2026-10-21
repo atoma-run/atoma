@@ -39,8 +39,13 @@ Contents and Pull requests read/write on `atoma-run/atoma`; Secrets write is no
 longer needed. Do not paste credentials in chat. It stores the token in
 `/home/atoma/config/mender.env` (root:atoma, 0640).
 
-Installation refuses active runs/previews, then briefly stops Atoma while
-preparing the clone and image. A failure restarts Atoma. The clone is pinned
+Installation serializes with deployments and mender refreshes, closes new
+admissions and waits up to 90 minutes for existing work (runs, previews,
+publications and learning) through the deployment guard. Configure an absolute,
+service-writable `ATOMA_DEPLOY_LOCK_PATH` in `atoma.env` first. Once drained,
+the installer holds the run lease while stopping Atoma and preparing the clone
+and image. Success or failure restarts Atoma before releasing admission;
+cancelling the wait leaves the running service alone. The clone is pinned
 to the deployed revision, and every later deployment moves it to the new one
 (see the deployment guide); rerunning the installer is the manual recovery and
 upgrades a clean clone only. Each actual mend fetches current main into its
