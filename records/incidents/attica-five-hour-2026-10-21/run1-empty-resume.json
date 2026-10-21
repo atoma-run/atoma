@@ -1,0 +1,20 @@
+{
+  "results": [
+    {
+      "mode": "empty-search",
+      "currentUrl": "http://127.0.0.1:1/page/1",
+      "expected": 200,
+      "status": 200,
+      "pauseAfter": null,
+      "navigationBefore": 1,
+      "navigationAfter": 1,
+      "resumed": {
+        "status": 202,
+        "newNavigations": 2,
+        "count": 0,
+        "completed": true
+      },
+      "pass": true
+    }
+  ]
+}

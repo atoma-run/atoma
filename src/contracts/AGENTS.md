@@ -39,6 +39,13 @@ untrusted diagnostics, not executable instructions. Source selectors carry only
 a seed discriminator or an authorized reference id. Artifact exports share the
 chunk channel but carry the publication inventory for independent byte validation.
 
+## Haystack runtime configuration
+
+`computeRetrievalConfig.ts` owns the host-only UUID-keyed Compute override map
+and reader. It reuses `retrievalHaystack.ts`'s full runtime/model pin schema, is
+bounded to 64 KiB and refuses malformed configuration. It is not a request,
+public setting or client capability, and introduces no stored runtime identity.
+
 ## Schemas and examples
 
 - Contract examples are parsed at module load. A schema/example mismatch must

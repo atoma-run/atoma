@@ -95,6 +95,7 @@ import { ProjectStateConflict, ProjectStore } from './store.js';
 import { ProjectRetrievalLaunchStore } from './retrievalLaunch.js';
 import { resolveRerunOrigin, type RerunOrigin } from './rerun.js';
 import { HAYSTACK_LAUNCH_ENV, readHaystackLaunch } from '../contracts/retrievalHaystack.js';
+import { readComputeHaystackLaunch } from '../contracts/computeRetrievalConfig.js';
 import { MIB, readHostMemory, type HostMemory, type RunMemoryAdmission } from '../core/hostMemory.js';
 
 const MAX_CONTROL_JSON_BYTES = 512 * 1024;
@@ -1561,12 +1562,17 @@ export class ProjectRunCoordinator {
     }
   }
 
+  private retrievalLaunchFor(target: ProjectRun['executionTarget'] | undefined) {
+    return target?.kind === 'customer-device'
+      ? readComputeHaystackLaunch(this.hostEnv, target.deviceId) : readHaystackLaunch(this.hostEnv);
+  }
+
   /** No lease, row, directory, provider request or model discovery is created here. */
   configurationReadiness(orgId: string, principalId: string, projectId: string) {
     const project = this.store.getProject(orgId, projectId);
     if (project) this.assertExecutionAccess(principalId, project.executionTarget);
     const timeoutMs = this.runTimeoutMs();
-    readHaystackLaunch(this.hostEnv);
+    this.retrievalLaunchFor(project?.executionTarget);
     if (this.hostEnv['ATOMA_LAUNCHER_SOCKET'] && !this.hostEnv['ATOMA_LAUNCHER_WORKSPACE_ROOT']) {
       throw new ProjectRunConfigurationError('Launcher workspace root is required for project runs');
     }
@@ -1978,7 +1984,7 @@ export class ProjectRunCoordinator {
     const timeoutMs = this.runTimeoutMs();
     // Every new project run carries search. Validate before taking the lease or
     // reserving a run; read-only service startup and idempotent retries still work.
-    try { readHaystackLaunch(this.hostEnv); }
+    try { this.retrievalLaunchFor(target); }
     catch (error) {
       throw new ProjectRunConfigurationError((error as Error).message);
     }
@@ -2111,8 +2117,7 @@ export class ProjectRunCoordinator {
     let retrievalLaunch: ReturnType<typeof readHaystackLaunch>;
     try {
       timeoutMs = admittedTimeoutMs ?? projectRunTimeoutMs(this.hostEnv, run.requestedTimeoutMs, this.platformLimits());
-      retrievalLaunch = readHaystackLaunch(run.executionTarget.kind === 'customer-device' && this.hostEnv['ATOMA_COMPUTE_HAYSTACK_CONFIG']
-        ? { [HAYSTACK_LAUNCH_ENV]: this.hostEnv['ATOMA_COMPUTE_HAYSTACK_CONFIG'] } : this.hostEnv);
+      retrievalLaunch = this.retrievalLaunchFor(run.executionTarget);
     } catch (error) { lease.release(); throw error; }
     const project = this.store.getProject(input.orgId, input.projectId);
     if (!project) {

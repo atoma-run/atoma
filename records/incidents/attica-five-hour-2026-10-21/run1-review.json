@@ -1,0 +1,108 @@
+{
+  "runId": "00669e94-caad-4866-b487-dfe359bec458",
+  "status": "delivered",
+  "manifestHash": "89ab0e1ec178e88376ea09076cd54af076b371170cc5cf775e036dcf46df4907",
+  "terminalAt": "2026-10-21T19:36:13.052Z",
+  "traceEndedAt": "2026-10-21T19:34:35.436Z",
+  "events": 306,
+  "llmCalls": 47,
+  "subscriptionEquivalentUsd": 0.8576,
+  "filesVerifiedOnHost": 232,
+  "filesVerifiedLocally": 232,
+  "sourceOnlyTransferBytes": 22317,
+  "newRemoteDataFilesCopied": 0,
+  "historicalFiles": 48,
+  "historicalDifferences": [],
+  "restoredOriginals": {
+    "collect-xe-live.js": true,
+    "import-spitogatos-browser.js": true
+  },
+  "added": [
+    "collect-xe-live.js",
+    "import-spitogatos-browser.js"
+  ],
+  "changed": [
+    "browser/captcha-document.ts",
+    "dist/browser/captcha-document.js",
+    "dist/browser/captcha-document.js.map",
+    "package.json",
+    "tests/captcha-document.vitest.test.ts"
+  ],
+  "removed": [],
+  "independentProbes": {
+    "document": {
+      "exitCode": 0,
+      "cases": 7,
+      "allPassed": true
+    },
+    "lifecycle": {
+      "exitCode": 0,
+      "cases": 12,
+      "allPassed": true
+    },
+    "empty-resume": {
+      "exitCode": 0,
+      "cases": 1,
+      "allPassed": true
+    },
+    "envelope-v4": {
+      "exitCode": 0,
+      "cases": 10,
+      "allPassed": true
+    },
+    "fixture-v3": {
+      "exitCode": 0,
+      "cases": null,
+      "allPassed": true
+    }
+  },
+  "ordinaryCleanVerification": {
+    "npmCi": "completed",
+    "npmCheck": "passed",
+    "npmBuild": "passed",
+    "vitest": 80,
+    "nodeTests": 92
+  },
+  "newAdversarialCases": {
+    "existingTenControlsPass": true,
+    "falsePositiveModes": [
+      "legit-detail-visible-security",
+      "legit-detail-visible-human-quote",
+      "legit-search-script-description"
+    ]
+  },
+  "traceReview": {
+    "negativeVerdicts": [
+      "df71a519-a4d2-4319-8fd9-0948221446be",
+      "02611d1a-bf3a-45a6-83db-e8cb33fe0667",
+      "22cac78c-f27d-42b3-9ba7-db7106797118",
+      "3e0574c5-e0b2-495f-8230-2dc9632a6ae8",
+      "20cd4430-8a1e-4cdc-bcbb-bdfe32fc838d",
+      "a0e2c5a4-84e2-44b2-aab6-8e3c229f9440",
+      "d56d563a-420c-4df4-a057-689c8d518f23"
+    ],
+    "failedShellCommands": [
+      "36c66c03-f3af-434e-82d5-a50bf5bac85d",
+      "1349d5ef-cbae-430c-bde9-c7022b89fdd0",
+      "6e5ac97f-6407-4ab2-9ca5-f397df2bf288",
+      "b262808d-ed4b-4adc-92b3-e49572864768",
+      "2277b537-d139-4ac7-bcc8-53f00e49fee3",
+      "bc497025-b651-44ca-aec9-cf2feb248cdb",
+      "e210baef-9bca-483e-9511-ca9778e68eda",
+      "074d0392-2de3-477f-ac4b-861bc8cfc281"
+    ],
+    "failedRecordedProbes": [
+      "19584201-26bc-4238-8b3a-8d988ce28e19",
+      "d1886b00-370e-419d-8c99-e09909e8c8a1",
+      "8f61ae4c-9bdc-4ace-8aaa-280ab99dabee"
+    ],
+    "finalAcceptance": "ad9b9bd5-e6bd-4c8f-88fe-ab3b71856b75",
+    "firstRootRefusal": "9e9fb5d8-47fe-4bb5-969e-c3a8dcea0405"
+  },
+  "limits": [
+    "No real Chromium or live property-site collection was performed.",
+    "The original requested regression controls pass; three new ordinary-description counterexamples are follow-up product work.",
+    "The first c6 review omitted a real clean-copy check from its bounded transport evidence; the later recorded-probe remediation supplied it. No new selection heuristic is shipped for that observation.",
+    "The full artifact export was rejected by automatic approval review; host-side full hashing and a separately approved 22,317-byte code-only read provided complete verification without new data export."
+  ]
+}

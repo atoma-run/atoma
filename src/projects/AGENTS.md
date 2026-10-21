@@ -58,6 +58,10 @@ The WSS bind acknowledgement follows local allocation; loss during allocation
 is indeterminate and cannot free the persisted assignment. Tools use a separate
 bounded concurrent channel; their acknowledged drain leaves workspace RPC alive.
 
+The coordinator selects a host-configured retrieval override by the immutable
+run target's device UUID; legacy devices keep their existing fallback. The
+schema and bounded reader live in [contracts](../contracts/AGENTS.md#haystack-runtime-configuration).
+
 ## Deployment preference
 
 `deploymentDestination` is `none` (default), `atoma`, or `external`. The

@@ -135,6 +135,16 @@ identities; when absent, `ATOMA_HAYSTACK_CONFIG` is reused. Its runtime identity
 must match the retrieval image, not a different server Python installation.
 The published receipt includes a ready-to-use `haystackConfig` value for this
 environment variable; use the receipt matching the device architecture.
+When admitted devices use different runtime releases, preserve that legacy
+setting and set `ATOMA_COMPUTE_HAYSTACK_CONFIG_BY_DEVICE` to a JSON object whose
+keys are device UUIDs and whose values are the matching published
+`haystackConfig` objects. The immutable run target selects an exact device
+entry. An unmatched device keeps the existing Compute setting, or the server
+setting when the Compute setting is absent. Hosted runs do not read this map.
+The entire configured map is validated and bounded to 64 KiB; invalid entries
+refuse Compute launch rather than silently falling back. Only the selected
+configuration reaches the host run process; the device map stays on the host.
+
 Client model paths are fixed at `/models/embedding` and `/models/reranker`.
 Provider keys, GitHub credentials and customer MCP credentials stay on Atoma.
 
