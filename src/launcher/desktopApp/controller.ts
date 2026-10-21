@@ -57,6 +57,21 @@ export class ComputeDesktopController {
       this.patch({ resourceBudget: budget }); return;
     }
     if (command.action === 'refresh') { await this.refresh(); return; }
+    if (command.action === 'disconnect-idle') {
+      // Check the live inventory after the server acknowledged drain. Never use
+      // the renderer's last poll, or cancel pairing/preparation to install an update.
+      if (this.controlling || this.value.issue === 'stop-unconfirmed') throw new Error('Compute stop unavailable');
+      this.controlling = true;
+      try {
+        if (this.task) {
+          if (!this.value.connected || this.value.accepting || !this.status) throw new Error('Compute is not drained');
+          const status = await this.status();
+          if (status.allocations.some(row => row.state !== 'stopped') || status.transfers.some(row => row.state === 'transferring')) throw new Error('Compute work is still active');
+        } else if (this.value.allocations.some(row => row.state !== 'stopped')) throw new Error('Compute stop unconfirmed');
+        await this.stop();
+      } finally { this.controlling = false; }
+      return;
+    }
     if (command.action === 'cancel' || command.action === 'disconnect') { await this.stop(command.action === 'cancel'); return; }
     if (['accept', 'drain', 'pause', 'stop'].includes(command.action)) {
       if (!this.control || !this.value.connected || this.controlling) throw new Error('Compute control unavailable');

@@ -99,6 +99,7 @@ jobs:
     env:
       ATOMA_COMPUTE_SIGNED: ${{ needs.signing.outputs.signed }}
       ATOMA_COMPUTE_ARCH: ${{ matrix.architecture }}
+      ATOMA_COMPUTE_BUILD_NUMBER: ${{ github.run_number }}
       CSC_LINK: ${{ needs.signing.outputs.signed == '1' && (matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_LINK || secrets.ATOMA_WINDOWS_CSC_LINK) || '' }}
       CSC_KEY_PASSWORD: ${{ needs.signing.outputs.signed == '1' && (matrix.platform == 'mac' && secrets.ATOMA_MAC_CSC_PASSWORD || secrets.ATOMA_WINDOWS_CSC_PASSWORD) || '' }}
       APPLE_API_KEY_CONTENT: ${{ needs.signing.outputs.signed == '1' && secrets.ATOMA_APPLE_API_KEY || '' }}
@@ -133,7 +134,7 @@ jobs:
       - run: npm ci
       - run: node node_modules/electron/install.js
       - run: npm run typecheck
-      - run: npx vitest run tests/compute-desktop.test.ts tests/compute-image-pull.test.ts tests/compute-image-cache.test.ts tests/compute-preparation.test.ts tests/compute-preparation-runtime.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
+      - run: npx vitest run tests/compute-desktop.test.ts tests/compute-desktop-updates.test.ts tests/compute-desktop-main-updates.test.ts tests/compute-desktop-version.test.ts tests/compute-image-pull.test.ts tests/compute-image-cache.test.ts tests/compute-preparation.test.ts tests/compute-preparation-runtime.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
       - run: npm run compute:desktop:build
       - run: node scripts/compute-desktop-smoke.mjs
       - name: Package native installer

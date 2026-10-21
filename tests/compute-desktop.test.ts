@@ -175,3 +175,43 @@ it('persists resource changes while connected without stopping or modifying the 
   expect(computeSettings(root).resourceBudget?.cpus).toBe(12);
   await app.stop();
 });
+
+it('rechecks live work after drain and refuses to interrupt an allocation missing from the last desktop poll', async () => {
+  paired(); let active = true; let unreachable = false; let aborted = false;
+  const control = vi.fn(async () => {});
+  const allocation = { allocationId: randomUUID(), execution: { runId: randomUUID(), generation: 1 }, state: 'active' as const, createdAt: 1 };
+  const run = vi.fn(async (_args: string[], hooks?: ComputeApplicationHooks) => {
+    hooks?.controls?.(control, async () => {
+      if (unreachable) throw new Error('inventory unavailable');
+      return { allocations: active ? [allocation] : [], transfers: [], resources: [], disk: { freeBytes: null, reserveBytes: 1024 } };
+    });
+    hooks?.connection?.(true);
+    await new Promise<void>(resolve => hooks?.signal?.addEventListener('abort', () => { aborted = true; resolve(); }));
+  });
+  const app = new ComputeDesktopController('0.4.42', vi.fn(), vi.fn(), run, root, preparation);
+  await app.execute({ action: 'connect' }); await vi.waitFor(() => expect(app.snapshot().connected).toBe(true));
+  expect(app.snapshot().allocations).toEqual([]);
+  await expect(app.execute({ action: 'disconnect-idle' })).rejects.toThrow('not drained');
+  await app.execute({ action: 'drain' });
+  await expect(app.execute({ action: 'disconnect-idle' })).rejects.toThrow('still active');
+  expect(aborted).toBe(false);
+  active = false; unreachable = true;
+  await expect(app.execute({ action: 'disconnect-idle' })).rejects.toThrow('inventory unavailable');
+  expect(aborted).toBe(false);
+  unreachable = false; await app.execute({ action: 'disconnect-idle' }); expect(aborted).toBe(true);
+  expect(app.snapshot().phase).toBe('idle');
+});
+
+it('idle update shutdown still refuses engine-unconfirmed teardown', async () => {
+  paired();
+  const run = vi.fn(async (_args: string[], hooks?: ComputeApplicationHooks) => {
+    hooks?.controls?.(vi.fn(async () => {}), async () => ({ allocations: [], transfers: [], resources: [], disk: { freeBytes: null, reserveBytes: 1024 } }));
+    hooks?.connection?.(true);
+    await new Promise<void>((_resolve, reject) => hooks?.signal?.addEventListener('abort', () => reject(new Error('Compute workload stop remains unconfirmed'))));
+  });
+  const app = new ComputeDesktopController('0.4.42', vi.fn(), vi.fn(), run, root, preparation);
+  await app.execute({ action: 'connect' }); await vi.waitFor(() => expect(app.snapshot().connected).toBe(true));
+  await app.execute({ action: 'drain' });
+  await expect(app.execute({ action: 'disconnect-idle' })).rejects.toThrow('unconfirmed');
+  expect(app.snapshot().issue).toBe('stop-unconfirmed');
+});

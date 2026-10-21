@@ -1,33 +1,14 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, powerMonitor, shell, Tray, utilityProcess, type IpcMainInvokeEvent } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { computeDesktopCommandSchema, computeDesktopLinkSchema, computeDesktopStateSchema, type ComputeDesktopCommand, type ComputeDesktopState } from '../../contracts/computeDesktop.js';
+import { computeDesktopCommandSchema, computeDesktopLinkSchema, computeDesktopStateSchema, computeDesktopUpdateActionSchema, type ComputeDesktopCommand, type ComputeDesktopState } from '../../contracts/computeDesktop.js';
 import { z } from 'zod';
+import { DesktopUpdates } from './updates.js';
 import { autoUpdater } from 'electron-updater';
 import { translate } from '../../viz/client/i18n-catalog.js';
 import { isLocale, SUPPORTED_LOCALES, type Locale } from '../../contracts/locales.js';
 let selectedLocale: Locale | undefined;
 const t = (key: string) => { const language = selectedLocale ?? app.getLocale().split('-')[0]; return translate(isLocale(language) ? language : 'en', `compute.app.${key}`); };
-let updating = false;
-async function updates() {
-  if (updating) return;
-  updating = true;
-  try {
-    if (!app.isPackaged || !DESKTOP_SIGNED) { await shell.openExternal('https://github.com/atoma-run/atoma/releases'); return; }
-    autoUpdater.autoDownload = false; autoUpdater.autoInstallOnAppQuit = false; autoUpdater.allowDowngrade = false;
-    autoUpdater.channel = `latest-${process.arch}`;
-    const result = await autoUpdater.checkForUpdates();
-    if (!result || result.updateInfo.version === app.getVersion()) { await dialog.showMessageBox({ message: t('upToDate'), buttons: [t('ok')] }); return; }
-    const choice = await dialog.showMessageBox({ message: t('updateAvailable'), detail: t('updateBody'), buttons: [t('later'), t('downloadUpdate')], cancelId: 0, defaultId: 0 });
-    if (choice.response !== 1) return;
-    await autoUpdater.downloadUpdate();
-    const install = await dialog.showMessageBox({ message: t('updateReady'), detail: t('quitBody'), buttons: [t('later'), t('installUpdate')], cancelId: 0, defaultId: 0 });
-    if (install.response !== 1) return;
-    await send({ action: 'disconnect' });
-    quitting = true; worker.kill(); tray?.destroy(); autoUpdater.quitAndInstall(false, true);
-  } catch { await dialog.showMessageBox({ type: 'error', message: t('updateFailed'), buttons: [t('ok')] }); }
-  finally { updating = false; }
-}
 declare const DESKTOP_SIGNED: boolean;
 
 let window: BrowserWindow | undefined;
@@ -40,6 +21,22 @@ let quitting = false, asking = false, sequence = 0;
 const pending = new Map<number, { resolve(): void; reject(error: Error): void; timer: NodeJS.Timeout }>();
 const root = __dirname;
 const page = pathToFileURL(join(root, 'index.html')).href;
+let updateTimer: ReturnType<typeof setInterval> | undefined;
+const updates = new DesktopUpdates(app.isPackaged && DESKTOP_SIGNED, {
+  check: async () => {
+    const result = await autoUpdater.checkForUpdates();
+    return result?.isUpdateAvailable ? result.updateInfo.version : null;
+  },
+  download: () => autoUpdater.downloadUpdate(),
+  command: send, runtime: () => state,
+  changed: value => window?.webContents.send('compute:update-state', value),
+  install: () => {
+    // The utility process has confirmed idle teardown before reaching this callback.
+    quitting = true;
+    try { autoUpdater.quitAndInstall(false, true); }
+    catch (error) { quitting = false; throw error; }
+  },
+});
 const links = { atoma: 'https://atoma.run/', docker: 'https://www.docker.com/products/docker-desktop/', updates: 'https://github.com/atoma-run/atoma/releases' };
 function send(command: ComputeDesktopCommand): Promise<void> {
   if (runtimeLost && command.action === 'disconnect') return Promise.reject(new Error('Workload stop remains unconfirmed'));
@@ -63,6 +60,7 @@ function startWorker(): void {
         if (!next.success) return;
         if (next.data.connected) runtimeLost = false;
         state = runtimeLost ? { ...next.data, issue: 'stop-unconfirmed' } : next.data; window?.webContents.send('compute:state', state);
+        void updates.advance();
       } else if (result.data.kind === 'pairing') {
         const url = result.data.url;
         if (typeof url === 'string' && /^https:\/\/atoma\.run\/compute\/pair\?code=[A-Za-z0-9_-]{22}$/.test(url)) void shell.openExternal(url);
@@ -75,7 +73,7 @@ function startWorker(): void {
       workerAlive = false;
       if (!quitting) runtimeLost = true;
       for (const item of pending.values()) { clearTimeout(item.timer); item.reject(new Error('Compute runtime exited')); } pending.clear();
-      if (!quitting && state) { state = { ...state, phase: 'error', connected: false, issue: 'stop-unconfirmed' }; window?.webContents.send('compute:state', state); show(); }
+      if (!quitting && state) { state = { ...state, phase: 'error', connected: false, issue: 'stop-unconfirmed' }; window?.webContents.send('compute:state', state); void updates.advance(); show(); }
     });
 }
 function authorize(event: IpcMainInvokeEvent): void {
@@ -91,12 +89,13 @@ async function quit() {
       if (result.response !== 1) return;
     }
     await send({ action: 'disconnect' });
-    quitting = true; worker.kill(); tray?.destroy(); app.quit();
+    quitting = true; app.quit();
   } catch { show(); await dialog.showMessageBox({ type: 'error', title: 'Atoma Compute', message: t('issue.stop-unconfirmed'), detail: t('quitFailed'), buttons: [t('ok')] }); }
   finally { asking = false; }
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
+  app.on('will-quit', () => { if (updateTimer) clearInterval(updateTimer); if (workerAlive) worker.kill(); tray?.destroy(); });
   app.on('second-instance', show);
   app.on('activate', show);
   app.on('before-quit', event => { if (!quitting) { event.preventDefault(); void quit(); } });
@@ -111,8 +110,19 @@ else {
     window.on('close', event => { if (!quitting) { event.preventDefault(); window?.hide(); } });
     ipcMain.handle('compute:language', (event, input: unknown) => { authorize(event); selectedLocale = z.enum(SUPPORTED_LOCALES).parse(input); });
     ipcMain.handle('compute:state', event => { authorize(event); return state; });
-    ipcMain.handle('compute:command', async (event, input: unknown) => { authorize(event); await send(computeDesktopCommandSchema.parse(input)); });
-    ipcMain.handle('compute:open', async (event, input: unknown) => { authorize(event); const link = computeDesktopLinkSchema.parse(input); if (link === 'updates') await updates(); else await shell.openExternal(links[link]); });
+    ipcMain.handle('compute:command', async (event, input: unknown) => { authorize(event); const command = computeDesktopCommandSchema.parse(input);
+      if (command.action === 'disconnect-idle' || updates.pending && !['refresh', 'resources', 'pause', 'stop', 'disconnect'].includes(command.action)) throw new Error('An update is waiting for work to finish');
+      await send(command); });
+    ipcMain.handle('compute:open', async (event, input: unknown) => { authorize(event); const link = computeDesktopLinkSchema.parse(input); if (link === 'updates') { if (updates.snapshot().phase === 'unsupported') await shell.openExternal(links.updates); else await updates.action('check'); } else await shell.openExternal(links[link]); });
+    ipcMain.handle('compute:update-state', event => { authorize(event); return updates.snapshot(); });
+    ipcMain.handle('compute:update', async (event, input: unknown) => { authorize(event); await updates.action(computeDesktopUpdateActionSchema.parse(input)); });
+    autoUpdater.autoDownload = false; autoUpdater.autoInstallOnAppQuit = false; autoUpdater.allowDowngrade = false;
+    autoUpdater.channel = `latest-${process.arch}`;
+    autoUpdater.on('download-progress', progress => updates.progress(progress.percent));
+    autoUpdater.on('error', () => {
+      if (updates.snapshot().phase === 'installing') quitting = false;
+      if (updates.snapshot().phase !== 'unsupported') updates.failed();
+    });
     const icon = nativeImage.createFromPath(join(root, 'icon.png')).resize({ width: 20, height: 20 });
     tray = new Tray(icon); tray.setToolTip('Atoma Compute');
     tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Atoma Compute', click: show }, { type: 'separator' }, { label: t('quitMenu'), click: () => { void quit(); } }]));
@@ -120,5 +130,9 @@ else {
     Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Atoma Compute', submenu: [{ label: t('showMenu'), click: show }, { type: 'separator' }, { label: t('quitMenu'), accelerator: 'CmdOrCtrl+Q', click: () => { void quit(); } }] }, { role: 'editMenu' }, { role: 'viewMenu' }]));
     powerMonitor.on('suspend', () => { void send({ action: 'disconnect' }).catch(() => {}); });
     await window.loadFile(join(root, 'index.html'));
+    void updates.action('check');
+    updateTimer = setInterval(() => { void updates.action('check'); }, 4 * 60 * 60_000);
+    updateTimer.unref();
+    powerMonitor.on('resume', () => { void updates.action('check'); });
   });
 }

@@ -71,9 +71,23 @@ When all signing and notarization secrets are configured, pushes to main build
 signed installers and automatically update both `compute-desktop-stable` and the
 public download channel after CI succeeds. A manual `workflow_dispatch` can
 still request a preview or a signed publication. Each architecture has its own
-update manifest. Updates are requested explicitly from Resources, require
-confirmation, and install only after work has stopped. Unsigned previews link
-to the release page instead.
+update manifest. Signed applications check at startup, every four hours, and
+after waking from sleep. When an update is available, **Update and restart**
+downloads it, pauses new run assignments and waits for current work and transfers
+to finish. Installation follows a fresh local check and confirmed workload
+teardown; it never interrupts an active run. Keep the application open while
+waiting. **Postpone update** cancels the pending installation and leaves new
+runs paused; enable them again in Activity when ready. Account pairing and
+resource settings are kept. Resources also offers a manual update check.
+Unsigned previews explain that a manual download is required and link to releases.
+
+CI adds its workflow run number to the package patch version for the native
+installer (for example, `0.4.0` with run 42 becomes `0.4.42`). All architectures
+share that version; metadata-only version suffixes cannot establish update order.
+Local builds retain the package version unless `ATOMA_COMPUTE_BUILD_NUMBER` is
+set. Before publishing a signed release, approve its exact installer version in
+the server's `ATOMA_COMPUTE_APP_VERSIONS` allowlist. Retain earlier supported
+versions during rollout; installing a new version never bypasses server admission.
 
 ```sh
 node scripts/compute-desktop-smoke.mjs
