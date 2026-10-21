@@ -759,7 +759,7 @@ async function writeRunFixture(dir) {
   await writeFile(join(dir, `${id}.json`), JSON.stringify({
     id,
     label,
-    task: { description: 'GPU smoke fixture — a trace long enough to scroll' },
+    task: { description: 'GPU smoke fixture — a trace long enough to scroll. ' + 'Read the complete request before working. '.repeat(180) + 'END OF REQUEST.' },
     startedAt,
     endedAt,
     durationMs,
@@ -1399,6 +1399,50 @@ try {
       }
     }
     await waitForSceneCamera(page, 'focus');
+
+    // A real long request must remain inside the summary and reach its last
+    // line through the same native wheel/scrollbar path as ordinary panes.
+    await page.waitForFunction(() => globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true));
+    const goalPoint = async (fraction, bar = false) => {
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      return await page.evaluate(({ fraction, bar }) => {
+        const handle = globalThis.__ATOMA_GPU__;
+        const content = handle.app.stage.getChildByLabel('run-goal-content', true);
+        const scrollbar = content.parent.parent.getChildByLabel('scrollbar-thumb');
+        if (!scrollbar) throw new Error('Long request has no scrollbar');
+        const p = scrollbar.toGlobal({ x: bar ? 1 : -100, y: scrollbar.hitArea.height * fraction });
+        return handle.projectRendererPoint(p.x, p.y);
+      }, { fraction, bar });
+    };
+    const goalOffset = () => page.evaluate(() =>
+      globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true).y);
+    const readingPoint = await goalPoint(0.5);
+    await page.mouse.move(readingPoint.x, readingPoint.y);
+    await page.mouse.wheel({ deltaY: 100_000 });
+    await page.waitForFunction(() => globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true).y < -1000);
+    const goalEnd = await goalOffset();
+    const endVisible = await page.evaluate(() => {
+      const content = globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true);
+      const bar = content.parent.parent.getChildByLabel('scrollbar-thumb');
+      const text = content.children[0].children[0];
+      return text.text.endsWith('END OF REQUEST.') && Math.abs(content.y + text.height - bar.hitArea.height) < 1;
+    });
+    assert(endVisible, 'The final request line must be reachable inside its viewport');
+    await page.screenshot({ path: join(tmpdir(), 'atoma-run-goal-scrolled.png') });
+    await page.mouse.wheel({ deltaY: -100_000 });
+    await page.waitForFunction(() => Math.abs(globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true).y) < 0.5);
+    const goalThumb = await goalPoint(0.01, true);
+    await page.mouse.move(goalThumb.x, goalThumb.y);
+    await page.mouse.down();
+    await page.mouse.move(goalThumb.x - 30, goalThumb.y + 90, { steps: 5 });
+    await page.mouse.up();
+    assert(await goalOffset() < -1, 'Dragging the request thumb must scroll without collapsing the card');
+    const goalTop = await goalPoint(0, true);
+    await page.mouse.click(goalTop.x, goalTop.y);
+    await page.waitForFunction(() => Math.abs(globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true).y) < 0.5);
+    await page.screenshot({ path: join(tmpdir(), 'atoma-run-goal-top.png') });
+    await page.mouse.move(640, 400);
+    console.log(`viz long run request: wheel reached ${goalEnd}px; final line, thumb drag and track return verified`);
 
     // The camera crops the source plane to remove the old header. The view
     // must reflow to the inverse-projected viewport foot too: retaining raw

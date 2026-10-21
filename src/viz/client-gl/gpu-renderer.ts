@@ -771,6 +771,10 @@ export class GpuRenderer {
   private notificationsBounds: Rectangle | null = null;
   private notificationsScrollMax = 0;
   private notificationsScrollY = 0;
+  runGoalBounds: Rectangle | null = null;
+  runGoalScrollY = 0;
+  runGoalScrollMax = 0;
+  private runGoalKey: string | null = null;
   detailBounds: Rectangle | null = null;
   detailScrollY = 0;
   detailScrollMax = 0;
@@ -1007,6 +1011,17 @@ export class GpuRenderer {
         // the notification tray's does (idempotent in the handler).
         if (deltaY > 0 && next >= this.runPickerScrollMax) {
           this.snapshot.onActivate('runs.picker.more');
+        }
+        return;
+      }
+    }
+    if (this.runGoalBounds) {
+      const local = this.clientToRendererPosition(clientX, clientY);
+      if (this.runGoalBounds.contains(local.x, local.y)) {
+        const next = Math.max(0, Math.min(this.runGoalScrollMax, this.runGoalScrollY + deltaY));
+        if (next !== this.runGoalScrollY) {
+          this.runGoalScrollY = next;
+          this.render(this.snapshot);
         }
         return;
       }
@@ -2024,6 +2039,12 @@ export class GpuRenderer {
     // A closed tray forgets its place: reopening starts at the newest rows.
     if (!snapshot.state.notificationsMenuOpen) this.notificationsScrollY = 0;
     this.turnSliderBounds = null;
+    const nextGoalKey = snapshot.state.view === 'runs'
+      ? `${snapshot.state.selectedRunId}:${snapshot.state.runSummaryExpanded}` : null;
+    if (nextGoalKey !== this.runGoalKey) this.runGoalScrollY = 0;
+    this.runGoalKey = nextGoalKey;
+    this.runGoalBounds = null;
+    this.runGoalScrollMax = 0;
     const nextDetailKey =
       snapshot.state.resultRunId && (snapshot.state.view === 'runs' || snapshot.state.view === 'projects')
         ? `result:${snapshot.state.resultRunId}:${snapshot.state.resultDetailsOpen}`
@@ -2479,6 +2500,7 @@ export class GpuRenderer {
 
   /** Detail bounds are a plain Rectangle, so project the view's x offset once. */
   private translateViewBounds(offsetX: number) {
+    if (this.runGoalBounds) this.runGoalBounds.x += offsetX;
     if (this.detailBounds) {
       this.detailBounds = new Rectangle(
         this.detailBounds.x + offsetX,
@@ -5650,6 +5672,9 @@ export type RendererCtx = Pick<
   | 'timelineMinimapScroll'
   | 'timelineMinimapMotion'
   | 'timelineMinimapPosition'
+  | 'runGoalBounds'
+  | 'runGoalScrollY'
+  | 'runGoalScrollMax'
   | 'detailScrollY'
   | 'detailScrollMax'
   | 'detailBounds'

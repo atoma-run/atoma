@@ -77,7 +77,7 @@ import {
   truncate,
 } from '../copy.js';
 import { LLM_FAMILY_COLOR, eventKindColor, llmRoleColor } from '../event-palette.js';
-import { drawScrollbarThumb } from '../scroll-pane.js';
+import { createScrollPane, drawScrollbarThumb } from '../scroll-pane.js';
 import { prefersReducedMotion } from '../motion.js';
 import { attachLiveAtomaMark } from '../atoma-mark.js';
 import { timelineConnectorGeometry } from '../timeline-rails.js';
@@ -1385,7 +1385,8 @@ export function drawRuns(
       atoms,
       rightX,
       top,
-      rightWidth
+      rightWidth,
+      height - top - GPU_LAYOUT.gap
     );
     const detailTop = top + summaryHeight;
     const detailHeight = height - detailTop;
@@ -1563,7 +1564,8 @@ function drawRunSummaryCard(
   atoms: Map<string, AtomView>,
   x: number,
   y: number,
-  width: number
+  width: number,
+  availableHeight: number
 ): number {
   const expanded = snapshot.state.runSummaryExpanded;
   const padX = 16;
@@ -1587,11 +1589,12 @@ function drawRunSummaryCard(
   // Expanded, this card hides NOTHING. Collapsed, it keeps the goal to about
   // two lines and the verdict alone — so the caret always changes something,
   // which it did not when the goal happened to be short.
+  const goalText = new Container();
   const title = ctx.text(
-    block,
+    goalText,
     expanded ? heading.title : truncate(heading.title, COLLAPSED_TITLE_CHARS),
-    padX,
-    cursor,
+    0,
+    0,
     {
       size: 12,
       weight: '400',
@@ -1599,7 +1602,21 @@ function drawRunSummaryCard(
       width: innerWidth - 8,
     }
   );
-  cursor += title.height + 6;
+  // Keep long requests inside the card, leaving the verdict and metrics below.
+  // The shared pane also gives the scrollbar its normal drag/track interaction.
+  const goalHeight = Math.min(title.height, Math.max(64, Math.min(240, availableHeight * 0.35)));
+  ctx.runGoalScrollMax = Math.max(0, title.height - goalHeight);
+  ctx.runGoalScrollY = Math.min(ctx.runGoalScrollY, ctx.runGoalScrollMax);
+  const goalPane = createScrollPane(block, {
+    x: padX, y: cursor, width: innerWidth, height: goalHeight,
+    scrollY: ctx.runGoalScrollY, bottomPadding: 0, air: {},
+  });
+  goalPane.content.label = 'run-goal-content';
+  goalPane.content.addChild(goalText);
+  goalPane.extend(title.height);
+  ctx.runGoalScrollMax = goalPane.finish();
+  ctx.runGoalBounds = new Rectangle(x + 10 + padX, y + 10 + cursor, innerWidth, goalHeight);
+  cursor += goalHeight + 6;
   // The verdict leads the facts: this pane is where the eye lands, and it
   // used to read identically for a delivered and a cancelled run.
   const summaryStatus = runStatus(run);
@@ -1719,7 +1736,9 @@ function drawRunSummaryCard(
   block.eventMode = 'static';
   block.cursor = 'pointer';
   block.hitArea = new Rectangle(0, 0, width - 20, cursor);
-  block.on('pointertap', () => snapshot.onActivate('run.summary.toggle'));
+  block.on('pointertap', (event) => {
+    if (block.toLocal(event.global).y < 30) snapshot.onActivate('run.summary.toggle');
+  });
   block.position.set(x + 10, y + 10);
   ctx.root.addChild(block);
   ctx.recordHitTarget(ctx.root, {
@@ -1729,7 +1748,7 @@ function drawRunSummaryCard(
     x: x + 10,
     y: y + 10,
     width: width - 20,
-    height: cursor,
+    height: 30,
   });
   const continueRow = guidance?.project
     ? drawPartialContinueControl(ctx, snapshot, guidance, x, y + 10 + cursor + 6, width)

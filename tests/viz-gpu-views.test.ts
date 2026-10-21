@@ -356,6 +356,9 @@ function createRecordingCtx(): RecordingCtx {
       );
     },
     scrollMax: {},
+    runGoalBounds: null,
+    runGoalScrollY: 0,
+    runGoalScrollMax: 0,
     detailScrollY: 0,
     detailScrollMax: 0,
     detailBounds: null,
@@ -7118,6 +7121,35 @@ describe('drawRuns — run status and timeline bookends', () => {
     ).toBe(true);
   });
 
+  it('bounds a long run request and scrolls its complete text independently of event details', () => {
+    const description = 'Read the complete request. '.repeat(300) + 'End of request.';
+    const run = makeRun([makeLlmEvent('a')], { task: { description } });
+    const snapshot = makeSnapshot({ runSummaryExpanded: true, selectedEventId: 'a' }, { run });
+    const start = createRecordingCtx();
+    drawRuns(start, snapshot, WIDTH, HEIGHT);
+    expect(start.runGoalScrollMax).toBeGreaterThan(1000);
+    expect(start.runGoalBounds!.height).toBeLessThanOrEqual(240);
+    expect(start.runGoalBounds!.y + start.runGoalBounds!.height).toBeLessThan(HEIGHT);
+    expect(start.texts.filter(entry => entry.value === description)).toHaveLength(1);
+    expect(scrollbarThumbs(start.root).length).toBeGreaterThan(0);
+    expect(findByLabel(start.root, 'run-goal-content')!.parent!.mask).toBeTruthy();
+    expect(start.detailBounds!.y).toBeGreaterThan(start.runGoalBounds!.y + start.runGoalBounds!.height);
+    expect(start.detailBounds!.height).toBeGreaterThan(0);
+
+    const end = createRecordingCtx();
+    end.runGoalScrollY = start.runGoalScrollMax;
+    drawRuns(end, snapshot, WIDTH, HEIGHT);
+    expect(findByLabel(end.root, 'run-goal-content')!.y).toBe(-start.runGoalScrollMax);
+    expect(end.detailScrollY).toBe(0);
+    expect(end.runGoalBounds).toEqual(start.runGoalBounds);
+
+    const collapsed = createRecordingCtx();
+    collapsed.runGoalScrollY = start.runGoalScrollMax;
+    drawRuns(collapsed, makeSnapshot({ runSummaryExpanded: false }, { run }), WIDTH, HEIGHT);
+    expect(collapsed.runGoalScrollMax).toBe(0);
+    expect(collapsed.runGoalScrollY).toBe(0);
+  });
+
   it('titles the card from the goal when the stored label was cut mid-word', () => {
     // Exactly the bytes an older trace carries: label = family + bare slice.
     const description =
@@ -7471,6 +7503,24 @@ describe('touch scrolling — a finger drag drives the same router as the wheel'
     expect(onScroll).toHaveBeenCalledTimes(2);
     internals.touchEnd();
     expect(internals.touchScroll).toBeNull();
+  });
+
+  it('routes a request swipe to its bounded pane without scrolling the timeline', () => {
+    const onScroll = vi.fn();
+    const internals = armRenderer({ ...makeSnapshot({ view: 'runs' }), onScroll });
+    const renderer = internals as unknown as GpuRenderer;
+    const render = vi.spyOn(renderer, 'render').mockReturnValue(true);
+    renderer.runGoalBounds = new Rectangle(200, 100, 180, 200);
+    renderer.runGoalScrollMax = 500;
+    internals.touchStart({ touches: [{ identifier: 1, clientX: 250, clientY: 200 }] });
+    internals.touchMove({ changedTouches: [{ identifier: 1, clientX: 250, clientY: 100 }] });
+    expect(renderer.runGoalScrollY).toBe(100);
+    internals.touchMove({ changedTouches: [{ identifier: 1, clientX: 250, clientY: -900 }] });
+    expect(renderer.runGoalScrollY).toBe(500);
+    expect(renderer.detailScrollY).toBe(0);
+    expect(onScroll).not.toHaveBeenCalled();
+    expect(render).toHaveBeenCalledTimes(2);
+    render.mockRestore();
   });
 
   it('routes a swipe on the minimap independently of the central cards', () => {
