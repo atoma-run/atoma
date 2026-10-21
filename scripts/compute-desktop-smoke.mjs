@@ -87,15 +87,31 @@ await new Promise(r=>setTimeout(r,100));
 assert.equal(await web.executeJavaScript('document.querySelector("h1").textContent'),'Activity');
 await web.executeJavaScript('[...document.querySelectorAll("nav button")].find(b=>b.textContent==="Resources").click()');
 await new Promise(r=>setTimeout(r,100));await fs.writeFile(path.join(os.tmpdir(),'atoma-compute-desktop-resources.png'),(await web.capturePage()).toPNG());
-assert.equal(await web.executeJavaScript('document.documentElement.scrollHeight <= window.innerHeight'),true,'Resources must fit the default desktop window');
+const resourceLayout = () => web.executeJavaScript('({width:innerWidth,height:innerHeight,scrollHeight:document.documentElement.scrollHeight,scrollWidth:document.documentElement.scrollWidth,footerBottom:document.querySelector("footer").getBoundingClientRect().bottom,children:[...document.querySelector("main").children].map(e=>({cls:e.className,height:e.getBoundingClientRect().height}))})');
+assert.equal(await web.executeJavaScript('document.documentElement.scrollHeight <= window.innerHeight'),true,'Resources must fit the default desktop window: '+JSON.stringify(await resourceLayout()));
+const defaultSize=w.getSize();
+// Exercise the content height left by native chrome on a small desktop display.
+w.setContentSize(944,588);await web.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+for(const font of ['system-ui','Arial']){
+  await web.executeJavaScript('document.documentElement.style.fontFamily='+JSON.stringify(font));
+  const layout=await resourceLayout();
+  assert(layout.scrollHeight<=layout.height,'Resources must fit a short desktop: '+JSON.stringify(layout));
+  assert(layout.scrollWidth<=layout.width,'Resources must not scroll horizontally: '+JSON.stringify(layout));
+  assert(layout.footerBottom<=layout.height,'Footer controls must remain visible: '+JSON.stringify(layout));
+}
+await fs.writeFile(path.join(os.tmpdir(),'atoma-compute-desktop-resources-short.png'),(await web.capturePage()).toPNG());
+await web.executeJavaScript('document.documentElement.style.fontFamily=""');
+w.setSize(...defaultSize);await web.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
 const languageBottom = await web.executeJavaScript('document.querySelector(".language").getBoundingClientRect().bottom');
 await web.executeJavaScript('document.querySelector("main").style.minHeight="150vh";window.scrollTo(0,200)');
+assert.equal(await web.executeJavaScript('window.scrollY > 0'),true,'Long content remains scrollable');
 assert.equal(await web.executeJavaScript('document.querySelector(".language").getBoundingClientRect().bottom'),languageBottom,'Language selector stays anchored while content scrolls');
 await web.executeJavaScript('document.querySelector("main").style.minHeight="";window.scrollTo(0,0)');
 assert.equal(await web.executeJavaScript('document.querySelectorAll(".resource-row h3").length'),4);
 assert.equal(await web.executeJavaScript('document.querySelector(".update-settings").open'),false);
 await web.executeJavaScript('document.querySelector(".update-settings summary").click()');
 assert.equal(await web.executeJavaScript('document.querySelector(".update-settings").open'),true);
+assert.equal(await web.executeJavaScript('document.querySelector(".update-settings").getBoundingClientRect().width >= document.querySelector(".resource-options").getBoundingClientRect().width - 1'),true,'Expanded updates use the available width');
 assert.equal(await web.executeJavaScript('document.querySelector(".update-settings").textContent.includes("This preview needs a manual update")'),true);
 assert.equal(await web.executeJavaScript('[...document.querySelectorAll(".update-settings button")].some(b=>b.textContent==="Open downloads" && b.getBoundingClientRect().height >= 44)'),true);
 await web.executeJavaScript('document.querySelector(".update-settings summary").click()');
@@ -104,9 +120,16 @@ await web.executeJavaScript('const field=document.querySelector(".budget-fields 
 await web.executeJavaScript('[...document.querySelectorAll("button")].find(b=>b.textContent==="Save limits").click()');
 await new Promise(r=>setTimeout(r,100));
 assert.equal(await web.executeJavaScript('document.querySelector(".resource-settings summary").textContent.includes("7 CPU")'),true);
+assert.equal(await web.executeJavaScript('document.querySelector(".resource-settings").getBoundingClientRect().width >= document.querySelector(".resource-options").getBoundingClientRect().width - 1'),true,'Expanded limits use the available width');
+assert.equal(await web.executeJavaScript('document.querySelector(".budget-fields input").getBoundingClientRect().width > 100'),true,'Expanded limits retain usable fields');
 await web.executeJavaScript('document.querySelector(".resource-settings").scrollIntoView({block:"start"});new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
 await fs.writeFile(path.join(os.tmpdir(),'atoma-compute-desktop-budget.png'),(await web.capturePage()).toPNG());
 await web.executeJavaScript('document.querySelector(".resource-settings summary").click()');
+
+w.setSize(560,620);await web.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+await web.executeJavaScript('document.querySelector("footer").scrollIntoView({block:"end"})');
+assert.equal(await web.executeJavaScript('window.scrollY > 0 && document.querySelector("footer").getBoundingClientRect().bottom <= innerHeight + 1'),true,'Narrow windows can scroll to the footer: '+JSON.stringify(await resourceLayout())+' scrollY='+await web.executeJavaScript('scrollY'));
+w.setSize(...defaultSize);await web.executeJavaScript('window.scrollTo(0,0);new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
 
 assert.equal(await web.executeJavaScript('document.body.textContent.includes("Workspace and checkpoints")'),true);
 assert.equal(await web.executeJavaScript('document.body.textContent.includes("Tools and builds")'),true);

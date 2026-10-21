@@ -23,7 +23,7 @@
 @media(min-width:701px){
   .resources-view{padding-top:12px;padding-bottom:12px}
   .resources-view h1{margin:12px 0 8px}
-  .resources-view .lead{margin-bottom:12px}
+  .resources-view .lead{max-width:none;margin-bottom:12px}
   .resources-view .card{padding:16px;margin-bottom:10px}
   .resources-view .metrics .card{padding:14px}
   .resources-view .resource-row{padding:4px 0}
@@ -32,3 +32,17 @@
 }
 
 .update-notice{margin:16px 0;padding:16px 20px;border:1px solid var(--accent);border-radius:12px;background:var(--panel)}.update-notice p{margin:8px 0;font-size:14px;color:var(--muted)}.update-notice progress{display:block;width:100%;margin-top:12px}.update-settings{margin:0}.update-settings summary{cursor:pointer;min-height:44px;padding:10px 0;color:var(--accent)}.update-settings p{margin-bottom:6px}
+
+/* Native title bars and smaller displays leave less room than the outer window size. */
+@media(min-width:701px){
+  .resource-options{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;align-items:start}
+  .resource-options:has(details[open]){grid-template-columns:minmax(0,1fr)}
+}
+@media(min-width:701px) and (max-height:700px){
+  .resources-view{padding:8px 24px}
+  .resources-view .lead{margin-bottom:8px}
+  .resources-view .card,.resources-view .metrics .card{padding:12px}
+  .resources-view h2{margin-bottom:6px}
+  .resources-view .resource-row{padding:2px 0}
+  .resources-view footer button{margin-block:0}
+}

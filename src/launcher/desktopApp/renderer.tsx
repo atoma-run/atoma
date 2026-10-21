@@ -121,23 +121,25 @@ export function ComputeApp() {
         <h1>{t('nav.resources')}</h1><p className="lead">{t('resourcesBody')}</p>
         <div className="metrics">{[['cpu', state?.diagnostic?.cpus.toString()], ['ram', state?.diagnostic && bytes(state.diagnostic.memoryBytes)], ['disk', state?.diagnostic && bytes(state.diagnostic.hostDiskBytes)]].map(([key, value]) => <section className="card" key={key}><h2>{t(`resource.${key}`)}</h2><strong>{value ?? '—'}</strong></section>)}</div>
         <section className="card"><h2>{t('usage')}</h2>{state?.resources.length ? state.resources.map(row => <div className="resource-row" key={row.workload}><h3>{resourceLabel(row.workload)}</h3><p>{row.cpuPercent.toLocaleString(locale, { maximumFractionDigits: 1 })}% CPU · {row.memory}</p></div>) : <p>{t('idle')}</p>}<p className="fine">{t('resourceBudget')}</p></section>
-        {state?.diagnostic && state.resourceBudget && <details className="resource-settings"><summary>{t('budget.title')} · {state.resourceBudget.cpus} CPU · {state.resourceBudget.memoryGiB} GiB</summary>
-          <p className="fine">{t('budget.help')}</p>
-          <form onSubmit={event => { event.preventDefault(); void command({ action: 'resources', budget: budgetDraft ?? state.resourceBudget! }); }}>
-            <div className="budget-fields">
-              <label>{t('budget.cpu')}<input type="number" min="5" max={state.diagnostic.cpus} step="1" required value={(budgetDraft ?? state.resourceBudget).cpus} onChange={event => setBudgetDraft({ ...(budgetDraft ?? state.resourceBudget!), cpus: event.currentTarget.valueAsNumber })}/></label>
-              <label>{t('budget.memory')}<input type="number" min="6" max={Math.floor(state.diagnostic.memoryBytes / 1024 ** 3)} step="1" required value={(budgetDraft ?? state.resourceBudget).memoryGiB} onChange={event => setBudgetDraft({ ...(budgetDraft ?? state.resourceBudget!), memoryGiB: event.currentTarget.valueAsNumber })}/></label>
-            </div>
-            <button type="submit" disabled={pending}>{t('budget.save')}</button>
-            <button type="button" onClick={() => setBudgetDraft(recommendedComputeBudget(state.diagnostic!))}>{t('budget.recommended')}</button>
-          </form>
-          <p className="fine">{t('budget.nextRun')}</p>
-          {current && state.activeResourceBudget && <p className="fine">{t('budget.active', { cpus: state.activeResourceBudget.cpus, memory: state.activeResourceBudget.memoryGiB })}</p>}
-        </details>}
-        <details className="update-settings"><summary>{t('update.title')}</summary>
-          {update?.phase === 'unsupported' ? <p className="fine">{t('update.unsupported')}</p> : update && ['idle', 'checking', 'current'].includes(update.phase) ? <p className="fine" role="status">{t(`update.${update.phase}`)}</p> : null}
-          <button disabled={update?.phase === 'checking' || update?.phase === 'downloading' || updatePending} onClick={() => open('updates')}>{t(update?.phase === 'unsupported' ? 'update.manual' : 'updates')}</button>
-        </details>
+        <div className="resource-options">
+          {state?.diagnostic && state.resourceBudget && <details className="resource-settings"><summary>{t('budget.title')} · {state.resourceBudget.cpus} CPU · {state.resourceBudget.memoryGiB} GiB</summary>
+            <p className="fine">{t('budget.help')}</p>
+            <form onSubmit={event => { event.preventDefault(); void command({ action: 'resources', budget: budgetDraft ?? state.resourceBudget! }); }}>
+              <div className="budget-fields">
+                <label>{t('budget.cpu')}<input type="number" min="5" max={state.diagnostic.cpus} step="1" required value={(budgetDraft ?? state.resourceBudget).cpus} onChange={event => setBudgetDraft({ ...(budgetDraft ?? state.resourceBudget!), cpus: event.currentTarget.valueAsNumber })}/></label>
+                <label>{t('budget.memory')}<input type="number" min="6" max={Math.floor(state.diagnostic.memoryBytes / 1024 ** 3)} step="1" required value={(budgetDraft ?? state.resourceBudget).memoryGiB} onChange={event => setBudgetDraft({ ...(budgetDraft ?? state.resourceBudget!), memoryGiB: event.currentTarget.valueAsNumber })}/></label>
+              </div>
+              <button type="submit" disabled={pending}>{t('budget.save')}</button>
+              <button type="button" onClick={() => setBudgetDraft(recommendedComputeBudget(state.diagnostic!))}>{t('budget.recommended')}</button>
+            </form>
+            <p className="fine">{t('budget.nextRun')}</p>
+            {current && state.activeResourceBudget && <p className="fine">{t('budget.active', { cpus: state.activeResourceBudget.cpus, memory: state.activeResourceBudget.memoryGiB })}</p>}
+          </details>}
+          <details className="update-settings"><summary>{t('update.title')}</summary>
+            {update?.phase === 'unsupported' ? <p className="fine">{t('update.unsupported')}</p> : update && ['idle', 'checking', 'current'].includes(update.phase) ? <p className="fine" role="status">{t(`update.${update.phase}`)}</p> : null}
+            <button disabled={update?.phase === 'checking' || update?.phase === 'downloading' || updatePending} onClick={() => open('updates')}>{t(update?.phase === 'unsupported' ? 'update.manual' : 'updates')}</button>
+          </details>
+        </div>
       </>}
       <footer><span>{t('footer')}</span>{state?.connected ? <button disabled={pending} onClick={() => { if (window.confirm(t('stopConfirm'))) action({ action: 'disconnect' }); }}>{t('disconnect')}</button> : null}</footer>
     </main>
