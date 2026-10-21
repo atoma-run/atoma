@@ -93,7 +93,12 @@ await web.executeJavaScript('document.querySelector("main").style.minHeight="150
 assert.equal(await web.executeJavaScript('document.querySelector(".language").getBoundingClientRect().bottom'),languageBottom,'Language selector stays anchored while content scrolls');
 await web.executeJavaScript('document.querySelector("main").style.minHeight="";window.scrollTo(0,0)');
 assert.equal(await web.executeJavaScript('document.querySelectorAll(".resource-row h3").length'),4);
+assert.equal(await web.executeJavaScript('document.querySelector(".update-settings").open'),false);
+await web.executeJavaScript('document.querySelector(".update-settings summary").click()');
+assert.equal(await web.executeJavaScript('document.querySelector(".update-settings").open'),true);
 assert.equal(await web.executeJavaScript('document.querySelector(".update-settings").textContent.includes("This preview needs a manual update")'),true);
+assert.equal(await web.executeJavaScript('[...document.querySelectorAll(".update-settings button")].some(b=>b.textContent==="Open downloads" && b.getBoundingClientRect().height >= 44)'),true);
+await web.executeJavaScript('document.querySelector(".update-settings summary").click()');
 await web.executeJavaScript('document.querySelector(".resource-settings summary").click()');
 await web.executeJavaScript('const field=document.querySelector(".budget-fields input");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(field,"7");field.dispatchEvent(new Event("input",{bubbles:true}))');
 await web.executeJavaScript('[...document.querySelectorAll("button")].find(b=>b.textContent==="Save limits").click()');

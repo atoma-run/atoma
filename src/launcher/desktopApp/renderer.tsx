@@ -134,10 +134,10 @@ export function ComputeApp() {
           <p className="fine">{t('budget.nextRun')}</p>
           {current && state.activeResourceBudget && <p className="fine">{t('budget.active', { cpus: state.activeResourceBudget.cpus, memory: state.activeResourceBudget.memoryGiB })}</p>}
         </details>}
-        <section className="update-settings"><h2>{t('update.title')}</h2>
+        <details className="update-settings"><summary>{t('update.title')}</summary>
           {update?.phase === 'unsupported' ? <p className="fine">{t('update.unsupported')}</p> : update && ['idle', 'checking', 'current'].includes(update.phase) ? <p className="fine" role="status">{t(`update.${update.phase}`)}</p> : null}
           <button disabled={update?.phase === 'checking' || update?.phase === 'downloading' || updatePending} onClick={() => open('updates')}>{t(update?.phase === 'unsupported' ? 'update.manual' : 'updates')}</button>
-        </section>
+        </details>
       </>}
       <footer><span>{t('footer')}</span>{state?.connected ? <button disabled={pending} onClick={() => { if (window.confirm(t('stopConfirm'))) action({ action: 'disconnect' }); }}>{t('disconnect')}</button> : null}</footer>
     </main>
