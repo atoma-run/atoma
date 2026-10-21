@@ -2,8 +2,8 @@ import { recommendedComputeBudget, type ComputeResourceBudget } from '../../cont
 import { ButtonIcon } from '../../viz/client-gl/ButtonIcon.js';
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { ComputeDesktopApi, ComputeDesktopCommand, ComputeDesktopState } from '../../contracts/computeDesktop.js';
-import { computeDesktopStateSchema } from '../../contracts/computeDesktop.js';
+import type { ComputeDesktopApi, ComputeDesktopCommand, ComputeDesktopState, ComputeDesktopUpdateState, ComputeDesktopUpdateAction } from '../../contracts/computeDesktop.js';
+import { computeDesktopStateSchema, computeDesktopUpdateStateSchema } from '../../contracts/computeDesktop.js';
 import { SUPPORTED_LOCALES, LOCALE_NAMES, isLocale, localeDirection, type Locale } from '../../contracts/locales.js';
 import { translate } from '../../viz/client/i18n-catalog.js';
 import './style.css';
@@ -15,6 +15,7 @@ function initialLocale(): Locale {
 }
 export function ComputeApp() {
   const [state, setState] = useState<ComputeDesktopState>();
+  const [update, setUpdate] = useState<ComputeDesktopUpdateState>();
   const [locale, setLocale] = useState(initialLocale);
   const [view, setView] = useState('connection');
   const [name, setName] = useState<string>();
@@ -31,6 +32,13 @@ export function ComputeApp() {
     void window.compute.state().then(update).catch(() => setFailed(true));
     return off;
   }, []);
+  useEffect(() => {
+    const receive = (value: ComputeDesktopUpdateState) => { const parsed = computeDesktopUpdateStateSchema.safeParse(value); if (parsed.success) setUpdate(parsed.data); };
+    const off = window.compute.subscribeUpdates(receive);
+    void window.compute.updateState().then(receive).catch(() => {});
+    return off;
+  }, []);
+  const updateAction = (action: ComputeDesktopUpdateAction) => { void window.compute.update(action).catch(() => setFailed(true)); };
   async function command(input: ComputeDesktopCommand) {
     setPending(true); setFailed(false);
     try { await window.compute.command(input); } catch { setFailed(true); }
@@ -38,7 +46,8 @@ export function ComputeApp() {
   }
   const action = (input: ComputeDesktopCommand) => { void command(input); };
   const open = (link: 'atoma' | 'docker' | 'updates') => { void window.compute.open(link).catch(() => setFailed(true)); };
-  const busy = pending || Boolean(state && !['idle', 'error', 'connected'].includes(state.phase));
+  const updatePending = update?.phase === 'waiting' || update?.phase === 'installing';
+  const busy = pending || updatePending || Boolean(state && !['idle', 'error', 'connected'].includes(state.phase));
   const active = state?.allocations.filter(row => row.state !== 'stopped') ?? [];
   const current = active.find(row => row.state === 'unconfirmed') ?? active[0];
   const working = state?.connected && current && current.state !== 'unconfirmed' && state.phase === 'connected';
@@ -60,6 +69,13 @@ export function ComputeApp() {
       <label className="language">{t('language')}<select value={locale} onChange={event => { if (isLocale(event.target.value)) setLocale(event.target.value); }}>{SUPPORTED_LOCALES.map(item => <option key={item} value={item}>{LOCALE_NAMES[item]}</option>)}</select></label>
     </aside>
     <main className={view === 'resources' ? 'resources-view' : undefined}><header><span className="eyebrow">{t('eyebrow')}</span><span className={`status ${state?.connected && current?.state !== 'unconfirmed' ? 'ready' : ''}`} role="status">{t(statusKey)}</span></header>
+      {update && ['available', 'downloading', 'waiting', 'installing', 'error'].includes(update.phase) ? <section className="update-notice" aria-label={t('update.title')} aria-live="polite">
+        <strong>{t(`update.${update.phase}`, { version: update.version ?? '' })}</strong>
+        {update.phase === 'available' ? <><p>{t('update.body')}</p><button className="primary" onClick={() => updateAction('install')}>{t('update.install')}</button></> : null}
+        {update.phase === 'downloading' ? <progress max="100" value={update.percent ?? 0} aria-label={t('download')} /> : null}
+        {update.phase === 'waiting' ? <><p>{t('update.waitingBody')}</p><button onClick={() => updateAction('cancel')}>{t('update.cancel')}</button></> : null}
+        {update.phase === 'error' ? <><p>{t('update.errorBody')}</p><button onClick={() => updateAction(update.version ? 'install' : 'check')}>{t('retry')}</button></> : null}
+      </section> : null}
       {failed ? <div className="notice" role="alert">{t('commandFailed')} <button onClick={() => action({ action: 'refresh' })}>{t('retry')}</button></div> : null}
       {state?.issue ? <div className="notice" role="alert">{t(state.issue === 'docker' ? `issue.docker.${state.preparation?.target === 'windows-x64' ? 'windows' : 'mac'}` : `issue.${state.issue}`)}</div> : null}
       {view === 'connection' ? <>
@@ -95,7 +111,7 @@ export function ComputeApp() {
       </> : view === 'activity' ? <>
         <h1>{t('nav.activity')}</h1><p className="lead">{t(state?.accepting ? 'accepting' : 'draining')}</p>
         <section className="card"><h2>{active.length ? t('working') : t('idle')}</h2>{active.map(row => <p key={row.allocationId}>{t(`allocation.${row.state}`)} · <code>{row.execution.runId.slice(0, 8)}</code></p>)}
-          <div className="actions"><button disabled={pending || !state?.connected} onClick={() => action({ action: state?.accepting ? 'drain' : 'accept' })}>{t(state?.accepting ? 'drain' : 'accept')}</button>
+          <div className="actions"><button disabled={pending || updatePending || !state?.connected} onClick={() => action({ action: state?.accepting ? 'drain' : 'accept' })}>{t(state?.accepting ? 'drain' : 'accept')}</button>
           <button disabled={pending || !state?.connected || !active.length} onClick={() => action({ action: 'pause' })}>{t('pause')}</button>
           <button className="danger" disabled={pending || !state?.connected || !active.length} onClick={() => { if (window.confirm(t('stopConfirm'))) action({ action: 'stop' }); }}>{t('stop')}</button></div>
           <p className="fine">{t('recovery')}</p>
@@ -117,9 +133,11 @@ export function ComputeApp() {
           </form>
           <p className="fine">{t('budget.nextRun')}</p>
           {current && state.activeResourceBudget && <p className="fine">{t('budget.active', { cpus: state.activeResourceBudget.cpus, memory: state.activeResourceBudget.memoryGiB })}</p>}
-          <button onClick={() => open('updates')}>{t('updates')}</button>
         </details>}
-        {!state?.resourceBudget && <button onClick={() => open('updates')}>{t('updates')}</button>}
+        <section className="update-settings"><h2>{t('update.title')}</h2>
+          {update?.phase === 'unsupported' ? <p className="fine">{t('update.unsupported')}</p> : update && ['idle', 'checking', 'current'].includes(update.phase) ? <p className="fine" role="status">{t(`update.${update.phase}`)}</p> : null}
+          <button disabled={update?.phase === 'checking' || update?.phase === 'downloading' || updatePending} onClick={() => open('updates')}>{t(update?.phase === 'unsupported' ? 'update.manual' : 'updates')}</button>
+        </section>
       </>}
       <footer><span>{t('footer')}</span>{state?.connected ? <button disabled={pending} onClick={() => { if (window.confirm(t('stopConfirm'))) action({ action: 'disconnect' }); }}>{t('disconnect')}</button> : null}</footer>
     </main>

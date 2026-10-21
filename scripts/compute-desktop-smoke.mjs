@@ -65,6 +65,23 @@ assert.equal(await web.executeJavaScript('Boolean(document.querySelector(".steps
 assert.equal(await web.executeJavaScript('document.body.textContent.includes("In your project settings")'),false);
 assert.equal(await web.executeJavaScript('document.body.textContent.includes("Run 22222222")'),true);
 await fs.writeFile(path.join(os.tmpdir(),'atoma-compute-desktop-running.png'),(await web.capturePage()).toPNG());
+assert.equal(await web.executeJavaScript('window.compute.updateState().then(s=>s.phase)'),'unsupported');
+assert.equal(await web.executeJavaScript('window.compute.update("shell").then(()=>false,()=>true)'),true);
+web.send('compute:update-state',{phase:'available',version:'0.4.42',percent:null});
+await new Promise(r=>setTimeout(r,100));
+assert.equal(await web.executeJavaScript('document.querySelector(".update-notice").textContent.includes("Atoma Compute 0.4.42 is available")'),true);
+assert.equal(await web.executeJavaScript('[...document.querySelectorAll(".update-notice button")].some(b=>b.textContent==="Update and restart")'),true);
+web.send('compute:update-state',{phase:'downloading',version:'0.4.42',percent:37});
+await new Promise(r=>setTimeout(r,100));
+assert.equal(await web.executeJavaScript('document.querySelector(".update-notice progress").value'),37);
+web.send('compute:update-state',{phase:'waiting',version:'0.4.42',percent:null});
+await new Promise(r=>setTimeout(r,100));
+assert.equal(await web.executeJavaScript('document.querySelector(".update-notice").textContent.includes("Current work continues")'),true);
+assert.equal(await web.executeJavaScript('document.querySelector("[role=status]").textContent'),'Running');
+await fs.writeFile(path.join(os.tmpdir(),'atoma-compute-desktop-update.png'),(await web.capturePage()).toPNG());
+web.send('compute:update-state',{phase:'unsupported',version:null,percent:null});
+await new Promise(r=>setTimeout(r,100));
+
 await web.executeJavaScript('[...document.querySelectorAll("button")].find(b=>b.textContent==="View run activity").click()');
 await new Promise(r=>setTimeout(r,100));
 assert.equal(await web.executeJavaScript('document.querySelector("h1").textContent'),'Activity');
@@ -76,6 +93,7 @@ await web.executeJavaScript('document.querySelector("main").style.minHeight="150
 assert.equal(await web.executeJavaScript('document.querySelector(".language").getBoundingClientRect().bottom'),languageBottom,'Language selector stays anchored while content scrolls');
 await web.executeJavaScript('document.querySelector("main").style.minHeight="";window.scrollTo(0,0)');
 assert.equal(await web.executeJavaScript('document.querySelectorAll(".resource-row h3").length'),4);
+assert.equal(await web.executeJavaScript('document.querySelector(".update-settings").textContent.includes("This preview needs a manual update")'),true);
 await web.executeJavaScript('document.querySelector(".resource-settings summary").click()');
 await web.executeJavaScript('const field=document.querySelector(".budget-fields input");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(field,"7");field.dispatchEvent(new Event("input",{bubbles:true}))');
 await web.executeJavaScript('[...document.querySelectorAll("button")].find(b=>b.textContent==="Save limits").click()');
