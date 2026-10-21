@@ -36,3 +36,21 @@ Decisions with the user's mandate: PR = human gate (no auto-merge); main → CI 
 **2026-10-14 — why no mender PR since #20 (2026-10-06 23:07):** the mender is healthy (service up, no gate, no `gh` warning; the banner's "waits while 3 … are open" is the CAP, not a count) — it received ZERO eligible findings. 30 defect/candidate findings in 27 verdicts after #20: 23 high-confidence without `proposedFix`, 2 medium with one, 5 both. 26/28 omissions are mechanism_candidates where the analyst writes "requires a policy decision" and drops the fix (the prompt allows a direction; the mender takes candidates since 09-27); 2 are high defects (d0c4ad08, 2c628a5b) whose AGENTS.md "was not read". Fix rate on high findings by prompt: p5 40 % (25/62), p6 11 % (2/18), p7 0 % (0/11) — correlation with p6 (7135a9dd evidence guidance), confounded by the run mix (xe.gr/Spitogatos access-refusal runs). 35178ec3 (registry UNIQUE crash) already fixed by hand in af607480. Host: `mgf` now has passwordless sudo (2026-10-14): `sudo journalctl -u atoma-mender.service`, `sudo jq … /home/atoma/state/supervisor/verdicts/*.json` (meta lives under `_meta` in the file).
 
 **2026-10-14 later — fixes shipped:** 11db1e34 (prompt p8 + citation pass: a second read-only session for every `high` defect/candidate without a fix, `_meta.citationPass`) and deb31f2e (analyst CLI ignored `ATOMA_SUPERVISOR_DIR`, so `--run` on the host wrote verdicts under the release dir). Host re-analysis command: `ssh mgf@atoma.run 'sudo -u atoma bash -c "set -a; . /home/atoma/config/atoma.env; set +a; cd /home/atoma/current && node dist/cli/analyst.js --run <id> --force"'` (refused while a deploy is pending). `--force` on d0c4ad08/2c628a5b REWROTE both verdicts and lowered them (defect→observation; high defect→medium candidate): the analyst is not stable from one run to the next, so the citation pass never ran there. The originals survive only in defects.jsonl. Not yet seen live: a citation pass that fills a fix. A cite-only mode over the stored verdicts (21 untouched high candidates) is the open proposal.
+
+2026-10-17 evening: production MCP journal and four retained mend records prove
+attempts 12bdcf19, ae044d1f, 7a7af324, 760fef4c were all refused during the
+harness typecheck with V8 heap OOM at 1536 MiB (15–17 October). Service active;
+latest PR still #20. Host now has 7756 MiB RAM; container limits were still 2 GiB.
+Owner requested adjustment. Commit 5f446e22 raises disposable mender containers
+to 4 GiB, no extra swap, Node heap 3072 MiB; keeps one CPU and one test worker.
+Container regression checks real cgroup/heap limits and fresh offline full
+typecheck after npm ci. Branch CI 39066992010 fully green, including real Linux
+mender isolation and fresh worker. Local release check had three container-test
+failures against an old worker image built October 12; all other 7401 tests
+passed. Pushed main; main CI/deployment being followed. Retained fixes have not
+been retried or accepted automatically; they need review against current code.
+
+20:47 UTC: main CI 39067533821 and deploy 39068088938 succeeded.
+Production REVISION is 5f446e22; mender service active/running since 20:46:40 UTC;
+its compiled menderIsolation.js contains memory=4g, memory-swap=4g and
+max-old-space-size=3072. New limits are deployed. No paid mend retry started.
