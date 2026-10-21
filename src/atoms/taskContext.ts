@@ -151,6 +151,8 @@ export function taskContextLines(task: Task, options: {
       delete originalInputs['clientAnswers'];
       // The host's run history too, up to 24000 characters a call (code review 2026-10-09 2.7).
       if (inputs['previousRunResults'] !== undefined) delete originalInputs['previousRunResults'];
+      // Discovery is also inherited at top level, including after checkpoint serialization.
+      if (inputs['repositoryDiscovery'] !== undefined) delete originalInputs['repositoryDiscovery'];
       // And the read-run copies (src/contracts/readRuns.ts): one listing per prompt.
       if (inputs['readRuns'] !== undefined) delete originalInputs['readRuns'];
       inputs['originalTask'] = { ...original, inputs: originalInputs };
@@ -211,6 +213,8 @@ export function delegatedTaskContext(parent: Task, child: SubtaskSpec): Pick<Tas
   delete childInputs['clientAnswers'];
   // Host-owned like the two above: a plan cannot replace the run history the prompt renders once.
   delete childInputs['previousRunResults'];
+  // Only the host's completed discovery can supply repository inspection context.
+  delete childInputs['repositoryDiscovery'];
   // Nor the read-run copies the host made: the parent's listing is the only one.
   delete childInputs['readRuns'];
   const executionMode = parent.executionMode === 'reasoning' ? 'reasoning' : child.executionMode;

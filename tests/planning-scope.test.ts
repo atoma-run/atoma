@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
-import { APPLICATION_TYPESCRIPT_GUIDANCE, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from '../src/atoms/taskContext.js';
+import { APPLICATION_TYPESCRIPT_GUIDANCE, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, delegatedTaskContext, taskContextLines } from '../src/atoms/taskContext.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { makeCtx, jsonTextPair, jsonText } from './helpers.js';
@@ -87,6 +88,46 @@ describe('runtime planning scope for existing catalog agents', () => {
       expect(task.inputs).toHaveProperty('acceptanceChecklist', 'ROOT_CHECKLIST');
       expect(original.inputs.acceptanceChecklist).toBe('ROOT_CHECKLIST');
     } finally { db.close(); }
+  });
+
+  it.each([1, 2, 3] as const)('renders discovery once in the tier %i planner after delegation and serialization', async tier => {
+    const db = openDb(':memory:');
+    try {
+      const registry = new AtomRegistry(db);
+      const child = registry.create(tier === 3 ? 2 : 1, seed);
+      const type = registry.create(tier, seed);
+      const atom = tier === 1 ? L1Atom.fromType(type) : tier === 2 ? L2Atom.fromType(type, registry) : L3Atom.fromType(type, registry);
+      const marker = 'DISCOVERY_CONTRACT_482d';
+      const discovery = { branches: [{ report: marker + 'x'.repeat(6000) }], summary: 'Observed interfaces' };
+      const original: Task = { description: 'Repair the application', inputs: { repositoryDiscovery: discovery, stableFact: 'Preserve exports' } };
+      const phase: Task = { description: 'Implement the adapter', ...delegatedTaskContext(original, { description: 'Implement the adapter' }) };
+      const delegated: Task = { description: 'Write the adapter', ...delegatedTaskContext(phase, { description: 'Write the adapter' }) };
+      const task = JSON.parse(JSON.stringify(delegated)) as Task;
+      const ctx = makeCtx();
+      if (tier !== 1) ctx.llm.enqueueText(jsonText({ kind: 'escalate', reasoning: 'Plan the phase' }));
+      ctx.llm.enqueue(req => {
+        expect(req.userContent.split(marker)).toHaveLength(2);
+        expect(req.userContent).toContain('Preserve exports');
+        return { text: tier === 1 ? jsonText({ reasoning: 'r', proposedAction: 'Implement adapter', expectedOutput: 'adapter' }) : jsonTextPair(
+          { strategy: 'reuse', target: child.name, reasoning: 'Fits' },
+          { reasoning: 'One phase', subtasks: [{ description: task.description }], aggregation: { mode: 'concat' }, expectedOutput: 'adapter' },
+        ), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+      });
+      await atom.plan(task, ctx);
+      expect(task.originalTask?.inputs?.['repositoryDiscovery']).toEqual(discovery);
+      expect(original.inputs?.['repositoryDiscovery']).toBe(discovery);
+    } finally { db.close(); }
+  });
+
+  it('keeps discovery host-owned across child input overrides and preserves original-only history', () => {
+    const discovery = { summary: 'Observed actual interfaces', branches: [{ report: 'ROOT_DISCOVERY_e824' }] };
+    const original: Task = { description: 'Repair the app', inputs: { repositoryDiscovery: discovery } };
+    const delegated = delegatedTaskContext(original, { description: 'Implement', inputs: { repositoryDiscovery: 'FORGED_DISCOVERY' } });
+    expect(delegated.inputs?.['repositoryDiscovery']).toBe(discovery);
+    expect(delegated.originalTask?.inputs?.['repositoryDiscovery']).toBe(discovery);
+    const rendered = taskContextLines({ description: 'Original-only legacy context', originalTask: original }).join('\n');
+    expect(rendered.split('ROOT_DISCOVERY_e824')).toHaveLength(2);
+    expect(original.inputs?.['repositoryDiscovery']).toBe(discovery);
   });
 
   it.each([1, 4])('keeps model-selected %i phases without a mechanical phase cap', async count => {

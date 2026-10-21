@@ -266,7 +266,7 @@ load-bearing.
   CONTEXT for the last sequential phase only; a script dispatch is judged
   without criteria. 60 of 118 first root refusals named a clause no
   phase had seen ([measurement](../../records/incidents/first-refusals-2026-10-10.md)).
-  Current constraints reach execution.
+  Current constraints reach execution; host discovery renders once and children cannot replace it.
   Sequential handover also carries bounded transport observations from completed
   phases, with event IDs, omission counts and a separate file-change inventory.
   These are historical context for reporting and validation, never new proof
