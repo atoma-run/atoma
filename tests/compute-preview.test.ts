@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { request } from 'node:http';
-import { mkdtempSync, realpathSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, writeFileSync, readFileSync, rmSync, chmodSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { expect, it, vi } from 'vitest';
@@ -16,15 +16,20 @@ import { artifactManifestHash, buildWorkspaceArtifactManifest } from '../src/pro
 
 const start = { method: 'start' as const, source: 'in-flight' as const, mode: 'app' as const, copyMaxBytes: 1024 * 1024,
   allowedHosts: [], attribution: true, hardMs: 60_000 };
-it('takes a distinct filtered copy and refuses a delivery whose bytes changed', () => {
+it.each(['app', 'terminal'] as const)('takes an executable-preserving %s copy and refuses changed delivery bytes', mode => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'compute-preview-')));
   try {
     writeFileSync(join(root, 'index.html'), '<h1>Original</h1>');
     writeFileSync(join(root, '.env'), 'PRIVATE=value');
+    writeFileSync(join(root, 'docker-entrypoint.sh'), '#!/bin/sh\nexec node server.js\n');
+    chmodSync(join(root, 'docker-entrypoint.sh'), 0o755);
     const expected = artifactManifestHash(buildWorkspaceArtifactManifest({ workspaceRoot: root }).manifest);
     const copy = root + '-copy';
     try {
-      expect(copyComputePreview({ ...start, source: 'delivered', artifactHash: expected }, root, copy)).toEqual({ kind: 'static', entry: 'index.html' });
+      expect(copyComputePreview({ ...start, mode, source: 'delivered', artifactHash: expected }, root, copy)).toEqual(
+        mode === 'app' ? { kind: 'static', entry: 'index.html' } : { kind: 'node', entry: 'terminal' });
+      expect(statSync(join(copy, 'docker-entrypoint.sh')).mode & 0o100).toBe(statSync(join(root, 'docker-entrypoint.sh')).mode & 0o100);
+      expect(artifactManifestHash(buildWorkspaceArtifactManifest({ workspaceRoot: copy }).manifest)).toBe(expected);
       expect(() => readFileSync(join(copy, '.env'))).toThrow();
       writeFileSync(join(copy, 'index.html'), 'Edited preview');
       expect(readFileSync(join(root, 'index.html'), 'utf8')).toBe('<h1>Original</h1>');
@@ -47,6 +52,8 @@ it.skipIf(images.some(key => !process.env[key])).each(['static', 'node', 'termin
   try {
     await runtime.open(); await runtime.command({ method: 'prepare', clean: false });
     await runtime.executor.execute('write_file', { path: 'index.html', content: '<h1>Remote preview</h1>' });
+    await runtime.executor.execute('write_file', { path: 'docker-entrypoint.sh', content: '#!/bin/sh\nexit 0\n' });
+    await runtime.executor.execute('run_shell', { command: 'chmod +x docker-entrypoint.sh' });
     if (kind === 'node') {
       await runtime.executor.execute('write_file', { path: 'custom.mjs', content: `import { createServer } from 'node:http'; const server=createServer((req,res)=>res.end('Remote Node preview')); server.listen(Number(process.env.PORT ?? 0),'0.0.0.0',()=>console.log('LISTENING_ON_PORT='+server.address().port));` });
       const started = await runtime.executor.execute('start_node_server', { entry: 'custom.mjs' }) as { ok: boolean; url: string };
@@ -54,7 +61,12 @@ it.skipIf(images.some(key => !process.env[key])).each(['static', 'node', 'termin
       expect(await runtime.executor.execute('fetch_url', { url: started.url, record: true })).toMatchObject({ status: 200 });
       expect(await runtime.command({ method: 'classify-preview' })).toMatchObject({ value: { kind: 'node', entry: 'custom.mjs' } });
     }
-    expect(await preview.execute(identity, { ...start, mode: kind === 'terminal' ? 'terminal' : 'app' })).toMatchObject({ method: 'start', value: { kind: kind === 'static' ? 'static' : 'node' } });
+    const artifacts = await runtime.command({ method: 'artifact-open', options: { allowEmpty: false } });
+    if (artifacts.method !== 'artifact-open') throw new Error('Expected real delivery manifest');
+    expect(artifacts.value.manifest.files.find(file => file.path === 'docker-entrypoint.sh')?.mode).toBe('100755');
+    const artifactHash = artifactManifestHash(artifacts.value.manifest);
+    await runtime.command({ method: 'checkpoint-close', handle: artifacts.value.handle });
+    expect(await preview.execute(identity, { ...start, source: 'delivered', artifactHash, mode: kind === 'terminal' ? 'terminal' : 'app' })).toMatchObject({ method: 'start', value: { kind: kind === 'static' ? 'static' : 'node' } });
     await expect(preview.execute({ ...identity, generation: 2 }, { method: 'connect' })).rejects.toThrow('generation');
     const socket = await openComputePreviewStream(command => preview.execute(identity, command));
     try {

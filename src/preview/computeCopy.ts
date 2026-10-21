@@ -13,7 +13,7 @@ export function copyComputePreview(input: unknown, source = '/source/current', d
   const command = computePreviewCommandSchema.parse(input);
   if (command.method !== 'start') throw new Error('Expected preview start');
   if (command.source === 'delivered' && !command.artifactHash) throw new Error('Delivered preview requires a saved artifact identity');
-  materializePreviewWorkspace({ sourceRoot: source, destinationRoot: destination,
+  materializePreviewWorkspace({ sourceRoot: source, destinationRoot: destination, preserveExecutable: true,
     limits: previewCopyLimits(command.mode === 'terminal' ? 'terminal' : undefined, command.copyMaxBytes) });
   if (command.artifactHash) {
     const observed = buildWorkspaceArtifactManifest({ workspaceRoot: destination, allowEmpty: true,

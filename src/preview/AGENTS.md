@@ -271,7 +271,9 @@ computer. It never falls back to hosted execution. App and terminal are
 explicit UI actions; a missing app descriptor never selects a terminal.
 The private executor receives only the four classification fields, never the
 complete persisted descriptor (the strict RPC schema rejects its identity and
-metadata fields). Instance `mode` records the capability;
+metadata fields). Compute copies preserve executable bits because those bits
+are part of the saved artifact identity; removing one refuses an otherwise
+identical delivered application before startup. Instance `mode` records the capability;
 reads report `terminalAvailable` from delivered status and allocate nothing.
 A live generation cannot change modes: stop/restart first. One terminal and
 its temporary files are shared by members opening that generation, visibly.

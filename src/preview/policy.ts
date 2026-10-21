@@ -391,7 +391,7 @@ function containedLinkTarget(
 export function materializePreviewWorkspace(input: {
   readonly sourceRoot: string;
   readonly destinationRoot: string;
-  /** Hosting revalidates accepted executable bits as part of its manifest. */
+  /** Hosting and Compute previews revalidate executable bits in saved manifests. */
   readonly preserveExecutable?: boolean;
   readonly limits?: Partial<PreviewCopyLimits>;
   /** Set only where the caller is root; see `PreviewCopyOwnership`. */
