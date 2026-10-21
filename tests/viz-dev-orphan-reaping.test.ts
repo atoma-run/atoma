@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { spawn, spawnSync } from 'node:child_process';
-import { connect } from 'node:net';
+import { connect, createServer } from 'node:net';
+import { once } from 'node:events';
 import { forceKillTestProcessTree } from './helpers.js';
 
 /**
@@ -27,9 +28,25 @@ import { forceKillTestProcessTree } from './helpers.js';
  * delivers it, and the launcher is SIGKILLed the way npm kills it — so
  * nothing but the children's own signal disposition can free the ports.
  */
-const API_PORT = 44_111;
-const DEV_PORT = 45_173;
 const posixIt = it.skipIf(process.platform === 'win32');
+
+async function availablePorts(): Promise<number[]> {
+  // Reserve both together so the OS cannot return the same port twice.
+  const reservations = [createServer(), createServer()];
+  try {
+    return await Promise.all(reservations.map(async server => {
+      server.listen(0, '127.0.0.1');
+      await once(server, 'listening');
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Missing fixture port');
+      return address.port;
+    }));
+  } finally {
+    await Promise.all(reservations.map(server => new Promise<void>((resolve, reject) => {
+      server.close(error => error ? reject(error) : resolve());
+    })));
+  }
+}
 
 function isListening(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -57,10 +74,8 @@ async function waitFor(want: boolean, ports: number[], ms: number): Promise<bool
 
 describe('viz:dev — Ctrl-C frees both ports', () => {
   posixIt('leaves no server behind when the launcher is killed the way npm kills it', async () => {
-    expect(
-      await waitFor(false, [API_PORT, DEV_PORT], 0),
-      `ports ${API_PORT}/${DEV_PORT} busy before the test`
-    ).toBe(true);
+    const [apiPort, devPort] = await availablePorts();
+    if (!apiPort || !devPort) throw new Error('Missing fixture ports');
 
     const child = spawn(process.execPath, ['--import', 'tsx', 'scripts/viz-dev.mjs'], {
       // Own process group: this stands in for the terminal's foreground group.
@@ -68,15 +83,15 @@ describe('viz:dev — Ctrl-C frees both ports', () => {
       stdio: 'ignore',
       env: {
         ...process.env,
-        ATOMA_VIZ_API_PORT: String(API_PORT),
-        ATOMA_VIZ_DEV_PORT: String(DEV_PORT),
+        ATOMA_VIZ_API_PORT: String(apiPort),
+        ATOMA_VIZ_DEV_PORT: String(devPort),
       },
     });
     const group = child.pid ?? 0;
     expect(group).toBeGreaterThan(1);
 
     try {
-      expect(await waitFor(true, [API_PORT, DEV_PORT], 45_000), 'both servers never came up').toBe(
+      expect(await waitFor(true, [apiPort, devPort], 45_000), 'both servers never came up').toBe(
         true
       );
 
@@ -85,14 +100,13 @@ describe('viz:dev — Ctrl-C frees both ports', () => {
       process.kill(group, 'SIGKILL');
 
       expect(
-        await waitFor(false, [API_PORT, DEV_PORT], 10_000),
+        await waitFor(false, [apiPort, devPort], 10_000),
         'a child outlived the launcher and kept its port'
       ).toBe(true);
     } finally {
       forceKillTestProcessTree(group);
-      // A failing run leaks the very orphans under test; reclaim them so the
-      // next run's precondition check is not poisoned by this one.
-      for (const port of [API_PORT, DEV_PORT]) if (await isListening(port)) reclaim(port);
+      // A failing run can leave detached children outside the owned group.
+      for (const port of [apiPort, devPort]) if (await isListening(port)) reclaim(port);
     }
   }, 70_000);
 });
