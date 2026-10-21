@@ -40,7 +40,7 @@ networkx==3.4.2
 numpy==2.2.6
 openai==3.10.0
 packaging==26.3
-pillow==12.3.0
+pillow==13.0.0
 posthog==7.47.3
 pydantic==2.13.5
 pydantic_core==2.46.5
