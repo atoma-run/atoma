@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { READ_RUNS_DIRECTORY } from './readRuns.js';
 import {
   PERSISTED_DETAILS_CHARS,
   PERSISTED_REQUIREMENT_CHARS,
@@ -36,6 +37,9 @@ export const PARENT_TEST_TIMEOUT_MS = 120_000;
  * window, and its timeout is then the host's (second review 2026-10-16).
  */
 export const PARENT_TEST_SNAPSHOT_ALLOWANCE_MS = 60_000;
+
+/** Names omitted at every depth from the parent runner's workspace copy. */
+export const PARENT_TEST_EXCLUDED_NAMES = ['.git', '.atoma-scratch', '.atoma-skeleton', READ_RUNS_DIRECTORY] as const;
 
 /**
  * The STORED and EXECUTED bound on one suite's source: every reader of a saved
@@ -193,6 +197,7 @@ export const delegationReviewEnvelopeSchema = z.object({ delegationReview: deleg
  * browser). The third refusal ended the run.
  */
 export const PARENT_TEST_RUNNER_SCOPE = [
+  `The verification copy excludes ${PARENT_TEST_EXCLUDED_NAMES.slice(0, -1).join(', ')} and ${PARENT_TEST_EXCLUDED_NAMES.at(-1)} at every depth, even when the working workspace contains them. A parent suite must not require files under those names or assert that a scaffold reference exists. Test the adapted application configuration and behavior in the copy. Verify scaffold generation or comparison in a shell subtask in the working workspace; its reference files are not deliverables.`,
   'WHAT A PARENT SUITE CAN RUN: one TypeScript Vitest file at the project root of a disposable workspace copy, in a Node environment. It can import real application modules by relative path, source or built output that exists when the suite runs, call their in-process APIs, and start the application\'s HTTP server in-process and request it on loopback. An extensionless relative import resolves a .js file before a .ts file of the same name, so a suite for a TypeScript module that keeps a .js forwarder beside it imports the .ts path explicitly. Code under test reads the copy and its installed packages; HOME, the temporary directory and the working directory are inside it. Reading any other path answers as for an absent file (existsSync false, ENOENT), a system binary such as /usr/bin/chromium included, and writing one is refused, so a test about a path outside the copy proves nothing: a test that a server refuses an escaping path targets a file inside the copy, such as package.json above the served directory. It has no browser and no DOM environment, cannot spawn processes (a CLI run, a browser launch), nested workers or native addons, and never loads the project\'s Vite or Vitest configuration, plugins or setup files. tsconfig `paths` aliases resolve in the suite as in the application modules it imports; CSS imports load as empty stubs (CSS-module class names map to themselves and are not checked).',
   'BROWSER-ONLY BEHAVIOUR (real user input reaching a page and what it changes on screen, console errors, failed resources) is proven by a subtask routed to a child that holds validate_html. When it depends on real user input, that subtask carries "proofObligations": ["dom-interaction"]: the runtime checks the browser tool\'s own record for interactions it executed on the page, and a result without one goes to full review with that fact. That is the proof route for such behaviour, never a suite. The importable logic and HTTP routes behind the page still need a suite. A CLI process is proven by a subtask that runs it.',
 ].join('\n');

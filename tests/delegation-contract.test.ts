@@ -1363,7 +1363,9 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
     expect(request).toContain(PARENT_TEST_RUNNER_SCOPE);
     expect(planner.userContent).toContain(PARENT_TEST_RUNNER_SCOPE);
     expect(request).toContain(PARENT_TEST_EXECUTION);
+    expect(request).toContain('excludes .git, .atoma-scratch, .atoma-skeleton and .atoma-runs at every depth');
     expect(planner.userContent).toContain(PARENT_TEST_EXECUTION);
+    expect(planner.userContent).toContain('excludes .git, .atoma-scratch, .atoma-skeleton and .atoma-runs at every depth');
     for (const obligation of PROOF_OBLIGATIONS) expect(PARENT_TEST_RUNNER_SCOPE).toContain(`"proofObligations": ["${obligation}"]`);
     // The host half is unchanged: the approved classification executes the route intact.
     expect(execute).toHaveBeenCalledOnce();
@@ -1394,6 +1396,7 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
     await cell.plan({ description: 'Implement signed addition', acceptanceTests: suite }, ctx);
     expect(ctx.llm.calls.find(call => call.role === 'plan')?.userContent).toContain(PARENT_TEST_RUNNER_SCOPE);
     expect(ctx.llm.calls.find(call => call.role === 'plan')?.userContent).toContain(PARENT_TEST_EXECUTION);
+    expect(ctx.llm.calls.find(call => call.role === 'plan')?.userContent).toContain('excludes .git, .atoma-scratch, .atoma-skeleton and .atoma-runs at every depth');
   });
 
   it('asks no suite of a browser-only checkpoint, yet still one of the UI logic behind it', async () => {

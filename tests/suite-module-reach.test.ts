@@ -136,6 +136,23 @@ describe('the line', () => {
     }
   });
 
+  it('keeps scaffold references out of the real parent snapshot and tells the review', async () => {
+    const excluded = ['.git', '.atoma-scratch', '.atoma-skeleton', '.atoma-runs'];
+    const files = { ...BASE, 'skeleton/package.json': '{"name":"ordinary-application-file"}' };
+    for (const name of excluded) {
+      Object.assign(files, { [`${name}/package.json`]: '{"name":"local-reference"}', [`nested/${name}/package.json`]: '{"name":"nested-reference"}' });
+    }
+    const { box } = workspace(files);
+    const source = `${HEAD}import { existsSync, readFileSync } from 'node:fs';
+` +
+      `test('snapshot boundary', () => { for (const name of ${JSON.stringify(excluded)}) { ` +
+      "expect(existsSync(name + '/package.json')).toBe(false); expect(existsSync('nested/' + name + '/package.json')).toBe(false); } " +
+      "expect(JSON.parse(readFileSync('skeleton/package.json', 'utf8')).name).toBe('ordinary-application-file'); });";
+    expect(await runParentTests(box, [JSON.stringify(suite(source))], 60_000)).toMatchObject({ status: 'passed', passed: 1 });
+    expect(DELEGATION_REVIEW_REQUEST).toContain('excludes .git, .atoma-scratch, .atoma-skeleton and .atoma-runs at every depth');
+    expect(DELEGATION_REVIEW_REQUEST).toContain('Verify scaffold generation or comparison in a shell subtask');
+  }, 90_000);
+
   // What the line claims, pinned on the real runner across its process boundary.
   it('agrees with the runner: "loaded only as a dependency" loads, "no suite loads" does not', async () => {
     const files = { ...BASE, 'src/server.js': `globalThis.__reachServer = true;\n${SERVER}`, 'src/other.js': 'globalThis.__reachOther = true;\nmodule.exports = {};\n',
