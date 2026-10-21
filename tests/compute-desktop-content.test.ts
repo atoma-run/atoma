@@ -87,6 +87,16 @@ it('includes Electron, nested installer dependencies, authored versions and inst
   expect(await fingerprint()).not.toBe(version);
 });
 
+it('normalizes architecture suffixes without hiding changes to the updater channel', async () => {
+  write('desktop/electron-builder.cjs', "module.exports = { publish: [{ channel: 'latest-' + process.env.ATOMA_COMPUTE_ARCH }] };");
+  try {
+    vi.stubEnv('ATOMA_COMPUTE_ARCH', 'arm64'); const arm = await fingerprint();
+    vi.stubEnv('ATOMA_COMPUTE_ARCH', 'x64'); expect(await fingerprint()).toBe(arm);
+    write('desktop/electron-builder.cjs', "module.exports = { publish: [{ channel: 'beta-' + process.env.ATOMA_COMPUTE_ARCH }] };");
+    expect(await fingerprint()).not.toBe(arm);
+  } finally { vi.unstubAllEnvs(); }
+});
+
 it('resolves nested and hoisted lock dependencies, including optional dependencies', () => {
   const dependencies = nativeDependencies({ packages: {
     'node_modules/electron': { version: '1' },

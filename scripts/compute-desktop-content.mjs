@@ -69,7 +69,8 @@ export async function desktopContent(root, revision) {
   const config = require(configPath);
   // Every supported architecture has its own manifest, but the content decision
   // is shared across native runners. Architecture is not a source change.
-  if (config.publish) config.publish = config.publish.map(feed => ({ ...feed, channel: 'latest-ARCH' }));
+  if (config.publish) config.publish = config.publish.map(feed => ({ ...feed,
+    channel: typeof feed.channel === 'string' ? feed.channel.replace(/-(?:arm64|x64)$/, '-ARCH') : feed.channel }));
   const configuration = JSON.stringify(config, (_key, value) => typeof value === 'function' ? value.toString().replaceAll('\r\n', '\n') : value);
   const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
   return { schema: 1, revision, sha256: sha256(JSON.stringify({ files: files.sort(([a], [b]) => a.localeCompare(b, 'en')), configuration, native: nativeDependencies(lock) })) };
