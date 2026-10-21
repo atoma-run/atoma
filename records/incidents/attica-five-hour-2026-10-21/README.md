@@ -89,3 +89,63 @@ remote retrieval service, a real mock-ranking subprocess and production search.
 Additional cases cover both runtime-integrity outcomes, exact UUID selection,
 legacy fallbacks, invalid keys/settings, unrelated invalid entries and bounds.
 No model call, retrieval algorithm, proof credit or acceptance rule changes.
+
+
+## Second run: partial, independently verified
+
+Run `070688f0-4191-4c34-ad43-7d574a8f8c9e` ended partial at 22:10:22 UTC:
+219 model calls, 10 escalations, one deepening and one root remediation,
+$9.6565 subscription-equivalent accounting. Its manifest is
+`673997bddb638d5228aebe5d99a80af386715ab314d09e657f19bd9538a6531d`.
+[The structured review](run2-review.json) records the outcome and proof limits.
+
+The full 35 MB trace export was rejected by automatic approval review. The safe
+alternative scanned all 1,883 events on the host and read bounded metadata,
+all 42 negative review reasons, 45 failed-tool diagnostics and 173 probe
+inventories through the terminal event. No complete raw trace was copied or
+read locally. All 233 saved files were hashed on the host; only 13 explicitly
+named code files and source maps (96,492 bytes) were transferred into a private
+folder. Previously verified local base files completed an exact reconstruction.
+All 233 sizes, hashes and modes match, including after independent tests.
+Both original JavaScript entrypoints and all 48 historical files are unchanged.
+
+The three requested ordinary-description/JSON positives now pass. Saved
+compiled output passes all 13 V5 cases, but differs from the final source:
+its short-message detector became an exact phrase allowlist without a matching
+saved rebuild. After a fresh source build, the inherited paragraph
+`Please verify you are human` wrongly returns 200 and clears durable CAPTCHA.
+Four additional genuine challenge cases also wrongly return200. The baseline
+passes all four added negatives. The saved compiled version fails one of them.
+The [unchanged controls plus four counterexamples](document-envelope-v6-probe.cjs.txt)
+and [baseline](run2-envelope-v6-baseline.json), [saved](run2-envelope-v6-saved.json)
+and [fresh-source](run2-envelope-v6-fresh.json) observations preserve that distinction.
+Replay the witness with `node --input-type=commonjs - /absolute/verified/app --assert`
+and redirect the `.cjs.txt` file to stdin; use synthetic fixtures only.
+
+Independent fresh installation, typecheck and standalone build succeeded.
+The ordinary maintained suite passed 82 Vitest and 92 Node tests without new
+skips or discovery exclusions. The full ordinary `check` still fails two lint
+errors: an unused declaration import and an unsafe CommonJS assignment.
+Document/lifecycle, empty-resume and fixture probes pass. These controls overlap;
+do not add them as independent samples or claim whole-browser success.
+
+Atoma correctly refused delivery. Earlier successful checks belong to earlier
+source snapshots; they cannot establish the final source. The three model
+self-executions actually served the L1 model while retaining supervisor
+provenance, as designed. All 215 direct HTTP-tool calls observed were loopback.
+No additional engine rule, model call, test weakening or fabricated base proof
+was introduced to turn this partial run green. The selected 90-minute profile
+and review margin prevent another admission within this session.
+
+## Production correction verified
+
+The guarded device override was applied at 20:22:50 UTC with a private host
+backup, retaining every original environment byte and the legacy runtime.
+Main CI 39669814410, CodeQL 39669814394, Compute desktop 39669814395 and
+Deploy 39671397306 all succeeded for engine `f659c3e2`. The active release,
+executor and compiled selector were checked independently before the second
+admission. Its ordinary retrieval preparation then became ready in 354,531ms.
+The first acceptance event 3134c51b also preserves c4/c6 disagreements as
+unjudged, confirming `e1e9face` on a new real run. Both engine fixes were
+activated before their following product run; the partial Attica application
+was not accepted or published.

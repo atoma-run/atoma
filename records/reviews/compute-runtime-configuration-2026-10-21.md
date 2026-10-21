@@ -46,3 +46,12 @@ problem in `container-isolation.test.ts:86`. The test remains unchanged. Full
 Linux branch CI is required before main, followed by every exact-revision
 main workflow, deployment and active revision/configuration verification.
 The final targeted suite passed 30 cases with two existing Docker skips.
+
+## Observed production result
+
+All exact-revision main workflows and deployment succeeded. At 20:37:23 UTC
+the actual active release and executor were verified as `f659c3e2`; the
+compiled selector preserved the legacy default and selected only this Mac
+override. The next ordinary run prepared retrieval successfully in 354,531ms.
+Its later partial application result is documented in the incident record;
+no full application acceptance is claimed.
