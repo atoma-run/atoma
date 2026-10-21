@@ -52,10 +52,20 @@ The application bundle is `dist/compute-desktop`; installers are written under
 credentials and workspaces are not included. No Electron native-module rebuild
 is needed: the local inventory uses embedded Node's SQLite implementation.
 
-The **Compute desktop** workflow builds and tests macOS arm64, macOS x64 and
-Windows x64 in parallel with the main CI. Once both pass for the same source
-revision, it publishes an immutable release for that revision and updates the
-public `compute-desktop-current` download channel. Without publisher
+The **Compute desktop** workflow first builds the application and compares its
+content with the last published version. The comparison covers all bundled files
+(including shared imports and bundled dependencies), Electron, the installer
+configuration and its locked dependency tree. Unrelated server, web, documentation
+or dependency changes do not publish an application update. The generated CI
+version suffix is excluded from this comparison; an authored version change is
+included. Existing releases without a content receipt are compared by rebuilding
+the exact source revision recorded in their release notes.
+
+When the content differs, native jobs build and test macOS arm64, macOS x64 and
+Windows x64 in parallel with the main CI. Each native bundle must match the
+content decision. Once both pass for the same source revision, the workflow
+publishes an immutable release with a `compute-desktop-content.json` receipt and
+updates the public `compute-desktop-current` download channel. Without publisher
 credentials the channel contains unsigned preview installers; native Docker/run
 acceptance remains separate and requires Docker Desktop on the target machine.
 
@@ -67,9 +77,9 @@ and `ATOMA_APPLE_API_ISSUER` as CI secrets. The Apple API key secret contains th
 it as a private temporary file for notarization and removes it afterward.
 Never commit certificates, passwords or API keys.
 
-When all signing and notarization secrets are configured, pushes to main build
-signed installers and automatically update both `compute-desktop-stable` and the
-public download channel after CI succeeds. A manual `workflow_dispatch` can
+When all signing and notarization secrets are configured, application changes on
+main build signed installers and automatically update both
+`compute-desktop-stable` and the public download channel after CI succeeds. A manual `workflow_dispatch` can
 still request a preview or a signed publication. Each architecture has its own
 update manifest. Signed applications check at startup, every four hours, and
 after waking from sleep. When an update is available, **Update and restart**
@@ -117,10 +127,12 @@ notice about platform installation blocks. The native release workflow can publi
 an immutable preview after all three platform jobs pass. Real Docker installation,
 WSL reboot and license flows still require manual platform acceptance testing.
 
-Native validation starts automatically alongside Atoma CI on pushes to main and
-pull requests that touch the client or its dependencies. Pull requests produce
-CI artifacts only. Main pushes update the release channel only after the full CI
-for that exact revision succeeds. A newer code revision cannot be replaced by an
-older build that finishes later; translation-only commits may follow their
-source revision without invalidating its installer. Publication runs are not
-canceled by a newer validation run.
+The content comparison runs alongside Atoma CI on main pushes and pull requests;
+native validation runs when the application content differs. Pull requests
+produce CI artifacts only. Manual dispatch always permits native validation,
+but publication still requires changed content. Main pushes update the release
+channel only after the full CI for that exact revision succeeds. Publication is
+serialized and rechecks the current channel: identical content is skipped, and
+an older build cannot replace a newer published revision. Later unrelated
+commits do not invalidate an application's installer. A failed publication is
+retried by a subsequent push while its application content remains unpublished.

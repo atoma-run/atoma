@@ -2,18 +2,7 @@ name: Compute desktop
 on:
   push:
     branches: [main]
-    paths: &desktop-paths
-      - 'src/**'
-      - 'desktop/**'
-      - 'scripts/*compute-desktop*'
-      - 'tests/compute-*.test.ts'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig*.json'
-      - '.nvmrc'
-      - '.github/workflows/compute-desktop.yml'
   pull_request:
-    paths: *desktop-paths
   workflow_dispatch:
     inputs:
       signed:
@@ -79,8 +68,55 @@ jobs:
             echo 'signed=0' >> "$GITHUB_OUTPUT"
           fi
 
-  desktop:
+  content:
     needs: signing
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.legacy.outputs.changed || steps.compare.outputs.changed }}
+    env:
+      ATOMA_COMPUTE_SIGNED: ${{ needs.signing.outputs.signed }}
+      GH_TOKEN: ${{ github.token }}
+      COMPUTE_CHANNEL: ${{ needs.signing.outputs.signed == '1' && 'compute-desktop-stable' || 'compute-desktop-current' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+          cache: npm
+      - run: npm ci
+      - run: npm run compute:desktop:build
+      - run: node scripts/compute-desktop-content.mjs record compute-desktop-content.json
+      - id: compare
+        name: Compare with the last published application
+        run: node scripts/compute-desktop-content.mjs compare compute-desktop-content.json
+      - id: legacy
+        name: Bootstrap existing channels from their published source
+        if: steps.compare.outputs.baseline != ''
+        env:
+          BASELINE: ${{ steps.compare.outputs.baseline }}
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/compute-baseline"
+          receipt="$GITHUB_WORKSPACE/scripts/compute-desktop-content.mjs"
+          git worktree add --detach "$source" "$BASELINE"
+          (
+            cd "$source"
+            npm ci
+            npm run compute:desktop:build
+            GITHUB_SHA="$BASELINE" node "$receipt" record "$RUNNER_TEMP/previous-content.json"
+          )
+          node "$receipt" compare-local compute-desktop-content.json "$RUNNER_TEMP/previous-content.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compute-desktop-content
+          path: compute-desktop-content.json
+          if-no-files-found: error
+
+  desktop:
+    needs: [signing, content]
+    if: needs.content.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -106,6 +142,8 @@ jobs:
       APPLE_API_KEY_ID: ${{ needs.signing.outputs.signed == '1' && secrets.ATOMA_APPLE_API_KEY_ID || '' }}
       APPLE_API_ISSUER: ${{ needs.signing.outputs.signed == '1' && secrets.ATOMA_APPLE_API_ISSUER || '' }}
     steps:
+      - name: Use identical source bytes on every native platform
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
@@ -134,8 +172,17 @@ jobs:
       - run: npm ci
       - run: node node_modules/electron/install.js
       - run: npm run typecheck
-      - run: npx vitest run tests/compute-desktop.test.ts tests/compute-desktop-updates.test.ts tests/compute-desktop-main-updates.test.ts tests/compute-desktop-version.test.ts tests/compute-image-pull.test.ts tests/compute-image-cache.test.ts tests/compute-preparation.test.ts tests/compute-preparation-runtime.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
+      - run: npx vitest run tests/compute-desktop.test.ts tests/compute-desktop-updates.test.ts tests/compute-desktop-main-updates.test.ts tests/compute-desktop-version.test.ts tests/compute-desktop-content.test.ts tests/compute-image-pull.test.ts tests/compute-image-cache.test.ts tests/compute-preparation.test.ts tests/compute-preparation-runtime.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
       - run: npm run compute:desktop:build
+      - uses: actions/download-artifact@v5
+        with:
+          name: compute-desktop-content
+          path: content-receipt
+      - name: Verify the packaged content matches the publication decision
+        shell: bash
+        run: |
+          node scripts/compute-desktop-content.mjs record native-content.json
+          node --input-type=module -e "import { readFileSync } from 'node:fs'; import assert from 'node:assert/strict'; assert.equal(JSON.parse(readFileSync('native-content.json')).sha256, JSON.parse(readFileSync('content-receipt/compute-desktop-content.json')).sha256);"
       - run: node scripts/compute-desktop-smoke.mjs
       - name: Package native installer
         shell: bash
@@ -162,8 +209,11 @@ jobs:
             dist/compute-installers/*.sha256
           if-no-files-found: error
   release:
-    if: github.event_name == 'push' || inputs.publish || inputs.preview
-    needs: [signing, desktop]
+    if: needs.content.outputs.changed == 'true' && (github.event_name == 'push' || inputs.publish || inputs.preview)
+    needs: [signing, content, desktop]
+    concurrency:
+      group: compute-desktop-publication
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -195,7 +245,19 @@ jobs:
           pattern: compute-desktop-*
           path: installers
           merge-multiple: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+      - name: Recheck the channel after waiting for CI and native builds
+        id: publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPUTE_CHANNEL: ${{ needs.signing.outputs.signed == '1' && 'compute-desktop-stable' || 'compute-desktop-current' }}
+        run: |
+          git fetch origin main --tags
+          node scripts/compute-desktop-content.mjs publish installers/compute-desktop-content.json
       - name: Verify every installer and update asset
+        if: steps.publication.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -206,6 +268,7 @@ jobs:
             [[ ${#matches[@]} == 1 && -f "${matches[0]}" ]] || { echo "Missing or duplicate installer: $pattern"; exit 1; }
           done
       - name: Publish the immutable revision and current download channel
+        if: steps.publication.outputs.publish == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -225,7 +288,7 @@ jobs:
             revision_tag="compute-desktop-preview-${REVISION:0:12}"
             title='Atoma Compute — preview'
             notes="Unsigned preview from ${REVISION}. macOS and Windows may block installation. Docker Desktop is required. No automatic updates."
-            assets=(./*.dmg ./*.exe ./*.dmg.sha256 ./*.exe.sha256)
+            assets=(./*.dmg ./*.exe ./*.dmg.sha256 ./*.exe.sha256 ./compute-desktop-content.json)
             kind=(--prerelease)
           fi
           if ! gh release view "$revision_tag" >/dev/null 2>&1; then
@@ -233,14 +296,8 @@ jobs:
           else
             gh release upload "$revision_tag" "${assets[@]}" --clobber
           fi
-          # A newer source revision supersedes this one. A translation-only
-          # commit may advance main without producing another Desktop build.
-          git fetch origin main
-          if ! git merge-base --is-ancestor "$REVISION" origin/main; then exit 0; fi
-          changed="$(git diff --name-only "$REVISION" origin/main)"
-          if grep -Ev '^src/viz/client/locales/[^/]+\.json$' <<< "$changed" | grep -q .; then
-            echo 'Newer source revision will update the download channel'; exit 0
-          fi
+          # Publication is serialized and rechecked against the channel receipt.
+          # Later unrelated pushes do not invalidate this application's build.
           update_channel() {
             local channel_tag="$1"
             if gh release view "$channel_tag" >/dev/null 2>&1; then
