@@ -2635,5 +2635,7 @@
   "compute.app.update.error": "تعذّر إكمال التحديث",
   "compute.app.update.errorBody": "لم يُجبر Atoma Compute أي عمل على التوقف. تحقق من اتصالك ومن Docker، ثم أعد المحاولة. إذا كانت عمليات run الجديدة متوقفة مؤقتًا، فيمكنك تمكينها من قسم «النشاط».",
   "compute.app.update.unsupported": "تتطلب هذه النسخة التجريبية تحديثًا يدويًا. يتوفر التثبيت من داخل التطبيق مع الإصدارات الموقّعة.",
-  "compute.app.update.manual": "فتح التنزيلات"
+  "compute.app.update.manual": "فتح التنزيلات",
+  "preview.error.computeUnavailable": "أعد توصيل Atoma Compute على الكمبيوتر الذي أنشأ هذه النتيجة، ثم أعد محاولة المعاينة.",
+  "preview.error.modeChanged": "تغيّرت المعاينة المشتركة بين التطبيق والطرفية. افتح المعاينة التي تريدها مجددًا."
 }

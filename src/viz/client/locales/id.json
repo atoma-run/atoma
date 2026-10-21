@@ -2635,5 +2635,7 @@
   "compute.app.update.error": "Pembaruan tidak dapat diselesaikan",
   "compute.app.update.errorBody": "Atoma Compute tidak memaksa pekerjaan apa pun untuk berhenti. Periksa koneksi dan Docker Anda, lalu coba lagi. Jika run baru dijeda, Anda dapat mengaktifkannya di Aktivitas.",
   "compute.app.update.unsupported": "Versi pratinjau ini perlu diperbarui secara manual. Instalasi dalam aplikasi tersedia untuk rilis bertanda tangan.",
-  "compute.app.update.manual": "Buka unduhan"
+  "compute.app.update.manual": "Buka unduhan",
+  "preview.error.computeUnavailable": "Hubungkan kembali Atoma Compute di komputer yang membuat hasil ini, lalu coba lagi pratinjaunya.",
+  "preview.error.modeChanged": "Pratinjau bersama beralih antara aplikasi dan terminal. Buka kembali yang Anda inginkan."
 }

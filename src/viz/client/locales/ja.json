@@ -2635,5 +2635,7 @@
   "compute.app.update.error": "アップデートを完了できませんでした",
   "compute.app.update.errorBody": "Atoma Computeは作業を強制停止していません。接続とDockerを確認してから、再試行してください。新しいrunが一時停止されている場合は、アクティビティで有効にできます。",
   "compute.app.update.unsupported": "このプレビュー版は手動でのアップデートが必要です。署名済みリリースではアプリ内インストールを利用できます。",
-  "compute.app.update.manual": "ダウンロードを開く"
+  "compute.app.update.manual": "ダウンロードを開く",
+  "preview.error.computeUnavailable": "この結果を生成したコンピューターでAtoma Computeに再接続してから、プレビューを再試行してください。",
+  "preview.error.modeChanged": "共有プレビューがアプリケーションとターミナルの間で切り替わりました。使用する方をもう一度開いてください。"
 }

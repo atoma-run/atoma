@@ -2635,5 +2635,7 @@
   "compute.app.update.error": "Das Update konnte nicht abgeschlossen werden",
   "compute.app.update.errorBody": "Atoma Compute hat keine laufende Arbeit zwangsweise beendet. Prüfen Sie Ihre Verbindung und Docker und versuchen Sie es erneut. Falls neue runs pausiert wurden, können Sie sie unter „Aktivität“ wieder aktivieren.",
   "compute.app.update.unsupported": "Diese Vorschauversion muss manuell aktualisiert werden. Die Installation in der App ist mit signierten Releases verfügbar.",
-  "compute.app.update.manual": "Downloads öffnen"
+  "compute.app.update.manual": "Downloads öffnen",
+  "preview.error.computeUnavailable": "Verbinden Sie Atoma Compute auf dem Computer, auf dem dieses Ergebnis erstellt wurde, erneut und versuchen Sie dann die Vorschau erneut.",
+  "preview.error.modeChanged": "Die freigegebene Vorschau wechselte zwischen Anwendung und Terminal. Öffnen Sie die gewünschte Vorschau erneut."
 }

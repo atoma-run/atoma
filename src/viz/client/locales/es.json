@@ -2635,5 +2635,7 @@
   "compute.app.update.error": "No se pudo completar la actualización",
   "compute.app.update.errorBody": "Atoma Compute no ha forzado la detención de ningún trabajo. Comprueba tu conexión y Docker, y vuelve a intentarlo. Si se pausaron los nuevos run, puedes habilitarlos en Actividad.",
   "compute.app.update.unsupported": "Esta versión preliminar requiere una actualización manual. La instalación desde la aplicación está disponible con las versiones firmadas.",
-  "compute.app.update.manual": "Abrir descargas"
+  "compute.app.update.manual": "Abrir descargas",
+  "preview.error.computeUnavailable": "Vuelve a conectar Atoma Compute en el equipo que generó este resultado y, luego, vuelve a intentar la vista previa.",
+  "preview.error.modeChanged": "La vista previa compartida cambió entre la aplicación y el terminal. Vuelve a abrir la que quieras."
 }

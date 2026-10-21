@@ -2635,5 +2635,7 @@
   "compute.app.update.error": "无法完成更新",
   "compute.app.update.errorBody": "Atoma Compute 未强制停止任何工作。请检查网络连接和 Docker，然后重试。如果新 run 已暂停，你可以在“活动”中将其启用。",
   "compute.app.update.unsupported": "此预览版需要手动更新。已签名的发布版本支持应用内安装。",
-  "compute.app.update.manual": "打开下载页面"
+  "compute.app.update.manual": "打开下载页面",
+  "preview.error.computeUnavailable": "请在生成此结果的计算机上重新连接 Atoma Compute，然后重试预览。",
+  "preview.error.modeChanged": "共享预览已在应用和终端之间切换。请重新打开你想要的那个。"
 }

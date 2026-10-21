@@ -2635,5 +2635,7 @@
   "compute.app.update.error": "La mise à jour n’a pas pu être effectuée",
   "compute.app.update.errorBody": "Atoma Compute n’a forcé l’arrêt d’aucun travail. Vérifie ta connexion et Docker, puis réessaie. Si les nouveaux runs ont été suspendus, tu peux les réactiver dans Activité.",
   "compute.app.update.unsupported": "Cette version préliminaire nécessite une mise à jour manuelle. L’installation dans l’application est disponible avec les versions signées.",
-  "compute.app.update.manual": "Ouvrir les téléchargements"
+  "compute.app.update.manual": "Ouvrir les téléchargements",
+  "preview.error.computeUnavailable": "Reconnecte Atoma Compute sur l’ordinateur qui a généré ce résultat, puis réessaie l’aperçu.",
+  "preview.error.modeChanged": "L’aperçu partagé a changé entre l’application et le terminal. Rouvre celui que tu veux."
 }
