@@ -215,6 +215,13 @@ export const PARENT_TEST_SUFFICIENCY = [
 /** The suite defects that refuse a plan in every review round; see PARENT_TEST_SUFFICIENCY. */
 export const PARENT_TEST_BLOCKING_DEFECTS = 'BLOCKING SUITE DEFECTS, which refuse a plan in any review round: a suite that does not import and call the real module it claims to test, or tests a helper or mock standing in for it; trivial or placeholder assertions, or none on values the module produces; no negative or boundary case; an interface the suite assumes that the application does not have; a testable implementation subtask without a parent-owned suite; interacting implementation branches without a plan-level integration suite; a behaviour the task or its criteria name that no suite can fail on; a proof the runtime cannot execute.';
 
+/** Shared execution ownership for planners and delegation reviewers (Attica a99ef64e). */
+export const PARENT_TEST_EXECUTION = [
+  'The runtime schedules each supplied parent-owned suite after its implementation branch returns, before result validation; a plan-level suite runs after its branches join. A plan need not ask a child to invoke or report that host-run suite, so the absence of such a child step does not refuse a plan.',
+  'The runtime owns the suite, runner, configuration and result. Children may add their own tests but cannot replace the parent\'s suite. No package script/config is used for these checks. Install the application\'s dependencies before verification, build any output the suite imports before it runs, and perform separately requested project tests or browser/CLI checks.',
+  'A scheduled suite is not evidence that it ran or passed: result review uses only the host-observed parent-test record, and failed or unavailable checks retain their existing consequences.',
+].join('\n');
+
 export const PARENT_TEST_PLANNING = `PARENT-OWNED ACCEPTANCE TESTS:
 For TypeScript application work, define acceptanceTests on each implementation subtask BEFORE execution:
 {"requirement":"the assigned behavior and its observable interface","cwd":".","source":"import { test, expect } from 'vitest'; import { add } from './src/add.ts'; test('adds', () => { expect(add(2, 3)).toBe(5); });"}.
@@ -229,7 +236,7 @@ ${PARENT_TEST_SUFFICIENCY}
 ${PARENT_TEST_BLOCKING_DEFECTS}
 Tests must exercise actual code and observable behavior, including relevant negative/boundary cases. Mock external services only; no trivial assertions, implementation replacement, skip/todo/only, hidden requirements or real external traffic.
 A source revision is a new plan requiring parent review. Never weaken assertions to obtain green; explain a requirement-backed correction in the plan reasoning. A failing test can be wrong: challenge its contract explicitly.
-The runtime owns the suite, runner, configuration and result. Children may add their own tests but cannot replace the parent's suite. No package script/config is used for these checks. Install the application's dependencies before verification.
+${PARENT_TEST_EXECUTION}
 For non-code work or repository inspection, explain the appropriate evidence in reasoning and omit acceptanceTests; do not fabricate tests. Unknown interfaces do NOT exempt a later implementation branch. At L3, if inspection is necessary first, return an inspection-ONLY plan with replanAfter:true, no outputs, no implementation or final-verification subtasks. Discovery fans out like any other plan: give each independent inspection its own parallel subtask. The host executes it read-only, then asks L3 for a fresh implementation plan using the observations. Only one discovery round is allowed; never promise a future plan revision in prose. L2 cannot request replanAfter.
 Passing tests prove only their assertions; semantic and integration review remain required.`;
 

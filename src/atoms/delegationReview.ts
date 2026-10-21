@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { DelegationRefusalKind, NegativeVerdict, Plan, Task } from '../core/types.js';
-import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_SUFFICIENCY, delegationReviewEnvelopeSchema, type DelegationReview } from '../contracts/parentTests.js';
+import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_EXECUTION, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_SUFFICIENCY, delegationReviewEnvelopeSchema, type DelegationReview } from '../contracts/parentTests.js';
 import { parseWith, planSchema } from './json.js';
 import { parentSuiteRefusal, readRunCopiesRefusal } from './parentSuiteCheck.js';
 import { VALIDATION_SYSTEM_PROMPT } from './verdict.js';
@@ -23,6 +23,7 @@ An approval MUST additionally contain delegationReview:
 {"subtasks":[{"index":0,"kind":"vitest|inspection|other","reason":"scope-specific justification"}],"integration":{"kind":"vitest|inspection|other","reason":"justification"},"independentWork":true,"parallelReason":"actual dependencies or independent work"}.
 Classify EVERY subtask exactly once using zero-based indices. Classify testable TypeScript application implementation as vitest, even when its tests or interfaces were omitted. Unknown interfaces do not turn implementation into inspection. A task that includes implementation cannot be classified inspection. Other is for non-code deliverables or behavior requiring separate browser/CLI probes; explain the concrete proof. Do not exempt importable application behavior merely because it also has a UI or CLI.
 ${PARENT_TEST_RUNNER_SCOPE}
+${PARENT_TEST_EXECUTION}
 ${BROWSER_PROOF_REVIEW}
 Require plan-level Vitest integration tests when branches implement interacting application modules. Review all suite sources for real application imports, useful assertions, negative cases, faithful interfaces, and no replacement of the subject under test. Trivial assertions or placeholders must be rejected even when a suite exists.
 ${PARENT_TEST_SUFFICIENCY}

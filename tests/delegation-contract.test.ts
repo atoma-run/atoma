@@ -7,7 +7,7 @@ import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, de
 import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { planSchema } from '../src/atoms/json.js';
 import type { BranchEventInfo, LlmCompletionRequest, LlmCompletionResponse, Plan, Result, RunContext, Task, Tool, ToolExecutor } from '../src/core/types.js';
-import { PARENT_TEST_RUNNER_SCOPE, parentTestSuiteDigest, type DelegationReview, type ParentTestSuite } from '../src/contracts/parentTests.js';
+import { PARENT_TEST_EXECUTION, PARENT_TEST_RUNNER_SCOPE, parentTestSuiteDigest, type DelegationReview, type ParentTestSuite } from '../src/contracts/parentTests.js';
 import { PROOF_OBLIGATIONS } from '../src/contracts/attestation.js';
 import { READ_ONLY_TASK_LINE } from '../src/contracts/readOnlyPhase.js';
 import { mockOtherProofReview } from './helpers/delegationReview.js';
@@ -1362,10 +1362,28 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
     // One definition, read by both sides: what a suite can run and the browser route.
     expect(request).toContain(PARENT_TEST_RUNNER_SCOPE);
     expect(planner.userContent).toContain(PARENT_TEST_RUNNER_SCOPE);
+    expect(request).toContain(PARENT_TEST_EXECUTION);
+    expect(planner.userContent).toContain(PARENT_TEST_EXECUTION);
     for (const obligation of PROOF_OBLIGATIONS) expect(PARENT_TEST_RUNNER_SCOPE).toContain(`"proofObligations": ["${obligation}"]`);
     // The host half is unchanged: the approved classification executes the route intact.
     expect(execute).toHaveBeenCalledOnce();
     expect(execute.mock.calls[0]![1].subtasks[4]).toMatchObject({ preferredChild: actors.browserCell, proofObligations: ['dom-interaction'] });
+  });
+
+  it('tells the review that parent suites are scheduled by the host, without a child command', async () => {
+    const { tissue, cell } = actors();
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
+    const verdict = await tissue.validatePlan(cell, runnable(), {
+      description: 'Implement signed addition and its focused local tests', acceptanceTests: suite,
+    }, ctx);
+
+    expect(verdict.approved).toBe(true);
+    const request = ctx.llm.calls.find(call => call.role === 'validate-plan')!.userContent;
+    expect(request).toContain('The runtime schedules each supplied parent-owned suite after its implementation branch returns');
+    expect(request).toContain('A plan need not ask a child to invoke or report that host-run suite');
+    expect(request).toContain('A scheduled suite is not evidence that it ran or passed');
+    expect(request).toContain('Install the application');
   });
 
   it('gives cell planners the same boundary', async () => {
@@ -1375,6 +1393,7 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
       { reasoning: 'r', subtasks: [{ description: 'Implement add', preferredChild: 'Urea', outputs: ['add.ts'], acceptanceTests: suite }], aggregation: { mode: 'concat' }, expectedOutput: 'add.ts' }]));
     await cell.plan({ description: 'Implement signed addition', acceptanceTests: suite }, ctx);
     expect(ctx.llm.calls.find(call => call.role === 'plan')?.userContent).toContain(PARENT_TEST_RUNNER_SCOPE);
+    expect(ctx.llm.calls.find(call => call.role === 'plan')?.userContent).toContain(PARENT_TEST_EXECUTION);
   });
 
   it('asks no suite of a browser-only checkpoint, yet still one of the UI logic behind it', async () => {
