@@ -2619,5 +2619,21 @@
   "platform.surface.other": "Webhook和其他请求",
   "platform.recentSignups": "最新注册 · 所选期间",
   "platform.noSignups": "此期间没有新账户。",
-  "platform.privacy": "流量数据在产品存储中汇总保留90天。不保留IP地址、Cookie、用户代理、私有路径或查询字符串。计数涵盖到达此Atoma服务器并完成的请求；边缘缓存命中不可见。账户和执行总数来自已存储的记录。"
+  "platform.privacy": "流量数据在产品存储中汇总保留90天。不保留IP地址、Cookie、用户代理、私有路径或查询字符串。计数涵盖到达此Atoma服务器并完成的请求；边缘缓存命中不可见。账户和执行总数来自已存储的记录。",
+  "compute.app.update.title": "应用更新",
+  "compute.app.update.idle": "系统会自动检查更新。",
+  "compute.app.update.checking": "正在检查更新…",
+  "compute.app.update.current": "Atoma Compute 已是最新版本。",
+  "compute.app.update.available": "Atoma Compute {{version}} 已可用",
+  "compute.app.update.body": "一键下载更新并重启。当前 run 会先完成。你的账户和设置将保留。",
+  "compute.app.update.install": "更新并重启",
+  "compute.app.update.downloading": "正在下载 Atoma Compute {{version}}…",
+  "compute.app.update.waiting": "更新已就绪——正在等待此计算机完成工作",
+  "compute.app.update.waitingBody": "当前工作将继续。新 run 会暂停，直到更新安装完成。请保持 Atoma Compute 开启。",
+  "compute.app.update.cancel": "推迟更新",
+  "compute.app.update.installing": "正在安装并重启…",
+  "compute.app.update.error": "无法完成更新",
+  "compute.app.update.errorBody": "Atoma Compute 未强制停止任何工作。请检查网络连接和 Docker，然后重试。如果新 run 已暂停，你可以在“活动”中将其启用。",
+  "compute.app.update.unsupported": "此预览版需要手动更新。已签名的发布版本支持应用内安装。",
+  "compute.app.update.manual": "打开下载页面"
 }

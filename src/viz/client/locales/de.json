@@ -2619,5 +2619,21 @@
   "platform.surface.other": "Webhooks und sonstige Anfragen",
   "platform.recentSignups": "Neueste Registrierungen · ausgewählter Zeitraum",
   "platform.noSignups": "Keine neuen Konten in diesem Zeitraum.",
-  "platform.privacy": "Datenverkehr wird im Produktspeicher 90 Tage lang aggregiert. IP-Adressen, Cookies, User-Agents, private Pfade und Abfragezeichenfolgen werden nicht gespeichert. Die Zahlen umfassen abgeschlossene Anfragen, die diesen Atoma-Server erreichen; Treffer im Edge-Cache sind nicht sichtbar. Konto- und Ausführungssummen stammen aus gespeicherten Datensätzen."
+  "platform.privacy": "Datenverkehr wird im Produktspeicher 90 Tage lang aggregiert. IP-Adressen, Cookies, User-Agents, private Pfade und Abfragezeichenfolgen werden nicht gespeichert. Die Zahlen umfassen abgeschlossene Anfragen, die diesen Atoma-Server erreichen; Treffer im Edge-Cache sind nicht sichtbar. Konto- und Ausführungssummen stammen aus gespeicherten Datensätzen.",
+  "compute.app.update.title": "Anwendungsupdates",
+  "compute.app.update.idle": "Updates werden automatisch gesucht.",
+  "compute.app.update.checking": "Updates werden gesucht…",
+  "compute.app.update.current": "Atoma Compute ist auf dem neuesten Stand.",
+  "compute.app.update.available": "Atoma Compute {{version}} ist verfügbar",
+  "compute.app.update.body": "Mit einem Klick herunterladen, aktualisieren und neu starten. Der aktuelle run wird zuerst abgeschlossen. Ihr Konto und Ihre Einstellungen bleiben erhalten.",
+  "compute.app.update.install": "Aktualisieren und neu starten",
+  "compute.app.update.downloading": "Atoma Compute {{version}} wird heruntergeladen…",
+  "compute.app.update.waiting": "Update bereit – Abschluss der Arbeit auf diesem Computer wird abgewartet",
+  "compute.app.update.waitingBody": "Die aktuelle Arbeit wird fortgesetzt. Neue runs werden pausiert, bis das Update installiert ist. Lassen Sie Atoma Compute geöffnet.",
+  "compute.app.update.cancel": "Update verschieben",
+  "compute.app.update.installing": "Wird installiert und neu gestartet…",
+  "compute.app.update.error": "Das Update konnte nicht abgeschlossen werden",
+  "compute.app.update.errorBody": "Atoma Compute hat keine laufende Arbeit zwangsweise beendet. Prüfen Sie Ihre Verbindung und Docker und versuchen Sie es erneut. Falls neue runs pausiert wurden, können Sie sie unter „Aktivität“ wieder aktivieren.",
+  "compute.app.update.unsupported": "Diese Vorschauversion muss manuell aktualisiert werden. Die Installation in der App ist mit signierten Releases verfügbar.",
+  "compute.app.update.manual": "Downloads öffnen"
 }

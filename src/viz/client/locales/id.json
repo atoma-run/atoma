@@ -2619,5 +2619,21 @@
   "platform.surface.other": "Webhook dan permintaan lainnya",
   "platform.recentSignups": "Pendaftaran terbaru · periode terpilih",
   "platform.noSignups": "Tidak ada akun baru dalam periode ini.",
-  "platform.privacy": "Trafik diagregasikan selama 90 hari dalam penyimpanan produk. Alamat IP, cookie, agen pengguna, jalur privat, dan string kueri tidak disimpan. Jumlah mencakup permintaan selesai yang mencapai server Atoma ini; hit cache di edge tidak terlihat. Total akun dan eksekusi berasal dari catatan yang disimpan."
+  "platform.privacy": "Trafik diagregasikan selama 90 hari dalam penyimpanan produk. Alamat IP, cookie, agen pengguna, jalur privat, dan string kueri tidak disimpan. Jumlah mencakup permintaan selesai yang mencapai server Atoma ini; hit cache di edge tidak terlihat. Total akun dan eksekusi berasal dari catatan yang disimpan.",
+  "compute.app.update.title": "Pembaruan aplikasi",
+  "compute.app.update.idle": "Pembaruan diperiksa secara otomatis.",
+  "compute.app.update.checking": "Memeriksa pembaruan…",
+  "compute.app.update.current": "Atoma Compute sudah versi terbaru.",
+  "compute.app.update.available": "Atoma Compute {{version}} tersedia",
+  "compute.app.update.body": "Unduh, perbarui, dan mulai ulang dengan sekali klik. run yang sedang berlangsung akan diselesaikan terlebih dahulu. Akun dan pengaturan Anda tetap tersimpan.",
+  "compute.app.update.install": "Perbarui dan mulai ulang",
+  "compute.app.update.downloading": "Mengunduh Atoma Compute {{version}}…",
+  "compute.app.update.waiting": "Pembaruan siap — menunggu komputer ini selesai",
+  "compute.app.update.waitingBody": "Pekerjaan saat ini tetap berlanjut. run baru dijeda hingga pembaruan diinstal. Biarkan Atoma Compute tetap terbuka.",
+  "compute.app.update.cancel": "Tunda pembaruan",
+  "compute.app.update.installing": "Menginstal dan memulai ulang…",
+  "compute.app.update.error": "Pembaruan tidak dapat diselesaikan",
+  "compute.app.update.errorBody": "Atoma Compute tidak memaksa pekerjaan apa pun untuk berhenti. Periksa koneksi dan Docker Anda, lalu coba lagi. Jika run baru dijeda, Anda dapat mengaktifkannya di Aktivitas.",
+  "compute.app.update.unsupported": "Versi pratinjau ini perlu diperbarui secara manual. Instalasi dalam aplikasi tersedia untuk rilis bertanda tangan.",
+  "compute.app.update.manual": "Buka unduhan"
 }

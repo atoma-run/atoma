@@ -2619,5 +2619,21 @@
   "platform.surface.other": "Webhooks e outros pedidos",
   "platform.recentSignups": "Registos mais recentes · período selecionado",
   "platform.noSignups": "Nenhuma conta nova neste período.",
-  "platform.privacy": "O tráfego é agregado durante 90 dias no armazenamento do produto. Não são conservados endereços IP, cookies, agentes de utilizador, caminhos privados nem cadeias de consulta. As contagens abrangem os pedidos concluídos que chegam a este servidor Atoma; os acessos à cache de periferia não são visíveis. Os totais de contas e execuções provêm de registos armazenados."
+  "platform.privacy": "O tráfego é agregado durante 90 dias no armazenamento do produto. Não são conservados endereços IP, cookies, agentes de utilizador, caminhos privados nem cadeias de consulta. As contagens abrangem os pedidos concluídos que chegam a este servidor Atoma; os acessos à cache de periferia não são visíveis. Os totais de contas e execuções provêm de registos armazenados.",
+  "compute.app.update.title": "Atualizações da aplicação",
+  "compute.app.update.idle": "As atualizações são verificadas automaticamente.",
+  "compute.app.update.checking": "A verificar atualizações…",
+  "compute.app.update.current": "O Atoma Compute está atualizado.",
+  "compute.app.update.available": "O Atoma Compute {{version}} está disponível",
+  "compute.app.update.body": "Faça o download, atualize e reinicie com um clique. Qualquer run em curso será concluído primeiro. A sua conta e definições serão mantidas.",
+  "compute.app.update.install": "Atualizar e reiniciar",
+  "compute.app.update.downloading": "A transferir o Atoma Compute {{version}}…",
+  "compute.app.update.waiting": "Atualização pronta — a aguardar que este computador termine",
+  "compute.app.update.waitingBody": "O trabalho atual continua. Os novos runs ficam em pausa até a atualização ser instalada. Mantenha o Atoma Compute aberto.",
+  "compute.app.update.cancel": "Adiar atualização",
+  "compute.app.update.installing": "A instalar e reiniciar…",
+  "compute.app.update.error": "Não foi possível concluir a atualização",
+  "compute.app.update.errorBody": "O Atoma Compute não forçou a interrupção de nenhum trabalho. Verifique a ligação e o Docker e tente novamente. Se os novos runs tiverem sido colocados em pausa, pode ativá-los em Atividade.",
+  "compute.app.update.unsupported": "Esta versão de pré-visualização requer uma atualização manual. A instalação na aplicação está disponível com versões assinadas.",
+  "compute.app.update.manual": "Abrir downloads"
 }

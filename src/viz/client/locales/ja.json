@@ -2619,5 +2619,21 @@
   "platform.surface.other": "Webhookとその他のリクエスト",
   "platform.recentSignups": "最新の登録・選択期間",
   "platform.noSignups": "この期間に新規アカウントはありません。",
-  "platform.privacy": "トラフィックはプロダクトストアに90日間、集計データとして保存されます。IPアドレス、Cookie、ユーザーエージェント、非公開パス、クエリ文字列は保持されません。件数には、このAtomaサーバーに到達して完了したリクエストが含まれます。エッジキャッシュへのヒットは計上されません。アカウント数と実行数の合計は、保存済みレコードに基づきます。"
+  "platform.privacy": "トラフィックはプロダクトストアに90日間、集計データとして保存されます。IPアドレス、Cookie、ユーザーエージェント、非公開パス、クエリ文字列は保持されません。件数には、このAtomaサーバーに到達して完了したリクエストが含まれます。エッジキャッシュへのヒットは計上されません。アカウント数と実行数の合計は、保存済みレコードに基づきます。",
+  "compute.app.update.title": "アプリケーションのアップデート",
+  "compute.app.update.idle": "アップデートは自動的に確認されます。",
+  "compute.app.update.checking": "アップデートを確認しています…",
+  "compute.app.update.current": "Atoma Computeは最新です。",
+  "compute.app.update.available": "Atoma Compute {{version}}を利用できます",
+  "compute.app.update.body": "ワンクリックでダウンロード、アップデート、再起動できます。現在のrunが完了してから開始します。アカウントと設定は保持されます。",
+  "compute.app.update.install": "アップデートして再起動",
+  "compute.app.update.downloading": "Atoma Compute {{version}}をダウンロードしています…",
+  "compute.app.update.waiting": "アップデートの準備完了—このコンピューターの処理完了を待機中",
+  "compute.app.update.waitingBody": "現在の作業は続行されます。アップデートがインストールされるまで、新しいrunは一時停止されます。Atoma Computeを開いたままにしてください。",
+  "compute.app.update.cancel": "アップデートを延期",
+  "compute.app.update.installing": "インストールして再起動しています…",
+  "compute.app.update.error": "アップデートを完了できませんでした",
+  "compute.app.update.errorBody": "Atoma Computeは作業を強制停止していません。接続とDockerを確認してから、再試行してください。新しいrunが一時停止されている場合は、アクティビティで有効にできます。",
+  "compute.app.update.unsupported": "このプレビュー版は手動でのアップデートが必要です。署名済みリリースではアプリ内インストールを利用できます。",
+  "compute.app.update.manual": "ダウンロードを開く"
 }

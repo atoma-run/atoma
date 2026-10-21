@@ -2619,5 +2619,21 @@
   "platform.surface.other": "Webhooks et autres requêtes",
   "platform.recentSignups": "Dernières inscriptions · période sélectionnée",
   "platform.noSignups": "Aucun nouveau compte durant cette période.",
-  "platform.privacy": "Le trafic est agrégé pendant 90 jours dans le stockage du produit. Aucune adresse IP, aucun cookie, agent utilisateur, chemin privé ni chaîne de requête n’est conservé. Les décomptes couvrent les requêtes terminées qui atteignent ce serveur atoma ; les réponses provenant du cache périphérique ne sont pas visibles. Les totaux des comptes et des exécutions proviennent des enregistrements stockés."
+  "platform.privacy": "Le trafic est agrégé pendant 90 jours dans le stockage du produit. Aucune adresse IP, aucun cookie, agent utilisateur, chemin privé ni chaîne de requête n’est conservé. Les décomptes couvrent les requêtes terminées qui atteignent ce serveur atoma ; les réponses provenant du cache périphérique ne sont pas visibles. Les totaux des comptes et des exécutions proviennent des enregistrements stockés.",
+  "compute.app.update.title": "Mises à jour de l’application",
+  "compute.app.update.idle": "Les mises à jour sont vérifiées automatiquement.",
+  "compute.app.update.checking": "Recherche de mises à jour…",
+  "compute.app.update.current": "Atoma Compute est à jour.",
+  "compute.app.update.available": "Atoma Compute {{version}} est disponible",
+  "compute.app.update.body": "Télécharge, mets à jour et redémarre en un clic. Tout run en cours se termine d’abord. Ton compte et tes réglages sont conservés.",
+  "compute.app.update.install": "Mettre à jour et redémarrer",
+  "compute.app.update.downloading": "Téléchargement d’Atoma Compute {{version}}…",
+  "compute.app.update.waiting": "Mise à jour prête — en attente de la fin du travail sur cet ordinateur",
+  "compute.app.update.waitingBody": "Le travail en cours continue. Les nouveaux runs sont suspendus jusqu’à l’installation de la mise à jour. Garde Atoma Compute ouvert.",
+  "compute.app.update.cancel": "Reporter la mise à jour",
+  "compute.app.update.installing": "Installation et redémarrage…",
+  "compute.app.update.error": "La mise à jour n’a pas pu être effectuée",
+  "compute.app.update.errorBody": "Atoma Compute n’a forcé l’arrêt d’aucun travail. Vérifie ta connexion et Docker, puis réessaie. Si les nouveaux runs ont été suspendus, tu peux les réactiver dans Activité.",
+  "compute.app.update.unsupported": "Cette version préliminaire nécessite une mise à jour manuelle. L’installation dans l’application est disponible avec les versions signées.",
+  "compute.app.update.manual": "Ouvrir les téléchargements"
 }
