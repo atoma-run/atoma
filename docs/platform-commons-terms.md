@@ -12,7 +12,7 @@ The hosted service's full [terms of service](https://atoma.run/terms) and
 Matthieu Foillard, Pavlou Mela, 1, 15233 Athens, Greece.
 
 For support, privacy, access or removal requests, contact
-[mgf@iotanet.net](mailto:mgf@iotanet.net).
+[mgf@atoma.run](mailto:mgf@atoma.run).
 
 ## Participation in the commons
 

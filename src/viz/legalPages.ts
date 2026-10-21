@@ -19,9 +19,9 @@
 export const LEGAL_ORIGIN = 'https://atoma.run';
 export const LEGAL_OPERATOR_NAME = 'Matthieu Foillard';
 export const LEGAL_OPERATOR_ADDRESS = 'Pavlou Mela, 1, 15233 Athens, Greece';
-export const LEGAL_CONTACT_EMAIL = 'mgf@iotanet.net';
+export const LEGAL_CONTACT_EMAIL = 'mgf@atoma.run';
 /** The date the texts below last changed. */
-export const LEGAL_UPDATED = '2026-10-16';
+export const LEGAL_UPDATED = '2026-10-19';
 
 export const LEGAL_PATHS = ['/privacy', '/terms', '/support'] as const;
 export type LegalPath = (typeof LEGAL_PATHS)[number];
