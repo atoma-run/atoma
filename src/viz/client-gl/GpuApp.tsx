@@ -695,7 +695,7 @@ function GpuAppContent({
       requestedProjectPreview.current = null;
       return;
     }
-    if (!previewTarget || !previewSummary || (previewSummary.availability !== 'available' && !previewSummary.terminalAvailable)) return;
+    if (!previewTarget || !previewSummary) return;
     const key = `${previewTarget.projectId}/${previewTarget.projectRunId}`;
     if (requestedProjectPreview.current === key) return;
     requestedProjectPreview.current = key;
@@ -935,11 +935,11 @@ function GpuAppContent({
     }
     // The preview controls, drawn as siblings of the summary card so the
     // full-card toggle above cannot swallow them.
-    if (id === 'run.preview.open') {
+    if (id === 'run.preview.open' || id === 'run.preview.terminal') {
       // `failed` reopens as a RESTART, not an open: a generation that could
       // not start is not one to retry into, and the state machine already
       // says a new attempt is a new generation.
-      void requestPreview(previewQuery.data?.state === 'failed' ? 'restart' : 'open');
+      void requestPreview(previewQuery.data?.state === 'failed' ? 'restart' : 'open', id === 'run.preview.terminal' ? 'terminal' : 'app');
       return;
     }
     if (id === 'run.preview.stop') {
@@ -1416,6 +1416,8 @@ function GpuAppContent({
         t={t}
         locale={state.locale}
         onClose={() => { closePreview(); if (projectPreviewSelected) useGpuStore.getState().selectProjectSection('runs'); }}
+        onOpenApp={() => { void requestPreview('open', 'app'); }}
+        onOpenTerminal={() => { void requestPreview('open', 'terminal'); }}
         onReload={reloadPreview}
         onRestart={() => { void requestPreview('restart'); }}
         onStop={() => { void stopPreview(); }}

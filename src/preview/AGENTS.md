@@ -265,7 +265,13 @@ exists, create, tear down in reverse.
 Owner decision 2026-10-08: members may explicitly open `mode: terminal` on
 any delivered run, including historical CLI deliveries. This is human testing
 of a disposable copy, not an L1 element or a supervisor verification replay.
-Delivery descriptors stay immutable. Instance `mode` records the capability;
+Delivery descriptors stay immutable. A disconnected customer device reports
+`compute-unavailable` and asks the member to reconnect Atoma Compute on that
+computer. It never falls back to hosted execution. App and terminal are
+explicit UI actions; a missing app descriptor never selects a terminal.
+The private executor receives only the four classification fields, never the
+complete persisted descriptor (the strict RPC schema rejects its identity and
+metadata fields). Instance `mode` records the capability;
 reads report `terminalAvailable` from delivered status and allocate nothing.
 A live generation cannot change modes: stop/restart first. One terminal and
 its temporary files are shared by members opening that generation, visibly.

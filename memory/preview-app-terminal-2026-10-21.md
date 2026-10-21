@@ -1,0 +1,13 @@
+# Explicit web and terminal previews — 2026-10-21
+
+Owner request: fix Preview app opening a shell; offer terminal separately; diagnose Attica latest delivered preview internal failure. No new application run authorized or started.
+
+Production MCP first: project 07864f7c-d8f2-4023-9fca-afd8a7a51e52, delivered run 485ea38f-05a8-4207-89c8-983a5908af9d, kind=node, instance failed/internal generation3. Read-only SSH journal showed ExecutorComputePreview.start: Compute preview device unavailable. Read-only SQLite confirmed target9bafcb10-327f-477d-ac4a-82ec1fade218 (Mac de Matthieu), session absent, lease0. Owner explicitly reconnected Compute during this chat.
+
+Next ordinary MCP app open exposed the previously hidden second defect: strict executor preview-start classification rejects projectRunId/projectId/orgId/requestedHosts/createdAt. PreviewManager.startRemote passed the complete descriptor instead of its four classification fields. Fix projects those fields; regression crosses the real HTTP service, manager and strict Unix-socket transport.
+
+UI: project Preview app always explicitly requests app; terminal is a separate action in GPU controls, keyboard mirror and preview chrome. Switching modes restarts the shared generation. A terminal saved on a stopped instance never changes an app request. A shared generation changed to the other mode never gets joined silently. Compute unavailable is a bounded actionable code and message, not internal. No fallback to hosted execution, no delivery descriptor rewriting, no app artifact edits.
+
+Verification before push: npm ci, both TypeScript configs, lint, audit0, build, all compiled release smokes passed. Real Chrome MCP OAuth, Compute and full GPU WebGPU/WebGL smokes passed, including explicit app→terminal→app actions. Full tests:7808passed/36skipped/1failed, tests/container-isolation.test.ts SIGTERM-resistant-worker replacement fresh.txt ENOENT. Same isolated test on an unmodified git archive of main60d56ff7 fails identically (29passed/7skipped/1failed): pre-existing Mac Docker bind-mount behavior, not suppressed. Final targeted HTTP/session tests55pass. Updated static release pipeline passed after RPC fix. Logs /private/tmp/atoma-preview-{browser-smoke,release-static,baseline-test}.log.
+
+Follow exact pushed revision through CI/deploy and test actual Attica preview after deployment; record outcome here.

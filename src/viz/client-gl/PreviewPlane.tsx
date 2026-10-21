@@ -50,6 +50,8 @@ export function PreviewPlane({
   onClose,
   onReload,
   onRestart,
+  onOpenApp,
+  onOpenTerminal,
   onStop,
   embedded = false,
   veiled = false,
@@ -71,6 +73,8 @@ export function PreviewPlane({
   onClose: () => void;
   onReload: () => void;
   onRestart: () => void;
+  onOpenApp?: () => void;
+  onOpenTerminal?: () => void;
   onStop: () => void;
 }) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -134,7 +138,7 @@ export function PreviewPlane({
           : state === 'stopping'
             ? t('preview.status.stopping')
             : state === 'failed'
-              ? t('preview.status.failed')
+              ? t(summary?.errorCode === 'compute-unavailable' ? 'preview.error.computeUnavailable' : 'preview.status.failed')
               : t('preview.status.stopped');
   // A snapshot of a run still in flight is NOT the result, and the surface
   // says so with the moment it was taken. A surface that cannot say "state at
@@ -166,6 +170,8 @@ export function PreviewPlane({
           {!embedded && <button type="button" ref={closeRef} onClick={onClose}><ButtonIcon kind="back" />
             {t('preview.back')}
           </button>}
+          {summary?.mode === 'terminal' && summary.availability === 'available' && onOpenApp && <button type="button" onClick={onOpenApp} disabled={status === 'opening'}><ButtonIcon kind="eye" />{t('preview.app')}</button>}
+          {summary?.mode !== 'terminal' && summary?.terminalAvailable && onOpenTerminal && <button type="button" onClick={onOpenTerminal} disabled={status === 'opening'}><ButtonIcon kind="terminal" />{t('preview.terminal.start')}</button>}
           <button type="button" onClick={onReload} disabled={!ready}><ButtonIcon kind="refresh" />
             {t('preview.reload')}
           </button>

@@ -1,3 +1,4 @@
+import { PreviewRuntimeError } from './runtime.js';
 import { randomUUID } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import type { ProjectStore } from '../projects/store.js';
@@ -34,7 +35,7 @@ export class ComputePreviewController implements RemotePreviewRuntime {
       (input.source === 'in-flight' ? run.status !== 'running' : run.status !== 'delivered' || !run.artifactManifestHash)) throw new Error('Compute preview source unavailable');
     const session = this.options.devices.currentSession(run.executionTarget.deviceId);
     const peer = session && this.options.connectionFor(session);
-    if (!peer || !session || !this.options.devices.supports(session, 'preview')) throw new Error('Compute preview device unavailable');
+    if (!peer || !session || !this.options.devices.supports(session, 'preview')) throw new PreviewRuntimeError('compute-unavailable', 'Reconnect Atoma Compute on the computer that built this result, then retry the preview.');
     this.options.devices.authorizePreview(session, input.runId);
     const identity = { runId: input.runId, generation: input.generation, instanceId: randomUUID() };
     const key = this.key(input.orgId, input.runId, input.generation);

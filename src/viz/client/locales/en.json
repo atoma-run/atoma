@@ -1400,6 +1400,8 @@
   "preview.expires": "This preview stops on its own once you stop watching it.",
   "preview.error.quota": "Too many previews are running right now. Try again in a moment.",
   "preview.error.unavailable": "This run has nothing to preview.",
+  "preview.error.computeUnavailable": "Reconnect Atoma Compute on the computer that built this result, then retry the preview.",
+  "preview.error.modeChanged": "The shared preview changed between application and terminal. Open the one you want again.",
   "preview.error.generic": "The preview could not be opened.",
   "now.title": "Right now",
   "now.elementCount_one": "{{count}} element",

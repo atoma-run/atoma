@@ -2357,9 +2357,9 @@ try {
         const path = new URL(request.url()).pathname;
         // Recorded, then answered by the stub below like any other read.
         if (path === '/api/assistant' && request.method() === 'POST') assistantPosts.push(JSON.parse(request.postData() ?? 'null'));
-        if (path === `${terminalPreviewPath}/open`) {
+        if (path === `${terminalPreviewPath}/open` || path === `${terminalPreviewPath}/restart`) {
           terminalOpenMode = JSON.parse(request.postData()).mode;
-          stubs[terminalPreviewPath] = { ...stubs[terminalPreviewPath], availability: 'available', reason: null,
+          stubs[terminalPreviewPath] = { ...stubs[terminalPreviewPath],
             mode: terminalOpenMode, state: 'ready', generation: 1 };
           void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({
             summary: stubs[terminalPreviewPath], url: 'http://terminal-preview.localhost/fixture',
@@ -2852,6 +2852,17 @@ try {
       if (await accountPage.$eval('.gpu-scene-host', node => node.inert)) throw new Error('Preview tab made its sibling tabs inert');
       await assertProjectRepository('Preview app');
       await accountPage.screenshot({ path: '/tmp/atoma-project-preview-tab.png' });
+      const terminalChoice = await accountPage.$('.gpu-project-preview .gpu-preview-actions button');
+      if (!terminalChoice || await terminalChoice.evaluate(node => node.textContent.trim()) !== 'Test in terminal') throw new Error('Application preview has no separate terminal action');
+      await terminalChoice.click();
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-preview-warning')?.textContent.includes('temporary copy'));
+      if (terminalOpenMode !== 'terminal') throw new Error('Explicit terminal action did not request terminal mode');
+      const appChoice = await accountPage.$('.gpu-project-preview .gpu-preview-actions button');
+      if (!appChoice || await appChoice.evaluate(node => node.textContent.trim()) !== 'Preview app') throw new Error('Terminal has no separate application action');
+      await appChoice.click();
+      await accountPage.waitForFunction(() => !document.querySelector('.gpu-preview-warning')?.textContent.includes('temporary copy'));
+      if (terminalOpenMode !== 'app') throw new Error('Explicit application action reopened the terminal');
+
       await clickAccountTarget('project.section.files');
       await accountPage.waitForFunction(() => !document.querySelector('.gpu-preview-frame'));
       await waitForHitTarget(accountPage, 'workspace.path.README.md', 'Files scene did not replace the preview');
@@ -3109,8 +3120,8 @@ try {
       // details toolbar and moves the preview control, so await both first.
       await waitForHitTarget(accountPage, 'result.file.README.md', 'Latest result did not replace Files');
       await waitForHitTarget(accountPage, 'result.details', 'Latest result trace has not loaded');
-      await waitForHitTarget(accountPage, 'run.preview.open', 'CLI preview control missing from latest result');
-      await clickAccountTarget('run.preview.open');
+      await waitForHitTarget(accountPage, 'run.preview.terminal', 'CLI preview control missing from latest result');
+      await clickAccountTarget('run.preview.terminal');
       await accountPage.waitForSelector('.gpu-preview-plane iframe').catch(async error => {
         await accountPage.screenshot({ path: '/tmp/atoma-preview-result-failure.png' });
         throw new Error(await accountPage.evaluate(() => JSON.stringify({ text: document.body.innerText.slice(-5000),
@@ -3123,7 +3134,7 @@ try {
       }
       await accountPage.screenshot({ path: '/tmp/atoma-cli-preview-plane.png' });
       await accountPage.click('.gpu-preview-actions button');
-      await waitForHitTarget(accountPage, 'run.preview.open', 'Result preview control lost after closing');
+      await waitForHitTarget(accountPage, 'run.preview.terminal', 'Result preview control lost after closing');
       await clickAccountTarget('project.section.files');
       await waitForHitTarget(accountPage, 'workspace.path.README.md', 'workspace not restored after terminal');
       console.log('CLI preview control ok: real canvas click from Latest delivered results opens terminal mode');

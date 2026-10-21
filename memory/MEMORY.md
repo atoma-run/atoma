@@ -12,6 +12,7 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Explicit app and terminal previews](preview-app-terminal-2026-10-21.md) — fixes automatic shell fallback and strict executor classification; Attica device reconnection exposed second defect; CI/deploy and production retest pending
 - [Atoma Compute implementation](atoma-compute-state.md) — 2026-10-18: Electron companion in 13 languages built/tested on Mac ARM, Intel and Windows; code deployed (61ea0fc9), unsigned test installers ready
 - [Crystal caustic state](crystal-caustic-state.md) — 2026-10-17: facing + caustic fixes committed locally (50c15882, dfa4c921), not pushed; strokes invisible, 3 options to test
 - [Parent-tests review fixes state](parent-tests-review-fixes-state.md) — deployed; 10-17: outside-copy absent paths, suite regex check, review host facts (532d6e35), dispute count (21b0e5ce)

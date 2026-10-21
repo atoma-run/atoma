@@ -17,11 +17,13 @@ export function usePreviewSession({ previewTarget, previewSummary, t }: {
   t: (key: string) => string;
 }) {
   const queryClient = useQueryClient();
+  const requestedMode = useRef<'app' | 'terminal'>('app');
   const [openedTarget, setOpenedTarget] = useState<typeof previewTarget>(null);
   const previewOpen = openedTarget !== null && openedTarget.projectId === previewTarget?.projectId
     && openedTarget.projectRunId === previewTarget.projectRunId;
   const [claim, setClaim] = useState<{ url: string; generation: number; projectId: string; projectRunId: string } | null>(null);
   const previewUrl = previewOpen && previewSummary?.state === 'ready'
+    && (previewSummary.mode ?? 'app') === requestedMode.current
     && claim?.generation === previewSummary.generation
     && claim.projectId === previewTarget?.projectId && claim.projectRunId === previewTarget.projectRunId
     ? claim.url : null;
@@ -37,9 +39,13 @@ export function usePreviewSession({ previewTarget, previewSummary, t }: {
   // that is a no-op rather than a jump.
   const previewOpener = useRef<HTMLElement | null>(null);
   const requestPreview = useCallback(
-    async (mode: 'open' | 'restart' | 'claim'): Promise<void> => {
+    async (mode: 'open' | 'restart' | 'claim', capability?: 'app' | 'terminal'): Promise<void> => {
       if (!previewTarget) return;
       const { projectId, projectRunId } = previewTarget;
+      const previewMode = capability ?? (mode === 'open' ? 'app' : requestedMode.current);
+      requestedMode.current = previewMode;
+      const switchMode = (previewSummary?.state === 'ready' || previewSummary?.state === 'starting')
+        && (previewSummary.mode ?? 'app') !== previewMode;
       const sequence = ++requestSequence.current;
       setClaim(null);
       setPreviewStatus('opening');
@@ -54,16 +60,13 @@ export function usePreviewSession({ previewTarget, previewSummary, t }: {
       // must use it rather than the origin root a previous reload left behind.
       setPreviewReloadNonce(0);
       try {
-        const previewMode = previewSummary?.mode === 'terminal' ||
-          (previewSummary?.availability !== 'available' && previewSummary?.terminalAvailable)
-          ? 'terminal' as const : 'app' as const;
         // `inFlight` is a REQUEST, never an assertion: a run that has
         // delivered gets its delivered preview back and the flag is ignored.
         // The client is not the one that decides which of the two this is.
         const answered =
           mode === 'claim'
             ? await api.openPreview(projectId, projectRunId, { generation: previewSummary?.generation })
-            : mode === 'open'
+            : mode === 'open' && !switchMode
             ? await api.openPreview(projectId, projectRunId, { inFlight: true, mode: previewMode })
             : await api.restartPreview(projectId, projectRunId, { inFlight: true, mode: previewMode });
         if (sequence !== requestSequence.current) return;
@@ -85,7 +88,7 @@ export function usePreviewSession({ previewTarget, previewSummary, t }: {
         });
       }
     },
-    [previewTarget, previewSummary?.generation, previewSummary?.mode, previewSummary?.availability, previewSummary?.terminalAvailable, queryClient, t]
+    [previewTarget, previewSummary?.generation, previewSummary?.mode, previewSummary?.state, queryClient, t]
   );
 
   const reloadPreview = useCallback(() => {
@@ -167,8 +170,14 @@ export function usePreviewSession({ previewTarget, previewSummary, t }: {
   useEffect(() => {
     if (!previewOpen || previewUrl || previewStatus !== 'idle') return;
     if (previewSummary?.state !== 'ready') return;
+    // Another member may have switched the shared generation's capability.
+    if ((previewSummary.mode ?? 'app') !== requestedMode.current) {
+      setPreviewStatus('error');
+      setPreviewError(t('preview.error.modeChanged'));
+      return;
+    }
     void requestPreview('claim');
-  }, [previewOpen, previewStatus, previewSummary?.state, previewUrl, requestPreview]);
+  }, [previewOpen, previewStatus, previewSummary?.state, previewUrl, requestPreview, t]);
 
   // A preview that stopped underneath the plane — idle expiry, a restart
   // elsewhere, an operator stop — takes its frame down with it rather than

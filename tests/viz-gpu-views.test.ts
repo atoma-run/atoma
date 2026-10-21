@@ -5737,7 +5737,7 @@ describe('the shared final result panel', () => {
         readyAt: null, expiresAt: null, errorCode: null, requestedHosts: [], allowedHosts: [], blockedHosts: [],
         terminalAvailable: true },
     }), 10, 100, width - 20, 600);
-    const button = ctx.buttons.find(button => button.id === 'run.preview.open');
+    const button = ctx.buttons.find(button => button.id === 'run.preview.terminal');
     expect(button).toBeDefined();
     expect(button!.x + button!.width).toBeLessThanOrEqual(width - 10);
   });

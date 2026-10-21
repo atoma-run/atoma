@@ -152,9 +152,40 @@ it('opens a historical CLI delivery in terminal mode and preserves that mode on 
   const { hook, publish } = fixture(stopped);
   const ready: VizPreviewSummary = { ...stopped, availability: 'available', reason: null, mode: 'terminal', state: 'ready', generation: 1 };
   const open = vi.spyOn(api, 'openPreview').mockImplementation(async () => { publish(ready); return { summary: ready, url: 'https://terminal.example/#claim' }; });
-  await act(async () => hook.result.current.requestPreview('open'));
+  await act(async () => hook.result.current.requestPreview('open', 'terminal'));
   expect(open).toHaveBeenCalledWith('project', 'run', { inFlight: true, mode: 'terminal' });
   const restart = vi.spyOn(api, 'restartPreview').mockImplementation(async () => ({ summary: ready, url: 'https://terminal.example/#new-claim' }));
   await act(async () => hook.result.current.requestPreview('restart'));
   expect(restart).toHaveBeenCalledWith('project', 'run', { inFlight: true, mode: 'terminal' });
+});
+
+
+it.each(['available', 'unavailable'] as const)('requests the app explicitly instead of falling back to a stopped terminal (%s)', async availability => {
+  const { hook } = fixture({ ...summary(1, 'stopped'), availability, mode: 'terminal', terminalAvailable: true });
+  const open = vi.spyOn(api, 'openPreview').mockRejectedValue(new Error('App unavailable'));
+  await act(async () => hook.result.current.requestPreview('open'));
+  expect(open).toHaveBeenCalledExactlyOnceWith('project', 'run', { inFlight: true, mode: 'app' });
+  expect(hook.result.current.previewError).toBe('App unavailable');
+});
+
+it('switches an existing terminal generation to the requested web app through restart', async () => {
+  const { hook, answer } = fixture({ ...summary(1), mode: 'terminal', terminalAvailable: true });
+  const open = vi.spyOn(api, 'openPreview');
+  const restart = vi.spyOn(api, 'restartPreview').mockImplementation(async () => answer(2));
+  await act(async () => hook.result.current.requestPreview('open', 'app'));
+  expect(open).not.toHaveBeenCalled();
+  expect(restart).toHaveBeenCalledExactlyOnceWith('project', 'run', { inFlight: true, mode: 'app' });
+  expect(hook.result.current.previewUrl).toContain('g2.');
+});
+
+
+it('does not join a terminal that another member substituted for the requested app', async () => {
+  const { hook, publish, answer } = fixture();
+  const open = vi.spyOn(api, 'openPreview').mockImplementation(async () => answer(1));
+  await act(async () => hook.result.current.requestPreview('open', 'app'));
+  act(() => publish({ ...summary(2), mode: 'terminal', terminalAvailable: true }));
+  await waitFor(() => expect(hook.result.current.previewStatus).toBe('error'));
+  expect(hook.result.current.previewUrl).toBeNull();
+  expect(hook.result.current.previewError).toBe('preview.error.modeChanged');
+  expect(open).toHaveBeenCalledTimes(1);
 });

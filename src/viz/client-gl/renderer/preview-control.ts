@@ -6,24 +6,22 @@ type PreviewControlState = Pick<VizPreviewSummary, 'state' | 'availability' | 'm
 
 /** One label decision for the canvas and its accessible mirror. */
 export function previewControlLabel(preview: PreviewControlState | null | undefined): string | null {
-  if (!preview || (preview.availability !== 'available' && !preview.terminalAvailable)) return null;
-  if (preview.state === 'starting') return 'preview.starting';
-  if (preview.state === 'failed') return 'preview.retry';
-  if (preview.state === 'ready') return 'preview.open';
-  return preview.mode === 'terminal' || preview.availability !== 'available' ? 'preview.terminal.start' : 'preview.start';
+  if (!preview || preview.availability !== 'available') return null;
+  return 'preview.app';
 }
 
-/**
- * The preview's controls in order — open (or start, retry), then stop once it
- * is ready — for every surface that draws them, so none decides alone.
- */
-export function previewActions(snapshot: GpuRenderSnapshot): { id: string; label: string; active: boolean }[] {
-  const preview = snapshot.data.preview;
-  const labelKey = previewControlLabel(preview);
-  if (!preview || !labelKey) return [];
-  const actions = [{ id: 'run.preview.open', label: snapshot.t(labelKey), active: preview.state === 'starting' }];
-  if (preview.state === 'ready') actions.push({ id: 'run.preview.stop', label: snapshot.t('preview.stop'), active: false });
+/** Explicit capabilities; a terminal never substitutes for an application. */
+export function previewActionsFor(preview: PreviewControlState | null | undefined, t: (key: string) => string): { id: string; label: string; active: boolean }[] {
+  if (!preview) return [];
+  const actions = [];
+  if (previewControlLabel(preview)) actions.push({ id: 'run.preview.open', label: t('preview.app'), active: preview.state === 'starting' && preview.mode !== 'terminal' });
+  if (preview.terminalAvailable) actions.push({ id: 'run.preview.terminal', label: t('preview.terminal.start'), active: preview.state === 'starting' && preview.mode === 'terminal' });
+  if (actions.length && preview.state === 'ready') actions.push({ id: 'run.preview.stop', label: t('preview.stop'), active: false });
   return actions;
+}
+
+export function previewActions(snapshot: GpuRenderSnapshot): { id: string; label: string; active: boolean }[] {
+  return previewActionsFor(snapshot.data.preview, snapshot.t);
 }
 
 /**
@@ -51,50 +49,19 @@ export function drawPreviewControl(
   y: number,
   width: number
 ): number {
-  // Web descriptors and terminal capability are separate, host-owned facts.
-  const [open, stop] = previewActions(snapshot);
-  if (!open) return 0;
-
-  const height = 30;
-  const label = open.label;
+  const actions = previewActions(snapshot);
+  if (!actions.length) return 0;
   const availableWidth = Math.max(0, width - 20);
-  const gap = 8;
-  const stopLabel = stop?.label ?? '';
-  const openMinWidth = Math.ceil(ctx.measureText(label, {
-    size: 11, weight: open.active ? '700' : '600',
-  })) + 20 + BUTTON_ICON_SPACE;
-  const stopWidth = Math.ceil(ctx.measureText(stopLabel, { size: 11, weight: '600' })) + 20 + BUTTON_ICON_SPACE;
-  const showStop = !!stop;
-  const stacked = showStop && openMinWidth + gap + stopWidth > availableWidth;
-  const openWidth = Math.min(
-    openMinWidth,
-    availableWidth - (showStop && !stacked ? stopWidth + gap : 0)
-  );
-  ctx.button(
-    ctx.root,
-    'run.preview.open',
-    'button',
-    label,
-    x + 10,
-    y,
-    openWidth,
-    height,
-    open.active,
-    snapshot.onActivate
-  );
-  if (showStop) {
-    ctx.button(
-      ctx.root,
-      'run.preview.stop',
-      'button',
-      stopLabel,
-      x + 10 + (stacked ? 0 : openWidth + gap),
-      y + (stacked ? height + gap : 0),
-      Math.min(stopWidth, availableWidth),
-      height,
-      false,
-      snapshot.onActivate
-    );
+  const height = 30, gap = 8;
+  let cursorX = 0, cursorY = 0;
+  for (const action of actions) {
+    const buttonWidth = Math.min(availableWidth, Math.ceil(ctx.measureText(action.label, {
+      size: 11, weight: action.active ? '700' : '600',
+    })) + 20 + BUTTON_ICON_SPACE);
+    if (cursorX && cursorX + buttonWidth > availableWidth) { cursorX = 0; cursorY += height + gap; }
+    ctx.button(ctx.root, action.id, 'button', action.label, x + 10 + cursorX, y + cursorY,
+      buttonWidth, height, action.active, snapshot.onActivate);
+    cursorX += buttonWidth + gap;
   }
-  return height + 12 + (stacked ? height + gap : 0);
+  return cursorY + height + 12;
 }

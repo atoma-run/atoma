@@ -1,3 +1,4 @@
+import { PreviewRuntimeError } from './runtime.js';
 import type { RemotePreviewRuntime } from './computeController.js';
 import type { ComputeDeviceStore } from '../projects/computeDevices.js';
 import type { ProjectStore } from '../projects/store.js';
@@ -16,7 +17,7 @@ export class ExecutorComputePreview implements RemotePreviewRuntime {
     const run = this.projects.getProjectRun(input.orgId, input.runId);
     const session = run?.executionTarget.kind === 'customer-device' && this.devices.currentSession(run.executionTarget.deviceId);
     const socket = session && computeExecutor(this.dbPath, session);
-    if (!socket) throw new Error('Compute preview device unavailable');
+    if (!socket) throw new PreviewRuntimeError('compute-unavailable', 'Reconnect Atoma Compute on the computer that built this result, then retry the preview.');
     const result = await callExecutor<{ streamId: string; imageDigest: string; runtime: 'runc' }>(socket,
       { method: 'preview-start', input: { ...input, allowedHosts: [...input.allowedHosts] } });
     this.sockets.set(`${input.orgId}:${input.runId}:${input.generation}`, socket);

@@ -2,7 +2,7 @@ import { PlatformStatsAccessible } from './PlatformStatsAccessible.js';
 import { ProjectSettingsAccessible } from './ProjectSettingsAccessible.js';
 import { ButtonIcon } from './ButtonIcon.js';
 import { WELCOME_LEGAL_LINKS } from './legal-links.js';
-import { previewControlLabel } from './renderer/preview-control.js';
+import { previewActionsFor } from './renderer/preview-control.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
 import { ProjectOverviewAccessible } from './ProjectOverviewAccessible.js';
@@ -582,20 +582,14 @@ export function DomBridge({
           </section>) : null}
         {view === 'projects' && selectedProjectId && projectSection === 'files' && workspaceRunId ?
           <WorkspaceAccessible data={workspace} t={t} onActivate={onActivate} /> : null}
-        {(view === 'runs' || (view === 'projects' && selectedProjectId && (resultRunId || projectSection === 'preview'))) && preview && previewControlLabel(preview) && onActivate ? (
+        {(view === 'runs' || (view === 'projects' && selectedProjectId && (resultRunId || projectSection === 'preview'))) && onActivate ? (
           <section aria-label={t('preview.region')}>
-            <button
-              type="button"
-              onClick={() => onActivate('run.preview.open')}
-              disabled={preview.state === 'starting'}
-            ><ButtonIcon kind="eye" />
-              {t(previewControlLabel(preview)!)}
-            </button>
-            {preview.state === 'ready' && (view === 'runs' || resultRunId) ? (
-              <button type="button" onClick={() => onActivate('run.preview.stop')}><ButtonIcon kind="stop" />
-                {t('preview.stop')}
+            {previewActionsFor(preview, t).map(action => (
+              <button key={action.id} type="button" onClick={() => onActivate(action.id)} disabled={action.active}>
+                <ButtonIcon kind={action.id === 'run.preview.stop' ? 'stop' : action.id === 'run.preview.terminal' ? 'terminal' : 'eye'} />
+                {action.label}
               </button>
-            ) : null}
+            ))}
           </section>
         ) : null}
         {view === 'runs' && run ? (() => {

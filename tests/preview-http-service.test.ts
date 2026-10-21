@@ -1,3 +1,7 @@
+import { callExecutor, serveExecutor } from '../src/projects/executorTransport.js';
+import type { RemotePreviewRuntime } from '../src/preview/computeController.js';
+import { ExecutorComputePreview } from '../src/preview/executorCompute.js';
+import { ComputeDeviceStore } from '../src/projects/computeDevices.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
@@ -897,4 +901,55 @@ it('uses the remote preview destination without touching the host workspace and 
   if (redeemed.ok) expect(claims.authorise(redeemed.token, { orgId: a.orgId, projectRunId: runId, generation, host: url.hostname })).toBeNull();
   await service.stop(viewerFor(a), projectId, runId);
   expect(previews.getInstance(a.orgId, runId)?.state).toBe('failed');
+});
+
+
+it('persists an actionable Compute failure through the real executor preview and HTTP service', async () => {
+  const a = actor('disconnected-preview'), projectId = seedProject(a, 'disconnected-preview');
+  const runId = seedDeliveredRun(a, projectId, 'disconnected-preview');
+  const run = projects.getProjectRun(a.orgId, runId)!;
+  vi.spyOn(projects, 'getProjectRun').mockReturnValue({ ...run, executionTarget: { kind: 'customer-device', deviceId: randomUUID() } });
+  const devices = new ComputeDeviceStore(db, { appVersions: new Set(), imageDigests: new Set() });
+  vi.spyOn(devices, 'currentSession').mockReturnValue(undefined);
+  const remote = new ExecutorComputePreview(join(root, 'unused.db'), projects, devices);
+  const hostCopy = vi.fn(() => { throw new Error('Must not copy a remote workspace'); });
+  const manager = new PreviewManager({ store: previews, launcher: new WorkspaceOnlyLauncher(join(root, 'copies')),
+    routes: new PreviewRouteTable(), claims, config, workspaceOf: hostCopy, remote, probe: async () => { throw new Error('No host probe'); } });
+  const service = new PreviewHttpService({ manager, store: previews, projects });
+  await expect(service.open(viewerFor(a), projectId, runId, { mode: 'app' })).rejects.toMatchObject({
+    status: 409, message: expect.stringContaining('Reconnect Atoma Compute'),
+  });
+  expect(previews.getInstance(a.orgId, runId)).toMatchObject({ state: 'failed', errorCode: 'compute-unavailable' });
+  expect(hostCopy).not.toHaveBeenCalled();
+});
+
+
+it('opens a delivered preview across the strict executor transport with classification only', async () => {
+  const a = actor('preview-rpc'), projectId = seedProject(a, 'preview-rpc');
+  const runId = seedDeliveredRun(a, projectId, 'preview-rpc');
+  const socketRoot = mkdtempSync('/tmp/preview-rpc-'), socket = join(socketRoot, 'executor.sock');
+  const dispatch = vi.fn(async () => ({ imageDigest: `sha256:${'a'.repeat(64)}`, runtime: 'runc' as const }));
+  const server = await serveExecutor(socket, dispatch);
+  try {
+    const remote: RemotePreviewRuntime = { owns: () => true, stop: async () => {},
+      start: async input => {
+        const result = await callExecutor<{ imageDigest: string; runtime: 'runc' }>(socket, {
+          method: 'preview-start', input: { ...input, allowedHosts: [...input.allowedHosts] },
+        });
+        return { ...result, connect: async () => { throw new Error('No browser stream needed'); } };
+      } };
+    const manager = new PreviewManager({ store: previews, launcher: new WorkspaceOnlyLauncher(join(root, 'copies')),
+      routes: new PreviewRouteTable(), claims, config, workspaceOf: () => { throw new Error('No host workspace'); },
+      remote, probe: async () => { throw new Error('No host probe'); } });
+    const service = new PreviewHttpService({ manager, store: previews, projects });
+    const opened = await service.open(viewerFor(a), projectId, runId, { mode: 'app' });
+    expect(opened.body.summary.state).toBe('ready');
+    expect(dispatch).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ method: 'preview-start', input: expect.objectContaining({
+      classification: { availability: 'available', kind: 'static', entry: null, unavailableReason: null },
+    }) }));
+    await service.stop(viewerFor(a), projectId, runId);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    rmSync(socketRoot, { recursive: true, force: true });
+  }
 });

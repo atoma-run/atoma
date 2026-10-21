@@ -258,6 +258,7 @@ export const previewErrorCodeSchema = z.enum([
   'server-exited',
   'wrong-port',
   'runtime-unavailable',
+  'compute-unavailable',
   'launcher-unavailable',
   'image-unavailable',
   'gateway-unavailable',

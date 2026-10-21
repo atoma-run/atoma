@@ -643,8 +643,12 @@ export class PreviewManager {
   }
 
   private async startRemote(input: PreviewOpenInput, generation: number, source: 'delivered' | 'in-flight', allowedHosts: readonly string[]): Promise<void> {
+    const descriptor = source === 'delivered' ? this.deps.store.getDescriptor(input.orgId, input.projectRunId) : null;
+    // The strict executor contract carries classification, never a storage row.
+    const classification = descriptor ? { availability: descriptor.availability, kind: descriptor.kind,
+      entry: descriptor.entry, unavailableReason: descriptor.unavailableReason } : undefined;
     const running = await this.deps.remote!.start({ orgId: input.orgId, projectId: input.projectId, runId: input.projectRunId,
-      ...(source === 'delivered' ? { classification: this.deps.store.getDescriptor(input.orgId, input.projectRunId) ?? undefined } : {}),
+      ...(classification ? { classification } : {}),
       generation, source, mode: input.mode ?? 'app', allowedHosts, copyMaxBytes: this.deps.config.copyMaxBytes,
       attribution: this.deps.attribution?.(input.orgId) ?? true, hardMs: this.deps.config.hardMs });
     const host = `${previewGenerationHost(input.orgId, input.projectRunId, generation)}.${this.deps.config.domain}`;

@@ -262,7 +262,7 @@ describe('the preview control mirrored for the keyboard', () => {
     const onActivate = vi.fn();
     render(bridge({ state: 'ready', availability: 'available' }, onActivate));
 
-    await userEvent.click(screen.getByRole('button', { name: t('preview.open') }));
+    await userEvent.click(screen.getByRole('button', { name: t('preview.app') }));
     expect(onActivate).toHaveBeenCalledWith('run.preview.open');
 
     await userEvent.click(screen.getByRole('button', { name: t('preview.stop') }));
@@ -282,7 +282,7 @@ describe('the preview control mirrored for the keyboard', () => {
     const onActivate = vi.fn();
     render(bridge({ state: 'stopped', availability: 'unavailable', terminalAvailable: true }, onActivate));
     await userEvent.click(screen.getByRole('button', { name: t('preview.terminal.start') }));
-    expect(onActivate).toHaveBeenCalledWith('run.preview.open');
+    expect(onActivate).toHaveBeenCalledWith('run.preview.terminal');
   });
 
   it.each(['runs', 'files'] as const)('offers the preview tab between Runs and Files from the project %s section', async (projectSection) => {
@@ -297,4 +297,21 @@ describe('the preview control mirrored for the keyboard', () => {
     expect(screen.queryByRole('button', { name: t('preview.app') })).toBeNull();
     expect(useGpuStore.getState().projectSection).toBe(projectSection);
   });
+});
+
+
+it('keeps app and terminal actions separate even after a terminal was used', async () => {
+  useGpuStore.setState({ view: 'runs' });
+  const onActivate = vi.fn();
+  render(createElement(DomBridge, { runs: [], releaseVersion: 'test', views: ['runs'], onSelectRun: vi.fn(), onActivate, t,
+    preview: { availability: 'available', state: 'stopped', mode: 'terminal', terminalAvailable: true } }));
+  await userEvent.click(screen.getByRole('button', { name: t('preview.app') }));
+  expect(onActivate).toHaveBeenLastCalledWith('run.preview.open');
+  await userEvent.click(screen.getByRole('button', { name: t('preview.terminal.start') }));
+  expect(onActivate).toHaveBeenLastCalledWith('run.preview.terminal');
+});
+
+it('explains a disconnected Compute instead of a generic failed preview', () => {
+  render(plane({ summary: summary({ state: 'failed', errorCode: 'compute-unavailable' }), url: null }));
+  expect(screen.getAllByText(t('preview.error.computeUnavailable')).length).toBeGreaterThan(0);
 });
