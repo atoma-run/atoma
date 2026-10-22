@@ -33,6 +33,11 @@ const handler = new ComputeHttp({ devices, origin: new URL(origin), proxies: { a
 } });
 let submittedOrigin;
 server.on('request', (req, res) => {
+  if (req.url === '/guides/compute/macos-unverified-app.png' || req.url === '/guides/compute/macos-open-anyway.png') {
+    res.writeHead(200, { 'content-type': 'image/png' });
+    res.end(readFileSync(new URL(`../dist/viz/client${req.url}`, import.meta.url)));
+    return;
+  }
   if (req.method === 'POST') submittedOrigin = req.headers.origin;
   void handler.handle(req, res, new URL(req.url, origin)).then(handled => { if (!handled) res.writeHead(404).end(); })
     .catch(() => res.writeHead(500).end('Unexpected failure'));
@@ -86,6 +91,21 @@ try {
   if (COMPUTE_DESKTOP_AVAILABLE) assert.ok(await page.$eval('a.download', node => node.href.endsWith('win-x64.exe')));
   await page.goto(`${origin}/compute/setup?os=mac-arm64`);
   if (COMPUTE_DESKTOP_AVAILABLE) assert.ok(await page.$eval('a.download', node => node.href.endsWith('mac-arm64.dmg')));
+  for (const width of [1366, 375]) {
+    await page.setViewport({ width, height: 812 });
+    await page.goto(`${origin}/compute/setup?os=mac-arm64`);
+    const screenshots = await page.$$('figure img');
+    assert.equal(screenshots.length, 2, 'Mac beta guide includes both screenshots');
+    for (const screenshot of screenshots) {
+      await screenshot.scrollIntoView();
+      await page.waitForFunction(image => image.complete && image.naturalWidth > 0, {}, screenshot);
+    }
+    assert.ok(await page.evaluate(() => [...document.images].every(image => image.alt.length > 0)), 'Screenshots have text alternatives');
+    assert.ok(await page.evaluate(width => document.documentElement.scrollWidth <= width, width), 'Illustrated guide fits the screen');
+    if (process.env.ATOMA_COMPUTE_SCREENSHOTS) await page.screenshot({ path: join(process.env.ATOMA_COMPUTE_SCREENSHOTS, `setup-mac-beta-${width}.png`), fullPage: true });
+  }
+  await page.goto(`${origin}/compute/setup?os=windows-x64`);
+  assert.equal(await page.$('#mac-beta-title'), null, 'Windows does not show macOS instructions');
   await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
   await page.goto(`${origin}/compute/setup`);
   assert.equal(await page.$('a.download'), null, 'Mac UA does not guess the physical chip');

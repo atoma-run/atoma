@@ -17,6 +17,40 @@ window keeps it running in the menu bar/system tray. Quitting stops local work;
 it waits for engine confirmation and refuses to claim success when Docker cannot
 confirm teardown. A disconnected run requires explicit recovery in Atoma.
 
+## Installing the unsigned macOS beta
+
+**Atoma Compute is not yet signed with an Apple Developer ID certificate or
+notarized by Apple.** macOS may block its first launch. Download the beta only
+from [Atoma’s installation page](https://atoma.run/compute/setup), choosing
+Apple Silicon or Intel to match your Mac. Approve an exception only if you trust
+the download; it does not mean Apple has verified the app.
+
+1. Open the `.dmg`, drag Atoma Compute to **Applications**, and open it there.
+2. If macOS cannot verify the app, dismiss the alert with **Done** or **Cancel**.
+   Do not choose **Move to Trash**.
+3. Open **System Settings → Privacy & Security**, scroll to **Security**, and
+   choose **Open Anyway** beside **Atoma Compute**.
+4. Authenticate if requested and confirm **Open**.
+
+These are Apple’s example screenshots, showing “Example App”. Look for
+**Atoma Compute** on your Mac; wording varies by macOS version and language.
+Click either screenshot to inspect it at full size.
+
+![Apple example of an unverified app blocked at first launch](../src/viz/public/guides/compute/macos-unverified-app.png)
+
+![Apple example of Privacy & Security with the Open Anyway button](../src/viz/public/guides/compute/macos-open-anyway.png)
+
+Source: [Apple Support — Safely open apps on your Mac](https://support.apple.com/102445).
+
+If **Open Anyway** is missing, try launching the app again before returning to
+settings. A managed Mac may require your administrator’s approval. Stop if macOS
+reports malware or says the app will damage your computer. For a damaged-app
+warning, download again from Atoma and contact support if it persists. Do not
+disable Gatekeeper or remove quarantine protection with Terminal commands.
+
+Beta updates require a manual download and installation; macOS may ask for
+approval again. Once the app opens, continue with Docker setup and account pairing.
+
 ## Resource limits
 
 Resources shows Docker's available capacity separately from Atoma's assigned

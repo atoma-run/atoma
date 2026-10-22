@@ -2373,7 +2373,7 @@
   "compute.setup.unknownSystem": "请选择要安装 Atoma Compute 的计算机。",
   "compute.setup.detectedSystem": "我们已根据你的浏览器选择了系统。你可以在下方选择其他计算机。",
   "compute.setup.downloadApp": "下载 Atoma Compute",
-  "compute.setup.previewNotice": "安装前请查看当前版本详情。未签名的预览版可能需要获得 macOS 或 Windows 的额外批准。",
+  "compute.setup.previewNotice": "",
   "compute.setup.releaseDetails": "版本详情",
   "compute.setup.nextSteps": "下载后",
   "compute.setup.windowsInstall": "打开安装程序，然后从“开始”菜单打开 Atoma Compute。",

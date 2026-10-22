@@ -2373,7 +2373,7 @@
   "compute.setup.unknownSystem": "Выберите компьютер, на который будет установлен Atoma Compute.",
   "compute.setup.detectedSystem": "Мы выбрали систему на основе данных браузера. Ниже можно выбрать другой компьютер.",
   "compute.setup.downloadApp": "Скачать Atoma Compute",
-  "compute.setup.previewNotice": "Перед установкой ознакомьтесь с информацией о текущем выпуске. Для неподписанных предварительных версий может потребоваться дополнительное разрешение от macOS или Windows.",
+  "compute.setup.previewNotice": "",
   "compute.setup.releaseDetails": "Сведения о выпуске",
   "compute.setup.nextSteps": "После скачивания",
   "compute.setup.windowsInstall": "Откройте установщик, а затем запустите Atoma Compute из меню «Пуск».",

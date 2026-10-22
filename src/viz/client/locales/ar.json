@@ -2373,7 +2373,7 @@
   "compute.setup.unknownSystem": "اختر جهاز الكمبيوتر الذي ستثبّت عليه Atoma Compute.",
   "compute.setup.detectedSystem": "اخترنا نظامًا استنادًا إلى متصفحك. يمكنك اختيار جهاز كمبيوتر مختلف أدناه.",
   "compute.setup.downloadApp": "تنزيل Atoma Compute",
-  "compute.setup.previewNotice": "تحقق من تفاصيل الإصدار الحالي قبل التثبيت. قد تتطلب الإصدارات التجريبية غير الموقعة موافقة إضافية من macOS أو Windows.",
+  "compute.setup.previewNotice": "",
   "compute.setup.releaseDetails": "تفاصيل الإصدار",
   "compute.setup.nextSteps": "بعد التنزيل",
   "compute.setup.windowsInstall": "افتح أداة التثبيت، ثم افتح Atoma Compute من قائمة «ابدأ».",
