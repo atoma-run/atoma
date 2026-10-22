@@ -23,24 +23,27 @@ function refreshTray(): void {
 }
 function createTrayIcons(): NonNullable<typeof trayIcons> {
   const source = nativeImage.createFromPath(join(root, 'icon.png'));
-  const ready = nativeImage.createEmpty();
-  for (const scaleFactor of [1, 2]) {
-    const size = 20 * scaleFactor;
-    const bitmap = source.resize({ width: size, height: size }).toBitmap();
-    // NativeImage bitmaps use BGRA. A dark rim keeps the green badge distinct on light menus.
-    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-      const distance = Math.hypot((x + 0.5) / scaleFactor - 16, (y + 0.5) / scaleFactor - 16);
-      const coverage = Math.max(0, Math.min(1, (3.5 - distance) * scaleFactor));
-      if (!coverage) continue;
-      const color = distance < 2.5 ? [94, 197, 34] : [38, 23, 13];
-      const offset = (y * size + x) * 4;
-      for (let channel = 0; channel < 3; channel++) bitmap[offset + channel] = Math.round(color[channel]! * coverage + bitmap[offset + channel]! * (1 - coverage));
-      bitmap[offset + 3] = Math.round(255 * coverage + bitmap[offset + 3]! * (1 - coverage));
+  const createBadge = (fill: readonly number[]): Electron.NativeImage => {
+    const icon = nativeImage.createEmpty();
+    for (const scaleFactor of [1, 2]) {
+      const size = 20 * scaleFactor;
+      const bitmap = source.resize({ width: size, height: size }).toBitmap();
+      // NativeImage bitmaps use BGRA. A dark rim keeps both badge colors distinct on light menus.
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+        const distance = Math.hypot((x + 0.5) / scaleFactor - 16, (y + 0.5) / scaleFactor - 16);
+        const coverage = Math.max(0, Math.min(1, (3.5 - distance) * scaleFactor));
+        if (!coverage) continue;
+        const color = distance < 2.5 ? fill : [38, 23, 13];
+        const offset = (y * size + x) * 4;
+        for (let channel = 0; channel < 3; channel++) bitmap[offset + channel] = Math.round(color[channel]! * coverage + bitmap[offset + channel]! * (1 - coverage));
+        bitmap[offset + 3] = Math.round(255 * coverage + bitmap[offset + 3]! * (1 - coverage));
+      }
+      const image = nativeImage.createFromBitmap(bitmap, { width: size, height: size });
+      icon.addRepresentation({ scaleFactor, buffer: image.toPNG() });
     }
-    const image = nativeImage.createFromBitmap(bitmap, { width: size, height: size });
-    ready.addRepresentation({ scaleFactor, buffer: image.toPNG() });
-  }
-  return { idle: source.resize({ width: 20, height: 20 }), ready };
+    return icon;
+  };
+  return { idle: createBadge([156, 163, 175]), ready: createBadge([94, 197, 34]) };
 }
 let worker: Electron.UtilityProcess;
 let workerAlive = false;
