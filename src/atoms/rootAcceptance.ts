@@ -236,7 +236,7 @@ function acceptedEvidence(evidence: readonly Witness[] | undefined, stale: Reado
 }
 
 /**
- * What the refused pass observed that still holds: its browser observations
+ * What the refused pass observed: historical execution receipts and browser observations
  * of a document whose bytes are unchanged. An attestation lives as long as
  * the bytes it was made against (src/run/AGENTS.md), and `stale` marks only
  * restored executions, so a first-pass observation of a page the remediation
@@ -252,6 +252,19 @@ async function carriedEvidence(
   const already = new Set((current ?? []).flatMap((witness) =>
     witness.source === 'transport-observed' ? [witness.eventId] : []));
   const carried: Witness[] = [];
+  // Commands have no document digest. Keep their observed outcomes as history,
+  // never as current proof. Include the execution suffix (including discarded
+  // branches) so later failures, writes and restarts cannot disappear beside a
+  // retained success. Only host records from this attempt survive this boundary.
+  const previousIds = new Set((previous ?? []).flatMap(witness =>
+    witness.source === 'transport-observed' ? [witness.eventId] : []));
+  let inHistory = false;
+  for (const record of recordsById.values()) {
+    if (previousIds.has(record.eventId)) inHistory = true;
+    if (!inHistory || record.observation.kind !== 'execution' || already.has(record.eventId)) continue;
+    carried.push({ source: 'transport-observed', eventId: record.eventId,
+      tool: record.tool, observed: renderObservation(record) });
+  }
   for (const witness of previous ?? []) {
     if (witness.source !== 'transport-observed' || already.has(witness.eventId)) continue;
     const observation = recordsById.get(witness.eventId)?.observation;
@@ -482,6 +495,10 @@ async function acceptRootResultInternal(args: {
   // edited the same file. Re-render those reads from host-held records.
   const passEvidence = [...await carriedEvidence(args.previousEvidence, result.evidence, recordsById, digest),
     ...(result.evidence ?? [])];
+  const recordOrder = new Map(records.map((record, index) => [record.eventId, index]));
+  passEvidence.sort((left, right) =>
+    (left.source === 'transport-observed' ? recordOrder.get(left.eventId) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER) -
+    (right.source === 'transport-observed' ? recordOrder.get(right.eventId) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER));
   const evidence = acceptedEvidence(passEvidence.length > 0 ? passEvidence : undefined, stale)?.map((witness) => {
     if (witness.source !== 'transport-observed') return witness;
     const rewritten = superseded.get(witness.eventId);
@@ -541,6 +558,23 @@ async function acceptRootResultInternal(args: {
   // A criterion need not spell a filename for an incomplete read to refresh.
   const reviewing = review && !gates.rejection;
   const transport = renderTransportEvidence(evidence);
+  // Preserve the mutation inventory independently of read/command excerpt
+  // selection. These are observed calls, not a claim that all state is known.
+  const changes = args.previousEvidence ? renderTransportEvidence(evidence?.filter(witness =>
+    witness.source === 'transport-observed' && (witness.tool === 'write_file' || witness.tool === 'edit_file'))) : undefined;
+  const changeLines: string[] = [];
+  let changeChars = 0;
+  for (const line of changes?.lines ?? []) {
+    if (changeChars + line.length > 6000) break;
+    changeLines.push(line);
+    changeChars += line.length;
+  }
+  const remediationChanges = changes && changes.lines.length + changes.omitted > 0 ? [
+    '== REMEDIATION FILE CHANGES (historical observed calls) ==',
+    'Earlier commands are not fresh executions. Judge whether later changes affect their assertions; unknown inputs or environment remain unverified. Do not repeat checks solely because the final report omitted their receipts.',
+    ...changeLines,
+    `${changes.omitted + changes.lines.length - changeLines.length} change observations omitted; this inventory does not describe unobserved shell or external side effects.`,
+  ].join('\n') : '';
   const namedFilesBlock = reviewing ? await criteriaFilesBlock(ctx, judgementsAsked ? checklist : [],
     [...new Set(fileReadsNeedingReadback(records, transport.eventIds).values())], task.description, ROOT_CRITERIA_SOURCE_CHARS,
     commandTestScripts(records)) : '';
@@ -584,6 +618,7 @@ async function acceptRootResultInternal(args: {
       (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : '') + (inputsBlock ? `\n\n${inputsBlock}` : '') +
       (namedFilesBlock ? `\n\n${namedFilesBlock}` : '') + (startingBlock ? `\n\n${startingBlock}` : '') +
       (readRunsBlock ? `\n\n${readRunsBlock}` : '') +
+      (remediationChanges ? `\n\n${remediationChanges}` : '') +
       (restorationsBlock ? `\n\n${restorationsBlock}` : '') + (inheritedBlock ? `\n\n${inheritedBlock}` : '') +
       (reconciliation ? `\n\n${reconciliation}` : ''),
     // A budget landing usually reaches here through a validation call, because
@@ -607,7 +642,7 @@ async function acceptRootResultInternal(args: {
   const focused = reviewing && userCriteria && !landed && args.delivery !== 'text'
     ? await reviewAcceptanceCriteria({ ctx, task, checklist,
       evidence: [probe.block, namedFilesBlock, checklistBlock, layoutsBlock, inputsBlock, startingBlock, readRunsBlock, restorationsBlock,
-        inheritedBlock, parentTestsBlock, renderResultGateFindings(gates.reviewFindings),
+        inheritedBlock, parentTestsBlock, remediationChanges, renderResultGateFindings(gates.reviewFindings),
         [`Transport observations: ${transport.omitted} omitted; omissions establish no coverage.`, ...transport.lines]
           .join('\n')].filter(Boolean).join('\n\n') }) : undefined;
   let judged = focused ? judgeCoverage(coverage, focused.criteria) : initialJudged;

@@ -65,6 +65,86 @@ class Actor extends Atom implements Supervisor<Actor> {
 function context(executor = new Executor()) {
   return { ...makeCtx(), tools: executor, attempt: 1, attestations: createAttestationLog() };
 }
+
+describe('command evidence across root remediation', () => {
+  it.each(['README.md', 'collector.ts', 'failed command'])('reviews earlier commands beside the remediation: %s', async (scenario) => {
+    const changedPath = scenario === 'collector.ts' ? scenario : 'README.md';
+    const calls: string[] = [];
+    const tools: ToolExecutor = {
+      has: name => ['run_shell', 'edit_file', 'read_file'].includes(name),
+      execute: async (name) => {
+        calls.push(name);
+        if (name === 'run_shell') return calls.filter(call => call === 'run_shell').length > 3
+          ? { exitCode: 1, stdout: 'LATER_COMMAND_FAILED' }
+          : { exitCode: 0, stdout: 'Chromium: 10 passed, 0 skipped; cleanup complete' };
+        if (name === 'read_file') return { content: 'current source' };
+        return { ok: true };
+      },
+    };
+    const ctx = { ...makeCtx(), tools, attempt: 1, attestations: createAttestationLog() };
+    const checklist = [{ id: 'c1', behaviour: 'The offline browser suite passes with no skipped cases.', check: { kind: 'review' as const } }];
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'Document the command timeout.', criteria: [{ id: 'c1', met: true, reason: 'Observed suite passed.' }] }));
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'Observed suite passed.', criteria: [{ id: 'c1', met: true, reason: 'Observed suite passed.' }] }));
+    const approved = scenario === 'README.md';
+    for (let review = 0; review < 2; review++) ctx.llm.enqueue(req => {
+      expect(req.userContent).toContain('Chromium: 10 passed, 0 skipped; cleanup complete');
+      expect(req.userContent).toContain('npm run test:browser');
+      expect(req.userContent).toContain('npm run typecheck');
+      expect(req.userContent).toContain('npm run lint');
+      expect(req.userContent).toContain('REMEDIATION FILE CHANGES');
+      expect(req.userContent).toContain(changedPath);
+      if (scenario === 'failed command') expect(req.userContent).toContain('LATER_COMMAND_FAILED');
+      expect(req.userContent).not.toContain('UNOBSERVED_DECLARATION');
+      expect(req.userContent).toContain('historical');
+      return { text: jsonText({ approved, reasoning: approved ? 'Documentation changed; observed checks remain applicable.' : 'Collector changed after the checks; its behavior is unverified.',
+        criteria: [{ id: 'c1', met: approved, reason: approved ? 'Earlier execution and later documentation edit observed.' : 'Production source changed after execution.' }] }),
+        stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    let pass = 0;
+    const out = await runDepthTask({ mode: 'short', task: { description: 'Complete offline browser validation and instructions.' },
+      ctx, floor: [], checklist, checklistOrigin: { source: 'user' }, restart: vi.fn(), onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor: new Actor(3, false, []), handle: async (_task, passCtx) => {
+        const branch = forkBranch(passCtx, `pass-${++pass}`);
+        if (pass === 1) {
+          for (const command of ['npm run test:browser', 'npm run typecheck', 'npm run lint']) {
+            await branch.tools!.execute('run_shell', { command });
+          }
+          return { ...result, evidence: [...executorEvidence({}, branch),
+            { source: 'recorded-probe', cmd: 'UNOBSERVED_DECLARATION', exitCode: 0 }] };
+        }
+        await branch.tools!.execute('edit_file', { path: changedPath, old_string: 'old', new_string: 'new' });
+        if (scenario === 'failed command') {
+          // An abandoned branch is absent from the delivered Result. Its
+          // failure still has to be visible beside the earlier success.
+          await forkBranch(passCtx, 'abandoned-check').tools!.execute('run_shell', { command: 'npm run test:browser' });
+        }
+        return { ...result, summary: 'Edited the requested file.', evidence: executorEvidence({}, branch) };
+      } }),
+    });
+    expect(pass).toBe(2);
+    expect(calls.filter(name => name === 'run_shell')).toHaveLength(scenario === 'failed command' ? 4 : 3);
+    expect(ctx.llm.calls).toHaveLength(4);
+    expect(Boolean(out.refusal)).toBe(!approved);
+  });
+
+  it.each(['different attempt', 'unknown id'])('does not carry command claims from %s', async (scenario) => {
+    const base: ToolExecutor = {
+      has: name => name === 'run_shell',
+      execute: async () => ({ exitCode: 0, stdout: 'OLD_COMMAND_RECEIPT' }),
+    };
+    const ctx = { ...makeCtx(), tools: base, attempt: 1, attestations: createAttestationLog() };
+    const first = forkBranch(ctx, 'earlier');
+    await first.tools!.execute('run_shell', { command: 'npm run test:browser' });
+    const previousEvidence = executorEvidence({}, first).map(witness => witness.source === 'transport-observed'
+      ? { ...witness, eventId: scenario === 'unknown id' ? 'forged-id' : witness.eventId, observed: 'FORGED_RECEIPT' } : witness);
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'No applicable receipt.' }));
+    await acceptRootResult({ actor: new Actor(3, false, []), task, result, floor: [], phaseCoverage: [], previousEvidence,
+      ctx: { ...ctx, attempt: scenario === 'different attempt' ? 2 : 1 } });
+    const prompt = ctx.llm.calls[0]!.userContent;
+    expect(prompt).not.toContain('OLD_COMMAND_RECEIPT');
+    expect(prompt).not.toContain('FORGED_RECEIPT');
+  });
+});
 async function observe(ctx: RunContext, branch = 'descendant', path = 'index.html') {
   const fork = forkBranch(forkBranch(ctx, 'ancestor'), branch);
   await fork.tools!.execute('validate_html', { path });

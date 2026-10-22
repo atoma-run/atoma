@@ -430,7 +430,7 @@ load-bearing.
   browser validation; HTTP APIs use node server plus fetch; CLI/files use shell
   execution plus read-back. Do not force every artefact through HTML tooling.
 - Recorded probes support cross-checking; non-zero exits alone are not errors. Only explicit `match:false` or unequal expected/actual values are mechanical contradictions.
-- Reporting gaps first use recorded results and actual assertions (`VERIFICATION_REUSE_GUIDANCE`). Missing execution/coverage, disputed behavior, changed inputs/environment or unknown freshness require verification; final-source acceptance still applies.
+- Reporting gaps first use recorded results and actual assertions (`VERIFICATION_REUSE_GUIDANCE`). Missing execution/coverage, disputed behavior, changed inputs/environment or unknown freshness require verification; final-source acceptance still applies. Root remediation retains same-attempt host execution history (including discarded-branch outcomes) and bounded file changes in both reviews; commands remain historical, browser carry-over requires unchanged bytes. No replay or automatic credit. [Incident and controls](../../memory/root-remediation-command-evidence.md).
 - Ground-truth reporting must quote observed tool bytes. Narrative self-report
   alone is not evidence.
 - Stateful checks establish their preconditions from observed state and successful
