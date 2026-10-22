@@ -267,6 +267,9 @@ jobs:
             matches=( $pattern )
             [[ ${#matches[@]} == 1 && -f "${matches[0]}" ]] || { echo "Missing or duplicate installer: $pattern"; exit 1; }
           done
+      - name: Create stable website download aliases
+        if: steps.publication.outputs.publish == 'true'
+        run: node scripts/compute-desktop-aliases.mjs installers
       - name: Publish the immutable revision and current download channel
         if: steps.publication.outputs.publish == 'true'
         shell: bash

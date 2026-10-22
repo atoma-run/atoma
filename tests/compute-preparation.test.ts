@@ -50,7 +50,7 @@ it('persists only preparation intent across reopen, never a run command', () => 
 
 it('offers the published native asset only when available, preserving the explicit choice', () => {
   const url = new URL('https://atoma.run/compute/setup?os=mac-arm64');
-  expect(computeSetupView('en', url, 'Windows', '', true)).toContain('Atoma-Compute-0.4.0-mac-arm64.dmg');
+  expect(computeSetupView('en', url, 'Windows', '', true)).toContain('Atoma-Compute-mac-arm64.dmg');
   expect(computeSetupView('en', url, 'Windows', '', true)).toContain('/releases/download/compute-desktop-current/');
   expect(computeSetupView('en', url, 'Windows', '', false)).not.toContain('href="https://github.com/atoma-run/atoma/releases/download/');
 });

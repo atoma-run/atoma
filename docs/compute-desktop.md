@@ -104,7 +104,10 @@ When the content differs, native jobs build and test macOS arm64, macOS x64 and
 Windows x64 in parallel with the main CI. Each native bundle must match the
 content decision. Once both pass for the same source revision, the workflow
 publishes an immutable release with a `compute-desktop-content.json` receipt and
-updates the public `compute-desktop-current` download channel. Without publisher
+updates the public `compute-desktop-current` download channel. Stable download
+filenames (`Atoma-Compute-mac-arm64.dmg`, `Atoma-Compute-mac-x64.dmg`, and
+`Atoma-Compute-win-x64.exe`) and their checksums always point to that
+publication; versioned files remain available for release history. Without publisher
 credentials the channel contains unsigned preview installers; native Docker/run
 acceptance remains separate and requires Docker Desktop on the target machine.
 
