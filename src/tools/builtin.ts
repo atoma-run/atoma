@@ -1747,13 +1747,14 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
           clearTimeout(timer);
           fail(`node server failed to start: ${err.message}`);
         });
-        child.once('exit', (code) => {
+        const onEarlyExit = (code: number | null): void => {
           // Only relevant if this fires before we've seen the marker.
           clearTimeout(timer);
           fail(
             `node server exited early (code=${code}). stderr: ${stderrBuf.slice(0, 400)}`
           );
-        });
+        };
+        child.once('exit', onEarlyExit);
         let stdoutBuf = '';
         child.stdout?.on('data', (chunk: Buffer) => {
           // ACCUMULATE before matching: the marker can straddle a chunk
@@ -1781,7 +1782,7 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
             clearTimeout(timer);
             // Detach the early-exit listener — the server is up now,
             // subsequent exits are the sandbox cleanup's job.
-            child.removeAllListeners('exit');
+            child.removeListener('exit', onEarlyExit);
             resolve(announced);
           }
         });

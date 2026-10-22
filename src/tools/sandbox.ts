@@ -483,7 +483,9 @@ export class ToolSandbox {
         // hooks are best-effort; don't let one failure block the others
       }
     }
-    for (const child of [...this.children]) {
+    const children = [...this.children];
+    const groups = [...this.childGroups];
+    for (const child of children) {
       if (!child.killed) {
         // Group-kill FIRST (negative pid): server tools now spawn
         // detached (own pgid), so this reaps grandchildren — workers,
@@ -505,6 +507,12 @@ export class ToolSandbox {
     }
     // Small grace period before returning so sockets unbind.
     await new Promise((r) => setTimeout(r, 150));
+    // `child.killed` only records that a signal was sent. Servers may ignore
+    // SIGTERM; cleanup must reap them before a test worker or run disappears.
+    if (!(await killAndConfirmExit(children, groups))) {
+      throw new Error('Sandbox processes did not exit during cleanup');
+    }
+    for (const group of groups) this.childGroups.delete(group);
   }
 }
 

@@ -226,6 +226,22 @@ describe('start_node_server port', () => {
       expect(origins.get(server.port)?.exited?.signal).toBe(signal);
       expect(() => process.kill(server.pid, 0)).toThrow();
     }
+    // The cap stops only evicted servers. Teardown must also reap the four
+    // survivors, including those deliberately ignoring SIGTERM.
+    try {
+      await sandbox.cleanup();
+      await sandbox.cleanup();
+      for (const server of started) {
+        expect(() => process.kill(server.pid, 0)).toThrow();
+        await expect(fetch(`http://127.0.0.1:${server.port}/`, {
+          signal: AbortSignal.timeout(2000),
+        })).rejects.toThrow();
+      }
+      expect(sandbox.trackedChildPids()).toEqual([]);
+    } finally {
+      // A regression failure must not itself leave the stubborn fixture alive.
+      await sandbox.drain();
+    }
   }, 60_000);
 
   it('stamps the server code digest on what fetch_url observes, as the host records it', async () => {
