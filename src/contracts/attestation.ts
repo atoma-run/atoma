@@ -162,6 +162,8 @@ export const executionObservationSchema = z.object({
   kind: z.literal('execution'),
   request: z.string(),
   response: z.string(),
+  /** Shell exit status observed before response excerpting; absent means unknown. */
+  exitCode: z.number().int().optional(),
   /** Host-owned truncation fact; absent on historical observations. */
   responseTruncated: z.boolean().optional(),
   http: httpObservationSchema.optional(),
@@ -209,10 +211,14 @@ export function parseExecutionObservation(tool: string, args: Record<string, unk
   if (tool === 'read_file' && pathHeldNoFile(raw)) return null;
   const http = tool === 'fetch_url' ? servedHttpObservation(args, raw) : undefined;
   const response = typeof raw === 'string' ? raw : JSON.stringify(raw) ?? 'null';
+  const exit = raw && typeof raw === 'object' ? (raw as Record<string, unknown>)['exitCode'] : undefined;
+  const exitCode = (tool === 'run_shell' || tool === 'record_probe') && typeof exit === 'number' && Number.isSafeInteger(exit)
+    ? exit : undefined;
   // A page, including the final short one, never establishes a whole-file read.
   return executionObservationSchema.parse({ kind: 'execution',
     ...(tool === 'read_file' && typeof args['path'] === 'string' ? { filePath: args['path'] } : {}),
     request: evidenceExcerpt(args, 800), response: evidenceExcerpt(response, 1600),
+    ...(exitCode !== undefined ? { exitCode } : {}),
     ...(tool === 'read_file' ? { responseTruncated: response.length > 1600 || args['offset'] !== undefined || args['limit'] !== undefined } : {}), ...(http ? { http } : {}) });
 }
 
@@ -452,7 +458,8 @@ export function renderObservation(
     const response = options.rewrittenBy !== undefined
       ? '[superseded read result omitted; no evidence of current content]'
       : o.response;
-    return `${stale}${record.tool} (attempt=${record.attempt ?? 1}, branch=${record.branchId ?? 'root'}): request=${options.executionMaxChars ? evidenceExcerpt(o.request, options.executionMaxChars) : o.request}; observed result=${options.executionMaxChars ? evidenceExcerpt(response, options.executionMaxChars) : response}`;
+    const outcome = o.exitCode !== undefined ? `; observed exitCode=${o.exitCode}` : '';
+    return `${stale}${record.tool} (attempt=${record.attempt ?? 1}, branch=${record.branchId ?? 'root'}): request=${options.executionMaxChars ? evidenceExcerpt(o.request, options.executionMaxChars) : o.request}; observed result=${options.executionMaxChars ? evidenceExcerpt(response, options.executionMaxChars) : response}${outcome}`;
   }
   const bits = [
     `ok=${o.ok}`,
