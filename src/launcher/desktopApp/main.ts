@@ -13,6 +13,35 @@ declare const DESKTOP_SIGNED: boolean;
 
 let window: BrowserWindow | undefined;
 let tray: Tray | undefined;
+let trayIcons: { idle: Electron.NativeImage; ready: Electron.NativeImage } | undefined;
+function refreshTray(): void {
+  if (!tray || !trayIcons) return;
+  const ready = state?.connected && state.phase === 'connected' && state.accepting && !state.issue
+    && !state.allocations.some(allocation => allocation.state === 'unconfirmed');
+  tray.setImage(ready ? trayIcons.ready : trayIcons.idle);
+  tray.setToolTip(ready ? `Atoma Compute — ${t('readyTitle')}` : 'Atoma Compute');
+}
+function createTrayIcons(): NonNullable<typeof trayIcons> {
+  const source = nativeImage.createFromPath(join(root, 'icon.png'));
+  const ready = nativeImage.createEmpty();
+  for (const scaleFactor of [1, 2]) {
+    const size = 20 * scaleFactor;
+    const bitmap = source.resize({ width: size, height: size }).toBitmap();
+    // NativeImage bitmaps use BGRA. A dark rim keeps the green badge distinct on light menus.
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const distance = Math.hypot((x + 0.5) / scaleFactor - 16, (y + 0.5) / scaleFactor - 16);
+      const coverage = Math.max(0, Math.min(1, (3.5 - distance) * scaleFactor));
+      if (!coverage) continue;
+      const color = distance < 2.5 ? [94, 197, 34] : [38, 23, 13];
+      const offset = (y * size + x) * 4;
+      for (let channel = 0; channel < 3; channel++) bitmap[offset + channel] = Math.round(color[channel]! * coverage + bitmap[offset + channel]! * (1 - coverage));
+      bitmap[offset + 3] = Math.round(255 * coverage + bitmap[offset + 3]! * (1 - coverage));
+    }
+    const image = nativeImage.createFromBitmap(bitmap, { width: size, height: size });
+    ready.addRepresentation({ scaleFactor, buffer: image.toPNG() });
+  }
+  return { idle: source.resize({ width: 20, height: 20 }), ready };
+}
 let worker: Electron.UtilityProcess;
 let workerAlive = false;
 let runtimeLost = false;
@@ -60,6 +89,7 @@ function startWorker(): void {
         if (!next.success) return;
         if (next.data.connected) runtimeLost = false;
         state = runtimeLost ? { ...next.data, issue: 'stop-unconfirmed' } : next.data; window?.webContents.send('compute:state', state);
+        refreshTray();
         void updates.advance();
       } else if (result.data.kind === 'pairing') {
         const url = result.data.url;
@@ -73,7 +103,7 @@ function startWorker(): void {
       workerAlive = false;
       if (!quitting) runtimeLost = true;
       for (const item of pending.values()) { clearTimeout(item.timer); item.reject(new Error('Compute runtime exited')); } pending.clear();
-      if (!quitting && state) { state = { ...state, phase: 'error', connected: false, issue: 'stop-unconfirmed' }; window?.webContents.send('compute:state', state); void updates.advance(); show(); }
+      if (!quitting && state) { state = { ...state, phase: 'error', connected: false, issue: 'stop-unconfirmed' }; window?.webContents.send('compute:state', state); refreshTray(); void updates.advance(); show(); }
     });
 }
 function authorize(event: IpcMainInvokeEvent): void {
@@ -108,7 +138,7 @@ else {
     window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     window.webContents.session.setPermissionCheckHandler(() => false);
     window.on('close', event => { if (!quitting) { event.preventDefault(); window?.hide(); } });
-    ipcMain.handle('compute:language', (event, input: unknown) => { authorize(event); selectedLocale = z.enum(SUPPORTED_LOCALES).parse(input); });
+    ipcMain.handle('compute:language', (event, input: unknown) => { authorize(event); selectedLocale = z.enum(SUPPORTED_LOCALES).parse(input); refreshTray(); });
     ipcMain.handle('compute:state', event => { authorize(event); return state; });
     ipcMain.handle('compute:command', async (event, input: unknown) => { authorize(event); const command = computeDesktopCommandSchema.parse(input);
       if (command.action === 'disconnect-idle' || updates.pending && !['refresh', 'resources', 'pause', 'stop', 'disconnect'].includes(command.action)) throw new Error('An update is waiting for work to finish');
@@ -123,8 +153,8 @@ else {
       if (updates.snapshot().phase === 'installing') quitting = false;
       if (updates.snapshot().phase !== 'unsupported') updates.failed();
     });
-    const icon = nativeImage.createFromPath(join(root, 'icon.png')).resize({ width: 20, height: 20 });
-    tray = new Tray(icon); tray.setToolTip('Atoma Compute');
+    trayIcons = createTrayIcons();
+    tray = new Tray(trayIcons.idle); refreshTray();
     tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Atoma Compute', click: show }, { type: 'separator' }, { label: t('quitMenu'), click: () => { void quit(); } }]));
     tray.on('click', show);
     Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Atoma Compute', submenu: [{ label: t('showMenu'), click: show }, { type: 'separator' }, { label: t('quitMenu'), accelerator: 'CmdOrCtrl+Q', click: () => { void quit(); } }] }, { role: 'editMenu' }, { role: 'viewMenu' }]));
