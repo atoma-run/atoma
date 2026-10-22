@@ -73,6 +73,11 @@ describe('runtime planning scope for existing catalog agents', () => {
         expect(req.userContent).toContain(PLANNING_SCOPE_GUIDANCE);
         expect(req.userContent).toContain(PROPORTIONATE_PLANNING_GUIDANCE);
         expect(req.userContent.includes(APPLICATION_TYPESCRIPT_GUIDANCE)).toBe(!reasoning);
+        if (!reasoning) {
+          expect(req.userContent).toContain('Do not turn a local repair into a repository-wide migration');
+          expect(req.userContent).toContain('Inspection, verification-only and reporting phases do not migrate');
+          expect(req.userContent).toContain('Final application acceptance requires observed successful npm run check and npm run build on the final source');
+        }
         expect(req.userContent.includes('ROOT_CHECKLIST')).toBe(!delegated);
         if (delegated) {
           expect(req.userContent).toContain(original.description);

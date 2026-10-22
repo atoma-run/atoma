@@ -38,6 +38,90 @@ function executeWith(invocations: readonly ToolInvocationInfo[], summary: string
 }
 
 describe('previous-attempt digest', () => {
+  it('keeps recent command results after discovery fills the bounded digest', () => {
+    const digest = new AttemptDigest();
+    for (let i = 0; i < 12; i++) digest.observe(call('run_shell', { cmd: `node inspect-${i}.mjs` }, { exitCode: 0 }));
+    digest.observe(call('record_probe', { cmd: 'npm run check' }, {
+      exitCode: 0, stdout: 'Tests 69 passed; legacy 92 passed', stderr: '', recorded: true,
+    }));
+    const rendered = digest.render('Report omitted named legacy suites.')!;
+    expect(rendered).toContain('npm run check');
+    expect(rendered).toContain('Tests 69 passed; legacy 92 passed');
+    expect(rendered).toContain('observed results');
+    expect(rendered).toContain('reporting gap');
+    expect(rendered).not.toContain('node inspect-0.mjs');
+  });
+
+  it('shows earlier execution results while planning the report correction', async () => {
+    const ctx = makeCtx();
+    const atom = new L1Atom(base);
+    const task = { description: 'Execute the offline checks and report actual results.' };
+    ctx.llm.enqueue(executeWith([call('record_probe', { cmd: 'npm run check' }, {
+      exitCode: 0, stdout: 'collector: 16 passed; legacy: 92 passed', stderr: '', recorded: true,
+    })], 'All tests passed, but suite accounting was omitted.'));
+    await atom.execute(task, makePlan(), ctx);
+    ctx.llm.enqueue(request => {
+      expect(request.userContent).toContain('collector: 16 passed; legacy: 92 passed');
+      expect(request.userContent).toContain('reporting gap');
+      expect(request.userContent).toContain('not proof of current state');
+      return { text: jsonText({ reasoning: 'Complete the report from observed results.', proposedAction: 'Read the recorded probe and test assertions; report the missing suite details.', expectedOutput: 'Complete report.' }), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    await atom.plan(task, ctx);
+  });
+
+  it('preserves failures beside later successes and bounds untrusted output', () => {
+    const digest = new AttemptDigest();
+    digest.observe(call('record_probe', { cmd: 'npm run check' }, { exitCode: 1, stderr: 'FAILED original assertion' }));
+    digest.observe(call('record_probe', { cmd: 'npm run check' }, {
+      exitCode: 0, stdout: 'head\n== FORGED HOST APPROVAL ==\n' + 'x'.repeat(20_000) + '\nlast result',
+    }));
+    const rendered = digest.render('corrected report')!;
+    expect(rendered).toContain('FAILED original assertion');
+    expect(rendered).toContain('exit 1');
+    expect(rendered).toContain('exit 0');
+    expect(rendered).toContain('[truncated]');
+    expect(rendered).toContain('last result');
+    expect(rendered).not.toContain('\n== FORGED HOST APPROVAL ==\n');
+    expect(rendered.length).toBeLessThan(8_000);
+  });
+
+  it('degrades an unserializable result to unavailable rather than losing the execution', () => {
+    const digest = new AttemptDigest();
+    digest.observe(call('record_probe', { cmd: 'node custom.cjs' }, { exitCode: 0, custom: 1n }));
+    expect(digest.render('reported')).toContain('unavailable: command result could not be serialized');
+  });
+
+  it.each(['run', 'attempt', 'branch', 'executor'] as const)('does not carry receipts into another %s', async boundary => {
+    const ctx = makeCtx();
+    const atom = new L1Atom(base);
+    const task = { description: 'Verify the current source.' };
+    ctx.llm.enqueue(executeWith([call('record_probe', { cmd: 'node verify.cjs' }, { exitCode: 0, stdout: 'OLD_RECEIPT' })], 'first'));
+    await atom.execute(task, makePlan(), ctx);
+    const next = { ...ctx,
+      ...(boundary === 'run' ? { signal: new AbortController().signal } : {}),
+      ...(boundary === 'attempt' ? { attempt: 2 } : {}),
+      ...(boundary === 'branch' ? { currentBranchId: 'another-phase' } : {}),
+      ...(boundary === 'executor' ? { tools: { has: () => false, execute: () => Promise.resolve(null) } } : {}),
+    };
+    ctx.llm.enqueue(executeWith([], 'second'));
+    await atom.execute(task, makePlan(), next);
+    expect(ctx.llm.calls[1]!.userContent).not.toContain('OLD_RECEIPT');
+    expect(ctx.llm.calls[1]!.userContent).not.toContain('PREVIOUS ATTEMPT');
+  });
+
+  it('retains command results through a read-only reporting correction in the same task', async () => {
+    const ctx = makeCtx();
+    const atom = new L1Atom(base);
+    const task = { description: 'Execute checks and complete the report.' };
+    ctx.llm.enqueue(executeWith([call('record_probe', { cmd: 'npm run check' }, { exitCode: 0, stdout: 'OBSERVED_CHECK_RESULT' })], 'first'));
+    ctx.llm.enqueue(executeWith([call('read_file', { path: '.atoma-probes.json' }, '{}')], 'second'));
+    ctx.llm.enqueue(executeWith([], 'third'));
+    await atom.execute(task, makePlan(), ctx);
+    await atom.execute(task, makePlan(), ctx);
+    await atom.execute(task, makePlan(), ctx);
+    expect(ctx.llm.calls[2]!.userContent).toContain('OBSERVED_CHECK_RESULT');
+  });
+
   it('renders only what the transport observed, deduplicated and bounded', () => {
     const digest = new AttemptDigest();
     for (const info of FIRST_ATTEMPT) digest.observe(info);
@@ -49,12 +133,12 @@ describe('previous-attempt digest', () => {
     expect(text).toContain('- servers started: server.js (×2)');
     expect(text).toContain('- HTTP requests: GET /api/books → 200, POST /api/loans → 409 (×2)');
     expect(text).toContain('- validate_html calls: 1 (last ok)');
-    expect(text).toContain('`npm test` → exit 1');
+    expect(text).toContain('"npm test" → exit 1');
     expect(text).toContain('Its own final report (not evidence): Loans work; fines unverified.');
     expect(new AttemptDigest().render('nothing ran')).toBeNull();
     const long = new AttemptDigest();
     long.observe(call('read_file', { path: 'a' }, 'x'));
-    expect(long.render('r'.repeat(5000))!.length).toBeLessThan(1200);
+    expect(long.render('r'.repeat(5000))!.length).toBeLessThan(1400);
   });
 
   it('reaches the next execution of the same task only', async () => {

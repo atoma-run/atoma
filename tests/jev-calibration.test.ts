@@ -8,7 +8,7 @@ import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { resetPrefilterCacheForTests } from '../src/atoms/prefilterCache.js';
 import { llmVerdict, renderTransportEvidence } from '../src/atoms/verdict.js';
-import { APPLICATION_TYPESCRIPT_GUIDANCE, TASK_CONTEXT_HEADER, DELEGATED_SCOPE_GUIDANCE, delegatedTaskContext } from '../src/atoms/taskContext.js';
+import { APPLICATION_TYPESCRIPT_GUIDANCE, TASK_CONTEXT_HEADER, DELEGATED_SCOPE_GUIDANCE, VERIFICATION_REUSE_GUIDANCE, delegatedTaskContext } from '../src/atoms/taskContext.js';
 import {
   calibrate,
   calibrationDetails,
@@ -168,6 +168,7 @@ describe('reading the model validation prompt back', () => {
     if (format === 'historical') {
       // Before the explicit boundary and TypeScript policy were introduced.
       prompt = prompt.replace(`${TASK_CONTEXT_HEADER}\n${APPLICATION_TYPESCRIPT_GUIDANCE}\n`, '')
+        .replace(`${VERIFICATION_REUSE_GUIDANCE}\n`, '')
         .replace(`${TASK_CONTEXT_HEADER}\n`, '');
     }
     const parsed = parseValidationPrompt(decision('validate-result', prompt));
@@ -177,6 +178,7 @@ describe('reading the model validation prompt back', () => {
     });
     expect(parsed?.request.context?.join('\n')).toContain('Constraints: ["Preserve data"]');
     if (format === 'current') expect(parsed?.request.context?.join('\n')).toContain(APPLICATION_TYPESCRIPT_GUIDANCE);
+    expect(parsed?.request.context?.join('\n').includes(VERIFICATION_REUSE_GUIDANCE)).toBe(format === 'current');
   });
 
   it('recovers the result, the evidence lines the model read and the ground truth', async () => {

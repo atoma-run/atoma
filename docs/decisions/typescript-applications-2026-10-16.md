@@ -7,11 +7,20 @@ checking for first-party browser and server logic and maintained tests. They
 include reproducible development dependencies, a typecheck command and a
 build/runtime setup. Generated JavaScript remains a normal deployment artifact.
 
-Existing JavaScript applications are migrated when built or modified through
-Atoma. There is no new/existing distinction: the owner explicitly chose this
-uniform rule while Atoma is in beta. Attica is the only migration being started
-now; this decision does not launch work on every other project. Generated
-JavaScript, vendor assets and necessary tooling glue remain valid.
+Existing JavaScript applications use the same strict policy for first-party
+code and maintained tests created or changed by the requested implementation.
+For a local repair, migration covers the affected code and necessary
+dependencies; it does not introduce a repository-wide migration or unrelated
+scaffold adaptation. Explicit full-application migrations still cover the full
+application. Inspection, verification-only and reporting phases observe and
+report defects without taking on implementation work. Generated JavaScript,
+vendor assets and necessary tooling glue remain valid.
+
+This scope was clarified by the owner request on 2026-10-22 after Attica's
+repair and verification phases repeatedly expanded into broader work. It does
+not waive final-source checks, effective configuration/command coverage or
+functional acceptance. Design and adversarial cases:
+[phase scope and verification reuse](../../records/reviews/phase-scope-and-verification-reuse-2026-10-22.md).
 
 Planning, execution and validation share the runtime guidance in
 `src/atoms/taskContext.ts`, so catalog entries created earlier receive the same

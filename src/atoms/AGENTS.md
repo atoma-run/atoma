@@ -59,10 +59,10 @@ Neighbours:
 - A molecule's next execution of the SAME task (keyed by description) opens
   with `== YOUR PREVIOUS ATTEMPT AT THIS TASK ==` (`attemptDigest.ts`): what
   the transport observed — files changed and read, servers, HTTP method, path
-  and status, validate_html, commands and exit codes — and its own report,
+  and status, validate_html, recent commands and bounded observed results — and its own report,
   labelled not evidence. L2's patch and branch replacements `inheritAttempt`.
   Run 87e672d7 (2026-10-04) spent its retry's first 90 s re-reading what the
-  rejected attempt had just read.
+  rejected attempt had just read. Planning also reads it: eight recent commands / 8,000 encoded characters; runtime boundaries and read-only restoration discard it, and historical results grant no freshness or tool credit.
 - Per-task child memos prevent immediate reuse loops. Initialize task state,
   mark committed children, and pass exclusions to prefilters.
 - Run-scoped integrity flags and memos must retain the same reference across
@@ -404,7 +404,8 @@ load-bearing.
   never forwarded, the first run's last round for a suite driving a browser.
 
 - All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
-  logic and maintained tests. Application changes include migration where needed.
+  logic and maintained tests created or changed by the requested implementation.
+  Existing-app migration/skeleton adaptation cover the repair and necessary dependencies; explicit wider work still applies. Inspection, verification-only and reporting phases do not migrate.
   `APPLICATION_TYPESCRIPT_GUIDANCE` in `taskContext.ts` is the runtime rule shared by tool-mode planners,
   executors and reviewers, including old stored types and fallbacks; reasoning tasks hold no tools and skip it.
   Final review requires observed `check` (typecheck, lint, tests) and `build` success and effective
@@ -428,9 +429,8 @@ load-bearing.
 - Match verification to the artefact: browser UI uses static server plus
   browser validation; HTTP APIs use node server plus fetch; CLI/files use shell
   execution plus read-back. Do not force every artefact through HTML tooling.
-- Recorded probes support cross-checking but do not make non-zero exits errors.
-  Only explicit `match:false` or unequal expected/actual values are mechanical
-  contradictions.
+- Recorded probes support cross-checking; non-zero exits alone are not errors. Only explicit `match:false` or unequal expected/actual values are mechanical contradictions.
+- Reporting gaps first use recorded results and actual assertions (`VERIFICATION_REUSE_GUIDANCE`). Missing execution/coverage, disputed behavior, changed inputs/environment or unknown freshness require verification; final-source acceptance still applies.
 - Ground-truth reporting must quote observed tool bytes. Narrative self-report
   alone is not evidence.
 - Stateful checks establish their preconditions from observed state and successful
