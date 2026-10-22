@@ -1,6 +1,7 @@
 # Memory index
 
 ## How to work
+- [Quality and quota](quota-quality-priority.md) — 2026-10-22: finish authorized work thoroughly; no early delivery or repeated approval merely to save quota
 - [Push to prod authorized](push-to-prod-authorized.md) — I push to main (= prod) myself after verifying, fetch+rebase first; watch CI + deploy
 - [Prod SSH authorized](prod-ssh-authorized.md) — ssh mgf@atoma.run + sudo for diagnosis; ask before restarting Docker/services
 - [Shared Claude session limit](shared-claude-session-limit.md) — my subagents and own:anthropic Atoma runs share one limit; a 66-agent workflow killed run 492b3334 (2026-10-16)
