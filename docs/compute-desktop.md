@@ -1,5 +1,10 @@
 # Atoma Compute desktop
 
+**Build together.** Your ideas. Your computer. Atoma by your side.
+
+Connect your computer to work on your projects with Atoma. You choose the
+resources it can use and the projects it can work on.
+
 Atoma Compute is a companion for macOS (Apple Silicon and Intel) and Windows x64.
 It runs the existing Compute client in a separate process, with Node embedded.
 Docker Desktop remains an explicit prerequisite; use its WSL2 backend on Windows.

@@ -7,9 +7,9 @@
  */
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from '../contracts/locales.js';
 
-export const SEO_TITLE = 'Atoma — AI agents that turn requests into checked work';
+export const SEO_TITLE = 'Atoma — Build together';
 export const SEO_DESCRIPTION =
-  'Atoma coordinates AI agents to produce drawings, sounds, reports, data studies, proofs and software, checks the result against what you asked for, and records every step.';
+  'Build together with Atoma. Bring your ideas, connect your computer with Atoma Compute, and turn your goals into software, reports, designs and more.';
 export const SEO_SOCIAL_IMAGE_PATH = '/og-card.png';
 
 const SEO_SLOT = '<!-- ATOMA_DEPLOYMENT_SEO -->';
