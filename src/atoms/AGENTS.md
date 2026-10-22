@@ -697,7 +697,7 @@ load-bearing.
   self-contained file: never advise shared setup across suites.
 - Feedback uses `Atom.plan`'s third argument, never task constraints (prefilter-keyed and inherited). The root retains all refusals/requests, the latest parse message and bounded host facts.
 - Customer-device evidence cannot credit shared trust, learn recipes/prompts or promote types; L2/L3 and direct dispatch require independent hosted validation for credit.
-
+Large identical original/current input copies are rendered once; conflicting values and all acceptance constraints remain. Versioned executable corpora replace repeated prose examples, never criteria.
 ## Intentional choices and rejected shortcuts
 
 - Sampled delegation-review votes (2026-10-17): a majority of three approves a

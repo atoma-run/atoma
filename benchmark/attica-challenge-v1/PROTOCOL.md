@@ -1,0 +1,7 @@
+# Attica challenge capability comparison, v1
+
+This diagnostic corpus is separate from production acceptance. Both model arms use the same single-agent baseline in the shared runner, fresh workspaces and stores, the same seed, tool surface and wall budget. The evaluator holds the suite outside the model workspace. Two development cases are described in the goal; six held-out cases are scored afterward. The primary outcome is every executed assertion passing, with zero skipped tests; time and cost are secondary. A delivery banner is insufficient. Provider caches are not controlled. One pair cannot establish a general model ranking. No model pin is changed automatically.
+
+Run `npm run benchmark:models -- --corpus benchmark/attica-challenge-v1/corpus.json --model <selector-a> --model <selector-b> --out <fresh-directory>` to inspect the exact protocol without quota. `--execute` starts model runs and must be explicitly authorized. The corpus is a bounded regression diagnostic, not a replacement for the application's full HTTP, persistence and browser criteria.
+
+Execution requires a local container engine and the packaged worker image (or the explicit `ATOMA_WORKER_IMAGE`). The CLI refuses a missing image before model spend. The immutable worker image ID is pinned for both arms and scorers. The corpus and seed digests, exact code revision and dirty state are retained. Each arm keeps a failure receipt if transport or scoring refuses it.

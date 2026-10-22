@@ -846,6 +846,10 @@ describe('ProjectRunCoordinator', () => {
     const finished = f.store.getProjectRun(f.viewer.orgId, run.projectRunId)!;
     expect(finished.status).toBe(kind === 'files' ? 'failed' : kind === 'partial' ? 'partial' : 'delivered');
     expect(finished.stats?.costUsd).toBe(stats.costUsd);
+    const timingPath = join(finished.hostPaths.runsPath, `${finished.projectRunId}.json.timings.jsonl`);
+    const timings = readFileSync(timingPath, 'utf8').trim().split('\n').map(line => JSON.parse(line) as { phase: string });
+    expect(timings.map(value => value.phase)).toContain('preparation');
+    expect(timings.map(value => value.phase)).toContain('host-finalization');
     expect(publisher.publish).not.toHaveBeenCalled();
     expect(describeDeliveredPreview).not.toHaveBeenCalled();
     if (kind !== 'files') {

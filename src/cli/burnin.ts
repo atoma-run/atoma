@@ -1,3 +1,5 @@
+import { observeTiming } from '../core/runtimeTiming.js';
+import type { RuntimeTiming } from '../contracts/runtimeTiming.js';
 /**
  * atoma burn-in harness — run a batch of tasks through the REAL build
  * pipeline (`npm run run:build`, one clean workspace per task), extract
@@ -595,6 +597,7 @@ export function spawnRun(opts: {
   readonly onChunk?: (chunk: string) => void;
   /** Called once with the detached PGID; a throw terminates the group and rejects. */
   readonly onSpawn?: (pid: number) => void;
+  readonly onTiming?: (timing: RuntimeTiming) => void;
   /** Pass `--clean-workspace`. Defaults to true (the measurement default). */
   readonly cleanWorkspace?: boolean;
   /** Serial measurements wait for learning so batches never overlap paid work or omit its cost. */
@@ -639,6 +642,8 @@ export function spawnRun(opts: {
       resolveRun(refusal);
       return;
     }
+    const processStarted = Date.now();
+    let finalizationStarted: number | undefined;
     const child = spawn(
       'npm',
       [
@@ -698,6 +703,7 @@ export function spawnRun(opts: {
       // A delivered run that started a server idles forever by design —
       // terminate once the completion banner is in (metrics print before it).
       if ((DELIVERED_BANNER.test(log) || LANDED_BANNER.test(log)) && !killTimer) {
+        finalizationStarted = Date.now();
         killTimer = setTimeout(() => void requestTermination(), 1500);
       }
     };
@@ -728,6 +734,8 @@ export function spawnRun(opts: {
     const settle = (logSoFar: string, error?: Error): void => {
       if (settled) return;
       settled = true;
+      observeTiming(opts.onTiming, 'process', processStarted);
+      if (finalizationStarted !== undefined) observeTiming(opts.onTiming, 'process-finalization', finalizationStarted);
       clearTimeout(hardTimer);
       if (killTimer) clearTimeout(killTimer);
       opts.signal?.removeEventListener('abort', abortHandler);

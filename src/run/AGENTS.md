@@ -162,7 +162,7 @@ Neighbours:
   UNTOUCHED seed as soon as its backend exists (`inheritedChecksFor`,
   [docs/decisions/inherited-checks-replay-2026-10-01.md](../../docs/decisions/inherited-checks-replay-2026-10-01.md)),
   and `gatedExecutor` makes every tool call of the run wait for it; a
-  deepening waits for it before archiving. `runTools` also strips the
+  deepening waits for it before sealing the current workspace. `runTools` also strips the
   host-replay argument from every call. The replay's own calls go to the
   backend, read through a getter because a deepening replaces it, on one
   static server per backend. Nothing is staged in the workspace: the first
@@ -178,7 +178,7 @@ Neighbours:
   Dead again in a later run, it is removed beside a check of its page that
   passed; passing again, its mark goes. One run never deletes a check, a
   run seeded from a landed one (`PREVIOUS_LANDING_ENV`) marks nothing, and
-  a deepening puts the marks back after its seed copy. The manifest is
+  a deepening preserves the current manifest in place. The manifest is
   replaced through a new file renamed over it.
 
 - `ATOMA_MCP_CONNECTORS` is read ONCE at launch, refused outside a tenant
@@ -189,17 +189,17 @@ Neighbours:
 - `ATOMA_READ_RUNS` names the coordinator's read-run index, read once, removed
   from the environment and refused outside the tenant run, organisation and
   project it was written for; every manifest is re-hashed. After the seed copy,
-  at launch and at the deepening restart, each entry is copied through
+  at launch, each entry is copied through
   `readManifestArtifact` to `.atoma-runs/node_modules/<runId>/<path>` as a new
   file with its saved mode (0755 for `100755`, else 0644; directories 0755),
   and the identity (device, inode, ctime, mode) of every copied file and
   directory, `.atoma-runs/node_modules` included, is kept; a continuation
   keeps its sealed copies and takes their identities after the restore, and
   one sealed with a copy at `.atoma-runs/<runId>` alone (before 2026-10-17) is
-  a `RunnerConfigError`, its source handed back. The restart archives the first attempt, then removes the copies
-  from `.prevN` at best (`removeReadRunCopies`: u+rwx on every directory, no
-  link followed, a logged line, never a failed restart). A mismatch is a `RunnerConfigError` before any
-  model call, or fails the restart with `.prevN` intact. Root acceptance reads
+  a `RunnerConfigError`, its source handed back. A deepening checks those identities
+  before sealing, retains the copies in place, and captures their identities again
+  after the replacement backend mounts them. A mismatch refuses replacement.
+  Root acceptance reads
   `ctx.readRunCopies` and `ctx.compareReadRunFiles` (the criteria texts). The
   worker mounts `.atoma-runs` read-only from its first start: before each
   backend `ensureReadRunMountPoint` (a real directory, created empty if a
@@ -331,7 +331,7 @@ Neighbours:
   budget cut, in a deep attempt with the pass and the clock left, opens it
   with `rootDependencyLanding` as its input — no refusal, no scope, every
   criterion. Short attempts never do: a deepening during the pass would
-  archive the approved workspace. Counted apart (`landingRemediations`), so
+  replace the approved attempt. Counted apart (`landingRemediations`), so
   `rootRemediations` still means "sent back by the final review". The 60 s
   floor was measured for one phase, not a root pass; `unjudgedRemediations`
   counts extra passes that then ended with no verdict, which is how a root
@@ -374,8 +374,11 @@ Neighbours:
   Cut before its root plan, cancelled, or failing on its own, a pass still fails.
 - Only the first short attempt may deepen, at the existing supervision
   fallback moment after its branch retry. Cancel and drain all branches,
-  confirm tool processes have exited, archive the workspace, then construct
-  a new backend and run the original task through L3. Deep fallbacks remain
+  confirm tool processes have exited, seal the current workspace through the
+  existing bounded checkpoint export, then construct a new backend over the SAME
+  files and dependencies and run the original task through L3. A changed digest,
+  read-run identity, provenance or unconfirmed drain refuses replacement without
+  deleting the work. The continuation input labels all retained work unverified. Deep fallbacks remain
   allowed. Gains already earned stay in this run; old attestations cannot
   cover the new attempt. Mechanical plan/result one-shot memos reset per
   attempt and stay fork-shared within it. Lifecycle settings are resolved
@@ -385,12 +388,8 @@ Neighbours:
   teardown. An unavailable engine or remaining worker prevents replacement.
 - Design and remaining measurement protocol:
   [depth experiment](../../records/experiments/depth-routing-experiment-2026-09-13.md).
-- `seedWorkspace` is the ONE seed copy, at launch and at the deepening
-  restart: a seeded run's "fresh" state is its seed, not an empty directory.
-  The 2026-09-13 decision to restart empty predates seeded runs being
-  depth-routed (`2102979`); after it, a project run that deepened rebuilt its
-  corpus from nothing and seeded the next run from that. A seed that cannot be
-  copied at restart fails the run with the first attempt in `.prevN`. The copy
+- `seedWorkspace` is the ONE seed copy at launch. Deepening never re-reads a seed
+  that may have expired, or overwrites work with its starting version. The copy
   filters the inherited probe manifest ([src/contracts](../contracts/AGENTS.md)),
   leaves out the seed's read-run copies (`.atoma-runs`), top-level
   `.atoma-scratch`, and installed `node_modules` at any depth (reinstalled by

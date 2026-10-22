@@ -24,6 +24,8 @@ export interface VizAtomRef {
 }
 
 export interface VizLlmEvent {
+  timings?: import('../contracts/runtimeTiming.js').RuntimeTiming[];
+  omittedTimings?: number;
   id: string;
   ts: number;
   kind: 'llm';
@@ -577,6 +579,7 @@ export function executionProvenance(root = fileURLToPath(new URL('../../', impor
 }
 
 export interface VizRun {
+  timings?: import('../contracts/runtimeTiming.js').RuntimeTiming[];
   computeProvenance?: import('../contracts/executionTarget.js').ExecutionProvenance;
   provenance?: ReturnType<typeof executionProvenance>;
   /** `JEV_EXCLUSION_STAMPS`: this writer stamps `jevExcluded`. Absent on older traces. */
@@ -753,6 +756,12 @@ export class TraceRecorder {
   recordSuiteDispute(entry: SuiteDisputeEntry): void {
     if (!this.run) return;
     if (appendSuiteDisputeEntry((this.run.suiteDisputes ??= []), entry)) this.schedulePartialPersist();
+  }
+
+  recordTiming(timing: import('../contracts/runtimeTiming.js').RuntimeTiming): void {
+    if (!this.run) return;
+    (this.run.timings ??= []).push(timing);
+    this.schedulePartialPersist();
   }
 
   /**

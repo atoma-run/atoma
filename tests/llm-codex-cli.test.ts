@@ -1227,3 +1227,12 @@ describe('discovered personal model capabilities', () => {
     expect(JSON.stringify(args)).not.toContain('must-not-substitute');
   });
 });
+
+it('observes the first completed text response without inventing a first-token observation', async () => {
+  const observations: import('../src/contracts/runtimeTiming.js').RuntimeTiming[] = [];
+  const client = new CodexCliLlmClient({ env: {}, spawnFn: () => fakeChild({ lines: OK_LINES }) });
+  await client.complete({ model: 'gpt-5.6-sol', systemPrompt: 's', userContent: 'u',
+    onTiming: timing => { observations.push(timing); throw new Error('observer failure'); } });
+  expect(observations.map(timing => timing.phase)).toContain('first-response');
+  expect(observations.map(timing => timing.phase)).not.toContain('first-token');
+});

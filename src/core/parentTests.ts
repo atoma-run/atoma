@@ -18,6 +18,7 @@ import {
 import { abortedForLanding } from './limits.js';
 import { baseExecutorOf } from './attestation.js';
 import type { Logger, Result, RunContext, Task, Tier, Verdict } from './types.js';
+import { timed } from './runtimeTiming.js';
 
 let lastObservedAt = 0;
 /** Wall-clock ms, strictly increasing in this process: two lanes never tie. */
@@ -34,6 +35,10 @@ function observedNow(): number {
  * delivery is refused by its judge, not by an observation).
  */
 export async function verifyParentTests(task: Task, result: Result, ctx: RunContext): Promise<Result> {
+  return task.acceptanceTests ? timed(ctx.recordTiming, 'parent-tests', () => verifyParentTestsInternal(task, result, ctx)) : result;
+}
+
+async function verifyParentTestsInternal(task: Task, result: Result, ctx: RunContext): Promise<Result> {
   const suite = task.acceptanceTests;
   if (!suite) return result;
   if (!abortedForLanding(ctx)) ctx.signal.throwIfAborted();

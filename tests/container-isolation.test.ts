@@ -1,6 +1,8 @@
+import { deepenBackend } from '../src/run/deepenBackend.js';
+import { localWorkspaceRuntime } from '../src/run/workspaceRuntime.js';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, renameSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { stripVTControlCharacters } from 'node:util';
@@ -66,10 +68,9 @@ describeDocker('container depth transition', () => {
     }
   }, 120_000);
 
-  it('removes a SIGTERM-resistant worker before archiving and replacing its workspace', async () => {
+  it('removes a SIGTERM-resistant worker before replacing its backend over the sealed workspace', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-container-depth-'));
     const workspace = join(root, 'workspace');
-    const archive = join(root, 'abandoned');
     const backend = await containerToolBackend({ workspaceRoot: workspace });
     let replacement: Awaited<ReturnType<typeof containerToolBackend>> | undefined;
     try {
@@ -78,13 +79,12 @@ describeDocker('container depth transition', () => {
         "fs.writeFileSync('heartbeat','ready');setInterval(()=>fs.appendFileSync('heartbeat','.'),10);" +
         "const s=http.createServer((q,r)=>r.end('old'));s.listen(0,'127.0.0.1',()=>console.log('LISTENING_ON_PORT='+s.address().port));" });
       await backend.executor.execute('start_node_server', { entry: 'server.cjs' });
-      await backend.drain!();
-      renameSync(workspace, archive);
-      const stoppedHeartbeat = readFileSync(join(archive, 'heartbeat'), 'utf8');
-      replacement = await containerToolBackend({ workspaceRoot: workspace });
+      replacement = await deepenBackend({ backend, workspace: localWorkspaceRuntime({ root: workspace, log: () => undefined }),
+        signal: new AbortController().signal, create: () => containerToolBackend({ workspaceRoot: workspace }) });
+      const stoppedHeartbeat = readFileSync(join(workspace, 'heartbeat'), 'utf8');
       await replacement.executor.execute('write_file', { path: 'fresh.txt', content: 'second attempt' });
       expect(readFileSync(join(workspace, 'fresh.txt'), 'utf8')).toBe('second attempt');
-      expect(readFileSync(join(archive, 'heartbeat'), 'utf8')).toBe(stoppedHeartbeat);
+      expect(readFileSync(join(workspace, 'heartbeat'), 'utf8')).toBe(stoppedHeartbeat);
       await expect(backend.executor.execute('write_file', { path: 'stale.txt', content: 'old' })).rejects.toThrow('drained');
     } finally {
       await replacement?.drain?.();

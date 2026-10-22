@@ -45,6 +45,7 @@ export const PROPORTIONATE_PLANNING_GUIDANCE = [
   'For a compact, coherent text answer, delegate composition with its checks together; add a separate audit when the constraints or requested independence justify it.',
   'Do not add separate checklist, revision and finalization phases by habit. Correct defects when found through the existing supervision protocol; do not schedule speculative repair work.',
   'Keep distinct deliverables, genuine dependencies and necessary independent checks separate. Never reduce work by dropping a requirement or verification.',
+  'When a versioned executable test corpus exists, name its version and workspace paths instead of copying its full fixture matrix into every child description. Inspect the actual cases and assertions before relying on it; name uncovered requirements precisely and retain every original acceptance criterion.',
   'When completion requires passing tests, keep implementation repair and its tests together before a reporting-only phase. A report cannot make unchanged failing tests pass by rerunning them. Preserve explicitly requested independent reviews; they may report failures without being assigned to repair them.',
 ].join('\n');
 
@@ -159,6 +160,15 @@ export function taskContextLines(task: Task, options: {
       if (inputs['repositoryDiscovery'] !== undefined) delete originalInputs['repositoryDiscovery'];
       // And the read-run copies (src/contracts/readRuns.ts): one listing per prompt.
       if (inputs['readRuns'] !== undefined) delete originalInputs['readRuns'];
+      // Arbitrary inherited payloads can be just as large as host history.
+      // Elide only exact duplicates: a child override must never erase the
+      // original facts or constraints it contradicts. Neither Task is mutated.
+      for (const [key, value] of Object.entries(originalInputs)) {
+        const encoded = JSON.stringify(value);
+        if (encoded !== undefined && encoded.length >= 512 && encoded === JSON.stringify(inputs[key])) {
+          delete originalInputs[key];
+        }
+      }
       inputs['originalTask'] = { ...original, inputs: originalInputs };
     }
   }

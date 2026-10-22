@@ -669,6 +669,14 @@ from a sealed snapshot when the journal permits it; blocked reasons are projecte
 to the requester. Their retrieval corpus stays the recorded starting corpus.
 See [checkpoints](../../docs/decisions/run-checkpoints-2026-10-08.md) and [client questions](../../docs/client-questions.md).
 
+## Host latency receipts
+
+The existing coordinator/driver records preparation, process, process finalization,
+customer-compute handoff, host finalization and detached naming in an optional
+host-owned timing sidecar beside the trace. Transfer failures record elapsed time
+without claiming completion; failed timing writes never affect admission, leases,
+acceptance, publication or the immutable child trace.
+
 ## Intentional choices and rejected shortcuts
 
 - The project learning reader shares one org-authorized body across HTTP/MCP, including deferred-worker ledger provenance. Read-only, bounded and explicit about coverage: [contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).

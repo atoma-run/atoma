@@ -413,6 +413,13 @@ lease or RPC change; compatible generations share the primary store and commons.
 The activator drains on a mismatch, including rollback. Public identity and
 membership checks remain in the existing HTTP/MCP project services.
 
+## Runtime measurement contracts
+
+`runtimeTiming.ts` owns observed phase intervals and the interval-union function;
+missing observations are unknown. `modelComparison.ts` owns versioned comparison
+corpora and imports the existing parent-test suite contract rather than defining
+a second scorer. Neither contract changes acceptance or model selection.
+
 ## Intentional choices and rejected shortcuts
 
 - A second definition of manifest merge semantics, near a writer that needs

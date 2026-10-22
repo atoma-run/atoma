@@ -305,6 +305,17 @@ npm run settings:dev -- list
   audited, notifying nobody. The contract is stated once in
   [`src/platform`](../platform/AGENTS.md).
 
+## Bounded latency diagnostics and model comparisons
+
+`latency` reads one bounded trace event at a time and its optional host-owned
+`.json.timings.jsonl` sidecar. Missing timing is unknown. Interval unions avoid
+counting parallel work twice; LLM envelopes include tools and are not inference.
+`benchmark:models` defaults to a quota-free protocol preview. Explicit `--execute`
+uses the shared single-agent baseline, isolated stores/workspaces, a versioned
+seed and a parent-owned held-out suite. All assertions must pass without skips;
+a banner alone never wins. Failures retain receipts and do not promote a model.
+Protocol and results are immutable; provider caches remain uncontrolled.
+
 ## Intentional choices and rejected shortcuts
 
 - A legacy/incompatible deployment that retries until it lands in a gap: rejected. The mender

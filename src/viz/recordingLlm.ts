@@ -12,6 +12,7 @@ import {
   DEFAULT_PRICES,
 } from '../core/metrics.js';
 import { citeContext } from '../contracts/llmTrace.js';
+import { runtimeTimingSchema, type RuntimeTiming } from '../contracts/runtimeTiming.js';
 import type { TraceRecorder, VizLlmEvent } from './trace.js';
 
 type Classification = Pick<VizLlmEvent, 'role' | 'actor' | 'child' | 'subject' | 'effort' | 'jevExcluded'>;
@@ -103,8 +104,18 @@ export class RecordingLlmClient implements LlmClient {
     // any caller-provided callback (chain-of-responsibility style) so a
     // hypothetical future metrics or audit decorator can nest cleanly.
     const upstreamObserver = req.onToolInvocation;
+    const timings: RuntimeTiming[] = [];
+    let omittedTimings = 0;
     const wrappedReq: LlmCompletionRequest = {
       ...req,
+      onTiming: info => {
+        const parsed = runtimeTimingSchema.safeParse(info);
+        if (parsed.success) {
+          if (timings.length < 2048) timings.push(parsed.data);
+          else omittedTimings++;
+        }
+        try { req.onTiming?.(info); } catch { /* Observer only. */ }
+      },
       onToolInvocation: (info) => {
         try {
           const ev: import('./trace.js').VizToolEvent = {
@@ -161,6 +172,8 @@ export class RecordingLlmClient implements LlmClient {
         response: resp.text,
         stopReason: resp.stopReason,
         durationMs: Date.now() - started,
+        ...(timings.length ? { timings } : {}),
+        ...(omittedTimings ? { omittedTimings } : {}),
         usage,
         costUsd,
         ...cls,
@@ -192,6 +205,8 @@ export class RecordingLlmClient implements LlmClient {
         response: '',
         stopReason: 'error',
         durationMs: Date.now() - started,
+        ...(timings.length ? { timings } : {}),
+        ...(omittedTimings ? { omittedTimings } : {}),
         usage,
         costUsd: estimateCostUsd(usage, pricesFor(req.model, this.prices)),
         error: (err as Error).message,

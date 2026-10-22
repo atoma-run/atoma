@@ -3,6 +3,18 @@ import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { APPLICATION_TYPESCRIPT_GUIDANCE, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, delegatedTaskContext, taskContextLines } from '../src/atoms/taskContext.js';
+
+it('renders repeated inherited corpus bytes once without dropping conflicting original facts', () => {
+  const corpus = { version: 1, cases: 'preserve every assertion '.repeat(200) };
+  const original = { description: 'Repair the detector', inputs: { corpus, protected: 'original '.repeat(100) } };
+  const task = { description: 'Verify detector', originalTask: original,
+    inputs: { corpus, protected: 'different '.repeat(100) } };
+  const lines = taskContextLines(task).join('\n');
+  expect(lines.split(corpus.cases)).toHaveLength(2);
+  expect(lines).toContain(original.inputs.protected);
+  expect(lines).toContain(task.inputs.protected);
+  expect(original.inputs.corpus).toBe(corpus);
+});
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { makeCtx, jsonTextPair, jsonText } from './helpers.js';

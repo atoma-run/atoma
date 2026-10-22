@@ -1,3 +1,4 @@
+import { observeTiming, timingSidecar } from '../core/runtimeTiming.js';
 import { ComputeDispatchPendingError, type ComputeDispatcher } from './computeDispatch.js';
 import { ClientQuestionConflict } from '../run/clientQuestions.js';
 import { LearningQueue } from '../skills/learningQueue.js';
@@ -2248,8 +2249,11 @@ export class ProjectRunCoordinator {
       // repository import and corpus preparation below have their own bound
       // (`PROJECT_RUN_PREPARATION_TIMEOUT_MS`) and are no longer billed to the
       // run budget. See that constant for the measurement.
+      const preparationStarted = Date.now();
+      const recordTiming = timingSidecar(path.join(run.hostPaths.runsPath, `${run.projectRunId}.json`));
       const preparationDeadlineAt = Date.now() + PROJECT_RUN_PREPARATION_TIMEOUT_MS;
       const launch = () => {
+        observeTiming(recordTiming, 'preparation', preparationStarted);
         this.assertExecutionAccess(run.requestedByPrincipalId, run.executionTarget);
         const driver: ProjectRunDriver = compute
           ? input => compute.drive(run, this.driver, input, paths.artifactManifestPath) : this.driver;
@@ -2272,6 +2276,7 @@ export class ProjectRunCoordinator {
         ],
         env: environment,
         onSpawn: (pid) => lease.attachChild(pid),
+        onTiming: recordTiming,
       });
       };
       let launched = false;
@@ -2444,8 +2449,10 @@ export class ProjectRunCoordinator {
     signal: AbortSignal
   ): Promise<void> {
     let stats: RunStats | null = null;
+    let finalizationStarted: number | undefined;
     try {
       const log = await driven;
+      finalizationStarted = Date.now();
       stats = parseRunLog(log);
       if (signal.aborted || stats.outcome === 'cancelled') {
         this.store.transitionProjectRun({
@@ -2630,6 +2637,9 @@ export class ProjectRunCoordinator {
           `[atoma projects] failed to release run lease for ${reservedRun.projectRunId}: ${String(error)}\n`
         );
       }
+      if (finalizationStarted !== undefined) observeTiming(
+        timingSidecar(path.join(reservedRun.hostPaths.runsPath, `${reservedRun.projectRunId}.json`)),
+        'host-finalization', finalizationStarted);
       this.active.delete(reservedRun.projectRunId);
       this.admittedAt.delete(reservedRun.projectRunId);
       if (!this.queueStopped) this.resumeLearning();
@@ -2640,6 +2650,7 @@ export class ProjectRunCoordinator {
 
   /** Name an ended run once; every failure is a run that keeps showing its goal. */
   private async nameRun(titler: RunTitler, run: ProjectRun): Promise<void> {
+    const startedAt = Date.now();
     try {
       const settled = this.store.getProjectRun(run.orgId, run.projectRunId);
       if (!settled || settled.title || !TITLED_STATUSES.has(settled.status)) return;
@@ -2656,7 +2667,7 @@ export class ProjectRunCoordinator {
       process.stderr.write(
         `[atoma projects] run title unavailable for ${run.projectRunId}: ${String(error)}\n`
       );
-    }
+    } finally { observeTiming(timingSidecar(path.join(run.hostPaths.runsPath, `${run.projectRunId}.json`)), 'naming', startedAt); }
   }
 
   /** Learning is outside delivery and its lease, with the original payer re-authorized on every launch. */

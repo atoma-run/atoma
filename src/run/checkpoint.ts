@@ -2,12 +2,12 @@ import { initializeClientQuestions, readClientQuestion, recordClientQuestion, an
 import { clientAnswerHistoryHasRoom, type AnswerClientQuestion, type ClientQuestion } from '../contracts/clientQuestion.js';
 import type { Task, SubtaskSpec } from '../core/types.js';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, realpathSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { setRecoveryEffectHandler } from '../core/recoveryEffects.js';
 import { checkpointToolIsRestorable } from '../tools/recoveryPolicy.js';
 import type { LlmClient, ToolExecutor } from '../core/types.js';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import type Database from 'better-sqlite3';
 import { openStoreHandle } from '../core/stores.js';
 import type { Result } from '../core/types.js';
@@ -15,11 +15,11 @@ import { isLanded } from '../contracts/runLanding.js';
 import { parentTestsGrantNothing } from '../core/parentTests.js';
 import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
 import { outOfPhaseBudget } from '../core/limits.js';
-import { checkpointWorkspaceDigest, readCheckpointWorkspace, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
+import { canonicalCheckpointWorkspacePath, checkpointWorkspaceDigest, readCheckpointWorkspace, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
 import { CheckpointReceiver } from './checkpointTransfer.js';
 import type { CheckpointTransferHeader } from '../contracts/checkpointTransfer.js';
 import { storedCheckpointExport } from './checkpointExport.js';
-export { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
+export { canonicalCheckpointWorkspacePath, checkpointWorkspaceDigest } from './checkpointWorkspace.js';
 import { PhaseBoundaryPause, runCheckpointSchema, type RootDelegationApproval, type RootPhaseCheckpoint, type RunCheckpoint, type ProjectCheckpointStatus } from '../contracts/runCheckpoint.js';
 import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
 
@@ -32,16 +32,6 @@ const MAX_PAYLOAD_BYTES = 32 * 1024 * 1024;
 type Row = { state: string; owner: string; pid: number; host: string; released: number; payload: string };
 type RecoveryRow = { boundary_seq: number; blocked: string | null; consumed: string; deadline: number };
 
-/** Resolve symlinked parents before launch, including a not-yet-created workspace. */
-export function canonicalCheckpointWorkspacePath(workspace: string): string {
-  let ancestor = resolve(workspace);
-  const tail: string[] = [];
-  while (!existsSync(ancestor)) {
-    tail.unshift(basename(ancestor));
-    ancestor = dirname(ancestor);
-  }
-  return join(realpathSync(ancestor), ...tail);
-}
 export function assertCheckpointStoreOutsideWorkspace(store: string, workspace: string): void {
   const canonicalWorkspace = canonicalCheckpointWorkspacePath(workspace);
   const rel = relative(canonicalWorkspace, realpathSync(store));

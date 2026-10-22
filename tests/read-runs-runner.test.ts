@@ -1,3 +1,4 @@
+import { removeReadRunCopies } from '../src/run/readRuns.js';
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -222,13 +223,12 @@ describe('a tenant run that reads another run', () => {
     expect(process.env[READ_RUNS_ENV]).toBeUndefined();
   });
 
-  // read-only: what `run_shell chmod -R a-w .atoma-runs` leaves. Removing the
-  // copies before the archive failed that restart; archived first, they are
-  // removed from the archive at best (third check 2026-10-17).
+  // A mode change is a reference mutation too. Source disappearance/change
+  // cannot invalidate intact bytes already bound to the approved manifest.
   it.skipIf(process.platform === 'win32').each([
-    ['intact', false], ['changed', false], ['read-only', false],
-    ['intact', true], ['changed', true], ['read-only', true],
-  ] as const)('a deepening copies the read run again, and one that changed fails the run with the first attempt archived (%s; process=%s)', async (variant, remote) => {
+    ['intact', false], ['changed', false], ['read-only', false], ['copy-changed', false],
+    ['intact', true], ['changed', true], ['read-only', true], ['copy-changed', true],
+  ] as const)('a deepening retains the sealed reference and work, but refuses a mutated copy (%s; process=%s)', async (variant, remote) => {
     const changed = variant === 'changed';
     const t = tenant();
     const service = remote ? startWorkspaceProcess({ root: t.workspace, readRunsIndex: t.indexPath }) : undefined;
@@ -244,7 +244,7 @@ describe('a tenant run that reads another run', () => {
       let reply: unknown;
       if (req.actor?.tier === 3 && req.actor.name !== 'run-root' && !enteredDeep) {
         enteredDeep = true;
-        expect(existsSync(join(t.workspace, 'abandoned.txt'))).toBe(false);
+        expect(readFileSync(join(t.workspace, 'abandoned.txt'), 'utf8')).toBe('attempt one');
         expect(readFileSync(join(t.copy, 'browser/collect-xe-browser.js'), 'utf8')).toBe(READ['browser/collect-xe-browser.js']);
         expect(lstatSync(join(t.copy, 'browser/collect-xe-browser.js')).mode & 0o777).toBe(0o644);
         deepSawCopy = true;
@@ -266,10 +266,12 @@ describe('a tenant run that reads another run', () => {
           expect(existsSync(join(t.copy, 'browser/control-server.js'))).toBe(true);
           await req.executor!.execute('write_file', { path: 'abandoned.txt', content: 'attempt one' });
           if (changed) writeFileSync(join(t.read.layout.workspacePath, 'browser/control-server.js'), 'export const port = 4000;\n');
+          if (variant === 'copy-changed') writeFileSync(join(t.copy, 'browser/control-server.js'), 'forged reference');
           if (variant === 'read-only') {
             expect(await req.executor!.execute('run_shell', { command: 'chmod', args: ['-R', 'a-w', '.atoma-runs'] })).toMatchObject({ exitCode: 0 });
           }
         }
+        await req.executor!.execute('read_file', { path: 'browser/collect-xe-browser.js' });
         await req.executor!.execute('write_file', { path: 'browser/collect-xe-browser.js', content: READ['browser/collect-xe-browser.js'] });
         reply = { output: { files: ['browser/collect-xe-browser.js'] }, summary: 'Restored' };
       } else throw new Error(`Unexpected mock request: ${req.role}`);
@@ -279,24 +281,24 @@ describe('a tenant run that reads another run', () => {
       service ? { workspaceRuntime: service.runtime } : undefined);
     try {
       const settled = await handle.settled;
-      // The first attempt stays in its archive, never its copies: they are
-      // copied again, and an archive would keep another run's bytes past its
-      // retention (second review 2026-10-17).
-      const archive = `${t.workspace}.prev1`;
-      expect(existsSync(join(archive, 'abandoned.txt'))).toBe(true);
-      expect(existsSync(join(archive, '.atoma-runs'))).toBe(false);
-      if (changed) {
+      // The same approved-manifest copy survives an original source changing;
+      // the workspace's own reference bytes and identity must remain intact.
+      expect(readFileSync(join(t.workspace, 'abandoned.txt'), 'utf8')).toBe('attempt one');
+      expect(existsSync(`${t.workspace}.prev1`)).toBe(false);
+      if (variant === 'copy-changed' || variant === 'read-only') {
         expect(settled.outcome).toBe('failed');
         expect(enteredDeep).toBe(false);
-        expect(logs.join('\n')).toContain(`read run ${t.read.run.projectRunId}: artifact no longer matches its manifest: browser/control-server.js`);
+        expect(logs.join('\n')).toContain('Read-run copies changed before deepening');
       } else {
-        expect(settled).toEqual({ outcome: 'partial' });
+        expect(settled, logs.join('\n')).toEqual({ outcome: 'partial' });
         expect(deepSawCopy).toBe(true);
-        expect(logs.filter(line => line.startsWith('read runs copied:'))).toHaveLength(2);
+        expect(logs.filter(line => line.startsWith('read runs copied:'))).toHaveLength(1);
         expect(parseRunLog(logs.join('\n'))).toMatchObject({ outcome: 'partial', deepenings: 1 });
-        // The second backend mounts the copies again.
         expect(t.backends).toEqual([{ readOnlyRunCopies: true }, { readOnlyRunCopies: true }]);
       }
-    } finally { await handle.shutdown(); }
+    } finally {
+      await handle.shutdown();
+      if (variant === 'read-only') await removeReadRunCopies(join(t.workspace, '.atoma-runs'));
+    }
   }, 30_000);
 });

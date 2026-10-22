@@ -141,6 +141,7 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
     ...(wrappedRecordTrust !== undefined ? { recordTrust: wrappedRecordTrust } : {}),
     ...(wrappedRecordSkill !== undefined ? { recordSkill: wrappedRecordSkill } : {}),
     ...(ctx.recordRunStat !== undefined ? { recordRunStat: ctx.recordRunStat } : {}),
+    ...(ctx.recordTiming ? { recordTiming: ctx.recordTiming } : {}),
     // The record of what `recordRunStat` counts as a suite dispute: both
     // reach the run's one recorder, or the counts and the entries disagree.
     ...(ctx.recordSuiteDispute !== undefined ? { recordSuiteDispute: ctx.recordSuiteDispute } : {}),

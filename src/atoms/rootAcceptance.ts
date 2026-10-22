@@ -1,3 +1,4 @@
+import { timed } from '../core/runtimeTiming.js';
 import { createHash } from 'node:crypto';
 import { baseExecutorOf } from '../core/attestation.js';
 import type { Atom } from '../core/atom.js';
@@ -445,7 +446,11 @@ export function observedDelivery(ctx: RunContext): DeliveryKind {
 }
 
 /** A delivery verdict only: no registry, learning hook, or remediation lives here. */
-export async function acceptRootResult(args: {
+export async function acceptRootResult(args: Parameters<typeof acceptRootResultInternal>[0]): Promise<AcceptanceInfo> {
+  return timed(args.ctx.recordTiming, 'acceptance', () => acceptRootResultInternal(args));
+}
+
+async function acceptRootResultInternal(args: {
   actor: Atom; task: Task; result: Result; ctx: RunContext; floor: ProofFloor;
   /** The current pass's recorded root plan, not a claim in the result body. */
   delivery?: DeliveryKind;
