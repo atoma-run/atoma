@@ -11,7 +11,7 @@ const response = (value: unknown): LlmCompletionResponse => ({
   text: jsonText(value), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 },
 });
 
-it('retains successful command receipts beside short failures and inspected source in the actual validator prompt', async () => {
+it('retains successful command receipts across sixty-six command identities in the actual validator prompt', async () => {
   const names = ['read_file', 'run_shell', 'validate_html'];
   const child = new L1Atom({ name: 'Methane', ordinal: 2, systemPrompt: 'Verify', params: {},
     tools: names.map(name => ({ name, description: name, inputSchema: { type: 'object', properties: {} } })),
@@ -37,7 +37,7 @@ it('retains successful command receipts beside short failures and inspected sour
     for (const cmd of commands) await request.executor!.execute('run_shell', { cmd: cmd + commandSuffix });
     for (let i = 0; i < 16; i++) await request.executor!.execute('read_file', { path: `source${i}.ts` });
     for (let i = 0; i < 8; i++) await request.executor!.execute('validate_html', { url: `http://localhost:4000/?probe=${i}` });
-    for (let i = 0; i < 8; i++) await request.executor!.execute('run_shell', { cmd: `inspect-${i}` });
+    for (let i = 0; i < 61; i++) await request.executor!.execute('run_shell', { cmd: `inspect-${i}` });
     await request.executor!.execute('run_shell', { cmd: 'wrong-test-runner matrix.ts' });
     return response({ output: 'verified', summary: 'Inspect the observed checks.' });
   });

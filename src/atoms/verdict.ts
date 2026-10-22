@@ -756,7 +756,7 @@ export function renderActiveSkillBlock(skill: { id: string; body: string }): str
 /** Browser observations always shown to a result validator, newest first kept. */
 export const MAX_BROWSER_EVIDENCE_LINES = 8;
 /** The whole transport-evidence block's character budget. */
-export const MAX_TOOL_EVIDENCE_CHARS = 24_000;
+export const MAX_TOOL_EVIDENCE_CHARS = 48_000;
 
 /**
  * The TRANSPORT-OBSERVED evidence lines a result validator reads, and how

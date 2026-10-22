@@ -459,7 +459,7 @@ describe('the result validator prompt', () => {
       tools: attestingExecutor(base, attestations, 'phase-1', undefined, 1)! };
     ctx.llm.enqueue(async (req: LlmCompletionRequest) => {
       await req.executor!.execute('validate_html', { url: 'http://127.0.0.1:4000/', smoke: '({ok:true})' });
-      for (let i = 0; i < 20; i += 1) await req.executor!.execute('read_file', { path: `src/file${i}.js` });
+      for (let i = 0; i < 80; i += 1) await req.executor!.execute('read_file', { path: `src/file${i}.js` });
       return reply({ output: { files: ['index.html'] }, summary: 'done' });
     });
     const result = await child.execute({ description: 'Build a page' }, makePlan({ proposedAction: 'build' }), ctx);
