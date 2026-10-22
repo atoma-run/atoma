@@ -45,7 +45,7 @@ export function computeFailure(error: unknown): ComputeDiagnostic['failure'] {
   if (error instanceof SyntaxError) return 'json-decoding';
   if (!(error instanceof Error)) return 'other';
   switch (error.message) {
-    case 'Compute session expired or superseded': case 'Compute lease expired':
+    case 'Compute session expired': case 'Compute session expired or superseded': case 'Compute lease expired':
     case 'Compute lease is not active': return 'session-expired';
     case 'Compute execution unavailable': return 'execution-fenced';
     case 'Unexpected tool result': case 'Unexpected result': case 'Unexpected preview result':

@@ -1,0 +1,239 @@
+{
+  "kind": "totals",
+  "eventCount": 1314,
+  "completedModelCalls": 151,
+  "firstExplicitWriteTs": 1792658573592,
+  "completedCallsBeforeFirstWrite": 90,
+  "equivalentBeforeFirstWrite": 5.69427636,
+  "reviews": 53,
+  "negativePlan": 8,
+  "negativeResult": 17,
+  "sameBranchRetryWindows": [
+    {
+      "reviewId": "12c5f673-b916-4f2e-bc39-8684f33f4d14",
+      "branchId": "37e4ad0e-a7a7-44f5-85f8-f43ac6639e9f",
+      "fromIndex": 240,
+      "untilIndex": 315,
+      "sameBranchCompletedModelCalls": 3,
+      "sameBranchEquivalentUsd": 0.02646304,
+      "wallMs": 62773
+    },
+    {
+      "reviewId": "f1dc2248-cf49-4e81-b02d-e007dcabd281",
+      "branchId": "89b3c20a-0333-49a0-bf47-0c7fb1b10b88",
+      "fromIndex": 268,
+      "untilIndex": 336,
+      "sameBranchCompletedModelCalls": 2,
+      "sameBranchEquivalentUsd": 0.033475559999999994,
+      "wallMs": 71760
+    },
+    {
+      "reviewId": "845b1be6-0456-4248-9730-b3e06f554611",
+      "branchId": "37e4ad0e-a7a7-44f5-85f8-f43ac6639e9f",
+      "fromIndex": 315,
+      "untilIndex": 356,
+      "sameBranchCompletedModelCalls": 2,
+      "sameBranchEquivalentUsd": 0.02508836,
+      "wallMs": 72528
+    },
+    {
+      "reviewId": "ec15fc95-5995-4709-8764-ec2a50a8ce2f",
+      "branchId": "e2e0e3f6-7b59-4b6a-9237-e03c07aa72a8",
+      "fromIndex": 359,
+      "untilIndex": 371,
+      "sameBranchCompletedModelCalls": 2,
+      "sameBranchEquivalentUsd": 0.05169,
+      "wallMs": 143538
+    },
+    {
+      "reviewId": "0c45bc82-2ad2-4605-a834-bf90c35d1f7f",
+      "branchId": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "fromIndex": 424,
+      "untilIndex": 430,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.0033981999999999997,
+      "wallMs": 15734
+    },
+    {
+      "reviewId": "7acadc1e-b47f-4b5f-a75c-9c6fe4314e97",
+      "branchId": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "fromIndex": 465,
+      "untilIndex": 516,
+      "sameBranchCompletedModelCalls": 2,
+      "sameBranchEquivalentUsd": 0.04485568,
+      "wallMs": 102635
+    },
+    {
+      "reviewId": "7eb43d1d-a56a-4cd8-bf8a-86478357ab35",
+      "branchId": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "fromIndex": 516,
+      "untilIndex": 524,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.003612,
+      "wallMs": 11323
+    },
+    {
+      "reviewId": "3ebf310b-a84e-4659-8f35-fb425b364212",
+      "branchId": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "fromIndex": 564,
+      "untilIndex": 618,
+      "sameBranchCompletedModelCalls": 2,
+      "sameBranchEquivalentUsd": 0.0438894,
+      "wallMs": 85756
+    },
+    {
+      "reviewId": "51a7df6e-8ee9-42a6-8c5f-4855403aa037",
+      "branchId": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "fromIndex": 618,
+      "untilIndex": 624,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.003483,
+      "wallMs": 12309
+    },
+    {
+      "reviewId": "79befeb7-84ac-459c-ba10-7dcc93b3de35",
+      "branchId": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "fromIndex": 663,
+      "untilIndex": 1314,
+      "sameBranchCompletedModelCalls": 2,
+      "sameBranchEquivalentUsd": 0.06765436,
+      "wallMs": 2900260
+    },
+    {
+      "reviewId": "aed07835-8ea6-405f-a5ec-1ba5f279837f",
+      "branchId": "e2e0e3f6-7b59-4b6a-9237-e03c07aa72a8",
+      "fromIndex": 708,
+      "untilIndex": 1314,
+      "sameBranchCompletedModelCalls": 0,
+      "sameBranchEquivalentUsd": 0,
+      "wallMs": 2809782
+    },
+    {
+      "reviewId": "1f10bf81-dafd-4483-bf60-cbfe5e59c762",
+      "branchId": null,
+      "fromIndex": 714,
+      "untilIndex": 719,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.70475,
+      "wallMs": 213821
+    },
+    {
+      "reviewId": "bd2345bc-635c-449d-b300-0372693b16d2",
+      "branchId": null,
+      "fromIndex": 719,
+      "untilIndex": 724,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.712808,
+      "wallMs": 217459
+    },
+    {
+      "reviewId": "15b70ed3-4923-4079-9131-a2a7cce2e3a4",
+      "branchId": null,
+      "fromIndex": 724,
+      "untilIndex": 729,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.76108,
+      "wallMs": 204572
+    },
+    {
+      "reviewId": "009f114d-cf27-4886-aea7-f8e321e43bed",
+      "branchId": null,
+      "fromIndex": 729,
+      "untilIndex": 734,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.8969,
+      "wallMs": 290865
+    },
+    {
+      "reviewId": "9bf546e8-45db-4ca4-bbb1-136529b5f9b4",
+      "branchId": "12ec7486-518f-438b-857e-6f14a8b5b407",
+      "fromIndex": 802,
+      "untilIndex": 810,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.005878,
+      "wallMs": 12867
+    },
+    {
+      "reviewId": "49934ba0-b7b6-4c21-b091-4a998e2bec17",
+      "branchId": "12ec7486-518f-438b-857e-6f14a8b5b407",
+      "fromIndex": 862,
+      "untilIndex": 868,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.005903,
+      "wallMs": 14277
+    },
+    {
+      "reviewId": "e9d886bb-8ef7-417f-b566-720fe6aea20b",
+      "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+      "fromIndex": 910,
+      "untilIndex": 917,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.14612,
+      "wallMs": 128670
+    },
+    {
+      "reviewId": "68663f15-0e16-4d63-aff2-6be1f9d0255f",
+      "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+      "fromIndex": 917,
+      "untilIndex": 924,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.14978,
+      "wallMs": 134938
+    },
+    {
+      "reviewId": "286bf7b6-833c-4e93-8dc6-877c499a9428",
+      "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+      "fromIndex": 924,
+      "untilIndex": 933,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.154496,
+      "wallMs": 132783
+    },
+    {
+      "reviewId": "a3a54b7b-96d0-48e3-ab60-0fb18faee7d5",
+      "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+      "fromIndex": 933,
+      "untilIndex": 1314,
+      "sameBranchCompletedModelCalls": 3,
+      "sameBranchEquivalentUsd": 0.47020323999999997,
+      "wallMs": 735259
+    },
+    {
+      "reviewId": "4336cff8-e288-4f6f-899d-76e2ba2c1321",
+      "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+      "fromIndex": 1055,
+      "untilIndex": 1142,
+      "sameBranchCompletedModelCalls": 2,
+      "sameBranchEquivalentUsd": 0.052873920000000005,
+      "wallMs": 117106
+    },
+    {
+      "reviewId": "99ecd657-bbab-4a4b-8e95-e6172997678a",
+      "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+      "fromIndex": 1142,
+      "untilIndex": 1224,
+      "sameBranchCompletedModelCalls": 2,
+      "sameBranchEquivalentUsd": 0.0617052,
+      "wallMs": 112607
+    },
+    {
+      "reviewId": "75c5de7d-4430-4fd4-8338-ebc1d415178e",
+      "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+      "fromIndex": 1224,
+      "untilIndex": 1296,
+      "sameBranchCompletedModelCalls": 3,
+      "sameBranchEquivalentUsd": 0.05456228,
+      "wallMs": 95199
+    },
+    {
+      "reviewId": "600c0b7f-2c6b-4338-aa81-73e2c1d77d4f",
+      "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+      "fromIndex": 1296,
+      "untilIndex": 1314,
+      "sameBranchCompletedModelCalls": 1,
+      "sameBranchEquivalentUsd": 0.009814,
+      "wallMs": 23794
+    }
+  ],
+  "retryCaveat": "Exclusive branch-local windows, omit descendants and in-flight calls. Wall windows may overlap parallel work. Do not sum wall time or claim cap attribution."
+}

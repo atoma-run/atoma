@@ -92,6 +92,13 @@ Operations already dispatched remain indeterminate and are never replayed.
 Only engine-confirmed teardown allows a new connection to reconcile the old
 execution generation. Reconnection does not resume the interrupted run.
 
+Keep the computer on a stable network during a run. Switching Wi-Fi networks or
+resuming after a network outage can leave the previous TCP connection unusable
+even when the computer is online again. Compute does not migrate that active
+connection to the new network. Expiry still stops the workload; a longer run
+budget does not extend the connection lease. Without an eligible confirmed
+checkpoint, reconnecting cannot recover progress as a continuable run.
+
 After reconnecting the computer, use **Reconcile and finish transfer** in the
 project's Compute settings for a pending run. A completed run can export its
 remaining files in a fresh, export-only generation. An interrupted execution

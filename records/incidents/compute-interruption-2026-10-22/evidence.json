@@ -1,0 +1,86 @@
+{
+  "runId": "1622e44b-8d9f-41dc-8827-a1af7cb38353",
+  "finding": "macOS network transition preceded a silent WSS loss and lease expiry; no user cancellation or run-budget expiry",
+  "timeBasis": "UTC; macOS log timestamps were Europe/Athens (UTC+03:00)",
+  "events": [
+    {
+      "at": "2026-10-22T09:09:03.845Z",
+      "source": "macOS airportd",
+      "event": "en0 link_off"
+    },
+    {
+      "at": "2026-10-22T09:09:04.185Z",
+      "source": "macOS configd",
+      "event": "WiFi is unavailable"
+    },
+    {
+      "at": "2026-10-22T09:09:04.416Z",
+      "source": "macOS airportd",
+      "event": "joining network; reason ControlCenter; network identity omitted"
+    },
+    {
+      "at": "2026-10-22T09:09:04.460Z",
+      "source": "macOS configd",
+      "event": "en0 link address changed; DHCP subsequently reports network changed"
+    },
+    {
+      "at": "2026-10-22T09:09:28.515Z",
+      "source": "Compute connection.log",
+      "event": "client lease-expired",
+      "lastReceiveAgoMs": 26327.382041990757,
+      "lastHeartbeatAgoMs": 29951.47120898962,
+      "socketState": 1,
+      "bufferedBytes": 0
+    },
+    {
+      "at": "2026-10-22T09:09:29.270Z",
+      "source": "Compute connection.log",
+      "event": "client stop-confirmed"
+    },
+    {
+      "at": "2026-10-22T09:09:34.682Z",
+      "source": "executor journal",
+      "event": "server session-invalid",
+      "failure": "other",
+      "lastReceiveAgoMs": 30736.676131000742,
+      "lastHeartbeatAgoMs": 30735.520283000544,
+      "socketState": 1,
+      "pendingToolRequestIds": [
+        2775,
+        2776
+      ]
+    },
+    {
+      "at": "2026-10-22T09:09:35.598Z",
+      "source": "Compute connection.log",
+      "event": "connected; connection generation 82 replaces 81"
+    },
+    {
+      "at": "2026-10-22T09:09:36.244Z",
+      "source": "Atoma MCP run status",
+      "event": "failed; stop confirmed; no cancellation; checkpoint unavailable; no manifest"
+    }
+  ],
+  "correlation": {
+    "connectionGeneration": 81,
+    "executionGeneration": 30,
+    "sessionId": "021acb42-e154-4586-ba34-0452fc6fac50"
+  },
+  "limits": [
+    "OS evidence supports network migration as the initiating event; it does not identify who operated ControlCenter.",
+    "Targeted power/server logs do not show sleep, restart or deployment at the interruption.",
+    "The diagnostic fix does not make transport resumable.",
+    "No raw network identities, credentials, frames or private payloads are retained here."
+  ],
+  "correction": {
+    "file": "src/contracts/computeDiagnostics.ts",
+    "old": "Compute session expired was mapped to other",
+    "new": "exact store expiry maps to existing session-expired category",
+    "changesLeaseOrReplay": false
+  },
+  "verification": {
+    "red": "production TLS/store/watchdog test fails: expected session-expired, received other",
+    "targeted": "49 passed, 4 existing skipped, two test files; source expiry, teardown and fencing unchanged",
+    "release": "npm ci then npm run release:check passed: both TypeScript configurations, lint, docs, audit (0 vulnerabilities), compiled smokes, 552 test files passed / 4 skipped; 7879 tests passed / 36 skipped."
+  }
+}

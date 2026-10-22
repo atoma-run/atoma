@@ -825,6 +825,34 @@ it('logs the first server close cause with pending identities and excludes priva
   } finally { output.mockRestore(); }
 });
 
+it('reports store lease expiry while fencing pending work without replay', async () => {
+  const f = await connected(), lines: string[] = [];
+  const output = vi.spyOn(process.stderr, 'write').mockImplementation(chunk => { lines.push(String(chunk)); return true; });
+  try {
+    const command = message(f.ws);
+    const result = f.peer.request(f.execution, { method: 'restart' });
+    const rejected = expect(result).rejects.toBeInstanceOf(ComputeIndeterminateError);
+    await command;
+    // The actual store deadline expires while the TLS socket still looks open.
+    // No fake exception: the production watchdog reads and fences this session.
+    const closed = once(f.ws, 'close');
+    now += 30_001;
+    await rejected; await closed;
+    expect(f.peer.signal.aborted).toBe(true);
+    expect(f.peer.identity()).toBeUndefined();
+    const records = lines.filter(line => line.startsWith('[atoma compute] '))
+      .map(line => JSON.parse(line.slice(16)) as Record<string, unknown>);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ side: 'server', reason: 'session-invalid', failure: 'session-expired',
+      deviceId: f.paired.deviceId, sessionId: f.session.sessionId,
+      connectionGeneration: f.session.generation, runId: f.runId, executionGeneration: f.execution.generation,
+      socketState: WebSocket.OPEN, pending: [{ channel: 'workspace', id: 1, method: 'restart' }] });
+    expect(() => devices.validateSession(f.session)).toThrow();
+    await expect(f.peer.request(f.execution, { method: 'restart' })).rejects.toThrow('Compute transport unavailable');
+    expect(lines.join('')).not.toContain(f.paired.credential);
+  } finally { output.mockRestore(); }
+});
+
 it('distinguishes a workspace RPC timeout from a socket close', async () => {
   const f = await connected(), lines: string[] = [];
   const output = vi.spyOn(process.stderr, 'write').mockImplementation(chunk => { lines.push(String(chunk)); return true; });
