@@ -336,6 +336,16 @@ Neighbours:
   bill, and it never changes a decision.
   The result census follows the [October 7 review](../../records/measurements/jev-calibration-2026-10-07.md).
 
+## Runtime timing observations
+
+`runtimeTiming` records bounded transport/stage intervals through optional,
+non-vetoing observers. Codex tool-loop observations distinguish profile wait,
+first response/token, per-turn response envelopes, tool queue and finalization.
+Text transport records the local profile queue and first completed response;
+unsupported first-token measurement stays absent. Timing never releases a lease,
+changes tool ordering or grants proof. Late host transfer/cleanup spans use a
+host-owned sidecar beside the trace rather than rewriting its completed bytes.
+
 ## Intentional choices and rejected shortcuts
 
 - Reusing `src/auth/codexAppServer.ts` for tool sessions: refused. It is the

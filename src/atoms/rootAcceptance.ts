@@ -1,3 +1,4 @@
+import { timed } from '../core/runtimeTiming.js';
 import { createHash } from 'node:crypto';
 import { baseExecutorOf } from '../core/attestation.js';
 import type { Atom } from '../core/atom.js';
@@ -445,7 +446,11 @@ export function observedDelivery(ctx: RunContext): DeliveryKind {
 }
 
 /** A delivery verdict only: no registry, learning hook, or remediation lives here. */
-export async function acceptRootResult(args: {
+export async function acceptRootResult(args: Parameters<typeof acceptRootResultInternal>[0]): Promise<AcceptanceInfo> {
+  return timed(args.ctx.recordTiming, 'acceptance', () => acceptRootResultInternal(args));
+}
+
+async function acceptRootResultInternal(args: {
   actor: Atom; task: Task; result: Result; ctx: RunContext; floor: ProofFloor;
   /** The current pass's recorded root plan, not a claim in the result body. */
   delivery?: DeliveryKind;
@@ -607,6 +612,7 @@ export async function acceptRootResult(args: {
           .join('\n')].filter(Boolean).join('\n\n') }) : undefined;
   let judged = focused ? judgeCoverage(coverage, focused.criteria) : initialJudged;
   let resolved = initial;
+  let rereadJudged = false;
   // One bounded reread of an identified disagreement, never a vote or an
   // automatic override. Both original calls remain in the trace.
   const disputed = initialJudged.filter(item => item.judgement?.met === false &&
@@ -624,12 +630,24 @@ export async function acceptRootResult(args: {
         reread.criteria?.length === checklist.length;
       if (complete) {
         judged = judgeCoverage(coverage, reread.criteria);
+        rereadJudged = true;
         resolved = consistentWithCriteria(reread, judged, source, landed);
       }
     } catch {
       // A failed reread cannot erase the refusal. Cancellation still propagates.
       ctx.signal?.throwIfAborted();
     }
+  }
+  // A refused delivery has not resolved a positive/negative disagreement.
+  // Keep it unjudged rather than dropping it from the repair's criteria.
+  // A complete existing reread may settle it; no additional call or vote.
+  if (!initial.approved && !rereadJudged && disputed.length > 0) {
+    const unresolved = new Set(disputed.map(item => item.id));
+    judged = judged.map(item => {
+      if (!unresolved.has(item.id)) return item;
+      const { judgement: _unresolved, ...coverage } = item;
+      return coverage;
+    });
   }
   const reviewed = focused && !focused.approved ? { approved: false,
     reasoning: [!initial.approved ? initial.reasoning : '', focused.reasoning].filter(Boolean).join('\n') } : resolved;

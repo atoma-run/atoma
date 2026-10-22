@@ -13,6 +13,8 @@ import { PhaseBoundaryPause, runCheckpointSchema } from '../src/contracts/runChe
 import { closeStoreHandles } from '../src/core/stores.js';
 import { withRecoveryEffects } from '../src/core/recoveryEffects.js';
 import { makeCtx } from './helpers.js';
+import { deepenBackend } from '../src/run/deepenBackend.js';
+import { localToolBackend } from '../src/run/toolBackend.js';
 
 const roots: string[] = [];
 const services: ReturnType<typeof startWorkspaceProcess>[] = [];
@@ -26,6 +28,47 @@ function fixture() {
 }
 
 describe('private workspace runtime', () => {
+  it.each([false, true])('preserves drained state across a real workspace process (changed=%s)', async changed => {
+    const { root, remote } = fixture();
+    const ctx = makeCtx();
+    const backend = localToolBackend({ workspaceRoot: root, logger: ctx.logger });
+    const replacement = localToolBackend({ workspaceRoot: root, logger: ctx.logger });
+    const cleanup = vi.spyOn(replacement, 'cleanup');
+    const create = vi.fn(async () => {
+      expect(readFileSync(join(root, 'README.md'), 'utf8')).toBe('shutdown persisted');
+      if (changed) writeFileSync(join(root, 'README.md'), 'unexpected writer');
+      return replacement;
+    });
+    const drain = backend.drain!;
+    backend.drain = async () => {
+      await drain();
+      writeFileSync(join(root, 'README.md'), 'shutdown persisted');
+    };
+    const restarting = deepenBackend({ backend, workspace: remote, signal: ctx.signal, create });
+    if (changed) {
+      await expect(restarting).rejects.toThrow('Workspace changed while deepening');
+      expect(cleanup).toHaveBeenCalledOnce();
+    } else {
+      expect(await restarting).toBe(replacement);
+      expect(readFileSync(join(root, 'README.md'), 'utf8')).toBe('shutdown persisted');
+    }
+    await replacement.cleanup();
+  });
+
+  it('does not construct a replacement after a failed drain or cancellation', async () => {
+    const { root, remote } = fixture();
+    const ctx = makeCtx();
+    const backend = localToolBackend({ workspaceRoot: root, logger: ctx.logger });
+    const create = vi.fn(async () => backend);
+    backend.drain = async () => { throw new Error('worker remains'); };
+    await expect(deepenBackend({ backend, workspace: remote, signal: ctx.signal, create })).rejects.toThrow('worker remains');
+    const cancellation = new AbortController();
+    backend.drain = async () => { cancellation.abort(new Error('cancelled')); };
+    await expect(deepenBackend({ backend, workspace: remote, signal: cancellation.signal, create })).rejects.toThrow('cancelled');
+    expect(create).not.toHaveBeenCalled();
+    expect(readFileSync(join(root, 'README.md'), 'utf8')).toBe('original');
+    await backend.cleanup();
+  });
   it('returns the same routing and delivery evidence across the process boundary', async () => {
     const { root, local, remote } = fixture();
     const start = snapshotStartingWorkspace(root);

@@ -855,7 +855,7 @@ fail closed as before. The web service's executor dependency is one-way only.
   same `servesLegalPages` rule. The list lives in the renderer-free
   `client-gl/legal-links.ts` so the eager bundle never imports Pixi for it.
   `viz:shot -- --login-gate` draws that gate and taps the canvas Privacy link.
-
+Transport timings are optional trace metadata, capped at 2,048 intervals per LLM event with an explicit omission count. No event kind or acceptance state is added.
 ## Intentional choices and rejected shortcuts
 
 - `vite-plugin-pwa`: rejected and restated here because it looks like the

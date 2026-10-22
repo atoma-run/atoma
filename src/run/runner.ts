@@ -87,6 +87,8 @@ import { selectTissue, tissueForRun } from './tissueRouting.js';
 import { capturePlatformTissueAuthor, platformTissueAuthor, type TissueAuthor } from './tissueAuthor.js';
 import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
 import { localWorkspaceRuntime } from './workspaceRuntime.js';
+import { deepenBackend } from './deepenBackend.js';
+import { timed, observeTiming } from '../core/runtimeTiming.js';
 import { restoreWorkspaceExport } from './workspaceImport.js';
 import { captureCheckpointExport } from './checkpointExport.js';
 import { gatedExecutor, inheritedChecksFor } from './inheritedChecks.js';
@@ -625,6 +627,7 @@ async function startTaskInternal(
     createToolBackend?: () => Promise<import('./toolBackend.js').ToolBackend>;
   }
 ): Promise<RunHandle> {
+  const setupStarted = Date.now();
   // PROVIDER CREDENTIALS ARE A PER-RUN VALUE (invariant T10). `providerEnv`
   // is the snapshot every provider decision reads: which transport, which
   // key, which base URL. Omit it and the run inherits `process.env`, which
@@ -1333,25 +1336,10 @@ async function startTaskInternal(
           return { actor: tissue, handle: (task, context) => tissue.handle(task, context) };
         },
         restart: async () => {
-          // A deepening before the run-start replay settled would archive
-          // the workspace under it; waiting for it ends its extension.
+          // Settle the baseline before sealing the current execution state.
           inheritedChecks?.waiting();
           await inheritedChecks?.ready;
-          if (!backend.drain) throw new Error('Depth routing backend cannot confirm process exit');
-          await backend.drain();
-          signal.throwIfAborted();
-          await workspace.restart();
-          await inheritedChecks?.reseeded();
-          const replacement = await makeBackend();
-          if ((replacement.provenance ?? 'hosted') !== (backend.provenance ?? 'hosted')) {
-            await replacement.cleanup(); throw new Error('Execution provenance cannot change during a run');
-          }
-          if (signal.aborted) {
-            await replacement.cleanup();
-            signal.throwIfAborted();
-          }
-          await workspace.captureReadRuns();
-          backend = replacement;
+          backend = await timed(ctx.recordTiming, 'deepening', () => deepenBackend({ backend, workspace, signal, create: makeBackend }));
           return runTools(backend.executor);
         },
         onTopology: (info) => recorder.recordTopology(info),
@@ -1411,6 +1399,7 @@ async function startTaskInternal(
     // Mirror recordTrust for skill-pipeline events so the viz can render
     // a Skills lane (match / inject / learn / update / counter bumps).
     recordSkill: (info) => recorder.recordSkillEvent(info),
+    recordTiming: (info) => recorder.recordTiming(info),
     recordRunStat: (signalName) => {
       runSignals[signalName] += 1;
     },
@@ -1548,6 +1537,7 @@ async function startTaskInternal(
       l3: formatModelSelector(selectors[3]),
     },
   });
+  observeTiming(info => recorder.recordTiming(info), 'setup', setupStarted);
   // The trace run id IS the project run id for a tenant run (the coordinator
   // passes it as ATOMA_RUN_ID); for an operator run it is the one the recorder
   // just minted. Either way it is the id `platform_events.run_id` uses.
@@ -1632,7 +1622,9 @@ async function startTaskInternal(
             }
           });
       }
-      const handled = await handle(task, ctx).finally(() => { retrievalWatched = false; });
+      const handled = await timed(ctx.recordTiming, 'execution', () => handle(task, ctx))
+        .finally(() => { retrievalWatched = false; });
+      const finalizationStarted = Date.now();
       // Root acceptance judges a depth run's unjudged parent-owned suites;
       // without it, one that did not pass refuses the delivery here.
       const result = args.depth ? handled : refuseUnreviewedParentTests(handled);
@@ -1662,6 +1654,7 @@ async function startTaskInternal(
       // model-authored prose.
       const unfinishedPhases = result.unfinishedPhases ?? [];
       const landed = isLanded(result);
+      observeTiming(ctx.recordTiming, 'finalization', finalizationStarted);
       const persistedRun = recorder.endRun({
         result: {
           summary: result.summary,

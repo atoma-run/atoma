@@ -387,7 +387,9 @@ describe('spawnRun — reaping a child that parked', () => {
     try {
       process.env['PATH'] = `${dir}:${previousPath ?? ''}`;
       const startedAt = Date.now();
+      const timings: import('../src/contracts/runtimeTiming.js').RuntimeTiming[] = [];
       const log = await spawnRun({
+        onTiming: timing => { timings.push(timing); if (timing.phase === 'process') throw new Error('observer'); },
         goal: 'park behind a banner',
         timeoutMs: 15_000,
         logPath: join(dir, 'child.log'),
@@ -398,6 +400,8 @@ describe('spawnRun — reaping a child that parked', () => {
       // The kill timer is 1.5 s after the banner. Without it the child sleeps
       // 30 s and spawnRun only returns when its own timeout fires at 15 s.
       expect(elapsed).toBeLessThan(10_000);
+      expect(timings.map(value => value.phase)).toEqual(['process', 'process-finalization']);
+      expect(timings[1]!.durationMs).toBeGreaterThanOrEqual(1000);
     } finally {
       if (previousPath === undefined) delete process.env['PATH'];
       else process.env['PATH'] = previousPath;

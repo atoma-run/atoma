@@ -9,7 +9,7 @@ import { readRoutingRepository } from './routingRepository.js';
 import { snapshotDeliveredWorkspace, snapshotStartingWorkspace, prepareWorkspace, seedWorkspace, describeSeedManifest } from './workspace.js';
 import { readInheritedWorkspaceState, rewriteManifest } from './inheritedChecks.js';
 import { captureCheckpointExport } from './checkpointExport.js';
-import { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
+import { canonicalCheckpointWorkspacePath, checkpointWorkspaceDigest } from './checkpointWorkspace.js';
 import { captureArtifactExport } from './artifactTransfer.js';
 import { WorkspaceImport } from './workspaceImport.js';
 import { captureReadRunCopies, checkReadRunCopies, compareReadRunFiles, ensureReadRunMountPoint, legacyReadRunCopy,
@@ -23,6 +23,7 @@ export function localWorkspaceRuntime(options: {
   readRuns?: ReadRunsIndex;
   log: (line: string) => void;
 }): WorkspaceRuntime {
+  const checkpointRoot = canonicalCheckpointWorkspacePath(options.root);
   let identities: ReadRunCopyIdentities | undefined;
   let prepared = false, sourcesBound = false;
   const validateSources = async () => {
@@ -83,8 +84,8 @@ export function localWorkspaceRuntime(options: {
       return null;
     },
     canonicalPath: async () => realpathSync(options.root),
-    checkpointDigest: async () => checkpointWorkspaceDigest(options.root),
-    checkpointExport: async () => captureCheckpointExport(options.root),
+    checkpointDigest: async () => checkpointWorkspaceDigest(checkpointRoot),
+    checkpointExport: async () => captureCheckpointExport(checkpointRoot),
     routingRepository: async () => readRoutingRepository(options.root),
     deliveredSnapshot: async start => snapshotDeliveredWorkspace(options.root, start),
     captureReadRuns: async () => {

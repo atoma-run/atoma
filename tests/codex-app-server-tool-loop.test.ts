@@ -140,6 +140,25 @@ function request(over: Partial<LlmCompletionRequest> = {}): LlmCompletionRequest
 }
 
 describe('Codex app-server tool session', () => {
+  it('observes first token, response, queue and lease wait without changing tool execution', async () => {
+    const home = codexHome();
+    const timings: import('../src/contracts/runtimeTiming.js').RuntimeTiming[] = [];
+    const fixture = fakeAppServer(async server => {
+      server.raw(Buffer.from(JSON.stringify({ method: 'item/agentMessage/delta', params: { delta: 'Checking' } }) + '\n'));
+      await server.callTool('read_file', { path: 'source.ts' });
+      server.message('done'); server.usage({ inputTokens: 10, outputTokens: 2 }); server.complete();
+    });
+    const client = new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fixture.spawnFn });
+    const req = request({ onTiming: timing => { timings.push(timing); throw new Error('observer'); } });
+    expect((await client.complete(req)).text).toBe('done');
+    expect(timings.map(timing => timing.phase)).toEqual(expect.arrayContaining([
+      'profile-wait', 'first-response', 'first-token', 'tool-queue', 'response-envelope', 'transport-cleanup',
+    ]));
+    expect(req.executor!.execute).toHaveBeenCalledOnce();
+    const release = tryAcquireCodexHomeLease(home);
+    expect(release).not.toBeNull();
+    release?.();
+  });
   it('recovers listings from a truncated HTTP response through file pages without refetching', async () => {
     const home = codexHome();
     const sandbox = new ToolSandbox(path.join(path.dirname(home), 'workspace'));

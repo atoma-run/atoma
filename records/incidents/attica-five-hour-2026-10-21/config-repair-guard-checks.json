@@ -1,0 +1,67 @@
+{
+  "operatorArtifact": "records/incidents/attica-five-hour-2026-10-21/correct-compute-runtime.py",
+  "productionConfigChanged": false,
+  "design": "device override; legacy default preserved",
+  "cases": [
+    {
+      "case": "dry_run_does_not_write",
+      "pass": true
+    },
+    {
+      "case": "only_exact_selected_device_override_added",
+      "pass": true
+    },
+    {
+      "case": "legacy_clients_and_all_original_environment_bytes_unchanged",
+      "pass": true
+    },
+    {
+      "case": "owner_mode_and_private_original_backup_preserved",
+      "pass": true
+    },
+    {
+      "case": "output_does_not_include_environment_contents",
+      "pass": true
+    },
+    {
+      "case": "configured_override_is_idempotent",
+      "pass": true
+    },
+    {
+      "case": "unknown_legacy_runtime_refused",
+      "pass": true
+    },
+    {
+      "case": "duplicate_legacy_key_refused",
+      "pass": true
+    },
+    {
+      "case": "changed_model_refused",
+      "pass": true
+    },
+    {
+      "case": "worker_no_longer_admitted_refused",
+      "pass": true
+    },
+    {
+      "case": "existing_other_device_map_refused",
+      "pass": true
+    },
+    {
+      "case": "existing_conflicting_device_map_refused",
+      "pass": true
+    },
+    {
+      "case": "symlink_refused",
+      "pass": true
+    },
+    {
+      "case": "concurrent_update_preserved",
+      "pass": true
+    },
+    {
+      "case": "temporary_files_cleaned",
+      "pass": true
+    }
+  ]
+}

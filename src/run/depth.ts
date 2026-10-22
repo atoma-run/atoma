@@ -115,7 +115,7 @@ function soleRefusalReason(acceptance: AcceptanceInfo, criterionId: string): boo
   if (inherited && baselineEstablishedNothing({ selected: inherited.selected ?? 0, kept: inherited.kept ?? 0 })) return false;
   if (acceptance.floorCoverage.some((item) => item.status === 'uncovered')) return false;
   return !(acceptance.checklist ?? []).some((item) => item.id !== criterionId && (
-    item.status === 'uncovered' || (item.layouts ?? []).some((layout) => layout.status !== 'passed')
+    item.judgement?.met !== true || item.status === 'uncovered' || (item.layouts ?? []).some((layout) => layout.status !== 'passed')
   ));
 }
 
@@ -435,7 +435,7 @@ export async function runDepthTask(args: {
       // refused, spent root phase up instead of re-running it (phaseBudget.ts).
       rootAcceptance: true,
       signal: attemptSignal,
-      // A fresh workspace gets fresh coaching; forks within this attempt
+      // A new attempt gets fresh coaching; forks within this attempt
       // share these same sets through supervisor replans and branch retries.
       mechanicalPlanRejections: new Set(), mechanicalResultRejections: new Set(),
       dispatchedScriptSignatures: new Map(),
@@ -458,9 +458,11 @@ export async function runDepthTask(args: {
       // attestations the first pass earned still cover their deliverables —
       // `rootProofCoverage` re-reads each file and compares its digest, so a
       // proof survives exactly as long as the bytes it was made against. A new
-      // attempt, as deepening uses, would discard all of it, which is right
-      // when the workspace is replaced and wrong when it is being completed.
-      let currentTask = task;
+      // deepening attempt invalidates prior proof even though its bytes remain;
+      // completing this same attempt keeps digest-bound proof.
+      let currentTask = attempt === 1 ? task : { ...task, inputs: { ...task.inputs,
+        depthContinuation: 'The previous short attempt was stopped and its processes were drained. Its files and installed dependencies remain in the workspace, unverified. Inspect and complete that work instead of rebuilding it. Earlier observations grant no proof or approval in this new attempt; verify the final source against every original requirement.',
+      } };
       // The EARLIER pass of this attempt, refused or an approved dependency
       // landing (G1). Every exit after a judged pass that is not deliberate
       // lands on it instead of taking it down (2026-09-25 review, 1.2b): the
@@ -653,7 +655,7 @@ export async function runDepthTask(args: {
       ctx.signal.throwIfAborted();
       if (!requested || mode !== 'short') throw error;
       // Parallel dispatch drains cancelled siblings before the handle rejects.
-      // The backend must reap processes before it archives and replaces the workspace.
+      // Seal and preserve the drained workspace; the new attempt earns new proof.
       tools = await args.restart();
       ctx.recordRunStat?.('deepening');
     }

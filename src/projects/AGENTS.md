@@ -58,6 +58,10 @@ The WSS bind acknowledgement follows local allocation; loss during allocation
 is indeterminate and cannot free the persisted assignment. Tools use a separate
 bounded concurrent channel; their acknowledged drain leaves workspace RPC alive.
 
+The coordinator selects a host-configured retrieval override by the immutable
+run target's device UUID; legacy devices keep their existing fallback. The
+schema and bounded reader live in [contracts](../contracts/AGENTS.md#haystack-runtime-configuration).
+
 ## Deployment preference
 
 `deploymentDestination` is `none` (default), `atoma`, or `external`. The
@@ -664,6 +668,14 @@ can retry while the source is still ready. Failed interrupted runs may recover
 from a sealed snapshot when the journal permits it; blocked reasons are projected
 to the requester. Their retrieval corpus stays the recorded starting corpus.
 See [checkpoints](../../docs/decisions/run-checkpoints-2026-10-08.md) and [client questions](../../docs/client-questions.md).
+
+## Host latency receipts
+
+The existing coordinator/driver records preparation, process, process finalization,
+customer-compute handoff, host finalization and detached naming in an optional
+host-owned timing sidecar beside the trace. Transfer failures record elapsed time
+without claiming completion; failed timing writes never affect admission, leases,
+acceptance, publication or the immutable child trace.
 
 ## Intentional choices and rejected shortcuts
 

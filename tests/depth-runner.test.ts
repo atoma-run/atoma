@@ -182,7 +182,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     }
   });
 
-  it.skipIf(process.platform === 'win32')('reaps the abandoned server, archives its files, recreates tools, and accounts for both attempts in one failed run', async () => {
+  it.skipIf(process.platform === 'win32')('reaps the abandoned server, preserves its files, recreates tools, and accounts for both attempts in one refused run', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-depth-runner-'));
     const workspace = join(root, 'workspace');
     const runs = join(root, 'runs');
@@ -213,8 +213,8 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       const role = req.role;
       if (req.actor?.tier === 3 && req.actor.name !== 'run-root' && !enteredDeep) {
         enteredDeep = true;
-        expect(existsSync(join(workspace, 'abandoned.txt'))).toBe(false);
-        expect(readdirSync(root).some((name) => name.startsWith('workspace.prev'))).toBe(true);
+        expect(readFileSync(join(workspace, 'abandoned.txt'), 'utf8')).toBe('Evidence from attempt one');
+        expect(readdirSync(root).some((name) => name.startsWith('workspace.prev'))).toBe(false);
         expect(() => process.kill(serverPid!, 0)).toThrow();
       }
       if (req.actor?.name === 'run-router') reply = { action: 'reuse', name: 'Meristem', reasoning: 'Build fixture' };
@@ -239,6 +239,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
           expect(baseExecutorOf(req.executor!)).not.toBe(originalTools);
           provedFreshBackend = true;
         }
+        if (enteredDeep) await perform(req, 'read_file', { path: 'index.html' });
         await perform(req, 'write_file', { path: 'index.html', content: '<button>Fixture page</button>' });
         reply = { output: { files: ['index.html'] }, summary: 'Page written' };
       } else throw new Error(`Unexpected mock request: ${role}`);
@@ -250,9 +251,9 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       // `partial` since 2026-09-24: this run deepened, was refused at delivery,
       // and its second attempt's workspace holds real files. What the test is
       // about is below and unchanged — the abandoned server is reaped, the
-      // first attempt's workspace is archived, tools are recreated, and BOTH
+      // first attempt's workspace is retained, tools are recreated, and BOTH
       // attempts are accounted for in one run.
-      expect(await handle.settled).toEqual({ outcome: 'partial' });
+      expect(await handle.settled, logs.join('\n')).toEqual({ outcome: 'partial' });
       const files = readdirSync(runs).filter((name) => name.endsWith('.json') && name !== 'index.json');
       expect(files).toHaveLength(1);
       const trace = JSON.parse(readFileSync(join(runs, files[0]!), 'utf8')) as VizRun;
@@ -476,11 +477,9 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
   });
 
   // docs/decisions/seed-inheritance-2026-09-25.md, incident 3. A seeded run that deepens
-  // restarts from its SEED — it used to restart over an empty directory,
-  // rebuilding the project's corpus from nothing and seeding the next run
-  // from that. A seed that cannot be copied at restart fails the run and
-  // leaves the first attempt intact in its archive.
-  it.each([{ seedSurvives: true }, { seedSurvives: false }])('a seeded run that deepens restarts from its seed (seed survives=$seedSurvives)', async ({ seedSurvives }) => {
+  // Deepening keeps drained work in place, including when the original seed
+  // no longer exists. The next attempt still earns independent acceptance.
+  it.each([{ seedSurvives: true }, { seedSurvives: false }])('a deepening preserves unfinished work even if its seed disappears (seed survives=$seedSurvives)', async ({ seedSurvives }) => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-depth-seeded-'));
     const workspace = join(root, 'workspace');
     const runs = join(root, 'runs');
@@ -509,7 +508,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       const role = req.role;
       if (req.actor?.tier === 3 && req.actor.name !== 'run-root' && !enteredDeep) {
         enteredDeep = true;
-        expect(existsSync(join(workspace, 'abandoned.txt'))).toBe(false);
+        expect(readFileSync(join(workspace, 'abandoned.txt'), 'utf8')).toBe('attempt one');
         expect(readFileSync(join(workspace, 'corpus.txt'), 'utf8')).toBe('the previous delivery');
         const manifest = JSON.parse(readFileSync(join(workspace, '.atoma-probes.json'), 'utf8')) as { entries: unknown[] };
         expect(manifest.entries).toEqual([{ cmd: 'node corpus-check.js', exitCode: 0 }]);
@@ -532,6 +531,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
           await req.executor!.execute('write_file', { path: 'abandoned.txt', content: 'attempt one' });
           if (!seedSurvives) rmSync(seedDir, { recursive: true, force: true });
         }
+        if (enteredDeep) await req.executor!.execute('read_file', { path: 'index.html' });
         await req.executor!.execute('write_file', { path: 'index.html', content: '<button>Fixture page</button>' });
         reply = { output: { files: ['index.html'] }, summary: 'Page written' };
       } else throw new Error(`Unexpected mock request: ${role}`);
@@ -542,17 +542,12 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       handle = await startTask(['--depth', 'short', '--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Build index.html']);
       const settled = await handle.settled;
       const archive = join(root, 'workspace.prev1');
-      expect(existsSync(join(archive, 'abandoned.txt'))).toBe(true);
+      expect(existsSync(archive)).toBe(false);
+      expect(readFileSync(join(workspace, 'abandoned.txt'), 'utf8')).toBe('attempt one');
       expect(logs.some((line) => line.startsWith('seed .atoma-probes.json: kept 1 entries, dropped 1 unreplayable'))).toBe(true);
-      if (seedSurvives) {
-        expect(settled).toEqual({ outcome: 'partial' });
-        expect(deepSawSeed).toBe(true);
-        expect(parseRunLog(logs.join('\n'))).toMatchObject({ outcome: 'partial', deepenings: 1 });
-      } else {
-        expect(settled.outcome).toBe('failed');
-        expect(enteredDeep).toBe(false);
-        expect(logs.join('\n')).toMatch(/ENOENT/);
-      }
+      expect(settled, logs.join('\n')).toEqual({ outcome: 'partial' });
+      expect(deepSawSeed).toBe(true);
+      expect(parseRunLog(logs.join('\n'))).toMatchObject({ outcome: 'partial', deepenings: 1 });
     } finally {
       await handle?.shutdown();
       closeStoreHandles();

@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "projectRunId": "070688f0-4191-4c34-ad43-7d574a8f8c9e",
+  "baseRunId": "00669e94-caad-4866-b487-dfe359bec458",
+  "status": "partial",
+  "endedAt": "2026-10-21T22:10:22.920Z",
+  "traceEndedAt": "2026-10-21T22:08:27.896Z",
+  "artifactManifestHash": "673997bddb638d5228aebe5d99a80af386715ab314d09e657f19bd9538a6531d",
+  "engineRevision": "f659c3e2f4551f64c9a88d97f95060ce7fb185d1",
+  "accounting": {
+    "llmCalls": 219,
+    "subscriptionEquivalentUsd": 9.6565,
+    "escalations": 10,
+    "deepenings": 1,
+    "rootRemediations": 1,
+    "callsByModel": {
+      "gpt-5.6-luna": 170,
+      "gpt-5.6-terra": 36,
+      "gpt-6-astra": 13
+    }
+  },
+  "traceReview": {
+    "eventCount": 1883,
+    "uniqueEventIds": 1883,
+    "sha256OnHost": "b1dc9c433ecf5df0743befefb873d9bf0e7fdd3c68db506ab6fdc481e4e16120",
+    "negativeReviewsRead": 42,
+    "failedToolDiagnosticsRead": 45,
+    "recordedProbeInventoriesRead": 173,
+    "scope": "Host-side structural scan through event1882 and bounded review, diagnostic and probe metadata reads. Automatic approval rejected full raw-trace export; no complete raw trace was copied or read locally.",
+    "directHttpToolCalls": 215,
+    "directHttpToolHosts": {
+      "localhost": 188,
+      "127.0.0.1": 27
+    },
+    "fallbackExecutions": 3,
+    "fallbackServedModel": "gpt-5.6-luna"
+  },
+  "savedFiles": {
+    "hostSizeHashModeVerified": 233,
+    "locallyReconstructedAndVerified": 233,
+    "explicitCodeFilesTransferred": 13,
+    "codeBytesTransferred": 96492,
+    "newHistoricalPayloadTransferred": false,
+    "historicalFilesPreserved": 48,
+    "historicalDifferences": [],
+    "originalEntrypointsPreserved": [
+      "collect-xe-live.js",
+      "import-spitogatos-browser.js"
+    ],
+    "changedByIndependentReview": [],
+    "added": [
+      "tests/helpers/captcha-regression-runtime.ts"
+    ],
+    "changed": [
+      "browser/captcha-document.ts",
+      "browser/control-server.d.ts",
+      "browser/control-server.js.d.ts",
+      "browser/control-server.ts",
+      "browser/xe-browser-session.d.ts",
+      "dist/browser/captcha-document.js",
+      "dist/browser/captcha-document.js.map",
+      "dist/browser/control-server.js.map",
+      "tests/attica-captcha-verification.vitest.test.ts",
+      "tests/captcha-document.vitest.test.ts",
+      "tests/control-server-migration.vitest.test.ts",
+      "tests/helpers/attica-control-harness.d.ts"
+    ],
+    "removed": []
+  },
+  "freshSourceCommands": {
+    "npmCiExit": 0,
+    "typecheckExit": 0,
+    "ordinaryCheckExit": 1,
+    "lintErrors": [
+      {
+        "path": "browser/control-server.js.d.ts",
+        "line": 1,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "detail": "InjectableSession import is unused"
+      },
+      {
+        "path": "tests/attica-captcha-verification.vitest.test.ts",
+        "line": 9,
+        "rule": "@typescript-eslint/no-unsafe-assignment",
+        "detail": "CommonJS require result is assigned unsafely"
+      }
+    ],
+    "separateBuildExit": 0,
+    "ordinaryTestExit": 0,
+    "vitestPassed": 82,
+    "nodeTestsPassed": 92,
+    "newSkipsOrDiscoveryExclusions": 0
+  },
+  "detectorGeneration": {
+    "sourceSha256": "104a55b9400e36b345d4f28ebc607c692120c24286da165efe1e62d23d362522",
+    "savedCompiledSha256": "1800debfeb78087666c523712e5f61bddd07ad4ff4c68a3cacefd12acdde8c12",
+    "freshCompiledSha256": "46cb76660ddd3b365361405e49fd6ba3e678f8c1e7beac15ac771a054a79603a",
+    "difference": "Saved isStandaloneChallenge accepts short text up to eight words; final source instead uses an exact phrase allowlist. The saved compiled output is stale."
+  },
+  "oracles": {
+    "savedCompiled": {
+      "document": true,
+      "lifecycle": true,
+      "emptyResume": true,
+      "envelopeV4": true,
+      "envelopeV5": true,
+      "fixtureV3": true,
+      "envelopeV6Failures": [
+        "unmarked-sentence-challenge-with-search-metadata"
+      ]
+    },
+    "freshSource": {
+      "document": true,
+      "lifecycle": true,
+      "emptyResume": true,
+      "fixtureV3": true,
+      "envelopeV4Failures": [
+        "unmarked-paragraph-challenge-with-search-metadata"
+      ],
+      "envelopeV5Failures": [
+        "unmarked-paragraph-challenge-with-search-metadata"
+      ],
+      "envelopeV6Failures": [
+        "unmarked-paragraph-challenge-with-search-metadata",
+        "unmarked-sentence-challenge-with-search-metadata",
+        "unmarked-nested-challenge-with-search-metadata",
+        "unmarked-punctuation-challenge-with-search-metadata",
+        "unmarked-access-denied-with-search-metadata"
+      ]
+    },
+    "countsOverlap": true
+  },
+  "atomaCorrectionsObserved": {
+    "criterionDisagreement": {
+      "firstAcceptanceEvent": "3134c51b-ea9a-4b20-8b41-a0eec52e4ec7",
+      "unjudgedCriteria": [
+        "c4",
+        "c6"
+      ],
+      "approved": false,
+      "note": "The global/focused disagreements remain unjudged and in remediation rather than becoming accepted."
+    },
+    "computeRuntime": {
+      "readyAfterMs": 354531,
+      "selectedDeviceOverride": true,
+      "legacyDefaultPreserved": true,
+      "mainCi": 39669814410,
+      "codeql": 39669814394,
+      "computeDesktop": 39669814395,
+      "deploy": 39671397306,
+      "actualActiveRevisionVerifiedAt": "2026-10-21T20:37:23.588Z"
+    }
+  },
+  "disposition": "No accepted delivery, client acceptance, publication or hosting. The partial result retains lint failures, a stale compiled detector, an inherited negative regression and four added challenge counterexamples. No new Atoma mechanism patch is justified by these model errors; existing acceptance correctly refused delivery.",
+  "nextWork": [
+    "Preserve all V5 controls and V6 challenge negatives while fixing ordinary-description false refusals.",
+    "Remove the two lint errors without weakening assertions or rules.",
+    "Rebuild from final source and independently compare source, saved output and executed snapshot.",
+    "Supply an authorized retained base/read-run reference when asking the model itself to prove exact preservation.",
+    "Keep the separate Chromium dependency/cleanup repair out of this bounded task."
+  ],
+  "noFurtherAdmission": "The selected90-minute profile plus review no longer fits before the23:33:16UTC session deadline."
+}

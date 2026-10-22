@@ -1,8 +1,18 @@
 import { createHash, randomUUID, type Hash } from 'node:crypto';
 import { constants, closeSync, fstatSync, lstatSync, openSync, readSync, readdirSync, readlinkSync, realpathSync, mkdirSync, writeFileSync, symlinkSync, chmodSync, renameSync, rmSync, existsSync } from 'node:fs';
-import { join, relative, resolve, isAbsolute, dirname } from 'node:path';
+import { join, relative, resolve, isAbsolute, dirname, basename } from 'node:path';
 import type Database from 'better-sqlite3';
 import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
+/** Resolve symlinked parents before launch, including a not-yet-created workspace. */
+export function canonicalCheckpointWorkspacePath(workspace: string): string {
+  let ancestor = resolve(workspace);
+  const tail: string[] = [];
+  while (!existsSync(ancestor)) {
+    tail.unshift(basename(ancestor));
+    ancestor = dirname(ancestor);
+  }
+  return join(realpathSync(ancestor), ...tail);
+}
 export interface SnapshotEntry { path: string; kind: 'directory' | 'file' | 'symlink'; mode: number; content: Buffer }
 /** One digest encoding for local capture and streamed checkpoint import. */
 export function hashCheckpointEntry(hash: Hash, entry: SnapshotEntry): void {

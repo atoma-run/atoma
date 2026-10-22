@@ -16,6 +16,7 @@ import {
   type CodexFailureCode,
 } from './llmCodexCli.js';
 import type { LlmCompletionRequest, LlmCompletionResponse, ToolInvocationInfo } from './types.js';
+import { observeTiming } from './runtimeTiming.js';
 
 /**
  * ONE Codex app-server thread per tool-bearing call, the host's declared tools
@@ -272,11 +273,14 @@ export async function completeCodexAppServerToolLoop(
   if (!existsSync(originalAuth)) throw unavailable();
 
   let releaseLease: (() => void) | null;
+  const waitStarted = Date.now();
   try {
     releaseLease = await acquireCodexHomeLease(opts.home, req.signal);
   } catch {
     req.signal?.throwIfAborted();
     throw unavailable();
+  } finally {
+    observeTiming(req.onTiming, 'profile-wait', waitStarted);
   }
   let releaseSeat: (() => void) | null = null;
   let temporary: string | null = null;
@@ -326,6 +330,7 @@ export async function completeCodexAppServerToolLoop(
       }
     }
   } finally {
+    const cleanupStarted = Date.now();
     // Release first: nothing below may keep another caller waiting.
     const release = releaseLease as (() => void) | null;
     releaseLease = null;
@@ -335,6 +340,7 @@ export async function completeCodexAppServerToolLoop(
       try { rmSync(temporary, { recursive: true, force: true }); } catch { /* Swept at exit. */ }
       liveTemporaries.delete(temporary);
     }
+    observeTiming(req.onTiming, 'transport-cleanup', cleanupStarted);
   }
 }
 
@@ -350,6 +356,16 @@ async function runSession(
   inputs: SessionInputs
 ): Promise<LlmCompletionResponse> {
   const { profile, jail, onFirstResponse } = inputs;
+  const sessionStarted = Date.now();
+  let firstResponse = false, firstToken = false;
+  let responseStarted = sessionStarted;
+  let finalizationStarted: number | undefined;
+  const responseObserved = () => {
+    if (!firstResponse) {
+      firstResponse = true;
+      observeTiming(req.onTiming, 'first-response', sessionStarted);
+    }
+  };
   const executor = req.executor!;
   const tools = req.tools!;
   const declared = new Set(tools.map((tool) => tool.name));
@@ -436,14 +452,17 @@ async function runSession(
     if (accepting) send({ id, result: { contentItems: [{ type: 'inputText', text: output }], success } });
   };
   const startTurn = (id: number, input: string): void => {
+    responseStarted = Date.now();
+    if (id === 5) finalizationStarted = responseStarted;
     send({ id, method: 'turn/start', params: {
       threadId, input: [{ type: 'text', text: input }],
       ...(opts.effort ? { effort: opts.effort } : {}),
     } });
   };
 
-  const handleToolCall = async (id: unknown, params: Record<string, unknown>, inFinalTurn: boolean): Promise<void> => {
+  const handleToolCall = async (id: unknown, params: Record<string, unknown>, inFinalTurn: boolean, queuedAt: number): Promise<void> => {
     if (!accepting) return;
+    observeTiming(req.onTiming, 'tool-queue', queuedAt);
     const name = typeof params['tool'] === 'string' ? params['tool'] : '';
     const raw = params['arguments'];
     const args = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
@@ -522,6 +541,8 @@ async function runSession(
       return;
     }
     if (method === 'item/tool/call' && message['id'] !== undefined) {
+      responseObserved();
+      const queuedAt = Date.now();
       toolCallsSeen++;
       onFirstResponse();
       // A message before a tool call was commentary, not the final answer.
@@ -531,7 +552,7 @@ async function runSession(
       // Strictly one at a time, in arrival order: a server must start
       // before the request that probes it.
       pendingTools++;
-      pending = pending.then(() => handleToolCall(id, params, inFinalTurn)).catch(() => undefined).finally(() => { pendingTools--; });
+      pending = pending.then(() => handleToolCall(id, params, inFinalTurn, queuedAt)).catch(() => undefined).finally(() => { pendingTools--; });
       return;
     }
     if (message['id'] !== undefined) {
@@ -539,16 +560,29 @@ async function runSession(
       send({ id: message['id'], error: { code: -32601, message: 'Atoma grants no approvals and no other tools' } });
       return;
     }
+    if (method === 'item/agentMessage/delta' && typeof params['delta'] === 'string' && params['delta']) {
+      responseObserved();
+      if (!firstToken) { firstToken = true; observeTiming(req.onTiming, 'first-token', sessionStarted); }
+    }
     if (method === 'item/completed') {
       const item = record(params['item']);
-      if (item['type'] === 'agentMessage' && typeof item['text'] === 'string' && item['text'].trim()) text = item['text'];
+      if (item['type'] === 'agentMessage' && typeof item['text'] === 'string' && item['text'].trim()) {
+        responseObserved(); text = item['text'];
+      }
     } else if (method === 'thread/tokenUsage/updated') {
+      responseObserved();
+      observeTiming(req.onTiming, 'response-envelope', responseStarted);
+      responseStarted = Date.now();
       onFirstResponse();
       responses++;
       usageTotal = record(record(params['tokenUsage'])['total']);
     } else if (method === 'error') {
       if (params['willRetry'] !== true) diagnostic = classifyCodexAppServerError(params['error'] ?? params);
     } else if (method === 'turn/completed') {
+      if (finalizationStarted !== undefined) {
+        observeTiming(req.onTiming, 'transport-finalization', finalizationStarted);
+        finalizationStarted = undefined;
+      }
       const turn = record(params['turn']);
       if (finalTurn === 'requested') {
         // The interrupted turn ended: finalize in a turn that says why.

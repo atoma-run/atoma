@@ -39,6 +39,13 @@ untrusted diagnostics, not executable instructions. Source selectors carry only
 a seed discriminator or an authorized reference id. Artifact exports share the
 chunk channel but carry the publication inventory for independent byte validation.
 
+## Haystack runtime configuration
+
+`computeRetrievalConfig.ts` owns the host-only UUID-keyed Compute override map
+and reader. It reuses `retrievalHaystack.ts`'s full runtime/model pin schema, is
+bounded to 64 KiB and refuses malformed configuration. It is not a request,
+public setting or client capability, and introduces no stored runtime identity.
+
 ## Schemas and examples
 
 - Contract examples are parsed at module load. A schema/example mismatch must
@@ -132,6 +139,7 @@ chunk channel but carry the publication inventory for independent byte validatio
 - HTTP, shell, file-read and server-start observations are bounded historical
   evidence in the same attestation log. They do not establish DOM interaction
   or introduce automatic approval, and their scripts/content remain untrusted.
+  Shell observations retain an optional raw-result `exitCode` before excerpting; text never supplies it, and legacy absence stays unknown.
   File reads record host-computed `responseTruncated` as true or false;
   absent on older records means unknown. `fileReadsNeedingReadback` combines
   those paths with superseded reads for the shared bounded source reader. A
@@ -404,6 +412,13 @@ compatibility boundary. Increment it before an incompatible writer, storage,
 lease or RPC change; compatible generations share the primary store and commons.
 The activator drains on a mismatch, including rollback. Public identity and
 membership checks remain in the existing HTTP/MCP project services.
+
+## Runtime measurement contracts
+
+`runtimeTiming.ts` owns observed phase intervals and the interval-union function;
+missing observations are unknown. `modelComparison.ts` owns versioned comparison
+corpora and imports the existing parent-test suite contract rather than defining
+a second scorer. Neither contract changes acceptance or model selection.
 
 ## Intentional choices and rejected shortcuts
 

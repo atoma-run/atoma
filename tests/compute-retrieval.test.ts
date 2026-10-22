@@ -74,6 +74,32 @@ it('rejects a well-shaped remote citation to an unauthorized document', async ()
   } finally { await tool.close(); await f.service.close(); }
 }, 30_000);
 
+it.each(['stale', 'matching'] as const)('keeps Compute retrieval runtime identity enforcement with %s configuration', async configuration => {
+  const runtime = haystackTestRuntime(root), remote = join(root, 'runtime-service'); mkdirSync(remote);
+  const expectedIdentity = configuration === 'stale' ? 'e'.repeat(64) : runtime.runtimeSha256;
+  const service = computeRetrievalService({ root: remote, python: runtime.python,
+    cachePath: join(remote, 'cache.db'), embeddingPath: '/models/embedding', rerankerPath: '/models/reranker' });
+  try {
+    const f = await fixture(undefined, { config: { ...runtime, runtimeSha256: expectedIdentity }, send: command => service.execute(command) });
+    const tool = createProjectRetrievalTool(f.prepared.binding, retrievalContext());
+    try {
+      if (configuration === 'stale') {
+        await expect(f.prepared.prepare(retrievalContext())).rejects.toThrow();
+        expect(await tool.execute({ query: 'annual price' })).toMatchObject({ ok: false, status: 'unavailable' });
+      } else {
+        await f.prepared.prepare(retrievalContext());
+        const result = await tool.execute({ query: 'annual price' });
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.passages.some(p => p.path === 'pricing.pdf')).toBe(true);
+      }
+      // A real ranking subprocess reached initialization; this is not a schema-only refusal.
+      expect(Number(readFileSync(join(root, 'haystack.pid'), 'utf8'))).toBeGreaterThan(1);
+      expect(f.calls).toContainEqual(expect.objectContaining({ method: 'open', models: expect.objectContaining({ runtimeSha256: expectedIdentity }) }));
+      expect(f.calls).toContainEqual({ method: 'prepare' });
+    } finally { await tool.close(); await f.service.close(); }
+  } finally { await service.close(); }
+});
+
 it('refuses search before preparation and cannot rebind after an invalid command', async () => {
   const runtime = haystackTestRuntime(root);
   const service = computeRetrievalService({ root, python: runtime.python, cachePath: join(root, 'cache.db'), embeddingPath: '/models/embedding', rerankerPath: '/models/reranker' });

@@ -58,6 +58,7 @@ describe('root remediation scope', () => {
     ['a probe contradiction', (info: AcceptanceInfo): AcceptanceInfo => ({ ...info, probe: { requiresReview: true, contradiction: true } })],
     ['an unproven floor item', (info: AcceptanceInfo): AcceptanceInfo => ({ ...info, floorCoverage: [{ kind: 'dom-interaction', deliverable: 'index.html', status: 'uncovered', observationRefs: [] }] })],
     ['another criterion no observation covered', (info: AcceptanceInfo): AcceptanceInfo => ({ ...info, checklist: [...info.checklist!, { id: 'c3', behaviour: 'GET /health 200', kind: 'http', status: 'uncovered', observationRefs: [] }] })],
+    ['another criterion without a resolved judgement', (info: AcceptanceInfo): AcceptanceInfo => ({ ...info, checklist: [...info.checklist!, { id: 'c3', behaviour: 'Preserved coverage', kind: 'review', status: 'review', observationRefs: [] }] })],
     ['another criterion whose width was never laid out', (info: AcceptanceInfo): AcceptanceInfo => ({ ...info, checklist: [...info.checklist!, { id: 'c4', behaviour: 'No scroll at 375 px', kind: 'review', status: 'review', observationRefs: [], layouts: [{ width: 375, status: 'not-laid-out', observationRefs: [] }] }] })],
   ])('keeps the broad pass when the refusal also holds %s', (_label, widen) => {
     const remediated = remediationTask(task, widen(refusal([

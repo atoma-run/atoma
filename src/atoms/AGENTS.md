@@ -59,10 +59,10 @@ Neighbours:
 - A molecule's next execution of the SAME task (keyed by description) opens
   with `== YOUR PREVIOUS ATTEMPT AT THIS TASK ==` (`attemptDigest.ts`): what
   the transport observed — files changed and read, servers, HTTP method, path
-  and status, validate_html, commands and exit codes — and its own report,
+  and status, validate_html, recent commands and bounded observed results — and its own report,
   labelled not evidence. L2's patch and branch replacements `inheritAttempt`.
   Run 87e672d7 (2026-10-04) spent its retry's first 90 s re-reading what the
-  rejected attempt had just read.
+  rejected attempt had just read. Planning also reads it: eight recent commands / 8,000 encoded characters; runtime boundaries and read-only restoration discard it, and historical results grant no freshness or tool credit.
 - Per-task child memos prevent immediate reuse loops. Initialize task state,
   mark committed children, and pass exclusions to prefilters.
 - Run-scoped integrity flags and memos must retain the same reference across
@@ -105,7 +105,7 @@ Neighbours:
   passes `reviewAcceptanceCriteria`: concurrent batches of at most two items,
   on the cheapest tier, with host evidence but no result report or global
   verdict. Those judgments replace the global call's checklist judgments;
-  any unmet item or refused batch prevents delivery. Invalid, truncated,
+  any unmet item or refused batch prevents delivery. Unresolved refused disagreements stay unjudged for remediation. Invalid, truncated,
   missing, duplicate or unexplained judgments mean an incomplete review,
   never approval or a claimed implementation defect. Transport cancellation
   still propagates. Drafted lists, text and landings keep their existing paths.
@@ -404,7 +404,8 @@ load-bearing.
   never forwarded, the first run's last round for a suite driving a browser.
 
 - All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
-  logic and maintained tests. Application changes include migration where needed.
+  logic and maintained tests created or changed by the requested implementation.
+  Existing-app migration/skeleton adaptation cover the repair and necessary dependencies; explicit wider work still applies. Inspection, verification-only and reporting phases do not migrate.
   `APPLICATION_TYPESCRIPT_GUIDANCE` in `taskContext.ts` is the runtime rule shared by tool-mode planners,
   executors and reviewers, including old stored types and fallbacks; reasoning tasks hold no tools and skip it.
   Final review requires observed `check` (typecheck, lint, tests) and `build` success and effective
@@ -428,9 +429,8 @@ load-bearing.
 - Match verification to the artefact: browser UI uses static server plus
   browser validation; HTTP APIs use node server plus fetch; CLI/files use shell
   execution plus read-back. Do not force every artefact through HTML tooling.
-- Recorded probes support cross-checking but do not make non-zero exits errors.
-  Only explicit `match:false` or unequal expected/actual values are mechanical
-  contradictions.
+- Recorded probes support cross-checking; non-zero exits alone are not errors. Only explicit `match:false` or unequal expected/actual values are mechanical contradictions.
+- Reporting gaps first use recorded results and actual assertions (`VERIFICATION_REUSE_GUIDANCE`). Missing execution/coverage, disputed behavior, changed inputs/environment or unknown freshness require verification; final-source acceptance still applies.
 - Ground-truth reporting must quote observed tool bytes. Narrative self-report
   alone is not evidence.
 - Stateful checks establish their preconditions from observed state and successful
@@ -585,7 +585,7 @@ load-bearing.
   child's evidence and covered checklist items by looking (review 1.4, 2.4).
   The latest 8 browser lines are always shown, then the latest PASSING run of each other check (actions, smoke, size) of a page no later write or observation changed, within a third of the budget (7f80148d lost a reload and a keyboard proof to 150 later calls);
   file reads reserve up to half the 24,000-character budget and keep at least a quarter; both shell tools follow, latest per request/branch, recorded probes first (43682d38 lost a mutation proof to a
-  retry's re-runs), then the execution suffix. Excerpts and omissions establish no coverage of unseen assertions.
+  retry's re-runs). Remaining shell space is shared across latest request identities before payloads; partial receipts explicitly leave omitted assertions unknown. Superseded commands never re-enter through the execution suffix. Excerpts and omissions establish no coverage of unseen assertions.
 - ROOT ACCEPTANCE REPLAYS THE BROWSER CHECKS EARLIER RUNS RECORDED, the one
   exception to "supervisors never replay" (owner decision 2026-10-01,
   [docs/decisions/inherited-checks-replay-2026-10-01.md](../../docs/decisions/inherited-checks-replay-2026-10-01.md)).
@@ -697,7 +697,7 @@ load-bearing.
   self-contained file: never advise shared setup across suites.
 - Feedback uses `Atom.plan`'s third argument, never task constraints (prefilter-keyed and inherited). The root retains all refusals/requests, the latest parse message and bounded host facts.
 - Customer-device evidence cannot credit shared trust, learn recipes/prompts or promote types; L2/L3 and direct dispatch require independent hosted validation for credit.
-
+Large identical original/current input copies are rendered once; conflicting values and all acceptance constraints remain. Versioned executable corpora replace repeated prose examples, never criteria.
 ## Intentional choices and rejected shortcuts
 
 - Sampled delegation-review votes (2026-10-17): a majority of three approves a

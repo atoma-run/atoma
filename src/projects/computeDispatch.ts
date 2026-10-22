@@ -1,3 +1,4 @@
+import { timed } from '../core/runtimeTiming.js';
 import { previewClassificationSchema, type PreviewClassification } from '../contracts/preview.js';
 import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import type Database from 'better-sqlite3';
@@ -140,7 +141,7 @@ export class ComputeDispatcher {
     try {
       this.options.journal.begin(run.projectRunId, execution.generation);
       input.signal?.throwIfAborted();
-      await peer.bind(execution);
+      await timed(input.onTiming, 'handoff', () => peer.bind(execution));
       bridge = await serveComputeBridge(call => call.channel === 'workspace'
         ? peer.request(execution, call.command) : call.channel === 'retrieval' ? peer.requestRetrieval(execution, call.command) : peer.requestTool(execution, call.command));
       const log = await driver({ ...input, signal: AbortSignal.any([peer.signal, ...(input.signal ? [input.signal] : [])]), env: { ...input.env, [COMPUTE_BRIDGE_ENV]: JSON.stringify(bridge.address) } });
@@ -151,8 +152,10 @@ export class ComputeDispatcher {
       writeFileSync(input.logPath + '.compute-result', log, { mode: 0o600, flush: true });
       this.options.journal.phase(run.projectRunId, execution.generation, 'finalizing');
       finalizing = true;
-      await peer.requestTool(execution, { method: 'drain' });
-      await this.receive(run, peer, execution, log, manifestPath);
+      await timed(input.onTiming, 'handoff', async () => {
+        await peer.requestTool(execution, { method: 'drain' });
+        await this.receive(run, peer, execution, log, manifestPath);
+      });
       this.options.journal.phase(run.projectRunId, execution.generation, 'transferred');
       return log;
     } catch {

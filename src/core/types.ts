@@ -535,6 +535,8 @@ export interface LlmCompletionRequest {
    * from this callback are swallowed so observability never breaks execution.
    */
   onToolInvocation?: (info: ToolInvocationInfo) => void;
+  /** Optional transport timing observations. Never an acceptance input. */
+  onTiming?: (info: import('../contracts/runtimeTiming.js').RuntimeTiming) => void;
   /**
    * Optional fan-out lane identifier echoed back on trace events emitted
    * for this completion (the LLM event itself AND any tool events from
@@ -1056,6 +1058,7 @@ export interface RunContext {
    * runtime behaviour when undefined.
    */
   readonly recordSkill?: (info: SkillEventInfo) => void;
+  readonly recordTiming?: (info: import('../contracts/runtimeTiming.js').RuntimeTiming) => void;
   /**
    * Machine run-counter observer. Unlike console text, these signals cannot
    * be forged by task output or validator prose; the runner folds them into

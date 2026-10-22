@@ -240,11 +240,27 @@ export class L1Atom extends Atom {
   private activeSkillOwnerField: SkillNamespace | null = null;
 
   /**
-   * What this instance's last execution did, keyed by the task it ran. Read
-   * only by the next execution of the SAME task — the retry after a rejected
-   * result — so a molecule reused for another phase never sees it.
+   * What this instance's same-task executions did, read by the next plan
+   * and execution after a refusal. Runtime identities fence the observations
+   * from another branch, depth attempt, executor or run.
    */
-  private lastAttempt: { readonly task: string; readonly digest: string } | null = null;
+  private lastAttempt: {
+    readonly task: string;
+    readonly digest: AttemptDigest;
+    readonly report: string;
+    readonly signal: RunContext['signal'];
+    readonly tools: RunContext['tools'];
+    readonly attempt: number;
+    readonly branchId: RunContext['currentBranchId'];
+  } | null = null;
+
+  private previousAttempt(task: Task, ctx: RunContext): NonNullable<L1Atom['lastAttempt']> | null {
+    const previous = this.lastAttempt;
+    return previous && !task.readOnly && task.executionMode !== 'reasoning' &&
+      previous.task === task.description && previous.signal === ctx.signal &&
+      previous.tools === ctx.tools && previous.attempt === (ctx.attempt ?? 1) &&
+      previous.branchId === ctx.currentBranchId ? previous : null;
+  }
 
   /** A replacement instance for the same subtask keeps what the last attempt did. */
   inheritAttempt(source: Atom): void {
@@ -319,6 +335,7 @@ export class L1Atom extends Atom {
 
   async plan(task: Task, ctx: RunContext): Promise<Plan> {
     const tools = task.executionMode === 'reasoning' ? [] : this.tools;
+    const previous = this.previousAttempt(task, ctx);
     const toolCatalog =
       tools.length === 0
         ? '(no tools available — describe your output in the plan text)'
@@ -336,6 +353,7 @@ export class L1Atom extends Atom {
       // It is context, never an extra phase-validation requirement; the
       // phase's own criteria render beside it (Task.criteria).
       ...taskContextLines(task, { includeAcceptanceChecklist: true, executor: true }),
+      previous?.digest.render(previous.report) ?? '',
       ...proofObligationLines(task, this.tools.some((t) => t.name === 'validate_html')),
       ``,
       `Tools available at execute time:`,
@@ -423,7 +441,8 @@ export class L1Atom extends Atom {
     const tools = task.executionMode === 'reasoning' ? [] : this.tools;
     const hasValidator = tools.some((t) => t.name === 'validate_html');
     const maxToolIterations = capToolIterations(hasValidator ? 40 : 24, ctx.deadlineAt);
-    const previousAttempt = this.lastAttempt?.task === task.description ? this.lastAttempt.digest : null;
+    const previous = this.previousAttempt(task, ctx);
+    const previousAttempt = previous?.digest.render(previous.report) ?? null;
     // Consumed: an execution that throws leaves no stale attempt behind it.
     this.lastAttempt = null;
     const userContent = task.executionMode === 'reasoning' ? reasoningPrompt(task, plan) : [
@@ -531,7 +550,7 @@ ${previousAttempt}` : '',
     // successful observation of an UNCHANGED document standing through a
     // later pre-flight refusal, which observed nothing (`validationLedger.ts`).
     const validation = new ValidationLedger();
-    const attempt = new AttemptDigest();
+    const attempt = previous?.digest ?? new AttemptDigest();
     const observedToolCalls: Array<{ name: string; ok: boolean }> = [];
     let recordedCommandProbes = false;
     const writtenSkillScratchFiles = new Set<string>();
@@ -627,7 +646,11 @@ ${previousAttempt}` : '',
     // A read-only phase's writes and servers are put back after it: its
     // digest would describe a workspace that no longer exists.
     const digest = task.readOnly ? null : attempt.render(rawSummary);
-    this.lastAttempt = digest === null ? null : { task: task.description, digest };
+    this.lastAttempt = digest === null ? null : {
+      task: task.description, digest: attempt, report: rawSummary,
+      signal: ctx.signal, tools: ctx.tools, attempt: ctx.attempt ?? 1,
+      branchId: ctx.currentBranchId,
+    };
 
     // Validation-gate annotation (#3). When the ledger's disposition is a
     // failure — the last EXECUTED validate_html was not ok, every call was

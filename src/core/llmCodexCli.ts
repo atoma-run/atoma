@@ -1,3 +1,4 @@
+import { observeTiming } from './runtimeTiming.js';
 import { withPartialUsage } from './metrics.js';
 import { CODEX_MODEL_CAPABILITIES_ENV, codexModelSchema } from '../contracts/codexModels.js';
 import { completeCodexToolLoop, isCodexToolAction } from './codexToolLoop.js';
@@ -691,11 +692,14 @@ export class CodexCliLlmClient implements LlmClient {
     // lease prevents a second run process from sharing that home concurrently.
     let releaseProfile: (() => void) | null = null;
     if (this.profileHome) {
+      const waitStarted = Date.now();
       try {
         releaseProfile = await acquireLocalCodexHomeLease(this.profileHome, req.signal);
       } catch {
         if (req.signal?.aborted) throw req.signal.reason ?? new Error('aborted');
         throw new CodexTransportError('transport-unavailable');
+      } finally {
+        observeTiming(req.onTiming, 'profile-local-wait', waitStarted);
       }
     }
     try {
@@ -785,6 +789,8 @@ export class CodexCliLlmClient implements LlmClient {
         error: 'transport-unavailable',
       };
     }
+    const responseStarted = Date.now();
+    let firstResponse = false;
     const lines: string[] = [];
     let stdoutBuf = '';
     // Provider-owned and potentially sensitive. It remains process-local only
@@ -823,7 +829,16 @@ export class CodexCliLlmClient implements LlmClient {
           stdoutBuf += d.toString();
           const parts = stdoutBuf.split('\n');
           stdoutBuf = parts.pop() ?? '';
-          for (const p of parts) lines.push(p);
+          for (const p of parts) {
+            lines.push(p);
+            try {
+              const event = JSON.parse(p) as { type?: string; item?: { type?: string } };
+              if (!firstResponse && event.type === 'item.completed' && event.item?.type === 'agent_message') {
+                firstResponse = true;
+                observeTiming(req.onTiming, 'first-response', responseStarted);
+              }
+            } catch { /* The existing response parser owns malformed output. */ }
+          }
         });
         child.stderr?.on('data', (d: Buffer) => {
           bumpDeadline();

@@ -1,5 +1,6 @@
-import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { closeStoreHandles, openStoreHandle } from '../src/core/stores.js';
@@ -13,6 +14,9 @@ import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 import { retrievalContext } from './helpers/projectRetrievalCorpus.js';
 import { createProjectRetrievalTool } from '../src/tools/projectRetrieval.js';
 import type { ProjectRetrievalResponse } from '../src/contracts/projectRetrieval.js';
+import type { ProjectRun } from '../src/contracts/projects.js';
+import { computeRetrievalService } from '../src/projects/computeRetrievalService.js';
+import { openProjectRunComputeRetrieval } from '../src/projects/computeRetrieval.js';
 
 const roots: string[] = [];
 afterEach(() => { vi.restoreAllMocks(); closeStoreHandles(); roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })); });
@@ -69,6 +73,62 @@ describe('coordinator retrieval admission before spawn', () => {
     expect(ProjectRetrievalLaunchStore.open(f.dbPath).resolve(run.projectRunId)).toBe(null); // run is now terminal
     expect(release).toHaveBeenCalledOnce();
   });
+
+  it.each(['selected-device', 'other-device', 'hosted', 'invalid-map'] as const)('pins the correct retrieval runtime without changing legacy configuration: %s', async mode => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-retrieval-device-config-'))); roots.push(root);
+    const f = projectRetrievalFixture(root), selected = randomUUID(), other = randomUUID();
+    const deviceId = mode === 'other-device' ? other : selected;
+    if (mode !== 'hosted') openStoreHandle(f.dbPath, '').prepare('UPDATE projects SET execution_target_json=? WHERE project_id=?')
+      .run(JSON.stringify({ kind: 'customer-device', deviceId }), f.project.projectId);
+    f.makeRun({ 'docs.md': 'Private annual price: 190 euros.\n' });
+    const runtime = haystackTestRuntime(root);
+    const legacy = { ...runtime, runtimeSha256: mode === 'selected-device' ? 'e'.repeat(64) : runtime.runtimeSha256 };
+    const override = { ...runtime, runtimeSha256: mode === 'selected-device' ? runtime.runtimeSha256 : 'e'.repeat(64) };
+    let forwarded: Parameters<ProjectRunDriver>[0] | undefined;
+    let result: ProjectRetrievalResponse | undefined;
+    const driver = vi.fn<ProjectRunDriver>(async options => {
+      forwarded = options;
+      const env = options.env!, config = readHaystackLaunch(env);
+      const input = { dbPath: f.dbPath, runId: env['ATOMA_RUN_ID']!, workspacePath: env['ATOMA_BUILD_WORKSPACE']!,
+        skillsPath: env['ATOMA_SKILLS_DIR']!, runsPath: env['ATOMA_RUNS_DIR']! };
+      const service = computeRetrievalService({ root: join(root, 'remote-runtime'), python: runtime.python,
+        cachePath: join(root, 'remote-cache.db'), embeddingPath: '/models/embedding', rerankerPath: '/models/reranker' });
+      const prepared = mode === 'hosted' ? openProjectRunHaystack(input, config)
+        : openProjectRunComputeRetrieval(input, config, command => service.execute(command));
+      const tool = createProjectRetrievalTool(prepared.binding, retrievalContext());
+      try {
+        try { await prepared.prepare(retrievalContext()); } catch { /* The production tool reports unavailable below. */ }
+        result = await tool.execute({ query: 'annual price' });
+      } finally { await tool.close(); await service.close(); }
+      return '--- run failed --- boundary test ends before delivery';
+    });
+    const drive = vi.fn(async (_run: ProjectRun, hostDriver: ProjectRunDriver, input: Parameters<ProjectRunDriver>[0]) => hostDriver(input));
+    const compute = { readiness: () => ({ status: 'ready' as const, session: { deviceId, sessionId: randomUUID(), generation: 1 } }),
+      drive, recover: async () => '', interruptedStopped: () => false };
+    const acquireLease = vi.fn(async () => ({ path: 'test', attachChild: vi.fn(), release: vi.fn() }));
+    const coordinator = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath, projectsRoot: root,
+      hostEnv: { [HAYSTACK_LAUNCH_ENV]: JSON.stringify(runtime), ATOMA_COMPUTE_HAYSTACK_CONFIG: JSON.stringify(legacy),
+        ATOMA_COMPUTE_HAYSTACK_CONFIG_BY_DEVICE: mode === 'hosted' || mode === 'invalid-map' ? 'invalid-unused-map' : JSON.stringify({ [selected]: override }),
+        ATOMA_MODEL_L1: 'api:ollama:test', ATOMA_MODEL_L2: 'api:ollama:test', ATOMA_MODEL_L3: 'api:ollama:test',
+        OLLAMA_BASE_URL: 'http://127.0.0.1:1' }, driver, compute: () => compute, platformAdmins: () => mode === 'hosted', acquireLease });
+    try {
+      const starting = coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+        request: { idempotencyKey: 'device-runtime-' + mode, goal: 'Consult the private project docs.' } });
+      if (mode === 'invalid-map') {
+        await expect(starting).rejects.toThrow('ATOMA_COMPUTE_HAYSTACK_CONFIG_BY_DEVICE');
+        expect(driver).not.toHaveBeenCalled(); expect(drive).not.toHaveBeenCalled(); expect(acquireLease).not.toHaveBeenCalled();
+        expect(f.projects.listProjectRuns(f.viewer.orgId, f.project.projectId)?.filter(r => r.requestKey === 'device-runtime-invalid-map')).toEqual([]);
+        return;
+      }
+      await starting;
+      await coordinator.waitForIdle();
+      expect(driver).toHaveBeenCalledOnce();
+      expect(readHaystackLaunch(forwarded!.env!)).toEqual(runtime);
+      expect(result).toMatchObject({ ok: true, passages: [expect.objectContaining({ excerpt: 'Private annual price: 190 euros.\n' })] });
+      expect(forwarded?.env?.['ATOMA_COMPUTE_HAYSTACK_CONFIG_BY_DEVICE']).toBeUndefined();
+      expect(drive).toHaveBeenCalledTimes(mode === 'hosted' ? 0 : 1);
+    } finally { coordinator.stopQueue(); await coordinator.waitForIdle(); }
+  }, 30_000);
 
   it('prepares search for an empty first corpus WITHOUT spending the run budget on it', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-retrieval-empty-')); roots.push(root);

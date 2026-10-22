@@ -1,3 +1,4 @@
+import { observeTiming, timingSidecar } from '../core/runtimeTiming.js';
 import { ComputeDispatchPendingError, type ComputeDispatcher } from './computeDispatch.js';
 import { ClientQuestionConflict } from '../run/clientQuestions.js';
 import { LearningQueue } from '../skills/learningQueue.js';
@@ -95,6 +96,7 @@ import { ProjectStateConflict, ProjectStore } from './store.js';
 import { ProjectRetrievalLaunchStore } from './retrievalLaunch.js';
 import { resolveRerunOrigin, type RerunOrigin } from './rerun.js';
 import { HAYSTACK_LAUNCH_ENV, readHaystackLaunch } from '../contracts/retrievalHaystack.js';
+import { readComputeHaystackLaunch } from '../contracts/computeRetrievalConfig.js';
 import { MIB, readHostMemory, type HostMemory, type RunMemoryAdmission } from '../core/hostMemory.js';
 
 const MAX_CONTROL_JSON_BYTES = 512 * 1024;
@@ -1561,12 +1563,17 @@ export class ProjectRunCoordinator {
     }
   }
 
+  private retrievalLaunchFor(target: ProjectRun['executionTarget'] | undefined) {
+    return target?.kind === 'customer-device'
+      ? readComputeHaystackLaunch(this.hostEnv, target.deviceId) : readHaystackLaunch(this.hostEnv);
+  }
+
   /** No lease, row, directory, provider request or model discovery is created here. */
   configurationReadiness(orgId: string, principalId: string, projectId: string) {
     const project = this.store.getProject(orgId, projectId);
     if (project) this.assertExecutionAccess(principalId, project.executionTarget);
     const timeoutMs = this.runTimeoutMs();
-    readHaystackLaunch(this.hostEnv);
+    this.retrievalLaunchFor(project?.executionTarget);
     if (this.hostEnv['ATOMA_LAUNCHER_SOCKET'] && !this.hostEnv['ATOMA_LAUNCHER_WORKSPACE_ROOT']) {
       throw new ProjectRunConfigurationError('Launcher workspace root is required for project runs');
     }
@@ -1978,7 +1985,7 @@ export class ProjectRunCoordinator {
     const timeoutMs = this.runTimeoutMs();
     // Every new project run carries search. Validate before taking the lease or
     // reserving a run; read-only service startup and idempotent retries still work.
-    try { readHaystackLaunch(this.hostEnv); }
+    try { this.retrievalLaunchFor(target); }
     catch (error) {
       throw new ProjectRunConfigurationError((error as Error).message);
     }
@@ -2111,8 +2118,7 @@ export class ProjectRunCoordinator {
     let retrievalLaunch: ReturnType<typeof readHaystackLaunch>;
     try {
       timeoutMs = admittedTimeoutMs ?? projectRunTimeoutMs(this.hostEnv, run.requestedTimeoutMs, this.platformLimits());
-      retrievalLaunch = readHaystackLaunch(run.executionTarget.kind === 'customer-device' && this.hostEnv['ATOMA_COMPUTE_HAYSTACK_CONFIG']
-        ? { [HAYSTACK_LAUNCH_ENV]: this.hostEnv['ATOMA_COMPUTE_HAYSTACK_CONFIG'] } : this.hostEnv);
+      retrievalLaunch = this.retrievalLaunchFor(run.executionTarget);
     } catch (error) { lease.release(); throw error; }
     const project = this.store.getProject(input.orgId, input.projectId);
     if (!project) {
@@ -2243,8 +2249,11 @@ export class ProjectRunCoordinator {
       // repository import and corpus preparation below have their own bound
       // (`PROJECT_RUN_PREPARATION_TIMEOUT_MS`) and are no longer billed to the
       // run budget. See that constant for the measurement.
+      const preparationStarted = Date.now();
+      const recordTiming = timingSidecar(path.join(run.hostPaths.runsPath, `${run.projectRunId}.json`));
       const preparationDeadlineAt = Date.now() + PROJECT_RUN_PREPARATION_TIMEOUT_MS;
       const launch = () => {
+        observeTiming(recordTiming, 'preparation', preparationStarted);
         this.assertExecutionAccess(run.requestedByPrincipalId, run.executionTarget);
         const driver: ProjectRunDriver = compute
           ? input => compute.drive(run, this.driver, input, paths.artifactManifestPath) : this.driver;
@@ -2267,6 +2276,7 @@ export class ProjectRunCoordinator {
         ],
         env: environment,
         onSpawn: (pid) => lease.attachChild(pid),
+        onTiming: recordTiming,
       });
       };
       let launched = false;
@@ -2439,8 +2449,10 @@ export class ProjectRunCoordinator {
     signal: AbortSignal
   ): Promise<void> {
     let stats: RunStats | null = null;
+    let finalizationStarted: number | undefined;
     try {
       const log = await driven;
+      finalizationStarted = Date.now();
       stats = parseRunLog(log);
       if (signal.aborted || stats.outcome === 'cancelled') {
         this.store.transitionProjectRun({
@@ -2625,6 +2637,9 @@ export class ProjectRunCoordinator {
           `[atoma projects] failed to release run lease for ${reservedRun.projectRunId}: ${String(error)}\n`
         );
       }
+      if (finalizationStarted !== undefined) observeTiming(
+        timingSidecar(path.join(reservedRun.hostPaths.runsPath, `${reservedRun.projectRunId}.json`)),
+        'host-finalization', finalizationStarted);
       this.active.delete(reservedRun.projectRunId);
       this.admittedAt.delete(reservedRun.projectRunId);
       if (!this.queueStopped) this.resumeLearning();
@@ -2635,6 +2650,7 @@ export class ProjectRunCoordinator {
 
   /** Name an ended run once; every failure is a run that keeps showing its goal. */
   private async nameRun(titler: RunTitler, run: ProjectRun): Promise<void> {
+    const startedAt = Date.now();
     try {
       const settled = this.store.getProjectRun(run.orgId, run.projectRunId);
       if (!settled || settled.title || !TITLED_STATUSES.has(settled.status)) return;
@@ -2651,7 +2667,7 @@ export class ProjectRunCoordinator {
       process.stderr.write(
         `[atoma projects] run title unavailable for ${run.projectRunId}: ${String(error)}\n`
       );
-    }
+    } finally { observeTiming(timingSidecar(path.join(run.hostPaths.runsPath, `${run.projectRunId}.json`)), 'naming', startedAt); }
   }
 
   /** Learning is outside delivery and its lease, with the original payer re-authorized on every launch. */
