@@ -4,7 +4,7 @@ import { z } from 'zod';
  * remote close text or exception messages (each can contain customer data). */
 export const computeDiagnosticSchema = z.object({
   at: z.string().datetime(), side: z.enum(['server', 'client']),
-  reason: z.enum(['connected', 'local-close', 'socket-error', 'socket-close', 'send-error',
+  reason: z.enum(['connected', 'transport-interrupted', 'transport-resumed', 'local-close', 'socket-error', 'socket-close', 'send-error',
     'handshake-timeout', 'heartbeat-failed', 'lease-expired', 'session-invalid',
     'invalid-frame', 'assignment-failed', 'reconciliation-failed', 'workspace-failed',
     'preview-failed', 'retrieval-failed', 'tool-failed', 'control-failed',

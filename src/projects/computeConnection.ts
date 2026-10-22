@@ -1,3 +1,5 @@
+import type { ComputeSocket } from '../launcher/computeChannel.js';
+import type { ComputeResume } from '../contracts/computeTransport.js';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { recordComputeDiagnostic, computeErrorCode, computeFailure, type ComputeCloseReason, type ComputeDiagnostic } from '../contracts/computeDiagnostics.js';
@@ -53,7 +55,7 @@ export class ComputeConnection {
     startedAt: number; timer: ReturnType<typeof setTimeout>;
   };
 
-  constructor(private readonly socket: WebSocket, private readonly devices: ComputeDeviceStore,
+  constructor(private readonly socket: ComputeSocket, private readonly devices: ComputeDeviceStore,
     private readonly timeoutMs = 120_000, private readonly control?: ComputeRunControl,
     private readonly connected?: (session: ComputeSession) => void) {
     this.helloDeadline = setTimeout(() => this.close('handshake-timeout'), 5000);
@@ -74,6 +76,14 @@ export class ComputeConnection {
     if (this.execution) this.devices.authorizeOperation(this.session, this.execution.runId, this.execution.generation);
   }
   identity(): ComputeSession | undefined { return this.session && !this.closed ? { ...this.session } : undefined; }
+  authorizeResume(request: ComputeResume): void {
+    if (!this.session || this.closed || request.session.deviceId !== this.session.deviceId ||
+        request.session.sessionId !== this.session.sessionId || request.session.generation !== this.session.generation) {
+      throw new Error('Compute resume unavailable');
+    }
+    this.devices.validateResume(request.credential, this.session, request.machineId);
+    this.validate();
+  }
   executing(): boolean { return Boolean(this.execution); }
   private send(frame: ComputeServerFrame): void {
     const text = JSON.stringify(frame);

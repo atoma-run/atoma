@@ -7,6 +7,8 @@ import { computeRetrievalReplySchema, type ComputeRetrievalCommand } from '../co
 import type { ToolExecutor } from '../core/types.js';
 import WebSocket from 'ws';
 import { ComputeLease } from './computeLease.js';
+import { ComputeChannel } from './computeChannel.js';
+import { COMPUTE_STALE_HEARTBEAT_MS } from '../contracts/computeTransport.js';
 import { COMPUTE_FRAME_BYTES, computeExecutionSchema, computeHelloSchema, computeServerFrameSchema,
   type ComputeExecution, type ComputeControl } from '../contracts/computeProtocol.js';
 import type { ComputeCapabilities, ComputeSession } from '../contracts/computeDevice.js';
@@ -14,7 +16,7 @@ import { workspaceReplySchema, type WorkspaceCommand, type WorkspaceReply } from
 
 /** Outbound, one-generation workspace channel. The trusted launcher binds the
  * execution and private handler before connecting; the wire cannot choose a
- * filesystem root or engine profile. Reconnection requires a new client. */
+ * filesystem root or engine profile. A live lease may migrate its transport. */
 export interface ComputeLocalExecution {
   retrieval?: (command: ComputeRetrievalCommand) => Promise<unknown>;
   execute: (command: WorkspaceCommand) => Promise<WorkspaceReply>;
@@ -50,8 +52,8 @@ export async function connectComputeWorkspace(options: {
   let lastReceiveAt = openedAt, lastHeartbeatAt: number | undefined;
   let allocation: Promise<void> | undefined;
   const lease = new ComputeLease(async () => { await allocation; await options.stopWorkloads(); }, undefined, () => { void close('lease-expired'); });
-  const socket = new WebSocket(url, { ca: options.ca, maxPayload: COMPUTE_FRAME_BYTES,
-    perMessageDeflate: false, followRedirects: false, handshakeTimeout: 5000 });
+  const socket = ComputeChannel.connect({ url, ca: options.ca, credential: options.credential,
+    machineId: options.machineId, assertActive: () => lease.assertActive() });
   let retrievalBusy = false, activePreviews = 0;
   let activeTools = 0, draining = false, controlId = 0;
   let control: { id: number; resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> } | undefined;
@@ -76,7 +78,7 @@ export async function connectComputeWorkspace(options: {
   let stopLogged = false;
   const close = (reason: ComputeCloseReason = 'local-close', extra: Pick<ComputeDiagnostic, 'errorCode' | 'closeCode' | 'closeReasonBytes' | 'failure'> = {}) => {
     if (!closed) {
-      closed = true; diagnostic(reason, extra); transferAbort.abort(); clearInterval(heartbeat); clearTimeout(deadline);
+      closed = true; diagnostic(reason, extra); transferAbort.abort(); clearInterval(heartbeat); clearInterval(networkWatch); clearTimeout(deadline);
       if (control) { clearTimeout(control.timer); control.reject(new Error('Compute control indeterminate')); control = undefined; }
       try { options.onDisconnect?.(); } catch { /* UI observers cannot prevent teardown. */ }
       socket.terminate(); rejectReady(new Error('Compute connection lost; reconciliation required'));
@@ -97,6 +99,11 @@ export async function connectComputeWorkspace(options: {
     try { send({ kind: 'heartbeat', id: lease.heartbeatSent() }); } catch (error) { void close('heartbeat-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
   };
   const heartbeat = setInterval(() => { if (session) beat(); }, 5000); heartbeat.unref();
+  const networkWatch = setInterval(() => {
+    if (lastHeartbeatAt !== undefined && performance.now() - lastHeartbeatAt >= COMPUTE_STALE_HEARTBEAT_MS) socket.reconnect();
+  }, 1000); networkWatch.unref();
+  socket.on('resumed', () => { diagnostic('transport-resumed'); beat(); });
+  socket.on('interrupted', () => diagnostic('transport-interrupted'));
   const deadline = setTimeout(() => { void close('handshake-timeout'); }, 5000); deadline.unref();
   socket.on('open', () => { try { send(hello); } catch (error) { void close('send-error', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); } });
   socket.on('error', error => { void close('socket-error', { errorCode: computeErrorCode(error) }); });

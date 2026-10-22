@@ -72,7 +72,13 @@ are contract operations; neither requires the concrete backend type.
 
 `computeClient.ts` connects an explicitly bound private workspace handler over
 outbound WSS. It verifies TLS, serializes commands and refuses repeated ids or
-another execution generation; it does not launch Docker or reconnect itself.
+another execution generation; it does not launch Docker. `computeChannel.ts`
+retains one logical channel across brief network changes, within the unchanged
+lease. It replaces stale TCP after two missing five-second heartbeat replies,
+reauthenticates, and deduplicates sequenced messages before application dispatch.
+Queues are bounded to 128 frames / 8 MiB; overflow fails closed. A new process,
+expired lease or explicit stop cannot resume this in-memory channel. Legacy peers
+use the original transport. Reattachment never renews the lease.
 `ComputeLease` guards this channel, but engine teardown remains caller-injected. Authenticated heartbeat acknowledgements renew from dispatch
 time, never receipt time. Monotonic and wall deadlines jointly detect expiry and
 sleep; every operation must call `assertActive`. Expiry starts cleanup once. Both ends log bounded transport causes and pending

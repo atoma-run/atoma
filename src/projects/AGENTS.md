@@ -30,15 +30,19 @@ are owned by `src/contracts/executorVersion.ts`; see
 product database. Pairing requires browser identity plus proof of the app's
 secret; only hashes persist. Every operation rechecks membership and explicit
 project grants. Connection and execution generations are separate. Disconnect,
-revocation or expiry never prove workload exit or release its slot. Reconnection
-requires an exact launcher stop report before admission. Membership downgrade
+revocation or expiry never prove workload exit or release its slot. A fresh
+connection requires an exact launcher stop report before admission. A negotiated
+transport reattachment instead retains the same live session and in-memory
+command state: credential, machine, lease, execution and authority are rechecked
+before replacing the socket; sequence acknowledgements fence retransmission.
+It never allocates or renews the lease, and a newer attachment fences old sockets. Membership downgrade
 and project archival fence assignments in the same database transaction, so
 restoring access cannot resurrect old work. The opt-in `computeGateway`/`computeConnection` adapter requires verified TLS
 provenance, bounded frames and one outstanding workspace command. Browser
 pairing requires current identity, one-use consent, exact origin and app-secret
 proof. Every dispatch, result and heartbeat rechecks authority. `computeDispatch`
-bridges the existing host child to that connection. Loss aborts host orchestration;
-no command is replayed. Its product-store journal preserves incomplete delivery
+bridges the existing host child to that connection. Terminal channel loss aborts host orchestration;
+no command is executed twice. Its product-store journal preserves incomplete delivery
 across server restart. Explicit finalization binds a fresh export-only generation
 to the recorded local allocation; only verified received bytes become delivered.
 A persisted launcher stop report, never a deadline, permits closing an interrupted

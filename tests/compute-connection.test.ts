@@ -879,7 +879,7 @@ it('records client disconnect and confirmed cleanup in its durable diagnostic si
     expect(await client.finished).toBe(true);
     const records = lines.map(line => JSON.parse(line.slice(16)) as Record<string, unknown>);
     expect(records.map(record => record.reason)).toEqual(['connected', 'socket-close', 'stop-confirmed']);
-    expect(records[1]).toMatchObject({ side: 'client', deviceId: paired.deviceId, closeCode: 1006 });
+    expect(records[1]).toMatchObject({ side: 'client', deviceId: paired.deviceId, closeCode: 1000 });
     expect(stopped).toHaveBeenCalledOnce();
     expect(lines.join('')).not.toContain(paired.credential);
   } finally { await client.close(); }
@@ -897,4 +897,310 @@ it.each(['json', 'schema'] as const)('logs rejected %s frames without their cont
     expect(lines.join('')).toContain(kind === 'json' ? '"failure":"json-decoding"' : '"failure":"schema-validation"');
     expect(lines.join('')).not.toContain('PRIVATE');
   } finally { output.mockRestore(); }
+});
+
+// Real TLS on both sides of a controllable network link. Only synthetic frames
+// are inspected; the production gateway, lease, store and client remain intact.
+import { WebSocketServer } from 'ws';
+import { COMPUTE_RESUME_PROTOCOL, computeTransportFrameSchema } from '../src/contracts/computeTransport.js';
+import type { WorkspaceCommand, WorkspaceReply } from '../src/contracts/workspaceProtocol.js';
+async function networkLink() {
+  const front = createServer({ key: readFileSync(join(root, 'key')), cert: readFileSync(join(root, 'cert')) });
+  const wss = new WebSocketServer({ server: front });
+  const links: { incoming: WebSocket; outgoing: WebSocket }[] = [];
+  let filter: (direction: 'up' | 'down', text: string, connection: number) => boolean = () => true;
+  wss.on('connection', incoming => {
+    const outgoing = new WebSocket(url, incoming.protocol || undefined, { ca: readFileSync(join(root, 'cert'), 'utf8') });
+    const link = { incoming, outgoing }, number = links.push(link);
+    const queued: string[] = [];
+    incoming.on('error', () => {}); outgoing.on('error', () => incoming.terminate());
+    incoming.on('close', () => outgoing.terminate()); outgoing.on('close', () => incoming.terminate());
+    incoming.on('message', data => {
+      const text = (Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer)).toString('utf8');
+      if (!filter('up', text, number)) return;
+      if (outgoing.readyState === WebSocket.OPEN) outgoing.send(text); else queued.push(text);
+    });
+    outgoing.on('open', () => { for (const text of queued) outgoing.send(text); queued.length = 0; });
+    outgoing.on('message', data => {
+      const text = (Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer)).toString('utf8');
+      if (filter('down', text, number) && incoming.readyState === WebSocket.OPEN) incoming.send(text);
+    });
+  });
+  front.listen(0, '127.0.0.1'); await once(front, 'listening');
+  const address = front.address();
+  if (!address || typeof address === 'string') throw new Error('Missing proxy');
+  return { url: `wss://127.0.0.1:${address.port}/compute/v1`, links,
+    filter(value: typeof filter) { filter = value; },
+    cut() { for (const { incoming, outgoing } of links) { incoming.terminate(); outgoing.terminate(); } },
+    async close() {
+      for (const { incoming, outgoing } of links) { incoming.terminate(); outgoing.terminate(); }
+      wss.close(); await new Promise<void>(resolve => front.close(() => resolve()));
+    } };
+}
+async function migratingClient(linkUrl: string, execute: (command: WorkspaceCommand) => Promise<WorkspaceReply>) {
+  const owner = actor(), paired = pairing(owner), p = project(owner), lines: string[] = [];
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId), execution = { runId, generation: 1 }, stop = vi.fn(async () => {});
+  const client = await connectComputeWorkspace({ url: linkUrl, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    execution, execute, ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: stop, diagnostic: line => lines.push(line) });
+  devices.assign(owner, client.session, runId, resources);
+  return { owner, paired, client, execution, stop, lines, peer: peers.at(-1)! };
+}
+function bodyKind(text: string): string | undefined {
+  const parsed = computeTransportFrameSchema.safeParse(JSON.parse(text));
+  if (parsed.success && (parsed.data.kind === 'channel-data' || parsed.data.kind === 'channel-open')) return String(parsed.data.body.kind);
+  return undefined;
+}
+it.each(['pending-command', 'lost-command', 'lost-result', 'lost-result-ack'] as const)(
+  'keeps the same live execution across Wi-Fi loss without duplicate effects: %s', async scenario => {
+    const link = await networkLink();
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const execute = vi.fn(async (): Promise<WorkspaceReply> => { await gate; return { method: 'prepare', value: null }; });
+    const f = await migratingClient(link.url, execute);
+    let dropped = false, resultPassed = false;
+    link.filter((direction, text) => {
+      const kind = bodyKind(text);
+      if (scenario === 'lost-result-ack' && direction === 'up' && kind === 'workspace-result') resultPassed = true;
+      const target = (scenario === 'lost-command' && direction === 'down' && kind === 'workspace-command') ||
+        (scenario === 'lost-result' && direction === 'up' && kind === 'workspace-result') ||
+        (scenario === 'lost-result-ack' && resultPassed && direction === 'down' && JSON.parse(text).kind === 'channel-ack');
+      if (!dropped && target) { dropped = true; link.cut(); return false; }
+      return true;
+    });
+    try {
+      const result = f.peer.request(f.execution, { method: 'prepare', clean: false });
+      if (scenario === 'pending-command') {
+        await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce()); link.cut();
+      }
+      release();
+      await expect(result).resolves.toEqual({ method: 'prepare', value: null });
+      await vi.waitFor(() => expect(f.lines.some(line => line.includes('transport-resumed'))).toBe(true), { timeout: 4000 });
+      expect(execute).toHaveBeenCalledOnce(); expect(f.stop).not.toHaveBeenCalled();
+      expect(peers).toHaveLength(1); expect(f.peer.signal.aborted).toBe(false);
+      expect(gateway.connectionFor(f.client.session)).toBe(f.peer);
+      expect(devices.inspect(f.owner, f.paired.deviceId).assignment?.generation).toBe(f.execution.generation);
+      await expect(f.peer.request(f.execution, { method: 'prepare', clean: false })).resolves.toEqual({ method: 'prepare', value: null });
+      expect(execute).toHaveBeenCalledTimes(2);
+      expect(f.lines.join('')).not.toContain(f.paired.credential);
+    } finally { release(); await f.client.close(); await link.close(); }
+  });
+
+it('replaces a silently stale OPEN socket before the unchanged 30-second lease expires', async () => {
+  const link = await networkLink();
+  const execute = vi.fn(async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }));
+  const f = await migratingClient(link.url, execute);
+  // Old TCP remains OPEN in both processes, but no bytes cross the old network.
+  link.filter((_direction, _text, connection) => connection > 1);
+  try {
+    const result = f.peer.request(f.execution, { method: 'prepare', clean: false });
+    await expect(result).resolves.toEqual({ method: 'prepare', value: null });
+    expect(link.links.length).toBe(2);
+    expect(execute).toHaveBeenCalledOnce(); expect(f.stop).not.toHaveBeenCalled();
+    expect(f.peer.signal.aborted).toBe(false); expect(f.client.state()).toBe('active');
+  } finally { await f.client.close(); await link.close(); }
+}, 15_000);
+
+it('does not revive an expired server lease during network migration', async () => {
+  const link = await networkLink();
+  const execute = vi.fn(async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }));
+  const f = await migratingClient(link.url, execute);
+  try {
+    now += 30_001; link.cut();
+    await vi.waitFor(() => expect(f.peer.signal.aborted).toBe(true), { timeout: 2000 });
+    expect(gateway.connectionFor(f.client.session)).toBeUndefined();
+    expect(execute).not.toHaveBeenCalled();
+    expect(devices.inspect(f.owner, f.paired.deviceId).assignment?.state).toBe('indeterminate');
+  } finally { await f.client.close(); await link.close(); }
+});
+
+it('rejects forged migration identities and acknowledgements without replacing the healthy connection', async () => {
+  const link = await networkLink();
+  let token = '', received = 0;
+  link.filter((direction, text) => {
+    const frame = computeTransportFrameSchema.safeParse(JSON.parse(text));
+    if (direction === 'down' && frame.success && (frame.data.kind === 'channel-open' || frame.data.kind === 'channel-data')) {
+      received = frame.data.seq;
+      if (frame.data.kind === 'channel-open') token = frame.data.token;
+    }
+    return true;
+  });
+  const f = await migratingClient(link.url, async () => ({ method: 'prepare', value: null }));
+  const other = pairing(actor());
+  try {
+    const base = { kind: 'channel-resume' as const, token, epoch: 1, received, credential: f.paired.credential,
+      machineId: f.paired.deviceId, session: f.client.session };
+    const variants = [
+      { ...base, token: randomBytes(32).toString('base64url') },
+      { ...base, credential: other.credential },
+      { ...base, machineId: randomUUID() },
+      { ...base, session: { ...base.session, generation: base.session.generation + 1 } },
+      { ...base, received: Number.MAX_SAFE_INTEGER },
+      { ...base, received: 0 },
+    ];
+    for (const request of variants) {
+      const socket = new WebSocket(url, COMPUTE_RESUME_PROTOCOL, { ca: readFileSync(join(root, 'cert'), 'utf8') });
+      clients.push(socket); await once(socket, 'open');
+      const closed = once(socket, 'close'); socket.send(JSON.stringify(request)); await closed;
+      expect(f.peer.signal.aborted).toBe(false); expect(gateway.connectionFor(f.client.session)).toBe(f.peer);
+    }
+    expect(peers).toHaveLength(1); expect(f.stop).not.toHaveBeenCalled();
+    await expect(f.peer.request(f.execution, { method: 'prepare', clean: false })).resolves.toEqual({ method: 'prepare', value: null });
+  } finally { await f.client.close(); await link.close(); }
+});
+
+it.each(['device', 'membership', 'project'] as const)('rechecks %s authority before resuming any queued command', async authority => {
+  const link = await networkLink();
+  const execute = vi.fn(async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }));
+  const f = await migratingClient(link.url, execute);
+  link.filter((_direction, _text, connection) => connection > 1);
+  try {
+    const pending = f.peer.request(f.execution, { method: 'prepare', clean: false });
+    const rejected = expect(pending).rejects.toBeInstanceOf(ComputeIndeterminateError);
+    if (authority === 'device') devices.revoke(f.owner, f.paired.deviceId);
+    else if (authority === 'membership') db.prepare("UPDATE auth_memberships SET role='org:viewer' WHERE principal_id=?").run(f.owner.principalId);
+    else {
+      const target = projects.getProjectRun(f.owner.orgId, f.execution.runId)!;
+      devices.grantProject(f.owner, f.paired.deviceId, target.projectId, false);
+    }
+    link.cut(); await rejected;
+    expect(execute).not.toHaveBeenCalled(); expect(f.peer.signal.aborted).toBe(true);
+    expect(f.lines.join('')).not.toContain('transport-resumed');
+  } finally { await f.client.close(); await link.close(); }
+});
+
+it('keeps legacy server interoperability and does not mistake a subprotocol echo for migration support', async () => {
+  gateway.close();
+  const legacy = new WebSocketServer({ noServer: true, maxPayload: COMPUTE_FRAME_BYTES, perMessageDeflate: false });
+  const upgrade = (request: import('node:http').IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) => {
+    legacy.handleUpgrade(request, socket, head, ws => {
+      const peer = new ComputeConnection(ws, devices); peers.push(peer);
+    });
+  };
+  server.on('upgrade', upgrade);
+  const execute = vi.fn(async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }));
+  const f = await migratingClient(url, execute);
+  try {
+    await expect(f.peer.request(f.execution, { method: 'prepare', clean: false })).resolves.toEqual({ method: 'prepare', value: null });
+    f.peer.close(); expect(await f.client.finished).toBe(true);
+    expect(f.stop).toHaveBeenCalledOnce(); expect(f.lines.join('')).not.toContain('transport-resumed');
+    expect(f.lines.map(line => JSON.parse(line.slice(16))).find(record => record.reason === 'socket-close').closeCode).toBe(1006);
+  } finally {
+    await f.client.close(); server.off('upgrade', upgrade);
+    for (const ws of legacy.clients) ws.terminate(); legacy.close();
+  }
+});
+
+it('never resurrects local workloads after the existing client lease expires in a prolonged outage', async () => {
+  const link = await networkLink();
+  const execute = vi.fn(async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }));
+  const f = await migratingClient(link.url, execute);
+  link.filter(() => false);
+  try {
+    // Do not alter the timer or budget: wall elapsed time catches sleep/network
+    // outages even if the event loop has not delivered the deadline callback.
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 30_001);
+    link.cut();
+    expect(await f.client.finished).toBe(true);
+    expect(f.stop).toHaveBeenCalledOnce(); expect(execute).not.toHaveBeenCalled();
+    link.filter(() => true);
+    await new Promise(resolve => setTimeout(resolve, 350));
+    expect(f.client.state()).toBe('stopped'); expect(f.lines.join('')).not.toContain('transport-resumed');
+  } finally { vi.restoreAllMocks(); await f.client.close(); await link.close(); }
+});
+
+it('reauthenticates a transport resume without renewing the store lease or execution generation', async () => {
+  const f = await connected();
+  const before = db.prepare('SELECT lease_until,connection_generation,execution_generation FROM compute_devices WHERE device_id=?').get(f.paired.deviceId);
+  now += 10_000;
+  devices.validateResume(f.paired.credential, f.session, f.paired.deviceId);
+  expect(db.prepare('SELECT lease_until,connection_generation,execution_generation FROM compute_devices WHERE device_id=?').get(f.paired.deviceId)).toEqual(before);
+});
+
+it('keeps a pending allocation across migration and never allocates the execution twice', async () => {
+  const link = await networkLink(), owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId), stop = vi.fn(async () => {});
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const allocate = vi.fn(async () => { await gate; return { execute: async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }) }; });
+  const client = await connectComputeWorkspace({ url: link.url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), assign: allocate, stopWorkloads: stop });
+  const execution = { runId, generation: devices.assign(owner, client.session, runId, resources).generation };
+  const peer = peers.at(-1)!;
+  try {
+    const bound = peer.bind(execution);
+    await vi.waitFor(() => expect(allocate).toHaveBeenCalledOnce());
+    link.cut(); release(); await bound;
+    expect(allocate).toHaveBeenCalledOnce(); expect(stop).not.toHaveBeenCalled();
+    expect(peer.signal.aborted).toBe(false); expect(peers).toHaveLength(1);
+    await expect(peer.request(execution, { method: 'prepare', clean: false })).resolves.toEqual({ method: 'prepare', value: null });
+  } finally { release(); await client.close(); await link.close(); }
+});
+
+it('preserves an in-flight non-idempotent effect across TLS migration to a separately compiled client process', async () => {
+  const { build } = await import('esbuild');
+  const { spawn } = await import('node:child_process');
+  const link = await networkLink(), owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId), execution = { runId, generation: 1 };
+  const compiled = join(root, `${randomUUID()}.cjs`), effects = join(root, `${randomUUID()}.txt`);
+  await build({ entryPoints: ['src/launcher/computeClient.ts'], bundle: true, platform: 'node', format: 'cjs', outfile: compiled, logLevel: 'silent' });
+  const config = { url: link.url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    execution, ca: readFileSync(join(root, 'cert'), 'utf8') };
+  const child = spawn(process.execPath, ['-e', `
+    const { connectComputeWorkspace } = require(${JSON.stringify(compiled)});
+    const { appendFileSync } = require('node:fs');
+    let release; const gate = new Promise(resolve => { release = resolve; });
+    const connecting = connectComputeWorkspace({ ...${JSON.stringify(config)},
+      execute: async () => { appendFileSync(${JSON.stringify(effects)}, 'effect\\n'); process.send({kind:'started'}); await gate; return { method:'prepare', value:null }; },
+      stopWorkloads: async () => { process.send({kind:'stopped'}); }
+    });
+    process.on('message', async message => {
+      if (message === 'release') release();
+      if (message === 'close') { await (await connecting).close(); process.disconnect(); }
+    });
+    connecting.then(client => process.send({kind:'ready', session: client.session}), () => process.exit(1));
+  `], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+  const exited = once(child, 'exit'), messages: { kind: string; session?: import('../src/contracts/computeDevice.js').ComputeSession }[] = [];
+  child.on('message', message => { messages.push(message as typeof messages[number]); });
+  try {
+    await vi.waitFor(() => expect(messages.some(message => message.kind === 'ready')).toBe(true), { timeout: 5000 });
+    const session = messages.find(message => message.kind === 'ready')!.session!;
+    devices.assign(owner, session, runId, resources);
+    const peer = peers.at(-1)!, result = peer.request(execution, { method: 'prepare', clean: false });
+    await vi.waitFor(() => expect(messages.some(message => message.kind === 'started')).toBe(true));
+    link.cut(); child.send('release');
+    await expect(result).resolves.toEqual({ method: 'prepare', value: null });
+    expect(readFileSync(effects, 'utf8')).toBe('effect\n'); expect(peers).toHaveLength(1);
+    expect(peer.signal.aborted).toBe(false); expect(gateway.connectionFor(session)).toBe(peer);
+    expect(messages.filter(message => message.kind === 'stopped')).toHaveLength(0);
+    child.send('close'); expect((await exited)[0]).toBe(0);
+    expect(messages.filter(message => message.kind === 'stopped')).toHaveLength(1);
+  } finally { if (child.exitCode === null) child.kill('SIGTERM'); await exited; await link.close(); }
+});
+
+it('survives another network loss during the resume handshake without losing the pending result', async () => {
+  const link = await networkLink();
+  const execute = vi.fn(async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }));
+  const f = await migratingClient(link.url, execute);
+  let lostResult = false, lostResume = false;
+  link.filter((direction, text, connection) => {
+    if (!lostResult && direction === 'up' && bodyKind(text) === 'workspace-result') {
+      lostResult = true; link.cut(); return false;
+    }
+    if (!lostResume && connection === 2 && direction === 'down' && JSON.parse(text).kind === 'channel-resumed') {
+      lostResume = true; link.cut(); return false;
+    }
+    return true;
+  });
+  try {
+    await expect(f.peer.request(f.execution, { method: 'prepare', clean: false })).resolves.toEqual({ method: 'prepare', value: null });
+    expect(lostResult && lostResume).toBe(true); expect(link.links).toHaveLength(3);
+    expect(execute).toHaveBeenCalledOnce(); expect(f.stop).not.toHaveBeenCalled();
+    expect(peers).toHaveLength(1); expect(f.peer.signal.aborted).toBe(false);
+  } finally { await f.client.close(); await link.close(); }
 });

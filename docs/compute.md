@@ -87,17 +87,23 @@ heartbeats, commands and previews have independent channels.
 ## Disconnection and recovery
 
 An outbound WSS connection needs no incoming port or router configuration.
-Loss of heartbeats expires the local lease and triggers workload teardown.
-Operations already dispatched remain indeterminate and are never replayed.
-Only engine-confirmed teardown allows a new connection to reconcile the old
-execution generation. Reconnection does not resume the interrupted run.
+Compute automatically reconnects after a brief Wi-Fi or network change while
+both processes and the existing 30-second heartbeat lease remain alive. A
+silently stale TCP connection is replaced after 10 seconds without a heartbeat
+reply. Reconnection reauthenticates the same device, machine and session and
+rechecks project access; it does not renew the lease or allocate another run.
 
-Keep the computer on a stable network during a run. Switching Wi-Fi networks or
-resuming after a network outage can leave the previous TCP connection unusable
-even when the computer is online again. Compute does not migrate that active
-connection to the new network. Expiry still stops the workload; a longer run
-budget does not extend the connection lease. Without an eligible confirmed
-checkpoint, reconnecting cannot recover progress as a continuable run.
+The two peers retain bounded sequence and acknowledgement state in memory.
+Unacknowledged messages may be retransmitted, but are deduplicated before
+command execution, including commands still running when the network changed.
+An explicit stop, an expired lease, a process restart or revoked access remains
+terminal. Loss beyond the lease triggers workload teardown; a longer run budget
+does not extend that connection lease. Only engine-confirmed teardown permits a
+fresh connection to reconcile an interrupted execution. Without an eligible
+confirmed checkpoint, that new connection cannot resume its work.
+
+This transport extension requires updated Compute and server versions. Older
+peers retain the previous fail-closed behavior. It is not a run-restart feature.
 
 After reconnecting the computer, use **Reconcile and finish transfer** in the
 project's Compute settings for a pending run. A completed run can export its

@@ -267,6 +267,14 @@ export class ComputeDeviceStore {
   validateSession(session: ComputeSession): void {
     this.fenceExpiry(session, () => { this.session(session); });
   }
+  /** Read-only reauthentication. Reattaching never extends a lease or changes a generation. */
+  validateResume(credential: string, session: ComputeSession, machineId: string): void {
+    this.fenceExpiry(session, () => {
+      const row = this.credentialSession(credential, session);
+      const bound = this.db.prepare('SELECT machine_id FROM compute_device_machines WHERE device_id=?').pluck().get(row.device_id);
+      if (bound !== machineId) throw new Error('Compute machine inventory changed; pair this installation again');
+    });
+  }
   heartbeat(credential: string, session: ComputeSession): number {
     return this.fenceExpiry(session, () => this.db.transaction(() => {
       this.credentialSession(credential, session);

@@ -21,9 +21,12 @@ fences workload effects. Advertised resources are not independently verified
 proof. Server admission requires an operator-approved app version and image digest.
 
 `computeProtocol.ts` wraps private workspace commands in run/generation/request
-identities on the authenticated WSS channel. Its 1 MiB frame budget includes the
-envelope; transfer chunks stay bounded by `checkpointTransfer.ts`. Tools and
-previews are not accepted on this control channel.
+identities on the authenticated WSS channel. Its 1 MiB application-frame budget
+includes that envelope; transfer chunks stay bounded by `checkpointTransfer.ts`.
+`computeTransport.ts` owns the opt-in transport envelope (1 MiB + 1 KiB), sequence
+acknowledgements and authenticated resume shape. No application command, storage
+schema or lease changes; legacy peers remain compatible. Transport state and
+resume capabilities are memory-only and never logged.
 
 `workspaceProtocol.ts` is a private runtime channel, separate from
 `workerProtocol.ts` and all element declarations. It has no caller-selected
