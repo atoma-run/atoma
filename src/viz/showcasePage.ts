@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { legalLinks, servesLegalPages } from './legalPages.js';
-import { computePairIcon } from './computeCopy.js';
-import { homeSocialMeta, SEO_TITLE, SEO_DESCRIPTION } from './seo.js';
+import { homeSocialMeta } from './seo.js';
 import {
   SHOWCASE_KINDS,
   type ShowcaseEntry,
@@ -135,7 +134,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:16p
 .pill{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#9cc4ff;border:1px solid #2b4668;border-radius:999px;padding:5px 10px}
 nav.top{display:flex;align-items:center;gap:8px}
 nav.top a{color:#c9d4e6;text-decoration:none;font-size:15px;padding:12px 14px;min-height:44px;display:inline-flex;align-items:center;white-space:nowrap}
-.btn{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 22px;border-radius:12px;font-weight:700;font-size:16px;text-decoration:none}
+.btn{display:inline-flex;align-items:center;min-height:48px;padding:0 22px;border-radius:12px;font-weight:700;font-size:16px;text-decoration:none}
 .btn.primary,nav.top a.primary{background:var(--primary);color:#07111f}
 .btn.ghost{border:1px solid #426386;color:var(--text)}
 .hero{position:relative;overflow:hidden;margin-top:-76px;padding:140px 0 72px;background-color:#050913;background-image:radial-gradient(520px 380px at 30% 18%,rgba(14,66,148,.75),transparent 70%),radial-gradient(500px 420px at 88% 34%,rgba(97,31,184,.55),transparent 70%),linear-gradient(rgba(71,133,230,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(71,133,230,.07) 1px,transparent 1px);background-size:100% 100%,100% 100%,56px 56px,56px 56px;animation:aurora 24s ease-in-out infinite alternate}
@@ -264,14 +263,14 @@ ${input.assets.markScript ? `<script type="module" src="${esc(input.assets.markS
 }
 
 function header(): string {
-  return `<header class="top"><a class="brand" href="/"><span class="mark mark-logo" data-atoma-mark="logo"></span><span>Atoma</span><span class="pill">Beta</span></a>
+  return `<header class="top"><a class="brand" href="/"><span class="mark mark-logo" data-atoma-mark="logo"></span><span>Atoma</span><span class="pill">Live showcase</span></a>
 <nav class="top" aria-label="Site"><a class="secondary" href="/#feed">Finished work</a><a href="/app">Sign in</a><a class="primary" href="/app">Start your own</a></nav></header>`;
 }
 
 function closing(origin: URL | null): string {
   return `<section class="cta-band"><div class="wrap"><div class="box"><div class="row">
 <div class="mark mark-band" data-atoma-mark="band"></div><div style="display:flex;flex-direction:column;gap:16px">
-<h2 class="display">What will you build next?</h2>
+<h2 class="display">Have a request of your own?</h2>
 <p>Describe the outcome you want. Atoma works on it in a private project and gives you the same story: every step, every check, and the finished result.</p>
 <a class="btn primary" style="align-self:flex-start" href="/app">Start your own</a></div></div></div></div></section>
 <footer class="bottom">atoma.run · Every story on this page is real work, shown as it was delivered.${origin && servesLegalPages(origin) ? ` · ${legalLinks()}` : ''}</footer>`;
@@ -328,26 +327,22 @@ export function renderShowcaseIndex(
   const body = `${header()}
 <main><section class="hero" data-atoma-receiver>
 <div class="wrap in"><div>
-<h1 class="display">Build together.</h1>
-<p class="lead">Bring your ideas. Work with Atoma to turn them into software, reports, designs and more. Set the goal, follow the work, and shape what comes next.</p>
+<h1 class="display">Watch a request turn into finished work.</h1>
+<p class="lead">A drawing, a sound, a report, a data study, a proof, a piece of software. Atoma takes on requests and works on them in the open. Only work that was delivered and passed its checks is shown here.</p>
 <div class="cta"><a class="btn primary" href="#feed">See finished work</a><a class="btn ghost" href="/app">Start your own</a></div></div>
 <div class="stage"><div class="mark mark-hero" data-atoma-mark="hero"></div></div></div></section>
-<section class="cta-band" aria-labelledby="compute-title"><div class="wrap"><div class="box">
-<h2 id="compute-title">Atoma Compute</h2>
-<p><strong>Your ideas. Your computer. Atoma by your side.</strong></p>
-<p>Connect your Mac or Windows computer to work on your projects with Atoma. You choose how much CPU and memory Atoma can use, and which projects can use this computer.</p>
-<p>Atoma Compute is in beta. The macOS app is not yet signed or notarized by Apple. Our installation guide walks you through the extra steps for its first launch.</p>
-<div class="cta"><a class="btn primary" href="/compute/setup">${computePairIcon('download')} Get Atoma Compute</a></div>
-</div></div></section>
 <section class="feed" id="feed"><div class="wrap">
-<div class="feedhead"><div><h2>Finished and checked</h2><p>Explore delivered work that passed its checks: software, reports, drawings and more. Some projects grew over several requests; follow their progress step by step.</p></div>
+<div class="feedhead"><div><h2>Finished and checked</h2><p>Recent work comes first, with different kinds of work woven in. Some grew over several requests: each step is shown, and each one kept what already worked.</p></div>
 <div class="chips" id="filters" role="group" aria-label="Filter by kind of work" hidden>${chips}</div></div>
 ${entries.length ? `<div class="cards">${orderShowcaseEntries(entries).map(card).join('')}</div>` : '<div class="empty">Nothing to show yet. Finished work appears here as it is delivered.</div>'}
 </div></section></main>
 ${closing(origin)}`;
   return page({
-    title: SEO_TITLE,
-    description: SEO_DESCRIPTION,
+    // Plain words, like the page: the product's technical SEO line names
+    // agents, and this home is written for people who have never heard of them.
+    title: 'Atoma — Watch a request turn into finished work',
+    description:
+      'Watch requests turn into finished, checked work: drawings, sounds, reports, data studies, proofs and software.',
     origin,
     pathname: '/',
     body,

@@ -2014,7 +2014,7 @@ describe('viz auth gate (process level)', () => {
     const shell = await root.text();
     expect(shell).not.toContain(AUTH_COPY.pageTitle);
     expect(shell).toContain('<script');
-    expect(shell).toContain('<title>Atoma — Build together</title>');
+    expect(shell).toContain('<title>Atoma — AI agents that turn requests into checked work</title>');
     expect(shell).toContain(`rel="canonical" href="${base}/"`);
     expect(shell).toContain(`property="og:image" content="${base}/og-card.png"`);
     expect(shell).toContain('type="application/ld+json"');

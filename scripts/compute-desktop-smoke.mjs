@@ -36,7 +36,7 @@ assert(w); const web=w.webContents;
 for(let i=0;i<100;i++){if(await web.executeJavaScript('Boolean(document.querySelector("input"))'))break;await new Promise(r=>setTimeout(r,100));}
 assert.equal(await web.executeJavaScript('typeof require'),'undefined');assert.equal(await web.executeJavaScript('typeof process'),'undefined');
 assert.equal(web.getLastWebPreferences().sandbox,true);assert.equal(web.getLastWebPreferences().contextIsolation,true);
-assert.equal(await web.executeJavaScript('document.querySelector("h1").textContent'),'Build together.');
+assert.equal(await web.executeJavaScript('document.querySelector("h1").textContent'),'Make this computer ready for Atoma');
 await fs.writeFile(path.join(os.tmpdir(),'atoma-compute-desktop-connection.png'),(await web.capturePage()).toPNG());
 assert.equal(await web.executeJavaScript('window.compute.command({action:"shell"}).then(()=>false,()=>true)'),true);
 assert.equal(await web.executeJavaScript('[...document.querySelectorAll("button")].some(b=>b.textContent.includes("Download and open Docker installer"))'),true);

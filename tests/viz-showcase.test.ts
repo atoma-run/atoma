@@ -1068,7 +1068,7 @@ describe('the home page', () => {
 
   it('sends a visitor in through /app, and carries the product identity', () => {
     const html = renderShowcaseIndex([], new URL('https://atoma.example.com'));
-    expect(html).toContain('<title>Atoma — Build together</title>');
+    expect(html).toContain('<title>Atoma — Watch a request turn into finished work</title>');
     expect(html).toContain('rel="canonical" href="https://atoma.example.com/"');
     expect(html).toContain('property="og:image" content="https://atoma.example.com/og-card.png"');
     expect(html).toContain('application/ld+json');
