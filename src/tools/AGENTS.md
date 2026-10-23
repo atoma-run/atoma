@@ -109,7 +109,10 @@ Neighbours:
 - Docker image packaging is verified statically against the worker import graph
   and dynamically by booting the real image.
 - `start_static_server` and `start_node_server` use OS-selected ports and explicit
-  readiness markers, and register `{ port → kind, pid, entry }` in the tool
+  readiness markers. The static server binds the IPv4 loopback only
+  (2026-10-23): an unbound `http.server` reverse-resolves the host name,
+  5 s per boot on a macOS developer machine, and served the workspace on
+  every interface. Both register `{ port → kind, pid, entry }` in the tool
   set's ONE `servedOrigins` registry, which `fetch_url` and `validate_html`
   read. Do not kill arbitrary process groups; only safe integer PGIDs greater
   than 1 may reach group syscalls.

@@ -1284,7 +1284,18 @@ export function startStaticServerTool(opts: BuiltinToolOptions): BuiltinTool {
           'python3',
           // -u: unbuffered stdio, so the "Serving" line arrives as soon as
           // python prints it instead of sitting in a 4k block buffer.
-          ['-u', '-m', 'http.server', String(concretePort)],
+          // --bind 127.0.0.1: LOOPBACK ONLY, for two reasons. Without an
+          // address, http.server calls socket.getfqdn() on the bare host
+          // name, a reverse DNS lookup that took 5.0–5.3 s on a macOS
+          // developer machine (2026-10-23: 5,259 ms to the Serving line,
+          // 39 ms with the bind; `--bind ::` and `--bind 0.0.0.0` resolve
+          // the host name too and stay at 5 s). That wait was the floor of
+          // every browser test and of every web run's first probe on such a
+          // host. And a workspace served on every interface was reachable
+          // from the LAN; nothing but this process's own fetch_url and
+          // validate_html ever reads it, both of which connect to localhost
+          // and fall back to the IPv4 loopback when ::1 refuses.
+          ['-u', '-m', 'http.server', '--bind', '127.0.0.1', String(concretePort)],
           {
             cwd: opts.sandbox.root,
             stdio: ['ignore', 'pipe', 'pipe'],

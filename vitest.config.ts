@@ -92,10 +92,19 @@ export default defineConfig({
       // the worker regressions opt in explicitly and use only local fake servers.
       ATOMA_DEFER_LEARNING: '0',
     },
-    // Process-bound fixtures start their own Node/Python workers. Spawning a
-    // worker per CPU oversubscribed these deadlines in the full suite. Bound
-    // concurrency instead of extending the transport or warmup timeouts.
-    maxWorkers: Math.min(4, availableParallelism()),
+    // Process-bound fixtures start their own Node/Python workers and real
+    // Chrome instances. A worker per CPU once oversubscribed their deadlines,
+    // which is why this was capped at 4. Re-measured 2026-10-23 on a 14-CPU,
+    // 24 GB developer machine: 4 workers → 299 s wall for 1044 s of file
+    // time; 12 workers → 112 s and 118 s over two runs, 7960 tests, zero
+    // failures, and the four longest files (65–87 s each, browser- and
+    // process-bound) slowed by 3–8 s, nowhere near a timeout. Two cores stay
+    // free for the child processes the fixtures spawn: 14 workers on that
+    // machine took 127 s with one timing failure, 16 took 171 s with four.
+    // The floor of 4 keeps CI runners (2–4 cores) at the behaviour they had
+    // under the old cap. With the loopback-bound static server and the
+    // checkpoint suite split in three, the same suite ran in 95 s.
+    maxWorkers: Math.max(4, availableParallelism() - 2),
     environment: 'node',
     globals: false,
     testTimeout: 15_000,

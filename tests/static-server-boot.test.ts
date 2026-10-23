@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { networkInterfaces, tmpdir } from 'node:os';
 import { get } from 'node:http';
 import { ToolSandbox } from '../src/tools/sandbox.js';
 import { startStaticServerTool } from '../src/tools/builtin.js';
@@ -102,5 +102,37 @@ describe('list_files — dangling symlink tolerance (audit rank-6)', () => {
     expect(kinds['real.txt']).toBe('file');
     await sandbox.cleanup();
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('start_static_server — loopback only', () => {
+  const dirs: string[] = [];
+  const sandboxes: ToolSandbox[] = [];
+  afterEach(async () => {
+    for (const s of sandboxes.splice(0)) await s.cleanup();
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  // An unbound python http.server reverse-resolves the host name before it
+  // prints its Serving line (5.0–5.3 s on a macOS developer machine,
+  // 2026-10-23) and listens on every interface. Binding the loopback is one
+  // change that removes both; this proves the second, since the first is a
+  // duration no test can assert without becoming flaky.
+  it('answers on the IPv4 loopback and refuses the machine\'s other addresses', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-static-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'index.html'), '<!doctype html><title>ok</title>', 'utf8');
+    const sandbox = new ToolSandbox(dir);
+    sandboxes.push(sandbox);
+    const res = (await startStaticServerTool({ sandbox }).execute({})) as { ok: boolean; port: number };
+    expect(res.ok).toBe(true);
+    expect(await fetchStatus(`http://127.0.0.1:${res.port}/`)).toBe(200);
+    const external = Object.values(networkInterfaces()).flat()
+      .filter((address): address is NonNullable<typeof address> => address != null)
+      .filter((address) => address.family === 'IPv4' && !address.internal)
+      .map((address) => address.address);
+    for (const address of external) {
+      await expect(fetchStatus(`http://${address}:${res.port}/`)).rejects.toThrow(/ECONNREFUSED|timeout/);
+    }
   });
 });
