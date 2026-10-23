@@ -1260,7 +1260,7 @@
   "result.filesUnavailable": "Tidak ada revisi yang dipublikasikan untuk file-file ini. File tersebut tidak dapat dibuka di GitHub dari run ini.",
   "result.expired": "File lokal telah kedaluwarsa. File yang dipublikasikan mungkin masih tersedia di GitHub.",
   "launch.guidance": "Jelaskan hasil yang Anda inginkan beserta batasannya. Untuk repositori yang diimpor, jelaskan apa yang perlu diperiksa atau diubah. Atoma memilih kemampuan yang diperlukan untuk permintaan Anda. Hasilnya dapat berupa penjelasan, analisis, dokumen, atau perangkat lunak yang berfungsi; verifikasi mengikuti hasil yang diminta.",
-  "settings.mcpCodexTimeout": "",
+  "settings.mcpCodexTimeout": "Secara default, Codex berhenti menunggu panggilan alat setelah 300 detik, sedangkan sebuah run dapat memakan waktu delapan jam. Tambahkan tool_timeout_sec = 32400 di bawah server atoma dalam ~/.codex/config.toml (bantuan penyiapan di bawah menyertakannya); codex mcp add tidak dapat mengaturnya.",
   "depth.checklist.recorded_one": "{{count}} pemeriksaan HTTP direkam sebelumnya pada kode server yang tidak berubah",
   "depth.checklist.recorded_other": "{{count}} pemeriksaan HTTP direkam sebelumnya pada kode server yang tidak berubah",
   "registry.detailFallbackElements": "Elemen fallback",
@@ -2708,5 +2708,12 @@
   "assayer.stat.completed": "Selesai",
   "assayer.stat.failed": "Kegagalan teknis",
   "assayer.stat.deferred": "Ditunda",
-  "assayer.stat.preempted": "Diinterupsi"
+  "assayer.stat.preempted": "Diinterupsi",
+  "sentinel.byRule": "Temuan berdasarkan aturan",
+  "sentinel.col.when": "Waktu",
+  "sentinel.col.rule": "Aturan",
+  "sentinel.col.corpus": "Korpus",
+  "sentinel.col.run": "Run",
+  "sentinel.col.summary": "Yang terlihat",
+  "sentinel.col.actor": "Aktor"
 }

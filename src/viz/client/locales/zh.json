@@ -1260,7 +1260,7 @@
   "result.filesUnavailable": "这些文件没有可用的已发布修订版本，无法从此run在GitHub上打开。",
   "result.expired": "本地文件已过期。已发布的文件可能仍可在GitHub上获取。",
   "launch.guidance": "描述你希望实现的结果及任何约束条件。对于导入的代码仓库，请说明要检查或更改的内容。Atoma 会选择完成请求所需的能力。结果可以是说明、分析、文档或可运行的软件；验证将依据所请求的结果进行。",
-  "settings.mcpCodexTimeout": "",
+  "settings.mcpCodexTimeout": "默认情况下，Codex等待工具调用300秒后便会停止，而一次run最长可能需要8小时。请在~/.codex/config.toml的atoma服务器配置下添加tool_timeout_sec = 32400（下方的设置帮助中已包含此配置）；codex mcp add无法设置此项。",
   "depth.checklist.recorded_one": "此前针对未更改的服务器代码记录了{{count}}项HTTP检查",
   "depth.checklist.recorded_other": "此前针对未更改的服务器代码记录了{{count}}项HTTP检查",
   "registry.detailFallbackElements": "fallback 元素",
@@ -2708,5 +2708,12 @@
   "assayer.stat.completed": "已完成",
   "assayer.stat.failed": "技术故障",
   "assayer.stat.deferred": "已推迟",
-  "assayer.stat.preempted": "已中断"
+  "assayer.stat.preempted": "已中断",
+  "sentinel.byRule": "按规则查看发现结果",
+  "sentinel.col.when": "时间",
+  "sentinel.col.rule": "规则",
+  "sentinel.col.corpus": "语料库",
+  "sentinel.col.run": "run",
+  "sentinel.col.summary": "观察到的内容",
+  "sentinel.col.actor": "执行者"
 }

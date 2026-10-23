@@ -1260,7 +1260,7 @@
   "result.filesUnavailable": "Não está disponível nenhuma revisão publicada para estes ficheiros. Não podem ser abertos no GitHub a partir deste run.",
   "result.expired": "Os ficheiros locais expiraram. Os ficheiros publicados ainda podem estar disponíveis no GitHub.",
   "launch.guidance": "Descreva o resultado pretendido e quaisquer restrições. Para um repositório importado, explique o que deve ser inspecionado ou alterado. A atoma seleciona as capacidades necessárias para o seu pedido. O resultado pode ser uma explicação, uma análise, um documento ou software funcional; a verificação segue o resultado solicitado.",
-  "settings.mcpCodexTimeout": "",
+  "settings.mcpCodexTimeout": "Por predefinição, o Codex deixa de esperar por uma chamada de ferramenta após 300 segundos, enquanto um run pode demorar oito horas. Adicione tool_timeout_sec = 32400 no servidor atoma em ~/.codex/config.toml (a ajuda de configuração abaixo já o inclui); codex mcp add não permite defini-lo.",
   "depth.checklist.recorded_one": "{{count}} verificação HTTP registada anteriormente em código do servidor inalterado",
   "depth.checklist.recorded_other": "{{count}} verificações HTTP registadas anteriormente em código do servidor inalterado",
   "registry.detailFallbackElements": "Elementos de fallback",
@@ -2708,5 +2708,12 @@
   "assayer.stat.completed": "Concluídas",
   "assayer.stat.failed": "Falhas técnicas",
   "assayer.stat.deferred": "Adiadas",
-  "assayer.stat.preempted": "Interrompidas"
+  "assayer.stat.preempted": "Interrompidas",
+  "sentinel.byRule": "Constatações por regra",
+  "sentinel.col.when": "Quando",
+  "sentinel.col.rule": "Regra",
+  "sentinel.col.corpus": "Corpus",
+  "sentinel.col.run": "Run",
+  "sentinel.col.summary": "O que foi observado",
+  "sentinel.col.actor": "Ator"
 }

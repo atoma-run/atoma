@@ -1260,7 +1260,7 @@
   "result.filesUnavailable": "Для этих файлов нет опубликованной ревизии. Их нельзя открыть на GitHub из этого run.",
   "result.expired": "Срок хранения локальных файлов истёк. Опубликованные файлы могут по-прежнему быть доступны на GitHub.",
   "launch.guidance": "Опишите желаемый результат и любые ограничения. Для импортированного репозитория укажите, что нужно проверить или изменить. Atoma подбирает возможности, необходимые для выполнения вашего запроса. Результатом может быть объяснение, анализ, документ или работающее ПО; проверка проводится в соответствии с запрошенным результатом.",
-  "settings.mcpCodexTimeout": "",
+  "settings.mcpCodexTimeout": "По умолчанию Codex прекращает ждать вызова инструмента через 300 секунд, тогда как run может длиться восемь часов. Добавьте tool_timeout_sec = 32400 в раздел сервера atoma в ~/.codex/config.toml (эта строка есть в инструкции по настройке ниже); задать этот параметр через codex mcp add нельзя.",
   "depth.checklist.recorded_one": "Ранее для неизменённого серверного кода записана {{count}} HTTP-проверка",
   "depth.checklist.recorded_other": "Ранее для неизменённого серверного кода записано HTTP-проверок: {{count}}",
   "registry.detailFallbackElements": "Fallback-элементы",
@@ -2708,5 +2708,12 @@
   "assayer.stat.completed": "Завершено",
   "assayer.stat.failed": "Технические сбои",
   "assayer.stat.deferred": "Отложено",
-  "assayer.stat.preempted": "Прервано"
+  "assayer.stat.preempted": "Прервано",
+  "sentinel.byRule": "Находки по правилам",
+  "sentinel.col.when": "Когда",
+  "sentinel.col.rule": "Правило",
+  "sentinel.col.corpus": "Корпус",
+  "sentinel.col.run": "Run",
+  "sentinel.col.summary": "Что обнаружено",
+  "sentinel.col.actor": "Субъект"
 }

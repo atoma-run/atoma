@@ -1260,7 +1260,7 @@
   "result.filesUnavailable": "এই ফাইলগুলোর কোনো প্রকাশিত রিভিশন উপলভ্য নেই। এই run থেকে এগুলো GitHub-এ খোলা যাবে না।",
   "result.expired": "লোকাল ফাইলগুলোর মেয়াদ শেষ হয়েছে। প্রকাশিত ফাইলগুলো এখনও GitHub-এ উপলভ্য থাকতে পারে।",
   "launch.guidance": "আপনি যে ফলাফল চান এবং কোনো সীমাবদ্ধতা থাকলে তা বর্ণনা করুন। আমদানি করা repository-এর ক্ষেত্রে, কী পরিদর্শন বা পরিবর্তন করতে হবে তা ব্যাখ্যা করুন। আপনার অনুরোধের জন্য প্রয়োজনীয় সক্ষমতাগুলো Atoma নির্বাচন করে। ফলাফলটি হতে পারে কোনো ব্যাখ্যা, বিশ্লেষণ, নথি বা কার্যকর সফটওয়্যার; যাচাইকরণ অনুরোধ করা ফলাফল অনুযায়ী করা হয়।",
-  "settings.mcpCodexTimeout": "",
+  "settings.mcpCodexTimeout": "ডিফল্টভাবে Codex কোনো টুল কলের জন্য ৩০০ সেকেন্ড পর অপেক্ষা করা বন্ধ করে, অথচ একটি run আট ঘণ্টা পর্যন্ত চলতে পারে। ~/.codex/config.toml-এ atoma সার্ভারের অধীনে tool_timeout_sec = 32400 যোগ করুন (নিচের সেটআপ সহায়তায় এটি অন্তর্ভুক্ত আছে); codex mcp add দিয়ে এটি সেট করা যায় না।",
   "depth.checklist.recorded_one": "অপরিবর্তিত সার্ভার কোডে আগে {{count}}টি HTTP পরীক্ষা রেকর্ড করা হয়েছে",
   "depth.checklist.recorded_other": "অপরিবর্তিত সার্ভার কোডে আগে {{count}}টি HTTP পরীক্ষা রেকর্ড করা হয়েছে",
   "registry.detailFallbackElements": "Fallback এলিমেন্ট",
@@ -2708,5 +2708,12 @@
   "assayer.stat.completed": "সম্পন্ন",
   "assayer.stat.failed": "প্রযুক্তিগত ব্যর্থতা",
   "assayer.stat.deferred": "স্থগিত",
-  "assayer.stat.preempted": "বাধাপ্রাপ্ত"
+  "assayer.stat.preempted": "বাধাপ্রাপ্ত",
+  "sentinel.byRule": "নিয়ম অনুযায়ী ফলাফল",
+  "sentinel.col.when": "কখন",
+  "sentinel.col.rule": "নিয়ম",
+  "sentinel.col.corpus": "করপাস",
+  "sentinel.col.run": "Run",
+  "sentinel.col.summary": "যা দেখা গেছে",
+  "sentinel.col.actor": "কর্তা"
 }
