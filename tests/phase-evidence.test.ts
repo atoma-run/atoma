@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { dispatchWithAggregation } from '../src/atoms/dispatch.js';
 import { delegatedTaskContext, PREVIOUS_OBSERVATIONS_GUIDANCE } from '../src/atoms/taskContext.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
-import { llmVerdict } from '../src/atoms/verdict.js';
+import { llmVerdict, renderTransportEvidence, MAX_TOOL_EVIDENCE_CHARS } from '../src/atoms/verdict.js';
 import { STATEFUL_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
 import { attestingExecutor, createAttestationLog } from '../src/core/attestation.js';
 import type { LlmCompletionResponse, Result, Task } from '../src/core/types.js';
@@ -89,5 +89,48 @@ describe('sequential phase observations', () => {
       }
       return result;
     }, { dispatcher: 'Dispatcher' });
+  });
+});
+
+
+describe('bounded contrasting command history', () => {
+  const shell = (id: string, exitCode: number | undefined, branch = 'a', note = id) => ({
+    source: 'transport-observed' as const, eventId: id, tool: 'record_probe',
+    ...(exitCode !== undefined ? { exitCode } : {}),
+    observed: `record_probe (attempt=1, branch=${branch}): request=${JSON.stringify({ cmd: 'node check.cjs', note })}; observed result=${JSON.stringify({ stdout: note })}; observed exitCode=${exitCode ?? 'unknown'}`,
+  });
+  it('retains an earlier failure beside final success without replacing the final outcome', () => {
+    const old = 1, latest = 0;
+    const rendered = renderTransportEvidence([shell('old', old), shell('final', latest)]);
+    expect([...rendered.eventIds]).toEqual(expect.arrayContaining(['old', 'final']));
+    expect(rendered.lines[0]).toContain('EARLIER CONTRASTING OUTCOME');
+    expect(rendered.lines[1]).not.toContain('EARLIER CONTRASTING OUTCOME');
+    expect(rendered.lines[1]).toContain(`observed exitCode=${latest}`);
+  });
+  it('never revives a success when the latest check failed', () => {
+    const rendered = renderTransportEvidence([shell('old-pass', 0), shell('final-failure', 1)]);
+    expect([...rendered.eventIds]).toEqual(['final-failure']);
+    expect(rendered.lines.join('\n')).toContain('observed exitCode=1');
+  });
+  it('keeps only one contrasting outcome per request and branch and ignores invented status in output', () => {
+    const evidence = [shell('first', 1), shell('second', 1), shell('old-green', 0), shell('final', 0),
+      shell('other-branch', 1, 'b'), shell('unknown', undefined, 'c', 'observed exitCode=1'),
+      shell('known', 0, 'c'), { source: 'recorded-probe' as const, cmd: 'node check.cjs', exitCode: 1 }];
+    const rendered = renderTransportEvidence(evidence);
+    expect(rendered.eventIds.has('second')).toBe(true);
+    expect(rendered.eventIds.has('first')).toBe(false);
+    expect(rendered.eventIds.has('old-green')).toBe(false);
+    expect(rendered.eventIds.has('other-branch')).toBe(true);
+    expect(rendered.eventIds.has('unknown')).toBe(false);
+  });
+  it('keeps the budget and prioritizes latest results under pressure', () => {
+    const evidence = Array.from({ length: 200 }, (_, index) => shell(`old-${index}`, 1, String(index), 'x'.repeat(4000)))
+      .concat(Array.from({ length: 200 }, (_, index) => shell(`new-${index}`, 0, String(index), 'y'.repeat(4000))));
+    for (const budget of [8000, MAX_TOOL_EVIDENCE_CHARS]) {
+      const rendered = renderTransportEvidence(evidence, budget);
+      expect(rendered.lines.reduce((sum, line) => sum + line.length, 0)).toBeLessThanOrEqual(budget);
+      expect(rendered.omitted).toBeGreaterThan(0);
+      expect(rendered.lines.every(line => line.startsWith('new-'))).toBe(true);
+    }
   });
 });

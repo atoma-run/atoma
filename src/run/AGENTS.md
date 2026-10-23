@@ -314,7 +314,7 @@ Neighbours:
   created in atoma (an imported project restarts from its default branch), and
   never publishes; measured on production run `6ab0ae3b`, which spent thirty minutes
   and 0.42 USD writing real files and recorded `failed`, so `previousSeedRun`
-  skipped it on its status filter and every byte was lost. The refusal
+  skipped it on its status filter and every byte was lost. Root remediation also receives bounded same-pass host command/change observations through previousPhaseObservations (8,000 characters); no model report, fresh credit or automatic replay. The refusal
   rides in the task's `inputs` as `rootAcceptanceRefusal` — never appended to
   the description, which planning and skill matching key on — and the pass
   runs in the SAME attempt and workspace, so the attestations already earned

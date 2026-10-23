@@ -51,6 +51,8 @@ public setting or client capability, and introduces no stored runtime identity.
 
 ## Schemas and examples
 
+- Transport witnesses carry optional host-observed `exitCode` for bounded historical evidence selection. Missing legacy status is unknown; declarations and output prose cannot supply it.
+
 - Contract examples are parsed at module load. A schema/example mismatch must
   fail tests immediately.
 

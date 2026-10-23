@@ -821,7 +821,8 @@ function shellEvidenceExcerpt(observed: string, limit: number): string {
 }
 
 export function renderTransportEvidence(
-  evidence: Result['evidence']
+  evidence: Result['evidence'],
+  maxChars = MAX_TOOL_EVIDENCE_CHARS
 ): { readonly lines: readonly string[]; readonly omitted: number; readonly eventIds: ReadonlySet<string> } {
   const observed = transportWitnesses(evidence);
   const browserIds = new Set(observed.filter((witness) => witness.tool === 'validate_html')
@@ -862,8 +863,8 @@ export function renderTransportEvidence(
     if (facts.document && (latestDocument.get(facts.document.path) !== facts.document.sha256 || writtenLater.has(facts.document.path))) continue;
     const length = witness.eventId.length + 3 + witness.observed.length;
     // A quarter of the budget stays for the file reads below (run ce89c84a).
-    if (revivedChars + length > MAX_TOOL_EVIDENCE_CHARS / 3 ||
-        evidenceChars + length > MAX_TOOL_EVIDENCE_CHARS - MAX_TOOL_EVIDENCE_CHARS / 4) continue;
+    if (revivedChars + length > maxChars / 3 ||
+        evidenceChars + length > maxChars - maxChars / 4) continue;
     keep.add(witness.eventId);
     revivedChars += length;
     evidenceChars += length;
@@ -875,8 +876,8 @@ export function renderTransportEvidence(
   for (const witness of [...observed].reverse()) {
     if (witness.tool !== 'read_file') continue;
     const length = witness.eventId.length + 3 + witness.observed.length;
-    if (readChars + length > MAX_TOOL_EVIDENCE_CHARS / 2 ||
-        evidenceChars + length > MAX_TOOL_EVIDENCE_CHARS) break;
+    if (readChars + length > maxChars / 2 ||
+        evidenceChars + length > maxChars) break;
     keep.add(witness.eventId);
     readChars += length;
     evidenceChars += length;
@@ -886,25 +887,37 @@ export function renderTransportEvidence(
   // including failures; this selection grants no freshness or proof credit.
   const latestCommands = new Map<string, (typeof observed)[number]>();
   const recordedCommands = new Set<string>();
+  const earlierOutcomes = new Map<string, (typeof observed)[number]>();
   for (const witness of [...observed].reverse()) {
     if (witness.tool !== 'record_probe' && witness.tool !== 'run_shell') continue;
     const key = probeCommand(witness.observed);
-    if (!latestCommands.has(key)) latestCommands.set(key, witness);
+    const latest = latestCommands.get(key);
+    if (!latest) latestCommands.set(key, witness);
+    // Keep one contrasting process outcome. A restored green run must not
+    // erase a mutant failure. Never revive an old success beside a final failure.
+    // Typed host status only: notes, stdout and model declarations cannot
+    // turn an unknown result into an executed pass or failure.
+    else if (!earlierOutcomes.has(key) && latest.exitCode === 0 && witness.exitCode !== undefined &&
+      witness.exitCode !== 0) earlierOutcomes.set(key, witness);
     if (witness.tool === 'record_probe') recordedCommands.add(key);
   }
   // Share the remaining space between command identities before their payloads.
   // Otherwise a long successful matrix/check disappears while a short failed
   // invocation fits, and the reviewer sees only the failure (Attica b920faf6).
   // Recorded probes retain priority; latest outcomes, including failures, win.
-  const commands = [true, false].flatMap(priority => [...latestCommands]
+  const latest = [true, false].flatMap(priority => [...latestCommands]
     .filter(([key]) => recordedCommands.has(key) === priority)
     .map(([, witness]) => witness));
-  const remaining = MAX_TOOL_EVIDENCE_CHARS - evidenceChars;
+  const commands = [...latest, ...earlierOutcomes.values()];
+  const historicalIds = new Set([...earlierOutcomes.values()].map(witness => witness.eventId));
+  const remaining = maxChars - evidenceChars;
   const overhead = commands.reduce((max, witness) => Math.max(max, witness.eventId.length + 3), 0);
   const selected = commands.slice(0, Math.max(0, Math.floor(remaining / (256 + overhead))));
   for (const [index, witness] of selected.entries()) {
-    const allowance = Math.floor((MAX_TOOL_EVIDENCE_CHARS - evidenceChars) / (selected.length - index));
-    const excerpt = shellEvidenceExcerpt(witness.observed, allowance - witness.eventId.length - 3);
+    const allowance = Math.floor((maxChars - evidenceChars) / (selected.length - index));
+    const historical = historicalIds.has(witness.eventId)
+      ? 'EARLIER CONTRASTING OUTCOME (not current state or automatic mutation proof): ' : '';
+    const excerpt = shellEvidenceExcerpt(historical + witness.observed, allowance - witness.eventId.length - 3);
     keep.add(witness.eventId);
     excerpts.set(witness.eventId, excerpt);
     evidenceChars += witness.eventId.length + 3 + excerpt.length;
@@ -912,7 +925,7 @@ export function renderTransportEvidence(
   for (const witness of [...observed].reverse()) {
     if (witness.tool === 'validate_html' || witness.tool === 'run_shell' || witness.tool === 'record_probe' || keep.has(witness.eventId)) continue;
     const length = witness.eventId.length + 3 + witness.observed.length;
-    if (evidenceChars + length > MAX_TOOL_EVIDENCE_CHARS) break;
+    if (evidenceChars + length > maxChars) break;
     keep.add(witness.eventId);
     evidenceChars += length;
   }

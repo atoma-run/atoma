@@ -4,6 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
+import { ASSERTION_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
+import { renderTransportEvidence, llmVerdict } from '../src/atoms/verdict.js';
+import { remediationTask } from '../src/run/depth.js';
+import { delegatedTaskContext } from '../src/atoms/taskContext.js';
 import { VERIFICATION_REUSE_GUIDANCE } from '../src/atoms/taskContext.js';
 import { createAttestationLog, attestingExecutor } from '../src/core/attestation.js';
 import { ToolSandbox } from '../src/tools/sandbox.js';
@@ -134,6 +138,108 @@ describe('verification receipts in the production supervision path', () => {
       expect(readFileSync(join(root, 'check-count.txt'), 'utf8')).toBe('2');
       const manifest = JSON.parse(readFileSync(join(root, '.atoma-probes.json'), 'utf8')) as { entries: { exitCode: number }[] };
       expect(manifest.entries[0]!.exitCode).not.toBe(0);
+    } finally { db.close(); }
+  });
+
+  it('carries a real contrasting outcome through validation and a fresh remediation planner without replay', async () => {
+    const { db, ctx, cell, molecule, executor } = setup();
+    const scoped = { ...ctx, tools: attestingExecutor(executor, ctx.attestations, undefined, undefined, 1) };
+    const task = { description: 'Prove the ready assertion rejects false, then restore true.' };
+    try {
+      ctx.llm.enqueue(async request => {
+        writeFileSync(join(root, 'value.json'), '{"ready":false}');
+        expect((await observed(request, 'record_probe', { cmd: 'node check.cjs', note: 'negative control' }) as { exitCode: number }).exitCode).toBe(1);
+        writeFileSync(join(root, 'value.json'), '{"ready":true}');
+        await observed(request, 'record_probe', { cmd: 'node check.cjs', note: 'restored' });
+        return response('Both outcomes were observed; final source restored.');
+      });
+      const result = await molecule.execute(task, makePlan(), scoped);
+      const rendered = renderTransportEvidence(result.evidence);
+      expect(rendered.lines.join('\n')).toContain('observed exitCode=1');
+      expect(rendered.lines.join('\n')).toContain('observed exitCode=0');
+      expect(rendered.lines.join('\n')).toContain('EARLIER CONTRASTING OUTCOME');
+      ctx.llm.enqueue(request => {
+        expect(request.userContent).toContain('observed exitCode=1');
+        expect(request.userContent).toContain('observed exitCode=0');
+        expect(request.systemPrompt).toContain(ASSERTION_EVIDENCE_GUIDANCE);
+        expect(request.systemPrompt).toContain('including when a version guard correctly discards it');
+        return { ...response(''), text: jsonText({ approved: false, reasoning: 'An additional required assertion is absent.' }) };
+      });
+      // Keeping a negative control cannot automatically approve missing coverage.
+      const verdict = await llmVerdict({ ctx: scoped, model: 'test', supervisorName: cell.name,
+        supervisorTier: 2, child: molecule, task, subject: 'RESULT', payload: result,
+        evidence: result.evidence, groundTruthBlock: '' });
+      expect(verdict.approved).toBe(false);
+      const retry = remediationTask(task, { approved: false, reasoning: verdict.reasoning,
+        attempt: 1, acceptor: { name: 'root', tier: 3, role: 'root-acceptor' },
+        executor: { name: molecule.name, tier: 1, viaFallback: false }, phaseCoverage: [], basis: 'validation-call',
+        floorCoverage: [], gates: [], probe: { requiresReview: false, contradiction: false } }, result);
+      const nested = { description: task.description, ...delegatedTaskContext(retry, { description: task.description }) };
+      const fresh = new L1Atom({ name: 'Fresh', ordinal: 1, systemPrompt: 'Repair the missing assertion.', tools: [], params: {} });
+      ctx.llm.enqueue(request => {
+        expect(request.userContent).toContain('observed exitCode=1');
+        expect(request.userContent).toContain('observed exitCode=0');
+        expect(request.userContent).toContain('select the affected test case');
+        expect(request.userContent).toContain('not a reason to rerun an unchanged passing baseline');
+        return { ...response(''), text: jsonText(plan) };
+      });
+      await fresh.plan(nested, scoped);
+      expect(readFileSync(join(root, 'check-count.txt'), 'utf8')).toBe('2');
+    } finally { db.close(); }
+  });
+
+  it.each(['guarded', 'guard-removed', 'concurrent'] as const)('executes the temporal boundary counterexample: %s', async mode => {
+    const { db, ctx, molecule, executor } = setup();
+    const scoped = { ...ctx, tools: attestingExecutor(executor, ctx.attestations, undefined, undefined, 1) };
+    // Reduced asynchronous consumer from the incident: a later request is a
+    // completion boundary only when the refresh loop serializes handlers.
+    writeFileSync(join(root, 'temporal.cjs'), `
+      const assert = require('node:assert/strict');
+      const gate = () => { let release; const promise = new Promise(r => release = r); return { promise, release }; };
+      const mode = process.argv[2];
+      const old = gate(), fresh = gate(), started = gate();
+      let view = 'action', processed = false, freshReleased = false;
+      async function handleOld() {
+        await old.promise;
+        if (mode === 'guard-removed') view = 'stale';
+        processed = true;
+      }
+      async function handleFresh() {
+        started.release();
+        await fresh.promise;
+        freshReleased = true;
+        view = 'fresh';
+      }
+      async function main() {
+        const pendingOld = handleOld();
+        const pending = mode === 'concurrent'
+          ? Promise.all([pendingOld, handleFresh()])
+          : pendingOld.then(handleFresh);
+        if (mode !== 'concurrent') old.release();
+        await started.promise;
+        try {
+          assert.equal(processed, true, 'later request must follow old handler completion');
+          assert.equal(freshReleased, false, 'fresh response must still be gated');
+          assert.equal(view, 'action', 'stale response must not overwrite action');
+          console.log('OLD_PROCESSED_FRESH_BLOCKED');
+        } finally {
+          old.release(); fresh.release(); await pending;
+        }
+        assert.equal(view, 'fresh');
+      }
+      main().catch(error => { console.error(error.message); process.exitCode = 1; });
+    `);
+    try {
+      ctx.llm.enqueue(async request => {
+        const outcome = await observed(request, 'record_probe', { cmd: `node temporal.cjs ${mode}` }) as { exitCode: number; stdout: string; stderr: string };
+        expect(outcome.exitCode).toBe(mode === 'guarded' ? 0 : 1);
+        if (mode === 'guarded') expect(outcome.stdout).toContain('OLD_PROCESSED_FRESH_BLOCKED');
+        else expect(outcome.stderr).toContain(mode === 'concurrent'
+          ? 'later request must follow old handler completion' : 'stale response must not overwrite action');
+        return response('Report the actual temporal boundary outcome.');
+      });
+      const result = await molecule.execute({ description: 'Verify temporal preservation before fresh release.' }, makePlan(), scoped);
+      expect(renderTransportEvidence(result.evidence).lines.join('\n')).toContain(`observed exitCode=${mode === 'guarded' ? 0 : 1}`);
     } finally { db.close(); }
   });
 

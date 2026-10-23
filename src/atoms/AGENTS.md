@@ -451,7 +451,7 @@ load-bearing.
   approved conflicting-duplicate coverage absent from the test body; archived
   evidence and replay: `benchmark/stock-reconcile-2026-10-05/`.
   An assertion proves a distinction only when the contract-relevant alternative
-  changes its checked observation. Source may establish implementation order;
+  changes its checked observation. Source may establish implementation order, including completion before a serialized follow-up request; discarding stale input is processing, not a requirement to render it;
   commutative final outputs cannot establish it. Explicit executed distinguishing
   tests still require both the assertion and execution. Review all visible gaps
   together without importing new obligations from earlier validator coaching.
@@ -584,8 +584,7 @@ load-bearing.
   and report through their ground-truth block — attested, they read as the
   child's evidence and covered checklist items by looking (review 1.4, 2.4).
   The latest 8 browser lines are always shown, then the latest PASSING run of each other check (actions, smoke, size) of a page no later write or observation changed, within a third of the budget (7f80148d lost a reload and a keyboard proof to 150 later calls);
-  file reads reserve up to half the 48,000-character budget and keep at least a quarter; both shell tools follow, latest per request/branch, recorded probes first (43682d38 lost a mutation proof to a
-  retry's re-runs). Remaining shell space is shared across latest request identities before payloads; partial receipts explicitly leave omitted assertions unknown. Superseded commands never re-enter through the execution suffix. The owner raised this transport allowance from 24,000 on 2026-10-22 after the bounded evidence pilot; this is an operating choice, not a measured global optimum ([record](../../records/decisions/tool-evidence-budget-2026-10-22.md)). Excerpts and omissions establish no coverage of unseen assertions.
+  file reads reserve up to half the 48,000-character budget and keep at least a quarter; both shell tools follow, latest per request/branch, recorded probes first. After a final success, the latest earlier nonzero host exit also survives as labelled history; a final failure never revives older passes. Unknown exits and child declarations grant nothing. Remaining shell space is shared across latest request identities before payloads; partial receipts explicitly leave omitted assertions unknown. Superseded commands never re-enter through the execution suffix. The owner raised this transport allowance from 24,000 on 2026-10-22 after the bounded evidence pilot; this is an operating choice, not a measured global optimum ([record](../../records/decisions/tool-evidence-budget-2026-10-22.md)). Excerpts and omissions establish no coverage of unseen assertions.
 - ROOT ACCEPTANCE REPLAYS THE BROWSER CHECKS EARLIER RUNS RECORDED, the one
   exception to "supervisors never replay" (owner decision 2026-10-01,
   [docs/decisions/inherited-checks-replay-2026-10-01.md](../../docs/decisions/inherited-checks-replay-2026-10-01.md)).

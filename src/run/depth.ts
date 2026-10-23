@@ -6,6 +6,7 @@ import type { Plan, Result, RunContext, Task, ToolExecutor } from '../core/types
 import type { DeliveryKind } from '../contracts/taskExecution.js';
 import { attestingExecutor, createAttestationLog } from '../core/attestation.js';
 import { abortedForLanding, finalizationSignal, landingSignal, withinSignal } from '../atoms/cost.js';
+import { renderTransportEvidence } from '../atoms/verdict.js';
 import { acceptRootResult, observedDelivery } from '../atoms/rootAcceptance.js';
 import { outOfPhaseBudget } from '../core/limits.js';
 import type { AcceptanceInfo, DepthMode, PhaseCoverageRecord, ProofFloor, TopologyInfo } from '../contracts/depthRouting.js';
@@ -229,7 +230,7 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo, result?:
   // The listing is the LATEST acceptance's: an earlier pass's never rides on.
   // So is a dependency landing's: it describes the latest pass, never an earlier one.
   const { [EARLIER_LISTED_INPUT]: _stale, [DEPENDENCY_LANDING_INPUT]: _staleLanding,
-    rootRemediationScope: _staleScope, ...inputs } = task.inputs ?? {};
+    rootRemediationScope: _staleScope, previousPhaseObservations: _staleObservations, ...inputs } = task.inputs ?? {};
   // A criterion the acceptor judged met keeps its evidence (metCriteria):
   // the phases of a refused pass's follow-up hear only the ones it did not.
   const met = refused ? new Set((acceptance.checklist ?? []).filter((item) => item.judgement?.met === true).map((item) => item.id)) : new Set<string>();
@@ -243,6 +244,11 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo, result?:
       ...(refused ? { rootAcceptanceRefusal: acceptance.reasoning } : {}),
       rootAcceptanceAttempt: (Number(task.inputs?.['rootAcceptanceAttempt'] ?? 0) || 0) + 1,
       ...focusedScope,
+      // The new root cell has no molecule attempt digest. Carry host receipts
+      // as bounded context, not result evidence or fresh execution credit.
+      ...(result?.evidence ? { previousPhaseObservations: renderTransportEvidence(
+        result.evidence.filter(witness => witness.source === 'transport-observed' &&
+          ['record_probe', 'run_shell', 'write_file', 'edit_file'].includes(witness.tool)), 8_000) } : {}),
       // Checks earlier runs recorded that held when this run began and fail
       // on its delivery, minus the ones the acceptor said the task asked to
       // change (docs/decisions/inherited-checks-replay-2026-10-01.md).

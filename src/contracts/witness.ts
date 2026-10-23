@@ -43,6 +43,8 @@ export interface TransportWitness {
   readonly tool: string;
   /** One-line rendering of what the transport saw. */
   readonly observed: string;
+  /** Host-observed process status for bounded historical outcome selection; never approval. */
+  readonly exitCode?: number;
   /**
    * A browser observation's own facts, read from the record when the witness
    * is made, so evidence selection never parses the rendered line: whether it

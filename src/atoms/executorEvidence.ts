@@ -39,6 +39,8 @@ export function executorEvidence(
       eventId: record.eventId,
       tool: record.tool,
       observed: lines[index]!,
+      ...(record.observation.kind === 'execution' && record.observation.exitCode !== undefined
+        ? { exitCode: record.observation.exitCode } : {}),
       ...(record.observation.kind === 'browser' ? { browser: browserFacts(record.observation) } : {}),
     })),
   ];

@@ -263,7 +263,8 @@ async function carriedEvidence(
     if (previousIds.has(record.eventId)) inHistory = true;
     if (!inHistory || record.observation.kind !== 'execution' || already.has(record.eventId)) continue;
     carried.push({ source: 'transport-observed', eventId: record.eventId,
-      tool: record.tool, observed: renderObservation(record) });
+      tool: record.tool, observed: renderObservation(record),
+      ...(record.observation.exitCode !== undefined ? { exitCode: record.observation.exitCode } : {}) });
   }
   for (const witness of previous ?? []) {
     if (witness.source !== 'transport-observed' || already.has(witness.eventId)) continue;
