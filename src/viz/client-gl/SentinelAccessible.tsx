@@ -96,6 +96,13 @@ export function SentinelAccessible({ payload, assayer, section, locale, t, onAct
         {section === 'findings' ? <>
           <h2>{t('sentinel.findings')}</h2>
           <p>{t('sentinel.flagOnly')}</p>
+          {payload && payload.findings.length > 0 ? <>
+            <h3>{t('sentinel.byRule')}</h3>
+            <dl>{[...payload.findings.reduce((counts, finding) => {
+              const ruleId = typeof finding.detail?.['ruleId'] === 'string' ? finding.detail['ruleId'] : '—';
+              return counts.set(ruleId, (counts.get(ruleId) ?? 0) + 1);
+            }, new Map<string, number>())].map(([ruleId, count]) => <div key={ruleId}><dt>{ruleId}</dt><dd>{count}</dd></div>)}</dl>
+          </> : null}
           {!payload || payload.findings.length === 0 ? <p>{t('sentinel.findingsEmpty')}</p> : payload.findings.map(finding => {
             const detail = finding.detail ?? {};
             const ruleId = typeof detail['ruleId'] === 'string' ? detail['ruleId'] : '';

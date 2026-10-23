@@ -2702,6 +2702,28 @@ describe('drawSentinel', () => {
     expect(draw('findings', { adminSentinel: empty }).values.some((value) => value.includes('No finding recorded'))).toBe(true);
   });
 
+  it('lays findings out as one line per row in measured columns where the width allows, and tiles them by rule', () => {
+    // A wide column held three muted lines per finding and half a screen of
+    // nothing (owner, 2026-10-23). Now: a tile per rule, a header row, and
+    // one line per finding; the bubble keeps the exact instant and the kind.
+    const { ctx, values } = draw('findings');
+    expect(ctx.statCards.map((card) => [card.label, card.value])).toEqual([['recurring-tool-error', '1']]);
+    expect(values).toContain('When');
+    expect(values).toContain('What was seen');
+    expect(values).toContain('recurring-tool-error');
+    expect(values).toContain('OPERATOR');
+    expect(values).toContain('run-op-1');
+    expect(values).toContain('validate_html failed 3x with the same error');
+    expect(values.some((value) => value.includes('recurring-tool-error · operator'))).toBe(false);
+
+    // A narrow column keeps the journal row and its extra line.
+    const narrow = createRecordingCtx();
+    drawSentinel(narrow, makeSnapshot({ view: 'sentinel', sentinelSection: 'findings' }, { auth, adminSentinel: snapshotPayload }), 700, 720);
+    const narrowValues = narrow.texts.map((text) => text.value);
+    expect(narrowValues).not.toContain('When');
+    expect(narrowValues.some((value) => value.includes('recurring-tool-error · operator · run-op-1'))).toBe(true);
+  });
+
   it('lists recipe evaluations as rows that open their evidence in place', () => {
     const summary = {
       id: 'assay-1', namespace: 'Water', skillId: 'verify-clean-copy-node-tests', surfaceDigest: 'a'.repeat(64),

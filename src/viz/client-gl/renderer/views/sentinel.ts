@@ -54,6 +54,10 @@ const RULE_ROW_HEIGHT_COMPACT = 74;
 const ASSAY_ROW_HEIGHT = 40;
 const ASSAY_ROW_HEIGHT_COMPACT = 60;
 const ASSAY_ROW_GAP = 6;
+/** Below this content width a finding keeps its three-line journal row; above, one line in columns. */
+const FINDINGS_TABLE_MIN_WIDTH = 900;
+const FINDING_ROW_HEIGHT = 30;
+const FINDING_HEADER_HEIGHT = 24;
 
 const CORPUS_COLORS: Record<string, number> = {
   operator: GPU_COLORS.cyan,
@@ -352,26 +356,105 @@ export function drawSentinel(
     if (findings.length === 0) {
       note(t('sentinel.findingsEmpty'));
     } else {
-      const rowHeight = journalRowHeight(compact, true);
-      const listHeight = findings.length * rowHeight + 12;
+      const facts = findings.map(finding => {
+        const detail = finding.detail ?? {};
+        return {
+          finding,
+          ruleId: typeof detail['ruleId'] === 'string' ? detail['ruleId'] : '',
+          corpus: typeof detail['corpus'] === 'string' ? detail['corpus'] : '',
+        };
+      });
+      // What the flags are about, before the flags: one tile per rule, in
+      // the order the catalog lists them, unknown rules last.
+      const byRule = new Map<string, number>();
+      for (const rule of rules) byRule.set(rule.id, 0);
+      for (const fact of facts) byRule.set(fact.ruleId || '—', (byRule.get(fact.ruleId || '—') ?? 0) + 1);
+      ctx.text(pane.content, t('sentinel.byRule'), columnX, cursor, { size: 11, weight: '600', color: GPU_COLORS.muted, width: innerWidth });
+      cursor += 20;
+      stats([...byRule].filter(([, count]) => count > 0).map(([ruleId, count]) => ({
+        key: ruleId, label: ruleId, value: count.toLocaleString(locale),
+      })), 'sentinel.finding', GPU_COLORS.warning);
+
+      const wide = innerWidth >= FINDINGS_TABLE_MIN_WIDTH;
+      const rowHeight = wide ? FINDING_ROW_HEIGHT : journalRowHeight(compact, true);
+      const headerHeight = wide ? FINDING_HEADER_HEIGHT : 0;
+      const listHeight = findings.length * rowHeight + headerHeight + 12;
       ctx.panel(pane.content, x, cursor, panelWidth, listHeight, GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
       let rowY = cursor + 8;
-      for (const finding of findings) {
-        if (pane.visible(rowY, rowY + rowHeight)) {
-          const detail = finding.detail ?? {};
-          const ruleId = typeof detail['ruleId'] === 'string' ? detail['ruleId'] : '';
-          const corpus = typeof detail['corpus'] === 'string' ? detail['corpus'] : '';
-          drawJournalRow(ctx, pane.content, finding, {
-            x: columnX, y: rowY, innerWidth, compact,
-            relative: { t, locale },
-            extra: [ruleId, corpus, finding.runId ?? ''].filter(Boolean).join(' · '),
-          });
-          if (finding.runId) {
-            ctx.button(pane.content, `sentinel.run.${finding.runId}`, 'button', '', columnX, rowY - 4,
-              Math.max(0, innerWidth), rowHeight - 4, false, snapshot.onActivate).alpha = 0.001;
+      if (wide) {
+        // One line per finding, in columns MEASURED from the copy the rows
+        // carry and ceilinged as a share of the card; the summary takes the rest.
+        const mono = { size: 10, mono: true } as const;
+        const whenStyle = { size: 10, color: GPU_COLORS.muted } as const;
+        const measure = (values: string[], style: Parameters<typeof ctx.measureText>[1], cap: number) =>
+          Math.min(innerWidth * cap, Math.max(0, ...values.map(value => Math.ceil(ctx.measureText(value, style)))) + 14);
+        const whens = facts.map(fact => ctx.relativeTime(fact.finding.at, t, locale));
+        const actors = facts.map(fact => fact.finding.actorId ?? fact.finding.actorType);
+        const whenWidth = measure(whens, whenStyle, 0.16);
+        const ruleWidth = measure(facts.map(fact => fact.ruleId), mono, 0.18);
+        const corpusWidth = measure(facts.map(fact => t(`sentinel.corpus.${fact.corpus}`).toUpperCase()), { size: 9, weight: '700' }, 0.1);
+        const runWidth = measure(facts.map(fact => fact.finding.runId ?? ''), mono, 0.24);
+        const actorWidth = measure(actors, mono, 0.12);
+        const columns = {
+          when: columnX + 8,
+          rule: columnX + 8 + whenWidth,
+          corpus: columnX + 8 + whenWidth + ruleWidth,
+          run: columnX + 8 + whenWidth + ruleWidth + corpusWidth,
+          summary: columnX + 8 + whenWidth + ruleWidth + corpusWidth + runWidth,
+          actor: columnX + innerWidth - 8 - actorWidth,
+        };
+        const summaryWidth = Math.max(0, columns.actor - columns.summary - 14);
+        const headerStyle = { size: 9, weight: '600', color: GPU_COLORS.muted, singleLine: true } as const;
+        ctx.text(pane.content, t('sentinel.col.when'), columns.when, rowY, { ...headerStyle, width: whenWidth - 14 });
+        ctx.text(pane.content, t('sentinel.col.rule'), columns.rule, rowY, { ...headerStyle, width: ruleWidth - 14 });
+        ctx.text(pane.content, t('sentinel.col.corpus'), columns.corpus, rowY, { ...headerStyle, width: corpusWidth - 14 });
+        ctx.text(pane.content, t('sentinel.col.run'), columns.run, rowY, { ...headerStyle, width: runWidth - 14 });
+        ctx.text(pane.content, t('sentinel.col.summary'), columns.summary, rowY, { ...headerStyle, width: summaryWidth });
+        ctx.text(pane.content, t('sentinel.col.actor'), columns.actor, rowY, { ...headerStyle, width: actorWidth });
+        const divider = new Graphics();
+        divider.rect(columnX + 8, rowY + FINDING_HEADER_HEIGHT - 6, innerWidth - 16, 1).fill({ color: GPU_COLORS.border, alpha: 0.8 });
+        pane.content.addChild(divider);
+        rowY += FINDING_HEADER_HEIGHT;
+        for (const [index, fact] of facts.entries()) {
+          const { finding } = fact;
+          if (pane.visible(rowY, rowY + rowHeight)) {
+            const color = SEVERITY_COLORS[finding.severity] ?? GPU_COLORS.muted;
+            const textY = rowY + 7;
+            ctx.text(pane.content, whens[index] ?? '', columns.when, textY, { ...whenStyle, width: whenWidth - 14, singleLine: true });
+            ctx.text(pane.content, fact.ruleId, columns.rule, textY, { ...mono, color, width: ruleWidth - 14, singleLine: true });
+            ctx.text(pane.content, t(`sentinel.corpus.${fact.corpus}`).toUpperCase(), columns.corpus, textY + 1, {
+              size: 9, weight: '700', color: CORPUS_COLORS[fact.corpus] ?? GPU_COLORS.muted, width: corpusWidth - 14, singleLine: true,
+            });
+            ctx.text(pane.content, finding.runId ?? '', columns.run, textY, { ...mono, color: GPU_COLORS.muted, width: runWidth - 14, singleLine: true });
+            ctx.text(pane.content, finding.summary, columns.summary, textY, { size: 11, width: summaryWidth, singleLine: true });
+            ctx.text(pane.content, actors[index] ?? '', columns.actor, textY, { ...mono, color: GPU_COLORS.muted, width: actorWidth, singleLine: true });
+            // A one-line row is lossy: the bubble carries the exact instant,
+            // the whole summary and the kind the row had no column for.
+            ctx.tooltip(pane.content, { x: columnX, y: rowY, width: innerWidth, height: rowHeight,
+              text: `${formatDateTime(finding.at, locale, { seconds: true })} · ${finding.kind} · ${finding.severity}\n${finding.summary}` });
+            if (finding.runId) {
+              ctx.button(pane.content, `sentinel.run.${finding.runId}`, 'button', '', columnX, rowY,
+                Math.max(0, innerWidth), rowHeight, false, snapshot.onActivate).alpha = 0.001;
+            }
           }
+          rowY += rowHeight;
         }
-        rowY += rowHeight;
+      } else {
+        for (const fact of facts) {
+          const { finding } = fact;
+          if (pane.visible(rowY, rowY + rowHeight)) {
+            drawJournalRow(ctx, pane.content, finding, {
+              x: columnX, y: rowY, innerWidth, compact,
+              relative: { t, locale },
+              extra: [fact.ruleId, fact.corpus, finding.runId ?? ''].filter(Boolean).join(' · '),
+            });
+            if (finding.runId) {
+              ctx.button(pane.content, `sentinel.run.${finding.runId}`, 'button', '', columnX, rowY - 4,
+                Math.max(0, innerWidth), rowHeight - 4, false, snapshot.onActivate).alpha = 0.001;
+            }
+          }
+          rowY += rowHeight;
+        }
       }
       cursor += listHeight + SECTION_GAP;
     }
