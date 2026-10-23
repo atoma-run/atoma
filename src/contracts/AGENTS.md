@@ -58,6 +58,13 @@ public setting or client capability, and introduces no stored runtime identity.
 
 ## Probe manifests
 
+- Result review receives a bounded shell command/exit index from the parsed
+  manifest, prioritizing exact reported commands. Large stdout fields cannot
+  hide a later entry behind the generic file excerpt. Omitted entries remain
+  unknown; stored values establish neither execution nor current-state proof.
+  Same-command replacement remains latest-only; transport receipts establish
+  earlier mutant outcomes, never a fabricated replay obligation.
+
 - Shell replacements retain the last eight replaced command/exit pairs in
   `replacementHistory`, with explicit truncation. They are history, not replay
   obligations or equal-coverage attestations; same-command reruns preserve them.

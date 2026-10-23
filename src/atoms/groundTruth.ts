@@ -8,6 +8,7 @@ import {
   PROBE_MANIFEST_FILENAME,
   isReportedWebProbe,
   validateProbeManifest,
+  shellProbeManifestEvidence,
 } from '../contracts/probeManifest.js';
 import {
   extractRecordedProbes,
@@ -347,6 +348,7 @@ async function probeGroundTruthBase(args: Parameters<typeof probeGroundTruthEx>[
           ? `${PROBE_MANIFEST_FILENAME}: well-formed web probe record present`
           : `${PROBE_MANIFEST_FILENAME}: MALFORMED — ${problems.slice(0, 4).join('; ')}`
       );
+      manifestLines.push(...shellProbeManifestEvidence(text));
     } catch {
       webFacts.manifestMalformed = true;
       manifestLines.push(
@@ -800,6 +802,7 @@ async function probeFilesGroundTruth(args: {
           ? `${PROBE_MANIFEST_FILENAME}: well-formed (machine-readable probe record present)`
           : `${PROBE_MANIFEST_FILENAME}: MALFORMED — ${problems.slice(0, 4).join('; ')}`
       );
+      lines.push(...shellProbeManifestEvidence(text, probes.map(probe => probe.cmd)));
     }
   } catch {
     // Absent manifest is normal for non-runnable deliverables — say nothing.

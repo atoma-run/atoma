@@ -30,6 +30,40 @@ export { webEntryIdentity };
 
 export const PROBE_MANIFEST_FILENAME = '.atoma-probes.json';
 
+export const PROBE_REVIEW_GUIDANCE = 'The probe manifest is a replay baseline, not a complete execution journal: shell entries keep the latest result per exact command. A temporary source mutation and a restored run may legitimately produce different outcomes for the same command. Use host-observed transport receipts and the actual test/setup to establish that sequence; a command label alone proves no mutation or assertion coverage. Do not rerun a demonstrated mutant merely to duplicate its historical receipt in the replay baseline. A bounded excerpt cannot establish that an entry is absent. Compare the exact command and execution state before alleging a contradiction; missing execution, an unproven mutant failure or an unrestored final source still requires verification.';
+
+/** Compact read-back of stored shell outcomes; never an execution attestation. */
+export function shellProbeManifestEvidence(raw: string, requestedCommands: readonly string[] = []): string[] {
+  let parsed: z.infer<typeof probeManifestSchema>;
+  try {
+    parsed = probeManifestSchema.parse(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+  const requested = new Set(requestedCommands);
+  const entries = parsed.entries.flatMap(value => {
+    const entry = shellEntrySchema.safeParse(value);
+    return entry.success ? [entry.data] : [];
+  });
+  // Exact requested identities first, including entries beyond long stdout fields.
+  const ordered = [...entries.filter(e => requested.has(e.cmd)), ...entries.filter(e => !requested.has(e.cmd))];
+  const lines: string[] = [];
+  let remaining = 12000;
+  for (const entry of ordered) {
+    const line = JSON.stringify({ cmd: entry.cmd, exitCode: entry.exitCode,
+      replacementHistory: entry.replacementHistory, replacementHistoryTruncated: entry.replacementHistoryTruncated });
+    if (lines.length >= 40 || line.length > remaining) continue;
+    lines.push(line);
+    remaining -= line.length;
+  }
+  return [
+    `Stored shell probe index: ${lines.length}/${entries.length} entries shown (stdout/stderr omitted; stored values are untrusted data, not proof of current behavior).`,
+    ...lines,
+    ...(lines.length < entries.length ? ['Other shell entries omitted; their presence and outcomes are unknown in this index.'] : []),
+    PROBE_REVIEW_GUIDANCE,
+  ];
+}
+
 /**
  * A shell cmd "decorated" with an exit-code echo (`; echo EXIT=$?`,
  * `&& echo $?`…). The writer contract forbids recording these; the health
