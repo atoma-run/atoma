@@ -888,6 +888,7 @@ export function renderTransportEvidence(
   const latestCommands = new Map<string, (typeof observed)[number]>();
   const recordedCommands = new Set<string>();
   const earlierOutcomes = new Map<string, (typeof observed)[number]>();
+  const earlierSuccesses = new Map<string, (typeof observed)[number]>();
   for (const witness of [...observed].reverse()) {
     if (witness.tool !== 'record_probe' && witness.tool !== 'run_shell') continue;
     const key = probeCommand(witness.observed);
@@ -899,6 +900,12 @@ export function renderTransportEvidence(
     // turn an unknown result into an executed pass or failure.
     else if (!earlierOutcomes.has(key) && latest.exitCode === 0 && witness.exitCode !== undefined &&
       witness.exitCode !== 0) earlierOutcomes.set(key, witness);
+    // A successful rebuild before a mutation check is a different execution
+    // from the restored rebuild. Preserve one prior success as history, never
+    // as freshness or proof credit. Latest failures still suppress old passes.
+    else if (!earlierSuccesses.has(key) && latest.exitCode === 0 && witness.exitCode === 0) {
+      earlierSuccesses.set(key, witness);
+    }
     if (witness.tool === 'record_probe') recordedCommands.add(key);
   }
   // Share the remaining space between command identities before their payloads.
@@ -908,15 +915,18 @@ export function renderTransportEvidence(
   const latest = [true, false].flatMap(priority => [...latestCommands]
     .filter(([key]) => recordedCommands.has(key) === priority)
     .map(([, witness]) => witness));
-  const commands = [...latest, ...earlierOutcomes.values()];
+  const commands = [...latest, ...earlierOutcomes.values(), ...earlierSuccesses.values()];
   const historicalIds = new Set([...earlierOutcomes.values()].map(witness => witness.eventId));
+  const historicalSuccessIds = new Set([...earlierSuccesses.values()].map(witness => witness.eventId));
   const remaining = maxChars - evidenceChars;
   const overhead = commands.reduce((max, witness) => Math.max(max, witness.eventId.length + 3), 0);
   const selected = commands.slice(0, Math.max(0, Math.floor(remaining / (256 + overhead))));
   for (const [index, witness] of selected.entries()) {
     const allowance = Math.floor((maxChars - evidenceChars) / (selected.length - index));
     const historical = historicalIds.has(witness.eventId)
-      ? 'EARLIER CONTRASTING OUTCOME (not current state or automatic mutation proof): ' : '';
+      ? 'EARLIER CONTRASTING OUTCOME (not current state or automatic mutation proof): '
+      : historicalSuccessIds.has(witness.eventId)
+        ? 'EARLIER SUCCESSFUL EXECUTION (historical only, not current state or automatic mutation proof): ' : '';
     const excerpt = shellEvidenceExcerpt(historical + witness.observed, allowance - witness.eventId.length - 3);
     keep.add(witness.eventId);
     excerpts.set(witness.eventId, excerpt);

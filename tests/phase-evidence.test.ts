@@ -107,6 +107,40 @@ describe('bounded contrasting command history', () => {
     expect(rendered.lines[1]).not.toContain('EARLIER CONTRASTING OUTCOME');
     expect(rendered.lines[1]).toContain(`observed exitCode=${latest}`);
   });
+  it('keeps the intervening successful build through real execution evidence and result review', async () => {
+    const ctx = makeCtx();
+    const attestations = createAttestationLog();
+    const child = new L1Atom({ name: 'Ammonia', ordinal: 3, systemPrompt: 'sys',
+      tools: makeTools(['edit_file', 'record_probe']), params: {} });
+    const executor = attestingExecutor({ has: () => true, execute: async (name, args) =>
+      name === 'edit_file' ? { ok: true, path: 'control.ts', replacements: 1 } :
+        { exitCode: args['cmd'] === 'node mutant.cjs' ? 1 : 0, stdout: args['note'], recorded: true },
+    }, attestations, 'mutation', undefined, 1)!;
+    ctx.llm.enqueue(async request => {
+      await request.executor!.execute('record_probe', { cmd: 'npm run build', note: 'baseline build' });
+      await request.executor!.execute('edit_file', { path: 'control.ts', old_string: 'guard', new_string: 'true' });
+      await request.executor!.execute('record_probe', { cmd: 'npm run build', note: 'mutated build' });
+      await request.executor!.execute('record_probe', { cmd: 'node mutant.cjs', note: 'boundary assertion failed' });
+      await request.executor!.execute('edit_file', { path: 'control.ts', old_string: 'true', new_string: 'guard' });
+      await request.executor!.execute('record_probe', { cmd: 'npm run build', note: 'restored build' });
+      await request.executor!.execute('record_probe', { cmd: 'node restored.cjs', note: 'boundary assertion passed' });
+      return reply({ output: 'restored', summary: 'report' });
+    });
+    const task = { description: 'Prove a mutation fails against rebuilt assets, then restore.' };
+    const result = await child.execute(task, makePlan(), { ...ctx, attestations, tools: executor, attempt: 1, currentBranchId: 'mutation' });
+    ctx.llm.enqueue(reply({ approved: false, reasoning: 'The assertions do not establish the required boundary.' }));
+    const verdict = await llmVerdict({ ctx, model: 'test', supervisorName: 'Root', supervisorTier: 3,
+      subject: 'RESULT', child, task, payload: result, evidence: result.evidence, groundTruthBlock: '' });
+    const prompt = ctx.llm.calls.at(-1)!.userContent;
+    const evidence = prompt.slice(prompt.indexOf('== TRANSPORT-OBSERVED TOOL EVIDENCE =='));
+    expect(evidence).toContain('mutated build');
+    expect(evidence).not.toContain('baseline build');
+    expect(evidence.indexOf('mutated build')).toBeLessThan(evidence.indexOf('node mutant.cjs'));
+    expect(evidence.indexOf('node mutant.cjs')).toBeLessThan(evidence.indexOf('restored build'));
+    expect(evidence).toContain('EARLIER SUCCESSFUL EXECUTION');
+    expect(verdict.approved).toBe(false);
+    expect(ctx.llm.calls.filter(call => call.role === 'validate-result')).toHaveLength(1);
+  });
   it('never revives a success when the latest check failed', () => {
     const rendered = renderTransportEvidence([shell('old-pass', 0), shell('final-failure', 1)]);
     expect([...rendered.eventIds]).toEqual(['final-failure']);
@@ -119,7 +153,8 @@ describe('bounded contrasting command history', () => {
     const rendered = renderTransportEvidence(evidence);
     expect(rendered.eventIds.has('second')).toBe(true);
     expect(rendered.eventIds.has('first')).toBe(false);
-    expect(rendered.eventIds.has('old-green')).toBe(false);
+    expect(rendered.eventIds.has('old-green')).toBe(true);
+    expect(rendered.lines.find(line => line.startsWith('old-green:'))).toContain('EARLIER SUCCESSFUL EXECUTION');
     expect(rendered.eventIds.has('other-branch')).toBe(true);
     expect(rendered.eventIds.has('unknown')).toBe(false);
   });
