@@ -219,6 +219,12 @@ export const api = {
     return fetchJson<VizPlatformEventPage>(`/api/admin/events?${params.toString()}`);
   },
   adminLiveRuns: async () => platformLiveRunSchema.array().parse(await fetchJson('/api/admin/live-runs')),
+  adminAssayerHealth: () => fetchJson<{ health: import('../../supervisor/residentAssayer.js').ResidentAssayerHealth | null }>('/api/admin/assayer/health'),
+  adminAssayer: (before?: string) => fetchJson<import('../../contracts/skillAssay.js').AssayListing & {
+    health: import('../../supervisor/residentAssayer.js').ResidentAssayerHealth | null;
+  }>(`/api/admin/assayer${before ? `?before=${encodeURIComponent(before)}` : ''}`),
+  adminAssay: (id: string) => fetchJson<{ summary: import('../../contracts/skillAssay.js').AssaySummary;
+    record: import('../../contracts/skillAssay.js').SkillAssayRecord }>(`/api/admin/assays/${encodeURIComponent(id)}`),
   adminSentinel: () => fetchJson<VizSentinelSnapshot>('/api/admin/sentinel'),
   // THE INSTANCE'S RUN LIMITS. PUT and not POST for the same reason the
   // model surfaces use it: the request replaces the stated set, and the

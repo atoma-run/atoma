@@ -468,3 +468,22 @@ export function useOrgModels(active: boolean) {
     staleTime: 30_000,
   });
 }
+
+/** Only poll the newest page while the monitoring view is visible. */
+export function useAdminAssayer(active: boolean) {
+  return useInfiniteQuery({
+    queryKey: ['viz', 'admin', 'assayer'], initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => api.adminAssayer(pageParam),
+    getNextPageParam: page => page.nextBefore ?? undefined,
+    enabled: active, staleTime: 5000,
+    refetchInterval: query => active && (query.state.data?.pages.length ?? 0) <= 1 ? 5000 : false,
+  });
+}
+export function useAdminAssay(active: boolean, id: string | null) {
+  return useQuery({ queryKey: ['viz', 'admin', 'assay', id], queryFn: () => api.adminAssay(id!), enabled: active && id !== null });
+}
+
+export function useAdminAssayerHealth(active: boolean) {
+  return useQuery({ queryKey: ['viz', 'admin', 'assayer-health'], queryFn: api.adminAssayerHealth,
+    enabled: active, staleTime: 2000, refetchInterval: active ? 5000 : false });
+}

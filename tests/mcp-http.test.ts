@@ -453,7 +453,7 @@ describe('the catalogue by tier', () => {
     expect(asOperator).toContain('atoma_run_trace');
     // The operator-only readers and writes the roadmap owed, all platform-tier:
     // skill analytics and the four lifecycle writes included.
-    for (const owed of ['atoma_ledger_tail', 'atoma_costs', 'atoma_skills_stats', 'atoma_skills_review', 'atoma_verdicts_list', 'atoma_verdict_show', 'atoma_sentinel_health', 'atoma_mcp_health', 'atoma_skill_reset', 'atoma_skill_drop', 'atoma_skill_merge', 'atoma_registry_rollback', 'atoma_registry_merge']) {
+    for (const owed of ['atoma_assayer_health', 'atoma_assays_list', 'atoma_assay_show', 'atoma_ledger_tail', 'atoma_costs', 'atoma_skills_stats', 'atoma_skills_review', 'atoma_verdicts_list', 'atoma_verdict_show', 'atoma_sentinel_health', 'atoma_mcp_health', 'atoma_skill_reset', 'atoma_skill_drop', 'atoma_skill_merge', 'atoma_registry_rollback', 'atoma_registry_merge']) {
       expect(asOperator).toContain(owed);
       expect(asAdmin).not.toContain(owed);
     }
@@ -847,6 +847,21 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
       const wholeSkills = await asPlatform.callTool({ name: 'atoma_skills_list', arguments: {} });
       expect(wholeSkills.structuredContent).toMatchObject({ skillsDir: join(dir, 'skills') });
     } finally { await asViewer.close(); await asPlatform.close(); }
+  });
+
+  it('reads assay health and history through MCP and refuses path traversal', async () => {
+    const { url } = await listen(() => ({ kind: 'operator' }), NO_TENANT);
+    const client = await connect(url);
+    try {
+      const health = await client.callTool({ name: 'atoma_assayer_health', arguments: {} });
+      expect(health.isError).toBeFalsy();
+      expect(health.structuredContent).toEqual({ assayer: null });
+      const list = await client.callTool({ name: 'atoma_assays_list', arguments: { limit: 1 } });
+      expect(list.isError).toBeFalsy();
+      expect(list.structuredContent).toMatchObject({ assays: [], nextBefore: null });
+      const refused = await client.callTool({ name: 'atoma_assay_show', arguments: { id: '../outside' } });
+      expect(refused.isError).toBe(true);
+    } finally { await client.close(); }
   });
 
   it('validates every declared output schema through the 2025 SDK client', async () => {

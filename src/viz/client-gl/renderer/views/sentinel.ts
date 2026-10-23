@@ -1,3 +1,5 @@
+import { assayerLines, assayLabel, assayDetailLines } from '../../assayer-presentation.js';
+import { drawLoadingNotice } from '../loading-notice.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { truncate } from '../copy.js';
@@ -164,6 +166,35 @@ export function drawSentinel(
   // this panel is one process talking about itself.
   note(snapshot.t('sentinel.watch.scope'));
   note(snapshot.t('sentinel.watch.headless'));
+
+  // Recipe evaluations share this monitoring destination, with their own health and evidence.
+  const assay = snapshot.data.assayer;
+  heading(snapshot.t('assayer.title'));
+  if (assay) {
+    for (const line of assayerLines(assay, snapshot.t, snapshot.state.locale)) note(line);
+    if (assay.loading || assay.selectedLoading) {
+      drawLoadingNotice(ctx, pane.content, snapshot.t('loading.assayer'), columnX, cursor, { width: innerWidth });
+      cursor += 42;
+    }
+    for (const row of assay.assays) {
+      const label = assayLabel(row, snapshot.t, snapshot.state.locale);
+      const text = ctx.text(pane.content, label, columnX, cursor, { size: 11, width: innerWidth });
+      cursor += Math.max(20, text.height) + 8;
+      ctx.button(pane.content, `assayer.open.${row.id}`, 'button', snapshot.t('assayer.details'),
+        columnX, cursor, Math.min(innerWidth, 180), 36, false, snapshot.onActivate);
+      cursor += 48;
+      if (assay.selected?.summary.id === row.id) {
+        for (const line of assayDetailLines(assay, snapshot.t)) note(line);
+      }
+    }
+    if (assay.hasMore && !assay.loading) {
+      ctx.button(pane.content, 'assayer.more', 'button', snapshot.t('assayer.more'),
+        columnX, cursor, Math.min(innerWidth, 210), 36, false, snapshot.onActivate);
+      cursor += 48;
+    }
+    if (assay.selectedError) note(snapshot.t('assayer.loadFailed'));
+  } else note(snapshot.t('assayer.unavailable'));
+  cursor += SECTION_GAP;
 
   // ------------------------------------------------------------- coverage
   heading(snapshot.t('sentinel.coverage'));

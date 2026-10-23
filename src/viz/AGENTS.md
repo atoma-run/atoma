@@ -13,7 +13,6 @@ Neighbours:
 - [`src/core`](../core/AGENTS.md) — the trace shapes it projects
 
 ## Commands
-
 Visualizer. The GPU client is the product UI (`npm run viz`). Every launcher here
 also arms the mechanical watch in-process behind the gate (`--no-sentinel`,
 `--sentinel-interval`, `--cost-alert`, or `ATOMA_VIZ_SENTINEL=0` on the launcher
@@ -375,6 +374,7 @@ fail closed as before. The web service's executor dependency is one-way only.
   could not join one anyway, spawned as it is by its client over stdio.
   `sentinelSources()` is shared with `/api/admin/sentinel`, so the screen
   describes the corpora the watch actually covers.
+- Sentinel includes Assayer health, paged attempts and case details through the platform-only shared MCP reader; technical failures carry no recipe judgement.
 - The SENTINEL view may report the watch's health, and ONLY ITS OWN. That
   became sayable when the tick moved in-process; before, the honest answer was
   silence. The scope is stated on screen in every state rather than implied, a

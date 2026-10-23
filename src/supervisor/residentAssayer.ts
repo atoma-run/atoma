@@ -7,8 +7,8 @@ import { ASSAYER_DEFAULT_POLL_MS, ASSAYER_FAILURE_PAUSE_MS, type AssayResult } f
  * WHAT IT PROMISES. One assay at a time, never while a run is active (the
  * shared idle predicate, read before every attempt), and a product run that
  * starts meanwhile preempts it: `yieldForRun` aborts the arm in flight through
- * its signal, the lease is released, and the recipe stays pending — nothing
- * was recorded, nothing is lost but the spend. An assay that FAILED (a launch
+ * its signal, the lease is released, and the recipe stays pending — the interrupted
+ * attempt is archived without a recipe judgement. An assay that FAILED (a launch
  * that could not happen, not a verdict) pauses the host for
  * `ASSAYER_FAILURE_PAUSE_MS`: a broken runner must not be retried every
  * minute on the operator's quota. The timer is unref'd, like the sentinel's.
@@ -57,7 +57,7 @@ export interface ResidentAssayer {
 
 export interface ResidentAssayerOptions {
   /** `assayNext`, bound to the host's options; `signal` aborts the arm in flight. */
-  readonly assay: (signal: AbortSignal) => Promise<AssayResult>;
+  readonly assay: (signal: AbortSignal, progress: (label: string) => void) => Promise<AssayResult>;
   /** The shared idle predicate; the tick waits while it says active. */
   readonly isActive: () => boolean;
   readonly pollMs?: number;
@@ -90,18 +90,20 @@ export function startResidentAssayer(options: ResidentAssayerOptions): ResidentA
     }
     inFlight = 'pending';
     try {
-      const result = await options.assay(signal);
+      const result = await options.assay(signal, label => { inFlight = label; });
       const skill = result.target ? `${result.target.namespace}/${result.target.skillId}` : null;
       if (result.outcome === 'nothing-pending') return;
       lastResult = { skill, outcome: result.outcome, at: new Date(now()).toISOString() };
       if (result.outcome === 'assayed') {
         assayed += 1;
+        lastError = null;
         log(`assayed ${skill}: ${result.judgement?.verdict} → ${result.judgement?.decision}`);
       } else if (result.outcome === 'preempted') {
         preempted += 1;
         log(`assay of ${skill} preempted by a product run; it stays pending`);
       } else if (result.outcome === 'failed') {
         failed += 1;
+        lastError = result.detail ?? 'assay failed';
         pausedUntil = now() + failurePauseMs;
         log(`assay of ${skill} failed (${result.detail ?? 'no detail'}); pausing ${Math.round(failurePauseMs / 60_000)} min`);
       } else if (result.outcome === 'refused-active') {

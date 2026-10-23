@@ -67,8 +67,11 @@ export const skillAssayRecordSchema = z.object({
   kind: z.enum(['llm', 'script']),
   startedAt: z.string(),
   endedAt: z.string(),
-  cases: z.array(assayCaseResultSchema).min(1),
-  judgement: assayJudgementSchema,
+  cases: z.array(assayCaseResultSchema),
+  /** Absent on legacy records; invalid legacy arms are projected as failed by readers. */
+  status: z.enum(['completed', 'failed', 'preempted']).optional(),
+  failure: z.string().max(2000).nullable().optional(),
+  judgement: assayJudgementSchema.nullable(),
   /** The decision was applied to the live catalog (false on a dry run). */
   applied: z.boolean(),
   totalCostUsd: z.number().finite().nonnegative().nullable(),
@@ -94,3 +97,32 @@ export const EXAMPLE_ASSAY_RECORD: SkillAssayRecord = skillAssayRecordSchema.par
   applied: true,
   totalCostUsd: 0.51,
 });
+
+/** Technical failures cannot establish a comparison, even if the other arm delivered. */
+export function assayRecordStatus(record: SkillAssayRecord): 'completed' | 'failed' | 'preempted' {
+  if (record.status && record.status !== 'completed') return record.status;
+  if (!record.judgement || !assayCasesComplete(record.cases)) return 'failed';
+  return 'completed';
+}
+
+export type AssaySummary = Pick<SkillAssayRecord, 'namespace' | 'skillId' | 'surfaceDigest' | 'startedAt' | 'endedAt' | 'totalCostUsd'> & {
+  id: string;
+  status: ReturnType<typeof assayRecordStatus>;
+  judgement: AssayJudgement | null;
+  failure: string | null;
+  cases: number;
+  arms: Array<Pick<AssayArmResult, 'arm' | 'outcome' | 'matched' | 'llmCalls' | 'durationS' | 'traceId'>>;
+};
+export interface AssayListing {
+  assays: AssaySummary[];
+  nextBefore: string | null;
+  scanned: number;
+  unreadable: number;
+  scanTruncated: boolean;
+}
+
+/** One validity predicate for judgement, persistence, recovery and every reader. */
+export function assayCasesComplete(cases: readonly AssayCaseResult[]): boolean {
+  return cases.length > 0 && cases.every(c => [c.with, c.without].every(a =>
+    a.outcome !== 'error' && a.outcome !== 'cancelled' && a.traceId !== null));
+}

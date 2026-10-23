@@ -325,10 +325,12 @@ Neighbours:
 ## The assayer
 
 - WHAT IT JUDGES: a recipe SURFACE (kind, `when_to_use`, body; `surfaceDigestOf`)
-  that has no `skill_assays` row, with at least one credited task in the
+  that has no valid `skill_assays` result, with at least one credited task in the
   trigger corpus (`skill_trigger_samples`, [src/skills](../skills/AGENTS.md));
   newest surfaces first, event recipes never. A revision re-opens the assay;
-  `--skill <ns>/<id>` re-judges on demand.
+  `--skill <ns>/<id>` re-judges on demand. A legacy row backed by demonstrably
+  invalid execution evidence reopens automatically; missing or corrupt evidence
+  does not authorize spending.
 - HOW: up to `ASSAY_MAX_CASES` credited tasks, each run TWICE through the
   shared runner (`spawnRun`, `run:build`), on a copy of the catalog holding
   the recipe and a copy without its folder, each run on its own copy of the
@@ -350,16 +352,21 @@ Neighbours:
   registry's own `drop` (folder, then row and `skill-drop` event). Everything
   else is a record. Do not add a decision without re-registering the rule in
   the record and reviewing it adversarially.
-- WHERE: `supervisor/assays/<ns>__<id>__<digest>/assay.json`
+- WHERE: `supervisor/assays/<ns>__<id>__<digest>__<attempt>/assay.json`
   (`contracts/skillAssay.ts`), the arms' logs and traces beside it, scratch
   removed; one `skill_assays` row closes the surface; one `supervisor.assay`
   journal row carries counts, verdict, decision and cost, never a task text.
 - UNDER THE SAME GATE AS THE ANALYST: `anyRunActive` before, the machine-global
   lease (`assayer:<id>`, no stale recovery) during; a product run preempts it
   through `yieldBackground` (both residents are asked), the arm's process
-  group is killed, nothing is recorded, the recipe stays pending. A run that
-  could not be launched is an `error` arm, never a thrown assay; an assay that
-  FAILS pauses the resident host `ASSAYER_FAILURE_PAUSE_MS`.
+  group is killed, an interrupted attempt is preserved and the recipe stays pending.
+  An error/cancelled arm or missing trace makes the attempt FAILED, with no
+  judgement or closing row; the resident pauses `ASSAYER_FAILURE_PAUSE_MS`.
+  Each retry keeps the old attempt. The launcher passes a complete environment
+  without project retrieval/authority/output bindings; model pins remain host-owned.
+  Shared bounded `assayReaders` expose status, reports and evidence through the
+  platform-only VIZ and MCP. Historical invalid verdicts are projected as failures,
+  never rewritten. See [recovery](../../records/incidents/assayer-recovery-2026-10-23.md).
 - HOSTS: `npm run assayer` (`--once`, `--skill`, `--dry-run`, watch) and the
   resident shell in the viz server (`residentAssayer.ts`), ON BY DEFAULT where
   the server holds the three `ATOMA_MODEL_L*` pins — the owner asked for no

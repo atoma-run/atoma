@@ -1,3 +1,4 @@
+import { listAssays, showAssay } from '../supervisor/assayReaders.js';
 import { chmodSync, unlinkSync, lstatSync } from 'node:fs';
 import { recordComputeExecutor } from '../projects/computeExecutor.js';
 import { ExecutorComputePreview } from '../preview/executorCompute.js';
@@ -1579,7 +1580,7 @@ const ASSAYER: ResidentAssayer | null = (() => {
     warn: log,
   };
   return startResidentAssayer({
-    assay: (signal) => assayNext({ ...options, signal }),
+    assay: (signal, onProgress) => assayNext({ ...options, signal, onProgress }),
     isActive: () => (EXECUTOR_MODE && !executorSelected(EXECUTOR_SOCKET!, EXECUTOR_OWN_SOCKET!)) || anyRunActive({ runsDir: RUNS_DIR, leasePath: mcpRunLockPath() }),
     logger: log,
   });
@@ -1610,6 +1611,7 @@ const MCP_DEPS: McpToolDeps = {
   // Read at call time: the preview runtime comes up after the bind.
   preview: () => PREVIEW_RUNTIME?.service ?? null,
   sentinel: () => sentinelHealth(),
+  assayer: () => assayerHealth(),
   analyst: () => ANALYST?.health() ?? (EXECUTOR_SOCKET
     ? executorSnapshot<{ analyst: ReturnType<ResidentAnalyst['health']> | null }>(EXECUTOR_SOCKET)?.analyst ?? null : null),
   // Read at call time, after MCP_HOST below exists: no tool runs before the bind.
@@ -1688,6 +1690,11 @@ const MCP_HOST = new McpHttpHost({
 process.once('exit', signalActiveRunOnExit);
 
 /** What this process can honestly say about watching. Never an aggregate. */
+function assayerHealth(): ReturnType<ResidentAssayer['health']> | null {
+  return ASSAYER?.health() ?? (EXECUTOR_SOCKET
+    ? executorSnapshot<{ assayer: ReturnType<ResidentAssayer['health']> | null }>(EXECUTOR_SOCKET)?.assayer ?? null : null);
+}
+
 function sentinelHealth(): SentinelHealth {
   if (SENTINEL) return SENTINEL.health();
   const reason = !EVENTS ? 'ungated' : 'disabled';
@@ -4304,6 +4311,24 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       // replayed from the last tick: it is one file read plus one indexed
       // query, and a screen that showed a 20-second-old list while calling it
       // "in flight now" would need a disclaimer nobody would read.
+      if (pathname === '/api/admin/assayer/health') {
+        if (!methodAllowed(req, res, 'GET')) return;
+        sendJson(res, 200, { health: assayerHealth() });
+        return;
+      }
+      if (pathname === '/api/admin/assayer') {
+        if (!methodAllowed(req, res, 'GET')) return;
+        sendJson(res, 200, { health: assayerHealth(), ...listAssays(supervisorDirPath(), {
+          ...(url.searchParams.get('before') ? { before: url.searchParams.get('before')! } : {}),
+        }) });
+        return;
+      }
+      if (pathname.startsWith('/api/admin/assays/')) {
+        if (!methodAllowed(req, res, 'GET')) return;
+        try { sendJson(res, 200, showAssay(supervisorDirPath(), { id: decodeURIComponent(pathname.slice('/api/admin/assays/'.length)) })); }
+        catch { sendJson(res, 404, { error: 'Assay evidence unavailable' }); }
+        return;
+      }
       if (pathname === '/api/admin/sentinel') {
         if (!methodAllowed(req, res, 'GET')) return;
         const discovery: SentinelDiscovery[] = [];

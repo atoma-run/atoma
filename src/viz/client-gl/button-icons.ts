@@ -50,6 +50,7 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'project.section.runs') return 'play';
   if (id === 'project.section.preview') return 'eye';
   if (id === 'project.section.files') return 'folder';
+  if (id.startsWith('assayer.open.')) return 'eye';
   if (id === 'project.section.result') return 'file';
   if (id === 'project.section.settings') return 'settings';
   if (id === 'deployment.choose.none') return 'file';

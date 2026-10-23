@@ -113,3 +113,22 @@ After the first ten assays in production: the share of `not-reached`
 retirement happened and what the retired recipe's counters said. A
 `not-reached` share above half says the cases are not the tasks a planner
 writes; the remedy is in how cases are sampled, not in the rule.
+
+## Invalid execution evidence — correction 2026-10-23
+
+A technical launch failure is not `not-reached`. An error/cancelled arm or a
+missing readable trace invalidates the whole comparison: no judgement, retirement
+or closing `skill_assays` row is allowed. The resident reports failure and pauses
+before retrying. A valid run that never selected the recipe remains `not-reached`;
+ordinary failed/partial deliveries with traces remain part of the comparison.
+The delivery/retirement rule over valid comparisons is unchanged.
+
+Every attempt has a unique evidence directory; retry and preemption preserve
+previous logs. Legacy rows whose records demonstrate invalid execution reopen
+for the current recipe surface. Superseded surfaces are historical evidence,
+not recipes to restore. Unreadable/missing records do not authorize a retry.
+
+Platform administrators can inspect the Assayer section in Sentinel, or use
+`atoma_assayer_health`, `atoma_assays_list` and `atoma_assay_show` (record, paged
+arm log or paged trace). These readers spend no quota. Failure status and a null
+judgement supersede invalid legacy verdicts in the view, without editing archives.

@@ -459,6 +459,15 @@ owners rather than assuming a different process's run is abandoned.
   Pages hold at most 20 units under a fixed `until`; its loose `outputSchema`
   names only what its three views share.
 
+## Recipe evaluation readers
+
+`atoma_assayer_health`, `atoma_assays_list` and `atoma_assay_show` are platform-only,
+read-only doors onto the selected executor snapshot and `supervisor/assayReaders`.
+The VIZ uses the same readers at `/api/admin/assayer` and `/api/admin/assays/:id`.
+History pages distinguish technical failure from a recipe verdict; detail reads
+bound log bytes and trace events, reject escaping paths and mark prose untrusted.
+They do not restart work or spend quota.
+
 ## Changing the catalogue
 
 - `atoma_run_question` reads a saved blocking choice; `_answer` records only the

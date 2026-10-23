@@ -35,11 +35,13 @@
  * and the per-run wall clock; authorised by the owner on 2026-10-15.
  */
 import { createHash } from 'node:crypto';
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
 import {
   skillAssayRecordSchema,
+  assayRecordStatus,
+  assayCasesComplete,
   type AssayArm,
   type AssayArmResult,
   type AssayCaseResult,
@@ -119,6 +121,7 @@ export interface AssayerOptions {
   readonly dryRun: boolean;
   readonly journal: PlatformEventSink | null;
   readonly launch?: ArmLauncher;
+  readonly onProgress?: (label: string) => void;
   readonly signal?: AbortSignal;
   readonly log: (line: string) => void;
   readonly warn: (line: string) => void;
@@ -152,7 +155,14 @@ export function pendingAssays(skills: SkillRegistry, opts: { readonly max?: numb
       if (skill.trigger) continue;
       if (opts.only && (opts.only.namespace !== namespace || opts.only.skillId !== skill.id)) continue;
       const surfaceDigest = surfaceDigestOf(skill);
-      if (!opts.only && skills.assayFor(namespace, skill.id, surfaceDigest)) continue;
+      if (!opts.only) {
+        const previous = skills.assayFor(namespace, skill.id, surfaceDigest);
+        if (previous) {
+          const parsed = skillAssayRecordSchema.safeParse(readBoundedJson(previous.recordPath));
+          // Reopen only demonstrably invalid evidence; missing/corrupt evidence is not permission to spend.
+          if (!parsed.success || assayRecordStatus(parsed.data) === 'completed') continue;
+        }
+      }
       if (assayCases(skills, namespace, skill.id, 1).length === 0) continue;
       out.push({ namespace, skillId: skill.id, kind: skill.kind, surfaceDigest, surfaceAt: skill.provenance?.at ?? '' });
     }
@@ -176,6 +186,9 @@ export function assayCases(skills: SkillRegistry, namespace: string, skillId: st
 
 /** THE PRE-REGISTERED RULE. Pure. */
 export function judgeAssay(cases: readonly AssayCaseResult[]): AssayJudgement {
+  if (!assayCasesComplete(cases)) {
+    throw new Error('Incomplete assay evidence: technical failures cannot judge a recipe');
+  }
   const matched = cases.filter((c) => c.with.matched);
   const delivered = (results: readonly AssayArmResult[]) => results.filter((r) => r.outcome === 'delivered').length;
   const cost = (results: readonly AssayArmResult[]) =>
@@ -202,7 +215,7 @@ function statsOf(log: string): RunStats | null {
  * events of the newest trace in the arm's own runs directory, never from the
  * log text, which the goal is echoed into.
  */
-export function armMatchedRecipe(runsDir: string, skillId: string): { matched: boolean; traceId: string | null } {
+export function armMatchedRecipe(runsDir: string, skillId: string, namespace?: string): { matched: boolean; traceId: string | null } {
   let newest: { path: string; mtime: number } | null = null;
   try {
     for (const name of readdirSync(runsDir)) {
@@ -220,7 +233,7 @@ export function armMatchedRecipe(runsDir: string, skillId: string): { matched: b
   const traceId = typeof trace.id === 'string' ? trace.id : null;
   const events = Array.isArray(trace.events) ? (trace.events as Array<Record<string, unknown>>) : [];
   const matched = events.some((event) =>
-    event && event['kind'] === 'skill' && (event['op'] === 'match' || event['op'] === 'direct') && event['skillId'] === skillId);
+    event && event['kind'] === 'skill' && (event['op'] === 'match' || event['op'] === 'direct') && event['skillId'] === skillId && (namespace === undefined || event['l1AtomId'] === namespace));
   return { matched, traceId };
 }
 
@@ -234,8 +247,15 @@ export function armEnvironment(input: {
   readonly skillsDir: string;
   readonly runsDir: string;
   readonly workspace: string;
-}): Record<string, string> {
+}, host: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(host)) {
+    // Keep host model pins and credentials, never a project's launch receipt or output destinations.
+    if (value !== undefined && !/^ATOMA_(?:HAYSTACK|TENANT|PROJECT|ORG_|RUN_ID$|ACCEPTANCE|ARTIFACT|READ_RUNS|PREVIOUS_RUN|CHECKPOINT|COMPUTE|SUBSCRIPTION_TIERS$|LEDGER)/.test(key)) env[key] = value;
+  }
   return {
+    ...env,
+    ATOMA_LEDGER_DB: input.dbPath,
     ATOMA_DB_PATH: input.dbPath,
     ATOMA_SKILLS_DIR: input.skillsDir,
     ATOMA_RUNS_DIR: input.runsDir,
@@ -252,22 +272,38 @@ export function armEnvironment(input: {
 /**
  * One assay, end to end, under the caller's lease. Never throws for a run's
  * own failure: a run that could not be launched or produced no epilogue is a
- * `failed` outcome for that arm and the assay records it.
+ * technical failure: preserve the attempt without judging or closing the recipe.
  */
 export async function runAssay(target: AssayTarget, cases: readonly AssayCase[], options: AssayerOptions): Promise<AssayResult> {
   const startedAt = new Date().toISOString();
   const assaysDir = join(options.supervisorDir, 'assays');
-  const assayDir = join(assaysDir, assayDirName(target));
+  const prefix = join(assaysDir, assayDirName(target));
   const launch = options.launch ?? defaultLauncher;
   if (options.dryRun) {
-    options.log(`dry-run: would assay ${target.namespace}/${target.skillId} on ${cases.length} case(s), ${cases.length * 2} run(s) (${options.isolation}) under ${relative(options.repoRoot, assayDir) || assayDir}`);
+    options.log(`dry-run: would assay ${target.namespace}/${target.skillId} on ${cases.length} case(s), ${cases.length * 2} run(s) (${options.isolation}) under ${relative(options.repoRoot, prefix) || prefix}`);
     for (const [index, c] of cases.entries()) options.log(`dry-run: case ${index}: ${c.task.slice(0, 160)}`);
     return { outcome: 'dry-run', target, recordPath: null, judgement: null };
   }
-  rmSync(assayDir, { recursive: true, force: true });
+  mkdirSync(assaysDir, { recursive: true });
+  // Each retry retains the previous attempt's logs and traces, including preemptions.
+  const assayDir = mkdtempSync(`${prefix}__`);
+  const recordPath = join(assayDir, 'assay.json');
   mkdirSync(join(assayDir, 'runs'), { recursive: true });
   const scratch = join(assayDir, 'scratch');
   mkdirSync(scratch, { recursive: true });
+  const results: AssayCaseResult[] = [];
+  const persistFailure = (status: 'failed' | 'preempted', detail: string): AssayResult => {
+    const record = skillAssayRecordSchema.parse({
+      schema: 'atoma.supervisor.assay/v1', namespace: target.namespace, skillId: target.skillId,
+      surfaceDigest: target.surfaceDigest, kind: target.kind, startedAt, endedAt: new Date().toISOString(),
+      cases: results, status, failure: detail.slice(0, 2000), judgement: null, applied: false, totalCostUsd: null,
+    });
+    writeFileSync(recordPath, JSON.stringify(record, null, 2));
+    safeSink(options.journal, options.warn)(assayEvent({ namespace: target.namespace, skillId: target.skillId,
+      surfaceDigest: target.surfaceDigest, status, verdict: null, decision: null, applied: false,
+      cases: results.length, matchedCases: 0, deliveries: { with: 0, without: 0 }, totalCostUsd: null, recordPath }));
+    return { outcome: status, target, recordPath, judgement: null, detail };
+  };
   try {
     // The arms read COPIES. The store is snapshotted once through SQLite's
     // online backup (settled to rollback mode: one file to copy per arm), the
@@ -281,43 +317,52 @@ export async function runAssay(target: AssayTarget, cases: readonly AssayCase[],
     cpSync(options.skillsDir, catalogWithout, { recursive: true });
     rmSync(join(catalogWithout, target.namespace, target.skillId), { recursive: true, force: true });
     if (!existsSync(join(catalogWith, target.namespace, target.skillId, 'SKILL.md'))) {
-      return { outcome: 'failed', target, recordPath: null, judgement: null, detail: 'the recipe has no body in the catalog copy' };
+      return persistFailure('failed', 'the recipe has no body in the catalog copy');
     }
-    const results: AssayCaseResult[] = [];
     for (const [index, c] of cases.entries()) {
-      const arms: Partial<Record<AssayArm, AssayArmResult>> = {};
+      if (options.signal?.aborted) return persistFailure('preempted', 'interrupted; recipe remains pending');
+      const notStarted = (arm: AssayArm): AssayArmResult => ({ arm, outcome: 'cancelled', costUsd: null,
+        durationS: null, llmCalls: null, matched: false, traceId: null, logPath: `runs/${index}-${arm}.log` });
+      const currentCase: AssayCaseResult = { task: c.task, sampledAt: c.sampledAt,
+        with: notStarted('with'), without: notStarted('without') };
+      results.push(currentCase);
+      const arms = currentCase;
       for (const arm of ['with', 'without'] as const) {
-        if (options.signal?.aborted) return { outcome: 'preempted', target, recordPath: null, judgement: null };
+        if (options.signal?.aborted) return persistFailure('preempted', 'interrupted; recipe remains pending');
         const armStore = join(scratch, `${index}-${arm}.db`);
         copyFileSync(baseStore, armStore);
         const runsDir = join(assayDir, 'runs', `${index}-${arm}`);
         mkdirSync(runsDir, { recursive: true });
         const logPath = join(assayDir, 'runs', `${index}-${arm}.log`);
         const env = armEnvironment({ dbPath: armStore, skillsDir: arm === 'with' ? catalogWith : catalogWithout, runsDir, workspace: join(scratch, `ws-${index}-${arm}`) });
+        options.onProgress?.(`${target.namespace}/${target.skillId} · case ${index + 1}/${cases.length} · ${arm}`);
         options.log(`assay ${target.skillId}: case ${index} arm ${arm} starting (${options.timeoutMs / 1000}s ceiling)`);
+        const armStarted = performance.now();
         let stats: RunStats | null = null;
         try {
           const log = await launch({ arm, caseIndex: index, goal: c.task, env, logPath, cwd: options.repoRoot, timeoutMs: options.timeoutMs,
             isolation: options.isolation, ...(options.signal ? { signal: options.signal } : {}) });
           stats = statsOf(log);
         } catch (error) {
-          if (options.signal?.aborted) return { outcome: 'preempted', target, recordPath: null, judgement: null };
           options.warn(`assay ${target.skillId}: case ${index} arm ${arm} could not run: ${error instanceof Error ? error.message : String(error)}`);
         }
-        const matched = armMatchedRecipe(runsDir, target.skillId);
+        const matched = armMatchedRecipe(runsDir, target.skillId, target.namespace);
         arms[arm] = {
           arm,
-          outcome: stats?.outcome ?? 'error',
+          outcome: options.signal?.aborted ? 'cancelled' : stats?.outcome ?? 'error',
           costUsd: stats?.costUsd ?? null,
-          durationS: null,
+          durationS: (performance.now() - armStarted) / 1000,
           llmCalls: stats?.llmCalls ?? null,
           matched: matched.matched,
           traceId: matched.traceId,
           logPath: relative(assayDir, logPath),
         };
+        if (options.signal?.aborted) return persistFailure('preempted', 'interrupted; recipe remains pending');
         options.log(`assay ${target.skillId}: case ${index} arm ${arm} ${arms[arm].outcome}${arms[arm].matched ? ', recipe matched' : ''}${stats?.costUsd !== null && stats?.costUsd !== undefined ? ` ($${stats.costUsd.toFixed(2)})` : ''}`);
       }
-      results.push({ task: c.task, sampledAt: c.sampledAt, with: arms.with!, without: arms.without! });
+    }
+    if (!assayCasesComplete(results)) {
+      return persistFailure('failed', 'An arm failed to produce a completed run and readable trace; inspect the arm logs. Recipe remains pending.');
     }
     const judgement = judgeAssay(results);
     const costs = results.flatMap((r) => [r.with.costUsd, r.without.costUsd]);
@@ -333,6 +378,7 @@ export async function runAssay(target: AssayTarget, cases: readonly AssayCase[],
     }
     const record: SkillAssayRecord = skillAssayRecordSchema.parse({
       schema: 'atoma.supervisor.assay/v1',
+      status: 'completed',
       namespace: target.namespace,
       skillId: target.skillId,
       surfaceDigest: target.surfaceDigest,
@@ -344,7 +390,6 @@ export async function runAssay(target: AssayTarget, cases: readonly AssayCase[],
       applied: judgement.decision === 'keep' ? true : applied,
       totalCostUsd,
     });
-    const recordPath = join(assayDir, 'assay.json');
     writeFileSync(recordPath, JSON.stringify(record, null, 2));
     // The row makes the surface "judged"; a retired recipe keeps its row as
     // the fact that it was, under the digest it had.
@@ -358,10 +403,10 @@ export async function runAssay(target: AssayTarget, cases: readonly AssayCase[],
     }));
     return { outcome: 'assayed', target, recordPath, judgement };
   } catch (error) {
-    if (options.signal?.aborted) return { outcome: 'preempted', target, recordPath: null, judgement: null };
+    if (options.signal?.aborted) return persistFailure('preempted', 'interrupted; recipe remains pending');
     const detail = error instanceof Error ? error.message : String(error);
     options.warn(`assay ${target.skillId} failed: ${detail}`);
-    return { outcome: 'failed', target, recordPath: null, judgement: null, detail };
+    return persistFailure('failed', detail);
   } finally {
     // Stores, catalog copies and workspaces are scratch; logs and traces are evidence.
     rmSync(scratch, { recursive: true, force: true });
@@ -407,7 +452,7 @@ const defaultLauncher: ArmLauncher = async (launch) => {
     goal: launch.goal,
     timeoutMs: launch.timeoutMs,
     logPath: launch.logPath,
-    extraEnv: launch.env,
+    env: launch.env,
     ...(launch.isolation === 'container-egress' ? { extraArgs: ['--container', '--egress'] } : {}),
     cwd: launch.cwd,
     npmScript: source ? 'run:build:dev' : 'run:build',

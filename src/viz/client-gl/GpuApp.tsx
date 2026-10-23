@@ -66,7 +66,7 @@ import {
   useAdminEventsPages,
   useNotificationsPages,
   useAdminLedger,
-  useAdminSentinel,
+  useAdminSentinel, useAdminAssayer, useAdminAssay, useAdminAssayerHealth,
   useAdminLiveRuns,
   useAdminOrganisations,
   useAdminStats,
@@ -504,6 +504,10 @@ function GpuAppContent({
     family: state.journalFamily,
   });
   const adminLedgerQuery = useAdminLedger(state.view === 'ledger' && isPlatformAdmin);
+  const [selectedAssay, setSelectedAssay] = useState<string | null>(null);
+  const assayerHealthQuery = useAdminAssayerHealth(state.view === 'sentinel' && isPlatformAdmin);
+  const assayerQuery = useAdminAssayer(state.view === 'sentinel' && isPlatformAdmin);
+  const assayQuery = useAdminAssay(state.view === 'sentinel' && isPlatformAdmin, selectedAssay);
   const adminSentinelQuery = useAdminSentinel(state.view === 'sentinel' && isPlatformAdmin);
   const adminStatsQuery = useAdminStats(state.view === 'platform' && isPlatformAdmin, state.platformDays);
   const adminLiveRunsQuery = useAdminLiveRuns(state.view === 'liveRuns' && isPlatformAdmin);
@@ -1163,6 +1167,8 @@ function GpuAppContent({
       return;
     }
     if (id.startsWith('scroll.end.')) return;
+    if (id === 'assayer.more') { if (assayerQuery.hasNextPage && !assayerQuery.isFetchingNextPage) void assayerQuery.fetchNextPage(); return; }
+    if (id.startsWith('assayer.open.')) { setSelectedAssay(id.slice('assayer.open.'.length)); return; }
     if (id.startsWith('sentinel.run.')) {
       store.selectRun(id.slice('sentinel.run.'.length));
       store.setView('runs');
@@ -1217,6 +1223,7 @@ function GpuAppContent({
     runQuery.data,
     runsQuery.data,
     stopPreview,
+    assayerQuery.hasNextPage, assayerQuery.isFetchingNextPage, assayerQuery.fetchNextPage,
   ]);
 
   // A push click opens its subject the way the tray row for the same event
@@ -1319,6 +1326,13 @@ function GpuAppContent({
     // the open menu instead of replacing the view behind it with a banner.
     notificationsError: notificationsQuery.isError,
     adminLedger: adminLedgerQuery.data?.events ?? [],
+    assayer: {
+      health: isPlatformAdmin ? assayerHealthQuery.data?.health ?? null : null,
+      assays: isPlatformAdmin ? assayerQuery.data?.pages.flatMap(p => p.assays) ?? [] : [],
+      hasMore: assayerQuery.hasNextPage, loading: assayerQuery.isLoading || assayerQuery.isFetchingNextPage,
+      error: !!assayerQuery.error, selected: isPlatformAdmin ? assayQuery.data ?? null : null,
+      selectedLoading: selectedAssay !== null && assayQuery.isLoading, selectedError: !!assayQuery.error,
+    },
     adminSentinel: adminSentinelQuery.data ?? null,
     platformStats: isPlatformAdmin ? adminStatsQuery.data ?? null : null,
     adminLiveRuns: isPlatformAdmin ? adminLiveRunsQuery.data ?? [] : [],
@@ -1352,6 +1366,9 @@ function GpuAppContent({
     notificationsQuery.isLoading,
     notificationsQuery.isError,
     adminLedgerQuery.data,
+    assayerHealthQuery.data,
+    assayerQuery.data, assayerQuery.hasNextPage, assayerQuery.isLoading, assayerQuery.isFetchingNextPage, assayerQuery.error,
+    assayQuery.data, assayQuery.isLoading, assayQuery.error, selectedAssay,
     adminSentinelQuery.data,
     adminLiveRunsQuery.data,
     adminStatsQuery.data,
@@ -1449,6 +1466,7 @@ function GpuAppContent({
           authSnapshot={authSnapshot}
           platformStats={data.platformStats}
           platformDays={state.platformDays}
+          assayer={data.assayer}
           adminLiveRuns={data.adminLiveRuns}
           runs={runsQuery.data ?? []}
           run={runQuery.data ?? null}

@@ -1542,7 +1542,7 @@ describe('viz auth gate (process level)', () => {
     const cookie = { cookie: jar.header(base)! };
 
     // Before the grant the journal is operator-level state, like burn-in.
-    for (const path of ['/api/admin/events', '/api/admin/ledger', '/api/admin/sentinel', '/api/admin/live-runs']) {
+    for (const path of ['/api/admin/events', '/api/admin/ledger', '/api/admin/sentinel', '/api/admin/assayer', '/api/admin/assays/unknown', '/api/admin/live-runs']) {
       expect((await fetch(`${base}${path}`, { headers: cookie })).status).toBe(403);
     }
 
@@ -1656,6 +1656,10 @@ describe('viz auth gate (process level)', () => {
     // THE SENTINEL READ. Rule table, runs in flight across both corpora, and
     // findings — and NOTHING that claims the watch process is running, which
     // this server cannot know.
+    const assays = await fetch(`${base}/api/admin/assayer`, { headers: cookie });
+    expect(assays.status).toBe(200);
+    expect(await assays.json()).toMatchObject({ assays: [], nextBefore: null });
+    expect((await fetch(`${base}/api/admin/assays/unknown`, { headers: cookie })).status).toBe(404);
     const sentinel = await fetch(`${base}/api/admin/sentinel`, { headers: cookie });
     expect(sentinel.status).toBe(200);
     const sentinelBody = (await sentinel.json()) as {

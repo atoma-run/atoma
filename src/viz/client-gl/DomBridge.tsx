@@ -1,3 +1,5 @@
+import { assayerLines, assayLabel, assayDetailLines, type AssayerViewData } from './assayer-presentation.js';
+import { AtomaLoader } from './AtomaLoader.js';
 import { PlatformStatsAccessible } from './PlatformStatsAccessible.js';
 import { ProjectSettingsAccessible } from './ProjectSettingsAccessible.js';
 import { ButtonIcon } from './ButtonIcon.js';
@@ -179,6 +181,7 @@ export function DomBridge({
   runs,
   run = null,
   adminLiveRuns = [],
+  assayer,
   releaseVersion,
   views = DEFAULT_VIEWS,
   loginLinks = null,
@@ -216,6 +219,7 @@ export function DomBridge({
   runs: RunIndexEntry[];
   run?: VizRun | null;
   adminLiveRuns?: import('../../contracts/projects.js').PlatformLiveRun[];
+  assayer?: AssayerViewData;
   releaseVersion: string;
   /** Nav tabs for this viewer — computed once by `visibleViews`, shared with the GL rail. */
   views?: ViewName[];
@@ -600,6 +604,20 @@ export function DomBridge({
         {view === 'runs' && run ? <AccessibleRunActivity run={run} t={t} /> : null}
         {view === 'platform' && auth?.viewer.platformAdmin ? <PlatformStatsAccessible
           stats={platformStats} days={platformDays} locale={locale} t={t} onActivate={onActivate} /> : null}
+        {view === 'sentinel' && auth?.viewer.platformAdmin && assayer ? (
+          <section aria-label={t('assayer.title')}>
+            <h2>{t('assayer.title')}</h2>
+            {assayerLines(assayer, t, locale).map((line, i) => <p key={i}>{line}</p>)}
+            {assayer.error || assayer.selectedError ? <p role="alert">{t('assayer.loadFailed')}</p> : null}
+            {assayer.loading || assayer.selectedLoading ? <AtomaLoader label={t('loading.assayer')} /> : null}
+            {assayer.assays.map(row => <article key={row.id}>
+              <p>{assayLabel(row, t, locale)}</p>
+              <button type="button" onClick={() => onActivate?.(`assayer.open.${row.id}`)}><ButtonIcon kind="eye" />{t('assayer.details')}</button>
+              {assayer.selected?.summary.id === row.id ? assayDetailLines(assayer, t).map((line, i) => <p key={i}>{line}</p>) : null}
+            </article>)}
+            {assayer.hasMore ? <button type="button" disabled={assayer.loading} onClick={() => onActivate?.('assayer.more')}><ButtonIcon kind="eye" />{t('assayer.more')}</button> : null}
+          </section>
+        ) : null}
         {view === 'liveRuns' && auth?.viewer.platformAdmin ? (
           <section aria-label={t('nav.liveRuns')}>
             <p>{t('liveRuns.scope')}</p>

@@ -212,6 +212,7 @@ export interface GpuDataSnapshot {
   adminLedger: VizLedgerEvent[];
   /** Rule table, live coverage and findings for the Sentinel view. */
   adminSentinel: VizSentinelSnapshot | null;
+  assayer?: import('./assayer-presentation.js').AssayerViewData;
   adminLiveRuns: import('../../contracts/projects.js').PlatformLiveRun[];
   /** The viewer's own organisation — the Settings org card. */
   organisation: VizOrganisation | null;

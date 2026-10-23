@@ -59,8 +59,9 @@ export interface AssayJournalFacts {
   readonly namespace: string;
   readonly skillId: string;
   readonly surfaceDigest: string;
-  readonly verdict: string;
-  readonly decision: string;
+  readonly status?: 'completed' | 'failed' | 'preempted';
+  readonly verdict: string | null;
+  readonly decision: string | null;
   readonly applied: boolean;
   readonly cases: number;
   readonly matchedCases: number;
@@ -75,9 +76,10 @@ export function assayEvent(facts: AssayJournalFacts): PlatformEventInput {
   return {
     kind: 'supervisor.assay',
     actorType: 'system',
-    summary: `Assayer judged recipe ${facts.skillId} ${facts.verdict} on ${facts.matchedCases} of ${facts.cases} case(s)${applied}`,
+    summary: facts.status && facts.status !== 'completed' ? `Assayer ${facts.status} for recipe ${facts.skillId}; no judgement, recipe remains pending` : `Assayer judged recipe ${facts.skillId} ${facts.verdict} on ${facts.matchedCases} of ${facts.cases} case(s)${applied}`,
     detail: {
       stage: 'assayer',
+      status: facts.status ?? 'completed',
       namespace: facts.namespace,
       skillId: facts.skillId,
       surfaceDigest: facts.surfaceDigest,

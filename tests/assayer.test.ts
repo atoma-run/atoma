@@ -1,8 +1,9 @@
+import { listAssays, showAssay } from '../src/supervisor/assayReaders.js';
 import Database from 'better-sqlite3';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatRunStatsEpilogue, type RunStats } from '../src/contracts/runStats.js';
 import { skillAssayRecordSchema, type AssayCaseResult } from '../src/contracts/skillAssay.js';
 import { closeStoreHandles } from '../src/core/stores.js';
@@ -36,6 +37,7 @@ import { startResidentAssayer, vizAssayerEnabled } from '../src/supervisor/resid
 const NS = 'atom-assay-1';
 const dirs: string[] = [];
 afterEach(() => {
+  vi.unstubAllEnvs();
   closeStoreHandles();
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
@@ -212,7 +214,7 @@ describe('runAssay', () => {
     expect(pendingAssays(f.skills).map((t) => t.skillId)).toEqual([]);
   });
 
-  it('records a run that could not be launched as an error arm and keeps the recipe', async () => {
+  it('records launch failures without judging or closing the recipe, preserving every retry', async () => {
     const f = fixture();
     const [target] = pendingAssays(f.skills);
     const launch = async (l: ArmLaunch): Promise<string> => {
@@ -221,11 +223,18 @@ describe('runAssay', () => {
       return fakeLauncher(f, () => ({ outcome: 'delivered', matched: false }))(l);
     };
     const result = await runAssay(target!, assayCases(f.skills, NS, 'probe-api', 2), f.options({ launch }));
-    expect(result.outcome).toBe('assayed');
-    expect(result.judgement).toMatchObject({ verdict: 'not-reached', decision: 'keep', matchedCases: 0 });
+    expect(result.outcome).toBe('failed');
+    expect(result.judgement).toBeNull();
     const record = skillAssayRecordSchema.parse(JSON.parse(readFileSync(result.recordPath!, 'utf8')));
     expect(record.cases[0]!.with.outcome).toBe('error');
     expect(f.skills.loadFor(NS).some((s) => s.id === 'probe-api')).toBe(true);
+    expect(record.status).toBe('failed');
+    expect(f.skills.assayFor(NS, 'probe-api', target!.surfaceDigest)).toBeNull();
+    expect(pendingAssays(f.skills)).toHaveLength(1);
+    expect(f.journal.list({ kind: 'supervisor.assay' }).events[0]!.detail).toMatchObject({ status: 'failed', verdict: null, decision: null });
+    const retry = await runAssay(target!, assayCases(f.skills, NS, 'probe-api', 2), f.options({ launch }));
+    expect(retry.recordPath).not.toBe(result.recordPath);
+    expect(existsSync(result.recordPath!)).toBe(true);
   });
 
   it('spends nothing on a dry run and records nothing', async () => {
@@ -241,20 +250,23 @@ describe('runAssay', () => {
     expect(f.journal.list({ kind: 'supervisor.assay' }).events).toHaveLength(0);
   });
 
-  it('is preempted through its signal, recording nothing and leaving the recipe pending', async () => {
+  it('is preempted through its signal, preserving an interrupted attempt and leaving the recipe pending', async () => {
     const f = fixture();
     const [target] = pendingAssays(f.skills);
     const controller = new AbortController();
     const launch = async (l: ArmLaunch): Promise<string> => {
       f.launches.push(l);
+      writeFileSync(l.logPath, 'interrupted arm evidence');
       controller.abort(new Error('preempted'));
       throw new Error('killed');
     };
     const result = await runAssay(target!, assayCases(f.skills, NS, 'probe-api', 2), f.options({ launch, signal: controller.signal }));
     expect(result.outcome).toBe('preempted');
     expect(f.launches).toHaveLength(1);
+    const id = listAssays(f.options().supervisorDir).assays[0]!.id;
+    expect(showAssay(f.options().supervisorDir, { id, section: 'log' })).toMatchObject({ text: 'interrupted arm evidence' });
     expect(pendingAssays(f.skills).map((t) => t.skillId)).toEqual(['probe-api']);
-    expect(f.journal.list({ kind: 'supervisor.assay' }).events).toHaveLength(0);
+    expect(f.journal.list({ kind: 'supervisor.assay' }).events[0]!.detail).toMatchObject({ status: 'preempted', verdict: null });
   });
 });
 
@@ -336,4 +348,63 @@ describe('the resident assayer', () => {
       resident.stop();
     }
   });
+});
+
+describe('assayer recovery and evidence readers', () => {
+  it('reopens demonstrably invalid legacy rows and preserves their evidence', async () => {
+    const f = fixture(); const [target] = pendingAssays(f.skills);
+    const invalid = await runAssay(target!, assayCases(f.skills, NS, 'probe-api', 2), f.options({ launch: async () => 'configuration refused' }));
+    const path = invalid.recordPath!;
+    const legacy = JSON.parse(readFileSync(path, 'utf8'));
+    delete legacy.status; delete legacy.failure;
+    legacy.judgement = { verdict: 'not-reached', decision: 'keep', matchedCases: 0, deliveries: { with: 0, without: 0 }, costUsd: { with: null, without: null } };
+    writeFileSync(path, JSON.stringify(legacy));
+    f.skills.recordAssay({ namespace: NS, skillId: 'probe-api', surfaceDigest: target!.surfaceDigest, at: 'now', verdict: 'not-reached', decision: 'keep', recordPath: path, costUsd: null });
+    expect(pendingAssays(f.skills)).toHaveLength(1);
+    const before = readFileSync(path, 'utf8');
+    const repaired = await runAssay(target!, assayCases(f.skills, NS, 'probe-api', 2), f.options({ launch: fakeLauncher(f, l => ({ outcome: 'delivered', matched: l.arm === 'with' })) }));
+    expect(repaired.outcome).toBe('assayed');
+    expect(pendingAssays(f.skills)).toHaveLength(0);
+    expect(readFileSync(path, 'utf8')).toBe(before);
+    const all = listAssays(f.options().supervisorDir);
+    expect(all.assays.map(a => a.status).sort()).toEqual(['completed', 'failed']);
+    expect(all.assays.find(a => a.status === 'failed')!.judgement).toBeNull();
+    const page = listAssays(f.options().supervisorDir, { limit: 1 });
+    const older = listAssays(f.options().supervisorDir, { limit: 1, before: page.nextBefore! });
+    expect(older.assays[0]!.id).not.toBe(page.assays[0]!.id);
+    expect(older.nextBefore).toBeNull();
+    const id = all.assays.find(a => a.status === 'completed')!.id;
+    expect(showAssay(f.options().supervisorDir, { id, section: 'trace', limit: 1 })).toMatchObject({ totalEvents: 1, nextOffset: null });
+    expect(showAssay(f.options().supervisorDir, { id, section: 'log', limit: 10 })).toMatchObject({ offset: 0, nextOffset: 10 });
+    expect(() => showAssay(f.options().supervisorDir, { id: '../outside' })).toThrow();
+    symlinkSync(f.root, join(f.options().supervisorDir, 'assays', 'escape'), 'dir');
+    expect(() => showAssay(f.options().supervisorDir, { id: 'escape' })).toThrow();
+  });
+
+  it('does not let an infrastructure error retire a matched recipe', () => {
+    const c: AssayCaseResult = { task: 'x', sampledAt: 'now', with: arm('error', true), without: arm('delivered', false, 'without') };
+    expect(() => judgeAssay([c, c])).toThrow(/technical failures/);
+  });
+
+  it('passes a complete isolated environment across the real npm child boundary', async () => {
+    const f = fixture(); const [target] = pendingAssays(f.skills);
+    vi.stubEnv('ATOMA_HAYSTACK_CONFIG', '{"python":"must-not-leak"}');
+    vi.stubEnv('ATOMA_TENANT_RUN', '1');
+    vi.stubEnv('ATOMA_RUN_ID', 'foreign-run');
+    vi.stubEnv('ATOMA_MODEL_L1', 'sub:openai:test-model');
+    writeFileSync(join(f.root, 'package.json'), JSON.stringify({ scripts: { 'run:build:dev': 'node runner.cjs' } }));
+    writeFileSync(join(f.root, 'runner.cjs'), `
+      const fs = require('node:fs'), path = require('node:path');
+      if (process.env.ATOMA_HAYSTACK_CONFIG || process.env.ATOMA_TENANT_RUN || process.env.ATOMA_RUN_ID) throw Error('project authority leaked');
+      if (process.env.ATOMA_MODEL_L1 !== 'sub:openai:test-model') throw Error('model pin lost');
+      if (process.env.ATOMA_LEDGER_DB !== process.env.ATOMA_DB_PATH) throw Error('ledger escaped');
+      const id = 'child';
+      const matched = fs.existsSync(path.join(process.env.ATOMA_SKILLS_DIR, '${NS}', 'probe-api', 'SKILL.md'));
+      fs.writeFileSync(path.join(process.env.ATOMA_RUNS_DIR, id + '.json'), JSON.stringify({id, events: matched ? [{ kind: 'skill', op: 'match', l1AtomId: '${NS}', skillId: 'probe-api' }] : []}));
+      console.log(${JSON.stringify(formatRunStatsEpilogue(stats('delivered')))});
+    `);
+    const result = await runAssay(target!, assayCases(f.skills, NS, 'probe-api', 1), f.options({ isolation: 'host', timeoutMs: 10000 }));
+    expect(result.outcome).toBe('assayed');
+    expect(result.judgement).toMatchObject({ verdict: 'neutral', matchedCases: 1 });
+  }, 30000);
 });

@@ -367,6 +367,17 @@ function gatedStubs() {
       organisations: [{ id: 'org-a', name: 'Analytical Engines', role: 'org:owner' }],
       providers: [{ id: 'github', label: 'GitHub' }],
     },
+    '/api/admin/sentinel': { watch: null, rules: [], live: [], skipped: [], findings: [] },
+    '/api/admin/assayer/health': { health: { armed: true, inFlight: null, assayed: 1, failed: 1, deferred: 0, preempted: 0, pausedUntil: null, lastResult: null, lastError: null } },
+    '/api/admin/assayer': { assays: [
+      { id: 'assay-demo', namespace: 'atom-demo', skillId: 'verify-json-api', surfaceDigest: 'a'.repeat(64), startedAt: '2026-10-23T10:00:00Z', endedAt: '2026-10-23T10:10:00Z',
+        status: 'completed', judgement: { verdict: 'neutral', decision: 'keep', matchedCases: 1, deliveries: { with: 1, without: 1 }, costUsd: { with: 0.1, without: 0.2 } }, failure: null, totalCostUsd: 0.3, cases: 1, arms: [] },
+      { id: 'assay-invalid', namespace: 'atom-demo', skillId: 'repair-browser-test', surfaceDigest: 'b'.repeat(64), startedAt: '2026-10-23T09:00:00Z', endedAt: '2026-10-23T09:00:12Z',
+        status: 'failed', judgement: null, failure: 'The runner could not start. Recipe remains pending.', totalCostUsd: null, cases: 1, arms: [] },
+    ], nextBefore: null, scanned: 2, unreadable: 0, scanTruncated: false, health: null },
+    '/api/admin/assays/assay-demo': { summary: { id: 'assay-demo', skillId: 'verify-json-api', surfaceDigest: 'a'.repeat(64), failure: null,
+      judgement: { verdict: 'neutral', decision: 'keep', matchedCases: 1, deliveries: { with: 1, without: 1 } } },
+      record: { cases: [{ task: 'Verify the JSON API returns the documented result.', with: { arm: 'with', outcome: 'delivered', matched: true, llmCalls: 4 }, without: { arm: 'without', outcome: 'delivered', matched: false, llmCalls: 6 } }] } },
     '/api/admin/stats': platformStatsFixture(),
     '/api/admin/live-runs': [
       { projectRunId: 'cccccccc-1111-4222-8333-dddddddddd10', projectId,
