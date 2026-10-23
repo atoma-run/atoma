@@ -51,3 +51,24 @@ third plan, first implementation tool call at minute 22.
    survives reconnection with the same session), the structural fix.
 
 Neither was applied in this record.
+
+## Resolution (option 2, applied 2026-10-23)
+
+The resumable transport already existed on the server and in current clients
+(`atoma-compute-resume-v1`, commit 80494669 of 2026-10-22, deployed before the
+run): a device whose socket drops retries under its unchanged 30-second lease and
+resumes the same session; sequence acknowledgements fence retransmission. The
+device that ran b0a6c063 was a Codex-worktree build of 2026-10-21 (320c536e),
+older than that commit, so it spoke the legacy channel and confirmed a stop.
+
+- `tests/compute-connection.test.ts` gains the production shape (8295f0b0): a
+  proxy restart that closes both ends at once and refuses upgrades for 1.5 s with
+  a tool invocation in flight; the result lands once on the same session, no
+  stop, no `socket-close`.
+- The Mac now runs the published preview 0.4.69 (`compute-desktop-preview-fafed13eff1d`,
+  checksum verified), installed in `/Applications`, paired as the same device
+  (`9bafcb10`, connection generation 106 at 07:15:22 UTC). Its `runtime.mjs`
+  carries the resume protocol; the worktree build did not.
+
+Not applied: the nginx blacklist in unattended-upgrades. A proxy restart is now a
+transport interruption the lease covers, provided it is shorter than the lease.
