@@ -2682,5 +2682,6 @@
   "assayer.no": "Nein",
   "assayer.details": "Auswertung prüfen",
   "assayer.more": "Ältere Auswertungen",
-  "loading.assayer": "Rezeptauswertungen werden geladen…"
+  "loading.assayer": "Rezeptauswertungen werden geladen…",
+  "assayer.executor": "Executor {{release}} wird gemeldet (einschließlich der Abarbeitung verbleibender Aufträge nach einer Bereitstellung)"
 }

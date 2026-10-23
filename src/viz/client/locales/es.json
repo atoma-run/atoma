@@ -2682,5 +2682,6 @@
   "assayer.no": "No",
   "assayer.details": "Revisar evaluación",
   "assayer.more": "Evaluaciones anteriores",
-  "loading.assayer": "Cargando evaluaciones de recetas…"
+  "loading.assayer": "Cargando evaluaciones de recetas…",
+  "assayer.executor": "Notificando el ejecutor {{release}} (incluida la finalización del trabajo pendiente tras un despliegue)"
 }

@@ -2682,5 +2682,6 @@
   "assayer.no": "لا",
   "assayer.details": "فحص التقييم",
   "assayer.more": "تقييمات أقدم",
-  "loading.assayer": "جارٍ تحميل تقييمات الوصفات…"
+  "loading.assayer": "جارٍ تحميل تقييمات الوصفات…",
+  "assayer.executor": "إعداد تقارير عن المنفّذ {{release}} (بما في ذلك تصريف الأعمال بعد النشر)"
 }

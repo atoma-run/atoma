@@ -2682,5 +2682,6 @@
   "assayer.no": "Não",
   "assayer.details": "Ver avaliação",
   "assayer.more": "Avaliações anteriores",
-  "loading.assayer": "A carregar avaliações de receitas…"
+  "loading.assayer": "A carregar avaliações de receitas…",
+  "assayer.executor": "A reportar o executor {{release}} (incluindo trabalhos em conclusão após uma implementação)"
 }

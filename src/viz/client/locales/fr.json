@@ -2682,5 +2682,6 @@
   "assayer.no": "Non",
   "assayer.details": "Examiner l’évaluation",
   "assayer.more": "Évaluations précédentes",
-  "loading.assayer": "Chargement des évaluations de recettes…"
+  "loading.assayer": "Chargement des évaluations de recettes…",
+  "assayer.executor": "Exécuteur déclarant {{release}} (y compris le traitement des tâches restantes après un déploiement)"
 }
