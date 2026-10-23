@@ -16,6 +16,7 @@ are taken by [Decision](#decision-handles-bounded-decisions), TypeSafe's Jev mod
 
 [![CI](https://github.com/atoma-run/atoma/actions/workflows/ci.yml/badge.svg)](https://github.com/atoma-run/atoma/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/mgtf/badge.svg)](https://hub.xerj.org/contributors/mgtf)
 
 </div>
 
