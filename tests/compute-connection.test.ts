@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { AUTH_TABLES_DDL } from '../src/auth/store.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { ComputeDeviceStore } from '../src/projects/computeDevices.js';
-import { type ComputeActor } from '../src/contracts/computeDevice.js';
+import { COMPUTE_LEASE_MS, type ComputeActor } from '../src/contracts/computeDevice.js';
 
 let db: Database.Database, projects: ProjectStore, devices: ComputeDeviceStore, now: number;
 const imageDigest = `sha256:${'a'.repeat(64)}`;
@@ -836,7 +836,7 @@ it('reports store lease expiry while fencing pending work without replay', async
     // The actual store deadline expires while the TLS socket still looks open.
     // No fake exception: the production watchdog reads and fences this session.
     const closed = once(f.ws, 'close');
-    now += 30_001;
+    now += COMPUTE_LEASE_MS + 1;
     await rejected; await closed;
     expect(f.peer.signal.aborted).toBe(true);
     expect(f.peer.identity()).toBeUndefined();
@@ -1000,7 +1000,7 @@ it.each(['pending-command', 'lost-command', 'lost-result', 'lost-result-ack'] as
     } finally { release(); await f.client.close(); await link.close(); }
   });
 
-it('replaces a silently stale OPEN socket before the unchanged 30-second lease expires', async () => {
+it('replaces a silently stale OPEN socket before the unchanged lease expires', async () => {
   const link = await networkLink();
   const execute = vi.fn(async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }));
   const f = await migratingClient(link.url, execute);
@@ -1020,7 +1020,7 @@ it('does not revive an expired server lease during network migration', async () 
   const execute = vi.fn(async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }));
   const f = await migratingClient(link.url, execute);
   try {
-    now += 30_001; link.cut();
+    now += COMPUTE_LEASE_MS + 1; link.cut();
     await vi.waitFor(() => expect(f.peer.signal.aborted).toBe(true), { timeout: 2000 });
     expect(gateway.connectionFor(f.client.session)).toBeUndefined();
     expect(execute).not.toHaveBeenCalled();
@@ -1113,7 +1113,7 @@ it('never resurrects local workloads after the existing client lease expires in 
   try {
     // Do not alter the timer or budget: wall elapsed time catches sleep/network
     // outages even if the event loop has not delivered the deadline callback.
-    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 30_001);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + COMPUTE_LEASE_MS + 1);
     link.cut();
     expect(await f.client.finished).toBe(true);
     expect(f.stop).toHaveBeenCalledOnce(); expect(execute).not.toHaveBeenCalled();
@@ -1200,7 +1200,7 @@ it('preserves an in-flight non-idempotent effect across TLS migration to a separ
 // for five seconds. Both ends saw close 1006 in the same millisecond with a
 // tool invocation 17 s in flight; the legacy client confirmed a stop and the
 // run failed. The resumable transport rides it out: the device retries under
-// its unchanged 30-second lease, resumes the same session, and the in-flight
+// its unchanged lease, resumes the same session, and the in-flight
 // tool result lands once, with no stop and no second execution.
 it('rides out a proxy restart that closes both ends with a tool invocation in flight', async () => {
   const link = await networkLink();

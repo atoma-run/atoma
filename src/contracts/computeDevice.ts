@@ -1,7 +1,13 @@
 import { z } from 'zod';
 
 export const COMPUTE_PROTOCOL_VERSION = 1;
-export const COMPUTE_LEASE_MS = 30_000;
+/** How long a device keeps its session and workloads without a heartbeat
+ * acknowledgement, on both ends: the client stops its workloads when it
+ * expires, the server invalidates the session. 30 s until 2026-10-23; a
+ * reverse-proxy restart (5 s) plus a Wi-Fi migration (20-30 s) sat at its
+ * edge, and the transport resumes the same session within it, so the cost of
+ * a longer lease is only how long a vanished device delays a run's failure. */
+export const COMPUTE_LEASE_MS = 120_000;
 export const COMPUTE_PAIRING_MS = 10 * 60_000;
 export const computeActorSchema = z.object({ orgId: z.string().uuid(), principalId: z.string().uuid() }).strict();
 export type ComputeActor = z.infer<typeof computeActorSchema>;

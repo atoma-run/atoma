@@ -88,7 +88,7 @@ heartbeats, commands and previews have independent channels.
 
 An outbound WSS connection needs no incoming port or router configuration.
 Compute automatically reconnects after a brief Wi-Fi or network change while
-both processes and the existing 30-second heartbeat lease remain alive. A
+both processes and the existing two-minute heartbeat lease remain alive. A
 silently stale TCP connection is replaced after 10 seconds without a heartbeat
 reply. Reconnection reauthenticates the same device, machine and session and
 rechecks project access; it does not renew the lease or allocate another run.
