@@ -95,6 +95,11 @@ Explicit desktop preparation refreshes all four pins from the bundled verified
 `computeImages.ts` release before pulling. It requires local inventory ownership
 and confirmed teardown of earlier workloads. Opening, diagnostics and headless
 `pull` retain the configured pins; pairing, budgets and credentials survive upgrades.
+Worker fixes are not deployed to Compute by a server release: the installed
+immutable worker must contain the fix too. Publish and test the affected image,
+adopt its verified digest, prepare the idle device and check the configured
+image before a live regression run. Server trace provenance alone does not
+identify the code executing `record_probe` on a customer device.
 
 `DesktopCompute` owns the desktop-only profile: immutable image identities,
 Linux named volumes, no host binds, non-root read-only containers, capped CPU,

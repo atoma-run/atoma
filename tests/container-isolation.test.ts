@@ -657,6 +657,32 @@ describeDocker('read-run copies beside whole-tree tools in a containerised run',
 // isolated tag explicitly, so a stale shared :latest cannot masquerade as proof.
 const acceptanceImage = process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'];
 describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('compiled parent-test worker', () => {
+  it.each([[1, 0], [0, 1]])('retains same-command probe history across the compiled worker (%i → %i)', async (first, latest) => {
+    // Attica 3e07ee61: the server had the fix, but the customer-device worker
+    // image still replaced the mutant result. Exercise packaged code over
+    // the same stdio protocol DesktopCompute's LocalContainerToolExecutor uses.
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-probe-history-image-'));
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    const cmd = 'node probe.cjs';
+    try {
+      for (const exitCode of [first, latest]) {
+        writeFileSync(join(workspace, 'probe.cjs'), `console.log('observed ${exitCode}'); process.exit(${exitCode});\n`);
+        expect(await executor.execute('record_probe', { cmd })).toMatchObject({ exitCode, recorded: true });
+      }
+      const expected = { version: 1, entries: [{ cmd, exitCode: latest, stdout: `observed ${latest}\n`,
+        replacementHistory: [{ cmd, exitCode: first }], replacementHistoryTruncated: false }] };
+      // Assert both the persisted bytes and their transport reading: a previous
+      // success must never replace the latest failure as the replay baseline.
+      expect(JSON.parse(readFileSync(join(workspace, '.atoma-probes.json'), 'utf8'))).toEqual(expected);
+      const read = await executor.execute('read_file', { path: '.atoma-probes.json' }) as { content: string };
+      expect(JSON.parse(read.content)).toEqual(expected);
+    } finally {
+      await executor.drain();
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it('records numbered source inspection with the packaged shell allowlist', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'atoma-numbered-source-image-'));
     const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
