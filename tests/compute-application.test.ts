@@ -57,3 +57,18 @@ it('reads the saved budget for each new assignment and advertises the initial se
   m.diagnose.mockResolvedValue({ cpus: 8, memoryBytes: 8 * 1024 ** 3 });
   await expect(options.resourceBudget()).rejects.toThrow('exceeds');
 });
+
+// 2026-10-23: the host sends its delivery classification only to a device that
+// advertises `preview-classification`. An installation still pinned to an older
+// workspace image (an upgrade not yet prepared) must not advertise it: that
+// image's copier parses the start command strictly and would refuse the field.
+it('advertises preview classification only while running the bundled workspace image', async () => {
+  const { computeServices } = await import('../src/launcher/computeApplication.js');
+  const { COMPUTE_IMAGES } = await import('../src/contracts/computeImages.js');
+  for (const architecture of ['arm64', 'x64'] as const) {
+    const bundled = COMPUTE_IMAGES[architecture === 'arm64' ? 'arm64' : 'amd64'].workspace;
+    expect(computeServices(bundled, architecture)).toContain('preview-classification');
+    expect(computeServices(bundled.replace(/sha256:.*/, 'sha256:' + '0'.repeat(64)), architecture)).not.toContain('preview-classification');
+    expect(computeServices(bundled.replace(/sha256:.*/, 'sha256:' + '0'.repeat(64)), architecture)).toEqual(['workspace', 'tools', 'retrieval', 'preview']);
+  }
+});

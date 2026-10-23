@@ -15,6 +15,16 @@ import { computeClientSettingsSchema, computeImageSchema, computeLocalJournalSch
 import { computeCapabilitiesSchema } from '../contracts/computeDevice.js';
 import { COMPUTE_IMAGES } from '../contracts/computeImages.js';
 
+/** The services this installation offers. `preview-classification` means its
+ * copier takes the host's delivery classification, which only the workspace
+ * image this app bundles is known to do: an installation still pinned to an
+ * older image (an upgrade not yet prepared) keeps re-classifying, and a copier
+ * that parses the start command strictly never receives the field. */
+export function computeServices(workspaceImage: string, architecture: string = process.arch) {
+  const bundled = COMPUTE_IMAGES[architecture === 'arm64' ? 'arm64' : 'amd64'].workspace;
+  return ['workspace', 'tools', 'retrieval', 'preview', ...(workspaceImage === bundled ? ['preview-classification' as const] : [])] as const;
+}
+
 const HELP = `Atoma Compute (headless, macOS / Windows)
 
   compute pair --server https://atoma.run --name "My computer"
@@ -166,7 +176,7 @@ export async function computeMain(argv: string[], hooks: ComputeApplicationHooks
   if (hooks.signal?.aborted) stop();
   try {
     const capabilities = computeCapabilitiesSchema.parse({ protocol: 1, appVersion: hooks.appVersion ?? z.object({ version: z.string().min(1) }).parse(JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))).version, platform: process.platform, architecture: process.arch,
-      services: ['workspace', 'tools', 'retrieval', 'preview'], imageDigest: config.workerImage.slice(config.workerImage.lastIndexOf('sha256:')), cpus: budget.cpus,
+      services: computeServices(config.workspaceImage), imageDigest: config.workerImage.slice(config.workerImage.lastIndexOf('sha256:')), cpus: budget.cpus,
       memoryBytes: budget.memoryGiB * 1024 ** 3, diskBytes: diagnostic.diskBytes });
     const connectionOptions = { onDisconnect: () => hooks.connection?.(false), url: config.origin.replace(/^https:/, 'wss:') + '/compute/v1',
       credential: await new ComputeCredential(root, config.origin, config.deviceId).read(), capabilities };
