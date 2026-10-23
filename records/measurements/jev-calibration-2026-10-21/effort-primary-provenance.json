@@ -1,0 +1,563 @@
+[
+  {
+    "runId": "c092b5d6-554f-4214-9dcd-b91e664e2dcc",
+    "provenance": {
+      "revision": "f0f894a0430aa3227caf6be897df8fb8816724ac",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-12T21:52:11.318Z"
+  },
+  {
+    "runId": "e3687ac7-533e-4a12-b2f6-cf88e1570cc6",
+    "provenance": {
+      "revision": "fde566e6017a22a33256a4d4e2ed6be97c269c52",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-13T05:37:26.863Z"
+  },
+  {
+    "runId": "8a38383c-696a-42f5-8b2b-8ece0f1acd14",
+    "provenance": {
+      "revision": "fbc4dbca7d30f58a56f4938137c500e2c08d4bbc",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-13T05:51:03.140Z"
+  },
+  {
+    "runId": "2c628a5b-ec3b-4c7a-bb36-f0776312b666",
+    "provenance": {
+      "revision": "8530c87996e94f0eea65591b91d4ef08c19a8e9c",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-13T10:08:15.319Z"
+  },
+  {
+    "runId": "c50f3566-b08c-4b7b-8269-9a027b27f2e0",
+    "provenance": {
+      "revision": "15dd953a4ff06b53ab2a5e7f7cb5f2afe54f6592",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-14T05:40:18.654Z"
+  },
+  {
+    "runId": "66aed165-4526-4deb-b4c2-c9e7b1cdf3cc",
+    "provenance": {
+      "revision": "deb31f2e94cec2fa2a788d9494aadd316d410ea7",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-14T06:01:01.818Z"
+  },
+  {
+    "runId": "f2522b78-8e26-4aba-b06e-d4883160ec35",
+    "provenance": {
+      "revision": "deb31f2e94cec2fa2a788d9494aadd316d410ea7",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-14T06:47:26.537Z"
+  },
+  {
+    "runId": "d49796f8-b95a-4eb0-8dff-464b11dfc6dd",
+    "provenance": {
+      "revision": "deb31f2e94cec2fa2a788d9494aadd316d410ea7",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-14T06:59:49.404Z"
+  },
+  {
+    "runId": "a7c3ef40-bf42-439c-9cbd-ddf6fd1ace27",
+    "provenance": {
+      "revision": "deb31f2e94cec2fa2a788d9494aadd316d410ea7",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-14T07:24:30.726Z"
+  },
+  {
+    "runId": "7d3373ba-6542-4675-a2f6-6250b2902ca7",
+    "provenance": {
+      "revision": "9b54ac14e9b934b50bd716fdd7defe4963bd07dd",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-14T08:16:32.035Z"
+  },
+  {
+    "runId": "bec269a3-18c4-477b-8e55-3512e0ef17f6",
+    "provenance": {
+      "revision": "31a7b99b54818c369f464b40310dd72f52fa1964",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-14T17:48:17.914Z"
+  },
+  {
+    "runId": "85cc4e83-b84d-48a3-93b0-ae25688b7e0a",
+    "provenance": {
+      "revision": "a01d8d7dde7ff35a31106845b6bdea49396179ca",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-15T02:10:40.822Z"
+  },
+  {
+    "runId": "f74c140a-5d66-4bc4-a94d-387496435ff5",
+    "provenance": {
+      "revision": "e664bcd18c006a6ea585ccc28715a5b5ea3f07d0",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-15T03:14:15.308Z"
+  },
+  {
+    "runId": "a62780e7-14a2-43a9-8525-e541c3da1c34",
+    "provenance": {
+      "revision": "e664bcd18c006a6ea585ccc28715a5b5ea3f07d0",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-15T03:54:42.109Z"
+  },
+  {
+    "runId": "c67b9517-b6d2-4455-a39e-0ff96b705c69",
+    "provenance": {
+      "revision": "30984c855f20ad9e304148015b25cde7d1a5c113",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-16T02:03:26.145Z"
+  },
+  {
+    "runId": "d37d2f8f-71f7-456d-bd5b-f22b5965f142",
+    "provenance": {
+      "revision": "8059f2ace25c4046b249bac364c7e44f7e92ad76",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-16T17:04:11.563Z"
+  },
+  {
+    "runId": "2e6bdcfc-8b69-4e0f-951b-79535af8ba54",
+    "provenance": {
+      "revision": "00f35f223c5307b91f41ad902f830f87c92ad188",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-16T22:16:28.234Z"
+  },
+  {
+    "runId": "034d176d-3b28-4ef6-9314-3376ab8a84ef",
+    "provenance": {
+      "revision": "21b0e5cee92d9b04a82d33a79d330d534e4acf5f",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-17T05:57:44.213Z"
+  },
+  {
+    "runId": "b8946a77-968a-4d44-ab09-26e78fc31a5d",
+    "provenance": {
+      "revision": "315650bf54ea731e8de04ac6243fc1a7246d2856",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-17T07:17:18.492Z"
+  },
+  {
+    "runId": "be621369-bb9a-47f6-a3ba-e0ac94ea1245",
+    "provenance": {
+      "revision": "016c25ce82002bfc3c107adf931f2880169a7935",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-17T08:34:49.316Z"
+  },
+  {
+    "runId": "1b1c9564-c6ec-419e-aeca-4c5d486f46a4",
+    "provenance": {
+      "revision": "d30ff0d7d77113a74fab1c699c78a7ace753a9b6",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-17T10:41:18.868Z"
+  },
+  {
+    "runId": "38cea3ca-ff55-4a36-bce6-b21676a4283d",
+    "provenance": {
+      "revision": "364465553d19394d5b8df90c65851e6bb5391472",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-17T16:56:29.391Z"
+  },
+  {
+    "runId": "f6ecdf27-9277-4a6e-9592-9e4dff4dadfe",
+    "provenance": {
+      "revision": "364465553d19394d5b8df90c65851e6bb5391472",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-17T17:08:32.492Z"
+  },
+  {
+    "runId": "f8f3384c-9074-45a5-ab31-bf16a5249dc5",
+    "provenance": {
+      "revision": "364465553d19394d5b8df90c65851e6bb5391472",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-17T17:36:14.020Z"
+  },
+  {
+    "runId": "ade448fc-7cb2-47ec-a538-437bcd077d69",
+    "provenance": {
+      "revision": "364465553d19394d5b8df90c65851e6bb5391472",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-17T17:56:05.781Z"
+  },
+  {
+    "runId": "f4b9232e-b066-4d64-b3f6-298796557475",
+    "provenance": {
+      "revision": "364465553d19394d5b8df90c65851e6bb5391472",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-17T18:07:12.494Z"
+  },
+  {
+    "runId": "3589ac3d-cfdb-433b-ad81-31ceb6a0ab70",
+    "provenance": {
+      "revision": "364465553d19394d5b8df90c65851e6bb5391472",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-17T18:17:18.374Z"
+  },
+  {
+    "runId": "b2ab1e47-1550-4495-91ec-deec2b41e662",
+    "provenance": {
+      "revision": "08b456cecc3606107f8a7fe0c6023940e493bc60",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-18T01:58:53.075Z"
+  },
+  {
+    "runId": "2a2fdda5-6e7e-4f4e-b230-fd23e61f4f25",
+    "provenance": {
+      "revision": "08b456cecc3606107f8a7fe0c6023940e493bc60",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-18T02:52:56.159Z"
+  },
+  {
+    "runId": "e8d0a4df-64a8-407e-9e9a-8a55e3a9294a",
+    "provenance": {
+      "revision": "08b456cecc3606107f8a7fe0c6023940e493bc60",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-18T04:04:54.367Z"
+  },
+  {
+    "runId": "5bc4809c-87ff-4121-9809-2a22574b3cc9",
+    "provenance": {
+      "revision": "0cbcfd2b5f72ea44dd9c112ff9ff1157063c65d2",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-18T05:50:23.245Z"
+  },
+  {
+    "runId": "cd21eff5-a076-46dc-907c-ced5a39c977b",
+    "provenance": {
+      "revision": "850ec159b9f68620c35ddfe7bbb7651b8b2643df",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-20T13:48:21.184Z"
+  },
+  {
+    "runId": "485ea38f-05a8-4207-89c8-983a5908af9d",
+    "provenance": {
+      "revision": "243caee75bff9527bf01a0d0def0dc9f0b275b05",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "tierModels": {
+      "l1": "own:openai:gpt-5.6-luna",
+      "l2": "own:openai:gpt-5.6-terra",
+      "l3": "own:openai:gpt-6-astra"
+    },
+    "startedAt": "2026-10-21T05:24:46.080Z"
+  }
+]

@@ -1,0 +1,1940 @@
+{
+  "generatedAt": "2026-10-22T06:32:10.893Z",
+  "protocolSha256": "92ba5cff274fe12653e14a618e714ff6a8e99d5349eb0fe2d75c7d9f6d47c70a",
+  "cohortSha256": "3810dc7c0f22a35930ae6a925be765102b2c0d556ef5f683292ab2d98d436573",
+  "contexts": 67,
+  "plannedReplayCalls": 80,
+  "completedReplayCalls": 80,
+  "replayTotalSubscriptionEquivalentUsd": 0.26052996000000006,
+  "replayStatus": "complete",
+  "followupReason": null,
+  "targetReceiptVisibility": [
+    {
+      "id": "original",
+      "arm": "baseline",
+      "budget": 12000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "original",
+      "arm": "baseline",
+      "budget": 24000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "original",
+      "arm": "baseline",
+      "budget": 48000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "original",
+      "arm": "baseline",
+      "budget": 96000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "original",
+      "arm": "candidate",
+      "budget": 12000,
+      "targetCommandReceiptVisible": true,
+      "partial": true,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "original",
+      "arm": "candidate",
+      "budget": 24000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "original",
+      "arm": "candidate",
+      "budget": 48000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "original",
+      "arm": "candidate",
+      "budget": 96000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "corrected",
+      "arm": "baseline",
+      "budget": 12000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "corrected",
+      "arm": "baseline",
+      "budget": 24000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "corrected",
+      "arm": "baseline",
+      "budget": 48000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "corrected",
+      "arm": "baseline",
+      "budget": 96000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "corrected",
+      "arm": "candidate",
+      "budget": 12000,
+      "targetCommandReceiptVisible": true,
+      "partial": true,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "corrected",
+      "arm": "candidate",
+      "budget": 24000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "corrected",
+      "arm": "candidate",
+      "budget": 48000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "corrected",
+      "arm": "candidate",
+      "budget": 96000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "premium",
+      "arm": "baseline",
+      "budget": 12000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "premium",
+      "arm": "baseline",
+      "budget": 24000,
+      "targetCommandReceiptVisible": false,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "premium",
+      "arm": "baseline",
+      "budget": 48000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "premium",
+      "arm": "baseline",
+      "budget": 96000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "premium",
+      "arm": "candidate",
+      "budget": 12000,
+      "targetCommandReceiptVisible": true,
+      "partial": true,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "premium",
+      "arm": "candidate",
+      "budget": 24000,
+      "targetCommandReceiptVisible": true,
+      "partial": true,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "premium",
+      "arm": "candidate",
+      "budget": 48000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "premium",
+      "arm": "candidate",
+      "budget": 96000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "renewal",
+      "arm": "baseline",
+      "budget": 12000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "renewal",
+      "arm": "baseline",
+      "budget": 24000,
+      "targetCommandReceiptVisible": false,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "renewal",
+      "arm": "baseline",
+      "budget": 48000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "renewal",
+      "arm": "baseline",
+      "budget": 96000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "renewal",
+      "arm": "candidate",
+      "budget": 12000,
+      "targetCommandReceiptVisible": true,
+      "partial": true,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "renewal",
+      "arm": "candidate",
+      "budget": 24000,
+      "targetCommandReceiptVisible": true,
+      "partial": true,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "renewal",
+      "arm": "candidate",
+      "budget": 48000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "renewal",
+      "arm": "candidate",
+      "budget": 96000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "threshold",
+      "arm": "baseline",
+      "budget": 12000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "threshold",
+      "arm": "baseline",
+      "budget": 24000,
+      "targetCommandReceiptVisible": false,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "threshold",
+      "arm": "baseline",
+      "budget": 48000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "threshold",
+      "arm": "baseline",
+      "budget": 96000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "threshold",
+      "arm": "candidate",
+      "budget": 12000,
+      "targetCommandReceiptVisible": true,
+      "partial": true,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "threshold",
+      "arm": "candidate",
+      "budget": 24000,
+      "targetCommandReceiptVisible": true,
+      "partial": true,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "threshold",
+      "arm": "candidate",
+      "budget": 48000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    },
+    {
+      "id": "threshold",
+      "arm": "candidate",
+      "budget": 96000,
+      "targetCommandReceiptVisible": true,
+      "partial": false,
+      "sourcePagesVisible": 0,
+      "sourceSeedPageVisible": false
+    }
+  ],
+  "oracleCorrectCaseDecisions": [
+    {
+      "key": "0:corrected:baseline:24000",
+      "arm": "baseline",
+      "budget": 24000,
+      "repeat": 0,
+      "approved": false,
+      "reasoning": "The suite passes, but the premium sixth-loan and over-threshold fine cases assert only status 409; they do not establish the refusal cause or that the requested copy was otherwise available. The comments are not setup evidence, so those tests cannot distinguish the named rules from unrelated refusals.",
+      "error": null
+    },
+    {
+      "key": "0:corrected:baseline:48000",
+      "arm": "baseline",
+      "budget": 48000,
+      "repeat": 0,
+      "approved": true,
+      "reasoning": "Observed tests exercise all three boundaries against real server sessions: five successful loans then an available sixth refusal, an existing due date advancing from Jan 15 to Jan 29, and fines below, exactly at, and above 500 cents with the expected outcomes. The recorded Node test run passes all 3 tests with zero failures.",
+      "error": null
+    },
+    {
+      "key": "0:corrected:baseline:96000",
+      "arm": "baseline",
+      "budget": 96000,
+      "repeat": 0,
+      "approved": true,
+      "reasoning": "Observed source shows executable regression tests for all three scoped rules, including the five-loan boundary, exact fourteen-day renewal, and fine amounts below, at, and above 500 cents. The isolated Node run reports all 3 tests passing with zero failures.",
+      "error": null
+    },
+    {
+      "key": "0:corrected:candidate:12000",
+      "arm": "candidate",
+      "budget": 12000,
+      "repeat": 0,
+      "approved": true,
+      "reasoning": "Observed test sources cover all three rules with discriminatory boundary assertions: five successful premium loans then an available sixth refused; due date changes from 2026-01-15 to 2026-01-29; fines below, at, and above 500 cents yield allowed, allowed, and refused outcomes. The recorded node test run passed all 3 with 0 failures.",
+      "error": null
+    },
+    {
+      "key": "0:corrected:candidate:24000",
+      "arm": "candidate",
+      "budget": 24000,
+      "repeat": 0,
+      "approved": false,
+      "reasoning": "The premium test establishes five successful loans but does not independently establish that b5 is available or that the sixth 409 is caused by the five-loan limit rather than inventory or another refusal condition; the comment is not executable evidence.",
+      "error": null
+    },
+    {
+      "key": "0:corrected:candidate:48000",
+      "arm": "candidate",
+      "budget": 48000,
+      "repeat": 0,
+      "approved": true,
+      "reasoning": "Observed source shows three executable regression tests exercising the real server through fetch: five successful premium loans followed by an available sixth refusal, renewal from a verified due date to exactly fourteen days later, and fine values below, at, and above 500 cents with the required allow/block outcomes. The isolated Node run reports 3 passing and 0 failing tests.",
+      "error": null
+    },
+    {
+      "key": "0:corrected:candidate:96000",
+      "arm": "candidate",
+      "budget": 96000,
+      "repeat": 0,
+      "approved": false,
+      "reasoning": "The three tests pass, but the premium-limit test does not establish that b5 is otherwise available: its comment is only a claim, while a 409 could reflect inventory, holds, fines, or another conflict. Thus it cannot distinguish the five-loan rule from competing refusal causes.",
+      "error": null
+    },
+    {
+      "key": "0:corrected:baseline:12000",
+      "arm": "baseline",
+      "budget": 12000,
+      "repeat": 0,
+      "approved": false,
+      "reasoning": "The three tests pass, but the premium-limit test does not establish that b5 is actually available; its comment is not an executable precondition. A 409 could therefore reflect inventory or another refusal cause rather than the sixth-loan limit.",
+      "error": null
+    },
+    {
+      "key": "1:corrected:baseline:48000",
+      "arm": "baseline",
+      "budget": 48000,
+      "repeat": 1,
+      "approved": false,
+      "reasoning": "The premium-limit test does not establish that b5 has an available copy or that m3 is premium; its comment is not an assertion. The sixth 409 could therefore arise from another refusal cause, so the named limit is not discriminated despite the passing run.",
+      "error": null
+    },
+    {
+      "key": "1:corrected:baseline:96000",
+      "arm": "baseline",
+      "budget": 96000,
+      "repeat": 1,
+      "approved": true,
+      "reasoning": "Observed source and execution establish all three scoped regression rules: five successful premium loans followed by a refused sixth, renewal from 2026-01-15 to 2026-01-29, and fines below/at 500 allowed while 525 is refused. The recorded Node test run passed all 3 tests with zero failures.",
+      "error": null
+    },
+    {
+      "key": "1:corrected:candidate:12000",
+      "arm": "candidate",
+      "budget": 12000,
+      "repeat": 1,
+      "approved": true,
+      "reasoning": "Observed source tests directly cover all three boundaries: five successful premium loans followed by a sixth refusal, renewal from 2026-01-15 to 2026-01-29, and fines below/at/above 500 cents with expected borrow outcomes. The isolated Node run reports 3 passes and 0 failures.",
+      "error": null
+    },
+    {
+      "key": "1:corrected:candidate:24000",
+      "arm": "candidate",
+      "budget": 24000,
+      "repeat": 1,
+      "approved": false,
+      "reasoning": "The premium-limit test passes, but its sixth request only asserts status 409; the suite does not establish via an executable assertion that b5 is otherwise available or that refusal is caused by the five-loan limit rather than inventory availability.",
+      "error": null
+    },
+    {
+      "key": "1:corrected:candidate:48000",
+      "arm": "candidate",
+      "budget": 48000,
+      "repeat": 1,
+      "approved": false,
+      "reasoning": "The renewal and fine-boundary tests establish their requirements, but the premium test does not prove the sixth copy was otherwise available: its availability is only a source comment, while HTTP 409 could have another refusal cause. Add an observed setup/assertion establishing b5 availability and absence of holds/fines before the sixth loan attempt.",
+      "error": null
+    },
+    {
+      "key": "1:corrected:candidate:96000",
+      "arm": "candidate",
+      "budget": 96000,
+      "repeat": 1,
+      "approved": false,
+      "reasoning": "The premium test does not establish that b5's sixth copy is otherwise available or that the 409 specifically reflects the five-loan limit; a matching status alone could reflect another refusal cause. Renewal and fine-threshold cases are adequately distinguished and all three tests pass.",
+      "error": null
+    },
+    {
+      "key": "1:corrected:baseline:12000",
+      "arm": "baseline",
+      "budget": 12000,
+      "repeat": 1,
+      "approved": false,
+      "reasoning": "The premium regression test asserts only status codes; it does not establish that the sixth copy is otherwise available or that the refusal is caused by the five-loan limit rather than another constraint. The comment is not executable evidence. Renewal and fine-boundary tests are sufficient.",
+      "error": null
+    },
+    {
+      "key": "1:corrected:baseline:24000",
+      "arm": "baseline",
+      "budget": 24000,
+      "repeat": 1,
+      "approved": false,
+      "reasoning": "The premium test proves five successful loans followed by a 409, but does not executablely establish that b5 is otherwise available; its comment is not evidence, so another refusal cause could pass. The renewal and fine-boundary tests are sufficient and all three passed.",
+      "error": null
+    }
+  ],
+  "observedDevelopmentRework": {
+    "runId": "b920faf6-7bd7-4e89-87f8-7176c1c97f92",
+    "traceSha256": "8469f574b34a09688d5bbd8e2b44b98ea5e5942936bb3ef54dfcd0ac3445116a",
+    "fromEventIndex": 874,
+    "throughEventIndex": 1010,
+    "startTs": 1792647168151,
+    "endTs": 1792647638656,
+    "elapsedMs": 470505,
+    "modelCalls": 13,
+    "toolCalls": 91,
+    "subscriptionEquivalentUsd": 0.5425215600000001,
+    "summedCallDurationMs": 449815,
+    "calls": [
+      {
+        "id": "4a4cb1de-e9ca-460b-b73f-741d2c14c842",
+        "role": "plan",
+        "costUsd": 0.0086052,
+        "durationMs": 6381
+      },
+      {
+        "id": "d54db5b3-8b27-4d61-b991-22dc721a9157",
+        "role": "validate-plan",
+        "costUsd": 0.006392280000000001,
+        "durationMs": 5522
+      },
+      {
+        "id": "f69216db-facb-4093-8f63-771d76ee617d",
+        "role": "execute",
+        "costUsd": 0.043924080000000004,
+        "durationMs": 90120
+      },
+      {
+        "id": "1128c57b-6053-47ac-b728-ac892e1b99ea",
+        "role": "validate-result",
+        "costUsd": 0.011075279999999998,
+        "durationMs": 11248
+      },
+      {
+        "id": "ed09ff4d-1bdc-4a22-ae55-7e9d4c503b9b",
+        "role": "plan",
+        "costUsd": 0.0086916,
+        "durationMs": 6298
+      },
+      {
+        "id": "e66e343c-6292-4840-b543-0ae9aefc46d1",
+        "role": "execute",
+        "costUsd": 0.04261024,
+        "durationMs": 118083
+      },
+      {
+        "id": "2f84cba3-e4ca-4b74-bec9-4f2af5be9348",
+        "role": "validate-result",
+        "costUsd": 0.01028828,
+        "durationMs": 8892
+      },
+      {
+        "id": "f98f1274-298c-41e3-87b6-3a0667f2b0ad",
+        "role": "skill",
+        "costUsd": 0.020862,
+        "durationMs": 7814
+      },
+      {
+        "id": "bfd1f56a-4707-4558-b50f-6bf19b3e17ec",
+        "role": "fallback-plan",
+        "costUsd": 0.07,
+        "durationMs": 12309
+      },
+      {
+        "id": "7b195d9a-994b-4c4b-bae7-0467d5d74d4a",
+        "role": "fallback-execute",
+        "costUsd": 0.0631536,
+        "durationMs": 112843
+      },
+      {
+        "id": "bc32d015-637a-4bea-a122-60015c2bf9ff",
+        "role": "execute",
+        "costUsd": 0.050592,
+        "durationMs": 34805
+      },
+      {
+        "id": "4d2ad339-b68b-45b5-ae04-51796b095902",
+        "role": "validate-result",
+        "costUsd": 0.013077,
+        "durationMs": 10476
+      },
+      {
+        "id": "44986365-77a9-42e2-b208-5373c0695622",
+        "role": "execute",
+        "costUsd": 0.19325,
+        "durationMs": 25024
+      }
+    ],
+    "attribution": "Descriptive run-wide interval following a refusal with omitted successes. Includes concurrent or unrelated work; not a causal estimate of avoidable retries."
+  },
+  "identicalPreparedRequestGroups": [
+    {
+      "id": "original",
+      "distinctInputs": 5,
+      "groups": [
+        {
+          "sha256": "31c90f70808106e514a9f97ac8857d93d3cbd62e4c1163c90ea82c8f32436e76",
+          "arms": [
+            [
+              "baseline",
+              12000
+            ]
+          ]
+        },
+        {
+          "sha256": "52bffdc61f7ce6328ca6a47b7a572f8de4cf3b1a6c4f3279f9bfe5cc160e21c2",
+          "arms": [
+            [
+              "baseline",
+              24000
+            ]
+          ]
+        },
+        {
+          "sha256": "34aac821f739a76464949e817a11967eac118f3095b64212e1175d57b9a49c31",
+          "arms": [
+            [
+              "baseline",
+              48000
+            ],
+            [
+              "baseline",
+              96000
+            ],
+            [
+              "candidate",
+              48000
+            ],
+            [
+              "candidate",
+              96000
+            ]
+          ]
+        },
+        {
+          "sha256": "b4f3b890ab7879dfcc769ed99e99d50ee9c7dd34dc53e3f8e59fe0d6e21c5faf",
+          "arms": [
+            [
+              "candidate",
+              12000
+            ]
+          ]
+        },
+        {
+          "sha256": "fd84395a7d3d2238561574db65ec4b7b2ea352a41a6d220b84d2c552bac12e68",
+          "arms": [
+            [
+              "candidate",
+              24000
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "corrected",
+      "distinctInputs": 5,
+      "groups": [
+        {
+          "sha256": "a59a519fcf39ca8bf301facdb37fd4381d2002a1252e4193fcaf8b6f1c21f5ff",
+          "arms": [
+            [
+              "baseline",
+              12000
+            ]
+          ]
+        },
+        {
+          "sha256": "fbeca14cd7bbe8765b33a728d6ef1f0e584b73e59255c33973020c9cefd2b7d5",
+          "arms": [
+            [
+              "baseline",
+              24000
+            ]
+          ]
+        },
+        {
+          "sha256": "65e4465883e1441fec8168f47c6b75fd54b32f6d84e2b4e15d90958d390e32f9",
+          "arms": [
+            [
+              "baseline",
+              48000
+            ],
+            [
+              "baseline",
+              96000
+            ],
+            [
+              "candidate",
+              48000
+            ],
+            [
+              "candidate",
+              96000
+            ]
+          ]
+        },
+        {
+          "sha256": "0eeb02f0492b38c9447e50a68939fd1228051ee7fe9aba6308df492362a07000",
+          "arms": [
+            [
+              "candidate",
+              12000
+            ]
+          ]
+        },
+        {
+          "sha256": "7b610291d14cfd3840e792ac923ac3ff6bb80b34874c07d36173ac690b56505f",
+          "arms": [
+            [
+              "candidate",
+              24000
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "premium",
+      "distinctInputs": 5,
+      "groups": [
+        {
+          "sha256": "d367b2a92070609f1e6e0f5cc67779e04c2d8112c9e41cc2b4dcdec6d70f48ce",
+          "arms": [
+            [
+              "baseline",
+              12000
+            ]
+          ]
+        },
+        {
+          "sha256": "ef30216fa7374e258e4daf71d95b60d16b42565ec0ec956e3170f3fb3395ab45",
+          "arms": [
+            [
+              "baseline",
+              24000
+            ]
+          ]
+        },
+        {
+          "sha256": "096f9cb720382cbeac0ec0bc34a18d5aaae319c9fff3fb029309dc7143d6ad13",
+          "arms": [
+            [
+              "baseline",
+              48000
+            ],
+            [
+              "baseline",
+              96000
+            ],
+            [
+              "candidate",
+              48000
+            ],
+            [
+              "candidate",
+              96000
+            ]
+          ]
+        },
+        {
+          "sha256": "f59d7bf8d3951ed3788038c183ecbe478ed03ee74a055999eed9c1cd604fdff8",
+          "arms": [
+            [
+              "candidate",
+              12000
+            ]
+          ]
+        },
+        {
+          "sha256": "bfb2580f8fd082140c1e50b005c41ee7c48ca8a4ad48124654026877074639b5",
+          "arms": [
+            [
+              "candidate",
+              24000
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "renewal",
+      "distinctInputs": 5,
+      "groups": [
+        {
+          "sha256": "bce011464441982e0f0b21441b4ce39501aaca66ab2d7a13c5c0d8778ebc26a0",
+          "arms": [
+            [
+              "baseline",
+              12000
+            ]
+          ]
+        },
+        {
+          "sha256": "ef30216fa7374e258e4daf71d95b60d16b42565ec0ec956e3170f3fb3395ab45",
+          "arms": [
+            [
+              "baseline",
+              24000
+            ]
+          ]
+        },
+        {
+          "sha256": "8e3247a1e5b76e26e1fad9bd56af3dd78c87752b256d3605f916f38da0f36167",
+          "arms": [
+            [
+              "baseline",
+              48000
+            ],
+            [
+              "baseline",
+              96000
+            ],
+            [
+              "candidate",
+              48000
+            ],
+            [
+              "candidate",
+              96000
+            ]
+          ]
+        },
+        {
+          "sha256": "5ed5d31bc4897fe349d44bed9c379a3411d6f6c239ec466a850959df0fe3191f",
+          "arms": [
+            [
+              "candidate",
+              12000
+            ]
+          ]
+        },
+        {
+          "sha256": "107c110008b632e075e01c75b8aa256d090f4c9d8bc6c23d2f8043f98f11712e",
+          "arms": [
+            [
+              "candidate",
+              24000
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "threshold",
+      "distinctInputs": 5,
+      "groups": [
+        {
+          "sha256": "653a4121abc68dda5bd8d642ea31a65b4e0cee64b12ba5a0a78fb76ebae6b326",
+          "arms": [
+            [
+              "baseline",
+              12000
+            ]
+          ]
+        },
+        {
+          "sha256": "ef30216fa7374e258e4daf71d95b60d16b42565ec0ec956e3170f3fb3395ab45",
+          "arms": [
+            [
+              "baseline",
+              24000
+            ]
+          ]
+        },
+        {
+          "sha256": "953aaed44ab84d90452ebb5860753beff9eecedc124078eb37f7875aee036172",
+          "arms": [
+            [
+              "baseline",
+              48000
+            ],
+            [
+              "baseline",
+              96000
+            ],
+            [
+              "candidate",
+              48000
+            ],
+            [
+              "candidate",
+              96000
+            ]
+          ]
+        },
+        {
+          "sha256": "41c9e77ff0069e81f699ea156911cc8c4e26041493eb7db9ce583960a3bd3bff",
+          "arms": [
+            [
+              "candidate",
+              12000
+            ]
+          ]
+        },
+        {
+          "sha256": "73f04e1ebe79ed44ed4ac272e36ba864f6e919b4e63473dd724fc04240c7e8cf",
+          "arms": [
+            [
+              "candidate",
+              24000
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "oracleDisagreementDefinition": "False-refusal field counts refusal of an oracle-correct case. In the initial series, absent seed/precondition evidence can make that refusal reasonable; it is not automatically an evidence-budget error.",
+  "canonicalModelPricesPerMillionTokens": {
+    "input": 0.2,
+    "output": 1.2,
+    "cachedInput": 0.02
+  },
+  "arms": [
+    {
+      "arm": "baseline",
+      "budget": 12000,
+      "contexts": 67,
+      "commands": 1137,
+      "retained": 335,
+      "successes": 869,
+      "successesRetained": 239,
+      "failures": 252,
+      "failuresRetained": 89,
+      "partialReceipts": 0,
+      "meanChars": 10979.970149253732,
+      "maxChars": 12007,
+      "replayCalls": 10,
+      "judged": 10,
+      "validCases": 2,
+      "invalidCases": 8,
+      "meanPreparedEvidenceChars": 11566.4,
+      "maxPreparedEvidenceChars": 11913,
+      "falseRefusals": 2,
+      "falseApprovals": 0,
+      "errors": 0,
+      "totalSubscriptionEquivalentUsd": 0.025369839999999998,
+      "meanSubscriptionEquivalentUsd": 0.002536984,
+      "meanWithoutCacheEquivalentUsd": 0.00442396,
+      "uncachedInputTokens": 87656,
+      "cachedInputTokens": 104832,
+      "cacheCreationInputTokens": 0,
+      "totalInputTokens": 192488,
+      "outputTokens": 4785,
+      "meanDurationMs": 10957.1,
+      "medianDurationMs": 10794.5,
+      "byCase": [
+        {
+          "id": "original",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "corrected",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": true,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": true,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "premium",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "renewal",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "threshold",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "arm": "baseline",
+      "budget": 24000,
+      "contexts": 67,
+      "commands": 1137,
+      "retained": 503,
+      "successes": 869,
+      "successesRetained": 362,
+      "failures": 252,
+      "failuresRetained": 131,
+      "partialReceipts": 0,
+      "meanChars": 20664.417910447763,
+      "maxChars": 23993,
+      "replayCalls": 10,
+      "judged": 10,
+      "validCases": 2,
+      "invalidCases": 8,
+      "meanPreparedEvidenceChars": 23026.8,
+      "maxPreparedEvidenceChars": 23385,
+      "falseRefusals": 2,
+      "falseApprovals": 0,
+      "errors": 0,
+      "totalSubscriptionEquivalentUsd": 0.03846988,
+      "meanSubscriptionEquivalentUsd": 0.003846988,
+      "meanWithoutCacheEquivalentUsd": 0.004925260000000001,
+      "uncachedInputTokens": 150809,
+      "cachedInputTokens": 59904,
+      "cacheCreationInputTokens": 0,
+      "totalInputTokens": 210713,
+      "outputTokens": 5925,
+      "meanDurationMs": 11396.6,
+      "medianDurationMs": 10274.5,
+      "byCase": [
+        {
+          "id": "original",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "corrected",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": true,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": true,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "premium",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "renewal",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "threshold",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "arm": "baseline",
+      "budget": 48000,
+      "contexts": 67,
+      "commands": 1137,
+      "retained": 738,
+      "successes": 869,
+      "successesRetained": 549,
+      "failures": 252,
+      "failuresRetained": 178,
+      "partialReceipts": 0,
+      "meanChars": 34574.64179104478,
+      "maxChars": 48035,
+      "replayCalls": 10,
+      "judged": 10,
+      "validCases": 2,
+      "invalidCases": 8,
+      "meanPreparedEvidenceChars": 32189,
+      "maxPreparedEvidenceChars": 32886,
+      "falseRefusals": 1,
+      "falseApprovals": 0,
+      "errors": 0,
+      "totalSubscriptionEquivalentUsd": 0.03436852,
+      "meanSubscriptionEquivalentUsd": 0.003436852,
+      "meanWithoutCacheEquivalentUsd": 0.0050542600000000005,
+      "uncachedInputTokens": 137411,
+      "cachedInputTokens": 89856,
+      "cacheCreationInputTokens": 0,
+      "totalInputTokens": 227267,
+      "outputTokens": 4241,
+      "meanDurationMs": 11913.1,
+      "medianDurationMs": 10736.5,
+      "byCase": [
+        {
+          "id": "original",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "corrected",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": true,
+              "approved": true,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": true,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "premium",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "renewal",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "threshold",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "arm": "baseline",
+      "budget": 96000,
+      "contexts": 67,
+      "commands": 1137,
+      "retained": 1023,
+      "successes": 869,
+      "successesRetained": 764,
+      "failures": 252,
+      "failuresRetained": 244,
+      "partialReceipts": 0,
+      "meanChars": 48886.37313432836,
+      "maxChars": 96055,
+      "replayCalls": 10,
+      "judged": 10,
+      "validCases": 2,
+      "invalidCases": 8,
+      "meanPreparedEvidenceChars": 32189,
+      "maxPreparedEvidenceChars": 32886,
+      "falseRefusals": 0,
+      "falseApprovals": 0,
+      "errors": 0,
+      "totalSubscriptionEquivalentUsd": 0.031128440000000004,
+      "meanSubscriptionEquivalentUsd": 0.0031128440000000005,
+      "meanWithoutCacheEquivalentUsd": 0.00499982,
+      "uncachedInputTokens": 122437,
+      "cachedInputTokens": 104832,
+      "cacheCreationInputTokens": 0,
+      "totalInputTokens": 227269,
+      "outputTokens": 3787,
+      "meanDurationMs": 11196.7,
+      "medianDurationMs": 9696.5,
+      "byCase": [
+        {
+          "id": "original",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "corrected",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": true,
+              "approved": true,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": true,
+              "approved": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "premium",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "renewal",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "threshold",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "arm": "candidate",
+      "budget": 12000,
+      "contexts": 67,
+      "commands": 1137,
+      "retained": 746,
+      "successes": 869,
+      "successesRetained": 563,
+      "failures": 252,
+      "failuresRetained": 171,
+      "partialReceipts": 612,
+      "meanChars": 11225.253731343284,
+      "maxChars": 11999,
+      "replayCalls": 10,
+      "judged": 10,
+      "validCases": 2,
+      "invalidCases": 8,
+      "meanPreparedEvidenceChars": 11999,
+      "maxPreparedEvidenceChars": 11999,
+      "falseRefusals": 0,
+      "falseApprovals": 0,
+      "errors": 0,
+      "totalSubscriptionEquivalentUsd": 0.02556944,
+      "meanSubscriptionEquivalentUsd": 0.002556944,
+      "meanWithoutCacheEquivalentUsd": 0.0044439200000000005,
+      "uncachedInputTokens": 90628,
+      "cachedInputTokens": 104832,
+      "cacheCreationInputTokens": 0,
+      "totalInputTokens": 195460,
+      "outputTokens": 4456,
+      "meanDurationMs": 11549.7,
+      "medianDurationMs": 10734,
+      "byCase": [
+        {
+          "id": "original",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "corrected",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": true,
+              "approved": true,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": true,
+              "approved": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "premium",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "renewal",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "threshold",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "arm": "candidate",
+      "budget": 24000,
+      "contexts": 67,
+      "commands": 1137,
+      "retained": 983,
+      "successes": 869,
+      "successesRetained": 738,
+      "failures": 252,
+      "failuresRetained": 229,
+      "partialReceipts": 725,
+      "meanChars": 20722.328358208953,
+      "maxChars": 23999,
+      "replayCalls": 10,
+      "judged": 10,
+      "validCases": 2,
+      "invalidCases": 8,
+      "meanPreparedEvidenceChars": 23740.6,
+      "maxPreparedEvidenceChars": 23999,
+      "falseRefusals": 2,
+      "falseApprovals": 0,
+      "errors": 0,
+      "totalSubscriptionEquivalentUsd": 0.03251852,
+      "meanSubscriptionEquivalentUsd": 0.0032518520000000004,
+      "meanWithoutCacheEquivalentUsd": 0.00486926,
+      "uncachedInputTokens": 124945,
+      "cachedInputTokens": 89856,
+      "cacheCreationInputTokens": 0,
+      "totalInputTokens": 214801,
+      "outputTokens": 4777,
+      "meanDurationMs": 10093.1,
+      "medianDurationMs": 9895,
+      "byCase": [
+        {
+          "id": "original",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "corrected",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": true,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": true,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "premium",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "renewal",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "threshold",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "arm": "candidate",
+      "budget": 48000,
+      "contexts": 67,
+      "commands": 1137,
+      "retained": 1119,
+      "successes": 869,
+      "successesRetained": 853,
+      "failures": 252,
+      "failuresRetained": 250,
+      "partialReceipts": 645,
+      "meanChars": 34327.77611940299,
+      "maxChars": 47999,
+      "replayCalls": 10,
+      "judged": 10,
+      "validCases": 2,
+      "invalidCases": 8,
+      "meanPreparedEvidenceChars": 32189,
+      "maxPreparedEvidenceChars": 32886,
+      "falseRefusals": 1,
+      "falseApprovals": 0,
+      "errors": 0,
+      "totalSubscriptionEquivalentUsd": 0.0378804,
+      "meanSubscriptionEquivalentUsd": 0.0037880400000000003,
+      "meanWithoutCacheEquivalentUsd": 0.005135880000000001,
+      "uncachedInputTokens": 152388,
+      "cachedInputTokens": 74880,
+      "cacheCreationInputTokens": 0,
+      "totalInputTokens": 227268,
+      "outputTokens": 4921,
+      "meanDurationMs": 12162.6,
+      "medianDurationMs": 10073,
+      "byCase": [
+        {
+          "id": "original",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "corrected",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": true,
+              "approved": true,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": true,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "premium",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "renewal",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "threshold",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "arm": "candidate",
+      "budget": 96000,
+      "contexts": 67,
+      "commands": 1137,
+      "retained": 1137,
+      "successes": 869,
+      "successesRetained": 869,
+      "failures": 252,
+      "failuresRetained": 252,
+      "partialReceipts": 268,
+      "meanChars": 47630.44776119403,
+      "maxChars": 95999,
+      "replayCalls": 10,
+      "judged": 10,
+      "validCases": 2,
+      "invalidCases": 8,
+      "meanPreparedEvidenceChars": 32189,
+      "maxPreparedEvidenceChars": 32886,
+      "falseRefusals": 2,
+      "falseApprovals": 0,
+      "errors": 0,
+      "totalSubscriptionEquivalentUsd": 0.03522492000000001,
+      "meanSubscriptionEquivalentUsd": 0.0035224920000000008,
+      "meanWithoutCacheEquivalentUsd": 0.005139900000000001,
+      "uncachedInputTokens": 137415,
+      "cachedInputTokens": 89856,
+      "cacheCreationInputTokens": 0,
+      "totalInputTokens": 227271,
+      "outputTokens": 4954,
+      "meanDurationMs": 10123.9,
+      "medianDurationMs": 9971,
+      "byCase": [
+        {
+          "id": "original",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "corrected",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": true,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": true,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "premium",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "renewal",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "id": "threshold",
+          "outcomes": [
+            {
+              "repeat": 0,
+              "expected": false,
+              "approved": false,
+              "error": null
+            },
+            {
+              "repeat": 1,
+              "expected": false,
+              "approved": false,
+              "error": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "historicalReworkWindows": {
+    "count": 67,
+    "medianSubscriptionEquivalentUsd": 1.96646688,
+    "maximumSubscriptionEquivalentUsd": 3.7118574400000006,
+    "attribution": "Overlapping run-wide windows may include parallel and unrelated work. Do not sum them or attribute them causally to omissions."
+  },
+  "developmentIncident": {
+    "runId": "b920faf6-7bd7-4e89-87f8-7176c1c97f92",
+    "eventId": "79ae0ba8-e508-4dbc-8c3b-d68c021afeaa",
+    "eventIndex": 874,
+    "branch": "c68eeac0-1145-4e91-8ef2-e36beae0db91",
+    "attempt": 1,
+    "records": 93,
+    "commands": 42,
+    "inputSha256": "0aad5b046dd1a1e60603531330661d126130c4ab12f84fab2ac78ea9962638cf",
+    "originalVerdict": false,
+    "originalDurationMs": 7223,
+    "originalUsage": {
+      "inputTokens": 42013,
+      "outputTokens": 864,
+      "cacheReadInputTokens": 11904,
+      "cacheCreationInputTokens": 0
+    },
+    "originalCostUsd": 0.009677479999999999,
+    "followingWindow": {
+      "endIndex": 1010,
+      "modelCalls": 13,
+      "toolCalls": 91,
+      "subscriptionEquivalentUsd": 0.5425215600000001,
+      "attribution": "Run-wide work until next source write or root acceptance; concurrent/unrelated work may be included."
+    }
+  },
+  "limitations": [
+    "Retained receipts, especially partial receipts, do not establish assertion coverage or freshness.",
+    "67 retrospective contexts from three related Attica runs; observations recur across contexts.",
+    "Five previously known library fixtures with synthetic unrelated evidence pressure, two repetitions; exploratory, not independent end-to-end runs.",
+    "Initial prompts omit implementation seed evidence requested by several reviewers. Refusals of the oracle-correct case are disagreements with that oracle label, not proved truncation-caused mistakes. The separately preregistered follow-up supplies actual source identically in every arm without changing the tests.",
+    "Tool-free model judgments measure direct verification cost and errors, not actual remediation cost or eventual delivery.",
+    "USD values are canonical model-price equivalents for the existing subscription, not an additional API invoice.",
+    "Cache state and call order affect observed cost. Rotating arm order does not eliminate this effect; the no-cache normalisation is a model-price sensitivity calculation, not observed billing.",
+    "A global optimal budget or causal total-run savings cannot be established by this pilot."
+  ]
+}

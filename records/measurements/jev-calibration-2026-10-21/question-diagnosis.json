@@ -1,0 +1,482 @@
+[
+  {
+    "case": "auditPlan",
+    "modelEventId": "3c7bdf59-a4d9-4875-a24d-0fd8b96ee9ca",
+    "jevEventId": "15ce08eb-1b6a-4eb6-8f1f-e63e633b36ba",
+    "provenance": {
+      "revision": "8530c87996e94f0eea65591b91d4ef08c19a8e9c",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "reconstructionOnly": true,
+    "proseRequirements": [
+      "Repair or complete the bounded Spitogatos collector in collectors/spitogatos.js and add the reproducible command collect-spitogatos.mjs.",
+      "Discover a valid public Spitogatos URL and inspect public robots indications, then make at most six useful text-only requests spaced at least five seconds apart and stop immediately after acquiring an exploitable Attica sale listing or upon CAPTCHA, authentication, explicit refusal, or other actual block.",
+      "Retain the complete fresh textual source (gzip when useful) at evidence/spitogatos/latest-response.txt.gz, with its URL, capture time, HTTP status, SHA-256, and fresh-versus-replay status in evidence/spitogatos/manifest.json.",
+      "Export only observed normalized records separately to data/spitogatos/listings.csv and data/spitogatos/listings.jsonl with identifier, URL, price or surface, location, type, available dates, and only published coordinates plus precision/masking indication",
+      "do not invent addresses, download media, use paid services, schedule work, or alter xe.gr data/evidence.",
+      "If access is blocked, retain the source and honestly produce zero Spitogatos rows.",
+      "Add offline parser, normalization, and access-refusal tests in tests/spitogatos.test.js",
+      "execute them and the three existing suites.",
+      "Update README.md with concise English command usage, bounded-access behavior, and observed limitations."
+    ],
+    "requirementCount": 9,
+    "recordedJevRequirementCount": 9,
+    "historicalReplayRequirementCount": 19,
+    "historicalReplayAddsContextProse": true,
+    "context": {
+      "rawSerializedChars": 42335,
+      "budgetChars": 20000,
+      "keptFieldChars": 20013,
+      "truncated": true,
+      "markers": [
+        {
+          "marker": "Acceptance criteria this phase must prove",
+          "offsetInSerializedContext": 41816,
+          "presentAfterCap": false
+        },
+        {
+          "marker": "- c1: A fresh Spitogatos response yields",
+          "offsetInSerializedContext": 41961,
+          "presentAfterCap": false
+        }
+      ]
+    },
+    "groundTruth": {
+      "rawChars": 0,
+      "budgetChars": 8000,
+      "keptFieldChars": 0,
+      "removedMiddleContainsProtectedFilesDeclaration": false,
+      "removedMiddleContainsChecksumCall": false
+    },
+    "evidence": {
+      "modelLines": 0,
+      "jevLinesIncludingOmissionNotice": 0,
+      "serializedChars": 2
+    },
+    "originalQuestion": {
+      "type": "choice",
+      "instructions": "How does `plan` treat `requirements[0]`?",
+      "criteria": {
+        "covered": {
+          "what": "The plan commits to it: a step, its proposed action or its expected output names or plainly includes it."
+        },
+        "omitted": {
+          "what": "The plan neither mentions this requirement nor clearly includes it in a step."
+        },
+        "contradicted": {
+          "what": "The plan proposes something that conflicts with it: a different artefact, a skipped or deferred part, or a change it forbids."
+        }
+      }
+    },
+    "proposedQuestion": {
+      "type": "choice",
+      "instructions": "For requirements[i], classify what the plan commits to doing or checking. Every expressly required target, condition, case, bound and sequence must be included, explicitly or by an unambiguous equivalent. A general promise to test does not supply omitted check conditions. Judge commitments, not execution evidence or implementation code. An allowed blocked outcome may be reported, but cannot be claimed to satisfy an unmet success criterion. Apply only this phase's assigned requirements.",
+      "criteria": {
+        "covered": {
+          "what": "The plan commits to every required part of this item, with enough action or check detail to identify its target and the conditions expressly required by the task. Equivalent wording is allowed; execution evidence is not required yet."
+        },
+        "omitted": {
+          "what": "At least one required part or check condition is absent or left to inference, even if the plan addresses the general topic and includes other concrete actions."
+        },
+        "contradicted": {
+          "what": "The plan explicitly proposes an action, omission, deferral or success claim incompatible with a binding requirement of this phase. An allowed diagnostic failure outcome is not itself a contradiction; claiming that outcome satisfies an unmet success criterion is."
+        }
+      }
+    },
+    "modelReference": {
+      "approved": false,
+      "reasoning": "The plan's expectedOutput explicitly permits a blocked zero-row diagnostic, but this phase's acceptance criterion requires a fresh Spitogatos response yielding at least one real Attica sale listing with source URL, identifier, price or area, and location. The plan must explicitly target and verify those fields.",
+      "modifications": {
+        "additionalContext": "Revise the plan and expectedOutput to require acquiring and asserting one fresh Attica sale listing with source URL, identifier, price or surface, and location; do not present zero rows as satisfying c1."
+      },
+      "scope": "ephemeral"
+    },
+    "observedJevAnswer": {
+      "yes": {
+        "requirement_1": 1,
+        "requirement_2": 1,
+        "requirement_3": 0.99,
+        "requirement_4": 0.96,
+        "requirement_5": 0.98,
+        "requirement_6": 1,
+        "requirement_7": 0.97,
+        "requirement_8": 0.98,
+        "requirement_9": 0.96,
+        "defers_or_refuses": 0.1,
+        "vague": 0.11,
+        "acceptable": 0.89
+      },
+      "distributions": {
+        "requirement_1": {
+          "covered": 1,
+          "omitted": 0,
+          "contradicted": 0
+        },
+        "requirement_2": {
+          "covered": 1,
+          "omitted": 0,
+          "contradicted": 0
+        },
+        "requirement_3": {
+          "covered": 0.99,
+          "omitted": 0.01,
+          "contradicted": 0
+        },
+        "requirement_4": {
+          "covered": 0.96,
+          "omitted": 0.04,
+          "contradicted": 0
+        },
+        "requirement_5": {
+          "covered": 0.98,
+          "omitted": 0.02,
+          "contradicted": 0
+        },
+        "requirement_6": {
+          "covered": 1,
+          "omitted": 0,
+          "contradicted": 0
+        },
+        "requirement_7": {
+          "covered": 0.97,
+          "omitted": 0.01,
+          "contradicted": 0.02
+        },
+        "requirement_8": {
+          "covered": 0.98,
+          "omitted": 0.01,
+          "contradicted": 0.01
+        },
+        "requirement_9": {
+          "covered": 0.96,
+          "omitted": 0.03,
+          "contradicted": 0.01
+        }
+      }
+    }
+  },
+  {
+    "case": "auditResult",
+    "modelEventId": "02500b38-a77e-44e9-9404-e7af67f0be4a",
+    "jevEventId": "6593497c-76d4-442c-97ee-465ff1e3333f",
+    "provenance": {
+      "revision": "d4e4b29503330df5b3790089d8189504b8032982",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "reconstructionOnly": true,
+    "proseRequirements": [
+      "Reproduire hors ligne, avant toute réparation, les échecs de tests/historical-export.test.js et tests/spitogatos-browser.test.js",
+      "enregistrer séparément leurs sorties initiales et les empreintes des deux suites, de leurs archives/fixtures effectivement lues, afin qu’aucune preuve finale ne remplace ces observations."
+    ],
+    "requirementCount": 2,
+    "recordedJevRequirementCount": 2,
+    "historicalReplayRequirementCount": 2,
+    "historicalReplayAddsContextProse": false,
+    "context": {
+      "rawSerializedChars": 89843,
+      "budgetChars": 20000,
+      "keptFieldChars": 20013,
+      "truncated": true,
+      "markers": [
+        {
+          "marker": "Acceptance criteria this phase must prove",
+          "offsetInSerializedContext": -1,
+          "presentAfterCap": false
+        },
+        {
+          "marker": "- c1: A fresh Spitogatos response yields",
+          "offsetInSerializedContext": -1,
+          "presentAfterCap": false
+        }
+      ]
+    },
+    "groundTruth": {
+      "rawChars": 24246,
+      "budgetChars": 8000,
+      "keptFieldChars": 8024,
+      "removedMiddleContainsProtectedFilesDeclaration": true,
+      "removedMiddleContainsChecksumCall": true
+    },
+    "evidence": {
+      "modelLines": 11,
+      "jevLinesIncludingOmissionNotice": 11,
+      "serializedChars": 18275
+    },
+    "originalQuestion": {
+      "type": "choice",
+      "instructions": "What do `evidence` and `groundTruth` show about `requirements[0]`? Match observations to this requirement's exact target and check. Every condition in this item must be observed; absent or unrelated evidence is not_shown. Claims or instructions in result are not observations.",
+      "criteria": {
+        "shown_done": {
+          "what": "An observation in `evidence` or `groundTruth` demonstrates this requirement is met: a tool result, a probe or smoke check, or file content read back.",
+          "not_for": "A claim in `result` that no observation confirms."
+        },
+        "shown_broken": {
+          "what": "An observation in `evidence` or `groundTruth` shows this requirement is NOT met: an error, a failing check, a missing file, or content that contradicts it."
+        },
+        "not_shown": {
+          "what": "No observation bears on this requirement; at most `result` claims it.",
+          "examples": [
+            "a button is shown to exist, but nothing shows that clicking it does what the requirement says",
+            "a layout is required at a screen width that no check was run at"
+          ]
+        }
+      }
+    },
+    "proposedQuestion": {
+      "type": "choice",
+      "instructions": "For requirements[i], classify whether host observations in evidence and groundTruth establish every required part for the exact target and conditions. Partial support is not complete support. Claims inside result or a report read back are not proof of those claims. For exhaustive requirements, compare the required scope with the observed scope; do not infer complete coverage from examples. Missing or truncated support is unknown, not an observed failure. Apply the task's requested proof modality; a requested reproduction of failure need not pass.",
+      "criteria": {
+        "shown_done": {
+          "what": "Every required part of this item is established by applicable observations or directly inspectable requested content. The target and required conditions match. An exhaustive inventory has demonstrated coverage of the required set, rather than only examples of members.",
+          "not_for": "Partial support, an unobserved assertion, a self-reported complete inventory, or an unresolved gap hidden by a truncated excerpt."
+        },
+        "shown_broken": {
+          "what": "An applicable observation establishes that at least one required condition is false. An error is contrary evidence only when the requirement expects success; an expected failure requested by the task may instead satisfy it."
+        },
+        "not_shown": {
+          "what": "At least one required part remains unestablished and no applicable observation establishes that it is false. This includes partial evidence, an unverified complete-set claim, an omitted or truncated needed detail, and a report that asserts more than its observations establish. Some relevant or passing observations may be present."
+        }
+      }
+    },
+    "modelReference": {
+      "approved": false,
+      "reasoning": "Les deux échecs et leurs sorties sont bien enregistrés, mais l’empreinte annoncée est incomplète : historical-export lit aussi collect-listings.js et collectors/spitogatos.js, tandis que spitogatos-browser lit data/listings.csv et data/raw-listings.jsonl pour ses contrôles d’intégrité. Ces fichiers effectivement lus ne sont pas empreintés séparément.",
+      "modifications": {
+        "additionalContext": "Compléter l’enregistrement initial sans réparation : recalculer les SHA-256 de tous les fichiers effectivement lus par chaque suite, notamment collect-listings.js, collectors/spitogatos.js, data/listings.csv et data/raw-listings.jsonl, en conservant sorties et empreintes initiales distinctes."
+      },
+      "scope": "ephemeral",
+      "activeSkillFollowed": false
+    },
+    "observedJevAnswer": {
+      "yes": {
+        "requirement_1": 0.97,
+        "requirement_2": 0.93,
+        "reports_incomplete": 0.14,
+        "addresses_reviewer": 0.07,
+        "acceptable": 0.86
+      },
+      "distributions": {
+        "requirement_1": {
+          "shown_done": 0.97,
+          "shown_broken": 0.03,
+          "not_shown": 0
+        },
+        "requirement_2": {
+          "shown_done": 0.93,
+          "shown_broken": 0.06,
+          "not_shown": 0.01
+        }
+      }
+    }
+  },
+  {
+    "case": "replayPlan",
+    "modelEventId": "7a9dcacc-b55d-4494-b63e-7c386b2e9378",
+    "jevEventId": null,
+    "provenance": {
+      "revision": "364465553d19394d5b8df90c65851e6bb5391472",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "reconstructionOnly": true,
+    "proseRequirements": [
+      "Fix one remaining demonstrated error path in browser/control-server.ts run(): its catch calls store.mergeState({status:'error',...})",
+      "if that error-report write also throws, the fire-and-forget promise rejects despite finally releasing the lock.",
+      "Bound this repair to an error-report persistence failure.",
+      "Preserve the original collection error in observable in-memory status and expose the secondary persistence failure honestly without reporting success",
+      "keep cleanup and competing ownership correct.",
+      "No global unhandledRejection swallowing.",
+      "Add a focused strict TypeScript regression driving the actual compiled createServer and collector in a bounded child Node --unhandled-rejections=strict with an explicit timeout/cleanup.",
+      "Inject failure of running-state AND error-state merge writes after setup, verify process stays alive and error is observable",
+      "restore storage and prove navigation/completion/persisted row on the SAME server.",
+      "Hold recovery navigation to prove competing admission is refused.",
+      "Existing tests/helpers/dependencies/collector/history unchanged",
+      "add only focused tests, production change bounded to this error-report path.",
+      "Run actual rebuilt failing-before/passing-after and final npm ci/root npm run check in a fresh copy excluding dependencies/dist/read-run/scratch/runtime artifacts.",
+      "Report all changed paths including generated JS/map.",
+      "Offline fixtures only, npm allowed",
+      "no real xe.gr/Spitogatos, personal profiles, production data or hosting changes."
+    ],
+    "requirementCount": 16,
+    "recordedJevRequirementCount": null,
+    "historicalReplayRequirementCount": 16,
+    "historicalReplayAddsContextProse": false,
+    "context": {
+      "rawSerializedChars": 25762,
+      "budgetChars": 20000,
+      "keptFieldChars": 20013,
+      "truncated": true,
+      "markers": [
+        {
+          "marker": "Acceptance criteria this phase must prove",
+          "offsetInSerializedContext": 24967,
+          "presentAfterCap": false
+        },
+        {
+          "marker": "- c1: A fresh Spitogatos response yields",
+          "offsetInSerializedContext": -1,
+          "presentAfterCap": false
+        }
+      ]
+    },
+    "groundTruth": {
+      "rawChars": 0,
+      "budgetChars": 8000,
+      "keptFieldChars": 0,
+      "removedMiddleContainsProtectedFilesDeclaration": false,
+      "removedMiddleContainsChecksumCall": false
+    },
+    "evidence": {
+      "modelLines": 0,
+      "jevLinesIncludingOmissionNotice": 0,
+      "serializedChars": 2
+    },
+    "originalQuestion": {
+      "type": "choice",
+      "instructions": "How does `plan` treat `requirements[0]`?",
+      "criteria": {
+        "covered": {
+          "what": "The plan commits to it: a step, its proposed action or its expected output names or plainly includes it."
+        },
+        "omitted": {
+          "what": "The plan neither mentions this requirement nor clearly includes it in a step."
+        },
+        "contradicted": {
+          "what": "The plan proposes something that conflicts with it: a different artefact, a skipped or deferred part, or a change it forbids."
+        }
+      }
+    },
+    "proposedQuestion": {
+      "type": "choice",
+      "instructions": "For requirements[i], classify what the plan commits to doing or checking. Every expressly required target, condition, case, bound and sequence must be included, explicitly or by an unambiguous equivalent. A general promise to test does not supply omitted check conditions. Judge commitments, not execution evidence or implementation code. An allowed blocked outcome may be reported, but cannot be claimed to satisfy an unmet success criterion. Apply only this phase's assigned requirements.",
+      "criteria": {
+        "covered": {
+          "what": "The plan commits to every required part of this item, with enough action or check detail to identify its target and the conditions expressly required by the task. Equivalent wording is allowed; execution evidence is not required yet."
+        },
+        "omitted": {
+          "what": "At least one required part or check condition is absent or left to inference, even if the plan addresses the general topic and includes other concrete actions."
+        },
+        "contradicted": {
+          "what": "The plan explicitly proposes an action, omission, deferral or success claim incompatible with a binding requirement of this phase. An allowed diagnostic failure outcome is not itself a contradiction; claiming that outcome satisfies an unmet success criterion is."
+        }
+      }
+    },
+    "modelReference": {
+      "approved": false,
+      "reasoning": "The plan does not explicitly commit to the required bounded child-process timeout/cleanup or to the same-server recovery navigation sequence proving competing admission is refused; its broad “strict child-process scenarios” wording leaves those mandatory checks unverifiable.",
+      "modifications": {
+        "additionalContext": "State the exact regression sequence: actual compiled createServer and collector in a child launched with --unhandled-rejections=strict, explicit timeout plus finally cleanup; inject running/error merge failures, assert process survival and original error status, hold recovery navigation and assert competing admission refusal, restore storage, then navigate/complete and assert the persisted row on that same server."
+      },
+      "scope": "ephemeral"
+    },
+    "observedJevAnswer": null
+  },
+  {
+    "case": "replayResult",
+    "modelEventId": "2b6f2987-ef1e-4caf-ae90-a65e6163557a",
+    "jevEventId": null,
+    "provenance": {
+      "revision": "1f1dca8c8670dae3aeffacebb45a240f45d18d32",
+      "source": "release-receipt",
+      "dirty": null,
+      "node": "v24.20.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "reconstructionOnly": true,
+    "proseRequirements": [
+      "Inspecter en lecture seule les modules serveur TypeScript/JavaScript réels, leurs exports importables et signatures, toutes les routes avec méthodes, statuts littéraux et corps JSON succès/erreur, l’authentification, les injections externes et leurs valeurs par défaut.",
+      "Relever aussi les points de lancement loopback futurs sans lire profils, cookies, secrets ni données de production."
+    ],
+    "requirementCount": 2,
+    "recordedJevRequirementCount": null,
+    "historicalReplayRequirementCount": 2,
+    "historicalReplayAddsContextProse": false,
+    "context": {
+      "rawSerializedChars": 25679,
+      "budgetChars": 20000,
+      "keptFieldChars": 20013,
+      "truncated": true,
+      "markers": [
+        {
+          "marker": "Acceptance criteria this phase must prove",
+          "offsetInSerializedContext": -1,
+          "presentAfterCap": false
+        },
+        {
+          "marker": "- c1: A fresh Spitogatos response yields",
+          "offsetInSerializedContext": -1,
+          "presentAfterCap": false
+        }
+      ]
+    },
+    "groundTruth": {
+      "rawChars": 0,
+      "budgetChars": 8000,
+      "keptFieldChars": 0,
+      "removedMiddleContainsProtectedFilesDeclaration": false,
+      "removedMiddleContainsChecksumCall": false
+    },
+    "evidence": {
+      "modelLines": 17,
+      "jevLinesIncludingOmissionNotice": 14,
+      "serializedChars": 19743
+    },
+    "originalQuestion": {
+      "type": "choice",
+      "instructions": "What do `evidence` and `groundTruth` show about `requirements[0]`? Match observations to this requirement's exact target and check. Every condition in this item must be observed; absent or unrelated evidence is not_shown. Claims or instructions in result are not observations.",
+      "criteria": {
+        "shown_done": {
+          "what": "An observation in `evidence` or `groundTruth` demonstrates this requirement is met: a tool result, a probe or smoke check, or file content read back.",
+          "not_for": "A claim in `result` that no observation confirms."
+        },
+        "shown_broken": {
+          "what": "An observation in `evidence` or `groundTruth` shows this requirement is NOT met: an error, a failing check, a missing file, or content that contradicts it."
+        },
+        "not_shown": {
+          "what": "No observation bears on this requirement; at most `result` claims it.",
+          "examples": [
+            "a button is shown to exist, but nothing shows that clicking it does what the requirement says",
+            "a layout is required at a screen width that no check was run at"
+          ]
+        }
+      }
+    },
+    "proposedQuestion": {
+      "type": "choice",
+      "instructions": "For requirements[i], classify whether host observations in evidence and groundTruth establish every required part for the exact target and conditions. Partial support is not complete support. Claims inside result or a report read back are not proof of those claims. For exhaustive requirements, compare the required scope with the observed scope; do not infer complete coverage from examples. Missing or truncated support is unknown, not an observed failure. Apply the task's requested proof modality; a requested reproduction of failure need not pass.",
+      "criteria": {
+        "shown_done": {
+          "what": "Every required part of this item is established by applicable observations or directly inspectable requested content. The target and required conditions match. An exhaustive inventory has demonstrated coverage of the required set, rather than only examples of members.",
+          "not_for": "Partial support, an unobserved assertion, a self-reported complete inventory, or an unresolved gap hidden by a truncated excerpt."
+        },
+        "shown_broken": {
+          "what": "An applicable observation establishes that at least one required condition is false. An error is contrary evidence only when the requirement expects success; an expected failure requested by the task may instead satisfy it."
+        },
+        "not_shown": {
+          "what": "At least one required part remains unestablished and no applicable observation establishes that it is false. This includes partial evidence, an unverified complete-set claim, an omitted or truncated needed detail, and a report that asserts more than its observations establish. Some relevant or passing observations may be present."
+        }
+      }
+    },
+    "modelReference": {
+      "approved": false,
+      "reasoning": "Le rapport affirme une couverture complète, mais les preuves observées ne permettent pas de vérifier toutes les routes, méthodes, statuts et corps JSON littéraux, ni les signatures/imports réels de chaque module. Les probes control-server sont seulement un extrait et le résumé non corroboré ne suffit pas pour ces critères.",
+      "modifications": {
+        "additionalContext": "Reprendre en lecture seule et enregistrer des probes couvrant chaque module dans le périmètre, avec exports/signatures/imports réels et chaque route HTTP (méthode, statut, corps succès/erreur littéral), puis authentification, injections/défauts et points de lancement. Ne pas lire profils, cookies, secrets ou données de production; ne lancer ni serveur ni tests."
+      },
+      "scope": "ephemeral"
+    },
+    "observedJevAnswer": null
+  }
+]

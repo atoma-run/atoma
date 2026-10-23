@@ -1,0 +1,23 @@
+{
+  "verifiedAt": "2026-10-22T06:32:10.779Z",
+  "complete": true,
+  "projectionContexts": 67,
+  "series": [
+    {
+      "series": "initial",
+      "planned": 80,
+      "measured": 80,
+      "errors": 0,
+      "requestsSha256": "47d350daa49f28a31252b2b31174187ac9f45b39b1942aab09115cd7a49f68ec",
+      "protocolSha256": "92ba5cff274fe12653e14a618e714ff6a8e99d5349eb0fe2d75c7d9f6d47c70a"
+    },
+    {
+      "series": "followup-source-complete/",
+      "planned": 40,
+      "measured": 40,
+      "errors": 0,
+      "requestsSha256": "5bb8ffad3b4ef5be90fe8e3234b2c76ced79e04f3999ea277cb2f3643e9e2b47",
+      "protocolSha256": "599325c4b806051ac74949b2fe69019cc046ab7ae8149be2311fd28553e3ff3c"
+    }
+  ]
+}

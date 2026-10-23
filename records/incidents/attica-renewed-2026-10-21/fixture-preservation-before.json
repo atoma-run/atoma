@@ -1,0 +1,11 @@
+{
+  "root": "/private/tmp/attica-485-exact-review-20261021",
+  "denialStatus": 403,
+  "challengeStatus": 200,
+  "approvalHandlerPresent": true,
+  "syntheticHandlerRequests": [
+    "/approve"
+  ],
+  "syntheticHandlerLocation": "/page/2",
+  "scope": "Synthetic HTTP and handler execution, no real DOM or human interaction"
+}

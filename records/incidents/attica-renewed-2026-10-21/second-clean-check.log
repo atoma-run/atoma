@@ -1,0 +1,216 @@
+
+> attica-property-collector@1.0.0 check
+> npm run typecheck && npm run lint && npm run test && npm run build
+
+
+> attica-property-collector@1.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+
+> attica-property-collector@1.0.0 lint
+> eslint --config eslint.config.mjs --ext .ts collect-listings.ts vite.config.ts vitest.config.ts "browser/**/*.ts" "collectors/**/*.ts" "fixtures/**/*.ts" "tests/**/*.ts" --rule '@typescript-eslint/no-require-imports: ["error", {"allow":["^node:","^\.\.?/"]}]'
+
+
+> attica-property-collector@1.0.0 test
+> npm run build && vitest run && node --test $(find tests -maxdepth 1 -type f \( -name '*.test.js' -o -name '*.test.mjs' \) ! -name 'xe-browser-local-hardening.test.js' ! -name 'xe-browser-integration.test.js' ! -name 'attica-durability.test.js' ! -name 'spitogatos-browser.test.js' ! -name 'xe-live.test.js' | sort)
+
+
+> attica-property-collector@1.0.0 build
+> tsc -p tsconfig.build.json && vite build
+
+vite v7.1.7 building for production...
+transforming...
+✓ 4 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/browser-assets/control.html                8.16 kB │ gzip: 3.03 kB
+../dist/browser-assets/assets/control-Dy921WaC.js  3.35 kB │ gzip: 1.36 kB
+✓ built in 40ms
+
+ RUN  v3.2.4 /private/tmp/attica-c4-clean-review-20261021
+
+ ✓ tests/session.vitest.test.ts (3 tests) 5ms
+ ✓ tests/desktop-server.vitest.test.ts (4 tests) 20ms
+ ✓ tests/xe-browser-session.vitest.test.ts (4 tests) 4ms
+ ✓ tests/control-server-migration.vitest.test.ts (3 tests) 204ms
+ ✓ tests/local-security.vitest.test.ts (5 tests) 3ms
+ ✓ tests/attica-http-preconditions.vitest.test.ts (1 test) 294ms
+ ✓ tests/collector-restoration.vitest.test.ts (16 tests) 343ms
+ ✓ tests/attica-control-start-admission.vitest.test.ts (1 test) 475ms
+   ✓ start admission releases only its failed save ownership and recovers on the same server  474ms
+ ✓ tests/captcha-document.vitest.test.ts (6 tests) 4ms
+ ✓ tests/control-server-cli.vitest.test.ts (1 test) 78ms
+ ✓ tests/built-control-assets.vitest.test.ts (1 test) 68ms
+ ✓ tests/xe-compiled-boundary.vitest.test.ts (2 tests) 2ms
+ ✓ tests/collect-listings-normalization.vitest.test.ts (2 tests) 3ms
+ ✓ tests/xe-minimal-offline.vitest.test.ts (1 test) 613ms
+   ✓ minimal fixture preserves 101/102 through compiled server and recreation  613ms
+ ✓ tests/attica-control-checkpoint-error.vitest.test.ts (1 test) 734ms
+   ✓ checkpoint read failure preserves the original error and allows same-server recovery  734ms
+ ✓ tests/fixtures/captcha-navigation.vitest.test.ts (2 tests) 2ms
+ ✓ tests/attica-control-resume-admission.vitest.test.ts (1 test) 580ms
+   ✓ resume admission is released when checkpoint loading fails  580ms
+ ✓ tests/attica-scheduler.vitest.test.ts (1 test) 22ms
+ ✓ tests/attica-persistence.vitest.test.ts (3 tests) 66ms
+stdout | tests/tmp-probe.vitest.test.ts > debug-server-clock
+clock0 1792607349572 1792670400000 1792607349603
+clock1 1792670399970 1792670400000
+
+stdout | tests/tmp-probe.vitest.test.ts > debug-server-clock
+tick { due: false }
+
+ ✓ tests/tmp-probe.vitest.test.ts (1 test) 39ms
+ ✓ tests/attica-control-error-report-merge.vitest.test.ts (1 test) 1007ms
+   ✓ error-report persistence failure preserves the error and recovers on the same server  1006ms
+ ✓ tests/attica-control-resume-preflight.vitest.test.ts (2 tests) 1018ms
+   ✓ resume releases lock when one-shot cancellation preflight read fails  564ms
+   ✓ resume releases lock when one-shot state preflight read fails  454ms
+ ✓ tests/attica-control-captcha.vitest.test.ts (1 test) 394ms
+   ✓ strict TypeScript companion establishes resolved detail evidence for a real collector CAPTCHA  394ms
+ ✓ tests/attica-captcha-verification.vitest.test.ts (1 test) 865ms
+   ✓ compiled CAPTCHA verification requires current resolved detail evidence  865ms
+ ✓ tests/attica-control-running-merge.vitest.test.ts (1 test) 1350ms
+   ✓ running-state merge failure is observed, releases admission, and recovers on the same server  1350ms
+ ✓ tests/attica-offline-runtime.ts (9 tests) 2811ms
+   ✓ Attica offline runtime > rejects an invalid page bound before navigation  644ms
+   ✓ Attica offline runtime > CAPTCHA is blocked before verification and resumes in the same session  480ms
+   ✓ Attica offline runtime > cancellation survives recreation and blocks work until explicitly lifted  307ms
+   ✓ Attica offline runtime > scheduler uses the isolated clock and triggers only after nextDueAt  349ms
+ ✓ tests/xe-restoration.vitest.test.ts (5 tests) 3287ms
+   ✓ resume continues past twelve consumed requests  816ms
+   ✓ persisted CAPTCHA rejects repeatedly until explicit store clearing  654ms
+   ✓ resumed CAPTCHA remains blocked across reopened stores until explicitly cleared  618ms
+   ✓ collect enforces the persisted Retry-After deadline across reopening  612ms
+   ✓ resume enforces the persisted Retry-After deadline across reopening  584ms
+
+ Test Files  27 passed (27)
+      Tests  79 passed (79)
+   Start at  21:29:08
+   Duration  3.60s (transform 495ms, setup 0ms, collect 1.64s, tests 14.29s, environment 2ms, prepare 956ms)
+
+✔ c3 fixture proves known-ID skip, serial detail/page pacing, and end-of-results (325.690667ms)
+✔ c3 Retry-After is persisted as a bounded refusal (298.894292ms)
+✔ c4 schedule restart, Athens boundary and manual/scheduled exclusion (94.365625ms)
+✔ c3 traverses beyond twenty pages and stops on explicit end-of-results (4398.9255ms)
+✔ c3 terminates repeated result pages without duplicating listings (292.894708ms)
+✔ c4 persisted schedule survives a real child restart and can be disabled (131.970458ms)
+✔ cancel: idle /api/cancel with no checkpoint persists and returns 2xx (154.79125ms)
+✔ cancel: idle /api/cancel with complete checkpoint persists and returns 2xx (245.438167ms)
+✔ cancel: idle /api/cancel with error checkpoint persists and returns 2xx (293.189333ms)
+✔ cancel: idle /api/cancel with paused checkpoint persists and returns 2xx (135.7515ms)
+✔ cancel: /api/cancel when already cancelled returns 400 (111.381208ms)
+✔ cancel: /api/cancel-lift clears cancellation (190.716334ms)
+✔ captcha: detail page with CAPTCHA blocks resume and saves captcha pause (572.224875ms)
+✔ captcha: premature /api/resume before /api/verify-access returns 425 with zero new navigations (94.371625ms)
+✔ captcha: /api/verify-access clears CAPTCHA pause and allows /api/resume (626.012917ms)
+✔ captcha: /api/verify-access rejects when no CAPTCHA pause is active (25.929584ms)
+✔ captcha: CAPTCHA pause persists across restart; zero navigations on startup and tick (325.788667ms)
+✔ captcha: /api/verify-access persists across restart and allows /api/resume (1368.380084ms)
+✔ concurrency: concurrent /api/start yields exactly one 202 and one 409 (445.84825ms)
+✔ concurrency: concurrent start and resume yields exactly one 202, other exactly 409 (1731.701541ms)
+✔ concurrency: after first collection idle, second /api/start is accepted with exactly one traversal per start (1029.845958ms)
+✔ concurrency: held navigation makes concurrent requests return 409 (415.538666ms)
+✔ concurrency: no sticky state after idle; second start accepted after collection complete (476.103458ms)
+✔ concurrency: /api/resume blocked while concurrent /api/start active (1706.340125ms)
+✔ retry-after: result page with 429 and numeric seconds triggers rate-limit pause (380.985ms)
+✔ retry-after: detail page with 429 and HTTP-date format triggers rate-limit (574.840042ms)
+✔ retry-after: rate-limit persists across restart; zero navigations on startup, tick, resume when deadline not met (516.659875ms)
+✔ retry-after: /api/resume blocked by rate-limit and zero navigations (332.8145ms)
+✔ control HTML exposes accessible French navigation and durable export links (12.456833ms)
+✔ legacy listing and CSV/JSONL exports survive control-server migration (44.750458ms)
+✔ hosted flow migrates fixture listings, pauses CAPTCHA, resumes same session and protects mutations (1339.599833ms)
+✔ hosted due schedule and manual start never overlap through control routes (1420.511125ms)
+✔ hosted restart migrates a completed checkpoint without replacing legacy exports (106.013583ms)
+✔ hosted schedule accepts the same-server loopback HTTP origin and exposes durable progress (4.3315ms)
+✔ hosted resume and manual HTTP admissions share one active collector lock (235.189625ms)
+✔ hosted startup automatically recovers an interrupted checkpoint (296.299041ms)
+✓ /api/status endpoint structure verified in source
+✓ /api/verify-access endpoint rejects invalid state
+✓ /api/start returns 202 status on success
+✓ /api/cancel endpoint structure verified
+✓ c4: HTTP control-server enforces single collector
+✓ c3: CAPTCHA pause workflow verified
+✔ http: /api/status returns current collector state (0.583375ms)
+✔ http: /api/verify-access rejects when no CAPTCHA pause active (0.074208ms)
+✔ http: /api/start returns 202 when collection starts (0.0595ms)
+✔ http: /api/cancel endpoint structure verified (1.693125ms)
+✔ c4: control-server enforces single active collector via HTTP lock (0.236708ms)
+✔ c3: CAPTCHA pause workflow via HTTP control-server (0.104875ms)
+✔ c4: fresh scheduler is disabled by default (1.052541ms)
+✔ c4: configure() with new time computes nextDue from NEW time, not previous (30.224292ms)
+✔ c4: configure() with new timezone computes nextDue from NEW timezone (41.94575ms)
+✔ c4: DST transition handled correctly (Athens spring forward: last Sun Mar 09:00 UTC-1 -> UTC+2) (29.680125ms)
+✔ c4: DST transition handled correctly (Athens fall back: last Sun Oct 04:00 UTC+3 -> UTC+2) (18.562084ms)
+✔ c4: reconfigure with disabled=true sets nextDueAt to null (29.871583ms)
+✔ daily scheduler defaults disabled, persists timezone and prevents overlap (63.089375ms)
+✔ daily schedule computes Athens DST transition instants without catch-up storm (29.67925ms)
+✔ completed collection stops managed document then allows another collection (1208.191583ms)
+✔ detail CAPTCHA survives the server catch path until explicit cancel (546.895208ms)
+✔ non-CAPTCHA error preserves primary failure and stops document (269.103542ms)
+✔ idle cancellation reserves admission before awaiting browser cleanup (54.839875ms)
+✔ search CAPTCHA returned as paused also remains available (290.65425ms)
+✔ cleanup reject retires only the managed page before later work (749.906ms)
+✔ cleanup hang retires only the managed page before later work (1647.276333ms)
+✔ externally closed managed page is replaced in the same context (324.887709ms)
+CSV vérifié 1/3: 1 ligne, annonce a, URL/prix/surface/localisation attendus, aucune valeur de b
+CSV vérifié 2/3: 1 ligne, annonce b, URL/prix/surface/localisation/type attendus, aucune valeur de a
+CSV vérifié 3/3: 0 ligne de données après réponse vide, aucune annonce périmée
+SETUP ordinary: HTTP 200 fixture has authenticity_token, /login, CAPTCHA mention and xe.gr keys address/transaction_type/type/item_type/price/size_with_square_meter/url
+INVOCATION ordinary export 1: node collect-listings.js --config <isolated fixture config>
+ASSERTIONS export 1 CSV: rows=1, address/SALE/APARTMENT parsed, prix=275000, surface=74, date_collecte=2026-03-01T00:00:00Z
+CLI xe.gr ordinary assertions: repeated capture preserves 2026-03-01T00:00:00Z; distinct capture date 2026-03-02T00:00:00Z is preserved separately; authenticity_token/login/CAPTCHA text ignored; address, SALE, APARTMENT, residence and numeric fields parsed
+SETUP/INVOCATION/ASSERTIONS refusal HTTP 401: rows=0, status=stopped_safety, reason=ARRET HTTP 401: refus d’accès
+SETUP/INVOCATION/ASSERTIONS refusal HTTP 403: rows=0, status=stopped_safety, reason=ARRET HTTP 403: refus d’accès
+SETUP/INVOCATION/ASSERTIONS refusal HTTP 407: rows=0, status=stopped_safety, reason=ARRET HTTP 407: refus d’accès
+SETUP/INVOCATION/ASSERTIONS refusal HTTP 429: rows=0, status=stopped_safety, reason=ARRET HTTP 429: limitation reçue
+SETUP/INVOCATION/ASSERTIONS refusal HTTP 451: rows=0, status=stopped_safety, reason=ARRET HTTP 451: refus d’accès
+SETUP/INVOCATION/ASSERTIONS Retry-After: rows=0, stopReason contains Retry-After
+SETUP/INVOCATION/ASSERTIONS genuine HTTP 200 challenge: rows=0, stopReason contains challenge
+CLI refusals vérifiés: 401/403/407/429/451, Retry-After et page de challenge HTTP 200 arrêtés
+Archived mixed response assertions: 404/200 and 200/404 retain 1 valid row; 403/200 and 200/403 retain 1 valid row; counters and partial status agree.
+Archived mixed response assertions: 404/200 and 200/404 retain 1 valid row; 403/200 and 200/403 retain 1 valid row; counters and partial status agree.
+Archived mixed response assertions: 404/200 and 200/404 retain 1 valid row; 403/200 and 200/403 retain 1 valid row; counters and partial status agree.
+Archived mixed response assertions: 404/200 and 200/404 retain 1 valid row; 403/200 and 200/403 retain 1 valid row; counters and partial status agree.
+✔ tests/collect-listings.test.js (1689.052208ms)
+Historical CLI assertions: 27 CSV/JSONL rows; every CSV source transaction_type=SALE; line-by-line normalized/extra_json/provenance/date equality; counters and capture date 2026-10-12T22:36:32.925Z agree; repeated export identical; gzip and decoded SHA-256 verified.
+✔ tests/historical-export.test.js (333.870542ms)
+Spitogatos offline parser, normalization, geography/sale rejection, and refusal tests: PASS
+✔ tests/spitogatos.test.mjs (52.789208ms)
+✔ source and compiled wrappers preserve exports and root collector resolution (0.347042ms)
+✔ progressive traversal deduplicates rows and keeps one browser context (506.28375ms)
+✔ active-boundary cancellation preserves durable rows and checkpoint (324.490833ms)
+✔ paused checkpoint resumes in the same context after CAPTCHA (616.665791ms)
+✔ Retry-After is durable and blocks a later collection (124.438333ms)
+✔ legacy JSONL rows recover before traversal and remain exported (244.509375ms)
+✔ compiled search null preserves request checkpoint and does not rewrite exports (20.589167ms)
+✔ compiled detail null uses status zero and the original detail refusal (44.780916ms)
+✔ existing paused non-continuation return has the original object shape (223.438458ms)
+✔ hosted French control proves pause, fixture-only approval, same context and durable exports (1350.709167ms)
+✔ detail HTTP-date rate limit leaves failed detail unsaved (93.477042ms)
+✔ hosted runtime keeps checkpoints and exports below its data root and recovers on restart (785.922042ms)
+✔ hosted mutations require the exact HTTPS Host origin while local loopback remains compatible (0.37825ms)
+✔ attribute delimiters and entity decoding preserve listing text exactly (1.27ms)
+✔ browser package is isolated, non-root, loopback-only and opt-in (1.233875ms)
+✔ legacy delivery files remain byte-identical to recorded baseline (0.750709ms)
+✔ challenge pauses after page one and preserves rows/bounds (10484.667625ms)
+✔ approved non-fixture search parses archived listings offline and checkpoints its next URL (861.773333ms)
+ℹ tests 79
+ℹ suites 0
+ℹ pass 79
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11663.845667
+
+> attica-property-collector@1.0.0 build
+> tsc -p tsconfig.build.json && vite build
+
+vite v7.1.7 building for production...
+transforming...
+✓ 4 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/browser-assets/control.html                8.16 kB │ gzip: 3.03 kB
+../dist/browser-assets/assets/control-Dy921WaC.js  3.35 kB │ gzip: 1.36 kB
+✓ built in 37ms

@@ -82,5 +82,14 @@
     "red": "production TLS/store/watchdog test fails: expected session-expired, received other",
     "targeted": "49 passed, 4 existing skipped, two test files; source expiry, teardown and fencing unchanged",
     "release": "npm ci then npm run release:check passed: both TypeScript configurations, lint, docs, audit (0 vulnerabilities), compiled smokes, 552 test files passed / 4 skipped; 7879 tests passed / 36 skipped."
+  },
+  "deployment": {
+    "commit": "a3e90ca2337130caad85d3e9d9eb05613f10cbda",
+    "push": "completed before owner stop message",
+    "CI": "cancelled",
+    "computeDesktop": "cancelled",
+    "deployment": "skipped",
+    "activeProduction": "f9d71587b1f2111de0d636d31c2734489ca44da5",
+    "furtherPush": "prohibited without new owner authorization"
   }
 }

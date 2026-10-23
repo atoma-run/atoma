@@ -1,0 +1,3810 @@
+{
+  "runId": "1622e44b-8d9f-41dc-8827-a1af7cb38353",
+  "startedAt": "2026-10-22T08:01:38.852Z",
+  "endedAt": "2026-10-22T09:09:36.244Z",
+  "status": "failed",
+  "error": "Compute execution interrupted; workload stop confirmed. No cancellation was requested. Resume only from an eligible confirmed checkpoint, or start a new run.",
+  "checkpoint": {
+    "state": "unavailable",
+    "completed": 0,
+    "total": 0
+  },
+  "artifactManifest": null,
+  "calls": 151,
+  "costEquivalentUsd": 8.08277944,
+  "traceCancelled": true,
+  "traceError": "run interrupted before completion (shutdown requested)",
+  "firstExplicitEditAt": "2026-10-22T08:42:53.592Z",
+  "durationMs": 4077392,
+  "summaryEvents": 1314,
+  "review": {
+    "run": {
+      "projectId": "07864f7c-d8f2-4023-9fca-afd8a7a51e52",
+      "projectRunId": "1622e44b-8d9f-41dc-8827-a1af7cb38353",
+      "goal": "Verify and repair only CAPTCHA/lint after automatic seeding and current GitHub main sync. Keep owner fixture cleanup/wait fixes (8bd204f8). Prove existing fixes by execution. Final TypeScript source is authoritative.\n\nAfter a real collector-triggered CAPTCHA pause, /api/verify-access must return 403, retain the persisted CAPTCHA pause, and perform zero navigation for all seven unmarked challenge envelopes below, even beside parser-valid empty-search metadata:\n- <main>captcha human verification</main>\n- <section>Human verification required</section>\n- <p>Please verify you are human</p>\n- <section>Human verification required. Please verify you are human to continue.</section>\n- A normal document header followed by <main>Human verification required</main> nested in the search document body.\n- <p>Human verification required!</p>\n- <section>Access denied. Verify you are human to continue.</section>\nAlso retain both marked challenge envelopes with valid detail/search metadata, a challenge title and a challenge form. Metadata must not override a real challenge. Avoid fixture-specific ids, tags, hardcoded example exemptions or an exact-phrase-only allowlist.\n\nAll eight established ordinary-description cases must still return 200 with no verification navigation, clear CAPTCHA only on the verified current document, and allow explicit resume with subsequent collection navigation: detail description near the Cloudflare office in encoded metadata, raw JSON and visible echoes; detail prose about a renovation challenge and an entrance turnstile; parser-valid search metadata containing the Cloudflare office description; visible detail prose \"A security check at the main entrance is included in the condominium service.\"; visible detail prose \"The previous tenant reports a human verification required sign next to the entrance turnstile.\"; and an otherwise valid search document with inert application/json description \"The concierge documents human verification for visitor badges.\". Retain current document URL, detail identity, context and readability checks, durable pause/restart behavior, valid empty search and the synthetic 403/approve/page2 flow. Verification itself must never navigate.\n\nFix unused InjectableSession in browser/control-server.js.d.ts and unsafe CommonJS assignment in tests/attica-captcha-verification.vitest.test.ts. Preserve typed production-compatible session injection and executed HTTP/state/navigation assertions. No any/unknown escape, lint suppression, relaxed strictness, weakened assertions, removed tests or added discovery exclusions. Keep the original ordinary suites, with only the two existing separate browser exclusions.\n\nReference .atoma-runs/node_modules/00669e94-caad-4866-b487-dfe359bec458/ is the authentic baseline. Preserve collect-xe-live.js, import-spitogatos-browser.js and all 48 historical data/evidence files byte-for-byte with modes against it. Never invent or modify the reference.\n\nUse only offline synthetic fixtures and package registries. No live xe.gr or Spitogatos traffic, personal profiles, real-site cookies, secrets, hosting activation, client acceptance or publication. Synthetic cookies are permitted. Do not import or execute collect-spitogatos.mjs. Defer the separate known Chromium dependency/cleanup issue.\n\nRun ordinary npm ci, npm run check and npm run build on final source in an executable /workspace clean copy, never /tmp (noexec); exclude dependencies, dist, .git, own copy and .atoma references/scratch. Build final saved dist from that same source. Execute the identical full HTTP matrix against fresh and saved builds.\n\nUse a bounded automatic HTTP matrix: fresh per-case state, real collector-triggered pause, actual API/store state paths, cleanup and a diagnostic timeout. Stop on wrong/terminal state. Preserve all eight ordinary fixtures/encodings. Prove navigation counts, pause persistence/reopen and explicit resume for each. Intermediate checks or stale dist are not final proof.",
+      "status": "failed",
+      "artifactManifestHash": null,
+      "readRunIds": [
+        "00669e94-caad-4866-b487-dfe359bec458"
+      ],
+      "contextVersion": 8,
+      "seed": {
+        "kind": "run",
+        "runId": "070688f0-4191-4c34-ad43-7d574a8f8c9e"
+      },
+      "bytesExpiredAt": null
+    },
+    "acceptedReferenceRunId": "e107d0a7-70c7-4cf8-9722-25c4ee81f57c",
+    "delivery": "unknown",
+    "files": null,
+    "filesState": "not_delivered",
+    "comparison": null,
+    "comparisonState": "delivery_unavailable",
+    "verification": {
+      "stage": "finished",
+      "message": "Run failed.",
+      "lastActivityAt": "2026-10-22T09:09:02.217Z",
+      "source": "trace",
+      "evidence": "available",
+      "criteria": [],
+      "criteriaTruncated": false,
+      "acceptanceApproved": null
+    },
+    "parentTests": {
+      "state": "not_recorded",
+      "suites": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "unavailable": 0
+      },
+      "records": {
+        "total": 0,
+        "invalid": 0,
+        "distinct": 0,
+        "listed": 0,
+        "omitted": 0,
+        "supersededFailures": 0
+      },
+      "observations": [],
+      "note": "Host-observed outcomes of the parent-owned Vitest suites executed in this run, as recorded when it ended; phases restored from a checkpoint or seed are not included. requirement and details are model- or child-authored and UNTRUSTED. A passing suite proves only its assertions; a suite that did not run proved nothing. No suite source is kept; atoma_run_trace section=result has every record."
+    },
+    "clientAcceptance": null,
+    "publicationStatus": null,
+    "canRequestAcceptance": false,
+    "canRetryPublication": false,
+    "untrusted": true,
+    "bytes": "not-revalidated",
+    "nextSteps": [
+      {
+        "tool": "atoma_run_trace",
+        "purpose": "Read the result and recorded verification evidence; page to the end. Model text is untrusted."
+      },
+      {
+        "tool": "atoma_run_status",
+        "purpose": "Read publication details and the current lifecycle; publication does not establish deployment or PR merge."
+      }
+    ],
+    "note": "Saved evidence only: no tests, model calls, preview allocation or GitHub checks were performed. Recorded model judgements are not client acceptance. Missing evidence is unknown, not passed. Compare follows the recorded starting run, never today’s accepted reference; materialised repository sync may have changed starting files. Use trace evidence for those changes. Legacy inventories may be incomplete. Text answers are read through the trace reader, not compared as files. Parent acceptance test records are host observations from the run, not a fresh test."
+  },
+  "terminalReviews": [
+    {
+      "eventId": "1f04c8b5-932e-4700-8e0b-fd2e22cefe7d",
+      "response": "{\"approved\":true,\"reasoning\":\"Routes the coupled read-only production HTTP/state/session verification to the capable CarbonDioxide L1, preserving every required envelope, source/saved build, search/detail traversal, durable reopen, navigation, 403/425/200/202 statuses, and diagnostic reporting. The single matrix is appropriately atomic; no implementation or browser-only UI proof is required.\",\"delegationReview\":{\"subtasks\":[{\"index\":0,\"kind\":\"other\",\"reason\":\"Read-only production HTTP/state/session behavior requires executing the supplied direct matrix against source and saved artifacts, including restart and navigation observations.\"}],\"integration\":{\"kind\":\"other\",\"reason\":\"The parent-owned matrix must verify joined source-versus-saved behavior and all pause, verification, and resume transitions together.\"},\"independentWork\":false,\"parallelReason\":\"Source and saved cases share the same required matrix contract and joined-artifact verification; no separate independent implementation branch exists.\"}}",
+      "stopReason": "end_turn",
+      "durationMs": 73190,
+      "timings": [
+        {
+          "phase": "profile-local-wait",
+          "startedAt": 1792659627369,
+          "durationMs": 63551
+        },
+        {
+          "phase": "first-response",
+          "startedAt": 1792659690931,
+          "durationMs": 9155
+        }
+      ],
+      "usage": {
+        "inputTokens": 46737,
+        "outputTokens": 1482,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "costUsd": 0.0111258,
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "subject": "PLAN",
+      "jevExcluded": "delegation-review",
+      "branchId": "f6fa9e91-64fd-49a1-a247-15fc4e8af5c9",
+      "attempt": 1
+    },
+    {
+      "eventId": "b99e75e5-df19-48dd-a4bf-56a8513cbd61",
+      "response": "{\"approved\":true,\"reasoning\":\"Routes the verification-only phase to capable L1 CarbonDioxide, preserves the no-change/offline constraints, and carries all required source/saved-build matrix, persistence, navigation, negative-control, provenance, and owner-fixture reporting obligations. The supplied parent suite imports and exercises both real implementations with meaningful positive, negative, and boundary assertions; no implementation branch requires additional integration coverage.\",\"delegationReview\":{\"subtasks\":[{\"index\":0,\"kind\":\"vitest\",\"reason\":\"The parent-owned Vitest matrix imports source and saved control-server implementations and asserts real HTTP, persisted state, identity, refusal, navigation, and resume behavior.\"}],\"integration\":{\"kind\":\"vitest\",\"reason\":\"One matrix integrates source and saved builds across identical cases and shared collector/control state transitions.\"},\"independentWork\":true,\"parallelReason\":\"Cases and build variants are independently exercised within the matrix; no cross-branch prerequisite exists.\"}}",
+      "stopReason": "end_turn",
+      "durationMs": 22707,
+      "timings": [
+        {
+          "phase": "profile-local-wait",
+          "startedAt": 1792659690948,
+          "durationMs": 9597
+        },
+        {
+          "phase": "first-response",
+          "startedAt": 1792659700558,
+          "durationMs": 12659
+        }
+      ],
+      "usage": {
+        "inputTokens": 47133,
+        "outputTokens": 2264,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "costUsd": 0.0121434,
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "subject": "PLAN",
+      "jevExcluded": "delegation-review",
+      "branchId": "a3dc0ae9-2dde-4957-aae3-a604d24537db",
+      "attempt": 1
+    },
+    {
+      "eventId": "52f7b8c8-2f23-49fc-bf17-2853e6fcdfe0",
+      "response": "{\"approved\":true,\"reasoning\":\"The plan correctly delegates two independent read-only branches to capable L1 children. The parent-owned matrix imports real source and saved control-server modules, exercises collector-triggered HTTP state transitions, persistence, negative controls, zero-navigation verification, and resume navigation with discriminating assertions. The second branch appropriately inspects recorded provenance and owner-fixture observations without rebuilding. No implementation branch or browser-only proof is introduced, so no additional integration suite is required.\",\"delegationReview\":{\"subtasks\":[{\"index\":0,\"kind\":\"vitest\",\"reason\":\"Executes the parent-provided Vitest-compatible matrix against real source and saved application modules with HTTP, persistence, negative, and navigation assertions.\"},{\"index\":1,\"kind\":\"inspection\",\"reason\":\"Read-only inspection and synthesis of existing probe, build, file, and owner-fixture evidence; no implementation or importable behavior is being changed.\"}],\"integration\":{\"kind\":\"other\",\"reason\":\"This phase is verification-only; the supplied parent-owned matrix is the integration check and no interacting implementation branches are proposed.\"},\"independentWork\":true,\"parallelReason\":\"The behavioral matrix and provenance inspection use separate evidence paths and have no prerequisite or shared mutation; they can run concurrently.\"}}",
+      "stopReason": "end_turn",
+      "durationMs": 14514,
+      "timings": [
+        {
+          "phase": "profile-local-wait",
+          "startedAt": 1792659747323,
+          "durationMs": 4460
+        },
+        {
+          "phase": "first-response",
+          "startedAt": 1792659751794,
+          "durationMs": 9572
+        }
+      ],
+      "usage": {
+        "inputTokens": 35292,
+        "outputTokens": 1557,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "costUsd": 0.00916488,
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "subject": "PLAN",
+      "jevExcluded": "delegation-review",
+      "branchId": "a3dc0ae9-2dde-4957-aae3-a604d24537db",
+      "attempt": 1
+    },
+    {
+      "eventId": "4336cff8-e288-4f6f-899d-76e2ba2c1321",
+      "response": "{\"approved\":false,\"reasoning\":\"Required verification is unproven: the source run ended in a Playwright-missing error, no real collector-triggered 403/425/200/202 matrix executed, and no independent saved-dist matrix evidence exists. The two partial tests do not cover every case, build, durable reopen, or detail traversal.\",\"modifications\":{\"additionalContext\":\"Re-run the parent-provided matrix read-only against fresh source and saved dist. First reject stale/missing build records. For all seven unmarked, two marked, title, and form cases, record real collector-triggered 403, durable reopen, unchanged verification navigation, blocked resume 425, current-document verification 200, resume 202, and later navigation; detail cases must reach /detail/101 via valid search.\"},\"scope\":\"ephemeral\"}",
+      "stopReason": "end_turn",
+      "durationMs": 8531,
+      "timings": [
+        {
+          "phase": "profile-local-wait",
+          "startedAt": 1792659793511,
+          "durationMs": 159
+        },
+        {
+          "phase": "first-response",
+          "startedAt": 1792659793681,
+          "durationMs": 7942
+        }
+      ],
+      "usage": {
+        "inputTokens": 59677,
+        "outputTokens": 290,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "costUsd": 0.012283400000000002,
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "child": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "subject": "RESULT",
+      "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+      "attempt": 1
+    },
+    {
+      "eventId": "c5da8ce4-2531-40d0-bbb4-65bf6882c4cf",
+      "response": "{\"approved\":true,\"reasoning\":\"The plan routes two independent read-only verification branches to the capable L1, with no invented dependency. The parent-owned Vitest suite imports real source and saved server modules, exercises HTTP/state/navigation behavior, includes all ordinary encodings plus empty search and negative identity/context/readability cases, and asserts persisted pause, restart, verification, and resume outcomes. Existing owner evidence may be consumed without redundant rebuilds. delegationReview classifies inspection separately from the executable Vitest matrix.\",\"delegationReview\":{\"subtasks\":[{\"index\":0,\"kind\":\"inspection\",\"reason\":\"Read-only inspection of current probes, provenance, owner evidence, and unavailable checks.\"},{\"index\":1,\"kind\":\"vitest\",\"reason\":\"Executes the parent-owned Vitest matrix against real source and saved control-server modules with HTTP, persistence, and negative assertions.\"}],\"integration\":{\"kind\":\"vitest\",\"reason\":\"The supplied suite integrates control server, collector-triggered pause, AtticaStore persistence, restart, verification, and resume across source and saved builds.\"},\"independentWork\":true,\"parallelReason\":\"The provenance/owner-evidence inspection and the source-versus-saved HTTP matrix are independent read-only checks and share no mutable prerequisites.\"}}",
+      "stopReason": "end_turn",
+      "durationMs": 19798,
+      "timings": [
+        {
+          "phase": "profile-local-wait",
+          "startedAt": 1792659795278,
+          "durationMs": 6749
+        },
+        {
+          "phase": "first-response",
+          "startedAt": 1792659802041,
+          "durationMs": 12359
+        }
+      ],
+      "usage": {
+        "inputTokens": 53391,
+        "outputTokens": 2312,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "costUsd": 0.01369068,
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "subject": "PLAN",
+      "jevExcluded": "delegation-review",
+      "branchId": "a3dc0ae9-2dde-4957-aae3-a604d24537db",
+      "attempt": 1
+    },
+    {
+      "eventId": "2393d428-b68e-4ab5-9880-24e7a78aec72",
+      "response": "{\"approved\":true,\"reasoning\":\"The read-only report inspects the manifest and current paths, runs the stale owner regression (11/11 passed), identifies saved-build evidence and its incomplete source provenance, and clearly separates unavailable clean-copy/full-matrix evidence. No workspace modification is claimed or observed.\",\"activeSkillFollowed\":false}",
+      "stopReason": "end_turn",
+      "durationMs": 5943,
+      "timings": [
+        {
+          "phase": "profile-local-wait",
+          "startedAt": 1792659900283,
+          "durationMs": 0
+        },
+        {
+          "phase": "first-response",
+          "startedAt": 1792659900295,
+          "durationMs": 5538
+        }
+      ],
+      "usage": {
+        "inputTokens": 52133,
+        "outputTokens": 551,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "costUsd": 0.011087800000000002,
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "child": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "subject": "RESULT",
+      "branchId": "f0657d9c-134e-4a5c-a5fb-0310d03436cc",
+      "attempt": 1
+    },
+    {
+      "eventId": "99ecd657-bbab-4a4b-8e95-e6172997678a",
+      "response": "{\"approved\":false,\"reasoning\":\"The required production source-and-dist matrix is incomplete. Recorded evidence shows saved-build cases 1–7 never reached CAPTCHA, while only detail/search cases reached pause and blocked resume; no complete 403/425/200/202 sequence, per-case reopen/navigation diagnostics, or source-build proof was observed.\",\"modifications\":{\"additionalContext\":\"Re-run the assigned read-only matrix for both fresh source and saved dist builds. Cover all seven unmarked and two marked envelopes, search and detail traversal (detail via valid search to /detail/101), and record for every case: collector-triggered pause, durable reopen, 403 verification with unchanged navigation, 425 blocked resume, current-document 200, explicit resume 202, and later collection navigation. Include title/form cases and stop/report failures precisely.\"},\"scope\":\"ephemeral\"}",
+      "stopReason": "end_turn",
+      "durationMs": 4990,
+      "timings": [
+        {
+          "phase": "profile-local-wait",
+          "startedAt": 1792659910617,
+          "durationMs": 0
+        },
+        {
+          "phase": "first-response",
+          "startedAt": 1792659910630,
+          "durationMs": 4561
+        }
+      ],
+      "usage": {
+        "inputTokens": 65609,
+        "outputTokens": 288,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "costUsd": 0.013467400000000001,
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "child": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "subject": "RESULT",
+      "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+      "attempt": 1
+    },
+    {
+      "eventId": "75c5de7d-4430-4fd4-8338-ebc1d415178e",
+      "response": "{\"approved\":false,\"reasoning\":\"The RESULT explicitly leaves the required eight ordinary-description cases unexercised through the full source/dist HTTP pause, reopen, verification, and resume matrix. The phase task requires reporting that matrix, not only challenge cases; rerun it read-only and report each build, kind, case, state, navigation, and diagnostic.\",\"modifications\":{\"additionalContext\":\"Execute the complete ordinary search/detail matrix against fresh source and saved dist, including durable reopen, blocked resume 425, current-document verification 200 without navigation, explicit resume 202, and later navigation. Report per-case diagnostics; do not modify artifacts.\"},\"scope\":\"ephemeral\"}",
+      "stopReason": "end_turn",
+      "durationMs": 11914,
+      "timings": [
+        {
+          "phase": "profile-local-wait",
+          "startedAt": 1792660023225,
+          "durationMs": 0
+        },
+        {
+          "phase": "first-response",
+          "startedAt": 1792660023245,
+          "durationMs": 11482
+        }
+      ],
+      "usage": {
+        "inputTokens": 66481,
+        "outputTokens": 2208,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "costUsd": 0.0159458,
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "child": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "subject": "RESULT",
+      "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+      "attempt": 1
+    },
+    {
+      "eventId": "600c0b7f-2c6b-4338-aa81-73e2c1d77d4f",
+      "response": "{\"approved\":false,\"reasoning\":\"The required source and saved-dist HTTP/state/session matrix was not executed. The result explicitly leaves per-case 403 pause, durable reopen, 425 resume block, 200 verification, 202 resume, navigation invariants, and detail traversal to /detail/101 unverified; three tests and static checks cannot prove these behaviors.\",\"modifications\":{\"additionalContext\":\"Run the complete matrix independently against fresh source-build and saved dist. For every seven unmarked, two marked, title, and form case record collector-triggered 403, durable reopen, unchanged verification navigation, blocked resume 425, valid current-document verification 200, explicit resume 202, and later navigation; detail cases must first reach /detail/101. Reject stale or helper-only evidence.\"},\"scope\":\"ephemeral\"}",
+      "stopReason": "end_turn",
+      "durationMs": 5206,
+      "timings": [
+        {
+          "phase": "profile-local-wait",
+          "startedAt": 1792660118423,
+          "durationMs": 0
+        },
+        {
+          "phase": "first-response",
+          "startedAt": 1792660118439,
+          "durationMs": 4760
+        }
+      ],
+      "usage": {
+        "inputTokens": 54898,
+        "outputTokens": 298,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "costUsd": 0.01157528,
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "child": {
+        "name": "Cortisol",
+        "tier": 1
+      },
+      "subject": "RESULT",
+      "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+      "attempt": 1
+    }
+  ],
+  "toolAudit": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "e6766621-cb39-4499-b6fb-408d874dafd6",
+        "name": "record_probe",
+        "ts": 1792659477699,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- vitest run tests/attica-captcha-matrix.vitest.test.ts",
+        "diagnostics": [
+          "      Tests  1 failed | 2 passed (3)",
+          " FAIL  tests/attica-captcha-matrix.vitest.test.ts > real control HTTP path pauses at search and persists across reopen",
+          "TypeError: fakeSession._getNavigationHistory is not a function"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "be0e5315-52e2-4a30-ada3-6e958dbab3e0",
+        "name": "record_probe",
+        "ts": 1792659478706,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- eslint --config eslint.config.mjs tests/attica-captcha-matrix.vitest.test.ts tests/fixtures/attica-captcha-matrix.ts",
+        "diagnostics": [
+          "  56:11  error  Unsafe assignment of an error typed value     @typescript-eslint/no-unsafe-assignment",
+          "  56:28  error  Unsafe call of a(n) `error` type typed value  @typescript-eslint/no-unsafe-call",
+          "  58:14  error  Unsafe call of a(n) `error` type typed value  @typescript-eslint/no-unsafe-call",
+          "  59:13  error  Unsafe assignment of an error typed value     @typescript-eslint/no-unsafe-assignment",
+          "  59:29  error  Unsafe call of a(n) `error` type typed value  @typescript-eslint/no-unsafe-call",
+          "  61:14  error  Unsafe call of a(n) `error` type typed value  @typescript-eslint/no-unsafe-call",
+          "  63:44  error  Unsafe return of a value of type error        @typescript-eslint/no-unsafe-return",
+          "  63:44  error  Unsafe call of a(n) `error` type typed value  @typescript-eslint/no-unsafe-call"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "2202d016-69a9-46e9-9148-dfe152ccc03f",
+        "name": "record_probe",
+        "ts": 1792659479752,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 2,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- tsc -p tsconfig.json --noEmit",
+        "diagnostics": [
+          "tests/attica-captcha-matrix.vitest.test.ts(56,36): error TS2339: Property 'restartOnSameRoot' does not exist on type 'ControlHarness'.",
+          "tests/xe-chromium.test.ts(172,14): error TS2531: Object is possibly 'null'.",
+          "tests/xe-chromium.test.ts(172,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'."
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "bf5e655c-27df-4716-911f-dbc0ffca530f",
+        "name": "edit_file",
+        "ts": 1792659483814,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": "tests/helpers/attica-control-harness.d.ts",
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "path",
+          "replacements",
+          "bytes"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "40c6dde5-25ce-4e9d-8ff7-83f607378ea9",
+        "name": "edit_file",
+        "ts": 1792659486935,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": "tests/fixtures/attica-captcha-matrix.ts",
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "path",
+          "replacements",
+          "bytes"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "d4d4ffa0-24ef-4ed7-a560-a59fddb8f7de",
+        "name": "record_probe",
+        "ts": 1792659489065,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- vitest run tests/attica-captcha-matrix.vitest.test.ts",
+        "diagnostics": [
+          " Test Files  1 passed (1)",
+          "      Tests  3 passed (3)"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "ce4b94cb-4453-4e32-bb67-f47af2ce4be3",
+        "name": "record_probe",
+        "ts": 1792659490047,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- eslint --config eslint.config.mjs tests/attica-captcha-matrix.vitest.test.ts tests/fixtures/attica-captcha-matrix.ts tests/helpers/attica-control-harness.d.ts",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "160f43d5-760f-4131-b1ba-c8a767c9bb45",
+        "name": "record_probe",
+        "ts": 1792659490976,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 2,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- tsc -p tsconfig.json --noEmit",
+        "diagnostics": [
+          "tests/xe-chromium.test.ts(172,14): error TS2531: Object is possibly 'null'.",
+          "tests/xe-chromium.test.ts(172,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'."
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "6c05a762-19a5-4874-8a94-d92574c6b1ca",
+        "name": "record_probe",
+        "ts": 1792659494237,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm run build",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "344891af-82c5-4be4-8e18-b1d2f3454080",
+        "name": "record_probe",
+        "ts": 1792659495150,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 2,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm run check",
+        "diagnostics": [
+          "tests/xe-chromium.test.ts(172,14): error TS2531: Object is possibly 'null'.",
+          "tests/xe-chromium.test.ts(172,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'."
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "1aab99db-cf11-47d5-b0a5-9af7516ffa20",
+        "name": "record_probe",
+        "ts": 1792659496084,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node --test tests/xe-browser-focused.test.js tests/xe-browser-hosting-integration.test.js",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "e921b651-0e6b-43bd-8fcf-7369285c28ac",
+        "name": "edit_file",
+        "ts": 1792659500071,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": "tests/xe-chromium.test.ts",
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "path",
+          "replacements",
+          "bytes"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "2140185c-6ce7-4238-929a-d5d90443df82",
+        "name": "record_probe",
+        "ts": 1792659501627,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm run check",
+        "diagnostics": [
+          " Test Files  28 passed (28)",
+          "      Tests  86 passed (86)",
+          "  AssertionError [ERR_ASSERTION]: ✔ production control path validates requests, is idle, and exposes UI (13.546291ms)",
+          "    AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "804fc0dd-7158-4fbc-9f06-12dd3eafaf33",
+        "name": "record_probe",
+        "ts": 1792659528571,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- tsc -p tsconfig.json --noEmit",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "1f5edbee-28b6-4938-b842-388441964b02",
+        "name": "record_probe",
+        "ts": 1792659529721,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm run build",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "dee923e1-6d59-415e-bbac-408ecd06f8ef",
+        "name": "record_probe",
+        "ts": 1792659534673,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "for p in collect-xe-live.js import-spitogatos-browser.js; do q=.atoma-runs/node_modules/00669e94-caad-4866-b487-dfe359bec458/$p; wm=$(stat -c '%a' \"$p\"); rm=$(stat -c '%a' \"$q\"); i",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "8f0f0814-b9d3-4aee-8953-8f5dc5af25ea",
+        "name": "record_probe",
+        "ts": 1792659534753,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "for p in $(find data evidence -type f | sort); do q=.atoma-runs/node_modules/00669e94-caad-4866-b487-dfe359bec458/$p; wm=$(stat -c '%a' \"$p\"); rm=$(stat -c '%a' \"$q\"); if cmp -s \"$",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr",
+          "recorded",
+          "manifest",
+          "recordedStdoutOmitted",
+          "ranThroughShell"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "17010535-17a9-49b1-afb6-8011e7e82e84",
+        "name": "run_shell",
+        "ts": 1792659548499,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -n \"control\" browser/control-server.js | head",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "e928f167-d8e4-41d0-aa7d-b4cbbdae720e",
+        "name": "fetch_url",
+        "ts": 1792659552473,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "e6116282-e0dc-4fb2-b77f-6b82ff216492",
+        "name": "fetch_url",
+        "ts": 1792659552639,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "8d77b2ff-f597-4737-8b98-a6def5d47027",
+        "name": "validate_html",
+        "ts": 1792659558565,
+        "branchId": "04385f15-64af-4398-bcc6-af67afc27fa0",
+        "actor": {
+          "name": "Meristem",
+          "tier": 3
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "url",
+          "title",
+          "errors",
+          "warnings",
+          "failedRequests",
+          "interactionLog",
+          "requestedInteractions",
+          "ignoredInteractions",
+          "viewport",
+          "smokeResult"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "cfd6634a-6e18-42bc-afce-b1dd3e791502",
+        "name": "run_shell",
+        "ts": 1792659757519,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "find .atoma-probes.json .atoma-scratch -maxdepth 2 -type f -print | sort | head -80",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "1ec5528f-03b2-4270-8bba-0ad682030eb2",
+        "name": "run_shell",
+        "ts": 1792659757593,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "sed -n '1,260p' tests/attica-captcha-matrix.vitest.test.ts",
+        "diagnostics": [
+          "  throw new Error(\"matrix timeout waiting for CAPTCHA pause\");"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "c32d9614-b5ff-4336-a963-acc18283440c",
+        "name": "run_shell",
+        "ts": 1792659757691,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -nE 'api/start|api/verify-access|api/resume|restart|setPageState|navigation|allMatrixCases|challengeCases|ordinaryCases' tests/fixtures/attica-captcha-matrix.ts tests/attica-c",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "4b7690e0-42bf-4a48-9921-81856ac8763d",
+        "name": "run_shell",
+        "ts": 1792659757794,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "sed -n '1,260p' tests/fixtures/attica-captcha-matrix.ts",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "943c5aa3-7e8f-41b7-8706-d3423c7afae3",
+        "name": "run_shell",
+        "incomplete": true,
+        "totalChars": 96810
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "e2b0ba3a-b2c5-4a09-93df-e8344b261966",
+        "name": "run_shell",
+        "ts": 1792659766053,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "find dist -maxdepth 3 -type f | sort | head -80",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "fdd9d43b-42eb-45cf-aa13-ef205b746bad",
+        "name": "run_shell",
+        "ts": 1792659766130,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -nE 'function acceptsCaptchaDocument|challengeMessage|marker|title|form|verify-access|/api/resume|/api/start' browser/captcha-document.ts browser/control-server.ts | head -120",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "3a42262e-12dc-4d8f-a084-282d3873e490",
+        "name": "run_shell",
+        "ts": 1792659766209,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": null,
+        "errorPresent": true,
+        "path": null,
+        "cmdPrefix": "stat -c '%y %n' browser/captcha-document.ts browser/control-server.ts dist/browser/captcha-document.js dist/browser/control-server.js dist/fixtures/xe-browser-server.js",
+        "diagnostics": [],
+        "resultKeys": []
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "69401ee8-409d-4740-ba3e-9e5dcf11f825",
+        "name": "fetch_url",
+        "ts": 1792659774734,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "49d13287-ffb6-49a1-8321-af6571b55c90",
+        "name": "fetch_url",
+        "ts": 1792659774835,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": false,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "27859eaf-1875-4fc4-911e-94cccd60aaca",
+        "name": "fetch_url",
+        "ts": 1792659775365,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "b6b3644e-13be-4f66-a8ac-a3da9c42eb83",
+        "name": "fetch_url",
+        "ts": 1792659778014,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "60b84981-77c5-4919-9e6c-379c92d88fc5",
+        "name": "fetch_url",
+        "ts": 1792659778744,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "4395c681-a8ad-4edd-8653-d0fd10d18f47",
+        "name": "run_shell",
+        "incomplete": true,
+        "totalChars": 97618
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "864edc15-c828-48c8-a740-c62a55bac3dd",
+        "name": "run_shell",
+        "ts": 1792659841835,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "find .atoma-scratch .atoma-runs -maxdepth 3 -type f 2>/dev/null | sort | head -100",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "0298e5a8-7fc5-4097-a9f0-d821cc6351c1",
+        "name": "run_shell",
+        "ts": 1792659841946,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "test -d node_modules && echo NODE_MODULES_PRESENT || echo NODE_MODULES_ABSENT; test -d browser/node_modules && echo BROWSER_NODE_MODULES_PRESENT || echo BROWSER_NODE_MODULES_ABSENT",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "5da76353-ce4c-46d0-ae3b-512a972a4957",
+        "name": "run_shell",
+        "ts": 1792659842024,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "sed -n '1,260p' tests/fixtures/attica-captcha-matrix.ts",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "8431fc78-bd32-432d-a294-f9e564805c8d",
+        "name": "run_shell",
+        "ts": 1792659842443,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "sed -n '1,280p' tests/attica-captcha-matrix.vitest.test.ts",
+        "diagnostics": [
+          "  throw new Error(\"matrix timeout waiting for CAPTCHA pause\");"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "a70a073d-1be3-4347-89fd-ba71afca40e9",
+        "name": "run_shell",
+        "ts": 1792659848040,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -nE 'function startControlServer|createFakeSession|detailMode|completeListings|restartOnSameRoot|fixtureOrigin|setPageState|_setDetailMode' tests/helpers/attica-control-harnes",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "306d0a84-6374-4b2e-81ee-e84e70517ec8",
+        "name": "run_shell",
+        "ts": 1792659848197,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -nE 'function startControlServer|fakeSessionOptions|detailMode|completeListings' tests/helpers/attica-control-harness.d.ts",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "0dabce1f-b07d-44ee-8077-25dade5e03a9",
+        "name": "run_shell",
+        "incomplete": true,
+        "totalChars": 28866
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "e7d9ecc9-63ab-4bf3-b61a-a774d5ec8bd7",
+        "name": "run_shell",
+        "ts": 1792659848770,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "sha256sum browser/control-server.ts dist/browser/control-server.js browser/collect-xe-browser.ts dist/browser/collect-xe-browser.js browser/captcha-document.ts dist/browser/captcha",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "6336709b-8446-4e96-9844-b867462d76c6",
+        "name": "run_shell",
+        "ts": 1792659851150,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "python3 - <<'PY'",
+        "diagnostics": [
+          " OUT:  |  RUN  v3.2.4 /workspace |  |  ✓ tests/attica-captcha-matrix.vitest.test.ts (3 tests) 456ms |  |  Test Files  1 passed (1) |       Tests  3 passed (3) |    Start at  08:58:09 |    Duration  578ms (transform 30ms, setup 0ms, collect 36ms, tests 456ms, environment 0ms, prepare 23ms) |  | ",
+          " OUT:  | /workspace/tests/attica-captcha-matrix.vitest.test.ts |   56:11  error  Unsafe assignment of an error typed value     @typescript-eslint/no-unsafe-assignment |   56:28  error  Unsafe call of a(n) `error` type typed value  @typescript-eslint/no-unsafe-call |   58:14  error  Unsafe call of a("
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "68351664-72c9-443d-ac1d-fb156cc4e1b1",
+        "name": "run_shell",
+        "ts": 1792659856736,
+        "branchId": "f0657d9c-134e-4a5c-a5fb-0310d03436cc",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "printf '%s\\n' '==paths==' && find browser fixtures tests dist -maxdepth 2 -type f \\( -path 'browser/*.ts' -o -path 'browser/*.js' -o -path 'fixtures/*.ts' -o -path 'fixtures/*.js' ",
+        "diagnostics": [
+          "tests/xe-browser-hosting-integration.test.js:48:  for(let i=0;i<100;i++){const result=await request(port,\"GET\",\"/api/status\",headers);if(result.body.status===status)return result.body;await new Promise(resolve=>setTimeout(resolve,5));}",
+          "tests/xe-browser-hosting-integration.test.js:49:  throw new Error(\"timed out waiting for \"+status);"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "6dd6c43d-fd84-4b5f-afc8-7e627f39e1ce",
+        "name": "run_shell",
+        "ts": 1792659856916,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "sed -n '50,235p' tests/helpers/attica-control-harness.js; sed -n '260,410p' tests/helpers/attica-control-harness.js",
+        "diagnostics": [
+          "  return new Promise(resolve => setTimeout(resolve, ms));"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "2cee00a0-1cf9-40c3-bcb3-34cde8c93e25",
+        "name": "run_shell",
+        "ts": 1792659857964,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "test -d node_modules && echo NODE_MODULES_PRESENT || echo NODE_MODULES_ABSENT; test -x node_modules/.bin/vitest && echo VITEST_PRESENT || true; npm exec -- vitest run tests/attica-",
+        "diagnostics": [
+          " Test Files  1 passed (1)",
+          "      Tests  3 passed (3)"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "9e025e3b-f307-45a1-a287-b32b101feeea",
+        "name": "run_shell",
+        "ts": 1792659861424,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -RIl \"Source and saved build pass the identical eight ordinary-case HTTP matrix\\|encoded office\\|ordinary search office\" . --exclude-dir=node_modules --exclude-dir=.atoma-runs",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "7bd6a7f7-a068-4d76-a2f8-d5519f9f19da",
+        "name": "run_shell",
+        "ts": 1792659861427,
+        "branchId": "f0657d9c-134e-4a5c-a5fb-0310d03436cc",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node --test tests/xe-browser-focused.test.js tests/xe-browser-hosting-integration.test.js",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "c1a91b04-d7e1-4dfe-9eb5-d63a591ad423",
+        "name": "run_shell",
+        "ts": 1792659866145,
+        "branchId": "f0657d9c-134e-4a5c-a5fb-0310d03436cc",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "printf '%s\\n' '==manifest transport/build notes==' && grep -oE '\"(cmd|note|path|status|method|entry|serverKind)\"[[:space:]]*:[[:space:]]*\"[^\"]*\"' .atoma-probes.json | grep -Ei 'bui",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "14a7f08c-f9b7-45bc-b596-fca0c306fa20",
+        "name": "run_shell",
+        "ts": 1792659868225,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node - <<'JS'",
+        "diagnostics": [
+          "SyntaxError: Unexpected token ')'"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "a7b9218f-8e5d-4465-88b5-0d3b160e5aa9",
+        "name": "run_shell",
+        "incomplete": true,
+        "totalChars": 90367
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "0ddc6a49-d31a-492f-9c34-9e48959c6114",
+        "name": "run_shell",
+        "ts": 1792659874434,
+        "branchId": "f0657d9c-134e-4a5c-a5fb-0310d03436cc",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node <<'NODE'",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "3876ffed-f626-4e10-811c-15b947a445d4",
+        "name": "run_shell",
+        "ts": 1792659877383,
+        "branchId": "f0657d9c-134e-4a5c-a5fb-0310d03436cc",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node <<'NODE'",
+        "diagnostics": [
+          " out=tests/attica-captcha-verification.vitest.test.ts(17,12): error TS2339: Property 'once' does not exist on type 'ControlServer'.\\ntests/attica-captcha-verification.vitest.test.ts(21,17): error TS2740: Type 'ControlServer' is missing the following properties from type 'Server<typeof IncomingMessag",
+          " out=browser/collect-xe-browser.ts(5,29): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.\\nbrowser/xe-browser-checkpoint.ts(2,29): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enab",
+          " out=browser/captcha-document.ts(1,8): error TS1259: Module '\"/workspace/collectors/xe\"' can only be default-imported using the 'esModuleInterop' flag\\ncollectors/xe.ts(1,8): error TS1192: Module '\"node:fs\"' has no default export.\\ncollectors/xe.ts(2,8): error TS1259: Module '\"node:path\"' can only b",
+          " out=\\n RUN  v3.2.4 /workspace\\n\\n ✓ tests/attica-captcha-verification.vitest.test.ts (1 test) 383ms\\n   ✓ compiled CAPTCHA verification requires current resolved detail evidence  383ms\\n\\n Test Files  1 passed (1)\\n      Tests  1 passed (1)\\n   Start at  08:47:07\\n   Duration  498ms (transform 21ms",
+          " out=\\n RUN  v3.2.4 /workspace\\n\\n ✓ tests/attica-captcha-matrix.vitest.test.ts (3 tests) 456ms\\n\\n Test Files  1 passed (1)\\n      Tests  3 passed (3)\\n   Start at  08:58:09\\n   Duration  578ms (transform 30ms, setup 0ms, collect 36ms, tests 456ms, environment 0ms, prepare 23ms)\\n\\n",
+          " out=\\n/workspace/tests/attica-captcha-matrix.vitest.test.ts\\n  56:11  error  Unsafe assignment of an error typed value     @typescript-eslint/no-unsafe-assignment\\n  56:28  error  Unsafe call of a(n) `error` type typed value  @typescript-eslint/no-unsafe-call\\n  58:14  error  Unsafe call of a(n) `e"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "873c84ad-c028-4eae-803e-ec12d5c13e64",
+        "name": "write_file",
+        "ts": 1792659879269,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": ".atoma-scratch/parent-matrix.vitest.test.js",
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "path",
+          "bytes"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "30f2f1d7-f61d-4568-aa34-b979305701aa",
+        "name": "run_shell",
+        "ts": 1792659874550,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node - <<'JS'",
+        "diagnostics": [
+          "      \"error\": \"TypeError: fakeSession._getNavigationCount is not a function\"",
+          "      \"error\": \"TypeError: fakeSession._getNavigationCount is not a function\"",
+          "      \"error\": \"TypeError: fakeSession._getNavigationCount is not a function\"",
+          "      \"error\": \"TypeError: fakeSession._getNavigationCount is not a function\"",
+          "      \"error\": \"TypeError: fakeSession._getNavigationCount is not a function\"",
+          "      \"error\": \"TypeError: fakeSession._getNavigationCount is not a function\"",
+          "      \"error\": \"TypeError: fakeSession._getNavigationCount is not a function\"",
+          "      \"error\": \"TypeError: fakeSession._getNavigationCount is not a function\""
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "28403a8b-cd4f-4c3c-85d7-bb8bd2ca215c",
+        "name": "run_shell",
+        "ts": 1792659881319,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- vitest run .atoma-scratch/parent-matrix.vitest.test.js",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "6f9e7821-16fe-4e2a-a4fa-bee4871fee92",
+        "name": "run_shell",
+        "ts": 1792659882260,
+        "branchId": "f0657d9c-134e-4a5c-a5fb-0310d03436cc",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node -e \"const e=require('./.atoma-probes.json').entries[100]; console.log(e.stdout)\" && printf '%s\\n' '==current source/dist mtimes==' && stat -c '%y %n' browser/captcha-document.",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "64d86b6d-d1a9-474d-8d31-c4e4dd93d14a",
+        "name": "run_shell",
+        "ts": 1792659885166,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node - <<'JS'",
+        "diagnostics": [
+          "SyntaxError: Unexpected token ')'"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "b7336a85-7890-40c0-8d0b-94f6d7ce22af",
+        "name": "run_shell",
+        "ts": 1792659885511,
+        "branchId": "f0657d9c-134e-4a5c-a5fb-0310d03436cc",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "for p in dist/browser/captcha-document.js.map dist/browser/control-server.js.map dist/fixtures/xe-browser-server.js.map; do node -e \"const fs=require('fs'); const x=JSON.parse(fs.r",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "40e35905-c31f-4cea-b089-efe92d6c648d",
+        "name": "run_shell",
+        "ts": 1792659883489,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "cp .atoma-scratch/parent-matrix.vitest.test.js tests/parent-matrix.vitest.test.ts && npm exec -- vitest run tests/parent-matrix.vitest.test.ts; status=$?; rm -f tests/parent-matrix",
+        "diagnostics": [
+          "     → timeout inert JSON",
+          "     → timeout inert JSON",
+          "      Tests  16 failed | 2 passed (18)",
+          " FAIL  tests/parent-matrix.vitest.test.ts > source ordinary encoded office",
+          " FAIL  tests/parent-matrix.vitest.test.ts > source ordinary raw office",
+          " FAIL  tests/parent-matrix.vitest.test.ts > source ordinary visible office",
+          " FAIL  tests/parent-matrix.vitest.test.ts > source ordinary renovation and turnstile",
+          " FAIL  tests/parent-matrix.vitest.test.ts > source ordinary security prose"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "80b22fbc-0790-4c3a-beb9-c013292f727e",
+        "name": "run_shell",
+        "ts": 1792659888738,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- vitest run tests/attica-captcha-matrix.vitest.test.ts",
+        "diagnostics": [
+          " Test Files  1 passed (1)",
+          "      Tests  3 passed (3)"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "24d87cc2-b12b-4059-801a-918abf404d70",
+        "name": "run_shell",
+        "ts": 1792659898041,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -n \"content:\" .atoma-scratch/parent-matrix.vitest.test.js",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "f81139c3-35c2-428b-8f58-8b973cc995cb",
+        "name": "edit_file",
+        "ts": 1792659900515,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": ".atoma-scratch/parent-matrix.vitest.test.js",
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "path",
+          "replacements",
+          "bytes"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "b12cac15-565d-4380-9fff-70231dde379d",
+        "name": "run_shell",
+        "ts": 1792659896881,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node - <<'JS'",
+        "diagnostics": [
+          "      \"error\": \"Error: connect ECONNREFUSED 127.0.0.1:42517\"",
+          "      \"error\": \"Error: connect ECONNREFUSED 127.0.0.1:40105\"",
+          "      \"error\": \"Error: connect ECONNREFUSED 127.0.0.1:41277\"",
+          "      \"error\": \"Error: connect ECONNREFUSED 127.0.0.1:35961\"",
+          "      \"error\": \"Error: connect ECONNREFUSED 127.0.0.1:45455\"",
+          "      \"error\": \"Error: connect ECONNREFUSED 127.0.0.1:36013\"",
+          "      \"error\": \"Error: connect ECONNREFUSED 127.0.0.1:38631\"",
+          "      \"error\": \"Error: connect ECONNREFUSED 127.0.0.1:38301\""
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "89b58798-adf4-4af8-9232-90055a53a9db",
+        "name": "run_shell",
+        "incomplete": true,
+        "totalChars": 46020
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "2067b729-5cdb-4eae-b972-065df41c1210",
+        "name": "edit_file",
+        "ts": 1792659911464,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": ".atoma-scratch/parent-matrix.vitest.test.js",
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "path",
+          "replacements",
+          "bytes"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "a3182e65-b51b-4bc6-95a6-682fa48a0734",
+        "name": "run_shell",
+        "incomplete": true,
+        "totalChars": 54494
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "09db7f12-a9b1-4451-a4b1-923703a035e6",
+        "name": "edit_file",
+        "ts": 1792659921872,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": ".atoma-scratch/parent-matrix.vitest.test.js",
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "path",
+          "replacements",
+          "bytes"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "8a5cb876-9652-4998-ac33-95c879eed858",
+        "name": "run_shell",
+        "incomplete": true,
+        "totalChars": 54494
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "3eaf24d3-82ac-44f9-a660-8080a86a56fe",
+        "name": "run_shell",
+        "ts": 1792659937847,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "rm -f .atoma-scratch/parent-matrix.vitest.test.js tests/parent-matrix.vitest.test.ts; npm exec -- vitest run tests/attica-captcha-verification.vitest.test.ts",
+        "diagnostics": [
+          " Test Files  1 passed (1)",
+          "      Tests  1 passed (1)"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "7a2224cc-cd15-460c-81a6-99db92a4d3ad",
+        "name": "fetch_url",
+        "ts": 1792659944342,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "5bda6e8a-871d-4fab-be89-2105f1571aed",
+        "name": "fetch_url",
+        "ts": 1792659944514,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "194f30fe-b35f-4695-add2-7da2b3b31a62",
+        "name": "fetch_url",
+        "ts": 1792659944590,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": false,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "afa1b8c8-fb25-4946-a5d5-32a3ee76f70b",
+        "name": "fetch_url",
+        "ts": 1792659944665,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "63aafe20-169c-4e55-9271-56670cf2890d",
+        "name": "fetch_url",
+        "ts": 1792659945740,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "88c9f35e-eeff-441b-bc3a-c3232c45ebd0",
+        "name": "run_shell",
+        "ts": 1792659947588,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "rm -rf .atoma-scratch/source-build && mkdir -p .atoma-scratch/source-build && npx tsc -p tsconfig.build.json --outDir .atoma-scratch/source-build",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "c16b73db-11fb-4100-bc0a-ed7fae83d2f7",
+        "name": "validate_html",
+        "ts": 1792659947914,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "url",
+          "title",
+          "errors",
+          "warnings",
+          "failedRequests",
+          "interactionLog",
+          "requestedInteractions",
+          "ignoredInteractions",
+          "viewport",
+          "smokeResult"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "6a06f91a-c6b3-4a80-a7c2-ccda541e56cc",
+        "name": "run_shell",
+        "ts": 1792659949813,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "find .atoma-scratch -maxdepth 2 -type f -printf '%p\\n' 2>/dev/null | sort | head -50",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "ecb64b63-957d-4027-bab5-206f951f2bf1",
+        "name": "run_shell",
+        "ts": 1792659951225,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "rm -rf .atoma-scratch/delegated-server .atoma-scratch/parent-matrix.vitest.test.js; test ! -e tests/parent-matrix.vitest.test.ts && echo EPHEMERAL_MATRIX_REMOVED",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "66489966-df93-4d55-8151-975be32bb92a",
+        "name": "run_shell",
+        "ts": 1792659962591,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node - <<'JS'",
+        "diagnostics": [
+          "Error: Cannot find module '.atoma-scratch/source-build/browser/control-server.js'"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "82e59569-e9e0-4717-a46a-d69bf176f9ff",
+        "name": "run_shell",
+        "ts": 1792659971768,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node - <<'JS'",
+        "diagnostics": [
+          "Error: Cannot find module '../../collect-listings'"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "d13213c4-32e9-4d27-8c35-e90426b9b0ef",
+        "name": "run_shell",
+        "ts": 1792659980053,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "test -d node_modules && echo NODE_MODULES_PRESENT || echo NODE_MODULES_ABSENT; test -d browser/node_modules && echo BROWSER_NODE_MODULES_PRESENT || echo BROWSER_NODE_MODULES_ABSENT",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "82ae3305-4887-4b21-b220-c17eaba160ec",
+        "name": "run_shell",
+        "ts": 1792659980123,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -nE \"captcha|verify-access|acceptsCaptchaDocument|content\\(\\)|goto\\(\" browser/collect-xe-browser.ts browser/control-server.ts | head -120",
+        "diagnostics": [
+          "browser/control-server.ts:124:    if (await boundedCleanup(() => page.goto(\"about:blank\", { waitUntil: \"domcontentloaded\", timeout: 1000 }))) return;",
+          "browser/control-server.ts:293:            if (currentState.pauseType === \"captcha\") { release(); return json(res, 425, { error: \"website challenge in progress; verification required before resume\" }); }",
+          "browser/control-server.ts:304:          if (store.loadState().pauseType !== \"captcha\") return json(res, 400, { error: \"no active CAPTCHA challenge to verify\" });"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "ef1e2814-4ce9-4365-8065-f375498dbca2",
+        "name": "run_shell",
+        "ts": 1792659981277,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "cp .atoma-scratch/source-build/collect-listings.js .atoma-scratch/collect-listings.js && node - <<'JS'",
+        "diagnostics": [
+          "Error: Cannot find module '/workspace/.atoma-scratch/browser/session.js'"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "ab784715-9c15-43f6-936f-4d256d792242",
+        "name": "run_shell",
+        "ts": 1792659982856,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "git status --short 2>/dev/null || true; find .atoma-scratch/matrix-source -maxdepth 2 -type f -printf '%p\\n'",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "06515b9c-a397-43d1-afab-56902b746d77",
+        "name": "run_shell",
+        "ts": 1792659982924,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "sed -n '180,380p' browser/control-server.ts",
+        "diagnostics": [
+          "        if (!assetRoot) throw new Error(\"control page not found\");",
+          "        if (!assetRoot) throw new Error(\"not found\");",
+          "          if (!requested.startsWith(\"/assets/\")) throw new Error(\"not found\");",
+          "          if (!file.startsWith(rootPath + path.sep) || !fs.statSync(file).isFile()) throw new Error(\"not found\");",
+          "          throw new Error(\"not found\");",
+          "        const selected = files[name]; if (!selected) return json(res, 404, { error: \"export not available\" });",
+          "        const file = path.join(output, selected[1]); if (!fs.existsSync(file)) return json(res, 404, { error: \"export not available\" });",
+          "          const currentCancellation = store.loadCancellation(); if (currentCancellation.cancellationStatus === \"cancelled\") return json(res, 403, { error: \"collection cancelled: \" + String(currentCancellation.cancellationReason || \"cancelled\") });"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "b5acb2fe-ef97-4621-9503-1d3a0f275a6d",
+        "name": "run_shell",
+        "ts": 1792659983493,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "mkdir -p .atoma-scratch/browser && cp browser/session.js .atoma-scratch/browser/session.js && node -e \"require('./.atoma-scratch/source-build/browser/control-server.js'); console.l",
+        "diagnostics": [
+          "Error: Cannot find module '../dist/browser/session.js'"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "03b6dab5-a954-4aca-b0bb-755dbdb151f2",
+        "name": "run_shell",
+        "ts": 1792659985182,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "mkdir -p .atoma-scratch/dist/browser && cp dist/browser/session.js .atoma-scratch/dist/browser/session.js && node -e \"require('./.atoma-scratch/source-build/browser/control-server.",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "55a0b442-e35b-424e-9d23-55787221cb06",
+        "name": "run_shell",
+        "ts": 1792659991475,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "pwd; readlink -f browser/control-server.ts; test -e /workspace/browser/control-server.ts && echo WORKSPACE_PATH_OK || true",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "7afd2d84-44d7-4915-9a88-f5c036c068ee",
+        "name": "run_shell",
+        "ts": 1792659994387,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node - <<'JS'",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "9f0dda9b-79ca-4052-805e-c0551e02eaeb",
+        "name": "run_shell",
+        "ts": 1792660000738,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "cat > /tmp/parent-matrix.vitest.test.ts <<'EOF'",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "44a29d02-edb3-44cb-88c0-3dc899213368",
+        "name": "run_shell",
+        "ts": 1792660008120,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node - <<'JS'",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "67d5d510-cce0-42dc-9e28-424451330040",
+        "name": "fetch_url",
+        "ts": 1792660012626,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "3c350bee-0254-49f5-91c6-979599a6bda9",
+        "name": "fetch_url",
+        "ts": 1792660012801,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "c9e7b361-5b1e-431b-88a1-20b26d4ddd47",
+        "name": "fetch_url",
+        "ts": 1792660012884,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": false,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "c06c016e-9bdd-4dae-9ebc-95288648e042",
+        "name": "fetch_url",
+        "ts": 1792660012961,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "45cce038-6343-4e05-8f5a-50b306f03a4e",
+        "name": "fetch_url",
+        "ts": 1792660015412,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "58aaab9e-beb7-4b00-8cee-d173382b66ee",
+        "name": "run_shell",
+        "ts": 1792660016136,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "rm -rf .atoma-scratch/source-build .atoma-scratch/collect-listings.js .atoma-scratch/browser .atoma-scratch/dist && sha256sum browser/captcha-document.ts dist/browser/captcha-docum",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "8deccb87-eef8-4ee9-b76a-2789ff01f548",
+        "name": "run_shell",
+        "ts": 1792660017930,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- vitest run tests/attica-captcha-matrix.vitest.test.ts tests/attica-captcha-verification.vitest.test.ts",
+        "diagnostics": [
+          " Test Files  2 passed (2)",
+          "      Tests  4 passed (4)"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "ea5e3862-a194-4343-8af6-8fae3f526050",
+        "name": "run_shell",
+        "ts": 1792660021251,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "rm -rf .atoma-scratch/phase-server; test ! -e /tmp/parent-matrix.vitest.test.ts && echo EPHEMERAL_MATRIX_REMOVED",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "519abe63-9767-49c4-ade2-240ef610945f",
+        "name": "run_shell",
+        "ts": 1792660062399,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "sed -n '1,240p' tests/attica-captcha-matrix.vitest.test.ts",
+        "diagnostics": [
+          "  throw new Error(\"matrix timeout waiting for CAPTCHA pause\");"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "04116d68-18c5-420c-8816-a3abafef22de",
+        "name": "run_shell",
+        "ts": 1792660062501,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "sed -n '1,260p' tests/fixtures/attica-captcha-matrix.ts",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "323bfb7e-0ae3-40d9-b1c2-2939ce4bc2f4",
+        "name": "run_shell",
+        "ts": 1792660062617,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -nE 'export function createServer|verify-access|api/start|api/resume' browser/control-server.ts dist/browser/control-server.js | head -80",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "2cafb49b-ded6-4988-94a7-01c34f7f992a",
+        "name": "run_shell",
+        "ts": 1792660062690,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "test -d node_modules && echo node_modules_present || echo node_modules_absent; test -d browser/node_modules && echo browser_node_modules_present || echo browser_node_modules_absent",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "a70beb43-f750-4224-a718-071747428e28",
+        "name": "run_shell",
+        "ts": 1792660077566,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "cat > /tmp/parent-matrix.vitest.test.ts <<'EOF'",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "3fe1bc20-97ad-47fd-b146-03f523dce763",
+        "name": "run_shell",
+        "incomplete": true,
+        "totalChars": 42061
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "19d75269-5f31-4bd1-8fb7-aba790377b4b",
+        "name": "run_shell",
+        "ts": 1792660078641,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "sha256sum browser/control-server.ts browser/captcha-document.ts browser/collect-xe-browser.ts fixtures/xe-browser-server.ts dist/browser/control-server.js dist/browser/captcha-docu",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "77203796-2f89-4b69-814e-602257e09c50",
+        "name": "run_shell",
+        "ts": 1792660078717,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -nE 'challenge|verify-access|resume|api/start|api/verify|api/resume|navigation' tests/attica-captcha-matrix.vitest.test.ts tests/helpers/attica-control-harness.js | head -120",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "233ed6f0-ce7c-4e8c-a9b0-c33a86fce1fe",
+        "name": "run_shell",
+        "ts": 1792660078821,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- vitest run tests/attica-captcha-matrix.vitest.test.ts",
+        "diagnostics": [
+          " Test Files  1 passed (1)",
+          "      Tests  3 passed (3)"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "9f546264-ebf2-4227-b1ec-e111e3108f8d",
+        "name": "run_shell",
+        "ts": 1792660081227,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 2,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "cat > /tmp/vitest.parent.config.mts <<'EOF'",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "f2cbec93-0634-41f9-bc21-3f31594d9234",
+        "name": "run_shell",
+        "ts": 1792660082581,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node - <<'NODE'",
+        "diagnostics": [
+          "27 Final focused CAPTCHA document suite after generalized structural challenge-message matching. npx vitest run tests/captcha-document.vitest.test.ts 0 \\n RUN  v3.2.4 /workspace\\n\\n ✓ tests/captcha-document.vitest.test.ts (10 tests) 232ms\\n\\n Test Files  1 passed (1)\\n      Tests  10 passed (10)\\n  ",
+          "32  grep -nE 'challenge\\(|savePause|captchaKind|captchaExpected|status: \"paused\"|response\\.status|cleanup|timeout' browser/collect-xe-browser.ts 0 78:function challenge(body: string, status: number, hasListings: boolean): boolean {\\n190:   const status=response.status(),body=await page.content();\\n1"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "34efe396-0aa9-4c79-8395-3a2dd81e009f",
+        "name": "run_shell",
+        "ts": 1792660086880,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node - <<'NODE'",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "cc648c27-0073-4eeb-b1ce-23ff0e8297a7",
+        "name": "run_shell",
+        "ts": 1792660091154,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "cat > /tmp/parent-matrix.vitest.test.ts <<'EOF'",
+        "diagnostics": [
+          "Error: Build failed with 1 error:",
+          "../tmp/vitest.parent.config.mts:1:239: ERROR: Could not resolve \"/workspace/node_modules/vitest/config.js\""
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "b456898c-b3f1-4520-b478-b3c0e6f5ff88",
+        "name": "run_shell",
+        "ts": 1792660092917,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "pwd; realpath node_modules/vitest; ls node_modules/vitest | head",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "6ee62a1f-10b7-4e68-a896-04ff07f39d4e",
+        "name": "run_shell",
+        "ts": 1792660092968,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": 1,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node <<'NODE'",
+        "diagnostics": [
+          "SyntaxError: Unexpected token ')'"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "c10a1ffd-c5fc-4fc8-ac29-d3c3a6b232fd",
+        "name": "run_shell",
+        "ts": 1792660094786,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec vitest -- run --help | grep -E 'include|dir|config' | head -20",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "dd2791f8-8385-4c6c-acc0-3e75e5804d09",
+        "name": "run_shell",
+        "ts": 1792660096756,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "find node_modules/vitest -maxdepth 2 -type f | grep -E 'config.*js$' | head",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "11c4341a-2e4c-420a-ad84-be07077bd2a5",
+        "name": "run_shell",
+        "ts": 1792660097514,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "node <<'NODE'",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "5b534a58-c85a-4abf-9759-9dbec41fe340",
+        "name": "run_shell",
+        "ts": 1792660100274,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "history 2>/dev/null | tail -5 || true; ls /tmp/parent* 2>/dev/null || true",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "ef00f5e4-c674-49df-aa7b-d573f3064fcf",
+        "name": "fetch_url",
+        "ts": 1792660102011,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "f881f2a4-d6e4-40fa-ab74-e7554a9de49b",
+        "name": "fetch_url",
+        "ts": 1792660102110,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": false,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "e69b7ebc-eacb-4fee-92fe-f5ed2482f054",
+        "name": "run_shell",
+        "ts": 1792660102750,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "npm exec -- vitest run tests/attica-captcha-matrix.vitest.test.ts tests/attica-captcha-verification.vitest.test.ts",
+        "diagnostics": [
+          " Test Files  2 passed (2)",
+          "      Tests  4 passed (4)"
+        ],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "629995f8-3643-41b7-9408-bcb214fc2612",
+        "name": "validate_html",
+        "ts": 1792660103737,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": false,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "url",
+          "title",
+          "errors",
+          "warnings",
+          "failedRequests",
+          "interactionLog",
+          "requestedInteractions",
+          "ignoredInteractions",
+          "viewport",
+          "smokeResult"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "04e368fe-ccaa-42ad-bd5c-fb37103b0c20",
+        "name": "run_shell",
+        "ts": 1792660107149,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": 0,
+        "ok": null,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": "grep -o 'id=\"[^\"]*\"' browser/control.html | head -40",
+        "diagnostics": [],
+        "resultKeys": [
+          "exitCode",
+          "stdout",
+          "stderr"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "95329979-e8bf-42b1-bf7b-f403ff039106",
+        "name": "validate_html",
+        "ts": 1792660109178,
+        "branchId": "cabfa79b-c662-45b9-a900-ac3cb7843eed",
+        "actor": {
+          "name": "Cortisol",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "url",
+          "title",
+          "errors",
+          "warnings",
+          "failedRequests",
+          "interactionLog",
+          "requestedInteractions",
+          "ignoredInteractions",
+          "viewport",
+          "smokeResult"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "46d6771d-e541-4dc4-ae8e-a87ad36d6348",
+        "name": "fetch_url",
+        "ts": 1792660109902,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "5be044f4-369d-400b-94cd-a770f84bcbc0",
+        "name": "fetch_url",
+        "ts": 1792660110372,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "75205895-bb27-489e-b67f-5ef7729b1e48",
+        "name": "fetch_url",
+        "ts": 1792660110651,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": false,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "63616ea7-5aaa-41ae-a9ab-47e4f556767d",
+        "name": "validate_html",
+        "ts": 1792660113029,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "url",
+          "title",
+          "errors",
+          "warnings",
+          "failedRequests",
+          "interactionLog",
+          "requestedInteractions",
+          "ignoredInteractions",
+          "viewport",
+          "smokeResult"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "5be66198-92ce-475e-a665-67fe2094def7",
+        "name": "fetch_url",
+        "ts": 1792660115825,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "id": "af0b67be-ac03-44d6-9f4a-5012c55ccf69",
+        "name": "fetch_url",
+        "ts": 1792660117161,
+        "branchId": "dd8af7b2-122e-46ad-a8e0-bad73b16e45f",
+        "actor": {
+          "name": "CarbonDioxide",
+          "tier": 1
+        },
+        "exitCode": null,
+        "ok": true,
+        "errorPresent": false,
+        "path": null,
+        "cmdPrefix": null,
+        "diagnostics": [],
+        "resultKeys": [
+          "ok",
+          "status",
+          "headers",
+          "body",
+          "servedBy",
+          "recorded",
+          "manifest"
+        ]
+      }
+    }
+  ],
+  "limits": [
+    "No saved delivery or checkpoint; full file integrity and independent execution cannot be established.",
+    "Eight oversized command events not read in full; only bounded native excerpts and host-filtered diagnostics reviewed.",
+    "No paid counterfactual verdict replay; projection changes do not establish validation accuracy or retry savings.",
+    "Interruption origin unknown; shutdown requested is not a human cancellation receipt.",
+    "Branch-local retry counts exclude descendants; do not attribute to evidence cap."
+  ]
+}

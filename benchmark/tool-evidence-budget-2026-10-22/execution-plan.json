@@ -1,0 +1,22 @@
+{
+  "registeredAt": "2026-10-22T06:00:52.351Z",
+  "cases": 5,
+  "requests": 40,
+  "plannedCalls": 80,
+  "observationFormat": "Candidate canonical observations held identical across selector/budget arms; this isolates selection and budget, not the exit-status schema change.",
+  "padding": "16 synthetic unrelated successful shell inventories, each parsed by the canonical bounded observer, after the actual independently executed Node test receipt.",
+  "requestSetSha256": "47d350daa49f28a31252b2b31174187ac9f45b39b1942aab09115cd7a49f68ec",
+  "sources": {
+    "baseline": {
+      "revision": "f488de32aa9ec8b9bbbfbca39b32226619b7a99a",
+      "sourceSha256": "d52f96cbaea1e60fc1e6bc800b055f95e56649e4b223ffc1127d340ae680c45f",
+      "projectionSha256": "0be2cbbdc74598f1469cd372dbc32204c8eec85b784f5ee2e069f963c59b28a8"
+    },
+    "candidate": {
+      "revision": "00546c625d4bc2da3be77da3b1f26e2da8f41555",
+      "sourceSha256": "eda572aa73709eec5567527913095977266b84214fbbbe1e938ec45aea8a9322",
+      "projectionSha256": "65d72cb359d83a132869b7aeba71fc8b06c8b3adce594b16cae305f74317712b"
+    }
+  },
+  "selectionWarning": "Archive cases and development incident were previously known. This is an exploratory mechanism test, not an unseen cross-product benchmark."
+}

@@ -1,0 +1,12 @@
+{
+  "proposalHash": "58897cb52a58b67e00cce21f8e2a89639bd39aea2f3ea94d99486e85b205f3c3",
+  "experimentId": "20261021-questions-v1",
+  "status": "tested; rejected for adoption",
+  "completedReadings": 336,
+  "failures": 0,
+  "costUsd": 0.18881465400000014,
+  "reason": "Proposed questions defer all 72 primary readings in each proposed-wording arm, including all positive controls; original questions retain 13 positive-control approvals on the same reconstructed states.",
+  "productionQuestionsChanged": false,
+  "thresholdsChanged": false,
+  "executionRunsStarted": 0
+}

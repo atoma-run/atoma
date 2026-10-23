@@ -1,0 +1,55 @@
+{
+  "scopes": [
+    {
+      "eventId": "ec15fc95-5995-4709-8764-ec2a50a8ce2f",
+      "snapshot": "c1b9ef115ccf771bf97a59ad05cc89efa7ed8a696deab5d0a7161897dd985148",
+      "taskAndHostScope": "Task: Inspect the current CAPTCHA repair surface: browser/captcha-document.ts, browser/control-server.ts, browser/collect-xe-browser.ts, relevant session/store interfaces, fixtures/xe-browser-server.ts, tests/captcha-document.vitest.test.ts, tests/attica-captcha-verification.vitest.test.ts, tests/attica-control-captcha.vitest.test.ts and their directly used helpers. Inspect existing transport observations and .atoma-probes.json before considering bounded read-only reproduction. Report actual exported signatures, HTTP request preconditions, real collector-triggered pause setup, persisted state/reopen paths, navigation observation interfaces, cleanup and diagnostic timeout behavior. Map every exact seven-unmarked/two-marked challenge and eight ordinary-description requirement from originalTask to actual fixtures and assertions; identify missing coverage without replacing encodings or inventing aliases. Trace current URL, detail identity, context, readability, empty-search, durable restart, explicit resume and synthetic 403/approve/page2 contracts. Identify how the identical bounded full HTTP matrix can target both fresh and saved compiled builds, including actual HTTP probes against a server started in this run. Inspect whether owner fixture cleanup/wait fixes from 8bd204f8 remain. Return minimal proposed repair paths and grounded parent-test contracts, not code. Do not import or execute collect-spitogatos.mjs, contact property sites, install dependencies, rebuild, edit files or repair the deferred Chromium issue. Existing proof must be linked to exact source/build freshness; unknown freshness stays unknown.\n== TASK CONTEXT ==\nTask scope: This is a delegated phase, not final acceptance of the whole root goal. Judge the current Task and its required evidence. originalTask preserves applicable facts, behavior and constraints; it does not add deliverables or executed tests that the current Task explicitly assigns to a later phase. A child report or proposed plan cannot create that deferral. Missing implementation, contradictory evidence, and missing checks required by the current Task still fail. Approval of this phase does not establish completion of the root goal or its acceptance criteria.\nTask mode: READ-ONLY PHASE — its plan declared no outputs, so the runtime undoes whatever it changes when it ends.\n",
+      "interpretation": "The inspection phase asks how to target fresh/saved builds and forbids rebuild/edit/install. Some remediation asks execution of the entire fresh/saved matrix. Other literal-mapping/report gaps are also cited, so this does not establish that the overall refusals are false."
+    },
+    {
+      "eventId": "f1dc2248-cf49-4e81-b02d-e007dcabd281",
+      "snapshot": "322b0e9959b3a1de0b17230ffc16297cfc2b1833ab82bf1c3d43dc34abf78185",
+      "taskAndHostScope": "Task: Inspect browser/captcha-document.ts, browser/control-server.ts, browser/collect-xe-browser.ts, directly used session/store interfaces, and the three named Vitest suites plus helpers. Report actual exports, request preconditions, collector-triggered pause setup, persistence/reopen paths, navigation observation interfaces, diagnostic timeout and cleanup behavior. Map every literal seven-unmarked/two-marked challenge and eight ordinary-description requirement to existing fixtures/assertions, identify uncovered cases, and propose only minimal repair paths and grounded parent-test contracts. Do not edit, install, build, execute prohibited collectors, or repair.\n== TASK CONTEXT ==\nTask scope: This is a delegated phase, not final acceptance of the whole root goal. Judge the current Task and its required evidence. originalTask preserves applicable facts, behavior and constraints; it does not add deliverables or executed tests that the current Task explicitly assigns to a later phase. A child report or proposed plan cannot create that deferral. Missing implementation, contradictory evidence, and missing checks required by the current Task still fail. Approval of this phase does not establish completion of the root goal or its acceptance criteria.\nTask mode: READ-ONLY PHASE — its plan declared no outputs, so the runtime undoes whatever it changes when it ends.\n",
+      "interpretation": "The inspection phase asks how to target fresh/saved builds and forbids rebuild/edit/install. Some remediation asks execution of the entire fresh/saved matrix. Other literal-mapping/report gaps are also cited, so this does not establish that the overall refusals are false."
+    }
+  ],
+  "additionalAt48k": [
+    {
+      "evidenceId": "2c84965d-2b6e-4275-927b-e815fd453420",
+      "traceEventId": "8137c4d1-ea7a-4faf-96fd-e255b033b6f9",
+      "tool": "run_shell",
+      "exitCode": 0,
+      "command": "grep -nE '^export |function (collect|resume)|captcha|pause|verify-access|resume|diagnostic|timeout|cleanup|navigation|context|read' browser/collect-xe-browser.ts",
+      "classification": "source/fixture interface inspection (grep), not HTTP behavior execution",
+      "linkMethod": "exact request and response equality on host; one trace candidate"
+    },
+    {
+      "evidenceId": "a0f6749e-30d7-4b0d-aaa1-e84b8e7e6358",
+      "traceEventId": "7f62dcd3-b97f-4c1b-b598-dc416a7e50dd",
+      "tool": "run_shell",
+      "exitCode": 0,
+      "command": "grep -nE '^export |pause|resume|loadPause|savePause|loadState|mergeState|migrate|reopen|close' browser/attica-store.ts browser/session.ts browser/xe-browser-session.ts",
+      "classification": "source/fixture interface inspection (grep), not HTTP behavior execution",
+      "linkMethod": "exact request and response equality on host; one trace candidate"
+    },
+    {
+      "evidenceId": "0b005f76-81ec-481d-b892-df791a739925",
+      "traceEventId": "4f05b531-7e07-4b89-b78d-235ad19f6154",
+      "tool": "run_shell",
+      "exitCode": 0,
+      "command": "grep -nE 'Cloudflare|challenge|turnstile|human verification|required|concierge|marked|application/json|verify|resume|navigation|pause' tests/captcha-document.vitest.test.ts tests/attica-captcha-verification.vitest.test.ts tests/attica-control-captcha.vitest.test.ts",
+      "classification": "source/fixture interface inspection (grep), not HTTP behavior execution",
+      "linkMethod": "exact request and response equality on host; one trace candidate"
+    },
+    {
+      "evidenceId": "1c12c6b7-876e-469b-b57d-0e12291bb653",
+      "traceEventId": "7c3b9c95-ea4a-425f-8039-22470d287d65",
+      "tool": "run_shell",
+      "exitCode": 0,
+      "command": "grep -nE '^export |page\\(|resolve|fault|scenario|challenge|approve|page/2|cleanup|wait' fixtures/xe-browser-server.ts",
+      "classification": "source/fixture interface inspection (grep), not HTTP behavior execution",
+      "linkMethod": "exact request and response equality on host; one trace candidate"
+    }
+  ],
+  "projectionInterpretation": "15 exact L2 contexts;257 latest-command receipt occurrences retained at48k versus251 at24k. Six additional occurrences are four unique successful grep/source inspections, in two still-refused reviews. Reads215versus115 and partial shell excerpts172versus220. Repeated occurrences overlap between contexts; do not treat them as independent experiments or execution correctness."
+}

@@ -1,0 +1,15 @@
+{
+  "root": "/private/tmp/attica-c4-exact-review-20261021",
+  "denialStatus": 403,
+  "denialApprovedStatus": 403,
+  "defaultPage2Challenges": true,
+  "normalPage2Challenges": true,
+  "challengeStatus": 200,
+  "approvalHandlerPresent": true,
+  "syntheticHandlerRequests": [
+    "/approve"
+  ],
+  "syntheticHandlerLocation": "/page/2",
+  "approvedPageHasListings": true,
+  "scope": "Synthetic HTTP and handler execution, no real DOM or human interaction"
+}

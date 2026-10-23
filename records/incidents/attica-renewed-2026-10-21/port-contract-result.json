@@ -1,0 +1,17 @@
+{
+  "scope": "Type resolution of the imported application contract, not a whole application build",
+  "actualPortType": "number",
+  "actualPortDiagnostics": [],
+  "genericServerNegativeControl": [
+    {
+      "line": 6,
+      "code": 2531,
+      "text": "Object is possibly 'null'."
+    },
+    {
+      "line": 6,
+      "code": 2339,
+      "text": "Property 'port' does not exist on type 'string | AddressInfo'.   Property 'port' does not exist on type 'string'."
+    }
+  ]
+}

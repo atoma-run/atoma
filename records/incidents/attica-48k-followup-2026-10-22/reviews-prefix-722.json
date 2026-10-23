@@ -1,0 +1,832 @@
+{
+  "runId": "1622e44b-8d9f-41dc-8827-a1af7cb38353",
+  "readThrough": 722,
+  "reviews": [
+    {
+      "eventId": "20af2c8b-e170-4ba5-8007-ea18ff5d5401",
+      "eventIndex": 6,
+      "ts": 1792656242560,
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "Discovery-only L3 plan correctly delegates two independent read-only inspections to capable L2 cells; both preserve the task constraints and defer repairs until observed interfaces and evidence are known.",
+        "delegationReview": {
+          "subtasks": [
+            {
+              "index": 0,
+              "kind": "inspection",
+              "reason": "Read-only mapping of CAPTCHA HTTP/state interfaces, fixtures, assertions, and evidence freshness; no implementation occurs in this phase."
+            },
+            {
+              "index": 1,
+              "kind": "inspection",
+              "reason": "Read-only declaration, strict typing, configuration, and byte/mode preservation inspection; no implementation occurs in this phase."
+            }
+          ],
+          "integration": {
+            "kind": "inspection",
+            "reason": "Concat aggregates independent observations for the mandatory single subsequent implementation replan."
+          },
+          "independentWork": true,
+          "parallelReason": "CAPTCHA behavior/interface inspection and declaration/config/reference comparison inspect separate artifacts with no writers or prerequisites."
+        }
+      },
+      "durationMs": 19999,
+      "costUsd": 0.05208,
+      "usage": {
+        "inputTokens": 22506,
+        "outputTokens": 589,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "d0170ca1-da5f-48fe-8518-1fd58495b968",
+      "eventIndex": 28,
+      "ts": 1792656292861,
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "branch": "e2e0e3f6-7b59-4b6a-9237-e03c07aa72a8",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The plan correctly delegates three focused, read-only investigations to the existing capable L1 child. Subtasks preserve the required CAPTCHA cases, ordinary descriptions, interfaces, fixture behavior, freshness analysis, bounded HTTP reproduction, and parent-test contracts. They are independent, use declared tools, and the expected output preserves the task’s constraints."
+      },
+      "durationMs": 16507,
+      "costUsd": 0.005157800000000001,
+      "usage": {
+        "inputTokens": 21127,
+        "outputTokens": 777,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "5e0c0850-399d-4c95-9fd2-40ba57c97b33",
+      "eventIndex": 115,
+      "ts": 1792656361384,
+      "role": "validate-plan",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Adrenaline",
+        "tier": 1
+      },
+      "branch": "5961de38-4e41-4292-a5ff-075c282685a9",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The read-only direct plan uses only declared tools, begins with existing observations and source inspection, and conditionally performs bounded offline reproduction through the Node server and real HTTP/state paths. It preserves fresh per-case state, diagnostics, required fixture flows, cleanup/wait review, and explicitly avoids modification, installation, real sites, and deferred Chromium work."
+      },
+      "durationMs": 18209,
+      "costUsd": 0.0044406,
+      "usage": {
+        "inputTokens": 20685,
+        "outputTokens": 253,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "7cf6d499-1c10-44ba-bfb9-d49eed3b9ce5",
+      "eventIndex": 146,
+      "ts": 1792656379611,
+      "role": "validate-result",
+      "actor": {
+        "name": "Guard",
+        "tier": 2
+      },
+      "child": {
+        "name": "Estrogen",
+        "tier": 1
+      },
+      "branch": "3e743f97-3f55-4b45-bd56-5707002fc1ac",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The read-only report directly identifies the unused InjectableSession import and the unsafe CommonJS assignment, traces the relevant control-server and browser-session declarations, and specifies minimal strict-safe mutation targets without any/unknown escapes or suppressions. It also records the existing HTTP, persisted-state, zero-navigation, resume, and response-body contracts that must remain independently testable."
+      },
+      "durationMs": 14277,
+      "costUsd": 0.0078554,
+      "usage": {
+        "inputTokens": 32575,
+        "outputTokens": 1117,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "b915bb12-f3ef-4614-bf2f-6252d4a3382b",
+      "eventIndex": 182,
+      "ts": 1792656390927,
+      "role": "validate-result",
+      "actor": {
+        "name": "Guard",
+        "tier": 2
+      },
+      "child": {
+        "name": "Estrogen",
+        "tier": 1
+      },
+      "branch": "630f9829-3aee-432b-8ea8-320b3d0bfc39",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "Observed probes compare both requested entrypoints and all 48 data/evidence files byte-for-byte and by mode, with identical path sets and no discrepancies. The complete path set is reported. .atoma-probes.json and evidence were inspected for freshness and contradictions; the stale claim about retained failed outputs is explicitly identified. No prohibited collector execution or modification is evidenced."
+      },
+      "durationMs": 12528,
+      "costUsd": 0.006044600000000001,
+      "usage": {
+        "inputTokens": 27037,
+        "outputTokens": 531,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "12c5f673-b916-4f2e-bc39-8684f33f4d14",
+      "eventIndex": 240,
+      "ts": 1792656420203,
+      "role": "validate-result",
+      "actor": {
+        "name": "Guard",
+        "tier": 2
+      },
+      "child": {
+        "name": "Estrogen",
+        "tier": 1
+      },
+      "branch": "37e4ad0e-a7a7-44f5-85f8-f43ac6639e9f",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "The report correctly identifies coverage, the two exclusions, strict/build scope, stale contradictory evidence, and required exclusions, but it does not establish an exact executable /workspace clean-copy command or procedure; it only describes copying generically.",
+        "modifications": {
+          "additionalContext": "Add a concrete executable procedure (for example an rsync/tar command targeting /workspace) and explicitly show recursive exclusions for the destination itself, node_modules, dist, .git, .atoma-runs, .atoma-scratch, .atoma-skeleton, and host/reference/read-run directories. Keep installation, checks, and builds unexecuted."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 8119,
+      "costUsd": 0.008712,
+      "usage": {
+        "inputTokens": 36510,
+        "outputTokens": 1175,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "a26eb037-55e4-46fa-b99c-c810bb65dd18",
+      "eventIndex": 258,
+      "ts": 1792656433676,
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Adrenaline",
+        "tier": 1
+      },
+      "branch": "6bda7a70-e78f-4de5-bcf3-69785eacffd4",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The read-only audit satisfies the delegated reporting task: it attributes the 48 data/evidence and two entrypoint comparisons to recorded manifest bytes, distinguishes current source and dist relationships, identifies historical check/build evidence as stale, and explicitly marks freshness and the required identical fresh/saved HTTP matrix as unknown/not found. It reports no edits, installs, rebuilds, or collect-spitogatos execution. Ground-truth read-backs corroborate the manifest, files, source differences, and missing matrix without contradiction.",
+        "activeSkillFollowed": true
+      },
+      "durationMs": 7692,
+      "costUsd": 0.009429000000000002,
+      "usage": {
+        "inputTokens": 41289,
+        "outputTokens": 976,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "f1dc2248-cf49-4e81-b02d-e007dcabd281",
+      "eventIndex": 268,
+      "ts": 1792656440390,
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Adrenaline",
+        "tier": 1
+      },
+      "branch": "89b3c20a-0333-49a0-bf47-0c7fb1b10b88",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "The report is incomplete: it does not map each of the seven exact unmarked literals, two marked envelopes, and eight ordinary-description requirements to specific fixtures/assertions; it only summarizes categories and gaps. It also omits the required authoritative protected-file hash/mode inventory from the active recipe.",
+        "modifications": {
+          "additionalContext": "Reissue the read-only report with an itemized table for all 7 unmarked, 2 marked, and 8 ordinary literals, naming the exact fixture/assertion or uncovered status for each. Include the requested exports, preconditions, pause/persistence/reopen/navigation/timeout/cleanup paths, and the authoritative hash/mode inventory or explicitly mark it unresolved."
+        },
+        "scope": "ephemeral",
+        "activeSkillFollowed": false
+      },
+      "durationMs": 15406,
+      "costUsd": 0.0099814,
+      "usage": {
+        "inputTokens": 43775,
+        "outputTokens": 1022,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "b98ba42f-9e9a-4de2-a1f4-1c99500713fb",
+      "eventIndex": 285,
+      "ts": 1792656461189,
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Adrenaline",
+        "tier": 1
+      },
+      "branch": "5961de38-4e41-4292-a5ff-075c282685a9",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The read-only phase is supported by observed source reads, fixture parity checks, bounded offline HTTP/API reproductions, persistence/reopen/resume tests, and compiled-artifact checks. It confirms denial 403, approval then page-2 records, unapproved challenge behavior, and reports the local cancellation 403 failure rather than hiding it. Chromium was correctly deferred; no files were modified."
+      },
+      "durationMs": 8539,
+      "costUsd": 0.00770968,
+      "usage": {
+        "inputTokens": 30620,
+        "outputTokens": 1123,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "845b1be6-0456-4248-9730-b3e06f554611",
+      "eventIndex": 315,
+      "ts": 1792656482976,
+      "role": "validate-result",
+      "actor": {
+        "name": "Guard",
+        "tier": 2
+      },
+      "child": {
+        "name": "Estrogen",
+        "tier": 1
+      },
+      "branch": "37e4ad0e-a7a7-44f5-85f8-f43ac6639e9f",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "The report omits a material evidence contradiction: RAPPORT-ATTICA-RECETTE-HORS-LIGNE.md records historical `npm run check` exit 1, while .atoma-probes.json records exit 0. The task explicitly requires assessing contradictions, so the report is incomplete despite correctly identifying stale clean-copy provenance.",
+        "modifications": {
+          "additionalContext": "Update the report to identify and reconcile the conflicting recorded check outcomes (report exit 1 versus .atoma-probes exit 0), including which evidence is authoritative or why freshness cannot establish either as current. Preserve the exact exclusions and stale-provenance conclusion."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 8931,
+      "costUsd": 0.00768148,
+      "usage": {
+        "inputTokens": 27827,
+        "outputTokens": 1565,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "af13fd81-d2cf-442d-b1da-0826acc6012f",
+      "eventIndex": 336,
+      "ts": 1792656512150,
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Adrenaline",
+        "tier": 1
+      },
+      "branch": "89b3c20a-0333-49a0-bf47-0c7fb1b10b88",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The report addresses the assigned read-only audit: exports, request preconditions, collector pause setup, persistence/reopen, navigation interfaces, timeout/cleanup, and mappings for all seven unmarked, two marked, and eight ordinary-description requirements. It explicitly identifies uncovered fixtures/assertions and proposes minimal repair paths without editing or executing collectors. The active integrity recipe was not fully followed because per-file hashes/modes were not reported.",
+        "activeSkillFollowed": false
+      },
+      "durationMs": 7766,
+      "costUsd": 0.0100924,
+      "usage": {
+        "inputTokens": 43838,
+        "outputTokens": 1104,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "c05c11bd-1c1e-4db1-a8a1-c5daaeeeff52",
+      "eventIndex": 356,
+      "ts": 1792656555504,
+      "role": "validate-result",
+      "actor": {
+        "name": "Guard",
+        "tier": 2
+      },
+      "child": {
+        "name": "Estrogen",
+        "tier": 1
+      },
+      "branch": "37e4ad0e-a7a7-44f5-85f8-f43ac6639e9f",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The read-only report inspects the requested configurations and tests, identifies the exact two browser exclusions, describes ordinary-suite coverage and strict TypeScript scope, distinguishes historical contradictions, and correctly states that current final-build provenance is unestablished. It also supplies an executable /workspace clean-copy procedure with recursive exclusions and confirms no installation, check, or build was rerun."
+      },
+      "durationMs": 29673,
+      "costUsd": 0.00856948,
+      "usage": {
+        "inputTokens": 32591,
+        "outputTokens": 1511,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "ec15fc95-5995-4709-8764-ec2a50a8ce2f",
+      "eventIndex": 359,
+      "ts": 1792656578922,
+      "role": "validate-result",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "branch": "e2e0e3f6-7b59-4b6a-9237-e03c07aa72a8",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "The report is useful but explicitly lacks the required actual HTTP probes against a server started in this run and the identical fresh/saved-build matrix. Historical record_probe results cannot establish current transport behavior or build freshness.",
+        "modifications": {
+          "additionalContext": "Run bounded offline HTTP probes against a fixture server started in this run, using identical challenge/ordinary cases for fresh and saved compiled builds. Record statuses, pause/reopen/resume state, navigation counts, cleanup and timeout diagnostics, plus artifact freshness. Keep the report read-only and do not address Chromium."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 12472,
+      "costUsd": 0.00769448,
+      "usage": {
+        "inputTokens": 33184,
+        "outputTokens": 683,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "4ead7f56-df17-40a4-9f7b-ca58e94ee71e",
+      "eventIndex": 371,
+      "ts": 1792656722460,
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "branch": "e2e0e3f6-7b59-4b6a-9237-e03c07aa72a8",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The delegation routes a coherent read-only investigation to a lower-tier child, preserves the exact challenge and ordinary-case requirements, includes source/test/fixture/state inspection, freshness tracking, and bounded local HTTP probes against fresh and compiled artifacts. It respects the declared tool surface and explicitly excludes edits, rebuilds, live-site access, and Chromium repair."
+      },
+      "durationMs": 5428,
+      "costUsd": 0.004899199999999999,
+      "usage": {
+        "inputTokens": 20956,
+        "outputTokens": 590,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "0c45bc82-2ad2-4605-a834-bf90c35d1f7f",
+      "eventIndex": 424,
+      "ts": 1792656811285,
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Melatonin",
+        "tier": 1
+      },
+      "branch": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "The report is incomplete for this phase: it did not execute the required real collector-triggered pause HTTP matrix, persisted reopen/resume, cleanup, diagnostic-timeout, or identical fresh-source versus saved-build cases. Its only fresh transport probes exercised the fixture server, not the control/collector contracts. It also correctly identifies missing exact challenge/ordinary literals, but does not provide executed evidence for those cases or verify source/dist equivalence.",
+        "modifications": {
+          "additionalContext": "Run the bounded matrix through the real control server and collector where runnable, with fresh per-case state and saved-build parity: all seven unmarked, two marked, eight ordinary/inert cases; assert status, durable pause/reopen, zero verification navigation, explicit resume navigation, cleanup, and diagnostic timeout. Record unavailable/unknown freshness precisely when execution cannot run."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 8951,
+      "costUsd": 0.0103458,
+      "usage": {
+        "inputTokens": 44991,
+        "outputTokens": 1123,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "9c176d97-84c3-41bd-a437-15c04c623772",
+      "eventIndex": 430,
+      "ts": 1792656827019,
+      "role": "validate-plan",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Melatonin",
+        "tier": 1
+      },
+      "branch": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The direct L1 plan uses only declared tools, preserves read-only scope, inspects the required source, fixtures, tests, and observations, and covers the requested literal mappings, state/navigation contracts, freshness, owner-fix status, and bounded fresh/saved HTTP cases without prohibited actions. Its single atomic subtask and concat wrapper are valid."
+      },
+      "durationMs": 5182,
+      "costUsd": 0.0048976,
+      "usage": {
+        "inputTokens": 21218,
+        "outputTokens": 545,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "7acadc1e-b47f-4b5f-a75c-9c6fe4314e97",
+      "eventIndex": 465,
+      "ts": 1792656896474,
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Melatonin",
+        "tier": 1
+      },
+      "branch": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "The report explicitly leaves required current verification unexecuted: no fresh-source/saved-build HTTP matrix, per-case fresh state, real collector-triggered pause, reopen/resume, cleanup, diagnostic-timeout, or stop-on-terminal checks. It also admits the seven literal unmarked, two marked, and eight ordinary encodings are not fully mapped to exact fixtures and assertions. Historical probes and saved-build observations cannot establish those current contracts or parity.",
+        "modifications": {
+          "additionalContext": "Execute the bounded read-only fixture matrix against fresh source and saved compiled build where runnable, recording each case's exact input encoding, status, pause persistence/reopen/resume, navigation count, cleanup, timeout, and freshness. Complete the literal mapping to exact fixture markup/JSON and assertions; mark genuinely unavailable cases unknown rather than substituting historical evidence."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 7809,
+      "costUsd": 0.00758228,
+      "usage": {
+        "inputTokens": 32743,
+        "outputTokens": 663,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "7eb43d1d-a56a-4cd8-bf8a-86478357ab35",
+      "eventIndex": 516,
+      "ts": 1792656999109,
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Melatonin",
+        "tier": 1
+      },
+      "branch": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "Required evidence is incomplete and partly contradictory: focused Vitest execution failed with exit 126; the source/build HTTP matrix was not run; saved-build freshness is unknown; only one ordinary case was executed; and approval/resume was explicitly stateless, so the cookie-preserving flow, navigation, cleanup, restart, and diagnostic-timeout contracts remain unverified. The report also admits missing exact ordinary encodings/assertions and unknown 8bd204f8 provenance.",
+        "modifications": {
+          "additionalContext": "Re-run a bounded read-only matrix on current source and saved build with fresh per-case state and cookie-preserving fixture approval. Record exact source/build freshness, all 7 unmarked + 2 marked envelopes, all 8 ordinary encodings, collector-triggered pause, reopen/resume, status/navigation counts, cleanup and timeout. Report exact signatures/interfaces and mark owner-fixture provenance unknown unless directly evidenced."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 4872,
+      "costUsd": 0.0092828,
+      "usage": {
+        "inputTokens": 44284,
+        "outputTokens": 355,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "82020639-c91d-41a7-99e5-601af21b8009",
+      "eventIndex": 524,
+      "ts": 1792657010432,
+      "role": "validate-plan",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Melatonin",
+        "tier": 1
+      },
+      "branch": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The direct plan is coherent for a read-only report: it inspects the specified sources and observations, preserves unknowns, uses only declared tools, avoids prohibited edits/install/build/external traffic, and proposes bounded fresh/saved fixture checks where runnable. It explicitly covers signatures, state/navigation contracts, all required literal mappings, owner-fixture status, freshness, cleanup/timeouts, missing coverage, and repair proposals."
+      },
+      "durationMs": 5029,
+      "costUsd": 0.004719599999999999,
+      "usage": {
+        "inputTokens": 21126,
+        "outputTokens": 412,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "3ebf310b-a84e-4659-8f35-fb425b364212",
+      "eventIndex": 564,
+      "ts": 1792657081273,
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Melatonin",
+        "tier": 1
+      },
+      "branch": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "Required evidence is incomplete and includes failures: focused Vitest could not execute (exit 126), the saved-build diagnostic reports unmarked=false and ordinary=false, and no bounded fresh-source/saved-build matrix establishes pause, reopen, resume, navigation, cleanup, or timeout behavior. The report also confirms missing exact literal mappings and unverified owner-fix execution.",
+        "modifications": {
+          "additionalContext": "Complete the read-only report and execute the bounded identical fresh-source and saved-build HTTP matrix with per-case state, collector pause, reopen/resume, navigation, cleanup, and timeout evidence. Map all exact seven/two/eight literals to fixture encodings and assertions; distinguish unknown freshness. Do not edit, install, rebuild, or contact real sites."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 5439,
+      "costUsd": 0.009426799999999999,
+      "usage": {
+        "inputTokens": 44512,
+        "outputTokens": 437,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "51a7df6e-8ee9-42a6-8c5f-4855403aa037",
+      "eventIndex": 618,
+      "ts": 1792657167029,
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Melatonin",
+        "tier": 1
+      },
+      "branch": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "Required evidence is incomplete and one observed saved-build case fails: the exact matrix reports an unmarked challenge as false. Focused Vitest execution failed, source/build freshness is unknown, and fresh-source versus saved-build HTTP cases, restart/reopen, cleanup timeout, diagnostic timeout, and owner-fixture fixes were not established. The report also admits tests do not map all seven envelopes one-to-one.",
+        "modifications": {
+          "additionalContext": "Do not claim completion. Re-run bounded read-only fresh-source and saved-build matrices with recorded freshness, real collector pauses, persistence/reopen/resume, navigation, cleanup and diagnostic-timeout outcomes; repair the failing unmarked envelope and map every literal case to exact fixture/assertion coverage. Verify 8bd204f8 cleanup/wait behavior and report unknowns explicitly."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 5312,
+      "costUsd": 0.00724588,
+      "usage": {
+        "inputTokens": 32705,
+        "outputTokens": 389,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "17f03890-dc6a-4f07-83f8-52772581ddc8",
+      "eventIndex": 624,
+      "ts": 1792657179338,
+      "role": "validate-plan",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Melatonin",
+        "tier": 1
+      },
+      "branch": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "attempt": 1,
+      "verdict": {
+        "approved": true,
+        "reasoning": "The direct L1 plan uses only declared tools, preserves the read-only scope, inspects all requested sources and observations, and covers the required challenge/ordinary mappings, state paths, navigation, cleanup, timeout, freshness, and source/build comparisons. It explicitly avoids prohibited live traffic, imports, edits, installs, and rebuilds while allowing bounded offline fixture verification and clear unknowns."
+      },
+      "durationMs": 5477,
+      "costUsd": 0.0046378,
+      "usage": {
+        "inputTokens": 21095,
+        "outputTokens": 349,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "79befeb7-84ac-459c-ba10-7dcc93b3de35",
+      "eventIndex": 663,
+      "ts": 1792657241957,
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "child": {
+        "name": "Melatonin",
+        "tier": 1
+      },
+      "branch": "4558ecb3-4ecc-4470-903d-e34508ba53bf",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "The report is incomplete for this reporting task: it aggregates the seven and eight literal cases instead of mapping each exact envelope/description to its fixture encoding and assertion, and it does not give the requested complete exported-signature, navigation-interface, diagnostic-timeout, and 8bd204f8 cleanup/wait findings. It correctly records the failed fourth compiled challenge case and unavailable execution, but those gaps require a more complete report.",
+        "modifications": {
+          "additionalContext": "Reissue the report with one entry per exact seven unmarked, two marked, and eight ordinary/inert literal: exact fixture encoding, source/test assertion, compiled result, and missing coverage. Enumerate actual exports/signatures from every requested module, navigation-observation interfaces, diagnostic-timeout behavior, cleanup/wait status, and explicitly mark freshness or execution as unknown where unavailable."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 10699,
+      "costUsd": 0.008837280000000001,
+      "usage": {
+        "inputTokens": 33804,
+        "outputTokens": 1532,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "aed07835-8ea6-405f-a5ec-1ba5f279837f",
+      "eventIndex": 708,
+      "ts": 1792657332435,
+      "role": "validate-result",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "branch": "e2e0e3f6-7b59-4b6a-9237-e03c07aa72a8",
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "The report explicitly leaves required current-task evidence incomplete: exact seven/two challenge and eight ordinary mappings are missing, the real collector-triggered HTTP matrix was not executed, durable reopen/resume and navigation controls remain unverified, and source/build freshness is unknown. The synthetic approval flow also was not proven because the recorded request lacked cookie preservation.",
+        "modifications": {
+          "additionalContext": "Complete the bounded read-only report from current source and observations: map every exact challenge/ordinary fixture and assertion, execute the identical HTTP matrix against fresh and saved builds with real collector-triggered pauses, verify persistence/reopen, explicit resume, navigation counts, cleanup diagnostics, and establish source/build freshness. Preserve the deferred Chromium issue and do not edit code."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 6151,
+      "costUsd": 0.007106680000000001,
+      "usage": {
+        "inputTokens": 32105,
+        "outputTokens": 373,
+        "cacheReadInputTokens": 11904,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "1f10bf81-dafd-4483-bf60-cbfe5e59c762",
+      "eventIndex": 714,
+      "ts": 1792657462256,
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "Parent suites do not exercise most task-named behavior: neither marked envelopes, all eight ordinary encodings/detail identity, nor collector-triggered pause, persisted reopen, zero verification navigation, and resume are asserted through real HTTP/state paths.",
+        "modifications": {
+          "additionalContext": "Expand parent suites before dispatch. Subtask 0 must assert all seven unmarked, both marked, and all eight exact ordinary fixtures/encodings for search and detail boundaries. Subtask 1/integration must use createServer with a real injected production-compatible session and collector-triggered pause, then assert 403/pause persistence/reopen/zero goto and 200/clear/resume navigation. Keep fresh and saved-build matrices as executable assertions, not only child-report obligations."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 41339,
+      "costUsd": 0.109404,
+      "usage": {
+        "inputTokens": 45024,
+        "outputTokens": 1613,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    },
+    {
+      "eventId": "bd2345bc-635c-449d-b300-0372693b16d2",
+      "eventIndex": 719,
+      "ts": 1792657676077,
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "attempt": 1,
+      "verdict": {
+        "approved": false,
+        "reasoning": "The required identical full HTTP matrix is only an executable assertion against dist: subtask 2 imports dist control-server/store, while source is tested only at classifier level. This repeats the prior refusal’s fresh/saved-build gap.",
+        "modifications": {
+          "additionalContext": "Make the complete real collector/control HTTP matrix runnable against both final source modules and saved dist modules, with identical per-case assertions for pause/reopen/zero navigation/verify/resume. Do not leave fresh-build execution solely as a child-report obligation."
+        },
+        "scope": "ephemeral"
+      },
+      "durationMs": 44285,
+      "costUsd": 0.138986,
+      "usage": {
+        "inputTokens": 56917,
+        "outputTokens": 2096,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "source": "bounded native MCP review response; model-authored judgment"
+    }
+  ]
+}

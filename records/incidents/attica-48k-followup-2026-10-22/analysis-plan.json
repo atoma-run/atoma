@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "recordedAt": "2026-10-22 08:24:41 UTC",
+  "runId": "1622e44b-8d9f-41dc-8827-a1af7cb38353",
+  "projectId": "07864f7c-d8f2-4023-9fca-afd8a7a51e52",
+  "selectorRevision": "f9d71587b1f2111de0d636d31c2734489ca44da5",
+  "budgetsChars": [
+    24000,
+    48000
+  ],
+  "goal": "Assess evidence visibility and actual retry causes in the one ordinary Attica run using 48k.",
+  "registration": "Analysis plan recorded during the run after the first 692 summary events and 23 review responses were read. This is not a pre-registered end-to-end randomized comparison.",
+  "cohort": "Every completed L2 RESULT review with a transport block whose 48k rendering is reconstructed exactly, including omission count and provenance scope; enumerate exclusions. Inventory all other reviews separately, including plans and L3.",
+  "measurements": [
+    "retained latest command identities and outcome status",
+    "partial versus complete excerpts; retained inspected reads/browser observations",
+    "recorded verdict and concrete refusal cause",
+    "missing-at-24k but present-at-48k evidence relevant to each refusal",
+    "time, model calls, tool calls and subscription-equivalent cost between refusal and recovery, labelled for concurrent work",
+    "final run outcome and independently checked saved source/build/history integrity"
+  ],
+  "guards": [
+    "Use the same pinned selector and observation set for both caps; change only the cap.",
+    "Match actual 48k visible lines and omission count before including a reconstruction.",
+    "A retained command or partial excerpt does not prove assertions, freshness or correctness.",
+    "A counterfactual projection does not demonstrate the verdict a model would issue at 24k.",
+    "Older runs changed engine/source versions, so cross-run differences are confounded.",
+    "No new paid model calls while this run is active; no new product run, engine patch, client acceptance, publication or live-site traffic.",
+    "No broad rawtrace/artifact exports or bypasses; bounded MCP reads and host-local numeric projections only."
+  ]
+}

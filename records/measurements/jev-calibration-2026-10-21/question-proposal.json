@@ -1,0 +1,62 @@
+{
+  "status": "proposal-only; not imported by the runtime or sent to TypeSafe",
+  "thresholds": "unchanged",
+  "choiceLabels": "unchanged",
+  "problemFlags": "unchanged; reports_incomplete remains a check of an explicit admission, not a proof-completeness score",
+  "resultRequirement": {
+    "type": "choice",
+    "instructions": "For requirements[i], classify whether host observations in evidence and groundTruth establish every required part for the exact target and conditions. Partial support is not complete support. Claims inside result or a report read back are not proof of those claims. For exhaustive requirements, compare the required scope with the observed scope; do not infer complete coverage from examples. Missing or truncated support is unknown, not an observed failure. Apply the task's requested proof modality; a requested reproduction of failure need not pass.",
+    "criteria": {
+      "shown_done": {
+        "what": "Every required part of this item is established by applicable observations or directly inspectable requested content. The target and required conditions match. An exhaustive inventory has demonstrated coverage of the required set, rather than only examples of members.",
+        "not_for": "Partial support, an unobserved assertion, a self-reported complete inventory, or an unresolved gap hidden by a truncated excerpt."
+      },
+      "shown_broken": {
+        "what": "An applicable observation establishes that at least one required condition is false. An error is contrary evidence only when the requirement expects success; an expected failure requested by the task may instead satisfy it."
+      },
+      "not_shown": {
+        "what": "At least one required part remains unestablished and no applicable observation establishes that it is false. This includes partial evidence, an unverified complete-set claim, an omitted or truncated needed detail, and a report that asserts more than its observations establish. Some relevant or passing observations may be present."
+      }
+    }
+  },
+  "planRequirement": {
+    "type": "choice",
+    "instructions": "For requirements[i], classify what the plan commits to doing or checking. Every expressly required target, condition, case, bound and sequence must be included, explicitly or by an unambiguous equivalent. A general promise to test does not supply omitted check conditions. Judge commitments, not execution evidence or implementation code. An allowed blocked outcome may be reported, but cannot be claimed to satisfy an unmet success criterion. Apply only this phase's assigned requirements.",
+    "criteria": {
+      "covered": {
+        "what": "The plan commits to every required part of this item, with enough action or check detail to identify its target and the conditions expressly required by the task. Equivalent wording is allowed; execution evidence is not required yet."
+      },
+      "omitted": {
+        "what": "At least one required part or check condition is absent or left to inference, even if the plan addresses the general topic and includes other concrete actions."
+      },
+      "contradicted": {
+        "what": "The plan explicitly proposes an action, omission, deferral or success claim incompatible with a binding requirement of this phase. An allowed diagnostic failure outcome is not itself a contradiction; claiming that outcome satisfies an unmet success criterion is."
+      }
+    }
+  },
+  "statePrerequisites": [
+    "Pass already typed, binding criteria of the current child phase through the existing JevApprovalRequest.criteria field, using the same scope selection as the model validator; keep contextual and unassigned root criteria contextual.",
+    "Keep binding requirements outside capped historical inputs. Do not recover requirements by searching arbitrary context prose or by treating an entire originalTask as the current phase.",
+    "Keep the host-owned provenance of observations distinct from the truth of assertions inside their content: a read_file of a report establishes the report's bytes, not its unexecuted claims.",
+    "For exhaustive proof, provide a bounded host-derived inventory and its observation references only when existing inspected source or typed contracts establish the required set. If the set cannot be established, leave coverage unknown for model review; never call a list of observed members exhaustive.",
+    "Use existing typed items to ask narrower questions where possible. Do not introduce heuristic comma splitting, generated requirements, a new model extraction call or a global contradiction/completeness flag as part of this proposal.",
+    "Do not increase evidence budgets to hide the omission. Preserve the existing validity and staleness rules for standing observations."
+  ],
+  "validationPlan": {
+    "scope": "Archived inputs only; no new execution run",
+    "measurementStatus": "not measured against Jev",
+    "arms": [
+      "Original questions and original reconstructed state",
+      "Replacement questions with the same state",
+      "Original questions with correctly scoped typed criteria and evidence references",
+      "Replacement questions with the corrected state"
+    ],
+    "controls": [
+      "Freeze model version, thresholds and sampling; do not choose thresholds on these four examples.",
+      "Use both recorded disagreements and previously agreed approvals, including earlier incidents.",
+      "Keep references and diagnoses hidden from Jev; adjudicate disputed audit labels separately.",
+      "Repeat identical cases and permute Choice option order as diagnostic checks; keep the recorded answer distributions.",
+      "Measure disagreements, additional deferrals, input tokens, cost and latency; mocked answers cannot establish improved judgment accuracy."
+    ]
+  }
+}

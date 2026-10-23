@@ -1,0 +1,19 @@
+{
+  "root": "/private/tmp/attica-485-exact-review-20261021",
+  "results": [
+    {
+      "mode": "legit-detail-brand",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 200,
+      "status": 200,
+      "pauseAfter": null,
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": {
+        "status": 202,
+        "newNavigations": 3
+      },
+      "pass": true
+    }
+  ]
+}

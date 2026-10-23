@@ -1,0 +1,140 @@
+{
+  "root": "/private/tmp/attica-485-exact-review-20261021",
+  "results": [
+    {
+      "mode": "legit-search",
+      "currentUrl": "http://127.0.0.1:1/page/1",
+      "expected": 200,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 1,
+      "navigationAfter": 1,
+      "resumed": null,
+      "pass": false
+    },
+    {
+      "mode": "empty-search",
+      "currentUrl": "http://127.0.0.1:1/page/1",
+      "expected": 200,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 1,
+      "navigationAfter": 1,
+      "resumed": null,
+      "pass": false
+    },
+    {
+      "mode": "legit-detail",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 200,
+      "status": 200,
+      "pauseAfter": null,
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": {
+        "status": 202,
+        "newNavigations": 3
+      },
+      "pass": true
+    },
+    {
+      "mode": "unresolved-after-restart",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 403,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": true
+    },
+    {
+      "mode": "missing-session",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 403,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": true
+    },
+    {
+      "mode": "closed-page",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 403,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": true
+    },
+    {
+      "mode": "wrong-context",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 403,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": true
+    },
+    {
+      "mode": "unreadable-document",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 403,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": true
+    },
+    {
+      "mode": "blank-document",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 403,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": true
+    },
+    {
+      "mode": "never-navigated-page",
+      "currentUrl": "about:blank",
+      "expected": 403,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": true
+    },
+    {
+      "mode": "mismatched-detail",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 403,
+      "status": 200,
+      "pauseAfter": null,
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": false
+    },
+    {
+      "mode": "wrong-origin-with-valid-detail",
+      "currentUrl": "https://unrelated.invalid/detail/101",
+      "expected": 403,
+      "status": 200,
+      "pauseAfter": null,
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": false
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "root": "/private/tmp/attica-a99-exact-review-20261021",
+  "denialStatus": 200,
+  "denialApprovedStatus": 200,
+  "defaultPage2Challenges": false,
+  "normalPage2Challenges": false,
+  "challengeStatus": 200,
+  "approvalHandlerPresent": false,
+  "syntheticHandlerRequests": [],
+  "syntheticHandlerLocation": "unchanged",
+  "approvedPageHasListings": true,
+  "scope": "Synthetic HTTP and handler execution, no real DOM or human interaction"
+}

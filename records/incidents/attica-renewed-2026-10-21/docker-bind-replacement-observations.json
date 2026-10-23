@@ -1,0 +1,23 @@
+{
+  "scope": "Plain Docker CLI with node filesystem writes; no Atoma code or tools executed",
+  "results": [
+    {
+      "mode": "volume",
+      "currentFiles": [],
+      "archiveFiles": [
+        "after.txt",
+        "before.txt"
+      ],
+      "correct": false
+    },
+    {
+      "mode": "mount",
+      "currentFiles": [],
+      "archiveFiles": [
+        "after.txt",
+        "before.txt"
+      ],
+      "correct": false
+    }
+  ]
+}

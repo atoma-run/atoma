@@ -1,0 +1,82 @@
+{
+  "root": "/private/tmp/attica-a99-exact-review-20261021",
+  "results": [
+    {
+      "mode": "legit-detail-brand",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 200,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": false
+    },
+    {
+      "mode": "legit-detail-raw-brand",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 200,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": false
+    },
+    {
+      "mode": "legit-detail-visible-brand",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 200,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": false
+    },
+    {
+      "mode": "legit-detail-common-word",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 200,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": false
+    },
+    {
+      "mode": "legit-search-brand",
+      "currentUrl": "http://127.0.0.1:1/page/1",
+      "expected": 200,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 1,
+      "navigationAfter": 1,
+      "resumed": null,
+      "pass": false
+    },
+    {
+      "mode": "challenge-with-detail-metadata",
+      "currentUrl": "http://127.0.0.1:1/detail/101",
+      "expected": 403,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 2,
+      "navigationAfter": 2,
+      "resumed": null,
+      "pass": true
+    },
+    {
+      "mode": "challenge-with-search-metadata",
+      "currentUrl": "http://127.0.0.1:1/page/1",
+      "expected": 403,
+      "status": 403,
+      "pauseAfter": "captcha",
+      "navigationBefore": 1,
+      "navigationAfter": 1,
+      "resumed": null,
+      "pass": true
+    }
+  ]
+}

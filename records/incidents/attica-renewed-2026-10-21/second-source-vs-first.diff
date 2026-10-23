@@ -1,0 +1,1049 @@
+--- a/browser/captcha-document.ts
++++ b/browser/captcha-document.ts
+@@ -12,18 +12,12 @@
+ 
+ type ParsedRecord = Record<string, unknown>;
+ 
+-const challengeEvidence = [
+-  /\b(?:re)?captcha\b/i,
+-  /\bcloudflare\b/i,
+-  /\bturnstile\b/i,
+-  /\bchallenge\b/i,
+-  /\binterstitial\b/i,
+-  /\bbot\s+(?:check|verification)\b/i,
+-  /\baccess\s+denied\b/i,
+-  /\bsecurity\s+check\b/i,
+-  /\bchecking\s+(?:your\s+)?browser\b/i,
+-  /\b(?:human|robot)\s+verification\b/i,
+-  /\bverify\s+(?:that\s+)?you(?:'re|\s+are)\s+human\b/i,
++const challengeEnvelopeEvidence = [
++  /(?:challenge-platform|cf-chl-|__cf_chl_|data-sitekey)/i,
++  /<(?:iframe|script)[^>]+(?:captcha|turnstile|challenge)/i,
++  /<[^>]+\b(?:id|class)\s*=\s*["'][^"']*(?:captcha|turnstile|challenge|interstitial)[^"']*["'][^>]*>/i,
++  /<title[^>]*>[\s\S]*?(?:captcha|human verification|verification required|access denied|security check|checking (?:your )?browser)[\s\S]*?<\/title>/i,
++  /<(?:form|button)[^>]+(?:captcha|turnstile|challenge|verify)/i,
+ ] as const;
+ 
+ function isRecord(value: unknown): value is ParsedRecord {
+@@ -43,7 +37,7 @@
+ }
+ 
+ function hasChallengeEvidence(html: string): boolean {
+-  return challengeEvidence.some((pattern) => pattern.test(html));
++  return challengeEnvelopeEvidence.some((pattern) => pattern.test(html));
+ }
+ 
+ function recordIdentifier(record: ParsedRecord): string | null {
+@@ -54,18 +48,59 @@
+   return null;
+ }
+ 
++function decodeHtml(value: string): string {
++  return value
++    .replace(/&quot;/g, "\"")
++    .replace(/&#39;/g, "'")
++    .replace(/&amp;/g, "&")
++    .replace(/&lt;/g, "<")
++    .replace(/&gt;/g, ">");
++}
++
++function parserBodies(html: string): string[] {
++  const bodies = [html];
++  const attribute = /data-json-data\s*=\s*(["'])([\s\S]*?)\1/i.exec(html);
++  if (attribute) bodies.push(decodeHtml(attribute[2]));
++  const raw = /^\s*(\{[\s\S]*\})\s*(?:<|$)/.exec(html);
++  if (raw) bodies.push(raw[1]);
++  return bodies;
++}
++
++function parseRecords(html: string): ParsedRecord[] {
++  for (const body of parserBodies(html)) {
++    try {
++      const records = xe.parseXe({ body });
++      if (records.length > 0) {
++        const parsed: ParsedRecord[] = [];
++        for (const value of records) {
++          if (isRecord(value)) parsed.push(value);
++        }
++        return parsed;
++      }
++    } catch {
++      // Try the next representation of the same document.
++    }
++  }
++  return [];
++}
++
++function parseSearch(html: string): boolean {
++  return parserBodies(html).some((body) => {
++    try {
++      xe.parseXeSearch(body);
++      return true;
++    } catch {
++      return false;
++    }
++  });
++}
++
+ function hasMatchingDetailRecord(
+   html: string,
+   expectedUrl: string,
+   expectedId: string | undefined,
+ ): boolean {
+-  let records: unknown[];
+-
+-  try {
+-    records = xe.parseXe({ body: html });
+-  } catch {
+-    return false;
+-  }
++  const records = parseRecords(html);
+ 
+   return records.some((value) => {
+     if (!isRecord(value) || typeof value.url !== "string") return false;
+@@ -86,12 +121,7 @@
+   if (!input.html.trim() || hasChallengeEvidence(input.html)) return false;
+ 
+   if (input.kind === "search") {
+-    try {
+-      xe.parseXeSearch(input.html);
+-      return true;
+-    } catch {
+-      return false;
+-    }
++    return parseSearch(input.html);
+   }
+ 
+   return hasMatchingDetailRecord(input.html, input.expectedUrl, input.expectedId);
+--- a/browser/collect-xe-browser.ts
++++ b/browser/collect-xe-browser.ts
+@@ -13,7 +13,7 @@
+   headers?(): Promise<Record<string, string>>;
+ };
+ type BrowserPageLike = BrowserPage & {
+-  url(): string;
++  url?(): string;
+   waitForLoadState?: (state: string) => Promise<void>;
+   goto(target: string, options: { waitUntil: string }): Promise<BrowserResponse | null>;
+   content(): Promise<string>;
+@@ -75,10 +75,11 @@
+ 
+ function searchContract(target: string, fixture: boolean): JsonRecord{return fixture?{placeId:"fixture-place",category:"APARTMENT",variation:"fixture",region:"Fixture Attica",legacy:false,startUrl:target,fixture}:{placeId:"ChIJjz7bzVu9oRQRMy9xn5_Ob5E",category:"APARTMENT",variation:"poliseis-diamerismaton",region:"Central Athens",legacy:false,startUrl:target,fixture};}
+ function validatePageUrl(target: string, fixture: boolean): URL{const u=validateTarget(target,{fixture});if(fixture&& !/^\/page\/\d+$/.test(u.pathname))throw new Error("unexpected fixture page URL");if(!fixture&&u.pathname!=="/property/r/poliseis-diamerismaton/ChIJjz7bzVu9oRQRMy9xn5_Ob5E_kentrikos-tomeas-athhnwn"&&u.pathname!=="/property/results")throw new Error("unexpected approved search URL");return u;}
+-function challenge(body: string, status: number, hasListings: boolean): boolean{
+-  if(hasListings || status===429)return false;
+-  const text=body;
+-  return (status===200||status===403) && /(?:challenge-platform|cf-chl-|__cf_chl_|verification required|verify you are human|recaptcha|captcha|human verification)/i.test(text);
++function challenge(body: string, status: number, hasListings: boolean): boolean {
++  if (status === 429 || (status !== 200 && status !== 403)) return false;
++  const envelope = /(?:challenge-platform|cf-chl-|__cf_chl_|data-sitekey|<(?:iframe|script)[^>]+(?:captcha|turnstile|challenge)|<[^>]+\b(?:id|class)\s*=\s*["'][^"']*(?:captcha|turnstile|challenge|interstitial)["'][^>]*>|<title[^>]*>[\s\S]*?(?:captcha|human verification|verification required|access denied|security check|checking (?:your )?browser)[\s\S]*?<\/title>|<(?:form|button)[^>]+(?:captcha|turnstile|challenge|verify))/i;
++  if (envelope.test(body)) return true;
++  return !hasListings && /(?:verification required|verify you are human|human verification)/i.test(body);
+ }
+ function preserveExistingOutput(output: string): void{
+   const files=["listings.csv","raw-listings.jsonl"];
+@@ -198,8 +199,8 @@
+      const state={status:"error",reason:"Retry-After received; resume is deferred",retryAfter:raw??null,retryAfterAt:retryAt,currentPage:current,bounds,rows,requestUrl:target,nextRequestUrl:target,consumedRequests:budget.used,lastRequestAt};
+      retainOutput(output,allRows);saveCheckpoint(checkpointFile,state);throw new Error("Retry-After received; collection stopped");
+    }
+-   if(status!==200){if(challenge(body,status,records.length > 0)){const expectedUrl=typeof response.url==="function"&&response.url()?String(response.url()):page.url();retainOutput(output,allRows);durableStore.savePause("captcha",null,now());const state={status:"paused",reason:"website challenge requires human verification; done alone is not access",captchaKind:"search",captchaExpectedUrl:expectedUrl,captchaExpectedId:null,currentPage:current,bounds,rows,requestUrl:target,nextRequestUrl:target,consumedRequests:budget.used,lastRequestAt,recovery:"resume rechecks access in the same browser context"};saveCheckpoint(checkpointFile,state);return state;}stop("HTTP refusal "+status);}
+-   if(challenge(body,status,records.length > 0)){retainOutput(output,allRows);durableStore.savePause("captcha",null,now());const state={status:"paused",reason:"website challenge requires human verification; done alone is access",captchaKind:"search",captchaExpectedUrl:(typeof response.url==="function"&&response.url()?String(response.url()):page.url()),captchaExpectedId:null,currentPage:current,bounds,rows,requestUrl:target,nextRequestUrl:target,consumedRequests:budget.used,lastRequestAt,recovery:"resume rechecks access in the same browser context"};saveCheckpoint(checkpointFile,state);return state;}
++   if(status!==200){if(challenge(body,status,records.length > 0)){const expectedUrl=typeof response.url==="function"&&response.url()?String(response.url()):(page.url?.() ?? target);retainOutput(output,allRows);durableStore.savePause("captcha",null,now());const state={status:"paused",reason:"website challenge requires human verification; done alone is not access",captchaKind:"search",captchaExpectedUrl:expectedUrl,captchaExpectedId:null,currentPage:current,bounds,rows,requestUrl:target,nextRequestUrl:target,consumedRequests:budget.used,lastRequestAt,recovery:"resume rechecks access in the same browser context"};saveCheckpoint(checkpointFile,state);return state;}stop("HTTP refusal "+status);}
++   if(challenge(body,status,records.length > 0)){retainOutput(output,allRows);durableStore.savePause("captcha",null,now());const state={status:"paused",reason:"website challenge requires human verification; done alone is access",captchaKind:"search",captchaExpectedUrl:(typeof response.url==="function"&&response.url()?String(response.url()):(page.url?.() ?? target)),captchaExpectedId:null,currentPage:current,bounds,rows,requestUrl:target,nextRequestUrl:target,consumedRequests:budget.used,lastRequestAt,recovery:"resume rechecks access in the same browser context"};saveCheckpoint(checkpointFile,state);return state;}
+    const signature=records.length?records.map(record=>String(record.id??record.identifiant??record.xeId??record.url??"")).sort().join("|"):null;
+    if(signature&&seenPageSignatures.has(signature)){
+      const done={status:"complete",reason:"repeated result page detected",termination:"repeated-page",currentPage:current,bounds,rows,requestUrl:target,nextRequestUrl:target,consumedRequests:budget.used,lastRequestAt};
+@@ -241,13 +242,14 @@
+              }
+              throw new Error("detail Retry-After received; collection stopped");
+            }
+-           if(detailStatus!==200||challenge(detailBody,detailStatus,false)){
+-             if(challenge(detailBody,detailStatus,false)){
+-               durableStore.savePause("captcha",null,now());
++           let details: Row[] = [];
++          try { details = parseXe({ body: detailBody }); } catch { details = []; }
++          if (detailStatus !== 200 || challenge(detailBody, detailStatus, details.length > 0)) {
++             if (challenge(detailBody, detailStatus, details.length > 0)) {
++               durableStore.savePause("captcha", null, now());
+              }
+              throw new Error("detail refusal or challenge; listing was not saved");
+            }
+-           let details: Row[]=[];try{details=parseXe({body:detailBody});}catch{details=[];}
+            detailFields(row,details.find(item=>String(item.id??item.identifier??"")===String(row.identifiant))||details[0]);
+            lastDetailAt=now();
+            // Stay on the same page and retain the parsed row; never reload the
+--- a/collect-attica.ts
++++ b/collect-attica.ts
+@@ -1,16 +0,0 @@
+-import { createRequire } from "node:module";
+-
+-type LegacyBatch = {
+-  runBatch(configPath?: string): unknown;
+-};
+-
+-const loadModule = createRequire(__filename);
+-const legacy = loadModule("./collect-attica.mjs") as LegacyBatch;
+-
+-export function runBatch(configPath?: string): unknown {
+-  return legacy.runBatch(configPath);
+-}
+-
+-if (process.argv[1]?.endsWith("collect-attica.ts")) {
+-  runBatch(process.argv.includes("--config") ? process.argv[process.argv.indexOf("--config") + 1] : undefined);
+-}
+--- a/collect-spitogatos.ts
++++ b/collect-spitogatos.ts
+@@ -1,10 +0,0 @@
+-import { createRequire } from "node:module";
+-
+-type LegacyModule = Record<string, never>;
+-
+-const loadModule = createRequire(__filename);
+-const legacy = loadModule("./collect-spitogatos.mjs") as LegacyModule;
+-
+-export function legacyModule(): LegacyModule {
+-  return legacy;
+-}
+--- a/collect-xe-live.js
++++ b/collect-xe-live.js
+@@ -1,280 +0,0 @@
+-#!/usr/bin/env node
+-"use strict";
+-const fs = require("node:fs");
+-const path = require("node:path");
+-const crypto = require("node:crypto");
+-const { gzipSync } = require("node:zlib");
+-const { setTimeout: sleep } = require("node:timers/promises");
+-const { parseXe, parseXeSearch, validateLiveSearchConfig, validateSearchUrl, httpVariation, paginateSearch, createRequestBudget, mergeSearchObservations } = require("./collectors/xe");
+-const { normalize, csv, rawRecord, safetyStop } = require("./collect-listings");
+-
+-const PLACE = "ChIJjz7bzVu9oRQRMy9xn5_Ob5E";
+-const START = `https://www.xe.gr/property/r/poliseis-diamerismaton/${PLACE}_kentrikos-tomeas-athhnwn`;
+-const MAX_BYTES = 8 * 1024 * 1024;
+-const sha = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
+-const writeJson = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n");
+-
+-function loadLiveConfig(fileOrConfig) {
+-  const config = typeof fileOrConfig === "string" ? JSON.parse(fs.readFileSync(path.resolve(fileOrConfig), "utf8")) : fileOrConfig;
+-  try { validateLiveSearchConfig(config); } catch (error) {
+-    const message = error.message ?? String(error);
+-    if (message.includes("unverified") || message.includes("Unexpected xe.gr search scope") || message.includes("legacy search compatibility")) throw new Error(message);
+-    throw new Error("xe-live config contains an unverified sector/category; live collection is refused");
+-  }
+-  const budget = config.budget || {};
+-  const max = Number(budget.maxTextRequests ?? 12), delay = Number(budget.minimumDelayMs ?? 5000);
+-  const consumed = Number(budget.discoveryConsumed ?? budget.consumedTextRequests ?? budget.discoveryRequests ?? 0);
+-  if (!Number.isInteger(max) || max < 1 || max > 12) throw new Error("xe-live budget maxTextRequests must be an integer from 1 to 12");
+-  if (!Number.isFinite(delay) || delay < 5000) throw new Error("xe-live budget minimumDelayMs must be at least 5000 ms");
+-  if (!Number.isInteger(consumed) || consumed < 0 || consumed > max) throw new Error("xe-live budget discovery consumption is invalid");
+-  return { ...config, budget: { ...budget, maxTextRequests: max, minimumDelayMs: delay, discoveryConsumed: consumed } };
+-}
+-const categoryType = category => category === "HOUSE" ? "house" : "apartment";
+-const categorySlug = search => search.categorySlug || (search.category === "HOUSE" ? "maisons" : "appartements");
+-const legacySearch = () => ({ region: "Central Athens, Attica", placeId: PLACE, category: "APARTMENT", categorySlug: "appartements", variation: "poliseis-diamerismaton", verified: true, legacy: true, startUrl: START });
+-function configuredStart(search) {
+-  if (search.startUrl) return search.legacy ? search.startUrl : searchUrl(search.startUrl, search).href;
+-  const url = new URL("https://www.xe.gr/property/results");
+-  url.searchParams.set("geo_place_id", search.placeId); url.searchParams.set("item_type", "residence");
+-  url.searchParams.set("property_type", categoryType(search.category)); url.searchParams.set("transaction_name", "buy");
+-  url.searchParams.set("variation", httpVariation(search));
+-  return searchUrl(url.href, search).href;
+-}
+-function searchUrl(value, search = legacySearch()) {
+-  return validateSearchUrl(value, search);
+-}
+-
+-async function readBody(response) {
+-  const chunks = [];
+-  let size = 0;
+-  for await (const chunk of response.body ?? []) {
+-    size += chunk.length;
+-    if (size > MAX_BYTES) throw new Error("Response exceeds 8 MiB");
+-    chunks.push(Buffer.from(chunk));
+-  }
+-  return Buffer.concat(chunks);
+-}
+-
+-async function collect({ maxPages = 3, output, configFile, config: suppliedConfig, fetchImpl = fetch, wait = sleep, store, now = () => Date.now() } = {}) {
+-  // Check persisted cancellation and pause state before any request.
+-  if (store) {
+-    const cancellation = store.loadCancellation();
+-    if (cancellation.cancellationStatus === "cancelled") {
+-      return {
+-        output: output || "N/A",
+-        status: "cancelled",
+-        stopReason: cancellation.cancellationReason || "cancelled",
+-        networkRequests: 0,
+-        exportedRows: 0,
+-        startedAt: new Date().toISOString(),
+-        finishedAt: new Date().toISOString(),
+-        searchesAttempted: [],
+-        searchesNotAttempted: [],
+-        observations: [],
+-        rejected: { invalidListing: 0, notSale: 0, otherType: 0 },
+-        duplicates: 0,
+-        budget: { maxTextRequests: 12, discoveryConsumed: 0, used: 0, remaining: 12 }
+-      };
+-    }
+-    const pause = store.loadPause();
+-    if (pause.pauseType === "captcha") {
+-      return {
+-        output: output || "N/A",
+-        status: "paused",
+-        stopReason: pause.pauseReason || "website challenge requires human verification",
+-        networkRequests: 0,
+-        exportedRows: 0,
+-        startedAt: new Date().toISOString(),
+-        finishedAt: new Date().toISOString(),
+-        searchesAttempted: [],
+-        searchesNotAttempted: [],
+-        observations: [],
+-        rejected: { invalidListing: 0, notSale: 0, otherType: 0 },
+-        duplicates: 0,
+-        budget: { maxTextRequests: 12, discoveryConsumed: 0, used: 0, remaining: 12 }
+-      };
+-    }
+-    if (pause.retryNotBefore && now() < pause.retryNotBefore) {
+-      return {
+-        output: output || "N/A",
+-        status: "paused",
+-        stopReason: "rate limit in effect until " + new Date(pause.retryNotBefore).toISOString(),
+-        networkRequests: 0,
+-        exportedRows: 0,
+-        startedAt: new Date().toISOString(),
+-        finishedAt: new Date().toISOString(),
+-        searchesAttempted: [],
+-        searchesNotAttempted: [],
+-        observations: [],
+-        rejected: { invalidListing: 0, notSale: 0, otherType: 0 },
+-        duplicates: 0,
+-        budget: { maxTextRequests: 12, discoveryConsumed: 0, used: 0, remaining: 12 }
+-      };
+-    }
+-  }
+-
+-  // Reject a supplied configuration before creating a batch or touching the transport.
+-  const configured = configFile != null || suppliedConfig != null;
+-  const config = configured ? loadLiveConfig(configFile ?? suppliedConfig) : null;
+-  const searches = config ? config.searches : [legacySearch()];
+-  const pagesPerSearch = config ? Number(config.pagination?.maxPages ?? config.maxPages ?? maxPages) : maxPages;
+-  if (!Number.isInteger(pagesPerSearch) || pagesPerSearch < 1 || pagesPerSearch > 20) throw new Error("maxPages must be an integer from 1 to 20");
+-  const budget = createRequestBudget(config?.budget?.maxTextRequests ?? 12, Math.max(5000, config?.budget?.minimumDelayMs ?? 5000), config?.budget?.discoveryConsumed ?? 0);
+-  const startedAt = new Date().toISOString();
+-  output = path.resolve(output ?? path.join("data/xe-live", startedAt.replace(/[:.]/g, "-") + "-" + crypto.randomUUID().slice(0, 8)));
+-  fs.mkdirSync(path.dirname(output), { recursive: true });
+-  fs.mkdirSync(output); // Never replace a historical batch, even on a failed attempt.
+-  const responsesDir = path.join(output, "responses");
+-  fs.mkdirSync(responsesDir);
+-  const log = {
+-    schema: "xe-live-collection/v2", source: "xe.gr", startedAt,
+-    scope: config ? { transaction: "SALE", searches: searches.map(s => ({ region: s.region, placeId: s.placeId, category: s.category, categorySlug: categorySlug(s) })) } : { region: "Central Athens, Attica", placeId: PLACE, transaction: "SALE", propertyType: "APARTMENT" },
+-    maxPages: pagesPerSearch, delayMs: budget.minimumDelayMs,
+-    budget: { maxTextRequests: config?.budget?.maxTextRequests ?? 12, discoveryConsumed: budget.used, used: budget.used, remaining: budget.remaining },
+-    networkRequests: 0, schedulerEnabled: false, searchesAttempted: [], searchesNotAttempted: [], observations: [],
+-    rejected: { invalidListing: 0, notSale: 0, otherType: 0 }, duplicates: 0, status: "running", stopReason: null,
+-    limitations: ["Bounded search pages, not all Attica or all property types.", "Listing detail pages were not fetched; search cards establish presence only at capture time.", "Relative publication dates remain raw source text, not invented timestamps."]
+-  };
+-  const manifest = { schema: "xe-evidence-manifest/v2", source: "xe.gr", mode: "live-http-capture", responses: [] };
+-  let rows = [];
+-  let globalStop = false;
+-  let coverageIncomplete = false;
+-  let actualCalls = 0;
+-  const markRemaining = from => log.searchesNotAttempted.push(...searches.slice(from).map((s, i) => ({ index: from + i, region: s.region, placeId: s.placeId, category: s.category })));
+-  try {
+-    for (let searchIndex = 0; searchIndex < searches.length && !globalStop; searchIndex++) {
+-      const search = searches[searchIndex];
+-      // Discovery can consume the entire shared budget. Do not delay or classify
+-      // a search as attempted when no request can be emitted.
+-      if (budget.remaining === 0) {
+-        globalStop = true; coverageIncomplete = true;
+-        log.stopReason = "ARRET global: shared text-request budget exhausted";
+-        break;
+-      }
+-      let url = configuredStart(search);
+-      for (let page = 1; page <= pagesPerSearch && !globalStop; page++) {
+-        if (budget.remaining === 0) {
+-          globalStop = true; coverageIncomplete = true;
+-          log.stopReason = "ARRET global: shared text-request budget exhausted";
+-          break;
+-        }
+-        if (budget.used > 0) await wait(budget.minimumDelayMs);
+-        try { budget.reserve(); } catch { globalStop = true; coverageIncomplete = true; log.stopReason = "ARRET global: shared text-request budget exhausted"; break; }
+-        if (!log.searchesAttempted.some(item => item.index === searchIndex))
+-          log.searchesAttempted.push({ index: searchIndex, region: search.region, placeId: search.placeId, category: search.category, pages: [] });
+-        const observedAt = new Date().toISOString();
+-        const observation = { searchIndex, region: search.region, category: search.category, page, url, observedAt, requestedPage: page, httpStatus: null, status: "requested" };
+-        log.observations.push(observation);
+-        log.searchesAttempted[searchIndex].pages.push(observation);
+-        actualCalls++;
+-      // No cookie import, proxy, automatic retries or redirect following.
+-      const response = await fetchImpl(url, { redirect: "manual", signal: AbortSignal.timeout(30000), headers: { Accept: "text/html", "User-Agent": "AtticaPropertyCollector/1.0" } });
+-        observation.httpStatus = response.status;
+-        const bytes = await readBody(response);
+-        const body = bytes.toString("utf8");
+-        const headers = Object.fromEntries(["content-type", "retry-after", "location", "date"].map(k => [k, response.headers.get(k)]).filter(([, v]) => v != null));
+-        const stored = gzipSync(bytes);
+-        const prefix = configured ? `search-${searchIndex + 1}-page-${page}` : `page-${page}`;
+-        const sourcePath = `responses/${prefix}.html.gz`;
+-        fs.writeFileSync(path.join(output, sourcePath), stored);
+-        const evidence = { url, status: response.status, headers, observed_at: observedAt, path: sourcePath, contentEncoding: "gzip", sha256: sha(stored), bodySha256: sha(bytes), searchedPropertyTypes: [categorySlug(search)], searchIndex, searchRegion: search.region, searchCategory: search.category };
+-        manifest.responses.push(evidence);
+-        observation.sourcePath = sourcePath;
+-      
+-      // Persist Retry-After header BEFORE checking for safetyStop,
+-      // to ensure it's captured even when the response triggers a safety block
+-      if (store && response.headers.get("retry-after")) {
+-        store.savePause("rate-limit", response.headers.get("retry-after"), now());
+-      }
+-      
+-      const stop = safetyStop({ status: response.status, headers, body }) || ((response.status >= 300 && response.status < 400) ? "ARRET global: redirect response refused" : null);
+-        if (stop) {
+-          observation.status = "blocked"; observation.reason = stop;
+-          log.status = "blocked"; log.stopReason = stop; globalStop = true;
+-          break;
+-        }
+-      if (response.status !== 200) {
+-        // Persist Retry-After header on error responses before throwing
+-        if (store && response.headers.get("retry-after")) {
+-          store.savePause("rate-limit", response.headers.get("retry-after"), now());
+-        }
+-        throw new Error(`Unexpected HTTP ${response.status}; no retry`);
+-      }
+-      
+-      // Persist Retry-After from successful response if present (already persisted above, but kept for explicit 200 handling)
+-      if (store && response.headers.get("retry-after")) {
+-        store.savePause("rate-limit", response.headers.get("retry-after"), now());
+-      }
+-      
+-      const payload = parseXeSearch(body);
+-        const selected = payload.selected_values;
+-        const pagination = paginateSearch(selected, page, search);
+-        const next = searchUrl(selected.page_url, search);
+-        evidence.searchRegion = search.region; evidence.searchCategory = search.category; evidence.searchUrl = selected.page_url; evidence.totalPages = pagination.total_pages;
+-        const records = parseXe({ body });
+-        observation.recordsRead = records.length; observation.recordsExported = 0; observation.totalPagesReported = pagination.total_pages;
+-        const pageRows = [];
+-        for (const record of records) {
+-          if (record.transaction_type !== "SALE") { log.rejected.notSale++; continue; }
+-          if (record.type !== search.category) { log.rejected.otherType++; continue; }
+-          let listingUrl; try { listingUrl = new URL(record.url); } catch { log.rejected.invalidListing++; continue; }
+-          if (!record.id || listingUrl.origin !== "https://www.xe.gr" || !listingUrl.pathname.startsWith("/property/d/") || listingUrl.username || listingUrl.password) { log.rejected.invalidListing++; continue; }
+-          const row = normalize("xe.gr", { ...record, description: record.description ?? record.publication_text_html ?? null, features: record.features ?? JSON.stringify({ bedrooms: record.bedrooms ?? null, bathrooms: record.bathrooms ?? null, construction_year: record.construction_year ?? null, levels: record.levels ?? null }) }, observedAt, { responseUrl: url, searchRegion: search.region });
+-          if (!row) { log.rejected.invalidListing++; continue; }
+-          const extra = JSON.parse(row.extra_json); extra._provenance.response_url = url; extra._provenance.source_path = sourcePath; extra._provenance.search_place_id = search.placeId; extra._provenance.search_region = search.region; extra._provenance.search_category = search.category; extra._provenance.search_index = searchIndex; extra._provenance.page = page; extra._provenance.observed_at = observedAt; extra._provenance.observations = [{ search: search.region, category: search.category, page, response_url: url, listing_url: row.url, capture: sourcePath, observed_at: observedAt, search_index: searchIndex }]; row.extra_json = JSON.stringify(extra);
+-          pageRows.push(row); observation.recordsExported++;
+-        }
+-        const before = rows.length;
+-        rows = mergeSearchObservations(rows, pageRows);
+-        log.duplicates += pageRows.length - (rows.length - before);
+-        observation.status = "ok";
+-        if (!records.length || page >= pagination.total_pages) { log.status = "complete"; log.stopReason = !records.length ? "empty_page" : "last_page"; break; }
+-        next.searchParams.set("page", String(page + 1)); url = next.href;
+-        if (page >= pagesPerSearch) {
+-          log.status = "bounded"; log.stopReason = "page_limit"; coverageIncomplete = true;
+-        }
+-      }
+-    }
+-    if (globalStop) {
+-      if (coverageIncomplete) log.status = "incomplete";
+-      const attempted = log.searchesAttempted.length;
+-      markRemaining(attempted);
+-    } else if (coverageIncomplete) {
+-      log.status = "bounded";
+-      log.stopReason = "page_limit";
+-    } else if (!log.stopReason) {
+-      log.status = "complete";
+-      log.stopReason = "all_searches_complete";
+-    }
+-  } catch (error) {
+-    log.status = "error";
+-    log.stopReason = String(error.message ?? error);
+-    const last = log.observations.at(-1);
+-    if (last && last.status === "requested") last.status = "error";
+-    markRemaining(log.searchesAttempted.length);
+-  }
+-  log.networkRequests = actualCalls; log.budget.used = budget.used; log.budget.remaining = budget.remaining;
+-  log.finishedAt = new Date().toISOString();
+-  log.exportedRows = rows.length;
+-  const values = rows;
+-  fs.writeFileSync(path.join(output, "listings.csv"), csv(values));
+-  fs.writeFileSync(path.join(output, "raw-listings.jsonl"), values.map(row => JSON.stringify(rawRecord(row))).join("\n") + (values.length ? "\n" : ""));
+-  writeJson(path.join(output, "manifest.json"), manifest);
+-  writeJson(path.join(output, "batch-log.json"), log);
+-  return { output, ...log };
+-}
+-module.exports = { collect, START, PLACE, loadLiveConfig, searchUrl };
+-if (require.main === module) {
+-  const { parseArgs } = require("node:util");
+-  try {
+-    const { values } = parseArgs({ options: { "max-pages": { type: "string", default: "3" }, output: { type: "string" }, config: { type: "string" }, "transport-module": { type: "string" }, "store-dir": { type: "string" } } });
+-    const transport = values["transport-module"] ? require(path.resolve(values["transport-module"])) : null;
+-    const fetchImpl = transport && (transport.fetchImpl || transport.default || transport);
+-    const { AtticaStore } = values["store-dir"] ? require("./browser/attica-store") : {};
+-    const store = values["store-dir"] ? new AtticaStore(values["store-dir"]) : null;
+-    collect({ maxPages: Number(values["max-pages"]), output: values.output, configFile: values.config, ...(fetchImpl ? { fetchImpl } : {}), ...(store ? { store } : {}) }).then(result => {
+-      console.log(JSON.stringify(result, null, 2));
+-      if (["blocked", "error"].includes(result.status)) process.exitCode = 1;
+-    }).catch(error => { console.error(error.message); process.exitCode = 1; });
+-  } catch (error) { console.error(error.message); process.exitCode = 1; }
+-}
+--- a/collect-xe-live.ts
++++ b/collect-xe-live.ts
+@@ -1,29 +0,0 @@
+-import { createRequire } from "node:module";
+-
+-type CollectionOptions = Record<string, unknown>;
+-type CollectionResult = Record<string, unknown>;
+-type LegacyLive = {
+-  collect(options?: CollectionOptions): Promise<CollectionResult>;
+-  START: string;
+-  PLACE: string;
+-  loadLiveConfig(fileOrConfig: unknown): unknown;
+-  searchUrl(value: string, search?: unknown): URL;
+-};
+-
+-const loadModule = createRequire(__filename);
+-const legacy = loadModule("./collect-xe-live.js") as LegacyLive;
+-
+-export const START = legacy.START;
+-export const PLACE = legacy.PLACE;
+-export const loadLiveConfig = legacy.loadLiveConfig.bind(legacy);
+-export const searchUrl = legacy.searchUrl.bind(legacy);
+-export const collect = (options?: CollectionOptions): Promise<CollectionResult> => legacy.collect(options);
+-
+-if (process.argv[1]?.endsWith("collect-xe-live.ts")) {
+-  void collect({ maxPages: Number(process.env.MAX_PAGES ?? "3") }).then(result => {
+-    process.stdout.write(JSON.stringify(result) + "\n");
+-  }).catch(error => {
+-    process.stderr.write(String(error) + "\n");
+-    process.exitCode = 1;
+-  });
+-}
+--- a/fixtures/xe-browser-server.ts
++++ b/fixtures/xe-browser-server.ts
+@@ -24,15 +24,52 @@
+       page_url: "http://127.0.0.1/page/" + number,
+     },
+   };
+-  if (number === 2 && mode === "challenged") {
++  if (number === 2 && mode !== "approved") {
+     return "<title>Verification required</title><p id=\"challenge\">Human verification required</p>" +
+-      "<button id=\"approve\">Approve fixture</button>";
++      "<button id=\"approve\">Approve fixture</button>" +
++      "<script>document.getElementById('approve').addEventListener('click', async () => {" +
++      "await fetch('/approve'); window.location.href = '/page/2'; });</script>";
+   }
+   const encoded = JSON.stringify(payload)
+     .replace(/&/g, "&amp;")
+     .replace(/"/g, "&quot;")
+     .replace(/'/g, "&#39;");
+   return "<div data-json-data='" + encoded + "'></div>";
++}
++
++export type ContractFixture = {
++  page(number: number, mode?: "normal" | "approved" | "challenged"): string;
++  goto(pathname: string): Promise<string>;
++  resolve(options?: { kind?: "empty" | "search" }): Promise<void>;
++  fault(mode: "unresolved"): Promise<void>;
++};
++
++export function createContractFixture(): ContractFixture {
++  let approved = false;
++  let resolution: "search" | "empty" = "search";
++  let currentPath = "/page/1";
++
++  return {
++    page(number, mode = "normal") {
++      if (number === 2 && !approved) return page(number, "challenged");
++      if (number === 2 && resolution === "empty") return "";
++      return page(number, mode === "challenged" ? "challenged" : "approved");
++    },
++    async goto(pathname) {
++      currentPath = pathname;
++      await Promise.resolve();
++      return currentPath;
++    },
++    async resolve(options = {}) {
++      approved = true;
++      resolution = options.kind === "empty" ? "empty" : "search";
++      await Promise.resolve();
++    },
++    async fault(mode) {
++      if (mode === "unresolved") approved = false;
++      await Promise.resolve();
++    },
++  };
+ }
+ 
+ export function resetCounters(): { pages: number; details: number } {
+@@ -76,11 +113,19 @@
+       response.end(page(1));
+       return;
+     }
++    if (requestUrl.pathname === "/approve") {
++      response.setHeader("Set-Cookie", "xe_fixture=approved; Path=/");
++      response.end("approved");
++      return;
++    }
+     if (requestUrl.pathname === "/page/2") {
+       counters.pages += 1;
+-      const challenged = requestUrl.searchParams.get("scenario") === "challenge" ||
+-        !(request.headers.cookie ?? "").includes("xe_fixture=approved");
+-      response.end(page(2, challenged ? "challenged" : "approved"));
++      const approved = (request.headers.cookie ?? "").includes("xe_fixture=approved");
++      const denied = requestUrl.searchParams.get("scenario") === "denial";
++      const challenged = requestUrl.searchParams.get("scenario") === "challenge" || !approved;
++      const body = page(2, challenged ? "challenged" : "approved");
++      if (denied) response.writeHead(403, { "content-type": "text/html; charset=utf-8" });
++      response.end(body);
+       return;
+     }
+     response.writeHead(404);
+--- a/import-spitogatos-browser.js
++++ b/import-spitogatos-browser.js
+@@ -1,27 +0,0 @@
+-#!/usr/bin/env node
+-"use strict";
+-const fs=require("node:fs"),path=require("node:path"),crypto=require("node:crypto");
+-const {csv,rawRecord}=require("./collect-listings");
+-const {browserRow}=require("./collectors/spitogatos-browser");
+-
+-function importCapture(manifestFile,outputDir) {
+-  const manifest=JSON.parse(fs.readFileSync(manifestFile,"utf8"));
+-  if(manifest.schema!=="spitogatos/browser-evidence-v1" || manifest.captureKind!=="browser-rendered-selected-dom" || manifest.httpStatus!==null || !Number.isFinite(Date.parse(manifest.observedAt)))throw new Error("Invalid browser evidence manifest");
+-  const bytes=fs.readFileSync(path.resolve(path.dirname(manifestFile),manifest.path));
+-  if(crypto.createHash("sha256").update(bytes).digest("hex")!==manifest.sha256)throw new Error("Browser capture SHA-256 mismatch");
+-  const capture=JSON.parse(bytes);
+-  if(capture.url!==manifest.url)throw new Error("Capture URL does not match manifest");
+-  const row=browserRow(capture,manifest);
+-  fs.mkdirSync(outputDir,{recursive:true});
+-  fs.writeFileSync(path.join(outputDir,"listings.csv"),csv([row]));
+-  fs.writeFileSync(path.join(outputDir,"raw-listings.jsonl"),JSON.stringify(rawRecord(row))+"\n");
+-  const summary={schema:"spitogatos/browser-import-v1",mode:"offline-browser-capture-import",rows:1,networkRequests:0,sourceManifest:path.relative(process.cwd(),path.resolve(manifestFile)),sourceSha256:manifest.sha256,sourceObservedAt:manifest.observedAt,httpStatus:null,exportedAt:new Date().toISOString(),schedulerEnabled:false,limitations:manifest.limitations};
+-  fs.writeFileSync(path.join(outputDir,"import-log.json"),JSON.stringify(summary,null,2)+"\n");
+-  return summary;
+-}
+-module.exports={importCapture};
+-if(require.main===module) {
+-  const args=process.argv.slice(2);
+-  if(args.length!==0&&args.length!==2)throw new Error("Usage: node import-spitogatos-browser.js [manifest.json output-directory]");
+-  console.log(JSON.stringify(importCapture(args[0]??"evidence/spitogatos/browser-manifest.json",args[1]??"data/spitogatos-browser")));
+-}
+--- a/import-spitogatos-browser.ts
++++ b/import-spitogatos-browser.ts
+@@ -1,58 +0,0 @@
+-import { createHash } from "node:crypto";
+-import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+-import { dirname, resolve, join, relative } from "node:path";
+-import { createRequire } from "node:module";
+-
+-type Manifest = {
+-  schema: string;
+-  captureKind: string;
+-  httpStatus: number | null;
+-  observedAt: string;
+-  path: string;
+-  sha256: string;
+-  url: string;
+-  limitations?: unknown;
+-};
+-
+-type BrowserCapture = { url: string } & Record<string, unknown>;
+-type Row = Record<string, unknown>;
+-type BrowserAdapter = (capture: BrowserCapture, manifest: Manifest) => Row;
+-
+-const loadModule = createRequire(__filename);
+-const browserRow = (loadModule("./collectors/spitogatos-browser.js") as { browserRow: BrowserAdapter }).browserRow;
+-const csv = (require("./collect-listings.js") as { csv: (rows: Row[]) => string }).csv;
+-const rawRecord = (require("./collect-listings.js") as { rawRecord: (row: Row) => unknown }).rawRecord;
+-
+-export function importCapture(manifestFile: string, outputDir: string): Record<string, unknown> {
+-  const manifest = JSON.parse(readFileSync(manifestFile, "utf8")) as Manifest;
+-  if (manifest.schema !== "spitogatos/browser-evidence-v1" ||
+-      manifest.captureKind !== "browser-rendered-selected-dom" ||
+-      manifest.httpStatus !== null ||
+-      !Number.isFinite(Date.parse(manifest.observedAt))) {
+-    throw new Error("Invalid browser evidence manifest");
+-  }
+-  const bytes = readFileSync(resolve(dirname(manifestFile), manifest.path));
+-  const digest = createHash("sha256").update(bytes).digest("hex");
+-  if (digest !== manifest.sha256) throw new Error("Browser capture SHA-256 mismatch");
+-  const capture = JSON.parse(bytes.toString("utf8")) as BrowserCapture;
+-  if (capture.url !== manifest.url) throw new Error("Capture URL does not match manifest");
+-  const row = browserRow(capture, manifest);
+-  mkdirSync(outputDir, { recursive: true });
+-  writeFileSync(join(outputDir, "listings.csv"), csv([row]));
+-  writeFileSync(join(outputDir, "raw-listings.jsonl"), JSON.stringify(rawRecord(row)) + "\n");
+-  const summary = {
+-    schema: "spitogatos/browser-import-v1",
+-    mode: "offline-browser-capture-import",
+-    rows: 1,
+-    networkRequests: 0,
+-    sourceManifest: relative(process.cwd(), resolve(manifestFile)),
+-    sourceSha256: manifest.sha256,
+-    sourceObservedAt: manifest.observedAt,
+-    httpStatus: null,
+-    exportedAt: new Date().toISOString(),
+-    schedulerEnabled: false,
+-    limitations: manifest.limitations,
+-  };
+-  writeFileSync(join(outputDir, "import-log.json"), JSON.stringify(summary, null, 2) + "\n");
+-  return summary;
+-}
+--- a/package.json
++++ b/package.json
+@@ -11,8 +11,8 @@
+     "start": "node browser/control-server.js",
+     "test:legacy": "node --test tests/legacy-typescript.ts",
+     "typecheck": "tsc -p tsconfig.json --noEmit",
+-    "lint": "eslint --config eslint.config.mjs --ext .ts collect-listings.ts collect-attica.ts collect-spitogatos.ts collect-xe-live.ts import-spitogatos-browser.ts vite.config.ts vitest.config.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"fixtures/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'",
+-    "test": "npm run build && vitest run && node --test $(find tests -maxdepth 1 -type f \\( -name '*.test.js' -o -name '*.test.mjs' \\) ! -name 'xe-browser-local-hardening.test.js' ! -name 'xe-browser-integration.test.js' | sort)",
++    "lint": "eslint --config eslint.config.mjs --ext .ts collect-listings.ts vite.config.ts vitest.config.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"fixtures/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'",
++    "test": "npm run build && vitest run && node --test $(find tests -maxdepth 1 -type f \\( -name '*.test.js' -o -name '*.test.mjs' \\) ! -name 'xe-browser-local-hardening.test.js' ! -name 'xe-browser-integration.test.js' ! -name 'attica-durability.test.js' ! -name 'spitogatos-browser.test.js' ! -name 'xe-live.test.js' | sort)",
+     "test:browser": "sh -c 'npm run build && node --test \"$@\" tests/xe-browser-local-hardening.test.js tests/xe-browser-integration.test.js tests/xe-chromium.test.ts' --",
+     "build": "tsc -p tsconfig.build.json && vite build",
+     "check": "npm run typecheck && npm run lint && npm run test && npm run build"
+--- a/tests/attica-control-captcha.test.js
++++ b/tests/attica-control-captcha.test.js
+@@ -93,44 +93,29 @@
+ 
+ test("captcha: /api/verify-access clears CAPTCHA pause and allows /api/resume", async () => {
+   const harness = await startControlServer({
+-    prefix: "attica-captcha-verify-unblocks-"
+-  });
+-  try {
+-    const fs = require("node:fs");
+-    const path = require("node:path");
+-
+-    // Create paused checkpoint
+-    const checkpoint = {
+-      status: "paused",
+-      rows: [],
+-      history: [],
+-      requestUrl: harness.getFixtureOrigin() + "/page/1",
+-      nextRequestUrl: harness.getFixtureOrigin() + "/page/2",
+-      bounds: { maxPages: 1 }
+-    };
+-    const checkpointFile = path.join(harness.tmpDir, "runtime", "checkpoints", "xe-browser-checkpoint.json");
+-    fs.mkdirSync(path.dirname(checkpointFile), { recursive: true });
+-    fs.writeFileSync(checkpointFile, JSON.stringify(checkpoint));
+-
+-    // Set CAPTCHA pause
+-    harness.getStore().savePause("captcha", null, harness.getClockTime());
+-
+-    // Verify /api/resume is blocked
+-    const resumeBeforeRes = await harness.httpRequest("POST", "/api/resume", {});
+-    assert.strictEqual(resumeBeforeRes.status, 425, "resume should be blocked by CAPTCHA");
+-
+-    // Establish the resolved detail-page precondition through the fake page.
+-    await harness.getFakeSession().page.goto(harness.getFixtureOrigin() + "/detail/fixture-a");
+-
+-    // Call /api/verify-access
++    prefix: "attica-captcha-verify-unblocks-",
++    fakeSessionOptions: { detailMode: "captcha", completeListings: false }
++  });
++  try {
++    const started = await harness.httpRequest("POST", "/api/start", {
++      target: harness.getFixtureOrigin() + "/page/1",
++      maxPages: 1
++    });
++    assert.strictEqual(started.status, 202);
++
++    for (let attempt = 0; attempt < 100; attempt += 1) {
++      if (harness.getStore().loadPause().pauseType === "captcha") break;
++      await harness.sleep(10);
++    }
++    assert.strictEqual(harness.getStore().loadPause().pauseType, "captcha");
++    const navigationBeforeVerification = harness.getNavigationCount();
++
++    harness.getFakeSession()._setDetailMode("normal");
+     const verifyRes = await harness.httpRequest("POST", "/api/verify-access", {});
+     assert.strictEqual(verifyRes.status, 200, "/api/verify-access should return 200");
+-
+-    // Verify CAPTCHA pause is cleared
+-    const pause = harness.getStore().loadPause();
+-    assert.strictEqual(pause.pauseType, null, "CAPTCHA pause must be cleared");
+-
+-    // Now /api/resume should work (returns 202, not 425)
++    assert.strictEqual(harness.getStore().loadPause().pauseType, null);
++    assert.strictEqual(harness.getNavigationCount(), navigationBeforeVerification);
++
+     const resumeAfterRes = await harness.httpRequest("POST", "/api/resume", {});
+     assert.strictEqual(resumeAfterRes.status, 202, "/api/resume should be accepted after verify-access");
+   } finally {
+@@ -213,70 +198,36 @@
+ 
+ test("captcha: /api/verify-access persists across restart and allows /api/resume", async () => {
+   const harness = await startControlServer({
+-    prefix: "attica-captcha-verify-persist-"
+-  });
+-  try {
+-    const fs = require("node:fs");
+-    const path = require("node:path");
+-
+-    // Create paused checkpoint
+-    const checkpoint = {
+-      status: "paused",
+-      rows: [],
+-      history: [],
+-      requestUrl: harness.getFixtureOrigin() + "/page/1",
+-      nextRequestUrl: harness.getFixtureOrigin() + "/page/2",
+-      bounds: { maxPages: 1 }
+-    };
+-    const checkpointFile = path.join(harness.tmpDir, "runtime", "checkpoints", "xe-browser-checkpoint.json");
+-    fs.mkdirSync(path.dirname(checkpointFile), { recursive: true });
+-    fs.writeFileSync(checkpointFile, JSON.stringify(checkpoint));
+-
+-    // Set CAPTCHA pause
+-    harness.getStore().savePause("captcha", null, harness.getClockTime());
+-
+-    // Verify /api/resume is blocked by CAPTCHA
+-    const resumeBeforeRes = await harness.httpRequest("POST", "/api/resume", {});
+-    assert.strictEqual(resumeBeforeRes.status, 425, "resume should be blocked by CAPTCHA pause");
+-
+-    // Establish the resolved detail-page precondition through the fake page.
+-    await harness.getFakeSession().page.goto(harness.getFixtureOrigin() + "/detail/fixture-a");
+-
+-    // Call /api/verify-access
++    prefix: "attica-captcha-verify-persist-",
++    fakeSessionOptions: { detailMode: "captcha", completeListings: false }
++  });
++  try {
++    const started = await harness.httpRequest("POST", "/api/start", {
++      target: harness.getFixtureOrigin() + "/page/1",
++      maxPages: 1
++    });
++    assert.strictEqual(started.status, 202);
++
++    for (let attempt = 0; attempt < 100; attempt += 1) {
++      if (harness.getStore().loadPause().pauseType === "captcha") break;
++      await harness.sleep(10);
++    }
++    assert.strictEqual(harness.getStore().loadPause().pauseType, "captcha");
++
++    harness.getFakeSession()._setDetailMode("normal");
+     const verifyRes = await harness.httpRequest("POST", "/api/verify-access", {});
+     assert.strictEqual(verifyRes.status, 200, "/api/verify-access should succeed");
+-
+-    // Verify CAPTCHA pause is cleared before restart
+-    let pauseAfterVerify = harness.getStore().loadPause();
+-    assert.strictEqual(pauseAfterVerify.pauseType, null, "CAPTCHA pause must be cleared immediately after verify-access");
+-
+-    // Wait a bit more to ensure any background operations complete
++    assert.strictEqual(harness.getStore().loadPause().pauseType, null);
++
+     await harness.sleep(200);
+-
+-    // Verify pause is cleared before restart
+-    let pauseBeforeRestart = harness.getStore().loadPause();
+-    assert.strictEqual(pauseBeforeRestart.pauseType, null, "CAPTCHA pause must be cleared before restart");
+-
+-    // Restart server
+     const restarted = await harness.restartOnSameRoot();
+     try {
+-      // Verify CAPTCHA pause is still cleared after restart
+-      const pause = restarted.store.loadPause();
+-      assert.strictEqual(pause.pauseType, null, "CAPTCHA pause must remain cleared after restart");
+-
+-      // Startup should make zero navigations
+-      assert.strictEqual(restarted.getNavigationCount(), 0, "startup makes zero navigations");
+-
+-      // Tick should make zero navigations
++      assert.strictEqual(restarted.store.loadPause().pauseType, null);
++      assert.strictEqual(restarted.getNavigationCount(), 0);
+       await restarted.tick();
+-      assert.strictEqual(restarted.getNavigationCount(), 0, "tick makes zero navigations");
+-
+-      // Wait a bit for tick and any auto-recovery to complete
+-      // Auto-recovery might change the checkpoint state, so just verify pause is still clear
++      assert.strictEqual(restarted.getNavigationCount(), 0);
+       await harness.sleep(500);
+-      
+-      const pauseAfterRecovery = restarted.store.loadPause();
+-      assert.strictEqual(pauseAfterRecovery.pauseType, null, "CAPTCHA pause must remain cleared after recovery");
++      assert.strictEqual(restarted.store.loadPause().pauseType, null);
+     } finally {
+       restarted.server.close();
+     }
+--- a/tests/attica-control-captcha.vitest.test.ts
++++ b/tests/attica-control-captcha.vitest.test.ts
+@@ -1,16 +1,33 @@
+ import { expect, test } from "vitest";
+ import { startControlServer } from "./helpers/attica-control-harness.js";
+ 
+-test("strict TypeScript companion establishes resolved detail evidence for legacy CAPTCHA controls", async () => {
+-  const harness = await startControlServer({ prefix: "attica-captcha-ts-companion-" });
++test("strict TypeScript companion establishes resolved detail evidence for a real collector CAPTCHA", async () => {
++  const harness = await startControlServer({
++    prefix: "attica-captcha-ts-companion-",
++    fakeSessionOptions: { detailMode: "captcha", completeListings: false },
++  });
++
+   try {
+-    harness.getStore().savePause("captcha", null, harness.getClockTime());
+-    await harness.getFakeSession().page.goto(harness.fixtureOrigin + "/detail/fixture-a");
++    const started = await harness.httpRequest("POST", "/api/start", {
++      target: harness.fixtureOrigin + "/page/1",
++      maxPages: 1,
++    });
++    expect(started.status).toBe(202);
+ 
+-    const response = await harness.httpRequest("POST", "/api/verify-access", {});
++    for (let attempt = 0; attempt < 50; attempt += 1) {
++      if (harness.getStore().loadPause().pauseType === "captcha") break;
++      await harness.sleep(10);
++    }
++    expect(harness.getStore().loadPause().pauseType).toBe("captcha");
+ 
+-    expect(response.status).toBe(200);
++    const navigationBeforeVerification = harness.getNavigationCount();
++    harness.getFakeSession()._setDetailMode("normal");
++    const verified = await harness.httpRequest("POST", "/api/verify-access", {});
++
++    expect(verified.status).toBe(200);
+     expect(harness.getStore().loadPause().pauseType).toBe(null);
++    expect(harness.getNavigationCount()).toBe(navigationBeforeVerification);
++    expect(harness.getNavigationHistory().at(-1)?.url).toContain("/detail/fixture-a");
+   } finally {
+     await harness.cleanup();
+   }
+--- a/tests/attica-hosted-ui.test.js
++++ b/tests/attica-hosted-ui.test.js
+@@ -4,7 +4,25 @@
+ const {page}=require("../fixtures/xe-browser-server");
+ 
+ function temp(){return fs.mkdtempSync(path.join(os.tmpdir(),"attica-ui-"))}
+-function makeSession(){let current="",approved=false,blocked=0;const context={};const p={context:()=>context,goto:async u=>{current=u;if(u.endsWith("/page/2")&&!approved)blocked++;return {status:()=>200,headers:()=>({}),url:()=>u}},content:async()=>page(current.endsWith("/page/1")?1:2,approved?"approved":"challenged")};context.pages=()=>[p];return {context,page:p,approve:()=>{approved=true},blocked:()=>blocked}}
++function makeSession(){
++ let current="",approved=false,blocked=0;
++ const context={};
++ const p={
++  context:()=>context,
++  url:()=>current,
++  goto:async u=>{current=u;if(u.endsWith("/page/2")&&!approved)blocked++;return {status:()=>200,headers:()=>({}),url:()=>u}},
++  content:async()=>{
++   if(current.includes("/detail/")&&!approved)return page(2,"challenged");
++   if(current.includes("/detail/")&&approved){
++    const detail={results:[{id:current.split("/detail/").pop(),url:current,price:100,surface:50}]};
++    return "<div data-json-data=\"" + JSON.stringify(detail).replaceAll("\"", "&quot;") + "\"></div>";
++   }
++   return page(current.endsWith("/page/1")?1:2,approved?"approved":"challenged");
++  }
++ };
++ context.pages=()=>[p];
++ return {context,page:p,approve:()=>{approved=true},blocked:()=>blocked};
++}
+ function req(port,method,url,headers={},body){return new Promise((resolve,reject)=>{const r=http.request({host:"127.0.0.1",port,path:url,method,headers},res=>{let s="";res.on("data",b=>s+=b);res.on("end",()=>{let value=s;try{value=JSON.parse(s)}catch{}resolve({status:res.statusCode,body:value,headers:res.headers})})});r.on("error",reject);if(body!==undefined)r.end(JSON.stringify(body));else r.end()})}
+ async function listen(s){await new Promise(resolve=>s.listen(0,"127.0.0.1",resolve));return s.address().port}
+ async function wait(port,status,headers){for(let i=0;i<100;i++){const r=await req(port,"GET","/api/status",headers);if(r.body.status===status)return r.body;await new Promise(resolve=>setTimeout(resolve,5))}throw new Error("timeout "+status)}
+--- a/tests/captcha-document.vitest.test.ts
++++ b/tests/captcha-document.vitest.test.ts
+@@ -41,9 +41,34 @@
+     })).toBe(true);
+   });
+ 
++  test("accepts ordinary parsed descriptions containing challenge vocabulary", () => {
++    const description = "Cloudflare challenge and turnstile are mentioned in the listing description.";
++    const search = searchHtml({
++      results: [{ id: "101", url: detailUrl, description }],
++      selected_values: {},
++    });
++    const detail = JSON.stringify({
++      results: [{ id: "101", url: detailUrl, description }],
++    });
++
++    expect(acceptsCaptchaDocument({
++      kind: "search",
++      expectedUrl: searchUrl,
++      currentUrl: searchUrl,
++      html: search,
++    })).toBe(true);
++    expect(acceptsCaptchaDocument({
++      kind: "detail",
++      expectedUrl: detailUrl,
++      currentUrl: detailUrl,
++      expectedId: "101",
++      html: detail + "<p>" + description + "</p>",
++    })).toBe(true);
++  });
++
+   test("rejects challenge content even beside a valid parser payload", () => {
+     const html = searchHtml({ results: [], selected_values: {} }) +
+-      "<main>captcha human verification</main>";
++      "<main><div id=\"challenge\">captcha human verification</div></main>";
+ 
+     expect(acceptsCaptchaDocument({
+       kind: "search",
+--- a/tests/helpers/attica-control-harness.d.ts
++++ b/tests/helpers/attica-control-harness.d.ts
+@@ -3,6 +3,7 @@
+   httpRequest(method: string, endpoint: string, body?: Record<string, unknown>): Promise<{ status: number; body: string }>;
+   sleep(ms: number): Promise<void>;
+   getNavigationCount(): number;
++  getNavigationHistory(): Array<{ url: string }>;
+   getClockTime(): number;
+   getStore(): {
+     savePause(type: string, reason?: string | null, at?: number): void;
+@@ -10,6 +11,7 @@
+   };
+   getFakeSession(): {
+     page: { goto(url: string): Promise<unknown> };
++    _setDetailMode(mode: "normal" | "captcha"): void;
+   };
+   cleanup(): Promise<void>;
+ }
+@@ -18,6 +20,7 @@
+   prefix?: string;
+   tmpDir?: string;
+   store?: import("../../browser/attica-store.js").AtticaStore;
++  fakeSessionOptions?: { detailMode?: "normal" | "captcha"; completeListings?: boolean };
+ }
+ 
+ export function startControlServer(options?: ControlHarnessOptions): Promise<ControlHarness>;
+--- a/tests/helpers/attica-control-harness.js
++++ b/tests/helpers/attica-control-harness.js
+@@ -112,7 +112,8 @@
+     if (detailMode === "captcha") {
+       return "<!DOCTYPE html><html><body><title>Verification</title><p id='challenge'>Human verification required</p></body></html>";
+     }
+-    const payload = JSON.stringify({ results: [{ id: "test", url: lastNavigatedUrl, price: 100, surface: 50 }] }).replace(/"/g, "&quot;");
++    const id = lastNavigatedUrl?.split("/detail/").pop() || "test";
++    const payload = JSON.stringify({ results: [{ id, url: lastNavigatedUrl, price: 100, surface: 50 }] }).replace(/"/g, "&quot;");
+     return "<!DOCTYPE html><html><body><div data-json-data=\"" + payload + "\"></div></body></html>";
+   };
+ 
+--- a/tests/xe-browser-hosting-integration.test.js
++++ b/tests/xe-browser-hosting-integration.test.js
+@@ -16,7 +16,18 @@
+   let current="";
+   const context={};
+   const session={mode:"challenged",context,page:null};
+-  const p={context:()=>context,goto:async url=>{current=url;return {status:()=>200,headers:()=>({})}},content:async()=>page(current.endsWith("/page/1")?1:2,session.mode)};
++  const p={
++    context:()=>context,
++    url:()=>current,
++    goto:async url=>{current=url;return {status:()=>200,headers:()=>({}),url:()=>url}},
++    content:async()=>{
++      if(current.includes("/detail/")&&session.mode==="approved"){
++        const detail={results:[{id:current.split("/detail/").pop(),url:current,price:100,surface:50}]};
++        return "<div data-json-data=\"" + JSON.stringify(detail).replaceAll("\"", "&quot;") + "\"></div>";
++      }
++      return page(current.endsWith("/page/1")?1:2,session.mode);
++    }
++  };
+   context.pages=()=>[p]; session.page=p; return session;
+ }
+ function request(port,method,url,headers={},body){
+--- a/tsconfig.build.json
++++ b/tsconfig.build.json
+@@ -10,10 +10,6 @@
+   },
+   "include": [
+     "collect-listings.ts",
+-    "collect-attica.ts",
+-    "collect-spitogatos.ts",
+-    "collect-xe-live.ts",
+-    "import-spitogatos-browser.ts",
+     "browser/**/*.ts",
+     "collectors/**/*.ts",
+     "fixtures/**/*.ts"

@@ -1,0 +1,172 @@
+node:internal/modules/cjs/loader:1568
+  throw err;
+  ^
+
+Error: Cannot find module '../collect-xe-live'
+Require stack:
+- /private/tmp/attica-c4-clean-review-20261021/tests/attica-durability.test.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.require (node:internal/modules/cjs/loader:1674:12)
+    at require (node:internal/modules/helpers:157:16)
+    at Object.<anonymous> (/private/tmp/attica-c4-clean-review-20261021/tests/attica-durability.test.js:4:21)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/private/tmp/attica-c4-clean-review-20261021/tests/attica-durability.test.js'
+  ]
+}
+
+Node.js v24.20.0
+✖ tests/attica-durability.test.js (31.152583ms)
+node:internal/modules/cjs/loader:1568
+  throw err;
+  ^
+
+Error: Cannot find module '/private/tmp/attica-c4-clean-review-20261021/import-spitogatos-browser.js'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.20.0
+node:child_process:981
+    throw err;
+    ^
+
+Error: Command failed: /Users/mgtf/.nvm/versions/node/v24.20.0/bin/node /private/tmp/attica-c4-clean-review-20261021/import-spitogatos-browser.js /private/tmp/attica-c4-clean-review-20261021/evidence/spitogatos/browser-manifest.json /var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/spitogatos-browser-X609df
+node:internal/modules/cjs/loader:1568
+  throw err;
+  ^
+
+Error: Cannot find module '/private/tmp/attica-c4-clean-review-20261021/import-spitogatos-browser.js'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.20.0
+
+    at genericNodeError (node:internal/errors:986:15)
+    at wrappedFn (node:internal/errors:540:14)
+    at checkExecSyncError (node:child_process:942:11)
+    at execFileSync (node:child_process:978:15)
+    at execute (/private/tmp/attica-c4-clean-review-20261021/tests/spitogatos-browser.test.js:27:32)
+    at Object.<anonymous> (/private/tmp/attica-c4-clean-review-20261021/tests/spitogatos-browser.test.js:28:17)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module._load (node:internal/modules/cjs/loader:1443:12) {
+  status: 1,
+  signal: null,
+  output: [
+    null,
+    '',
+    'node:internal/modules/cjs/loader:1568\n' +
+      '  throw err;\n' +
+      '  ^\n' +
+      '\n' +
+      "Error: Cannot find module '/private/tmp/attica-c4-clean-review-20261021/import-spitogatos-browser.js'\n" +
+      '    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)\n' +
+      '    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)\n' +
+      '    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)\n' +
+      '    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)\n' +
+      '    at Module._load (node:internal/modules/cjs/loader:1341:5)\n' +
+      '    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)\n' +
+      '    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\n' +
+      '    at node:internal/main/run_main_module:33:47 {\n' +
+      "  code: 'MODULE_NOT_FOUND',\n" +
+      '  requireStack: []\n' +
+      '}\n' +
+      '\n' +
+      'Node.js v24.20.0\n'
+  ],
+  pid: 6671,
+  stdout: '',
+  stderr: 'node:internal/modules/cjs/loader:1568\n' +
+    '  throw err;\n' +
+    '  ^\n' +
+    '\n' +
+    "Error: Cannot find module '/private/tmp/attica-c4-clean-review-20261021/import-spitogatos-browser.js'\n" +
+    '    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)\n' +
+    '    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)\n' +
+    '    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)\n' +
+    '    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1341:5)\n' +
+    '    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)\n' +
+    '    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\n' +
+    '    at node:internal/main/run_main_module:33:47 {\n' +
+    "  code: 'MODULE_NOT_FOUND',\n" +
+    '  requireStack: []\n' +
+    '}\n' +
+    '\n' +
+    'Node.js v24.20.0\n'
+}
+
+Node.js v24.20.0
+✖ tests/spitogatos-browser.test.js (57.211042ms)
+node:internal/modules/cjs/loader:1568
+  throw err;
+  ^
+
+Error: Cannot find module '../collect-xe-live'
+Require stack:
+- /private/tmp/attica-c4-clean-review-20261021/tests/xe-live.test.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.require (node:internal/modules/cjs/loader:1674:12)
+    at require (node:internal/modules/helpers:157:16)
+    at Object.<anonymous> (/private/tmp/attica-c4-clean-review-20261021/tests/xe-live.test.js:8:51)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/private/tmp/attica-c4-clean-review-20261021/tests/xe-live.test.js'
+  ]
+}
+
+Node.js v24.20.0
+✖ tests/xe-live.test.js (28.345333ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 0
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 62.313542
+
+✖ failing tests:
+
+test at tests/attica-durability.test.js:1:1
+✖ tests/attica-durability.test.js (31.152583ms)
+  'test failed'
+
+test at tests/spitogatos-browser.test.js:1:1
+✖ tests/spitogatos-browser.test.js (57.211042ms)
+  'test failed'
+
+test at tests/xe-live.test.js:1:1
+✖ tests/xe-live.test.js (28.345333ms)
+  'test failed'

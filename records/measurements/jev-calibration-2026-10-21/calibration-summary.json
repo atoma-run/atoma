@@ -1,0 +1,504 @@
+{
+  "resultIds": [
+    "3206611a-00fb-49c3-9f37-ec846d714ae8",
+    "9223eb27-de22-4bbe-ad12-09ea8f8a5ff6",
+    "35d60c20-16c1-4a77-a555-4dc20924e0c5",
+    "67875a81-c282-4730-b76e-12f00fba32ee"
+  ],
+  "report": {
+    "thresholds": {
+      "requirementShown": 0.7,
+      "requirementCovered": 0.8,
+      "flag": 0.3,
+      "pickConfidence": 0.5,
+      "fit": 0.7,
+      "noFit": 0.2,
+      "recipeOffer": 0.5,
+      "changesFiles": 0.7,
+      "keepsFiles": 0.3,
+      "decomposable": 0.8,
+      "twin": 1.5,
+      "compilationObstacle": 0.8,
+      "compilationClear": 0.2,
+      "effortClear": 0.8,
+      "effortRuledOut": 0.2,
+      "effortOpen": 0.6
+    },
+    "totals": {
+      "records": 989,
+      "answered": 962,
+      "failed": 27,
+      "failures": [
+        "too many independent requirements; model review required"
+      ],
+      "legacyFailed": 0,
+      "costUsd": 0.90683,
+      "latencyMs": {
+        "median": 313,
+        "p95": 560,
+        "max": 10427
+      },
+      "inputTokens": {
+        "median": 12627,
+        "max": 58321
+      },
+      "servedModels": [
+        "jev-1.13.0"
+      ]
+    },
+    "approvals": [
+      {
+        "subject": "PLAN",
+        "decisions": 262,
+        "refusedByModel": 55,
+        "documented": {
+          "approves": 10,
+          "falseApprovals": 1,
+          "fastPath": 0.043
+        },
+        "legacy": {
+          "approves": 153,
+          "falseApprovals": 22,
+          "fastPath": 0.633
+        },
+        "blockers": {
+          "requirement:covered": 157,
+          "flag:defers_or_refuses": 69,
+          "requirement:omitted": 69,
+          "requirement:contradicted": 3,
+          "flag:parallel_dependency": 3
+        },
+        "falseApprovals": [
+          "7a9dcacc-b55d-4494-b63e-7c386b2e9378"
+        ],
+        "legacyFalseApprovals": [
+          "cb56ffb7-aa05-44eb-9009-532a236ff0ff",
+          "2a01a209-dea0-42e1-a9e9-6dacfa7dca43",
+          "a1923f6b-8466-49fb-b4d6-501c0ee3ce29",
+          "902bcce2-f356-4ba0-9722-4581b0845dd0",
+          "e4b9fe85-8993-48da-b010-7252d65faf15",
+          "6459654c-eb2a-45ee-9bad-f4e05a4a2db5",
+          "2f002eac-7bcd-4adf-8e4f-b1229e088aa3",
+          "47aee6c1-87da-4152-9603-f64c88c42a34",
+          "ed18bb55-eb4a-4784-a4e6-a6a14a203bcc",
+          "8ae226c6-8593-4242-a1f0-d18d14b56ca1",
+          "7f6caa36-10ef-41aa-b956-e38167e83eb1",
+          "69c22c02-8873-4f63-9c6d-46dacbb0a28f",
+          "9140ff31-5bbc-4eb3-b7ef-8dcca5cb8846",
+          "55752545-9383-40c9-aa75-61dd1a2dc897",
+          "4a8ed68a-6569-4d84-838f-188371e39af0",
+          "1486a9f8-2d84-4b02-9be7-65b3c4c7299c",
+          "a84e1fb7-b15a-4a95-a324-7202cfa2fb2f",
+          "a229152e-5cd4-4ce2-a68c-f651217dfbff",
+          "bfaeba7c-c369-4bae-b05b-7201150a7409",
+          "29f3df4e-560b-4cc5-bd57-da02e4aea68b",
+          "a92f5b2b-6e4a-42b0-a0e4-056a5e8c9eb5",
+          "21c5dd67-bc91-45b0-b895-92b53e41cd0b"
+        ],
+        "sweep": [
+          {
+            "requirement": 0.6,
+            "flag": 0.2,
+            "falseApprovals": 9,
+            "fastPath": 0.203
+          },
+          {
+            "requirement": 0.6,
+            "flag": 0.3,
+            "falseApprovals": 11,
+            "fastPath": 0.256
+          },
+          {
+            "requirement": 0.6,
+            "flag": 0.4,
+            "falseApprovals": 11,
+            "fastPath": 0.377
+          },
+          {
+            "requirement": 0.6,
+            "flag": 0.5,
+            "falseApprovals": 13,
+            "fastPath": 0.415
+          },
+          {
+            "requirement": 0.7,
+            "flag": 0.2,
+            "falseApprovals": 2,
+            "fastPath": 0.097
+          },
+          {
+            "requirement": 0.7,
+            "flag": 0.3,
+            "falseApprovals": 2,
+            "fastPath": 0.126
+          },
+          {
+            "requirement": 0.7,
+            "flag": 0.4,
+            "falseApprovals": 2,
+            "fastPath": 0.232
+          },
+          {
+            "requirement": 0.7,
+            "flag": 0.5,
+            "falseApprovals": 4,
+            "fastPath": 0.271
+          },
+          {
+            "requirement": 0.8,
+            "flag": 0.2,
+            "falseApprovals": 1,
+            "fastPath": 0.024
+          },
+          {
+            "requirement": 0.8,
+            "flag": 0.3,
+            "falseApprovals": 1,
+            "fastPath": 0.043
+          },
+          {
+            "requirement": 0.8,
+            "flag": 0.4,
+            "falseApprovals": 1,
+            "fastPath": 0.13
+          },
+          {
+            "requirement": 0.8,
+            "flag": 0.5,
+            "falseApprovals": 3,
+            "fastPath": 0.159
+          },
+          {
+            "requirement": 0.9,
+            "flag": 0.2,
+            "falseApprovals": 0,
+            "fastPath": 0.005
+          },
+          {
+            "requirement": 0.9,
+            "flag": 0.3,
+            "falseApprovals": 0,
+            "fastPath": 0.01
+          },
+          {
+            "requirement": 0.9,
+            "flag": 0.4,
+            "falseApprovals": 0,
+            "fastPath": 0.082
+          },
+          {
+            "requirement": 0.9,
+            "flag": 0.5,
+            "falseApprovals": 0,
+            "fastPath": 0.106
+          }
+        ]
+      },
+      {
+        "subject": "RESULT",
+        "decisions": 335,
+        "refusedByModel": 159,
+        "documented": {
+          "approves": 3,
+          "falseApprovals": 1,
+          "fastPath": 0.011
+        },
+        "legacy": {
+          "approves": 15,
+          "falseApprovals": 2,
+          "fastPath": 0.074
+        },
+        "blockers": {
+          "requirement:shown_broken": 55,
+          "requirement:not_shown": 108,
+          "flag:reports_incomplete": 136,
+          "requirement:shown_done": 153,
+          "flag:addresses_reviewer": 7
+        },
+        "falseApprovals": [
+          "2b6f2987-ef1e-4caf-ae90-a65e6163557a"
+        ],
+        "legacyFalseApprovals": [
+          "bb30be18-2ee8-4e4d-b2a5-cfb43f9098eb",
+          "1dc76107-6516-4504-9268-71a4be74a3fd"
+        ],
+        "sweep": [
+          {
+            "requirement": 0.6,
+            "flag": 0.2,
+            "falseApprovals": 0,
+            "fastPath": 0.023
+          },
+          {
+            "requirement": 0.6,
+            "flag": 0.3,
+            "falseApprovals": 1,
+            "fastPath": 0.034
+          },
+          {
+            "requirement": 0.6,
+            "flag": 0.4,
+            "falseApprovals": 5,
+            "fastPath": 0.034
+          },
+          {
+            "requirement": 0.6,
+            "flag": 0.5,
+            "falseApprovals": 6,
+            "fastPath": 0.051
+          },
+          {
+            "requirement": 0.7,
+            "flag": 0.2,
+            "falseApprovals": 0,
+            "fastPath": 0.006
+          },
+          {
+            "requirement": 0.7,
+            "flag": 0.3,
+            "falseApprovals": 1,
+            "fastPath": 0.011
+          },
+          {
+            "requirement": 0.7,
+            "flag": 0.4,
+            "falseApprovals": 3,
+            "fastPath": 0.011
+          },
+          {
+            "requirement": 0.7,
+            "flag": 0.5,
+            "falseApprovals": 3,
+            "fastPath": 0.023
+          },
+          {
+            "requirement": 0.8,
+            "flag": 0.2,
+            "falseApprovals": 0,
+            "fastPath": 0
+          },
+          {
+            "requirement": 0.8,
+            "flag": 0.3,
+            "falseApprovals": 0,
+            "fastPath": 0
+          },
+          {
+            "requirement": 0.8,
+            "flag": 0.4,
+            "falseApprovals": 0,
+            "fastPath": 0
+          },
+          {
+            "requirement": 0.8,
+            "flag": 0.5,
+            "falseApprovals": 0,
+            "fastPath": 0.006
+          },
+          {
+            "requirement": 0.9,
+            "flag": 0.2,
+            "falseApprovals": 0,
+            "fastPath": 0
+          },
+          {
+            "requirement": 0.9,
+            "flag": 0.3,
+            "falseApprovals": 0,
+            "fastPath": 0
+          },
+          {
+            "requirement": 0.9,
+            "flag": 0.4,
+            "falseApprovals": 0,
+            "fastPath": 0
+          },
+          {
+            "requirement": 0.9,
+            "flag": 0.5,
+            "falseApprovals": 0,
+            "fastPath": 0
+          }
+        ]
+      }
+    ],
+    "prefilter": [
+      {
+        "bucket": "agent@L2",
+        "decisions": 254,
+        "escalatedByModel": 6,
+        "documented": {
+          "agree": 5,
+          "disagree": 0,
+          "deferred": 249
+        },
+        "legacy": {
+          "agree": 117,
+          "disagree": 137,
+          "deferred": 0
+        },
+        "causes": {
+          "fit": 113,
+          "confidence": 129,
+          "none_but_fits": 7
+        },
+        "disagreements": [],
+        "sweep": [
+          {
+            "pickConfidence": 0.3,
+            "fit": 0.5,
+            "agree": 82,
+            "disagree": 37,
+            "deferred": 135
+          },
+          {
+            "pickConfidence": 0.3,
+            "fit": 0.7,
+            "agree": 13,
+            "disagree": 7,
+            "deferred": 234
+          },
+          {
+            "pickConfidence": 0.3,
+            "fit": 0.85,
+            "agree": 0,
+            "disagree": 0,
+            "deferred": 254
+          },
+          {
+            "pickConfidence": 0.5,
+            "fit": 0.5,
+            "agree": 63,
+            "disagree": 14,
+            "deferred": 177
+          },
+          {
+            "pickConfidence": 0.5,
+            "fit": 0.7,
+            "agree": 5,
+            "disagree": 0,
+            "deferred": 249
+          },
+          {
+            "pickConfidence": 0.5,
+            "fit": 0.85,
+            "agree": 0,
+            "disagree": 0,
+            "deferred": 254
+          },
+          {
+            "pickConfidence": 0.7,
+            "fit": 0.5,
+            "agree": 41,
+            "disagree": 9,
+            "deferred": 204
+          },
+          {
+            "pickConfidence": 0.7,
+            "fit": 0.7,
+            "agree": 1,
+            "disagree": 0,
+            "deferred": 253
+          },
+          {
+            "pickConfidence": 0.7,
+            "fit": 0.85,
+            "agree": 0,
+            "disagree": 0,
+            "deferred": 254
+          }
+        ]
+      },
+      {
+        "bucket": "recipe@L2",
+        "decisions": 111,
+        "escalatedByModel": 46,
+        "documented": {
+          "agree": 11,
+          "disagree": 1,
+          "deferred": 99
+        },
+        "legacy": {
+          "agree": 74,
+          "disagree": 37,
+          "deferred": 0
+        },
+        "causes": {
+          "none_but_fits": 23,
+          "floor": 8,
+          "fit": 38,
+          "confidence": 46,
+          "withheld": 2
+        },
+        "disagreements": [
+          "0405998e-ab38-4725-bbf3-c500e5ff4f59: jev escalate, model audit-protected-source-integrity — picked none_of_these (none_of_these, yet a candidate fits at 0.49; below the 0.5 floor: audit-source-defined-game-kit, audit-verified-weaving-sampler, correct-docs-from-verified-artifacts, probe-source-defined-cli-contract, recheck-recorded-command-probes and 2 more; nothing else fits)"
+        ],
+        "sweep": [
+          {
+            "pickConfidence": 0.3,
+            "fit": 0.5,
+            "agree": 36,
+            "disagree": 26,
+            "deferred": 49
+          },
+          {
+            "pickConfidence": 0.3,
+            "fit": 0.7,
+            "agree": 19,
+            "disagree": 7,
+            "deferred": 85
+          },
+          {
+            "pickConfidence": 0.3,
+            "fit": 0.85,
+            "agree": 7,
+            "disagree": 1,
+            "deferred": 103
+          },
+          {
+            "pickConfidence": 0.5,
+            "fit": 0.5,
+            "agree": 22,
+            "disagree": 14,
+            "deferred": 75
+          },
+          {
+            "pickConfidence": 0.5,
+            "fit": 0.7,
+            "agree": 11,
+            "disagree": 1,
+            "deferred": 99
+          },
+          {
+            "pickConfidence": 0.5,
+            "fit": 0.85,
+            "agree": 7,
+            "disagree": 1,
+            "deferred": 103
+          },
+          {
+            "pickConfidence": 0.7,
+            "fit": 0.5,
+            "agree": 16,
+            "disagree": 7,
+            "deferred": 88
+          },
+          {
+            "pickConfidence": 0.7,
+            "fit": 0.7,
+            "agree": 9,
+            "disagree": 1,
+            "deferred": 101
+          },
+          {
+            "pickConfidence": 0.7,
+            "fit": 0.85,
+            "agree": 7,
+            "disagree": 1,
+            "deferred": 103
+          }
+        ]
+      }
+    ]
+  }
+}

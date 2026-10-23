@@ -1,0 +1,1933 @@
+{
+  "experimentId": "20261021-questions-v1",
+  "release": "d0c30f6a9a9b90ba6a7d7037ea04901352528fe1",
+  "model": "jev-1.13.0",
+  "thresholds": {
+    "requirementShown": 0.7,
+    "requirementCovered": 0.8,
+    "flag": 0.3,
+    "pickConfidence": 0.5,
+    "fit": 0.7,
+    "noFit": 0.2,
+    "recipeOffer": 0.5,
+    "changesFiles": 0.7,
+    "keepsFiles": 0.3,
+    "decomposable": 0.8,
+    "twin": 1.5,
+    "compilationObstacle": 0.8,
+    "compilationClear": 0.2,
+    "effortClear": 0.8,
+    "effortRuledOut": 0.2,
+    "effortOpen": 0.6
+  },
+  "proposalHash": "58897cb52a58b67e00cce21f8e2a89639bd39aea2f3ea94d99486e85b205f3c3",
+  "completion": {
+    "type": "complete",
+    "completed": 336,
+    "planned": 336,
+    "costUsd": 0.18881465400000014,
+    "wallMs": 25111,
+    "thresholdsChanged": false,
+    "runsStarted": 0
+  },
+  "failures": [],
+  "arms": {
+    "original": {
+      "primaryReadings": 72,
+      "approvalsAgainstRefusal": 7,
+      "refusalReferenceReadings": 12,
+      "approvalsOnPositiveControls": 13,
+      "positiveControlReadings": 60,
+      "byGroup": {
+        "disagreement": {
+          "readings": 12,
+          "approvals": 7
+        },
+        "previous-agreement": {
+          "readings": 24,
+          "approvals": 13
+        },
+        "model-approved-deferred": {
+          "readings": 36,
+          "approvals": 0
+        }
+      },
+      "costUsdIncludingOrderDiagnostic": 0.04414271399999998,
+      "latencyMs": {
+        "median": 287,
+        "p95": 371
+      },
+      "inputTokens": {
+        "median": 11127.5,
+        "max": 23986
+      }
+    },
+    "questions": {
+      "primaryReadings": 72,
+      "approvalsAgainstRefusal": 0,
+      "refusalReferenceReadings": 12,
+      "approvalsOnPositiveControls": 0,
+      "positiveControlReadings": 60,
+      "byGroup": {
+        "disagreement": {
+          "readings": 12,
+          "approvals": 0
+        },
+        "previous-agreement": {
+          "readings": 24,
+          "approvals": 0
+        },
+        "model-approved-deferred": {
+          "readings": 36,
+          "approvals": 0
+        }
+      },
+      "costUsdIncludingOrderDiagnostic": 0.04925377800000001,
+      "latencyMs": {
+        "median": 302,
+        "p95": 383
+      },
+      "inputTokens": {
+        "median": 13286,
+        "max": 25411
+      }
+    },
+    "state": {
+      "primaryReadings": 72,
+      "approvalsAgainstRefusal": 9,
+      "refusalReferenceReadings": 12,
+      "approvalsOnPositiveControls": 11,
+      "positiveControlReadings": 60,
+      "byGroup": {
+        "disagreement": {
+          "readings": 12,
+          "approvals": 9
+        },
+        "previous-agreement": {
+          "readings": 24,
+          "approvals": 11
+        },
+        "model-approved-deferred": {
+          "readings": 36,
+          "approvals": 0
+        }
+      },
+      "costUsdIncludingOrderDiagnostic": 0.04476717,
+      "latencyMs": {
+        "median": 282,
+        "p95": 349
+      },
+      "inputTokens": {
+        "median": 11492,
+        "max": 25152
+      }
+    },
+    "both": {
+      "primaryReadings": 72,
+      "approvalsAgainstRefusal": 0,
+      "refusalReferenceReadings": 12,
+      "approvalsOnPositiveControls": 0,
+      "positiveControlReadings": 60,
+      "byGroup": {
+        "disagreement": {
+          "readings": 12,
+          "approvals": 0
+        },
+        "previous-agreement": {
+          "readings": 24,
+          "approvals": 0
+        },
+        "model-approved-deferred": {
+          "readings": 36,
+          "approvals": 0
+        }
+      },
+      "costUsdIncludingOrderDiagnostic": 0.050650992000000034,
+      "latencyMs": {
+        "median": 297,
+        "p95": 367
+      },
+      "inputTokens": {
+        "median": 13820,
+        "max": 26919
+      }
+    }
+  },
+  "cases": [
+    {
+      "caseId": "3c7bdf59-a4d9-4875-a24d-0fd8b96ee9ca",
+      "runId": "2c628a5b-ec3b-4c7a-bb36-f0776312b666",
+      "group": "disagreement",
+      "subject": "PLAN",
+      "modelReference": false,
+      "baselineHash": "7b4e9e374f1e6762cf5c86e8a3c7aab6cc058dddb510bc8c5939e1f30ab393f5",
+      "restoredHash": "0abb813643b4cbff628103eb9a6e2035fb8d2aaf0f1af46aa40d432da9c5e5cb",
+      "originalRequirements": 9,
+      "restoredRequirements": 10,
+      "addedCriteria": 1,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 29438,
+      "restoredChars": 29579,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 3,
+          "acceptable": [
+            0.89,
+            0.9,
+            0.89
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": true,
+          "reversedOrderAcceptable": 0.89,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.29,
+            0.24,
+            0.22
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.2,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 3,
+          "acceptable": [
+            0.88,
+            0.89,
+            0.89
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": true,
+          "reversedOrderAcceptable": 0.89,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.24,
+            0.24,
+            0.27
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.28,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "02500b38-a77e-44e9-9404-e7af67f0be4a",
+      "runId": "e457d2c8-74f1-49e3-b1b7-4d4df1deba31",
+      "group": "disagreement",
+      "subject": "RESULT",
+      "modelReference": false,
+      "baselineHash": "51eb1dc6453c54ee4bbf77e5a3a9053e1c25df59f5a4b13e45642dc0545cda8b",
+      "restoredHash": "692cb3da7741edf5e99f7801af197afe539b078c4fb0b0ae73d217db204755d4",
+      "originalRequirements": 2,
+      "restoredRequirements": 2,
+      "addedCriteria": 0,
+      "balancedEvidence": false,
+      "sourceReadbacks": 2,
+      "baselineChars": 52082,
+      "restoredChars": 51785,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 3,
+          "acceptable": [
+            0.85,
+            0.86,
+            0.85
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": true,
+          "reversedOrderAcceptable": 0.86,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.47,
+            0.49,
+            0.46
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.43,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 3,
+          "acceptable": [
+            0.85,
+            0.86,
+            0.85
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": true,
+          "reversedOrderAcceptable": 0.85,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.48,
+            0.5,
+            0.49
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.39,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "7a9dcacc-b55d-4494-b63e-7c386b2e9378",
+      "runId": "ade448fc-7cb2-47ec-a538-437bcd077d69",
+      "group": "disagreement",
+      "subject": "PLAN",
+      "modelReference": false,
+      "baselineHash": "096a3080aad7ad92a4279c8e5fd9a9cb526f520cc2d9becf189ae59e27ab083b",
+      "restoredHash": "4854c7a405958e95daea89498b3be29d19cb1bb2b4696ec56cd49ad79c5a0b7e",
+      "originalRequirements": 16,
+      "restoredRequirements": 17,
+      "addedCriteria": 1,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 27737,
+      "restoredChars": 27887,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.63,
+            0.66,
+            0.68
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.63,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.09,
+            0.08,
+            0.07
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.06,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 1,
+          "acceptable": [
+            0.79,
+            0.79,
+            0.8
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.65,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.07,
+            0.06,
+            0.07
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.05,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "2b6f2987-ef1e-4caf-ae90-a65e6163557a",
+      "runId": "b04565ec-aa95-4748-8702-ea34bb4c266d",
+      "group": "disagreement",
+      "subject": "RESULT",
+      "modelReference": false,
+      "baselineHash": "73683e7a363421b4241a3c1f9876da9931ec9b7bafb135516f1d9a8632495236",
+      "restoredHash": "b9e97487778bdb0532fbf95722377305db355ac5f344faa25a72249f7f41c907",
+      "originalRequirements": 2,
+      "restoredRequirements": 2,
+      "addedCriteria": 0,
+      "balancedEvidence": true,
+      "sourceReadbacks": 0,
+      "baselineChars": 48393,
+      "restoredChars": 46761,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 1,
+          "acceptable": [
+            0.73,
+            0.67,
+            0.67
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.69,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.02,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 2,
+          "acceptable": [
+            0.71,
+            0.73,
+            0.66
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": true,
+          "reversedOrderAcceptable": 0.71,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.01,
+            0.02,
+            0.02
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.02,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "6bf46a41-fa36-4f45-b8ad-5749fa53805b",
+      "runId": "bec269a3-18c4-477b-8e55-3512e0ef17f6",
+      "group": "previous-agreement",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "e8268125367d006abeb7fe0ce33c395a8d1bcd3d4d425b67ac7f8323c3a090bb",
+      "restoredHash": "3e277619627fdd98ab23e0b1141793b764f57a0b166ea728223e0f0901170d1a",
+      "originalRequirements": 15,
+      "restoredRequirements": 18,
+      "addedCriteria": 3,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 33212,
+      "restoredChars": 33572,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 2,
+          "acceptable": [
+            0.8,
+            0.82,
+            0.73
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.68,
+          "orderDisagreesWithPrimaryMajority": true
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.07,
+            0.1,
+            0.1
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.05,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.79,
+            0.74,
+            0.74
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.63,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.19,
+            0.12,
+            0.15
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.09,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "f1d9aad7-c589-4586-ba65-22cd075b9b2c",
+      "runId": "760fef4c-6e76-4db4-8cfb-f969aaecb88c",
+      "group": "previous-agreement",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "ccc266896b35bd8dffb4200397c8fb21e84bfbc00da256533637024423bcfc59",
+      "restoredHash": "ccc266896b35bd8dffb4200397c8fb21e84bfbc00da256533637024423bcfc59",
+      "originalRequirements": 15,
+      "restoredRequirements": 15,
+      "addedCriteria": 0,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 32227,
+      "restoredChars": 32227,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 2,
+          "acceptable": [
+            0.73,
+            0.72,
+            0.75
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.74,
+          "orderDisagreesWithPrimaryMajority": true
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.41,
+            0.37,
+            0.41
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.38,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 2,
+          "acceptable": [
+            0.73,
+            0.75,
+            0.76
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.74,
+          "orderDisagreesWithPrimaryMajority": true
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.41,
+            0.41,
+            0.38
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.39,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "ae199fc2-a377-4622-b347-5dfdfc665e4f",
+      "runId": "1b1c9564-c6ec-419e-aeca-4c5d486f46a4",
+      "group": "previous-agreement",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "1265de33de429d5b6fcaf9c86fe357373b54339f9298f2a4ddcf0b8e867131ec",
+      "restoredHash": "12b5adb6f8da29cdd84bdeaea7276cc778a5c1fa88d946df0cbd2a3d4e12fcf0",
+      "originalRequirements": 30,
+      "restoredRequirements": 31,
+      "addedCriteria": 1,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 32357,
+      "restoredChars": 32490,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.78,
+            0.77,
+            0.74
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.77,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.39,
+            0.35,
+            0.37
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.4,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 1,
+          "acceptable": [
+            0.76,
+            0.82,
+            0.77
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": true,
+          "reversedOrderAcceptable": 0.83,
+          "orderDisagreesWithPrimaryMajority": true
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.36,
+            0.33,
+            0.35
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.3,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "cb40acbb-8906-463d-ac1d-195f263637e9",
+      "runId": "f8f3384c-9074-45a5-ab31-bf16a5249dc5",
+      "group": "previous-agreement",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "bbc5d719051750b1c3407ec1bab7f322f12979422c806ce6b884e09bf678c4f8",
+      "restoredHash": "2300d9d09340639ce4ca08e684d8eeb08a6431570eae67eca2d653d2d443600f",
+      "originalRequirements": 16,
+      "restoredRequirements": 17,
+      "addedCriteria": 1,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 29452,
+      "restoredChars": 29609,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 2,
+          "acceptable": [
+            0.79,
+            0.83,
+            0.81
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.79,
+          "orderDisagreesWithPrimaryMajority": true
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.46,
+            0.47,
+            0.46
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.44,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 3,
+          "acceptable": [
+            0.83,
+            0.83,
+            0.81
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.75,
+          "orderDisagreesWithPrimaryMajority": true
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.44,
+            0.48,
+            0.45
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.47,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "954039f9-7d5a-4932-9a8d-a592dcf476a5",
+      "runId": "ade448fc-7cb2-47ec-a538-437bcd077d69",
+      "group": "previous-agreement",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "2e877a02df5e8f33a644da817eb1f1843f980692034c839bdf0c50a229201a33",
+      "restoredHash": "d5e8c4b176e5e54b09ab15b7f0c66a341a8bc607d1f5297c61fa8316da4a3e5f",
+      "originalRequirements": 16,
+      "restoredRequirements": 17,
+      "addedCriteria": 1,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 28963,
+      "restoredChars": 29113,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 3,
+          "acceptable": [
+            0.81,
+            0.86,
+            0.89
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.67,
+          "orderDisagreesWithPrimaryMajority": true
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.46,
+            0.44,
+            0.49
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.34,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 3,
+          "acceptable": [
+            0.83,
+            0.84,
+            0.89
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.79,
+          "orderDisagreesWithPrimaryMajority": true
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.46,
+            0.44,
+            0.53
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.37,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "b089fa92-925a-473d-aa7b-0f8367326b8b",
+      "runId": "b04565ec-aa95-4748-8702-ea34bb4c266d",
+      "group": "previous-agreement",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "e6f879696833a556bb22789c1a0812536c5bf931fa6805e7b4cce64c65a0cd3f",
+      "restoredHash": "e6f879696833a556bb22789c1a0812536c5bf931fa6805e7b4cce64c65a0cd3f",
+      "originalRequirements": 2,
+      "restoredRequirements": 2,
+      "addedCriteria": 0,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 25004,
+      "restoredChars": 25004,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.7,
+            0.69,
+            0.65
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.6799999999999999,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.6699999999999999,
+            0.6599999999999999,
+            0.7
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.68,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 2,
+          "acceptable": [
+            0.7,
+            0.71,
+            0.73
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": true,
+          "reversedOrderAcceptable": 0.74,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.72,
+            0.71,
+            0.71
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.67,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "894ca763-b055-4716-81fe-1d50d8cf25fb",
+      "runId": "1bf32e71-97c4-4061-96fd-d8b8dccade5f",
+      "group": "previous-agreement",
+      "subject": "RESULT",
+      "modelReference": true,
+      "baselineHash": "dbe5cf4866a998c57a8fbcbcba5deeca62445067552e54fe2555a66cea28f410",
+      "restoredHash": "885433a5ad77d9ba47f45c5e24a7654acffcdf887b4883efe22e3a9c3cc71259",
+      "originalRequirements": 2,
+      "restoredRequirements": 2,
+      "addedCriteria": 0,
+      "balancedEvidence": true,
+      "sourceReadbacks": 0,
+      "baselineChars": 47477,
+      "restoredChars": 44594,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 3,
+          "acceptable": [
+            0.76,
+            0.72,
+            0.74
+          ],
+          "majorityApproved": true,
+          "reversedOrderApproved": true,
+          "reversedOrderAcceptable": 0.74,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.05,
+            0.04,
+            0.04
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.04,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.62,
+            0.58,
+            0.51
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.51,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.05,
+            0.04,
+            0.03
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.05,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "1977cd2a-8933-44ab-a30d-3a7df152699a",
+      "runId": "cd21eff5-a076-46dc-907c-ced5a39c977b",
+      "group": "previous-agreement",
+      "subject": "RESULT",
+      "modelReference": true,
+      "baselineHash": "7671793e097b22cc38e84e7556366308b6786d4d1f76b7cbf841702bc8f07c56",
+      "restoredHash": "45c05cb363204a5c87d9976d2861b6b1577e7bcd658fadaeb94d8baeffc81069",
+      "originalRequirements": 3,
+      "restoredRequirements": 3,
+      "addedCriteria": 0,
+      "balancedEvidence": true,
+      "sourceReadbacks": 0,
+      "baselineChars": 47014,
+      "restoredChars": 46138,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 1,
+          "acceptable": [
+            0.64,
+            0.65,
+            0.77
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": true,
+          "reversedOrderAcceptable": 0.72,
+          "orderDisagreesWithPrimaryMajority": true
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.06,
+            0.06,
+            0.06
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.06,
+          "orderDisagreesWithPrimaryMajority": false
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.65,
+            0.69,
+            0.63
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": true,
+          "reversedOrderAcceptable": 0.74,
+          "orderDisagreesWithPrimaryMajority": true
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.09,
+            0.07,
+            0.06
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": false,
+          "reversedOrderAcceptable": 0.06,
+          "orderDisagreesWithPrimaryMajority": false
+        }
+      }
+    },
+    {
+      "caseId": "bc3eed53-1863-4e48-b1bb-fb685af1dfdf",
+      "runId": "351b224a-8d39-4f4c-848f-190228ed594d",
+      "group": "model-approved-deferred",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "fdf2e258a00b9cbb5c95aa17e047bcd6023b53a10dac0998b1b01f6038587b1e",
+      "restoredHash": "202e56ecb133881fa562458db33bcd66c76fb53af99475c09e93ec42c7648e27",
+      "originalRequirements": 17,
+      "restoredRequirements": 22,
+      "addedCriteria": 5,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 15867,
+      "restoredChars": 16416,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.57,
+            0.54,
+            0.58
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.28,
+            0.31,
+            0.31
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.6,
+            0.57,
+            0.58
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.31,
+            0.31,
+            0.31
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "1ab3e2dc-5b31-4e58-a380-9a172a1cdcb7",
+      "runId": "26b14f2f-411d-4327-9965-f66d5ac59dfb",
+      "group": "model-approved-deferred",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "5d9b693dd84c280933a04612b68c5d58c8ef52fbde6a0501377b1714d0434a7f",
+      "restoredHash": "f0538eb1ad301d21eba4379e434a0bf1ca04ad0198ab1069e6de96f5519a3637",
+      "originalRequirements": 13,
+      "restoredRequirements": 14,
+      "addedCriteria": 1,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 16361,
+      "restoredChars": 16483,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.63,
+            0.64,
+            0.59
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.75,
+            0.73,
+            0.72
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.68,
+            0.67,
+            0.66
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.76,
+            0.75,
+            0.78
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "764fa756-a792-4559-a666-40c9b7b665a4",
+      "runId": "8a38383c-696a-42f5-8b2b-8ece0f1acd14",
+      "group": "model-approved-deferred",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "f895fa22463df63591efbaa718ba2829d29c64c88efda7437f44d239715a52aa",
+      "restoredHash": "1189519a156a37adaf5109830475a8880e1566dafe20376d468b1a0f2127ef9d",
+      "originalRequirements": 25,
+      "restoredRequirements": 31,
+      "addedCriteria": 6,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 21249,
+      "restoredChars": 21998,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.3,
+            0.3,
+            0.34
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.22,
+            0.19,
+            0.19
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.18,
+            0.25,
+            0.27
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.25,
+            0.22,
+            0.2
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "4b283755-ce7a-4cd0-99fc-1a4ae9ea40dc",
+      "runId": "6451ea1d-b390-41d7-9c8d-51ba49fb2625",
+      "group": "model-approved-deferred",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "a148056012741af291f126aff39f10c44c173c6405957044e34e711c611c525d",
+      "restoredHash": "e3aec68c05264027f98b76b0e796181eadbca63879d728a430bf32b29351fddf",
+      "originalRequirements": 12,
+      "restoredRequirements": 18,
+      "addedCriteria": 6,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 14823,
+      "restoredChars": 15668,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.24,
+            0.24,
+            0.29
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.2,
+            0.25,
+            0.18
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.23,
+            0.2,
+            0.28
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.21,
+            0.21,
+            0.18
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "e152e86d-93f2-488b-92a4-da371fc0bb7c",
+      "runId": "6782ce92-26ab-4cc1-a7c9-7ee6df8e1e68",
+      "group": "model-approved-deferred",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "37a634f4fa5cdf760c184422474f6201ab95848f39c4ef03f5ede7132c38b5f7",
+      "restoredHash": "e1ef2cbfac79a3df21b71d72c4dcf7be4ed6c6fd5bed0ec89536946c793c4f4c",
+      "originalRequirements": 15,
+      "restoredRequirements": 21,
+      "addedCriteria": 6,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 15684,
+      "restoredChars": 16529,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.49,
+            0.51,
+            0.5
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.44,
+            0.43,
+            0.45
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.6,
+            0.55,
+            0.5
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.39,
+            0.4,
+            0.39
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "902276d9-677b-4f22-a2f8-af1cb559678d",
+      "runId": "c50f3566-b08c-4b7b-8269-9a027b27f2e0",
+      "group": "model-approved-deferred",
+      "subject": "PLAN",
+      "modelReference": true,
+      "baselineHash": "8e34f022cb2bea8c43b4b7cce0f709f15d27ad88b7d5c8bada36a4d327ee1cae",
+      "restoredHash": "400fd8b396e30d8fc241d702e6590f867b0b8ff9002b287525bc5d6a5f740396",
+      "originalRequirements": 20,
+      "restoredRequirements": 21,
+      "addedCriteria": 1,
+      "balancedEvidence": false,
+      "sourceReadbacks": 0,
+      "baselineChars": 29523,
+      "restoredChars": 29673,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.09,
+            0.09,
+            0.11
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.02,
+            0.02,
+            0.03
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.13,
+            0.13,
+            0.13
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.03,
+            0.04,
+            0.05
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "ea6a9c99-3d00-4732-8a1e-349e50775f19",
+      "runId": "c092b5d6-554f-4214-9dcd-b91e664e2dcc",
+      "group": "model-approved-deferred",
+      "subject": "RESULT",
+      "modelReference": true,
+      "baselineHash": "2a5d5a5aaa9c33ccc5f9d85a032759c83afc0c7e65ecf882f2acd96b7711afe2",
+      "restoredHash": "a63a2bf67e611060079f357693c62164d4ef7d54914c31ee81ca0127aa722e04",
+      "originalRequirements": 8,
+      "restoredRequirements": 8,
+      "addedCriteria": 0,
+      "balancedEvidence": true,
+      "sourceReadbacks": 1,
+      "baselineChars": 33509,
+      "restoredChars": 28237,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.050000000000000044,
+            0.06000000000000005,
+            0.050000000000000044
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.050000000000000044,
+            0.050000000000000044,
+            0.06000000000000005
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.050000000000000044,
+            0.050000000000000044,
+            0.040000000000000036
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.05,
+            0.06,
+            0.04
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "0e1b3ab8-3a4b-47f6-8333-30a38156cfeb",
+      "runId": "351b224a-8d39-4f4c-848f-190228ed594d",
+      "group": "model-approved-deferred",
+      "subject": "RESULT",
+      "modelReference": true,
+      "baselineHash": "a9567453c0cc9f4f3ba0d01fc2f8aa48bec832a985003f1b927cde373cbcaf28",
+      "restoredHash": "f70e3c6e878f4721d462be2c4aad1fbcb561e88a3ccd86cd834b160246eabf5d",
+      "originalRequirements": 20,
+      "restoredRequirements": 22,
+      "addedCriteria": 2,
+      "balancedEvidence": true,
+      "sourceReadbacks": 12,
+      "baselineChars": 44322,
+      "restoredChars": 39790,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.37,
+            0.38,
+            0.43
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.05,
+            0.04,
+            0.04
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.1,
+            0.07,
+            0.07
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "a507116f-8915-4454-9478-7b9221f701d1",
+      "runId": "26b14f2f-411d-4327-9965-f66d5ac59dfb",
+      "group": "model-approved-deferred",
+      "subject": "RESULT",
+      "modelReference": true,
+      "baselineHash": "9a8e2b8f103454531250afd8472826b228af8145b70f8cd413df818b74846e45",
+      "restoredHash": "2830a6cace008206f58bc5e48a18a273ea37314e1e014c23582a42fe53856990",
+      "originalRequirements": 16,
+      "restoredRequirements": 21,
+      "addedCriteria": 5,
+      "balancedEvidence": true,
+      "sourceReadbacks": 8,
+      "baselineChars": 43409,
+      "restoredChars": 40154,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.42000000000000004,
+            0.43000000000000005,
+            0.39
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.06,
+            0.09,
+            0.07
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.4,
+            0.37,
+            0.4
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.06,
+            0.07,
+            0.06
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "fe8d6666-cb33-45df-b353-625cee669abb",
+      "runId": "8a38383c-696a-42f5-8b2b-8ece0f1acd14",
+      "group": "model-approved-deferred",
+      "subject": "RESULT",
+      "modelReference": true,
+      "baselineHash": "ca24e4fa35ee608aba107c04f3b3e1ff499dd8e1cd5577c8c19c147c71ccc8cc",
+      "restoredHash": "e4fc97bb2d2318801bd04946a76083542ff8e76c4b80688bcc7f14795b781001",
+      "originalRequirements": 25,
+      "restoredRequirements": 31,
+      "addedCriteria": 6,
+      "balancedEvidence": true,
+      "sourceReadbacks": 9,
+      "baselineChars": 51523,
+      "restoredChars": 48513,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.24,
+            0.2,
+            0.17
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.22,
+            0.2,
+            0.26
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.02,
+            0.02,
+            0.02
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "4f95c75d-3bef-48bb-a3d0-2de44447bb58",
+      "runId": "6451ea1d-b390-41d7-9c8d-51ba49fb2625",
+      "group": "model-approved-deferred",
+      "subject": "RESULT",
+      "modelReference": true,
+      "baselineHash": "a95909a0b7c089a2b35a7306f80359dab07076058017974164008ded583069ea",
+      "restoredHash": "47b1c26f5344fa91c8808327e32984795014f2e97d35401d5a2e39f326e0c47c",
+      "originalRequirements": 12,
+      "restoredRequirements": 18,
+      "addedCriteria": 6,
+      "balancedEvidence": true,
+      "sourceReadbacks": 6,
+      "baselineChars": 44646,
+      "restoredChars": 43209,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.24,
+            0.26,
+            0.22
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.13,
+            0.13,
+            0.11
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.38,
+            0.44,
+            0.38
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.05,
+            0.06,
+            0.11
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    },
+    {
+      "caseId": "0226b09e-6131-428a-8af1-23c047616bb6",
+      "runId": "6782ce92-26ab-4cc1-a7c9-7ee6df8e1e68",
+      "group": "model-approved-deferred",
+      "subject": "RESULT",
+      "modelReference": true,
+      "baselineHash": "c603c8a0eb5915b4b6b77e0bb0cd2949e969f9297c172d42af1bff619444a922",
+      "restoredHash": "ad2a0eb187a5c1177ea45643b3fbb45b1b35fbd9ff68dcc240a820a4809b0908",
+      "originalRequirements": 15,
+      "restoredRequirements": 21,
+      "addedCriteria": 6,
+      "balancedEvidence": true,
+      "sourceReadbacks": 3,
+      "baselineChars": 45667,
+      "restoredChars": 39130,
+      "arms": {
+        "original": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.51,
+            0.44,
+            0.47
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "questions": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.05,
+            0.05,
+            0.04
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "state": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.33,
+            0.32,
+            0.36
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        },
+        "both": {
+          "answered": 3,
+          "approved": 0,
+          "acceptable": [
+            0.02,
+            0.01,
+            0.01
+          ],
+          "majorityApproved": false,
+          "reversedOrderApproved": null,
+          "reversedOrderAcceptable": null,
+          "orderDisagreesWithPrimaryMajority": null
+        }
+      }
+    }
+  ],
+  "repeatInstability": [
+    {
+      "caseId": "7a9dcacc-b55d-4494-b63e-7c386b2e9378",
+      "arm": "state",
+      "approved": 1
+    },
+    {
+      "caseId": "2b6f2987-ef1e-4caf-ae90-a65e6163557a",
+      "arm": "original",
+      "approved": 1
+    },
+    {
+      "caseId": "2b6f2987-ef1e-4caf-ae90-a65e6163557a",
+      "arm": "state",
+      "approved": 2
+    },
+    {
+      "caseId": "6bf46a41-fa36-4f45-b8ad-5749fa53805b",
+      "arm": "original",
+      "approved": 2
+    },
+    {
+      "caseId": "f1d9aad7-c589-4586-ba65-22cd075b9b2c",
+      "arm": "original",
+      "approved": 2
+    },
+    {
+      "caseId": "f1d9aad7-c589-4586-ba65-22cd075b9b2c",
+      "arm": "state",
+      "approved": 2
+    },
+    {
+      "caseId": "ae199fc2-a377-4622-b347-5dfdfc665e4f",
+      "arm": "state",
+      "approved": 1
+    },
+    {
+      "caseId": "cb40acbb-8906-463d-ac1d-195f263637e9",
+      "arm": "original",
+      "approved": 2
+    },
+    {
+      "caseId": "b089fa92-925a-473d-aa7b-0f8367326b8b",
+      "arm": "state",
+      "approved": 2
+    },
+    {
+      "caseId": "1977cd2a-8933-44ab-a30d-3a7df152699a",
+      "arm": "original",
+      "approved": 1
+    }
+  ],
+  "orderDisagreements": [
+    {
+      "caseId": "6bf46a41-fa36-4f45-b8ad-5749fa53805b",
+      "arm": "original"
+    },
+    {
+      "caseId": "f1d9aad7-c589-4586-ba65-22cd075b9b2c",
+      "arm": "original"
+    },
+    {
+      "caseId": "f1d9aad7-c589-4586-ba65-22cd075b9b2c",
+      "arm": "state"
+    },
+    {
+      "caseId": "ae199fc2-a377-4622-b347-5dfdfc665e4f",
+      "arm": "state"
+    },
+    {
+      "caseId": "cb40acbb-8906-463d-ac1d-195f263637e9",
+      "arm": "original"
+    },
+    {
+      "caseId": "cb40acbb-8906-463d-ac1d-195f263637e9",
+      "arm": "state"
+    },
+    {
+      "caseId": "954039f9-7d5a-4932-9a8d-a592dcf476a5",
+      "arm": "original"
+    },
+    {
+      "caseId": "954039f9-7d5a-4932-9a8d-a592dcf476a5",
+      "arm": "state"
+    },
+    {
+      "caseId": "1977cd2a-8933-44ab-a30d-3a7df152699a",
+      "arm": "original"
+    },
+    {
+      "caseId": "1977cd2a-8933-44ab-a30d-3a7df152699a",
+      "arm": "state"
+    }
+  ],
+  "interpretation": "Model refusals and approvals are references, not independent correctness labels. Primary results use three identical-order repetitions; reordered options are a separate diagnostic. State packets and approval requests are reconstructed. No production change follows automatically."
+}

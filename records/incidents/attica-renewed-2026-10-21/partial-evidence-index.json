@@ -1,0 +1,1332 @@
+{
+  "events": 1688,
+  "tools": {
+    "list_files": 86,
+    "read_file": 556,
+    "run_shell": 232,
+    "record_probe": 65,
+    "write_file": 23,
+    "edit_file": 124
+  },
+  "roles": {
+    "plan": 60,
+    "validate-plan": 30,
+    "prefilter": 9,
+    "jev-audit": 4,
+    "execute": 40,
+    "validate-result": 34,
+    "fallback-plan": 4,
+    "fallback-execute": 4
+  },
+  "refusals": [
+    {
+      "id": "789540eb-f018-49ec-9b39-316f181e9438",
+      "role": "validate-result",
+      "actor": {
+        "name": "RootHair",
+        "tier": 2
+      },
+      "reason": "The report is incomplete for the task's required exactness: it omits exact response JSON and full request-body schemas for most routes, and does not enumerate the complete exported options/interface signatures across the compiled declarations and direct dependencies. It also relies on broad claims where the supplied reads only show partial excerpts."
+    },
+    {
+      "id": "5eaf11b7-f426-46a8-bdc7-d7bed281b6c0",
+      "role": "validate-result",
+      "actor": {
+        "name": "Guard",
+        "tier": 2
+      },
+      "reason": "The report identifies parser markup, invented detail bodies, shortcuts, interfaces, and candidate paths, but does not report concrete real identity/context observations or exact current URL values; it only summarizes that the Chromium source asserts them. The task requires those observations, while no test execution is required."
+    },
+    {
+      "id": "0ffc7ad1-21af-4351-a70c-230eeef1fcb9",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The integration suite imports the pre-existing dist/browser/control-server.js, so it cannot fail on the planned TypeScript repair without an unexecutable pre-suite build; it also omits required wrong-origin, mismatched-detail-identity, and durable-recreation refusal assertions."
+    },
+    {
+      "id": "3343b9b4-2a42-471d-a18b-01bc60eaa387",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The implementation and local tests are well scoped, but the plan does not explicitly execute or report the required parent acceptance suite; \u201crelevant typecheck/lint/test commands\u201d is insufficient for that named verification."
+    },
+    {
+      "id": "1e92849a-217a-4038-a98d-4f4b413e4195",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The sole acceptance suite tests only the new fixture factory. It does not import or exercise the real collector/server, migrated helpers, search-to-detail navigation, parser-supported empty/search resolution, refusal cases, or callers; therefore the implementation branches lack a sufficient parent-owned integration suite."
+    },
+    {
+      "id": "0f5cba32-a4c9-4126-8fa2-b46a2c0a2862",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The sole acceptance suite covers only the new fixture's direct page methods. It does not import or exercise the real collector/createServer, search record101 linkage, valid empty-search resolution, real search/detail CAPTCHA collection, shortcut removal, or unrelated/mismatched/marker-only refusal paths. The plan therefore has testable TypeScript implementation branches and interacting modules without sufficient parent-owned integration coverage."
+    },
+    {
+      "id": "f50f9b2f-0248-4146-87b5-8930c5f556ea",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The plan's acceptance suite only exercises createNavigationFixture. It does not import or call the real collector/control-server/helper paths, nor assert search/detail collection completion, record101 linkage, empty-search resolution, durable refusal/pause, mismatched or unrelated identity rejection, or removal of shortcuts. These are testable TypeScript implementation branches and the parent suite must fail on them."
+    },
+    {
+      "id": "37a5aa6a-c4cf-4532-81a3-61343f8127ac",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The plan's suites omit required executable coverage for the detail success path and valid empty-search completion, so the task's claim that both resolution paths permit real collection cannot fail on those regressions. They also do not independently establish the requested mismatched-detail identity refusal or verify migrated callers lack artificial shortcuts; the harness-mediated assertions are insufficient as an independent oracle. Add focused real createServer/collector Vitest cases for detail resolution, empty search, and mismatched identity, with direct observations and shortcut-removal coverage."
+    },
+    {
+      "id": "4dbf81c6-462e-4597-b7a4-f078f6b60d8f",
+      "role": "validate-result",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The adapter lacks an explicit challenge rejection. A document containing a valid parser payload plus challenge text would pass parseXeSearch or parseXe, contradicting the requirement to reject challenge documents; current tests cover only challenge-only markup."
+    },
+    {
+      "id": "bbe4f78d-8ab4-4caf-be63-7790e9680fa0",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The lifecycle acceptance suite is insufficient: createNavigationFixture has no empty-search mode, does not produce a genuine detail CAPTCHA flow, and the test never asserts empty-search success or mismatched detail identity. Its detail fixture initially exposes resolved search content, so it cannot reliably exercise c2. Add faithful collector-driven search (normal and empty) and detail challenge scenarios, with explicit identity mismatch and assertions for each required outcome."
+    },
+    {
+      "id": "1a690b28-c699-4218-803a-b6a3cc7d7f80",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The plan is structurally incomplete for the assigned task and its acceptance contract. It delegates only fixture/test work while explicitly excluding the required production integration of captcha-document.ts into control-server.ts and the collector/session lifecycle. Its acceptance source also omits durable recreation for the named missing/closed/retired/blank/unreadable/wrong-context/never-navigated modes, mismatched detail identity, and unrelated-origin checks. The proposed createNavigationFixture(..., {emptySearch}) interface is not currently supported and must be implemented consistently. Replan with production integration plus executable parent-owned coverage for every c1\u2013c4 requirement."
+    },
+    {
+      "id": "b75c98c7-f288-4f98-bd48-bd1c6282ab24",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "Subtask 0's parent-owned suite is insufficient: it omits empty-search and detail success paths, does not test durable recreation or refusal modes, and its marker-only check occurs after successful verification, merely proving the no-active-CAPTCHA 400. It therefore cannot fail several named requirements. Subtask 1's suite also does not assert the required skeleton/configuration artifacts or clean-copy/build evidence."
+    },
+    {
+      "id": "b024c42f-0544-4092-8655-fbc59baea1a9",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "Subtask 1's acceptance suite cannot establish its assigned c4/c5 requirements: it only checks configuration text, file existence, and exported symbols. It does not test compiled-server recreation, unchanged regression/asset suites, clean-copy npm ci/check/build, historical-byte integrity, or recorded compiled HTTP behavior. Add executable integration coverage or explicitly route those CLI/hash/compiled-server proofs to a declared execution step, while retaining the static configuration assertions."
+    },
+    {
+      "id": "fe665e91-8937-48cd-ad52-4b22024247f7",
+      "role": "validate-result",
+      "actor": {
+        "name": "run-root",
+        "tier": 3
+      },
+      "reason": "Reject: the RESULT explicitly leaves final compiled verification, clean-copy npm ci/check/build, and historical-byte integrity unverified. Current evidence also records typecheck and lint failures, while the required compiled navigation probe failed with MODULE_NOT_FOUND. The fixture file was drastically rewritten, so faithful restoration is not established."
+    },
+    {
+      "id": "7fa113ef-2902-457a-a2cc-abfaa0d03c8e",
+      "role": "validate-result",
+      "actor": {
+        "name": "run-criteria",
+        "tier": 3
+      },
+      "reason": "c3 is supported; c4 lacks observed execution evidence for the compiled-server test."
+    },
+    {
+      "id": "7894fac1-0569-48d4-8065-6858bc903a6b",
+      "role": "validate-result",
+      "actor": {
+        "name": "run-criteria",
+        "tier": 3
+      },
+      "reason": "Criterion c5 is unmet: recorded npm ci passed, but current npm run typecheck (exit 2) and lint (exit 1) fail. fixtures/xe-browser-server.js was rewritten from 2743 to 82 bytes, so faithful fixture restoration is unsupported. No clean-copy check/build evidence is shown."
+    },
+    {
+      "id": "57ee1d63-b356-4916-9d04-ab8104f2a897",
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "reason": "The report is useful but does not fulfill the requested exact API audit: it omits concrete types for the full exported ControlServerOptions signature and does not give statuses/response bodies for the GET routes and several mutation routes (including schedule, start, cancel variants)."
+    },
+    {
+      "id": "6a85d733-d0d6-40e0-9f37-52589a78eb4e",
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "reason": "The report is substantial but does not establish the requested inspection of generated JavaScript or the concrete refusal paths for missing, retired, blank, unreadable, and never-navigated pages. Those claims rely on summaries/grep rather than exact excerpts from the relevant implementations and tests. Re-read the generated JS and each lifecycle/refusal test, and report the actual guards, order, and repair paths with precise source excerpts; remain read-only and do not run collection or claim verification."
+    },
+    {
+      "id": "4147778d-ed2e-48df-9dc4-1cef0b4f6a27",
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "reason": "The inspection is substantial but does not fully satisfy the requested inventory: it omits browser/fixture-server.js from the affected-caller analysis and reports no concrete mismatched-detail or unrelated-origin fixture sample, only the generic rejection mechanism. Those requested cases must be distinguished from missing fixtures and inferred constructions."
+    },
+    {
+      "id": "ba826cb6-fa15-4904-ae55-ee3485a1d1bf",
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "reason": "The inspection covers the main paths and correctly reports no runtime verification, but it does not satisfy the explicit requirement to supply exact signatures and durable fields. Generated declarations are summarized only as exposing APIs, and checkpoint/session fields are not enumerated precisely. Re-read the relevant TypeScript, declarations, and generated JavaScript and report exact function signatures, persisted field names/types, and guard order."
+    },
+    {
+      "id": "65c5bb20-79b0-4f1e-aa2b-ccf3d227de50",
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "reason": "The report is incomplete: it omits the executable caller in browser/docker-entrypoint.sh and does not identify all artificial resolution setters, notably captcha-navigation.ts resolve() and attica-captcha-verification.ts setPageState(\"resolved\"), alongside setSearchCaptcha/setDetailCaptcha. It also fails to list the available parser-supported resolved-search sample from captcha-navigation.ts, despite the task requiring concrete samples for that scenario."
+    },
+    {
+      "id": "ab2dba50-387d-4eb2-925b-d610bdf5dea2",
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "reason": "The inventory is useful, but two requested sample categories remain non-concrete: unrelated-origin/document is described only as \u201cany valid\u201d payload, and mismatched-detail uses an illustrative record with ellipsized origin/port rather than an observed fixture body. The report therefore does not identify concrete parser-supported samples for every named scenario."
+    },
+    {
+      "id": "9baa1977-c5d3-4108-b77a-7fc920b87453",
+      "role": "validate-result",
+      "actor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "reason": "The report is useful but does not satisfy \u201cevery caller affected\u201d: the observed grep also identified tests/attica-hosted-ui.test.js, xe-browser-local-hardening.test.js, xe-browser-state.test.js, xe-browser-packaging.test.js, and tests/control-server-cli.vitest.test.ts, while the report collapses these into vague \u201cpackaging/CLI references.\u201d It also does not explicitly inventory the URL-based page(1)/page(2) shortcuts in the fixture consumers. Provide a complete caller-to-use mapping and classify each artificial shortcut, while retaining the observed samples and compiled setup details."
+    },
+    {
+      "id": "fea2b20b-285b-4c52-97f1-ee2a0e9f1935",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "Subtask 1\u2019s parent suite cannot compile or test the real normalization contract: normalize requires (source, record, at, provenance), but it is called with one incompatible object."
+    },
+    {
+      "id": "53f9e91e-ecc2-447d-b336-3711334cd311",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The compiled-server parent suites are not executable TypeScript: createServer returns Node\u2019s Server, whose address() may be string|null, so address().port in subtasks 0 and 2 is a type error."
+    },
+    {
+      "id": "858d0c76-a0c8-4c13-9645-ce826584b893",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The implementation plan lacks sufficient parent-owned executable coverage. Its only acceptance suite imports collect-listings.ts and checks package metadata; it does not import or exercise the required migrated runtime modules, compatibility glue, legacy-test forwarding, or their preserved interfaces. Subtask 1 has no acceptanceTests despite adding testable TypeScript/configuration behavior. Add real-module Vitest assertions with negative/boundary cases for those migrations and configuration coverage before dispatch."
+    },
+    {
+      "id": "4d4dfda4-6ca8-46f6-84b5-38376b9cdd5d",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The proposed Vitest suite does not cover the task's explicitly required unchanged cancellation and Retry-After behavior, despite the implementation subtask claiming those tests will be added. It also does not assert the resulting records/counts or parser identity for the positive search, empty, and detail flows. Add executable assertions for those requirements against the real compiled server and persisted state; preserve the existing refusal/recreation checks."
+    },
+    {
+      "id": "9cd373f5-adb0-4910-9637-5a0e365515d2",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The migration subtask has a blocking parent-suite gap: its acceptance tests only exercise collect-listings.ts and the JS forwarder, while the task implements collect-attica.ts, collect-spitogatos.ts, collect-xe-live.ts, import-spitogatos-browser.ts, browser/fixture-server.ts, and legacy test forwarding. They could be missing or incorrect without failing the suite; the legacy file check also does not preserve or execute its assertions. Add real-module Vitest coverage for these interfaces and boundary behavior, and a separate executable command-proof subtask for CLI/check/build obligations."
+    },
+    {
+      "id": "5f6e044f-6ba6-4f78-895d-8b890e2695fb",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The implementation subtask is not backed by a sufficient parent-owned executable suite. Its acceptanceTests only import collect-listings.ts and inspect package configuration; they do not import or exercise the new runtime entry modules, compatibility forwarders, fixture server, or migrated legacy test behavior. Add real Vitest integration coverage with negative/boundary assertions for those task-named migrations before dispatch."
+    },
+    {
+      "id": "776b4a67-2c16-4fb9-b517-25b3f0883d9e",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "The plan's acceptance suites do not cover the full assigned behavior. Subtask 0 tests only the new contract fixture and never imports or exercises restored xe-browser-server behaviors, so deleting existing fixture behavior could pass. Subtask 2 tests only unresolved, blank, wrong-context, and never-navigated refusals; it omits the required positive search/empty/detail flows and the remaining refusal modes (missing, closed, retired, unreadable, unrelated origin/document, marker-only, mismatched detail) across recreation. Expand executable Vitest assertions against the real fixture/server/collector before dispatch."
+    },
+    {
+      "id": "46d87b4c-e8d8-488e-8edb-5af5e60ce487",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "Reject: subtask 1's suite invents unsupported `main` and `createFixtureServer` interfaces; current entries expose `collect`, `importCapture`, or `server/page`, and the task does not require those aliases. Subtask 2's suite does not execute or assert migrated legacy cases, merely counts exports and regex-matches wrappers, so it cannot detect lost assertions or implementations. Replace these acceptance tests with real-interface calls and behavior/negative assertions before dispatch."
+    },
+    {
+      "id": "c8c6b2b9-2904-4f9b-91b3-3f34e321de16",
+      "role": "validate-plan",
+      "actor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "reason": "Reject: the proposed parent suites cannot fail on several required behaviors. Subtask 2 tests only search-positive and unresolved refusal, omitting empty/detail positives and the named refusal modes (missing, closed, retired, blank, unreadable, wrong-context, never-navigated, unrelated origin/document, marker-only, mismatched detail), so c4 is not executablely covered. Subtask 0 also omits most required fixture fault/session lifecycle contracts. Additionally, fixture work and production/parser repair are useful independent work but are unnecessarily serialized."
+    }
+  ],
+  "probes": [
+    {
+      "id": "6996189c-fe6b-4d00-92d4-574e467fb195",
+      "kind": "record_probe",
+      "cmd": "node --test tests/xe-browser-focused.test.js",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\u2714 source and compiled wrappers preserve exports and root collector resolution (0.441667ms)\n\u2714 progressive traversal deduplicates rows and keeps one browser context (7.441584ms)\n\u2714 active-boundary cancellation preserves durable rows and checkpoint (2.147917ms)\n\u2714 paused checkpoint resumes in the same context after CAPTCHA (2.214958ms)\n\u2714 Retry-After is durable and blocks a later collection (0.778333ms)\n\u2714 legacy JSONL rows recover before traversal and remain exported (1.0955ms)\n\u2714 compiled search null preserves request checkpoint and does not rewrite exports (0.458792ms)\n\u2714 compiled detail null uses status zero and the original detail refusal (0.583417ms)\n\u2714 existing paused non-continuation return has the original object shape (1.720583ms)\n\u2139 tests 9\n\u2139 suites 0\n\u2139 pass 9\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 74.980917\n"
+    },
+    {
+      "id": "db84c62c-10a3-4dd9-b43e-d1b6fc9f6be5",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/xe-browser-session.vitest.test.ts tests/collector-restoration.vitest.test.ts",
+      "exitCode": 126,
+      "error": null,
+      "stderr": "npm warn exec The following package was not found and will be installed: vitest@5.0.5\nsh: 1: vitest: Permission denied\nnpm notice\nnpm notice New major version of npm available! 11.19.1 -> 12.2.0\nnpm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0\nnpm notice To update run: npm install -g npm@12.2.0\nnpm notice\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "d042ad79-339b-4e17-bfd2-d9a527eef383",
+      "kind": "record_probe",
+      "cmd": "nl -ba browser/control-server.ts | sed -n '1,220p'",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "({ startUrl: target, fixture, maxPages, output, checkpointFile, profileDir, headless, browserUrl, session, store, pacing, isCancelled: () => cancelRequested, now }); }, \"scheduled\"));\n   198\t    scheduler.state.progress = { status: result.status, maxPages, target, currentPage: result.currentPage || null, inPageIndex: result.inPageIndex || 0, updatedAt: new Date().toISOString() };\n   199\t    scheduler.save();\n   200\t    return result;\n   201\t  }});\n   202\t  const mutate = (req: http.IncomingMessage): void => sec.guardMutation(req, { hosted });\n   203\t  const assetRoot = [\n   204\t    path.resolve(__dirname, \"../browser-assets\"),\n   205\t    path.resolve(__dirname, \"../dist/browser-assets\"),\n   206\t    path.resolve(root, \"dist/browser-assets\"),\n   207\t  ].find(directory => fs.existsSync(path.join(directory, \"control.html\")));\n   208\t  const requestHandler = async (req: http.IncomingMessage, res: http.ServerResponse): Promise<unknown> => {\n   209\t    try {\n   210\t      sec.checkHost(req, { hosted });\n   211\t      const url = req.url || \"/\";\n   212\t      if (req.method === \"GET\" && url === \"/\") {\n   213\t        if (!assetRoot) throw new Error(\"control page not found\");\n   214\t        const file = path.join(assetRoot, \"control.html\");\n   215\t        res.writeHead(200, { \"content-type\": \"text/html; charset=utf-8\", \"cache-control\": \"no-store\" }); return res.end(fs.readFileSync(file));\n   216\t      }\n   217\t      if (req.method === \"GET\" && url.startsWith(\"/assets/\")) {\n   218\t        if (!assetRoot) throw new Error(\"not found\");\n   219\t        let file: string;\n   220\t        try {\n"
+    },
+    {
+      "id": "18932d1e-d0f9-4f47-bb40-a9d7a7032d14",
+      "kind": "record_probe",
+      "cmd": "nl -ba browser/control-server.ts | sed -n '220,440p'",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "known API endpoint\");\n   329\t      }\n   330\t      throw new Error(\"not found\");\n   331\t    } catch (error) {\n   332\t      const msg = message(error);\n   333\t      const code = /already active/.test(msg) ? 409 : /not found|unknown API endpoint/.test(msg) ? 404 : /POST required|Origin|Host|target|body|JSON|content-type|maxPages|unsafe|unexpected|loopback|fixed|resume requires|no paused|cancel requires|invalid timezone|invalid daily time/.test(msg) ? 400 : 500;\n   334\t      json(res, code, { error: msg });\n   335\t    }\n   336\t  };\n   337\t  const server = http.createServer((req, res) => { void requestHandler(req, res); });\n   338\t  const controlServer = server as unknown as ControlServer;\n   339\t  const recoverable = checkpoint && checkpoint.status === \"paused\" && !challengeCheckpoint(checkpoint) && !operatorPausedCheckpoint(checkpoint) && cancellation.cancellationStatus !== \"cancelled\";\n   340\t  if (recoverable) setImmediate(() => { void run(async () => { const target = String(checkpoint.nextRequestUrl || checkpoint.requestUrl || defaultTarget); await ensureSession(target); return collector.resume({ checkpointFile, output, maxPages: Number(record(checkpoint.bounds).maxPages || 100000), fixture, profileDir, headless, browserUrl, session, store, pacing, isCancelled: () => cancelRequested, now }); }).catch(() => {}); });\n   341\t  const timer = setInterval(() => { void scheduler.tick().catch(() => {}); }, 1000); timer.unref?.(); server.on(\"close\", () => clearInterval(timer));\n   342\t  controlServer.attica = { tick: () => scheduler.tick() };\n   343\t  return controlServer;\n   344\t}\n"
+    },
+    {
+      "id": "0ccc0c3c-ffe8-40b1-8ddb-654856a6aeab",
+      "kind": "record_probe",
+      "cmd": "grep -nE 'export (async )?function (collect|resume|cancel)|savePause|pauseType|CAPTCHA|captcha|challenge|verify|resume|saveCheckpoint|data-detail-id|selected_values|pagination' browser/collect-xe-browser.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": ":budget.used,lastRequestAt};retainOutput(output,allRows);saveCheckpoint(checkpointFile,cancelled);return cancelled;}\n280:   if(current>=pagination.total_pages||current>=bounds.maxPages){const done={status:\"complete\",reason:\"bounded collection complete\",currentPage:current,bounds,rows,requestUrl:target,nextRequestUrl:nextUrl,consumedRequests:budget.used,lastRequestAt};retainOutput(output,allRows);saveCheckpoint(checkpointFile,done);return done;}\n282: const paused={status:\"paused\",reason:\"bounded collection paused\",currentPage:current,bounds,rows,requestUrl:nextUrl,nextRequestUrl:nextUrl,consumedRequests:budget.used,lastRequestAt};saveCheckpoint(checkpointFile,paused);return paused;\n284:function cancel(file: string, reason = \"cancelled by operator\"): CollectionState{const state=loadCheckpoint(file);if(!state)throw new Error(\"no checkpoint\");if(state.status!==\"paused\")throw new Error(\"cancel requires paused checkpoint\");state.status=\"cancelled\";state.reason=reason;saveCheckpoint(file,state);return state;}\n285:export function collect(options: Record<string, unknown> = {}): Promise<CollectionResult> {\n289:export function resume(options: Record<string, unknown> & { checkpointFile: string }): Promise<CollectionResult> {\n290:  return resumeInternal(options as CollectorOptions & { checkpointFile: string });\n293:const resumeInternal = async (args: CollectorOptions & { checkpointFile: string }): Promise<CollectionResult> => {\n295:  if (!prior || prior.status !== \"paused\") throw new Error(\"resume requires paused checkpoint\");\n301:module.exports={collect,resume,cancel,validatePageUrl};\n"
+    },
+    {
+      "id": "cb1b779c-9f04-40ed-849e-9d90d2870755",
+      "kind": "record_probe",
+      "cmd": "nl -ba browser/collect-xe-browser.ts | sed -n '70,110p;190,260p;280,305p'",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "rent,bounds,rows,requestUrl:nextUrl,nextRequestUrl:nextUrl,consumedRequests:budget.used,lastRequestAt};saveCheckpoint(checkpointFile,paused);return paused;\n   283\t}\n   284\tfunction cancel(file: string, reason = \"cancelled by operator\"): CollectionState{const state=loadCheckpoint(file);if(!state)throw new Error(\"no checkpoint\");if(state.status!==\"paused\")throw new Error(\"cancel requires paused checkpoint\");state.status=\"cancelled\";state.reason=reason;saveCheckpoint(file,state);return state;}\n   285\texport function collect(options: Record<string, unknown> = {}): Promise<CollectionResult> {\n   286\t  return collectInternal(options as CollectorOptions);\n   287\t}\n   288\t\n   289\texport function resume(options: Record<string, unknown> & { checkpointFile: string }): Promise<CollectionResult> {\n   290\t  return resumeInternal(options as CollectorOptions & { checkpointFile: string });\n   291\t}\n   292\t\n   293\tconst resumeInternal = async (args: CollectorOptions & { checkpointFile: string }): Promise<CollectionResult> => {\n   294\t  const prior = loadCheckpoint(args.checkpointFile);\n   295\t  if (!prior || prior.status !== \"paused\") throw new Error(\"resume requires paused checkpoint\");\n   296\t  return collectInternal({ ...args, startUrl: prior.nextRequestUrl || prior.requestUrl, session: args.session, continuation: true });\n   297\t};\n   298\t\n   299\texport { cancel, validatePageUrl };\n   300\t\n   301\tmodule.exports={collect,resume,cancel,validatePageUrl};\n   302\tif(require.main===module){console.error(\"Use the browser control integration; no collection starts without explicit arguments.\");}\n"
+    },
+    {
+      "id": "5d3d3183-f8ba-4aa8-92de-a81752acfa27",
+      "kind": "record_probe",
+      "cmd": "grep -nE 'function createServer|verify-access|/api/start|/api/resume|/api/cancel|guardMutation|createServer\\(' dist/browser/control-server.js | head -40",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "71:function createServer(options = {}) {\n272:    const mutate = (req) => sec.guardMutation(req, { hosted });\n347:                if (url === \"/api/start\") {\n376:                if (url === \"/api/resume\") {\n409:                if (url === \"/api/verify-access\") {\n437:                if (url === \"/api/cancel\") {\n476:                if (url === \"/api/cancel-lift\") {\n493:    const server = http.createServer((req, res) => { void requestHandler(req, res); });\n"
+    },
+    {
+      "id": "abd1c495-b07c-43fc-ba1b-4157783db169",
+      "kind": "record_probe",
+      "cmd": "nl -ba browser/local-security.ts | sed -n '1,145p'; nl -ba browser/attica-store.ts | sed -n '40,220p'; nl -ba browser/xe-browser-session.ts | sed -n '1,145p'; nl -ba browser/checkpoint.ts | sed -n '20,75p'",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": " {\n    25\t    const descriptor = fs.openSync(path.dirname(file), \"r\");\n    26\t    fs.fsyncSync(descriptor);\n    27\t    fs.closeSync(descriptor);\n    28\t  } catch {\n    29\t    // Directory fsync is filesystem-dependent.\n    30\t  }\n    31\t}\n    32\t\n    33\texport function runtimePaths(dataDir: string): { checkpointFile: string; output: string } {\n    34\t  if (!dataDir || path.resolve(dataDir) === \"/\") throw new Error(\"ATOMA_DATA_DIR must be a private directory\");\n    35\t  return { checkpointFile: path.join(dataDir, \"checkpoints\", \"xe-browser-checkpoint.json\"), output: path.join(dataDir, \"exports\") };\n    36\t}\n    37\t\n    38\texport function loadCheckpoint(file: string): Record<string, unknown> | null {\n    39\t  try {\n    40\t    const value: unknown = JSON.parse(fs.readFileSync(file, \"utf8\"));\n    41\t    if (!isRecord(value)) throw new TypeError(\"checkpoint must be an object\");\n    42\t    return value;\n    43\t  } catch (error: unknown) {\n    44\t    if (isErrnoException(error) && error.code === \"ENOENT\") return null;\n    45\t    throw error;\n    46\t  }\n    47\t}\n    48\t\n    49\texport function saveCheckpoint(file: string, state: Record<string, unknown>): Record<string, unknown> | null {\n    50\t  const status = state?.status;\n    51\t  if (status !== \"paused\" && status !== \"cancelled\" && status !== \"complete\" && status !== \"error\") {\n    52\t    throw new Error(\"checkpoint must be durable terminal/recovery state\");\n    53\t  }\n    54\t  atomicWrite(file, { schema: \"xe-browser-checkpoint/v1\", ...state, updatedAt: new Date().toISOString() });\n    55\t  return loadCheckpoint(file);\n    56\t}\n"
+    },
+    {
+      "id": "24831720-54a3-4a68-a356-f1e579bc319f",
+      "kind": "record_probe",
+      "cmd": "nl -ba browser/xe-browser-session.ts | sed -n '1,126p'; nl -ba browser/attica-store.ts | sed -n '190,235p'; nl -ba browser/attica-scheduler.ts | sed -n '100,205p'",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "..this.state, enabled, time, timezone };\n   169\t    this.state.nextDueAt = enabled ? this.nextDue(this.now(), time, timezone) : null;\n   170\t    return this.save();\n   171\t  }\n   172\t\n   173\t  public nextDue(from: number | string = this.now(), time?: string, timezone?: string): number | null {\n   174\t    const fromMilliseconds = milliseconds(from);\n   175\t    const timeString = time || this.state.time;\n   176\t    const zone = timezone || this.state.timezone;\n   177\t    const [hour, minute] = timeString.split(\":\").map(Number);\n   178\t    const dayFormatter = new Intl.DateTimeFormat(\"en-US\", {\n   179\t      timeZone: zone,\n   180\t      year: \"numeric\",\n   181\t      month: \"2-digit\",\n   182\t      day: \"2-digit\"\n   183\t    });\n   184\t    const localFormatter = new Intl.DateTimeFormat(\"en-US\", {\n   185\t      timeZone: zone,\n   186\t      year: \"numeric\",\n   187\t      month: \"2-digit\",\n   188\t      day: \"2-digit\",\n   189\t      hour: \"2-digit\",\n   190\t      minute: \"2-digit\",\n   191\t      hour12: false\n   192\t    });\n   193\t    const base = parts(dayFormatter, fromMilliseconds);\n   194\t    const baseDay = Date.UTC(Number(base.year), Number(base.month) - 1, Number(base.day));\n   195\t    for (let i = 0; i < 370; i += 1) {\n   196\t      const date = new Date(baseDay + i * 86400000);\n   197\t      const candidate = Date.UTC(\n   198\t        date.getUTCFullYear(),\n   199\t        date.getUTCMonth(),\n   200\t        date.getUTCDate(),\n   201\t        hour,\n   202\t        minute\n   203\t      );\n   204\t      const seen = parts(localFormatter, candidate);\n   205\t      const localAsUtc = Date.UTC(\n"
+    },
+    {
+      "id": "b1c69a0c-29b4-4f65-8fec-93f7c2c7749d",
+      "kind": "record_probe",
+      "cmd": "node_modules/.bin/vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": null,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": ""
+    },
+    {
+      "id": "be384349-7093-4924-b375-de2733e8dc47",
+      "kind": "record_probe",
+      "cmd": "npm exec -- vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": 126,
+      "error": null,
+      "stderr": "sh: 1: vitest: Permission denied\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "d354ba0f-07e3-484e-92f8-ea0dfb11f592",
+      "kind": "record_probe",
+      "cmd": "npm ci --offline",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "npm error code ENOTCACHED\nnpm error request to https://registry.npmjs.org/yocto-queue/-/yocto-queue-0.1.0.tgz failed: cache mode is 'only-if-cached' but no cached response is available.\nnpm error A complete log of this run can be found in: /tmp/atoma-home-lV9ILi/.npm/_logs/2026-10-21T16_00_27_814Z-debug-0.log\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "95d6220a-8912-447c-8f88-406d24218f68",
+      "kind": "record_probe",
+      "cmd": "npx --no-install vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": 126,
+      "error": null,
+      "stderr": "sh: 1: vitest: Permission denied\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "7eeec472-0efe-4558-a655-2e27c8afa705",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run tests/captcha-document.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "07e7d3a7-74be-4370-9a5d-ac16ce4ea014",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "d22f79d0-4e96-4e6d-bec3-283944d32f85",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run tests/captcha-document.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "b7cf833b-6934-41f9-8287-2f513d6f5758",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "14837000-cbad-4671-8c5d-743d2d93aba5",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run tests/captcha-document.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "c3d44dbb-32b8-4e9d-921f-370ef1625a86",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "88b4458f-f19e-43fc-834e-37a6ba4079fa",
+      "kind": "record_probe",
+      "cmd": "node_modules/.bin/vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": null,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": ""
+    },
+    {
+      "id": "03ecd6db-a415-4ff1-b677-8d4ec7446315",
+      "kind": "record_probe",
+      "cmd": "node node_modules/vitest/vitest.mjs run tests/captcha-document.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  tests/captcha-document.vitest.test.ts [ tests/captcha-document.vitest.test.ts ]\nError: Cannot find module '../../collect-listings'\nRequire stack:\n- /workspace/collectors/xe.ts\n \u276f collectors/xe.ts:40:34\n     38| };\n     39| \n     40| const { adapter, recordsFrom } = require(\"../../collect-listings\") as {\n       |                                  ^\n     41|   adapter: Adapter;\n     42|   recordsFrom: RecordsFrom;\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n\n Test Files  1 failed (1)\n      Tests  no tests\n   Start at  16:03:43\n   Duration  133ms (transform 32ms, setup 0ms, collect 0ms, tests 0ms, environment 0ms, prepare 29ms)\n\n"
+    },
+    {
+      "id": "6a1beb43-940c-4fa6-8704-f9092962e4b6",
+      "kind": "record_probe",
+      "cmd": "npm ci",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "npm warn deprecated eslint@9.39.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.\nnpm warn install-scripts 1 package has install scripts not yet covered by allowScripts:\nnpm warn install-scripts   esbuild@0.25.12 (postinstall: node install.js)\nnpm warn install-scripts\nnpm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.\n",
+      "stdoutTail": "\nadded 174 packages, and audited 175 packages in 1m\n\n54 packages are looking for funding\n  run `npm fund` for details\n\n13 vulnerabilities (1 moderate, 10 high, 2 critical)\n\nTo address all issues, run:\n  npm audit fix --force\n\nRun `npm audit` for details.\n"
+    },
+    {
+      "id": "66431552-52bc-45d6-b5ad-3e2ad7e35ba0",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 typecheck\n> tsc -p tsconfig.json --noEmit\n\ntests/xe-chromium.test.ts(168,14): error TS2531: Object is possibly 'null'.\ntests/xe-chromium.test.ts(168,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'.\n  Property 'port' does not exist on type 'string'.\n"
+    },
+    {
+      "id": "f3ba8121-5db5-40bf-b3ba-6d8c9099e071",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 typecheck\n> tsc -p tsconfig.json --noEmit\n\ntests/xe-chromium.test.ts(168,14): error TS2531: Object is possibly 'null'.\ntests/xe-chromium.test.ts(168,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'.\n  Property 'port' does not exist on type 'string'.\n"
+    },
+    {
+      "id": "b1c83294-3ffe-4b3a-b79a-ee62308846d6",
+      "kind": "record_probe",
+      "cmd": "npm run build",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\nvite v7.1.7 building for production...\ntransforming...\n\u2713 4 modules transformed.\nrendering chunks...\ncomputing gzip size...\n../dist/browser-assets/control.html                8.16 kB \u2502 gzip: 3.03 kB\n../dist/browser-assets/assets/control-Dy921WaC.js  3.35 kB \u2502 gzip: 1.36 kB\n\u2713 built in 47ms\n"
+    },
+    {
+      "id": "c92ad332-80a6-4336-a430-12422bd111df",
+      "kind": "record_probe",
+      "cmd": "node -e 'const assert=require(\"node:assert/strict\"); const {createNavigationFixture}=require(\"./dist/tests/fixtures/captcha-navigation.js\"); const s=createNavigationFixture(\"search\"),p=s.session.page; (async()=>{assert.equal(p.url(),\"about:blank\");assert.deepEqual(s.navigations,[]);await p.goto(s.target);assert.equal(p.url(),s.target);assert.equal(p.context(),s.session.context);assert.match(await p.content(),/captcha|human verification/i);s.resolve();const body=await p.content();assert.match(body,/selected_values/);assert.doesNotMatch(body,/data-detail-id|<article/i);assert.equal(p.url(),s.target);assert.deepEqual(s.navigations,[s.target]);s.setBody(\"\");assert.equal(await p.content(),\"\");const d=createNavigationFixture(\"detail\"),q=d.session.page;await q.goto(d.target);assert.doesNotMatch(await q.content(),/captcha|human verification/i);const u=new URL(\"/detail/101\",d.target).href;await q.goto(u);assert.match(await q.content(),/captcha|human verification/i);d.resolve();assert.doesNotMatch(await q.content(),/captcha|human verification/i);assert.equal(q.url(),u);assert.equal(q.context(),d.session.context);assert.deepEqual(d.navigations,[d.target,u]);})().catch(e=>{console.error(e);process.exitCode=1})'",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "node:internal/modules/cjs/loader:1568\n  throw err;\n  ^\n\nError: Cannot find module './dist/tests/fixtures/captcha-navigation.js'\nRequire stack:\n- /workspace/[eval]\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)\n    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)\n    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)\n    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)\n    at Module._load (node:internal/modules/cjs/loader:1341:5)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)\n    at Module.require (node:internal/modules/cjs/loader:1674:12)\n    at require (node:internal/modules/helpers:157:16)\n    at [eval]:1:77\n    at runScriptInThisContext (node:internal/vm:219:10) {\n  code: 'MODULE_NOT_FOUND',\n  requireStack: [ '/workspace/[eval]' ]\n}\n\nNode.js v24.22.0\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "3a54fce6-101b-48a3-ae53-3da1a4966915",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/fixtures/captcha-navigation.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  tests/fixtures/captcha-navigation.vitest.test.ts > detail challenge is reached by navigation, not resolution setter\nAssertionError: expected '<!doctype html><title>Human verificat\u2026' not to match /captcha|human verification/i\n\n\u001b[32m- Expected:\u001b[39m \n/captcha|human verification/i\n\n\u001b[31m+ Received:\u001b[39m \n\"<!doctype html><title>Human verification</title><p>captcha</p>\"\n\n \u276f tests/fixtures/captcha-navigation.vitest.test.ts:35:36\n     33|   expect(await page.content()).toMatch(/captcha|human verification/i);\n     34|   fixture.resolve();\n     35|   expect(await page.content()).not.toMatch(/captcha|human verification\u2026\n       |                                    ^\n     36|   expect(page.url()).toBe(detailUrl);\n     37|   expect(page.context()).toBe(fixture.session.context);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u276f tests/fixtures/captcha-navigation.vitest.test.ts (2 tests | 1 failed) 4ms\n   \u2713 search resolution never invents navigation or detail identity 1ms\n   \u00d7 detail challenge is reached by navigation, not resolution setter 3ms\n     \u2192 expected '<!doctype html><title>Human verificat\u2026' not to match /captcha|human verification/i\n\n Test Files  1 failed (1)\n      Tests  1 failed | 1 passed (2)\n   Start at  16:04:24\n   Duration  120ms (transform 19ms, setup 0ms, collect 18ms, tests 4ms, environment 0ms, prepare 26ms)\n\n"
+    },
+    {
+      "id": "dd1bc714-a159-4e55-8edf-40b0237cae29",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/fixtures/captcha-navigation.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 tests/fixtures/captcha-navigation.vitest.test.ts (2 tests) 2ms\n\n Test Files  1 passed (1)\n      Tests  2 passed (2)\n   Start at  16:04:28\n   Duration  103ms (transform 19ms, setup 0ms, collect 17ms, tests 2ms, environment 0ms, prepare 25ms)\n\n"
+    },
+    {
+      "id": "8621acd1-6340-410e-9859-d1113da7facf",
+      "kind": "record_probe",
+      "cmd": "npm run build",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\nvite v7.1.7 building for production...\ntransforming...\n\u2713 4 modules transformed.\nrendering chunks...\ncomputing gzip size...\n../dist/browser-assets/control.html                8.16 kB \u2502 gzip: 3.03 kB\n../dist/browser-assets/assets/control-Dy921WaC.js  3.35 kB \u2502 gzip: 1.36 kB\n\u2713 built in 43ms\n"
+    },
+    {
+      "id": "b1572f77-4505-4655-8916-8e7d8a91d884",
+      "kind": "record_probe",
+      "cmd": "node --test tests/xe-browser-focused.test.js",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\u2714 source and compiled wrappers preserve exports and root collector resolution (0.375792ms)\n\u2714 progressive traversal deduplicates rows and keeps one browser context (5.404959ms)\n\u2714 active-boundary cancellation preserves durable rows and checkpoint (1.687042ms)\n\u2714 paused checkpoint resumes in the same context after CAPTCHA (1.676833ms)\n\u2714 Retry-After is durable and blocks a later collection (0.677625ms)\n\u2714 legacy JSONL rows recover before traversal and remain exported (0.816708ms)\n\u2714 compiled search null preserves request checkpoint and does not rewrite exports (0.282708ms)\n\u2714 compiled detail null uses status zero and the original detail refusal (0.419167ms)\n\u2714 existing paused non-continuation return has the original object shape (1.032292ms)\n\u2139 tests 9\n\u2139 suites 0\n\u2139 pass 9\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 50.423375\n"
+    },
+    {
+      "id": "5e9a535c-272c-4855-a6ac-fa4c3a16243a",
+      "kind": "record_probe",
+      "cmd": "npx tsc --noEmit --strict --target ES2022 --module CommonJS --moduleResolution Node --esModuleInterop --skipLibCheck --types node,vitest/globals tests/fixtures/captcha-navigation.ts tests/fixtures/captcha-navigation.vitest.test.ts",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "tests/fixtures/captcha-navigation.vitest.test.ts(7,15): error TS2339: Property 'url' does not exist on type 'BrowserPage'.\ntests/fixtures/captcha-navigation.vitest.test.ts(10,15): error TS2339: Property 'url' does not exist on type 'BrowserPage'.\ntests/fixtures/captcha-navigation.vitest.test.ts(18,15): error TS2339: Property 'url' does not exist on type 'BrowserPage'.\ntests/fixtures/captcha-navigation.vitest.test.ts(22,15): error TS2339: Property 'url' does not exist on type 'BrowserPage'.\ntests/fixtures/captcha-navigation.vitest.test.ts(36,15): error TS2339: Property 'url' does not exist on type 'BrowserPage'.\n"
+    },
+    {
+      "id": "d5113f90-bac7-4d0d-ac7a-40d3b7d4814a",
+      "kind": "record_probe",
+      "cmd": "npx tsc --noEmit --strict --target ES2022 --module CommonJS --moduleResolution Node --esModuleInterop --skipLibCheck --types node,vitest/globals tests/fixtures/captcha-navigation.ts tests/fixtures/captcha-navigation.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": ""
+    },
+    {
+      "id": "8f83af4a-5c41-4eda-8226-99774d2d71a9",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/fixtures/captcha-navigation.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 tests/fixtures/captcha-navigation.vitest.test.ts (2 tests) 2ms\n\n Test Files  1 passed (1)\n      Tests  2 passed (2)\n   Start at  16:04:45\n   Duration  109ms (transform 19ms, setup 0ms, collect 17ms, tests 2ms, environment 0ms, prepare 25ms)\n\n"
+    },
+    {
+      "id": "e8a0c0cb-eb89-4784-a146-bd80a4c46091",
+      "kind": "record_probe",
+      "cmd": "npm run build",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\nvite v7.1.7 building for production...\ntransforming...\n\u2713 4 modules transformed.\nrendering chunks...\ncomputing gzip size...\n../dist/browser-assets/control.html                8.16 kB \u2502 gzip: 3.03 kB\n../dist/browser-assets/assets/control-Dy921WaC.js  3.35 kB \u2502 gzip: 1.36 kB\n\u2713 built in 49ms\n"
+    },
+    {
+      "id": "422409ff-de82-40b3-9a12-781d32781487",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 tests/captcha-document.vitest.test.ts (4 tests) 2ms\n\n Test Files  1 passed (1)\n      Tests  4 passed (4)\n   Start at  16:04:58\n   Duration  102ms (transform 19ms, setup 0ms, collect 18ms, tests 2ms, environment 0ms, prepare 25ms)\n\n"
+    },
+    {
+      "id": "5867d458-dd45-49f2-b1b8-f1db13b16fe0",
+      "kind": "record_probe",
+      "cmd": "npx vitest run .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "No test files found, exiting with code 1\n\nfilter: .atoma-scratch/parent-acceptance.vitest.test.ts\ninclude: tests/**/*.vitest.test.ts, tests/attica-offline-runtime.ts\nexclude:  **/node_modules/**, **/dist/**, **/cypress/**, **/.{idea,git,cache,output,temp}/**, **/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build,eslint,prettier}.config.*\n\n",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n"
+    },
+    {
+      "id": "4e2f881a-0c38-4069-84d1-d11f5d4f4271",
+      "kind": "record_probe",
+      "cmd": "npx vitest run --config .atoma-scratch/vitest.parent.config.ts .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 .atoma-scratch/parent-acceptance.vitest.test.ts (3 tests) 2ms\n\n Test Files  1 passed (1)\n      Tests  3 passed (3)\n   Start at  16:05:09\n   Duration  118ms (transform 19ms, setup 0ms, collect 18ms, tests 2ms, environment 0ms, prepare 28ms)\n\n"
+    },
+    {
+      "id": "568c7ffb-9824-4951-a9c7-fbbf50d0a3d4",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 typecheck\n> tsc -p tsconfig.json --noEmit\n\ntests/xe-chromium.test.ts(168,14): error TS2531: Object is possibly 'null'.\ntests/xe-chromium.test.ts(168,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'.\n  Property 'port' does not exist on type 'string'.\n"
+    },
+    {
+      "id": "5419ef62-5947-42f6-a1ba-2ab817bb7bd7",
+      "kind": "record_probe",
+      "cmd": "npx eslint browser/captcha-document.ts tests/captcha-document.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n/workspace/browser/captcha-document.ts\n  1:13  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports\n\n\u2716 1 problem (1 error, 0 warnings)\n\n"
+    },
+    {
+      "id": "347869ec-44ca-45cd-9b55-21a6a441f9e6",
+      "kind": "record_probe",
+      "cmd": "npx eslint browser/captcha-document.ts tests/captcha-document.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": ""
+    },
+    {
+      "id": "5d0d9f04-f7cc-4e22-979c-2b2b7bced566",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 tests/captcha-document.vitest.test.ts (4 tests) 2ms\n\n Test Files  1 passed (1)\n      Tests  4 passed (4)\n   Start at  16:05:24\n   Duration  118ms (transform 20ms, setup 0ms, collect 19ms, tests 2ms, environment 0ms, prepare 27ms)\n\n"
+    },
+    {
+      "id": "a882278a-ace9-41b3-a322-01e2da4e897b",
+      "kind": "record_probe",
+      "cmd": "npx vitest run --config .atoma-scratch/vitest.parent.config.ts .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 .atoma-scratch/parent-acceptance.vitest.test.ts (3 tests) 2ms\n\n Test Files  1 passed (1)\n      Tests  3 passed (3)\n   Start at  16:05:27\n   Duration  105ms (transform 18ms, setup 0ms, collect 17ms, tests 2ms, environment 0ms, prepare 25ms)\n\n"
+    },
+    {
+      "id": "6ad2b68e-ebe8-4baf-a8cd-9b00805008e5",
+      "kind": "record_probe",
+      "cmd": "npx vitest run --config .atoma-scratch/vitest.parent.config.ts .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 .atoma-scratch/parent-acceptance.vitest.test.ts (3 tests) 2ms\n\n Test Files  1 passed (1)\n      Tests  3 passed (3)\n   Start at  16:05:37\n   Duration  104ms (transform 18ms, setup 0ms, collect 17ms, tests 2ms, environment 0ms, prepare 25ms)\n\n"
+    },
+    {
+      "id": "04424f40-69d8-4a4f-9287-419406e10e2a",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 tests/captcha-document.vitest.test.ts (5 tests) 2ms\n\n Test Files  1 passed (1)\n      Tests  5 passed (5)\n   Start at  16:08:01\n   Duration  125ms (transform 23ms, setup 0ms, collect 21ms, tests 2ms, environment 0ms, prepare 30ms)\n\n"
+    },
+    {
+      "id": "82f04e89-9e61-436f-a6f1-f391aed9cb3e",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 typecheck\n> tsc -p tsconfig.json --noEmit\n\ntests/xe-chromium.test.ts(168,14): error TS2531: Object is possibly 'null'.\ntests/xe-chromium.test.ts(168,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'.\n  Property 'port' does not exist on type 'string'.\n"
+    },
+    {
+      "id": "89918ee3-d910-4f2d-a735-9b4551ad5b57",
+      "kind": "record_probe",
+      "cmd": "npm run lint",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 lint\n> eslint collect-listings.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'\n\n\n/workspace/tests/fixtures/captcha-navigation.ts\n  50:7   error  'page' is never reassigned. Use 'const' instead   prefer-const\n  53:5   error  Async method 'newPage' has no 'await' expression  @typescript-eslint/require-await\n  54:5   error  Async method 'route' has no 'await' expression    @typescript-eslint/require-await\n  55:5   error  Async method 'close' has no 'await' expression    @typescript-eslint/require-await\n  58:5   error  Async method 'goto' has no 'await' expression     @typescript-eslint/require-await\n  67:35  error  Async method 'headers' has no 'await' expression  @typescript-eslint/require-await\n  71:5   error  Async method 'content' has no 'await' expression  @typescript-eslint/require-await\n  73:5   error  Async method 'close' has no 'await' expression    @typescript-eslint/require-await\n  74:23  error  Async method 'click' has no 'await' expression    @typescript-eslint/require-await\n\n/workspace/tests/xe-chromium.test.ts\n  168:9  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment\n\n\u2716 10 problems (10 errors, 0 warnings)\n\n"
+    },
+    {
+      "id": "0d351c87-71a3-49de-8bfb-9597f553fb9a",
+      "kind": "record_probe",
+      "cmd": "npm run build",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\nvite v7.1.7 building for production...\ntransforming...\n\u2713 4 modules transformed.\nrendering chunks...\ncomputing gzip size...\n../dist/browser-assets/control.html                8.16 kB \u2502 gzip: 3.03 kB\n../dist/browser-assets/assets/control-Dy921WaC.js  3.35 kB \u2502 gzip: 1.36 kB\n\u2713 built in 58ms\n"
+    },
+    {
+      "id": "e077f217-4fb6-40ef-ae16-9a0cb5d00ac0",
+      "kind": "record_probe",
+      "cmd": "npx eslint browser/captcha-document.ts tests/captcha-document.vitest.test.ts --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": ""
+    },
+    {
+      "id": "d3e952f8-89f6-4792-8001-347caea4e3b8",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 tests/captcha-document.vitest.test.ts (5 tests) 2ms\n\n Test Files  1 passed (1)\n      Tests  5 passed (5)\n   Start at  16:08:32\n   Duration  111ms (transform 20ms, setup 0ms, collect 19ms, tests 2ms, environment 0ms, prepare 29ms)\n\n"
+    },
+    {
+      "id": "a934de3e-213a-49be-89f7-3cd1637cdc30",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 tests/captcha-document.vitest.test.ts (5 tests) 2ms\n\n Test Files  1 passed (1)\n      Tests  5 passed (5)\n   Start at  16:08:39\n   Duration  104ms (transform 20ms, setup 0ms, collect 19ms, tests 2ms, environment 0ms, prepare 26ms)\n\n"
+    },
+    {
+      "id": "c9140fec-e38f-4860-a806-7a84611df4ca",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 typecheck\n> tsc -p tsconfig.json --noEmit\n\n"
+    },
+    {
+      "id": "1b9aa99b-9e32-4438-95b0-5ae686c01468",
+      "kind": "record_probe",
+      "cmd": "npm run lint",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 lint\n> eslint collect-listings.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'\n\n"
+    },
+    {
+      "id": "ca54413c-59a9-4aab-a5cb-2dcb1dd40cf0",
+      "kind": "record_probe",
+      "cmd": "npm run test:browser",
+      "exitCode": 1,
+      "error": "run_shell: timed out after 120000ms (process group killed). A finite command that needs longer may pass timeoutMs, up to 300000; a server belongs to start_node_server.",
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 test:browser\n> sh -c 'npm run build && node --test \"$@\" tests/xe-browser-local-hardening.test.js tests/xe-browser-integration.test.js tests/xe-chromium.test.ts' --\n\n\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\nvite v7.1.7 building for production...\ntransforming...\n\u2713 4 modules transformed.\nrendering chunks...\ncomputing gzip size...\n../dist/browser-assets/control.html                8.16 kB \u2502 gzip: 3.03 kB\n../dist/browser-assets/assets/control-Dy921WaC.js  3.35 kB \u2502 gzip: 1.36 kB\n\u2713 built in 48ms\n\u2714 production control path validates requests, is idle, and exposes UI (14.859875ms)\n\u2714 HTTP 200 challenge persists request consumption, and later batches preserve exports (10553.191588ms)\n\u2714 repeated challenge resumes can continue beyond twelve requests (11480.534922ms)\n\u2714 cancel during a resumed navigation preserves completed rows through the real control API (10369.86938ms)\n\u2714 desktop gateway refuses missing, foreign and wrong-port WebSocket origins (7.682667ms)\n\u2714 Retry-After stops and persists collected progress instead of allowing a challenge retry (10228.001504ms)\n\u2714 an interrupted navigation is checkpointed and never retried automatically (103.060459ms)\n\u2714 request budget is durable before the browser sends the request (10217.26663ms)\n"
+    },
+    {
+      "id": "44f2eadb-cdeb-4c26-af17-4ecba6059921",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/captcha-document.vitest.test.ts tests/xe-restoration.vitest.test.ts tests/xe-minimal-offline.vitest.test.ts tests/attica-captcha-verification.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 tests/captcha-document.vitest.test.ts (5 tests) 3ms\n \u2713 tests/xe-minimal-offline.vitest.test.ts (1 test) 56ms\n \u2713 tests/attica-captcha-verification.vitest.test.ts (1 test) 377ms\n   \u2713 compiled CAPTCHA verification requires current resolved detail evidence  377ms\n \u2713 tests/xe-restoration.vitest.test.ts (5 tests) 2112ms\n   \u2713 resume continues past twelve consumed requests  413ms\n   \u2713 persisted CAPTCHA rejects repeatedly until explicit store clearing  423ms\n   \u2713 resumed CAPTCHA remains blocked across reopened stores until explicitly cleared  427ms\n   \u2713 collect enforces the persisted Retry-After deadline across reopening  429ms\n   \u2713 resume enforces the persisted Retry-After deadline across reopening  418ms\n\n Test Files  4 passed (4)\n      Tests  12 passed (12)\n   Start at  16:26:36\n   Duration  2.27s (transform 131ms, setup 0ms, collect 193ms, tests 2.55s, environment 0ms, prepare 134ms)\n\n"
+    },
+    {
+      "id": "dd7ccaed-aa20-4199-bc29-4afd0ea83592",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/captcha-document.vitest.test.ts tests/fixtures/captcha-navigation.vitest.test.ts",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 tests/fixtures/captcha-navigation.vitest.test.ts (2 tests) 2ms\n \u2713 tests/captcha-document.vitest.test.ts (5 tests) 2ms\n\n Test Files  2 passed (2)\n      Tests  7 passed (7)\n   Start at  16:30:54\n   Duration  135ms (transform 36ms, setup 0ms, collect 45ms, tests 4ms, environment 0ms, prepare 61ms)\n\n"
+    },
+    {
+      "id": "93170e2e-d2b7-4ef2-96bd-b1641be649a2",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "ord or identifier.\ntests/fixtures/captcha-contract.ts(2,67): error TS1435: Unknown keyword or identifier. Did you mean 'new lines'?\ntests/fixtures/captcha-contract.ts(2,76): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,80): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,84): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,99): error TS1005: ';' expected.\ntests/fixtures/captcha-contract.ts(2,104): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,147): error TS1005: ';' expected.\ntests/fixtures/captcha-contract.ts(2,153): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,161): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,164): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(3,1): error TS1003: Identifier expected.\ntests/fixtures/captcha-contract.ts(3,3): error TS1109: Expression expected.\ntests/fixtures/captcha-contract.ts(3,11): error TS1005: ';' expected.\ntests/fixtures/captcha-contract.ts(4,1): error TS1109: Expression expected.\ntests/fixtures/captcha-contract.ts(92,27): error TS1127: Invalid character.\ntests/fixtures/captcha-contract.ts(92,28): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(177,3): error TS1109: Expression expected.\ntests/fixtures/captcha-contract.ts(177,9): error TS1005: ';' expected.\ntests/fixtures/captcha-contract.ts(177,25): error TS1109: Expression expected.\n"
+    },
+    {
+      "id": "69c6b5ab-a35a-477d-83c3-c98adf6a82ac",
+      "kind": "record_probe",
+      "cmd": "npm run build",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\ncollect-attica.ts(7,7): error TS2441: Duplicate identifier 'require'. Compiler reserves name 'require' in top level scope of a module.\ncollect-spitogatos.ts(5,7): error TS2441: Duplicate identifier 'require'. Compiler reserves name 'require' in top level scope of a module.\ncollect-xe-live.ts(13,7): error TS2441: Duplicate identifier 'require'. Compiler reserves name 'require' in top level scope of a module.\nimport-spitogatos-browser.ts(21,7): error TS2441: Duplicate identifier 'require'. Compiler reserves name 'require' in top level scope of a module.\n"
+    },
+    {
+      "id": "7f8e4f05-ca75-4152-88cf-e9cf641b2f97",
+      "kind": "record_probe",
+      "cmd": "npm run build",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\nvite v7.1.7 building for production...\ntransforming...\n\u2713 4 modules transformed.\nrendering chunks...\ncomputing gzip size...\n../dist/browser-assets/control.html                8.16 kB \u2502 gzip: 3.03 kB\n../dist/browser-assets/assets/control-Dy921WaC.js  3.35 kB \u2502 gzip: 1.36 kB\n\u2713 built in 47ms\n"
+    },
+    {
+      "id": "9be0d45d-fc3e-4976-ab36-c6f76840d61d",
+      "kind": "record_probe",
+      "cmd": "npm run lint",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 lint\n> eslint collect-listings.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'\n\n"
+    },
+    {
+      "id": "371e290f-7ba4-4372-8ba3-8a953126236b",
+      "kind": "record_probe",
+      "cmd": "npm run test:legacy",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 test:legacy\n> node --test tests/legacy-typescript.ts\n\n(node:7203) Warning: Failed to load the ES module: /workspace/tests/legacy-typescript.ts. Make sure to set \"type\": \"module\" in the nearest package.json file or use the .mjs extension.\n(Use `node --trace-warnings ...` to show where the warning was created)\n/workspace/tests/legacy-typescript.ts:1\nimport { createRequire } from \"node:module\";\n^^^^^^\n\nSyntaxError: Cannot use import statement outside a module\n    at wrapSafe (node:internal/modules/cjs/loader:1861:18)\n    at Module._compile (node:internal/modules/cjs/loader:1903:20)\n    at Object..js (node:internal/modules/cjs/loader:2060:10)\n    at Module.load (node:internal/modules/cjs/loader:1651:32)\n    at Module._load (node:internal/modules/cjs/loader:1443:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)\n    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\n    at node:internal/main/run_main_module:33:47\n\nNode.js v24.22.0\n\u2716 tests/legacy-typescript.ts (63.595167ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 67.175334\n\n\u2716 failing tests:\n\ntest at tests/legacy-typescript.ts:1:1\n\u2716 tests/legacy-typescript.ts (63.595167ms)\n  'test failed'\n"
+    },
+    {
+      "id": "f40e11a3-b48c-4726-b1b7-30c32dddbb7b",
+      "kind": "record_probe",
+      "cmd": "npm run test:legacy",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "t:974:7) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: 403,\n    expected: 200,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at tests/attica-hosted-ui.test.js:25:1\n\u2716 hosted flow migrates fixture listings, pauses CAPTCHA, resumes same session and protects mutations (214.984334ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  403 !== 200\n  \n      at TestContext.<anonymous> (/workspace/tests/attica-hosted-ui.test.js:36:27)\n      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n      at async Test.run (node:internal/test_runner/test:1409:7)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 403,\n    expected: 200,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at tests/xe-browser-hosting-integration.test.js:41:1\n\u2716 hosted French control proves pause, fixture-only approval, same context and durable exports (213.425875ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  403 !== 200\n  \n      at TestContext.<anonymous> (/workspace/tests/xe-browser-hosting-integration.test.js:76:10)\n      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n      at async Test.run (node:internal/test_runner/test:1409:7)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 403,\n    expected: 200,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "id": "208f6236-f24d-4e7a-8282-ac75a3584cd5",
+      "kind": "record_probe",
+      "cmd": "npm run lint",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "of `this` when separated from its object.\nConsider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. \nIf a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method\n  23:3   error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator                                                                                                                                                                          @typescript-eslint/no-floating-promises\n\n/workspace/fixtures/xe-browser-server.d.ts\n  0:0  error  Parsing error: /workspace/fixtures/xe-browser-server.d.ts was not found by the project service. Consider either including it in the tsconfig.json or including it in allowDefaultProject.\nallowDefaultProject is set to [\"browser/control-server.d.ts\",\"browser/local-security.d.ts\",\"browser/xe-browser-session.d.ts\",\"browser/collect-xe-browser.d.ts\",\"collectors/xe.d.ts\"], which does not match 'fixtures/xe-browser-server.d.ts'\n\n/workspace/tests/legacy-typescript.ts\n   1:7   error  Unsafe assignment of an `any` value    @typescript-eslint/no-unsafe-assignment\n   3:7   error  Unsafe assignment of an `any` value    @typescript-eslint/no-unsafe-assignment\n   3:20  error  Unsafe call of a(n) `any` typed value  @typescript-eslint/no-unsafe-call\n  29:3   error  Unsafe call of a(n) `any` typed value  @typescript-eslint/no-unsafe-call\n\n\u2716 8 problems (8 errors, 0 warnings)\n\n"
+    },
+    {
+      "id": "1753bb03-dd31-4661-a2fe-27870aad75d2",
+      "kind": "record_probe",
+      "cmd": "npm run lint",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 lint\n> eslint --config eslint.config.mjs --ext .ts collect-listings.ts collect-attica.ts collect-spitogatos.ts collect-xe-live.ts import-spitogatos-browser.ts vite.config.ts vitest.config.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"fixtures/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'\n\n"
+    },
+    {
+      "id": "3d3ceef6-72b6-4b7e-9bfa-82816a631c69",
+      "kind": "record_probe",
+      "cmd": "npm ci",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "npm warn deprecated eslint@9.39.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.\nnpm warn install-scripts 1 package has install scripts not yet covered by allowScripts:\nnpm warn install-scripts   esbuild@0.25.12 (postinstall: node install.js)\nnpm warn install-scripts\nnpm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.\n",
+      "stdoutTail": "\nadded 174 packages, and audited 175 packages in 19s\n\n54 packages are looking for funding\n  run `npm fund` for details\n\n13 vulnerabilities (1 moderate, 10 high, 2 critical)\n\nTo address all issues, run:\n  npm audit fix --force\n\nRun `npm audit` for details.\n"
+    },
+    {
+      "id": "7fe8ef4d-5991-4b5f-9c75-73539a98a3a3",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 0,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 typecheck\n> tsc -p tsconfig.json --noEmit\n\n"
+    }
+  ],
+  "failedCommands": [
+    {
+      "id": "db84c62c-10a3-4dd9-b43e-d1b6fc9f6be5",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/xe-browser-session.vitest.test.ts tests/collector-restoration.vitest.test.ts",
+      "exitCode": 126,
+      "error": null,
+      "stderr": "npm warn exec The following package was not found and will be installed: vitest@5.0.5\nsh: 1: vitest: Permission denied\nnpm notice\nnpm notice New major version of npm available! 11.19.1 -> 12.2.0\nnpm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0\nnpm notice To update run: npm install -g npm@12.2.0\nnpm notice\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "59cdf6f0-2573-47dd-b556-4b83295c79d0",
+      "kind": "run_shell",
+      "cmd": "sha256sum collect-listings.ts collect-listings.js browser/control-server.ts browser/control-server.js vite.config.ts tests/collector-restoration.vitest.test.ts tests/built-control-assets.vitest.test.ts tests/attica-http-preconditions.vitest.test.ts tests/xe-minimal-offline.vitest.test.ts tests/attica-captcha-verification.vitest.test.ts tests/helpers/attica-offline-scenarios.ts tests/fixtures/attica-captcha-verification.ts fixtures/xe-browser-server.js dist/browser/control-server.js dist/browser-assets/index.html 2>&1",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "22caf003e5e229c84ae75c1fefb0f23a3386e27260dce9bda1b4c64a12c8cd51  collect-listings.ts\nc5aa68694b0320483ffca4ed5335c0d8179174720e0bb217f2e8fef963726559  collect-listings.js\nccb9374dafa967c282508310ad88fa9ab0d0f09e92883c110537058f0a777383  browser/control-server.ts\nc8a4f1db29cccaf73588d370a03d17b07214919fa2bbb9d6b132e3c7347e0399  browser/control-server.js\n732950631e8e7add671c3f5c307c2e1881d5eca2355045ee9aab0c0036cc21a7  vite.config.ts\n1ab9d09adcd2af1e0f46d0bf2bba077b6e1807bb96dd6888b42fdc788a46c646  tests/collector-restoration.vitest.test.ts\naee0061ecfe6761004034f76ae91db323b83d8c5e3a3b6d2c769307739ed2a83  tests/built-control-assets.vitest.test.ts\n9db1383735bb59c1b8560588545dc6fb5342b273a9605e3cfdef5776304ba2d8  tests/attica-http-preconditions.vitest.test.ts\n101d4e3cc065aed6d80c48f6d7862d7844738b9f499d2eb1cb72b32b2c50af2e  tests/xe-minimal-offline.vitest.test.ts\n07da32cbfa6dbb3876b0b9559de6e4fe831df419a3ef0d82011f8ecc6da730ab  tests/attica-captcha-verification.vitest.test.ts\n9bb8a05f8c77e1e6d366277ef750d3073044f3181a6322f6df7b6dd446b4b29f  tests/helpers/attica-offline-scenarios.ts\n9b98508d699973de1ad75b149660837f78698c001acc7168fc8a2b7a5da59e50  tests/fixtures/attica-captcha-verification.ts\n33d2b00d60a2caf2a7616381d186df356445a705cc62dff590fbba84e610c3a8  fixtures/xe-browser-server.js\ne32f0da4a1b30d13a2c90522bcb81ef71efce8dc3eb9962be74214fc07c86381  dist/browser/control-server.js\nsha256sum: dist/browser-assets/index.html: No such file or directory\n"
+    },
+    {
+      "id": "be384349-7093-4924-b375-de2733e8dc47",
+      "kind": "record_probe",
+      "cmd": "npm exec -- vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": 126,
+      "error": null,
+      "stderr": "sh: 1: vitest: Permission denied\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "d354ba0f-07e3-484e-92f8-ea0dfb11f592",
+      "kind": "record_probe",
+      "cmd": "npm ci --offline",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "npm error code ENOTCACHED\nnpm error request to https://registry.npmjs.org/yocto-queue/-/yocto-queue-0.1.0.tgz failed: cache mode is 'only-if-cached' but no cached response is available.\nnpm error A complete log of this run can be found in: /tmp/atoma-home-lV9ILi/.npm/_logs/2026-10-21T16_00_27_814Z-debug-0.log\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "95d6220a-8912-447c-8f88-406d24218f68",
+      "kind": "record_probe",
+      "cmd": "npx --no-install vitest run tests/captcha-document.vitest.test.ts",
+      "exitCode": 126,
+      "error": null,
+      "stderr": "sh: 1: vitest: Permission denied\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "7eeec472-0efe-4558-a655-2e27c8afa705",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run tests/captcha-document.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "6ee69b7e-303a-429f-b6af-a90295a45497",
+      "kind": "run_shell",
+      "cmd": "node --experimental-strip-types -e \"const m=require('./browser/captcha-document.ts'); console.log(typeof m.acceptsCaptchaDocument)\"",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "file:///workspace/browser/captcha-document.ts:1\nimport xe = require(\"../collectors/xe.ts\");\n^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\nSyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript import equals declaration is not supported in strip-only mode\n    at parseTypeScript (node:internal/modules/typescript:68:40)\n    at processTypeScriptCode (node:internal/modules/typescript:146:42)\n    at stripTypeScriptModuleTypes (node:internal/modules/typescript:215:22)\n    at Module._compile (node:internal/modules/cjs/loader:1883:15)\n    at Object..js (node:internal/modules/cjs/loader:2060:10)\n    at Module.load (node:internal/modules/cjs/loader:1651:32)\n    at Module._load (node:internal/modules/cjs/loader:1443:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)\n    at Module.require (node:internal/modules/cjs/loader:1674:12)\n    at require (node:internal/modules/helpers:157:16) {\n  code: 'ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX'\n}\n\nNode.js v24.22.0\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "1d61d89a-8b45-48a4-95f6-cd5a1525bb44",
+      "kind": "run_shell",
+      "cmd": "node --experimental-strip-types -e \"require('./collectors/xe.ts'); console.log('ok')\"",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "file:///workspace/collectors/xe.ts:264\n\nexport = exported;\n^^^^^^^^^^^^^^^^^^\n\nSyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript export assignment is not supported in strip-only mode\n    at parseTypeScript (node:internal/modules/typescript:68:40)\n    at processTypeScriptCode (node:internal/modules/typescript:146:42)\n    at stripTypeScriptModuleTypes (node:internal/modules/typescript:215:22)\n    at Module._compile (node:internal/modules/cjs/loader:1883:15)\n    at Object..js (node:internal/modules/cjs/loader:2060:10)\n    at Module.load (node:internal/modules/cjs/loader:1651:32)\n    at Module._load (node:internal/modules/cjs/loader:1443:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)\n    at Module.require (node:internal/modules/cjs/loader:1674:12)\n    at require (node:internal/modules/helpers:157:16) {\n  code: 'ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX'\n}\n\nNode.js v24.22.0\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "07e7d3a7-74be-4370-9a5d-ac16ce4ea014",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "d22f79d0-4e96-4e6d-bec3-283944d32f85",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run tests/captcha-document.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "b7cf833b-6934-41f9-8287-2f513d6f5758",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "0eb788cc-8a36-4049-9514-06a1b28eab2f",
+      "kind": "run_shell",
+      "cmd": "grep -n 'fixtures' tsconfig.json tsconfig.build.json",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": ""
+    },
+    {
+      "id": "44358fa9-ca2c-46b9-8e4e-06d83fde632d",
+      "kind": "run_shell",
+      "cmd": "grep -RIn 'fixtures/xe-browser-server.ts\\|fixture server' tsconfig* package.json",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": ""
+    },
+    {
+      "id": "14837000-cbad-4671-8c5d-743d2d93aba5",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run tests/captcha-document.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "c3d44dbb-32b8-4e9d-921f-370ef1625a86",
+      "kind": "record_probe",
+      "cmd": "node /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/vitest.mjs run .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "   at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n  cause: Error: Cannot find module '@rolldown/binding-wasm32-wasi'\n  Require stack:\n  - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n      at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n      ... 8 lines matching cause stack trace ...\n      at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n    cause: Error: Cannot find module './rolldown-binding.wasi.cjs'\n    Require stack:\n    - /tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs\n        at file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/rolldown/dist/shared/binding-BMtuZhvP.mjs:495:18\n        ... 8 lines matching cause stack trace ...\n        at async CAC.run (file:///tmp/atoma-home-lV9ILi/.npm/_npx/69c381f8ad94b576/node_modules/vitest/dist/chunks/cac.CLrZKo1g.js:2344:2) {\n      cause: [Error]\n    }\n  }\n}\n\n\n\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "aebc3bb3-07d7-468f-96d7-79b9884d8474",
+      "kind": "run_shell",
+      "cmd": "node --experimental-transform-types -e \"import('./browser/captcha-document.ts').then(()=>console.log('loaded')).catch(error=>{console.error(error.code||error.name+': '+error.message); process.exitCode=1})\"",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "(node:542) ExperimentalWarning: Transform Types is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:542) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///workspace/browser/captcha-document.ts is not specified and it doesn't parse as CommonJS.\nReparsing as ES module because module syntax was detected. This incurs a performance overhead.\nTo eliminate this warning, add \"type\": \"module\" to /workspace/browser/package.json.\n(node:542) Warning: Failed to load the ES module: /workspace/collectors/xe.ts. Make sure to set \"type\": \"module\" in the nearest package.json file or use the .mjs extension.\nSyntaxError: Cannot use import statement outside a module\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "03ecd6db-a415-4ff1-b677-8d4ec7446315",
+      "kind": "record_probe",
+      "cmd": "node node_modules/vitest/vitest.mjs run tests/captcha-document.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  tests/captcha-document.vitest.test.ts [ tests/captcha-document.vitest.test.ts ]\nError: Cannot find module '../../collect-listings'\nRequire stack:\n- /workspace/collectors/xe.ts\n \u276f collectors/xe.ts:40:34\n     38| };\n     39| \n     40| const { adapter, recordsFrom } = require(\"../../collect-listings\") as {\n       |                                  ^\n     41|   adapter: Adapter;\n     42|   recordsFrom: RecordsFrom;\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n\n Test Files  1 failed (1)\n      Tests  no tests\n   Start at  16:03:43\n   Duration  133ms (transform 32ms, setup 0ms, collect 0ms, tests 0ms, environment 0ms, prepare 29ms)\n\n"
+    },
+    {
+      "id": "66431552-52bc-45d6-b5ad-3e2ad7e35ba0",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 typecheck\n> tsc -p tsconfig.json --noEmit\n\ntests/xe-chromium.test.ts(168,14): error TS2531: Object is possibly 'null'.\ntests/xe-chromium.test.ts(168,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'.\n  Property 'port' does not exist on type 'string'.\n"
+    },
+    {
+      "id": "f3ba8121-5db5-40bf-b3ba-6d8c9099e071",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 typecheck\n> tsc -p tsconfig.json --noEmit\n\ntests/xe-chromium.test.ts(168,14): error TS2531: Object is possibly 'null'.\ntests/xe-chromium.test.ts(168,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'.\n  Property 'port' does not exist on type 'string'.\n"
+    },
+    {
+      "id": "c92ad332-80a6-4336-a430-12422bd111df",
+      "kind": "record_probe",
+      "cmd": "node -e 'const assert=require(\"node:assert/strict\"); const {createNavigationFixture}=require(\"./dist/tests/fixtures/captcha-navigation.js\"); const s=createNavigationFixture(\"search\"),p=s.session.page; (async()=>{assert.equal(p.url(),\"about:blank\");assert.deepEqual(s.navigations,[]);await p.goto(s.target);assert.equal(p.url(),s.target);assert.equal(p.context(),s.session.context);assert.match(await p.content(),/captcha|human verification/i);s.resolve();const body=await p.content();assert.match(body,/selected_values/);assert.doesNotMatch(body,/data-detail-id|<article/i);assert.equal(p.url(),s.target);assert.deepEqual(s.navigations,[s.target]);s.setBody(\"\");assert.equal(await p.content(),\"\");const d=createNavigationFixture(\"detail\"),q=d.session.page;await q.goto(d.target);assert.doesNotMatch(await q.content(),/captcha|human verification/i);const u=new URL(\"/detail/101\",d.target).href;await q.goto(u);assert.match(await q.content(),/captcha|human verification/i);d.resolve();assert.doesNotMatch(await q.content(),/captcha|human verification/i);assert.equal(q.url(),u);assert.equal(q.context(),d.session.context);assert.deepEqual(d.navigations,[d.target,u]);})().catch(e=>{console.error(e);process.exitCode=1})'",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "node:internal/modules/cjs/loader:1568\n  throw err;\n  ^\n\nError: Cannot find module './dist/tests/fixtures/captcha-navigation.js'\nRequire stack:\n- /workspace/[eval]\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)\n    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)\n    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)\n    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)\n    at Module._load (node:internal/modules/cjs/loader:1341:5)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)\n    at Module.require (node:internal/modules/cjs/loader:1674:12)\n    at require (node:internal/modules/helpers:157:16)\n    at [eval]:1:77\n    at runScriptInThisContext (node:internal/vm:219:10) {\n  code: 'MODULE_NOT_FOUND',\n  requireStack: [ '/workspace/[eval]' ]\n}\n\nNode.js v24.22.0\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "3a54fce6-101b-48a3-ae53-3da1a4966915",
+      "kind": "record_probe",
+      "cmd": "npx vitest run tests/fixtures/captcha-navigation.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  tests/fixtures/captcha-navigation.vitest.test.ts > detail challenge is reached by navigation, not resolution setter\nAssertionError: expected '<!doctype html><title>Human verificat\u2026' not to match /captcha|human verification/i\n\n\u001b[32m- Expected:\u001b[39m \n/captcha|human verification/i\n\n\u001b[31m+ Received:\u001b[39m \n\"<!doctype html><title>Human verification</title><p>captcha</p>\"\n\n \u276f tests/fixtures/captcha-navigation.vitest.test.ts:35:36\n     33|   expect(await page.content()).toMatch(/captcha|human verification/i);\n     34|   fixture.resolve();\n     35|   expect(await page.content()).not.toMatch(/captcha|human verification\u2026\n       |                                    ^\n     36|   expect(page.url()).toBe(detailUrl);\n     37|   expect(page.context()).toBe(fixture.session.context);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u276f tests/fixtures/captcha-navigation.vitest.test.ts (2 tests | 1 failed) 4ms\n   \u2713 search resolution never invents navigation or detail identity 1ms\n   \u00d7 detail challenge is reached by navigation, not resolution setter 3ms\n     \u2192 expected '<!doctype html><title>Human verificat\u2026' not to match /captcha|human verification/i\n\n Test Files  1 failed (1)\n      Tests  1 failed | 1 passed (2)\n   Start at  16:04:24\n   Duration  120ms (transform 19ms, setup 0ms, collect 18ms, tests 4ms, environment 0ms, prepare 26ms)\n\n"
+    },
+    {
+      "id": "5e9a535c-272c-4855-a6ac-fa4c3a16243a",
+      "kind": "record_probe",
+      "cmd": "npx tsc --noEmit --strict --target ES2022 --module CommonJS --moduleResolution Node --esModuleInterop --skipLibCheck --types node,vitest/globals tests/fixtures/captcha-navigation.ts tests/fixtures/captcha-navigation.vitest.test.ts",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "tests/fixtures/captcha-navigation.vitest.test.ts(7,15): error TS2339: Property 'url' does not exist on type 'BrowserPage'.\ntests/fixtures/captcha-navigation.vitest.test.ts(10,15): error TS2339: Property 'url' does not exist on type 'BrowserPage'.\ntests/fixtures/captcha-navigation.vitest.test.ts(18,15): error TS2339: Property 'url' does not exist on type 'BrowserPage'.\ntests/fixtures/captcha-navigation.vitest.test.ts(22,15): error TS2339: Property 'url' does not exist on type 'BrowserPage'.\ntests/fixtures/captcha-navigation.vitest.test.ts(36,15): error TS2339: Property 'url' does not exist on type 'BrowserPage'.\n"
+    },
+    {
+      "id": "5867d458-dd45-49f2-b1b8-f1db13b16fe0",
+      "kind": "record_probe",
+      "cmd": "npx vitest run .atoma-scratch/parent-acceptance.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "No test files found, exiting with code 1\n\nfilter: .atoma-scratch/parent-acceptance.vitest.test.ts\ninclude: tests/**/*.vitest.test.ts, tests/attica-offline-runtime.ts\nexclude:  **/node_modules/**, **/dist/**, **/cypress/**, **/.{idea,git,cache,output,temp}/**, **/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build,eslint,prettier}.config.*\n\n",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n"
+    },
+    {
+      "id": "568c7ffb-9824-4951-a9c7-fbbf50d0a3d4",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 typecheck\n> tsc -p tsconfig.json --noEmit\n\ntests/xe-chromium.test.ts(168,14): error TS2531: Object is possibly 'null'.\ntests/xe-chromium.test.ts(168,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'.\n  Property 'port' does not exist on type 'string'.\n"
+    },
+    {
+      "id": "5419ef62-5947-42f6-a1ba-2ab817bb7bd7",
+      "kind": "record_probe",
+      "cmd": "npx eslint browser/captcha-document.ts tests/captcha-document.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n/workspace/browser/captcha-document.ts\n  1:13  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports\n\n\u2716 1 problem (1 error, 0 warnings)\n\n"
+    },
+    {
+      "id": "82f04e89-9e61-436f-a6f1-f391aed9cb3e",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 typecheck\n> tsc -p tsconfig.json --noEmit\n\ntests/xe-chromium.test.ts(168,14): error TS2531: Object is possibly 'null'.\ntests/xe-chromium.test.ts(168,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'.\n  Property 'port' does not exist on type 'string'.\n"
+    },
+    {
+      "id": "89918ee3-d910-4f2d-a735-9b4551ad5b57",
+      "kind": "record_probe",
+      "cmd": "npm run lint",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 lint\n> eslint collect-listings.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'\n\n\n/workspace/tests/fixtures/captcha-navigation.ts\n  50:7   error  'page' is never reassigned. Use 'const' instead   prefer-const\n  53:5   error  Async method 'newPage' has no 'await' expression  @typescript-eslint/require-await\n  54:5   error  Async method 'route' has no 'await' expression    @typescript-eslint/require-await\n  55:5   error  Async method 'close' has no 'await' expression    @typescript-eslint/require-await\n  58:5   error  Async method 'goto' has no 'await' expression     @typescript-eslint/require-await\n  67:35  error  Async method 'headers' has no 'await' expression  @typescript-eslint/require-await\n  71:5   error  Async method 'content' has no 'await' expression  @typescript-eslint/require-await\n  73:5   error  Async method 'close' has no 'await' expression    @typescript-eslint/require-await\n  74:23  error  Async method 'click' has no 'await' expression    @typescript-eslint/require-await\n\n/workspace/tests/xe-chromium.test.ts\n  168:9  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment\n\n\u2716 10 problems (10 errors, 0 warnings)\n\n"
+    },
+    {
+      "id": "15b884d7-1bbe-4327-99f8-3a97e31c0176",
+      "kind": "run_shell",
+      "cmd": "npx tsc -p tsconfig.json --noEmit",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "browser/collect-xe-browser.ts(256,143): error TS2304: Cannot find name 'detailBody'.\nbrowser/collect-xe-browser.ts(256,154): error TS2304: Cannot find name 'detailStatus'.\nbrowser/collect-xe-browser.ts(256,219): error TS2304: Cannot find name 'finalUrl'.\ntests/xe-chromium.test.ts(168,14): error TS2531: Object is possibly 'null'.\ntests/xe-chromium.test.ts(168,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'.\n  Property 'port' does not exist on type 'string'.\n"
+    },
+    {
+      "id": "70cb52bc-062b-4ac1-a248-51a777d3b9f8",
+      "kind": "run_shell",
+      "cmd": "npx eslint browser/captcha-document.ts browser/control-server.ts browser/collect-xe-browser.ts tests/fixtures/attica-captcha-verification.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n/workspace/browser/captcha-document.ts\n  1:13  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports\n\n/workspace/browser/collect-xe-browser.ts\n  256:143  error  Unsafe argument of type error typed assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument\n  256:154  error  Unsafe argument of type error typed assigned to a parameter of type `number`  @typescript-eslint/no-unsafe-argument\n\n\u2716 3 problems (3 errors, 0 warnings)\n\n"
+    },
+    {
+      "id": "478df7b3-78e9-4049-af23-630fb94ca09e",
+      "kind": "run_shell",
+      "cmd": "npm run build",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\nbrowser/collect-xe-browser.ts(256,143): error TS2304: Cannot find name 'detailBody'.\nbrowser/collect-xe-browser.ts(256,154): error TS2304: Cannot find name 'detailStatus'.\nbrowser/collect-xe-browser.ts(256,219): error TS2304: Cannot find name 'finalUrl'.\n"
+    },
+    {
+      "id": "bcbd3813-99a7-4dbb-bb15-2c9964dfa86b",
+      "kind": "run_shell",
+      "cmd": "npx tsc -p tsconfig.json --noEmit",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "tests/xe-chromium.test.ts(168,14): error TS2531: Object is possibly 'null'.\ntests/xe-chromium.test.ts(168,32): error TS2339: Property 'port' does not exist on type 'string | AddressInfo'.\n  Property 'port' does not exist on type 'string'.\n"
+    },
+    {
+      "id": "689fe1df-0ec8-43c3-ae6f-eb64841ed9fc",
+      "kind": "run_shell",
+      "cmd": "npx vitest run tests/attica-captcha-verification.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  tests/attica-captcha-verification.vitest.test.ts > compiled CAPTCHA verification requires current resolved detail evidence\nAssertionError: expected 403 to be 200 // Object.is equality\n\n\u001b[32m- Expected\u001b[39m\n\u001b[31m+ Received\u001b[39m\n\n\u001b[32m- 200\u001b[39m\n\u001b[31m+ 403\u001b[39m\n\n \u276f tests/attica-captcha-verification.vitest.test.ts:85:29\n     83|     const before = fixture.navigation.length;\n     84|     const verified = await post(live.base, \"/api/verify-access\");\n     85|     expect(verified.status).toBe(200);\n       |                             ^\n     86|     expect(verified.body).toEqual({ status: \"verified\", message: \"acce\u2026\n     87|     expect(JSON.parse(await readFile(fixture.statePath, \"utf8\"))).toMa\u2026\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u276f tests/attica-captcha-verification.vitest.test.ts (1 test | 1 failed) 266ms\n   \u00d7 compiled CAPTCHA verification requires current resolved detail evidence 265ms\n     \u2192 expected 403 to be 200 // Object.is equality\n\n Test Files  1 failed (1)\n      Tests  1 failed (1)\n   Start at  16:18:35\n   Duration  380ms (transform 21ms, setup 0ms, collect 24ms, tests 266ms, environment 0ms, prepare 26ms)\n\n"
+    },
+    {
+      "id": "0e733263-7e76-43e1-9010-a150ce0dc7e6",
+      "kind": "run_shell",
+      "cmd": "npm run lint",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 lint\n> eslint collect-listings.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'\n\n\n/workspace/tests/fixtures/captcha-navigation.ts\n  50:7   error  'page' is never reassigned. Use 'const' instead   prefer-const\n  53:5   error  Async method 'newPage' has no 'await' expression  @typescript-eslint/require-await\n  54:5   error  Async method 'route' has no 'await' expression    @typescript-eslint/require-await\n  55:5   error  Async method 'close' has no 'await' expression    @typescript-eslint/require-await\n  58:5   error  Async method 'goto' has no 'await' expression     @typescript-eslint/require-await\n  67:35  error  Async method 'headers' has no 'await' expression  @typescript-eslint/require-await\n  71:5   error  Async method 'content' has no 'await' expression  @typescript-eslint/require-await\n  73:5   error  Async method 'close' has no 'await' expression    @typescript-eslint/require-await\n  74:23  error  Async method 'click' has no 'await' expression    @typescript-eslint/require-await\n\n\u2716 9 problems (9 errors, 0 warnings)\n\n"
+    },
+    {
+      "id": "0178cf5c-5aca-4ed3-a495-9ecc5b56afc1",
+      "kind": "run_shell",
+      "cmd": "npm run test",
+      "exitCode": 1,
+      "error": null,
+      "stderr": " 200 // Object.is equality\n\n\u001b[32m- Expected\u001b[39m\n\u001b[31m+ Received\u001b[39m\n\n\u001b[32m- 200\u001b[39m\n\u001b[31m+ 403\u001b[39m\n\n \u276f tests/attica-offline-runtime.ts:24:35\n     22|     expect(result.pauseType).toBe(\"captcha\");\n     23|     expect(result.unverifiedResumeStatus).toBe(425);\n     24|     expect(result.verifiedStatus).toBe(200);\n       |                                   ^\n     25|     expect(result.failedVerificationStatus).toBe(403);\n     26|     expect(result.failedVerificationReleasedPause).toBe(false);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/3]\u23af\n\n FAIL  tests/attica-offline-runtime.ts > Attica offline runtime > search CAPTCHA is distinct and failed verification preserves the pause\nAssertionError: expected 403 to be 200 // Object.is equality\n\n\u001b[32m- Expected\u001b[39m\n\u001b[31m+ Received\u001b[39m\n\n\u001b[32m- 200\u001b[39m\n\u001b[31m+ 403\u001b[39m\n\n \u276f tests/attica-offline-runtime.ts:61:35\n     59|     expect(result.failedVerificationReleasedPause).toBe(false);\n     60|     expect(result.pauseAfterFailedVerification).toBe(\"captcha\");\n     61|     expect(result.verifiedStatus).toBe(200);\n       |                                   ^\n     62|     expect(result.resumeStatus).toBe(202);\n     63|   }, 30000);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[3/3]\u23af\n\n",
+      "stdoutTail": "/attica-captcha-verification.vitest.test.ts (1 test) 361ms\n   \u2713 compiled CAPTCHA verification requires current resolved detail evidence  360ms\n \u2713 tests/xe-compiled-boundary.vitest.test.ts (2 tests) 2ms\n \u2713 tests/attica-persistence.vitest.test.ts (3 tests) 3ms\n \u2713 tests/fixtures/captcha-navigation.vitest.test.ts (2 tests) 2ms\n \u2713 tests/attica-scheduler.vitest.test.ts (1 test) 10ms\nstdout | tests/tmp-probe.vitest.test.ts > debug-server-clock\nclock0 \u001b[33m1792599567843\u001b[39m \u001b[33m1792670400000\u001b[39m \u001b[33m1792599567858\u001b[39m\nclock1 \u001b[33m1792670399986\u001b[39m \u001b[33m1792670400000\u001b[39m\n\nstdout | tests/tmp-probe.vitest.test.ts > debug-server-clock\ntick { due: \u001b[33mfalse\u001b[39m }\n\n \u2713 tests/tmp-probe.vitest.test.ts (1 test) 19ms\n \u276f tests/attica-control-captcha.vitest.test.ts (1 test | 1 failed) 13ms\n   \u00d7 strict TypeScript companion establishes resolved detail evidence for legacy CAPTCHA controls 12ms\n     \u2192 expected 403 to be 200 // Object.is equality\n \u2713 tests/xe-restoration.vitest.test.ts (5 tests) 2076ms\n   \u2713 resume continues past twelve consumed requests  409ms\n   \u2713 persisted CAPTCHA rejects repeatedly until explicit store clearing  403ms\n   \u2713 resumed CAPTCHA remains blocked across reopened stores until explicitly cleared  410ms\n   \u2713 collect enforces the persisted Retry-After deadline across reopening  424ms\n   \u2713 resume enforces the persisted Retry-After deadline across reopening  427ms\n\n Test Files  2 failed | 25 passed (27)\n      Tests  3 failed | 75 passed (78)\n   Start at  16:19:26\n   Duration  2.53s (transform 243ms, setup 0ms, collect 449ms, tests 4.62s, environment 2ms, prepare 618ms)\n\n"
+    },
+    {
+      "id": "50a9949a-3d70-4722-9c35-3252bea8d04c",
+      "kind": "run_shell",
+      "cmd": "npx vitest run tests/attica-control-captcha.vitest.test.ts tests/attica-offline-runtime.ts tests/attica-captcha-verification.vitest.test.ts",
+      "exitCode": 1,
+      "error": null,
+      "stderr": " 200 // Object.is equality\n\n\u001b[32m- Expected\u001b[39m\n\u001b[31m+ Received\u001b[39m\n\n\u001b[32m- 200\u001b[39m\n\u001b[31m+ 403\u001b[39m\n\n \u276f tests/attica-offline-runtime.ts:24:35\n     22|     expect(result.pauseType).toBe(\"captcha\");\n     23|     expect(result.unverifiedResumeStatus).toBe(425);\n     24|     expect(result.verifiedStatus).toBe(200);\n       |                                   ^\n     25|     expect(result.failedVerificationStatus).toBe(403);\n     26|     expect(result.failedVerificationReleasedPause).toBe(false);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/2]\u23af\n\n FAIL  tests/attica-offline-runtime.ts > Attica offline runtime > search CAPTCHA is distinct and failed verification preserves the pause\nAssertionError: expected 403 to be 200 // Object.is equality\n\n\u001b[32m- Expected\u001b[39m\n\u001b[31m+ Received\u001b[39m\n\n\u001b[32m- 200\u001b[39m\n\u001b[31m+ 403\u001b[39m\n\n \u276f tests/attica-offline-runtime.ts:61:35\n     59|     expect(result.failedVerificationReleasedPause).toBe(false);\n     60|     expect(result.pauseAfterFailedVerification).toBe(\"captcha\");\n     61|     expect(result.verifiedStatus).toBe(200);\n       |                                   ^\n     62|     expect(result.resumeStatus).toBe(202);\n     63|   }, 30000);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/2]\u23af\n\n",
+      "stdoutTail": "\n RUN  v3.2.4 /workspace\n\n \u2713 tests/attica-control-captcha.vitest.test.ts (1 test) 11ms\n \u276f tests/attica-offline-runtime.ts (9 tests | 2 failed) 123ms\n   \u2713 Attica offline runtime > rejects an invalid page bound before navigation 32ms\n   \u00d7 Attica offline runtime > CAPTCHA is blocked before verification and resumes in the same session 16ms\n     \u2192 expected 403 to be 200 // Object.is equality\n   \u2713 Attica offline runtime > Retry-After is durable and blocks premature resume 11ms\n   \u2713 Attica offline runtime > HTTP contract observes real announcements and schedule responses 11ms\n   \u00d7 Attica offline runtime > search CAPTCHA is distinct and failed verification preserves the pause 11ms\n     \u2192 expected 403 to be 200 // Object.is equality\n   \u2713 Attica offline runtime > cancellation survives recreation and blocks work until explicitly lifted 12ms\n   \u2713 Attica offline runtime > concurrent admission rejects the overlap and releases after completion 9ms\n   \u2713 Attica offline runtime > scheduler uses the isolated clock and triggers only after nextDueAt 12ms\n   \u2713 Attica offline runtime > runScenario delegates to the supplied observable factory 10ms\n \u2713 tests/attica-captcha-verification.vitest.test.ts (1 test) 357ms\n   \u2713 compiled CAPTCHA verification requires current resolved detail evidence  357ms\n\n Test Files  1 failed | 2 passed (3)\n      Tests  2 failed | 9 passed (11)\n   Start at  16:19:52\n   Duration  484ms (transform 71ms, setup 0ms, collect 110ms, tests 492ms, environment 0ms, prepare 72ms)\n\n"
+    },
+    {
+      "id": "ca54413c-59a9-4aab-a5cb-2dcb1dd40cf0",
+      "kind": "record_probe",
+      "cmd": "npm run test:browser",
+      "exitCode": 1,
+      "error": "run_shell: timed out after 120000ms (process group killed). A finite command that needs longer may pass timeoutMs, up to 300000; a server belongs to start_node_server.",
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 test:browser\n> sh -c 'npm run build && node --test \"$@\" tests/xe-browser-local-hardening.test.js tests/xe-browser-integration.test.js tests/xe-chromium.test.ts' --\n\n\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\nvite v7.1.7 building for production...\ntransforming...\n\u2713 4 modules transformed.\nrendering chunks...\ncomputing gzip size...\n../dist/browser-assets/control.html                8.16 kB \u2502 gzip: 3.03 kB\n../dist/browser-assets/assets/control-Dy921WaC.js  3.35 kB \u2502 gzip: 1.36 kB\n\u2713 built in 48ms\n\u2714 production control path validates requests, is idle, and exposes UI (14.859875ms)\n\u2714 HTTP 200 challenge persists request consumption, and later batches preserve exports (10553.191588ms)\n\u2714 repeated challenge resumes can continue beyond twelve requests (11480.534922ms)\n\u2714 cancel during a resumed navigation preserves completed rows through the real control API (10369.86938ms)\n\u2714 desktop gateway refuses missing, foreign and wrong-port WebSocket origins (7.682667ms)\n\u2714 Retry-After stops and persists collected progress instead of allowing a challenge retry (10228.001504ms)\n\u2714 an interrupted navigation is checkpointed and never retried automatically (103.060459ms)\n\u2714 request budget is durable before the browser sends the request (10217.26663ms)\n"
+    },
+    {
+      "id": "f95c30d1-32a0-4971-af1f-ab0f9195222c",
+      "kind": "run_shell",
+      "cmd": "rm -rf .atoma-skeleton && mkdir .atoma-skeleton && atoma-scaffold fullstack .atoma-skeleton",
+      "exitCode": 127,
+      "error": null,
+      "stderr": "bash: line 1: atoma-scaffold: command not found\n",
+      "stdoutTail": ""
+    },
+    {
+      "id": "bb7231be-ccae-4133-a8a6-0b01720d8067",
+      "kind": "run_shell",
+      "cmd": "npm run build",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\nbrowser/fixture-server.ts(9,7): error TS2441: Duplicate identifier 'require'. Compiler reserves name 'require' in top level scope of a module.\n"
+    },
+    {
+      "id": "5163bf87-472a-4c79-819a-874da12a31ca",
+      "kind": "run_shell",
+      "cmd": "npm run lint",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 lint\n> eslint collect-listings.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'\n\n\n/workspace/tests/fixtures/captcha-contract.ts\n   81:5   error  Async method 'goto' has no 'await' expression           @typescript-eslint/require-await\n   86:35  error  Async method 'headers' has no 'await' expression        @typescript-eslint/require-await\n   89:5   error  Async method 'content' has no 'await' expression        @typescript-eslint/require-await\n   94:5   error  Async method 'close' has no 'await' expression          @typescript-eslint/require-await\n   95:23  error  Async method 'click' has no 'await' expression          @typescript-eslint/require-await\n   99:5   error  Async method 'newPage' has no 'await' expression        @typescript-eslint/require-await\n  100:5   error  Async method 'route' has no 'await' expression          @typescript-eslint/require-await\n  101:5   error  Async method 'close' has no 'await' expression          @typescript-eslint/require-await\n  118:7   error  'currentKind' is never reassigned. Use 'const' instead  prefer-const\n  119:7   error  'faultMode' is assigned a value but never used          @typescript-eslint/no-unused-vars\n\n\u2716 10 problems (10 errors, 0 warnings)\n  1 error and 0 warnings potentially fixable with the `--fix` option.\n\n"
+    },
+    {
+      "id": "85f9918b-949a-41d9-9195-e6b66938f4a1",
+      "kind": "run_shell",
+      "cmd": "npm run lint && npm run typecheck",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 lint\n> eslint collect-listings.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'\n\n\n/workspace/tests/fixtures/captcha-contract.ts\n  1:0  error  Parsing error: Unexpected keyword or identifier\n\n\u2716 1 problem (1 error, 0 warnings)\n\n"
+    },
+    {
+      "id": "93170e2e-d2b7-4ef2-96bd-b1641be649a2",
+      "kind": "record_probe",
+      "cmd": "npm run typecheck",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "ord or identifier.\ntests/fixtures/captcha-contract.ts(2,67): error TS1435: Unknown keyword or identifier. Did you mean 'new lines'?\ntests/fixtures/captcha-contract.ts(2,76): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,80): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,84): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,99): error TS1005: ';' expected.\ntests/fixtures/captcha-contract.ts(2,104): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,147): error TS1005: ';' expected.\ntests/fixtures/captcha-contract.ts(2,153): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,161): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(2,164): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(3,1): error TS1003: Identifier expected.\ntests/fixtures/captcha-contract.ts(3,3): error TS1109: Expression expected.\ntests/fixtures/captcha-contract.ts(3,11): error TS1005: ';' expected.\ntests/fixtures/captcha-contract.ts(4,1): error TS1109: Expression expected.\ntests/fixtures/captcha-contract.ts(92,27): error TS1127: Invalid character.\ntests/fixtures/captcha-contract.ts(92,28): error TS1434: Unexpected keyword or identifier.\ntests/fixtures/captcha-contract.ts(177,3): error TS1109: Expression expected.\ntests/fixtures/captcha-contract.ts(177,9): error TS1005: ';' expected.\ntests/fixtures/captcha-contract.ts(177,25): error TS1109: Expression expected.\n"
+    },
+    {
+      "id": "0f04fb1b-a948-4c5f-941a-017b146af707",
+      "kind": "run_shell",
+      "cmd": "npm run lint && npm run typecheck",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 lint\n> eslint collect-listings.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'\n\n\n/workspace/tests/fixtures/captcha-contract.ts\n  1:0  error  Parsing error: Unexpected keyword or identifier\n\n\u2716 1 problem (1 error, 0 warnings)\n\n"
+    },
+    {
+      "id": "69c6b5ab-a35a-477d-83c3-c98adf6a82ac",
+      "kind": "record_probe",
+      "cmd": "npm run build",
+      "exitCode": 2,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 build\n> tsc -p tsconfig.build.json && vite build\n\ncollect-attica.ts(7,7): error TS2441: Duplicate identifier 'require'. Compiler reserves name 'require' in top level scope of a module.\ncollect-spitogatos.ts(5,7): error TS2441: Duplicate identifier 'require'. Compiler reserves name 'require' in top level scope of a module.\ncollect-xe-live.ts(13,7): error TS2441: Duplicate identifier 'require'. Compiler reserves name 'require' in top level scope of a module.\nimport-spitogatos-browser.ts(21,7): error TS2441: Duplicate identifier 'require'. Compiler reserves name 'require' in top level scope of a module.\n"
+    },
+    {
+      "id": "c4f791c2-c8c1-4752-bcec-51f3ad204b54",
+      "kind": "run_shell",
+      "cmd": "npm run lint",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 lint\n> eslint collect-listings.ts \"browser/**/*.ts\" \"collectors/**/*.ts\" \"tests/**/*.ts\" --rule '@typescript-eslint/no-require-imports: [\"error\", {\"allow\":[\"^node:\",\"^\\.\\.?/\"]}]'\n\n\n/workspace/tests/fixtures/captcha-contract.ts\n  90:33  error  Async method 'headers' has no 'await' expression  @typescript-eslint/require-await\n\n\u2716 1 problem (1 error, 0 warnings)\n\n"
+    },
+    {
+      "id": "371e290f-7ba4-4372-8ba3-8a953126236b",
+      "kind": "record_probe",
+      "cmd": "npm run test:legacy",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "\n> attica-property-collector@1.0.0 test:legacy\n> node --test tests/legacy-typescript.ts\n\n(node:7203) Warning: Failed to load the ES module: /workspace/tests/legacy-typescript.ts. Make sure to set \"type\": \"module\" in the nearest package.json file or use the .mjs extension.\n(Use `node --trace-warnings ...` to show where the warning was created)\n/workspace/tests/legacy-typescript.ts:1\nimport { createRequire } from \"node:module\";\n^^^^^^\n\nSyntaxError: Cannot use import statement outside a module\n    at wrapSafe (node:internal/modules/cjs/loader:1861:18)\n    at Module._compile (node:internal/modules/cjs/loader:1903:20)\n    at Object..js (node:internal/modules/cjs/loader:2060:10)\n    at Module.load (node:internal/modules/cjs/loader:1651:32)\n    at Module._load (node:internal/modules/cjs/loader:1443:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)\n    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\n    at node:internal/main/run_main_module:33:47\n\nNode.js v24.22.0\n\u2716 tests/legacy-typescript.ts (63.595167ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 67.175334\n\n\u2716 failing tests:\n\ntest at tests/legacy-typescript.ts:1:1\n\u2716 tests/legacy-typescript.ts (63.595167ms)\n  'test failed'\n"
+    },
+    {
+      "id": "76d7a0e3-940b-4a6e-a2a4-58be6b89e242",
+      "kind": "run_shell",
+      "cmd": "npm run lint",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "of `this` when separated from its object.\nConsider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. \nIf a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method\n  23:3   error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator                                                                                                                                                                          @typescript-eslint/no-floating-promises\n\n/workspace/fixtures/xe-browser-server.d.ts\n  0:0  error  Parsing error: /workspace/fixtures/xe-browser-server.d.ts was not found by the project service. Consider either including it in the tsconfig.json or including it in allowDefaultProject.\nallowDefaultProject is set to [\"browser/control-server.d.ts\",\"browser/local-security.d.ts\",\"browser/xe-browser-session.d.ts\",\"browser/collect-xe-browser.d.ts\",\"collectors/xe.d.ts\"], which does not match 'fixtures/xe-browser-server.d.ts'\n\n/workspace/tests/legacy-typescript.ts\n   1:7   error  Unsafe assignment of an `any` value    @typescript-eslint/no-unsafe-assignment\n   3:7   error  Unsafe assignment of an `any` value    @typescript-eslint/no-unsafe-assignment\n   3:20  error  Unsafe call of a(n) `any` typed value  @typescript-eslint/no-unsafe-call\n  29:3   error  Unsafe call of a(n) `any` typed value  @typescript-eslint/no-unsafe-call\n\n\u2716 8 problems (8 errors, 0 warnings)\n\n"
+    },
+    {
+      "id": "f40e11a3-b48c-4726-b1b7-30c32dddbb7b",
+      "kind": "record_probe",
+      "cmd": "npm run test:legacy",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "t:974:7) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: 403,\n    expected: 200,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at tests/attica-hosted-ui.test.js:25:1\n\u2716 hosted flow migrates fixture listings, pauses CAPTCHA, resumes same session and protects mutations (214.984334ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  403 !== 200\n  \n      at TestContext.<anonymous> (/workspace/tests/attica-hosted-ui.test.js:36:27)\n      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n      at async Test.run (node:internal/test_runner/test:1409:7)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 403,\n    expected: 200,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at tests/xe-browser-hosting-integration.test.js:41:1\n\u2716 hosted French control proves pause, fixture-only approval, same context and durable exports (213.425875ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  403 !== 200\n  \n      at TestContext.<anonymous> (/workspace/tests/xe-browser-hosting-integration.test.js:76:10)\n      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n      at async Test.run (node:internal/test_runner/test:1409:7)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 403,\n    expected: 200,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "id": "208f6236-f24d-4e7a-8282-ac75a3584cd5",
+      "kind": "record_probe",
+      "cmd": "npm run lint",
+      "exitCode": 1,
+      "error": null,
+      "stderr": "",
+      "stdoutTail": "of `this` when separated from its object.\nConsider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. \nIf a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method\n  23:3   error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator                                                                                                                                                                          @typescript-eslint/no-floating-promises\n\n/workspace/fixtures/xe-browser-server.d.ts\n  0:0  error  Parsing error: /workspace/fixtures/xe-browser-server.d.ts was not found by the project service. Consider either including it in the tsconfig.json or including it in allowDefaultProject.\nallowDefaultProject is set to [\"browser/control-server.d.ts\",\"browser/local-security.d.ts\",\"browser/xe-browser-session.d.ts\",\"browser/collect-xe-browser.d.ts\",\"collectors/xe.d.ts\"], which does not match 'fixtures/xe-browser-server.d.ts'\n\n/workspace/tests/legacy-typescript.ts\n   1:7   error  Unsafe assignment of an `any` value    @typescript-eslint/no-unsafe-assignment\n   3:7   error  Unsafe assignment of an `any` value    @typescript-eslint/no-unsafe-assignment\n   3:20  error  Unsafe call of a(n) `any` typed value  @typescript-eslint/no-unsafe-call\n  29:3   error  Unsafe call of a(n) `any` typed value  @typescript-eslint/no-unsafe-call\n\n\u2716 8 problems (8 errors, 0 warnings)\n\n"
+    }
+  ]
+}

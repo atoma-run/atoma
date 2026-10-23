@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "registeredAt": "2026-10-22T06:16:35.103004+00:00",
+  "question": "How do tool-evidence budget and selection affect retained observations, validation errors and total verification cost?",
+  "scope": "Exploratory follow-up with the actual pinned implementation source supplied identically in every arm; retain the initial series unchanged.",
+  "budgetsChars": [
+    12000,
+    24000,
+    48000,
+    96000
+  ],
+  "selectors": {
+    "baseline": "f488de32aa9ec8b9bbbfbca39b32226619b7a99a",
+    "candidate": "00546c625d4bc2da3be77da3b1f26e2da8f41555"
+  },
+  "phaseA": {
+    "runs": [
+      "40fd0b7c-ed1d-4b21-a302-5429239f6ac1",
+      "f837ec7a-6353-4449-981c-ed91bc0d65e2",
+      "b920faf6-7bd7-4e89-87f8-7176c1c97f92"
+    ],
+    "b920MaxEventIndex": 874,
+    "priorKnowledge": "Review874 and its omitted successful matrix executions are the development incident, not held-out evidence.",
+    "eligibility": "Every completed L2 RESULT validation in the frozen run/prefix with one originating branch in transport evidence. Reconstruct branch/attempt records through the last visible attestation. Include only exact baseline24k rendered-line matches; report all exclusions.",
+    "privacy": "Read snapshots on host. Export only aggregate numeric metrics, source/input hashes and record/event identifiers; no prompts, command text, secrets, traces or artifacts.",
+    "metrics": [
+      "actual rendered characters",
+      "latest command observations retained",
+      "known successful/failing/unknown outcomes retained",
+      "full versus partial observations",
+      "file/browser observations retained",
+      "omissions"
+    ],
+    "interpretation": "Retention does not establish behavioral coverage, freshness, correctness or automatic acceptance. Historical observations are not upgraded."
+  },
+  "phaseB": {
+    "corpus": "Existing proof-replay-2026-10-04 controlled fixtures and independently executed original/corrected/three-mutant oracles; freeze exact requests before calls.",
+    "model": "gpt-5.6-luna",
+    "payer": "existing owner Codex subscription; no model/account changes",
+    "repeats": 1,
+    "maxCalls": 40,
+    "ordering": "Rotate the eight selector/budget arms across case and repeat; serial calls, no tools or store/trust mutation, after the active Attica run ends.",
+    "metrics": [
+      "false approval",
+      "false refusal",
+      "parse/transport failure",
+      "observed input/output usage",
+      "call duration",
+      "subscription-equivalent cost"
+    ],
+    "negativeControls": "Explicit broken behavior, labels without assertions, and unchanged required denial/identity/lifecycle checks are never waived.",
+    "stopRule": "Stop on authorization/quota failure or at 06:55 UTC; save incomplete measurements explicitly rather than changing inputs or thresholds.",
+    "paddingRecords": 64,
+    "sourcePageChars": 1000
+  },
+  "costInterpretation": {
+    "direct": "Measure actual tool-free replay usage and latency with the same model/transport.",
+    "retry": "Measure historical rework windows without claiming all intervening work was caused by evidence omission; any counterfactual total uses clearly labelled sensitivity estimates.",
+    "limitation": "A causal total-run cost conclusion requires paired ordinary end-to-end runs under the same goals/models/sandbox/budgets. No new 90-minute Attica run fits the current session; do not infer an optimal global budget from this pilot."
+  },
+  "decision": "40 additional serial tool-free calls, five unchanged cases across eight arms, after the initial 80-call series. Stop on first transport error or 06:55 UTC. Separate descriptive results; no pooled false-refusal causal claim and no automatic production budget change.",
+  "followupReason": "Initial model refusals on the corrected oracle case ask for otherwise-available seed inventory, a precondition absent from every initial prompt. Such disagreement cannot be attributed solely to truncation. Supply the actual independently executed server source; do not edit tests, expectations, or initial responses.",
+  "amendedBeforeCallsAt": "2026-10-22T06:19:21.521539+00:00",
+  "amendmentReason": "Prepared request hashes show 48k and96k are identical under16 padded records, so those arms do not test additional context. Before any follow-up call, raise identical padding to64records and supply actual source in complete1000-character read_file pages, each canonical observation verified not cut. Original 80-call study and the first prepared follow-up inputs remain unchanged on disk."
+}

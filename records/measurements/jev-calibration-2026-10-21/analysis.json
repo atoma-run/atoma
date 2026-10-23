@@ -1,0 +1,124 @@
+{
+  "calibration": {
+    "enumeratedDecisions": 1562,
+    "records": 989,
+    "answered": 962,
+    "failedClosed": 27,
+    "unparsed": 1,
+    "ineligibleResults": 235,
+    "excludedDelegationReviews": 313,
+    "excludedParentSuites": 24,
+    "costUsd": 0.90683
+  },
+  "live": {
+    "runs": 104,
+    "jevCostUsd": 1.329901986,
+    "auditCostUsd": 0.13571124000000004,
+    "modelFallbackCostUsd": 22.22532977,
+    "knownBaselineEstimatedNetSavingUsd": 6.697210699000002,
+    "roles": {
+      "prefilter": {
+        "runs": 104,
+        "calls": 1097,
+        "avoidedModelCalls": 416,
+        "failures": 0,
+        "jevCostUsd": 0.8016264479999999,
+        "auditCostUsd": 0,
+        "modelFallbackCostUsd": 0.6561375200000003,
+        "measuredTotalCostUsd": 1.4577639680000005,
+        "estimatedNetSavingUsd": -0.05759394799999999,
+        "savingUnknownRuns": 11,
+        "savingUnknownJevCostUsd": 0.02035908,
+        "medianOfRunMediansMs": 395.25
+      },
+      "execute-effort": {
+        "runs": 93,
+        "calls": 661,
+        "avoidedModelCalls": 0,
+        "failures": 0,
+        "jevCostUsd": 0.043589952000000015,
+        "auditCostUsd": 0,
+        "modelFallbackCostUsd": 0,
+        "measuredTotalCostUsd": 0.043589952000000015,
+        "estimatedNetSavingUsd": 0,
+        "savingUnknownRuns": 93,
+        "savingUnknownJevCostUsd": 0.043589952000000015,
+        "medianOfRunMediansMs": 254
+      },
+      "validate-plan": {
+        "runs": 75,
+        "calls": 531,
+        "avoidedModelCalls": 248,
+        "failures": 6,
+        "jevCostUsd": 0.19757606400000005,
+        "auditCostUsd": 0.12606676000000003,
+        "modelFallbackCostUsd": 14.972484329999999,
+        "measuredTotalCostUsd": 15.296127153999999,
+        "estimatedNetSavingUsd": 7.036933135000002,
+        "savingUnknownRuns": 5,
+        "savingUnknownJevCostUsd": 0.005228244,
+        "medianOfRunMediansMs": 338
+      },
+      "validate-result": {
+        "runs": 62,
+        "calls": 342,
+        "avoidedModelCalls": 1,
+        "failures": 1,
+        "jevCostUsd": 0.28271728799999996,
+        "auditCostUsd": 0.009644480000000002,
+        "modelFallbackCostUsd": 6.596707920000001,
+        "measuredTotalCostUsd": 6.889069688000001,
+        "estimatedNetSavingUsd": -0.28212848799999996,
+        "savingUnknownRuns": 0,
+        "savingUnknownJevCostUsd": 0,
+        "medianOfRunMediansMs": 388.5
+      },
+      "compile-skill": {
+        "runs": 15,
+        "calls": 20,
+        "avoidedModelCalls": 0,
+        "failures": 0,
+        "jevCostUsd": 0.004392234000000001,
+        "auditCostUsd": 0,
+        "modelFallbackCostUsd": 0,
+        "measuredTotalCostUsd": 0.004392234000000001,
+        "estimatedNetSavingUsd": 0,
+        "savingUnknownRuns": 15,
+        "savingUnknownJevCostUsd": 0.004392234000000001,
+        "medianOfRunMediansMs": 311
+      }
+    }
+  },
+  "effort": {
+    "totalReadings": 661,
+    "highPrimaryRows": 63,
+    "primaryRunCount": 33,
+    "arms": {
+      "applied": {
+        "rows": 28,
+        "approved": 10,
+        "refused": 18,
+        "unknown": 0,
+        "refusalRate": 0.6428571428571429,
+        "medianDurationMs": 142963,
+        "medianOutputTokens": 17891,
+        "requestedMismatch": 0
+      },
+      "held-out": {
+        "rows": 35,
+        "approved": 19,
+        "refused": 13,
+        "unknown": 3,
+        "refusalRate": 0.40625,
+        "medianDurationMs": 94129,
+        "medianOutputTokens": 7617,
+        "requestedMismatch": 0
+      }
+    },
+    "gap": 0.2366071428571429,
+    "durationRatio": 1.518798669910442,
+    "highVerdict": "inconclusive",
+    "lowVerdict": "inconclusive: no decisive low readings",
+    "revisionCheck": "All 22 recorded revisions descend from 5bf1f231; only intervening changes to effort paths are documentation links in 624ebec9."
+  }
+}

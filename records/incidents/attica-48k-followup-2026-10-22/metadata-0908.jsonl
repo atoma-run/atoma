@@ -1,0 +1,213 @@
+{"runId": "1622e44b-8d9f-41dc-8827-a1af7cb38353", "status": "running", "endedAt": null, "events": 1304, "llmCalls": 149, "from": 1059, "nextOffset": 1271, "kinds": {"jev": 18, "skill": 4, "llm-start": 18, "branch": 3, "context": 7, "llm": 17, "tool": 144, "registry": 1}}
+{"i": 1059, "id": "1f19284c-03eb-4741-9b9a-2a7d58035384", "kind": "jev", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1060, "id": "b09d69a9-250d-4cea-90a9-0f9d6b8e6334", "kind": "skill", "op": "match", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1061, "id": "4a0a371c-a5b9-4eca-9174-b6ba94e5ea07", "kind": "jev", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1062, "id": "142b1937-eaea-4df2-adba-d0c91dc2143f", "kind": "llm-start", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1063, "id": "f5dde0a4-4aa3-4039-9d1a-062169c4ac83", "kind": "skill", "op": "demote", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1064, "id": "73508154-d4db-4ede-933f-d32ee5143221", "kind": "skill", "op": "inject", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1065, "id": "2242412d-e19c-4734-acf8-e49e92c98017", "kind": "branch", "op": "start", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1066, "id": "9a82579b-3aae-4b9f-893a-55a1c4285d74", "kind": "context", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1067, "id": "4c16f01e-7ca8-4277-bc0b-3a0686cc0f41", "kind": "llm-start", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1068, "id": "93be6a1f-84a6-40e3-9bc0-625900f6d42a", "kind": "llm", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1069, "id": "a0b5b1df-f812-4526-bc72-3f0f107ea7af", "kind": "jev", "role": "validate-plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1070, "id": "0518e8fc-901f-40b9-b68c-99581277fc33", "kind": "jev", "role": "execute-effort", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1071, "id": "7aca3a9d-86c9-4bd2-81d1-8cf4a89c19db", "kind": "llm-start", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1072, "id": "8731f4c7-b19b-48f6-bac2-509b3d86719d", "kind": "llm", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1073, "id": "05bb4347-5575-44d2-afd7-5a49da355268", "kind": "branch", "op": "start", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1074, "id": "0f0d42bc-72ff-4783-a34e-3e73a997c8ee", "kind": "llm-start", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1075, "id": "afbb17b4-8b5f-4785-83c2-04c7116b222b", "kind": "llm", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1076, "id": "c8cc3577-097a-4210-a74f-073a54744a05", "kind": "jev", "role": "validate-plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1077, "id": "2adbff5b-a165-41a5-aeb0-980a0b6d329e", "kind": "jev", "role": "execute-effort", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1078, "id": "2d341877-408c-475a-a01b-896bd0d10e57", "kind": "llm-start", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1079, "id": "02cfa397-bbfe-478a-a188-88aa2d4547e6", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1080, "id": "94c59c45-1aff-464b-81dd-71ab545b488b", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1081, "id": "abdc72f0-3499-4dda-a31e-d7645a74e1d9", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1082, "id": "7a2cec7d-bfb4-490f-b5c5-a528b3aadad1", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1083, "id": "b35af005-18f8-404b-8a41-5ad8badeb1b9", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1084, "id": "ad106c6c-8d4d-468b-82cb-e10c8b1a4bd1", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1085, "id": "4395c681-a8ad-4edd-8653-d0fd10d18f47", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1086, "id": "864edc15-c828-48c8-a740-c62a55bac3dd", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1087, "id": "0298e5a8-7fc5-4097-a9f0-d821cc6351c1", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1088, "id": "5da76353-ce4c-46d0-ae3b-512a972a4957", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1089, "id": "8431fc78-bd32-432d-a294-f9e564805c8d", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1090, "id": "1914e191-2a07-4f15-8dd4-3eec882fc5ff", "kind": "llm", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1091, "id": "a3492df9-6ca6-4d66-b170-24eb3dea3457", "kind": "jev", "role": "validate-plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1092, "id": "f676aa13-bfaf-44d7-bb02-1f3d67c6c18d", "kind": "jev", "role": "execute-effort", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1093, "id": "155d63ee-fc47-4eec-ab35-fd620139dce2", "kind": "llm-start", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1094, "id": "a70a073d-1be3-4347-89fd-ba71afca40e9", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1095, "id": "306d0a84-6374-4b2e-81ee-e84e70517ec8", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1096, "id": "0dabce1f-b07d-44ee-8077-25dade5e03a9", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1097, "id": "e7d9ecc9-63ab-4bf3-b61a-a774d5ec8bd7", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1098, "id": "2553915a-7ca2-4035-a514-955ec7fcdd6b", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1099, "id": "6336709b-8446-4e96-9844-b867462d76c6", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1100, "id": "1ff81bd7-071f-4384-8740-b23f04d3a98e", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1101, "id": "63f3a106-5716-4c16-b597-a804772c18b0", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1102, "id": "e436fbd9-750f-46ce-a891-15a5e5ed9df0", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1103, "id": "db07080d-d0c8-476a-ad4f-468c95937222", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1104, "id": "aa7e3ab4-d3c0-44ec-af86-938d23579091", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1105, "id": "60e0ca77-8803-4f0b-8e35-310cc0085ade", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1106, "id": "68351664-72c9-443d-ac1d-fb156cc4e1b1", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1107, "id": "6dd6c43d-fd84-4b5f-afc8-7e627f39e1ce", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1108, "id": "2cee00a0-1cf9-40c3-bcb3-34cde8c93e25", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1109, "id": "9e025e3b-f307-45a1-a287-b32b101feeea", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1110, "id": "7bd6a7f7-a068-4d76-a2f8-d5519f9f19da", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1111, "id": "53fb8469-53e4-4a1e-89c9-4186291e6913", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1112, "id": "0160a7c4-9399-47e2-a176-b5f58fe8707e", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1113, "id": "cb4200df-0e90-4f29-a67d-3d722ef7e8c1", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1114, "id": "c1a91b04-d7e1-4dfe-9eb5-d63a591ad423", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1115, "id": "14a7f08c-f9b7-45bc-b596-fca0c306fa20", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1116, "id": "a7b9218f-8e5d-4465-88b5-0d3b160e5aa9", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1117, "id": "0ddc6a49-d31a-492f-9c34-9e48959c6114", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1118, "id": "3876ffed-f626-4e10-811c-15b947a445d4", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1119, "id": "873c84ad-c028-4eae-803e-ec12d5c13e64", "kind": "tool", "name": "write_file", "actor": {"name": "CarbonDioxide", "tier": 1}, "ok": true}
+{"i": 1120, "id": "30f2f1d7-f61d-4568-aa34-b979305701aa", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1121, "id": "28403a8b-cd4f-4c3c-85d7-bb8bd2ca215c", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1122, "id": "6f9e7821-16fe-4e2a-a4fa-bee4871fee92", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1123, "id": "64d86b6d-d1a9-474d-8d31-c4e4dd93d14a", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1124, "id": "b7336a85-7890-40c0-8d0b-94f6d7ce22af", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1125, "id": "40e35905-c31f-4cea-b089-efe92d6c648d", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1126, "id": "80b22fbc-0790-4c3a-beb9-c013292f727e", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1127, "id": "6bd22d0c-5cde-4959-97dc-2595f2d501f4", "kind": "llm", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1128, "id": "457e453f-eebf-4c88-acd9-bc06f639cadf", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1129, "id": "24d87cc2-b12b-4059-801a-918abf404d70", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1130, "id": "c41ae07a-da8a-4761-87d5-d9690d52623c", "kind": "jev", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1131, "id": "aed505a6-a897-4f28-935d-8b67fcfc67c7", "kind": "llm-start", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1132, "id": "9a46a217-4c0a-4c2a-a60e-68a788bbd9b2", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1133, "id": "f81139c3-35c2-428b-8f58-8b973cc995cb", "kind": "tool", "name": "edit_file", "actor": {"name": "CarbonDioxide", "tier": 1}, "ok": true}
+{"i": 1134, "id": "b12cac15-565d-4380-9fff-70231dde379d", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1135, "id": "2393d428-b68e-4ab5-9880-24e7a78aec72", "kind": "llm", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1136, "id": "ee016cb4-6da3-4864-91b2-e8ef4b242988", "kind": "branch", "op": "end", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1137, "id": "89b58798-adf4-4af8-9232-90055a53a9db", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1138, "id": "787de9e4-d3cf-467c-8ce8-551f74a48693", "kind": "llm", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1139, "id": "d5395310-77ea-4bd6-bbb6-423eb6511321", "kind": "llm-start", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1140, "id": "cddb2696-3ac4-4451-8766-a4a9579aef7e", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1141, "id": "2067b729-5cdb-4eae-b972-065df41c1210", "kind": "tool", "name": "edit_file", "actor": {"name": "CarbonDioxide", "tier": 1}, "ok": true}
+{"i": 1142, "id": "99ecd657-bbab-4a4b-8e95-e6172997678a", "kind": "llm", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1143, "id": "0291921f-d5c8-4a89-aa26-5655425edcaa", "kind": "context", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1144, "id": "d524e97a-0328-4a94-8a8e-1a056197c67c", "kind": "llm-start", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1145, "id": "a3182e65-b51b-4bc6-95a6-682fa48a0734", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1146, "id": "d4b3c62a-a26b-42c4-8850-ddf347809558", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1147, "id": "09db7f12-a9b1-4451-a4b1-923703a035e6", "kind": "tool", "name": "edit_file", "actor": {"name": "CarbonDioxide", "tier": 1}, "ok": true}
+{"i": 1148, "id": "2d524bb6-e63f-41e1-b38a-2dda15908e3f", "kind": "llm", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1149, "id": "c3601fcc-49d8-4264-ad46-400e6e91fdb7", "kind": "jev", "role": "validate-plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1150, "id": "ddd51914-b51b-43dd-8985-7c7084337c5d", "kind": "jev", "role": "execute-effort", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1151, "id": "a2957d9a-57fb-47b1-bfbb-d3685bf44651", "kind": "llm-start", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1152, "id": "a6772c53-d59b-4cfb-83cb-175b80c7527d", "kind": "tool", "name": "list_files", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1153, "id": "51982c3c-51bb-40ab-97d3-8b5a1eb012a2", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1154, "id": "106bbb15-3e40-4b1a-9d80-55fba86a4d04", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1155, "id": "8a5cb876-9652-4998-ac33-95c879eed858", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1156, "id": "7baaaad8-af29-4fb8-b6c4-a881179be687", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1157, "id": "2e9f541c-b9b4-4de2-a3ba-db5536d97286", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1158, "id": "9f43ab1f-3056-48d4-97ac-07a3016df6fc", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1159, "id": "b5bf21fe-a8ef-4c69-af1e-77f53ce12f67", "kind": "tool", "name": "list_files", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1160, "id": "205db669-4ef4-47bb-939a-b487d155793c", "kind": "tool", "name": "list_files", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1161, "id": "fdcc88b4-f30c-4848-93de-c3d2b039c651", "kind": "tool", "name": "list_files", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1162, "id": "11662229-7fc4-40d9-8027-76909d32538e", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1163, "id": "729101fa-7fd2-407c-9183-71af5be89d5e", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1164, "id": "a7c06038-856c-438a-898e-fbd97c81764b", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1165, "id": "57dfbca6-ae63-4e29-acf2-6282529c5277", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1166, "id": "5a340c36-b6fd-4d58-93f5-aaa063394b24", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1167, "id": "1cfcef27-583e-4abe-9484-cac2fa87fe53", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1168, "id": "1570fe1c-1b28-4a15-bb30-37deb395cc07", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1169, "id": "3eaf24d3-82ac-44f9-a660-8080a86a56fe", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1170, "id": "7e727d94-d93a-4e0e-a2f5-b5152802ea21", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1171, "id": "4ad54c2e-1803-40c7-a850-5cb38b197a5f", "kind": "tool", "name": "start_node_server", "actor": {"name": "CarbonDioxide", "tier": 1}, "ok": true}
+{"i": 1172, "id": "7a2224cc-cd15-460c-81a6-99db92a4d3ad", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1173, "id": "5bda6e8a-871d-4fab-be89-2105f1571aed", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1174, "id": "194f30fe-b35f-4695-add2-7da2b3b31a62", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": false}
+{"i": 1175, "id": "afa1b8c8-fb25-4946-a5d5-32a3ee76f70b", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1176, "id": "63aafe20-169c-4e55-9271-56670cf2890d", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1177, "id": "88c9f35e-eeff-441b-bc3a-c3232c45ebd0", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1178, "id": "c16b73db-11fb-4100-bc0a-ed7fae83d2f7", "kind": "tool", "name": "validate_html", "actor": {"name": "CarbonDioxide", "tier": 1}, "ok": true}
+{"i": 1179, "id": "6a06f91a-c6b3-4a80-a7c2-ccda541e56cc", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1180, "id": "ecb64b63-957d-4027-bab5-206f951f2bf1", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1181, "id": "e42f5496-18d1-48b2-b395-252e3e872bc5", "kind": "llm", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1182, "id": "0e5dc2fc-4925-4f76-a83a-2704df1380d4", "kind": "context", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1183, "id": "f2f4999d-a828-4507-b77e-ed00a6475752", "kind": "llm-start", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1184, "id": "66489966-df93-4d55-8151-975be32bb92a", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1185, "id": "4cf1be35-97f8-46c8-b491-2d249e93e865", "kind": "llm", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1186, "id": "4ab272ad-5bce-42a8-97b5-145abfa38c7b", "kind": "jev", "role": "validate-plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1187, "id": "318c5e30-989a-430c-ab22-56e0a6c1074f", "kind": "jev", "role": "execute-effort", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1188, "id": "439c2f6a-a498-44e1-b6fd-aff923d9b065", "kind": "llm-start", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1189, "id": "82e59569-e9e0-4717-a46a-d69bf176f9ff", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1190, "id": "76387ed7-10e0-4665-9cf0-24ca95d96f15", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1191, "id": "86620b23-eeb0-4025-b67f-c216d5385614", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1192, "id": "b2e13680-04e7-4152-9065-5ee5e2b3ff4f", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1193, "id": "43013cbc-a430-454b-8f40-4c018d083b26", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1194, "id": "895ca09a-1c66-4fa2-9986-f265cbf674fc", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1195, "id": "2dd954f1-513a-42e5-aa25-eda12125e85c", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1196, "id": "8e1aeb44-521b-40a6-8981-65be5b495412", "kind": "tool", "name": "list_files", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1197, "id": "d13213c4-32e9-4d27-8c35-e90426b9b0ef", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1198, "id": "82ae3305-4887-4b21-b220-c17eaba160ec", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1199, "id": "ef1e2814-4ce9-4365-8065-f375498dbca2", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1200, "id": "f750ab32-f713-4740-8541-1e2fda959b28", "kind": "tool", "name": "list_files", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1201, "id": "ab784715-9c15-43f6-936f-4d256d792242", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1202, "id": "06515b9c-a397-43d1-afab-56902b746d77", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1203, "id": "b5acb2fe-ef97-4621-9503-1d3a0f275a6d", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1204, "id": "03b6dab5-a954-4aca-b0bb-755dbdb151f2", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1205, "id": "55a0b442-e35b-424e-9d23-55787221cb06", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1206, "id": "7afd2d84-44d7-4915-9a88-f5c036c068ee", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1207, "id": "9f0dda9b-79ca-4052-805e-c0551e02eaeb", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1208, "id": "46693b92-3795-4fb6-89f9-9c9e7f22330a", "kind": "tool", "name": "start_node_server", "actor": {"name": "CarbonDioxide", "tier": 1}, "ok": true}
+{"i": 1209, "id": "44a29d02-edb3-44cb-88c0-3dc899213368", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1210, "id": "67d5d510-cce0-42dc-9e28-424451330040", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1211, "id": "3c350bee-0254-49f5-91c6-979599a6bda9", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1212, "id": "c9e7b361-5b1e-431b-88a1-20b26d4ddd47", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": false}
+{"i": 1213, "id": "c06c016e-9bdd-4dae-9ebc-95288648e042", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1214, "id": "45cce038-6343-4e05-8f5a-50b306f03a4e", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1215, "id": "58aaab9e-beb7-4b00-8cee-d173382b66ee", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1216, "id": "8deccb87-eef8-4ee9-b76a-2789ff01f548", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1217, "id": "fb2d4cda-59d6-4a5a-a589-1a26b19504e3", "kind": "llm", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1218, "id": "ea5e3862-a194-4343-8af6-8fae3f526050", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1219, "id": "73287a73-6aac-41a2-ae76-6e216084ea55", "kind": "jev", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1220, "id": "da1583ad-c2f8-439e-aefc-66a9aa97dc50", "kind": "llm-start", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1221, "id": "3e200298-3070-475e-8a10-12f1b46faee2", "kind": "llm", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1222, "id": "4c0b9685-55c8-44c9-aef9-2b70cefb8ac4", "kind": "context", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1223, "id": "e8c435e1-4422-4cdd-8665-b20e9fcba9b6", "kind": "llm-start", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1224, "id": "75c5de7d-4430-4fd4-8338-ebc1d415178e", "kind": "llm", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1225, "id": "84fc91ef-ef9c-448a-8a3d-e6c70f2bf836", "kind": "registry", "name": "CarbonDioxide", "op": "recordFailure", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1226, "id": "f1d2d3c9-a619-4cc9-b9f5-8542f884fb61", "kind": "skill", "op": "inject", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1227, "id": "3aed4871-8c37-48ce-85d5-af0097c2bb30", "kind": "context", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1228, "id": "7c411791-b11c-4d91-9007-49c28f7d09cc", "kind": "context", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1229, "id": "e66e2eaa-4304-4a56-8d45-f220031863d4", "kind": "context", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1230, "id": "82493e3f-22e4-4278-8949-25d4e4df5d09", "kind": "llm-start", "role": "plan", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1231, "id": "bb79a6ab-f19d-4b13-9ebc-ed7992e6d6d9", "kind": "llm", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1232, "id": "d32bd205-c63a-498a-9bc8-8ba9b5f086b0", "kind": "jev", "role": "validate-plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1233, "id": "3badfc1d-5421-47bb-866f-452496262f7d", "kind": "jev", "role": "execute-effort", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1234, "id": "abf0b047-0c1b-481e-816c-e7a260d6f41e", "kind": "llm-start", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1235, "id": "9a26692f-fabc-4fe4-af32-c16a6c84f79b", "kind": "llm", "role": "plan", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1236, "id": "74cc9769-f5ef-46c1-a940-f9abdb8c54fb", "kind": "jev", "role": "validate-plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1237, "id": "a415d635-3465-4146-93e3-426be8b7b71b", "kind": "llm-start", "role": "jev-audit", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1238, "id": "41eb4682-ec20-4f95-8fa8-d666b11f166c", "kind": "jev", "role": "execute-effort", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1239, "id": "bf908c17-e776-4fd3-a731-75aff4682468", "kind": "llm-start", "role": "execute", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1240, "id": "b903c3ac-f1b1-4c48-b9b3-e1fb18797a1e", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1241, "id": "67c6d96a-eb01-4e4e-99f3-acd7a375ed12", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1242, "id": "f0abcb8e-3904-44c9-a623-6fd84041b638", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1243, "id": "da3f50ee-6caf-4be7-9313-4dd9d085e36e", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1244, "id": "4e10c5d2-77d1-43f4-b74e-85e3bf0dd0e4", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1245, "id": "cb29ea94-d790-4f9b-8a7e-bec90424c44f", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1246, "id": "519abe63-9767-49c4-ade2-240ef610945f", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1247, "id": "04116d68-18c5-420c-8816-a3abafef22de", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1248, "id": "323bfb7e-0ae3-40d9-b1c2-2939ce4bc2f4", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1249, "id": "2cafb49b-ded6-4988-94a7-01c34f7f992a", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1250, "id": "8438e8d1-7cac-41dc-ba26-10c9fd6ab165", "kind": "llm", "role": "jev-audit", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1251, "id": "8ce4ae91-0b01-495c-b227-14c8645b1763", "kind": "tool", "name": "list_files", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1252, "id": "ea658aaa-4dee-463a-a7c7-171ef1d9e00c", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1253, "id": "2002c632-ee23-40e7-92f9-99891d86a2aa", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1254, "id": "2f2ec054-d904-4e9b-bc42-6316ecd7c9fd", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1255, "id": "b6d91c29-0f39-45b7-b41f-5e341af3dcf5", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1256, "id": "cb3dcd14-c2b9-4dbe-bf07-67d31449bc0d", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1257, "id": "03a3c0fc-32ae-40be-ab42-b6c6fa4a5cb9", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1258, "id": "6e1a38b7-6d04-44ff-87db-0967fc76973f", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1259, "id": "8f18caf0-820b-47c4-8f6d-ca33f443df26", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1260, "id": "a2adbe32-11f8-4599-a3f4-7a2d8dc64213", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1261, "id": "0e25e644-c264-40cc-a616-daa2c44987ce", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1262, "id": "c1faf417-03f9-41cc-a747-39afc2e3974f", "kind": "tool", "name": "read_file", "actor": {"name": "Cortisol", "tier": 1}}
+{"i": 1263, "id": "a70beb43-f750-4224-a718-071747428e28", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 1}
+{"i": 1264, "id": "3fe1bc20-97ad-47fd-b146-03f523dce763", "kind": "tool", "name": "run_shell", "actor": {"name": "Cortisol", "tier": 1}, "exitCode": 0}
+{"i": 1265, "id": "19d75269-5f31-4bd1-8fb7-aba790377b4b", "kind": "tool", "name": "run_shell", "actor": {"name": "Cortisol", "tier": 1}, "exitCode": 0}
+{"i": 1266, "id": "77203796-2f89-4b69-814e-602257e09c50", "kind": "tool", "name": "run_shell", "actor": {"name": "Cortisol", "tier": 1}, "exitCode": 0}
+{"i": 1267, "id": "233ed6f0-ce7c-4e8c-a9b0-c33a86fce1fe", "kind": "tool", "name": "run_shell", "actor": {"name": "Cortisol", "tier": 1}, "exitCode": 0}
+{"i": 1268, "id": "9f546264-ebf2-4227-b1ec-e111e3108f8d", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 2}
+{"i": 1269, "id": "f2cbec93-0634-41f9-bc21-3f31594d9234", "kind": "tool", "name": "run_shell", "actor": {"name": "Cortisol", "tier": 1}, "exitCode": 0}
+{"i": 1270, "id": "34efe396-0aa9-4c79-8395-3a2dd81e009f", "kind": "tool", "name": "run_shell", "actor": {"name": "Cortisol", "tier": 1}, "exitCode": 0}

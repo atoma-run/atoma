@@ -1,0 +1,102 @@
+{"runId": "1622e44b-8d9f-41dc-8827-a1af7cb38353", "status": "running", "endedAt": null, "events": 1084, "llmCalls": 132, "from": 958, "nextOffset": 1059, "kinds": {"tool": 54, "llm": 15, "llm-start": 15, "branch": 4, "jev": 8, "cache": 2, "context": 3}}
+{"i": 958, "id": "e6766621-cb39-4499-b6fb-408d874dafd6", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 1, "recorded": true}
+{"i": 959, "id": "be0e5315-52e2-4a30-ada3-6e958dbab3e0", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 1, "recorded": true}
+{"i": 960, "id": "2202d016-69a9-46e9-9148-dfe152ccc03f", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 2, "recorded": true}
+{"i": 961, "id": "bf5e655c-27df-4716-911f-dbc0ffca530f", "kind": "tool", "name": "edit_file", "actor": {"name": "Meristem", "tier": 3}, "ok": true}
+{"i": 962, "id": "40c6dde5-25ce-4e9d-8ff7-83f607378ea9", "kind": "tool", "name": "edit_file", "actor": {"name": "Meristem", "tier": 3}, "ok": true}
+{"i": 963, "id": "d4d4ffa0-24ef-4ed7-a560-a59fddb8f7de", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 0, "recorded": true}
+{"i": 964, "id": "ce4b94cb-4453-4e32-bb67-f47af2ce4be3", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 0, "recorded": true}
+{"i": 965, "id": "160f43d5-760f-4131-b1ba-c8a767c9bb45", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 2, "recorded": true}
+{"i": 966, "id": "6c05a762-19a5-4874-8a94-d92574c6b1ca", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 0, "recorded": true}
+{"i": 967, "id": "344891af-82c5-4be4-8e18-b1d2f3454080", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 2, "recorded": true}
+{"i": 968, "id": "1aab99db-cf11-47d5-b0a5-9af7516ffa20", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 0, "recorded": true}
+{"i": 969, "id": "ceb91b2e-6cdf-4687-bd50-d4cddd5e2410", "kind": "tool", "name": "read_file", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 970, "id": "e921b651-0e6b-43bd-8fcf-7369285c28ac", "kind": "tool", "name": "edit_file", "actor": {"name": "Meristem", "tier": 3}, "ok": true}
+{"i": 971, "id": "2140185c-6ce7-4238-929a-d5d90443df82", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 1, "recorded": true}
+{"i": 972, "id": "804fc0dd-7158-4fbc-9f06-12dd3eafaf33", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 0, "recorded": true}
+{"i": 973, "id": "1f5edbee-28b6-4938-b842-388441964b02", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 0, "recorded": true}
+{"i": 974, "id": "dee923e1-6d59-415e-bbac-408ecd06f8ef", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 0, "recorded": true}
+{"i": 975, "id": "8f0f0814-b9d3-4aee-8953-8f5dc5af25ea", "kind": "tool", "name": "record_probe", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 0, "recorded": true}
+{"i": 976, "id": "bcc6045c-c84b-4dbc-a7b9-cc94f93e065f", "kind": "llm", "role": "fallback-execute", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 977, "id": "3638594f-9865-489b-8ad0-29380c4465b2", "kind": "llm-start", "role": "fallback-execute", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 978, "id": "b6712cd7-043a-43cd-9fe5-ce0a14129b7c", "kind": "tool", "name": "list_files", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 979, "id": "95ac3972-aa28-48fe-a90e-ad703163ff55", "kind": "tool", "name": "read_file", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 980, "id": "d704bbc8-946c-4663-981f-f079ed714a40", "kind": "tool", "name": "read_file", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 981, "id": "d5d243d5-c471-4863-a186-377e32ab1927", "kind": "tool", "name": "read_file", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 982, "id": "82257968-6b08-42b6-b1ac-8888fc3f041f", "kind": "tool", "name": "read_file", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 983, "id": "ff7639b7-a11d-421f-8852-eebfacc73006", "kind": "tool", "name": "read_file", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 984, "id": "7a56a069-20e0-4cea-b94a-b50c3b9f7e4b", "kind": "tool", "name": "list_files", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 985, "id": "17010535-17a9-49b1-afb6-8011e7e82e84", "kind": "tool", "name": "run_shell", "actor": {"name": "Meristem", "tier": 3}, "exitCode": 0}
+{"i": 986, "id": "eda52f47-e65d-4fc9-9ae5-2d72b5eaac44", "kind": "tool", "name": "start_node_server", "actor": {"name": "Meristem", "tier": 3}, "ok": true}
+{"i": 987, "id": "e928f167-d8e4-41d0-aa7d-b4cbbdae720e", "kind": "tool", "name": "fetch_url", "actor": {"name": "Meristem", "tier": 3}, "recorded": true, "ok": true}
+{"i": 988, "id": "e6116282-e0dc-4fb2-b77f-6b82ff216492", "kind": "tool", "name": "fetch_url", "actor": {"name": "Meristem", "tier": 3}, "recorded": true, "ok": true}
+{"i": 989, "id": "8d77b2ff-f597-4737-8b98-a6def5d47027", "kind": "tool", "name": "validate_html", "actor": {"name": "Meristem", "tier": 3}, "ok": true}
+{"i": 990, "id": "68fb7316-de4c-4223-a8e8-6e02d9e7c1d3", "kind": "llm", "role": "fallback-execute", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 991, "id": "8d0acee4-073a-496b-87dd-9c0098b5ed45", "kind": "branch", "op": "end", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 992, "id": "85ca4fd9-204a-41c3-861a-e49b64e99197", "kind": "branch", "op": "start", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 993, "id": "2493ed9a-4fa3-4160-9b8a-09acd535bd8f", "kind": "branch", "op": "start", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 994, "id": "7950ce31-3cef-4b86-9f51-7b418ec99c0c", "kind": "jev", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 995, "id": "e9357a0e-e568-4db9-bf10-9e8905d16745", "kind": "llm-start", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 996, "id": "301ff4b8-9d59-4712-87b8-9218cc8ead6b", "kind": "jev", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 997, "id": "fb962fcd-6b3f-4680-ad71-d850ee2ce9a0", "kind": "llm-start", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 998, "id": "820dfa48-0826-431d-be6c-48429b7247de", "kind": "llm", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 999, "id": "e15ec3e0-77e4-49f6-8e59-646a82a4524b", "kind": "llm-start", "role": "plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1000, "id": "895b5f77-b4d1-4b53-9c3e-300fad0049c5", "kind": "llm", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1001, "id": "83810924-c0fd-4445-b042-91e268c55709", "kind": "llm-start", "role": "plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1002, "id": "db259350-dd59-4f32-92dd-4207d7a86fe6", "kind": "llm", "role": "plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1003, "id": "bd308e46-fb10-4c46-a722-312a67b8479f", "kind": "llm-start", "role": "validate-plan", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 1004, "id": "ceded739-25be-40b6-b7c7-ef9e06928729", "kind": "llm", "role": "plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1005, "id": "ecb8869c-aca7-4460-9785-b02e410d9693", "kind": "llm-start", "role": "validate-plan", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 1006, "id": "1f04c8b5-932e-4700-8e0b-fd2e22cefe7d", "kind": "llm", "role": "validate-plan", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 1007, "id": "4756b5ef-1426-42db-88fe-a1ed7c8b7975", "kind": "jev", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1008, "id": "03bb5bf3-c821-4ffc-91c5-0f057998361f", "kind": "branch", "op": "start", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1009, "id": "129be599-0790-4037-9fcf-4ff27db34b5f", "kind": "llm-start", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1010, "id": "b99e75e5-df19-48dd-a4bf-56a8513cbd61", "kind": "llm", "role": "validate-plan", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 1011, "id": "721f8d04-baaa-4750-88a3-c62760192ff1", "kind": "jev", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1012, "id": "ce4e749c-2429-4f98-95be-88bb3f451781", "kind": "cache", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1013, "id": "e40d3172-4b7c-40b8-9dff-c3e76f82ace5", "kind": "context", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1014, "id": "80ad1a16-69f0-49e0-ade6-2f864fb3c6da", "kind": "llm-start", "role": "plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1015, "id": "37bbf543-2797-4952-a69d-26c7619ab895", "kind": "llm", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1016, "id": "d79cbec3-71d2-4611-8162-cb2c049010fe", "kind": "jev", "role": "validate-plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1017, "id": "d917b38c-aefc-49b7-b9ff-dd15a9ae1f6a", "kind": "jev", "role": "execute-effort", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1018, "id": "8e9fbea1-f3fd-491f-b7fe-72fc9d53fd15", "kind": "llm-start", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1019, "id": "b6ef45b3-ec9c-4fd3-b419-8bc8e0ff6891", "kind": "llm", "role": "plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1020, "id": "40fce248-09ad-4bec-a823-c9cd3d7d3a2c", "kind": "llm-start", "role": "validate-plan", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 1021, "id": "a98c439f-da9d-41b4-ad21-a3e4d3fac9a2", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1022, "id": "aefc06c1-1339-45ec-b744-023d81e906bc", "kind": "tool", "name": "list_files", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1023, "id": "47abd0ae-cf5f-4765-84cf-0936ea846fb1", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1024, "id": "8d66761c-c93a-4b0e-acf9-8bf12f45c774", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1025, "id": "e77a2b92-e374-4e63-bd9f-63a433ca3c9c", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1026, "id": "c2247864-d08c-4e4d-aba1-8ce3f27fff7b", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1027, "id": "69780007-3d11-4cae-954c-780cbab3bca2", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1028, "id": "ad9ae5bf-c7d9-4b28-842e-4db53a7ee3b2", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1029, "id": "204ea1e3-b66a-4106-a060-c2ff8bdbd5ed", "kind": "tool", "name": "read_file", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1030, "id": "cfd6634a-6e18-42bc-afce-b1dd3e791502", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1031, "id": "1ec5528f-03b2-4270-8bba-0ad682030eb2", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1032, "id": "c32d9614-b5ff-4336-a963-acc18283440c", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1033, "id": "4b7690e0-42bf-4a48-9921-81856ac8763d", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1034, "id": "52f7b8c8-2f23-49fc-bf17-2853e6fcdfe0", "kind": "llm", "role": "validate-plan", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 1035, "id": "aaabdb81-0b28-4afa-80a9-99a4a9099909", "kind": "jev", "role": "prefilter", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1036, "id": "21afc39c-ce63-4beb-ba42-2f0a1e0efb83", "kind": "cache", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1037, "id": "9010910a-8333-4b4c-a90a-d963cc9f189c", "kind": "context", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1038, "id": "3b79d23d-3f59-4620-b822-3cd3ec420f5b", "kind": "llm-start", "role": "plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1039, "id": "943c5aa3-7e8f-41b7-8706-d3423c7afae3", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1040, "id": "e2b0ba3a-b2c5-4a09-93df-e8344b261966", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1041, "id": "fdd9d43b-42eb-45cf-aa13-ef205b746bad", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "exitCode": 0}
+{"i": 1042, "id": "3a42262e-12dc-4d8f-a084-282d3873e490", "kind": "tool", "name": "run_shell", "actor": {"name": "CarbonDioxide", "tier": 1}, "errorPresent": true}
+{"i": 1043, "id": "a3b19276-2142-4ea1-80b4-c0855a6a72fc", "kind": "tool", "name": "start_node_server", "actor": {"name": "CarbonDioxide", "tier": 1}, "ok": true}
+{"i": 1044, "id": "ca5045cd-ccb1-49d2-8f45-5ee386d283f2", "kind": "tool", "name": "start_node_server", "actor": {"name": "CarbonDioxide", "tier": 1}, "ok": true}
+{"i": 1045, "id": "69401ee8-409d-4740-ba3e-9e5dcf11f825", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1046, "id": "49d13287-ffb6-49a1-8321-af6571b55c90", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": false}
+{"i": 1047, "id": "27859eaf-1875-4fc4-911e-94cccd60aaca", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1048, "id": "b6b3644e-13be-4f66-a8ac-a3da9c42eb83", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1049, "id": "60b84981-77c5-4919-9e6c-379c92d88fc5", "kind": "tool", "name": "fetch_url", "actor": {"name": "CarbonDioxide", "tier": 1}, "recorded": true, "ok": true}
+{"i": 1050, "id": "ca95c83b-d361-4a7d-937e-50bed9d640fa", "kind": "llm", "role": "execute", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1051, "id": "539b0a2c-3adb-4652-91bd-0978ce3e492a", "kind": "jev", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1052, "id": "8cca2847-c880-4915-91b2-f9d382fdf9ca", "kind": "llm-start", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1053, "id": "5cce57af-a487-4339-b583-fae0166e76d9", "kind": "llm", "role": "plan", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1054, "id": "921ab94a-8a19-4bba-85b1-0dfe1280bd88", "kind": "llm-start", "role": "validate-plan", "actor": {"name": "Meristem", "tier": 3}}
+{"i": 1055, "id": "4336cff8-e288-4f6f-899d-76e2ba2c1321", "kind": "llm", "role": "validate-result", "actor": {"name": "Idioblast", "tier": 2}}
+{"i": 1056, "id": "b2d74357-5e93-41ea-81a9-5fa31c40dd3e", "kind": "context", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1057, "id": "80a467d0-c133-4191-8f24-aa71a3c30ccb", "kind": "llm-start", "role": "plan", "actor": {"name": "CarbonDioxide", "tier": 1}}
+{"i": 1058, "id": "c5da8ce4-2531-40d0-bbb4-65bf6882c4cf", "kind": "llm", "role": "validate-plan", "actor": {"name": "Meristem", "tier": 3}}
