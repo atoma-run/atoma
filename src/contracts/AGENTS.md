@@ -62,6 +62,11 @@ public setting or client capability, and introduces no stored runtime identity.
   manifest, prioritizing exact reported commands. Large stdout fields cannot
   hide a later entry behind the generic file excerpt. Omitted entries remain
   unknown; stored values establish neither execution nor current-state proof.
+  Each exact command/exit pair is marked PRESENT, independently of neighboring
+  build/test commands. A healthy shell-only manifest uses this index instead
+  of a second generic file head when both reads have identical bytes; mixed,
+  malformed or changed manifests keep their raw diagnostic excerpt. Presence
+  proves storage only; semantic review and transport evidence remain required.
   Same-command replacement remains latest-only; transport receipts establish
   earlier mutant outcomes, never a fabricated replay obligation.
 

@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import type { RunContext } from '../core/types.js';
 import { baseExecutorOf } from '../core/attestation.js';
 import { fileReadsNeedingReadback } from '../contracts/attestation.js';
@@ -348,7 +349,7 @@ async function probeGroundTruthBase(args: Parameters<typeof probeGroundTruthEx>[
           ? `${PROBE_MANIFEST_FILENAME}: well-formed web probe record present`
           : `${PROBE_MANIFEST_FILENAME}: MALFORMED — ${problems.slice(0, 4).join('; ')}`
       );
-      manifestLines.push(...shellProbeManifestEvidence(text));
+      manifestLines.push(...shellProbeManifestEvidence(text).lines);
     } catch {
       webFacts.manifestMalformed = true;
       manifestLines.push(
@@ -770,6 +771,7 @@ async function probeFilesGroundTruth(args: {
   }
 
   const lines: string[] = [];
+  let indexedShellManifest: string | undefined;
   // Manifest health check — it is the interface later compiled verifiers
   // depend on, and nothing else audits it (written by prompt, read by
   // script). GATED on the child having reported probes: only then is a
@@ -802,7 +804,9 @@ async function probeFilesGroundTruth(args: {
           ? `${PROBE_MANIFEST_FILENAME}: well-formed (machine-readable probe record present)`
           : `${PROBE_MANIFEST_FILENAME}: MALFORMED — ${problems.slice(0, 4).join('; ')}`
       );
-      lines.push(...shellProbeManifestEvidence(text, probes.map(probe => probe.cmd)));
+      const index = shellProbeManifestEvidence(text, probes.map(probe => probe.cmd));
+      lines.push(...index.lines);
+      if (problems.length === 0 && index.shellOnly) indexedShellManifest = text;
     }
   } catch {
     // Absent manifest is normal for non-runnable deliverables — say nothing.
@@ -829,6 +833,10 @@ async function probeFilesGroundTruth(args: {
             ? raw
             : JSON.stringify(raw);
       contents.set(path, content);
+      // A second, partial view previously contradicted the complete command index
+      // in the reviewer's reading. Keep other shapes, malformed and changed bytes.
+      const indexedManifest = posix.normalize(path.replace(/\\/g, '/')) === PROBE_MANIFEST_FILENAME &&
+        content === indexedShellManifest;
       const excerpt = content.slice(0, FILE_PROBE_EXCERPT_CHARS);
       const intentionalEmptyFixture =
         content.length === 0 &&
@@ -866,7 +874,9 @@ async function probeFilesGroundTruth(args: {
             : intentionalEmptyFixture
               ? ' — empty negative-test fixture corroborated by a recorded non-zero probe'
               : '') +
-          `\n    excerpt: ${JSON.stringify(excerpt)}${content.length > excerpt.length ? ' …(truncated)' : ''}`
+          (indexedManifest
+            ? '\n    shell entries shown in the structured index above; stdout/stderr omitted, not evaluated here.'
+            : `\n    excerpt: ${JSON.stringify(excerpt)}${content.length > excerpt.length ? ' …(truncated)' : ''}`)
       );
     } catch (err) {
       // A miss is only reportable for a STRUCTURED claim. A prose mention that
