@@ -109,9 +109,16 @@ export class ComputeMachine {
     }
     const preview = this.preview;
     if (!preview) throw new Error('Compute preview unavailable');
-    const result = await preview.execute(identity, command);
-    if (command.method === 'stop') this.preview = undefined;
-    return result;
+    try {
+      const result = await preview.execute(identity, command);
+      if (command.method === 'stop') this.preview = undefined;
+      return result;
+    } catch (error) {
+      // A refused start removed its containers; kept, the slot refused every
+      // later start until the app restarted (2026-10-23).
+      if (command.method === 'start' && this.preview === preview) this.preview = undefined;
+      throw error;
+    }
   }
   private async checkDisk(): Promise<void> {
     const connection = this.connection;

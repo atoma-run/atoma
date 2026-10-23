@@ -21,7 +21,10 @@ export const computeCapabilitiesSchema = computeResourcesSchema.extend({
   protocol: z.literal(COMPUTE_PROTOCOL_VERSION),
   appVersion: z.string().min(1).max(80),
   platform: z.enum(['darwin', 'win32']), architecture: z.enum(['arm64', 'x64']),
-  services: z.array(z.enum(['workspace', 'tools', 'retrieval', 'preview'])).max(4).optional(),
+  /** `preview-classification` is a hello-only signal: the connection keeps it
+   * in memory and never stores it, so an older executor generation reading the
+   * stored row never meets a value its strict schema rejects. */
+  services: z.array(z.enum(['workspace', 'tools', 'retrieval', 'preview', 'preview-classification'])).max(5).optional(),
   imageDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
 }).strict();
 export type ComputeCapabilities = z.infer<typeof computeCapabilitiesSchema>;

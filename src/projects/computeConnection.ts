@@ -37,6 +37,7 @@ export class ComputeConnection {
   private execution?: ComputeExecution;
   private recovery?: ComputeExecution;
   private drainingTools = false;
+  private previewClassification = false;
   private closed = false;
   private readonly interruption = new AbortController();
   get signal(): AbortSignal { return this.interruption.signal; }
@@ -85,6 +86,8 @@ export class ComputeConnection {
     this.validate();
   }
   executing(): boolean { return Boolean(this.execution); }
+  /** Whether this device's copier takes the host's delivery classification. */
+  acceptsPreviewClassification(): boolean { return this.previewClassification && !this.closed; }
   private send(frame: ComputeServerFrame): void {
     const text = JSON.stringify(frame);
     if (this.closed || this.socket.readyState !== WebSocket.OPEN ||
@@ -103,7 +106,10 @@ export class ComputeConnection {
       if (!this.session) {
         const hello = computeHelloSchema.parse(parsed);
         this.devices.bindMachine(hello.credential, hello.machineId);
-        const connected = this.devices.connect(hello.credential, hello.capabilities);
+        const services = hello.capabilities.services;
+        this.previewClassification = services?.includes('preview-classification') ?? false;
+        const stored = services ? { ...hello.capabilities, services: services.filter(service => service !== 'preview-classification') } : hello.capabilities;
+        const connected = this.devices.connect(hello.credential, stored);
         this.session = connected.session;
         this.connected?.(this.session);
         this.recovery = connected.recovery ? { runId: connected.recovery.runId, generation: connected.recovery.generation } : undefined;
@@ -166,7 +172,13 @@ export class ComputeConnection {
         if (frame.response.ok) {
           if (pending.method === 'stop') this.previewIdentity = undefined;
           pending.resolve(frame.response.reply);
-        } else pending.reject(new Error('Compute preview unavailable'));
+        } else {
+          // A refused start leaves nothing running: the device removes its
+          // containers before replying. Kept, the identity answered every
+          // later start `busy` until the device reconnected (2026-10-23).
+          if (pending.method === 'start') this.previewIdentity = undefined;
+          pending.reject(new Error('Compute preview unavailable'));
+        }
         return;
       }
       if (frame.kind === 'retrieval-result') {

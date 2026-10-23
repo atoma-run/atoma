@@ -277,7 +277,12 @@ computer. It never falls back to hosted execution. App and terminal are
 explicit UI actions; a missing app descriptor never selects a terminal.
 The private executor receives only the four classification fields, never the
 complete persisted descriptor (the strict RPC schema rejects its identity and
-metadata fields). Compute copies preserve executable bits because those bits
+metadata fields). A device that advertises `preview-classification` in its hello
+(kept in memory, never stored, so older executors never parse it) receives that
+classification with a delivered app start; its copier uses it once the copy's
+artifact hash matches, the entry still a usable file. Others keep re-classifying
+from their own manifest, which a Compute export never refreshes (2026-10-23).
+A refused start frees the connection, controller and device slots. Compute copies preserve executable bits because those bits
 are part of the saved artifact identity; removing one refuses an otherwise
 identical delivered application before startup. Instance `mode` records the capability;
 reads report `terminalAvailable` from delivered status and allocate nothing.

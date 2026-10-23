@@ -47,14 +47,22 @@ export class ComputePreviewController implements RemotePreviewRuntime {
       const result = await peer.requestPreview(identity, { method: 'start', source: input.source, mode: input.mode,
         copyMaxBytes: Math.min(input.copyMaxBytes, 512 * 1024 ** 2), allowedHosts: [...input.allowedHosts],
         attribution: input.attribution, hardMs: input.hardMs,
-        ...(input.source === 'delivered' ? { artifactHash: run.artifactManifestHash!, delivery: run.artifactManifest?.delivery } : {}) });
+        ...(input.source === 'delivered' ? { artifactHash: run.artifactManifestHash!, delivery: run.artifactManifest?.delivery } : {}),
+        ...(input.source === 'delivered' && input.mode === 'app' && input.classification?.availability === 'available' &&
+          input.classification.kind && peer.acceptsPreviewClassification()
+          ? { classification: input.classification.kind === 'node'
+            ? { kind: 'node' as const, entry: input.classification.entry! } : { kind: 'static' as const, entry: null } } : {}) });
       if (result.method !== 'start' || peer.signal.aborted) throw new Error('Compute preview start unconfirmed');
       if (input.mode === 'app' && input.source === 'delivered' && input.classification &&
         (result.value.kind !== input.classification.kind ||
           (result.value.kind === 'node' && result.value.entry !== input.classification.entry))) throw new Error('Compute preview differs from the delivery descriptor');
       return { imageDigest: result.value.imageDigest, runtime: 'runc' as const,
         connect: () => openComputePreviewStream(command => peer.requestPreview(identity, command)) };
-    } catch (error) { this.options.unavailable(input.orgId, input.runId, input.generation); throw error; }
+    } catch (error) {
+      // A failed start owns nothing: kept, its key refused every later start.
+      peer.signal.removeEventListener('abort', disconnected); this.active.delete(key);
+      this.options.unavailable(input.orgId, input.runId, input.generation); throw error;
+    }
   }
   async stop(orgId: string, runId: string, generation: number): Promise<void> {
     const key = this.key(orgId, runId, generation), active = this.active.get(key);

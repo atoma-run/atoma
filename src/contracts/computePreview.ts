@@ -8,11 +8,20 @@ export type ComputePreviewIdentity = z.infer<typeof computePreviewIdentitySchema
 const stream = z.string().uuid();
 const data = z.string().min(4).max(4 * Math.ceil(COMPUTE_PREVIEW_CHUNK_BYTES / 3))
   .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/);
+/** What delivery recorded: a Node entry, or a static page (no entry). */
+export const computePreviewClassificationSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('node'), entry: previewEntrySchema }).strict(),
+  z.object({ kind: z.literal('static'), entry: z.null() }).strict(),
+]);
+export type ComputePreviewClassification = z.infer<typeof computePreviewClassificationSchema>;
 /** No URL, port, host path, engine option or shell text is a wire capability. */
 export const computePreviewCommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('start'), source: z.enum(['delivered', 'in-flight']), mode: z.enum(['app', 'terminal']),
     copyMaxBytes: z.number().int().positive().max(512 * 1024 ** 2), allowedHosts: previewEgressHostsSchema,
     artifactHash: z.string().regex(/^[a-f0-9]{64}$/).optional(), delivery: deliveryKindSchema.optional(),
+    /** The host's delivery descriptor, sent only to a device that advertises
+     * `preview-classification`: older copiers parse this object strictly. */
+    classification: computePreviewClassificationSchema.optional(),
     attribution: z.boolean(), hardMs: z.number().int().positive().max(2 * 60 * 60_000) }).strict(),
   z.object({ method: z.literal('stop') }).strict(),
   z.object({ method: z.literal('connect') }).strict(),

@@ -41,6 +41,41 @@ it.each(['app', 'terminal'] as const)('takes an executable-preserving %s copy an
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+// Attica 84ae80d1 (2026-10-23): the device's probe manifest held no HTTP
+// observation (a Compute export carries only publishable files), so the copier
+// re-classified a delivered Node app as unsupported although the host's
+// descriptor named its entry. A verified delivered copy now takes the host's
+// classification; the entry must still be a usable file in the copy.
+it('describes a verified delivered copy by the host classification, never by a missing device manifest', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'compute-preview-described-')));
+  const copy = root + '-copy';
+  try {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { start: 'node control-server.js' } }));
+    writeFileSync(join(root, 'control-server.js'), 'require("node:http").createServer().listen(8080)');
+    const expected = artifactManifestHash(buildWorkspaceArtifactManifest({ workspaceRoot: root }).manifest);
+    const delivered = { ...start, source: 'delivered' as const, artifactHash: expected };
+    // Without the classification: the old answer, which refused this app.
+    expect(() => copyComputePreview(delivered, root, copy)).toThrow('not runnable');
+    rmSync(copy, { recursive: true, force: true });
+    expect(copyComputePreview({ ...delivered, classification: { kind: 'node', entry: 'control-server.js' } }, root, copy))
+      .toEqual({ kind: 'node', entry: 'control-server.js' });
+    rmSync(copy, { recursive: true, force: true });
+    // A described entry the copy does not hold, or cannot execute, is refused.
+    expect(() => copyComputePreview({ ...delivered, classification: { kind: 'node', entry: 'server.js' } }, root, copy)).toThrow('not runnable');
+    rmSync(copy, { recursive: true, force: true });
+    expect(() => copyComputePreview({ ...delivered, classification: { kind: 'node', entry: 'package.json' } }, root, copy)).toThrow('not runnable');
+    rmSync(copy, { recursive: true, force: true });
+    // An in-flight snapshot has no saved delivery to bind the description to.
+    expect(() => copyComputePreview({ ...start, classification: { kind: 'node', entry: 'control-server.js' } }, root, copy)).toThrow('not runnable');
+    rmSync(copy, { recursive: true, force: true });
+    // Changed bytes are refused before any description is read.
+    writeFileSync(join(root, 'control-server.js'), 'changed');
+    expect(() => copyComputePreview({ ...delivered, classification: { kind: 'node', entry: 'control-server.js' } }, root, copy)).toThrow('differs');
+    // A malformed description is refused by the wire schema.
+    expect(() => computePreviewCommandSchema.parse({ ...delivered, classification: { kind: 'static', entry: 'index.html' } })).toThrow();
+  } finally { rmSync(copy, { recursive: true, force: true }); rmSync(root, { recursive: true, force: true }); }
+});
+
 const images = ['ATOMA_TEST_WORKSPACE_IMAGE', 'ATOMA_TEST_WORKER_IMAGE', 'ATOMA_TEST_PREVIEW_IMAGE'];
 it.skipIf(images.some(key => !process.env[key])).each(['static', 'node', 'terminal'] as const)('serves a real isolated %s copy through a bounded stream with no incoming port or arbitrary destination', async kind => {
   const exec = promisify(execFile);

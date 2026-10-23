@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computePreviewCommandSchema } from '../contracts/computePreview.js';
 import { materializePreviewWorkspace } from './policy.js';
-import { classifyDeliveredWorkspace } from './descriptor.js';
+import { classifyDeliveredWorkspace, usableNodeEntry } from './descriptor.js';
 import { artifactManifestHash, buildWorkspaceArtifactManifest } from '../projects/artifacts.js';
 import { previewCopyLimits } from './runtime.js';
 
@@ -21,6 +21,21 @@ export function copyComputePreview(input: unknown, source = '/source/current', d
     if (artifactManifestHash(observed) !== command.artifactHash) throw new Error('Preview copy differs from the saved delivery');
   }
   if (command.mode === 'terminal') return { kind: 'node' as const, entry: 'terminal' };
+  // A delivered copy whose bytes matched the saved delivery above is described
+  // by the host's descriptor, not re-classified here: the device's probe
+  // manifest is not the host's (a Compute export carries only publishable
+  // files), so a run that never restarted its server re-classified as
+  // unsupported although its descriptor names the entry (Attica 84ae80d1,
+  // 2026-10-23). The entry must still be a usable file in THIS copy.
+  if (command.classification && command.source === 'delivered' && command.artifactHash) {
+    const described = command.classification;
+    if (described.kind === 'node') {
+      const entry = usableNodeEntry(destination, described.entry);
+      if (!entry) throw new Error('Preview copy is not runnable');
+      return { kind: 'node' as const, entry };
+    }
+    return { kind: 'static' as const, entry: 'index.html' };
+  }
   const classified = classifyDeliveredWorkspace(destination, { manifestRoot: source });
   if (classified.availability !== 'available' || !classified.kind || (classified.kind === 'node' && !classified.entry)) throw new Error('Preview copy is not runnable');
   return { kind: classified.kind, entry: classified.entry ?? 'index.html' };

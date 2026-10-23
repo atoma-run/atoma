@@ -758,6 +758,74 @@ it('relays previews independently and invalidates pending traffic on device revo
   } finally { finish?.(); await client.close(); }
 });
 
+// 2026-10-23, Attica 84ae80d1: a refused preview start kept the connection's
+// preview identity, and every later start answered `busy` until the device
+// reconnected. The classification signal is hello-only: never stored, so an
+// older executor generation reading the row never meets it.
+it.each([true, false])('frees a refused preview start and keeps the classification signal out of storage (advertised %s)', async advertised => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId);
+  projects.transitionProjectRun({ orgId: owner.orgId, projectRunId: runId, from: 'queued', to: 'running' });
+  let starts = 0;
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId,
+    capabilities: { ...capabilities, services: ['workspace', 'tools', 'preview', ...(advertised ? ['preview-classification' as const] : [])] },
+    ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: async () => {},
+    preview: async (_identity, command) => {
+      if (command.method !== 'start') throw new Error('Unexpected preview command');
+      if (++starts === 1) throw new Error('Preview copy is not runnable');
+      return { method: 'start', value: { kind: 'static', entry: 'index.html', imageDigest } };
+    },
+    assign: async () => ({ execute: async () => ({ method: 'validate-sources', value: null }) }) });
+  try {
+    const peer = peers.at(-1)!;
+    expect(peer.acceptsPreviewClassification()).toBe(advertised);
+    const stored = db.prepare('SELECT capabilities FROM compute_devices WHERE device_id=?').get(paired.deviceId) as { capabilities: string };
+    expect(JSON.parse(stored.capabilities).services).toEqual(['workspace', 'tools', 'preview']);
+    expect(devices.supports(client.session, 'preview')).toBe(true);
+    const command = { method: 'start' as const, source: 'in-flight' as const, mode: 'app' as const, copyMaxBytes: 1024,
+      allowedHosts: [], attribution: true, hardMs: 60_000 };
+    await expect(peer.requestPreview({ runId, generation: 1, instanceId: randomUUID() }, command)).rejects.toThrow('Compute preview unavailable');
+    await expect(peer.requestPreview({ runId, generation: 2, instanceId: randomUUID() }, command)).resolves.toMatchObject({ method: 'start' });
+    expect(starts).toBe(2);
+  } finally { await client.close(); }
+});
+
+it('sends the host classification only to a device that advertised it, and frees a failed start', async () => {
+  const { ComputePreviewController } = await import('../src/preview/computeController.js');
+  const sent: unknown[] = [];
+  const peerFor = (accepts: boolean, fail = false) => ({
+    signal: new AbortController().signal, acceptsPreviewClassification: () => accepts,
+    requestPreview: async (_identity: unknown, command: unknown) => {
+      sent.push(command);
+      if (fail) throw new Error('Compute preview unavailable');
+      return { method: 'start', value: { kind: 'node', entry: 'browser/control-server.js', imageDigest } };
+    },
+  });
+  let peer = peerFor(true);
+  const unavailable = vi.fn();
+  const controller = new ComputePreviewController({
+    projects: { getProjectRun: () => ({ projectId: 'p', status: 'delivered', artifactManifestHash: 'a'.repeat(64),
+      artifactManifest: { delivery: 'files' }, executionTarget: { kind: 'customer-device', deviceId: 'd' } }) } as never,
+    devices: { currentSession: () => ({ deviceId: 'd', sessionId: 's', generation: 1 }), supports: () => true, authorizePreview: () => {} } as never,
+    connectionFor: () => peer as never, unavailable });
+  const input = { orgId: 'o', projectId: 'p', runId: randomUUID(), generation: 1, source: 'delivered' as const, mode: 'app' as const,
+    copyMaxBytes: 1024, allowedHosts: [], attribution: true, hardMs: 60_000,
+    classification: { availability: 'available' as const, kind: 'node' as const, entry: 'browser/control-server.js', unavailableReason: null } };
+  await controller.start(input);
+  expect(sent.at(-1)).toMatchObject({ classification: { kind: 'node', entry: 'browser/control-server.js' } });
+  peer = peerFor(false);
+  await controller.start({ ...input, generation: 2 });
+  expect(sent.at(-1)).not.toHaveProperty('classification');
+  peer = peerFor(true, true);
+  await expect(controller.start({ ...input, generation: 3 })).rejects.toThrow('Compute preview unavailable');
+  expect(unavailable).toHaveBeenCalledOnce();
+  peer = peerFor(true);
+  // The same generation may start again: the failed attempt left no active entry.
+  await expect(controller.start({ ...input, generation: 3 })).resolves.toMatchObject({ runtime: 'runc' });
+});
+
 it.skipIf(!process.env['ATOMA_TEST_WORKSPACE_IMAGE'] || !process.env['ATOMA_TEST_WORKER_IMAGE'])(
   'stops actual workloads on low disk and keeps their server assignment indeterminate until reconciliation', async () => {
     const { ComputeMachine } = await import('../src/launcher/computeMachine.js');
