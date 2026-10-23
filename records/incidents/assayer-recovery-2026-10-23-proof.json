@@ -1,0 +1,142 @@
+{
+  "verifiedAt": "2026-10-23T14:42:55.619Z",
+  "summary": {
+    "id": "5326d19a-f4af-4af3-913a-1653081038d1__repair-isolated-browser-contract-test__2b762bf46e0e__eeDoXX",
+    "namespace": "5326d19a-f4af-4af3-913a-1653081038d1",
+    "skillId": "repair-isolated-browser-contract-test",
+    "surfaceDigest": "2b762bf46e0e7599a10bcf83efb974025bd8cf56a37aecc0554d967e0cb5b67f",
+    "startedAt": "2026-10-23T14:16:54.383Z",
+    "endedAt": "2026-10-23T14:40:02.177Z",
+    "status": "completed",
+    "judgement": {
+      "verdict": "neutral",
+      "decision": "keep",
+      "matchedCases": 1,
+      "deliveries": {
+        "with": 1,
+        "without": 1
+      },
+      "costUsd": {
+        "with": 0.5174,
+        "without": 0.5305
+      }
+    },
+    "failure": null,
+    "totalCostUsd": 1.7176,
+    "cases": 2,
+    "arms": [
+      {
+        "arm": "with",
+        "outcome": "delivered",
+        "matched": false,
+        "llmCalls": 21,
+        "durationS": 263.48050206600004,
+        "traceId": "2026-10-23T14-17-02-499-fb7902f8"
+      },
+      {
+        "arm": "without",
+        "outcome": "delivered",
+        "matched": false,
+        "llmCalls": 21,
+        "durationS": 256.867627587,
+        "traceId": "2026-10-23T14-21-25-181-65e52e5b"
+      },
+      {
+        "arm": "with",
+        "outcome": "delivered",
+        "matched": true,
+        "llmCalls": 27,
+        "durationS": 342.063101108,
+        "traceId": "2026-10-23T14-25-42-841-ef75b594"
+      },
+      {
+        "arm": "without",
+        "outcome": "delivered",
+        "matched": false,
+        "llmCalls": 30,
+        "durationS": 518.887602498,
+        "traceId": "2026-10-23T14-31-28-672-0ae5f3b0"
+      }
+    ]
+  },
+  "arms": [
+    {
+      "caseIndex": 0,
+      "arm": "with",
+      "pages": 6,
+      "events": 85,
+      "skillEvents": [],
+      "visibleLlmEvents": 6,
+      "omittedLargeEvents": 17
+    },
+    {
+      "caseIndex": 0,
+      "arm": "without",
+      "pages": 6,
+      "events": 76,
+      "skillEvents": [],
+      "visibleLlmEvents": 6,
+      "omittedLargeEvents": 17
+    },
+    {
+      "caseIndex": 1,
+      "arm": "with",
+      "pages": 6,
+      "events": 106,
+      "skillEvents": [
+        {
+          "op": "match",
+          "skillId": "repair-isolated-browser-contract-test",
+          "l1AtomId": "5326d19a-f4af-4af3-913a-1653081038d1"
+        },
+        {
+          "op": "inject",
+          "skillId": "repair-isolated-browser-contract-test",
+          "l1AtomId": "5326d19a-f4af-4af3-913a-1653081038d1"
+        },
+        {
+          "op": "success",
+          "skillId": "repair-isolated-browser-contract-test",
+          "l1AtomId": "5326d19a-f4af-4af3-913a-1653081038d1"
+        }
+      ],
+      "visibleLlmEvents": 3,
+      "omittedLargeEvents": 26
+    },
+    {
+      "caseIndex": 1,
+      "arm": "without",
+      "pages": 7,
+      "events": 124,
+      "skillEvents": [],
+      "visibleLlmEvents": 5,
+      "omittedLargeEvents": 29
+    }
+  ],
+  "history": {
+    "count": 37,
+    "failed": 36,
+    "completed": 1,
+    "retired": 0
+  },
+  "finalDeployment": {
+    "release": "22067885962f0607bc282ab818315382325d49b7",
+    "health": {
+      "assayer": {
+        "armed": true,
+        "inFlight": "5326d19a-f4af-4af3-913a-1653081038d1/verify-clean-copy-node-tests \u00b7 case 1/2 \u00b7 with",
+        "assayed": 0,
+        "failed": 0,
+        "deferred": 18,
+        "preempted": 0,
+        "pausedUntil": null,
+        "lastResult": null,
+        "lastError": null,
+        "executorRelease": "caaa33567edb7af72119c4b0b0f736a655badfe3"
+      }
+    },
+    "ciRun": 39971769997,
+    "deploymentRun": 39973327634,
+    "desktopRun": 39971770010
+  }
+}

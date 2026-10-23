@@ -13,6 +13,7 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Assayer recovery](assayer-recovery-2026-10-23.md) — 2026-10-23: launch/reporting fixed, 15 surfaces reopened; first real paired evaluation neutral, VIZ and three MCP readers; generation handoff fixed and verified in production
 - [Test suite speed](test-suite-speed.md) — 2026-10-23: 299 s → 95 s on the Mac; CPU-bound at 12 workers, 14+ oversubscribe; next lever is less work per file
 - [Manually published seed](publication-manual-seed.md) — exact selected seed bytes at the live head are a valid publication base; retain concurrent client edits
 - [Root remediation receipts](root-remediation-command-evidence.md) — 2026-10-23: retain historical command results after a README repair; no Attica test replay
