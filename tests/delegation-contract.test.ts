@@ -571,6 +571,33 @@ describe('root delegation review robustness', () => {
     expect(ctx.llm.calls.filter(call => call.role === 'validate-plan').at(-1)!.userContent).not.toContain('PREVIOUS REFUSALS');
   });
 
+  // Run 00fc7063 (2026-10-23): with the history read, the cell review still
+  // refused three plans in a row, each for coverage no earlier refusal named.
+  // The third plan that passes every mechanical check executes, bounded.
+  it('executes a cell plan after MAX_CELL_PLAN_REFUSALS merits refusals, never a mechanical one', async () => {
+    const { tissue, cell } = actors();
+    const ctx = makeCtx();
+    const task: Task = { description: 'Repair the CAPTCHA matrix', acceptanceTests: suite };
+    const refuse = (n: number) => JSON.stringify({ approved: false, reasoning: `GAP-${n}: one more behaviour uncovered.`, scope: 'ephemeral', modifications: {} });
+    const plan = (n: number) => makePlan({ subtasks: [{ description: `Implement signed addition, v${n}`, outputs: ['add.ts'], acceptanceTests: suite }] });
+    ctx.llm.enqueueText(refuse(1));
+    ctx.llm.enqueueText(refuse(2));
+    ctx.llm.enqueueText(refuse(3));
+    expect((await tissue.validatePlan(cell, plan(1), task, ctx)).approved).toBe(false);
+    expect((await tissue.validatePlan(cell, plan(2), task, ctx)).approved).toBe(false);
+    const third = await tissue.validatePlan(cell, plan(3), task, ctx);
+    expect(third.approved).toBe(true);
+    expect(third.reasoning).toContain('Delegation review bounded: 2 earlier plans');
+    expect(third.reasoning).toContain('GAP-3');
+    expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(3);
+    // A mechanical suite refusal still refuses after the bound, at zero tokens.
+    const broken = makePlan({ subtasks: [{ description: 'v4', outputs: ['add.ts'],
+      acceptanceTests: { ...suite, source: suite.source + "\nimport './tests/other.test.ts';" } }] });
+    const fourth = await tissue.validatePlan(cell, broken, task, ctx);
+    expect(fourth).toMatchObject({ approved: false, delegationRefusal: 'plan' });
+    expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(3);
+  });
+
   it('tells root and cell planners how to write a test source inside JSON', async () => {
     const { tissue, cellName } = routedActors();
     const ctx = makeCtx({ llm: routedLlm(cellName, [{ text: planReply(cellName) }], [{ text: approval }]) });

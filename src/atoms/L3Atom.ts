@@ -1193,6 +1193,19 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * refusals of the plan and are never listed.
    */
   private readonly cellReviewRefusals = new Map<string, string[]>();
+  /**
+   * How many times the delegation review may refuse one cell planner's plans
+   * on their merits before the next plan that passes every mechanical check
+   * executes. Run 00fc7063 (2026-10-23, with the review reading its own
+   * history): three plans of 57-88 s, three refusals in 6-13 s, each adding
+   * coverage no earlier refusal had asked for, then recordFailure and the
+   * ladder b920faf6 had already shown (eight plans, the tissue running tools
+   * itself). The review's remaining requests are kept in the approval's
+   * reasoning; result validation and root acceptance still judge every
+   * criterion on executed evidence. Reviewer faults and fan-out refusals are
+   * mechanical and never count.
+   */
+  static readonly MAX_CELL_PLAN_REFUSALS = 2;
 
   private async dispatchSubtasks(
     subtasks: readonly Plan['subtasks'][number][],
@@ -1877,6 +1890,15 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       const list = this.cellReviewRefusals.get(planner) ?? [];
       list.push(refusalWithRequests(verdict));
       this.cellReviewRefusals.set(planner, list);
+      if (list.length > L3Atom.MAX_CELL_PLAN_REFUSALS) {
+        const reasoning = `Delegation review bounded: ${list.length - 1} earlier plans of this cell were refused on their merits ` +
+          `and this plan passed every mechanical suite check, so it executes; the review's remaining requests are a result-time ` +
+          `finding, not a plan gate: ${refusalWithRequests(verdict)}`;
+        ctx.logger.warn(`[l3] ${reasoning.slice(0, 400)}`);
+        const bounded: Verdict = { approved: true, reasoning };
+        if (reviewKey) this.reviewedTestPlans.set(reviewKey, bounded);
+        return bounded;
+      }
     }
     return verdict;
   }

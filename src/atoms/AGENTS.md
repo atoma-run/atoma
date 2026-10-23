@@ -400,8 +400,8 @@ load-bearing.
   review reads its earlier refusals: one that still stands refuses again only as
   a blocking defect or another rule's breach; a refusal lists EVERY blocking
   defect at once (b920faf6 replanned one cell eight times, one new gap per
-  round), and since 2026-10-23 the cell review reads its own history too
-  (`cellReviewRefusals`: one cell type, one task; 2026-10-16: nine root refusals).
+  round); since 2026-10-23 the cell review reads its own history and after
+  `MAX_CELL_PLAN_REFUSALS` merits refusals the next clean plan executes (00fc7063).
 
 - All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
   logic and maintained tests created or changed by the requested implementation.
