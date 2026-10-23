@@ -20,6 +20,7 @@ import { modelFacingExecutor } from '../core/attestation.js';
 import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { executorEvidence } from './executorEvidence.js';
 import { AttemptDigest } from './attemptDigest.js';
+import { withProbeExecutionHistory } from './probeExecutionHistory.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
 import { WEB_DELIVERY_GUIDANCE, HTTP_STARTUP_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, READABLE_SOURCE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
 
@@ -599,7 +600,7 @@ ${previousAttempt}` : '',
         userContent,
         tools,
         params: effort === undefined ? this.params : { ...this.params, effort },
-        executor: task.executionMode !== 'reasoning' && ctx.tools ? modelFacingExecutor(withAutomaticLoopbackHttpRecording(ctx.tools)) : undefined,
+        executor: task.executionMode !== 'reasoning' && ctx.tools ? modelFacingExecutor(withProbeExecutionHistory(withAutomaticLoopbackHttpRecording(ctx.tools))) : undefined,
         signal: ctx.signal,
         onToolInvocation,
       // Iterative build-app style tasks (write_file → start_server →
