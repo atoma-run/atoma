@@ -1184,6 +1184,15 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    */
   private readonly planChildAliases = new Map<string, string>();
   private readonly reviewedTestPlans = new Map<string, Verdict>();
+  /**
+   * Each cell planner's earlier refusals, oldest first, with their requests.
+   * Until 2026-10-23 only the root review read its history: run b920faf6's
+   * SieveElement cell replanned eight times, each plan reviewed from scratch,
+   * and every refusal found one more gap. Keyed like `planSuitePrecheck`'s
+   * planner: one cell type and one task description. Reviewer faults are not
+   * refusals of the plan and are never listed.
+   */
+  private readonly cellReviewRefusals = new Map<string, string[]>();
 
   private async dispatchSubtasks(
     subtasks: readonly Plan['subtasks'][number][],
@@ -1843,7 +1852,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // Inject the downstream-target description so Haiku can judge the
         // routing on facts, not on name-based guesses.
         targetContext: buildTargetContext(plan, this.registry),
-        ...(reviewsTests ? { delegationContract: { plan, allowDiscovery: false, hostFacts } } : {}),
+        ...(reviewsTests ? { delegationContract: { plan, allowDiscovery: false, hostFacts, previousRefusals: this.cellReviewRefusals.get(planner) ?? [] } } : {}),
         ...(audit ? { audit: true } : {}),
       });
     // Jev fast path — see L2Atom.validatePlan. Approve or defer, never refuse.
@@ -1862,6 +1871,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     if (jevApproved) return jevApproved;
     const verdict = reviewsTests ? await this.reviewChildDelegation(child, modelVerdict, ctx) : await modelVerdict(false);
     if (reviewKey && verdict.approved) this.reviewedTestPlans.set(reviewKey, verdict);
+    // A model refusal carries no delegationRefusal stamp; only the host's own
+    // 'reviewer' fault and the fan-out mechanical refusal are excluded.
+    if (reviewsTests && !verdict.approved && verdict.delegationRefusal !== 'reviewer' && verdict.delegationRefusal !== 'fan-out') {
+      const list = this.cellReviewRefusals.get(planner) ?? [];
+      list.push(refusalWithRequests(verdict));
+      this.cellReviewRefusals.set(planner, list);
+    }
     return verdict;
   }
 

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import ts from 'typescript';
 import { WATCHED_PROTOTYPES, WATCHED_STATICS } from '../contracts/assertionIntegrity.js';
-import { VITEST_BUILTIN_MATCHERS } from '../contracts/parentTests.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS, VITEST_BUILTIN_MATCHERS } from '../contracts/parentTests.js';
 import { mentionsReadRunCopies, READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
 
 /**
@@ -453,6 +453,16 @@ export function planSuitePrecheck(
   const told = new Set<string>();
   for (const { label, source, cwd } of suites) {
     if (!source) continue;
+    // Size is a host fact, never a refusal: the parser refuses above
+    // PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS; between the target and that bound the
+    // review asks for a split instead of spending a replan on a number the
+    // planner already read (run 1622e44b, refusal 009f114d, 2026-10-22).
+    if (source.length > PARENT_TEST_SOURCE_TARGET_CHARS) {
+      facts.push(`HOST FACT: Acceptance suite ${label} is ${source.length.toLocaleString('en-US')} characters. The host ACCEPTS it ` +
+        `(its refusal is at ${PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS.toLocaleString('en-US')}); the soft target is ` +
+        `${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')}. Size alone never refuses a plan: if the branch's contract needs ` +
+        'more, ask for the branch to be split, never for a shorter suite.');
+    }
     const api = parentSuiteRefusal(label, source);
     if (api) findings.push(api);
     const copies = readRunCopiesRefusal(label, source);

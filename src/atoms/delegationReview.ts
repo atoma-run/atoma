@@ -31,7 +31,7 @@ ${PARENT_TEST_BLOCKING_DEFECTS} Name any other gap in a suite's coverage in your
 Set independentWork true whenever useful independent work exists in the assigned scope, including work hidden in one broad branch. Reject grouping independent L2 work into one L2 or inventing dependencies to serialize it. Genuine coupling permits sequential work; do not invent branches for a small inseparable change.
 An L3 replanAfter:true plan is discovery ONLY: no writes, no implementation deferred to another subtask. The host will replan once after its observations. A promise in prose to obtain review or replan later has NO runtime effect. Reject such a promise when executable contracts are missing. L2 cannot use replanAfter.
 An inspection or reproduction subtask must ask for observed state and defects, not require the repaired state while forbidding changes. Reject that contradiction before dispatch and ask for observation now, correction in the implementation phase. Context-only criteria cannot become binding through a child description. An inspection still needs its requested evidence; its approval does not satisfy the final criteria.
-An approval without this complete classification is not executable. For rejection use the ordinary negative Verdict with actionable reasoning; no classification is required.`;
+An approval without this complete classification is not executable. For rejection use the ordinary negative Verdict with actionable reasoning; no classification is required. A refusal lists EVERY blocking defect and every request in this one verdict, not the first one found: the planner answers all of them in one revision. A later round refuses only for a listed defect that still stands or one the revision introduced; a defect that was present and went unlisted goes in your reasoning and does not refuse the plan.`;
 
 /**
  * The obligations the reviewed task already carries. Dispatch unions them into
@@ -59,7 +59,7 @@ export function previousRefusalsNote(refusals: readonly string[]): string {
   if (refusals.length === 0) return '';
   const cap = 1200;
   const listed = refusals.map((text, index) => `${index + 1}. ${text.length > cap ? `${text.slice(0, cap)} [truncated]` : text}`).join('\n');
-  return `PREVIOUS REFUSALS OF THIS DELEGATION, oldest first; the planner received each with its requests:\n${listed}\nJudge first whether this plan fixes each of them. One that still stands refuses again only when it is a blocking suite defect above or breaks another rule of this review. Any other gap, including one no earlier refusal named, goes in your reasoning and does not refuse the plan.`;
+  return `PREVIOUS REFUSALS OF THIS DELEGATION, oldest first; the planner received each with its requests:\n${listed}\nJudge first whether this plan fixes each of them. One that still stands refuses again only when it is a blocking suite defect above or breaks another rule of this review. A defect the revision introduced refuses. Any other gap, including one that was already present and no earlier refusal named, goes in your reasoning and does not refuse the plan.`;
 }
 
 /** One refusal as the planner and later reviews read it: the reasoning, then what it asked for. */

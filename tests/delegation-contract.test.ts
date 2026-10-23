@@ -540,6 +540,37 @@ describe('root delegation review robustness', () => {
     });
   });
 
+  // Run b920faf6 (2026-10-22): the SieveElement cell replanned eight times,
+  // each plan reviewed by the tissue with no memory of its earlier refusals,
+  // and every refusal found one more gap. The cell review now reads its own
+  // history like the root review does; a reviewer fault is never listed.
+  it('carries a cell plan\'s earlier refusals with their requests into its next review', async () => {
+    const { tissue, cell } = actors();
+    const ctx = makeCtx();
+    const task: Task = { description: 'Repair the CAPTCHA classifier', acceptanceTests: suite };
+    ctx.llm.enqueueText(JSON.stringify({ approved: false, reasoning: 'FIRST: no unmarked envelope case.', scope: 'ephemeral',
+      modifications: { additionalContext: 'ASK-1: assert the seven unmarked envelopes return 403.' } }));
+    ctx.llm.enqueueText('not json at all');
+    ctx.llm.enqueueText('not json at all');
+    ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
+    const first = await tissue.validatePlan(cell, runnable(), task, ctx);
+    expect(first.approved).toBe(false);
+    const fault = await tissue.validatePlan(cell, makePlan({ subtasks: [{ description: 'Implement signed addition, v2', outputs: ['add.ts'], acceptanceTests: suite }] }), task, ctx);
+    expect(fault).toMatchObject({ approved: false, delegationRefusal: 'reviewer' });
+    const third = await tissue.validatePlan(cell, makePlan({ subtasks: [{ description: 'Implement signed addition, v3', outputs: ['add.ts'], acceptanceTests: suite }] }), task, ctx);
+    expect(third.approved).toBe(true);
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan').map(call => call.userContent);
+    expect(reviews[0]).not.toContain('PREVIOUS REFUSALS OF THIS DELEGATION');
+    expect(reviews.at(-1)).toContain('PREVIOUS REFUSALS OF THIS DELEGATION');
+    expect(reviews.at(-1)).toContain('1. FIRST: no unmarked envelope case. Requested: ASK-1');
+    expect(reviews.at(-1)).not.toContain('2. ');
+    expect(reviews.at(-1)).not.toContain('Delegation review is incomplete');
+    // A different task of the same cell type is another planner: no shared history.
+    ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
+    await tissue.validatePlan(cell, runnable(), { description: 'Another task', acceptanceTests: suite }, ctx);
+    expect(ctx.llm.calls.filter(call => call.role === 'validate-plan').at(-1)!.userContent).not.toContain('PREVIOUS REFUSALS');
+  });
+
   it('tells root and cell planners how to write a test source inside JSON', async () => {
     const { tissue, cellName } = routedActors();
     const ctx = makeCtx({ llm: routedLlm(cellName, [{ text: planReply(cellName) }], [{ text: approval }]) });

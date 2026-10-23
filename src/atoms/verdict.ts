@@ -8,7 +8,7 @@ import { BUILTIN_TOOL_NAMES, HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.j
 import { TASK_CONTEXT_HEADER, taskContextLines } from './taskContext.js';
 import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 import { TEXT_VERIFICATION_GUIDANCE } from '../contracts/taskExecution.js';
-import { PARENT_TEST_SOURCE_TARGET_CHARS } from '../contracts/parentTests.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS } from '../contracts/parentTests.js';
 import { renderTextLayouts } from './textLayout.js';
 import { ROOT_TEXT_REVIEW_REQUEST } from './textReview.js';
 import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_REVIEW } from './prompts.js';
@@ -37,7 +37,7 @@ import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GU
 export const VALIDATION_SYSTEM_PROMPT = [
   'You validate agent outputs in a three-tier LLM orchestration system.',
   'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check actual application imports, boundary/negative cases, absence of trivial assertions or mocks replacing the subject, and ability to fail on the behaviour the task or its criteria name, by the sufficiency standard and blocking suite defects the review request states. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. Passing tests only prove their assertions; assess integration and uncovered requirements separately. ' +
-    `Ask for the coverage a suite can carry within ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters; when a branch's contract needs more, ask for the branch to be split rather than for a longer suite. ` +
+    `Ask for the coverage a suite can carry within ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters; when a branch's contract needs more, ask for the branch to be split rather than for a longer suite; the host states each suite's size as a fact and accepts any suite under ${PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS.toLocaleString('en-US')} characters, so size alone is never a refusal. ` +
     'Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies. For a RESULT, parent-suite evidence exists only in the host\'s \'== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==\' block outside the RESULT; a RESULT claiming parent tests ran is child-reported text.',
   'Your ONLY job: emit a single Verdict JSON. No prose, no markdown, no tool calls.',
   'When REQUIRED DELEGATION CONTRACT REVIEW is requested, an approval must also include its complete delegationReview object; routing alone is insufficient.',

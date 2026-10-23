@@ -398,10 +398,10 @@ load-bearing.
   round. Planners and the delegation review read the same texts. Each root
   refusal reaches the planner with its requests (`additionalContext`), and the
   review reads its earlier refusals: one that still stands refuses again only as
-  a blocking defect or another rule's breach. Root only: cell-plan reviews keep
-  superviseLoop's own coaching. Runs 7a7af324, aaa6b442 and 63feeb3c
-  (2026-10-16) refused nine root plans; two runs refused for requests the root
-  never forwarded, the first run's last round for a suite driving a browser.
+  a blocking defect or another rule's breach; a refusal lists EVERY blocking
+  defect at once (b920faf6 replanned one cell eight times, one new gap per
+  round), and since 2026-10-23 the cell review reads its own history too
+  (`cellReviewRefusals`: one cell type, one task; 2026-10-16: nine root refusals).
 
 - All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
   logic and maintained tests created or changed by the requested implementation.
@@ -711,7 +711,7 @@ Read the archived sections before changing something that merely looks odd.
 - Plan size (G4, 2026-10-16): the suite bound is per suite, never a plan total;
   a soft 8,000-character target in prompts and review, with a 12,000 hard
   refusal 50% above it so a reviewer's request does not become a parser
-  refusal; no adaptive plan cap (a cut is the common case, so cap-then-raise
+  refusal; between the two, size is a HOST FACT, never a refusal (1622e44b). No adaptive plan cap (a cut is the common case, so cap-then-raise
   wastes a reply); no non-streaming cap above the SDK's 21,333; parse feedback
   never reaches the prefilter.
 

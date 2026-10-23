@@ -106,6 +106,22 @@ describe('the zero-token precheck', () => {
     expect(precheck.refusal).toContain('Acceptance suite for the plan integration: toMatchSnapshot is unavailable');
   });
 
+  // Run 1622e44b (2026-10-22): refusal 009f114d rejected a plan solely for a
+  // suite over the 8,000-character target that the parser accepts, and the
+  // replan it caused cost 263 s of top-tier planning. Size is a host fact.
+  it('states a suite between the target and the parser bound as a fact, never a refusal', () => {
+    const body = `test('t', () => { expect(1).toBe(1); }); // ${'x'.repeat(9_300)}`;
+    const precheck = planSuitePrecheck([
+      { label: 'on subtask 0', cwd: '.', source: `import { test, expect } from 'vitest';\n${body}` },
+      { label: 'on subtask 1', cwd: '.', source: "import { test, expect } from 'vitest';\ntest('s', () => { expect(2).toBe(2); });" },
+    ], new Set(), 'cell:A');
+    expect(precheck.refusal).toBeUndefined();
+    const sized = precheck.facts.filter(fact => fact.includes('characters. The host ACCEPTS it'));
+    expect(sized).toHaveLength(1);
+    expect(sized[0]).toContain('HOST FACT: Acceptance suite on subtask 0 is 9,3');
+    expect(sized[0]).toContain('(its refusal is at 12,000); the soft target is 8,000. Size alone never refuses a plan');
+  });
+
   // Review 2026-10-17: the runner's snapshot leaves the read-run copies out,
   // so a suite comparing with one reads ENOENT in every round, and the child
   // is rejected for a suite it cannot change. Refused at plan time, every time,
