@@ -1,0 +1,266 @@
+[
+ {
+  "refuted": true,
+  "problems": [
+   {
+    "mechanism": "M8",
+    "problem": "Routing the tissue's last resort to L2.selfExecute stamps producedBy {tier:2, name:<cell>, viaFallback:true}. superviseLoop's fallback return (src/core/supervisor.ts:529-557) bypasses parent.validateResult, so the result reaches the tissue-level dispatch unjudged. There, `dependencyBlocker` (src/atoms/dispatch.ts:55) reads `isOwnFallback(result, dispatcher)` with dispatcher = the tissue; the name no longer matches, so the result is read as 'an approved N=1 pass-through of a cell's fallback' (dispatch.ts:40-42 names exactly this case as the reason a bare viaFallback is insufficient). Dependents are no longer blocked 'unverified' on an unvalidated fallback, and the `unvalidated-fallback` gate (resultGates.ts:459-471) keyed on the childName never runs because no tier validates this result before root. This is the false-provenance shortcut src/atoms/AGENTS.md's G3 record refuses ('rewriting a mutualized producedBy').",
+    "severity": "blocking",
+    "fix": "Keep tissue provenance on the returned result (producedBy.name = tissue, tier 3, viaFallback true) and change only the executing model/tool path, or route the lastResort result through parent.validateResult before returning; add a test that dependencyBlocker still returns 'unverified' for it."
+   },
+   {
+    "mechanism": "M6",
+    "problem": "The repeat key is sha256(workspaceDigest, cited attestation eventIds, receipts). Attestation eventIds are `randomUUID()` per observation (src/core/attestation.ts:93) and `executorEvidence` cites them per record (src/atoms/executorEvidence.ts:37-40), so two executions that run the identical `vitest \u2192 exit 126` command produce different keys; the tracker can never fire on a tool-bearing child. The predicted Melatonin \u00d76 \u2192 3 (\u22124 to \u22125 min) and Methane/Cholesterol savings are unreachable as specified. Conversely a tool-free (reasoning) child cites no eventIds and no receipts, so its key is constant whatever its output: three refusals with different wordings of three DIFFERENT answers escalate as 'repeat', and EscalationSignal('repeat') is not blameless (supervisor.ts:490), so onFailed \u2192 recordFailure fires and a branch is created \u2014 the plan's own claim 'one fewer recordFailure' is false in both directions.",
+    "severity": "blocking",
+    "fix": "Key on observation CONTENT identity (tool, normalized command, exit code, document sha256, written paths), never on eventIds; include output/summary digest for tool-free results; state that phase 'repeat' remains blamed or make this escalation blameless explicitly."
+   },
+   {
+    "mechanism": "M4",
+    "problem": "On a resumed run, `reviewed` is `pending.subtasks.slice(args.from)` (L3Atom.ts:721) and the plan applies deltas to `reviewed` and returns `{ plan: amended }`. The caller at :590-591 (`plan = reviewed.plan`) then checkpoints and executes a plan missing the completed prefix, while `rootApproval(plan, completed, \u2026)` digests it with from=completed. The run either re-executes completed phases from index 0 or loses them; recordedRootApproval then rejects the saved digest on the next resume.",
+    "severity": "blocking",
+    "fix": "Apply deltas to the sliced view, then splice: `amended = { ...pending, subtasks: [...pending.subtasks.slice(0, from), ...amendedTail.subtasks] }`; add the continuation case to test (d)."
+   },
+   {
+    "mechanism": "M4",
+    "problem": "The reviewer authors acceptance suites (suite.replace/suite.split) and is then told to 'classify the plan as it stands after your deltas': the only judge of a reviewer-written scorer is its author. The plan explicitly skips `planSuiteFactsBlock` on the amended plan ('planSuiteFactsBlock-free'), so the host's import-resolution facts (parentSuiteFacts.ts, the mechanism that replaced sampled votes on 2026-10-17) are never computed for a reviewer-authored suite; `planSuitePrecheck` only checks regex/API/test-import. A suite importing a non-existent path or asserting a fabricated interface is then the executing scorer that `withParentTestConsequences` applies to reject or credit the child. 'Executing scorers establish correctness' is inverted: the scorer itself is unverified. M0's only quality check ('0 amended suites that drop an expect( line') is textually meaningless for a suite.replace that rewrites the file.",
+    "severity": "serious",
+    "fix": "Run planSuiteFactsBlock on the amended plan and refuse the repair when any amended suite import does not resolve; require that a repaired suite keep every assertion target (imported symbol + called function) of the planner's suite, measured in M0; or send reviewer-authored suites to a second tier-2 classification call (a judge, not a vote)."
+   },
+   {
+    "mechanism": "M0",
+    "problem": "The replay corpus is 18 REFUSALS only; there is no control arm of plans the current prompt APPROVED. Pass criterion \u226570% approve-or-repair can be met by a prompt that approves everything; the false-approval rate of the new DELEGATION_REVIEW_REQUEST (closed refusal kinds, 'repair, never refuse' for most BLOCKING defects) is unmeasured before the flag default flips. The 0.74 figure in src/atoms/AGENTS.md ('Sampled delegation-review votes') shows this review already misses defects 2/3 of the time.",
+    "severity": "serious",
+    "fix": "Add \u226518 previously-approved plans and \u22656 synthetic plans with known blocking defects (mock-replaced module, trivial assertions) to the replay; pass requires the defective plans refused or repaired into a suite that still imports the real module."
+   },
+   {
+    "mechanism": "M5",
+    "problem": "`L2Strategy` is `{strategy, target?, seed?, reasoning}` (src/atoms/json.ts:1580-1588): it carries no subtask specs, so `acceptAmendedPlan` 'rewriting pendingStrategy subtask specs \u2014 acceptanceTests, dependsOn, criteria, proofObligations' rewrites nothing that exists; suites are read from `plan.subtasks` in `dispatchSubtasks(subtasks, plan, strategy, \u2026)` (L2Atom.ts:760). Meanwhile the real coupling is per-subtask `preferredChild` (L2Atom.ts:498-631): a `suite.split` delta's `into` entries carry no preferredChild/executionMode/outputs and the amended plan never passes `preservePlanLiteralContracts` (L2Atom.ts:716), so split subtasks route to an unnamed child and lose literal contracts.",
+    "severity": "serious",
+    "fix": "Drop acceptAmendedPlan's strategy rewrite; make `suite.split.into` inherit preferredChild, executionMode, outputs, criteria and proofObligations from the target subtask and re-run preservePlanLiteralContracts on the amended plan."
+   },
+   {
+    "mechanism": "M1",
+    "problem": "Memoising REFUSALS in `reviewedTestPlans` returns the same NegativeVerdict object on a byte-identical resubmission, and superviseLoop then calls `hooks.applyByScope(current, v1)` again (supervisor.ts:400). A model refusal with scope 'patch' or 'branch' re-applies its modifications on every memo hit (duplicated systemPromptAppend, a second branch type for one judgement). Also, extending `previousRefusalsNote` to the cell makes later cell rounds refuse 'only when it is a blocking suite defect', which src/atoms/AGENTS.md states is ROOT ONLY ('cell-plan reviews keep superviseLoop's own coaching') \u2014 a later round judges less than the first.",
+    "severity": "serious",
+    "fix": "Memoise only ephemeral-scope refusals (or memoise the key \u2192 'already refused' and return a fresh ephemeral refusal); record the AGENTS.md root-only rule change as an explicit owner decision with its rationale."
+   },
+   {
+    "mechanism": "M3",
+    "problem": "Ships unconditionally (not behind ATOMA_REVIEW_REPAIR) with no offline gate: M0 replays the REVIEWER prompt only. The planner-side delta protocol (PREVIOUS PLAN block ~6k chars appended to every refused root replan, parsePlanPair accepting `planDeltas`) changes every production run's planner prompt and parser before any replay of astra on a delta reply exists. The cell path claims supervisor.ts:345 'keeps the last refused plan on planFeedback', but today a review refusal never writes planFeedback (it is reset at :355 and only PlanParseError sets it at :352); the refusal travels through applyByScope/additionalContext, so a second channel for the same refusal is introduced.",
+    "severity": "serious",
+    "fix": "Put M3 behind the flag with M4, or add a planner replay (the 6 root refusals' feedback \u2192 astra) to M0 with a parse-success threshold; define one channel for the refused plan."
+   },
+   {
+    "mechanism": "M2",
+    "problem": "Deleting the reviewer's instruction to refuse over the 8,000 target while keeping the 12,000 parser bound means a 8k\u201312k suite now executes with no judge of its size (the fact is 'beside the judgement' but the prompt says 'never refused'). Combined with M4 the only remedy is a reviewer-authored split, i.e. more reviewer-authored suites. Minor on its own, but it widens M4's surface.",
+    "severity": "minor",
+    "fix": "Keep the sentence as 'ask for a split' without 'never refused', and let the host fact carry the number."
+   },
+   {
+    "mechanism": "M7",
+    "problem": "`result.verdict` does not exist on `Result` (src/core/types.ts:205-235); the L2 verdict for the N=1 passthrough is only available if carried on ctx or threaded by the dispatcher. As written the shadow event would emit `l2Approved: undefined` and the agreement dataset is empty.",
+    "severity": "minor",
+    "fix": "Thread the L2 verdict through the pass-through result (a typed, host-set field) or record the digest at the L2 validateResult site instead."
+   },
+   {
+    "mechanism": "M5",
+    "problem": "The `plan` trace event (supervisor.ts:356) records the unamended plan; the amended one is traced only as `plan-repaired`. Every reader that reconstructs the executed plan from `plan` events (analyst digest, jev calibration, viz) sees a plan that did not execute.",
+    "severity": "minor",
+    "fix": "Push a second `plan` event with the amended payload and `repaired:true`, or make `plan-repaired` carry the full amended plan."
+   }
+  ],
+  "survives": "M9 (shadow topology facts, zero cost), M10 (timeout host fact on the receipt, no gate), M2's host-fact half (size as a round-1 fact), the M4 shape of 'approved:false without refusalKind degrades to an ordinary plan refusal, never a reviewer fault', the mechanical re-run of enforceParsedDelegationReview + planSuitePrecheck on an amended plan, rootApproval digesting the AMENDED bytes, keeping ROOT_PLAN_ATTEMPTS/MAX_PLAN_REVIEW_FAULTS/PLAN_REVIEW_MAX_TOKENS untouched, the single spentLadder writer, and the ship order with a flag \u2014 provided M8 keeps tissue provenance, M6 is re-keyed on observation content, M4 splices the continuation prefix and re-runs planSuiteFactsBlock on amended suites, and M0 gains an approved-plan control arm."
+ },
+ {
+  "refuted": true,
+  "problems": [
+   {
+    "mechanism": "M6 digest-equal result repeat key",
+    "problem": "Re-proposes `workspaceDigest` as a result version, which the repo refused on 2026-10-17 (src/atoms/AGENTS.md, Intentional choices: 'Refused: ... `workspaceDigest` as the version (every probe record moved it)'; docs/decisions/parent-owned-tests-2026-10-16.md:726-731: 'Every attempt that records a probe moves the first, so three attempts on one implementation would read as three'). The plan does not answer this; it asserts the tree is constant on a restored read-only phase, but the probe manifest is written DURING the attempt, before the host restores, and the key also includes 'sortedCitedAttestationEventIds', which are fresh event ids on every attempt by construction. On the plan's own evidence the key never repeats: 1622 Melatonin attempts 1-6 made 3, 4, 7, 2, 4 and 0 record_probe calls (events ab204138/2e973374/fc82a651; cc2513dd/913244a6/8792ca70/78e020a7; a5f00229/4b4398e0/5275b077/2444ae22/8df8e863/7d921c9d/d6f5e4cd; 7b441c33/30aecc9e; 5ee768aa/2a7cae88/ba398e8b/091f05f7; none) with different run_shell/start_node_server sets each time, so no two attempts share attestation ids or a manifest digest. b920 Methane attempts 1-3 ran 27, 17 and 36 distinct run_shell commands (events fefba4ee..9c7823cf, 42d78d03..7a38345c, ff043641..f050127a). Predicted \u22124 to \u22125 min (1622) and \u22122.5 min (b920) are therefore 0 as written. The repo's measured answer to this exact problem is `subjectDigest` (root `.atoma*` and node_modules excluded, decision :727-731), and memory/suite-dispute-measurement.md pre-registers that a weak digest signal counts in traces and routes nothing until \u226520 labelled units; M6 escalates (routes) on a weaker one with no measurement.",
+    "severity": "blocking",
+    "fix": "Drop `workspaceDigest` and attestation event ids from the key; key on `subjectDigest` (already on the worker reply) plus command receipt identity+exitCode. Ship first as a counted shadow (`repeat-rejection-candidate` event, run-stats counter, like `suiteDisputes`) and pre-register the labelled-unit threshold before any `EscalationSignal`. Re-derive the \u22124/\u22125 min claim from the shadow count on the next run, not from the six refusals."
+   },
+   {
+    "mechanism": "M4 / M5 repair-not-refuse (reviewer-authored suites)",
+    "problem": "The parent-owned-tests decision rests on author/reviewer separation: 'L2 ... writes contract tests for its L1 tasks; L3 reviews the complete L2 plan, including the test sources, before that branch executes' (docs/decisions/parent-owned-tests-2026-10-16.md:3-7), and sampled votes were rejected because 'samples of one prompt share its misreading' (:517-521). M4/M5 make the tier-2 reviewer the author of suite bytes that then execute with no judge other than the author's own prompt \u2014 the single-prompt misreading the vote rejection named, now executed instead of re-sampled. The plan lists this under openOwnerDecisions yet writes 'accepted as the review's return type' and ships it (flagged) before that owner decision exists; S1\u2013S3 and M0's expect(-line diff are after-the-fact stops, not a judge.",
+    "severity": "serious",
+    "fix": "Keep M4/M5 behind the flag but make the default flip conditional on a written owner decision amending parent-owned-tests-2026-10-16.md (who owns a reviewer-amended suite, how its credit/blame is attributed), and bound planRepair to deltas that do not author new `expect(` lines (split/dependsOn/criteria/obligation allowed; suite.replace only when the planner's suite is byte-reused). Otherwise it stays a measurement arm."
+   },
+   {
+    "mechanism": "M8 no tools at tier 3",
+    "problem": "The tool-bearing tier-3 fallback is a recorded deliberate exception, not an accident: src/atoms/L3Atom.ts:1688-1693 ('We break the \"L3 never touches tools\" rule here intentionally \u2014 if we don't, side-effect tasks ... produce only prose and the user gets nothing on disk') and commit 34cb57f0 (AGENTS: 'Their explicit LAST-RESORT selfExecute fallback is the sole exception ... MUST use modelForTier(1)'). M8 keeps tools only when `hooks.lastResort` is supplied; the no-hook path is the reasoning-only fallback that the exception was created to avoid, and b920's lane-A repair (10 passing tests from bcfbf282/8f4f747f) is reproducible only on the hook path. The plan names the hook as optional ('when hooks.lastResort is provided').",
+    "severity": "serious",
+    "fix": "Make `lastResort` mandatory on the tier-3 `SupervisionHooks` (type-level, wired in L3Atom.makeL2Hooks :1198) so no tier-3 superviseLoop can reach the reasoning-only text fallback for a task with `executionMode !== 'reasoning'`; keep the text fallback only for reasoning tasks. Cite 34cb57f0 in the commit as the exception being relocated, not removed."
+   },
+   {
+    "mechanism": "M2 suite-size host fact",
+    "problem": "G4 (src/atoms/AGENTS.md, 2026-10-16) placed the soft 8,000 target 'in prompts and review' deliberately, with the 12,000 hard refusal '50% above it so a reviewer's request does not become a parser refusal'. M2 deletes the review half (src/atoms/verdict.ts:38-40) and relies on the host fact alone; the plan's 'G4 kept' invariant is not literally true.",
+    "severity": "minor",
+    "fix": "State the G4 amendment explicitly in the commit and in the AGENTS.md G4 bullet (reviewer asks for a split via planRepair instead of refusing on size); keep the 'ask for the branch to be split' sentence, drop only the implied refusal."
+   },
+   {
+    "mechanism": "M10 run_shell timeout fact on the retry",
+    "problem": "The remedy already has one home: the tool schema's `timeoutMs` description (src/tools/builtin.ts:995-997, 'Raise it only for a FINITE command that honestly needs longer') shipped 2026-10-15 for the same Attica class (src/contracts/commandTimeouts.ts:8-10). b920's 23 kills happened with that description in every L1 call, so a second rendering of the same sentence in the attempt digest is 'one rule, two homes' (AGENTS.md root) with no mechanism that makes the model read it; the 'kills \u22645' target has no basis.",
+    "severity": "minor",
+    "fix": "Either keep M10 as a counted shadow (kills per run, whether the retry passed timeoutMs) with no prediction, or make the receipt line the ONE home by moving the sentence out of the tool description, and pre-register the P10 threshold as exploratory."
+   },
+   {
+    "mechanism": "M9 wouldDirect shadow for `--depth direct`",
+    "problem": "src/run/AGENTS.md: 'A run family, profile or `family` field ... removed on 2026-10-03 and not to be re-proposed. The root agent IS the family, and `selectTissue` chooses it from the task; a second selector beside it can only disagree with it.' A `--depth direct` mode selected from a launch fact (seeded repository) is a setup selector of that class; the shadow event is harmless but its stated purpose (data for a `direct` mode) targets a mechanism the run contract rejects by category, and `depthModeSchema` is the enum that rule froze.",
+    "severity": "minor",
+    "fix": "Reword M9's purpose: the dataset informs whether the DEEP tissue's own plan should skip a decomposition step on a seeded repository (a tissue-side decision), not a third depth mode; or drop M9 until the owner reopens the family rule."
+   },
+   {
+    "mechanism": "M3 planner deltas (applyPlanDeltas)",
+    "problem": "docs/decisions/parent-owned-tests-2026-10-16.md:580-584 refused 'executing a repaired pair ... each would author contract bytes on the model's behalf'. `applyPlanDeltas` has the host compose a Plan the model never emitted whole (suite.split's `into`, index remapping through routingIndexNote, dependsOn.set). The plan answers with a re-parse through planSchema and a base-digest check, which covers shape but not the 'host-authored bytes' objection for suite sources moved between subtasks.",
+    "severity": "minor",
+    "fix": "State the invariant that applyPlanDeltas never alters or synthesises a suite `source` string (copies model-emitted bytes verbatim; splits only reassign them) and test it; record in the commit that this revises the 2026-10-16 'no composed pair' rule for typed, digest-bound deltas only."
+   }
+  ],
+  "survives": "M0 (offline replay gate, pre-registered thresholds, 54 replays, no live run) is consistent with memory/validator-prompt-replay.md and the sampled-votes rejection (it measures, it does not vote). M1 (cell review hears previousRefusals; refusals memoised except `reviewer` faults) matches decision :407-412 ('every later review reads the earlier refusals of the delegation') and the 2026-10-16 rule that a `reviewer` refusal is never coached or counted (record :1293-1298); no rejected mechanism matches. M7 (judgement-digest shadow, no fast path) respects 'Do not add semantic prefilter caching' and the Decision fast-path ownership. M2's host-fact half, M3's typed-delta layer (the precondition AGENTS.md names before templating; not cross-run templating, so the 2026-08-08 closure does not apply), and M4/M5's loop plumbing survive as mechanisms once the owner decision on reviewer-authored suites is written. M8 survives with a mandatory lastResort hook. The M6 shadow-count variant on subjectDigest survives; the escalation does not."
+ },
+ {
+  "refuted": true,
+  "problems": [
+   {
+    "mechanism": "M6",
+    "problem": "The repeat key cannot repeat and reads the wrong evidence. `sortedCitedAttestationEventIds(result.evidence)` feeds attestation eventIds into the key, but every execution's tool calls get fresh eventIds (src/atoms/executorEvidence.ts:37-47 builds one TransportWitness per attestation record with `eventId: record.eventId`), so the digest differs on every retry and `repeat-rejection {phase:'result', digestKey}` never fires. `result.evidence` is `Witness[]` (src/core/types.ts:221) and starts with `witnessesFromPayload({output})` \u2014 model-declared witnesses \u2014 violating 'host-observed bytes only'; a TransportWitness carries `observed` text, no `identity`/`exitCode` for `commandReceipts`. `RunContext` has no `workspaceDigest` (grep src/core/types.ts:959-1075); the only tree digest is `SequentialCheckpoint.workspaceDigest()` (src/run/checkpoint.ts:657, private), which on Compute runs goes over the device channel (`options.workspace.checkpointDigest()`) and walks the whole tree \u2014 one full walk per result validation. The claimed Melatonin effect is also unsupported by the trace: the six executions ran 10, 0, 4, 4, 6 and 7 run_shell calls (1622-all.json, branch 4558ecb3), and refusals 0c45bc82 / 7acadc1e refuse for the HTTP matrix 'not executed', not for exit 126 \u2014 inputs changed between attempts, so even a correct key would not escalate at the third.",
+    "severity": "blocking",
+    "fix": "Key on the attestation RECORDS of the attempt (ctx.attestations.forBranch(...).slice(since)): tool name + request identity + exitCode/status, never eventIds or payload witnesses; drop the workspace digest or expose it only where a local checkpoint exists; re-derive the claimed savings from the b920 Methane/Cholesterol lanes after checking their receipts are byte-equal."
+   },
+   {
+    "mechanism": "M1",
+    "problem": "The push condition `!verdict.approved && verdict.delegationRefusal === 'plan'` never sees a MODEL refusal: `llmVerdict` returns a model's negative verdict as `{ ...raw, branchName, activeSkillFollowed, criteria, inherited }` with NO `delegationRefusal` stamp (src/atoms/verdict.ts:1174); only host refusals from `planSuitePrecheck` (L3Atom.ts:1828) and `enforceParsedDelegationReview` (delegationReview.ts:173) carry 'plan'. The three SieveElement reviews M1 targets (fc07d731/d82c6b4f/65a58685) are model refusals, so `cellReviewRefusals` stays empty and `previousRefusals` is always `[]`.",
+    "severity": "blocking",
+    "fix": "Push on `!verdict.approved && verdict.delegationRefusal !== 'reviewer'` (and not 'fan-out'), using `refusalWithRequests(verdict)` exactly as reviewedRootPlan does at L3Atom.ts:742."
+   },
+   {
+    "mechanism": "M5",
+    "problem": "`acceptAmendedPlan` rewrites fields that do not exist: `l2StrategySchema` is `{ strategy: 'reuse'|'create'|'mutualize', target?, seed?, reasoning }` (src/atoms/json.ts:1584-1592); subtask specs (acceptanceTests, dependsOn, criteria, proofObligations) live on `plan.subtasks`, which `L2Atom.execute(task, plan, ctx)` receives from superviseLoop (:745-760). Reassigning `plan = v1.amendedPlan` before `current.execute` at supervisor.ts:420 already dispatches the amended specs; the strategy only needs rewriting when a `suite.split` changes the child routing of a `reuse` target. Separately, memoising under a reviewKey computed on the AMENDED bytes never hits: the next lookup (L3Atom.ts:1798-1800) hashes the plan the L2 submits, i.e. the original bytes, so a remediation pass pays a second review.",
+    "severity": "serious",
+    "fix": "Drop the strategy rewrite (keep a guard that pendingStrategy is non-null); memoise the amended verdict under the ORIGINAL plan's key."
+   },
+   {
+    "mechanism": "M3/M4",
+    "problem": "Module layering cannot hold as written: `planDeltaSchema` in src/contracts/parentTests.ts needs `subtaskSpecSchema` (src/atoms/json.ts:1078) for `suite.split.into` entries, and contracts may not import atoms; `parsePlanPair` (json.ts:626) calling `applyPlanDeltas` from delegationReview.ts creates a cycle (delegationReview.ts:4 already imports json.ts); `withinAuthoredBounds` is a non-exported function (json.ts:597). `PositiveVerdict.amendedPlan?: Plan` on src/core/types.ts makes core depend on the atoms Plan type only if Plan is already there (it is, via types.ts) \u2014 fine \u2014 but `planRepair` with `planDeltaSchema` inside `verdictSchema` (json.ts:1469) pulls the subtask shape into the verdict parser for every validation call.",
+    "severity": "serious",
+    "fix": "Put `planDeltaSchema` and `applyPlanDeltas` in src/atoms/json.ts beside planSchema (export withinAuthoredBounds), with contracts holding only the delta KIND vocabulary; parse `planRepair` with a separate schema after `parseVerdict`, as `parseDelegationReview` is parsed separately (verdict.ts:1157)."
+   },
+   {
+    "mechanism": "M4",
+    "problem": "Two checkpoint/attempt invariants are ignored. (1) In the continuation path `reviewed` is `{...pending, subtasks: pending.subtasks.slice(args.from)}` (L3Atom.ts:703); `applyPlanDeltas(reviewed, deltas)` returned as `{plan: amended}` drops the completed prefix, and `checkpoint.planned`/dispatch skip the prefix by count (resumeSavedPlan :566-586), so a resumed run would re-execute or mis-index phases. (2) `acceptL3RootPlan` (src/atoms/l3RootPlan.ts:83-124) is not a precheck: on a parallel output collision it issues a coached REPLAN (`args.replan(coached)` = a new astra plan call), contradicting 'a repair issues no plan call' and the untouched ROOT_PLAN_ATTEMPTS accounting. Also `TraceEntry.kind` is a closed union (src/core/types.ts:448-459); `plan-repaired` needs the union extended and the viz/analyst readers checked.",
+    "severity": "serious",
+    "fix": "Re-prefix: `amended = { ...pending, subtasks: [...pending.subtasks.slice(0, args.from), ...amendedSlice.subtasks] }` and digest that; run only `parallelDeclaredOutputCollision` as a mechanical check on the amended plan (refuse to the ordinary path on a hit), never acceptL3RootPlan."
+   },
+   {
+    "mechanism": "M8 / P8",
+    "problem": "Baseline and mechanism are wrong. 1622-all.json has 49 tool events at tier 3 (not 0) and two tier-3 `fallback-execute` calls (bcc6045c 98,850 ms, 68fb7316 23,123 ms) plus one tier-3 fallback-plan (c4323238); b920 has 65. `hooks.lastResort` does not exist on `SupervisionHooks` (supervisor.ts:55-83: onApproved, onFailed, aroundExecute, handUpRefused) and `L2Atom.selfExecute` is private (L2Atom.ts:2359) and needs the fallback plan from `selfPlan` (:2309): the real route is `current.setFallbackMode(true); plan = current.plan(); current.execute()` on the cell, in the same try/finally that today wraps the parent (:529-557). Moving the fallback down does not remove the tool calls: the same `modelForTier(1)` loop runs under cell provenance, so 'tier-3 tool events 65 \u2192 0' is relabelling, and the \u2248\u22121 min / \u2212$1 claim rests on the two tier-3 fallback-plan calls (0c49855e 26.8 s, 4eea7b1f 20.7 s) being replaced by cell fallback-plans on luna, not removed.",
+    "severity": "serious",
+    "fix": "State P8 baseline as 49 / 65; implement as a cell-fallback branch inside the existing fallback block (fallbackMode on `current`, stamp spentLadder once at :553); count tool events by provenance tier, and predict minutes only from the fallback-plan deltas."
+   },
+   {
+    "mechanism": "M10",
+    "problem": "Largely already in place: builtin.ts:1170-1172 appends '. A finite command that needs longer may pass timeoutMs, up to 300000; a server belongs to start_node_server.' to the timeout error, and attemptDigest.ts:97-98 serialises that error into the receipt's `observed` JSON, so the retry already reads the host hint. The local b920 summary shows 21 run_shell events \u226528 s (not 23). The 23\u2192\u22645 prediction has no mechanism behind it beyond a second rendering of a line the molecules already received.",
+    "severity": "minor",
+    "fix": "Keep as a one-line count in `render()` if wanted, but do not claim \u2248\u22128 min; measure whether first-retry commands carried timeoutMs in b920 before predicting."
+   },
+   {
+    "mechanism": "M7",
+    "problem": "`result.verdict` does not exist on `Result` (src/core/types.ts:195-260) and nothing carries the L2 verdict upward. The :1564-1566 citation is the spentField/coverage lines of `aggregate`, not an N=1 passthrough predicate. The L2 approval is nevertheless derivable: a cell result reaches L3 `validateResult` only after L2 approved it unless `phaseBudgetSpent`/`handUpRefused` or `producedBy.viaFallback`.",
+    "severity": "minor",
+    "fix": "Define l2Approved := !result.phaseBudgetSpent && !isOwnFallback(result, child.name); emit via ctx.recordRunStat-style hook since validateResult has no TraceEntry channel."
+   },
+   {
+    "mechanism": "M3 (supervisor side)",
+    "problem": "supervisor.ts:345 (`planFeedback = []`) is the reset after a PARSED plan; the refused plan must be captured in the refusal path (:368-404), and `planFeedback` is `string[]` feeding `Atom.plan(task, ctx, feedback?: readonly string[])` on all three tiers, so handing a base plan object to L2.plan changes the shared Atom interface and the L1 implementations too.",
+    "severity": "minor",
+    "fix": "Carry `{ feedback: string[]; base?: { digest, plan } }` on a separate optional 4th argument or a RunContext-scoped field, not inside the string list."
+   },
+   {
+    "mechanism": "M9",
+    "problem": "`startingComparison` runs only when `ctx.inheritedChecks && !gates.rejection` (rootAcceptance.ts:500), i.e. seeded static-page runs with inherited checks and no gate rejection; most deep Attica runs would emit `wouldDirect:true` with no changed-file count, so the \u226520-run dataset is thinner than stated.",
+    "severity": "minor",
+    "fix": "Compute the comparison for the shadow event independently of inheritedChecks (ctx.startingWorkspace suffices, :152-156)."
+   },
+   {
+    "mechanism": "M2",
+    "problem": "verdict.ts:38 does not ask the reviewer to 'refuse' over 8,000; it says 'Ask for the coverage a suite can carry within 8,000 characters; when a branch's contract needs more, ask for the branch to be split'. The effect claim is nonetheless confirmed: 009f114d (terra, 22,112 ms, 2,976 output tokens, $0.147) refused solely 'Subtask 2's parent Vitest matrix exceeds the 8,000-character suite limit; split'. The host fact must say the exact size and that the host does NOT refuse under 12,000, or the reviewer will keep refusing on 'exceeds the limit'.",
+    "severity": "minor",
+    "fix": "Reword M2's description; keep the fact text as drafted and add 'the host accepts this suite' explicitly."
+   },
+   {
+    "mechanism": "M0",
+    "problem": "Replay on `own:openai` goes through the Codex transport (both runs ran own:openai gpt-5.6-terra for reviews); temperature 0 / 3 samples is a Responses-API notion and the memo (memory/validator-prompt-replay.md) replays through Codex login, so sample independence and the 'temperature 0' pre-registration need to say which transport is used.",
+    "severity": "minor",
+    "fix": "Pre-register the transport and whether samples share a thread."
+   }
+  ],
+  "survives": "The diagnosis and the verified line citations (reviewedRootPlan :665-751 with `pending = undefined` at :749, validatePlan :1791-1865 with no previousRefusals at :1846, memo condition at :1864, selfExecute :1687-1786 with modelForTier(1) at :1726, supervisor fallback return :529-557 as the one spentLadder writer, PLAN_REVIEW_MAX_TOKENS=8000 at cost.ts:286, planSuitePrecheck :445-475, SHELL timeouts) are accurate. M2 (suite size as a round-1 host fact: round-4 refusal 009f114d was size-only, confirmed) is implementable as described. M4's core shape \u2014 a typed planRepair on the positive verdict, re-running the mechanical half on the amended plan, digesting the amended plan into rootApproval at :538 and recordedRootApproval re-enforcing it \u2014 fits the code once the prefix re-join and the acceptL3RootPlan replan are handled. M1 works with the corrected push condition. M5 reduces to reassigning `plan` before `current.execute` at supervisor.ts:420. M7 and M9 are harmless shadow events once the Result/verdict channel is fixed. The flag gating and ship order are coherent; the 1622 round structure (astra 118\u2013263 s plan calls, 5 reviews) and the b920 SieveElement ladder are real in the local summaries."
+ },
+ {
+  "refuted": true,
+  "problems": [
+   {
+    "mechanism": "M6 (digest-equal result repeat key)",
+    "problem": "Does not fire on either ladder it is credited with. 1622 Melatonin x6 (9.0->17.7): attempt 1 ran 10 run_shell + 9 fetch_url + record_probe (vitest exit 126, sha256sum exit 0); attempt 2 ran 0 run_shell; attempt 3 ran node -e matrices with exits 2/1/0/2/0 plus vitest 126 (events 0c45bc82-2ad2-4605-a834-bf90c35d1f7f vs 7eb43d1d-a56a-4cd8-bf8a-86478357ab35, observed receipts). The proposed key = sha256(workspaceDigest, cited attestation ids, receipts identity:exitCode) differs on every attempt, so no escalation and no 'repeat-rejection'. b920 Methane x3 (61.5->65.8) ran 24, 13 and 36 run_shell commands respectively; Cholesterol x3 likewise different sets (local b920-all.json). Claimed -4 to -5 min (1622) and -2.5 min (b920) are 0.",
+    "severity": "blocking",
+    "fix": "Drop M6 from the expected-effect table, or redefine the key on the validator-visible OBSERVATION the refusals actually repeated (e.g. 'vitest exit 126 under restored tree' = the same failing receipt identity present in every attempt, ignoring the extra exploratory commands) and re-measure on the 6+3 attempts before claiming minutes."
+   },
+   {
+    "mechanism": "M8 (no tools at tier 3) and the fallback lines in expectedEffect",
+    "problem": "Double count plus zero wall-clock effect. 1622 fallback-plan 53.8 + fallback-execute 54.2->56.3 lies INSIDE the SieveElement window 45.1->56.3 that M5 already claims (11.2 -> ~3 min, -8); counting '-2.5 min (M8)' again is a double count. b920 fallback 25.3->27.9 is 2.6 min wall (two parallel 100 s/138 s calls), not 4. M8 does not remove the fallback, it routes it to L2.selfExecute with the same tools and modelForTier(1): same minutes, different provenance. The fallback disappears only if M5 prevents the ladder, which is M5's credit.",
+    "severity": "blocking",
+    "fix": "Record M8 as a provenance/invariant fix with 0 min; remove -2.5 (1622) and -4 (b920) from the totals; cite 2.6 min for the b920 fallback wall."
+   },
+   {
+    "mechanism": "M10 (run_shell timeout host fact)",
+    "problem": "The fact already exists in every kill the L1 saw: src/tools/builtin.ts:1169-1172 appends '. A finite command that needs longer may pass timeoutMs, up to 300000' and event e832f6e4-47c4-439b-858e-e63af3d1d90b shows it verbatim in the tool error. CarbonDioxide received it 23 times and never passed timeoutMs. Repeating it in the attempt digest is not a new signal. Direction is also wrong for wall-clock: the killed commands were `cd clean-copy && npm ci && npm run check && npm run build` (6cf84150: 83 vitest tests done, node --test matrix still running at 30.2 s) and `node --test tests/xe-browser-hosting-integration.test.js ...` whose individual tests take 10.5-11.5 s; with timeoutMs they run 60-180 s each instead of 30 s. 23 kills x 30 s = 11.5 min becomes >= 11.5 min of successful commands; saving <= 0, the plan books '~ -8 min if met' into the b920 total.",
+    "severity": "blocking",
+    "fix": "Remove the -8 min from b920; keep M10 only as a measured-not-claimed observation, or replace it with a mechanism that changes behaviour (e.g. a per-command default derived from the receipt history) and test it on the 23 recorded kills."
+   },
+   {
+    "mechanism": "M4/M5 repairing review vs PLAN_REVIEW_MAX_TOKENS=8000 (src/atoms/cost.ts:286,302)",
+    "problem": "Observed root review outputTokens are mostly reasoning: 1f10bf81 1,613; d05df0eb 2,035; 009f114d 2,976; 77dde32b 4,464 for 150-300-token verdicts. Two suite deltas of <= 8,000 chars add ~4,000-4,500 tokens: 2 of the 4 observed root reviews (2,976+4,200 and 4,464+4,200) exceed the 8,000 cap -> stopReason max_tokens -> reviewer fault, not a repair. The S4 fallback (one suite delta) cannot satisfy the actual refusals: 1f10bf81 demands suites for subtask 0 AND subtask 1/integration; 77dde32b 'subtask 1 or 2'; e9d886bb an integration suite plus separate CLI/browser probes. So a residual planner round (118-173 s plan + review) remains in the expected case, and the ~90 s review estimate becomes 120-180 s at terra's measured 39-45 tok/s.",
+    "severity": "serious",
+    "fix": "Model the review as reasoning + suites against the cap using the four measured reasoning budgets; either raise the cap for the delegation review only (the plan forbids it) or accept one suite per review and count a second round in the prediction. Make M0 record outputTokens per sample and the two-subtask demands explicitly."
+   },
+   {
+    "mechanism": "M5 under subscription contention (b920 parallel lanes)",
+    "problem": "Cell reviews that ran beside other lanes generated at 4-7 tok/s: fc07d731 690 tokens in 101.8 s, 65a58685 797 tokens in 171.8 s, versus 125 tok/s for an uncontended luna call (0c45bc82: 1,123 tokens in 9.0 s). A repairing review emitting 3-5k tokens under the same contention takes 7-12 min per lane, longer than today's whole SieveElement ladder per lane (8 plans 656 s + 8 reviews 442 s over two lanes ~ 9.8 min wall). The plan's '2 lanes x (1 plan + 1 repairing review) ~ 2.5 min' assumes uncontended generation; on b920's actual provider behaviour M5 can be net negative.",
+    "severity": "serious",
+    "fix": "Add provider throughput (tokens/s per call, from timings) to the pre-registration and to the simulation; predict M5 at both the 125 tok/s and the 5 tok/s rates; add a stop rule on review duration (e.g. S7: any plan-review > 180 s with planRepair -> flag off)."
+   },
+   {
+    "mechanism": "b920 baseline and P2/P3/P5/P8 numbers",
+    "problem": "The local file covers events 0-1399 (69 of 88 min). Minutes 69-88 (MCP summary offset 1400) contain: a second root cycle (plan 93.6 s + refused review 77dde32b 77 s + plan 126.6 s + review 18 s = 5.3 min), a second cell ladder (Trichome: 6 plans 56/66/60/94/56/35 s, 6 reviews 24/23/47/16/13/21 s, recordFailure Trichome x2), a second tier-3 tool fallback (Meristem fallback-execute 63.9 s with ~29 read_file/edit_file/run_shell events at tier 3), another root plan 95 s, a Trichome plan aborted by timeout, and a tier-3 'execute' 21.7 s. True baselines: tier-3 plan calls 7 (not 5), tier-3 validate-plan ~27 (not 19), tier-3 tool events ~94 (not 65), recordFailure 11 (not 8). The run ended 'run interrupted before completion (shutdown requested)' (section=result), not 'failed'. Savings were computed against 69 min and divided by 88.",
+    "severity": "serious",
+    "fix": "Re-run timeline.py on the full 1629-event trace; restate P2/P3/P5/P8 baselines and the termination cause; recompute every b920 minute on the 88-min span."
+   },
+   {
+    "mechanism": "M1 (cell review hears its own refusals)",
+    "problem": "The b920 SieveElement reviews did not 'restate one list in three wordings'. fc07d731 (17.2 min) lists seven gaps; 65a58685 (22.0 min) says the suite now has generic prose instead of the 'exact eight parser-backed encodings' and fixtures not parser-valid: the planner progressed and the reviewer narrowed. Giving the second review the first's text changes nothing it did not already see in the new plan. The residual demand ('parser-backed fixtures') is unsatisfiable by an L2 planner with no tools unless the parser source is in its context; the plan does not show it is. Claimed -3 to -5 min (b920) and -3 min (1622) are unsupported; realistic 0-1 min.",
+    "severity": "serious",
+    "fix": "Keep M1 (cheap, correct) but book it at 0 min; if the SieveElement ladder is to shorten without M5, put the parser interface the reviewer keeps asking for into the planner's host facts (planSuiteFactsBlock) rather than the refusal history."
+   },
+   {
+    "mechanism": "Honest totals under the lens",
+    "problem": "1622 (66 min): root 19.1->37.2 = 18.1 min; M2 alone removes round 5 (263 s + 35 s = 5.0 min) since 009f114d is size-only ('exceeds the 8,000-character suite limit'); M4 with the cap/second-subtask residual yields ~7-8 min expected -> -10 to -13 min total on the root; SieveElement 11.2 -> ~5 min expected (-6, fallback included); Melatonin 0; M8 0; Idioblast/CarbonDioxide 56.3->66 untouched. Best case -16 to -19 min = 24-29%; if M0 fails (flag stays 0) only M2/M3 act: -5 to -7 min = 8-11%. b920 (88 min): root 7.4 -> ~6 expected (-1 to -3), SieveElement -2 to -6 (0 or worse under contention), second root cycle -1.4, Trichome ladder -3, Methane 0, M8 0, M10 <= 0: best -12 to -15 min = 14-17%, contended -5 to -8 min = 6-9%. Neither run reaches 30% even in the best case; the plan's -25 to -30 / -20 to -28 rests on three mechanisms that save 0 (M6, M8, M10) and on an uncontended, uncapped repairing review.",
+    "severity": "blocking",
+    "fix": "Re-state expectedEffect per mechanism with the observed verdict bodies as the input (refusal kind, subtasks named, reviewer reasoning tokens, provider tok/s), keep only M2/M3/M4/M5 in the minutes column, and set P1/P7 targets from the recomputed best case (P1 ~ 22-24 min, P7 ~ 18-20 min) rather than <= 15 / <= 12."
+   },
+   {
+    "mechanism": "M2 (suite-size host fact)",
+    "problem": "The only saving the evidence supports without a model-behaviour assumption is misattributed: the plan books 1622 round 4/5 under 'M4+M3 -11 to -14' while M2's own line says round 4 'cannot recur'. It is also a prompt-rule change to the validator (src/atoms/verdict.ts:38-40) whose obedience is unmeasured; 009f114d shows terra refusing on size despite 'Ask for the coverage a suite can carry within 8,000 characters' already in the system prompt.",
+    "severity": "minor",
+    "fix": "Attribute -5 min (1622) to M2 explicitly; add a one-line M0 sample replaying 009f114d/f3dd1b84 with the new verdict.ts sentence to confirm the reviewer approves a 9,412-char suite when the host fact is present."
+   },
+   {
+    "mechanism": "M3 (delta replans) and new input costs",
+    "problem": "The astra output reduction (2.9-8.5k -> 1-3k tokens) is asserted, not measured; plan durations grew 118->167->167->173->263 s with cumulative feedback, and M3 adds a ~6k-char PREVIOUS PLAN block plus M1 adds refusal history to every cell review, so input grows on every residual round. On 1622 the only call it would have shortened is the 5th plan (263 s), which M2 removes anyway; per-run saving is therefore ~0-2 min, not -2 to -3 per residual refusal.",
+    "severity": "minor",
+    "fix": "Count M3 at 0-2 min for 1622 and 1-2 min for b920's rounds 2-3 only; record astra outputTokens per round in M0 so the reduction is measured before it is claimed."
+   }
+  ],
+  "survives": "The diagnosis survives: on both runs the dominant wall-clock buckets are root plan/validate cycles (1622: 18.1 min at 19.1->37.2; b920: 7.4 min at 8.1->15.7 plus a second 5.3-min cycle at 70-75 min) and cell plan ladders refused on parent-suite coverage (1622 SieveElement 45.1->56.3; b920 SieveElement 15.7->31.2 and Trichome 76->81), and every refusal body read (1f10bf81, 009f114d, d05df0eb, 77dde32b, fc07d731, 65a58685, e9d886bb, e1068660) is a coverage/size demand rather than one of the four closed 'unexecutable' kinds, so repair-not-refuse (M4/M5) targets the right calls. M2 is correct and mechanically supported: 009f114d is a size-only refusal and its removal saves round 5 of 1622 (263 s + 35 s = 5 min). M0's gate structure (offline replay, pre-registered thresholds, flag default 0 until it passes) is the right discipline, and M7/M9 are genuinely zero-cost. M1 is cheap and harmless. What does not survive is the arithmetic: with M6, M8 and M10 at 0 min on the measured timelines, the review token cap (reasoning already 1.6-4.5k of 8,000 on root reviews) and the 4-7 tok/s contended cell reviews on b920, the honest best case is -16 to -19 min on 1622 (24-29%) and -12 to -15 min on b920 (14-17%), both under the 30% bar, and -5 to -7 / -5 to -8 min if M0 fails or contention holds."
+ }
+]
