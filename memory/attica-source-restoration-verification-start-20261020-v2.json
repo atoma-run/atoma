@@ -1,0 +1,31 @@
+{
+  "goal": "Execute the existing Attica offline validation commands on the corrected current source and report their actual results. No implementation or migration is requested. The production repository-sync record already captured Git main75486821839433162d1ebf9ddef63bd4256ffb9f; a host-side SHA256 comparison confirmed the imported source and45 historical data/evidence files. The prior613af70b plan unnecessarily conditioned verification on unavailable .git metadata inside the packaged sandbox. Correct this execution precondition: packaged absence of Git is expected, and does not block running tests. Identify the bytes directly by comparing the following supplied candidate SHA256 values with actual files; distinguish supplied host provenance from your own observed hashes.\ncollect-listings.ts 22caf003e5e229c84ae75c1fefb0f23a3386e27260dce9bda1b4c64a12c8cd51\ncollect-listings.js c5aa68694b0320483ffca4ed5335c0d8179174720e0bb217f2e8fef963726559\nbrowser/control-server.ts f6d4fcd25e6163e797d1057e094b8ebb9510f383f637f8a3a33835f7a88af461\nvite.config.ts 732950631e8e7add671c3f5c307c2e1881d5eca2355045ee9aab0c0036cc21a7\ntests/collector-restoration.vitest.test.ts 1ab9d09adcd2af1e0f46d0bf2bba077b6e1807bb96dd6888b42fdc788a46c646\ntests/built-control-assets.vitest.test.ts aee0061ecfe6761004034f76ae91db323b83d8c5e3a3b6d2c769307739ed2a83\ntests/attica-http-preconditions.vitest.test.ts 9db1383735bb59c1b8560588545dc6fb5342b273a9605e3cfdef5776304ba2d8\ntests/xe-minimal-offline.vitest.test.ts 101d4e3cc065aed6d80c48f6d7862d7844738b9f499d2eb1cb72b32b2c50af2e\n\nUse an isolated .atoma-clean-copy below the writable executable /workspace mount, excluding that copy itself, every dist/node_modules directory, .git and probe manifests from recursive copying. /tmp and /dev/shm are noexec in this production worker:613af70b actually ran npm ci there through record_probe and esbuild failed EACCES. Earlier ordinary npm ci succeeded in a nested .atoma-clean-copy. Select the executable location before installation; preserve the worker isolation and ordinary install scripts. Install locked dependencies normally in that copy with npm ci, then run npm run check and npm run build. Record the actual working directory, each command's exit code and concise test totals/errors. Keep ordinary package scripts and checks intact. Do not use --ignore-scripts, relax assertions, substitute tests, add exemptions, or infer success from source inspection. Disposable dependencies/build outputs are permitted; protect original source, tests, dependency locks, data/evidence and gate settings. Hash protected originals before/after.\n\nCheck already includes strict typecheck, recursive typed lint, build, Vitest and legacy node suites. Account explicitly for unchanged collect-listings.test.js, spitogatos.test.mjs and xe-live.test.js; collector-restoration.vitest.test.ts; attica-http-preconditions.vitest.test.ts; xe-minimal-offline.vitest.test.ts (actual101/102 navigation/exports/recreation); built-control-assets.vitest.test.ts (compiled server from a fresh cwd and actual bundle bytes). Do not add a new UI review or browser-acceptance project: the requested evidence is execution of these existing tests and scripts. Compare with68 Vitest/92legacy only as previous observations. If any command fails, retain its exact result and report the demonstrated cause; no source repair is authorized within this verification.\n\nDeliver a concise text report with observed hashes, command exits, test counts and failures/blockers. Use controlled offline fixtures and package registries only. No live xe.gr/Spitogatos, personal profiles/cookies/secrets, hosting, acceptance or publication; no human-testing claim.\nAfter recording results and original-file integrity, remove the disposable copy. Report current executed command observations, including record_probe which executes its command; historical reports are not proof.",
+  "idempotencyKey": "attica-source-restoration-verification-20261020-v2",
+  "depth": "deep",
+  "acceptanceChecklist": [
+    {
+      "behaviour": "Actual candidate file hashes match supplied corrected-source identities; Git metadata absence is documented.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "The clean executable copy runs ordinary npm ci, npm run check and npm run build with actual recorded exit codes.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "Historical collector regressions and existing101/102, HTTP and compiled-asset tests pass without altered assertions.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "Protected original source, tests, locks, gates and historical data/evidence remain unchanged.",
+      "check": {
+        "kind": "review"
+      }
+    }
+  ]
+}

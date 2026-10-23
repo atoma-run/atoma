@@ -15,6 +15,14 @@
 ## Current work
 - [Manually published seed](publication-manual-seed.md) — exact selected seed bytes at the live head are a valid publication base; retain concurrent client edits
 - [Root remediation receipts](root-remediation-command-evidence.md) — 2026-10-23: retain historical command results after a README repair; no Attica test replay
+- [Replan loop diagnosis 2026-10-23](replan-loop-2026-10-23.md) — why runs stall 31-37 min before executing; safe train ≈15-21%, structural gains need owner decisions (stage B / narrow-repair topology)
+- [Attica 48k follow-up](attica-five-hour-session-2026-10-22.md) — owner requests follow run1622e44b through terminal and analyze retries; dedicated heartbeat ACTIVE. State and analysis plan: records/incidents/attica-48k-followup-2026-10-22/. Current prefix722events, no source writes;15exact24k/48kcontexts analyzed, no causal gain claimed.
+- [Attica five-hour restart 2026-10-22](attica-five-hour-session-2026-10-22.md) — session CLOSED; heartbeat PAUSED07:03:51UTC. Engine fix00546 deployed/included46d;120-replay evidence pilot complete. Owner requested48k+one run: 48k change committed/pushed/deployed f9d71587, all workflows green; native MCP restored. CAPTCHA/lint run1622e44b RUNNING08:01UTC on sameCompute/models/90min, repoBase8bd owner fixes; follow samekey48k3, never duplicate.
+- [Attica five-hour session](attica-five-hour-session-2026-10-21.md) — ACTIVE until23:33:16UTC; autonomous run/fix/push/deploy loop; e1e9face branch CI before first next run
+- [Attica renewed loop](attica-renewed-loop-2026-10-21.md) — two runs terminal partial; three Atoma fixes deployed at203fe75a, CI7808pass; independent CAPTCHA/fixture progress, missing entrypoints and excluded tests remain; no active run
+- [Compute content releases](compute-content-releases-2026-10-21.md) — pushed 5398d558; CI + deploy green; content gate passes all OS; pre-existing Resources smoke blocks AC publication
+- [Attica three-hour loop](attica-loop-2026-10-21.md) — PAUSED by owner steering2026-10-21; no new runs until renewed authorization; second run interrupted before implementation/tests; first result independently rejected
+- [Independent run executors](independent-run-executors-2026-10-21.md) — version coexistence implemented/deployed; reverified production97bbb34a and31 focused tests; no global drain for compatible releases
 - [Explicit app and terminal previews](preview-app-terminal-2026-10-21.md) — fixes automatic shell fallback and strict executor classification; Attica device reconnection exposed second defect; CI/deploy and production retest pending
 - [Atoma Compute implementation](atoma-compute-state.md) — 2026-10-18: Electron companion in 13 languages built/tested on Mac ARM, Intel and Windows; code deployed (61ea0fc9), unsigned test installers ready
 - [Crystal caustic state](crystal-caustic-state.md) — 2026-10-17: facing + caustic fixes committed locally (50c15882, dfa4c921), not pushed; strokes invisible, 3 options to test
@@ -26,6 +34,7 @@
 - [Account plan screen](account-plan-screen.md) — Your plan screen; org plan set by operator `auth set-plan` (2026-10-16); Pro/Team drop the Atoma mark
 - [Project deployment](project-deployment.md) — optional, mutable project setting: none (default), Atoma, or external; hosted address = model-chosen label, admin rename → permanent 308 (2026-10-15)
 - [Attica run delegation](attica-run-delegation.md) — 2026-10-15: I draft and start Attica runs myself and fix Atoma defects found
+- [Attica regression repair](attica-three-regressions-2026-10-20.md) — 2026-10-20: renewed owner request; fe00618f cancelled for false parent assertions; source fix7548682 pushed after160 offline tests on clean copy; DONE: source fix7548682 pushed; verification2df30c19 DELIVERED20:12UTC, c1–c4 met, npm ci/check/build0,161 tests pass
 - [Property scraping priority](property-scraping-priority.md) — 2026-10-14: xe.gr first, Spitogatos paused; build the product through Atoma runs
 - [Spitogatos VPN probe](spitogatos-vpn-probe.md) — 2026-10-14: works only via reverse SOCKS + real Chrome + one human hCaptcha; NordVPN still 403
 - [Supervisor mender state](supervisor-mender-state.md) — no mender PR since #20: analyst drops proposedFix; p8 citation pass shipped, cite-only proposal open

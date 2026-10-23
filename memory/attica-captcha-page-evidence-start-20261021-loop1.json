@@ -1,0 +1,37 @@
+{
+  "goal": "Repair one demonstrated Attica CAPTCHA verification regression, starting from current Git main75486821839433162d1ebf9ddef63bd4256ffb9f and the latest delivered source. Keep scope to the verification/session lifecycle and its regression tests; no broad migration or UI redesign.\n\nObserved offline reproduction uses the real compiled control server and collector with controlled synthetic sessions. A collection navigates search then detail (two observed navigations), encounters an actual detail CAPTCHA, and persists pauseType=captcha. Verification while that challenge is still displayed correctly returns403. Recreate the server on the same durable root with no session: POST /api/verify-access wrongly returns200 and clears pauseType with zero new navigation. A newly injected page whose content is empty does the same. A legitimate current resolved detail page correctly returns200 and clears the pause. The faulty handler in browser/control-server.ts skips page inspection when session is absent or pageRetired, and accepts empty content as successful verification. Do not treat missing, closed, retired, blank, unreadable or unrelated browser state as proof access was verified.\n\nFix the real TypeScript production path so persisted CAPTCHA remains blocked until the current relevant browser page provides actual verification evidence. Verification must neither navigate to xe.gr nor create a replacement browser behind the user's back. Preserve the existing no-active-CAPTCHA400 and unresolved-challenge403 contracts, Host/Origin/method/JSON guards, cancellation and Retry-After behavior. Preserve legitimate same-context resolution followed by explicit resume. Do not infer success from an absent error, an empty document or a never-navigated fixture. Reuse the existing session/context identity contract rather than inventing a parallel truth source.\n\nAdd strict TypeScript regressions driving actual compiled createServer and collect/resume with a synthetic session, real durable files, recorded navigation and a positive control. Trigger the pause through actual collection; close and recreate the server on the same root before checking refusal and durable state. Cover missing and unusable page cases and the legitimate same-context success. Count navigation across actions; never reset counters after the action or replace the application subject with a mock. Some legacy CAPTCHA tests seed a pause and expect success on a never-navigated fake page: correct their fixture preconditions to provide observable resolved-page evidence while preserving meaningful expectations and unrelated assertions.\n\nRun existing historical regressions, real101/102 export/recreation, HTTP preconditions and compiled-asset tests, plus ordinary npm ci, npm run check and npm run build in an executable clean copy under /workspace/.atoma-clean-copy. Exclude the copy itself and all dist/node_modules/.git/probe files recursively, preserve protected originals, record actual exits and cleanup. /tmp and /dev/shm are NOEXEC in this worker. Packaged .git absence is expected; use actual file identities and supplied host Git provenance. record_probe executes commands and is valid current evidence; old reports are not proof. Preserve all historical data/evidence and source identity rules (normalized identifiant without own id, raw extra_json.id). Offline fixtures/package registries only: no live xe.gr/Spitogatos, profiles/cookies/secrets, hosting, acceptance or publication; no human-testing claim.",
+  "idempotencyKey": "attica-captcha-page-evidence-20261021-loop1",
+  "depth": "deep",
+  "acceptanceChecklist": [
+    {
+      "behaviour": "After recreation without a usable page, verification preserves the durable CAPTCHA pause with zero new navigation.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "An unresolved current challenge is refused and retains its CAPTCHA pause.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "A legitimately resolved current fixture page still permits verification and explicit resume in the same context.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "Regression tests exercise the real compiled server and collector across durable-root recreation with observable navigation.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "Ordinary clean-copy npm ci/check/build pass without weakening assertions or changing historical data/evidence.",
+      "check": {
+        "kind": "review"
+      }
+    }
+  ]
+}

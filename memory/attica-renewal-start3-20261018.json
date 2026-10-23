@@ -1,0 +1,13 @@
+{
+  "projectId": "07864f7c-d8f2-4023-9fca-afd8a7a51e52",
+  "baseRunId": "9bb59e75-9140-4f24-be2e-763428507f3c",
+  "readRunIds": [
+    "b2ab1e47-1550-4495-91ec-deec2b41e662"
+  ],
+  "depth": "short",
+  "idempotencyKey": "attica-collector-compat-20261018-0251",
+  "goal": "Repair behavior drift introduced by the collector TypeScript port, using read-only reference b2ab1e47-1550-4495-91ec-deec2b41e662/browser/collect-xe-browser.js as the authoritative pre-migration behavior. Specifically navigate previously returned null unchanged: search collect rejected 'page did not respond' OUTSIDE its navigation catch, leaving the request-in-progress checkpoint and no export rewrite; current navigate throws inside the catch and rewrites both. Detail null likewise previously became status0 and the original detail-refusal error, not 'page did not respond'. Restore the nullable return and existing call-site handling, with accurate types. Remove the newly added consumedRequests property from the existing-paused non-continuation early return, making result types reflect actual original shape instead of adding runtime fields for types. Add focused compiled-production regression tests asserting exact original null search/detail errors, checkpoint reason/content and absence of unintended export writes, plus early-return object shape. Demonstrate failure before correction and pass afterward, using real store/checkpoints and only fake external browser responses. Preserve other source/oldtests/dependencies/history. May extend only the newly added tests/xe-browser-focused.test.js, preferably add typed test file. No live collection/profiles/publication. Finish with separate plain root npm ci then npm run check in the SAME new external /tmp filtered copy, recursively excluding node_modules/dist/.git/all.atoma* before install. This final check must include the final new tests. Record exact cwd/exits, preserve evidence, clean temporary deps. Do not loop over already passing checks absent changes.",
+  "acceptanceCriteria": [
+    "Collector null-response handling and paused-return shape match the pre-migration reference, with regressions and same-copy clean npm ci/check passing."
+  ]
+}

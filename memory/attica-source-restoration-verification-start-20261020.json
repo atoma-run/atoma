@@ -1,0 +1,37 @@
+{
+  "goal": "Verify the corrected Attica source now on mgtf/atoma-attica-property-flipping main, commit75486821839433162d1ebf9ddef63bd4256ffb9f, through an ordinary bounded offline verification run. This is verification after an isolated source repair, not another implementation or migration task. First establish that the normal repository import/reconciliation actually includes that commit's collect-listings.ts, its JS facade, browser/control-server.ts, vite.config.ts and regression tests; report a stale or conflicted seed as a blocker rather than silently testing the old e457 partial. Do not select or restore an older saved version.\n\nRun the project's existing npm ci, npm run check and npm run build from a clean executable copy without inherited node_modules or any dist directories. Record each command's actual exit code and test counts. npm run check includes typecheck, recursive typed lint, build, Vitest and legacy node tests. The candidate passed68 Vitest and92 historical tests independently; treat those numbers as a comparison, never as proof. Do not trust old reports or delivery banners.\n\nReview the actual corrected collector and unchanged tests/collect-listings.test.js, tests/spitogatos.test.mjs and tests/xe-live.test.js. Their prior failures were respectively stopped_safety vs ok, HTTP403 reason vs null, and blocked vs error. Confirm the restored HTTP refusal/Retry-After/real-challenge stop, provided-response stop boundary, archived mixed403/200 partial rows with zero actual network requests and correct errors/observations, possible cross-source duplicates, and real run/CLI state/log/xe-verification schemas. Preserve normalized identifiant with no own id and raw extra_json.id. The added collector-restoration suite drives the actual module, adapter, run and CLI with temporary synthetic files; use it without replacing the subject or changing assertions.\n\nVerify HTTP request preconditions and valid route guards with actual navigation observations,101/102 listings and CSV/JSONL after server recreation, and built HTML plus its real JavaScript bundle through the compiled server launched in a fresh working directory. Check the real built-control-assets and xe-minimal-offline tests rather than fabricated counters or status guesses. Safety403 is a blocked observation/stopReason, not an errors[] entry; historical logs have schedulerEnabled, not scheduler. Maintain config path bases and required policy fields.\n\nProduce a concise verification report recording the source revision, actual commands/results, remaining blockers if any, and preserved historical data/evidence hashes. Do not edit application source, tests, dependency locks, historical data/evidence or gate settings in this verification run. If a check fails, record its exact failure honestly; do not weaken it to deliver. Only controlled offline fixtures and package registries are allowed: no live xe.gr/Spitogatos, personal profiles/cookies/secrets, hosting activation, acceptance or publication. Do not claim human testing.",
+  "idempotencyKey": "attica-source-restoration-verification-20261020",
+  "depth": "deep",
+  "acceptanceChecklist": [
+    {
+      "behaviour": "The verified source includes corrected Git main7548682; stale or conflicted imports are reported explicitly.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "A clean executable copy passes ordinary npm ci, npm run check and npm run build with recorded exit codes.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "The three unchanged historical regressions and actual collector restoration tests pass without assertion changes.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "Actual navigation,101/102 persistence/exports and compiled fresh-cwd built-asset checks pass.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "The report distinguishes actual observations from old claims and preserves source, assertions and historical archives.",
+      "check": {
+        "kind": "review"
+      }
+    }
+  ]
+}

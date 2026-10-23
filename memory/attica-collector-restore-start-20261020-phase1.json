@@ -1,0 +1,41 @@
+{
+  "goal": "Repair only the collector module of Attica as the first bounded step of the owner's requested restoration, using the retained TypeScript implementation from e457d2c8. The previous c4845a73 run failed before implementation because its plan combined a project-wide migration with insufficient parent suites. Do not repeat that broad task. Project-wide TypeScript migration and final full-project acceptance remain required in subsequent steps; this step must produce and verify the repaired strict TypeScript collector and compatible entry point, without claiming the whole application is ready.\n\nCompare collect-listings.ts and collect-listings.js with the provided read-only cd21eff5 saved collect-listings.js. Restore the historical safetyStop, adapter, duplicates and run behavior in TypeScript rather than rewriting or simplifying it. That old reference has an erroneous normalized id alias: do not copy that alias. Preserve normalize.identifiant with no own id, rawRecord.extra_json source id, CSV headers and all historical assertions.\n\nObserved failures to reproduce and fix are tests/collect-listings.test.js (expected stopped_safety, got ok), tests/spitogatos.test.mjs (expected HTTP403 reason, got null), and tests/xe-live.test.js (expected blocked after a controlled403, got error). safetyStop must retain HTTP refusal codes, Retry-After and real challenge recognition without treating an ordinary CAPTCHA mention as a challenge. Adapter must preserve authorized-access checks, actual request/response counters, stop reasons, categories, errors and provenance. Distinguish provided/live responses, where a safety stop prevents further processing, from offline-complete-responses: already archived mixed403/200 responses retain the valid row and report partial, zero network requests and truthful observations. Restore possible cross-source duplicate matching. Restore run's full attica-collection/v2 logs and return, configured state output, xe-verification/v3 output and compatible CLI summary; do not replace schemas, omit outputs or hardcode counters.\n\nKeep application changes limited to collect-listings.ts, its CommonJS/CLI facade, and focused strict TypeScript regression tests for these contracts. Preserve all other sources, configurations, assertions and archives. Use actual imported collector functions in parent acceptance tests and temporary synthetic adapter/config/output files for the real run entry point. Exercise stop boundaries and mixed archived responses as well as a successful case; never replace the subject with a mock. Run the three unchanged historical suites, normalizer and101/102 export/reopening regressions, strict typecheck and build. Record the actual full check result and any remaining independent asset/coverage blockers for the next step, without calling them solved.\n\nOnly controlled offline fixtures and package registries are allowed. No live xe.gr/Spitogatos, personal profiles/cookies/secrets, hosting activation, acceptance or publication. Preserve initial failures separately from final observations.",
+  "baseRunId": "e457d2c8-74f1-49e3-b1b7-4d4df1deba31",
+  "readRunIds": [
+    "cd21eff5-a076-46dc-907c-ced5a39c977b"
+  ],
+  "idempotencyKey": "attica-collector-restore-20261020-phase1",
+  "depth": "deep",
+  "acceptanceChecklist": [
+    {
+      "behaviour": "The real strict TypeScript collector restores safety stops, adapter counters and mixed-response behavior.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "Possible duplicates, run state/log schemas and CLI contracts match the reference without the normalized id alias.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "The three unchanged failing legacy suites pass, along with normalization and101/102 export/reopening regressions.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "Typecheck and build pass; full-check observations distinguish remaining blockers from repaired collector behavior.",
+      "check": {
+        "kind": "review"
+      }
+    },
+    {
+      "behaviour": "Changes preserve unrelated sources and archives and use only offline fixtures, without hosting or publication.",
+      "check": {
+        "kind": "review"
+      }
+    }
+  ]
+}

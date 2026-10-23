@@ -1,0 +1,10 @@
+{
+  "projectId": "07864f7c-d8f2-4023-9fca-afd8a7a51e52",
+  "baseRunId": "91254f73-6e25-4285-bbb9-4fb83dbccbb4",
+  "depth": "short",
+  "idempotencyKey": "attica-xe-parser-typescript-20261018-0331",
+  "goal": "Migrate only collectors/xe.js implementation to strict TypeScript, keeping a thin compatible CommonJS callable wrapper with all existing attached exports. Preserve exact behavior: HTML entity/attribute parsing, archive gzip and hash validation, mixed archived response handling, search URL/config/pagination checks, request budget, first-observation fields and merged provenance. Preserve source data, historical evidence and all existing regression tests. Correct compiled module resolution to root collect-listings.js; do not migrate that module yet. Include the new TS in strict typecheck/lint/build, no any/ts-ignore/nocheck or disabled rules. Types at unknown JSON boundaries must not introduce new runtime acceptance/rejection behavior. Existing callable-with-properties API and legacy consumers must remain compatible. Add focused offline compiled-boundary tests only where needed to prove the migration, and run existing full regression suite. Verify from a genuinely fresh external /tmp source copy excluding all node_modules, dist, .git and every .atoma-prefixed basename recursively before copying; plain root npm ci and npm run check as separate commands in that same copy. Preserve proof and remove disposable dependencies. No live network collection or personal browser profiles. Known unrelated intermittent failure in tests/attica-control-concurrency.test.js third start 409 vs202 should be reported if it recurs; do not weaken/remove tests or silently call it resolved. Do not add user-facing verification reports.",
+  "acceptanceCriteria": [
+    "The strict TypeScript xe parser preserves its callable CommonJS API and archived-data behavior, proven by compiled tests and fresh-copy npm ci/check."
+  ]
+}

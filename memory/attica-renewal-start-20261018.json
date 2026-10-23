@@ -1,0 +1,10 @@
+{
+  "projectId": "07864f7c-d8f2-4023-9fca-afd8a7a51e52",
+  "baseRunId": "bbc66f73-9ad0-4601-8455-082b2db7e7af",
+  "depth": "short",
+  "idempotencyKey": "attica-session-ts-20261018-0155",
+  "goal": "Migrate ONLY browser/session.js implementation to strict TypeScript with a thin compatible CommonJS wrapper and necessary build/declaration inclusion. Preserve all current exports, exact runtime behavior/errors, option defaults, CDP versus persistent-context ownership, existing-page fallback, URL validation and routing decisions. Preserve even questionable existing policy in this migration; do not silently fix routing behavior. Ensure Playwright resolves from browser/package.json dependencies when invoked through compiled dist/browser/session.js; root-only installation must still allow offline tests mocking only the external Playwright boundary. Add focused tests executing the compiled production entrypoint for both session branches, identity, route callback decisions and errors. No any, ts-ignore, ts-nocheck or relaxed strictness. Do not edit collector implementation, old regressions, historical data, dependencies, profiles, or unrelated modules. No live websites, real browser profiles or publication. Verify with plain npm ci and then npm run check as separate commands in ONE genuine fresh external /tmp source copy; recursively exclude node_modules, dist, .git and all .atoma* trees, copying files rather than recursively copying unfiltered directories. Remove temporary dependency copies after recording evidence to avoid disk exhaustion. Report source changes and tests honestly; known stale dist/browser/collect-xe-browser.js and map are outside this bounded migration and must not cause endless retries or removal of collector source.",
+  "acceptanceCriteria": [
+    "browser/session uses strict TypeScript with compatible CommonJS behavior, proven through compiled-entrypoint tests and a fresh-copy npm run check."
+  ]
+}

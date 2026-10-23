@@ -1,0 +1,10 @@
+{
+  "projectId": "07864f7c-d8f2-4023-9fca-afd8a7a51e52",
+  "baseRunId": "91254f73-6e25-4285-bbb9-4fb83dbccbb4",
+  "depth": "short",
+  "idempotencyKey": "attica-xe-parser-typescript-retry-20261018-0405",
+  "goal": "Complete a behavior-preserving strict TypeScript port of collectors/xe.js from this verified base. The prior run failed, so inspect this base rather than assuming its edits exist. Move the actual implementation into collectors/xe.ts, not a typed bridge to another JS runtime. Preserve the callable CommonJS export and every attached function via a thin collectors/xe.js wrapper. Preserve all runtime behavior, including existing loose JSON handling; use accurate structural types and unknown at JSON boundaries, without any, ts-ignore, nocheck, disabled lint rules, or new runtime validation. Preserve existing archived gzip/hash checks, mixed responses, HTML entities, URL/config/pagination checks, request budget and provenance merge. Root collect-listings.js stays unchanged. IMPORTANT build integration: explicitly preserve rootDir at the repository root and output paths dist/browser/* while adding dist/collectors/xe.js; prior attempt broke clean builds by moving browser output paths. Include collectors TS in both strict typecheck and lint/build. Keep data, evidence and existing regressions byte-identical. Add focused compiled CommonJS boundary tests and use the existing historical/parser/xe-live offline suites to validate behavior. In a fresh external /tmp copy recursively exclude node_modules, dist, .git and .atoma-prefixed paths before copying; run plain root npm ci and then npm run check separately there. Source must work without pre-existing dist. No live collection, personal profiles, reports or unrelated changes. Clean disposable dependency copies after preserving execution evidence. Report any remaining failure honestly; known unrelated intermittent concurrency third-start409 should not lead to weakening tests.",
+  "acceptanceCriteria": [
+    "The strict TypeScript xe parser preserves its callable CommonJS API and archived-data behavior, proven by compiled tests and fresh-copy npm ci/check."
+  ]
+}

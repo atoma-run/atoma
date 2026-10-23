@@ -1,0 +1,21 @@
+{
+  "projectId": "07864f7c-d8f2-4023-9fca-afd8a7a51e52",
+  "baseRunId": "e107d0a7-70c7-4cf8-9722-25c4ee81f57c",
+  "depth": "deep",
+  "idempotencyKey": "attica-full-recipe-planning-context-20261020-v1",
+  "goal": "Valider toute la recette hors ligne de l’application Attica de mgtf/atoma-attica-property-flipping pour son propriétaire, à partir de la dernière livraison acceptée. La preuve précédente maxPages:0 ne valide pas le reste de l’application. Inspecter les interfaces réelles du serveur, du collecteur, du store, du checkpoint et du planificateur avant de définir les scénarios ; employer leurs noms et contrats actuels, y compris le graphe TypeScript/JavaScript et la sortie compilée. Contexte du dernier refus, à reconfirmer dans les sources actuelles : l’état du planificateur expose nextDueAt, pas nextRunAt ; un booléen de helper ne prouve pas qu’une échéance a réellement déclenché la collecte. Corriger les défauts reproductibles rencontrés et ajouter les régressions correspondantes en TypeScript strict, sans migration générale ni réécriture sans rapport. Exécuter les parcours complets avec le vrai serveur, le vrai collecteur, la vraie persistance et le vrai déclenchement planifié. Seules les dépendances externes de navigateur/site peuvent être remplacées par des fixtures contrôlées ; ni le store ni les résultats applicatifs ne doivent être simulés. Distinguer les navigations de collecte du nettoyage, les opérations déjà en vol du travail nouveau, et un tick réellement échu d’un tick sans effet. Vérifier démarrage, collecte, annulation durable, reprise, Retry-After, CAPTCHA, concurrence, planification, exports et interface servie par la construction courante. Partir d’une copie propre sans dépendances, construction ou runtime hérités pour l’installation et les vérifications ; consigner commandes, réponses, codes de sortie et résultats, avec les limites exactes. Le réseau externe est limité à l’installation des dépendances depuis leurs registres ; toutes les pages et interactions de recette utilisent des fixtures loopback. Aucun appel xe.gr ou Spitogatos, aucune collecte réelle, aucun accès aux données de production, profils, cookies ou secrets personnels. Préserver les données et preuves historiques ; Spitogatos reste en pause. Ne pas imposer Docker local. Livrer une version vérifiable et un bilan fidèle de chaque critère, sans publication GitHub, acceptation client ni déploiement automatique.",
+  "acceptanceCriteria": [
+    "Depuis une copie propre, npm ci, npm run check et npm run build réussissent sur les sources et artefacts livrés.",
+    "Le serveur démarre au repos ; maxPages:0 est refusé avec HTTP 400 avant toute navigation.",
+    "Une collecte hors ligne suit les vraies pages/détails, persiste les annonces et exporte CSV/JSONL sans doublons après redémarrage.",
+    "L’annulation d’une collecte active bloque tout nouveau travail après le travail en vol et conserve la progression après recréation.",
+    "Après annulation persistée, ni redémarrage ni échéance de planification ne relancent la collecte sans action explicite.",
+    "Retry-After reçu pendant une collecte interdit toute navigation avant l’échéance, même après redémarrage et tentative de reprise.",
+    "Un CAPTCHA sur une page ou un détail bloque la collecte ; seule une vérification réussie autorise la reprise dans la même session.",
+    "Des demandes concurrentes de démarrage, reprise et planification n’admettent qu’une collecte et libèrent le verrou après erreur ou fin.",
+    "Une échéance réelle déclenche le vrai collecteur quand autorisé et respecte les états persistés d’annulation et de pause.",
+    "Dans l’interface du vrai serveur compilé, démarrage, annulation, reprise et planification produisent les états visibles attendus.",
+    "Les données et preuves historiques sont préservées, Spitogatos reste en pause et aucun site externe n’est collecté.",
+    "La documentation décrit les commandes vérifiées et les limites restantes, sans fausse déclaration de recette complète."
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "projectId": "07864f7c-d8f2-4023-9fca-afd8a7a51e52",
+  "baseRunId": "2a2fdda5-6e7e-4f4e-b230-fd23e61f4f25",
+  "depth": "short",
+  "idempotencyKey": "attica-reproducible-build-20261018-0320-retry",
+  "goal": "Verify the frozen migrated browser delivery with a genuinely clean external build. Do not change source, tests, declarations, configs or retained outputs and add no report. Clarification of preceding review: consumedRequests?: number is OPTIONAL and valid in browser/collect-xe-browser.d.ts because some return branches contain it and the paused early-return does not. It must NOT be removed or treated as a failure; the runtime shape is already corrected and tested. The actual remaining evidence gap: previous copy setup used pattern 'all.atoma*', which does not exclude '.atoma*'. Create ONE new external /tmp directory with all node_modules, dist, .git and every basename starting .atoma recursively excluded BEFORE copying; copy only selected files and preserve modes. Assert there are zero excluded paths before install. Run plain root npm ci then npm run check separately in that same copy, including final nine focused Node regressions (36 Vitest and 84 Node expected). Compare source hashes/modes before/after with retained source, and compare the complete newly built dist file list and hashes to retained dist. Collector and session are now built, so identify any actual remaining mismatch exactly. Do not conflate optional TS declaration fields with runtime object properties. Verify CommonJS wrappers in the clean built copy. Preserve probe evidence then clean temporary dependency copies. Finish after one passing verification; do not repeat identical passing suites. If actual byte mismatch exists report partial honestly, do not loop or edit frozen outputs.",
+  "acceptanceCriteria": [
+    "A clean external source copy passes separate npm ci and npm run check, preserves source bytes/modes, and reproduces all retained dist files."
+  ]
+}

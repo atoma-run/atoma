@@ -1,0 +1,13 @@
+{
+  "projectId": "07864f7c-d8f2-4023-9fca-afd8a7a51e52",
+  "baseRunId": "e8d0a4df-64a8-407e-9e9a-8a55e3a9294a",
+  "readRunIds": [
+    "91254f73-6e25-4285-bbb9-4fb83dbccbb4"
+  ],
+  "depth": "short",
+  "idempotencyKey": "attica-xe-parser-compatibility-20261018-0416",
+  "goal": "Repair behavioral drift introduced by the xe TypeScript port, retaining the actual TS implementation. Original authoritative collectors/xe.js, vite.config.ts and browser/control-server.ts are available in readRunIds 91254f73-6e25-4285-bbb9-4fb83dbccbb4. Restore vite.config.ts and browser/control-server.ts exactly from that baseline, regenerate their outputs, and remove only spurious browser/dist/browser/control.html and dist/browser/browser/control.html; keep the legitimate original dist/browser-assets/browser/control.html. Vite browser-assets and TypeScript dist/browser are distinct correct outputs. Keep explicit rootDir and new collectors TS build integration. Compare collectors/xe.ts against originalJS and restore original runtime semantics using type assertions/structural types rather than extra validation/defaults. Concrete drift: parseXeSearch formerly accepts any truthy selected_values; parseXe(null/undefined) optional body and script JSON null handling must match; context.transport uses || not ??; manifestFile/path/hash/encoding checks were truthiness based, not typeof or !==undefined; startUrl != null must be validated even when non-string; null config/selected must preserve original errors; provenance fallback listing_url must not convert undefined to null; asExtra/provenance must not silently replace non-object values. Preserve both success AND rejection behavior, including malformed inputs. Add offline differential compiled tests against a retained original fixture for these cases, exercising real module behavior (no mocks replacing parser), plus existing historical/xe-live suites. No any/ts-ignore/nocheck or disabledlint. Preserve data/evidence/existingtests and collect-listings.js. Prove final plain root npm ci and npm run check separately in same external filtered copy, exclude node_modules/dist/.git/all .atoma-prefixed paths BEFORE copying files, preserve modes. No live collection or personal profiles. No unrelated feature/report.",
+  "acceptanceCriteria": [
+    "The compiled xe port matches original parser behavior on regression cases, restores original HTML build paths, and passes fresh-copy npm ci/check."
+  ]
+}
