@@ -1,3 +1,4 @@
+import { RUN_REQUEST_TIMEOUT_MS } from '../contracts/runTimeouts.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
@@ -132,7 +133,7 @@ export const MCP_SESSION_IDLE_MS = 24 * 60 * 60 * 1000;
  */
 const RESUMABLE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[0-9a-f]{64}$/;
 function sessionOwner(key: string): string { return createHash('sha256').update(key).digest('hex'); }
-export const MCP_MAX_REQUEST_MS = 3 * 60 * 60 * 1000;
+export const MCP_MAX_REQUEST_MS = RUN_REQUEST_TIMEOUT_MS;
 
 /**
  * The request ceiling a deployment asks for (`ATOMA_MCP_MAX_REQUEST_MS`), or

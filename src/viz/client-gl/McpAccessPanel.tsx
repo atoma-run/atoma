@@ -1,3 +1,4 @@
+import { RUN_REQUEST_TIMEOUT_MS } from '../../contracts/runTimeouts.js';
 import { AtomaLoader, loaderVisible, revealClass, useLoadingReveal } from './AtomaLoader.js';
 import { ButtonIcon } from './ButtonIcon.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -64,10 +65,10 @@ export function claudeMcpCommand(mcpUrl: string): string {
  * Both browser OAuth and the local operator endpoint need only the URL, plus
  * the per-call deadline: Codex cuts a tool call at 300 s by default, a fixed
  * deadline no progress notification extends, and a synchronous run start
- * lasts minutes. 10800 s is the host's own ceiling (MCP_MAX_REQUEST_MS), so
+ * can last eight hours. The host ceiling also covers preparation and cleanup, so
  * the server, not the client, decides. `codex mcp add` cannot set it.
  */
-export const CODEX_TOOL_TIMEOUT_SEC = 10800;
+export const CODEX_TOOL_TIMEOUT_SEC = RUN_REQUEST_TIMEOUT_MS / 1000;
 
 export function codexMcpConfig(mcpUrl: string): string {
   return [

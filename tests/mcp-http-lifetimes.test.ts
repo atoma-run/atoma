@@ -88,7 +88,7 @@ it('closes a body that does not arrive in time, and answers an unreadable one wi
   valid.req.end(initialize.slice(10));
   expect((await valid.response).status).toBe(200);
 });
-it('keeps a pending POST past idle, delivers its response, then sweeps the idle session', async () => {
+it('keeps an eight-hour run POST through preparation and cleanup, then sweeps the idle session', async () => {
   let finish!: () => void;
   let entered = false;
   const result = new Promise<void>(resolve => { finish = resolve; });
@@ -103,7 +103,7 @@ it('keeps a pending POST past idle, delivers its response, then sweeps the idle 
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'slow' } }),
   }).then(res => res.text());
   await vi.waitFor(() => expect(entered).toBe(true));
-  now = 31 * 60_000;
+  now = 494 * 60_000;
   await vi.advanceTimersByTimeAsync(5 * 60_000);
   expect(host.health().sessions).toBe(1);
   finish();
@@ -140,7 +140,7 @@ it('bounds a POST that never answers even though it pins the idle clock', async 
   }).then(res => res.text()).catch(() => '');
   try {
     await vi.waitFor(() => expect(entered).toBe(true));
-    now = 181 * 60_000;
+    now = MCP_MAX_REQUEST_MS + 60_000;
     await vi.advanceTimersByTimeAsync(5 * 60_000);
     // The stalled CALL ends; its session, and whatever else it holds, does not.
     await pending;
@@ -258,12 +258,12 @@ describe('a call the client is still waiting for (2026-09-25 review, 1.3)', () =
     const url = await listen(slowServer(gates));
     const { session, eventId } = await cutCall(url, gates);
     try {
-      now = 170 * 60_000;
+      now = MCP_MAX_REQUEST_MS - 10 * 60_000;
       const resumed = raw(url, 'GET', { ...session, accept: 'text/event-stream', 'last-event-id': eventId });
       await new Promise(resolve => setTimeout(resolve, 100));
-      now = 181 * 60_000;
+      now = MCP_MAX_REQUEST_MS + 60_000;
       await vi.advanceTimersByTimeAsync(5 * 60_000);
-      // Past three hours of the CALL, not of the reconnect: the response
+      // Past the ceiling of the CALL, not of the reconnect: the response
       // closes, the session stays for its other calls.
       expect((await resumed).text).not.toContain('FINISHED-RESULT');
       expect(host.health().sessions).toBe(1);

@@ -319,6 +319,14 @@ describe('a platform ceiling binds the project run budget', () => {
     ).toThrow(ProjectRunConfigurationError);
   });
 
+  it('accepts and persists an eight-hour default and ceiling', () => {
+    const { store } = openStore();
+    store.set({ 'run.timeoutDefaultMs': 28_800_000, 'run.timeoutMaxMs': 28_800_000 }, null);
+    expect(projectRunTimeoutMs({}, undefined, store.limits())).toBe(28_800_000);
+    expect(projectRunTimeoutMs({ ATOMA_PROJECT_TIMEOUT_MS: '28800000' }, undefined, store.limits())).toBe(28_800_000);
+    expect(() => projectRunTimeoutMs({}, 28_800_001, store.limits())).toThrow(ProjectRunConfigurationError);
+  });
+
   it('lets an admin only NARROW the ceiling, never raise it past the constant', () => {
     // MAX_PROJECT_RUN_TIMEOUT_MS is what the child's watchdog and the burn-in
     // reaper were sized against; a setting above it would move two deadlines

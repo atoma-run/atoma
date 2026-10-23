@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   chmodSync,
   existsSync,
@@ -411,6 +411,37 @@ describe('spawnRun — reaping a child that parked', () => {
 });
 
 describe('spawnRun — live log', () => {
+  it('keeps a real child alive through an eight-hour budget and forwards that budget intact', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-eight-hour-child-'));
+    const releasePath = join(dir, 'release');
+    writeFileSync(join(dir, 'npm'), '#!/bin/sh\nprintf "BUDGET=%s\\n" "$ATOMA_BUILD_TIMEOUT_MS"\nwhile [ ! -f "$RELEASE_PATH" ]; do sleep 0.01; done\n');
+    chmodSync(join(dir, 'npm'), 0o755);
+    let ready!: () => void;
+    const started = new Promise<void>(resolve => { ready = resolve; });
+    let settled = false;
+    let running: Promise<string> | undefined;
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      running = spawnRun({
+        goal: 'eight-hour process boundary', timeoutMs: 28_800_000, logPath: join(dir, 'run.log'),
+        env: { PATH: `${dir}:${process.env['PATH'] ?? ''}`, RELEASE_PATH: releasePath },
+        onChunk: chunk => { if (chunk.includes('BUDGET=')) ready(); },
+      }).then(log => { settled = true; return log; });
+      await started;
+      await vi.advanceTimersByTimeAsync(28_800_000 + 180_000 - 1);
+      expect(settled).toBe(false);
+      expect(readFileSync(join(dir, 'run.log'), 'utf8')).toBe('BUDGET=28800000\n');
+      vi.useRealTimers();
+      writeFileSync(releasePath, 'finish');
+      expect(await running).not.toContain('hard timeout');
+    } finally {
+      vi.useRealTimers();
+      writeFileSync(releasePath, 'finish');
+      await running;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('persists startup output before the child can finish, then retains the complete log', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'atoma-burnin-live-log-'));
     const fakeNpm = join(dir, 'npm');

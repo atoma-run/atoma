@@ -159,11 +159,11 @@ describe('startTask — typed config errors before any side effect', () => {
    * the runner's own default. Each is proved by the next refusal in the
    * ordered gauntlet (`--seed`), as above.
    */
-  it('launches a three-hour operator run when no ceiling is stated', async () => {
+  it('launches an eight-hour operator run when no ceiling is stated', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-runner-no-ceiling-'));
     try {
       process.env[RUN_ENV.dbPath] = join(root, 'atoma.db');
-      process.env[RUN_ENV.timeoutMs] = String(3 * 60 * 60 * 1000);
+      process.env[RUN_ENV.timeoutMs] = String(8 * 60 * 60 * 1000);
       await expect(
         startTask(['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
       ).rejects.toThrow(/--seed: no such directory/);

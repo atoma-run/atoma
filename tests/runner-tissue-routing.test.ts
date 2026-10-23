@@ -163,12 +163,12 @@ describe('pending audits at runner shutdown', () => {
     } finally { await handle?.shutdown(); closeStoreHandles(); rmSync(root, { recursive: true, force: true }); }
   });
 
-  it('settles a pending audit before the watchdog closes a wedged run', async () => {
+  it('gives a default run eight hours plus grace before its watchdog settles a pending audit', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-audit-watchdog-'));
     for (const [key, value] of Object.entries({ ...OLLAMA_PINS,
       ATOMA_DB_PATH: join(root, 'store.db'), ATOMA_LEDGER_DB: join(root, 'store.db'),
       ATOMA_SKILLS_DIR: join(root, 'skills'), ATOMA_RUNS_DIR: join(root, 'runs'),
-      ATOMA_BUILD_WORKSPACE: join(root, 'workspace'), ATOMA_BUILD_TIMEOUT_MS: '60000',
+      ATOMA_BUILD_WORKSPACE: join(root, 'workspace'), ATOMA_BUILD_TIMEOUT_MS: undefined,
       ATOMA_CONTAINER: '0', ATOMA_REQUIRE_ISOLATION: '0', ATOMA_PREFILTER_CACHE: '0',
     })) vi.stubEnv(key, value);
     resetHostLifecycleSnapshotForTests();
@@ -199,7 +199,7 @@ describe('pending audits at runner shutdown', () => {
     let fireWatchdog: (() => void) | undefined;
     let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
     vi.spyOn(globalThis, 'setTimeout').mockImplementation((callback, delay, ...args) => {
-      if (delay === 120_000) {
+      if (delay === 28_800_000 + 60_000) {
         fireWatchdog = () => callback(...args);
         watchdogTimer = realSetTimeout(() => {}, delay);
         return watchdogTimer;

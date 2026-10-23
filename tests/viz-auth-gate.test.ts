@@ -933,7 +933,7 @@ describe('viz auth gate (process level)', () => {
     // A fresh instance states NOTHING and still reports every effective
     // limit — the property that makes "no rows" mean "shipped defaults".
     expect(snapshot.rows).toEqual([]);
-    expect(snapshot.limits['run.timeoutMaxMs']).toBe(7_200_000);
+    expect(snapshot.limits['run.timeoutMaxMs']).toBe(28_800_000);
     expect(snapshot.limits['run.tokenMaxTotal']).toBe(0);
     expect(snapshot.catalog.some((spec) => spec.key === 'run.costMaxUsd')).toBe(true);
     // The env column reports what a launcher would ask for, so the form does
@@ -984,7 +984,7 @@ describe('viz auth gate (process level)', () => {
       .json() as { events: Array<{ kind: string; severity: string; summary: string }> };
     const settingsRow = journal.events.find((event) => event.kind === 'platform.settings_updated');
     expect(settingsRow?.severity).toBe('security');
-    expect(settingsRow?.summary).toContain('run.timeoutMaxMs 7200000→1800000');
+    expect(settingsRow?.summary).toContain('run.timeoutMaxMs 28800000→1800000');
 
     // Clearing REMOVES the row rather than writing the default back.
     const cleared = await fetch(`${base}/api/admin/settings`, {
@@ -995,7 +995,7 @@ describe('viz auth gate (process level)', () => {
     expect(cleared.status).toBe(200);
     const back = await cleared.json() as { rows: unknown[]; limits: Record<string, number> };
     expect(back.rows).toEqual([]);
-    expect(back.limits['run.timeoutMaxMs']).toBe(7_200_000);
+    expect(back.limits['run.timeoutMaxMs']).toBe(28_800_000);
     // POST is not a write here, and an empty request changes nothing.
     expect(
       (await fetch(`${base}/api/admin/settings`, {

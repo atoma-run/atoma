@@ -836,7 +836,7 @@ async function startTaskInternal(
   const timeoutRaw = process.env[RUN_ENV.timeoutMs];
   // A budget nobody asked for is the default, bounded by the ceiling — the
   // runner must not refuse its own default. A REQUEST above it is refused below.
-  const defaultTimeoutMs = useClaudeCli ? 15 * 60 * 1000 : 10 * 60 * 1000;
+  const defaultTimeoutMs = platformLimits['run.timeoutDefaultMs'];
   const requestedTimeoutMs = timeoutRaw === undefined
     ? Math.min(defaultTimeoutMs, statedCeilingMs ?? defaultTimeoutMs)
     : Number(timeoutRaw);

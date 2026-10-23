@@ -1,3 +1,4 @@
+import { RUN_TIMEOUT_MS } from '../contracts/runTimeouts.js';
 import { observeTiming, timingSidecar } from '../core/runtimeTiming.js';
 import { ComputeDispatchPendingError, type ComputeDispatcher } from './computeDispatch.js';
 import { ClientQuestionConflict } from '../run/clientQuestions.js';
@@ -1140,9 +1141,10 @@ export function landedRunDetail(stats: Pick<RunStats, 'landingReasons'>, log: st
  * `949ecd5d` died at 900s after 68 tool calls and $0.96, and its own post-mortem
  * advised raising a variable that could not be raised.
  *
- * The default is 60 minutes. It was 30, and two production runs of 2026-09-21
+ * The default and project ceiling are eight hours (owner, 2026-10-23).
+ * Previously one hour / two hours; two production runs of 2026-09-21
  * (`cc894dad`, `d3098d25`, records/incidents/progressive-runs-2026-09-21.md) both
- * died at exactly that wall clock having spent $2.83 and $3.50. Raising it is
+ * died at the then-30-minute deadline having spent $2.83 and $3.50. Raising it is
  * the smaller half of the answer and not the interesting one: a bigger budget
  * only moves the cliff. What stops the loss is that reaching the deadline now
  * LANDS on the phases already accepted (`MIN_PHASE_LANDING_MS` in
@@ -1158,9 +1160,9 @@ export function landedRunDetail(stats: Pick<RunStats, 'landingReasons'>, log: st
  * absurd value moves those too. That is why an admin's ceiling may only
  * narrow `MAX_PROJECT_RUN_TIMEOUT_MS`, never raise it.
  */
-export const DEFAULT_PROJECT_RUN_TIMEOUT_MS = 60 * 60 * 1_000;
+export const DEFAULT_PROJECT_RUN_TIMEOUT_MS = RUN_TIMEOUT_MS;
 export const MIN_PROJECT_RUN_TIMEOUT_MS = 60 * 1_000;
-export const MAX_PROJECT_RUN_TIMEOUT_MS = 2 * 60 * 60 * 1_000;
+export const MAX_PROJECT_RUN_TIMEOUT_MS = RUN_TIMEOUT_MS;
 export const PROJECT_RUN_TIMEOUT_ENV = 'ATOMA_PROJECT_TIMEOUT_MS';
 
 /**

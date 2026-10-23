@@ -2317,15 +2317,14 @@ describe('ProjectRunCoordinator — a large trace is evidence, not a refusal', (
  * `timeoutMs`, and `projects run` had no flag.
  */
 describe('a project run has a budget an operator can set', () => {
-  it('defaults to 60 minutes, and reads the host environment', () => {
+  it('defaults to eight hours, and reads the host environment', () => {
     expect(projectRunTimeoutMs({})).toBe(DEFAULT_PROJECT_RUN_TIMEOUT_MS);
-    // 30 minutes until 2026-09-22, when two production runs died at exactly
-    // that wall clock having spent $2.83 and $3.50.
-    expect(projectRunTimeoutMs({})).toBe(3_600_000);
+    // Eight-hour default and ceiling requested on 2026-10-23.
+    expect(projectRunTimeoutMs({})).toBe(28_800_000);
     expect(projectRunTimeoutMs({ [PROJECT_RUN_TIMEOUT_ENV]: '2400000' })).toBe(2_400_000);
     // An empty value is absence, not an error: `export VAR=` is how a shell
     // unsets in practice.
-    expect(projectRunTimeoutMs({ [PROJECT_RUN_TIMEOUT_ENV]: '' })).toBe(3_600_000);
+    expect(projectRunTimeoutMs({ [PROJECT_RUN_TIMEOUT_ENV]: '' })).toBe(28_800_000);
   });
 
   it('lets an explicit argument win over the environment', () => {
@@ -2341,13 +2340,13 @@ describe('a project run has a budget an operator can set', () => {
       );
     }
     expect(() => projectRunTimeoutMs({}, 59_000)).toThrow(/outside/);
-    expect(() => projectRunTimeoutMs({}, 3 * 60 * 60 * 1_000)).toThrow(/outside/);
+    expect(() => projectRunTimeoutMs({}, 8 * 60 * 60 * 1_000 + 1)).toThrow(/outside/);
     expect(projectRunTimeoutMs({}, MIN_PROJECT_RUN_TIMEOUT_MS)).toBe(60_000);
-    expect(projectRunTimeoutMs({}, MAX_PROJECT_RUN_TIMEOUT_MS)).toBe(7_200_000);
+    expect(projectRunTimeoutMs({}, MAX_PROJECT_RUN_TIMEOUT_MS)).toBe(28_800_000);
   });
 
   it.each([
-    { configured: undefined, expected: 3_600_000 },
+    { configured: undefined, expected: 28_800_000 },
     { configured: '2400000', expected: 2_400_000 },
   ])('carries the resolved $expected ms budget to the driver, and ATOMA_BUILD_TIMEOUT_MS stays inert', async ({ configured, expected }) => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.now());

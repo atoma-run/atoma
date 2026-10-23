@@ -1508,18 +1508,18 @@ describe('runs as tasks, and the run log', () => {
       `entry 2: this criterion's text is ${MAX_CHECKLIST_BEHAVIOUR_CHARS + 7} characters; at most ${MAX_CHECKLIST_BEHAVIOUR_CHARS}`) }] });
   });
 
-  it.each(['delivered', 'partial', 'failed', 'cancelled'] as const)('keeps a finished two-hour project task one ttl after its run ends, without a poll of its own (%s)', async terminal => {
+  it.each(['delivered', 'partial', 'failed', 'cancelled'] as const)('keeps a finished eight-hour project task one ttl after its run ends, without a poll of its own (%s)', async terminal => {
     vi.useFakeTimers();
     try {
-      const tenant = projectRunsService(`long-${terminal}`, { runTaskBudgetMs: () => 133 * 60_000 });
+      const tenant = projectRunsService(`long-${terminal}`, { runTaskBudgetMs: () => 494 * 60_000 });
       const read = vi.fn(tenant.service.projectRunStatus);
       tenant.service.projectRunStatus = read;
       const { tasks, start } = projectTaskSession(tenant.service, { pollMs: 60_000 });
-      const ttl = 133 * 60_000 + 10 * 60_000;
+      const ttl = 494 * 60_000 + 10 * 60_000;
       const created = await start.start(PROJECT_ARGS);
       tenant.set(`long-${terminal}-1`, 'running');
       const reads = read.mock.calls.length;
-      await vi.advanceTimersByTimeAsync(131 * 60_000);
+      await vi.advanceTimersByTimeAsync(492 * 60_000);
       expect(read).toHaveBeenCalledTimes(reads);
       expect(tasks.get(created.taskId)).toMatchObject({ status: 'working' });
       tenant.set(`long-${terminal}-1`, terminal, { endedAt: new Date().toISOString() });

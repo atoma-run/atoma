@@ -1,3 +1,4 @@
+import { RUN_TIMEOUT_MS } from './runTimeouts.js';
 import { z } from 'zod';
 
 /**
@@ -111,8 +112,8 @@ export const PLATFORM_SETTINGS: Record<PlatformSettingKey, PlatformSettingSpec> 
     unit: 'ms',
     kind: 'default',
     min: 60_000,
-    max: 7_200_000,
-    fallback: 3_600_000,
+    max: RUN_TIMEOUT_MS,
+    fallback: RUN_TIMEOUT_MS,
     zeroMeansUnlimited: false,
     env: 'ATOMA_PROJECT_TIMEOUT_MS',
     readAt: 'src/projects/coordinator.ts#projectRunTimeoutMs',
@@ -126,7 +127,7 @@ export const PLATFORM_SETTINGS: Record<PlatformSettingKey, PlatformSettingSpec> 
     // 24h. Not "unlimited": the runner arms a watchdog and an abort signal off
     // this number, and a value they cannot represent is not a policy.
     max: 86_400_000,
-    fallback: 7_200_000,
+    fallback: RUN_TIMEOUT_MS,
     zeroMeansUnlimited: false,
     env: null,
     readAt: 'src/projects/coordinator.ts, src/run/runner.ts',

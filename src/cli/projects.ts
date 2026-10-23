@@ -30,7 +30,7 @@ import {
   resolveSecretEncryption,
   SECRET_ENCRYPTION_ENV,
 } from '../auth/secretEncryption.js';
-import { DEFAULT_PROJECT_RUN_TIMEOUT_MS, hostSubscriptionPinsOf, ProjectRunCoordinator } from '../projects/coordinator.js';
+import { DEFAULT_PROJECT_RUN_TIMEOUT_MS, MAX_PROJECT_RUN_TIMEOUT_MS, hostSubscriptionPinsOf, ProjectRunCoordinator } from '../projects/coordinator.js';
 import { backfillRunTitles, hostRunTitler } from '../projects/runTitle.js';
 import { PreviewStore } from '../preview/store.js';
 import { recordDeliveredPreview } from '../preview/service.js';
@@ -140,7 +140,7 @@ flags:
   --project <slug-or-id>     target project (required for run and publish)
   --as <id-or-email>         principal the run is attributed to (required)
   --run <run-id>             the delivered run to publish (publish only)
-  --timeout <seconds>        standalone run budget, 60..7200, default ${DEFAULT_PROJECT_RUN_TIMEOUT_MS / 1000}
+  --timeout <seconds>        standalone run budget, 60..${MAX_PROJECT_RUN_TIMEOUT_MS / 1000}, default ${DEFAULT_PROJECT_RUN_TIMEOUT_MS / 1000}
   --idempotency-key <key>    reuse this exact run after a disconnected CLI (run only)
   --apply                    name the listed runs (titles only; otherwise a dry run)
   --view <rows|review>       the report's view (disputes only)

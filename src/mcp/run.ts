@@ -1,3 +1,4 @@
+import { RUN_TIMEOUT_MS } from '../contracts/runTimeouts.js';
 /**
  * The MUTATING half of the MCP surface: starting a task run, watching it, and
  * cancelling it.
@@ -64,8 +65,8 @@ import {
   type RunLeaseAcquirer,
 } from './runLock.js';
 
-/** Matches the runner's own claude-cli default (15 min). */
-export const DEFAULT_RUN_TIMEOUT_MS = 15 * 60 * 1000;
+/** Matches the runner's default eight-hour cycle. */
+export const DEFAULT_RUN_TIMEOUT_MS = RUN_TIMEOUT_MS;
 /** Bound on how many finished runs stay queryable in memory. */
 const MAX_RECORDS = 20;
 /** Bound on the live progress tail kept per run. */

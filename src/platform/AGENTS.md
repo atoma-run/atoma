@@ -102,10 +102,11 @@ Design, polling basis and deferred tests: [W11](../../docs/decisions/cross-org-r
   on both ends before it is stored. Never accept a free-form
   `Record<string, number>` — a settings table nobody can validate is a table
   whose rows outlive the call sites that read them.
-- EVERY `fallback` IS THE CONSTANT THAT SHIPPED, verbatim, and
+- EVERY `fallback` IS THE CURRENT SHIPPED CONSTANT, and
   `tests/platform-settings.test.ts` pins each one against the module that
-  owns it. An instance with no rows must behave exactly like one built before
-  the feature; a settings surface whose mere existence moved a limit would
+  owns it. The eight-hour run default and project ceiling were explicitly raised on
+  2026-10-23. Other limits retain their established values; a settings
+  surface whose mere existence moved a limit would
   make the change invisible in the deployments least able to explain it.
 - TWO KINDS, and the difference is the whole precedence rule. A `default`
   replaces the code fallback only when NOTHING asks — a CLI flag or the

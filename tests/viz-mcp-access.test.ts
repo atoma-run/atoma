@@ -147,8 +147,8 @@ describe('McpAccessPanel', () => {
     expect(codex.textContent).toBe(codexMcpConfig('https://atoma.example.com/mcp'));
     // Codex's default 300 s per-call deadline cut every synchronous run start
     // in October 2026: the generated table carries the host's own ceiling.
-    expect(codex.textContent).toBe('[mcp_servers.atoma]\nurl = "https://atoma.example.com/mcp"\ntool_timeout_sec = 10800');
-    expect(screen.getByText(/tool_timeout_sec = 10800 under the atoma server/)).toBeInTheDocument();
+    expect(codex.textContent).toBe('[mcp_servers.atoma]\nurl = "https://atoma.example.com/mcp"\ntool_timeout_sec = 32400');
+    expect(screen.getByText(/tool_timeout_sec = 32400 under the atoma server/)).toBeInTheDocument();
     await userEvent.click(within(codex.parentElement!).getByRole('button', { name: 'Copy' }));
     expect(onCopy).toHaveBeenCalledWith(codex.textContent);
     const command = screen.getByTestId('mcp-connect-command');
@@ -167,7 +167,7 @@ describe('McpAccessPanel', () => {
     expect(screen.getByTestId('mcp-connect-command')).not.toHaveTextContent('mcp login');
     await userEvent.click(screen.getByText('Setup help for Codex and Claude Code'));
     expect(screen.getByTestId('mcp-connect-command')).not.toHaveTextContent('--header');
-    expect(screen.getByTestId('mcp-oauth-config').textContent).toBe('[mcp_servers.atoma-local]\nurl = "http://127.0.0.1:4111/mcp"\ntool_timeout_sec = 10800');
+    expect(screen.getByTestId('mcp-oauth-config').textContent).toBe('[mcp_servers.atoma-local]\nurl = "http://127.0.0.1:4111/mcp"\ntool_timeout_sec = 32400');
   });
 });
 

@@ -90,7 +90,7 @@ Neighbours:
   against the idle sweep AND against `reclaim`, which then answers 503 rather
   than cut it; the standalone GET stream, and a resumed stream whose call was
   already answered, do not pin. A resumed call keeps its original start, so
-  past `ATOMA_MCP_MAX_REQUEST_MS` (default 3h) of the CALL, reconnects
+  past `ATOMA_MCP_MAX_REQUEST_MS` (default 9h) of the CALL, reconnects
   included, its open response is closed — never the session holding other
   calls and tasks.
 - UNDER A DEPLOYMENT'S WRITE FREEZE a message is judged by what it DOES
@@ -252,7 +252,7 @@ owners rather than assuming a different process's run is abandoned.
   that fails at once, never a hung call. A caller that sent a `progressToken`
   hears `notifications/progress` with the run's status line at once and every
   30s (`requestHeartbeat`): it answers an IDLE watchdog (Claude Code, 300s),
-  not a FIXED deadline (Codex tool_timeout_sec 300s: Settings sets 10800). 2026
+  not a FIXED deadline (Codex tool_timeout_sec 300s: Settings sets 32400). 2026
   calls are SSE with keepalives (`responseMode: 'sse'`). A cut call's run goes
   on; a re-sent identical start re-attaches to it (`src/projects`).
 - `atoma_run_start.acceptanceCriteria` takes one criterion per ENTRY in the

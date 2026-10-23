@@ -439,7 +439,7 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
 
 - ONE place decides how long a project run may take: `projectRunTimeoutMs`,
   which reads an explicit argument, then `ATOMA_PROJECT_TIMEOUT_MS`, then the
-  60-minute default, and REFUSES anything malformed or outside 60s..7200s
+  eight-hour default, and REFUSES anything malformed or outside 60s..28800s
   rather than falling back — a run that quietly gets the default when the
   operator asked for 40 minutes is the same defect wearing a different hat.
 - `ATOMA_BUILD_TIMEOUT_MS` is the CHILD's variable and is inert on the host:
@@ -447,7 +447,8 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   environment, so an exported one is overwritten. That is why "raise the
   timeout", which run `949ecd5d`'s post-mortem advised after dying at 900s on
   68 tool calls and $0.96, was unreachable advice until the lever existed.
-- The DEFAULT is 60 minutes, raised from 30 on 2026-09-22 after two production
+- The DEFAULT and maximum are eight hours (owner, 2026-10-23). The default
+  was raised from 30 to 60 minutes on 2026-09-22 after two production
   runs died at exactly that wall clock having spent $2.83 and $3.50. It is the
   smaller half of that answer: a bigger budget only moves the cliff, and what
   stops the loss is that reaching the deadline now LANDS
