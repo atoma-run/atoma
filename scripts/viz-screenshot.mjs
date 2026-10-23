@@ -367,7 +367,22 @@ function gatedStubs() {
       organisations: [{ id: 'org-a', name: 'Analytical Engines', role: 'org:owner' }],
       providers: [{ id: 'github', label: 'GitHub' }],
     },
-    '/api/admin/sentinel': { watch: null, rules: [], live: [], skipped: [], findings: [] },
+    '/api/admin/sentinel': {
+      watch: { armed: true, reason: 'armed', source: 'viz-server', intervalMs: 20_000, startedAt: '2026-10-23T14:52:57Z', armedSince: '2026-10-23T14:52:57Z',
+        lastTickAt: new Date().toISOString(), lastTickMs: 14, ticks: 170, runsScreenedLastTick: 2, skippedLastTick: 1, emittedSinceBoot: 1, consecutiveFailures: 0, lastError: null, incumbent: null },
+      rules: [
+        { id: 'cost-alert', kind: 'run.anomaly' }, { id: 'identical-tool-streak', kind: 'run.anomaly' }, { id: 'recurring-tool-error', kind: 'run.anomaly' },
+        { id: 'slow-tool-outlier', kind: 'run.anomaly' }, { id: 'injection-signature', kind: 'security.flagged' }, { id: 'trajectory-drift', kind: 'run.anomaly' },
+      ],
+      live: [
+        { runId: 'cccccccc-1111-4222-8333-dddddddddd10', corpus: 'project', orgId: '11111111-2222-4333-8444-555555555555', projectId, label: 'Stopwatch · dark mode toggle' },
+        { runId: 'run-20261023-operator', corpus: 'operator', orgId: null, projectId: null, label: 'build-app: a notes app' },
+      ],
+      skipped: [{ runId: 'cccccccc-1111-4222-8333-dddddddddd11', reason: 'trace not persisted yet' }],
+      findings: [{ seq: 12, at: new Date(Date.now() - 6 * 60_000).toISOString(), kind: 'run.anomaly', severity: 'warning', actorType: 'system', actorId: null,
+        orgId: null, projectId: null, runId: 'run-20261023-operator', summary: 'validate_html failed 3x with the same error',
+        detail: { ruleId: 'recurring-tool-error', corpus: 'operator', dedupeKey: 'x' } }],
+    },
     '/api/admin/assayer/health': { health: { executorRelease: '92b224b9ef47148508d8f444cc0c1e717bac6d26', armed: true, inFlight: null, assayed: 1, failed: 1, deferred: 0, preempted: 0, pausedUntil: null, lastResult: null, lastError: null } },
     '/api/admin/assayer': { assays: [
       { id: 'assay-demo', namespace: 'atom-demo', skillId: 'verify-json-api', surfaceDigest: 'a'.repeat(64), startedAt: '2026-10-23T10:00:00Z', endedAt: '2026-10-23T10:10:00Z',

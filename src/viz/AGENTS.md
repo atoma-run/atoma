@@ -375,15 +375,19 @@ fail closed as before. The web service's executor dependency is one-way only.
   `sentinelSources()` is shared with `/api/admin/sentinel`, so the screen
   describes the corpora the watch actually covers.
 - Sentinel includes Assayer health, paged attempts and case details through the platform-only shared MCP reader; technical failures carry no recipe judgement.
-- The SENTINEL view may report the watch's health, and ONLY ITS OWN. That
-  became sayable when the tick moved in-process; before, the honest answer was
-  silence. The scope is stated on screen in every state rather than implied, a
-  stale incumbent renders as an age and a timestamp instead of a red light, and
-  an aggregate ("nothing is watching") stays forbidden — a sentinel on another
-  machine or another store is invisible here. Still no control: a finding is a
-  flag, never a judgment, and whether the sentinel may cancel a run is an open
-  decision, so every button on that screen is a navigation. Coverage spans
-  BOTH run corpora — see [`src/sentinel`](../sentinel/AGENTS.md).
+  THE SCREEN IS FIVE TABS (`sentinelSection`, one store setting for the canvas
+  and `SentinelAccessible.tsx`): Watch, Assayer, In flight, Rules, Findings,
+  each name carrying its count (owner, 2026-10-23: one column of same-sized
+  sentences was unreadable). A tab is a state word with one backing sentence,
+  figure tiles, then its list; an evaluation row IS its control and opens in place. `sentinel-presentation.ts` is the one source both surfaces read.
+- The SENTINEL view may report the watch's health, and ONLY ITS OWN, sayable
+  since the tick moved in-process. The scope is stated on screen in every
+  state, a stale incumbent renders as an age and a timestamp instead of a red
+  light, and an aggregate ("nothing is watching") stays forbidden — a sentinel
+  on another machine or another store is invisible here. Still no control: a
+  finding is a flag, never a judgment, and whether the sentinel may cancel a
+  run is an open decision, so every button on that screen is a navigation.
+  Coverage spans BOTH run corpora — see [`src/sentinel`](../sentinel/AGENTS.md).
 - The Registry's ordinary one-store source is INFORMATION, not a selector:
   show its database basename and population, with the full path on hover.
   Repeated `--db` inputs turn that same row into measured, wrapping choices;
@@ -871,11 +875,7 @@ Transport timings are optional trace metadata, capped at 2,048 intervals per LLM
 - Writing the event-kind families a second time: refused.
   `PLATFORM_EVENT_FAMILIES` is derived from the kind list, so a new kind
   cannot acquire a family nobody chose.
-- An aggregate "nothing is watching" indicator: forbidden. A sentinel on
-  another machine or another store is invisible here, so the scope is stated
-  on screen in every state, and a stale incumbent renders as an age and a
-  timestamp rather than a red light. The panel still offers no control: a
-  finding is a fact, not a button.
+- An aggregate "nothing is watching" indicator, or a Sentinel control: forbidden (the Sentinel entry says why).
 - Printing `v?` for an unknowable registry version: refused, the card omits it.
   `/api/runs` stays raw at the client reader for the same reason — a delta
   must rejoin the complete run BEFORE projection, or an earlier patch is

@@ -53,6 +53,7 @@ npm run viz:shot -- --auth --view Settings          # account menu, not a rail t
 npm run viz:shot -- --auth --platform-admin --view Settings --settings-tab limits # platform budgets
 npm run viz:shot -- --auth --platform-admin --view "Platform" --platform-stats-probe # period controls and accessible daily data
 npm run viz:shot -- --auth --platform-admin --view "Live runs" --live-runs-probe # cross-org list, canvas follow and live refresh
+npm run viz:shot -- --auth --platform-admin --view Sentinel --activate sentinel.section.assayer,assayer.open.assay-demo # a Sentinel tab, an evaluation opened in place
 npm run viz:shot -- --auth --view Settings --scroll-end  # org directory at the foot of the form
 npm run viz:shot -- --auth --camera overview        # neutral, undeformed whole-scene pose
 npm run viz:shot -- --auth --camera focus           # content-column pose (default)

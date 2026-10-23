@@ -13,21 +13,7 @@ export interface AssayerViewData {
   selectedError: boolean;
 }
 type Translate = (key: string, vars?: Record<string, unknown>) => string;
-/** The GPU section and its accessible twin share the exact same facts and wording. */
-export function assayerLines(data: AssayerViewData, t: Translate, locale: string): string[] {
-  const h = data.health;
-  const lines = [t('assayer.scope'), t(h ? h.armed ? 'assayer.armed' : 'assayer.off' : 'assayer.unavailable')];
-  if (h) {
-    if (h.executorRelease) lines.push(t('assayer.executor', { release: h.executorRelease.slice(0, 12) }));
-    lines.push(t(h.inFlight ? 'assayer.running' : 'assayer.idle', { skill: h.inFlight ?? '' }));
-    if (h.pausedUntil) lines.push(t('assayer.paused', { at: formatDateTime(h.pausedUntil, locale) }));
-    if (h.lastError) lines.push(h.lastError);
-    lines.push(t('assayer.counters', { completed: h.assayed, failed: h.failed, deferred: h.deferred, preempted: h.preempted }));
-  }
-  if (data.error) lines.push(t('assayer.loadFailed'));
-  if (!data.loading && !data.error && data.assays.length === 0) lines.push(t('assayer.empty'));
-  return lines;
-}
+/** The GPU section and its accessible twin share the exact same facts and wording (`sentinel-presentation.ts` holds the health lines). */
 export function assayLabel(row: AssaySummary, t: Translate, locale: string): string {
   return `${formatDateTime(row.endedAt, locale)} · ${row.skillId} · ${t(`assayer.status.${row.status}`)} · ${row.judgement ? t(`assayer.verdict.${row.judgement.verdict}`) : t('assayer.noJudgement')}`;
 }
@@ -35,7 +21,9 @@ export function assayDetailLines(data: AssayerViewData, t: Translate): string[] 
   if (data.selectedError) return [t('assayer.loadFailed')];
   if (!data.selected) return [];
   const { summary: row, record } = data.selected;
-  const lines = [row.skillId, row.surfaceDigest, row.failure ?? t('assayer.validEvidence')];
+  // The row above already names the recipe; the surface is identified by a
+  // short prefix of its digest, the full value reachable from the record.
+  const lines = [row.failure ?? t('assayer.validEvidence'), t('assayer.surface', { digest: row.surfaceDigest.slice(0, 12) })];
   if (row.judgement) lines.push(t('assayer.comparison', { matched: row.judgement.matchedCases,
     with: row.judgement.deliveries.with, without: row.judgement.deliveries.without,
     decision: t(`assayer.decision.${row.judgement.decision}`) }));

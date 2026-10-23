@@ -50,6 +50,10 @@ export type ViewName =
 /** Platform-only permissions, independent of which sidebar group a job belongs to.
  * `admin` retains the organisations route used by existing links.
  */
+/** The Sentinel screen's tabs, in reading order: the watch, the assayer, what is in flight, the rules, the findings. */
+export const SENTINEL_SECTIONS = ['watch', 'assayer', 'coverage', 'rules', 'findings'] as const;
+export type SentinelSection = (typeof SENTINEL_SECTIONS)[number];
+
 export const ADMIN_VIEWS: readonly ViewName[] = ['liveRuns', 'journal', 'ledger', 'sentinel', 'platform', 'admin', 'announce'];
 
 /**
@@ -220,6 +224,8 @@ export interface GpuUiState {
   selectedSkill: { l1Name: string; id: string } | null;
   selectedProjectId: string | null;
   projectSection: 'conversation' | 'runs' | 'preview' | 'files' | 'result' | 'settings';
+  /** Which of the Sentinel screen's five tabs is open; one setting for the canvas and its DOM twin. */
+  sentinelSection: SentinelSection;
   projectMcpCollapsed: boolean;
   /** The selected project's overview column folded to a strip; one setting for every project. */
   projectOverviewCollapsed: boolean;
@@ -330,6 +336,7 @@ export interface GpuUiState {
   selectSkill: (selection: { l1Name: string; id: string } | null) => void;
   selectProject: (id: string | null) => void;
   selectProjectSection: (section: GpuUiState['projectSection'], runId?: string | null) => void;
+  selectSentinelSection: (section: SentinelSection) => void;
   toggleProjectOverview: () => void;
   openWorkspace: (runId: string | null) => void;
   /** A run's way back: its project, on the Runs section that lists it. */
@@ -473,6 +480,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   projectAssistantCompact: false,
   projectAssistantCompactHeight: null,
   projectSection: 'conversation',
+  sentinelSection: 'watch',
   workspaceRunId: null,
   githubRecovery: null,
   setGitHubRecovery: (githubRecovery) => set({ githubRecovery }),
@@ -722,6 +730,10 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     resultActionStatus: null,
     resultDetailsOpen: false,
     scrollY: { ...state.scrollY, projects: 0 },
+  })),
+  selectSentinelSection: (sentinelSection) => set(state => ({
+    sentinelSection,
+    scrollY: { ...state.scrollY, sentinel: 0 },
   })),
   toggleProjectOverview: () => set(state => ({ projectOverviewCollapsed: !state.projectOverviewCollapsed })),
   openWorkspace: (workspaceRunId) => set(state => ({

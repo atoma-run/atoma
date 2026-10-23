@@ -1,48 +1,99 @@
-import { assayerLines, assayLabel, assayDetailLines } from '../../assayer-presentation.js';
+import { Container, Graphics } from 'pixi.js';
+import { assayLabel, assayDetailLines } from '../../assayer-presentation.js';
+import { formatDateTime } from '../../../client/date-format.js';
+import { BUTTON_ICON_SPACE } from '../../button-icons.js';
+import {
+  assayerStats, assayerStatus, assayVerdictTone, sentinelTabs, sentinelWatchNotes, sentinelWatchStats, sentinelWatchStatus,
+  type SentinelStat, type SentinelTab, type SentinelTone,
+} from '../../sentinel-presentation.js';
 import { drawLoadingNotice } from '../loading-notice.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { truncate } from '../copy.js';
 import { createScrollPane } from '../scroll-pane.js';
-import { drawViewFrame, viewFrame, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR } from '../view-frame.js';
-import { clockDate, drawJournalRow, journalRowHeight, SEVERITY_COLORS } from './journal-row.js';
+import { drawViewFrame, viewFrame, VIEW_FRAME_PAD } from '../view-frame.js';
+import { drawJournalRow, journalRowHeight, SEVERITY_COLORS } from './journal-row.js';
 
 /**
- * THE SENTINEL SCREEN — what is being watched, what is being looked for, and
- * what has been flagged.
+ * THE SENTINEL SCREEN — five tabs, one question each.
  *
- * Three things and no fourth, in that order, because that is the order the
- * questions arrive in: which runs are in flight right now (both corpora — the
- * operator's `runs/` and every project run the control plane calls running),
- * which rules screen them, and what those rules have said.
+ * The screen used to stack everything in one column of sentences: the watch's
+ * timer, then the assayer's health and its whole evaluation list, then the
+ * runs in flight, the rules and the findings, every fact a muted line of the
+ * same size, every evaluation a sentence over a button (owner, 2026-10-23:
+ * "totalement illisible"). Each of those is a different question, asked at a
+ * different moment, so each gets a tab: WATCH (is this server watching, and
+ * how is the tick doing), ASSAYER (recipe evaluations), IN FLIGHT (what would
+ * be screened this second), RULES (what is looked for) and FINDINGS (what has
+ * been flagged). A tab's name carries its count, so the strip itself answers
+ * "anything to see?" before a click.
  *
- * WHAT IT MAY CLAIM, and why that changed. The screen used to say the watch
- * was a separate process the server could not see, and refused any health
- * indicator on that ground. The server hosts the tick now, so it can report
- * ITS OWN timer — armed or not, since when, how long the last pass took — and
- * the old refusal would have been a false modesty. The scope is stated on the
- * screen rather than implied: this is one process's account of itself, never
- * an aggregate, because a sentinel on another machine or another store is
- * still invisible here. A stale heartbeat renders as an age and a timestamp,
- * never as a red light: the reader concludes, the screen reports.
+ * Inside a tab the hierarchy is a headline (one state word, one sentence), a
+ * row of figure tiles, then the list — the same shape Platform uses.
  *
- * And no control, unchanged. A finding is a flag, never a judgment: whether
- * the sentinel may cancel a run at all is an open decision in the design
- * document, so no button here can.
+ * WHAT IT MAY CLAIM, unchanged. The server hosts the tick, so it reports ITS
+ * OWN timer and only its own: the scope sentence stays on the Watch tab in
+ * every state, a stale incumbent renders as an age and a timestamp, and no
+ * aggregate "nothing is watching" exists. And no control: a finding is a flag,
+ * never a judgment, so every button here is a navigation — a tab, a run, an
+ * evaluation to read.
  */
 
+const TAB_HEIGHT = 32;
+const TAB_ROW = TAB_HEIGHT + 10;
+const TAB_GAP = 10;
 const LIST_TOP = 8;
 const SECTION_GAP = 16;
 const SECTION_HEADING = 26;
+const STAT_HEIGHT = 52;
+const STAT_GAP = 10;
 const COVERAGE_ROW_HEIGHT = 34;
 const COVERAGE_ROW_HEIGHT_COMPACT = 56;
 const RULE_ROW_HEIGHT = 46;
 const RULE_ROW_HEIGHT_COMPACT = 74;
+const ASSAY_ROW_HEIGHT = 40;
+const ASSAY_ROW_HEIGHT_COMPACT = 60;
+const ASSAY_ROW_GAP = 6;
 
 const CORPUS_COLORS: Record<string, number> = {
   operator: GPU_COLORS.cyan,
   project: GPU_COLORS.primary,
 };
+
+const TONE_COLORS: Record<SentinelTone, number> = {
+  ok: GPU_COLORS.success,
+  off: GPU_COLORS.muted,
+  warning: GPU_COLORS.warning,
+  bad: GPU_COLORS.error,
+  muted: GPU_COLORS.muted,
+};
+
+export interface SentinelTabLayout extends SentinelTab {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+}
+
+/** Measured tabs that wrap rather than squeeze, the same way the project sections do. */
+export function sentinelSectionLayout(
+  ctx: Pick<RendererCtx, 'measureText'>,
+  tabs: readonly SentinelTab[],
+  width: number
+): { tabs: SentinelTabLayout[]; contentTop: number } {
+  const frame = viewFrame(width, 0);
+  const right = frame.innerX + frame.innerWidth;
+  let x = frame.innerX;
+  let y = frame.contentTop;
+  const laid = tabs.map(tab => {
+    const tabWidth = Math.min(frame.innerWidth,
+      Math.ceil(ctx.measureText(tab.label, { size: 11, weight: '700' })) + 20 + BUTTON_ICON_SPACE);
+    if (x > frame.innerX && x + tabWidth > right) { x = frame.innerX; y += TAB_ROW; }
+    const placed = { ...tab, x, y, width: tabWidth };
+    x += tabWidth + TAB_GAP;
+    return placed;
+  });
+  return { tabs: laid, contentTop: y + TAB_ROW };
+}
 
 export function drawSentinel(
   ctx: RendererCtx,
@@ -50,24 +101,32 @@ export function drawSentinel(
   width: number,
   height: number
 ): void {
+  const { t } = snapshot;
+  const locale = snapshot.state.locale;
   const payload = snapshot.data.adminSentinel;
+  const assay = snapshot.data.assayer;
   const rules = payload?.rules ?? [];
   const live = payload?.live ?? [];
   const skipped = payload?.skipped ?? [];
   const findings = payload?.findings ?? [];
+  const section = snapshot.state.sentinelSection;
 
   const frame = viewFrame(width, height);
   drawViewFrame(
     ctx,
     frame,
-    snapshot.t('sentinel.title'),
-    [
-      snapshot.t('sentinel.rulesCount', { count: rules.length }),
-      snapshot.t('sentinel.liveRuns', { count: live.length }),
-    ].join(', ')
+    t('sentinel.title'),
+    [t('sentinel.rulesCount', { count: rules.length }), t('sentinel.liveRuns', { count: live.length })].join(', ')
   );
 
-  const contentTop = frame.contentTop;
+  // ---------------------------------------------------------------- tabs
+  const layout = sentinelSectionLayout(ctx, sentinelTabs(payload, assay, t), width);
+  for (const tab of layout.tabs) {
+    ctx.button(ctx.root, `sentinel.section.${tab.id}`, 'tab', tab.label,
+      tab.x, tab.y, tab.width, TAB_HEIGHT, section === tab.id, snapshot.onActivate);
+  }
+
+  const contentTop = layout.contentTop;
   const pane = createScrollPane(ctx.root, {
     x: frame.x,
     y: contentTop,
@@ -75,7 +134,8 @@ export function drawSentinel(
     height: Math.max(0, frame.bottom - VIEW_FRAME_PAD - contentTop),
     scrollY: snapshot.state.scrollY.sentinel,
     bottomPadding: 24,
-    air: VIEW_FRAME_PANE_AIR,
+    // Raised tabs stand right above the pane, so no shadow may land there.
+    air: { top: 0, bottom: VIEW_FRAME_PAD },
   });
 
   const x = VIEW_FRAME_PAD;
@@ -87,296 +147,234 @@ export function drawSentinel(
   let cursor = LIST_TOP;
 
   const heading = (label: string): void => {
-    ctx.text(pane.content, label, columnX, cursor, {
-      size: 13,
-      weight: '700',
-      width: innerWidth,
-    });
+    ctx.text(pane.content, label, columnX, cursor, { size: 13, weight: '700', width: innerWidth });
     cursor += SECTION_HEADING;
   };
 
-  const note = (text: string): void => {
-    const drawn = ctx.text(pane.content, text, columnX, cursor, {
-      size: 10,
-      color: GPU_COLORS.muted,
-      width: innerWidth,
-    });
+  const note = (text: string, color: number = GPU_COLORS.muted): void => {
+    const drawn = ctx.text(pane.content, text, columnX, cursor, { size: 10, color, width: innerWidth });
     cursor += Math.max(14, drawn.height) + 12;
   };
 
-  // ------------------------------------------------------- this server
-  const watch = payload?.watch ?? null;
-  heading(snapshot.t('sentinel.watch'));
-  if (!watch) {
-    note(snapshot.t('sentinel.watch.never'));
-  } else if (watch.armed) {
-    note(
-      snapshot.t('sentinel.watch.armed', {
-        count: Math.round(watch.intervalMs / 1000),
-        since: clockDate(watch.armedSince ?? watch.startedAt),
-      })
-    );
-  } else if (watch.reason === 'disabled') {
-    note(snapshot.t('sentinel.watch.disabled'));
-  } else if (watch.reason === 'lease-held' && watch.incumbent) {
-    note(
-      snapshot.t('sentinel.watch.leaseHeld', {
-        source: watch.incumbent.source,
-        pid: watch.incumbent.ownerPid,
-        since: clockDate(watch.incumbent.startedAt),
-        beat: clockDate(watch.incumbent.heartbeatAt),
-      })
-    );
-  } else if (watch.reason === 'lease-lost') {
-    note(snapshot.t('sentinel.watch.leaseLost'));
-  } else if (watch.reason === 'failing') {
-    note(
-      snapshot.t('sentinel.watch.failing', {
-        count: watch.consecutiveFailures,
-        error: truncate(watch.lastError ?? '', 120),
-      })
-    );
-  } else {
-    note(snapshot.t('sentinel.watch.off', { reason: watch.reason }));
-  }
-  if (watch) {
-    note(
-      watch.lastTickAt === null
-        ? snapshot.t('sentinel.watch.never')
-        : [
-          snapshot.t('sentinel.watch.passes', {
-            count: watch.ticks,
-            at: clockDate(watch.lastTickAt),
-            ms: watch.lastTickMs ?? 0,
-          }),
-          snapshot.t('sentinel.watch.screened', {
-            count: watch.runsScreenedLastTick,
-          }),
-          snapshot.t('sentinel.watch.skipped', { count: watch.skippedLastTick }),
-          snapshot.t('sentinel.watch.written', { count: watch.emittedSinceBoot }),
-        ].join(' · ')
-    );
-    // One pass that took a quarter of a second is worth an operator's
-    // attention: the tick is synchronous and shares the HTTP loop.
-    if ((watch.lastTickMs ?? 0) > 250) {
-      note(snapshot.t('sentinel.watch.slow', { ms: watch.lastTickMs ?? 0 }));
-    }
-  }
-  // The scope sentence is not optional and not conditional: every state of
-  // this panel is one process talking about itself.
-  note(snapshot.t('sentinel.watch.scope'));
-  note(snapshot.t('sentinel.watch.headless'));
+  /** One state word with its dot, and the sentence that backs it. */
+  const headline = (word: string, tone: SentinelTone, sentence: string): void => {
+    const color = TONE_COLORS[tone];
+    const dot = new Graphics();
+    dot.circle(columnX + 5, cursor + 8, 5).fill({ color, alpha: 0.95 });
+    dot.circle(columnX + 5, cursor + 8, 8).stroke({ color, width: 1, alpha: 0.35 });
+    pane.content.addChild(dot);
+    const label = ctx.text(pane.content, word, columnX + 20, cursor, { size: 14, weight: '700', color, width: Math.max(0, innerWidth - 20), singleLine: true });
+    cursor += Math.max(20, label.height) + 4;
+    const drawn = ctx.text(pane.content, sentence, columnX, cursor, { size: 11, width: innerWidth });
+    cursor += Math.max(16, drawn.height) + 14;
+  };
 
-  // Recipe evaluations share this monitoring destination, with their own health and evidence.
-  const assay = snapshot.data.assayer;
-  heading(snapshot.t('assayer.title'));
-  if (assay) {
-    for (const line of assayerLines(assay, snapshot.t, snapshot.state.locale)) note(line);
-    if (assay.loading || assay.selectedLoading) {
-      drawLoadingNotice(ctx, pane.content, snapshot.t('loading.assayer'), columnX, cursor, { width: innerWidth });
-      cursor += 42;
+  /** Figure tiles in a measured grid: as many per row as 150px columns fit. */
+  const stats = (rows: readonly SentinelStat[], prefix: string, accent: number): void => {
+    if (rows.length === 0) return;
+    const columns = Math.max(1, Math.min(rows.length, Math.floor((innerWidth + STAT_GAP) / (150 + STAT_GAP))));
+    const tileWidth = (innerWidth - STAT_GAP * (columns - 1)) / columns;
+    for (const [index, stat] of rows.entries()) {
+      const tileX = columnX + index % columns * (tileWidth + STAT_GAP);
+      const tileY = cursor + Math.floor(index / columns) * (STAT_HEIGHT + STAT_GAP);
+      ctx.statCard(pane.content, `${prefix}.${stat.key}`, stat.label, stat.value, tileX, tileY, tileWidth, STAT_HEIGHT, accent);
+      ctx.tooltip(pane.content, { x: tileX, y: tileY, width: tileWidth, height: STAT_HEIGHT, text: `${stat.label}: ${stat.value}` });
     }
-    for (const row of assay.assays) {
-      const label = assayLabel(row, snapshot.t, snapshot.state.locale);
-      const text = ctx.text(pane.content, label, columnX, cursor, { size: 11, width: innerWidth });
-      cursor += Math.max(20, text.height) + 8;
-      ctx.button(pane.content, `assayer.open.${row.id}`, 'button', snapshot.t('assayer.details'),
-        columnX, cursor, Math.min(innerWidth, 180), 36, false, snapshot.onActivate);
-      cursor += 48;
-      if (assay.selected?.summary.id === row.id) {
-        for (const line of assayDetailLines(assay, snapshot.t)) note(line);
+    cursor += Math.ceil(rows.length / columns) * (STAT_HEIGHT + STAT_GAP) + 8;
+  };
+
+  if (section === 'watch') {
+    // ------------------------------------------------------- this server
+    const watch = payload?.watch ?? null;
+    const status = sentinelWatchStatus(watch, t, locale);
+    headline(status.headline, status.tone, status.sentence);
+    stats(sentinelWatchStats(watch, t, locale), 'sentinel.stat', status.tone === 'ok' ? GPU_COLORS.success : GPU_COLORS.muted);
+    // The scope sentence is not optional and not conditional: every state of
+    // this panel is one process talking about itself.
+    for (const line of sentinelWatchNotes(watch, t, locale)) note(line);
+  } else if (section === 'assayer') {
+    // ------------------------------------------------- recipe evaluations
+    const status = assayerStatus(assay, t, locale);
+    headline(status.headline, status.tone, t('assayer.scope'));
+    for (const fact of status.facts) note(fact, GPU_COLORS.text);
+    stats(assayerStats(assay, t, locale), 'assayer.stat', status.tone === 'ok' ? GPU_COLORS.success : GPU_COLORS.muted);
+    heading(t('assayer.attempts'));
+    if (!assay) {
+      note(t('assayer.unavailable'));
+    } else {
+      if (assay.error) note(t('assayer.loadFailed'), GPU_COLORS.error);
+      if (assay.loading && assay.assays.length === 0) {
+        drawLoadingNotice(ctx, pane.content, t('loading.assayer'), columnX, cursor, { width: innerWidth });
+        cursor += 42;
+      } else if (!assay.error && assay.assays.length === 0) {
+        note(t('assayer.empty'));
       }
-    }
-    if (assay.hasMore && !assay.loading) {
-      ctx.button(pane.content, 'assayer.more', 'button', snapshot.t('assayer.more'),
-        columnX, cursor, Math.min(innerWidth, 210), 36, false, snapshot.onActivate);
-      cursor += 48;
-    }
-    if (assay.selectedError) note(snapshot.t('assayer.loadFailed'));
-  } else note(snapshot.t('assayer.unavailable'));
-  cursor += SECTION_GAP;
-
-  // ------------------------------------------------------------- coverage
-  heading(snapshot.t('sentinel.coverage'));
-  if (live.length === 0) {
-    note(snapshot.t('sentinel.coverageEmpty'));
-  } else {
-    const rowHeight = compact ? COVERAGE_ROW_HEIGHT_COMPACT : COVERAGE_ROW_HEIGHT;
-    const listHeight = live.length * rowHeight + 12;
-    ctx.panel(
-      pane.content,
-      x,
-      cursor,
-      panelWidth,
-      listHeight,
-      GPU_COLORS.panel,
-      GPU_COLORS.border,
-      GPU_LAYOUT.radius,
-      2
-    );
-    let rowY = cursor + 8;
-    for (const run of live) {
-      if (pane.visible(rowY, rowY + rowHeight)) {
-        ctx.text(
-          pane.content,
-          snapshot.t(`sentinel.corpus.${run.corpus}`).toUpperCase(),
-          columnX + 8,
-          rowY,
-          {
-            size: 9,
-            weight: '700',
-            color: CORPUS_COLORS[run.corpus] ?? GPU_COLORS.muted,
-            width: 72,
-          }
-        );
-        ctx.text(pane.content, truncate(run.label ?? run.runId, 48), columnX + 88, rowY, {
-          size: 11,
-          width: compact ? Math.max(0, innerWidth - 96) : Math.max(0, innerWidth - 300),
-        });
-        ctx.text(
-          pane.content,
-          run.runId,
-          compact ? columnX + 8 : columnX + innerWidth - 210,
-          rowY + (compact ? 18 : 1),
-          {
-            size: 8,
-            color: GPU_COLORS.muted,
-            mono: true,
-            width: compact ? Math.max(0, innerWidth - 16) : 210,
-          }
-        );
-        // The row IS the control: opening the run is the only action this
-        // screen offers, and it is a read.
-        ctx.button(
-          pane.content,
-          `sentinel.run.${run.runId}`,
-          'button',
-          '',
-          columnX,
-          rowY - 4,
-          Math.max(0, innerWidth),
-          rowHeight - 4,
-          false,
-          snapshot.onActivate
-        ).alpha = 0.001;
-      }
-      rowY += rowHeight;
-    }
-    cursor += listHeight + SECTION_GAP;
-  }
-
-  if (skipped.length > 0) {
-    heading(snapshot.t('sentinel.skipped'));
-    for (const skip of skipped) {
-      note(`${skip.runId ?? '—'} · ${skip.reason}`);
-    }
-    cursor += 4;
-  }
-
-  // ---------------------------------------------------------- rule table
-  heading(snapshot.t('sentinel.rules'));
-  const ruleRowHeight = compact ? RULE_ROW_HEIGHT_COMPACT : RULE_ROW_HEIGHT;
-  if (rules.length > 0) {
-    const rulesHeight = rules.length * ruleRowHeight + 12;
-    ctx.panel(
-      pane.content,
-      x,
-      cursor,
-      panelWidth,
-      rulesHeight,
-      GPU_COLORS.panel,
-      GPU_COLORS.border,
-      GPU_LAYOUT.radius,
-      2
-    );
-    let ruleY = cursor + 8;
-    for (const rule of rules) {
-      if (pane.visible(ruleY, ruleY + ruleRowHeight)) {
-        ctx.text(pane.content, rule.id, columnX + 8, ruleY, {
-          size: 10,
-          weight: '600',
-          mono: true,
-          width: compact ? Math.max(0, innerWidth - 16) : 220,
-        });
-        ctx.text(
-          pane.content,
-          rule.kind,
-          compact ? columnX + 8 : columnX + innerWidth - 150,
-          ruleY + (compact ? 16 : 0),
-          {
-            size: 9,
-            color: SEVERITY_COLORS[rule.kind === 'security.flagged' ? 'security' : 'warning'],
-            mono: true,
-            width: compact ? Math.max(0, innerWidth - 16) : 150,
-          }
-        );
-        // A rule with no catalog entry shows nothing rather than its key: the
-        // id above it already names the rule.
-        const prose = snapshot.t(`sentinel.rule.${rule.id}`);
-        ctx.text(
-          pane.content,
-          prose === `sentinel.rule.${rule.id}` ? '' : prose,
-          columnX + 8,
-          ruleY + (compact ? 32 : 16),
-          { size: 10, color: GPU_COLORS.muted, width: Math.max(0, innerWidth - 16) }
-        );
-      }
-      ruleY += ruleRowHeight;
-    }
-    cursor += rulesHeight + SECTION_GAP;
-  }
-
-  // ------------------------------------------------------------ findings
-  heading(snapshot.t('sentinel.findings'));
-  note(snapshot.t('sentinel.flagOnly'));
-  if (findings.length === 0) {
-    note(snapshot.t('sentinel.findingsEmpty'));
-  } else {
-    const rowHeight = journalRowHeight(compact, true);
-    const listHeight = findings.length * rowHeight + 12;
-    ctx.panel(
-      pane.content,
-      x,
-      cursor,
-      panelWidth,
-      listHeight,
-      GPU_COLORS.panel,
-      GPU_COLORS.border,
-      GPU_LAYOUT.radius,
-      2
-    );
-    let rowY = cursor + 8;
-    for (const finding of findings) {
-      if (pane.visible(rowY, rowY + rowHeight)) {
-        const detail = finding.detail ?? {};
-        const ruleId = typeof detail['ruleId'] === 'string' ? detail['ruleId'] : '';
-        const corpus = typeof detail['corpus'] === 'string' ? detail['corpus'] : '';
-        drawJournalRow(ctx, pane.content, finding, {
-          x: columnX,
-          y: rowY,
-          innerWidth,
-          compact,
-          relative: { t: snapshot.t, locale: snapshot.state.locale },
-          extra: [ruleId, corpus, finding.runId ?? ''].filter(Boolean).join(' · '),
-        });
-        if (finding.runId) {
-          ctx.button(
-            pane.content,
-            `sentinel.run.${finding.runId}`,
-            'button',
-            '',
-            columnX,
-            rowY - 4,
-            Math.max(0, innerWidth),
-            rowHeight - 4,
-            false,
-            snapshot.onActivate
-          ).alpha = 0.001;
+      const rowHeight = compact ? ASSAY_ROW_HEIGHT_COMPACT : ASSAY_ROW_HEIGHT;
+      const dateStyle = { size: 10, color: GPU_COLORS.muted } as const;
+      const verdictStyle = { size: 10, weight: '700' } as const;
+      // Reserved columns are measured from the copy the rows carry and
+      // ceilinged as a share of the card, never a constant.
+      const dateWidth = compact ? 0 : Math.min(innerWidth * 0.28, Math.max(0,
+        ...assay.assays.map(row => Math.ceil(ctx.measureText(formatDateTime(row.endedAt, locale), dateStyle)))) + 12);
+      const verdictLabel = (row: typeof assay.assays[number]) =>
+        row.judgement ? t(`assayer.verdict.${row.judgement.verdict}`) : t('assayer.noJudgement');
+      const verdictWidth = compact ? 0 : Math.min(innerWidth * 0.22, Math.max(0,
+        ...assay.assays.map(row => Math.ceil(ctx.measureText(verdictLabel(row), verdictStyle)))) + 12);
+      for (const row of assay.assays) {
+        const selected = assay.selected?.summary.id === row.id;
+        const rowTop = cursor;
+        const tone = assayVerdictTone(row);
+        const date = formatDateTime(row.endedAt, locale);
+        const statusLabel = t(`assayer.status.${row.status}`);
+        // Texts first into a detached layer so the card below can take the
+        // measured height of an opened evaluation; hit targets come after
+        // the layer is attached, since they project through their parent.
+        const body = new Container();
+        let inner = rowTop + 10;
+        const textX = columnX + 12;
+        if (compact) {
+          ctx.text(body, date, textX, inner, { ...dateStyle, width: innerWidth - 24, singleLine: true });
+          ctx.text(body, row.skillId, textX, inner + 16, { size: 11, weight: '600', width: innerWidth - 24, singleLine: true });
+          ctx.text(body, `${statusLabel} · ${verdictLabel(row)}`, textX, inner + 32,
+            { ...verdictStyle, color: TONE_COLORS[tone], width: innerWidth - 24, singleLine: true });
+        } else {
+          ctx.text(body, date, textX, inner + 2, { ...dateStyle, width: dateWidth - 12, singleLine: true });
+          const skillX = textX + dateWidth;
+          const verdictX = columnX + innerWidth - 12 - verdictWidth;
+          const statusWidth = Math.min(140, Math.max(0, (verdictX - skillX) * 0.35));
+          ctx.text(body, row.skillId, skillX, inner, { size: 11, weight: '600', width: Math.max(0, verdictX - skillX - statusWidth - 12), singleLine: true });
+          ctx.text(body, statusLabel, verdictX - statusWidth, inner + 2,
+            { size: 10, color: row.status === 'completed' ? GPU_COLORS.muted : GPU_COLORS.warning, width: statusWidth - 8, singleLine: true });
+          ctx.text(body, verdictLabel(row), verdictX, inner + 1, { ...verdictStyle, color: TONE_COLORS[tone], width: verdictWidth, singleLine: true });
         }
+        inner = rowTop + rowHeight;
+        if (selected) {
+          const rule = new Graphics();
+          rule.rect(columnX + 12, inner, innerWidth - 24, 1).fill({ color: GPU_COLORS.border, alpha: 0.8 });
+          body.addChild(rule);
+          inner += 10;
+          if (assay.selectedLoading) {
+            drawLoadingNotice(ctx, body, t('loading.assayer'), textX, inner, { width: innerWidth - 24 });
+            inner += 34;
+          }
+          for (const line of assayDetailLines(assay, t)) {
+            const drawn = ctx.text(body, line, textX, inner, { size: 10, color: GPU_COLORS.muted, width: innerWidth - 24 });
+            inner += Math.max(14, drawn.height) + 8;
+          }
+          inner += 4;
+        }
+        const cardHeight = inner - rowTop;
+        ctx.panel(pane.content, columnX, rowTop, innerWidth, cardHeight,
+          selected ? GPU_COLORS.panelRaised : GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 1);
+        pane.content.addChild(body);
+        // The row IS the control: it opens (or folds) the evaluation's evidence, a read.
+        ctx.button(pane.content, `assayer.open.${row.id}`, 'button', '', columnX, rowTop, innerWidth, rowHeight,
+          selected, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, undefined, t('assayer.details')).alpha = 0.001;
+        ctx.tooltip(pane.content, { x: columnX, y: rowTop, width: innerWidth, height: rowHeight, text: assayLabel(row, t, locale) });
+        cursor = rowTop + cardHeight + ASSAY_ROW_GAP;
       }
-      rowY += rowHeight;
+      if (assay.hasMore) {
+        cursor += 6;
+        ctx.button(pane.content, 'assayer.more', 'button', t('assayer.more'),
+          columnX, cursor, Math.min(innerWidth, 210), 36, false, snapshot.onActivate, GPU_COLORS.primary, false,
+          assay.loading && assay.assays.length > 0);
+        cursor += 48;
+      }
     }
-    cursor += listHeight + SECTION_GAP;
+  } else if (section === 'coverage') {
+    // ------------------------------------------------------------- coverage
+    heading(t('sentinel.coverage'));
+    if (live.length === 0) {
+      note(t('sentinel.coverageEmpty'));
+    } else {
+      const rowHeight = compact ? COVERAGE_ROW_HEIGHT_COMPACT : COVERAGE_ROW_HEIGHT;
+      const listHeight = live.length * rowHeight + 12;
+      ctx.panel(pane.content, x, cursor, panelWidth, listHeight, GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
+      let rowY = cursor + 8;
+      for (const run of live) {
+        if (pane.visible(rowY, rowY + rowHeight)) {
+          ctx.text(pane.content, t(`sentinel.corpus.${run.corpus}`).toUpperCase(), columnX + 8, rowY, {
+            size: 9, weight: '700', color: CORPUS_COLORS[run.corpus] ?? GPU_COLORS.muted, width: 72,
+          });
+          ctx.text(pane.content, truncate(run.label ?? run.runId, 48), columnX + 88, rowY, {
+            size: 11, width: compact ? Math.max(0, innerWidth - 96) : Math.max(0, innerWidth - 300),
+          });
+          ctx.text(pane.content, run.runId, compact ? columnX + 8 : columnX + innerWidth - 210, rowY + (compact ? 18 : 1), {
+            size: 8, color: GPU_COLORS.muted, mono: true, width: compact ? Math.max(0, innerWidth - 16) : 210,
+          });
+          // The row IS the control: opening the run is the only action this
+          // screen offers, and it is a read.
+          ctx.button(pane.content, `sentinel.run.${run.runId}`, 'button', '', columnX, rowY - 4,
+            Math.max(0, innerWidth), rowHeight - 4, false, snapshot.onActivate).alpha = 0.001;
+        }
+        rowY += rowHeight;
+      }
+      cursor += listHeight + SECTION_GAP;
+    }
+    if (skipped.length > 0) {
+      heading(t('sentinel.skipped'));
+      for (const skip of skipped) note(`${skip.runId ?? '—'} · ${skip.reason}`);
+      cursor += 4;
+    }
+  } else if (section === 'rules') {
+    // ---------------------------------------------------------- rule table
+    heading(t('sentinel.rules'));
+    const ruleRowHeight = compact ? RULE_ROW_HEIGHT_COMPACT : RULE_ROW_HEIGHT;
+    if (rules.length === 0) {
+      note(t('sentinel.rulesEmpty'));
+    } else {
+      const rulesHeight = rules.length * ruleRowHeight + 12;
+      ctx.panel(pane.content, x, cursor, panelWidth, rulesHeight, GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
+      let ruleY = cursor + 8;
+      for (const rule of rules) {
+        if (pane.visible(ruleY, ruleY + ruleRowHeight)) {
+          ctx.text(pane.content, rule.id, columnX + 8, ruleY, {
+            size: 10, weight: '600', mono: true, width: compact ? Math.max(0, innerWidth - 16) : 220,
+          });
+          ctx.text(pane.content, rule.kind, compact ? columnX + 8 : columnX + innerWidth - 150, ruleY + (compact ? 16 : 0), {
+            size: 9, color: SEVERITY_COLORS[rule.kind === 'security.flagged' ? 'security' : 'warning'], mono: true,
+            width: compact ? Math.max(0, innerWidth - 16) : 150,
+          });
+          // A rule with no catalog entry shows nothing rather than its key: the
+          // id above it already names the rule.
+          const prose = t(`sentinel.rule.${rule.id}`);
+          ctx.text(pane.content, prose === `sentinel.rule.${rule.id}` ? '' : prose, columnX + 8, ruleY + (compact ? 32 : 16),
+            { size: 10, color: GPU_COLORS.muted, width: Math.max(0, innerWidth - 16) });
+        }
+        ruleY += ruleRowHeight;
+      }
+      cursor += rulesHeight + SECTION_GAP;
+    }
+  } else {
+    // ------------------------------------------------------------ findings
+    heading(t('sentinel.findings'));
+    note(t('sentinel.flagOnly'));
+    if (findings.length === 0) {
+      note(t('sentinel.findingsEmpty'));
+    } else {
+      const rowHeight = journalRowHeight(compact, true);
+      const listHeight = findings.length * rowHeight + 12;
+      ctx.panel(pane.content, x, cursor, panelWidth, listHeight, GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
+      let rowY = cursor + 8;
+      for (const finding of findings) {
+        if (pane.visible(rowY, rowY + rowHeight)) {
+          const detail = finding.detail ?? {};
+          const ruleId = typeof detail['ruleId'] === 'string' ? detail['ruleId'] : '';
+          const corpus = typeof detail['corpus'] === 'string' ? detail['corpus'] : '';
+          drawJournalRow(ctx, pane.content, finding, {
+            x: columnX, y: rowY, innerWidth, compact,
+            relative: { t, locale },
+            extra: [ruleId, corpus, finding.runId ?? ''].filter(Boolean).join(' · '),
+          });
+          if (finding.runId) {
+            ctx.button(pane.content, `sentinel.run.${finding.runId}`, 'button', '', columnX, rowY - 4,
+              Math.max(0, innerWidth), rowHeight - 4, false, snapshot.onActivate).alpha = 0.001;
+          }
+        }
+        rowY += rowHeight;
+      }
+      cursor += listHeight + SECTION_GAP;
+    }
   }
 
   pane.extend(cursor + 8);

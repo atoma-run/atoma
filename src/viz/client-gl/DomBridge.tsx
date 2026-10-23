@@ -1,5 +1,5 @@
-import { assayerLines, assayLabel, assayDetailLines, type AssayerViewData } from './assayer-presentation.js';
-import { AtomaLoader } from './AtomaLoader.js';
+import type { AssayerViewData } from './assayer-presentation.js';
+import { SentinelAccessible } from './SentinelAccessible.js';
 import { PlatformStatsAccessible } from './PlatformStatsAccessible.js';
 import { ProjectSettingsAccessible } from './ProjectSettingsAccessible.js';
 import { ButtonIcon } from './ButtonIcon.js';
@@ -18,7 +18,7 @@ import {
   SUPPORTED_LOCALES,
   type Locale,
 } from '../../contracts/locales.js';
-import type { RunIndexEntry, VizGitHubInstallation, VizProject, VizRun } from '../client/types.js';
+import type { RunIndexEntry, VizGitHubInstallation, VizProject, VizRun, VizSentinelSnapshot } from '../client/types.js';
 import { AccessibleRunActivity } from './AccessibleRunActivity.js';
 import { buildTimelineLayout } from '../client/timeline-layout.js';
 import { coerceEventFilters } from '../client/run-utils.js';
@@ -182,6 +182,7 @@ export function DomBridge({
   run = null,
   adminLiveRuns = [],
   assayer,
+  adminSentinel = null,
   releaseVersion,
   views = DEFAULT_VIEWS,
   loginLinks = null,
@@ -220,6 +221,7 @@ export function DomBridge({
   run?: VizRun | null;
   adminLiveRuns?: import('../../contracts/projects.js').PlatformLiveRun[];
   assayer?: AssayerViewData;
+  adminSentinel?: VizSentinelSnapshot | null;
   releaseVersion: string;
   /** Nav tabs for this viewer — computed once by `visibleViews`, shared with the GL rail. */
   views?: ViewName[];
@@ -294,6 +296,7 @@ export function DomBridge({
   const workspaceRunId = useGpuStore(state => state.workspaceRunId);
   const selectedProjectId = useGpuStore((state) => state.selectedProjectId);
   const projectSection = useGpuStore((state) => state.projectSection);
+  const sentinelSection = useGpuStore((state) => state.sentinelSection);
   const projectMcpCollapsed = useGpuStore(state => state.projectMcpCollapsed);
   const projectAssistantCompact = useGpuStore(state => state.projectAssistantCompact);
   // ONE card (owner, 2026-10-09): when the app hands this guide the assistant
@@ -604,19 +607,9 @@ export function DomBridge({
         {view === 'runs' && run ? <AccessibleRunActivity run={run} t={t} /> : null}
         {view === 'platform' && auth?.viewer.platformAdmin ? <PlatformStatsAccessible
           stats={platformStats} days={platformDays} locale={locale} t={t} onActivate={onActivate} /> : null}
-        {view === 'sentinel' && auth?.viewer.platformAdmin && assayer ? (
-          <section aria-label={t('assayer.title')}>
-            <h2>{t('assayer.title')}</h2>
-            {assayerLines(assayer, t, locale).map((line, i) => <p key={i}>{line}</p>)}
-            {assayer.error || assayer.selectedError ? <p role="alert">{t('assayer.loadFailed')}</p> : null}
-            {assayer.loading || assayer.selectedLoading ? <AtomaLoader label={t('loading.assayer')} /> : null}
-            {assayer.assays.map(row => <article key={row.id}>
-              <p>{assayLabel(row, t, locale)}</p>
-              <button type="button" onClick={() => onActivate?.(`assayer.open.${row.id}`)}><ButtonIcon kind="eye" />{t('assayer.details')}</button>
-              {assayer.selected?.summary.id === row.id ? assayDetailLines(assayer, t).map((line, i) => <p key={i}>{line}</p>) : null}
-            </article>)}
-            {assayer.hasMore ? <button type="button" disabled={assayer.loading} onClick={() => onActivate?.('assayer.more')}><ButtonIcon kind="eye" />{t('assayer.more')}</button> : null}
-          </section>
+        {view === 'sentinel' && auth?.viewer.platformAdmin ? (
+          <SentinelAccessible payload={adminSentinel} assayer={assayer ?? null} section={sentinelSection}
+            locale={locale} t={t} onActivate={onActivate} />
         ) : null}
         {view === 'liveRuns' && auth?.viewer.platformAdmin ? (
           <section aria-label={t('nav.liveRuns')}>

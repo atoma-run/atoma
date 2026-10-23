@@ -96,6 +96,8 @@ import {
   visibleViews,
   navRowGroup,
   type DocsThemeKey,
+  SENTINEL_SECTIONS,
+  type SentinelSection,
 } from './store.js';
 import type { VizAdminInvitation } from '../client/types.js';
 import { openGitHubRepository } from './repository-link.js';
@@ -1168,7 +1170,13 @@ function GpuAppContent({
     }
     if (id.startsWith('scroll.end.')) return;
     if (id === 'assayer.more') { if (assayerQuery.hasNextPage && !assayerQuery.isFetchingNextPage) void assayerQuery.fetchNextPage(); return; }
-    if (id.startsWith('assayer.open.')) { setSelectedAssay(id.slice('assayer.open.'.length)); return; }
+    // The row toggles: a second press on the open evaluation folds it.
+    if (id.startsWith('assayer.open.')) { const next = id.slice('assayer.open.'.length); setSelectedAssay(current => current === next ? null : next); return; }
+    if (id.startsWith('sentinel.section.')) {
+      const section = id.slice('sentinel.section.'.length);
+      if ((SENTINEL_SECTIONS as readonly string[]).includes(section)) store.selectSentinelSection(section as SentinelSection);
+      return;
+    }
     if (id.startsWith('sentinel.run.')) {
       store.selectRun(id.slice('sentinel.run.'.length));
       store.setView('runs');
@@ -1467,6 +1475,7 @@ function GpuAppContent({
           platformStats={data.platformStats}
           platformDays={state.platformDays}
           assayer={data.assayer}
+          adminSentinel={data.adminSentinel}
           adminLiveRuns={data.adminLiveRuns}
           runs={runsQuery.data ?? []}
           run={runQuery.data ?? null}

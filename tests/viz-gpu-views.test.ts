@@ -659,12 +659,13 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedSkill: null,
     selectedProjectId: null,
     projectMcpCollapsed: false,
+    sentinelSection: 'watch',
     projectOverviewCollapsed: false,
     projectAssistantCompact: false,
     projectAssistantCompactHeight: null,
     workspaceRunId: null, workspacePath: '', filePreview: null, previewFile: () => {},
     githubRecovery: null, setGitHubRecovery: vi.fn(),
-    openWorkspace: vi.fn(), openProjectRuns: vi.fn(), selectProjectSection: vi.fn(), toggleProjectOverview: vi.fn(), selectWorkspacePath: vi.fn(),
+    openWorkspace: vi.fn(), openProjectRuns: vi.fn(), selectProjectSection: vi.fn(), selectSentinelSection: vi.fn(), toggleProjectOverview: vi.fn(), selectWorkspacePath: vi.fn(),
     runFilters: { kind: 'all', role: 'all', branchId: 'all' },
     branchHeadingExpanded: true,
     runSummaryExpanded: true,
@@ -2595,28 +2596,44 @@ describe('drawSentinel', () => {
     ],
   };
 
-  it('shows both corpora in flight, the rule table, and the findings', () => {
+  const draw = (section: GpuUiState['sentinelSection'], data: Partial<GpuDataSnapshot> = {}) => {
     const ctx = createRecordingCtx();
-    drawSentinel(
-      ctx,
-      makeSnapshot({ view: 'sentinel' }, { auth, adminSentinel: snapshotPayload }),
-      1280,
-      720
-    );
-    const values = ctx.texts.map((text) => text.value);
-    // Both corpora: an operator run and a tenant run, on one screen.
-    expect(values).toContain('OPERATOR');
-    expect(values).toContain('PROJECT');
-    expect(values).toContain('run-op-1');
-    expect(values).toContain('run-proj-1');
-    // The rule table, with its prose from the catalog.
-    expect(values).toContain('cost-alert');
-    expect(values.some((value) => value.includes('not a budget'))).toBe(true);
-    // A finding, with the rule that produced it on its extra line.
-    expect(values.some((value) => value.includes('recurring-tool-error'))).toBe(true);
-    // A candidate seen and skipped is reported, never silently dropped.
-    expect(values.some((value) => value.includes('trace not persisted yet'))).toBe(true);
+    drawSentinel(ctx, makeSnapshot({ view: 'sentinel', sentinelSection: section }, { auth, adminSentinel: snapshotPayload, ...data }), 1280, 720);
+    return { ctx, values: ctx.texts.map((text) => text.value) };
+  };
+
+  it('offers five tabs whose names carry their counts, and draws one of them', () => {
+    // One question per tab, and the strip answers "anything to see?" before
+    // a click: In flight · 2, Rules · 2, Findings · 1.
+    const { ctx, values } = draw('watch');
+    const tabs = ctx.buttons.filter((button) => button.id.startsWith('sentinel.section.'));
+    expect(tabs.map((button) => button.id.slice('sentinel.section.'.length))).toEqual(['watch', 'assayer', 'coverage', 'rules', 'findings']);
+    expect(tabs.map((button) => button.label)).toEqual(['Watch', 'Assayer', 'In flight · 2', 'Rules · 2', 'Findings · 1']);
+    expect(tabs.find((button) => button.id === 'sentinel.section.watch')?.active).toBe(true);
+    // The watch tab is drawn alone: no rule prose, no finding, no run row.
+    expect(values).not.toContain('cost-alert');
+    expect(values).not.toContain('run-op-1');
+    expect(values.some((value) => value.includes('recurring-tool-error'))).toBe(false);
     expect(ctx.scrollMax.sentinel).not.toBeUndefined();
+  });
+
+  it('In flight shows both corpora, Rules the table, Findings the flags', () => {
+    const coverage = draw('coverage').values;
+    // Both corpora: an operator run and a tenant run, on one screen.
+    expect(coverage).toContain('OPERATOR');
+    expect(coverage).toContain('PROJECT');
+    expect(coverage).toContain('run-op-1');
+    expect(coverage).toContain('run-proj-1');
+    // A candidate seen and skipped is reported, never silently dropped.
+    expect(coverage.some((value) => value.includes('trace not persisted yet'))).toBe(true);
+
+    const rules = draw('rules').values;
+    expect(rules).toContain('cost-alert');
+    expect(rules.some((value) => value.includes('not a budget'))).toBe(true);
+
+    const findings = draw('findings').values;
+    expect(findings.some((value) => value.includes('recurring-tool-error'))).toBe(true);
+    expect(findings.some((value) => value.includes('never a judgment'))).toBe(true);
   });
 
   it('claims only what this process can back, and offers no power over a run', () => {
@@ -2624,23 +2641,22 @@ describe('drawSentinel', () => {
     // is exactly why the scope sentence is mandatory in every state: a watch on
     // another machine or another store is still invisible here. And the
     // sentinel's only possible power is an unsettled design decision, so no
-    // control may exercise it: every button is a navigation to a run.
-    const ctx = createRecordingCtx();
-    drawSentinel(
-      ctx,
-      makeSnapshot({ view: 'sentinel' }, { auth, adminSentinel: snapshotPayload }),
-      1280,
-      720
-    );
-    const values = ctx.texts.map((text) => text.value);
+    // control may exercise it: every button is a navigation — a tab, a run,
+    // an evaluation to read.
+    const { ctx, values } = draw('watch');
+    expect(values).toContain('Watching');
     expect(values.some((value) => value.includes('Watching, one pass every 20s'))).toBe(true);
-    expect(values.some((value) => value.includes('3 passes'))).toBe(true);
+    // The counters are tiles now, not a sentence.
+    expect(ctx.statCards.map((card) => [card.label, card.value])).toEqual([
+      ['Passes', '3'], ['Last pass', '4 ms'], ['Runs screened', '2'], ['Skipped', '1'], ['Findings written', '1'],
+    ]);
     // The scope, and no aggregate claim anywhere.
     expect(values.some((value) => value.includes('and only its own'))).toBe(true);
     expect(values.some((value) => value.includes('invisible here'))).toBe(true);
-    expect(values.some((value) => value.includes('never a judgment'))).toBe(true);
-    for (const button of ctx.buttons) {
-      expect(button.id.startsWith('sentinel.run.')).toBe(true);
+    for (const section of ['watch', 'assayer', 'coverage', 'rules', 'findings'] as const) {
+      for (const button of draw(section).ctx.buttons) {
+        expect(button.id).toMatch(/^(sentinel\.section\.|sentinel\.run\.|assayer\.open\.|assayer\.more$)/);
+      }
     }
   });
 
@@ -2649,81 +2665,79 @@ describe('drawSentinel', () => {
     // `npm run sentinel` is not broken, and the screen must name the incumbent
     // rather than render a red light — the reader concludes, the screen
     // reports.
-    const ctx = createRecordingCtx();
-    drawSentinel(
-      ctx,
-      makeSnapshot(
-        { view: 'sentinel' },
-        {
-          auth,
-          adminSentinel: {
-            ...snapshotPayload,
-            watch: {
-              ...armedWatch,
-              armed: false,
-              reason: 'lease-held',
-              armedSince: null,
-              incumbent: {
-                source: 'cli',
-                ownerPid: 4242,
-                label: 'npm run sentinel',
-                intervalMs: 20_000,
-                startedAt: '2026-08-23T07:55:00.000Z',
-                heartbeatAt: '2026-08-23T08:00:10.000Z',
-              },
-            },
+    const { values } = draw('watch', {
+      adminSentinel: {
+        ...snapshotPayload,
+        watch: {
+          ...armedWatch,
+          armed: false,
+          reason: 'lease-held',
+          armedSince: null,
+          incumbent: {
+            source: 'cli',
+            ownerPid: 4242,
+            label: 'npm run sentinel',
+            intervalMs: 20_000,
+            startedAt: '2026-08-23T07:55:00.000Z',
+            heartbeatAt: '2026-08-23T08:00:10.000Z',
           },
-        }
-      ),
-      1280,
-      720
-    );
-    const values = ctx.texts.map((text) => text.value);
+        },
+      },
+    });
+    expect(values).toContain('Yielded');
     expect(values.some((value) => value.includes('cli pid 4242'))).toBe(true);
     expect(values.some((value) => value.includes('this server yielded'))).toBe(true);
-    // Still no aggregate, and still no control.
+    // Still no aggregate.
     expect(values.some((value) => value.includes('invisible here'))).toBe(true);
-    for (const button of ctx.buttons) {
-      expect(button.id.startsWith('sentinel.run.')).toBe(true);
-    }
   });
 
   it('says a pass ran long, because that pass shares the HTTP loop', () => {
-    const ctx = createRecordingCtx();
-    drawSentinel(
-      ctx,
-      makeSnapshot(
-        { view: 'sentinel' },
-        {
-          auth,
-          adminSentinel: { ...snapshotPayload, watch: { ...armedWatch, lastTickMs: 900 } },
-        }
-      ),
-      1280,
-      720
-    );
-    expect(
-      ctx.texts.some((text) => text.value.includes('runs on the HTTP loop'))
-    ).toBe(true);
+    const { values } = draw('watch', { adminSentinel: { ...snapshotPayload, watch: { ...armedWatch, lastTickMs: 900 } } });
+    expect(values.some((value) => value.includes('runs on the HTTP loop'))).toBe(true);
   });
 
   it('says nothing is in flight and nothing has been flagged, without an error', () => {
-    const ctx = createRecordingCtx();
-    drawSentinel(
-      ctx,
-      makeSnapshot(
-        { view: 'sentinel' },
-        {
-          auth,
-          adminSentinel: { watch: armedWatch, rules: [], live: [], skipped: [], findings: [] },
-        }
-      ),
-      1280,
-      720
-    );
-    const values = ctx.texts.map((text) => text.value);
-    expect(values.some((value) => value.includes('No run in flight'))).toBe(true);
-    expect(values.some((value) => value.includes('No finding recorded'))).toBe(true);
+    const empty = { watch: armedWatch, rules: [], live: [], skipped: [], findings: [] };
+    expect(draw('coverage', { adminSentinel: empty }).values.some((value) => value.includes('No run in flight'))).toBe(true);
+    expect(draw('findings', { adminSentinel: empty }).values.some((value) => value.includes('No finding recorded'))).toBe(true);
+  });
+
+  it('lists recipe evaluations as rows that open their evidence in place', () => {
+    const summary = {
+      id: 'assay-1', namespace: 'Water', skillId: 'verify-clean-copy-node-tests', surfaceDigest: 'a'.repeat(64),
+      startedAt: '2026-10-23T15:00:00.000Z', endedAt: '2026-10-23T15:22:00.000Z', totalCostUsd: 0.4,
+      status: 'completed' as const, failure: null, cases: 1,
+      judgement: { verdict: 'harmful' as const, decision: 'retire' as const, matchedCases: 1,
+        deliveries: { with: 0, without: 1 }, costUsd: { with: 0.2, without: 0.2 } },
+      arms: [],
+    };
+    const record = {
+      schema: 'atoma.supervisor.assay/v1' as const, namespace: 'Water', skillId: summary.skillId, surfaceDigest: summary.surfaceDigest,
+      kind: 'llm' as const, startedAt: summary.startedAt, endedAt: summary.endedAt, status: 'completed' as const, failure: null,
+      judgement: summary.judgement, applied: true, totalCostUsd: 0.4,
+      cases: [{ task: 'Verify the clean copy', sampledAt: summary.startedAt,
+        with: { arm: 'with' as const, outcome: 'failed' as const, costUsd: 0.2, durationS: 60, llmCalls: 5, matched: true, traceId: 't1', logPath: 'with.log' },
+        without: { arm: 'without' as const, outcome: 'delivered' as const, costUsd: 0.2, durationS: 50, llmCalls: 4, matched: false, traceId: 't2', logPath: 'without.log' } }],
+    };
+    const health = { armed: true, inFlight: 'Water/other-recipe', assayed: 1, failed: 0, deferred: 29, preempted: 0, pausedUntil: null, lastResult: null, lastError: null, executorRelease: '22067885962fabc' };
+    const base = { health, assays: [summary], hasMore: true, loading: false, error: false, selectedLoading: false, selectedError: false };
+    const closed = draw('assayer', { assayer: { ...base, selected: null } });
+    expect(closed.values).toContain('Enabled');
+    expect(closed.ctx.statCards.map((card) => [card.label, card.value])).toEqual([
+      ['Completed', '1'], ['Technical failures', '0'], ['Deferred', '29'], ['Interrupted', '0'],
+    ]);
+    // The tab counts the loaded page and says more is behind it.
+    expect(closed.ctx.buttons.find((button) => button.id === 'sentinel.section.assayer')?.label).toBe('Assayer · 1+');
+    // The row carries the verdict as its own column, and the row IS the control.
+    expect(closed.values).toContain('verify-clean-copy-node-tests');
+    expect(closed.values).toContain('Harmful');
+    expect(closed.values.some((value) => value.includes('Verify the clean copy'))).toBe(false);
+    expect(closed.ctx.buttons.some((button) => button.id === 'assayer.open.assay-1')).toBe(true);
+    expect(closed.ctx.buttons.some((button) => button.id === 'assayer.more')).toBe(true);
+
+    const open = draw('assayer', { assayer: { ...base, selected: { summary, record } } });
+    expect(open.values.some((value) => value.includes('Verify the clean copy'))).toBe(true);
+    expect(open.values.some((value) => value.includes('Decision: Retire'))).toBe(true);
   });
 
   it('survives a payload that never arrived', () => {
