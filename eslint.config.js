@@ -49,6 +49,12 @@ export default tseslint.config(
       // tsconfig here, so `eslint .` reports hundreds of parser errors from
       // code this working tree does not own.
       '.worktrees/**',
+      // Incident, measurement and review evidence: probes, replay templates and
+      // model-authored scripts preserved beside their write-ups. Not project
+      // source and in no tsconfig (AGENTS.md: records/ holds evidence).
+      'records/**',
+      // Replay templates whose placeholders a host script substitutes.
+      'benchmark/**/*.template.mjs',
     ],
   },
   js.configs.recommended,
