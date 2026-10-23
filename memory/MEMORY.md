@@ -13,6 +13,7 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Manually published seed](publication-manual-seed.md) — exact selected seed bytes at the live head are a valid publication base; retain concurrent client edits
 - [Root remediation receipts](root-remediation-command-evidence.md) — 2026-10-23: retain historical command results after a README repair; no Attica test replay
 - [Explicit app and terminal previews](preview-app-terminal-2026-10-21.md) — fixes automatic shell fallback and strict executor classification; Attica device reconnection exposed second defect; CI/deploy and production retest pending
 - [Atoma Compute implementation](atoma-compute-state.md) — 2026-10-18: Electron companion in 13 languages built/tested on Mac ARM, Intel and Windows; code deployed (61ea0fc9), unsigned test installers ready

@@ -1,6 +1,6 @@
 import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
 import type { RepositoryInventory, RepositorySync } from '../contracts/repositorySync.js';
-import { inventoryRepositoryWorkspace, carryRepositoryBase, repositoryFile, sameRepositoryFile, repositoryDebt, planRepositorySync, remoteRepositoryInventory } from './repositorySync.js';
+import { gitBlobSha, inventoryRepositoryWorkspace, carryRepositoryBase, repositoryFile, sameRepositoryFile, repositoryDebt, planRepositorySync, remoteRepositoryInventory } from './repositorySync.js';
 import { materialiseRepositorySeed } from './repositorySeed.js';
 import path from 'node:path';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
@@ -781,6 +781,25 @@ export class GitHubPublisher {
         }
         const theirs = remoteRepositoryInventory(entries);
         if (!recorded && !project.repositoryTarget.source) for (const p of Object.keys(ours)) if (!repositoryFile(base, p) && repositoryFile(theirs, p)) debt.delete(p);
+        // An explicitly selected delivery may have reached GitHub outside the
+        // publication ledger. Exact seed bytes at the observed head are a base,
+        // not a concurrent edit. Never infer this from commit prose or ancestry.
+        if (run.baseRunId && run.seed?.kind === 'run' && run.seed.runId === run.baseRunId) {
+          const seed = this.store.getProjectRun(project.orgId, run.baseRunId);
+          if (seed?.projectId === project.projectId) for (const file of seed.artifactManifest?.files ?? []) {
+            const remote = repositoryFile(theirs, file.path);
+            if (!debt.has(file.path) || !remote || remote.mode !== file.mode ||
+                sameRepositoryFile(remote, repositoryFile(base, file.path))) continue;
+            try {
+              const bytes = readManifestArtifact({ workspaceRoot: seed.hostPaths.workspacePath, expected: file });
+              if (remote.sha === gitBlobSha(bytes)) {
+                Object.defineProperty(base, file.path, { value: remote, enumerable: true, writable: true, configurable: true });
+              }
+            } catch {
+              // Expired or changed seed evidence grants no overwrite authority.
+            }
+          }
+        }
         const plan = planRepositorySync({ base, ours, theirs, debt, remoteEntries: entries });
         this.store.recordPublicationConflicts(project.orgId, publication.publicationId, plan.conflicts.length);
         if (plan.conflicts.length) this.repositoryAttention(project, run, 'conflict', plan.conflicts);

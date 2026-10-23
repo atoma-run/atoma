@@ -555,7 +555,7 @@ or published ones do. GitHub divergence, byte, lease and scope checks remain.
 - Projects Atoma created reconcile the prior workspace with GitHub before model
   work. `project_run_repository_sync` stores an immutable per-run BASE outside
   strict legacy JSON columns. `planRepositorySync` owns the one per-path rule at
-  start and publication; client changes win, prior workspaces stay untouched.
+  start and publication; client changes win. An explicit seed's verified bytes and mode matching the live head may advance the publication base even without a ledger receipt; unavailable/changed seed evidence grants no authority. Prior workspaces stay untouched.
   Published runs owe only tombstones; other runs owe their difference from BASE.
   Hard-linked seeds replace by unlink/create and pass the delivery inventory.
   Unavailable sync fails open; unresolved debt refuses publication. See

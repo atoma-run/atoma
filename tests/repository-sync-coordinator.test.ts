@@ -1,5 +1,5 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -208,6 +208,55 @@ it('starts from the selected saved bytes while publication preserves newer remot
   expect(f.fake.filesOn('owner', 'docs', 'main').get('iteration.txt')?.text).toBe('new work');
   expect(readFileSync(join(first.hostPaths.workspacePath, 'app.js'), 'utf8')).toBe('reviewed');
 });
+
+it('publishes all five changed files when the selected run was manually committed to GitHub', async () => {
+  // Attica 84ae80d1: the seed reached main outside Atoma's publication ledger.
+  const f = fixture();
+  const paths = ['browser/control.ts', 'dist/browser-assets/control.html',
+    'dist/browser/control.js', 'dist/browser/control.js.map', 'vitest.browser.config.ts'];
+  const put = (w: string, version: string) => {
+    for (const p of paths) {
+      mkdirSync(dirname(join(w, p)), { recursive: true });
+      writeFileSync(join(w, p), `${p}:${version}`);
+    }
+    writeFileSync(join(w, 'app.js'), 'unchanged');
+  };
+  await f.start(w => put(w, 'original'));
+  const seed = await f.deliver(w => put(w, 'reviewed seed'));
+  for (const p of paths) f.fake.commitOutside('owner', 'docs', 'main', p, `${p}:reviewed seed`);
+  f.fake.commitOutside('owner', 'docs', 'main', 'client.txt', 'keep');
+  const next = await f.start(w => {
+    put(w, 'next delivery');
+    writeFileSync(join(w, 'new-test.ts'), 'new test');
+  }, seed.projectRunId);
+  expect(f.projects.getPublicationForRun(f.viewer.orgId, seed.projectRunId)).toBeNull();
+  expect(f.projects.getPublicationForRun(f.viewer.orgId, next.projectRunId)?.status).toBe('published');
+  const files = f.fake.filesOn('owner', 'docs', 'main');
+  for (const p of paths) expect(files.get(p)?.text, p).toBe(`${p}:next delivery`);
+  expect(files.get('new-test.ts')?.text).toBe('new test');
+  expect(files.get('client.txt')?.text).toBe('keep');
+  await f.coordinator.retryPublication(f.viewer.orgId, next.projectRunId);
+  for (const p of paths) expect(readFileSync(join(seed.hostPaths.workspacePath, p), 'utf8')).toBe(`${p}:reviewed seed`);
+});
+
+it.each(['client edit', 'client deletion', 'changed seed bytes', 'changed seed mode', 'expired seed'] as const)(
+  'does not overwrite %s when reconciling a manually committed seed', async scenario => {
+    const f = fixture();
+    await f.start(w => writeFileSync(join(w, 'app.js'), 'original'));
+    const seed = await f.deliver(w => writeFileSync(join(w, 'app.js'), 'reviewed seed'));
+    f.fake.commitOutside('owner', 'docs', 'main', 'app.js', 'reviewed seed');
+    const next = await f.start(w => {
+      writeFileSync(join(w, 'app.js'), 'next delivery');
+      if (scenario === 'client edit') f.fake.commitOutside('owner', 'docs', 'main', 'app.js', 'client');
+      if (scenario === 'client deletion') f.fake.commitOutside('owner', 'docs', 'main', 'app.js', null);
+      if (scenario === 'changed seed bytes') writeFileSync(join(seed.hostPaths.workspacePath, 'app.js'), 'tampered');
+      if (scenario === 'changed seed mode') chmodSync(join(seed.hostPaths.workspacePath, 'app.js'), 0o755);
+      if (scenario === 'expired seed') rmSync(seed.hostPaths.workspacePath, { recursive: true });
+    }, seed.projectRunId);
+    expect(f.projects.getPublicationForRun(f.viewer.orgId, next.projectRunId)?.status).toBe('published');
+    expect(f.fake.filesOn('owner', 'docs', 'main').get('app.js')?.text).toBe(
+      scenario === 'client edit' ? 'client' : scenario === 'client deletion' ? undefined : 'reviewed seed');
+  });
 
 it('publishes a later accepted run over the older one accepted and published after it synchronised', async () => {
   // Code review 2026-10-09 1.3: Y is seeded from X while X waits for acceptance.
