@@ -2652,6 +2652,7 @@
   "platform.noSignups": "No new accounts in this period.",
   "platform.privacy": "Traffic is aggregated for 90 days in the product store. No IP addresses, cookies, user agents, private paths or query strings are retained. Counts cover completed requests reaching this Atoma server; edge cache hits are not visible. Account and execution totals come from stored records.",
   "assayer.title": "Assayer — recipe evaluations",
+  "assayer.executor": "Reporting executor {{release}} (including work draining after a deployment)",
   "assayer.scope": "This executor compares ordinary runs with and without each recipe. Technical failures remain pending; they are not recipe judgements.",
   "assayer.armed": "Enabled",
   "assayer.off": "Disabled",

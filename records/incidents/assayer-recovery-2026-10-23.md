@@ -51,3 +51,23 @@ run passed unchanged. `npm run viz:smoke` passed; the platform-admin Sentinel
 section was inspected in a real Chrome screenshot with completed and invalid
 attempts and an expanded paired-arm comparison. Interruption coverage also
 confirms that the interrupted arm's log remains available through the reader.
+
+
+## First production activation and generation handoff
+
+Commit 92b224b9 passed CI, desktop packaging and deployment. Production MCP
+discovery exposed all three new readers. The 36 legacy attempts projected as
+failed without modifying their evidence; all 15 current recipe surfaces became
+pending. The resident automatically started repair-isolated-browser-contract-test
+at 14:17 UTC. Its first two arms completed with 21 model calls each, proving
+that the Haystack launch refusal was removed; neither selected the target recipe.
+
+A concurrent compatible deployment to caaa3356 at approximately 14:27 UTC kept
+the assay alive on 92b224b9 while selecting the new executor. Reading only the
+selected snapshot falsely hid this ongoing work. The health reader now uses the
+existing process-birth-checked executor receipts: report the generation with an
+assay in flight, otherwise the selected generation, naming its release. It does
+not sum process-local counters or keep dead generations alive. A regression uses
+two real child processes, switches the admission symlink, then kills the old
+writer and rejects a recycled birth receipt. This reuses the existing liveness
+rule; it introduces no new execution or admission gate.

@@ -31,7 +31,7 @@ built beside it, in `src/supervisor/assayer.ts`.
 | arms | each case runs twice through `npm run run:build`: on a catalog copy holding the recipe, and on a copy without its folder |
 | isolation | one online snapshot of the store, copied per arm; own workspace, own runs directory; learning, promotion, event skills and the trigger evaluation off; `--container --egress` on the resident host (the CLI's `--container`) |
 | judge | the runner's machine epilogue (delivered / partial / failed / error) after the same root acceptance every product run gets; `matched` is a runtime `skill` event in the arm's trace |
-| record | `supervisor/assays/<ns>__<id>__<digest>/assay.json`, the arms' logs and traces beside it; one `skill_assays` row; one `supervisor.assay` journal row |
+| record | `supervisor/assays/<ns>__<id>__<digest>__<attempt>/assay.json`, the arms' logs and traces beside it; one `skill_assays` row; one `supervisor.assay` journal row |
 
 ## The pre-registered rule
 
@@ -80,11 +80,10 @@ assay makes.
 5. **The log can be forged by the goal.** It is echoed into the log, so the
    outcome is read from the runner's machine epilogue only and the match from
    the trace's runtime skill events, never from text.
-6. **A failed launch reads as a failed recipe.** No: a run that could not be
-   launched is an `error` arm; `error` is not `delivered`, so it can never
-   count for the recipe, and the control arm delivering on the same task is
-   still required before anything is retired. An assay that fails as a whole
-   pauses the resident host an hour rather than spending again every minute.
+6. **A failed launch reads as a failed recipe.** Error/cancelled arms or
+   missing readable traces invalidate the comparison. The attempt is archived
+   with no recipe judgement and leaves the surface pending. The resident pauses
+   an hour on technical failure rather than retrying every minute.
 7. **Retiring a recipe the credit counters favour.** The counters are earned
    on the same recipe's matches, so a recipe with many credits and a harmful
    assay is a contradiction worth seeing: the journal row names it, the

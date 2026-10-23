@@ -21,3 +21,17 @@ export function executorSnapshot<T>(active: string): T | null {
     return recordedProcessLive(receipt.pid, receipt.fingerprint) ? receipt.snapshot ?? null : null;
   } catch { return null; }
 }
+
+/** Live generations, including those draining work after the admission symlink moved. */
+export function executorSnapshots<T>(active: string): Array<{ socket: string; selected: boolean; snapshot: T }> {
+  let selected: string | null = null;
+  try { selected = realpathSync(active); } catch { /* A draining generation may still exist. */ }
+  let names: string[];
+  let root: string;
+  try { root = realpathSync(dirname(active)); names = readdirSync(root); } catch { return []; }
+  return names.filter(name => /^[a-f0-9]{40}\.sock\.json$/.test(name)).flatMap(name => {
+    const socket = join(root, name.slice(0, -5));
+    const snapshot = executorSnapshot<T>(socket);
+    return snapshot === null ? [] : [{ socket, selected: socket === selected, snapshot }];
+  });
+}

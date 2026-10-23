@@ -18,6 +18,7 @@ export function assayerLines(data: AssayerViewData, t: Translate, locale: string
   const h = data.health;
   const lines = [t('assayer.scope'), t(h ? h.armed ? 'assayer.armed' : 'assayer.off' : 'assayer.unavailable')];
   if (h) {
+    if (h.executorRelease) lines.push(t('assayer.executor', { release: h.executorRelease.slice(0, 12) }));
     lines.push(t(h.inFlight ? 'assayer.running' : 'assayer.idle', { skill: h.inFlight ?? '' }));
     if (h.pausedUntil) lines.push(t('assayer.paused', { at: formatDateTime(h.pausedUntil, locale) }));
     if (h.lastError) lines.push(h.lastError);

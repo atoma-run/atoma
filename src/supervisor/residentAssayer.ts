@@ -1,3 +1,5 @@
+import { basename } from 'node:path';
+import { executorSnapshots } from '../projects/executorDiscovery.js';
 import { ASSAYER_DEFAULT_POLL_MS, ASSAYER_FAILURE_PAUSE_MS, type AssayResult } from './assayer.js';
 
 /**
@@ -35,6 +37,8 @@ export function vizAssayerEnabled(
 }
 
 export interface ResidentAssayerHealth {
+  /** Host reader provenance; absent on a local resident. */
+  readonly executorRelease?: string;
   readonly armed: boolean;
   readonly inFlight: string | null;
   readonly assayed: number;
@@ -145,4 +149,11 @@ export function startResidentAssayer(options: ResidentAssayerOptions): ResidentA
       return true;
     },
   };
+}
+
+/** The global lease permits one assay: keep its owning generation visible while it drains. */
+export function executorAssayerHealth(active: string): ResidentAssayerHealth | null {
+  const generations = executorSnapshots<{ assayer: ResidentAssayerHealth | null }>(active);
+  const owner = generations.find(g => g.snapshot.assayer?.inFlight) ?? generations.find(g => g.selected);
+  return owner?.snapshot.assayer ? { ...owner.snapshot.assayer, executorRelease: basename(owner.socket, '.sock') } : null;
 }

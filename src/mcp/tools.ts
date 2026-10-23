@@ -1257,7 +1257,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     name: 'atoma_assayer_health',
     tier: 'platform', needs: [],
     register: (server, ctx) => server.registerTool('atoma_assayer_health', {
-      title: 'Recipe evaluation health', description: 'Selected executor assayer state, current work, pause, counters and last error. Null means unavailable, never disabled. Read-only; no quota.',
+      title: 'Recipe evaluation health', description: 'Assayer state of the live generation evaluating a recipe (including draining generations), otherwise the selected executor. Includes release, current work, pause, counters and last error. Null means unavailable, never disabled. Read-only; no quota.',
       annotations: READ_ONLY,
     }, () => jsonResult({ assayer: ctx.deps.assayer?.() ?? null })),
   },

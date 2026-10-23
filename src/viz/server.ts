@@ -249,7 +249,7 @@ import { peekSentinelWatch } from '../sentinel/lease.js';
 import { analyseTarget, pendingTargets, resolveTarget, type AnalystOptions } from '../supervisor/analyst.js';
 import { anyRunActive } from '../supervisor/activity.js';
 import { ASSAY_DEFAULT_TIMEOUT_MS, ASSAY_MAX_CASES, assayNext, type AssayerOptions } from '../supervisor/assayer.js';
-import { startResidentAssayer, vizAssayerEnabled, type ResidentAssayer } from '../supervisor/residentAssayer.js';
+import { executorAssayerHealth, startResidentAssayer, vizAssayerEnabled, type ResidentAssayer } from '../supervisor/residentAssayer.js';
 import { readTierSelectors } from '../contracts/modelSelector.js';
 import { dispatchConfigFromEnv } from '../supervisor/dispatch.js';
 import {
@@ -1691,8 +1691,7 @@ process.once('exit', signalActiveRunOnExit);
 
 /** What this process can honestly say about watching. Never an aggregate. */
 function assayerHealth(): ReturnType<ResidentAssayer['health']> | null {
-  return ASSAYER?.health() ?? (EXECUTOR_SOCKET
-    ? executorSnapshot<{ assayer: ReturnType<ResidentAssayer['health']> | null }>(EXECUTOR_SOCKET)?.assayer ?? null : null);
+  return ASSAYER?.health() ?? (EXECUTOR_SOCKET ? executorAssayerHealth(EXECUTOR_SOCKET) : null);
 }
 
 function sentinelHealth(): SentinelHealth {

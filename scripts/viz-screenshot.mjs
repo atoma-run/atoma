@@ -368,7 +368,7 @@ function gatedStubs() {
       providers: [{ id: 'github', label: 'GitHub' }],
     },
     '/api/admin/sentinel': { watch: null, rules: [], live: [], skipped: [], findings: [] },
-    '/api/admin/assayer/health': { health: { armed: true, inFlight: null, assayed: 1, failed: 1, deferred: 0, preempted: 0, pausedUntil: null, lastResult: null, lastError: null } },
+    '/api/admin/assayer/health': { health: { executorRelease: '92b224b9ef47148508d8f444cc0c1e717bac6d26', armed: true, inFlight: null, assayed: 1, failed: 1, deferred: 0, preempted: 0, pausedUntil: null, lastResult: null, lastError: null } },
     '/api/admin/assayer': { assays: [
       { id: 'assay-demo', namespace: 'atom-demo', skillId: 'verify-json-api', surfaceDigest: 'a'.repeat(64), startedAt: '2026-10-23T10:00:00Z', endedAt: '2026-10-23T10:10:00Z',
         status: 'completed', judgement: { verdict: 'neutral', decision: 'keep', matchedCases: 1, deliveries: { with: 1, without: 1 }, costUsd: { with: 0.1, without: 0.2 } }, failure: null, totalCostUsd: 0.3, cases: 1, arms: [] },
