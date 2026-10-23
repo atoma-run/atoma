@@ -13,6 +13,7 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Test suite speed](test-suite-speed.md) — 2026-10-23: 299 s → 95 s on the Mac; CPU-bound at 12 workers, 14+ oversubscribe; next lever is less work per file
 - [Manually published seed](publication-manual-seed.md) — exact selected seed bytes at the live head are a valid publication base; retain concurrent client edits
 - [Root remediation receipts](root-remediation-command-evidence.md) — 2026-10-23: retain historical command results after a README repair; no Attica test replay
 - [Replan loop diagnosis 2026-10-23](replan-loop-2026-10-23.md) — why runs stall 31-37 min before executing; safe train ≈15-21%, structural gains need owner decisions (stage B / narrow-repair topology)
