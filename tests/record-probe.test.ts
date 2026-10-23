@@ -28,6 +28,7 @@ import {
   mergeProbeManifestWrite as contractMergeProbeManifestWrite,
   mergeShellProbe as contractMergeShellProbe,
   validateProbeManifest,
+  shellProbeManifestEvidence,
   webEntryIdentity,
 } from '../src/contracts/probeManifest.js';
 
@@ -83,6 +84,42 @@ describe('record_probe', () => {
     expect(String(e['stderr'])).toContain('nope');
   });
 
+  it('retains a mutant failure after the same command passes on restored code without another mutation', async () => {
+    const source = join(root, 'subject.cjs');
+    writeFileSync(source, 'exports.value = 1;');
+    writeFileSync(join(root, 'check.cjs'), "require('node:assert/strict').equal(require('./subject.cjs').value, 1);");
+    const tool = recordProbeTool({ sandbox });
+    const cmd = 'node check.cjs';
+    await tool.execute({ cmd });
+    writeFileSync(source, 'exports.value = 2;');
+    const mutant = await tool.execute({ cmd }) as { exitCode: number; stderr: string };
+    expect(mutant.exitCode).toBe(1);
+    expect(mutant.stderr).toContain('AssertionError');
+    writeFileSync(source, 'exports.value = 1;');
+    expect(await tool.execute({ cmd })).toMatchObject({ exitCode: 0 });
+    const raw = readFileSync(join(root, PROBE_MANIFEST_FILENAME), 'utf8');
+    expect(manifest().entries).toEqual([expect.objectContaining({ cmd, exitCode: 0,
+      replacementHistory: [{ cmd, exitCode: 0 }, { cmd, exitCode: 1 }],
+      replacementHistoryTruncated: false,
+    })]);
+    expect(validateProbeManifest(raw)).toEqual([]);
+    expect(shellProbeManifestEvidence(raw).lines.join('\n')).toContain('"replacementHistory":[{"cmd":"node check.cjs","exitCode":0},{"cmd":"node check.cjs","exitCode":1}]');
+    // Current failure must remain a failure, even with a successful history.
+    writeFileSync(source, 'exports.value = 2;');
+    await tool.execute({ cmd });
+    expect(manifest().entries[0]).toMatchObject({ exitCode: 1 });
+  });
+
+  it('bounds same-command history without converting it into additional replay entries', () => {
+    let raw: string | null = null;
+    for (let exitCode = 0; exitCode < 12; exitCode++) raw = mergeShellProbe(raw, { cmd: 'node check.cjs', exitCode });
+    const parsed = JSON.parse(raw!) as { entries: Record<string, unknown>[] };
+    expect(parsed.entries).toEqual([{ cmd: 'node check.cjs', exitCode: 11,
+      replacementHistory: Array.from({ length: 8 }, (_, i) => ({ cmd: 'node check.cjs', exitCode: i + 3 })),
+      replacementHistoryTruncated: true,
+    }]);
+  });
+
   it('writes a manifest the project\'s own health check accepts', async () => {
     writeFileSync(join(root, 'ok.js'), "console.log('fine');");
     const t = recordProbeTool({ sandbox });
@@ -119,9 +156,9 @@ describe('record_probe', () => {
     expect(manifest().entries[0]!['replacementHistory']).toEqual([{ cmd: 'node old.js', exitCode: 1 }]);
     // Re-recording the green command must not erase the failed predecessor.
     await t.execute({ cmd: 'node fixed.js' });
-    expect(manifest().entries[0]!['replacementHistory']).toEqual([{ cmd: 'node old.js', exitCode: 1 }]);
+    expect(manifest().entries[0]!['replacementHistory']).toEqual([{ cmd: 'node old.js', exitCode: 1 }, { cmd: 'node fixed.js', exitCode: 0 }]);
     await t.execute({ cmd: 'node fixed.js', supersedes: 'node missing.js' });
-    expect(manifest().entries[0]!['replacementHistory']).toEqual([{ cmd: 'node old.js', exitCode: 1 }]);
+    expect(manifest().entries[0]!['replacementHistory']).toEqual([{ cmd: 'node old.js', exitCode: 1 }, { cmd: 'node fixed.js', exitCode: 0 }, { cmd: 'node fixed.js', exitCode: 0 }]);
   });
 
   it('preserves entries written by earlier phases', async () => {
@@ -645,7 +682,7 @@ describe('one merge contract — all three consumers share src/contracts/probeMa
     expect(appendHttpProbe).toBe(contractAppendHttpProbe);
   });
 
-  it('the same shell entry lands identically via write_file merge and record_probe merge', () => {
+  it('legacy document merge and machine recording preserve the same replay entry; only recording retains history', () => {
     const existing = JSON.stringify({
       version: 1,
       entries: [
@@ -658,7 +695,10 @@ describe('one merge contract — all three consumers share src/contracts/probeMa
       mergeProbeManifestWrite(existing, JSON.stringify({ version: 1, entries: [entry] }))
     ) as { entries: unknown[] };
     const viaRecord = JSON.parse(mergeShellProbe(existing, entry)) as { entries: unknown[] };
-    expect(viaWrite.entries).toEqual(viaRecord.entries);
+    expect(viaWrite.entries).toEqual([entry, { probe: 'http', method: 'GET', path: '/status', status: 200 }]);
+    expect(viaRecord.entries).toEqual([{ ...entry,
+      replacementHistory: [{ cmd: entry.cmd, exitCode: 0 }], replacementHistoryTruncated: false,
+    }, viaWrite.entries[1]]);
     expect(viaWrite.entries).toHaveLength(2);
   });
 

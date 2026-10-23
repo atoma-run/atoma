@@ -67,10 +67,10 @@ public setting or client capability, and introduces no stored runtime identity.
   of a second generic file head when both reads have identical bytes; mixed,
   malformed or changed manifests keep their raw diagnostic excerpt. Presence
   proves storage only; semantic review and transport evidence remain required.
-  Same-command replacement remains latest-only; transport receipts establish
+  Same-command replay remains latest-only; transport receipts establish
   earlier mutant outcomes, never a fabricated replay obligation.
 
-- Shell replacements retain the last eight replaced command/exit pairs in
+- Shell replacements, including same-command reruns, retain the last eight replaced command/exit pairs in
   `replacementHistory`, with explicit truncation. They are history, not replay
   obligations or equal-coverage attestations; same-command reruns preserve them.
 

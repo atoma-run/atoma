@@ -13,6 +13,7 @@ import {
   DECORATED_CMD_RE,
   PORT_BEARING_STDOUT_RE,
   PROBE_MANIFEST_FILENAME,
+  PROBE_HISTORY_GUIDANCE,
   appendHttpProbe,
   appendWebProbe,
   WEB_PROBE_DISCRIMINANT,
@@ -3828,6 +3829,7 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
         'after the replacement command has run. FINITE CLI/script commands only: never start a',
         'server here and never use curl/wget; use start_node_server followed by fetch_url with',
         'record=true for HTTP evidence.',
+        PROBE_HISTORY_GUIDANCE,
       ].join(' '),
       inputSchema: {
         type: 'object',

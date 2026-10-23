@@ -30,6 +30,8 @@ export { webEntryIdentity };
 
 export const PROBE_MANIFEST_FILENAME = '.atoma-probes.json';
 
+export const PROBE_HISTORY_GUIDANCE = 'Re-running the SAME command keeps its latest result as the replay baseline and retains up to eight prior command/exit pairs in replacementHistory (older omissions are explicit). For a temporary mutant followed by restored code, use the same test command: do not repeat the mutation/restoration or add an artificial command prefix merely to preserve both outcomes. History is not replay input or proof of mutation coverage; retain the actual source/build/test observations, demonstrate the intended assertion failure, restore the source and verify success. Missing or inconclusive execution evidence still requires verification.';
+
 export const PROBE_REVIEW_GUIDANCE = 'The probe manifest is a replay baseline, not a complete execution journal: shell entries keep the latest result per exact command. A temporary source mutation and a restored run may legitimately produce different outcomes for the same command. Use host-observed transport receipts and the actual test/setup to establish that sequence; a command label alone proves no mutation or assertion coverage. Do not rerun a demonstrated mutant merely to duplicate its historical receipt in the replay baseline. A bounded excerpt cannot establish that an entry is absent. Compare the exact command and execution state before alleging a contradiction; missing execution, an unproven mutant failure or an unrestored final source still requires verification.';
 
 /** Compact read-back of stored shell outcomes; never an execution attestation. */
@@ -828,6 +830,7 @@ export function manifestWriterLines(kind: 'shell' | 'http' | 'web'): string[] {
     `record_probe instead of run_shell. It executes the command and writes`,
     `the real exit code and the real, complete output into`,
     `"${PROBE_MANIFEST_FILENAME}" itself, merging by command.`,
+    PROBE_HISTORY_GUIDANCE,
     `PASS THE WHOLE COMMAND LINE as "cmd", exactly as a user would type it:`,
     `  record_probe {"cmd": "node <entry> <args>"}`,
     `Do NOT wrap it in \`bash -c\` — the tool adds a shell only when the line`,
@@ -1162,7 +1165,7 @@ export function mergeShellProbe(
   const prior = supersedes && supersedes !== entry.cmd
     ? shellEntrySchema.safeParse(doc.entries.find(e => e['cmd'] === supersedes)) : undefined;
   let recorded: z.infer<typeof shellEntrySchema> = entry;
-  const history = [...(current.success ? current.data.replacementHistory ?? [] : []),
+  const history = [...(current.success ? [...(current.data.replacementHistory ?? []), { cmd: current.data.cmd, exitCode: current.data.exitCode }] : []),
     ...(prior?.success ? [...(prior.data.replacementHistory ?? []), { cmd: prior.data.cmd, exitCode: prior.data.exitCode }] : [])];
   if (history.length) recorded = { ...entry, replacementHistory: history.slice(-8),
     replacementHistoryTruncated: (current.success && current.data.replacementHistoryTruncated === true) ||
