@@ -563,4 +563,53 @@ describe('the hook wired to the real preview writer', () => {
     const replayed = recordDeliveredPreview(preview, subjects[0]!);
     expect(replayed).toEqual(firstDescriptor);
   });
+
+  /**
+   * Attica 84ae80d1, 7bbae0dc, 695faae8 (2026-10-22): a Compute export carries
+   * only publishable files, so `.atoma-probes.json` never reaches the next
+   * seed, and every run that did not restart the server itself was
+   * `unsupported-deliverable` although it delivered the same application.
+   * Through the real coordinator: run 1 observes its server, run 2 is seeded
+   * from it and leaves no manifest; run 3 deletes the entry and stays refused.
+   */
+  it('inherits the seed run\'s Node entry only when this run observed nothing and the entry is still there', async () => {
+    const f = fixture();
+    const preview = PreviewStore.open(f.dbPath);
+    const subjects: DeliveredPreviewSubject[] = [];
+    let step = 0;
+    const driver = vi.fn(async (options: SpawnRunOptions) => {
+      const env = options.env ?? {};
+      const workspace = env['ATOMA_BUILD_WORKSPACE']!, runs = env['ATOMA_RUNS_DIR']!, runId = env['ATOMA_RUN_ID']!;
+      mkdirSync(workspace, { recursive: true }); mkdirSync(runs, { recursive: true });
+      mkdirSync(join(env['ATOMA_ARTIFACT_MANIFEST_PATH']!, '..'), { recursive: true });
+      step++;
+      rmSync(join(workspace, '.atoma-probes.json'), { force: true });
+      if (step === 1) {
+        writeFileSync(join(workspace, '.atoma-probes.json'), JSON.stringify({
+          version: 1, entries: [{ probe: 'http', path: '/health', status: 200, entry: 'server.js' }] }));
+      }
+      if (step === 3) rmSync(join(workspace, 'server.js'), { force: true });
+      else writeFileSync(join(workspace, 'server.js'), `console.log("app ${step}")`);
+      writeFileSync(join(workspace, 'README.md'), `step ${step}`);
+      writeFileSync(env['ATOMA_ARTIFACT_MANIFEST_PATH']!, JSON.stringify({
+        version: 1, runId, generatedAt: new Date().toISOString(), outputs: step === 3 ? ['README.md'] : ['server.js', 'README.md'] }));
+      writeFileSync(join(runs, `${runId}.json`), JSON.stringify({ id: runId, endedAt: new Date().toISOString(), result: { summary: 'verified' } }));
+      return formatRunStatsEpilogue(DELIVERED_STATS);
+    });
+    const coordinator = coordinatorFor(f, driver, {
+      describeDeliveredPreview: (subject) => { subjects.push(subject); recordDeliveredPreview(preview, subject); },
+    });
+
+    const first = await runOnce(f, coordinator, 'seed-node-1', 'Build the control server.');
+    const second = await runOnce(f, coordinator, 'seed-node-2', 'Fix the announcements tab.');
+    const third = await runOnce(f, coordinator, 'seed-node-3', 'Replace the server with a README.');
+
+    expect(preview.getDescriptor(f.viewer.orgId, first.started.projectRunId)).toMatchObject({ availability: 'available', kind: 'node', entry: 'server.js' });
+    expect(subjects[1]?.seedRunId).toBe(first.started.projectRunId);
+    expect(preview.getDescriptor(f.viewer.orgId, second.started.projectRunId)).toMatchObject({
+      availability: 'available', kind: 'node', entry: 'server.js', unavailableReason: null });
+    expect(subjects[2]?.seedRunId).toBe(second.started.projectRunId);
+    expect(preview.getDescriptor(f.viewer.orgId, third.started.projectRunId)).toMatchObject({
+      availability: 'unavailable', kind: null, unavailableReason: 'unsupported-deliverable' });
+  });
 });

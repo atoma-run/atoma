@@ -172,6 +172,11 @@ function packageMainEntry(workspaceRoot: string): string | null {
   }
 }
 
+/** The same test every Node entry candidate passes, for a caller holding one. */
+export function usableNodeEntry(workspaceRoot: string, candidate: string): string | null {
+  try { return usableEntry(workspaceRoot, normalizeArtifactPath(candidate)); } catch { return null; }
+}
+
 function usableEntry(workspaceRoot: string, candidate: string | null): string | null {
   if (candidate === null) return null;
   // `node <entry>` is the ONLY start command a preview will ever run (design

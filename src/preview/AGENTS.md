@@ -139,6 +139,12 @@ very directory EMPTY before copying from it.
   ending `.js`/`.mjs`/`.cjs`, because `node <entry>` is the ONLY start command
   for a web application preview — an entry node cannot execute is `not-runnable`,
   reported now, rather than a crash the member has to interpret later.
+- A run whose own manifest holds NO evidence (`unsupported-deliverable`)
+  inherits its seed run's `node` descriptor when that entry is still a usable
+  file in its delivered workspace (`recordDeliveredPreview`). A Compute export
+  carries only publishable files, so the manifest never reaches the next seed:
+  Attica runs that did not restart their server were unpreviewable (2026-10-22).
+  Only the host-written seed descriptor and a host file check are read.
 - The answer is TOTAL: every delivered run gets a descriptor, available with a
   kind or unavailable with a bounded reason. A control that fails after the
   click is worse than a stated absence.

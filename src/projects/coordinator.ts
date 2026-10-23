@@ -291,6 +291,13 @@ export interface DeliveredPreviewSubject {
   readonly projectId: string;
   readonly projectRunId: string;
   readonly workspaceRoot: string;
+  /**
+   * The delivered run this workspace was seeded from, when it was one. Its
+   * host-written descriptor is evidence a run with no observation of its own
+   * may inherit (`recordDeliveredPreview`): a Compute export carries only
+   * publishable files, so the probe manifest never reaches the next seed.
+   */
+  readonly seedRunId?: string;
 }
 
 /** One run allowed through the subscription-transport door. */
@@ -2524,7 +2531,10 @@ export class ProjectRunCoordinator {
       const fileDelivery = built.manifest.delivery !== 'text' && built.manifest.files.length > 0;
       if (this.describeDeliveredPreview && !landed && fileDelivery) {
         try {
+          // Read fresh: the seed is recorded after reservation, once resolved.
+          const seed = this.store.getProjectRun(reservedRun.orgId, reservedRun.projectRunId)?.seed;
           this.describeDeliveredPreview({
+            ...(seed?.kind === 'run' ? { seedRunId: seed.runId } : {}),
             orgId: reservedRun.orgId,
             projectId: reservedRun.projectId,
             projectRunId: reservedRun.projectRunId,

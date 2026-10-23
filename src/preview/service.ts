@@ -1,11 +1,12 @@
 import {
   previewSummarySchema,
+  type PreviewClassification,
   type PreviewDescriptor,
   type PreviewInstance,
   type PreviewSummary,
 } from '../contracts/preview.js';
 import type { DeliveredPreviewSubject } from '../projects/coordinator.js';
-import { buildPreviewDescriptor } from './descriptor.js';
+import { buildPreviewDescriptor, usableNodeEntry } from './descriptor.js';
 import { effectiveEgressHosts, PreviewStore } from './store.js';
 
 /**
@@ -37,16 +38,39 @@ export function recordDeliveredPreview(
   subject: DeliveredPreviewSubject,
   now?: Date
 ): PreviewDescriptor {
-  return store.putDescriptor(
-    buildPreviewDescriptor({
-      orgId: subject.orgId,
-      projectId: subject.projectId,
-      projectRunId: subject.projectRunId,
-      workspaceRoot: subject.workspaceRoot,
-      ...(subject.remoteClassification ? { remoteClassification: subject.remoteClassification } : {}),
-      ...(now ? { now } : {}),
-    })
-  );
+  const build = (remoteClassification?: PreviewClassification) => buildPreviewDescriptor({
+    orgId: subject.orgId,
+    projectId: subject.projectId,
+    projectRunId: subject.projectRunId,
+    workspaceRoot: subject.workspaceRoot,
+    ...(remoteClassification ? { remoteClassification } : {}),
+    ...(now ? { now } : {}),
+  });
+  const observed = build(subject.remoteClassification);
+  return store.putDescriptor(inheritSeedDescriptor(store, subject, observed) ?? observed);
+}
+
+/**
+ * A run that recorded no observation of its own inherits its seed's Node entry.
+ *
+ * Only `unsupported-deliverable` qualifies: that reason means the run's probe
+ * manifest held no HTTP and no browser evidence at all, never that evidence
+ * pointed elsewhere (`not-runnable`, a static page). A Compute export carries
+ * only publishable files, so `.atoma-probes.json` never reaches the next seed
+ * and every run that did not restart the server itself was classified
+ * unsupported (Attica 84ae80d1, 7bbae0dc, 695faae8, 2026-10-22). The seed's
+ * descriptor is host-written and immutable, and the entry must still be a
+ * usable file in THIS delivered workspace, checked by the host; nothing a model
+ * wrote is read. A static seed needs no inheritance: its `index.html` already
+ * classifies from the files.
+ */
+function inheritSeedDescriptor(store: PreviewStore, subject: DeliveredPreviewSubject,
+  observed: PreviewDescriptor): PreviewDescriptor | null {
+  if (!subject.seedRunId || observed.availability !== 'unavailable' || observed.unavailableReason !== 'unsupported-deliverable') return null;
+  const seed = store.getDescriptor(subject.orgId, subject.seedRunId);
+  if (seed?.projectId !== subject.projectId || seed.availability !== 'available' || seed.kind !== 'node' || !seed.entry) return null;
+  const entry = usableNodeEntry(subject.workspaceRoot, seed.entry);
+  return entry ? { ...observed, availability: 'available', kind: 'node', entry, unavailableReason: null } : null;
 }
 
 /**
