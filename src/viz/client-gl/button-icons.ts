@@ -16,7 +16,9 @@ export const BUTTON_ICON_PATHS = {
   link: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
   user: 'M16 7A4 4 0 1 1 8 7A4 4 0 1 1 16 7 M4 21V19a8 8 0 0 1 16 0V21',
   logout: 'M10 3H4V21H10 M10 12H21 M16 7L21 12L16 17',
-  bell: 'M5 17H19L17 14V9A5 5 0 0 0-10 0V14Z M10 21H14',
+  bell: 'M5 17H19L17 14V9A5 5 0 0 0 7 9V14Z M10 21H14',
+  flag: 'M5 21V4 M5 4H19L16 8.5L19 13H5',
+  checklist: 'M3 6L5 8L9 4 M12 6H21 M3 13L5 15L9 11 M12 13H21 M3 20L5 22L9 18 M12 20H21',
   clock: 'M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12 M12 6V12L16 14',
   play: 'M7 4L20 12L7 20Z',
   stop: 'M5 5H19V19H5Z',
@@ -54,8 +56,8 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'sentinel.section.watch') return 'clock';
   if (id === 'sentinel.section.assayer') return 'check';
   if (id === 'sentinel.section.coverage') return 'play';
-  if (id === 'sentinel.section.rules') return 'settings';
-  if (id === 'sentinel.section.findings') return 'bell';
+  if (id === 'sentinel.section.rules') return 'checklist';
+  if (id === 'sentinel.section.findings') return 'flag';
   if (id === 'project.section.result') return 'file';
   if (id === 'project.section.settings') return 'settings';
   if (id === 'deployment.choose.none') return 'file';

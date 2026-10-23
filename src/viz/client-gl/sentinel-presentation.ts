@@ -18,8 +18,8 @@ export const SENTINEL_SECTION_ICONS: Record<SentinelSection, ButtonIconKind> = {
   watch: 'clock',
   assayer: 'check',
   coverage: 'play',
-  rules: 'settings',
-  findings: 'bell',
+  rules: 'checklist',
+  findings: 'flag',
 };
 
 export interface SentinelTab {
