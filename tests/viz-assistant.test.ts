@@ -96,6 +96,51 @@ it('inserts a newline with Shift+Enter and sends the complete draft once with En
   expect(screen.queryByRole('status', { name: 'Working…' })).not.toBeInTheDocument();
 });
 
+it('shows the sent message before typing starts and replaces it with the saved copy without duplication', async () => {
+  const data = view();
+  let finish!: (result: AssistantView) => void;
+  const request = vi.spyOn(api, 'assistantRequest').mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const { client } = panel(data);
+  await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
+  await userEvent.type(screen.getByRole('textbox'), 'Why did the run fail?');
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  const log = screen.getByRole('log');
+  expect(within(log).getAllByText('Why did the run fail?')).toHaveLength(1);
+  expect(log.firstElementChild).toHaveTextContent('Why did the run fail?');
+  expect(log.lastElementChild).toHaveClass('gpu-assistant-typing');
+  const requestId = request.mock.calls[0]![0].requestId;
+  const saved: AssistantView = { ...data, busy: true, conversation: { ...data.conversation, version: 1, lastRequestId: requestId,
+    messages: [{ id: crypto.randomUUID(), role: 'user', origin: 'atoma', text: 'Why did the run fail?', at: new Date().toISOString() }] } };
+  await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], saved); });
+  expect(within(log).getAllByText('Why did the run fail?')).toHaveLength(1);
+  await act(async () => { finish({ ...saved, busy: false }); });
+  expect(within(log).getAllByText('Why did the run fail?')).toHaveLength(1);
+  expect(screen.queryByRole('status', { name: 'Working…' })).not.toBeInTheDocument();
+});
+
+it('does not confuse a repeated prompt with its earlier saved copy', async () => {
+  const data = view();
+  const earlier = { id: crypto.randomUUID(), role: 'user' as const, text: 'Try again', at: '2026-10-18T10:00:00.000Z' };
+  data.conversation.messages = [earlier];
+  let finish!: (result: AssistantView) => void;
+  const request = vi.spyOn(api, 'assistantRequest').mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const { client } = panel(data);
+  await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
+  await userEvent.type(screen.getByRole('textbox'), 'Try again');
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  const log = screen.getByRole('log');
+  expect(within(log).getAllByText('Try again')).toHaveLength(2);
+  const requestId = request.mock.calls[0]![0].requestId;
+  const claimed: AssistantView = { ...data, busy: true, conversation: { ...data.conversation, version: 1, lastRequestId: requestId } };
+  await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], claimed); });
+  expect(within(log).getAllByText('Try again')).toHaveLength(2);
+  const saved: AssistantView = { ...claimed, conversation: { ...claimed.conversation, messages: [earlier,
+    { id: crypto.randomUUID(), role: 'user', text: 'Try again', at: new Date().toISOString() }] } };
+  await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], saved); });
+  expect(within(log).getAllByText('Try again')).toHaveLength(2);
+  await act(async () => { finish({ ...saved, busy: false }); });
+});
+
 it('keeps the typing indicator and disabled composer while a server-side reply is pending', async () => {
   const data = { ...view(), busy: true };
   const { client } = panel(data);
@@ -253,12 +298,32 @@ it('renders raw model HTML literally and preserves a failed draft for correction
   await userEvent.click(screen.getByRole('button', { name: 'Send' }));
   expect(screen.getByRole('textbox')).toHaveValue('');
   expect(screen.getByRole('textbox')).toBeDisabled();
+  expect(within(screen.getByRole('log')).getByText('Keep my draft')).toBeVisible();
   expect(screen.getByRole('status', { name: 'Working…' })).toBeVisible();
   await act(async () => { fail(new Error('Try again')); });
   expect(await screen.findByRole('alert')).toHaveTextContent('Try again');
   expect(screen.getByRole('textbox')).toHaveValue('Keep my draft');
   expect(screen.getByRole('textbox')).toBeEnabled();
+  expect(within(screen.getByRole('log')).queryByText('Keep my draft')).not.toBeInTheDocument();
   expect(screen.queryByRole('status', { name: 'Working…' })).not.toBeInTheDocument();
+});
+
+it('keeps a saved message in the chat when the response is lost', async () => {
+  const data = view();
+  let fail!: (error: Error) => void;
+  const request = vi.spyOn(api, 'assistantRequest').mockImplementation(() => new Promise((_resolve, reject) => { fail = reject; }));
+  panel(data);
+  await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
+  await userEvent.type(screen.getByRole('textbox'), 'Check the failed run');
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  const requestId = request.mock.calls[0]![0].requestId;
+  const saved: AssistantView = { ...data, conversation: { ...data.conversation, version: 1, lastRequestId: requestId,
+    messages: [{ id: crypto.randomUUID(), role: 'user', origin: 'atoma', text: 'Check the failed run', at: new Date().toISOString() }] } };
+  vi.mocked(api.assistant).mockResolvedValue(saved);
+  await act(async () => { fail(new Error('Response lost')); });
+  expect(await screen.findByRole('alert')).toHaveTextContent('Response lost');
+  expect(within(screen.getByRole('log')).getAllByText('Check the failed run')).toHaveLength(1);
+  expect(screen.getByRole('textbox')).toHaveValue('');
 });
 
 it('shows refreshing relative message ages with the exact timestamp available on hover', async () => {

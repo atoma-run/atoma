@@ -18,6 +18,20 @@ interface Props {
   onSettings: (tab: 'subscriptions' | 'keys') => void; onScopeChange: (id: string) => void; onProject: (id: string) => void; onRun: (run: AssistantRun, traceId: string | null) => void;
 }
 
+interface OptimisticMessage {
+  requestId: string;
+  scopeKey: string;
+  projectId: string | null;
+  text: string;
+  at: string;
+  knownMessageIds: ReadonlySet<string>;
+}
+
+function isRecordedMessage(message: OptimisticMessage, view: AssistantView | undefined): boolean {
+  return view?.conversation.lastRequestId === message.requestId && view.conversation.messages.some(saved =>
+    saved.role === 'user' && saved.text === message.text && !!saved.id && !message.knownMessageIds.has(saved.id));
+}
+
 /**
  * Selectable conversation and native inputs INSIDE the Projects guide card
  * (owner, 2026-10-09): the guide's contextual title is the card's, this is
@@ -36,6 +50,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [copied, setCopied] = useState(false);
   const [draft, setDraft] = useState('');
+  const [optimistic, setOptimistic] = useState<OptimisticMessage | null>(null);
   const modelPreferenceKey = `atoma.viz.assistant-model:${encodeURIComponent(scopeKey)}`;
   const [selection, setSelection] = useState<string | null>(() => {
     try { return localStorage.getItem(modelPreferenceKey); } catch { return null; }
@@ -53,6 +68,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   // textarea stealing focus from the canvas on every visit would be a defect.
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const conversation = query.data?.conversation;
+  const visibleOptimistic = optimistic?.scopeKey === scopeKey && optimistic.projectId === projectId &&
+    !isRecordedMessage(optimistic, query.data) ? optimistic : null;
   const hasUsage = (conversation?.inputTokens ?? 0) > 0 || (conversation?.outputTokens ?? 0) > 0;
   useEffect(() => {
     conversationId.current = conversation?.id ?? undefined;
@@ -64,7 +81,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   const waiting = busy || query.data?.busy === true;
   const active = useGpuStore(state => !state.selectedProjectId || state.projectSection === 'conversation');
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; },
-    [conversation?.messages.at(-1)?.id ?? conversation?.messages.length, query.data?.run?.status, waiting, active]);
+    [conversation?.messages.at(-1)?.id ?? conversation?.messages.length, visibleOptimistic?.requestId, query.data?.run?.status, waiting, active]);
   const proposal = conversation?.proposal;
   // A start's read runs, as saved; Approve echoes exactly these back.
   const readRunIds = proposal?.action.kind === 'start_run' ? proposal.action.readRunIds ?? [] : [];
@@ -86,10 +103,12 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   // No exchange yet. A run started elsewhere does not make the conversation
   // tall: the card keeps its natural height, the result card or the live
   // status included (2026-10-12: a full-height empty log above "running").
-  const quiet = !waiting && older.length === 0 && !conversation?.messages.length && !before &&
+  const quiet = !waiting && !visibleOptimistic && older.length === 0 && !conversation?.messages.length && !before &&
     (!proposal || proposal.state === 'done');
   const finishedRun = shownRun && ['delivered', 'partial', 'failed', 'cancelled'].includes(shownRun.status) ? shownRun : null;
-  const messages = [...older, ...(conversation?.messages ?? [])];
+  const messages = [...older, ...(conversation?.messages ?? []), ...(visibleOptimistic
+    ? [{ id: visibleOptimistic.requestId, role: 'user' as const, text: visibleOptimistic.text, at: visibleOptimistic.at }]
+    : [])];
   const endedAtMs = finishedRun?.endedAt ? Date.parse(finishedRun.endedAt) : NaN;
   const firstLaterMessage = Number.isFinite(endedAtMs) ? messages.findIndex(message => Date.parse(message.at) > endedAtMs) : -1;
   const resultPosition = firstLaterMessage < 0 ? messages.length : firstLaterMessage;
@@ -143,21 +162,33 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
           ...(readRunIds.length ? { readRunIds } : {}) };
     pending.current = request;
     const submittedDraft = draft;
-    if (kind === 'message') setDraft('');
+    const submittedMessage: OptimisticMessage | null = request.kind === 'message'
+      ? { requestId: request.requestId, scopeKey, projectId, text: request.text,
+        at: new Date().toISOString(), knownMessageIds: new Set(conversation.messages.flatMap(message => message.id ? [message.id] : [])) }
+      : null;
+    if (submittedMessage) {
+      setOptimistic(submittedMessage);
+      setDraft('');
+    }
     setBusy(true); setError(null);
     try {
       const result = await api.assistantRequest(request);
       if (!mounted.current) return;
       client.setQueryData<AssistantView>(queryKey, result);
+      if (kind === 'message') setOptimistic(null);
       pending.current = null;
       void client.invalidateQueries({ queryKey: ['viz', 'projects'] });
       void client.invalidateQueries({ queryKey: ['viz', 'project'] });
       void client.invalidateQueries({ queryKey: ['viz', 'runs'] });
     } catch (failure) {
       if (mounted.current) {
-        if (kind === 'message') setDraft(submittedDraft);
         setError(failure instanceof Error ? failure.message : t('assistant.failed'));
         const refreshed = await query.refetch();
+        const recorded = submittedMessage !== null && isRecordedMessage(submittedMessage, refreshed.data);
+        if (submittedMessage && !refreshed.data?.busy) {
+          setOptimistic(null);
+          if (!recorded) setDraft(submittedDraft);
+        }
         // A received request has already spent its allowance, including a failed model response.
         if (refreshed.data?.conversation.lastRequestId === request.requestId && !refreshed.data.busy) pending.current = null;
       }
