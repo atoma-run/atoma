@@ -909,7 +909,11 @@ async function networkLink() {
   const wss = new WebSocketServer({ server: front });
   const links: { incoming: WebSocket; outgoing: WebSocket }[] = [];
   let filter: (direction: 'up' | 'down', text: string, connection: number) => boolean = () => true;
+  let offline = false, refused = 0;
   wss.on('connection', incoming => {
+    // A proxy that is down refuses the upgrade outright: the client sees a
+    // failed candidate and keeps retrying under its unchanged lease.
+    if (offline) { refused++; incoming.terminate(); return; }
     const outgoing = new WebSocket(url, incoming.protocol || undefined, { ca: readFileSync(join(root, 'cert'), 'utf8') });
     const link = { incoming, outgoing }, number = links.push(link);
     const queued: string[] = [];
@@ -932,18 +936,27 @@ async function networkLink() {
   return { url: `wss://127.0.0.1:${address.port}/compute/v1`, links,
     filter(value: typeof filter) { filter = value; },
     cut() { for (const { incoming, outgoing } of links) { incoming.terminate(); outgoing.terminate(); } },
+    /** Both legs close at once (code 1006 on both peers) and no upgrade is served until the proxy is back. */
+    restart(downMs: number) {
+      offline = true;
+      for (const { incoming, outgoing } of links) { incoming.terminate(); outgoing.terminate(); }
+      setTimeout(() => { offline = false; }, downMs).unref();
+    },
+    refused: () => refused,
     async close() {
       for (const { incoming, outgoing } of links) { incoming.terminate(); outgoing.terminate(); }
       wss.close(); await new Promise<void>(resolve => front.close(() => resolve()));
     } };
 }
-async function migratingClient(linkUrl: string, execute: (command: WorkspaceCommand) => Promise<WorkspaceReply>) {
+async function migratingClient(linkUrl: string, execute: (command: WorkspaceCommand) => Promise<WorkspaceReply>,
+  tools?: { has(name: string): boolean; execute(name: string, args: unknown): Promise<unknown>; drain(): Promise<void> }) {
   const owner = actor(), paired = pairing(owner), p = project(owner), lines: string[] = [];
   devices.grantProject(owner, paired.deviceId, p.projectId, true);
   devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
   const runId = run(owner, p.projectId), execution = { runId, generation: 1 }, stop = vi.fn(async () => {});
   const client = await connectComputeWorkspace({ url: linkUrl, credential: paired.credential, machineId: paired.deviceId, capabilities,
-    execution, execute, ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: stop, diagnostic: line => lines.push(line) });
+    execution, execute, ...(tools ? { tools } : {}),
+    ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: stop, diagnostic: line => lines.push(line) });
   devices.assign(owner, client.session, runId, resources);
   return { owner, paired, client, execution, stop, lines, peer: peers.at(-1)! };
 }
@@ -1181,6 +1194,38 @@ it('preserves an in-flight non-idempotent effect across TLS migration to a separ
     child.send('close'); expect((await exited)[0]).toBe(0);
     expect(messages.filter(message => message.kind === 'stopped')).toHaveLength(1);
   } finally { if (child.exitCode === null) child.kill('SIGTERM'); await exited; await link.close(); }
+});
+
+// Run b0a6c063 (2026-10-23): an unattended nginx upgrade restarted the proxy
+// for five seconds. Both ends saw close 1006 in the same millisecond with a
+// tool invocation 17 s in flight; the legacy client confirmed a stop and the
+// run failed. The resumable transport rides it out: the device retries under
+// its unchanged 30-second lease, resumes the same session, and the in-flight
+// tool result lands once, with no stop and no second execution.
+it('rides out a proxy restart that closes both ends with a tool invocation in flight', async () => {
+  const link = await networkLink();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const invoke = vi.fn(async (): Promise<unknown> => { await gate; return { ok: true, bytes: 7 }; });
+  const execute = vi.fn(async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }));
+  const f = await migratingClient(link.url, execute, { has: () => true, execute: invoke, drain: async () => {} });
+  try {
+    const result = f.peer.requestTool(f.execution, { method: 'invoke', name: 'write_file', args: { path: 'proof.txt', content: 'retained' } });
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledOnce());
+    link.restart(1500);
+    await vi.waitFor(() => expect(f.lines.some(line => line.includes('transport-interrupted'))).toBe(true), { timeout: 4000 });
+    release();
+    await expect(result).resolves.toEqual({ ok: true, bytes: 7 });
+    await vi.waitFor(() => expect(f.lines.some(line => line.includes('transport-resumed'))).toBe(true), { timeout: 6000 });
+    expect(link.refused()).toBeGreaterThan(0);
+    expect(invoke).toHaveBeenCalledOnce(); expect(f.stop).not.toHaveBeenCalled();
+    expect(peers).toHaveLength(1); expect(f.peer.signal.aborted).toBe(false);
+    expect(gateway.connectionFor(f.client.session)).toBe(f.peer);
+    expect(f.lines.join('')).not.toContain('socket-close'); expect(f.lines.join('')).not.toContain('stop-confirmed');
+    // The same session keeps serving after the proxy is back.
+    await expect(f.peer.requestTool(f.execution, { method: 'invoke', name: 'write_file', args: { path: 'again.txt', content: 'x' } })).resolves.toEqual({ ok: true, bytes: 7 });
+    expect(invoke).toHaveBeenCalledTimes(2);
+  } finally { release(); await f.client.close(); await link.close(); }
 });
 
 it('survives another network loss during the resume handshake without losing the pending result', async () => {
