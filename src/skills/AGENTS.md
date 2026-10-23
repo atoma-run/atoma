@@ -247,7 +247,14 @@ by owner decision on 2026-09-26
   always runs through the validated loop. Enforced since 2026-09-26; before,
   only the earned-run wait kept such a script from running unwatched. Never
   manufacture a fallback after trust was already lost.
-- Event-recovery skills match failure classes mid-run and carry zero LLM cost.
+- Event-recovery skills retrieve candidates mechanically mid-run. Before injection,
+  one bounded Decision recipe selection sees the rejection, current task and body;
+  absent, uncertain or failed selection omits optional guidance without a model
+  fallback. Exact candidate/event answers are reused across branches of the loop.
+  Guidance for an earlier rejection is retired when the failure changes, while
+  historical trace citations remain intact; it never stacks across failure classes.
+  Selection never changes work validation or skill credit. This replaces treating
+  lexical overlap as established failure-class fit (Attica 2428, 2026-10-23).
   Their triggers describe reusable failure classes, never task themes; they
   are excluded from compilation and its curriculum targets.
 - `skills drop`, `merge`, `reset`, `forgive`, and review are operator-only

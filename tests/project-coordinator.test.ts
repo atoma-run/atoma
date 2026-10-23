@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { withPreviousRunInputs } from '../src/run/taskInputs.js';
 import { RunCheckpointStore, checkpointWorkspaceDigest } from '../src/run/checkpoint.js';
 import type { RunCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { realpathSync } from 'node:fs';
@@ -750,6 +751,8 @@ describe('ProjectRunCoordinator', () => {
       mkdirSync(env['ATOMA_RUNS_DIR']!, { recursive: true });
       writeFileSync(join(workspace, 'index.html'), '<h1>Saved</h1>');
       const resuming = options.extraArgs?.includes('--resume');
+      expect(withPreviousRunInputs({ description: options.goal }, env).inputs?.['repositoryPreparation'])
+        .toMatchObject({ mode: resuming ? 'resume' : 'synchronize', status: 'no_anchor', baseSha: repositoryBase.commitSha });
       if (!resuming) {
         expect(options.extraArgs).toContain('--checkpoint');
         const data: RunCheckpoint = { version: 1, id, goal: options.goal, workspace: realpathSync(workspace), policy: '{}',

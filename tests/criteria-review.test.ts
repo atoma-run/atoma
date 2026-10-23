@@ -368,6 +368,20 @@ describe('root review disagreement on observed evidence', () => {
 
 
 describe('refused criterion disagreements reach remediation', () => {
+  it('does not let a holistic approval discharge a missing temporal assertion', async () => {
+    const ctx = makeCtx();
+    const required = [{ id: 'c1', behaviour: 'Refresh rows and retain errors without a transient stale overwrite', check: { kind: 'review' as const } }];
+    const reason = 'Final fresh rows cannot exclude an old response rendering before them. Assert after consumption while fresh response is blocked.';
+    ctx.llm.enqueue(reply([{ id: 'c1', met: true, reason: 'Suite passed' }]));
+    ctx.llm.enqueue(reply([{ id: 'c1', met: false, reason }], false));
+    const original = { description: required[0]!.behaviour, criteria: phaseCriteriaOf(required, 'user') };
+    const verdict = await acceptRootResult({ actor, task: original, result, ctx, floor: [], phaseCoverage: [],
+      checklist: required, checklistOrigin: { source: 'user' } });
+    expect(verdict.approved).toBe(false);
+    expect(verdict.checklist?.[0]?.judgement?.met).toBe(false);
+    expect(remediationTask(original, verdict).criteria).toEqual(original.criteria);
+    expect(ctx.llm.calls).toHaveLength(2);
+  });
   const fixture = JSON.parse(readFileSync(new URL('./fixtures/attica-criterion-disagreement-2026-10-21.json', import.meta.url), 'utf8')) as {
     goal: string;
     checklist: Array<{ id: string; behaviour: string; check: { kind: 'review' } }>;

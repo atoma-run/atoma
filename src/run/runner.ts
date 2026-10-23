@@ -263,6 +263,9 @@ function machineRunStats(
     learnedEventSkills: signals['learned-event-skill'],
     promotions: signals.promotion,
     refusals: signals.refusal,
+    planRefusals: signals['plan-refusal'],
+    resultRefusals: signals['result-refusal'],
+    acceptanceRefusals: signals['acceptance-refusal'],
     compileErrors: signals['compile-error'],
     demotions: signals.demotion,
     dispatchFallbacks: signals['dispatch-fallback'],
@@ -1064,6 +1067,9 @@ async function startTaskInternal(
     'learned-event-skill': 0,
     promotion: 0,
     refusal: 0,
+    'plan-refusal': 0,
+    'result-refusal': 0,
+    'acceptance-refusal': 0,
     'compile-error': 0,
     demotion: 0,
     'dispatch-fallback': 0,
@@ -1469,7 +1475,9 @@ async function startTaskInternal(
     ...(savedCheckpoint?.root?.inputs ? { inputs: savedCheckpoint.root.inputs }
       : routingRepository ? { inputs: { startingRepository: routingRepository } } : {}),
   };
-  const withLanding = withPreviousRunInputs(builtTask, process.env, connectorLaunch, readRuns);
+  const withLanding = withPreviousRunInputs({ ...builtTask, inputs: { ...builtTask.inputs,
+    workspacePreparation: { dependencies: args.resume ? 'preserved-unverified' : seedRoot ? 'excluded-from-seed' : 'unverified' },
+  } }, process.env, connectorLaunch, readRuns);
   const task = args.depth ? {
     ...withLanding,
     proofFloor: DEPTH_CONTRACT.floor.map((item) => ({ ...item })),

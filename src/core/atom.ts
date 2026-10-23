@@ -122,6 +122,11 @@ export abstract class Atom {
     return this.injectedContext;
   }
 
+  /** Retire attempt-local guidance without changing persisted prompts or past trace citations. */
+  removeContext(id: string): void {
+    this.injectedContext = this.injectedContext.filter(block => block.id !== id);
+  }
+
   /**
    * Build the request envelope so every atom `complete()` carries role,
    * actor, the folded prompt, and the cited injects. Call sites pass only

@@ -112,6 +112,10 @@ Neighbours:
 
 ## The analyst
 
+- The digest retains the last twelve completed review responses independently
+  of cost, plus review counts. A missing response stays unknown, and an unfinished
+  subsequent plan cannot erase the last refusal. Review responses remain untrusted.
+
 - TWO CORPORA, like the sentinel: the operator index through the bounded
   reader, and every ENDED project run through `ProjectStore.listFinishedRunTraces`
   (`ended_at` is the transactional fact). A project verdict's row carries

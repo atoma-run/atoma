@@ -4,7 +4,7 @@ import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import type Database from 'better-sqlite3';
 import { openStoreHandle } from '../core/stores.js';
 import type { ProjectRun } from '../contracts/projects.js';
-import type { ComputeResources, ComputeSession } from '../contracts/computeDevice.js';
+import type { ComputeResources, ComputeSession, ComputeRunProgress } from '../contracts/computeDevice.js';
 import type { ProjectRunDriver } from './coordinator.js';
 import type { ComputeDeviceStore } from './computeDevices.js';
 import type { ComputeConnection } from './computeConnection.js';
@@ -70,6 +70,14 @@ export class ComputeDispatcher {
     devices: ComputeDeviceStore; journal: ComputeDispatchStore; resources: ComputeResources;
     connectionFor: (session: ComputeSession) => ComputeConnection | undefined;
   }) {}
+  progress(run: ProjectRun): ComputeRunProgress | null {
+    if (run.executionTarget.kind !== 'customer-device' || run.status !== 'running') return null;
+    const record = this.options.journal.inspect(run.projectRunId);
+    if (!record) return null;
+    if (record.phase !== 'interrupted') return record.phase;
+    return this.options.devices.confirmedStop(run.executionTarget.deviceId, run.projectRunId, record.generation)
+      ? 'stopped' : 'stop-confirmation-pending';
+  }
   readiness(run: ProjectRun) {
     let admission;
     try { admission = this.options.devices.admission({ orgId: run.orgId, principalId: run.requestedByPrincipalId }, run.projectRunId, this.options.resources); }

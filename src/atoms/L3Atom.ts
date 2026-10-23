@@ -727,6 +727,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         return { plan: pending, review: verdict.delegationReview, model };
       }
       failure = verdict.reasoning;
+      ctx.recordRunStat?.('plan-refusal');
       if (verdict.delegationRefusal === 'reviewer') {
         reviewerFault = true;
         ctx.logger.warn(`[l3] delegation reviewer failed (${verdict.reasoning.slice(0, 200)}); reviewing the same plan on ${this.validationModel}`);

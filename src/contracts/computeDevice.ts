@@ -35,6 +35,10 @@ export const computeAssignmentSchema = z.object({
 }).strict();
 export type ComputeAssignment = z.infer<typeof computeAssignmentSchema>;
 
+/** Read-only execution progress; never a lease-release authorization. */
+export const computeRunProgressSchema = z.enum(['executing', 'finalizing', 'transferred', 'stop-confirmation-pending', 'stopped']);
+export type ComputeRunProgress = z.infer<typeof computeRunProgressSchema>;
+
 export const computeAdmissionSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('ready'), session: computeSessionSchema }).strict(),
   z.object({ status: z.literal('waiting'), reason: z.enum([

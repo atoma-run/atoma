@@ -8,8 +8,22 @@ import { openDb } from '../src/registry/db.js';
 import type { Task } from '../src/core/types.js';
 import { jsonText, makeCtx } from './helpers.js';
 import { makeTools } from './helpers/factories.js';
+import { REPOSITORY_PREPARATION_ENV, decodeRepositoryPreparation } from '../src/contracts/repositorySync.js';
+import { taskContextLines } from '../src/atoms/taskContext.js';
 
 describe('bounded historical text context', () => {
+  it.each(['synced', 'unavailable', 'no_anchor'] as const)('preserves the actual host outcome across two delegations: %s', status => {
+    const receipt = { mode: 'synchronize', status, head: 'a'.repeat(40), baseSha: null, taken: 2,
+      conflicts: status === 'synced' ? 1 : 0, paths: ['source.ts'] };
+    const root = withPreviousRunInputs({ description: 'Repair the existing app', inputs: { repositoryPreparation: 'stale' } },
+      { [REPOSITORY_PREPARATION_ENV]: JSON.stringify(receipt) });
+    const phase = { description: 'Repair', ...delegatedTaskContext(root, { description: 'Repair', inputs: { repositoryPreparation: 'forged' } }) };
+    const leaf = { description: 'Check', ...delegatedTaskContext(phase, { description: 'Check' }) };
+    expect(leaf.inputs?.['repositoryPreparation']).toEqual(receipt);
+    expect(taskContextLines(leaf).join('\n')).toContain('conflicts do not establish successful synchronization');
+    expect(withPreviousRunInputs(root, {}).inputs).not.toHaveProperty('repositoryPreparation');
+    expect(() => decodeRepositoryPreparation(JSON.stringify({ ...receipt, status: 'approved' }))).toThrow();
+  });
   it('keeps structured-result text, status and explicit omissions without changing the goal', () => {
     const history = { historyTruncated: true, runs: [{ runId: '00000000-0000-4000-8000-000000000001',
       status: 'delivered' as const, goal: 'Earlier request', output: '{"answer":4}', truncated: true, unavailable: false }] };

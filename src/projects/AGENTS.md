@@ -683,6 +683,12 @@ acceptance, publication or the immutable child trace.
 
 ## Intentional choices and rejected shortcuts
 
+- Launch passes a bounded `repositoryPreparation` receipt from persisted host
+  preparation to the runner. Snapshot import, synchronization, selected versions,
+  comparisons and resumes remain distinct; unknown outcomes never become success.
+  Compute progress is a read-only projection of the dispatch journal and exact
+  stop acknowledgement. `stop-confirmation-pending` never releases the slot.
+
 - The project learning reader shares one org-authorized body across HTTP/MCP, including deferred-worker ledger provenance. Read-only, bounded and explicit about coverage: [contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 - Reading egress settings, or an ollama destination, from a tenant prompt:

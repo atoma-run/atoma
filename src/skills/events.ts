@@ -1,5 +1,24 @@
 import type { Skill } from './types.js';
 import { EXISTING_FILE_RULE, READABLE_SOURCE_RULE } from '../atoms/prompts.js';
+import type { RunContext, Task } from '../core/types.js';
+
+/** A lexical candidate needs semantic fit; uncertainty simply omits optional guidance. */
+export async function eventSkillFits(skill: Skill, eventText: string, task: Task, ctx: RunContext,
+  actorName: string): Promise<boolean> {
+  if (!ctx.jev || ctx.signal.aborted) return false;
+  try {
+    const decision = await ctx.jev.choose({ question: 'recipe',
+      task: { description: `Recover only this failure within the current task. Select none when the recipe addresses a different failure class or adds unrelated verification.\nTask: ${task.description}\nOriginal request (constraints, not additional phases): ${task.originalTask?.description ?? task.description}\nObserved rejection: ${eventText}`,
+        ...(task.constraints ? { constraints: task.constraints } : {}) },
+      candidates: [{ name: skill.id, description: `${skill.description}\nTrigger: ${skill.trigger ?? ''}`, detail: skill.body }],
+      actorName, actorTier: 2, signal: ctx.signal,
+    });
+    return decision !== null && 'target' in decision && decision.target === skill.id;
+  } catch {
+    // Recovery still proceeds through supervision; no extra model fallback or retry.
+    return false;
+  }
+}
 
 /**
  * EVENT-DRIVEN SKILLS — recovery guidance matched against mid-run events.
@@ -12,13 +31,14 @@ import { EXISTING_FILE_RULE, READABLE_SOURCE_RULE } from '../atoms/prompts.js';
  * match INSIDE it, on the text of a validator rejection or an escalation
  * diagnosis, and inject recovery guidance into the retry/branch cycle.
  *
- * Matching is deliberately MECHANICAL (zero LLM): a rejection is exactly
+ * Candidate retrieval is deliberately MECHANICAL (zero LLM): a rejection is exactly
  * the moment a run is already burning budget, so the matcher must be
  * free. Trigger CONTAINMENT — the fraction of the trigger's tokens that
  * appear in the event text — fits the size asymmetry (triggers are
  * compact signatures, diagnostics are long) where Jaccard would punish
- * it. False positives inject a mildly-irrelevant hint (low blast
- * radius: guidance, not execution); false negatives are the status quo.
+ * it. A candidate still needs a bounded Decision recipe-fit answer against
+ * the rejection and current task. Uncertainty omits optional guidance, with
+ * no model fallback; it never approves or refuses the work itself.
  */
 
 /** Minimum fraction of trigger tokens present in the event text. */
@@ -116,9 +136,14 @@ export function eventSkillBlock(skill: Pick<Skill, 'id' | 'body' | 'trigger'>): 
     `== EVENT RECOVERY SKILL: ${skill.id} ==`,
     ...LEARNED_CONTENT_TRUST_BOUNDARY_LINES,
     ``,
-    `The supervisor rejected a previous attempt with a complaint matching a`,
-    `known failure pattern${skill.trigger ? ` ("${skill.trigger}")` : ''}. Apply this`,
-    `recovery guidance to the NEXT attempt:`,
+    `Lexical candidate only${skill.trigger ? ` (trigger: ${JSON.stringify(skill.trigger)})` : ''}:`,
+    `token overlap has NOT established that this recipe addresses the failure.`,
+    `Compare its preconditions with the actual rejection and task scope before`,
+    `using any step. Missing dependencies require environment preparation; they`,
+    `do not establish a behavioral regression or require rerunning every baseline.`,
+    `If the failure class differs or the recipe expands the requested checks,`,
+    `ignore it and repair the cited failure directly. Existing relevant evidence`,
+    `remains usable within its freshness; missing or disputed coverage still needs proof.`,
     ...RECIPE_STEP_LIMITS,
     ``,
     skill.body.trim(),

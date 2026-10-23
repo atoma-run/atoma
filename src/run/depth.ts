@@ -223,12 +223,13 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo, result?:
       metCriteria: (acceptance.checklist ?? []).filter((item) => item.judgement?.met === true).map((item) => item.id),
       // A fact, never a restriction: the acceptor's verdict may name another
       // reason in prose, so the pass is told to answer the refusal in full.
-      instruction: 'This is the one criterion the acceptor judged unmet. Keep the deliverables behind the criteria it judged met (metCriteria) instead of rebuilding them, and answer the whole refusal in rootAcceptanceRefusal, then re-run the checks it concerns.',
+      instruction: 'This is the one criterion the acceptor judged unmet. Keep the deliverables behind the criteria it judged met (metCriteria) instead of rebuilding them, and answer the whole refusal in rootAcceptanceRefusal, then re-run the checks it concerns. A compound criterion may contain supported behavior even when metCriteria is empty. Distinguish a missing or insufficient test from an implementation defect: repair the cited assertion/setup first without refactoring working source unless new evidence identifies a source defect. Reuse unchanged preparation and observations within their actual scope; no earlier approval overrides a later concrete counterexample.',
     },
   } : {};
   // The listing is the LATEST acceptance's: an earlier pass's never rides on.
   // So is a dependency landing's: it describes the latest pass, never an earlier one.
-  const { [EARLIER_LISTED_INPUT]: _stale, [DEPENDENCY_LANDING_INPUT]: _staleLanding, ...inputs } = task.inputs ?? {};
+  const { [EARLIER_LISTED_INPUT]: _stale, [DEPENDENCY_LANDING_INPUT]: _staleLanding,
+    rootRemediationScope: _staleScope, ...inputs } = task.inputs ?? {};
   // A criterion the acceptor judged met keeps its evidence (metCriteria):
   // the phases of a refused pass's follow-up hear only the ones it did not.
   const met = refused ? new Set((acceptance.checklist ?? []).filter((item) => item.judgement?.met === true).map((item) => item.id)) : new Set<string>();
@@ -594,6 +595,7 @@ export async function runDepthTask(args: {
               ctx.signal.removeEventListener('abort', forwardCancellation);
             }
             args.onAcceptance(acceptance);
+            if (!acceptance.approved) ctx.recordRunStat?.('acceptance-refusal');
             if (acceptance.approved) {
               // A suite nobody below judged that did not pass proved nothing of
               // the method: the delivery may stand on other evidence, its lesson does not.

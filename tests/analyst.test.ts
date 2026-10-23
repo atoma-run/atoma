@@ -149,6 +149,19 @@ function finishedTrace(): Record<string, unknown> {
 }
 
 describe('digestRun', () => {
+  it('keeps the last completed refusal even when a new plan starts before interruption', () => {
+    const trace = finishedTrace();
+    trace['events'] = [
+      ...Array.from({ length: 14 }, (_, i) => ({ kind: 'llm', id: `review-${i}`, role: 'validate-result',
+        response: JSON.stringify({ approved: i !== 13, reasoning: i === 13 ? 'Old response was not consumed before the assertion' : 'ok' }), costUsd: 0 })),
+      { kind: 'llm-start', id: 'unfinished', role: 'plan' },
+    ];
+    const { digest } = digestRun(trace as never);
+    expect(digest.completedReviewCounts).toEqual({ 'validate-result': 14 });
+    expect(digest.recentReviews).toHaveLength(12);
+    expect(digest.recentReviews.at(-1)).toMatchObject({ id: 'review-13', i: 13 });
+    expect(digest.recentReviews.at(-1)?.['response']).toContain('"approved":false');
+  });
   it('computes the status, counts kinds, keeps errors and marks truncation explicitly', () => {
     const { digest, lines } = digestRun(finishedTrace() as never);
     expect(digest.status).toBe('failed');

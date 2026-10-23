@@ -315,6 +315,7 @@ export class ProjectService {
       acceptedReferenceRunId: this.store.acceptedReference(run.orgId, run.projectId)?.projectRunId ?? null,
       awaitingClientAcceptance: run.status === 'delivered' && !run.rerunOf && !run.bytesExpiredAt && Boolean(run.artifactManifestHash)
         && publication?.status !== 'published' && !clientAcceptance,
+      computeProgress: this.coordinator.computeProgress(run),
       checkpoint: this.coordinator.checkpointStatus(run) };
   }
 

@@ -604,6 +604,11 @@ it.each(['complete', 'lost-command', 'lost-transfer'] as const)('dispatches the 
     }
     expect(driver).toHaveBeenCalledOnce();
     expect(devices.inspect(owner, paired.deviceId).assignment?.state).toBe('indeterminate');
+    const pendingRun = projects.getProjectRun(owner.orgId, receipt.projectRunId)!;
+    expect(dispatcher.progress(pendingRun)).toBe(scenario === 'lost-command' ? 'stop-confirmation-pending'
+      : scenario === 'lost-transfer' ? 'finalizing' : 'transferred');
+    // A progress read must not release a slot whose stop has not been confirmed.
+    expect(devices.inspect(owner, paired.deviceId).assignment?.state).toBe('indeterminate');
     projects.reconcileInterrupted('server restarted');
     expect(projects.getProjectRun(owner.orgId, receipt.projectRunId)?.status).toBe('running');
     if (scenario === 'lost-transfer') {

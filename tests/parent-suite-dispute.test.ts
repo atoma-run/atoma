@@ -299,9 +299,9 @@ describe('B3: surfacing in superviseLoop, routing unchanged', () => {
     expect(disputed.reasonings.every((text) => text === reasoning)).toBe(true);
 
     // Found where the loop escalated the second time: 6 runs over a, b, c, d.
-    expect(disputed.stats).toEqual(['escalation', 'escalation', 'suite-dispute']);
-    expect(control.stats).toEqual(['escalation', 'escalation']);
-    expect(older.stats).toEqual(['escalation', 'escalation']);
+    expect(disputed.stats.filter(signal => signal !== 'result-refusal')).toEqual(['escalation', 'escalation', 'suite-dispute']);
+    expect(control.stats.filter(signal => signal !== 'result-refusal')).toEqual(['escalation', 'escalation']);
+    expect(older.stats.filter(signal => signal !== 'result-refusal')).toEqual(['escalation', 'escalation']);
     expect(disputed.warnings).toHaveLength(1);
     expect(disputed.warnings[0]).toContain(`suite dispute: suite ${DIGEST.slice(0, 16)} for "${TASK.description}"`);
     expect(disputed.warnings[0]).toContain('on 4 versions of the workspace over 6 attempts');
@@ -327,7 +327,7 @@ describe('B3: surfacing in superviseLoop, routing unchanged', () => {
     const first = await supervise(SPENT, attempt);
     const again = await supervise(SPENT, attempt);
     expect(first.stats).toContain('suite-dispute');
-    expect(again.stats).toEqual(['escalation', 'escalation']);
+    expect(again.stats.filter(signal => signal !== 'result-refusal')).toEqual(['escalation', 'escalation']);
     expect(again.warnings).toEqual([]);
     expect(again.routing).toEqual(first.routing);
   });
@@ -341,7 +341,7 @@ describe('B3: surfacing in superviseLoop, routing unchanged', () => {
     expect(faulted.failures).toEqual(control.failures);
     expect(faulted.runs).toBe(control.runs);
     expect(faulted.result.spentLadder).toEqual(control.result.spentLadder);
-    expect(faulted.stats).toEqual(['escalation', 'escalation']);
+    expect(faulted.stats.filter(signal => signal !== 'result-refusal')).toEqual(['escalation', 'escalation']);
     expect(faulted.warnings).toEqual([expect.stringContaining('suite dispute detection failed; nothing counted: Error: memo unavailable')]);
   });
 });

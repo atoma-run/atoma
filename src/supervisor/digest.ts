@@ -120,6 +120,9 @@ export interface RunDigest {
   readonly kindCounts: Record<string, number>;
   readonly errorEvents: { i: number; kind: string; error: string }[];
   readonly expensiveCalls: Record<string, unknown>[];
+  /** Last completed reviews, independently of cost; an interrupted next plan cannot hide them. */
+  readonly recentReviews: Record<string, unknown>[];
+  readonly completedReviewCounts: Record<string, number>;
   /**
    * One row per Molecule execution: the ordered element names it emitted,
    * collapsed, with the skill it was handed and whether the run credited it.
@@ -147,10 +150,18 @@ export function digestRun(run: VizRun): { digest: RunDigest; lines: string[] } {
   const errorEvents: RunDigest['errorEvents'] = [];
   const costed: (Record<string, unknown> & { costUsd: number })[] = [];
   const lines: string[] = [];
+  const recentReviews: Record<string, unknown>[] = [];
+  const completedReviewCounts: Record<string, number> = {};
   events.forEach((event, index) => {
     const row = event as unknown as Record<string, unknown>;
     const kind = typeof row['kind'] === 'string' ? (row['kind']) : 'unknown';
     kindCounts[kind] = (kindCounts[kind] ?? 0) + 1;
+    if (event.kind === 'llm' && (event.role === 'validate-plan' || event.role === 'validate-result')) {
+      completedReviewCounts[event.role] = (completedReviewCounts[event.role] ?? 0) + 1;
+      recentReviews.push({ i: index, id: event.id, role: event.role, actor: event.actor,
+        response: typeof event.response === 'string' ? truncate(event.response, 4000) : null, error: event.error ?? null });
+      if (recentReviews.length > 12) recentReviews.shift();
+    }
     if (row['error'] != null) {
       errorEvents.push({ i: index, kind, error: truncate(stringifyLoose(row['error']), 600) });
     }
@@ -202,6 +213,8 @@ export function digestRun(run: VizRun): { digest: RunDigest; lines: string[] } {
     kindCounts,
     errorEvents,
     expensiveCalls: costed.slice(0, 8),
+    recentReviews,
+    completedReviewCounts,
     trajectories,
   };
   return { digest, lines };

@@ -1,4 +1,5 @@
 import { zipSync } from 'fflate';
+import { execFileSync } from 'node:child_process';
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -16,6 +17,8 @@ import { ARTIFACT_MANIFEST_PATH_ENV } from '../src/run/runner.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 import { haystackTestRuntime } from './helpers/haystack.js';
 import { FakeGitHub } from './github-api-fake.js';
+import { withPreviousRunInputs } from '../src/run/taskInputs.js';
+import { delegatedTaskContext, taskContextLines } from '../src/atoms/taskContext.js';
 
 const roots: string[] = [];
 afterEach(() => { vi.restoreAllMocks(); closeStoreHandles(); roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })); });
@@ -42,6 +45,15 @@ async function fixture(mode: 'pull-request' | 'fork', transform?: (fake: FakeGit
     const seed = options.extraArgs![seedIndex + 1]!;
     seeds.push(readFileSync(join(seed, 'index.html'), 'utf8'));
     const env = options.env!;
+    const rootTask = withPreviousRunInputs({ description: options.goal }, env);
+    const leaf = { description: 'Focused repair', ...delegatedTaskContext(rootTask, {
+      description: 'Focused repair', inputs: { repositoryPreparation: { status: 'FORGED' } },
+    }) };
+    const receipt = leaf.inputs?.['repositoryPreparation'];
+    expect(receipt).toMatchObject({ baseSha: expect.stringMatching(/^[a-f0-9]{40}$/) });
+    expect(receipt).toHaveProperty('status');
+    expect(taskContextLines(leaf).join('\n')).not.toContain('FORGED');
+    expect(JSON.stringify(receipt)).not.toContain('seedPath');
     expect(Object.values(env)).not.toContain('user-token');
     const workspace = env['ATOMA_BUILD_WORKSPACE']!;
     cpSync(seed, workspace, { recursive: true });
@@ -81,6 +93,21 @@ async function fixture(mode: 'pull-request' | 'fork', transform?: (fake: FakeGit
 }
 
 describe('existing GitHub projects through service, coordinator and publication', () => {
+  it('carries the prepared base through a real child process into the delegated task context', async () => {
+    const f = await fixture('pull-request');
+    const run = await f.start();
+    const env = f.driver.mock.calls[0]![0].env!;
+    const output = execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
+      import { withPreviousRunInputs } from './src/run/taskInputs.ts';
+      import { delegatedTaskContext, taskContextLines } from './src/atoms/taskContext.ts';
+      const root = withPreviousRunInputs({ description: 'Repair the imported app' }, process.env);
+      const child = { description: 'Focused repair', ...delegatedTaskContext(root, { description: 'Focused repair' }) };
+      process.stdout.write(JSON.stringify({ receipt: child.inputs.repositoryPreparation, prompt: taskContextLines(child).join('\\n') }));
+    `], { cwd: process.cwd(), env: { ...process.env, ATOMA_REPOSITORY_PREPARATION: env['ATOMA_REPOSITORY_PREPARATION'] }, encoding: 'utf8' });
+    const received = JSON.parse(output) as { receipt: { baseSha: string; status: string }; prompt: string };
+    expect(received.receipt).toMatchObject({ baseSha: run.repositoryBase!.commitSha, status: 'snapshot' });
+    expect(received.prompt).toContain('not a worker Git checkout');
+  });
   it.each(['fork', 'pull-request'] as const)('checks live installation access before model work in %s mode and recovers after approval', async mode => {
     const f = await fixture(mode);
     if (mode === 'fork') await f.client.createFork({ token: 'user-token', owner: 'upstream', name: 'app', targetName: 'app' });
@@ -444,6 +471,8 @@ it.each(['fork', 'pull-request'] as const)('iterates a selected imported deliver
   expect(f.seeds.at(-1)).toBe('<h1>Accepted</h1>');
   expect(prepare).not.toHaveBeenCalled();
   expect(second.repositoryBase).toEqual(first.repositoryBase);
+  expect(withPreviousRunInputs({ description: second.goal }, f.driver.mock.calls.at(-1)![0].env!).inputs?.['repositoryPreparation'])
+    .toMatchObject({ mode: 'selected-version', baseSha: first.repositoryBase!.commitSha });
   expect(second.seed).toEqual({ kind: 'run', runId: first.projectRunId });
   expect(f.projects.getPublicationForRun(f.viewer.orgId, second.projectRunId)?.status).toBe('published');
   if (mode === 'pull-request') {

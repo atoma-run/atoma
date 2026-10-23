@@ -4,6 +4,7 @@ import { decodePreviousLanding, PREVIOUS_LANDING_ENV } from '../contracts/runLan
 import { decodePreviousResults, PREVIOUS_RESULTS_ENV } from '../contracts/previousRunResults.js';
 import type { ConnectorLaunchSet } from '../contracts/mcpConnectors.js';
 import { readRunsInput, type ReadRunsIndex } from '../contracts/readRuns.js';
+import { decodeRepositoryPreparation, REPOSITORY_PREPARATION_ENV } from '../contracts/repositorySync.js';
 
 /** Host-authored context crosses the process boundary as data, never goal text. */
 export function withPreviousRunInputs(task: Task, env: NodeJS.ProcessEnv, connectors: ConnectorLaunchSet | null = null,
@@ -15,6 +16,8 @@ export function withPreviousRunInputs(task: Task, env: NodeJS.ProcessEnv, connec
   delete inputs['availableMcpServers'];
   // So do the read-run copies: this run's own launch index lists them.
   delete inputs['readRuns'];
+  delete inputs['repositoryPreparation'];
+  const repositoryPreparation = decodeRepositoryPreparation(env[REPOSITORY_PREPARATION_ENV]);
   // Identity and availability only: the URL and the credential stay in the run process.
   const availableMcpServers = connectors?.connectors.map(connector => ({
     server: connector.key, name: connector.name,
@@ -26,6 +29,7 @@ export function withPreviousRunInputs(task: Task, env: NodeJS.ProcessEnv, connec
     ...(projectContext && (projectContext.brief || projectContext.decisions.length) ? { projectContext } : {}),
     ...(landing.length ? { previousRunLanding: landing } : {}),
     ...(results ? { previousRunResults: results } : {}),
+    ...(repositoryPreparation ? { repositoryPreparation } : {}),
     ...(availableMcpServers?.length ? { availableMcpServers } : {}),
     // Where each copy is and what it holds, never its files (src/contracts/readRuns.ts).
     ...(readRuns ? { readRuns: readRunsInput(readRuns) } : {}),

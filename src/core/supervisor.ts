@@ -346,6 +346,7 @@ export async function superviseLoop<C extends Atom>(
         trace.push({ kind: 'plan', ts: now(), atom: current.name, payload: plan });
 
         const v1 = await parent.validatePlan(current, plan, task, ctx);
+        if (!v1.approved) ctx.recordRunStat?.('plan-refusal');
 
         if (!v1.approved && v1.delegationRefusal === 'reviewer') {
           // The REVIEWER failed (unfinished, unparseable or unclassified,
@@ -425,6 +426,7 @@ export async function superviseLoop<C extends Atom>(
         // other Supervisor, so an approval past a failed suite is overruled and
         // one past a suite that did not run earns no credit.
         const v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
+        if (!v2.approved) ctx.recordRunStat?.('result-refusal');
         lastResultVerdict = v2;
         trace.push({
           kind: 'verdict-result',

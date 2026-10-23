@@ -64,6 +64,8 @@ export const shellEntrySchema = z
     exitCode: z.number(),
     stdout: z.string().optional(),
     stderr: z.string().optional(),
+    replacementHistory: z.array(z.object({ cmd: z.string(), exitCode: z.number() }).strict()).max(8).optional(),
+    replacementHistoryTruncated: z.boolean().optional(),
   })
   .passthrough();
 
@@ -827,6 +829,9 @@ export function manifestWriterLines(kind: 'shell' | 'http' | 'web'): string[] {
     `is different, call record_probe on the corrected command with`,
     `supersedes:"<exact old cmd>". It removes only that stale entry AFTER the`,
     `replacement ran; do not leave a known-broken attempt in the durable set.`,
+    `replacementHistory retains replaced commands and their exits as history,`,
+    `not replay entries. Replacement never proves equal behavioral coverage;`,
+    `judge the replacement's actual assertions. Older omitted history is unknown.`,
     `manifest ACCUMULATES across phases: READ the existing file first and`,
     `merge — entries you did not write belong to EARLIER phases and must`,
     `survive your update. Never truncate or rewrite the file wholesale`,
@@ -1114,12 +1119,23 @@ export function mergeShellProbe(
       // document is not a record anyone can replay.
     }
   }
+  // Replacement changes the replay command, never establishes equal coverage.
+  // Keep the superseded outcomes visible even when the replacement is green.
+  const current = shellEntrySchema.safeParse(doc.entries.find(e => e['cmd'] === entry.cmd));
+  const prior = supersedes && supersedes !== entry.cmd
+    ? shellEntrySchema.safeParse(doc.entries.find(e => e['cmd'] === supersedes)) : undefined;
+  let recorded: z.infer<typeof shellEntrySchema> = entry;
+  const history = [...(current.success ? current.data.replacementHistory ?? [] : []),
+    ...(prior?.success ? [...(prior.data.replacementHistory ?? []), { cmd: prior.data.cmd, exitCode: prior.data.exitCode }] : [])];
+  if (history.length) recorded = { ...entry, replacementHistory: history.slice(-8),
+    replacementHistoryTruncated: (current.success && current.data.replacementHistoryTruncated === true) ||
+      (prior?.success === true && prior.data.replacementHistoryTruncated === true) || history.length > 8 };
   if (supersedes && supersedes !== entry.cmd) {
     doc.entries = doc.entries.filter((e) => e['cmd'] !== supersedes);
   }
   const i = doc.entries.findIndex((e) => e['cmd'] === entry.cmd);
-  if (i >= 0) doc.entries[i] = entry;
-  else doc.entries.push(entry);
+  if (i >= 0) doc.entries[i] = recorded;
+  else doc.entries.push(recorded);
   return JSON.stringify(doc, null, 2) + '\n';
 }
 

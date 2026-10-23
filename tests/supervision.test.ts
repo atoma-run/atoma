@@ -138,6 +138,22 @@ function makeHooks(
 }
 
 describe('superviseLoop', () => {
+  it('counts negative plans and results separately without accepting missing proof', async () => {
+    const parent = new FakeParent();
+    const child = new FakeChild('proof');
+    const refusal: Verdict = { approved: false, reasoning: 'Missing distinguishing assertion', scope: 'ephemeral', modifications: {} };
+    parent.queuePlanVerdict(refusal);
+    parent.queuePlanVerdict({ approved: true, reasoning: 'ok' });
+    parent.queueResultVerdict(refusal);
+    parent.queuePlanVerdict({ approved: true, reasoning: 'ok' });
+    parent.queueResultVerdict({ approved: true, reasoning: 'Distinguishing assertion observed' });
+    const signals: string[] = [];
+    await superviseLoop(parent, child, { description: 'prove the transition' },
+      { ...makeCtx(), recordRunStat: signal => signals.push(signal) }, makeHooks());
+    expect(signals.filter(signal => signal.endsWith('-refusal'))).toEqual(['plan-refusal', 'result-refusal']);
+    expect(child.execCount).toBe(2);
+    expect(child.planCount).toBe(3);
+  });
   it('completes when plan then result are approved', async () => {
     const parent = new FakeParent();
     const child = new FakeChild('A');

@@ -10,6 +10,7 @@ import { SkillRegistry, parseFrontmatter, renderFrontmatter } from '../src/skill
 import {
   EVENT_TRIGGER_MATCH_THRESHOLD,
   eventSkillBlock,
+  eventSkillFits,
   matchEventSkill,
   triggerContainment,
 } from '../src/skills/events.js';
@@ -138,12 +139,31 @@ describe('matchEventSkill — mechanical trigger containment', () => {
 });
 
 describe('eventSkillBlock', () => {
+  it.each(['absent', 'no-match', 'uncertain', 'deferred', 'error', 'matched'] as const)('requires semantic fit, with no extra model fallback: %s', async mode => {
+    const skill = fakeSkill({ id: 'baseline', trigger: 'missing verification evidence', body: 'Rerun all historical baselines.' });
+    const ctx = makeCtx();
+    const actual = { ...ctx, ...(mode === 'absent' ? {} : { jev: {
+      choose: async (request: import('../src/core/types.js').JevChoiceRequest) => {
+        expect(request.task.description).toContain('dependency installation failed');
+        expect(request.task.description).toContain('one focused test only');
+        expect(request.candidates[0]?.detail).toBe(skill.body);
+        if (mode === 'error') throw new Error('unavailable');
+        if (mode === 'uncertain') return null;
+        if (mode === 'deferred') return { withhold: [] };
+        return { target: mode === 'matched' ? 'baseline' : null, confidence: 0.99, decomposable: false };
+      }, approve: async () => null, twin: async () => null,
+    } }) };
+    expect(await eventSkillFits(skill, 'dependency installation failed', { description: 'one focused test only' }, actual, 'Cell')).toBe(mode === 'matched');
+    expect(ctx.llm.calls).toHaveLength(0);
+  });
   it('renders greppable delimiters distinct from ACTIVE SKILL', () => {
     const out = eventSkillBlock({ id: 'recover-x', body: 'do Y', trigger: 'pattern Z' });
     expect(out).toMatch(/== EVENT RECOVERY SKILL: recover-x ==/);
     expect(out).toMatch(/pattern Z/);
     expect(out).toMatch(/do Y/);
     expect(out).not.toMatch(/== ACTIVE SKILL/);
+    expect(out).toContain('token overlap has NOT established');
+    expect(out).toContain('ignore it and repair the cited failure directly');
   });
 });
 
@@ -226,7 +246,7 @@ describe('L2 supervise loop — event-skill injection + learning (e2e)', () => {
     ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'ok now' }));
   }
 
-  it('injects the matched event skill into the retry after a rejection', async () => {
+  it.each([true, false])('injects only a semantically fitting recovery into the retry: %s', async fits => {
     skills.save(nsOf(reg, 'Water'), {
       id: 'recover-evidence',
       description: 'paste ground-truth evidence into the summary',
@@ -236,7 +256,7 @@ describe('L2 supervise loop — event-skill injection + learning (e2e)', () => {
       body: 'On the retry: paste the verbatim run_shell output into a == GROUND TRUTH == block.',
     });
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
-    const ctx = makeCtx();
+    const ctx = { ...makeCtx(), jev: { choose: async (request: import('../src/core/types.js').JevChoiceRequest) => request.question === 'recipe' ? { target: fits ? 'recover-evidence' : null, confidence: 0.99, decomposable: false } : null, approve: async () => null, twin: async () => null } };
     // Tier prefilter picks Water. NO skill-prefilter slot: the only
     // skill is event-driven and the task prefilter must not see it.
     ctx.llm.enqueueText(
@@ -254,10 +274,10 @@ describe('L2 supervise loop — event-skill injection + learning (e2e)', () => {
     expect(ctx.llm.calls).toHaveLength(9);
     // Cycle-1 L1 calls carry no recovery block; the cycle-2 plan does.
     expect(ctx.llm.calls[1]!.systemPrompt).not.toMatch(/EVENT RECOVERY SKILL/);
-    expect(ctx.llm.calls[5]!.systemPrompt).toMatch(/== EVENT RECOVERY SKILL: recover-evidence ==/);
-    expect(ctx.llm.calls[5]!.systemPrompt).toMatch(/GROUND TRUTH == block/);
+    expect(ctx.llm.calls[5]!.systemPrompt?.includes('== EVENT RECOVERY SKILL: recover-evidence ==')).toBe(fits);
+    if (fits) expect(ctx.llm.calls[5]!.systemPrompt).toMatch(/GROUND TRUTH == block/);
     // Utility signal: the injection counts as a match.
-    expect(skills.loadFor(nsOf(reg, 'Water'))[0]!.matches).toBe(1);
+    expect(skills.loadFor(nsOf(reg, 'Water'))[0]!.matches).toBe(fits ? 1 : undefined);
   });
 
   it('does not inject when no trigger matches the complaint', async () => {
@@ -270,7 +290,7 @@ describe('L2 supervise loop — event-skill injection + learning (e2e)', () => {
       body: 'irrelevant here',
     });
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
-    const ctx = makeCtx();
+    const ctx = { ...makeCtx(), jev: { choose: async (request: import('../src/core/types.js').JevChoiceRequest) => request.question === 'recipe' ? { target: 'recover-evidence', confidence: 0.99, decomposable: false } : null, approve: async () => null, twin: async () => null } };
     ctx.llm.enqueueText(
       jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' })
     );
@@ -283,10 +303,37 @@ describe('L2 supervise loop — event-skill injection + learning (e2e)', () => {
     expect(skills.loadFor(nsOf(reg, 'Water'))[0]!.matches).toBeUndefined();
   });
 
+  it('retires recovery guidance when the next rejection concerns a different failure', async () => {
+    skills.save(nsOf(reg, 'Water'), { id: 'recover-evidence', description: 'Recover evidence', whenToUse: 'on evidence gaps',
+      kind: 'llm', trigger: 'validator rejects result missing ground-truth evidence', body: 'RECOVERY_ONLY_MARKER' });
+    const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
+    let selections = 0;
+    const ctx = { ...makeCtx(), jev: {
+      choose: async (request: import('../src/core/types.js').JevChoiceRequest) => {
+        if (request.question !== 'recipe') return null;
+        selections++;
+        return { target: 'recover-evidence', confidence: 0.99, decomposable: false };
+      }, approve: async () => null, twin: async () => null,
+    } };
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
+    for (const reason of ['Missing ground-truth evidence', 'Arithmetic overflow remains unchecked', null]) {
+      ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+      ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'plan ok' }));
+      enqueueExecution(ctx, { output: 'result', summary: 'attempt' });
+      ctx.llm.enqueueText(jsonText(reason ? { approved: false, reasoning: reason, scope: 'ephemeral' }
+        : { approved: true, reasoning: 'All required assertions observed' }));
+    }
+    await neuron.handleDirect({ description: 'Repair with focused evidence' }, ctx);
+    expect(ctx.llm.calls[5]!.systemPrompt).toContain('RECOVERY_ONLY_MARKER');
+    expect(ctx.llm.calls[9]!.systemPrompt).not.toContain('RECOVERY_ONLY_MARKER');
+    expect(ctx.llm.calls).toHaveLength(13);
+    expect(selections).toBe(1);
+  });
+
   it('distills an event skill from a recovered run (novel event, learning on)', async () => {
     process.env['ATOMA_SKILL_LEARN'] = '1';
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
-    const ctx = makeCtx();
+    const ctx = { ...makeCtx(), jev: { choose: async (request: import('../src/core/types.js').JevChoiceRequest) => request.question === 'recipe' ? { target: 'recover-evidence', confidence: 0.99, decomposable: false } : null, approve: async () => null, twin: async () => null } };
     ctx.llm.enqueueText(
       jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' })
     );
@@ -323,7 +370,7 @@ describe('L2 supervise loop — event-skill injection + learning (e2e)', () => {
     // Case 1: clean run (no rejection) — only the C3 task-skill call fires.
     {
       const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
-      const ctx = makeCtx();
+      const ctx = { ...makeCtx(), jev: { choose: async (request: import('../src/core/types.js').JevChoiceRequest) => request.question === 'recipe' ? { target: 'recover-evidence', confidence: 0.99, decomposable: false } : null, approve: async () => null, twin: async () => null } };
       ctx.llm.enqueueText(
         jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' })
       );
@@ -348,7 +395,7 @@ describe('L2 supervise loop — event-skill injection + learning (e2e)', () => {
         body: 'paste the evidence',
       });
       const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
-      const ctx = makeCtx();
+      const ctx = { ...makeCtx(), jev: { choose: async (request: import('../src/core/types.js').JevChoiceRequest) => request.question === 'recipe' ? { target: 'recover-evidence', confidence: 0.99, decomposable: false } : null, approve: async () => null, twin: async () => null } };
       ctx.llm.enqueueText(
         jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' })
       );

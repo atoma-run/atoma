@@ -49,6 +49,7 @@ const HOST_AUTHORED_SECTION = '\n## Host-authored instructions in the trace\n\n'
 
 export function buildAnalystPrompt(input: AnalystPromptInput): string {
   return (ANALYST_PROMPT_TEMPLATE + HOST_AUTHORED_SECTION + '\n## Verification and recovery evidence\n\n' + ASSERTION_EVIDENCE_GUIDANCE +
+    '\nRead digest.recentReviews and completedReviewCounts before describing the interruption. A later unfinished plan does not erase a completed refusal. Missing response data remains unknown. Legacy stats.refusals counts skill refusals, not validation; planRefusals/resultRefusals/acceptanceRefusals are separate counters when present. Use repositoryPreparation in the task context to distinguish host-completed synchronization from worker obligations.\n' +
     '\nA refusal followed by approval does not itself establish a recovered proof gap. Compare the original requirement, the changed assertion and the observed execution. Distinguish a correct implementation from an unsupported validation claim; if the relevant test body or observation is unavailable, mark that conclusion insufficient_evidence rather than repeating the validator\'s claim.\n')
     .replaceAll('{{RUN_ID}}', input.runId)
     .replaceAll('{{RUN_STATUS}}', input.runStatus)

@@ -19,7 +19,7 @@ import type {
   Tool,
   Verdict,
 } from '../core/types.js';
-import { eventSkillBlock, matchEventSkill } from '../skills/events.js';
+import { eventSkillBlock, matchEventSkill, eventSkillFits } from '../skills/events.js';
 import { hostAllowsLoopbackNetwork, scanScriptBody } from '../skills/scriptScan.js';
 import {
   stripBranchProvenance,
@@ -1608,27 +1608,37 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // EVENT-DRIVEN recovery injection (#E1). On a rejection (or the
     // escalation branch), match the event text MECHANICALLY (zero LLM —
     // trigger containment, src/skills/events.ts) against the L1's event
-    // skills and inject the matched guidance into the next attempt.
+    // skills, then confirm semantic fit with Decision before injection.
+    // Exact candidate/event decisions are reused across instance branches.
     // Namespaced by the ORIGINAL l1 type name so a branched retry keeps
     // access to the recovery catalog its lineage earned. Tracks the
     // instance a skill was injected into: a fresh patch/branch instance
     // loses injected context, so the same skill may re-inject there, but
     // never stacks twice on one instance.
-    const injectedEventSkills = new Map<string, L1Atom>();
-    const injectEventSkill = (child: L1Atom, eventText: string): void => {
-      if (process.env['ATOMA_EVENT_SKILLS'] === '0' || !this.skillRegistry || skillCtx.subTask.executionMode === 'reasoning') return;
-      if (!eventText.trim()) return;
-      const candidates = this.skillRegistry.loadFor(skillCtx.l1Name).filter((s) => s.trigger);
+    const injectedEventSkills = new WeakMap<L1Atom, { key: string; contextId: string }>();
+    const eventFit = new Map<string, boolean>();
+    const injectEventSkill = async (child: L1Atom, eventText: string): Promise<void> => {
+      const candidates = process.env['ATOMA_EVENT_SKILLS'] === '0' || !this.skillRegistry || skillCtx.subTask.executionMode === 'reasoning'
+        ? [] : this.skillRegistry?.loadFor(skillCtx.l1Name).filter((s) => s.trigger) ?? [];
       const match = matchEventSkill(eventText, candidates);
-      if (!match || injectedEventSkills.get(match.skill.id) === child) return;
-      child.injectContext({
+      const fitKey = match ? JSON.stringify([match.skill.id, match.skill.trigger, match.skill.body, eventText]) : '';
+      const previous = injectedEventSkills.get(child);
+      if (previous?.key === fitKey) return;
+      if (previous) {
+        child.removeContext(previous.contextId);
+        injectedEventSkills.delete(child);
+      }
+      if (!match) return;
+      if (!eventFit.has(fitKey)) eventFit.set(fitKey, await eventSkillFits(match.skill, eventText, skillCtx.subTask, ctx, this.name));
+      if (!eventFit.get(fitKey)) return;
+      const block = child.injectContext({
         source: 'event-skill',
         skillId: match.skill.id,
         text: eventSkillBlock(match.skill),
       });
-      injectedEventSkills.set(match.skill.id, child);
+      injectedEventSkills.set(child, { key: fitKey, contextId: block.id });
       skillCtx.eventState.injected = true;
-      this.skillRegistry.markMatched(skillCtx.l1Name, match.skill.id);
+      this.skillRegistry?.markMatched(skillCtx.l1Name, match.skill.id);
       ctx.logger.info(
         `[${this.name}] event skill "${match.skill.id}" injected into ${child.name} (trigger containment ${match.score.toFixed(2)})`
       );
@@ -1655,7 +1665,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         if (learningFeedback.length > 4) learningFeedback.shift();
         if (verdict.scope === 'ephemeral') {
           child.applyModifications(verdict.modifications);
-          injectEventSkill(child, rejectionEventText(verdict));
+          await injectEventSkill(child, rejectionEventText(verdict));
           return child;
         }
         // patch/branch return a FRESH L1Atom.fromType instance — which
@@ -1709,7 +1719,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           );
           const fresh = carrySkill(L1Atom.fromType(patched));
           if (additionalContext) fresh.injectContext({ source: 'coaching', text: additionalContext });
-          injectEventSkill(fresh, rejectionEventText(verdict));
+          await injectEventSkill(fresh, rejectionEventText(verdict));
           return fresh;
         }
         const branched = this.registry.branchOrReuse(
@@ -1721,7 +1731,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         ctx.logger.info(`[${this.name}] branched L1 ${child.name} → ${branched.name}`);
         const freshBranch = carrySkill(L1Atom.fromType(branched));
         if (additionalContext) freshBranch.injectContext({ source: 'coaching', text: additionalContext });
-        injectEventSkill(freshBranch, rejectionEventText(verdict));
+        await injectEventSkill(freshBranch, rejectionEventText(verdict));
         return freshBranch;
       },
       branchOnEscalation: async (child, trace, reason) => {
@@ -1906,7 +1916,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         // Event-driven recovery guidance rides along with the diagnostic:
         // the branch prompt says WHAT failed, a matched event skill says
         // what a previous recovery DID about it.
-        injectEventSkill(freshBranched, diagnostic);
+        await injectEventSkill(freshBranched, diagnostic);
         return freshBranched;
       },
       onApproved: async (child, result, verdict) => {

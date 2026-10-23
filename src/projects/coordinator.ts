@@ -15,6 +15,7 @@ import { RunCheckpointStore, canonicalCheckpointWorkspacePath, projectedCheckpoi
 import { removeReadRunCopies } from '../run/readRuns.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
+import { REPOSITORY_PREPARATION_ENV, repositoryPreparationSchema } from '../contracts/repositorySync.js';
 import { GitHubAccessRequiredError, PublicationSupersededError } from './publisher.js';
 import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexModelInventory } from '../contracts/codexModels.js';
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
@@ -142,7 +143,7 @@ export interface ProjectCoordinatorOptions {
   readonly projectsRoot?: string;
   readonly skillsDir?: string;
   readonly driver?: ProjectRunDriver;
-  readonly compute?: () => (Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' | 'interruptedStopped'> & Partial<Pick<ComputeDispatcher, 'previewClassification'>>) | undefined;
+  readonly compute?: () => (Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' | 'interruptedStopped'> & Partial<Pick<ComputeDispatcher, 'previewClassification' | 'progress'>>) | undefined;
   readonly learningDriver?: typeof spawnApprovedLearning;
   readonly acquireLease?: RunLeaseAcquirer;
   /**
@@ -1388,7 +1389,7 @@ export class ProjectRunCoordinator {
   private readonly root: string;
   private readonly skillsRoot: string;
   private readonly driver: ProjectRunDriver;
-  private readonly compute?: () => (Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' | 'interruptedStopped'> & Partial<Pick<ComputeDispatcher, 'previewClassification'>>) | undefined;
+  private readonly compute?: () => (Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' | 'interruptedStopped'> & Partial<Pick<ComputeDispatcher, 'previewClassification' | 'progress'>>) | undefined;
   private readonly learningDriver: typeof spawnApprovedLearning;
   private readonly acquireLease: RunLeaseAcquirer;
   private readonly yieldBackground?: () => Promise<boolean>;
@@ -1796,6 +1797,10 @@ export class ProjectRunCoordinator {
   checkpointStatus(run: ProjectRun) {
     // A boundary is only offered after the project finalizer released its lease.
     return projectedCheckpointStatus(this.checkpoints.projectStatus(run.projectRunId, run.orgId), run.status);
+  }
+
+  computeProgress(run: ProjectRun) {
+    return this.compute?.()?.progress?.(run) ?? null;
   }
 
   clientQuestion(run: ProjectRun) {
@@ -2339,6 +2344,19 @@ export class ProjectRunCoordinator {
           } catch { debtResolved = false; }
           this.store.saveRepositorySync(project.orgId, run.projectRunId, { status: 'no_anchor', head: null,
             base, debtResolved, materialised: false, seedPath: null, taken: 0, conflicts: 0, paths: [] });
+        }
+        // Only persisted preparation supplies this receipt; goals and inherited
+        // environment values cannot claim a synchronization happened.
+        delete environment[REPOSITORY_PREPARATION_ENV];
+        const preparedSync = this.store.getRepositorySync(run.orgId, run.projectRunId);
+        const preparedBase = this.store.getProjectRun(run.orgId, run.projectRunId)?.repositoryBase;
+        if (preparedSync || (project.repositoryTarget.source && preparedBase)) {
+          environment[REPOSITORY_PREPARATION_ENV] = JSON.stringify(repositoryPreparationSchema.parse({
+            status: preparedSync?.status ?? 'snapshot', head: preparedSync ? preparedSync.head : preparedBase?.commitSha ?? null,
+            taken: preparedSync?.taken ?? null, conflicts: preparedSync?.conflicts ?? null, paths: preparedSync?.paths ?? [],
+            mode: continuation ? 'resume' : selectedBase ? 'selected-version' : rerun ? 'comparison' : 'synchronize',
+            baseSha: preparedBase?.commitSha ?? null,
+          }));
         }
         // WHERE THIS RUN STARTED, recorded for every run: it is what a later
         // comparison rerun of THIS run copies (src/projects/rerun.ts).

@@ -23,6 +23,25 @@ export const repositorySyncSchema = z.object({
 }).strict();
 export type RepositorySync = z.infer<typeof repositorySyncSchema>;
 
+/** Bounded host receipt, without inventory, host paths or publication authority. */
+export const REPOSITORY_PREPARATION_ENV = 'ATOMA_REPOSITORY_PREPARATION';
+export const repositoryPreparationSchema = repositorySyncSchema.pick({
+  status: true, head: true, taken: true, conflicts: true, paths: true,
+}).extend({
+  status: z.enum(['synced', 'unchanged', 'unavailable', 'no_anchor', 'snapshot']),
+  taken: z.number().int().nonnegative().nullable(),
+  conflicts: z.number().int().nonnegative().nullable(),
+  mode: z.enum(['synchronize', 'selected-version', 'resume', 'comparison']),
+  baseSha: commitShaSchema.nullable(),
+}).strict();
+export type RepositoryPreparation = z.infer<typeof repositoryPreparationSchema>;
+
+export function decodeRepositoryPreparation(raw: string | undefined): RepositoryPreparation | undefined {
+  if (raw === undefined) return undefined;
+  if (raw.length > 16_384) throw new Error('Repository preparation receipt exceeds its bound');
+  return repositoryPreparationSchema.parse(JSON.parse(raw));
+}
+
 /** Raw git entries include unsupported types so a remote link cannot be overwritten. */
 export const repositoryTreeEntrySchema = z.object({
   path: z.string().max(4096), mode: z.string(), sha: commitShaSchema,

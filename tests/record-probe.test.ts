@@ -116,6 +116,12 @@ describe('record_probe', () => {
 
     expect(result.superseded).toBe('node old.js');
     expect(manifest().entries.map((entry) => entry['cmd'])).toEqual(['node fixed.js']);
+    expect(manifest().entries[0]!['replacementHistory']).toEqual([{ cmd: 'node old.js', exitCode: 1 }]);
+    // Re-recording the green command must not erase the failed predecessor.
+    await t.execute({ cmd: 'node fixed.js' });
+    expect(manifest().entries[0]!['replacementHistory']).toEqual([{ cmd: 'node old.js', exitCode: 1 }]);
+    await t.execute({ cmd: 'node fixed.js', supersedes: 'node missing.js' });
+    expect(manifest().entries[0]!['replacementHistory']).toEqual([{ cmd: 'node old.js', exitCode: 1 }]);
   });
 
   it('preserves entries written by earlier phases', async () => {
@@ -750,6 +756,18 @@ describe('one merge contract — all three consumers share src/contracts/probeMa
     expect(out.entries[0]!['probe']).toBe('http');
     expect(out.entries[1]!['probe']).toBe('web');
     expect(out.entries[2]!['cmd']).toBe('node fixed.js');
+  });
+
+  it('bounds replacement history explicitly and never promotes an old failure into a pass', () => {
+    let raw = mergeShellProbe(null, { cmd: 'node check-0.js', exitCode: 1 });
+    for (let i = 1; i <= 10; i++) raw = mergeShellProbe(raw,
+      { cmd: `node check-${i}.js`, exitCode: i === 10 ? 0 : 1 }, `node check-${i - 1}.js`);
+    const parsed = JSON.parse(raw) as { entries: Array<{ exitCode: number; replacementHistory: Array<{ exitCode: number }>; replacementHistoryTruncated: boolean }> };
+    expect(parsed.entries).toHaveLength(1);
+    expect(parsed.entries[0]!.exitCode).toBe(0);
+    expect(parsed.entries[0]!.replacementHistory).toHaveLength(8);
+    expect(parsed.entries[0]!.replacementHistory.every(item => item.exitCode === 1)).toBe(true);
+    expect(parsed.entries[0]!.replacementHistoryTruncated).toBe(true);
   });
 
   it('PRESERVED DIVERGENCE: write_file dedupes an exact-duplicate http entry, the machine append keeps it (SEQUENCE)', () => {

@@ -58,6 +58,10 @@ export const runStatsSchema = z.object({
   learnedEventSkills: countSchema,
   promotions: countSchema,
   refusals: countSchema,
+  /** Negative supervision verdicts, separate from the legacy skill-refusal counter. Absent in old runs. */
+  planRefusals: countSchema.optional(),
+  resultRefusals: countSchema.optional(),
+  acceptanceRefusals: countSchema.optional(),
   compileErrors: countSchema,
   demotions: countSchema,
   dispatchFallbacks: countSchema,
@@ -151,6 +155,9 @@ export type RunStatSignal =
   | 'learned-event-skill'
   | 'promotion'
   | 'refusal'
+  | 'plan-refusal'
+  | 'result-refusal'
+  | 'acceptance-refusal'
   | 'compile-error'
   | 'demotion'
   | 'dispatch-fallback'

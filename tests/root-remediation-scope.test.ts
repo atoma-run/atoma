@@ -30,6 +30,18 @@ function refusal(criteria: Array<{ id: string; behaviour: string; met: boolean; 
 }
 
 describe('root remediation scope', () => {
+  it('keeps a compound criterion and the host receipts when only its temporal proof is missing', () => {
+    const repositoryPreparation = { mode: 'synchronize', status: 'synced', conflicts: 0 };
+    const original: Task = { description: 'Keep fresh rows, errors and stale-response protection',
+      inputs: { repositoryPreparation, previousPhaseObservations: 'Focused check ran; temporal coverage disputed' },
+      criteria: [{ id: 'c1', behaviour: 'Refresh rows and preserve errors without transient stale overwrite', source: 'user' }] };
+    const next = remediationTask(original, refusal([{ id: 'c1', behaviour: original.criteria![0]!.behaviour,
+      met: false, reason: 'Assert after old response consumption before releasing fresh response' }]));
+    expect(next.criteria).toEqual(original.criteria);
+    expect(next.inputs?.['repositoryPreparation']).toEqual(repositoryPreparation);
+    expect(next.inputs?.['rootRemediationScope']).toMatchObject({ metCriteria: [], criterion: { id: 'c1' } });
+    expect(JSON.stringify(next.inputs?.['rootRemediationScope'])).toContain('without refactoring working source');
+  });
   it('focuses a single rejected criterion while preserving the original task identity', () => {
     const remediated = remediationTask(task, refusal([
       { id: 'c1', behaviour: 'The page remains interactive', met: true },
@@ -70,7 +82,7 @@ describe('root remediation scope', () => {
   });
 
   it('does not guess a focused scope when several criteria were rejected', () => {
-    const remediated = remediationTask(task, refusal([
+    const remediated = remediationTask({ ...task, inputs: { rootRemediationScope: { mode: 'single-criterion', criterion: { id: 'old' } } } }, refusal([
       { id: 'c1', behaviour: 'The page remains interactive', met: false },
       { id: 'c2', behaviour: 'README uses a durable loopback URL', met: false },
     ]));

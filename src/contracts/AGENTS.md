@@ -56,6 +56,10 @@ public setting or client capability, and introduces no stored runtime identity.
 
 ## Probe manifests
 
+- Shell replacements retain the last eight replaced command/exit pairs in
+  `replacementHistory`, with explicit truncation. They are history, not replay
+  obligations or equal-coverage attestations; same-command reruns preserve them.
+
 - Probe manifests are structured records. Normalize paths before recognizing
   `.atoma-probes.json`; its three machine writers merge entries
   (`mergeShellProbe`, `appendHttpProbe`, `appendWebProbe`), and no model writes
