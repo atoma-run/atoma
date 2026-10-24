@@ -19,6 +19,8 @@ export const LLM_CALL_ROLES = [
   'execute',
   'skill',
   'validate-result',
+  /** One tool-free turn re-emitting a verdict reply that did not parse; never a validation. */
+  'verdict-repair',
   'fallback-plan',
   'fallback-execute',
   /** The run's acceptance checklist, drafted once before planning. */

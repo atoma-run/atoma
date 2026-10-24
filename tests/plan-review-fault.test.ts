@@ -4,6 +4,7 @@ import { MAX_PLAN_REVIEW_FAULTS, superviseLoop, type SupervisionHooks } from '..
 import { DEFAULT_LIMITS } from '../src/core/limits.js';
 import type { Result, Tier, Verdict } from '../src/core/types.js';
 import { delegationRefusal } from '../src/atoms/delegationReview.js';
+import { ValidationError } from '../src/core/errors.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
@@ -146,6 +147,58 @@ describe('a plan review that failed as the reviewer', () => {
     expect(result.producedBy.viaFallback).toBe(true);
     expect(hook.onFailed).toHaveBeenCalledWith(child, 'escalation-plan', undefined);
     expect(hook.branchOnEscalation).toHaveBeenCalledOnce();
+  });
+});
+
+describe('a result review that failed as the reviewer (run 9a2f8487, 2026-10-24)', () => {
+  class FaultingParent extends Parent {
+    constructor(private readonly resultReplies: Array<Verdict | ValidationError>) {
+      super([]);
+    }
+    override async validateResult(): Promise<Verdict> {
+      const next = this.resultReplies.shift() ?? { approved: true as const, reasoning: 'result reviewed' };
+      if (next instanceof ValidationError) throw next;
+      return next;
+    }
+  }
+  const unparseable = () => new ValidationError('JSON parse failed: Expected \':\' after property name');
+
+  it('judges the same result again without re-executing, coaching, blame or a branch', async () => {
+    const parent = new FaultingParent([unparseable()]);
+    const child = new Child(1);
+    const execute = vi.spyOn(child, 'execute');
+    const hook = hooks();
+
+    const result = await superviseLoop(parent, child, { description: 'add' }, makeCtx(), hook);
+
+    expect(result.output).toBe('done');
+    expect(child.plans).toHaveBeenCalledOnce();
+    expect(execute).toHaveBeenCalledOnce();
+    expect(hook.applyByScope).not.toHaveBeenCalled();
+    expect(hook.onFailed).not.toHaveBeenCalled();
+    expect(hook.branchOnEscalation).not.toHaveBeenCalled();
+    expect(result.trace.filter(entry => entry.kind === 'result-review-fault')).toHaveLength(1);
+    expect(result.trace.filter(entry => entry.kind === 'verdict-result')).toHaveLength(1);
+  });
+
+  it(`hands the task to the parent after ${MAX_PLAN_REVIEW_FAULTS} faults, blaming and branching nothing, never throwing`, async () => {
+    const parent = new FaultingParent([unparseable(), unparseable()]);
+    const child = new Child(1);
+    const hook = hooks();
+
+    const result = await superviseLoop(parent, child, { description: 'add' }, makeCtx(), hook);
+
+    expect(result.output).toBe('parent did it');
+    expect(result.producedBy.viaFallback).toBe(true);
+    expect(hook.onFailed).not.toHaveBeenCalled();
+    expect(hook.branchOnEscalation).not.toHaveBeenCalled();
+    expect(result.trace.find(entry => entry.kind === 'escalated')?.payload).toMatchObject({ phase: 'review', blameless: true });
+  });
+
+  it('still lets any other error through', async () => {
+    const parent = new FaultingParent([]);
+    vi.spyOn(parent, 'validateResult').mockRejectedValue(new Error('store unavailable'));
+    await expect(superviseLoop(parent, new Child(1), { description: 'add' }, makeCtx(), hooks())).rejects.toThrow('store unavailable');
   });
 });
 

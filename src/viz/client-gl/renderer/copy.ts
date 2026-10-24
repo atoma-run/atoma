@@ -495,6 +495,8 @@ export function nowDescription(t: GpuTranslate, event: VizEvent): string {
       return t('now.doing.validatePlan', vars);
     case 'validate-result':
       return t('now.doing.validateResult', vars);
+    case 'verdict-repair':
+      return t('now.doing.verdictRepair', vars);
     case 'fallback-plan':
     case 'fallback-execute':
       return t('now.doing.fallback', vars);

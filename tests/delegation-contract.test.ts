@@ -368,13 +368,15 @@ describe('root delegation review robustness', () => {
     }
   });
 
-  const faults: [string, { text: string; stopReason?: string }][] = [
+  // A reply that did not parse first gets one reformat turn (2026-10-24); `repair`
+  // is that turn's reply, failing too, so the fault path is what these exercise.
+  const faults: [string, { text: string; stopReason?: string; repair?: string }][] = [
     ['an unfinished review', { text: '{"approved": true, "reasoning": "cut', stopReason: 'max_tokens' }],
     // Second review 2026-10-16: an allowlist on end_turn. The Claude CLI hands
     // back its error subtypes with salvaged text that jsonrepair would close
     // into a complete approval.
     ['a review the transport ended on an error subtype', { text: approval.slice(0, -12), stopReason: 'error_during_execution' }],
-    ['a non-JSON review', { text: 'I approve this plan.' }],
+    ['a non-JSON review', { text: 'I approve this plan.', repair: 'I still approve this plan.' }],
     ['an approval without its classification', { text: JSON.stringify({ approved: true, reasoning: 'fine' }) }],
     // Run f41efe87 (2026-10-24): the reviewer asked the PLAN for the reviewer's
     // own object, five rounds in a row, each a top-tier replan, then a failed run.
@@ -404,6 +406,7 @@ describe('root delegation review robustness', () => {
       stopReason: fault.stopReason ?? 'end_turn',
       usage: { inputTokens: 1, outputTokens: 1 },
     });
+    if (fault.repair) ctx.llm.enqueueText(fault.repair);
     ctx.llm.enqueueText(approval);
     await tissue.handle({ description: 'Implement signed addition' }, ctx);
     expect(plan).toHaveBeenCalledOnce();
@@ -419,6 +422,7 @@ describe('root delegation review robustness', () => {
     const { tissue, cell } = actors();
     const ctx = makeCtx();
     ctx.llm.enqueue({ text: fault.text, stopReason: fault.stopReason ?? 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } });
+    if (fault.repair) ctx.llm.enqueueText(fault.repair);
     ctx.llm.enqueueText(approval);
     const verdict = await tissue.validatePlan(cell, runnable(), { description: 'add', acceptanceTests: suite }, ctx);
     expect(verdict.approved).toBe(true);
@@ -446,7 +450,8 @@ describe('root delegation review robustness', () => {
     const ctx = makeCtx();
     vi.spyOn(tissue, 'plan').mockResolvedValue(runnable());
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
-    for (let i = 0; i < ROOT_PLAN_ATTEMPTS; i++) ctx.llm.enqueueText('not a verdict');
+    // Each attempt reads a reply and its failed reformat turn.
+    for (let i = 0; i < 2 * ROOT_PLAN_ATTEMPTS; i++) ctx.llm.enqueueText('not a verdict');
     await expect(tissue.handle({ description: 'Implement signed addition' }, ctx)).rejects.toBeInstanceOf(ValidationError);
     expect(execute).not.toHaveBeenCalled();
   });
@@ -580,8 +585,8 @@ describe('root delegation review robustness', () => {
     const task: Task = { description: 'Repair the CAPTCHA classifier', acceptanceTests: suite };
     ctx.llm.enqueueText(JSON.stringify({ approved: false, reasoning: 'FIRST: no unmarked envelope case.', scope: 'ephemeral',
       modifications: { additionalContext: 'ASK-1: assert the seven unmarked envelopes return 403.' } }));
-    ctx.llm.enqueueText('not json at all');
-    ctx.llm.enqueueText('not json at all');
+    // Two failed reviews (validation model, then tier 2), each with its failed reformat turn.
+    for (let i = 0; i < 4; i++) ctx.llm.enqueueText('not json at all');
     ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
     const first = await tissue.validatePlan(cell, runnable(), task, ctx);
     expect(first.approved).toBe(false);

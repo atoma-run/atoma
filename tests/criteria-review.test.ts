@@ -337,7 +337,9 @@ describe('root review disagreement on observed evidence', () => {
     const verdict = await accept(ctx);
     expect(verdict.approved).toBe(false);
     if (mode === 'unmet') expect(verdict.checklist?.[0]?.judgement?.met).toBe(false);
-    expect(ctx.llm.calls).toHaveLength(3);
+    // An unparseable reread gets one reformat turn (2026-10-24), answered here
+    // by the same non-JSON reply; the refusal still stands.
+    expect(ctx.llm.calls).toHaveLength(mode === 'invalid' ? 4 : 3);
   });
 
   it('propagates cancellation from the conflict reread', async () => {

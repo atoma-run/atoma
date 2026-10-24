@@ -298,6 +298,7 @@ export async function superviseLoop<C extends Atom>(
     // failure and branches no type; the parent takes over directly.
     let judgements = 0;
     let reviewFaults = 0;
+    let resultReviewFaults = 0;
     // Separate trackers for plan-rejects and result-rejects: "same gripe three
     // times in a row on the plan" and "same gripe three times in a row on the
     // result" are independent stuck-conditions and should each escalate.
@@ -431,7 +432,24 @@ export async function superviseLoop<C extends Atom>(
         // before any I/O or model call; this is the same mapping again for any
         // other Supervisor, so an approval past a failed suite is overruled and
         // one past a suite that did not run earns no credit.
-        let v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
+        // A result verdict that did not parse, after the validator's own
+        // reformat turn, is the REVIEWER's failure: judged again, up to the
+        // plan-review budget, then a blameless escalation. Thrown, one stray
+        // character in a verdict ended run 9a2f8487 whole (2026-10-24).
+        const judge = async (judged: Result): Promise<Verdict> => {
+          for (;;) {
+            try {
+              return withParentTestConsequences(judged, await parent.validateResult(current, judged, task, ctx), ctx.logger);
+            } catch (error) {
+              if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
+              resultReviewFaults++;
+              ctx.logger.warn(`[${current.name}] result review failed as the reviewer's (${resultReviewFaults}/${MAX_PLAN_REVIEW_FAULTS}) (${error.message.slice(0, 200)})`);
+              trace.push({ kind: 'result-review-fault', ts: now(), atom: parent.name, payload: { error: error.message, faults: resultReviewFaults } });
+              if (resultReviewFaults >= MAX_PLAN_REVIEW_FAULTS) throw new EscalationSignal('review');
+            }
+          }
+        };
+        let v2 = await judge(result);
         // The refusal below is recorded once: here when a correction is
         // attempted, on the common path otherwise.
         let refusalRecorded = false;
@@ -457,7 +475,7 @@ export async function superviseLoop<C extends Atom>(
           trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: { ...result, reportCorrection: true } });
           // No execution wrapper or suite replay: only the report changed. All
           // original host witnesses and suite outcomes still constrain this verdict.
-          v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
+          v2 = await judge(result);
           refusalRecorded = false;
         }
         if (!v2.approved && v2.reportCorrection && corrections >= MAX_REPORT_CORRECTIONS) {

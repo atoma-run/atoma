@@ -35,6 +35,7 @@ export interface VizLlmEvent {
     | 'execute'
     | 'validate-plan'
     | 'validate-result'
+    | 'verdict-repair'
     | 'prefilter'
     | 'skill'
     | 'fallback-plan'

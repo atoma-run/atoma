@@ -1439,6 +1439,7 @@
   "now.doing.prefilter": "{{actor}} is picking which existing child should handle this.",
   "now.doing.validatePlan": "{{actor}} is checking {{child}}'s plan before any work starts.",
   "now.doing.validateResult": "{{actor}} is checking what {{child}} produced.",
+  "now.doing.verdictRepair": "{{actor}} is re-emitting a verdict on {{child}}'s work whose formatting did not parse.",
   "now.doing.fallback": "{{actor}} took over and is doing the work itself (fallback).",
   "now.doing.skill": "A skill recipe is being distilled, compiled or revised (supervisor-tier call).",
   "now.doing.draftChecklist": "The run is listing, from the goal, the behaviours its delivery must show.",

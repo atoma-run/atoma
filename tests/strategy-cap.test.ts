@@ -127,6 +127,7 @@ describe('strategy maxTokens cap', () => {
       const { tissue, cell } = actors();
       const ctx = makeCtx();
       ctx.llm.enqueueText('not a verdict');
+      ctx.llm.enqueueText('still not a verdict'); // the reformat turn of that reply fails too
       ctx.llm.enqueueText(approval);
       const verdict = await tissue.validatePlan(cell, runnable(), { description: 'add', acceptanceTests: suite }, ctx);
       expect(verdict.approved).toBe(true);

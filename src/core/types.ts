@@ -453,6 +453,7 @@ export interface TraceEntry {
     | 'plan'
     | 'plan-unparseable'
     | 'plan-review-fault'
+    | 'result-review-fault'
     | 'verdict-plan'
     | 'execute'
     | 'verdict-result'

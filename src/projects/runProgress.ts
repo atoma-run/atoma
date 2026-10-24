@@ -72,7 +72,7 @@ function evidence(file: string, runId: string, reuseWithinMs: number): Evidence 
           if (kind === 'llm-start' || kind === 'llm') {
             if (role === 'plan' || role === 'fallback-plan' || role === 'draft-checklist' || role === 'prefilter') value.stage = 'planning';
             else if (role === 'execute' || role === 'fallback-execute') value.stage = 'building';
-            else if (role === 'validate-plan' || role === 'validate-result') value.stage = 'checking';
+            else if (role === 'validate-plan' || role === 'validate-result' || role === 'verdict-repair') value.stage = 'checking';
           } else if (kind === 'tool') value.stage = 'building';
           else if (kind === 'acceptance') {
             const accepted = acceptanceSchema.safeParse(raw);
