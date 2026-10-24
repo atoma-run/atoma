@@ -2715,5 +2715,6 @@
   "sentinel.col.corpus": "Корпус",
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "Что обнаружено",
-  "sentinel.col.actor": "Субъект"
+  "sentinel.col.actor": "Субъект",
+  "now.doing.verdictRepair": "{{actor}} повторно формирует вердикт по работе {{child}}, формат которой не удалось распознать."
 }

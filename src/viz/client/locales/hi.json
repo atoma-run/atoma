@@ -2715,5 +2715,6 @@
   "sentinel.col.corpus": "संग्रह",
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "क्या देखा गया",
-  "sentinel.col.actor": "कर्ता"
+  "sentinel.col.actor": "कर्ता",
+  "now.doing.verdictRepair": "{{actor}} द्वारा {{child}} के उस काम पर निर्णय फिर से जारी किया जा रहा है, जिसकी फ़ॉर्मैटिंग पार्स नहीं हो सकी।"
 }

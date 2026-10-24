@@ -2715,5 +2715,6 @@
   "sentinel.col.corpus": "Corpus",
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "Ce qui a été observé",
-  "sentinel.col.actor": "Acteur"
+  "sentinel.col.actor": "Acteur",
+  "now.doing.verdictRepair": "{{actor}} réémet un verdict sur le travail de {{child}}, dont le format n’a pas pu être analysé."
 }
