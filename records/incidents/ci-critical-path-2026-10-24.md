@@ -71,3 +71,19 @@ of CPU out of 1 747.
   asynchronous npm calls: 86 s one after the other on the static job.
 - The static job (5 min) is now the longer half; `typecheck` 40 → 67 s and
   `docs:check` 27 → 48 s between the two dates are its next items.
+
+## Result, first run on main (38ff57d3)
+
+| | before (10-24 morning) | after |
+|---|---|---|
+| CI wall | 10.4 min (day's mean), 10.8 min last run | 4.7 min |
+| test shards | one job, 10.8 min | 3.2 / 2.7 / 3.5 min |
+| `npm test` per shard | 598 s | 153 / 164 / 120 s |
+| tests, summed CPU, all shards | 1 747 s | 1 288 s |
+| Static checks | 5.0 min | 4.2 min |
+| Mender credential isolation | 4.8 min | 4.7 min |
+| Deploy | 1 min | 1.1 min |
+
+The summed CPU fell by a quarter with no test removed: the contention
+share. The floor is now the two 4–5 min jobs, mender isolation (a Docker
+image build plus one test) and the static half.
