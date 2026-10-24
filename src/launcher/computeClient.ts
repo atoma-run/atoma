@@ -247,7 +247,20 @@ export async function connectComputeWorkspace(options: {
             await bandwidth.consume(Buffer.byteLength(frame.command.frame.data, 'base64'), transferAbort.signal);
             lease.assertActive();
           }
-          const reply = workspaceReplySchema.parse(await local.execute(frame.command));
+          let value: unknown;
+          try { value = await local.execute(frame.command); }
+          catch (error) {
+            // Automatic checkpoints may refuse a tree (e.g. npm's hard links)
+            // without invalidating the live workspace. The coordinator already
+            // disables durable continuation on this explicit operation failure.
+            // Lease/protocol failures still close through the outer catch.
+            if (frame.command.method !== 'checkpoint-open' && frame.command.method !== 'checkpoint-digest') throw error;
+            lease.assertActive();
+            send({ kind: 'workspace-result', execution, response: { id: frame.id, ok: false,
+              error: 'operation-failed', message: 'Checkpoint snapshot unavailable; workspace export refused' } });
+            return;
+          }
+          const reply = workspaceReplySchema.parse(value);
           if (reply.method === 'checkpoint-next' && reply.value.kind === 'chunk') {
             await bandwidth.consume(Buffer.byteLength(reply.value.data, 'base64'), transferAbort.signal);
           }

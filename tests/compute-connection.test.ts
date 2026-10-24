@@ -2,7 +2,7 @@ import { silentLogger } from './helpers.js';
 import { afterAll, beforeAll, afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, writeFileSync, rmSync, linkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AUTH_TABLES_DDL } from '../src/auth/store.js';
@@ -240,6 +240,53 @@ it('uses the outbound client, local lease and existing workspace runtime for a r
     expect(stops).toBe(1);
     expect(connection.state()).toBe('stopped');
   } finally { await connection.close(); await handler.close(); }
+});
+
+it('refuses an npm-style hard-linked checkpoint over WSS without stopping the live workspace', async () => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId), execution = { runId, generation: 1 };
+  const workspace = join(root, randomUUID());
+  const handler = workspaceCommandHandler(localWorkspaceRuntime({ root: workspace, log: () => {} }));
+  const stopWorkloads = vi.fn(async () => {});
+  const connection = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities, execution,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), execute: handler, stopWorkloads });
+  try {
+    devices.assign(owner, connection.session, runId, resources);
+    const runtime = remoteWorkspaceRuntime(command => peers.at(-1)!.request(execution, command));
+    await runtime.prepare(false);
+    writeFileSync(join(workspace, 'esbuild'), 'binary');
+    linkSync(join(workspace, 'esbuild'), join(workspace, 'esbuild-link'));
+    await expect(runtime.checkpointExport()).rejects.toThrow('Remote workspace operation failed');
+    await expect(runtime.checkpointDigest()).rejects.toThrow('Remote workspace operation failed');
+    expect(connection.state()).toBe('active');
+    expect(stopWorkloads).not.toHaveBeenCalled();
+    expect(await runtime.canonicalPath()).toBe(workspace);
+    rmSync(join(workspace, 'esbuild-link'));
+    const snapshot = await runtime.checkpointExport();
+    await snapshot.close();
+  } finally { await connection.close(); await handler.close(); }
+});
+
+it.each(['mutation-error', 'malformed-checkpoint'] as const)('still closes the Compute channel on %s', async mode => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId), execution = { runId, generation: 1 };
+  const stopWorkloads = vi.fn(async () => {});
+  const connection = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities, execution,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), execute: async () => {
+      if (mode === 'mutation-error') throw new Error('Mutation failed');
+      return { method: 'checkpoint-open', value: null } as never;
+    }, stopWorkloads });
+  try {
+    devices.assign(owner, connection.session, runId, resources);
+    await expect(peers.at(-1)!.request(execution, mode === 'mutation-error'
+      ? { method: 'restart' } : { method: 'checkpoint-open' })).rejects.toBeInstanceOf(ComputeIndeterminateError);
+    await vi.waitFor(() => expect(stopWorkloads).toHaveBeenCalledOnce());
+    expect(connection.state()).toBe('stopped');
+  } finally { await connection.close(); }
 });
 
 it('does not acknowledge a failed launcher teardown as stopped after the socket disappears', async () => {

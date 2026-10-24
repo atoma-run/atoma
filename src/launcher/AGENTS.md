@@ -79,6 +79,7 @@ reauthenticates, and deduplicates sequenced messages before application dispatch
 Queues are bounded to 128 frames / 8 MiB; overflow fails closed. A new process,
 expired lease or explicit stop cannot resume this in-memory channel. Legacy peers
 use the original transport. Reattachment never renews the lease.
+Checkpoint open/digest operation failures return an explicit refusal without closing the live channel: automatic continuation can be disabled while the run proceeds. Snapshot restrictions remain unchanged. Lease expiry, malformed replies and failures of other workspace operations still fail closed.
 `ComputeLease` guards this channel, but engine teardown remains caller-injected. Authenticated heartbeat acknowledgements renew from dispatch
 time, never receipt time. Monotonic and wall deadlines jointly detect expiry and
 sleep; every operation must call `assertActive`. Expiry starts cleanup once. Both ends log bounded transport causes and pending
