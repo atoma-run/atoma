@@ -3,7 +3,7 @@ import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { DISCOVERY_REPORT_CHARS, L3Atom, ROOT_PLAN_ATTEMPTS, discoveryInputs, routeCrossBucketVerification } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
-import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, previousRefusalsNote, refusalWithRequests, routingIndexNote } from '../src/atoms/delegationReview.js';
+import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, misreadDelegationReview, previousRefusalsNote, refusalWithRequests, routingIndexNote } from '../src/atoms/delegationReview.js';
 import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { planSchema } from '../src/atoms/json.js';
 import type { BranchEventInfo, LlmCompletionRequest, LlmCompletionResponse, Plan, Result, RunContext, Task, Tool, ToolExecutor } from '../src/core/types.js';
@@ -259,6 +259,29 @@ describe('mandatory delegation contracts', () => {
   });
 });
 
+describe('a reviewer asking the plan for its own delegationReview (run f41efe87, 2026-10-24)', () => {
+  const refusal = (reasoning: string, additionalContext?: string) =>
+    ({ approved: false as const, reasoning, ...(additionalContext ? { modifications: { additionalContext } } : {}) });
+
+  it('recognises the misreading in either wording the run produced', () => {
+    expect(misreadDelegationReview(refusal('The mandatory delegationReview object is absent, so the required per-subtask and integration contract classification cannot be executed.'))).toBe(true);
+    expect(misreadDelegationReview(refusal('The plan still omits the mandatory complete delegationReview object, so its per-subtask and integration classification cannot execute.'))).toBe(true);
+    expect(misreadDelegationReview(refusal('Routing is acceptable.', 'Add complete delegationReview classifying both subtasks as other; the plan lacks it.'))).toBe(true);
+  });
+
+  it('leaves real plan refusals and approvals alone, even when they name the object', () => {
+    expect(misreadDelegationReview({ approved: true, reasoning: 'delegationReview attached' })).toBe(false);
+    expect(misreadDelegationReview(refusal('Missing parent-owned acceptanceTests on subtask 0; the suite must import the real module.'))).toBe(false);
+    expect(misreadDelegationReview(refusal('Subtask 1 mixes implementation with inspection, so no single delegationReview kind fits it; split the branch.'))).toBe(false);
+    expect(misreadDelegationReview(refusal('Independent work is serialised; fan out the two modules.'))).toBe(false);
+  });
+
+  it('tells the reviewer in both prompts that the object is its own output', () => {
+    expect(DELEGATION_REVIEW_REQUEST).toContain('never of the plan');
+    expect(VALIDATION_SYSTEM_PROMPT).toContain('never refuse a plan for lacking it');
+  });
+});
+
 // Group D, review 2026-10-16: the root review runs on tier 2 with its own
 // parameters, a reviewer's own failure re-reviews the same plan on the
 // validation model, and an unparseable root plan spends an attempt.
@@ -353,6 +376,13 @@ describe('root delegation review robustness', () => {
     ['a review the transport ended on an error subtype', { text: approval.slice(0, -12), stopReason: 'error_during_execution' }],
     ['a non-JSON review', { text: 'I approve this plan.' }],
     ['an approval without its classification', { text: JSON.stringify({ approved: true, reasoning: 'fine' }) }],
+    // Run f41efe87 (2026-10-24): the reviewer asked the PLAN for the reviewer's
+    // own object, five rounds in a row, each a top-tier replan, then a failed run.
+    ['a refusal asking the plan for the reviewer\'s own delegationReview', {
+      text: JSON.stringify({ approved: false, scope: 'ephemeral',
+        reasoning: 'The mandatory delegationReview object is absent, so the required per-subtask and integration contract classification cannot be executed.',
+        modifications: { additionalContext: 'Add complete delegationReview classifying both verification subtasks as other.' } }),
+    }],
     ['duplicate indices', {
       text: JSON.stringify({
         ...review(['vitest']),

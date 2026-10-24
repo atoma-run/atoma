@@ -19,8 +19,9 @@ const BROWSER_PROOF_REVIEW = 'Review every suite against that boundary: a suite 
 
 export const DELEGATION_REVIEW_REQUEST = `${DELEGATION_REVIEW_HEADER}
 Review the entire current task and this plan before dispatch. This is mandatory even for trusted types.
-An approval MUST additionally contain delegationReview:
+YOUR approval verdict MUST additionally contain delegationReview, YOUR OWN classification of the plan:
 {"subtasks":[{"index":0,"kind":"vitest|inspection|other","reason":"scope-specific justification"}],"integration":{"kind":"vitest|inspection|other","reason":"justification"},"independentWork":true,"parallelReason":"actual dependencies or independent work"}.
+delegationReview is a field of your verdict JSON, never of the plan: the plan has no such field, the planner cannot supply it, and a plan is never refused for lacking it.
 Classify EVERY subtask exactly once using zero-based indices. Classify testable TypeScript application implementation as vitest, even when its tests or interfaces were omitted. Unknown interfaces do not turn implementation into inspection. A task that includes implementation cannot be classified inspection. Other is for non-code deliverables or behavior requiring separate browser/CLI probes; explain the concrete proof. Do not exempt importable application behavior merely because it also has a UI or CLI.
 ${PARENT_TEST_RUNNER_SCOPE}
 ${PARENT_TEST_EXECUTION}
@@ -109,6 +110,24 @@ export function routingIndexNote(plan: Plan): string {
   }
   const omitted = mappings.length - kept.length;
   return `${head}${kept.join('; ')}${omitted > 0 ? `; ${omitted} more split checkpoint(s) not listed` : ''}${tail}`;
+}
+
+/**
+ * A refusal that asks the PLAN for the reviewer's own `delegationReview`
+ * object is the reviewer misreading its contract, never a plan defect: the
+ * plan schema has no such field, so the planner can never answer it. Run
+ * f41efe87 (2026-10-24) refused five root plans this way, each refusal fed
+ * back as a "previous refusal" that entrenched the misreading, and the run
+ * failed with nothing executed. The word is our own fixed identifier, not
+ * natural vocabulary, and a false positive costs one re-review on the
+ * validation model, never an approval.
+ */
+const DELEGATION_REVIEW_MISREAD_RE =
+  /delegationReview[\s\S]{0,160}?\b(?:absent|missing|omit\w*|lack\w*|without|not\s+(?:present|provided|supplied|included|contain\w*|include\w*))\b|\b(?:absent|missing|omit\w*|lack\w*|without)\b[\s\S]{0,160}?delegationReview/i;
+
+export function misreadDelegationReview(verdict: { approved: boolean; reasoning: string; modifications?: { additionalContext?: string } }): boolean {
+  if (verdict.approved) return false;
+  return DELEGATION_REVIEW_MISREAD_RE.test(`${verdict.reasoning}\n${verdict.modifications?.additionalContext ?? ''}`);
 }
 
 export function delegationRefusal(reason: string, kind: DelegationRefusalKind): NegativeVerdict {

@@ -27,7 +27,7 @@ Neighbours:
 - `superviseLoop` is the only child plan → validate → execute → validate loop.
   Root L3 plans also get mandatory tool-free contract review on `modelForTier(2)`
   (own cap and effort, src/core; a refusal costs a top-tier replan); a reviewer
-  fault (unfinished, unparseable, unclassified) re-reviews the same plan on the
+  fault (unfinished, unparseable, unclassified, or asking the PLAN for its own `delegationReview`, `misreadDelegationReview`: run f41efe87 refused five root plans so and executed nothing) re-reviews the same plan on the
   validation model. L2 plans under a parent suite get the same check there; their
   reviewer fault re-reviews once on tier 2; a second one returns a `reviewer`
   refusal that `superviseLoop` neither coaches, counts nor charges to the plan

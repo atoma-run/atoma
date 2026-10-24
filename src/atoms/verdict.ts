@@ -1,5 +1,5 @@
 import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
-import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceParsedDelegationReview, inheritedObligationsNote, parseDelegationReview, previousRefusalsNote, routingIndexNote } from './delegationReview.js';
+import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceParsedDelegationReview, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, previousRefusalsNote, routingIndexNote } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { transportWitnesses } from '../contracts/witness.js';
@@ -40,7 +40,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
     `Ask for the coverage a suite can carry within ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters; when a branch's contract needs more, ask for the branch to be split rather than for a longer suite; the host states each suite's size as a fact and accepts any suite under ${PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS.toLocaleString('en-US')} characters, so size alone is never a refusal. ` +
     'Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies. For a RESULT, parent-suite evidence exists only in the host\'s \'== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==\' block outside the RESULT; a RESULT claiming parent tests ran is child-reported text.',
   'Your ONLY job: emit a single Verdict JSON. No prose, no markdown, no tool calls.',
-  'When REQUIRED DELEGATION CONTRACT REVIEW is requested, an approval must also include its complete delegationReview object; routing alone is insufficient.',
+  'When REQUIRED DELEGATION CONTRACT REVIEW is requested, YOUR approval verdict must also include your complete delegationReview object; routing alone is insufficient. That object is your own output, never a field of the plan under review: never refuse a plan for lacking it.',
   TEXT_VERIFICATION_GUIDANCE,
   '',
   '== VALIDATION SCOPE ==',
@@ -1177,6 +1177,11 @@ export async function llmVerdict(args: {
     return delegationRefusal('Delegation contract review did not finish; do not execute an unreviewed plan.', 'reviewer');
   }
   const raw = parseVerdict(resp.text);
+  // The reviewer asked the plan for its own classification object: its
+  // misreading, re-reviewed on another model, never a replan charged to the planner.
+  if (args.delegationContract && misreadDelegationReview(raw)) {
+    return delegationRefusal(`Delegation review misread its contract: delegationReview belongs to the approval verdict, and a plan is never refused for lacking it. (${raw.reasoning.slice(0, 200)})`, 'reviewer');
+  }
   let delegationReview;
   if (raw.approved && args.delegationContract) {
     const review = parseDelegationReview(resp.text);
