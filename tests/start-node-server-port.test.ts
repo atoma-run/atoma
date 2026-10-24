@@ -199,7 +199,10 @@ describe('start_node_server port', () => {
     writeFileSync(join(dir, 'server.mjs'), [
       "import { createServer } from 'node:http';",
       handler,
-      "const server = createServer((_req, res) => res.end('ok'));",
+      // The answer names the process: the OS hands out a stopped server's
+      // freed port again (CI shard 3, 2026-10-24: five 'ok' from four live
+      // servers), so a port is not an identity here, a pid is.
+      "const server = createServer((_req, res) => res.end('ok:' + process.pid));",
       "server.listen(Number(process.env.PORT) || 0, () => console.log('LISTENING_ON_PORT=' + server.address().port));",
     ].join('\n'));
     const sandbox = new ToolSandbox(dir);
@@ -211,20 +214,31 @@ describe('start_node_server port', () => {
       started.push((await tool.execute({ entry: 'server.mjs' })) as { ok: boolean; port: number; pid: number });
     }
     expect(started.every((server) => server.ok)).toBe(true);
-    let answering = 0;
+    const answering = new Set<number>();
     for (const server of started) {
       const text = await fetch(`http://127.0.0.1:${server.port}/`, { signal: AbortSignal.timeout(2000) })
         .then((res) => res.text(), () => undefined);
-      if (text === 'ok') answering++;
+      const pid = text?.startsWith('ok:') ? Number(text.slice(3)) : undefined;
+      if (pid !== undefined && started.some((candidate) => candidate.pid === pid)) answering.add(pid);
     }
-    expect(answering).toBeLessThanOrEqual(MAX_LIVE_NODE_SERVERS);
-    const stopped = started.filter((server) => origins.get(server.port)?.stoppedByHost);
-    expect(stopped.map((server) => server.port)).toEqual(started.slice(0, 3).map((server) => server.port));
+    expect(answering.size).toBeLessThanOrEqual(MAX_LIVE_NODE_SERVERS);
+    const stopped = started.slice(0, 3);
     for (const server of stopped) {
       // Stopped means EXITED, never a signal merely sent; an obedient server
       // goes on the SIGTERM, before any escalation.
-      expect(origins.get(server.port)?.exited?.signal).toBe(signal);
       expect(() => process.kill(server.pid, 0)).toThrow();
+      expect(answering.has(server.pid)).toBe(false);
+      // The origin registry is keyed by port: a later server handed the same
+      // port owns the entry then, and the mark is checked where it survived.
+      const origin = origins.get(server.port);
+      if (origin?.pid === server.pid) {
+        expect(origin.stoppedByHost).toBe(true);
+        expect(origin.exited?.signal).toBe(signal);
+      }
+    }
+    for (const server of started.slice(3)) {
+      expect(answering.has(server.pid)).toBe(true);
+      expect(origins.get(server.port)?.stoppedByHost).toBeUndefined();
     }
     // The cap stops only evicted servers. Teardown must also reap the four
     // survivors, including those deliberately ignoring SIGTERM.
