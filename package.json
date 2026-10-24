@@ -116,11 +116,11 @@
     "jsonrepair": "^3.14.0",
     "officeparser": "7.8.0",
     "openai": "^7.10.0",
-    "puppeteer": "^25.6.0",
+    "puppeteer": "^25.16.0",
     "three": "^0.185.1",
     "typescript": "5.9.3",
     "ws": "8.21.3",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "overrides": {
     "@anthropic-ai/claude-agent-sdk": {
