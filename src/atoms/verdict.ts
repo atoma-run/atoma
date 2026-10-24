@@ -312,6 +312,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
   '  identifiable. One precise fix beats an exhaustive review — a wall of',
   '  prose crowds the subtask out of the retry context and produces WORSE',
   '  attempts (oversized feedback is truncated mechanically anyway).',
+  '  For inspection gaps, name the exact missing paths, ranges, imports or observations and enumerate the outstanding findings together. Preserve established findings; do not request the entire inspection again. A truncated excerpt cannot contradict unseen source or prove an entry absent. Distinct guards in different branches can coexist. Missing coverage and unknown freshness still require inspection, never automatic approval.',
   '',
   '== DESCRIPTION DRIFT ==',
   'The child type\'s "description" is what the prefilter sees when choosing catalog entries.',

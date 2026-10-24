@@ -285,7 +285,7 @@ export class L1Atom extends Atom {
 
   private previousAttempt(task: Task, ctx: RunContext): NonNullable<L1Atom['lastAttempt']> | null {
     const previous = this.lastAttempt;
-    return previous && !task.readOnly && task.executionMode !== 'reasoning' &&
+    return previous && (!task.readOnly || previous.digest.isInspectionOnly()) && task.executionMode !== 'reasoning' &&
       previous.task === task.description && previous.signal === ctx.signal &&
       previous.tools === ctx.tools && previous.attempt === (ctx.attempt ?? 1) &&
       previous.branchId === ctx.currentBranchId ? previous : null;
@@ -674,9 +674,9 @@ ${previousAttempt}` : '',
     const { output, summary: rawSummary } = payload;
     this.lastReport = { output, summary: rawSummary, task, signal: ctx.signal, tools: ctx.tools,
       attempt: ctx.attempt ?? 1, branchId: ctx.currentBranchId };
-    // A read-only phase's writes and servers are put back after it: its
-    // digest would describe a workspace that no longer exists.
-    const digest = task.readOnly ? null : attempt.render(rawSummary);
+    // Restoration invalidates potentially mutating attempts. Pure reads can
+    // survive as historical inspection context, never as fresh proof.
+    const digest = task.readOnly && !attempt.isInspectionOnly() ? null : attempt.render(rawSummary);
     this.lastAttempt = digest === null ? null : {
       task: task.description, digest: attempt, report: rawSummary,
       signal: ctx.signal, tools: ctx.tools, attempt: ctx.attempt ?? 1,

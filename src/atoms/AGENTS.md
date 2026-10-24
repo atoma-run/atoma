@@ -63,7 +63,7 @@ Neighbours:
   and status, validate_html, recent commands and bounded observed results — and its own report,
   labelled not evidence. L2's patch and branch replacements `inheritAttempt`.
   Run 87e672d7 (2026-10-04) spent its retry's first 90 s re-reading what the
-  rejected attempt had just read. Planning also reads it: eight recent commands / 8,000 encoded characters; runtime boundaries and read-only restoration discard it, and historical results grant no freshness or tool credit.
+  rejected attempt had just read. Planning also reads it: eight recent commands / 8,000 encoded characters and 16,000 encoded characters of inspection observations. Read-only retries retain only attempts consisting exclusively of read_file/list_files; any other tool discards that memory across restoration. Runtime boundaries discard it. Historical results grant no freshness, approval or tool credit; omissions establish neither absence nor coverage.
 - Per-task child memos prevent immediate reuse loops. Initialize task state,
   mark committed children, and pass exclusions to prefilters.
 - Run-scoped integrity flags and memos must retain the same reference across
