@@ -418,14 +418,30 @@ export async function superviseLoop<C extends Atom>(
         if (ctx.signal.aborted) throw ctx.signal.reason ?? new Error('aborted');
 
         plansWithoutExecution = 0;
-        const result = await run(() => current.execute(task, plan, ctx));
+        let result = await run(() => current.execute(task, plan, ctx));
         trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: result });
 
         // A real L2/L3 applies the parent-test mapping in its result gates,
         // before any I/O or model call; this is the same mapping again for any
         // other Supervisor, so an approval past a failed suite is overruled and
         // one past a suite that did not run earns no credit.
-        const v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
+        let v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
+        if (!v2.approved && v2.reportCorrection && v2.scope === 'ephemeral' && current.tier === 1) {
+          ctx.recordRunStat?.('result-refusal');
+          trace.push({ kind: 'verdict-result', ts: now(), atom: parent.name, payload: v2 });
+          const corrected = await current.correctReport(task, result, v2, ctx);
+          if (!corrected) throw new ValidationError('Report-only correction unavailable; refusing to repeat execution for a reporting defect.');
+          result = { ...corrected, reportCorrected: true };
+          trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: { ...result, reportCorrection: true } });
+          // No execution wrapper or suite replay: only the report changed. All
+          // original host witnesses and suite outcomes still constrain this verdict.
+          v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
+          if (!v2.approved && v2.reportCorrection) {
+            ctx.recordRunStat?.('result-refusal');
+            trace.push({ kind: 'verdict-result', ts: now(), atom: parent.name, payload: v2 });
+            throw new ValidationError('Report-only correction remained refused; execution was not repeated.');
+          }
+        }
         if (!v2.approved) ctx.recordRunStat?.('result-refusal');
         lastResultVerdict = v2;
         trace.push({

@@ -156,7 +156,8 @@ export function renderProofCoverage(coverage: readonly ProofCoverage[]): string 
     '',
     '== DECLARED PROOF OBLIGATIONS (supervisor-held attestation) ==',
     'These lines are MACHINE-OBSERVED at the tool transport, not reported by the child.',
-    ...coverage.map((c) => `${c.covered ? 'COVERED' : 'UNCOVERED'} — ${c.reason}`),
+    'Coverage records historical execution of input, not a passing assertion or the latest browser outcome. An earlier completed observation can coexist with a later timeout or resource failure. Compare event ids with the chronological transport evidence; do not call a report of that later failure false merely because an older interaction completed.',
+    ...coverage.map((c) => `${c.covered ? 'COVERED' : 'UNCOVERED'} — ${c.reason} [eventIds=${c.eventIds.join(', ')}]`),
     ...(coverage.some((c) => !c.covered)
       ? [
           'An UNCOVERED obligation is not by itself a reason to reject: judge the',

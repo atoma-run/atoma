@@ -377,3 +377,22 @@ describe('trust fast-path in validators', () => {
     expect(ctx.llm.calls).toHaveLength(0);
   });
 });
+
+
+it('a corrected report cannot regain approval through earned trust', async () => {
+  const reg = new AtomRegistry(openDb(':memory:'));
+  const parentType = reg.create(2, seed);
+  const childType = reg.create(1, seed);
+  for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) reg.recordSuccess(childType.name);
+  const parent = L2Atom.fromType(parentType, reg);
+  const child = L1Atom.fromType(reg.getByName(childType.name)!);
+  const ctx = makeCtx();
+  ctx.llm.enqueueText(JSON.stringify({ approved: false, reasoning: 'The corrected report still invents an observation.', scope: 'ephemeral' }));
+  const verdict = await parent.validateResult(child, {
+    output: 'A claim', summary: 'Existing artifacts were inspected.', trace: [],
+    toolCallResults: [{ name: 'list_files', args: {}, result: '[]' }], reportCorrected: true,
+    producedBy: { tier: 1, name: child.name, viaFallback: false },
+  }, { description: 'Inspect existing files.' }, ctx);
+  expect(verdict.approved).toBe(false);
+  expect(ctx.llm.calls).toHaveLength(1);
+});

@@ -13,6 +13,7 @@ Neighbours:
 - [`src/registry`](../registry/AGENTS.md) — atom identity and trust storage
 
 ## Supervision protocol
+- A typed report-only refusal of a molecule permits one bounded tool-free correction, retaining host annotations, witnesses and suite outcomes. It receives a full model review, never trust/Decision approval. An unavailable or still-refused correction stops without replaying the execution; real execution defects retain the normal ladder.
 - ONE LADDER PER ROOT PHASE (owner decision 2026-10-10, judge what exists): a
   tissue that refuses a root phase whose cell's ladder ended in its last-resort
   fallback — for the phase or any subtask, or in a mutualized peer's
@@ -67,7 +68,6 @@ Neighbours:
   mark committed children, and pass exclusions to prefilters.
 - Run-scoped integrity flags and memos must retain the same reference across
   every `forkBranch`; add fork-propagation coverage for new optional fields.
-
 ## Root delivery acceptance in depth routing
 - The depth runner's `rootAcceptance.ts` owns delivery acceptance:
   delegated result gates retain their dispositions, `probe.requiresReview`

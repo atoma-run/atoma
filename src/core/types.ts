@@ -193,6 +193,8 @@ export interface Plan {
 }
 
 export interface Result {
+  /** Host-only: a report correction must receive a fresh model verdict, never a trust/Decision shortcut. */
+  readonly reportCorrected?: true;
   /**
    * Runtime-produced observations, never accepted from result JSON nor
    * written into `summary`: validators read them only as the host block
@@ -428,6 +430,8 @@ export interface CriterionJudgement {
   readonly reason?: string;
 }
 export type NegativeVerdict = {
+  /** Result-only reporting defect; requests no new execution or evidence. */
+  reportCorrection?: true;
   approved: false;
   reasoning: string;
   modifications: AtomModifications;

@@ -429,7 +429,13 @@ export class ToolSandbox {
       const idx = this.children.indexOf(child);
       if (idx !== -1) this.children.splice(idx, 1);
       ALL_TRACKED_CHILDREN.delete(child);
-      if (child.pid && !ownedGroupExists(child.pid)) this.childGroups.delete(child.pid);
+      // A crashed server no longer counts toward the live-server cap, but its
+      // workers may still occupy the run's process budget. End its owned group
+      // now, rather than leaving those descendants alive until run cleanup.
+      if (child.pid && this.childGroups.has(child.pid)) {
+        try { process.kill(-child.pid, 'SIGKILL'); } catch { /* group already gone */ }
+        if (!ownedGroupExists(child.pid)) this.childGroups.delete(child.pid);
+      }
     });
   }
 

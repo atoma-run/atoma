@@ -6,6 +6,7 @@ import type {
   GenerationParams,
   LlmCompletionRequest,
   Plan,
+  NegativeVerdict,
   Result,
   RunContext,
   Task,
@@ -70,6 +71,11 @@ export abstract class Atom {
    */
   abstract plan(task: Task, ctx: RunContext, feedback?: readonly string[]): Promise<Plan>;
   abstract execute(task: Task, plan: Plan, ctx: RunContext): Promise<Result>;
+
+  /** Tool-free report repair; unsupported atoms cannot silently re-execute for it. */
+  correctReport(_task: Task, _result: Result, _verdict: NegativeVerdict, _ctx: RunContext): Promise<Result | null> {
+    return Promise.resolve(null);
+  }
 
   applyModifications(mods: AtomModifications): void {
     const before = JSON.stringify([this.systemPrompt, this.tools, this.params]);

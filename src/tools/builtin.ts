@@ -1959,8 +1959,8 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
   // One shared browser per sandbox so we don't pay the 500ms+ launch cost on
   // every validation iteration.
   let sharedBrowser: Browser | null = null;
-  const getBrowser = async (): Promise<Browser> => {
-    if (sharedBrowser && sharedBrowser.connected) return sharedBrowser;
+  let launchingBrowser: Promise<Browser> | null = null;
+  const launchBrowser = async (): Promise<Browser> => {
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', ...proxyArgs],
@@ -1992,6 +1992,17 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
       }
     });
     return browser;
+  };
+  const getBrowser = async (): Promise<Browser> => {
+    if (sharedBrowser?.connected) return sharedBrowser;
+    // Parallel branches must share the in-flight launch as well as the browser.
+    // Otherwise each starts a Chromium process tree before any can publish it.
+    launchingBrowser ??= launchBrowser();
+    try {
+      return await launchingBrowser;
+    } finally {
+      launchingBrowser = null;
+    }
   };
 
   const stuck = makeSmokeStuckTracker(SMOKE_STUCK_WINDOW);
@@ -2221,7 +2232,13 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
       const context = hostReplay
         ? await browser.createBrowserContext({ proxyServer: HOST_REPLAY_DEAD_PROXY, proxyBypassList: ['<-loopback>', hostOf(url)] })
         : undefined;
-      const page = await (context ?? browser).newPage();
+      let page;
+      try {
+        page = await (context ?? browser).newPage();
+      } catch (error) {
+        await context?.close().catch(() => undefined);
+        throw error;
+      }
       const closePage = (): Promise<void> => (context ? context.close() : page.close());
       try {
         await page.setViewport(viewport);

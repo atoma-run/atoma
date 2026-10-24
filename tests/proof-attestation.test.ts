@@ -21,7 +21,7 @@ import {
   renderObservation,
   type AttestationRecord,
 } from '../src/contracts/attestation.js';
-import { checkProofCoverage, effectiveObligations } from '../src/atoms/proofCoverage.js';
+import { checkProofCoverage, effectiveObligations, renderProofCoverage } from '../src/atoms/proofCoverage.js';
 import { PROOF_OBLIGATION_GUIDANCE } from '../src/atoms/prompts.js';
 import { subtaskSpecSchema } from '../src/atoms/json.js';
 import {
@@ -279,6 +279,17 @@ describe('checkProofCoverage', () => {
       observation: parseBrowserObservation(args, raw)!,
     };
   }
+
+  it('labels old executed input as historical coverage without masking a later timeout', async () => {
+    const old = record({ ...STOPWATCH_RESULT, ok: false, errors: ['fixtureMode false'] });
+    const later = { ...record({ ok: false, errors: ['browser timeout'], interactionLog: [] }), eventId: 'ev-2' };
+    const coverage = await checkProofCoverage({ ctx: ctxWith([old, later]), obligations: ['dom-interaction'] });
+    expect(coverage[0]).toMatchObject({ covered: true, eventIds: ['ev-1'] });
+    const block = renderProofCoverage(coverage);
+    expect(block).toContain('not a passing assertion or the latest browser outcome');
+    expect(block).toContain('[eventIds=ev-1]');
+    expect(block).toContain('ok=false');
+  });
 
   it('costs nothing when the plan declared no obligation', async () => {
     const ctx = ctxWith([]);

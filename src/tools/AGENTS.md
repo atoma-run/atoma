@@ -97,6 +97,8 @@ Neighbours:
   silence clock while a host tool runs; the Claude CLI clock does not, so an
   `llm.callTimeoutMs` ceiling under five minutes can end a call a long
   command is still holding.
+- Concurrent browser checks share the in-flight Chromium launch. A host replay whose page creation fails closes its already-created context.
+- A tracked group leader exiting also kills its remaining owned group immediately; dead servers must not leave descendants consuming the run budget until final cleanup.
 - Cleanup is mandatory on success, failure, timeout, signal, and hard-exit paths.
   Network teardown races need bounded retry.
 - `ToolSandbox.drain()` is the stronger local contract before workspace

@@ -36,7 +36,7 @@ import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GU
 // L3Atom), and on 2026-10-16 the rule refused five plans, each a full replan.
 export const VALIDATION_SYSTEM_PROMPT = [
   'You validate agent outputs in a three-tier LLM orchestration system.',
-  'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check actual application imports, boundary/negative cases, absence of trivial assertions or mocks replacing the subject, and ability to fail on the behaviour the task or its criteria name, by the sufficiency standard and blocking suite defects the review request states. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. Passing tests only prove their assertions; assess integration and uncovered requirements separately. ' +
+  'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check actual application imports, boundary/negative cases, absence of trivial assertions or mocks replacing the subject, and ability to fail on the behaviour the task or its criteria name, by the sufficiency standard and blocking suite defects the review request states. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. A verification-only plan that permits a later repair if a real defect is found is not already an implementation branch; any actual repair must receive its own reviewed implementation plan and required suites before execution. Passing tests only prove their assertions; assess integration and uncovered requirements separately. ' +
     `Ask for the coverage a suite can carry within ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters; when a branch's contract needs more, ask for the branch to be split rather than for a longer suite; the host states each suite's size as a fact and accepts any suite under ${PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS.toLocaleString('en-US')} characters, so size alone is never a refusal. ` +
     'Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies. For a RESULT, parent-suite evidence exists only in the host\'s \'== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==\' block outside the RESULT; a RESULT claiming parent tests ran is child-reported text.',
   'Your ONLY job: emit a single Verdict JSON. No prose, no markdown, no tool calls.',
@@ -102,7 +102,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
   '  child to merge them into one interaction list that repeats a control and',
   '  then resets: the tool refuses that list pre-flight, and a self-driving',
   '  smoke executes no real interaction. Likewise weigh RESULT claims against that surface: a',
-  '  child cannot have observed browser behaviour without a browser tool —',
+  '  browser behaviour needs observed browser execution: validate_html OR a real browser test invoked through run_shell/record_probe with inspected setup, interactions and assertions. Shell access can launch Chromium; it is not evidence of browser execution by itself. Names, passing totals, mocks and HTTP markup alone prove no browser behaviour. Explicit DOM proof floors still require their declared transport evidence.',
   '  but an HTTP-verified claim ABOUT markup ("the served HTML contains the',
   '  form", checked via fetch_url) is legitimate; when the evidence is too',
   '  thin to tell which kind of claim it is, do not reject on this rule',
@@ -293,6 +293,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
   '  not expected to re-enumerate the affordances itself.',
   '',
   '== REJECT SCOPES ==',
+  'For a direct molecule RESULT whose only defect is inaccurate reporting of already observed evidence, reject with reportCorrection:true and scope:"ephemeral". State the exact correction in additionalContext. This requests one tool-free correction, followed by independent validation of the same evidence. Never use it for missing execution, unknown freshness, failed assertions, implementation defects or missing coverage. Never set it on a PLAN or delegated result. No new tests or mutation/restoration cycle is needed to correct a transcription.',
   'When rejecting, provide actionable "modifications" and pick a "scope":',
   '  - "ephemeral": apply only to this instance for this task (pure retry OK — empty modifications allowed)',
   '  - "patch":     update the canonical child type for future reuses',

@@ -657,6 +657,34 @@ describeDocker('read-run copies beside whole-tree tools in a containerised run',
 // isolated tag explicitly, so a stale shared :latest cannot masquerade as proof.
 const acceptanceImage = process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'];
 describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('compiled parent-test worker', () => {
+  it('stops a crashed server group before the next worker command', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-server-exit-image-'));
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    writeFileSync(join(workspace, 'owner.cjs'), `
+      const {spawn} = require('node:child_process');
+      const worker = spawn(process.execPath, ['-e', "setInterval(() => require('node:fs').appendFileSync('heartbeat', '.'), 20)"], {stdio: 'ignore'});
+      worker.on('spawn', () => {
+        const server = require('node:http').createServer((q,r) => r.end('ready'));
+        server.listen(Number(process.env.PORT), '127.0.0.1', () => {
+          console.log('LISTENING_ON_PORT=' + server.address().port);
+          setTimeout(() => process.exit(1), 500);
+        });
+      });
+    `);
+    try {
+      await executor.execute('start_node_server', { entry: 'owner.cjs' });
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const stopped = readFileSync(join(workspace, 'heartbeat'), 'utf8');
+      expect(stopped.length).toBeGreaterThan(0);
+      await new Promise(resolve => setTimeout(resolve, 250));
+      expect(readFileSync(join(workspace, 'heartbeat'), 'utf8')).toBe(stopped);
+    } finally {
+      await executor.drain();
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it.each([[1, 0], [0, 1]])('retains same-command probe history across the compiled worker (%i → %i)', async (first, latest) => {
     // Attica 3e07ee61: the server had the fix, but the customer-device worker
     // image still replaced the mutant result. Exercise packaged code over

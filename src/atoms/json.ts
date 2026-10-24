@@ -1480,6 +1480,7 @@ export const verdictSchema = z
     }),
     z.object({
       approved: z.literal(false),
+      reportCorrection: z.literal(true).optional(),
       reasoning: z.string(),
       modifications: atomModificationsSchema,
       scope: z.enum(['ephemeral', 'branch', 'patch']),

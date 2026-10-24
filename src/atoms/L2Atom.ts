@@ -2679,7 +2679,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     const parentSuite = !!task.acceptanceTests || !!result.parentTests?.length;
     let trustedProbe: GroundTruthCheck | null = null;
     if (
-      !options.scriptDispatch &&
+      !options.scriptDispatch && !result.reportCorrected &&
       !parentSuite && type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered
     ) {
       trustedProbe = await checkGroundTruth({
@@ -2755,7 +2755,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         ...(parentSuite ? { jevExcluded: 'parent-suite' as const } : {}),
         ...(audit ? { audit: true } : {}),
       });
-    if (!parentSuite && ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
+    if (!result.reportCorrected && !parentSuite && ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
       groundTruth ??= await checkGroundTruth({
         ctx,
         taskDescription: task.description,
