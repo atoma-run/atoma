@@ -248,7 +248,10 @@ export class L1Atom extends Atom {
     if (!report || report.task !== task || report.signal !== ctx.signal || report.tools !== ctx.tools ||
       report.attempt !== (ctx.attempt ?? 1) || report.branchId !== ctx.currentBranchId ||
       result.output !== report.output || !result.summary.endsWith(report.summary)) return null;
-    const input = JSON.stringify({ task: taskContextLines(task), report: { output: report.output, summary: report.summary }, correction: verdict });
+    // This call edits a report, not the execution plan. Inherited discovery and
+    // prior-phase payloads must not crowd the original report out of its budget.
+    // The unchanged full task and host evidence still reach the result reviewer.
+    const input = JSON.stringify({ task: { description: task.description, constraints: task.constraints, criteria: task.criteria }, report: { output: report.output, summary: report.summary }, correction: verdict });
     if (input.length > 48_000 || ctx.signal.aborted ||
       (ctx.deadlineAt !== undefined && ctx.deadlineAt - Date.now() < 60_000)) return null;
     const response = await ctx.llm.complete(this.toLlmRequest('execute', {

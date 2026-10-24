@@ -33,7 +33,7 @@ const correction: Verdict = {
   modifications: { additionalContext: 'Report build exit 0; retain mutant 1 and restoration 0.' },
 };
 
-it.each(['approved', 'refused', 'malformed', 'cut'] as const)('repairs the report without repeating a real mutant/restoration: %s', async mode => {
+it.each(['approved', 'large-context', 'refused', 'malformed', 'cut'] as const)('repairs the report without repeating a real mutant/restoration: %s', async mode => {
   const refusedAgain = mode === 'refused';
   const unavailable = mode === 'malformed' || mode === 'cut';
   const root = mkdtempSync(join(tmpdir(), 'report-correction-'));
@@ -54,6 +54,8 @@ it.each(['approved', 'refused', 'malformed', 'cut'] as const)('repairs the repor
     ctx.llm.enqueue(async request => {
       expect(request.executor).toBeUndefined();
       expect(request.tools).toBeUndefined();
+      expect(request.userContent.length).toBeLessThan(48_000);
+      expect(request.userContent).toContain('Exactly one mutant/restoration cycle.');
       return { text: mode === 'malformed' ? 'not a result envelope' : jsonText({ output: { build: 0, mutant: 1, restored: 0 }, summary: 'Build succeeded; mutant failed; restoration passed.', evidence: [], toolCallResults: [] }), stopReason: mode === 'cut' ? 'max_tokens' : 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
     });
     const child = new L1Atom({ name: 'Water', ordinal: 1, systemPrompt: '', tools: [tool.declaration], params: {} });
@@ -64,7 +66,9 @@ it.each(['approved', 'refused', 'malformed', 'cut'] as const)('repairs the repor
       return { ...result, summary: '[HOST ANNOTATION] ' + result.summary };
     });
     const onApproved = vi.fn();
-    const run = superviseLoop(parent, child, { description: 'Exactly one mutant/restoration cycle.' }, ctx, {
+    const run = superviseLoop(parent, child, { description: 'Exactly one mutant/restoration cycle.',
+      ...(mode === 'large-context' ? { inputs: { repositoryDiscovery: 'historical observation '.repeat(4000) } } : {}),
+    }, ctx, {
       aroundExecute, onApproved,
       applyByScope: async () => { throw new Error('No replan for report correction'); },
       branchOnEscalation: async () => { throw new Error('No branch for report correction'); },
@@ -81,7 +85,7 @@ it.each(['approved', 'refused', 'malformed', 'cut'] as const)('repairs the repor
       expect(parent.seen[1]!.evidence).toBe(parent.seen[0]!.evidence);
       expect(parent.seen[1]!.summary).toMatch(/^\[HOST ANNOTATION\]/);
     }
-    expect(onApproved).toHaveBeenCalledTimes(mode === 'approved' ? 1 : 0);
+    expect(onApproved).toHaveBeenCalledTimes(mode === 'approved' || mode === 'large-context' ? 1 : 0);
   } finally {
     await sandbox.cleanup();
     rmSync(root, { recursive: true, force: true });
