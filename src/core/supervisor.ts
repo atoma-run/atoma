@@ -146,6 +146,12 @@ export const POLICY_MARKERS: readonly { id: string; synonyms: readonly string[] 
   },
 ];
 export const MAX_SAME_MARKER_REJECTS = 3;
+/**
+ * Tool-free report corrections per execution before a report-only refusal
+ * takes the ordinary ladder. Each is one cheap call that executes nothing;
+ * the ladder's retry re-executes, and failing the phase instead failed the run.
+ */
+export const MAX_REPORT_CORRECTIONS = 2;
 
 /**
  * Plan reviews that failed AS THE REVIEWER (`delegationRefusal: 'reviewer'`)
@@ -429,32 +435,39 @@ export async function superviseLoop<C extends Atom>(
         // The refusal below is recorded once: here when a correction is
         // attempted, on the common path otherwise.
         let refusalRecorded = false;
-        if (!v2.approved && v2.reportCorrection && v2.scope === 'ephemeral' && current.tier === 1) {
+        let corrections = 0;
+        while (!v2.approved && v2.reportCorrection && v2.scope === 'ephemeral' && current.tier === 1 &&
+          corrections < MAX_REPORT_CORRECTIONS) {
           ctx.recordRunStat?.('result-refusal');
           trace.push({ kind: 'verdict-result', ts: now(), atom: parent.name, payload: v2 });
           refusalRecorded = true;
           const corrected = await current.correctReport(task, result, v2, ctx);
-          if (corrected) {
-            result = { ...corrected, reportCorrected: true };
-            trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: { ...result, reportCorrection: true } });
-            // No execution wrapper or suite replay: only the report changed. All
-            // original host witnesses and suite outcomes still constrain this verdict.
-            v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
-            refusalRecorded = false;
-            if (!v2.approved && v2.reportCorrection) {
-              ctx.recordRunStat?.('result-refusal');
-              trace.push({ kind: 'verdict-result', ts: now(), atom: parent.name, payload: v2 });
-              throw new ValidationError('Report-only correction remained refused; execution was not repeated.');
-            }
-          } else {
+          if (!corrected) {
             // A correction the molecule could not give — a cut or unparseable
-            // reply, a report past the input bound, a deadline too near — is
-            // not a judged defect and no reason to fail the phase: the refusal
+            // reply twice, a report past the input bound, a deadline too near —
+            // is not a judged defect and no reason to fail the phase: the refusal
             // takes the ordinary ladder below, where the retry re-executes as
             // every refusal did before the correction path existed. Failing
             // here ended a phase over one formatting slip of a tool-free turn.
             ctx.logger.warn(`[${current.name}] report-only correction unavailable; the refusal takes the ordinary ladder`);
+            break;
           }
+          corrections++;
+          result = { ...corrected, reportCorrected: true };
+          trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: { ...result, reportCorrection: true } });
+          // No execution wrapper or suite replay: only the report changed. All
+          // original host witnesses and suite outcomes still constrain this verdict.
+          v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
+          refusalRecorded = false;
+        }
+        if (!v2.approved && v2.reportCorrection && corrections >= MAX_REPORT_CORRECTIONS) {
+          // Still judged a transcription defect after every correction. Until
+          // 2026-10-24 this threw: the error crossed the cell's dispatch, the
+          // tissue and the depth runner, and a run with no judged pass FAILED
+          // and lost its work over a report twice judged merely mistranscribed.
+          // One re-execution is the cheaper outcome; the retry reads the exact
+          // correction and its own attempt digest, and never gains fast paths.
+          ctx.logger.warn(`[${current.name}] report-only correction refused ${corrections} time(s); the refusal takes the ordinary ladder`);
         }
         if (!refusalRecorded) {
           if (!v2.approved) ctx.recordRunStat?.('result-refusal');

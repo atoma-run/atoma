@@ -284,6 +284,8 @@ export class L1Atom extends Atom {
       return null;
     }
     if (corrected === null || corrected.summary.startsWith(NON_JSON_PAYLOAD_SUMMARY_PREFIX)) return null;
+    // The corrected report is what a further correction starts from.
+    this.lastReport = { ...report, output: corrected.output, summary: corrected.summary };
     // Keep every host witness/flag and any annotation added outside the model report.
     const prefix = result.summary.slice(0, result.summary.length - report.summary.length);
     return { ...result, output: corrected.output, summary: prefix + corrected.summary };
