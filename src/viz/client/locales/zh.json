@@ -2715,5 +2715,6 @@
   "sentinel.col.corpus": "语料库",
   "sentinel.col.run": "run",
   "sentinel.col.summary": "观察到的内容",
-  "sentinel.col.actor": "执行者"
+  "sentinel.col.actor": "执行者",
+  "now.doing.verdictRepair": "{{actor}}正在重新发出对{{child}}工作的裁定，因其格式无法解析。"
 }

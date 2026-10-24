@@ -2715,5 +2715,6 @@
   "sentinel.col.corpus": "Korpus",
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "Yang terlihat",
-  "sentinel.col.actor": "Aktor"
+  "sentinel.col.actor": "Aktor",
+  "now.doing.verdictRepair": "{{actor}} sedang menerbitkan ulang putusan atas pekerjaan {{child}} karena format putusan tersebut gagal diurai."
 }

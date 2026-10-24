@@ -2715,5 +2715,6 @@
   "sentinel.col.corpus": "المتن",
   "sentinel.col.run": "run",
   "sentinel.col.summary": "ما تمت ملاحظته",
-  "sentinel.col.actor": "الجهة المنفذة"
+  "sentinel.col.actor": "الجهة المنفذة",
+  "now.doing.verdictRepair": "يعيد {{actor}} إصدار حكم بشأن عمل {{child}} الذي تعذّر تحليل تنسيقه."
 }

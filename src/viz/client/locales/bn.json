@@ -2715,5 +2715,6 @@
   "sentinel.col.corpus": "করপাস",
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "যা দেখা গেছে",
-  "sentinel.col.actor": "কর্তা"
+  "sentinel.col.actor": "কর্তা",
+  "now.doing.verdictRepair": "{{child}}-এর যে কাজটির ফরম্যাট পার্স করা যায়নি, সেটির ওপর {{actor}} পুনরায় রায় প্রকাশ করছে।"
 }

@@ -2715,5 +2715,6 @@
   "sentinel.col.corpus": "کارپس",
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "کیا دیکھا گیا",
-  "sentinel.col.actor": "عامل"
+  "sentinel.col.actor": "عامل",
+  "now.doing.verdictRepair": "{{actor}}، {{child}} کے اس کام پر دوبارہ فیصلہ جاری کر رہا ہے جس کی فارمیٹنگ پارس نہیں ہو سکی تھی۔"
 }

@@ -2715,5 +2715,6 @@
   "sentinel.col.corpus": "コーパス",
   "sentinel.col.run": "run",
   "sentinel.col.summary": "確認された内容",
-  "sentinel.col.actor": "アクター"
+  "sentinel.col.actor": "アクター",
+  "now.doing.verdictRepair": "書式を解析できなかった{{child}}の作業について、{{actor}}が判定を再出力しています。"
 }
