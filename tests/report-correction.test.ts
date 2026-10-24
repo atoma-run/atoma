@@ -43,14 +43,16 @@ it.each(['approved', 'nested-marker', 'large-context', 'refused', 'malformed', '
     writeFileSync(join(root, 'check.cjs'), "require('node:assert/strict').equal(require('./built.cjs').value, 1, 'temporal boundary');");
     const executeTool = vi.fn(async (_name: string, args: Record<string, unknown>) =>
       JSON.parse(JSON.stringify(await tool.execute(args))) as unknown);
-    const ctx = { ...makeCtx(), tools: { has: () => true, execute: executeTool } };
-    ctx.llm.enqueue(async request => {
+    const recordRunStat = vi.fn();
+    const ctx = { ...makeCtx(), tools: { has: () => true, execute: executeTool }, recordRunStat };
+    const execution = async (request: { executor?: { execute(name: string, args: Record<string, unknown>): Promise<unknown> } }) => {
       writeFileSync(join(root, 'built.cjs'), 'exports.value = 2;');
       expect(await request.executor!.execute('record_probe', { cmd: 'node check.cjs' })).toMatchObject({ exitCode: 1 });
       writeFileSync(join(root, 'built.cjs'), 'exports.value = 1;');
       expect(await request.executor!.execute('record_probe', { cmd: 'node check.cjs' })).toMatchObject({ exitCode: 0 });
-      return { text: jsonText({ output: { build: 1, mutant: 1, restored: 0 }, summary: 'Observed mutant failure then restored success.' }), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
-    });
+      return { text: jsonText({ output: { build: 1, mutant: 1, restored: 0 }, summary: 'Observed mutant failure then restored success.' }), stopReason: 'end_turn' as const, usage: { inputTokens: 1, outputTokens: 1 } };
+    };
+    ctx.llm.enqueue(execution);
     ctx.llm.enqueue(async request => {
       expect(request.executor).toBeUndefined();
       expect(request.tools).toBeUndefined();
@@ -58,6 +60,9 @@ it.each(['approved', 'nested-marker', 'large-context', 'refused', 'malformed', '
       expect(request.userContent).toContain('Exactly one mutant/restoration cycle.');
       return { text: mode === 'malformed' ? 'not a result envelope' : jsonText({ output: { build: 0, mutant: 1, restored: 0 }, summary: 'Build succeeded; mutant failed; restoration passed.', evidence: [], toolCallResults: [] }), stopReason: mode === 'cut' ? 'max_tokens' : 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
     });
+    // An unavailable correction is not a judged defect: the refusal takes the
+    // ordinary ladder and the ephemeral retry re-executes, as before the path.
+    if (unavailable) ctx.llm.enqueue(execution);
     const child = new L1Atom({ name: 'Water', ordinal: 1, systemPrompt: '', tools: [tool.declaration], params: {} });
     const plan = vi.spyOn(child, 'plan').mockResolvedValue(makePlan());
     const parsedVerdict = mode === 'nested-marker' ? parseVerdict(JSON.stringify({
@@ -72,26 +77,39 @@ it.each(['approved', 'nested-marker', 'large-context', 'refused', 'malformed', '
       return { ...result, summary: '[HOST ANNOTATION] ' + result.summary };
     });
     const onApproved = vi.fn();
+    const applyByScope = vi.fn(async (current: L1Atom) => {
+      if (!unavailable) throw new Error('No replan for report correction');
+      return current;
+    });
     const run = superviseLoop(parent, child, { description: 'Exactly one mutant/restoration cycle.',
       ...(mode === 'large-context' ? { inputs: { repositoryDiscovery: 'historical observation '.repeat(4000) } } : {}),
     }, ctx, {
-      aroundExecute, onApproved,
-      applyByScope: async () => { throw new Error('No replan for report correction'); },
+      aroundExecute, onApproved, applyByScope,
       branchOnEscalation: async () => { throw new Error('No branch for report correction'); },
     });
-    if (unavailable) await expect(run).rejects.toThrow('Report-only correction unavailable');
-    else if (refusedAgain) await expect(run).rejects.toThrow('Report-only correction remained refused');
-    else expect((await run).output).toEqual({ build: 0, mutant: 1, restored: 0 });
-    expect(plan).toHaveBeenCalledTimes(1);
-    expect(aroundExecute).toHaveBeenCalledTimes(1);
-    expect(executeTool).toHaveBeenCalledTimes(2);
-    expect(parent.seen).toHaveLength(unavailable ? 1 : 2);
+    if (refusedAgain) await expect(run).rejects.toThrow('Report-only correction remained refused');
+    else if (unavailable) {
+      const outcome = await run;
+      expect(outcome.output).toEqual({ build: 1, mutant: 1, restored: 0 });
+      // One refusal, one retry, one approval: nothing counted or traced twice.
+      expect(outcome.trace.filter(entry => entry.kind === 'verdict-result')).toHaveLength(2);
+      expect(outcome.trace.filter(entry => entry.kind === 'execute')).toHaveLength(2);
+      expect(recordRunStat.mock.calls.filter(([stat]) => stat === 'result-refusal')).toHaveLength(1);
+    } else expect((await run).output).toEqual({ build: 0, mutant: 1, restored: 0 });
+    expect(plan).toHaveBeenCalledTimes(unavailable ? 2 : 1);
+    expect(aroundExecute).toHaveBeenCalledTimes(unavailable ? 2 : 1);
+    expect(executeTool).toHaveBeenCalledTimes(unavailable ? 4 : 2);
+    expect(applyByScope).toHaveBeenCalledTimes(unavailable ? 1 : 0);
+    expect(parent.seen).toHaveLength(2);
     if (!unavailable) {
       expect(parent.seen[1]!.toolCallResults).toBe(parent.seen[0]!.toolCallResults);
       expect(parent.seen[1]!.evidence).toBe(parent.seen[0]!.evidence);
       expect(parent.seen[1]!.summary).toMatch(/^\[HOST ANNOTATION\]/);
+    } else {
+      expect(parent.seen[1]).not.toHaveProperty('reportCorrected');
+      expect(parent.seen[1]!.toolCallResults).not.toBe(parent.seen[0]!.toolCallResults);
     }
-    expect(onApproved).toHaveBeenCalledTimes(mode === 'approved' || mode === 'nested-marker' || mode === 'large-context' ? 1 : 0);
+    expect(onApproved).toHaveBeenCalledTimes(refusedAgain ? 0 : 1);
   } finally {
     await sandbox.cleanup();
     rmSync(root, { recursive: true, force: true });

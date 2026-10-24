@@ -13,7 +13,7 @@ Neighbours:
 - [`src/registry`](../registry/AGENTS.md) — atom identity and trust storage
 
 ## Supervision protocol
-- A typed report-only refusal of a molecule permits one bounded tool-free correction, retaining host annotations, witnesses and suite outcomes. It receives a full model review, never trust/Decision approval. An unavailable or still-refused correction stops without replaying the execution; real execution defects retain the normal ladder.
+- A typed report-only refusal of a molecule permits one bounded tool-free correction, retaining host annotations, witnesses and suite outcomes. It receives a full model review, never trust/Decision approval. A correction refused AGAIN as report-only stops without replaying the execution; one the molecule could not give (a cut or unparseable reply, a report past the input bound, a deadline too near) takes the ordinary ladder, since failing the phase over a tool-free formatting slip cost more than the replay it avoided; real execution defects retain the normal ladder.
 - ONE LADDER PER ROOT PHASE (owner decision 2026-10-10, judge what exists): a
   tissue that refuses a root phase whose cell's ladder ended in its last-resort
   fallback — for the phase or any subtask, or in a mutualized peer's

@@ -426,30 +426,46 @@ export async function superviseLoop<C extends Atom>(
         // other Supervisor, so an approval past a failed suite is overruled and
         // one past a suite that did not run earns no credit.
         let v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
+        // The refusal below is recorded once: here when a correction is
+        // attempted, on the common path otherwise.
+        let refusalRecorded = false;
         if (!v2.approved && v2.reportCorrection && v2.scope === 'ephemeral' && current.tier === 1) {
           ctx.recordRunStat?.('result-refusal');
           trace.push({ kind: 'verdict-result', ts: now(), atom: parent.name, payload: v2 });
+          refusalRecorded = true;
           const corrected = await current.correctReport(task, result, v2, ctx);
-          if (!corrected) throw new ValidationError('Report-only correction unavailable; refusing to repeat execution for a reporting defect.');
-          result = { ...corrected, reportCorrected: true };
-          trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: { ...result, reportCorrection: true } });
-          // No execution wrapper or suite replay: only the report changed. All
-          // original host witnesses and suite outcomes still constrain this verdict.
-          v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
-          if (!v2.approved && v2.reportCorrection) {
-            ctx.recordRunStat?.('result-refusal');
-            trace.push({ kind: 'verdict-result', ts: now(), atom: parent.name, payload: v2 });
-            throw new ValidationError('Report-only correction remained refused; execution was not repeated.');
+          if (corrected) {
+            result = { ...corrected, reportCorrected: true };
+            trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: { ...result, reportCorrection: true } });
+            // No execution wrapper or suite replay: only the report changed. All
+            // original host witnesses and suite outcomes still constrain this verdict.
+            v2 = withParentTestConsequences(result, await parent.validateResult(current, result, task, ctx), ctx.logger);
+            refusalRecorded = false;
+            if (!v2.approved && v2.reportCorrection) {
+              ctx.recordRunStat?.('result-refusal');
+              trace.push({ kind: 'verdict-result', ts: now(), atom: parent.name, payload: v2 });
+              throw new ValidationError('Report-only correction remained refused; execution was not repeated.');
+            }
+          } else {
+            // A correction the molecule could not give — a cut or unparseable
+            // reply, a report past the input bound, a deadline too near — is
+            // not a judged defect and no reason to fail the phase: the refusal
+            // takes the ordinary ladder below, where the retry re-executes as
+            // every refusal did before the correction path existed. Failing
+            // here ended a phase over one formatting slip of a tool-free turn.
+            ctx.logger.warn(`[${current.name}] report-only correction unavailable; the refusal takes the ordinary ladder`);
           }
         }
-        if (!v2.approved) ctx.recordRunStat?.('result-refusal');
+        if (!refusalRecorded) {
+          if (!v2.approved) ctx.recordRunStat?.('result-refusal');
+          trace.push({
+            kind: 'verdict-result',
+            ts: now(),
+            atom: parent.name,
+            payload: v2,
+          });
+        }
         lastResultVerdict = v2;
-        trace.push({
-          kind: 'verdict-result',
-          ts: now(),
-          atom: parent.name,
-          payload: v2,
-        });
 
         if (v2.approved) {
           if (hooks.onApproved) await hooks.onApproved(current, result, v2);
