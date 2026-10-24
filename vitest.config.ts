@@ -13,22 +13,33 @@ import type { SerializedError } from 'vitest';
  * mismatch into a red run. Comparing against `onTestRunStart`'s own queue —
  * rather than a directory glob — keeps filtered invocations
  * (`vitest run tests/one.test.ts`) honest for free.
+ *
+ * `--shard` hands the FULL pre-shard specification list to onTestRunStart
+ * and then, by design, only this shard's modules to onTestRunEnd. CI runs
+ * the suite as three shards (2026-10-24), so the queue is narrowed with the
+ * configured sequencer's own `shard()` — the function vitest applies — and
+ * a shard that loses one of its OWN files still reddens. An earlier guard
+ * simply switched the reporter off under `--shard`, which would have left
+ * every CI shard unprotected.
  */
 export class DiscoveryReporter implements Reporter {
   private queued: string[] = [];
-  private sharded = false;
+  private vitest: Vitest | undefined;
 
   onInit(vitest: Vitest): void {
-    // `--shard` hands the FULL pre-shard specification list to
-    // onTestRunStart and then, by design, only this shard's modules to
-    // onTestRunEnd — a mismatch that is deliberate narrowing, not loss.
-    // Nothing in this repo shards today; the guard keeps the reporter from
-    // reddening a healthy shard the day something does.
-    this.sharded = vitest.config.shard != null;
+    this.vitest = vitest;
   }
 
-  onTestRunStart(specifications: ReadonlyArray<TestSpecification>): void {
-    this.queued = specifications.map((specification) => specification.moduleId);
+  onTestRunStart(specifications: ReadonlyArray<TestSpecification>): void | Promise<void> {
+    const vitest = this.vitest;
+    if (vitest?.config.shard == null) {
+      this.queued = specifications.map((specification) => specification.moduleId);
+      return;
+    }
+    const sequencer = new vitest.config.sequence.sequencer(vitest);
+    return Promise.resolve(sequencer.shard([...specifications])).then((shard) => {
+      this.queued = shard.map((specification) => specification.moduleId);
+    });
   }
 
   onTestRunEnd(
@@ -36,7 +47,7 @@ export class DiscoveryReporter implements Reporter {
     _errors: ReadonlyArray<SerializedError>,
     reason: TestRunEndReason
   ): void {
-    if (this.sharded || reason === 'interrupted') return;
+    if (reason === 'interrupted') return;
     const reported = new Set(testModules.map((module) => module.moduleId));
     const missing = this.queued.filter((moduleId) => !reported.has(moduleId));
     if (missing.length === 0) return;

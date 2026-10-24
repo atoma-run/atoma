@@ -1,9 +1,18 @@
-/** Fresh application installs exercise the packaged worker-side generator. */
+/**
+ * Fresh application installs exercise the packaged worker-side generator.
+ *
+ * The three kinds run CONCURRENTLY, each in its own sandbox, read-run copy
+ * and server port: one after the other they cost 86 s of the static CI job
+ * (2026-10-24, ~28 s a kind on a 4-CPU runner that had nothing else to do),
+ * and since the test half of CI became three shards that job is the longer
+ * one. Every npm call below is therefore asynchronous — a `spawnSync` would
+ * hold the event loop and serialise the kinds again.
+ */
 import { cpSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { runShellTool } from '../dist/tools/builtin.js';
 import { ToolSandbox } from '../dist/tools/sandbox.js';
@@ -12,8 +21,20 @@ import { READ_RUNS_DIRECTORY, readRunCopyIntact, readRunCopyPath } from '../dist
 import { checkReadRunCopies, materialiseReadRuns } from '../dist/run/readRuns.js';
 
 const root = mkdtempSync(join(tmpdir(), 'atoma-application-smoke-'));
-function run(cwd, args, passes = true) {
-  const result = spawnSync('npm', args, { cwd, encoding: 'utf8', timeout: 120_000, env: process.env });
+function npm(cwd, args) {
+  return new Promise(resolve => {
+    const child = spawn('npm', args, { cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '', stderr = '';
+    child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
+    child.stdout.on('data', data => { stdout += data; });
+    child.stderr.on('data', data => { stderr += data; });
+    const timeout = setTimeout(() => child.kill('SIGKILL'), 120_000);
+    child.once('error', error => { clearTimeout(timeout); resolve({ status: null, error, stdout, stderr }); });
+    child.once('exit', (status, signal) => { clearTimeout(timeout); resolve({ status, error: signal, stdout, stderr }); });
+  });
+}
+async function run(cwd, args, passes = true) {
+  const result = await npm(cwd, args);
   if (passes ? result.status !== 0 : result.status === 0 || result.status === null) {
     throw new Error(`npm ${args.join(' ')}: ${result.error ?? result.status}\n${result.stdout}\n${result.stderr}`);
   }
@@ -69,56 +90,57 @@ async function serve(cwd, browser) {
     if (child.exitCode === null && child.signalCode === null) { child.kill('SIGKILL'); await exited; }
   }
 }
-try {
-  for (const kind of ['node', 'web', 'fullstack']) {
-    const sandbox = new ToolSandbox(join(root, kind));
-    const result = await runShellTool({ sandbox }).execute({ command: 'atoma-scaffold', args: [kind] });
-    assert.equal(result.exitCode, 0, result.stderr);
-    const cwd = sandbox.root;
-    run(cwd, ['ci', '--include=dev', '--no-audit', '--no-fund']);
-    run(cwd, ['run', 'check']);
-    // Copies of other runs' saved files sit under .atoma-runs/node_modules
-    // (2026-10-17), which whole-tree tools skip: a broken one, placed by the
-    // compiled host code, leaves check green with this skeleton's
-    // configuration, with v1's (no `.atoma-*` lint ignore) and with Vitest's
-    // default include, as an older or imported project has them.
-    const { runId, index } = brokenReadRun(cwd, join(root, `${kind}-read-run`));
-    const { identities } = materialiseReadRuns(cwd, index);
-    run(cwd, ['run', 'check']);
-    const eslintConfig = readFileSync(join(cwd, 'eslint.config.js'), 'utf8');
-    const vitestConfig = readFileSync(join(cwd, 'vitest.config.ts'), 'utf8');
-    const v1 = eslintConfig.replace(", '.atoma-*/**'", '');
-    assert.notEqual(v1, eslintConfig, 'the skeleton ignores .atoma-* in ESLint');
-    writeFileSync(join(cwd, 'eslint.config.js'), v1);
-    run(cwd, ['run', 'check']);
-    writeFileSync(join(cwd, 'vitest.config.ts'), "import { defineConfig } from 'vitest/config';\nexport default defineConfig({ test: { environment: 'node' } });\n");
-    run(cwd, ['run', 'check']);
-    // npm manages the root node_modules alone: a clean install leaves every copy as the host wrote it.
-    run(cwd, ['ci', '--include=dev', '--no-audit', '--no-fund']);
-    assert.ok(readRunCopyIntact(checkReadRunCopies(cwd, index, identities)[0]), 'the checks and npm ci leave the copy intact');
-    // The control: the same copy where copies sat before 2026-10-17 fails lint and tests, so the checks above prove something.
-    renameSync(join(cwd, readRunCopyPath(runId)), join(cwd, READ_RUNS_DIRECTORY, runId));
-    run(cwd, ['run', 'lint'], false);
-    run(cwd, ['test'], false);
-    rmSync(join(cwd, READ_RUNS_DIRECTORY), { recursive: true, force: true });
-    writeFileSync(join(cwd, 'eslint.config.js'), eslintConfig);
-    writeFileSync(join(cwd, 'vitest.config.ts'), vitestConfig);
-    run(cwd, ['run', 'build']);
-    await serve(cwd, kind !== 'node');
-    for (const file of ['src/message.ts', 'tests/message.test.ts']) {
-      const path = join(cwd, file);
-      const original = readFileSync(path, 'utf8');
-      writeFileSync(path, original + '\nexport const broken: string = 42;\n');
-      run(cwd, ['run', 'typecheck'], false);
-      writeFileSync(path, original);
-    }
-    const path = join(cwd, 'tests/message.test.ts');
+async function smoke(kind) {
+  const sandbox = new ToolSandbox(join(root, kind));
+  const result = await runShellTool({ sandbox }).execute({ command: 'atoma-scaffold', args: [kind] });
+  assert.equal(result.exitCode, 0, result.stderr);
+  const cwd = sandbox.root;
+  await run(cwd, ['ci', '--include=dev', '--no-audit', '--no-fund']);
+  await run(cwd, ['run', 'check']);
+  // Copies of other runs' saved files sit under .atoma-runs/node_modules
+  // (2026-10-17), which whole-tree tools skip: a broken one, placed by the
+  // compiled host code, leaves check green with this skeleton's
+  // configuration, with v1's (no `.atoma-*` lint ignore) and with Vitest's
+  // default include, as an older or imported project has them.
+  const { runId, index } = brokenReadRun(cwd, join(root, `${kind}-read-run`));
+  const { identities } = materialiseReadRuns(cwd, index);
+  await run(cwd, ['run', 'check']);
+  const eslintConfig = readFileSync(join(cwd, 'eslint.config.js'), 'utf8');
+  const vitestConfig = readFileSync(join(cwd, 'vitest.config.ts'), 'utf8');
+  const v1 = eslintConfig.replace(", '.atoma-*/**'", '');
+  assert.notEqual(v1, eslintConfig, 'the skeleton ignores .atoma-* in ESLint');
+  writeFileSync(join(cwd, 'eslint.config.js'), v1);
+  await run(cwd, ['run', 'check']);
+  writeFileSync(join(cwd, 'vitest.config.ts'), "import { defineConfig } from 'vitest/config';\nexport default defineConfig({ test: { environment: 'node' } });\n");
+  await run(cwd, ['run', 'check']);
+  // npm manages the root node_modules alone: a clean install leaves every copy as the host wrote it.
+  await run(cwd, ['ci', '--include=dev', '--no-audit', '--no-fund']);
+  assert.ok(readRunCopyIntact(checkReadRunCopies(cwd, index, identities)[0]), 'the checks and npm ci leave the copy intact');
+  // The control: the same copy where copies sat before 2026-10-17 fails lint and tests, so the checks above prove something.
+  renameSync(join(cwd, readRunCopyPath(runId)), join(cwd, READ_RUNS_DIRECTORY, runId));
+  await run(cwd, ['run', 'lint'], false);
+  await run(cwd, ['test'], false);
+  rmSync(join(cwd, READ_RUNS_DIRECTORY), { recursive: true, force: true });
+  writeFileSync(join(cwd, 'eslint.config.js'), eslintConfig);
+  writeFileSync(join(cwd, 'vitest.config.ts'), vitestConfig);
+  await run(cwd, ['run', 'build']);
+  await serve(cwd, kind !== 'node');
+  for (const file of ['src/message.ts', 'tests/message.test.ts']) {
+    const path = join(cwd, file);
     const original = readFileSync(path, 'utf8');
-    writeFileSync(path, original + '\nPromise.resolve(1);\n');
-    run(cwd, ['run', 'lint'], false);
-    writeFileSync(path, original.replace("toBe('Hello, Ada!')", "toBe('wrong')"));
-    run(cwd, ['test'], false);
+    writeFileSync(path, original + '\nexport const broken: string = 42;\n');
+    await run(cwd, ['run', 'typecheck'], false);
     writeFileSync(path, original);
-    console.log(`application skeleton ${kind}: install, check, a broken read-run copy left out under v2 and v1 lint and Vitest's default include, npm ci keeping it, build, built server, source/test type errors, floating promise and failing assertion verified`);
   }
+  const path = join(cwd, 'tests/message.test.ts');
+  const original = readFileSync(path, 'utf8');
+  writeFileSync(path, original + '\nPromise.resolve(1);\n');
+  await run(cwd, ['run', 'lint'], false);
+  writeFileSync(path, original.replace("toBe('Hello, Ada!')", "toBe('wrong')"));
+  await run(cwd, ['test'], false);
+  writeFileSync(path, original);
+  console.log(`application skeleton ${kind}: install, check, a broken read-run copy left out under v2 and v1 lint and Vitest's default include, npm ci keeping it, build, built server, source/test type errors, floating promise and failing assertion verified`);
+}
+try {
+  await Promise.all(['node', 'web', 'fullstack'].map(smoke));
 } finally { rmSync(root, { recursive: true, force: true }); }

@@ -16,9 +16,8 @@ per-file discovery is guaranteed by neither. The map is an instruction, not a
 convenience.
 
 `docs/` holds only what developers and users read; incident narratives, measurements and reviews live under `records/`, linked, never copied in.
-The former 5,452-line engineering record is preserved verbatim (apart from
-its archive banner) in
-[`records/incidents/engineering-record-2026-08-14.md`](records/incidents/engineering-record-2026-08-14.md).
+The former 5,452-line engineering record is preserved verbatim (apart from its
+archive banner) in [`records/incidents/engineering-record-2026-08-14.md`](records/incidents/engineering-record-2026-08-14.md).
 Use it when a rule's rationale matters, not as default session context.
 
 ## Subsystem map
@@ -221,8 +220,8 @@ separately billed `OPENAI_API_KEY`. The full contract is in
   build, the compiled MCP smoke, the compiled auth end-to-end smoke
   (`auth-release-smoke.mjs`: founder login, CLI invite, member admission),
   and the auth/doctor/analyst/mender/assayer/backup help smokes. It is ONE definition,
-  `release:check:static && npm test`; CI runs the two halves side by side, and
-  the required `Hermetic checks` job passes only when both did. `npm run backup` is
+  `release:check:static && npm test`; CI runs the halves side by side, the test
+  half in three `--shard`s (2026-10-24); `Hermetic checks` needs every job green. `npm run backup` is
   compiled (`node dist/cli/backup.js`) because the host installs with
   `npm ci --omit=dev` and has no tsx; `backup:dev` is the source path.
 - The BROWSER smoke (`viz:smoke`) is NOT in it, since 2026-08-24. It is the one
@@ -472,6 +471,7 @@ The frozen record contains the full dated reasoning behind these rules:
 - [production runs over the README use cases: seven runs, seven incidents — 2026-09-26](records/incidents/production-runs-2026-09-26.md)
 - [production runs, second day: criteria widths never laid out, form controls that could not be chosen — 2026-09-27](records/incidents/production-runs-2026-09-27.md)
 - [production runs, third day: a restored store refilled by its own server, and why the mender never opened a PR — 2026-09-28](records/incidents/production-runs-2026-09-28.md)
+- [the deployment's critical path, 7 to 11 minutes in ten days: the test suite on one runner, measured and sharded — 2026-10-24](records/incidents/ci-critical-path-2026-10-24.md)
 - [compile at learn, dispatch at first match — owner decision 2026-09-26](docs/decisions/compile-at-learn-2026-09-26.md)
 - [external code review](records/reviews/code-review-2026-08-14.md)
 - [code review 2026-08-18](records/reviews/code-review-2026-08-18.md)

@@ -35,7 +35,9 @@ jobs:
   # package.json — run here as its two halves side by side. One after the
   # other they were the whole critical path to a deployment, about 4.5 min of
   # it (2026-09-27); side by side the longer half is. `core` below is the
-  # single required check that says both passed.
+  # single required check that says both passed. The test half runs as three
+  # shards (see `tests`), so since 2026-10-24 this static half is the longer
+  # one: its own cost is what a faster deployment now needs.
   static:
     name: Static checks and release build (Node ${{ matrix.line }})
     strategy:
@@ -84,11 +86,28 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # THREE SHARDS, one runner each. `npm test` alone took 313 s on 2026-10-15
+  # and 598 s on 2026-10-24 on ubuntu-latest (4 vCPU, 4 vitest workers): the
+  # 96 test files added in between (parent-owned tests, Compute, the
+  # workspace RPC) mostly spawn real child processes — tsx runners, viz
+  # servers, workspaces — and those children compete with the workers for
+  # the same four CPUs, so files whose tests did not change ran a third
+  # slower too. The same suite at four workers on a 14-CPU machine was
+  # unchanged between the two dates (217 s against 225 s): the growth was
+  # oversubscription, which sharding divides along with the work. Vitest
+  # shards by a hash of the file path, deterministic and balanced to within
+  # ~13% of ideal on the measured durations; the DiscoveryReporter in
+  # vitest.config.ts narrows its queue with the same function, so a shard
+  # that loses one of its own files still fails. `core` below reads the
+  # matrix as one result: success only when every shard passed.
   tests:
-    name: Test suite (Node ${{ matrix.line }})
+    name: Test suite (Node ${{ matrix.line }}, shard ${{ matrix.shard }} of 3)
     strategy:
       fail-fast: false
       matrix:
+        shard: [1, 2, 3]
+        # Added to every shard: these keys are not matrix axes, so the
+        # include joins each combination instead of adding one.
         include:
           - node: '24.20.0'
             line: '24'
@@ -165,7 +184,7 @@ jobs:
         with:
           path: ~/.cache/libreoffice-debs
           key: ${{ steps.libreoffice-key.outputs.key }}
-      - run: npm test
+      - run: npm test -- --shard=${{ matrix.shard }}/3
 
   core:
     # The check name carries the Node LINE, not the pinned patch version: the

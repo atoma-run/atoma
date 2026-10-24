@@ -295,7 +295,10 @@ Neighbours:
   `application:skeleton:smoke` exercises fresh installs and compiled apps in
   the release checks, and `npm run check` beside a broken read-run copy under
   `.atoma-runs/node_modules`, with v2's lint ignore, v1's and Vitest's default
-  include (the same copy at `.atoma-runs/<runId>` must fail). Contract: [application skeleton](../../docs/decisions/application-skeleton-2026-10-16.md).
+  include (the same copy at `.atoma-runs/<runId>` must fail). The three kinds
+  run concurrently in separate sandboxes (86 s one after the other on the
+  static CI job, 2026-10-24); keep every npm call in it asynchronous.
+  Contract: [application skeleton](../../docs/decisions/application-skeleton-2026-10-16.md).
 
 - HTTP servers normally bind `process.env.PORT`, accept port 0, and emit
   `LISTENING_ON_PORT=<N>` once ready. A task-defined CLI may instead receive

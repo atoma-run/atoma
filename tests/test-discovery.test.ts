@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { TestModule, TestSpecification } from 'vitest/node';
+import type { TestModule, TestSpecification, Vitest } from 'vitest/node';
+import { BaseSequencer } from 'vitest/node';
 import { DiscoveryReporter } from '../vitest.config.js';
 
 /**
@@ -39,33 +40,62 @@ function moduleOf(moduleId: string): TestModule {
 }
 
 describe('DiscoveryReporter — queued files must report back', () => {
-  it('stays silent when every queued file reports', () => {
+  it('stays silent when every queued file reports', async () => {
     const reporter = new DiscoveryReporter();
-    reporter.onTestRunStart([specificationOf('/a.test.ts'), specificationOf('/b.test.ts')]);
+    await reporter.onTestRunStart([specificationOf('/a.test.ts'), specificationOf('/b.test.ts')]);
     expect(() =>
       reporter.onTestRunEnd([moduleOf('/a.test.ts'), moduleOf('/b.test.ts')], [], 'passed')
     ).not.toThrow();
   });
 
-  it('throws on a green run that lost a file, naming it', () => {
+  it('throws on a green run that lost a file, naming it', async () => {
     const reporter = new DiscoveryReporter();
-    reporter.onTestRunStart([specificationOf('/a.test.ts'), specificationOf('/lost.test.ts')]);
+    await reporter.onTestRunStart([specificationOf('/a.test.ts'), specificationOf('/lost.test.ts')]);
     expect(() => reporter.onTestRunEnd([moduleOf('/a.test.ts')], [], 'passed')).toThrow(
       /1 queued test file\(s\) never reported a result: \/lost\.test\.ts/
     );
   });
 
-  it('lets an interrupted run go: Ctrl+C is not a discovery defect', () => {
+  it('lets an interrupted run go: Ctrl+C is not a discovery defect', async () => {
     const reporter = new DiscoveryReporter();
-    reporter.onTestRunStart([specificationOf('/a.test.ts'), specificationOf('/b.test.ts')]);
+    await reporter.onTestRunStart([specificationOf('/a.test.ts'), specificationOf('/b.test.ts')]);
     expect(() => reporter.onTestRunEnd([moduleOf('/a.test.ts')], [], 'interrupted')).not.toThrow();
   });
 
-  it('only diagnoses on a run that is already failing', () => {
+  it('under --shard, expects exactly the files the configured sequencer gives this shard', async () => {
+    // CI runs three shards (2026-10-24). Vitest hands the FULL list to
+    // onTestRunStart and only this shard's modules to onTestRunEnd; the
+    // reporter narrows its queue with the same `shard()` vitest applies, so
+    // a healthy shard stays green and one that lost its own file reddens.
+    const files = ['/a.test.ts', '/b.test.ts', '/c.test.ts', '/d.test.ts', '/e.test.ts'];
+    const shardOf = async (index: number, count: number): Promise<string[]> => {
+      const vitest = {
+        config: { root: '/', shard: { index, count }, sequence: { sequencer: BaseSequencer } },
+      } as unknown as Vitest;
+      const specs = files.map(specificationOf);
+      const mine = (await new BaseSequencer(vitest).shard([...specs])).map((s) => s.moduleId);
+      const reporter = new DiscoveryReporter();
+      reporter.onInit(vitest);
+      await reporter.onTestRunStart(specs);
+      expect(() => reporter.onTestRunEnd(mine.map(moduleOf), [], 'passed')).not.toThrow();
+      const [lost, ...kept] = mine;
+      expect(() => reporter.onTestRunEnd(kept.map(moduleOf), [], 'passed')).toThrow(
+        new RegExp(`1 queued test file\\(s\\) never reported a result: ${lost!}`)
+      );
+      return mine;
+    };
+    const shards = [await shardOf(1, 2), await shardOf(2, 2)];
+    // The two shards partition the suite: nothing shared, nothing dropped.
+    expect([...shards[0]!, ...shards[1]!].sort()).toEqual([...files].sort());
+    expect(shards[0]!.length).toBeGreaterThan(0);
+    expect(shards[1]!.length).toBeGreaterThan(0);
+  });
+
+  it('only diagnoses on a run that is already failing', async () => {
     // A second thrown error would bury the failure that made the run red;
     // the missing files are still named on stderr.
     const reporter = new DiscoveryReporter();
-    reporter.onTestRunStart([specificationOf('/a.test.ts'), specificationOf('/lost.test.ts')]);
+    await reporter.onTestRunStart([specificationOf('/a.test.ts'), specificationOf('/lost.test.ts')]);
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
       expect(() => reporter.onTestRunEnd([moduleOf('/a.test.ts')], [], 'failed')).not.toThrow();
@@ -103,7 +133,7 @@ function fixture(configBody: string): string {
 /** This repo's vitest.config.ts as an import specifier the fixture can use. */
 const REPORTER_IMPORT = `${REPO_ROOT.split('\\').join('/')}/vitest.config.ts`;
 
-function runNestedVitest(root: string): { status: number | null; output: string } {
+function runNestedVitest(root: string, args: string[] = []): { status: number | null; output: string } {
   const env: NodeJS.ProcessEnv = { FORCE_COLOR: '0' };
   for (const [key, value] of Object.entries(process.env)) {
     if (!key.startsWith('VITEST')) env[key] = value;
@@ -111,7 +141,7 @@ function runNestedVitest(root: string): { status: number | null; output: string 
   // The 120s vitest budget on the callers is a timer on the SAME event loop
   // this synchronous call blocks, so it can never preempt a wedged nested
   // run — the bound has to live here, inside the call itself.
-  const child = spawnSync(process.execPath, [VITEST_ENTRY, 'run', '--root', root], {
+  const child = spawnSync(process.execPath, [VITEST_ENTRY, 'run', '--root', root, ...args], {
     cwd: root,
     env,
     encoding: 'utf8',
@@ -163,4 +193,43 @@ describe('DiscoveryReporter — inside a real vitest run', () => {
     expect(run.output).toContain('discovery: 1 queued test file(s) never reported a result');
     expect(run.output).toContain('/phantom-never-reported.test.ts');
   }, 120_000);
+
+  it('a shard stays green with the files it was given, and red when its own file is lost', () => {
+    const armed = [
+      "import { defineConfig } from 'vitest/config';",
+      `import { DiscoveryReporter } from '${REPORTER_IMPORT}';`,
+      'export default defineConfig({',
+      "  test: { include: ['*.test.ts'], reporters: ['default', new DiscoveryReporter()] },",
+      '});',
+      '',
+    ].join('\n');
+    // One of two files per shard: the full list is queued, half of it reports.
+    const half = runNestedVitest(fixture(armed), ['--shard=1/2']);
+    expect(half.output).toContain('1 passed');
+    expect(half.status).toBe(0);
+    // Narrowing is the sequencer's: a shard that drops one of its OWN files
+    // is still caught (count 1 keeps every file, the phantom included).
+    const phantom = fixture(
+      [
+        "import { defineConfig } from 'vitest/config';",
+        "import type { TestSpecification } from 'vitest/node';",
+        `import { DiscoveryReporter } from '${REPORTER_IMPORT}';`,
+        'class PhantomQueue extends DiscoveryReporter {',
+        '  override onTestRunStart(specifications: ReadonlyArray<TestSpecification>): void | Promise<void> {',
+        '    return super.onTestRunStart([',
+        '      ...specifications,',
+        "      { moduleId: '/phantom-never-reported.test.ts' } as unknown as TestSpecification,",
+        '    ]);',
+        '  }',
+        '}',
+        'export default defineConfig({',
+        "  test: { include: ['*.test.ts'], reporters: ['default', new PhantomQueue()] },",
+        '});',
+        '',
+      ].join('\n')
+    );
+    const lost = runNestedVitest(phantom, ['--shard=1/1']);
+    expect(lost.status).not.toBe(0);
+    expect(lost.output).toContain('discovery: 1 queued test file(s) never reported a result');
+  }, 240_000);
 });

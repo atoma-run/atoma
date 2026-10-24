@@ -361,7 +361,12 @@ ${hostDeploy.slice(begin, end)}`, 'test', String(rolling), root], { encoding: 'u
     expect(job('static')).toContain('- run: npm run release:check:static');
     expect(job('static')).toContain('name: Upload immutable deployment artifact');
     const suite = job('tests');
-    expect(suite).toContain('- run: npm test');
+    // Three shards of the one `npm test`, one runner each (2026-10-24): the
+    // suite's own cost had grown past the static half's. The DiscoveryReporter
+    // narrows its queue per shard (tests/test-discovery.test.ts).
+    expect(suite).toContain('shard: [1, 2, 3]');
+    expect(suite).toContain('- run: npm test -- --shard=${{ matrix.shard }}/3');
+    expect(suite).toContain('name: Test suite (Node ${{ matrix.line }}, shard ${{ matrix.shard }} of 3)');
     // The required check keeps its name and fails unless BOTH halves passed:
     // a job skipped behind a failed dependency would read as passing.
     const gate = job('core');

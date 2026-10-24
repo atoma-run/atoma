@@ -14,6 +14,7 @@
 
 ## Current work
 - [Assayer recovery](assayer-recovery-2026-10-23.md) — 2026-10-23: launch/reporting fixed, 15 surfaces reopened; first real paired evaluation neutral, VIZ and three MCP readers; generation handoff fixed and verified in production
+- [CI critical path](ci-critical-path-state.md) — 2026-10-24: test job sharded ×3, skeleton smoke concurrent; static job (~5 min) is now the longer half; how to read CI timing
 - [Test suite speed](test-suite-speed.md) — 2026-10-23: 299 s → 95 s on the Mac; CPU-bound at 12 workers, 14+ oversubscribe; next lever is less work per file
 - [Manually published seed](publication-manual-seed.md) — exact selected seed bytes at the live head are a valid publication base; retain concurrent client edits
 - [Root remediation receipts](root-remediation-command-evidence.md) — 2026-10-23: retain historical command results after a README repair; no Attica test replay
