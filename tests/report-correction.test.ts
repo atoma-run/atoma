@@ -33,7 +33,7 @@ const correction: Verdict = {
   modifications: { additionalContext: 'Report build exit 0; retain mutant 1 and restoration 0.' },
 };
 
-it.each(['approved', 'large-context', 'refused', 'malformed', 'cut'] as const)('repairs the report without repeating a real mutant/restoration: %s', async mode => {
+it.each(['approved', 'nested-marker', 'large-context', 'refused', 'malformed', 'cut'] as const)('repairs the report without repeating a real mutant/restoration: %s', async mode => {
   const refusedAgain = mode === 'refused';
   const unavailable = mode === 'malformed' || mode === 'cut';
   const root = mkdtempSync(join(tmpdir(), 'report-correction-'));
@@ -60,7 +60,13 @@ it.each(['approved', 'large-context', 'refused', 'malformed', 'cut'] as const)('
     });
     const child = new L1Atom({ name: 'Water', ordinal: 1, systemPrompt: '', tools: [tool.declaration], params: {} });
     const plan = vi.spyOn(child, 'plan').mockResolvedValue(makePlan());
-    const parent = new Reviewer([correction, refusedAgain ? correction : { approved: true, reasoning: 'Report now matches observed evidence.' }]);
+    const parsedVerdict = mode === 'nested-marker' ? parseVerdict(JSON.stringify({
+      ...correction, reportCorrection: undefined,
+      modifications: { ...correction.modifications, reportCorrection: true },
+    })) : correction;
+    if (parsedVerdict.approved) throw new Error('The correction must remain a refusal');
+    const firstVerdict: Verdict = { ...correction, reportCorrection: parsedVerdict.reportCorrection };
+    const parent = new Reviewer([firstVerdict, refusedAgain ? correction : { approved: true, reasoning: 'Report now matches observed evidence.' }]);
     const aroundExecute = vi.fn(async (run: () => Promise<Result>) => {
       const result = await run();
       return { ...result, summary: '[HOST ANNOTATION] ' + result.summary };
@@ -85,7 +91,7 @@ it.each(['approved', 'large-context', 'refused', 'malformed', 'cut'] as const)('
       expect(parent.seen[1]!.evidence).toBe(parent.seen[0]!.evidence);
       expect(parent.seen[1]!.summary).toMatch(/^\[HOST ANNOTATION\]/);
     }
-    expect(onApproved).toHaveBeenCalledTimes(mode === 'approved' || mode === 'large-context' ? 1 : 0);
+    expect(onApproved).toHaveBeenCalledTimes(mode === 'approved' || mode === 'nested-marker' || mode === 'large-context' ? 1 : 0);
   } finally {
     await sandbox.cleanup();
     rmSync(root, { recursive: true, force: true });
@@ -96,4 +102,17 @@ it('requires explicit structured report correction; arbitrary report prose does 
   expect(parseVerdict(JSON.stringify(correction))).toMatchObject({ reportCorrection: true });
   expect(parseVerdict(JSON.stringify({ ...correction, reportCorrection: undefined }))).not.toHaveProperty('reportCorrection');
   expect(() => parseVerdict(JSON.stringify({ ...correction, reportCorrection: 'true' }))).toThrow();
+});
+
+it('only relocates an exact nested marker on an explicitly ephemeral refusal', () => {
+  const nested = { ...correction, reportCorrection: undefined, modifications: { additionalContext: 'Correct the report.', reportCorrection: true } };
+  expect(parseVerdict(JSON.stringify(nested))).toMatchObject({ approved: false, reportCorrection: true });
+  for (const value of ['true', false, 1, null]) {
+    expect(parseVerdict(JSON.stringify({ ...nested, modifications: { ...nested.modifications, reportCorrection: value } }))).not.toHaveProperty('reportCorrection');
+  }
+  for (const scope of ['patch', 'branch', undefined]) {
+    expect(parseVerdict(JSON.stringify({ ...nested, scope }))).not.toHaveProperty('reportCorrection');
+  }
+  expect(parseVerdict(JSON.stringify({ ...nested, approved: true }))).not.toHaveProperty('reportCorrection');
+  expect(() => parseVerdict(JSON.stringify({ ...nested, reportCorrection: false }))).toThrow();
 });

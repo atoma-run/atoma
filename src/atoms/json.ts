@@ -1407,6 +1407,12 @@ export function coerceVerdictDefaults(raw: unknown): unknown {
   }
   // Bounded remediation feedback — see REMEDIATION_FEEDBACK_MAX_CHARS.
   const mods = out['modifications'] as Record<string, unknown>;
+  // Run 87471f50: the reviewer explicitly requested a report-only correction
+  // inside modifications. Dropping it replayed an already successful check.
+  // Only relocate this exact typed signal; prose, coercions and conflicting
+  // top-level values never enable the correction path.
+  if (obj['scope'] === 'ephemeral' && out['reportCorrection'] === undefined &&
+    mods['reportCorrection'] === true) out['reportCorrection'] = true;
   const ac = mods['additionalContext'];
   if (typeof ac === 'string' && ac.length > REMEDIATION_FEEDBACK_MAX_CHARS) {
     out['modifications'] = {
