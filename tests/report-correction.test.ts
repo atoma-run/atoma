@@ -33,9 +33,12 @@ const correction: Verdict = {
   modifications: { additionalContext: 'Report build exit 0; retain mutant 1 and restoration 0.' },
 };
 
-it.each(['approved', 'nested-marker', 'large-context', 'refused', 'malformed', 'cut'] as const)('repairs the report without repeating a real mutant/restoration: %s', async mode => {
+it.each(['approved', 'nested-marker', 'large-context', 'refused', 'malformed-reformatted', 'cut-completed', 'malformed', 'cut', 'transport-error'] as const)('repairs the report without repeating a real mutant/restoration: %s', async mode => {
   const refusedAgain = mode === 'refused';
-  const unavailable = mode === 'malformed' || mode === 'cut';
+  // A cut or unreadable correction gets ONE tool-free second chance; only a
+  // second slip, or a transport failure, leaves the correction unavailable.
+  const secondChance = mode === 'malformed-reformatted' || mode === 'cut-completed';
+  const unavailable = mode === 'malformed' || mode === 'cut' || mode === 'transport-error';
   const root = mkdtempSync(join(tmpdir(), 'report-correction-'));
   const sandbox = new ToolSandbox(root);
   try {
@@ -53,12 +56,35 @@ it.each(['approved', 'nested-marker', 'large-context', 'refused', 'malformed', '
       return { text: jsonText({ output: { build: 1, mutant: 1, restored: 0 }, summary: 'Observed mutant failure then restored success.' }), stopReason: 'end_turn' as const, usage: { inputTokens: 1, outputTokens: 1 } };
     };
     ctx.llm.enqueue(execution);
-    ctx.llm.enqueue(async request => {
+    const correctedText = jsonText({ output: { build: 0, mutant: 1, restored: 0 }, summary: 'Build succeeded; mutant failed; restoration passed.', evidence: [], toolCallResults: [] });
+    const toolFree = (request: { executor?: unknown; tools?: unknown }) => {
       expect(request.executor).toBeUndefined();
       expect(request.tools).toBeUndefined();
+    };
+    ctx.llm.enqueue(async request => {
+      toolFree(request);
       expect(request.userContent.length).toBeLessThan(48_000);
       expect(request.userContent).toContain('Exactly one mutant/restoration cycle.');
-      return { text: mode === 'malformed' ? 'not a result envelope' : jsonText({ output: { build: 0, mutant: 1, restored: 0 }, summary: 'Build succeeded; mutant failed; restoration passed.', evidence: [], toolCallResults: [] }), stopReason: mode === 'cut' ? 'max_tokens' : 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+      expect(request.params?.maxTokens).toBe(8000);
+      if (mode === 'transport-error') throw new Error('provider unavailable');
+      const malformed = mode === 'malformed' || mode === 'malformed-reformatted';
+      const cut = mode === 'cut' || mode === 'cut-completed';
+      return { text: malformed ? 'not a result envelope' : correctedText, stopReason: cut ? 'max_tokens' : 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    if (mode === 'malformed' || mode === 'malformed-reformatted') ctx.llm.enqueue(async request => {
+      // The unreadable reply is reformatted, never re-asked from scratch.
+      toolFree(request);
+      expect(request.userContent).toContain('Reformat this result without repeating any work');
+      expect(request.userContent).toContain(JSON.stringify('not a result envelope'));
+      return { text: mode === 'malformed' ? 'still not an envelope' : correctedText, stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    if (mode === 'cut' || mode === 'cut-completed') ctx.llm.enqueue(async request => {
+      // The cut reply is asked again once, under a larger cap, with the same report.
+      toolFree(request);
+      expect(request.params?.maxTokens).toBe(16_000);
+      expect(request.userContent).toContain('cut before its end');
+      expect(request.userContent).toContain('Exactly one mutant/restoration cycle.');
+      return { text: correctedText, stopReason: mode === 'cut' ? 'max_tokens' : 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
     });
     // An unavailable correction is not a judged defect: the refusal takes the
     // ordinary ladder and the ephemeral retry re-executes, as before the path.
@@ -96,6 +122,9 @@ it.each(['approved', 'nested-marker', 'large-context', 'refused', 'malformed', '
       expect(outcome.trace.filter(entry => entry.kind === 'execute')).toHaveLength(2);
       expect(recordRunStat.mock.calls.filter(([stat]) => stat === 'result-refusal')).toHaveLength(1);
     } else expect((await run).output).toEqual({ build: 0, mutant: 1, restored: 0 });
+    // Every reply the mock holds was consumed: the second chance happened
+    // exactly where it was expected, and nothing was asked a third time.
+    expect(ctx.llm.calls).toHaveLength(1 + (mode === 'transport-error' ? 1 : secondChance || unavailable ? 2 : 1) + (unavailable ? 1 : 0));
     expect(plan).toHaveBeenCalledTimes(unavailable ? 2 : 1);
     expect(aroundExecute).toHaveBeenCalledTimes(unavailable ? 2 : 1);
     expect(executeTool).toHaveBeenCalledTimes(unavailable ? 4 : 2);
