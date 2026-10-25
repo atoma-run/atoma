@@ -218,8 +218,20 @@ export const PARENT_TEST_SUFFICIENCY = [
   'At plan review, a proposed new or changed interface may not be implemented yet, and a regression is expected to fail before repair. Judge whether the declared implementation can satisfy requirement-backed assertions using the real interfaces; do not demand a passing implementation before delegation. Ground expected fields, serialized column positions, statuses and timing in observed contracts or an explicit requested change, and identify that basis in the suite justification. Read identifiers from the actual serialized key or export header, not a guessed alias or column position. For a negative request, trace guards in their actual order: satisfy independent preconditions before asserting the guard under test, or assert the earlier guard when deliberately violating it. Missing source leaves the contract unknown. Do not invent an API alias or change correct behavior solely to satisfy an unsupported test convention.',
 ].join('\n');
 
+/**
+ * Where a plan's integration suite sits: ONE rule, read by the planner, the
+ * delegation review and the host's refusal (`enforceParsedDelegationReview`).
+ * A join subtask's suite runs when that subtask returns, on the workspace every
+ * implementation branch and every declared writer before it left; a plan-level
+ * suite runs after aggregation, which writes nothing, on that same workspace.
+ * Run 40c20c5d (2026-10-25) put its integration suite on such a join, the
+ * review approved it as the plan's, and the host refused it for want of a
+ * plan-level copy: a 121 s top-tier replan moved the same suite up a level.
+ */
+export const PARENT_TEST_INTEGRATION_PLACEMENT = 'AN INTEGRATION SUITE is either the plan-level acceptanceTests or the acceptanceTests of a JOIN subtask: one that declares outputs and comes after every implementation branch (at least two besides itself) and every other subtask that declares outputs, through dependsOn directly or transitively, or by order in a sequential plan. Both run on the joined workspace; the join\'s suite runs when that subtask returns, so its own branch repairs what the suite finds.';
+
 /** The suite defects that refuse a plan in every review round; see PARENT_TEST_SUFFICIENCY. */
-export const PARENT_TEST_BLOCKING_DEFECTS = 'BLOCKING SUITE DEFECTS, which refuse a plan in any review round: a suite that does not import and call the real module it claims to test, or tests a helper or mock standing in for it; trivial or placeholder assertions, or none on values the module produces; no negative or boundary case; an interface the suite assumes that the application does not have; a testable implementation subtask without a parent-owned suite; interacting implementation branches without a plan-level integration suite; a behaviour the task or its criteria name that no suite can fail on; a proof the runtime cannot execute.';
+export const PARENT_TEST_BLOCKING_DEFECTS = 'BLOCKING SUITE DEFECTS, which refuse a plan in any review round: a suite that does not import and call the real module it claims to test, or tests a helper or mock standing in for it; trivial or placeholder assertions, or none on values the module produces; no negative or boundary case; an interface the suite assumes that the application does not have; a testable implementation subtask without a parent-owned suite; interacting implementation branches without an integration suite, at plan level or on their join subtask; a behaviour the task or its criteria name that no suite can fail on; a proof the runtime cannot execute.';
 
 /** Shared execution ownership for planners and delegation reviewers (Attica a99ef64e). */
 export const PARENT_TEST_EXECUTION = [
@@ -232,12 +244,12 @@ export const PARENT_TEST_PLANNING = `PARENT-OWNED ACCEPTANCE TESTS:
 For TypeScript application work, define acceptanceTests on each implementation subtask BEFORE execution:
 {"requirement":"the assigned behavior and its observable interface","cwd":".","source":"import { test, expect } from 'vitest'; import { add } from './src/add.ts'; test('adds', () => { expect(add(2, 3)).toBe(5); });"}.
 The acceptanceTests source is a JSON string: write every backslash as \\\\ (a regex \\d becomes \\\\d in JSON) and escape double quotes and newlines; prefer single-quoted TypeScript strings in test code.
-The source is one TypeScript Vitest file placed at the project root in a disposable workspace copy. Each suite is a self-contained file: it cannot import or share setup with another suite, so include only the setup its own assertions need. Keep it to its own branch's contract, usually 2,000–4,000 characters and under ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')}; do not repeat assertions another suite already makes; cross-branch behaviour belongs in the plan-level suite.
+The source is one TypeScript Vitest file placed at the project root in a disposable workspace copy. Each suite is a self-contained file: it cannot import or share setup with another suite, so include only the setup its own assertions need. Keep it to its own branch's contract, usually 2,000–4,000 characters and under ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')}; do not repeat assertions another suite already makes; cross-branch behaviour belongs in the integration suite.
 ${PARENT_TEST_RUNNER_SCOPE}
 Use relative imports of real application modules; test importable modules and in-process APIs.
 Use Vitest's built-in matchers; expect.extend may only add new names; custom equality testers, snapshot serializers and file snapshots are unavailable (inline snapshots work).
 L3 assigns criteria, interfaces and tests to EACH L2 branch. L2 proposes contract tests for EACH L1; L3 reviews them with the L2 plan before any L1 starts. Specify branch contracts before parallel implementation.
-Plan-level acceptanceTests run after the branches join: L3 owns integration tests in addition to its per-L2 tests. Do not require future branches' behavior in a leaf suite.
+Plan-level acceptanceTests run after the branches join: L3 owns integration tests in addition to its per-L2 tests. ${PARENT_TEST_INTEGRATION_PLACEMENT} Do not require future branches' behavior in a leaf suite.
 ${PARENT_TEST_SUFFICIENCY}
 ${PARENT_TEST_BLOCKING_DEFECTS}
 Tests must exercise actual code and observable behavior, including relevant negative/boundary cases. Mock external services only; no trivial assertions, implementation replacement, skip/todo/only, hidden requirements or real external traffic.

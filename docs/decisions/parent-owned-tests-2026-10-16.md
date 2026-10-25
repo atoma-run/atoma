@@ -808,3 +808,43 @@ say pass. Not built now: the rule may fail; the measurement takes weeks and a
 holdout as long again; the variant touches the most fragile prompt surfaces; and
 034d176d shows the suite's author can be the tissue rather than the cell the
 loop sees, so the labelled units should decide where the fact goes.
+
+## An integration suite on the join subtask (2026-10-25)
+
+Run 40c20c5d's root plan (event ab1d0e64) prepared the workspace, ran a server
+repair and a presentation repair in parallel, each with its suite, and ended
+with a subtask that `dependsOn` both, declared its outputs and carried the suite
+importing the real server, store and presentation modules. The review approved
+it, calling that suite "the plan-level suite" (event 24bca720); the host refused
+it because `plan.acceptanceTests` was empty, and a 121 s top-tier replan plus a
+39 s review moved the same suite one level up. The planning guidance had
+taught exactly that shape ("integration index 3 dependsOn:[1,2]").
+
+**Why the two placements are one rule.** A subtask's suite runs when that
+subtask returns, in the supervise loop above it, before its result is judged; a
+plan-level suite runs after the aggregation. Every branch shares one workspace,
+an aggregation writes nothing, and a dependent never starts behind a failed
+producer (it lands, as a plan-level suite does not run on a landing). So a
+suite on a subtask that comes after every implementation branch and every other
+subtask declaring outputs reads the workspace the plan-level suite would read.
+Its failure is cheaper to repair: the join's own branch retries, where a failed
+plan-level suite costs a root remediation pass. `PARENT_TEST_INTEGRATION_PLACEMENT`
+states the rule once for the planner, the review and the host's refusal.
+
+**The conditions, each against a failure.** The join declares outputs: in a
+sequential root plan a phase without them is read-only, and the fixes its suite
+asks for would be put back. Every subtask declaring outputs comes before it,
+through `dependsOn` or, in a sequential plan, by order: a writer beside or after
+it could change what the suite checked, and only a plan-level suite would see
+that. At least two tested branches come before it besides itself: the last
+branch of a chain keeps its own contract, as before, so the gate is relaxed only
+for a genuine join. A resumed root re-enforces its recorded approval with the
+same function, reading its sequential suffix by order.
+
+**Rejected.** Refusing the shape and telling the planner up front: the review
+already read the join suite as the integration, and the guidance taught the
+join, so the refusal punished the taught plan. Accepting any subtask suite on a
+subtask downstream of the tested branches: a README written after it, or a
+branch beside it, escapes the suite. Requiring the join to be classified
+`vitest`: the incident's review classified it `other` for its browser proof,
+with its suite still the integration.
