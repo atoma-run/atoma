@@ -144,7 +144,7 @@ export interface ProjectCoordinatorOptions {
   readonly projectsRoot?: string;
   readonly skillsDir?: string;
   readonly driver?: ProjectRunDriver;
-  readonly compute?: () => (Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' | 'interruptedStopped'> & Partial<Pick<ComputeDispatcher, 'previewClassification' | 'progress'>>) | undefined;
+  readonly compute?: () => ComputeControl | undefined;
   readonly learningDriver?: typeof spawnApprovedLearning;
   readonly acquireLease?: RunLeaseAcquirer;
   /**
@@ -320,8 +320,25 @@ export interface SubscriptionTransportUse {
   readonly payers: RunPayerLedger;
 }
 
+/** The coordinator's view of the Compute dispatcher; tests inject a fake. */
+type ComputeControl = Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' | 'interruptedStopped'> &
+  Partial<Pick<ComputeDispatcher, 'previewClassification' | 'progress' | 'finalizationReady'>>;
+
 /** How long a member's start waits for the analysis it preempts to let go of the slot. */
 export const PREEMPT_ANALYST_WAIT_MS = 20_000;
+
+/**
+ * Automatic Compute finalization pacing. A NEW device connection re-arms an
+ * attempt at once (that is what usually changes a pending outcome), floored
+ * by the gap so a flapping link cannot drive an export per reconnect. On the
+ * SAME connection a pending outcome backs off from the base, doubling up to
+ * the cap: causes that clear without reconnecting (a lease held elsewhere, a
+ * paused device) are retried, never in a tight loop. In memory only: the
+ * journal is the durable state, and a restart costs one more attempt.
+ */
+export const COMPUTE_FINALIZE_BACKOFF_MS = 30_000;
+export const COMPUTE_FINALIZE_BACKOFF_MAX_MS = 10 * 60_000;
+export const COMPUTE_FINALIZE_MIN_GAP_MS = 5_000;
 
 /** Every way a run ENDS; each one is named, so no list prints a whole goal. */
 const TITLED_STATUSES: ReadonlySet<string> = new Set(['delivered', 'partial', 'failed', 'cancelled']);
@@ -1326,19 +1343,59 @@ export class ProjectRunCoordinator {
   private nextComputeReconciliation = 0;
 
   /** Only the selected execution owner settles stopped remote work. A closed
-   * socket or elapsed lease alone is never proof that the workload stopped. */
+   * socket or elapsed lease alone is never proof that the workload stopped.
+   * A finished run whose files still sit on the device is finished here too,
+   * as soon as that device is connected: nobody has to ask. */
   private reconcileStoppedComputeRuns(): void {
     if (!this.dispatchAllowed() || Date.now() < this.nextComputeReconciliation) return;
     this.nextComputeReconciliation = Date.now() + 1000;
     const compute = this.compute?.();
     if (!compute) return;
     const protectedIds = new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
+    const live = new Set<string>();
     for (const item of this.store.listLiveRunTraces()) {
+      live.add(item.projectRunId);
       if (this.active.has(item.projectRunId) || protectedIds.has(`project:${item.projectRunId}`)) continue;
       const run = this.store.getProjectRun(item.orgId, item.projectRunId);
-      if (run?.executionTarget.kind !== 'customer-device' || !compute.interruptedStopped(run)) continue;
-      this.settleStoppedComputeRun(run);
+      if (run?.executionTarget.kind !== 'customer-device') continue;
+      if (compute.interruptedStopped(run)) this.settleStoppedComputeRun(run);
+      else this.finalizeComputeRunAutomatically(run, compute);
     }
+    for (const runId of this.computeFinalizationPacing.keys()) {
+      if (!live.has(runId)) this.computeFinalizationPacing.delete(runId);
+    }
+  }
+
+  /** Per run: the connection key last attempted and when the next may be. */
+  private readonly computeFinalizationPacing = new Map<string, { key: string; attempts: number; at: number; nextAt: number }>();
+  private readonly computeFinalizing = new Set<string>();
+
+  /** One attempt in flight per run, through exactly the explicit path, acting
+   * for the requester with the same authority rechecks. Tracked as detached
+   * work so a draining generation never exits under it. */
+  private finalizeComputeRunAutomatically(run: ProjectRun, compute: ComputeControl): void {
+    const runId = run.projectRunId;
+    const key = compute.finalizationReady?.(run) ?? null;
+    if (!key || this.computeFinalizing.has(runId)) return;
+    const now = Date.now(), last = this.computeFinalizationPacing.get(runId);
+    if (last && (last.key === key ? now < last.nextAt : now < last.at + COMPUTE_FINALIZE_MIN_GAP_MS)) return;
+    const attempts = last?.key === key ? last.attempts + 1 : 1;
+    this.computeFinalizationPacing.set(runId, { key, attempts, at: now,
+      nextAt: now + Math.min(COMPUTE_FINALIZE_BACKOFF_MS * 2 ** (attempts - 1), COMPUTE_FINALIZE_BACKOFF_MAX_MS) });
+    this.computeFinalizing.add(runId);
+    process.stderr.write(`[atoma projects] automatic compute finalization of ${runId} started (attempt ${attempts} on ${key.split(':')[0]})\n`);
+    const attempt: Promise<void> = this.finalizeComputeRun(run.orgId, runId, run.requestedByPrincipalId, true).then(settled => {
+      this.computeFinalizationPacing.delete(runId);
+      process.stderr.write(`[atoma projects] automatic compute finalization of ${runId} ended: ${settled.status}\n`);
+    }, (error: unknown) => {
+      const cause = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      process.stderr.write(`[atoma projects] automatic compute finalization of ${runId} remains pending: ${cause.replace(/\s+/g, ' ').slice(0, 2_000)}\n`);
+    }).finally(() => {
+      this.computeFinalizing.delete(runId);
+      this.detached.delete(attempt);
+      this.resolveIdleIfSettled();
+    });
+    this.detached.add(attempt);
   }
 
   private settleStoppedComputeRun(run: ProjectRun): ProjectRun {
@@ -1391,7 +1448,7 @@ export class ProjectRunCoordinator {
   private readonly root: string;
   private readonly skillsRoot: string;
   private readonly driver: ProjectRunDriver;
-  private readonly compute?: () => (Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' | 'interruptedStopped'> & Partial<Pick<ComputeDispatcher, 'previewClassification' | 'progress'>>) | undefined;
+  private readonly compute?: () => ComputeControl | undefined;
   private readonly learningDriver: typeof spawnApprovedLearning;
   private readonly acquireLease: RunLeaseAcquirer;
   private readonly yieldBackground?: () => Promise<boolean>;
@@ -2906,12 +2963,18 @@ export class ProjectRunCoordinator {
       .slice(0, 100).map(run => ({ runId: run.projectRunId }));
   }
 
-  /** Resume only the verified delivery transfer after an explicit request. */
+  /** Resume only the verified delivery transfer. The selected executor does
+   * this by itself once the device is connected; this explicit request is
+   * the fallback, and both take the same path below. */
   async retryComputeFinalization(orgId: string, projectRunId: string, principalId: string): Promise<ProjectRun> {
     if (this.executorSocket) {
       try { return await callExecutor(this.executorSocket, { method: 'compute-finalize', orgId, runId: projectRunId, principalId }); }
       catch (error) { throw this.executorError(error); }
     }
+    return this.finalizeComputeRun(orgId, projectRunId, principalId, false);
+  }
+
+  private async finalizeComputeRun(orgId: string, projectRunId: string, principalId: string, automatic: boolean): Promise<ProjectRun> {
     const run = this.store.getProjectRun(orgId, projectRunId);
     if (!run || run.executionTarget.kind !== 'customer-device' || run.status !== 'running' ||
         run.requestedByPrincipalId !== principalId || (this.queuedRunAllowed && !this.queuedRunAllowed(principalId, orgId))) {
@@ -2926,6 +2989,9 @@ export class ProjectRunCoordinator {
     if (this.active.has(projectRunId) || this.store.getProjectRun(orgId, projectRunId)?.status !== 'running') {
       lease.release(); throw new ProjectStateConflict('Compute run changed');
     }
+    // A generation demoted while the lease was awaited leaves the work to the
+    // newly selected one; an explicit request was admitted while selected.
+    if (automatic && !this.dispatchAllowed()) { lease.release(); throw new ProjectRunBusy('Run executor is switching versions'); }
     const controller = new AbortController();
     this.active.set(projectRunId, { orgId, principalId, controller });
     const manifestPath = projectRunHostLayout(this.root, orgId, run.projectId, projectRunId).artifactManifestPath;

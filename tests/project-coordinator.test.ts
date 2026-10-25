@@ -2659,3 +2659,265 @@ it.each(['interrupted', 'cancelled', 'finalizing'] as const)(
       expect(driver).not.toHaveBeenCalled();
     } finally { coordinator.stopQueue(); db.close(); }
   });
+
+/**
+ * Run 40c20c5d sat `running` for four and a half hours, its work finished and
+ * its files waiting on the customer's computer, until someone found the
+ * button. The selected executor's control poll now finishes such a run by
+ * itself, through the explicit path. These drive that poll against the real
+ * device store and dispatch journal; only the device's export (`recover`,
+ * covered over a real WSS in compute-connection.test.ts) is stood in for.
+ */
+describe('automatic Compute finalization', () => {
+  type Scenario = Awaited<ReturnType<typeof computeFinalizationFixture>>;
+
+  async function computeFinalizationFixture(options: { phase?: 'finalizing' | 'transferred'; stopReported?: boolean;
+    connected?: boolean; selected?: () => boolean; recover?: (run: import('../src/contracts/projects.js').ProjectRun) => Promise<string>;
+    acquireLease?: () => Promise<RunLease> } = {}) {
+    const { ComputeDeviceStore } = await import('../src/projects/computeDevices.js');
+    const { ComputeDispatcher, ComputeDispatchStore } = await import('../src/projects/computeDispatch.js');
+    const { createHash, randomBytes } = await import('node:crypto');
+    const f = fixture(), db = new Database(f.dbPath), deviceNow = Date.now();
+    const digest = `sha256:${'a'.repeat(64)}`, owner = { orgId: f.viewer.orgId, principalId: f.viewer.principalId };
+    // The device's clock stands still: the poll's clock below runs minutes ahead.
+    const devices = new ComputeDeviceStore(db, { appVersions: new Set(['test']), imageDigests: new Set([digest]) }, () => deviceNow);
+    const secret = randomBytes(32).toString('base64url');
+    const pairing = devices.beginPairing({ name: 'Test computer', secretHash: createHash('sha256').update(secret).digest('hex') });
+    devices.confirmPairing(owner, pairing.code);
+    const device = devices.redeemPairing(pairing.code, secret);
+    devices.grantProject(owner, device.deviceId, f.project.projectId, true);
+    devices.setProjectTarget(owner, f.project.projectId, { target: { kind: 'customer-device', deviceId: device.deviceId }, expected: { kind: 'hosted' } });
+    const cap = { protocol: 1 as const, appVersion: 'test', platform: 'darwin' as const, architecture: 'arm64' as const,
+      services: ['workspace', 'tools', 'retrieval'] as ('workspace' | 'tools' | 'retrieval')[], imageDigest: digest,
+      cpus: 4, memoryBytes: 8 * 1024 ** 3, diskBytes: 10 * 1024 ** 3 };
+    devices.bindMachine(device.credential, device.deviceId);
+    const first = devices.connect(device.credential, cap).session;
+    const runId = randomUUID(), paths = projectRunHostLayout(f.root, owner.orgId, f.project.projectId, runId);
+    f.store.createProjectRun({ ...owner, projectId: f.project.projectId,
+      request: { goal: 'Finished on the computer', idempotencyKey: runId }, projectRunId: runId,
+      hostPaths: { workspacePath: paths.workspacePath, runsPath: paths.runsPath, logPath: paths.logPath } });
+    f.store.transitionProjectRun({ orgId: owner.orgId, projectRunId: runId, from: 'queued', to: 'running' });
+    // What a verified transfer leaves behind: the copy, the declaration and the trace.
+    mkdirSync(paths.workspacePath, { recursive: true }); mkdirSync(paths.runsPath, { recursive: true });
+    writeFileSync(join(paths.workspacePath, 'index.html'), '<h1>Clock</h1>');
+    writeFileSync(paths.artifactManifestPath, JSON.stringify({ version: 1, runId, generatedAt: new Date().toISOString(), outputs: ['index.html'] }));
+    writeFileSync(join(paths.runsPath, `${runId}.json`), JSON.stringify({ id: runId, endedAt: new Date().toISOString(), result: { summary: 'verified' } }));
+    const resources = { cpus: 1, memoryBytes: 1024 ** 3, diskBytes: 1024 ** 3 };
+    const assignment = devices.assign(owner, first, runId, resources);
+    const journal = new ComputeDispatchStore(db);
+    journal.begin(runId, assignment.generation);
+    journal.phase(runId, assignment.generation, 'finalizing');
+    if (options.phase === 'transferred') journal.phase(runId, assignment.generation, 'transferred');
+    // The launcher reports its own workload stopped; the files stay allocated on the device.
+    if (options.stopReported ?? true) devices.acknowledgeStopped(device.credential, first, runId, assignment.generation);
+    const connections = new Set<string>();
+    if (options.connected ?? true) connections.add(first.sessionId);
+    else devices.disconnect(first);
+    const dispatcher = new ComputeDispatcher({ devices, journal, resources,
+      connectionFor: session => connections.has(session.sessionId) ? {} as import('../src/projects/computeConnection.js').ComputeConnection : undefined });
+    const log = formatRunStatsEpilogue({ ...DELIVERED_STATS, costUsd: 0.42, llmCalls: 7 });
+    const recover = vi.spyOn(dispatcher, 'recover').mockImplementation(options.recover ?? (async () => log));
+    const leases: RunLease[] = [];
+    const acquireLease = vi.fn(async (_id: string) => {
+      const held = options.acquireLease ? await options.acquireLease() : lease();
+      leases.push(held); return held;
+    });
+    const driver = vi.fn<ProjectRunDriver>(), finished = vi.fn();
+    const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: haystackTestEnvironment(f.root), compute: () => dispatcher, driver, onRunFinished: finished, acquireLease,
+      dispatchAllowed: options.selected ?? (() => true), queuedRunAllowed: () => true });
+    let clock = Date.now();
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    return {
+      f, db, devices, device, cap, owner, runId, coordinator, recover, acquireLease, leases, driver, finished, log, stderr,
+      status: () => f.store.getProjectRun(owner.orgId, runId)!.status,
+      advance: (ms: number) => { clock += ms; },
+      /** One executor tick `ms` after the last, then whatever it started settles. */
+      poll: async (ms = 1_001) => {
+        clock += ms;
+        coordinator.pollRunControls();
+        await coordinator.waitForIdle();
+      },
+      reconnect: () => {
+        const session = devices.connect(device.credential, cap).session;
+        connections.add(session.sessionId);
+        return session;
+      },
+      close: () => { coordinator.stopQueue(); db.close(); },
+    };
+  }
+
+  const logged = (s: Scenario) => s.stderr.mock.calls.map(call => String(call[0])).join('');
+
+  it('finishes a waiting run once its computer is connected, acting for its requester, without the button', async () => {
+    const s = await computeFinalizationFixture();
+    try {
+      await s.poll();
+      expect(s.status()).toBe('delivered');
+      expect(s.recover).toHaveBeenCalledOnce();
+      expect(s.recover.mock.calls[0]![0].projectRunId).toBe(s.runId);
+      expect(s.acquireLease).toHaveBeenCalledOnce();
+      expect(s.acquireLease.mock.calls[0]![0]).toBe(`project:${s.runId}`);
+      expect(s.leases[0]!.release).toHaveBeenCalled();
+      await vi.waitFor(() => expect(s.finished).toHaveBeenCalledWith(expect.objectContaining({ status: 'delivered', principalId: s.owner.principalId })));
+      // The finished run is never attempted again; no model or tool ever ran.
+      await s.poll(); await s.poll(60_000);
+      expect(s.recover).toHaveBeenCalledOnce();
+      expect(s.driver).not.toHaveBeenCalled();
+      expect(logged(s)).toContain(`automatic compute finalization of ${s.runId} started (attempt 1 on connection)`);
+      expect(logged(s)).toContain(`automatic compute finalization of ${s.runId} ended: delivered`);
+    } finally { s.close(); }
+  });
+
+  it('waits while the computer is offline, then finishes as soon as it reconnects', async () => {
+    const s = await computeFinalizationFixture({ connected: false });
+    try {
+      for (let i = 0; i < 5; i++) await s.poll(60_000);
+      expect(s.recover).not.toHaveBeenCalled();
+      expect(s.acquireLease).not.toHaveBeenCalled();
+      expect(s.status()).toBe('running');
+      s.reconnect();
+      await s.poll();
+      expect(s.recover).toHaveBeenCalledOnce();
+      expect(s.status()).toBe('delivered');
+    } finally { s.close(); }
+  });
+
+  it('finishes a run whose bytes already arrived, with no computer at all', async () => {
+    const s = await computeFinalizationFixture({ phase: 'transferred', connected: false });
+    try {
+      await s.poll();
+      expect(s.recover).toHaveBeenCalledOnce();
+      expect(s.status()).toBe('delivered');
+    } finally { s.close(); }
+  });
+
+  it('backs off a pending outcome on the same connection and re-arms on a new one, never in a tight loop', async () => {
+    const { ComputeDispatchPendingError } = await import('../src/projects/computeDispatch.js');
+    const s = await computeFinalizationFixture({ recover: async () => { throw new ComputeDispatchPendingError(); } });
+    try {
+      await s.poll();
+      expect(s.recover).toHaveBeenCalledTimes(1);
+      expect(s.status()).toBe('running');
+      expect(s.leases[0]!.release).toHaveBeenCalled();
+      expect(logged(s)).toContain(`automatic compute finalization of ${s.runId} remains pending`);
+      // One-second ticks on the same connection for under thirty seconds: no second attempt.
+      for (let i = 0; i < 28; i++) await s.poll();
+      expect(s.recover).toHaveBeenCalledTimes(1);
+      await s.poll(2_000);
+      expect(s.recover).toHaveBeenCalledTimes(2);
+      // The backoff doubles: thirty seconds later is still too early.
+      await s.poll(31_000);
+      expect(s.recover).toHaveBeenCalledTimes(2);
+      await s.poll(30_000);
+      expect(s.recover).toHaveBeenCalledTimes(3);
+      // A reconnection is what usually changes the outcome: tried at once,
+      // floored by the minimum gap, and then backed off afresh.
+      s.reconnect();
+      await s.poll(1_001);
+      expect(s.recover).toHaveBeenCalledTimes(3);
+      await s.poll(5_000);
+      expect(s.recover).toHaveBeenCalledTimes(4);
+      for (let i = 0; i < 10; i++) await s.poll();
+      expect(s.recover).toHaveBeenCalledTimes(4);
+      // Capped: on one connection, no wait exceeds ten minutes.
+      for (let i = 0; i < 12; i++) await s.poll(10 * 60_000 + 1);
+      expect(s.recover).toHaveBeenCalledTimes(16);
+      expect(s.status()).toBe('running');
+      expect(s.finished).not.toHaveBeenCalled();
+    } finally { s.close(); }
+  });
+
+  it('keeps one attempt in flight per run while it is slow', async () => {
+    let release!: (log: string) => void;
+    const s = await computeFinalizationFixture({ recover: () => new Promise<string>(resolve => { release = resolve; }) });
+    try {
+      s.advance(1_001);
+      s.coordinator.pollRunControls();
+      await vi.waitFor(() => expect(s.recover).toHaveBeenCalledOnce());
+      for (let i = 0; i < 5; i++) {
+        s.advance(60_000);
+        s.coordinator.pollRunControls();
+        await Promise.resolve();
+      }
+      expect(s.recover).toHaveBeenCalledOnce();
+      expect(s.acquireLease).toHaveBeenCalledOnce();
+      // The explicit button meets the attempt, never a second transfer.
+      await expect(s.coordinator.retryComputeFinalization(s.owner.orgId, s.runId, s.owner.principalId)).rejects.toThrow('active');
+      expect(s.coordinator.executionIdle()).toBe(false);
+      release(s.log);
+      await s.coordinator.waitForIdle();
+      expect(s.status()).toBe('delivered');
+    } finally { s.close(); }
+  });
+
+  it('ends the run as failed with its spend when the computer refuses the files, exactly as the button does', async () => {
+    const { ComputeFinalizationRefusedError } = await import('../src/projects/computeDispatch.js');
+    const { WorkspaceExportRefusedError } = await import('../src/contracts/workspaceProtocol.js');
+    const log = formatRunStatsEpilogue({ ...DELIVERED_STATS, outcome: 'partial', costUsd: 0.42, llmCalls: 7 });
+    const s = await computeFinalizationFixture({ recover: async () => { throw new ComputeFinalizationRefusedError(log,
+      new WorkspaceExportRefusedError({ code: 'symlink', message: 'artifact path contains a symlink: latest.js' })); } });
+    try {
+      await s.poll();
+      const row = s.f.store.getProjectRun(s.owner.orgId, s.runId)!;
+      expect(row.status).toBe('failed');
+      expect(row.error).toBe('artifact path contains a symlink: latest.js');
+      expect(row.stats).toMatchObject({ outcome: 'failed', costUsd: 0.42, llmCalls: 7 });
+      expect(s.leases[0]!.release).toHaveBeenCalled();
+      await vi.waitFor(() => expect(s.finished).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' })));
+      await s.poll(60_000);
+      expect(s.recover).toHaveBeenCalledOnce();
+      expect(logged(s)).toContain(`automatic compute finalization of ${s.runId} ended: failed`);
+    } finally { s.close(); }
+  });
+
+  it('never acts from a draining generation or a web frontend, and yields when demoted while waiting for the slot', async () => {
+    let selected = false, demote = false;
+    const s = await computeFinalizationFixture({ selected: () => selected,
+      acquireLease: async () => { if (demote) selected = false; return lease(); } });
+    try {
+      for (let i = 0; i < 3; i++) await s.poll(60_000);
+      const frontend = new ProjectRunCoordinator({ store: s.f.store, dbPath: s.f.dbPath, projectsRoot: s.f.root,
+        hostEnv: haystackTestEnvironment(s.f.root), compute: () => { throw new Error('a frontend never reads Compute'); },
+        driver: s.driver, executorSocket: '/not-used/executor.sock' });
+      frontend.pollRunControls(); frontend.stopQueue();
+      expect(s.recover).not.toHaveBeenCalled();
+      expect(s.acquireLease).not.toHaveBeenCalled();
+      // Selected, then demoted while the lease is awaited: the new generation acts.
+      selected = true; demote = true;
+      await s.poll(60_000);
+      expect(s.acquireLease).toHaveBeenCalledOnce();
+      expect(s.leases[0]!.release).toHaveBeenCalled();
+      expect(s.recover).not.toHaveBeenCalled();
+      expect(s.status()).toBe('running');
+      selected = true; demote = false;
+      await s.poll(60_000);
+      expect(s.recover).toHaveBeenCalledOnce();
+      expect(s.status()).toBe('delivered');
+    } finally { s.close(); }
+  });
+
+  it('never interferes while the computer still holds an execution: its own unreported stop, or another run', async () => {
+    const s = await computeFinalizationFixture({ stopReported: false });
+    try {
+      for (let i = 0; i < 3; i++) await s.poll(60_000);
+      expect(s.recover).not.toHaveBeenCalled();
+      // The launcher reports the stop; the slot then goes to another run of the same project.
+      const record = s.devices.inspect(s.owner, s.device.deviceId).assignment!;
+      const session = s.reconnect();
+      s.devices.acknowledgeStopped(s.device.credential, session, s.runId, record.generation);
+      const other = randomUUID(), paths = projectRunHostLayout(s.f.root, s.owner.orgId, s.f.project.projectId, other);
+      s.f.store.createProjectRun({ ...s.owner, projectId: s.f.project.projectId, request: { goal: 'Executing now', idempotencyKey: other },
+        projectRunId: other, hostPaths: { workspacePath: paths.workspacePath, runsPath: paths.runsPath, logPath: paths.logPath } });
+      s.f.store.transitionProjectRun({ orgId: s.owner.orgId, projectRunId: other, from: 'queued', to: 'running' });
+      s.devices.assign(s.owner, session, other, { cpus: 1, memoryBytes: 1024 ** 3, diskBytes: 1024 ** 3 });
+      for (let i = 0; i < 3; i++) await s.poll(60_000);
+      expect(s.recover).not.toHaveBeenCalled();
+      expect(s.acquireLease).not.toHaveBeenCalled();
+      expect(s.devices.inspect(s.owner, s.device.deviceId).assignment).toMatchObject({ runId: other, state: 'active' });
+      expect(s.status()).toBe('running');
+      expect(s.f.store.getProjectRun(s.owner.orgId, other)!.status).toBe('running');
+    } finally { s.close(); }
+  });
+});

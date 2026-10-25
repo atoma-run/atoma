@@ -61,7 +61,7 @@ export class ComputeDispatchStore {
 }
 
 export class ComputeDispatchPendingError extends Error {
-  constructor() { super('Customer compute disconnected or finalization incomplete; explicit reconciliation required'); }
+  constructor() { super('Customer compute disconnected or finalization incomplete; it resumes when the device reconnects'); }
 }
 
 /** The device's publication inventory refused the finished workspace. The same
@@ -136,7 +136,24 @@ export class ComputeDispatcher {
       availability: 'unavailable', kind: null, entry: null, unavailableReason: 'not-runnable',
     });
   }
-  /** Explicit finalization only: no model or tool invocation is resumed. */
+  /** Whether `recover` could finish this pending transfer now, without asking
+   * anyone: a key naming the connection it would use (a new one on every
+   * reconnection), `transferred` when the bytes are already here, else null.
+   * Advisory and read-only: `recover`'s assign rechecks every authority. A
+   * device that still holds an execution slot (its own stop not yet reported,
+   * or another run) is never attempted. */
+  finalizationReady(run: ProjectRun): string | null {
+    if (run.executionTarget.kind !== 'customer-device' || run.status !== 'running') return null;
+    const record = this.options.journal.inspect(run.projectRunId);
+    if (record?.phase === 'transferred') return 'transferred';
+    if (record?.phase !== 'finalizing') return null;
+    try {
+      const session = this.options.devices.currentSession(run.executionTarget.deviceId);
+      if (!session || !this.options.connectionFor(session) || !this.options.devices.unassigned(session.deviceId)) return null;
+      return `connection:${session.sessionId}:${session.generation}`;
+    } catch { return null; }
+  }
+  /** Finalization only, explicit or automatic: no model or tool invocation is resumed. */
   async recover(run: ProjectRun, manifestPath: string): Promise<string> {
     if (run.executionTarget.kind !== 'customer-device' || run.status !== 'running') throw new Error('Compute recovery requires a pending remote run');
     const record = this.options.journal.inspect(run.projectRunId);

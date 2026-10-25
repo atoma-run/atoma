@@ -300,6 +300,10 @@ export class ComputeDeviceStore {
     if (!row.session_id || row.revoked || row.lease_until <= this.now()) return undefined;
     return { deviceId, sessionId: row.session_id, generation: row.connection_generation };
   }
+  /** Host-only: no execution holds this device's slot. Advisory; assign rechecks. */
+  unassigned(deviceId: string): boolean {
+    return this.device(deviceId).run_id === null;
+  }
   /** Readiness is advisory; assign repeats every check inside its write transaction. */
   admission(actor: ComputeActor, runId: string, input: ComputeResources): ComputeAdmission {
     const resources = computeResourcesSchema.parse(input);

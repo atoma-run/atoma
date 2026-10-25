@@ -105,10 +105,14 @@ confirmed checkpoint, that new connection cannot resume its work.
 This transport extension requires updated Compute and server versions. Older
 peers retain the previous fail-closed behavior. It is not a run-restart feature.
 
-After reconnecting the computer, use **Reconcile and finish transfer** in the
-project's Compute settings for a pending run. A completed run can export its
-remaining files in a fresh, export-only generation. An interrupted execution
-must first have its stop confirmed. Atoma then closes that interrupted run
+When a run finishes on your computer, Atoma copies its files to the server.
+If the computer went offline before that copy finished, the run waits for it:
+its results arrive by themselves as soon as the computer is back online with
+Atoma Compute open. Nobody has to press anything, and no model or tool runs
+again; only the finished files are copied, in a fresh, export-only generation.
+If the computer refuses those files, the run ends as failed and says why.
+**Reconcile and finish transfer** in the project's Compute settings remains
+as a fallback. An interrupted execution must first have its stop confirmed. Atoma then closes that interrupted run
 automatically instead of leaving it live. It is marked failed unless a cancellation
 was requested; normal checkpoint eligibility decides whether continuation is possible. Otherwise, start a new run. Checkpoints and
 files received incompletely cannot be published. Saved deliverables remain

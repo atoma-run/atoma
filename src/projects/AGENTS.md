@@ -58,8 +58,13 @@ deploys first: rollout order in [src/launcher](../launcher/AGENTS.md).
 A persisted launcher stop report, never a deadline, permits closing an interrupted
 run and consulting its normal checkpoint eligibility. The selected executor
 reconciles confirmed interrupted stops during its control poll, including after
-a generation change; pending finalization transfers remain explicit. Public
-readers never perform this reconciliation.
+a generation change. It also finishes pending finalization transfers by itself
+(2026-10-25): once the journal says only the transfer is left and the device is
+connected with no execution holding its slot, the explicit retry's own path runs
+for the requester, one attempt per run, re-armed by a new connection, else
+backed off to ten minutes. They were explicit while a refused export could loop;
+it is now terminal, and the export runs no tool or model. Run 40c20c5d waited
+4.5 hours for a buried button. Public readers never perform this reconciliation.
 
 Legacy project targets remain hosted and run receipts are immutable. On gated
 hosts, only a current platform admin may start hosted work; other members must
@@ -709,6 +714,12 @@ acceptance, publication or the immutable child trace.
   comparisons and resumes remain distinct; unknown outcomes never become success.
   Compute progress is a read-only projection of the dispatch journal and exact
   stop acknowledgement. `stop-confirmation-pending` never releases the slot.
+- Automatic Compute finalization (2026-10-25) lives in the executor's control
+  poll, not in the gateway's connect callback: a connection arrives before its
+  launcher reports the old stop, so that attempt would meet a held slot, and
+  the poll already owns selection, demotion and restart. A fixed retry timer without a connection key was refused (an
+  export per tick against an absent device), and so was a durable attempt
+  counter: the journal is the state, a restart costs one attempt.
 
 - The project learning reader shares one org-authorized body across HTTP/MCP, including deferred-worker ledger provenance. Read-only, bounded and explicit about coverage: [contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
