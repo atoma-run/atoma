@@ -422,3 +422,16 @@ export class ComputeDeviceStore {
         state: connected ? row.assignment_state! : 'indeterminate' as const } : null };
   }
 }
+
+/**
+ * Whether a device is connected and accepting work now, read from the product
+ * store on any process (a web frontend has no gateway). Read-only; an absent
+ * table or row answers false. It decides only which plain sentence a reader
+ * shows, never an admission: `assign` rechecks everything.
+ */
+export function computeDeviceReady(db: Database.Database, deviceId: string, now = Date.now()): boolean {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='compute_devices'").get()) return false;
+  const row = db.prepare('SELECT revoked, session_id, lease_until, accepting FROM compute_devices WHERE device_id=?').get(deviceId) as
+    Pick<DeviceRow, 'revoked' | 'session_id' | 'lease_until' | 'accepting'> | undefined;
+  return !!row && !row.revoked && row.session_id !== null && row.lease_until > now && !!row.accepting;
+}

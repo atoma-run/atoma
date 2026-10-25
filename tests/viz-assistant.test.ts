@@ -58,6 +58,22 @@ it('says a finished Compute run is waiting for its results instead of "in progre
   expect(screen.queryByText(translate('en', 'assistant.runInProgress'))).not.toBeInTheDocument();
 });
 
+it('shows a start refused for results waiting in plain words, never the machine-facing refusal', async () => {
+  for (const [reason, key] of [['results-waiting', 'assistant.busyResultsWaiting'], ['others-results-waiting', 'assistant.busyResultsWaitingOther']] as const) {
+    const data = view();
+    data.conversation.version = 3;
+    data.conversation.proposal = { id: proposalId, state: 'pending', action: { kind: 'start_run', projectId,
+      goal: 'Add stock alerts', acceptanceCriteria: [] } };
+    const machine = 'Organisation concurrent run limit reached: a finished run is waiting (run 85124e11-3e28-4c96-80f7-dbc13db6b205)';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: machine, reason }), { status: 409 }));
+    const { unmount } = panel(data);
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve and start run' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(translate('en', key));
+    expect(screen.queryByText(machine, { exact: false })).not.toBeInTheDocument();
+    unmount(); vi.restoreAllMocks();
+  }
+});
+
 it('sends only the typed message and presents a proposal without executing it', async () => {
   const initial = view();
   const next: AssistantView = { ...initial, conversation: { ...initial.conversation, version: 1,

@@ -1,4 +1,6 @@
 import { BUTTON_ICON_SPACE } from '../../button-icons.js';
+import { runAwaitingResults } from '../compute-results-block.js';
+import { computeResultsMessageKey } from '../../compute-results.js';
 import { Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS } from '../../theme.js';
@@ -94,8 +96,11 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
 
   if (run) {
     revealSection(ctx, 'result', pane.content);
-    text(`${snapshot.t(`runs.flag.${runStatus(run)}`)} · ${formatDateTime(run.endedAt ?? run.startedAt, snapshot.state.locale)}`, false, true);
-    if (runStatus(run) !== 'delivered') text(snapshot.t('result.notFinal'));
+    // Files still on a customer's computer: the trace's verdict is not the run's.
+    const awaiting = runAwaitingResults(snapshot, run);
+    text(`${snapshot.t(awaiting ? 'projects.resultsWaiting.status' : `runs.flag.${runStatus(run)}`)} · ${formatDateTime(run.endedAt ?? run.startedAt, snapshot.state.locale)}`, false, true);
+    if (awaiting) text(snapshot.t(computeResultsMessageKey(awaiting, snapshot.data.auth)));
+    else if (runStatus(run) !== 'delivered') text(snapshot.t('result.notFinal'));
   } else if (snapshot.data.resultFailed) {
     text(snapshot.t('result.unavailable'));
   } else {

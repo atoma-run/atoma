@@ -19,8 +19,8 @@ Neighbours:
 shapes. A connection generation fences sockets; a separate execution generation
 fences workload effects. Advertised resources are not independently verified
 proof. Server admission requires an operator-approved app version and image digest.
-`computeResultsWaitingSchema` and `COMPUTE_RESULTS_WAITING_MESSAGE` are the one
-shape and the one plain sentence every reader shows for finished work whose
+`computeResultsWaitingSchema` and `computeResultsWaitingMessage` are the one
+shape and the viewer-neutral sentences every reader shows for finished work whose
 files wait on the customer's computer (run progress stage `awaiting-results`).
 
 `computeProtocol.ts` wraps private workspace commands in run/generation/request

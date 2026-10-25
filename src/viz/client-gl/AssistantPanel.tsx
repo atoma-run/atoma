@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AssistantRequest, AssistantRun, AssistantView } from '../../contracts/assistant.js';
-import { api } from '../client/data-api.js';
+import { api, ApiHttpError } from '../client/data-api.js';
 import { RelativeTime } from './RelativeTime.js';
 import { useGpuStore } from './store.js';
 import { AtomaLoader, loaderVisible, revealClass, useLoadingReveal } from './AtomaLoader.js';
@@ -38,6 +38,18 @@ function isRecordedMessage(message: OptimisticMessage, view: AssistantView | und
  * its body, and the external-agent path takes over the body when opened.
  * The guide owns the frame, the veil and the collapse; this block fills it.
  */
+/**
+ * A refusal's words. A start refused because finished work waits for its
+ * results on a computer carries a typed `reason`; it reads as plain copy, never
+ * as the machine-facing sentence the MCP keeps ("Organisation concurrent run
+ * limit reached: … (run <id>)").
+ */
+export function assistantFailureCopy(failure: unknown, t: (key: string) => string): string {
+  if (failure instanceof ApiHttpError && failure.reason === 'results-waiting') return t('assistant.busyResultsWaiting');
+  if (failure instanceof ApiHttpError && failure.reason === 'others-results-waiting') return t('assistant.busyResultsWaitingOther');
+  return failure instanceof Error ? failure.message : t('assistant.failed');
+}
+
 export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide, onboarding, heading, collapsed = false, t, onSettings, onScopeChange, onProject, onRun }: Props) {
   const client = useQueryClient();
   const queryKey = ['viz', 'assistant', scopeKey, projectId];
@@ -182,7 +194,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       void client.invalidateQueries({ queryKey: ['viz', 'runs'] });
     } catch (failure) {
       if (mounted.current) {
-        setError(failure instanceof Error ? failure.message : t('assistant.failed'));
+        setError(assistantFailureCopy(failure, t));
         const refreshed = await query.refetch();
         const recorded = submittedMessage !== null && isRecordedMessage(submittedMessage, refreshed.data);
         if (submittedMessage && !refreshed.data?.busy) {
@@ -309,7 +321,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       <button type="button" onClick={() => onRun({ projectId: shownRun.projectId, runId: shownRun.runId }, shownRun.traceId)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
     </div> : null}
     {error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
-    {runInProgress ? <p role="status">{t(shownRun?.resultsWaiting ? 'assistant.resultsWaiting' : 'assistant.runInProgress')}</p> : <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>
+    {runInProgress ? <p role="status">{t(shownRun?.resultsStalled ? 'assistant.resultsStalled' : shownRun?.resultsWaiting ? 'assistant.resultsWaiting' : 'assistant.runInProgress')}</p> : <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>
       <label htmlFor="assistant-message" className={newProjectPrompt ? 'gpu-assistant-empty' : undefined}>{t(newProjectPrompt ? 'assistant.newHint' : 'assistant.message')}</label>
       <textarea id="assistant-message" ref={composer} value={draft} maxLength={4000} rows={2} enterKeyHint="send"
         placeholder={waiting ? '' : t('assistant.placeholder')} disabled={waiting || !canSend}

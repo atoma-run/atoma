@@ -24,7 +24,7 @@ import { McpHttpHost } from '../src/mcp/http.js';
 import { acquireRunLease } from '../src/mcp/runLock.js';
 import { mcpHostWiring } from '../src/mcp/server.js';
 import { ProjectRunCoordinator, type ProjectRunDriver } from '../src/projects/coordinator.js';
-import { ProjectService } from '../src/projects/service.js';
+import { ProjectHttpError, ProjectService } from '../src/projects/service.js';
 import type { ProjectStore } from '../src/projects/store.js';
 import { AssistantService } from '../src/viz/assistant.js';
 import { assistantHttp } from '../src/viz/assistantHttp.js';
@@ -253,6 +253,17 @@ it('reads the refusal from an immediately failed MCP task instead of claiming a 
   const state = await (await fetch(`${f.url}/api/assistant?conversationId=${view.conversation.id}`, { headers: { cookie: 'session=test' } })).json() as AssistantView;
   expect(state.conversation.lastRun).toBeNull();
   expect(state.conversation.proposal?.state).toBe('uncertain');
+});
+
+it('carries a typed results-waiting refusal from the MCP to the browser, beside its machine-facing message', async () => {
+  const f = await fixture();
+  const view = await (await f.post(f.message)).json() as AssistantView;
+  f.start.mockRejectedValue(new ProjectHttpError(409, 'Organisation concurrent run limit reached: your previous run is finished (run 1)',
+    { code: 'busy', retryable: true, reason: 'results-waiting' }));
+  const response = await f.post({ kind: 'confirm', version: view.conversation.version, projectId: null,
+    conversationId: view.conversation.id!, proposalId: view.conversation.proposal!.id, requestId: randomUUID() });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ reason: 'results-waiting', error: expect.stringContaining('concurrent run limit') });
 });
 
 it('rejects unauthenticated, cross-origin and viewer requests before any MCP/model work', async () => {

@@ -11,7 +11,10 @@ export interface AssistantMcp {
   call(name: string, args: Record<string, unknown>, task?: boolean): Promise<unknown>;
   close(): Promise<void>;
 }
-export class AssistantToolError extends Error {}
+export class AssistantToolError extends Error {
+  /** `structuredContent.error.reason` of the refusal, when Atoma typed one. */
+  constructor(message: string, readonly reason?: string) { super(message); }
+}
 
 /** Node's fetch rewrites Host to the loopback URL. Keep the host's canonical MCP pin intact. */
 function loopbackFetch(endpoint: URL, host: string, lifetime: AbortSignal): typeof fetch {
@@ -69,7 +72,9 @@ export async function connectAssistantMcp(url: URL, host: string, token: string)
       const reply = CallToolResultSchema.parse(result);
       const text = reply.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
       if (reply.isError) {
-        throw new AssistantToolError(text.slice(0, 2000) || 'Atoma refused this action.');
+        const problem = reply.structuredContent?.['error'];
+        const reason = problem && typeof problem === 'object' && 'reason' in problem && typeof problem.reason === 'string' ? problem.reason : undefined;
+        throw new AssistantToolError(text.slice(0, 2000) || 'Atoma refused this action.', reason);
       }
       if (reply.structuredContent) return reply.structuredContent;
       try { return JSON.parse(text) as unknown; } catch { return { text }; }

@@ -146,8 +146,18 @@ export interface ComputeResultsWaitingEvent {
   /** The principal who requested the run — the one to tell. */
   readonly principalId: string;
   readonly goal: string;
-  /** When the runner ended and the files started waiting (journal time). */
+  /** When the files started waiting: the first driver stop after the runner ended. */
   readonly since: string;
+  /** The computer was connected and accepting work: "open Atoma Compute" is not the remedy. */
+  readonly computerReady?: boolean;
+}
+
+/** A row of Project settings' pending Compute runs (`computeProjectViewSchema.pendingRuns`). */
+export interface ComputePendingRun {
+  readonly runId: string;
+  readonly label: string;
+  readonly startedAt: string;
+  readonly phase: 'executing' | 'finalizing' | 'transferred' | 'interrupted' | null;
 }
 
 /** How long results may wait on a computer before the requester is told, once. */
@@ -160,7 +170,7 @@ export function resultsWaitingEventInput(event: ComputeResultsWaitingEvent): Pla
     kind: 'run.results_waiting', actorType: 'principal', actorId: event.principalId,
     orgId: event.orgId, projectId: event.projectId, runId: event.projectRunId,
     summary: `Run results waiting on the requester's computer: ${eventLabel(event.goal, 120)}`,
-    detail: { goal: eventLabel(event.goal, 120), since: event.since },
+    detail: { goal: eventLabel(event.goal, 120), since: event.since, ...(event.computerReady ? { computerReady: true } : {}) },
   };
 }
 
@@ -424,10 +434,34 @@ export function resultsWaitingBusyMessage(
   const where = projectName ? ` in ${eventLabel(projectName, 80)}` : '';
   return own
     ? `your previous run${where} is finished, but its results are still on your computer. ` +
-      'Open Atoma Compute on that computer and keep it connected so they can arrive, or choose "Get the results" on that run. ' +
+      'They arrive by themselves as soon as Atoma Compute is open, connected and accepting work on that computer, or choose "Get the results" on that run. ' +
       `You can start a new run once they have arrived (run ${run.projectRunId}).`
     : `a finished run${where} is waiting for its results from the computer of the person who started it. ` +
-      'Your run can start once Atoma Compute is open and connected on that computer and the results have arrived.';
+      'Your run can start once Atoma Compute is open, connected and accepting work on that computer and the results have arrived.';
+}
+
+/**
+ * A start refused because the place is held by finished work whose results
+ * wait on a computer. The message stays the machine-facing sentence (MCP);
+ * `reason` is what a web surface maps to its own plain copy. It crosses the
+ * executor socket as a field (`ExecutorFailure.reason`), never parsed from prose.
+ */
+export const RESULTS_WAITING_REASONS = ['results-waiting', 'others-results-waiting'] as const;
+export type ResultsWaitingReason = typeof RESULTS_WAITING_REASONS[number];
+export class ComputeResultsWaitingConflict extends ProjectStateConflict {
+  constructor(message: string, readonly reason: ResultsWaitingReason) { super(message); }
+}
+
+/**
+ * "Get the results" did not finish the run, typed by host facts for the web:
+ * `active` while a process drives the transfer (an automatic one, or an
+ * earlier request still running), else `pending`.
+ */
+export class ComputeResultsNotYet extends Error {
+  constructor(readonly reason: 'active' | 'pending', cause: unknown) {
+    super(reason === 'active' ? 'Compute results are being transferred' : 'Compute results not transferred yet', { cause });
+    this.name = 'ComputeResultsNotYet';
+  }
 }
 
 /** The refusal when the run holding the place is the caller's own. */
@@ -1357,7 +1391,10 @@ export class ProjectRunCoordinator {
     if (error instanceof Error) {
       if (error.name === 'ProjectRunBusy' || error.name === 'ExecutorUnavailable') return new ProjectRunBusy(error.message);
       if (error.name === 'ProjectRunConfigurationError') return new ProjectRunConfigurationError(error.message);
-      if (error.name === 'ProjectStateConflict') return new ProjectStateConflict(error.message);
+      if (error.name === 'ProjectStateConflict') {
+        const reason = 'reason' in error ? RESULTS_WAITING_REASONS.find(value => value === error.reason) : undefined;
+        return reason ? new ComputeResultsWaitingConflict(error.message, reason) : new ProjectStateConflict(error.message);
+      }
       if (error.name === 'PublicationSupersededError') return new PublicationSupersededError(error.message);
       if (error.name === 'GitHubAccessRequiredError' && 'access' in error) {
         return new GitHubAccessRequiredError(error.access as ConstructorParameters<typeof GitHubAccessRequiredError>[0]);
@@ -1874,12 +1911,27 @@ export class ProjectRunCoordinator {
    */
   computeResultsWaiting(run: ProjectRun, liveLeases?: ReadonlySet<string>): ComputeResultsWaiting | null {
     if (run.status !== 'running' || run.executionTarget.kind !== 'customer-device' || this.active.has(run.projectRunId)) return null;
-    let record: ReturnType<ComputeDispatchStore['inspect']>;
-    try { record = ComputeDispatchStore.open(this.dbPath).inspect(run.projectRunId); }
+    let journal: ComputeDispatchStore, record: ReturnType<ComputeDispatchStore['inspect']>;
+    try { journal = this.dispatchJournal(); record = journal.inspect(run.projectRunId); }
     catch { return null; }
     if (record?.phase !== 'finalizing') return null;
-    const live = liveLeases ?? new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
-    return live.has(`project:${run.projectRunId}`) ? null : { since: record.updatedAt };
+    const live = liveLeases ?? this.liveRunLeases();
+    if (live.has(`project:${run.projectRunId}`)) return null;
+    let computerReady = false;
+    try { computerReady = journal.deviceReady(run.executionTarget.deviceId); } catch { /* unknown reads as not ready */ }
+    return { since: record.waitingSince, computerReady };
+  }
+
+  /** The machine-global live lease owners, read once per answer by callers that ask about many runs. */
+  liveRunLeases(): ReadonlySet<string> {
+    return new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
+  }
+
+  /** ONE transfer-journal handle per coordinator: its DDL runs once, not on every poll. */
+  private dispatchJournalHandle: ComputeDispatchStore | null = null;
+  private dispatchJournal(): ComputeDispatchStore {
+    if (!this.dispatchJournalHandle?.usable) this.dispatchJournalHandle = ComputeDispatchStore.open(this.dbPath);
+    return this.dispatchJournalHandle;
   }
 
   /**
@@ -1893,17 +1945,17 @@ export class ProjectRunCoordinator {
     if (!this.onComputeResultsWaiting || this.executorSocket || !this.dispatchAllowed() || now < this.nextResultsNotice) return;
     this.nextResultsNotice = now + 30_000;
     try {
-      const journal = ComputeDispatchStore.open(this.dbPath);
+      const journal = this.dispatchJournal();
       const candidates = journal.unnoticedFinalizingSince(new Date(now - RESULTS_WAITING_NOTICE_MS).toISOString());
       if (candidates.length === 0) return;
-      const live = new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
+      const live = this.liveRunLeases();
       for (const candidate of candidates) {
         const run = this.store.getProjectRun(candidate.orgId, candidate.runId);
         const waiting = run ? this.computeResultsWaiting(run, live) : null;
         if (!run || !waiting || !journal.claimResultsNotice(run.projectRunId)) continue;
         try {
           this.onComputeResultsWaiting({ orgId: run.orgId, projectId: run.projectId, projectRunId: run.projectRunId,
-            principalId: run.requestedByPrincipalId, goal: run.goal, since: waiting.since });
+            principalId: run.requestedByPrincipalId, goal: run.goal, since: waiting.since, computerReady: waiting.computerReady === true });
         } catch (error) {
           process.stderr.write(`[atoma projects] results-waiting notice failed for ${run.projectRunId}: ${String(error)}\n`);
         }
@@ -1916,10 +1968,10 @@ export class ProjectRunCoordinator {
   /** The organisation's live runs whose results wait on a computer, own first. */
   private runsAwaitingResults(orgId: string, principalId: string): ProjectRun[] {
     let rows: { runId: string; orgId: string }[];
-    try { rows = ComputeDispatchStore.open(this.dbPath).finalizingRunsOf(orgId); }
+    try { rows = this.dispatchJournal().finalizingRunsOf(orgId); }
     catch { return []; }
     if (rows.length === 0) return [];
-    const live = new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
+    const live = this.liveRunLeases();
     return rows.map(row => this.store.getProjectRun(row.orgId, row.runId))
       .filter((run): run is ProjectRun => !!run && this.computeResultsWaiting(run, live) !== null)
       .sort((a, b) => Number(b.requestedByPrincipalId === principalId) - Number(a.requestedByPrincipalId === principalId));
@@ -2591,7 +2643,9 @@ export class ProjectRunCoordinator {
     const blocking = own ? waiting.find(run => run.projectRunId === own.projectRunId) : waiting[0];
     if (blocking) {
       const project = this.store.getProject(orgId, blocking.projectId)?.name ?? null;
-      return new ProjectStateConflict(`${error.message}: ${resultsWaitingBusyMessage(blocking, project, blocking.requestedByPrincipalId === principalId)}`);
+      const mine = blocking.requestedByPrincipalId === principalId;
+      return new ComputeResultsWaitingConflict(`${error.message}: ${resultsWaitingBusyMessage(blocking, project, mine)}`,
+        mine ? 'results-waiting' : 'others-results-waiting');
     }
     return own ? new ProjectStateConflict(`${error.message}: ${ownLiveRunMessage(own)}`) : error;
   }
@@ -3028,12 +3082,39 @@ export class ProjectRunCoordinator {
     return run;
   }
 
-  pendingComputeRuns(orgId: string, projectId: string, principalId: string): { runId: string }[] {
-    const live = new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
+  /**
+   * The requester's undriven Compute runs for Project settings, each named by
+   * its title (else its goal) and start, with its transfer-journal phase:
+   * `finalizing`/`transferred` wait for their results, anything else stopped
+   * before it finished.
+   */
+  pendingComputeRuns(orgId: string, projectId: string, principalId: string): ComputePendingRun[] {
+    const live = this.liveRunLeases();
+    let journal: ComputeDispatchStore | null = null;
+    try { journal = this.dispatchJournal(); } catch { /* phases unknown */ }
     return (this.store.listProjectRuns(orgId, projectId) ?? []).filter(run =>
       run.executionTarget.kind === 'customer-device' && run.status === 'running' &&
       run.requestedByPrincipalId === principalId && !this.active.has(run.projectRunId) && !live.has(`project:${run.projectRunId}`))
-      .slice(0, 100).map(run => ({ runId: run.projectRunId }));
+      .slice(0, 100).map(run => {
+        let phase: ComputePendingRun['phase'] = null;
+        try { phase = journal?.inspect(run.projectRunId)?.phase ?? null; } catch { /* unknown */ }
+        return { runId: run.projectRunId, label: eventLabel(run.title ?? run.goal, 80),
+          startedAt: run.startedAt ?? run.createdAt, phase };
+      });
+  }
+
+  /**
+   * "Get the results" from the web: the explicit finalization, its failure
+   * typed by host facts read AFTER it (a live `project:` lease means a
+   * transfer is running, here or in another generation), never by prose.
+   */
+  async getComputeResults(orgId: string, projectRunId: string, principalId: string): Promise<ProjectRun> {
+    try { return await this.retryComputeFinalization(orgId, projectRunId, principalId); }
+    catch (error) {
+      let driving = this.active.has(projectRunId);
+      try { driving ||= this.liveRunLeases().has(`project:${projectRunId}`); } catch { /* unknown: pending */ }
+      throw new ComputeResultsNotYet(driving ? 'active' : 'pending', error);
+    }
   }
 
   /** Resume only the verified delivery transfer after an explicit request. */

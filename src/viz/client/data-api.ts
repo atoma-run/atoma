@@ -59,7 +59,8 @@ async function trackMutation<T>(work: () => Promise<T>): Promise<T> {
 }
 
 export class ApiHttpError extends Error {
-  constructor(readonly status: number, path: string, detail?: string) {
+  /** A typed refusal `reason` from the body (`{ error, reason }`), when the server sent one. */
+  constructor(readonly status: number, path: string, detail?: string, readonly reason?: string) {
     super(detail ?? `HTTP ${status} for ${path}`);
     this.name = 'ApiHttpError';
   }
@@ -387,12 +388,14 @@ async function assertMutationSucceeded(response: Response, path: string): Promis
   redirectIfAuthenticationRequired(response.status);
   if (!response.ok) {
     let detail = `HTTP ${response.status} for ${path}`;
+    let reason: string | undefined;
     try {
-      const payload = (await response.json()) as { error?: unknown };
+      const payload = (await response.json()) as { error?: unknown; reason?: unknown };
       if (typeof payload.error === 'string' && payload.error.trim()) detail = payload.error.trim();
+      if (typeof payload.reason === 'string') reason = payload.reason;
     } catch {
       // Keep the status line when the body is not JSON.
     }
-    throw new ApiHttpError(response.status, path, detail);
+    throw new ApiHttpError(response.status, path, detail, reason);
   }
 }

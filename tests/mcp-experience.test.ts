@@ -232,7 +232,7 @@ it('says a Compute run whose results wait on the customer computer is finished, 
     journal.phase(run.projectRunId, 1, 'finalizing');
     const status = (await f.call('atoma_run_status', ref)).structuredContent as Record<string, unknown>;
     expect(runViewSchema.parse(status).progress).toMatchObject({ stage: 'awaiting-results', message: COMPUTE_RESULTS_WAITING_MESSAGE });
-    expect(status['resultsWaiting']).toEqual({ since: expect.any(String) });
+    expect(status['resultsWaiting']).toEqual({ since: expect.any(String), computerReady: false });
     const task = await (f.client as LegacyClient).request({ method: 'tasks/get', params: { taskId: projectRunTaskId(ref.projectId, ref.runId) } }, GetTaskResultSchema);
     expect(task.status).toBe('working');
     expect(task.statusMessage).toContain(COMPUTE_RESULTS_WAITING_MESSAGE);

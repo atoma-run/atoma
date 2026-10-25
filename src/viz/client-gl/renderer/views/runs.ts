@@ -93,6 +93,7 @@ import { drawAtomDetail } from './atom-detail.js';
 import { drawAtomStubDetail } from './atom-stub-detail.js';
 import { drawResultPanel } from './result.js';
 import { drawRunActivity } from './run-activity.js';
+import { computeResultsBlock, drawComputeResultsBlock, runAwaitingResults } from '../compute-results-block.js';
 import { buildRunActivity } from '../../run-activity.js';
 import {
   PARTIAL_CONTINUE_PREFIX,
@@ -462,9 +463,13 @@ export function drawRuns(
   // What happened to this run, always visible: the header used to flag only
   // LIVE, so a cancelled or failed run looked exactly like a delivered one
   // (2026-08-15 review of a real cancelled run).
-  const status = runStatus(run);
-  const statusColor = RUN_STATUS_COLOR[status];
-  const statusLabel = snapshot.t(status === 'live' ? 'runs.status.live' : `runs.flag.${status}`);
+  // A project run finished on a customer's computer whose files have not
+  // arrived: the trace ended (it may even read delivered), the run has not.
+  // The server's host fact outranks the trace, as on the project's run card.
+  const waitingRun = runAwaitingResults(snapshot, run);
+  const status = waitingRun ? null : runStatus(run);
+  const statusColor = status ? RUN_STATUS_COLOR[status] : GPU_COLORS.warning;
+  const statusLabel = snapshot.t(!status ? 'projects.resultsWaiting.status' : status === 'live' ? 'runs.status.live' : `runs.flag.${status}`);
   const statusIconSpace = status === 'live' ? 18 : 0;
   const statusTextStyle = { size: 10, weight: '700' } as const;
   const statusWidth = Math.min(
@@ -545,6 +550,12 @@ export function drawRuns(
       slot.width, RUN_ACTION_HEIGHT, action.active, snapshot.onActivate);
   });
   filterTop += (slots.at(-1)?.y ?? 0) + RUN_ACTION_ROW_PITCH;
+  // The same plain sentence and "Get the results" as the project's run card.
+  const resultsBlock = waitingRun ? computeResultsBlock(ctx, snapshot, waitingRun, Math.max(1, leftWidth - 28)) : null;
+  if (waitingRun && resultsBlock) {
+    drawComputeResultsBlock(ctx, ctx.root, snapshot, waitingRun, resultsBlock, leftX + 14, filterTop, Math.max(1, leftWidth - 28));
+    filterTop += resultsBlock.height + FILTER_BLOCK_GAP;
+  }
   if (snapshot.state.runActivityOpen) {
     drawRunActivity(ctx, snapshot, leftX, filterTop, leftWidth, Math.max(0, height - filterTop - GPU_LAYOUT.gap));
     ctx.scrollMax.runs = 0;
@@ -1621,15 +1632,16 @@ function drawRunSummaryCard(
   // The verdict leads the facts: this pane is where the eye lands, and it
   // used to read identically for a delivered and a cancelled run.
   const summaryStatus = runStatus(run);
-  const summaryStatusColor = RUN_STATUS_COLOR[summaryStatus];
+  const awaitingResults = runAwaitingResults(snapshot, run) !== null;
+  const summaryStatusColor = awaitingResults ? GPU_COLORS.warning : RUN_STATUS_COLOR[summaryStatus];
   const summaryStatusText = ctx.text(
     block,
-    snapshot.t(summaryStatus === 'live' ? 'runs.status.live' : `runs.flag.${summaryStatus}`),
-    padX + (summaryStatus === 'live' ? 18 : 0),
+    snapshot.t(awaitingResults ? 'projects.resultsWaiting.status' : summaryStatus === 'live' ? 'runs.status.live' : `runs.flag.${summaryStatus}`),
+    padX + (summaryStatus === 'live' && !awaitingResults ? 18 : 0),
     cursor,
     { size: 10, weight: '700', color: summaryStatusColor }
   );
-  if (summaryStatus === 'live') {
+  if (summaryStatus === 'live' && !awaitingResults) {
     // The visible capitals sit below the centre of Pixi's line box.
     const liveCrystalTop = cursor + (summaryStatusText.height - 14) / 2 + 1;
     attachLiveAtomaMark(ctx.animatedLayer(block, 'run-summary-crystal'),

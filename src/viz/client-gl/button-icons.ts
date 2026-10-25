@@ -82,6 +82,8 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (/^result.download$/.test(id)) return 'download';
   // "Get the results": a finished run's files, fetched from the requester's computer.
   if (/^project\.computeResults\.|^compute\.finalize\./.test(id)) return 'download';
+  // "Close this run": a run that stopped before it finished, once its computer confirms it.
+  if (/^compute\.close\./.test(id)) return 'check';
   if (id === 'run.preview.terminal') return 'terminal';
   if (id === 'run.preview.stop') return 'stop';
   if (/^run.preview\./.test(id)) return 'eye';

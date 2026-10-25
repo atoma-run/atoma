@@ -1656,7 +1656,7 @@ const COMPUTE = (() => {
   return { devices, http: new ComputeHttp({ devices, gate: AUTH, origin: AUTH_RUNTIME.publicOrigin,
     proxies: AUTH_RUNTIME.trustedProxies, emit,
     pendingRuns: (orgId, projectId, principalId) => PROJECTS_RUNTIME.coordinator.pendingComputeRuns(orgId, projectId, principalId),
-    finalize: (orgId, runId, principalId): Promise<unknown> => PROJECTS_RUNTIME.coordinator.retryComputeFinalization(orgId, runId, principalId) }) };
+    finalize: (orgId, runId, principalId): Promise<unknown> => PROJECTS_RUNTIME.coordinator.getComputeResults(orgId, runId, principalId) }) };
 })();
 const MCP_OAUTH = AUTH_RUNTIME && AUTH?.store ? new McpOAuth({
   gate: AUTH,

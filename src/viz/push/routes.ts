@@ -283,7 +283,9 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
     audience: { requester: true },
     vars: (event, locale) => ({
       title: translate(locale, 'push.resultsWaiting.title'),
-      body: translate(locale, 'push.resultsWaiting.body', { goal: text(event, 'goal') }),
+      // The computer was connected and accepting work: "open Atoma Compute" is not the remedy.
+      body: translate(locale, event.detail?.['computerReady'] === true ? 'push.resultsWaiting.bodyStalled' : 'push.resultsWaiting.body',
+        { goal: text(event, 'goal') }),
     }),
     copy: { en: { title: '{{title}}', body: '{{body}}' } },
   },

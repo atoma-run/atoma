@@ -105,16 +105,8 @@ confirmed checkpoint, that new connection cannot resume its work.
 This transport extension requires updated Compute and server versions. Older
 peers retain the previous fail-closed behavior. It is not a run-restart feature.
 
-When a run's work is finished but its files have not reached Atoma yet, the run
-reads **Finished — waiting for its results**, with the sentence "The work is
-finished. Its results are on your computer and will arrive as soon as Atoma
-Compute is open and connected." Its requester can press **Get the results** on
-the run itself (or in the project's Compute settings); after ten minutes they
-are told once through an Atoma notification, and a refused start explains that
-the place is held by finished work waiting on a computer.
-
-After reconnecting the computer, use **Get the results** on the run, or in the
-project's Compute settings, for a pending run. A completed run can export its
+After reconnecting the computer, use **Reconcile and finish transfer** in the
+project's Compute settings for a pending run. A completed run can export its
 remaining files in a fresh, export-only generation. An interrupted execution
 must first have its stop confirmed. Atoma then closes that interrupted run
 automatically instead of leaving it live. It is marked failed unless a cancellation
@@ -127,6 +119,20 @@ generations and expiry. The relay can connect only to a launcher-issued preview,
 never to a caller-selected local URL or port. Disconnecting makes the preview
 unavailable. Restarting the Atoma server never asserts that a client workload
 has stopped.
+
+When a run's work is finished but its files have not reached Atoma yet, the
+run and its page read **Finished — waiting for its results** (its project card:
+**Results waiting on a computer**): "The work is finished. Its results are on
+your computer and will arrive by themselves as soon as Atoma Compute is open,
+connected and accepting work." If that
+computer is already connected and accepting work, the run says instead that the
+results could not be transferred yet. Its requester can press **Get the
+results** (formerly **Reconcile and finish transfer**) on the run, on its page
+or in the project's Compute settings, where each pending run is named by its
+title and start; one that stopped before it finished offers **Close this run**.
+After the files have waited ten minutes (counted from when nothing was moving
+them) the requester is told once through an Atoma notification that opens the
+project's runs, and a refused start says the place is held by finished work.
 
 ## Connection diagnostics
 

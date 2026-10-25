@@ -134,7 +134,8 @@ export class AssistantService {
       costUsd: typeof status['costUsd'] === 'number' ? status['costUsd'] : null,
       error: typeof status['error'] === 'string' ? status['error'] : null,
       endedAt: typeof status['endedAt'] === 'string' ? status['endedAt'] : null,
-      resultsWaiting: typeof status['resultsWaiting'] === 'object' && status['resultsWaiting'] !== null } : null;
+      resultsWaiting: typeof status['resultsWaiting'] === 'object' && status['resultsWaiting'] !== null,
+      resultsStalled: object(status['resultsWaiting'])['computerReady'] === true } : null;
     const choices = await this.models.choices(scope);
     const subscriptions = await this.models.subscriptions(scope);
     const selected = choices.find(choice => choice.id === conversation.modelChoice);
@@ -166,7 +167,7 @@ export class AssistantService {
           ...(readRunIds.length ? { readRunIds } : {}),
           idempotencyKey: `assistant:${input.proposalId}`, conversationApproval }, true);
       } catch (error) {
-        if (error instanceof AssistantToolError) throw new AssistantConflict(error.message);
+        if (error instanceof AssistantToolError) throw new AssistantConflict(error.message, error.reason);
         throw new AssistantConflict('The action could not be confirmed. Check Projects and Runs before making another proposal.');
       }
       return current.id!;

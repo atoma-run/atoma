@@ -47,6 +47,7 @@ export async function assistantHttp(req: IncomingMessage, res: ServerResponse, d
   } catch (error) {
     send(error instanceof AssistantConflict ? 409 : 503, {
       error: error instanceof AssistantConflict ? error.message : 'The assistant could not reach Atoma. Please try again.',
+      ...(error instanceof AssistantConflict && error.reason ? { reason: error.reason } : {}),
     });
   } finally {
     await mcp?.close().catch(() => {});

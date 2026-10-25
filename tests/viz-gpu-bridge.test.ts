@@ -150,6 +150,24 @@ describe('full-GL minimal DOM bridge', () => {
     expect(within(other).getByRole('status')).toHaveTextContent(translate('en', 'projects.resultsWaiting.requesterOnly'));
   });
 
+  it('mirrors "Get the results" on the run\'s own page too, with the neutral sentence when the computer is connected', async () => {
+    useGpuStore.setState({ view: 'runs', entered: true, selectedProjectId: null });
+    const run = { projectRunId: 'run-waiting', projectId: 'project-other', orgId: 'org-1', goal: 'Booking page',
+      status: 'running' as const, requestedByPrincipalId: 'person', traceId: 'run-waiting', costUsd: 0.4, durationS: null,
+      error: null, publication: null, createdAt: '2026-08-20T00:00:00.000Z', endedAt: null,
+      resultsWaiting: { since: '2026-08-20T00:30:00.000Z', computerReady: true } };
+    const auth = { viewer: { displayName: 'P', role: 'org:member' as const, principalId: 'person',
+      activeOrganisation: { id: 'org-1', name: 'Org', role: 'org:member' as const }, organisations: [], platformAdmin: false,
+      avatarUrl: null, displayNameSource: 'provider' as const }, failure: false, signingOut: false, switchingOrganisationId: null };
+    const onActivate = vi.fn();
+    render(createElement(DomBridge, { runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onActivate, auth, runViewProjectRun: run,
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars), projects: [] }));
+    const section = screen.getByRole('region', { name: translate('en', 'projects.resultsWaiting.status') });
+    expect(within(section).getByText(translate('en', 'projects.resultsWaiting.stalled'))).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('button', { name: translate('en', 'projects.resultsWaiting.get') }));
+    expect(onActivate).toHaveBeenCalledWith('project.computeResults.run-waiting');
+  });
+
   it('exposes the action explanation and technical disclosure to the keyboard', () => {
     useGpuStore.setState({ selectedEventId: 'edit' });
     const onActivate = vi.fn();

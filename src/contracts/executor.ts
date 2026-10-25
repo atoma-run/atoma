@@ -26,4 +26,5 @@ export const executorRequestSchema = z.discriminatedUnion('method', [
     keepWorkspace: z.boolean().optional() }).strict() }).strict(),
 ]);
 export type ExecutorRequest = z.input<typeof executorRequestSchema>;
-export interface ExecutorFailure { name: string; message: string; access?: GitHubAccessRequired }
+/** `reason`: a typed refusal reason (e.g. a results-waiting busy start) that a web surface maps to its own copy. */
+export interface ExecutorFailure { name: string; message: string; access?: GitHubAccessRequired; reason?: string }

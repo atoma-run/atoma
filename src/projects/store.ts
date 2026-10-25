@@ -2039,6 +2039,15 @@ END;
     ).map(row => this.runWithLearning(row));
   }
 
+  /** A project's running runs only (a project card asks what they are doing); bounded. */
+  listRunningProjectRuns(orgIdInput: string, projectIdInput: string): ProjectRun[] {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const projectId = projectIdSchema.parse(projectIdInput);
+    return (this.db.prepare(`SELECT * FROM project_runs WHERE project_id = ? AND org_id = ? AND status = 'running'
+      ORDER BY created_at DESC, project_run_id ASC LIMIT 100`).all(projectId, orgId) as ProjectRunRow[])
+      .map(row => this.runWithLearning(row));
+  }
+
   /**
    * One principal's runs in one organisation that are still queued or
    * running, or that ended at or after `endedSince`, newest first: what the

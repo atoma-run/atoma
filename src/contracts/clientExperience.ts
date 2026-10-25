@@ -30,6 +30,13 @@ export const serviceProblemSchema = z.object({
   retryable: z.boolean(),
   nextAction: z.string(),
   fields: z.array(z.string()).optional(),
+  /**
+   * Additive (2026-10-25): a typed cause a web surface maps to its own plain
+   * copy, while `message` stays the machine-facing sentence. Today: a start
+   * refused because finished work waits for its results on a computer, the
+   * caller's own (`results-waiting`) or another member's.
+   */
+  reason: z.enum(['results-waiting', 'others-results-waiting']).optional(),
 });
 export type ServiceProblem = z.infer<typeof serviceProblemSchema>;
 

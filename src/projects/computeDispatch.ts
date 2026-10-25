@@ -6,7 +6,7 @@ import { openStoreHandle } from '../core/stores.js';
 import type { ProjectRun } from '../contracts/projects.js';
 import type { ComputeResources, ComputeSession, ComputeRunProgress } from '../contracts/computeDevice.js';
 import type { ProjectRunDriver } from './coordinator.js';
-import type { ComputeDeviceStore } from './computeDevices.js';
+import { computeDeviceReady, type ComputeDeviceStore } from './computeDevices.js';
 import type { ComputeConnection } from './computeConnection.js';
 import { serveComputeBridge } from '../run/computeBridge.js';
 import { COMPUTE_BRIDGE_ENV } from '../contracts/computeBridge.js';
@@ -36,7 +36,15 @@ CREATE TABLE IF NOT EXISTS compute_preview_observations (
 CREATE TABLE IF NOT EXISTS compute_result_notices (
  run_id TEXT PRIMARY KEY REFERENCES project_runs(project_run_id),
  noticed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS compute_result_waits (
+ run_id TEXT PRIMARY KEY REFERENCES project_runs(project_run_id),
+ since TEXT NOT NULL
 );`;
+
+/** When the files started waiting: the first driver stop after the runner
+ * ended, else the journal's phase time (a driver that died left no stop). */
+const WAITING_SINCE = 'MAX(d.updated_at, COALESCE(w.since, d.updated_at))';
 
 /** This is a host-side transfer journal, never evidence of workload exit. */
 export class ComputeDispatchStore {
@@ -59,16 +67,31 @@ export class ComputeDispatchStore {
     return row ? previewClassificationSchema.parse(JSON.parse(row.classification_json)) : undefined;
   }
   inspect(runId: string) {
-    return this.db.prepare('SELECT generation,phase,updated_at AS updatedAt FROM compute_dispatches WHERE run_id=?').get(runId) as
-      { generation: number; phase: 'executing' | 'finalizing' | 'transferred' | 'interrupted'; updatedAt: string } | undefined;
+    return this.db.prepare(`SELECT d.generation,d.phase,d.updated_at AS updatedAt,${WAITING_SINCE} AS waitingSince
+      FROM compute_dispatches d LEFT JOIN compute_result_waits w ON w.run_id=d.run_id WHERE d.run_id=?`).get(runId) as
+      { generation: number; phase: 'executing' | 'finalizing' | 'transferred' | 'interrupted'; updatedAt: string; waitingSince: string } | undefined;
   }
-  /** Still-running runs whose runner ended at or before `cutoff` with files not
-   * yet arrived, and whose requester was not told yet; oldest first. */
+  /**
+   * A driver let go of a run whose runner had ended, leaving its files on the
+   * computer. Only the FIRST stop is kept: that is when the files started
+   * waiting. Later automatic attempts on a connected computer would otherwise
+   * keep moving the clock, and the requester would never be told.
+   */
+  transferStopped(runId: string): void {
+    this.db.prepare('INSERT OR IGNORE INTO compute_result_waits VALUES (?,?)').run(runId, new Date().toISOString());
+  }
+  /** Whether a device is connected and accepting work (`computeDeviceReady`). */
+  deviceReady(deviceId: string): boolean { return computeDeviceReady(this.db, deviceId); }
+  /** False once the shared handle was closed; the holder then reopens. */
+  get usable(): boolean { return this.db.open; }
+  /** Still-running runs whose files have waited since at or before `cutoff`,
+   * and whose requester was not told yet; oldest first. */
   unnoticedFinalizingSince(cutoff: string, limit = 100): { runId: string; orgId: string; since: string }[] {
-    return this.db.prepare(`SELECT d.run_id AS runId, r.org_id AS orgId, d.updated_at AS since FROM compute_dispatches d
+    return this.db.prepare(`SELECT d.run_id AS runId, r.org_id AS orgId, ${WAITING_SINCE} AS since FROM compute_dispatches d
       JOIN project_runs r ON r.project_run_id=d.run_id AND r.status='running'
-      WHERE d.phase='finalizing' AND d.updated_at<=? AND NOT EXISTS (SELECT 1 FROM compute_result_notices n WHERE n.run_id=d.run_id)
-      ORDER BY d.updated_at LIMIT ?`).all(cutoff, limit) as { runId: string; orgId: string; since: string }[];
+      LEFT JOIN compute_result_waits w ON w.run_id=d.run_id
+      WHERE d.phase='finalizing' AND ${WAITING_SINCE}<=? AND NOT EXISTS (SELECT 1 FROM compute_result_notices n WHERE n.run_id=d.run_id)
+      ORDER BY since LIMIT ?`).all(cutoff, limit) as { runId: string; orgId: string; since: string }[];
   }
   /** One organisation's still-running runs whose transfer journal says `finalizing`. */
   finalizingRunsOf(orgId: string): { runId: string; orgId: string }[] {
@@ -130,6 +153,11 @@ export class ComputeDispatcher {
     return admission;
   }
   previewClassification(runId: string) { return this.options.journal.previewClassification(runId); }
+  /** Best-effort: a store fault here must never replace the pending outcome. */
+  private transferStopped(runId: string): void {
+    try { this.options.journal.transferStopped(runId); }
+    catch (error) { logPending(runId, 'waiting-since record', error); }
+  }
   interruptedStopped(run: ProjectRun): boolean {
     const record = this.options.journal.inspect(run.projectRunId);
     if (run.executionTarget.kind !== 'customer-device') return false;
@@ -182,6 +210,7 @@ export class ComputeDispatcher {
     } catch (error) {
       if (error instanceof WorkspaceExportRefusedError) throw new ComputeFinalizationRefusedError(log, error);
       logPending(run.projectRunId, 'finalization', error);
+      this.transferStopped(run.projectRunId);
       throw new ComputeDispatchPendingError();
     } finally { peer.close('dispatch-finished'); }
   }
@@ -219,6 +248,7 @@ export class ComputeDispatcher {
     } catch (error) {
       if (finalizing !== undefined && error instanceof WorkspaceExportRefusedError) throw new ComputeFinalizationRefusedError(finalizing, error);
       logPending(run.projectRunId, finalizing === undefined ? 'dispatch' : 'finalization', error);
+      if (finalizing !== undefined) this.transferStopped(run.projectRunId);
       if (finalizing === undefined && this.options.journal.inspect(run.projectRunId)) this.options.journal.phase(run.projectRunId, execution.generation, 'interrupted');
       throw new ComputeDispatchPendingError();
     } finally {
