@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, expect, it } from 'vitest';
@@ -129,4 +129,39 @@ it('defaults to app downloads with an explicit architecture choice and a manual 
   expect(html).toContain('not notarized by Apple');
   expect(html).toContain('Open Anyway');
   expect(html).toContain('/guides/compute/macos-open-anyway.png');
+});
+
+import { ComputeResultsNotYet } from '../src/projects/coordinator.js';
+import { ProjectStateConflict } from '../src/projects/store.js';
+
+// Review 2026-10-25: only a transfer that may still finish answers with a
+// reason the page turns into "make sure Atoma Compute is open" (`pending`) or
+// "getting the results" (`active`); a refusal no computer can change keeps
+// the route's own neutral conflict, with no reason.
+it('types "Get the results" failures only when the transfer may still finish', async () => {
+  const outcomes: unknown[] = [new ComputeResultsNotYet('pending', null), new ComputeResultsNotYet('active', null),
+    new ProjectStateConflict('Compute finalization unavailable')];
+  const handler = new ComputeHttp({ devices, origin: new URL(origin), proxies: { addresses: ['127.0.0.1'] }, emit: () => {},
+    finalize: async () => { throw outcomes.shift(); },
+    gate: { enabled: true, store: auth, resolve: req => {
+      const tokens = parseCookieHeader(req.headers.cookie).filter(c => c.name === authCookieName(SESSION_COOKIE, true));
+      return tokens.length === 1 ? auth.resolveSession(tokens[0]!.value) : null;
+    } } });
+  const finalizing = createServer((req, res) => {
+    void handler.handle(req, res, new URL(req.url!, origin)).then(handled => { if (!handled) res.writeHead(404).end(); });
+  });
+  await new Promise<void>(resolve => finalizing.listen(0, '127.0.0.1', resolve));
+  const at = `http://127.0.0.1:${(finalizing.address() as { port: number }).port}`;
+  const ask = async () => {
+    const response = await fetch(`${at}/api/compute/runs/${randomUUID()}/finalize`, { method: 'POST', body: '{}',
+      headers: { 'x-forwarded-proto': 'https', cookie, origin, 'content-type': 'application/json' } });
+    return { status: response.status, body: await response.json() as { error?: string; reason?: string } };
+  };
+  try {
+    expect(await ask()).toEqual({ status: 409, body: { error: 'Compute results not transferred yet', reason: 'pending' } });
+    expect(await ask()).toEqual({ status: 409, body: { error: 'Compute results not transferred yet', reason: 'active' } });
+    const refused = await ask();
+    expect(refused.status).toBe(409);
+    expect(refused.body.reason).toBeUndefined();
+  } finally { finalizing.closeAllConnections(); await new Promise<void>(resolve => finalizing.close(() => resolve())); }
 });

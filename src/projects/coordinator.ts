@@ -158,6 +158,8 @@ export interface ComputePendingRun {
   readonly label: string;
   readonly startedAt: string;
   readonly phase: 'executing' | 'finalizing' | 'transferred' | 'interrupted' | null;
+  /** Its files are still on a computer that is connected and accepting work: the transfer stalled. */
+  readonly computerReady: boolean;
 }
 
 /** How long results may wait on a computer before the requester is told, once. */
@@ -457,9 +459,19 @@ export function tenantBusyMessage(
 export function resultsWaitingBusyMessage(
   run: { readonly projectRunId: string },
   projectName: string | null,
-  own: boolean
+  own: boolean,
+  /** The computer was connected and accepting work: "open Atoma Compute" is not the remedy. */
+  stalled = false
 ): string {
   const where = projectName ? ` in ${eventLabel(projectName, 80)}` : '';
+  if (stalled) {
+    return own
+      ? `your previous run${where} is finished, but its results could not be transferred from your computer yet. ` +
+        'Choose "Get the results" on that run, or contact support if this continues. ' +
+        `You can start a new run once they have arrived (run ${run.projectRunId}).`
+      : `a finished run${where} is waiting for its results, which could not be transferred yet from the computer of the person who started it. ` +
+        'Your run can start once they have arrived.';
+  }
   return own
     ? `your previous run${where} is finished, but its results are still on your computer. ` +
       'They arrive by themselves as soon as Atoma Compute is open, connected and accepting work on that computer, or choose "Get the results" on that run. ' +
@@ -474,10 +486,22 @@ export function resultsWaitingBusyMessage(
  * `reason` is what a web surface maps to its own plain copy. It crosses the
  * executor socket as a field (`ExecutorFailure.reason`), never parsed from prose.
  */
-export const RESULTS_WAITING_REASONS = ['results-waiting', 'others-results-waiting'] as const;
+export const RESULTS_WAITING_REASONS = ['results-waiting', 'others-results-waiting', 'results-stalled', 'others-results-stalled'] as const;
 export type ResultsWaitingReason = typeof RESULTS_WAITING_REASONS[number];
 export class ComputeResultsWaitingConflict extends ProjectStateConflict {
   constructor(message: string, readonly reason: ResultsWaitingReason) { super(message); }
+}
+
+/**
+ * A finalization that did not finish for a reason that passes by itself:
+ * `finalization-active` while a driver holds the run (or it just changed),
+ * `finalization-pending` when the transfer was attempted and remains pending.
+ * Anything else (the requester's access, the project, the run's state) is a
+ * plain refusal. Crosses the executor socket by `reason`, never by prose.
+ */
+export const COMPUTE_FINALIZATION_WAITS = ['finalization-active', 'finalization-pending'] as const;
+export class ComputeFinalizationWaiting extends ProjectStateConflict {
+  constructor(message: string, readonly reason: typeof COMPUTE_FINALIZATION_WAITS[number]) { super(message); }
 }
 
 /**
@@ -1421,7 +1445,9 @@ export class ProjectRunCoordinator {
       if (error.name === 'ProjectRunConfigurationError') return new ProjectRunConfigurationError(error.message);
       if (error.name === 'ProjectStateConflict') {
         const reason = 'reason' in error ? RESULTS_WAITING_REASONS.find(value => value === error.reason) : undefined;
-        return reason ? new ComputeResultsWaitingConflict(error.message, reason) : new ProjectStateConflict(error.message);
+        if (reason) return new ComputeResultsWaitingConflict(error.message, reason);
+        const waits = 'reason' in error ? COMPUTE_FINALIZATION_WAITS.find(value => value === error.reason) : undefined;
+        return waits ? new ComputeFinalizationWaiting(error.message, waits) : new ProjectStateConflict(error.message);
       }
       if (error.name === 'PublicationSupersededError') return new PublicationSupersededError(error.message);
       if (error.name === 'GitHubAccessRequiredError' && 'access' in error) {
@@ -2055,16 +2081,18 @@ export class ProjectRunCoordinator {
     }
   }
 
-  /** The organisation's live runs whose results wait on a computer, own first. */
-  private runsAwaitingResults(orgId: string, principalId: string): ProjectRun[] {
+  /** The organisation's live runs whose results wait on a computer, own first, each with its waiting facts. */
+  private runsAwaitingResults(orgId: string, principalId: string): { run: ProjectRun; waiting: ComputeResultsWaiting }[] {
     let rows: { runId: string; orgId: string }[];
     try { rows = this.dispatchJournal().finalizingRunsOf(orgId); }
     catch { return []; }
     if (rows.length === 0) return [];
     const live = this.liveRunLeases();
-    return rows.map(row => this.store.getProjectRun(row.orgId, row.runId))
-      .filter((run): run is ProjectRun => !!run && this.computeResultsWaiting(run, live) !== null)
-      .sort((a, b) => Number(b.requestedByPrincipalId === principalId) - Number(a.requestedByPrincipalId === principalId));
+    return rows.flatMap(row => {
+      const run = this.store.getProjectRun(row.orgId, row.runId);
+      const waiting = run ? this.computeResultsWaiting(run, live) : null;
+      return run && waiting ? [{ run, waiting }] : [];
+    }).sort((a, b) => Number(b.run.requestedByPrincipalId === principalId) - Number(a.run.requestedByPrincipalId === principalId));
   }
 
   clientQuestion(run: ProjectRun) {
@@ -2730,12 +2758,13 @@ export class ProjectRunCoordinator {
     // and what to do: "still in progress" sent a customer to wait 4.5 hours
     // for a run that had ended (run 40c20c5d).
     const waiting = this.runsAwaitingResults(orgId, principalId);
-    const blocking = own ? waiting.find(run => run.projectRunId === own.projectRunId) : waiting[0];
+    const blocking = own ? waiting.find(entry => entry.run.projectRunId === own.projectRunId) : waiting[0];
     if (blocking) {
-      const project = this.store.getProject(orgId, blocking.projectId)?.name ?? null;
-      const mine = blocking.requestedByPrincipalId === principalId;
-      return new ComputeResultsWaitingConflict(`${error.message}: ${resultsWaitingBusyMessage(blocking, project, mine)}`,
-        mine ? 'results-waiting' : 'others-results-waiting');
+      const { run } = blocking, stalled = blocking.waiting.computerReady === true;
+      const project = this.store.getProject(orgId, run.projectId)?.name ?? null;
+      const mine = run.requestedByPrincipalId === principalId;
+      return new ComputeResultsWaitingConflict(`${error.message}: ${resultsWaitingBusyMessage(run, project, mine, stalled)}`,
+        mine ? stalled ? 'results-stalled' : 'results-waiting' : stalled ? 'others-results-stalled' : 'others-results-waiting');
     }
     return own ? new ProjectStateConflict(`${error.message}: ${ownLiveRunMessage(own)}`) : error;
   }
@@ -3186,22 +3215,32 @@ export class ProjectRunCoordinator {
       run.executionTarget.kind === 'customer-device' && run.status === 'running' &&
       run.requestedByPrincipalId === principalId && !this.active.has(run.projectRunId) && !live.has(`project:${run.projectRunId}`))
       .slice(0, 100).map(run => {
-        let phase: ComputePendingRun['phase'] = null;
-        try { phase = journal?.inspect(run.projectRunId)?.phase ?? null; } catch { /* unknown */ }
+        let phase: ComputePendingRun['phase'] = null, computerReady = false;
+        try {
+          phase = journal?.inspect(run.projectRunId)?.phase ?? null;
+          // Only files still on the computer have a "computer ready" story.
+          if (phase === 'finalizing' && run.executionTarget.kind === 'customer-device') computerReady = journal!.deviceReady(run.executionTarget.deviceId);
+        } catch { /* unknown: not ready */ }
         return { runId: run.projectRunId, label: eventLabel(run.title ?? run.goal, 80),
-          startedAt: run.startedAt ?? run.createdAt, phase };
+          startedAt: run.startedAt ?? run.createdAt, phase, computerReady };
       });
   }
 
   /**
-   * "Get the results" from the web: the explicit finalization, its failure
-   * typed by host facts read AFTER it (a live `project:` lease means a
-   * transfer is running, here or in another generation), never by prose.
+   * "Get the results" from the web: the explicit finalization. Only a failure
+   * that passes by itself (a pending transfer, a driver holding the run, the
+   * run slot busy) becomes `ComputeResultsNotYet`, typed by host facts read
+   * AFTER it (a live `project:` lease means a transfer is running, here or in
+   * another generation), never by prose. Every other refusal (the requester's
+   * access, an archived project, an unavailable executor) keeps its own type.
    */
   async getComputeResults(orgId: string, projectRunId: string, principalId: string): Promise<ProjectRun> {
     try { return await this.retryComputeFinalization(orgId, projectRunId, principalId); }
     catch (error) {
-      let driving = this.active.has(projectRunId);
+      const waiting = error instanceof ComputeFinalizationWaiting || error instanceof ComputeDispatchPendingError ||
+        error instanceof RunLockBusyError || (error instanceof Error && error.name === 'RunLockBusyError');
+      if (!waiting) throw error;
+      let driving = this.active.has(projectRunId) || (error instanceof ComputeFinalizationWaiting && error.reason === 'finalization-active');
       try { driving ||= this.liveRunLeases().has(`project:${projectRunId}`); } catch { /* unknown: pending */ }
       throw new ComputeResultsNotYet(driving ? 'active' : 'pending', error);
     }
@@ -3227,19 +3266,20 @@ export class ProjectRunCoordinator {
       throw new ProjectStateConflict('Compute finalization unavailable');
     }
     const compute = this.compute?.(), project = this.store.getProject(orgId, run.projectId);
-    if (!compute || !project || this.active.has(projectRunId)) throw new ProjectStateConflict('Compute run is active or unavailable');
+    if (this.active.has(projectRunId)) throw new ComputeFinalizationWaiting('Compute run is active', 'finalization-active');
+    if (!compute || !project) throw new ProjectStateConflict('Compute run is unavailable');
     if (compute.interruptedStopped(run)) {
       return this.settleStoppedComputeRun(run);
     }
     // A cancelled run is closed, not exported and delivered.
-    if (this.store.runCancellationRequested(orgId, projectRunId)) {
-      if (compute.finishedStopped?.(run)) return this.settleStoppedComputeRun(run);
-      throw new ProjectStateConflict('Compute run cancellation awaits its workload stop');
-    }
+    if (this.store.runCancellationRequested(orgId, projectRunId)) return this.closeCancelledComputeRun(run, compute);
     const lease = await this.acquireLeasePreempting(`project:${projectRunId}`, orgId);
     if (this.active.has(projectRunId) || this.store.getProjectRun(orgId, projectRunId)?.status !== 'running') {
-      lease.release(); throw new ProjectStateConflict('Compute run changed');
+      lease.release(); throw new ComputeFinalizationWaiting('Compute run changed', 'finalization-active');
     }
+    // The lease can take ~20 s (an analysis yielding): a cancellation
+    // requested meanwhile is honoured, never exported and delivered.
+    if (this.store.runCancellationRequested(orgId, projectRunId)) { lease.release(); return this.closeCancelledComputeRun(run, compute); }
     // A generation demoted while the lease was awaited leaves the work to the
     // newly selected one; an explicit request was admitted while selected.
     if (automatic && !this.dispatchAllowed()) { lease.release(); throw new ProjectRunBusy('Run executor is switching versions'); }
@@ -3256,8 +3296,16 @@ export class ProjectRunCoordinator {
     });
     await this.finish(project, run, manifestPath, driven, lease, controller.signal);
     const finalized = this.store.getProjectRun(orgId, projectRunId)!;
-    if (finalized.status === 'running') throw new ProjectStateConflict('Compute finalization remains pending; reconnect the machine and reconcile its stopped execution before retrying');
+    if (finalized.status === 'running') {
+      throw new ComputeFinalizationWaiting('Compute finalization remains pending; it resumes once the computer is connected and accepting work', 'finalization-pending');
+    }
     return finalized;
+  }
+
+  /** A cancelled run is closed once its workload stop is confirmed, never exported. */
+  private closeCancelledComputeRun(run: ProjectRun, compute: ComputeControl): ProjectRun {
+    if (compute.finishedStopped?.(run)) return this.settleStoppedComputeRun(run);
+    throw new ProjectStateConflict('Compute run cancellation awaits its workload stop');
   }
 
   cancel(orgId: string, projectRunId: string): ProjectRun | null {

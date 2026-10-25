@@ -16,6 +16,7 @@ import { ComputeDeviceStore } from '../src/projects/computeDevices.js';
 import type { ComputeConnection } from '../src/projects/computeConnection.js';
 import { callExecutor, serveExecutor } from '../src/projects/executorTransport.js';
 import {
+  ComputeFinalizationWaiting,
   ComputeResultsWaitingConflict,
   ProjectRunCoordinator,
   RESULTS_WAITING_NOTICE_MS,
@@ -24,7 +25,7 @@ import {
   type ComputeResultsWaitingEvent,
 } from '../src/projects/coordinator.js';
 import { ProjectHttpError, ProjectService } from '../src/projects/service.js';
-import { ProjectStore } from '../src/projects/store.js';
+import { ProjectStateConflict, ProjectStore } from '../src/projects/store.js';
 import { notificationTray } from '../src/viz/push/tray.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 
@@ -92,10 +93,18 @@ function remoteRun(f: ReturnType<typeof fixture>, phase: 'executing' | 'finalizi
   return run;
 }
 
-function coordinatorFor(f: ReturnType<typeof fixture>, onComputeResultsWaiting?: (event: ComputeResultsWaitingEvent) => void) {
+function coordinatorFor(f: ReturnType<typeof fixture>, onComputeResultsWaiting?: (event: ComputeResultsWaitingEvent) => void,
+  options: Partial<ConstructorParameters<typeof ProjectRunCoordinator>[0]> = {}) {
   return new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
     hostEnv: haystackTestEnvironment(f.root), driver: vi.fn(),
-    ...(onComputeResultsWaiting ? { onComputeResultsWaiting } : {}) });
+    ...(onComputeResultsWaiting ? { onComputeResultsWaiting } : {}), ...options });
+}
+
+/** A selected executor's dispatcher whose transfer stays pending: the computer never sends the files. */
+function pendingCompute() {
+  // The coordinator reads only these four members of the dispatcher here.
+  return () => ({ readiness: vi.fn(), drive: vi.fn(), interruptedStopped: () => false,
+    recover: async () => { throw new ComputeDispatchPendingError(true); } }) as never;
 }
 
 function serviceFor(f: ReturnType<typeof fixture>, coordinator: ProjectRunCoordinator) {
@@ -168,6 +177,15 @@ describe('a Compute run whose results wait on the customer computer', () => {
       expect((other as Error).message).toContain('a finished run in Clock is waiting for its results from the computer of the person who started it');
       expect((other as Error).message).not.toContain(run.projectRunId);
       expect((other as ProjectHttpError).problem.reason).toBe('others-results-waiting');
+      // Its computer connected and accepting work: "open Atoma Compute" is the wrong advice (review 2026-10-25).
+      connectDevice(f);
+      const stalled = await refusal(f.owner);
+      expect((stalled as ProjectHttpError).problem.reason).toBe('results-stalled');
+      expect((stalled as Error).message).toContain('its results could not be transferred from your computer yet');
+      expect((stalled as Error).message).not.toContain('as soon as Atoma Compute is open');
+      const stalledOther = await refusal(f.member);
+      expect((stalledOther as ProjectHttpError).problem.reason).toBe('others-results-stalled');
+      expect((stalledOther as Error).message).not.toContain('as soon as Atoma Compute is open');
     } finally { coordinator.stopQueue(); }
   });
 
@@ -326,14 +344,20 @@ describe('results waiting: what each reader is told, and when', () => {
       const rows = coordinator.pendingComputeRuns(f.owner.orgId, f.project.projectId, f.owner.principalId);
       expect(computeProjectViewSchema.shape.pendingRuns.parse(rows)).toEqual(rows);
       expect(rows).toEqual(expect.arrayContaining([
-        { runId: finished.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'finalizing' },
-        { runId: interrupted.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'executing' },
+        { runId: finished.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'finalizing', computerReady: false },
+        { runId: interrupted.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'executing', computerReady: false },
       ]));
+      // Its computer connected and accepting work: the row says the transfer stalled, so Settings
+      // can pick the neutral copy (review 2026-10-25). A stopped run has no such story.
+      connectDevice(f);
+      const ready = coordinator.pendingComputeRuns(f.owner.orgId, f.project.projectId, f.owner.principalId);
+      expect(ready.find(row => row.runId === finished.projectRunId)?.computerReady).toBe(true);
+      expect(ready.find(row => row.runId === interrupted.projectRunId)?.computerReady).toBe(false);
     } finally { coordinator.stopQueue(); }
   });
 
   it('types a failed "Get the results": active while a transfer holds the run, else pending', async () => {
-    const f = fixture(), coordinator = coordinatorFor(f);
+    const f = fixture(), coordinator = coordinatorFor(f, undefined, { compute: pendingCompute() });
     const run = remoteRun(f);
     try {
       await expect(coordinator.getComputeResults(f.owner.orgId, run.projectRunId, f.owner.principalId))
@@ -344,6 +368,37 @@ describe('results waiting: what each reader is told, and when', () => {
           .rejects.toMatchObject({ name: 'ComputeResultsNotYet', reason: 'active' });
       } finally { held.release(); }
     } finally { coordinator.stopQueue(); }
+  });
+
+  // Review 2026-10-25: every failure used to read "make sure Atoma Compute is
+  // open", including refusals no computer can change.
+  it('keeps the refusals a computer cannot change as they are: access, the project, no dispatcher, no executor', async () => {
+    const f = fixture();
+    let allowed = true;
+    const coordinator = coordinatorFor(f, undefined, { compute: pendingCompute(), queuedRunAllowed: () => allowed });
+    const bare = coordinatorFor(f);
+    const offline = coordinatorFor(f, undefined, { executorSocket: join(f.root, 'no-executor.sock') });
+    const run = remoteRun(f);
+    const refusal = (promise: Promise<unknown>) => promise.then(() => { throw new Error('expected a refusal'); }, (caught: unknown) => caught);
+    const get = (c: ProjectRunCoordinator) => refusal(c.getComputeResults(f.owner.orgId, run.projectRunId, f.owner.principalId));
+    try {
+      allowed = false;
+      expect(await get(coordinator)).toMatchObject({ name: 'ProjectStateConflict', message: 'Compute finalization unavailable' });
+      allowed = true;
+      const setProject = (status: string) => {
+        const db = new Database(f.dbPath);
+        try { db.prepare('UPDATE projects SET status=? WHERE project_id=?').run(status, f.project.projectId); } finally { db.close(); }
+      };
+      setProject('archived');
+      expect(await get(coordinator)).toMatchObject({ name: 'ProjectStateConflict', message: 'Compute finalization unavailable' });
+      setProject('active');
+      // A host with no Compute dispatcher, and a frontend whose executor is unreachable.
+      expect(await get(bare)).toMatchObject({ name: 'ProjectStateConflict', message: 'Compute run is unavailable' });
+      expect(await get(offline)).toMatchObject({ name: 'ProjectRunBusy' });
+      for (const c of [bare, offline]) expect(await get(c)).not.toMatchObject({ name: 'ComputeResultsNotYet' });
+      // The pending answer still holds once nothing but the computer stands in the way.
+      expect(await get(coordinator)).toMatchObject({ name: 'ComputeResultsNotYet', reason: 'pending' });
+    } finally { coordinator.stopQueue(); bare.stopQueue(); offline.stopQueue(); }
   });
 
   it('reads the lease store once per run list, and opens the transfer journal once per coordinator', () => {
@@ -357,6 +412,40 @@ describe('results waiting: what each reader is told, and when', () => {
       expect(leases).toHaveBeenCalledTimes(2);
       expect(opened.mock.calls.length).toBeLessThanOrEqual(1);
     } finally { coordinator.stopQueue(); }
+  });
+});
+
+describe('a pending "Get the results" crosses the executor socket typed', () => {
+  it.each([['finalization-pending', 'pending'], ['finalization-active', 'active']] as const)('%s reads %s on the web frontend', async (wait, reason) => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-exec-'));
+    roots.push(root);
+    chmodSync(root, 0o700);
+    const socket = join(root, 'executor.sock');
+    const server = await serveExecutor(socket, () => Promise.reject(new ComputeFinalizationWaiting('Compute finalization remains pending', wait)));
+    const f = fixture(), run = remoteRun(f);
+    const frontend = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: haystackTestEnvironment(f.root), driver: vi.fn(), executorSocket: socket });
+    try {
+      await expect(frontend.getComputeResults(f.owner.orgId, run.projectRunId, f.owner.principalId))
+        .rejects.toMatchObject({ name: 'ComputeResultsNotYet', reason });
+    } finally { frontend.stopQueue(); await new Promise(resolve => server.close(resolve)); }
+  });
+
+  it('keeps an executor-side refusal a refusal', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-exec-'));
+    roots.push(root);
+    chmodSync(root, 0o700);
+    const socket = join(root, 'executor.sock');
+    const server = await serveExecutor(socket, () => Promise.reject(new ProjectStateConflict('Compute finalization unavailable')));
+    const f = fixture(), run = remoteRun(f);
+    const frontend = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: haystackTestEnvironment(f.root), driver: vi.fn(), executorSocket: socket });
+    try {
+      const error = await frontend.getComputeResults(f.owner.orgId, run.projectRunId, f.owner.principalId).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ProjectStateConflict);
+      expect(error).not.toBeInstanceOf(ComputeFinalizationWaiting);
+      expect(error).toMatchObject({ message: 'Compute finalization unavailable' });
+    } finally { frontend.stopQueue(); await new Promise(resolve => server.close(resolve)); }
   });
 });
 

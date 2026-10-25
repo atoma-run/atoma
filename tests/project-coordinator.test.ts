@@ -2673,7 +2673,7 @@ describe('automatic Compute finalization', () => {
 
   async function computeFinalizationFixture(options: { phase?: 'finalizing' | 'transferred'; stopReported?: boolean;
     connected?: boolean; selected?: () => boolean; recover?: (run: import('../src/contracts/projects.js').ProjectRun) => Promise<string>;
-    acquireLease?: () => Promise<RunLease>; allowed?: () => boolean } = {}) {
+    acquireLease?: () => Promise<RunLease>; allowed?: () => boolean; realRecover?: boolean } = {}) {
     const { ComputeDeviceStore } = await import('../src/projects/computeDevices.js');
     const { ComputeDispatcher, ComputeDispatchStore } = await import('../src/projects/computeDispatch.js');
     const { createHash, randomBytes } = await import('node:crypto');
@@ -2713,10 +2713,14 @@ describe('automatic Compute finalization', () => {
     const connections = new Set<string>();
     if (options.connected ?? true) connections.add(first.sessionId);
     else devices.disconnect(first);
+    // A connected computer whose export never completes: what the real recover meets after assign.
+    const peer = { bind: async () => { throw new Error('Lost transport'); }, close: () => {} };
     const dispatcher = new ComputeDispatcher({ devices, journal, resources,
-      connectionFor: session => connections.has(session.sessionId) ? {} as import('../src/projects/computeConnection.js').ComputeConnection : undefined });
+      connectionFor: session => connections.has(session.sessionId) ? peer as unknown as import('../src/projects/computeConnection.js').ComputeConnection : undefined });
     const log = formatRunStatsEpilogue({ ...DELIVERED_STATS, costUsd: 0.42, llmCalls: 7 });
-    const recover = vi.spyOn(dispatcher, 'recover').mockImplementation(options.recover ?? (async () => log));
+    writeFileSync(`${paths.logPath}.compute-result`, log);
+    const recover = options.realRecover ? vi.spyOn(dispatcher, 'recover')
+      : vi.spyOn(dispatcher, 'recover').mockImplementation(options.recover ?? (async () => log));
     const leases: RunLease[] = [];
     const acquireLease = vi.fn(async (_id: string) => {
       const held = options.acquireLease ? await options.acquireLease() : lease();
@@ -2880,6 +2884,51 @@ describe('automatic Compute finalization', () => {
       expect(s.recover).not.toHaveBeenCalled();
       expect(s.acquireLease).not.toHaveBeenCalled();
       await vi.waitFor(() => expect(s.finished).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' })));
+    } finally { s.close(); }
+  });
+
+  // Review 2026-10-25: the cancellation check before the slot could be ~20 s
+  // stale by the time the slot came (an analysis yielding it).
+  it('never fetches the files of a run cancelled while its attempt waited for the slot', async () => {
+    const automatic: Scenario = await computeFinalizationFixture({ acquireLease: async () => {
+      automatic.coordinator.cancel(automatic.owner.orgId, automatic.runId); return lease(); } });
+    try {
+      await automatic.poll();
+      expect(automatic.acquireLease).toHaveBeenCalledOnce();
+      expect(automatic.leases[0]!.release).toHaveBeenCalled();
+      expect(automatic.recover).not.toHaveBeenCalled();
+      expect(automatic.status()).toBe('cancelled');
+    } finally { automatic.close(); }
+    // The button, its workload stop not reported yet: refused, nothing exported, the run left to its stop.
+    const button: Scenario = await computeFinalizationFixture({ stopReported: false, acquireLease: async () => {
+      button.coordinator.cancel(button.owner.orgId, button.runId); return lease(); } });
+    try {
+      await expect(button.coordinator.retryComputeFinalization(button.owner.orgId, button.runId, button.owner.principalId)).rejects.toThrow('cancellation');
+      expect(button.leases[0]!.release).toHaveBeenCalled();
+      expect(button.recover).not.toHaveBeenCalled();
+      expect(button.status()).toBe('running');
+    } finally { button.close(); }
+  });
+
+  // Review 2026-10-25: the pacing reads `reachedDevice` from the REAL
+  // dispatcher. A failure after assign closed the computer's socket, so the
+  // reconnection that follows is no news; a refused assign (computer paused)
+  // never reached it, so a new connection is.
+  it.each([
+    ['fails after assign: its own close is no news', false, 1],
+    ['is refused at assign: a new connection is news', true, 2],
+  ] as const)('paces a real finalization attempt that %s', async (_case, paused, attempts) => {
+    const s = await computeFinalizationFixture({ realRecover: true });
+    try {
+      if (paused) s.devices.setAccepting(s.device.credential, s.devices.currentSession(s.device.deviceId)!, false);
+      await s.poll();
+      expect(s.recover).toHaveBeenCalledTimes(1);
+      expect(s.status()).toBe('running');
+      // A second later the app is back on a new connection (its stop reported, if it held the slot).
+      if (paused) s.reconnect(); else s.reportStop();
+      await s.poll(6_000);
+      expect(s.recover).toHaveBeenCalledTimes(attempts);
+      expect(s.status()).toBe('running');
     } finally { s.close(); }
   });
 

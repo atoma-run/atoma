@@ -8,9 +8,12 @@ export const computeProjectViewSchema = z.object({
   projectId: z.string().uuid(), target: executionTargetSchema, canEdit: z.boolean(), hostedAllowed: z.boolean().default(false),
   /** The viewer's undriven Compute runs. Additive (2026-10-25): each is named by
    * its title or goal (`label`) and start, and carries its transfer-journal
-   * `phase`: `finalizing`/`transferred` wait for results; anything else stopped. */
+   * `phase`: `finalizing`/`transferred` wait for results; anything else stopped.
+   * `computerReady` (additive): the files are still on a computer that is
+   * connected and accepting work, so the transfer stalled. */
   pendingRuns: z.array(z.object({ runId: z.string().uuid(), label: z.string().max(200).optional(), startedAt: z.string().optional(),
-    phase: z.enum(['executing', 'finalizing', 'transferred', 'interrupted']).nullable().optional() }).strict()).max(100).optional(),
+    phase: z.enum(['executing', 'finalizing', 'transferred', 'interrupted']).nullable().optional(),
+    computerReady: z.boolean().optional() }).strict()).max(100).optional(),
   devices: z.array(z.object({ deviceId: z.string().uuid(), name: z.string().max(120), allowed: z.boolean(),
     revoked: z.boolean(), availability: computeAvailabilitySchema }).strict()).max(100),
 }).strict();

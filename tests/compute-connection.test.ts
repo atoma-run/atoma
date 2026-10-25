@@ -1610,3 +1610,75 @@ it('finishes a transfer lost with its connection by itself once the computer rec
     await recovery?.close(); await client.close();
   }
 }, 30_000);
+
+// Review 2026-10-25: automatic finalization paces by whether a failed attempt
+// reached the computer (`ComputeDispatchPendingError.reachedDevice`). Over the
+// real WSS: an export lost after assign says it did; an assign the computer
+// refuses (paused) throws before any socket is touched, which the coordinator
+// then reports as a pending outcome that did not reach it.
+it('reports whether a failed finalization reached the computer: after assign it did, a refused assign did not', async () => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const folder = join(root, randomUUID());
+  const workspace = localWorkspaceRuntime({ root: join(folder, 'remote'), log: () => {} });
+  await workspace.prepare(true);
+  writeFileSync(join(folder, 'remote', 'result.txt'), 'remote delivery');
+  const handler = workspaceCommandHandler(workspace);
+  const losing = async (command: WorkspaceCommand) => {
+    if (command.method === 'artifact-open') throw new Error('Lost transport');
+    return handler(command);
+  };
+  const receipt = projects.createProjectRun({ orgId: owner.orgId, projectId: p.projectId, principalId: owner.principalId,
+    request: { idempotencyKey: randomUUID(), goal: 'Compute export' },
+    hostPaths: { workspacePath: join(folder, 'received'), runsPath: join(folder, 'traces'), logPath: join(folder, 'run.log') } })!.run;
+  const manifestPath = join(folder, 'declared.json');
+  writeFileSync(manifestPath, JSON.stringify({ version: 1, runId: receipt.projectRunId, generatedAt: new Date().toISOString(), outputs: ['result.txt'] }));
+  const stopWorkloads = vi.fn(async () => {});
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads,
+    assign: async () => ({ execute: losing, tools: { has: () => true, execute: async () => null, drain: async () => {} } }) });
+  const journal = new ComputeDispatchStore(db);
+  const dispatcher = new ComputeDispatcher({ devices, journal, resources, connectionFor: session => gateway.connectionFor(session) });
+  projects.transitionProjectRun({ orgId: owner.orgId, projectRunId: receipt.projectRunId, from: 'queued', to: 'running' });
+  const log = formatRunStatsEpilogue({ outcome: 'delivered', costUsd: 0, llmCalls: 0, opusCalls: 0, sonnetCalls: 0, haikuCalls: 0, otherCalls: 0,
+    deterministicPhases: 0, deepenings: 0, rootRemediations: 0, landingRemediations: 0, unjudgedRemediations: 0,
+    discardedLessons: 0, triggerRejections: 0, suiteDisputes: 0, landingReasons: [], escalations: 0, learnedSkills: 0,
+    learnedEventSkills: 0, promotions: 0, refusals: 0, compileErrors: 0, demotions: 0, dispatchFallbacks: 0, uncoveredObligations: 0 });
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+  const reconnect = (execute: (command: WorkspaceCommand) => Promise<WorkspaceReply>) => connectComputeWorkspace({ url,
+    credential: paired.credential, machineId: paired.deviceId, capabilities, ca: readFileSync(join(root, 'cert'), 'utf8'),
+    stopWorkloads: async () => {}, reconcile: async () => {}, assign: async () => ({ execute }) });
+  const failure = (promise: Promise<unknown>) => promise.then(() => { throw new Error('expected a failure'); }, (caught: unknown) => caught);
+  const running = () => projects.getProjectRun(owner.orgId, receipt.projectRunId)!;
+  try {
+    await expect(dispatcher.drive(receipt, async () => log, { goal: receipt.goal, timeoutMs: 5000, logPath: receipt.hostPaths.logPath }, manifestPath))
+      .rejects.toBeInstanceOf(ComputeDispatchPendingError);
+    expect(journal.inspect(receipt.projectRunId)?.phase).toBe('finalizing');
+    await vi.waitFor(() => expect(stopWorkloads).toHaveBeenCalledOnce());
+    await client.close();
+    // Reconnected with the stop reported; the export is lost again after assign.
+    const second = await reconnect(losing);
+    try {
+      expect(devices.inspect(owner, paired.deviceId).assignment).toBeNull();
+      const lost = await failure(dispatcher.recover(running(), manifestPath));
+      expect(lost).toBeInstanceOf(ComputeDispatchPendingError);
+      expect((lost as InstanceType<typeof ComputeDispatchPendingError>).reachedDevice).toBe(true);
+      expect(journal.inspect(receipt.projectRunId)?.phase).toBe('finalizing');
+    } finally { await second.close(); }
+    // Paused: assign refuses before any socket is touched, and says nothing of the device.
+    const third = await reconnect(handler);
+    try {
+      devices.setAccepting(paired.credential, devices.currentSession(paired.deviceId)!, false);
+      const refused = await failure(dispatcher.recover(running(), manifestPath));
+      expect(refused).not.toBeInstanceOf(ComputeDispatchPendingError);
+      expect(String(refused)).toContain('not accepting runs');
+      expect(devices.inspect(owner, paired.deviceId).assignment).toBeNull();
+      // Accepting again, the same connection finishes it: the refusal changed nothing.
+      devices.setAccepting(paired.credential, devices.currentSession(paired.deviceId)!, true);
+      expect(await dispatcher.recover(running(), manifestPath)).toBe(log);
+      expect(readFileSync(join(receipt.hostPaths.workspacePath, 'result.txt'), 'utf8')).toBe('remote delivery');
+      expect(journal.inspect(receipt.projectRunId)?.phase).toBe('transferred');
+    } finally { await third.close(); }
+  } finally { stderr.mockRestore(); await client.close(); }
+});
