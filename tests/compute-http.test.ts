@@ -131,7 +131,7 @@ it('defaults to app downloads with an explicit architecture choice and a manual 
   expect(html).toContain('/guides/compute/macos-open-anyway.png');
 });
 
-import { ComputeResultsNotYet } from '../src/projects/coordinator.js';
+import { ComputeResultsNotYet, ComputeRunCancelling } from '../src/projects/coordinator.js';
 import { ProjectStateConflict } from '../src/projects/store.js';
 
 // Review 2026-10-25: only a transfer that may still finish answers with a
@@ -140,7 +140,7 @@ import { ProjectStateConflict } from '../src/projects/store.js';
 // the route's own neutral conflict, with no reason.
 it('types "Get the results" failures only when the transfer may still finish', async () => {
   const outcomes: unknown[] = [new ComputeResultsNotYet('pending', null), new ComputeResultsNotYet('active', null),
-    new ProjectStateConflict('Compute finalization unavailable')];
+    new ComputeRunCancelling('Compute run cancellation awaits its workload stop'), new ProjectStateConflict('Compute finalization unavailable')];
   const handler = new ComputeHttp({ devices, origin: new URL(origin), proxies: { addresses: ['127.0.0.1'] }, emit: () => {},
     finalize: async () => { throw outcomes.shift(); },
     gate: { enabled: true, store: auth, resolve: req => {
@@ -160,6 +160,8 @@ it('types "Get the results" failures only when the transfer may still finish', a
   try {
     expect(await ask()).toEqual({ status: 409, body: { error: 'Compute results not transferred yet', reason: 'pending' } });
     expect(await ask()).toEqual({ status: 409, body: { error: 'Compute results not transferred yet', reason: 'active' } });
+    // A run being cancelled has its own reason: its files are never fetched.
+    expect(await ask()).toEqual({ status: 409, body: { error: 'Compute run is being cancelled', reason: 'cancelling' } });
     const refused = await ask();
     expect(refused.status).toBe(409);
     expect(refused.body.reason).toBeUndefined();

@@ -159,8 +159,12 @@ export interface ComputePendingRun {
   readonly startedAt: string;
   readonly phase: 'executing' | 'finalizing' | 'transferred' | 'interrupted' | null;
   /** Its files are still on a computer that is connected and accepting work: the transfer stalled. */
-  readonly computerReady: boolean;  /** A process is moving its files right now: nothing to press. */
+  readonly computerReady: boolean;
+  /** A process is moving its files right now: nothing to press. */
   readonly transferring: boolean;
+  /** Its cancellation was requested: its files are never fetched, and it
+   * closes as cancelled by itself once its computer confirms it stopped. */
+  readonly cancelling: boolean;
 }
 
 /** How long results may wait on a computer before the requester is told, once. */
@@ -525,6 +529,15 @@ export class ComputeResultsWaitingConflict extends ProjectStateConflict {
 export const COMPUTE_FINALIZATION_WAITS = ['finalization-active', 'finalization-pending'] as const;
 export class ComputeFinalizationWaiting extends ProjectStateConflict {
   constructor(message: string, readonly reason: typeof COMPUTE_FINALIZATION_WAITS[number]) { super(message); }
+}
+
+/**
+ * "Get the results" refused because the run's cancellation was requested: its
+ * files are never fetched, and it closes as cancelled by itself once its
+ * computer confirms the workload stopped. Crosses the executor socket by `reason`.
+ */
+export class ComputeRunCancelling extends ProjectStateConflict {
+  readonly reason = 'cancelling' as const;
 }
 
 /**
@@ -1469,6 +1482,7 @@ export class ProjectRunCoordinator {
       if (error.name === 'ProjectStateConflict') {
         const reason = 'reason' in error ? RESULTS_WAITING_REASONS.find(value => value === error.reason) : undefined;
         if (reason) return new ComputeResultsWaitingConflict(error.message, reason);
+        if ('reason' in error && error.reason === 'cancelling') return new ComputeRunCancelling(error.message);
         const waits = 'reason' in error ? COMPUTE_FINALIZATION_WAITS.find(value => value === error.reason) : undefined;
         return waits ? new ComputeFinalizationWaiting(error.message, waits) : new ProjectStateConflict(error.message);
       }
@@ -2052,10 +2066,14 @@ export class ProjectRunCoordinator {
    * machine-global store, which the executor holds while it drives or
    * retries. Host facts only. Read-only, and it answers on a web frontend
    * too, whose coordinator has no dispatcher: the journal is in the product
-   * store. An unreadable journal answers null (unknown), never "waiting".
+   * store. An unreadable journal answers null (unknown), never "waiting"; so
+   * does a run whose cancellation was requested, whose files are never fetched.
    */
   computeResultsWaiting(run: ProjectRun, liveLeases?: ReadonlySet<string>): ComputeResultsWaiting | null {
     if (run.status !== 'running' || run.executionTarget.kind !== 'customer-device' || this.active.has(run.projectRunId)) return null;
+    // A cancelled run's files are never fetched: nothing will arrive, nothing to press.
+    try { if (this.store.runCancellationRequested(run.orgId, run.projectRunId)) return null; }
+    catch { return null; }
     let journal: ComputeDispatchStore, record: ReturnType<ComputeDispatchStore['inspect']>;
     try { journal = this.dispatchJournal(); record = journal.inspect(run.projectRunId); }
     catch { return null; }
@@ -3255,8 +3273,10 @@ export class ProjectRunCoordinator {
       const driven = this.active.has(run.projectRunId) || live.has(`project:${run.projectRunId}`);
       const finished = phase === 'finalizing' || phase === 'transferred';
       if (driven && !finished) continue;
+      let cancelling = false;
+      try { cancelling = finished && this.store.runCancellationRequested(orgId, run.projectRunId); } catch { /* unknown: not cancelling */ }
       rows.push({ runId: run.projectRunId, label: eventLabel(run.title ?? run.goal, 80),
-        startedAt: run.startedAt ?? run.createdAt, phase, computerReady, transferring: driven });
+        startedAt: run.startedAt ?? run.createdAt, phase, computerReady: computerReady && !cancelling, transferring: driven, cancelling });
     }
     return rows;
   }
@@ -3340,7 +3360,7 @@ export class ProjectRunCoordinator {
   /** A cancelled run is closed once its workload stop is confirmed, never exported. */
   private closeCancelledComputeRun(run: ProjectRun, compute: ComputeControl): ProjectRun {
     if (compute.finishedStopped?.(run)) return this.settleStoppedComputeRun(run);
-    throw new ProjectStateConflict('Compute run cancellation awaits its workload stop');
+    throw new ComputeRunCancelling('Compute run cancellation awaits its workload stop');
   }
 
   cancel(orgId: string, projectRunId: string): ProjectRun | null {

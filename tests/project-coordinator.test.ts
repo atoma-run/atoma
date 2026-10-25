@@ -2977,7 +2977,7 @@ describe('automatic Compute finalization', () => {
       // Paused: the plain waiting sentence ("open, connected and accepting work"), never "contact support".
       expect(reader()).toMatchObject({ computerReady: false });
       expect(computeResultsWaitingMessage(reader()!)).toBe(COMPUTE_RESULTS_WAITING_MESSAGE);
-      expect(row()).toMatchObject({ phase: 'finalizing', computerReady: false });
+      expect(row()).toMatchObject({ phase: 'finalizing', computerReady: false, cancelling: false });
       for (let i = 0; i < 5; i++) await s.poll();
       expect(s.recover).toHaveBeenCalledTimes(2);
       // Resumed seconds later, inside the sixty-second backoff, on the same connection: tried at once.

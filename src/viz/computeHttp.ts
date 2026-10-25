@@ -167,10 +167,12 @@ export class ComputeHttp {
         try { await this.options.finalize(actor.orgId, finalization[1]!, actor.principalId); }
         catch (error) {
           // A typed outcome the page maps to plain copy: `active` while a
-          // transfer is running (often the automatic one), else `pending`.
-          const reason = error instanceof Error && 'reason' in error && (error.reason === 'active' || error.reason === 'pending') ? error.reason : null;
+          // transfer is running (often the automatic one), `pending`, or
+          // `cancelling` when the run's cancellation was requested.
+          const reason = error instanceof Error && 'reason' in error &&
+            (error.reason === 'active' || error.reason === 'pending' || error.reason === 'cancelling') ? error.reason : null;
           if (!reason) throw error;
-          json(res, 409, { error: 'Compute results not transferred yet', reason }); return true;
+          json(res, 409, { error: reason === 'cancelling' ? 'Compute run is being cancelled' : 'Compute results not transferred yet', reason }); return true;
         }
         json(res, 200, { ok: true }); return true;
       }

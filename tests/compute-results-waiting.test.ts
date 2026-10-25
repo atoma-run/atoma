@@ -18,6 +18,7 @@ import { callExecutor, serveExecutor } from '../src/projects/executorTransport.j
 import {
   ComputeFinalizationWaiting,
   ComputeResultsWaitingConflict,
+  ComputeRunCancelling,
   ProjectRunCoordinator,
   RESULTS_WAITING_NOTICE_MS,
   projectRunHostLayout,
@@ -346,10 +347,10 @@ describe('results waiting: what each reader is told, and when', () => {
       const rows = coordinator.pendingComputeRuns(f.owner.orgId, f.project.projectId, f.owner.principalId);
       expect(computeProjectViewSchema.shape.pendingRuns.parse(rows)).toEqual(rows);
       expect(rows).toEqual(expect.arrayContaining([
-        { runId: finished.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'finalizing', computerReady: false, transferring: false },
-        { runId: interrupted.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'executing', computerReady: false, transferring: false },
+        { runId: finished.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'finalizing', computerReady: false, transferring: false, cancelling: false },
+        { runId: interrupted.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'executing', computerReady: false, transferring: false, cancelling: false },
         // Its files are being moved now: listed, with nothing to press (review 2026-10-25).
-        { runId: moving.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'finalizing', computerReady: false, transferring: true },
+        { runId: moving.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'finalizing', computerReady: false, transferring: true, cancelling: false },
       ]));
       lease.release();
       // A run that is simply executing, driven, is not pending.
@@ -377,6 +378,36 @@ describe('results waiting: what each reader is told, and when', () => {
         await expect(coordinator.getComputeResults(f.owner.orgId, run.projectRunId, f.owner.principalId))
           .rejects.toMatchObject({ name: 'ComputeResultsNotYet', reason: 'active' });
       } finally { held.release(); }
+    } finally { coordinator.stopQueue(); }
+  });
+
+  // Review 2026-10-25: a run cancelled while its files waited is never
+  // exported and closes as cancelled once its stop is confirmed, yet readers
+  // said its results "will arrive by themselves" and Settings offered "Get the
+  // results", whose press read as lost access.
+  it('stops reading as waiting once its cancellation was requested, and refuses "Get the results" with its own reason', async () => {
+    const f = fixture();
+    const recover = vi.fn();
+    const compute = () => ({ readiness: vi.fn(), drive: vi.fn(), interruptedStopped: () => false, finishedStopped: () => false, recover }) as never;
+    const coordinator = coordinatorFor(f, undefined, { compute }), service = serviceFor(f, coordinator);
+    const run = remoteRun(f);
+    connectDevice(f);
+    const listed = () => (service.listProjectRuns(f.owner, f.project.projectId) as Array<Record<string, unknown>>)
+      .find(row => row['projectRunId'] === run.projectRunId)!;
+    try {
+      expect(listed()['resultsWaiting']).toMatchObject({ computerReady: true });
+      coordinator.cancel(f.owner.orgId, run.projectRunId);
+      expect(listed()['status']).toBe('running');
+      expect(listed()['resultsWaiting']).toBeNull();
+      const progress = runProgressSchema.parse((service.projectRunStatus(f.member, f.project.projectId, run.projectRunId) as Record<string, unknown>)['progress']);
+      expect(progress.stage).not.toBe('awaiting-results');
+      expect(progress.message).not.toMatch(/arrive by themselves|Get the results/);
+      expect(coordinator.pendingComputeRuns(f.owner.orgId, f.project.projectId, f.owner.principalId)).toEqual([
+        expect.objectContaining({ runId: run.projectRunId, phase: 'finalizing', computerReady: false, cancelling: true })]);
+      const refused = await coordinator.getComputeResults(f.owner.orgId, run.projectRunId, f.owner.principalId).catch((e: unknown) => e);
+      expect(refused).toBeInstanceOf(ComputeRunCancelling);
+      expect(refused).toMatchObject({ reason: 'cancelling' });
+      expect(recover).not.toHaveBeenCalled();
     } finally { coordinator.stopQueue(); }
   });
 
@@ -438,6 +469,22 @@ describe('a pending "Get the results" crosses the executor socket typed', () => 
     try {
       await expect(frontend.getComputeResults(f.owner.orgId, run.projectRunId, f.owner.principalId))
         .rejects.toMatchObject({ name: 'ComputeResultsNotYet', reason });
+    } finally { frontend.stopQueue(); await new Promise(resolve => server.close(resolve)); }
+  });
+
+  it('keeps a run being cancelled typed across the socket', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-exec-'));
+    roots.push(root);
+    chmodSync(root, 0o700);
+    const socket = join(root, 'executor.sock');
+    const server = await serveExecutor(socket, () => Promise.reject(new ComputeRunCancelling('Compute run cancellation awaits its workload stop')));
+    const f = fixture(), run = remoteRun(f);
+    const frontend = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: haystackTestEnvironment(f.root), driver: vi.fn(), executorSocket: socket });
+    try {
+      const error = await frontend.getComputeResults(f.owner.orgId, run.projectRunId, f.owner.principalId).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ComputeRunCancelling);
+      expect(error).toMatchObject({ reason: 'cancelling' });
     } finally { frontend.stopQueue(); await new Promise(resolve => server.close(resolve)); }
   });
 

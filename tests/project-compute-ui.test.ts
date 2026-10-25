@@ -158,6 +158,8 @@ it('treats a timed-out "Get the results" as still working', () => {
   expect(computeResultsAttempt({ status: 504 })).toBe('working');
   expect(computeResultsAttempt({ status: 409, reason: 'active' })).toBe('working');
   expect(computeResultsAttempt({ status: 409, reason: 'pending' })).toBe('waiting');
+  // A run being cancelled: its own plain answer, not "access lost".
+  expect(computeResultsAttempt({ status: 409, reason: 'cancelling' })).toBe('cancelling');
   // A refusal with no transfer behind it is neither: neutral words, never "open Atoma Compute".
   expect(computeResultsAttempt({ status: 409 })).toBe('unavailable');
   expect(computeResultsAttempt({ status: 403 })).toBe('unavailable');
@@ -182,6 +184,31 @@ it('words each finished row by where its files are, and offers nothing while the
   expect(arrived).not.toMatch(/on your computer/);
   expect(screen.getByText(translate('en', 'compute.pendingTransferring', { label: 'Moving', date }))).toBeInTheDocument();
   expect(screen.getAllByRole('button', { name: translate('en', 'compute.finalize') })).toHaveLength(3);
+  client.clear();
+});
+
+// Review 2026-10-25: a run cancelled while its files waited was offered
+// "Get the results", whose press then read as lost access.
+it('says a cancelled run is being cancelled, offers nothing to press, and answers a press made meanwhile plainly', async () => {
+  const ids = ['85124e11-3e28-4c96-80f7-dbc13db6b205', '0c1f3a2e-0b7c-4f61-9a55-7d3d8f0c9e11'];
+  const startedAt = '2026-10-24T09:30:00.000Z', date = formatDateTime(startedAt, 'en');
+  const state: ComputeProjectView = { projectId, hostedAllowed: true, canEdit: false, target: { kind: 'customer-device', deviceId }, devices: [],
+    pendingRuns: [
+      { runId: ids[0]!, label: 'Cancelled', startedAt, phase: 'finalizing', computerReady: false, transferring: false, cancelling: true },
+      { runId: ids[1]!, label: 'Waiting', startedAt, phase: 'finalizing', computerReady: false, transferring: false },
+    ] };
+  const client = renderEnglish(state, () => {
+    // Cancelled between the page's read and the press.
+    state.pendingRuns = state.pendingRuns!.map(row => ({ ...row, cancelling: true }));
+    return new Response(JSON.stringify({ error: 'Compute run is being cancelled', reason: 'cancelling' }), { status: 409 });
+  });
+  const cancelling = translate('en', 'compute.pendingCancelling', { label: 'Cancelled', date });
+  expect(await screen.findByText(cancelling)).toBeInTheDocument();
+  expect(cancelling).not.toMatch(/Get the results/);
+  expect(screen.getAllByRole('button', { name: translate('en', 'compute.finalize') })).toHaveLength(1);
+  await userEvent.click(screen.getByRole('button', { name: translate('en', 'compute.finalize') }));
+  expect(await screen.findByText(translate('en', 'compute.resultsCancelling'))).toHaveAttribute('role', 'status');
+  expect(screen.queryByText(translate('en', 'compute.resultsUnavailable'))).not.toBeInTheDocument();
   client.clear();
 });
 

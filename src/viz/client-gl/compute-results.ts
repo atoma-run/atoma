@@ -48,11 +48,13 @@ export function computeResultsMessageKey(run: VizProjectRun, auth: AuthUiSnapsho
  * the automatic one), or the request timed out or lost its connection, whose
  * transfer may still be running; the page refetches instead of asking for a
  * retry. `waiting`: the transfer was tried and nothing moved the files (409
- * `pending`): open Atoma Compute and try again. `unavailable`: a refusal no
+ * `pending`): open Atoma Compute and try again. `cancelling`: the run's
+ * cancellation was requested (409 `cancelling`), so its files are never
+ * fetched and it closes by itself. `unavailable`: a refusal no
  * computer can change (the requester's access, an archived project, an
  * unavailable server): neutral words, never "open Atoma Compute".
  */
-export function computeResultsAttempt(error: unknown): 'working' | 'waiting' | 'unavailable' {
+export function computeResultsAttempt(error: unknown): 'working' | 'waiting' | 'cancelling' | 'unavailable' {
   // Duck-typed `ApiHttpError` (status, reason): this module is drawn by the
   // renderer, which stays clear of the data client.
   const status = error && typeof error === 'object' && 'status' in error && typeof error.status === 'number' ? error.status : null;
@@ -60,6 +62,7 @@ export function computeResultsAttempt(error: unknown): 'working' | 'waiting' | '
   const reason = 'reason' in (error as object) ? (error as { reason?: unknown }).reason : undefined;
   if (status === 409 && reason === 'active') return 'working';
   if (status === 409 && reason === 'pending') return 'waiting';
+  if (status === 409 && reason === 'cancelling') return 'cancelling';
   return status === 502 || status === 504 ? 'working' : 'unavailable';
 }
 
@@ -67,6 +70,7 @@ export function computeResultsAttempt(error: unknown): 'working' | 'waiting' | '
 export const COMPUTE_RESULTS_ATTEMPT_KEYS = {
   working: 'projects.resultsWaiting.working',
   waiting: 'projects.resultsWaiting.stillWaiting',
+  cancelling: 'projects.resultsWaiting.cancelling',
   unavailable: 'projects.resultsWaiting.unavailable',
 } as const;
 

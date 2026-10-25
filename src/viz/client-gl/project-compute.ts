@@ -7,11 +7,11 @@ import { computeResultsAttempt } from './compute-results.js';
 export interface ComputeSettingsView {
   project: ComputeProjectView; selected: ExecutionTarget; busy: boolean;
   loadFailed?: boolean;
-  notice: 'idle' | 'saved' | 'failed' | 'conflict' | 'resultsArrived' | 'resultsPending' | 'resultsGetting' | 'resultsUnavailable' | 'runClosed' | 'closePending';
+  notice: 'idle' | 'saved' | 'failed' | 'conflict' | 'resultsArrived' | 'resultsPending' | 'resultsGetting' | 'resultsUnavailable' | 'resultsCancelling' | 'runClosed' | 'closePending';
 }
 /** Notices that report progress or success, read as a status rather than an alert. */
 export function computeNoticeIsStatus(notice: ComputeSettingsView['notice']): boolean {
-  return notice === 'saved' || notice === 'resultsArrived' || notice === 'resultsGetting' || notice === 'runClosed';
+  return notice === 'saved' || notice === 'resultsArrived' || notice === 'resultsGetting' || notice === 'resultsCancelling' || notice === 'runClosed';
 }
 type PendingRun = NonNullable<ComputeProjectView['pendingRuns']>[number];
 /** The journal phases whose runner ended: only the files are left to fetch. */
@@ -22,7 +22,9 @@ export function pendingRunHasResults(run: PendingRun): boolean { return run.phas
  * action that match what it is. Finished work gets "Get the results", and its
  * words follow where the files are: on a computer that is not ready, stuck on
  * one that is (`computerReady`), already at Atoma (`transferred`), or moving
- * now (`transferring`, no action). A run that stopped before it finished gets
+ * now (`transferring`, no action), or never fetched because its cancellation
+ * was requested (`cancelling`, no action: it closes by itself). A run that
+ * stopped before it finished gets
  * "Close this run" (an older server sends no phase and keeps the results
  * wording it always had).
  */
@@ -32,12 +34,13 @@ export function pendingComputeRunRow(run: PendingRun, t: (key: string, vars?: Re
   const vars = { label: run.label ?? t('compute.pendingUnnamed'), date: run.startedAt ? formatDateTime(run.startedAt, locale) : '—' };
   if (!results) return { text: t('compute.pendingInterrupted', vars), action: { id: `compute.close.${run.runId}`, label: 'compute.close' } };
   if (run.transferring) return { text: t('compute.pendingTransferring', vars), action: null };
+  if (run.cancelling) return { text: t('compute.pendingCancelling', vars), action: null };
   const key = run.phase === 'transferred' ? 'compute.pendingTransferred' : run.computerReady ? 'compute.pendingStalled' : 'compute.pending';
   return { text: t(key, vars), action: { id: `compute.finalize.${run.runId}`, label: 'compute.finalize' } };
 }
 
 /** The notices that answer one "Get the results" press and go stale with that run. */
-const RUN_RESULTS_NOTICES: ReadonlySet<ComputeSettingsView['notice']> = new Set(['resultsGetting', 'resultsPending', 'resultsUnavailable']);
+const RUN_RESULTS_NOTICES: ReadonlySet<ComputeSettingsView['notice']> = new Set(['resultsGetting', 'resultsPending', 'resultsUnavailable', 'resultsCancelling']);
 
 /**
  * Whether a Settings notice about one run is out of date, judged only on data
@@ -97,7 +100,8 @@ export function useProjectCompute(projectId: string | null, enabled: boolean) {
           const attempt = computeResultsAttempt({ status: response.status, reason });
           value = response.ok ? closing ? 'runClosed' : 'resultsArrived'
             : closing ? 'closePending'
-            : attempt === 'working' ? 'resultsGetting' : attempt === 'waiting' ? 'resultsPending' : 'resultsUnavailable';
+            : attempt === 'working' ? 'resultsGetting' : attempt === 'waiting' ? 'resultsPending'
+            : attempt === 'cancelling' ? 'resultsCancelling' : 'resultsUnavailable';
         } catch { value = closing ? 'closePending' : 'resultsGetting'; }
         setNotice({ projectId, value, runId: pending.runId, at: Date.now() });
         try { await query.refetch(); } finally { inFlight.current = false; setBusy(false); }
