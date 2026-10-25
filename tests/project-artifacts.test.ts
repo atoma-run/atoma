@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import {
   chmodSync,
   mkdirSync,
@@ -332,6 +333,49 @@ describe('finished workspace publication inventory', () => {
     writeFileSync(join(root, 'app.js'), 'client');
     symlinkSync(join(root, 'app.js'), join(root, 'linked.js'));
     expectPolicyError(() => buildWorkspaceArtifactManifest({ workspaceRoot: root }), 'symlink');
+  });
+
+  it('leaves out and records links that resolve nowhere, and FIFOs, never their neighbours (run 40c20c5d)', () => {
+    for (const name of ['browser', 'tests', 'cancel-paused-YNmbYI/runtime/xe-browser-profile']) mkdirSync(join(root, name), { recursive: true });
+    writeFileSync(join(root, 'browser', 'collector.js'), 'collector');
+    writeFileSync(join(root, 'tests', 'cancel.test.js'), 'test');
+    const profile = join(root, 'cancel-paused-YNmbYI/runtime/xe-browser-profile');
+    symlinkSync('43341f52aadd-1091', join(profile, 'SingletonLock'));
+    symlinkSync('12872190311', join(profile, 'SingletonCookie'));
+    symlinkSync(`/tmp/org.chromium.Chromium.${randomUUID()}/SingletonSocket`, join(profile, 'SingletonSocket'));
+    execFileSync('mkfifo', [join(root, 'tests', 'pipe')]);
+    const built = buildWorkspaceArtifactManifest({ workspaceRoot: root });
+    expect(built.manifest.files.map(file => file.path)).toEqual(['browser/collector.js', 'tests/cancel.test.js']);
+    expect(built.omitted).toEqual({ count: 4, entries: [
+      { path: 'cancel-paused-YNmbYI/runtime/xe-browser-profile/SingletonCookie', kind: 'dangling-symlink' },
+      { path: 'cancel-paused-YNmbYI/runtime/xe-browser-profile/SingletonLock', kind: 'dangling-symlink' },
+      { path: 'cancel-paused-YNmbYI/runtime/xe-browser-profile/SingletonSocket', kind: 'dangling-symlink' },
+      { path: 'tests/pipe', kind: 'fifo' },
+    ] });
+    // Not part of the manifest: a copy holding only the files hashes the same.
+    expect(revalidateArtifactManifest({ workspaceRoot: root, manifest: built.manifest, expectedHash: built.hash }).hash).toBe(built.hash);
+    // A link whose target appears carries bytes again and refuses, as before.
+    writeFileSync(join(profile, '43341f52aadd-1091'), 'lock');
+    expectPolicyError(() => revalidateArtifactManifest({ workspaceRoot: root, manifest: built.manifest }), 'symlink');
+  });
+
+  it('still refuses a link naming an existing workspace path, here or in the container that wrote it', () => {
+    mkdirSync(join(root, 'dist'));
+    writeFileSync(join(root, 'dist', 'app.js'), 'bundle');
+    // `/workspace` is where a tool worker sees this tree: on this host the
+    // link resolves nowhere, but in the worker it is the application.
+    symlinkSync('/workspace/dist/app.js', join(root, 'app.js'));
+    expectPolicyError(() => buildWorkspaceArtifactManifest({ workspaceRoot: root }), 'symlink');
+    unlinkSync(join(root, 'app.js'));
+    symlinkSync('/workspace/dist/missing.js', join(root, 'app.js'));
+    expect(buildWorkspaceArtifactManifest({ workspaceRoot: root }).omitted?.entries).toEqual([{ path: 'app.js', kind: 'dangling-symlink' }]);
+    // A link out of the workspace that resolves still refuses.
+    const outside = mkdtempSync(join(tmpdir(), 'atoma-outside-'));
+    try {
+      writeFileSync(join(outside, 'secret.txt'), 'host');
+      symlinkSync(join(outside, 'secret.txt'), join(root, 'outside.txt'));
+      expectPolicyError(() => buildWorkspaceArtifactManifest({ workspaceRoot: root }), 'symlink');
+    } finally { rmSync(outside, { recursive: true, force: true }); }
   });
 
   it('refuses oversized or empty inventories without truncating', () => {

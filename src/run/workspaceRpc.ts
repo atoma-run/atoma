@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { WorkspaceRuntime, RuntimePhaseGuard, WorkspaceRestoration } from '../contracts/workspaceRuntime.js';
-import { workspaceCommandSchema, workspaceReplySchema, type WorkspaceCommand, type WorkspaceReply } from '../contracts/workspaceProtocol.js';
+import { WORKSPACE_REFUSAL_MESSAGE_CHARS, WorkspaceExportRefusedError, workspaceCommandSchema, workspaceReplySchema,
+  type WorkspaceCommand, type WorkspaceReply } from '../contracts/workspaceProtocol.js';
+import { ArtifactPolicyError } from '../projects/artifacts.js';
 import type { ReadOnlyRestoration } from '../contracts/readOnlyPhase.js';
 import type { CheckpointExport, CheckpointExportFrame } from '../contracts/checkpointTransfer.js';
 
@@ -65,10 +67,18 @@ export function workspaceCommandHandler(runtime: WorkspaceRuntime): ((input: unk
       case 'classify-preview': return { method: command.method, value: await runtime.classifyPreview() };
       case 'artifact-open': {
         if (exports.size || guards.size) throw new Error('Workspace control operation is still active');
-        const snapshot = await runtime.artifactExport(command.options);
+        let snapshot;
+        try { snapshot = await runtime.artifactExport(command.options); }
+        catch (error) {
+          // The publication inventory's own refusal is a typed, terminal answer
+          // about this tree; every other failure stays an operation failure.
+          if (!(error instanceof ArtifactPolicyError)) throw error;
+          throw new WorkspaceExportRefusedError({ code: error.code, message: (error.message || 'workspace refused').slice(0, WORKSPACE_REFUSAL_MESSAGE_CHARS) });
+        }
         const handle = randomUUID();
         exports.set(handle, { snapshot, frames: snapshot.frames(), expiresAt: Date.now() + 30 * 60_000 });
-        return { method: command.method, value: { handle, header: snapshot.header, manifest: snapshot.manifest } };
+        return { method: command.method, value: { handle, header: snapshot.header, manifest: snapshot.manifest,
+          ...(snapshot.omitted ? { omitted: snapshot.omitted } : {}) } };
       }
       case 'checkpoint-confirmed': await runtime.confirmCheckpoint?.(command.confirmation); return { method: command.method, value: null };
       case 'checkpoint-open': {
@@ -181,7 +191,7 @@ export function remoteWorkspaceRuntime(send: (command: WorkspaceCommand) => Prom
     classifyPreview: () => call({ method: 'classify-preview' }),
     artifactExport: async options => {
       const opened = await call({ method: 'artifact-open', options });
-      return { ...exporting(opened), manifest: opened.manifest };
+      return { ...exporting(opened), manifest: opened.manifest, ...(opened.omitted ? { omitted: opened.omitted } : {}) };
     },
     validateSources: async () => { await call({ method: 'validate-sources' }); },
     prepare: async clean => { await call({ method: 'prepare', clean }); },

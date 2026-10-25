@@ -1,6 +1,6 @@
 import { RUN_TIMEOUT_MS } from '../contracts/runTimeouts.js';
 import { observeTiming, timingSidecar } from '../core/runtimeTiming.js';
-import { ComputeDispatchPendingError, type ComputeDispatcher } from './computeDispatch.js';
+import { ComputeDispatchPendingError, ComputeFinalizationRefusedError, type ComputeDispatcher } from './computeDispatch.js';
 import { ClientQuestionConflict } from '../run/clientQuestions.js';
 import { LearningQueue } from '../skills/learningQueue.js';
 import { spawnApprovedLearning } from '../run/learningProcess.js';
@@ -93,7 +93,7 @@ import {
   type RunLeaseAcquirer,
 } from '../mcp/runLock.js';
 import { repoRoot } from '../mcp/run.js';
-import { buildWorkspaceArtifactManifest, revalidateArtifactManifest } from './artifacts.js';
+import { buildWorkspaceArtifactManifest, recordOmittedArtifacts, revalidateArtifactManifest } from './artifacts.js';
 import { ProjectStateConflict, ProjectStore } from './store.js';
 import { ProjectRetrievalLaunchStore } from './retrievalLaunch.js';
 import { resolveRerunOrigin, type RerunOrigin } from './rerun.js';
@@ -2519,6 +2519,9 @@ export class ProjectRunCoordinator {
         ...(declarations.delivery ? { delivery: declarations.delivery } : {}),
         allowEmpty: landed,
       });
+      // A hosted inventory reports its byte-less entries here; a Compute
+      // run's were reported by the device export, its copy holds none.
+      recordOmittedArtifacts(reservedRun.hostPaths.logPath, reservedRun.projectRunId, built.omitted);
       const completed = this.store.completeProjectRun({
         orgId: reservedRun.orgId,
         projectRunId: reservedRun.projectRunId,
@@ -2572,6 +2575,9 @@ export class ProjectRunCoordinator {
       // Delivery and preview are available for client testing. Only explicit
       // client acceptance may subsequently authorize GitHub publication.
     } catch (error) {
+      // A Compute export refusal happens before the runner's log reaches this
+      // method; take its stats from the persisted result, as a hosted refusal does.
+      if (stats === null && error instanceof ComputeFinalizationRefusedError) stats = parseRunLog(error.log);
       try {
         const current = this.store.getProjectRun(reservedRun.orgId, reservedRun.projectRunId);
         if (current?.status === 'running' && !(error instanceof ComputeDispatchPendingError)) {
@@ -2923,7 +2929,13 @@ export class ProjectRunCoordinator {
     const controller = new AbortController();
     this.active.set(projectRunId, { orgId, principalId, controller });
     const manifestPath = projectRunHostLayout(this.root, orgId, run.projectId, projectRunId).artifactManifestPath;
-    const driven = compute.recover(run, manifestPath).catch(() => { throw new ComputeDispatchPendingError(); });
+    const driven = compute.recover(run, manifestPath).catch((error: unknown) => {
+      // A refused export is terminal, as on the first attempt; anything else
+      // (an interrupted execution, a lost device) leaves the run pending.
+      if (error instanceof ComputeFinalizationRefusedError || error instanceof ComputeDispatchPendingError) throw error;
+      process.stderr.write(`[atoma projects] compute finalization of ${projectRunId} remains pending: ${String(error).slice(0, 2_000)}\n`);
+      throw new ComputeDispatchPendingError();
+    });
     await this.finish(project, run, manifestPath, driven, lease, controller.signal);
     const finalized = this.store.getProjectRun(orgId, projectRunId)!;
     if (finalized.status === 'running') throw new ProjectStateConflict('Compute finalization remains pending; reconnect the machine and reconcile its stopped execution before retrying');

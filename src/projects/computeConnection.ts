@@ -10,7 +10,7 @@ import { workerCallTimeoutMs } from '../contracts/commandTimeouts.js';
 import WebSocket, { type RawData } from 'ws';
 import { computeHelloSchema, computeClientFrameSchema, computeExecutionSchema, COMPUTE_FRAME_BYTES,
   type ComputeExecution, type ComputeServerFrame } from '../contracts/computeProtocol.js';
-import { workspaceCommandSchema, type WorkspaceCommand, type WorkspaceReply } from '../contracts/workspaceProtocol.js';
+import { WorkspaceExportRefusedError, workspaceCommandSchema, type WorkspaceCommand, type WorkspaceReply } from '../contracts/workspaceProtocol.js';
 import type { ComputeSession } from '../contracts/computeDevice.js';
 import type { ComputeDeviceStore } from './computeDevices.js';
 
@@ -210,6 +210,8 @@ export class ComputeConnection {
       clearTimeout(pending.timer);
       this.pending = undefined;
       if (frame.response.ok) pending.resolve(frame.response.reply);
+      // A device names an export refusal only for the export it was asked for.
+      else if (frame.response.error === 'export-refused' && pending.method === 'artifact-open') pending.reject(new WorkspaceExportRefusedError(frame.response.refusal));
       else pending.reject(new Error('Remote workspace operation failed'));
     } catch (error) { this.close('invalid-frame', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
   }

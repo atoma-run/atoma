@@ -4,7 +4,7 @@ import { readOnlyExecutionRecordSchema, readOnlyRestorationSchema } from './read
 import { startingSnapshotSchema, deliveredSnapshotSchema } from './startingWorkspace.js';
 import { readRunCopyCheckSchema, readRunFileComparisonsSchema } from './readRuns.js';
 import { routingRepositorySchema } from './tissueRouting.js';
-import { artifactManifestSchema } from './artifactInventory.js';
+import { artifactManifestSchema, artifactPolicyCodeSchema, omittedArtifactsSchema } from './artifactInventory.js';
 import { inheritedWorkspaceStateSchema, workspaceSourceSchema, workspaceSourceBindingSchema, artifactExportOptionsSchema } from './workspaceRuntime.js';
 import { checkpointConfirmationSchema, checkpointTransferHeaderSchema, checkpointWireFrameSchema } from './checkpointTransfer.js';
 
@@ -56,7 +56,8 @@ export const workspaceReplySchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('canonical-path'), value: z.string() }).strict(),
   z.object({ method: z.literal('checkpoint-digest'), value: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   z.object({ method: z.literal('classify-preview'), value: previewClassificationSchema }).strict(),
-  z.object({ method: z.literal('artifact-open'), value: z.object({ handle: z.string().uuid(), header: checkpointTransferHeaderSchema, manifest: artifactManifestSchema }).strict() }).strict(),
+  z.object({ method: z.literal('artifact-open'), value: z.object({ handle: z.string().uuid(), header: checkpointTransferHeaderSchema, manifest: artifactManifestSchema,
+    omitted: omittedArtifactsSchema.optional() }).strict() }).strict(),
   z.object({ method: z.literal('checkpoint-confirmed'), value: z.null() }).strict(),
   z.object({ method: z.literal('checkpoint-open'), value: z.object({ handle: z.string().uuid(), header: checkpointTransferHeaderSchema }).strict() }).strict(),
   z.object({ method: z.literal('checkpoint-next'), value: checkpointWireFrameSchema }).strict(),
@@ -72,8 +73,27 @@ export const workspaceReplySchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('end-read-only'), value: readOnlyRestorationSchema }).strict(),
 ]);
 export type WorkspaceReply = z.infer<typeof workspaceReplySchema>;
-export const workspaceResponseSchema = z.discriminatedUnion('ok', [
+/** The finished workspace's publication inventory refused it. Deterministic:
+ * the same tree refuses again, so a finalization that meets it is terminal. */
+export const WORKSPACE_REFUSAL_MESSAGE_CHARS = 2000;
+export const workspaceExportRefusalSchema = z.object({
+  code: artifactPolicyCodeSchema, message: z.string().min(1).max(WORKSPACE_REFUSAL_MESSAGE_CHARS),
+}).strict();
+export class WorkspaceExportRefusedError extends Error {
+  readonly code: z.infer<typeof workspaceExportRefusalSchema>['code'];
+  constructor(refusal: z.infer<typeof workspaceExportRefusalSchema>) {
+    const parsed = workspaceExportRefusalSchema.parse(refusal);
+    super(parsed.message);
+    this.name = 'WorkspaceExportRefusedError';
+    this.code = parsed.code;
+  }
+  refusal() { return { code: this.code, message: this.message }; }
+}
+export const workspaceResponseSchema = z.union([
   z.object({ id: z.number().int().positive(), ok: z.literal(true), reply: workspaceReplySchema }).strict(),
   z.object({ id: z.number().int().positive(), ok: z.literal(false), error: z.enum(['invalid-request', 'operation-failed']),
     message: z.string().max(8192).optional() }).strict(),
+  // Only an `artifact-open` produces it; the connection and workspace stay live.
+  z.object({ id: z.number().int().positive(), ok: z.literal(false), error: z.literal('export-refused'),
+    refusal: workspaceExportRefusalSchema }).strict(),
 ]);

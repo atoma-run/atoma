@@ -1,13 +1,17 @@
 import { createHash } from 'node:crypto';
 import {
+  appendFileSync,
   closeSync,
   constants,
+  existsSync,
   fstatSync,
   lstatSync,
   openSync,
   opendirSync,
   readSync,
+  readlinkSync,
   realpathSync,
+  statSync,
   type Stats,
 } from 'node:fs';
 import path from 'node:path';
@@ -16,8 +20,12 @@ import {
   artifactFileSchema,
   artifactManifestSchema,
   sha256Schema,
+  OMITTED_ARTIFACT_ENTRIES,
   type ArtifactFile,
   type ArtifactManifest,
+  type ArtifactPolicyCode,
+  type OmittedArtifact,
+  type OmittedArtifacts,
 } from '../contracts/artifactInventory.js';
 
 /**
@@ -38,16 +46,7 @@ export interface ArtifactLimits {
 
 export const DEFAULT_ARTIFACT_LIMITS: ArtifactLimits = WORKSPACE_LIMITS;
 
-export type ArtifactPolicyCode =
-  | 'empty'
-  | 'path'
-  | 'excluded'
-  | 'missing'
-  | 'symlink'
-  | 'special'
-  | 'limit'
-  | 'changed'
-  | 'hash';
+export type { ArtifactPolicyCode } from '../contracts/artifactInventory.js';
 
 export class ArtifactPolicyError extends Error {
   constructor(
@@ -62,6 +61,8 @@ export class ArtifactPolicyError extends Error {
 export interface BuiltArtifactManifest {
   readonly manifest: ArtifactManifest;
   readonly hash: string;
+  /** Workspace inventories only: the byte-less entries left out, if any. */
+  readonly omitted?: OmittedArtifacts;
 }
 
 function resolvedLimits(overrides: Partial<ArtifactLimits> | undefined): ArtifactLimits {
@@ -352,6 +353,61 @@ export function buildWorkspaceArtifactManifest(input: {
   }
 }
 
+/** Where tool workers, previews and hosting mount a workspace
+ * (`src/launcher/workerProfile.ts`): an absolute link a tool wrote under it
+ * names a workspace path in that container, whatever this host calls it. */
+const CONTAINER_WORKSPACE_MOUNT = '/workspace';
+
+function contains(base: string, candidate: string): boolean {
+  const relative = path.posix.relative(base, candidate);
+  return relative === '' || (relative !== '..' && !relative.startsWith('../') && !path.posix.isAbsolute(relative));
+}
+
+/**
+ * An entry holding no bytes, which no reader of a copy could tell from an
+ * absent one: a socket, a FIFO, or a symbolic link whose target exists
+ * nowhere (Chromium's `SingletonLock` -> `host-pid`, `SingletonSocket` ->
+ * `/tmp/...`, run 40c20c5d). A link naming a workspace path, in this
+ * namespace or the container's, is judged by whether that path exists HERE:
+ * the workspace is one volume everywhere. Anything else is stat-ed once,
+ * never opened or read. A link that resolves is not byte-less and refuses.
+ */
+function byteLessEntry(root: string, realRoot: string, name: string, absolute: string, stat: Stats): OmittedArtifact['kind'] | null {
+  if (stat.isSocket()) return 'socket';
+  if (stat.isFIFO()) return 'fifo';
+  if (!stat.isSymbolicLink()) return null;
+  const target = readlinkSync(absolute);
+  for (const view of [root, realRoot, CONTAINER_WORKSPACE_MOUNT]) {
+    const named = path.posix.resolve(view, path.posix.dirname(name), target);
+    if (!contains(view, named)) continue;
+    const inside = path.posix.relative(view, named);
+    if (!inside || existsSync(path.join(root, ...inside.split('/')))) return null;
+  }
+  try {
+    statSync(absolute);
+    return null;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === 'ENOENT' || code === 'ENOTDIR' || code === 'ELOOP' ? 'dangling-symlink' : null;
+  }
+}
+
+/** One bounded line naming what an inventory left out. Paths are JSON-quoted:
+ * a model may name a file with a newline, and the run log is parsed. */
+export function describeOmittedArtifacts(omitted: OmittedArtifacts): string {
+  const listed = omitted.entries.map(entry => `${JSON.stringify(entry.path)} (${entry.kind})`).join(', ');
+  const more = omitted.count > omitted.entries.length ? `, and ${omitted.count - omitted.entries.length} more` : '';
+  return `[atoma projects] workspace inventory left out ${omitted.count} entr${omitted.count === 1 ? 'y' : 'ies'} holding no bytes, never published: ${listed}${more}`;
+}
+
+/** Append that line to the run's log, beside its other host records. Never throws. */
+export function recordOmittedArtifacts(logPath: string, runId: string, omitted: OmittedArtifacts | undefined): void {
+  if (!omitted) return;
+  const line = describeOmittedArtifacts(omitted);
+  try { appendFileSync(logPath, `${line}\n`); }
+  catch (error) { process.stderr.write(`[atoma projects] omitted entries not logged for ${runId}: ${String(error)}\n`); }
+}
+
 /** Inventory the finished workspace, using the publication jail and exclusions.
  * Plans are intentions, not an inventory: child work and generated assets may
  * add files the root plan did not name. Never infer dependencies from source.
@@ -368,7 +424,9 @@ function inventoryWorkspace(input: {
   if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
     throw new ArtifactPolicyError('special', 'workspace root must be a real directory');
   }
+  const realRoot = realpathSync(root);
   const files: string[] = [];
+  const omitted: OmittedArtifact[] = [];
   const directories = [''];
   let visited = 0;
   while (directories.length) {
@@ -388,6 +446,13 @@ function inventoryWorkspace(input: {
         } catch (error) {
           if (error instanceof ArtifactPolicyError && error.code === 'excluded') continue;
           throw error;
+        }
+        // A byte-less entry is left out and reported, never followed or read.
+        const entryPath = path.join(directory, entry.name);
+        const byteLess = byteLessEntry(root, realRoot, name, entryPath, lstatSync(entryPath));
+        if (byteLess) {
+          omitted.push({ path: name, kind: byteLess });
+          continue;
         }
         // Reuse the path jail even for directories; never descend through a
         // symlink or silently publish half an application after a refusal.
@@ -412,7 +477,12 @@ function inventoryWorkspace(input: {
   const manifest = artifactManifestSchema.parse({
     ...inventory, source: 'workspace', ...(input.delivery ? { delivery: input.delivery } : {}),
   });
-  return { manifest, hash: artifactManifestHash(manifest) };
+  omitted.sort((a, b) => a.path.localeCompare(b.path));
+  return {
+    manifest,
+    hash: artifactManifestHash(manifest),
+    ...(omitted.length ? { omitted: { count: omitted.length, entries: omitted.slice(0, OMITTED_ARTIFACT_ENTRIES) } } : {}),
+  };
 }
 
 export function artifactManifestHash(manifest: ArtifactManifest): string {

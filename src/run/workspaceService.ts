@@ -2,7 +2,7 @@ import { once } from 'node:events';
 import type { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
-import { WORKSPACE_FRAME_BYTES, workspaceRequestSchema, workspaceResponseSchema } from '../contracts/workspaceProtocol.js';
+import { WORKSPACE_FRAME_BYTES, WorkspaceExportRefusedError, workspaceRequestSchema, workspaceResponseSchema } from '../contracts/workspaceProtocol.js';
 import { localWorkspaceRuntime } from './workspaceRuntime.js';
 import { workspaceCommandHandler } from './workspaceRpc.js';
 import { readReadRunsIndex } from './readRuns.js';
@@ -27,8 +27,12 @@ export async function serveWorkspace(runtime: WorkspaceRuntime, input: Readable,
         lastId = request.id;
         let response;
         try { response = { id: request.id, ok: true as const, reply: await execute(request.command) }; }
-        catch (error) { response = { id: request.id, ok: false as const, error: 'operation-failed' as const,
-          message: (error instanceof Error ? error.message : 'Workspace operation failed').slice(0, 8192) }; }
+        catch (error) {
+          response = error instanceof WorkspaceExportRefusedError
+            ? { id: request.id, ok: false as const, error: 'export-refused' as const, refusal: error.refusal() }
+            : { id: request.id, ok: false as const, error: 'operation-failed' as const,
+              message: (error instanceof Error ? error.message : 'Workspace operation failed').slice(0, 8192) };
+        }
         const encoded = JSON.stringify(workspaceResponseSchema.parse(response)) + '\n';
         if (Buffer.byteLength(encoded) > WORKSPACE_FRAME_BYTES) throw new Error('Workspace response exceeds limit');
         if (!output.write(encoded)) await once(output, 'drain');

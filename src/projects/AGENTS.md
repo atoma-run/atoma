@@ -45,6 +45,12 @@ bridges the existing host child to that connection. Terminal channel loss aborts
 no command is executed twice. Its product-store journal preserves incomplete delivery
 across server restart. Explicit finalization binds a fresh export-only generation
 to the recorded local allocation; only verified received bytes become delivered.
+A typed `export-refused` reply (the device's publication inventory refused the
+finished tree) is terminal on dispatch and on explicit retry alike: the row
+fails exactly as a hosted refusal does, same message, stats kept from the
+persisted `.compute-result`, slot released through the normal close. Run
+40c20c5d sat `running` instead, its cause discarded. Every cause a dispatch
+leaves pending is now logged; only transport loss and lease failures pend.
 A persisted launcher stop report, never a deadline, permits closing an interrupted
 run and consulting its normal checkpoint eligibility. The selected executor
 reconciles confirmed interrupted stops during its control poll, including after
@@ -364,7 +370,15 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   retained as run evidence, not used as the publication file allowlist.
 - Inventory uses the existing path jail, size/count limits and exclusions.
   Internal records, VCS, dependencies, workflows and secret-like paths are
-  excluded before traversal; other symlinks and special files refuse delivery.
+  excluded before traversal; other symlinks and special files refuse delivery,
+  except entries that hold no bytes: sockets, FIFOs, and links whose target
+  exists nowhere and names no existing workspace path, here or under the
+  workers' `/workspace` mount (Chromium's `Singleton*` links that run 40c20c5d's
+  own tests left at its root). They are never followed or published; they
+  stay out of the manifest and its hash and are listed, bounded, in the run
+  log (by the device export for Compute runs). A link that resolves still
+  refuses, and one that starts resolving refuses at revalidation. Hosted
+  inventory, device export and revalidation share this one function.
   `WORKSPACE_LIMITS` is shared with import and sync: 100,000 files, 10 MiB
   per file, 512 MiB total. Text and file deliveries use the same inventory.
   Publication loads bytes lazily and sends only changed files for existing
@@ -711,6 +725,13 @@ acceptance, publication or the immutable child trace.
 - Falling through to a host login when a personal Codex profile is missing,
   revoked or mixed: refused, it THROWS. Fall-through is permitted WITHIN a
   payer and forbidden ACROSS payers.
+- Byte-less inventory entries (2026-10-25): excluding Chromium's `Singleton*`
+  names or profile directories was refused (a vocabulary-frozen detector),
+  so was omitting every symlink (a link that resolves is part of what the
+  application reads), and so was judging a link absolute `/workspace/...` by
+  this host alone (the device's service sees `/workspace/current`). Recording
+  omissions in the manifest was refused too: copies never hold them, so every
+  transfer revalidation would disagree with its own manifest.
 - Letting a reader repair a `running` row it noticed: refused. That is
   `reconcileInterrupted`'s job at the next boot. `hasProjectTables` exists
   precisely so a reader can ask about the control plane without triggering

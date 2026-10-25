@@ -27,8 +27,8 @@ function validateManifest(input: ArtifactManifest): ArtifactManifest {
 
 /** Caller confirms process exit first. Spool only publishable files, privately. */
 export function captureArtifactExport(root: string, options: ArtifactExportOptions): ArtifactExport {
-  const { manifest } = buildWorkspaceArtifactManifest({ workspaceRoot: root, ...options });
-  return captureManifestExport(root, manifest);
+  const { manifest, omitted } = buildWorkspaceArtifactManifest({ workspaceRoot: root, ...options });
+  return { ...captureManifestExport(root, manifest), ...(omitted ? { omitted } : {}) };
 }
 
 /** Export exactly a host-authorized saved manifest, including its recorded modes. */

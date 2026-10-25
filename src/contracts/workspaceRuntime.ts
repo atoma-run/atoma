@@ -6,7 +6,7 @@ import type { RoutingRepository } from './tissueRouting.js';
 import { z } from 'zod';
 import { readRunsIndexSchema } from './readRuns.js';
 import { deliveryKindSchema } from './taskExecution.js';
-import type { ArtifactManifest } from './artifactInventory.js';
+import type { ArtifactManifest, OmittedArtifacts } from './artifactInventory.js';
 import type { CheckpointExport, CheckpointTransferEntry, CheckpointTransferHeader } from './checkpointTransfer.js';
 
 export const workspaceSourceBindingSchema = z.object({ seed: z.boolean(), readRuns: readRunsIndexSchema.optional() }).strict();
@@ -21,7 +21,7 @@ export const artifactExportOptionsSchema = z.object({
   delivery: deliveryKindSchema.optional(), allowEmpty: z.boolean(),
 }).strict();
 export type ArtifactExportOptions = z.infer<typeof artifactExportOptionsSchema>;
-export interface ArtifactExport extends CheckpointExport { readonly manifest: ArtifactManifest }
+export interface ArtifactExport extends CheckpointExport { readonly manifest: ArtifactManifest; readonly omitted?: OmittedArtifacts }
 
 export interface WorkspaceRestoration {
   begin(entry: CheckpointTransferEntry): void | Promise<void>;

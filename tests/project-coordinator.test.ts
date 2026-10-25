@@ -2523,6 +2523,52 @@ it('dispatches an admitted customer run and preserves pending delivery across co
   } finally { coordinator.stopQueue(); }
 });
 
+it.each(['dispatch', 'retry'] as const)(
+  'ends a Compute run whose export the device refused as failed with its spend, never pending (run 40c20c5d): %s', async path => {
+    const { ComputeDispatchPendingError, ComputeFinalizationRefusedError } = await import('../src/projects/computeDispatch.js');
+    const { WorkspaceExportRefusedError } = await import('../src/contracts/workspaceProtocol.js');
+    const f = fixture(), db = new Database(f.dbPath);
+    db.prepare('UPDATE projects SET execution_target_json=? WHERE project_id=?')
+      .run(JSON.stringify({ kind: 'customer-device', deviceId: randomUUID() }), f.project.projectId);
+    db.close();
+    const log = formatRunStatsEpilogue({ ...DELIVERED_STATS, outcome: 'partial', costUsd: 0.42, llmCalls: 7 });
+    const refused = () => new ComputeFinalizationRefusedError(log, new WorkspaceExportRefusedError({
+      code: 'symlink', message: 'artifact path contains a symlink: latest.js' }));
+    const driver = vi.fn(async () => log), finished = vi.fn(), held = lease();
+    const drive = vi.fn(async (_run: import('../src/contracts/projects.js').ProjectRun, hostDriver: ProjectRunDriver, input: SpawnRunOptions) => {
+      await hostDriver(input);
+      throw path === 'dispatch' ? refused() : new ComputeDispatchPendingError();
+    });
+    const recover = vi.fn(async (): Promise<string> => { throw refused(); });
+    const compute = {
+      readiness: () => ({ status: 'ready' as const, session: { deviceId: randomUUID(), sessionId: randomUUID(), generation: 1 } }),
+      drive, recover, interruptedStopped: () => false,
+    };
+    const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), PATH: process.env['PATH'], ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
+      driver, platformAdmins: () => false, compute: () => compute, acquireLease: async () => held, onRunFinished: finished });
+    try {
+      const run = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+        projectId: f.project.projectId, request: { goal: 'Remote task', idempotencyKey: `refused-${path}` } });
+      await coordinator.waitForIdle();
+      if (path === 'retry') {
+        expect(f.store.getProjectRun(f.viewer.orgId, run.projectRunId)?.status).toBe('running');
+        const settled = await coordinator.retryComputeFinalization(f.viewer.orgId, run.projectRunId, f.viewer.principalId);
+        expect(settled.status).toBe('failed');
+        expect(recover).toHaveBeenCalledOnce();
+      }
+      const row = f.store.getProjectRun(f.viewer.orgId, run.projectRunId)!;
+      // Exactly what a hosted run refused by the same inventory records.
+      expect(row.status).toBe('failed');
+      expect(row.error).toBe('artifact path contains a symlink: latest.js');
+      expect(row.stats).toMatchObject({ outcome: 'failed', costUsd: 0.42, llmCalls: 7 });
+      expect(driver).toHaveBeenCalledOnce();
+      expect(held.release).toHaveBeenCalled();
+      await vi.waitFor(() => expect(finished).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' })));
+      await expect(coordinator.retryComputeFinalization(f.viewer.orgId, run.projectRunId, f.viewer.principalId)).rejects.toThrow('unavailable');
+    } finally { coordinator.stopQueue(); }
+  });
+
 it('refuses ordinary members on a legacy hosted target before taking a lease or reserving a run', async () => {
   const f = fixture(), acquireLease = vi.fn(async () => lease()), driver = vi.fn<ProjectRunDriver>();
   const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,

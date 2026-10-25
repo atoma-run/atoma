@@ -40,7 +40,9 @@ Import handles are service-local and exclusive with live guards/exports; a lost
 commit acknowledgement never authorizes replay. Error details are bounded and
 untrusted diagnostics, not executable instructions. Source selectors carry only
 a seed discriminator or an authorized reference id. Artifact exports share the
-chunk channel but carry the publication inventory for independent byte validation.
+chunk channel but carry the publication inventory for independent byte validation,
+plus its bounded byte-less omissions; an inventory refusal is the one typed
+error reply (`export-refused`: `artifactPolicyCodeSchema` code, 2,000-char message).
 
 ## Haystack runtime configuration
 

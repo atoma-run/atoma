@@ -14,7 +14,8 @@ import { remoteWorkspaceRuntime } from '../run/workspaceRpc.js';
 import { receiveArtifactExport } from '../run/artifactTransfer.js';
 import { declaredArtifactManifestSchema } from '../contracts/artifactManifest.js';
 import { parseRunLog } from '../cli/burnin.js';
-import { revalidateArtifactManifest } from './artifacts.js';
+import { recordOmittedArtifacts, revalidateArtifactManifest } from './artifacts.js';
+import { WorkspaceExportRefusedError } from '../contracts/workspaceProtocol.js';
 import type { ComputeExecution } from '../contracts/computeProtocol.js';
 
 function boundedFile(path: string, limit: number): string {
@@ -63,6 +64,22 @@ export class ComputeDispatchPendingError extends Error {
   constructor() { super('Customer compute disconnected or finalization incomplete; explicit reconciliation required'); }
 }
 
+/** The device's publication inventory refused the finished workspace. The same
+ * tree refuses again, so finalization ends here exactly as a hosted run's
+ * would: `log` is the runner's persisted result, whose spend is kept. */
+export class ComputeFinalizationRefusedError extends Error {
+  constructor(readonly log: string, readonly refusal: WorkspaceExportRefusedError) {
+    super(refusal.message);
+    this.name = 'ComputeFinalizationRefusedError';
+  }
+}
+
+/** A pending dispatch keeps its row running; its cause must still be readable. */
+function logPending(runId: string, stage: string, error: unknown): void {
+  const cause = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  process.stderr.write(`[atoma compute] ${stage} of ${runId} remains pending: ${cause.replace(/\s+/g, ' ').slice(0, 2_000)}\n`);
+}
+
 /** The existing host child retains models, accounting and connectors. Only
  * typed workspace/tool calls cross WSS; credentials never enter the bridge. */
 export class ComputeDispatcher {
@@ -109,6 +126,7 @@ export class ComputeDispatcher {
       try { revalidateArtifactManifest({ workspaceRoot: run.hostPaths.workspacePath, manifest: exporting.manifest }); }
       finally { await exporting.close(); }
     } else await receiveArtifactExport(exporting, run.hostPaths.workspacePath);
+    recordOmittedArtifacts(run.hostPaths.logPath, run.projectRunId, exporting.omitted);
     // Remote observations describe only the verified delivery, never platform trust.
     const admitted = classification.entry === null || exporting.manifest.files.some(file => file.path === classification.entry);
     this.options.journal.recordPreview(run.projectRunId, admitted ? classification : {
@@ -124,7 +142,7 @@ export class ComputeDispatcher {
     if (record.phase === 'transferred') return log;
     const session = this.options.devices.currentSession(run.executionTarget.deviceId);
     const peer = session && this.options.connectionFor(session);
-    if (!session || !peer) throw new ComputeDispatchPendingError();
+    if (!session || !peer) { logPending(run.projectRunId, 'finalization', new Error('device not connected')); throw new ComputeDispatchPendingError(); }
     const assignment = this.options.devices.assign({ orgId: run.orgId, principalId: run.requestedByPrincipalId }, session, run.projectRunId, this.options.resources);
     const execution = { runId: run.projectRunId, generation: assignment.generation };
     try {
@@ -132,8 +150,11 @@ export class ComputeDispatcher {
       await this.receive(run, peer, execution, log, manifestPath);
       this.options.journal.phase(run.projectRunId, record.generation, 'transferred');
       return log;
-    } catch { throw new ComputeDispatchPendingError(); }
-    finally { peer.close('dispatch-finished'); }
+    } catch (error) {
+      if (error instanceof WorkspaceExportRefusedError) throw new ComputeFinalizationRefusedError(log, error);
+      logPending(run.projectRunId, 'finalization', error);
+      throw new ComputeDispatchPendingError();
+    } finally { peer.close('dispatch-finished'); }
   }
   async drive(run: ProjectRun, driver: ProjectRunDriver, input: Parameters<ProjectRunDriver>[0], manifestPath: string): Promise<string> {
     if (run.executionTarget.kind !== 'customer-device') throw new Error('Compute dispatch requires a customer device receipt');
@@ -145,7 +166,7 @@ export class ComputeDispatcher {
     const assignment = this.options.devices.assign({ orgId: run.orgId, principalId: run.requestedByPrincipalId }, session, run.projectRunId, this.options.resources);
     const execution = { runId: run.projectRunId, generation: assignment.generation };
     let bridge: Awaited<ReturnType<typeof serveComputeBridge>> | undefined;
-    let finalizing = false;
+    let finalizing: string | undefined;
     try {
       this.options.journal.begin(run.projectRunId, execution.generation);
       input.signal?.throwIfAborted();
@@ -159,18 +180,20 @@ export class ComputeDispatcher {
       if (Buffer.byteLength(log) > 64 * 1024 ** 2) throw new Error('Compute result exceeds limit');
       writeFileSync(input.logPath + '.compute-result', log, { mode: 0o600, flush: true });
       this.options.journal.phase(run.projectRunId, execution.generation, 'finalizing');
-      finalizing = true;
+      finalizing = log;
       await timed(input.onTiming, 'handoff', async () => {
         await peer.requestTool(execution, { method: 'drain' });
         await this.receive(run, peer, execution, log, manifestPath);
       });
       this.options.journal.phase(run.projectRunId, execution.generation, 'transferred');
       return log;
-    } catch {
-      if (!finalizing && this.options.journal.inspect(run.projectRunId)) this.options.journal.phase(run.projectRunId, execution.generation, 'interrupted');
+    } catch (error) {
+      if (finalizing !== undefined && error instanceof WorkspaceExportRefusedError) throw new ComputeFinalizationRefusedError(finalizing, error);
+      logPending(run.projectRunId, finalizing === undefined ? 'dispatch' : 'finalization', error);
+      if (finalizing === undefined && this.options.journal.inspect(run.projectRunId)) this.options.journal.phase(run.projectRunId, execution.generation, 'interrupted');
       throw new ComputeDispatchPendingError();
     } finally {
-      try { await bridge?.close(); } finally { peer.close(finalizing ? 'dispatch-finished' : 'dispatch-interrupted'); }
+      try { await bridge?.close(); } finally { peer.close(finalizing !== undefined ? 'dispatch-finished' : 'dispatch-interrupted'); }
       // Closing requests local lease teardown. It is never an exit assertion;
       // the slot remains held until a fresh launcher confirms the exact stop.
     }

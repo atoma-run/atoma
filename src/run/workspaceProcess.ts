@@ -1,13 +1,14 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { WORKSPACE_FRAME_BYTES, WORKSPACE_PROTOCOL_VERSION, workspaceResponseSchema, type WorkspaceCommand } from '../contracts/workspaceProtocol.js';
+import { WORKSPACE_FRAME_BYTES, WORKSPACE_PROTOCOL_VERSION, WorkspaceExportRefusedError, workspaceResponseSchema,
+  type WorkspaceCommand } from '../contracts/workspaceProtocol.js';
 import { remoteWorkspaceRuntime } from './workspaceRpc.js';
 import type { WorkspaceRuntime } from '../contracts/workspaceRuntime.js';
 
 /** Hosted process transport for exercising the same private RPC as customer compute. */
 export function startWorkspaceProcess(options: { root: string; seedRoot?: string; sourceRoot?: string; readRunsIndex?: string; timeoutMs?: number;
   onLog?: (line: string) => void }): {
-  runtime: WorkspaceRuntime; close(): Promise<void>;
+  runtime: WorkspaceRuntime; command(command: WorkspaceCommand): Promise<unknown>; close(): Promise<void>;
 } {
   const entry = fileURLToPath(new URL('./workspaceService.js', import.meta.url));
   const source = import.meta.url.endsWith('.ts');
@@ -62,6 +63,7 @@ export function workspaceProcessChannel(child: ChildProcessWithoutNullStreams,
         if (!call) throw new Error('Unexpected workspace response');
         pending.delete(response.id);
         if (response.ok) call.resolve(response.reply);
+        else if (response.error === 'export-refused') call.reject(new WorkspaceExportRefusedError(response.refusal));
         else call.reject(new Error(`Workspace ${response.error}${response.message ? `: ${response.message}` : ''}`));
       }
     } catch { fail(new Error('Invalid workspace response')); }

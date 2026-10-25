@@ -678,6 +678,97 @@ it.each(['complete', 'lost-command', 'lost-transfer'] as const)('dispatches the 
   } finally { await client.close(); }
 });
 
+import { mkdirSync, symlinkSync, existsSync } from 'node:fs';
+import { startWorkspaceProcess } from '../src/run/workspaceProcess.js';
+import { workspaceReplySchema } from '../src/contracts/workspaceProtocol.js';
+import { ComputeFinalizationRefusedError } from '../src/projects/computeDispatch.js';
+
+// Run 40c20c5d: the device's export met Chromium profile links its own tests
+// left at the workspace root, closed the channel with no reason, and the run
+// stayed running. This crosses the same boundaries: the workspace service
+// process the device spawns, the device's WSS client and the server dispatcher.
+it.each(['omitted', 'refused', 'recovered'] as const)('finalizes a Compute export through the device workspace service: %s', async scenario => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const folder = join(root, randomUUID()), remote = join(folder, 'remote');
+  const service = startWorkspaceProcess({ root: remote });
+  await service.runtime.prepare(true);
+  for (const name of ['browser', 'tests', 'cancel-paused-YNmbYI/runtime/xe-browser-profile', '.atoma-scratch/profile']) mkdirSync(join(remote, name), { recursive: true });
+  writeFileSync(join(remote, 'browser', 'collector.js'), 'collector');
+  writeFileSync(join(remote, 'tests', 'cancel.test.js'), 'test');
+  for (const profile of ['cancel-paused-YNmbYI/runtime/xe-browser-profile', '.atoma-scratch/profile']) {
+    symlinkSync('43341f52aadd-1091', join(remote, profile, 'SingletonLock'));
+    symlinkSync('12872190311', join(remote, profile, 'SingletonCookie'));
+    symlinkSync(`/tmp/org.chromium.Chromium.${randomUUID()}/SingletonSocket`, join(remote, profile, 'SingletonSocket'));
+  }
+  // A link that resolves still refuses delivery, as on a hosted run.
+  if (scenario !== 'omitted') symlinkSync('browser/collector.js', join(remote, 'latest.js'));
+  const receipt = projects.createProjectRun({ orgId: owner.orgId, projectId: p.projectId, principalId: owner.principalId,
+    request: { idempotencyKey: randomUUID(), goal: 'Compute export' },
+    hostPaths: { workspacePath: join(folder, 'received'), runsPath: join(folder, 'traces'), logPath: join(folder, 'run.log') } })!.run;
+  const manifestPath = join(folder, 'declared.json');
+  writeFileSync(manifestPath, JSON.stringify({ version: 1, runId: receipt.projectRunId, generatedAt: new Date().toISOString(), outputs: [] }));
+  const stopWorkloads = vi.fn(async () => {});
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads,
+    assign: async () => ({ execute: async command => {
+      // What a device released before this fix did: any export failure closed the channel.
+      if (scenario === 'recovered' && command.method === 'artifact-open') throw new Error('Workspace operation-failed');
+      return workspaceReplySchema.parse(await service.command(command));
+    }, tools: { has: () => true, execute: async () => null, drain: async () => {} } }) });
+  const journal = new ComputeDispatchStore(db);
+  const dispatcher = new ComputeDispatcher({ devices, journal, resources, connectionFor: session => gateway.connectionFor(session) });
+  projects.transitionProjectRun({ orgId: owner.orgId, projectRunId: receipt.projectRunId, from: 'queued', to: 'running' });
+  const log = formatRunStatsEpilogue({ outcome: 'partial', costUsd: 0.42, llmCalls: 7, opusCalls: 0, sonnetCalls: 0, haikuCalls: 0, otherCalls: 7,
+    deterministicPhases: 0, deepenings: 0, rootRemediations: 0, landingRemediations: 0, unjudgedRemediations: 0,
+    discardedLessons: 0, triggerRejections: 0, suiteDisputes: 0, landingReasons: [], escalations: 0, learnedSkills: 0,
+    learnedEventSkills: 0, promotions: 0, refusals: 0, compileErrors: 0, demotions: 0, dispatchFallbacks: 0, uncoveredObligations: 0 });
+  try {
+    const result = dispatcher.drive(receipt, async () => log, { goal: receipt.goal, timeoutMs: 5000, logPath: receipt.hostPaths.logPath }, manifestPath);
+    if (scenario === 'omitted') {
+      expect(await result).toBe(log);
+      expect(readFileSync(join(receipt.hostPaths.workspacePath, 'browser', 'collector.js'), 'utf8')).toBe('collector');
+      expect(readFileSync(join(receipt.hostPaths.workspacePath, 'tests', 'cancel.test.js'), 'utf8')).toBe('test');
+      expect(existsSync(join(receipt.hostPaths.workspacePath, 'cancel-paused-YNmbYI'))).toBe(false);
+      expect(journal.inspect(receipt.projectRunId)?.phase).toBe('transferred');
+      const recorded = readFileSync(receipt.hostPaths.logPath, 'utf8');
+      expect(recorded).toContain('left out 3 entries holding no bytes');
+      expect(recorded).toContain('"cancel-paused-YNmbYI/runtime/xe-browser-profile/SingletonSocket" (dangling-symlink)');
+      expect(recorded).not.toContain('.atoma-scratch');
+    } else if (scenario === 'refused') {
+      // A typed reply, not a closed channel: a closing device would have
+      // rejected the export with ComputeIndeterminateError instead.
+      const error = await result.then(() => { throw new Error('expected a refusal'); }, (caught: unknown) => caught);
+      expect(error).toBeInstanceOf(ComputeFinalizationRefusedError);
+      const refusal = (error as InstanceType<typeof ComputeFinalizationRefusedError>).refusal;
+      expect(refusal.code).toBe('symlink');
+      expect(refusal.message).toBe('artifact path contains a symlink: latest.js');
+      expect((error as InstanceType<typeof ComputeFinalizationRefusedError>).log).toBe(log);
+      expect(journal.inspect(receipt.projectRunId)?.phase).toBe('finalizing');
+      expect(existsSync(receipt.hostPaths.workspacePath)).toBe(false);
+    } else {
+      await expect(result).rejects.toBeInstanceOf(ComputeDispatchPendingError);
+      expect(journal.inspect(receipt.projectRunId)?.phase).toBe('finalizing');
+      await vi.waitFor(() => expect(stopWorkloads).toHaveBeenCalledOnce());
+      await client.close();
+      // The explicit retry after the upgrade meets the same tree and ends.
+      const recovery = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+        ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: async () => {}, reconcile: async () => {},
+        assign: async () => ({ execute: async command => workspaceReplySchema.parse(await service.command(command)) }) });
+      try {
+        const error = await dispatcher.recover(projects.getProjectRun(owner.orgId, receipt.projectRunId)!, manifestPath)
+          .then(() => { throw new Error('expected a refusal'); }, (caught: unknown) => caught);
+        expect(error).toBeInstanceOf(ComputeFinalizationRefusedError);
+        expect((error as InstanceType<typeof ComputeFinalizationRefusedError>).refusal.message).toBe('artifact path contains a symlink: latest.js');
+        expect((error as InstanceType<typeof ComputeFinalizationRefusedError>).log).toBe(log);
+      } finally { await recovery.close(); }
+    }
+    // The server, not a device failure, ends the execution in both cases.
+    await vi.waitFor(() => expect(stopWorkloads).toHaveBeenCalledOnce());
+  } finally { await client.close(); await service.close(); }
+});
+
 it('rejects a replacement inventory even when it presents the existing device credential', async () => {
   const f = await connected(); f.peer.close();
   const ws = await client(), closed = once(ws, 'close');

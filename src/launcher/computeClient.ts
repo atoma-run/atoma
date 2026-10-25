@@ -12,7 +12,7 @@ import { COMPUTE_STALE_HEARTBEAT_MS } from '../contracts/computeTransport.js';
 import { COMPUTE_FRAME_BYTES, computeExecutionSchema, computeHelloSchema, computeServerFrameSchema,
   type ComputeExecution, type ComputeControl } from '../contracts/computeProtocol.js';
 import type { ComputeCapabilities, ComputeSession } from '../contracts/computeDevice.js';
-import { workspaceReplySchema, type WorkspaceCommand, type WorkspaceReply } from '../contracts/workspaceProtocol.js';
+import { WorkspaceExportRefusedError, workspaceReplySchema, type WorkspaceCommand, type WorkspaceReply } from '../contracts/workspaceProtocol.js';
 
 /** Outbound, one-generation workspace channel. The trusted launcher binds the
  * execution and private handler before connecting; the wire cannot choose a
@@ -250,6 +250,13 @@ export async function connectComputeWorkspace(options: {
           let value: unknown;
           try { value = await local.execute(frame.command); }
           catch (error) {
+            // The publication inventory refused the finished tree: a typed,
+            // deterministic answer the server records as the run's failure.
+            if (frame.command.method === 'artifact-open' && error instanceof WorkspaceExportRefusedError) {
+              lease.assertActive();
+              send({ kind: 'workspace-result', execution, response: { id: frame.id, ok: false, error: 'export-refused', refusal: error.refusal() } });
+              return;
+            }
             // Automatic checkpoints may refuse a tree (e.g. npm's hard links)
             // without invalidating the live workspace. The coordinator already
             // disables durable continuation on this explicit operation failure.

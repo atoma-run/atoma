@@ -68,3 +68,29 @@ export const artifactManifestSchema = z
 
 export type ArtifactFile = z.infer<typeof artifactFileSchema>;
 export type ArtifactManifest = z.infer<typeof artifactManifestSchema>;
+
+/** Why the publication inventory refused a workspace. One vocabulary for the
+ * hosted inventory and for a refusal carried back from a Compute device. */
+export const artifactPolicyCodeSchema = z.enum([
+  'empty', 'path', 'excluded', 'missing', 'symlink', 'special', 'limit', 'changed', 'hash',
+]);
+export type ArtifactPolicyCode = z.infer<typeof artifactPolicyCodeSchema>;
+
+/**
+ * Workspace entries the inventory left out because they hold no bytes: a
+ * symbolic link whose target exists nowhere and names no workspace path, a
+ * socket or a FIFO. Never part of the manifest or its hash (no copy of the
+ * workspace contains them), but always reported beside it, bounded.
+ */
+export const OMITTED_ARTIFACT_ENTRIES = 32;
+export const omittedArtifactSchema = z
+  .object({ path: artifactPathSchema, kind: z.enum(['dangling-symlink', 'socket', 'fifo']) })
+  .strict();
+export const omittedArtifactsSchema = z
+  .object({
+    count: z.number().int().positive(),
+    entries: z.array(omittedArtifactSchema).min(1).max(OMITTED_ARTIFACT_ENTRIES),
+  })
+  .strict();
+export type OmittedArtifact = z.infer<typeof omittedArtifactSchema>;
+export type OmittedArtifacts = z.infer<typeof omittedArtifactsSchema>;
