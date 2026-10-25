@@ -66,17 +66,19 @@ doubling to ten minutes, whatever the connection: an attempt that reached the
 device closes its socket and the app reconnects a second later. Only a failure
 before assign lets a new connection re-arm sooner, under a floor that grows too.
 A lost membership or an archived project is logged once and never retried until
-it changes. A run cancelled before an attempt is not exported: it closes as
-cancelled once its stop is confirmed, button included. They were explicit while a refused export
-could loop; it is now terminal, and the export runs no tool or model. Run
-40c20c5d waited 4.5 hours for a buried button. Public readers never perform
-this reconciliation.
+it changes. A run cancelled before an attempt, or while it waits for the slot,
+is not exported: it closes as cancelled once its stop is confirmed (the button
+too). Pending transfers were explicit while a refused export could loop; it is
+now terminal, and the export runs no tool or model. Run 40c20c5d waited 4.5
+hours for a buried button. Public readers never perform this reconciliation.
 
 Results WAITING on a computer (2026-10-25) are host facts: a running Compute row
-whose journal says `finalizing` with no driver (`computeResultsWaiting`), and
+whose journal says `finalizing` with no driver (`computeResultsWaiting`);
 `computerReady` picks a neutral sentence. Readers: stage `awaiting-results`, run
-`resultsWaiting`, project `runningRunsAwaitResults`, a typed busy `reason`. Once
-`RESULTS_WAITING_NOTICE_MS` passed since the first driver stop: one claimed notice.
+`resultsWaiting`, project `runningRunsAwaitResults`, Settings rows, a busy `reason`
+(`-stalled` when ready). One claimed notice once `RESULTS_WAITING_NOTICE_MS` passed
+since the first driver stop. "Get the results" answers `ComputeResultsNotYet` only
+for what passes by itself; access, project and executor refusals keep their type.
 
 Legacy project targets remain hosted and run receipts are immutable. On gated
 hosts, only a current platform admin may start hosted work; other members must

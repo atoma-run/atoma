@@ -112,8 +112,10 @@ Compute open and accepting work. Nobody has to press anything, and no model or
 tool runs again; only the finished files are copied, in a fresh, export-only
 generation. If the computer refuses those files, the run ends as failed and says
 why. A run you cancelled is not copied: it ends as cancelled once the computer
-confirms its work stopped. **Reconcile and finish transfer** in the project's
-Compute settings remains as a fallback.
+confirms its work stopped. **Get the results**, on the run or in the project's
+Compute settings, remains as a fallback. The copy also waits, and the button
+cannot help, while the person who started the run no longer has access to the
+project or the project is archived.
 
 An interrupted execution must first have its stop confirmed. Atoma then closes
 that interrupted run automatically instead of leaving it live. It is marked
@@ -135,12 +137,12 @@ your computer and will arrive by themselves as soon as Atoma Compute is open,
 connected and accepting work." If that
 computer is already connected and accepting work, the run says instead that the
 results could not be transferred yet. Its requester can press **Get the
-results** (formerly **Reconcile and finish transfer**) on the run, on its page
-or in the project's Compute settings, where each pending run is named by its
-title and start; one that stopped before it finished offers **Close this run**.
-After the files have waited ten minutes (counted from when nothing was moving
-them) the requester is told once through an Atoma notification that opens the
-project's runs, and a refused start says the place is held by finished work.
+results** on the run, on its page or in the project's Compute settings, where
+each pending run is named by its title and start; one that stopped before it
+finished offers **Close this run**. After the files have waited ten minutes
+(counted from when nothing was moving them) the requester is told once through
+an Atoma notification that opens that run in the project's runs, and a refused
+start says the place is held by finished work.
 
 ## Connection diagnostics
 
