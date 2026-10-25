@@ -39,3 +39,16 @@ it('does not require pairing for platform administrators', async () => {
   await vi.waitFor(() => expect(screen.queryByRole('heading')).not.toBeInTheDocument());
   client.clear();
 });
+it('drops the pairing prompt for an administrator whose computer is already connected', async () => {
+  const client = setup({ hostedAllowed: true, devices: [{ deviceId: 'cfaec756-b83e-46fc-b787-2128f05ce7b8', name: 'Office PC', connected: true }] });
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+  await vi.waitFor(() => expect(screen.queryByRole('link')).not.toBeInTheDocument());
+  expect(screen.queryByText('compute.connectComputer')).not.toBeInTheDocument();
+  client.clear();
+});
+it('offers another computer, not a first one, once a member has one connected', async () => {
+  const client = setup({ hostedAllowed: false, devices: [{ deviceId: 'cfaec756-b83e-46fc-b787-2128f05ce7b8', name: 'Office PC', connected: true }] });
+  expect(await screen.findByRole('link', { name: 'compute.connectAnother' })).toHaveAttribute('href', '/compute/setup?lang=fr');
+  expect(screen.queryByRole('link', { name: 'compute.connectComputer' })).not.toBeInTheDocument();
+  client.clear();
+});

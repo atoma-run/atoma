@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "操作結果を確認できません。別の操作を依頼する前に、プロジェクトとrunを確認してください。",
   "assistant.runStatus": "run：{{status}}",
   "assistant.message": "メッセージ",
-  "assistant.placeholder": "アイデアまたは次の変更を説明してください…",
+  "assistant.placeholder": "次の変更内容を入力…",
   "assistant.cost": "会話：API換算の推定額 ${{cost}}・runの使用量は別途",
   "assistant.send": "送信",
   "assistant.actionApproved": "提案を承認しました。",
@@ -2716,5 +2716,7 @@
   "sentinel.col.run": "run",
   "sentinel.col.summary": "確認された内容",
   "sentinel.col.actor": "アクター",
-  "now.doing.verdictRepair": "書式を解析できなかった{{child}}の作業について、{{actor}}が判定を再出力しています。"
+  "now.doing.verdictRepair": "書式を解析できなかった{{child}}の作業について、{{actor}}が判定を再出力しています。",
+  "assistant.placeholderNew": "アイデアを入力…",
+  "compute.connectAnother": "別のコンピューターに接続"
 }

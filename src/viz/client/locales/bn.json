@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "পদক্ষেপটির ফলাফল নিশ্চিত নয়। আরেকটি পদক্ষেপের অনুরোধ করার আগে প্রজেক্ট ও run পরীক্ষা করুন।",
   "assistant.runStatus": "run: {{status}}",
   "assistant.message": "আপনার বার্তা",
-  "assistant.placeholder": "আপনার ধারণা বা পরবর্তী পরিবর্তনটি বর্ণনা করুন…",
+  "assistant.placeholder": "পরবর্তী পরিবর্তনটি বর্ণনা করুন…",
   "assistant.cost": "কথোপকথন: ${{cost}} API-সমতুল্য আনুমানিক খরচ · run-এর ব্যবহার আলাদা",
   "assistant.send": "পাঠান",
   "assistant.actionApproved": "প্রস্তাব অনুমোদিত হয়েছে।",
@@ -2716,5 +2716,7 @@
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "যা দেখা গেছে",
   "sentinel.col.actor": "কর্তা",
-  "now.doing.verdictRepair": "{{child}}-এর যে কাজটির ফরম্যাট পার্স করা যায়নি, সেটির ওপর {{actor}} পুনরায় রায় প্রকাশ করছে।"
+  "now.doing.verdictRepair": "{{child}}-এর যে কাজটির ফরম্যাট পার্স করা যায়নি, সেটির ওপর {{actor}} পুনরায় রায় প্রকাশ করছে।",
+  "assistant.placeholderNew": "আপনার ধারণাটি বর্ণনা করুন…",
+  "compute.connectAnother": "আরেকটি কম্পিউটার সংযুক্ত করুন"
 }

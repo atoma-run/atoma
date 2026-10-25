@@ -38,10 +38,10 @@ function deliveredView() {
   data.conversation.lastRun = { projectId, runId: 'run-1' };
   return data;
 }
-function panel(data: AssistantView = view(), scopeKey = 'alice:org-a') {
+function panel(data: AssistantView = view(), scopeKey = 'alice:org-a', boundProjectId: string | null = null) {
   vi.spyOn(api, 'assistant').mockResolvedValue(data);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }); clients.push(client);
-  const props = { scopeKey, projectId: null, locale: 'en', inert: false,
+  const props = { scopeKey, projectId: boundProjectId, locale: 'en', inert: false,
     externalAgentGuide: createElement('button', { type: 'button' }, 'Connect your agent'),
     t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
     onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn() };
@@ -94,6 +94,17 @@ it('sends only the typed message and presents a proposal without executing it', 
   expect(request).toHaveBeenCalledWith(expect.objectContaining({ kind: 'message', version: 0, projectId: null, text: 'Build a stock tracker' }));
   expect(screen.getByText('example/stock-tracker', { exact: false })).toBeVisible();
   expect(screen.getByText('Private')).toBeVisible();
+});
+
+// A new-project composer has no "next change" to describe (owner, 2026-10-25).
+it('asks for an idea before a project exists and for the next change once one is bound', async () => {
+  const { unmount } = panel();
+  await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
+  expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'Describe your idea…');
+  unmount();
+  panel(view(), 'alice:org-a', projectId);
+  await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
+  expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'Describe the next change…');
 });
 
 it('inserts a newline with Shift+Enter and sends the complete draft once with Enter', async () => {

@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "कार्रवाई के परिणाम की पुष्टि नहीं हुई है। दूसरी कार्रवाई का अनुरोध करने से पहले प्रोजेक्ट और run जाँचें।",
   "assistant.runStatus": "run: {{status}}",
   "assistant.message": "आपका संदेश",
-  "assistant.placeholder": "अपने विचार या अगले बदलाव का वर्णन करें…",
+  "assistant.placeholder": "अगले बदलाव का वर्णन करें…",
   "assistant.cost": "वार्तालाप: ${{cost}} API-समतुल्य अनुमान · run का उपयोग अलग है",
   "assistant.send": "भेजें",
   "assistant.actionApproved": "प्रस्ताव स्वीकृत।",
@@ -2716,5 +2716,7 @@
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "क्या देखा गया",
   "sentinel.col.actor": "कर्ता",
-  "now.doing.verdictRepair": "{{actor}} द्वारा {{child}} के उस काम पर निर्णय फिर से जारी किया जा रहा है, जिसकी फ़ॉर्मैटिंग पार्स नहीं हो सकी।"
+  "now.doing.verdictRepair": "{{actor}} द्वारा {{child}} के उस काम पर निर्णय फिर से जारी किया जा रहा है, जिसकी फ़ॉर्मैटिंग पार्स नहीं हो सकी।",
+  "assistant.placeholderNew": "अपने विचार का वर्णन करें…",
+  "compute.connectAnother": "कोई अन्य कंप्यूटर कनेक्ट करें"
 }

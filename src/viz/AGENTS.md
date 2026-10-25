@@ -591,7 +591,7 @@ fail closed as before. The web service's executor dependency is one-way only.
   to another payer. User, assistant and activity messages keep distinct rails.
   A viewer sees the guide alone, as before.
   The collection guide's toggle collapses the whole card, conversation included, and
-  creating a project from it keeps the card open on the new project's page.
+  creating a project from it keeps the card open on the new project's page; with projects it opens FOLDED (owner, 2026-10-25).
   Creation and launch require separate proposal confirmations. GitHub remains reachable when the organisation has
   no installation. A selected project's name owns the page title (`Project :
   <name>`) and is not repeated as an active row in its detail card.
