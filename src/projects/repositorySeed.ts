@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { readdir, lstat, mkdir, link, copyFile, readlink, symlink, unlink, rmdir, writeFile } from 'node:fs/promises';
-import { buildWorkspaceArtifactManifest, normalizeArtifactPath } from './artifacts.js';
+import { buildWorkspaceArtifactManifest, byteLessWorkspaceEntry, normalizeArtifactPath } from './artifacts.js';
 import { gitBlobSha, repositoryFile } from './repositorySync.js';
 import type { RepositoryInventory } from '../contracts/repositorySync.js';
 import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
@@ -15,7 +15,11 @@ export async function materialiseRepositorySeed(input: {
     const stat = await lstat(source);
     if (stat.isDirectory()) {
       await mkdir(destination, { recursive: true, mode: stat.mode });
-      for (const name of await readdir(source)) await copy(path.join(source, name), path.join(destination, name));
+      for (const name of await readdir(source)) {
+        const entry = path.join(source, name);
+        // Never seeded, as in `seedWorkspace`: the next run's checkpoint refuses it.
+        if (byteLessWorkspaceEntry(input.source, path.relative(input.source, entry)) === null) await copy(entry, path.join(destination, name));
+      }
     } else if (stat.isSymbolicLink()) await symlink(await readlink(source), destination);
     else if (stat.isFile()) {
       try { await link(source, destination); }

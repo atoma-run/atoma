@@ -392,6 +392,21 @@ function byteLessEntry(root: string, realRoot: string, name: string, absolute: s
   }
 }
 
+/**
+ * The same judgement for one entry of a tree being COPIED into a seed:
+ * `relative` names it under `root`. What the inventory leaves out is never
+ * seeded either. The checkpoint digest refuses a dangling absolute link and
+ * every socket or FIFO, so a seed holding one silently cost the next run its
+ * pause, resume and client questions; `cpSync` cannot copy a socket at all.
+ */
+export function byteLessWorkspaceEntry(root: string, relative: string): OmittedArtifact['kind'] | null {
+  const base = path.resolve(root);
+  const absolute = path.join(base, relative);
+  const stat = lstatSync(absolute);
+  if (!stat.isSymbolicLink() && !stat.isSocket() && !stat.isFIFO()) return null;
+  return byteLessEntry(base, realpathSync(base), relative.split(path.sep).join('/'), absolute, stat);
+}
+
 /** One bounded line naming what an inventory left out. Paths are JSON-quoted:
  * a model may name a file with a newline, and the run log is parsed. */
 export function describeOmittedArtifacts(omitted: OmittedArtifacts): string {

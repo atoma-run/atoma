@@ -1,5 +1,6 @@
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -304,7 +305,10 @@ describe('seedWorkspace', () => {
   });
 
   it.skipIf(process.platform === 'win32')('copies a link that leaves the tree as written, and the checkpoint still refuses it', () => {
-    const seed = tempDir('atoma-seed-src-');
+    // The link resolves beside the seed: a byte-less (dangling) one is never seeded.
+    const parent = tempDir('atoma-seed-parent-'), seed = join(parent, 'seed');
+    mkdirSync(seed);
+    writeFileSync(join(parent, 'outside.txt'), 'seed host');
     writeFileSync(join(seed, 'index.html'), '<p>hi</p>');
     symlinkSync('../outside.txt', join(seed, 'escape'));
     const dst = realpathSync(tempDir('atoma-seed-dst-'));
@@ -313,6 +317,32 @@ describe('seedWorkspace', () => {
     seedWorkspace(seed, workspace);
     expect(readlinkSync(join(workspace, 'escape'))).toBe('../outside.txt');
     expect(() => checkpointWorkspaceDigest(workspace)).toThrow('escaping link');
+  });
+
+  // Review 2026-10-25, 1: run 40c20c5d's own tests left Chromium profile links
+  // that resolve nowhere. Its delivery omits them, but a delivered or partial
+  // workspace becomes the next seed; copied as written, the absolute one made
+  // the next run's checkpoint refuse ("escaping link") and silently cost it
+  // pause, resume and client questions. A FIFO stopped cpSync outright.
+  it.skipIf(process.platform === 'win32')('never seeds what the publication inventory leaves out as byte-less', () => {
+    const seed = tempDir('atoma-seed-src-');
+    const profile = join(seed, 'cancel-paused-YNmbYI', 'runtime', 'xe-browser-profile');
+    mkdirSync(profile, { recursive: true });
+    writeFileSync(join(profile, 'Local State'), '{}');
+    symlinkSync(`/tmp/org.chromium.Chromium.${randomUUID()}/SingletonSocket`, join(profile, 'SingletonSocket'));
+    symlinkSync('43341f52aadd-1091', join(profile, 'SingletonLock'));
+    execFileSync('mkfifo', [join(seed, 'events.fifo')]);
+    writeFileSync(join(seed, 'index.html'), '<p>hi</p>');
+    symlinkSync('index.html', join(seed, 'latest.html'));
+    const workspace = join(realpathSync(tempDir('atoma-seed-dst-')), 'workspace');
+    seedWorkspace(seed, workspace);
+    expect(readFileSync(join(workspace, 'cancel-paused-YNmbYI', 'runtime', 'xe-browser-profile', 'Local State'), 'utf8')).toBe('{}');
+    expect(readlinkSync(join(workspace, 'latest.html'))).toBe('index.html');
+    for (const omitted of ['cancel-paused-YNmbYI/runtime/xe-browser-profile/SingletonSocket',
+      'cancel-paused-YNmbYI/runtime/xe-browser-profile/SingletonLock', 'events.fifo']) {
+      expect(() => lstatSync(join(workspace, omitted))).toThrow('ENOENT');
+    }
+    expect(checkpointWorkspaceDigest(workspace)).toMatch(/^[a-f0-9]{64}$/);
   });
 });
 

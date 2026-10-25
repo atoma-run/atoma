@@ -1,8 +1,9 @@
-import { dirname, basename, join, resolve } from 'node:path';
+import { dirname, basename, join, relative, resolve } from 'node:path';
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { inheritProbeManifest, PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
+import { byteLessWorkspaceEntry } from '../projects/artifacts.js';
 import type { DeliveredSnapshot, StartingSnapshot, WorkspaceFileSnapshot } from '../contracts/startingWorkspace.js';
 
 /**
@@ -148,11 +149,15 @@ export function seedWorkspace(seedRoot: string, workspaceRoot: string): SeedRepo
   // absolute one into the SEED, which the checkpoint digest refuses as
   // escaping: every seeded run with installed dependencies lost pause, client
   // questions and resume without an error (code review 2026-10-09, 1.5). A link
-  // that leaves the tree stays refused by the checkpoint, as before.
+  // that leaves the tree stays refused by the checkpoint, as before. What the
+  // publication inventory leaves out as byte-less (a dangling link, a socket,
+  // a FIFO) is never seeded: a delivered workspace may hold them (run 40c20c5d).
   cpSync(seedRoot, workspaceRoot, { recursive: true, verbatimSymlinks: true,
     filter: (source) => {
       const path = resolve(source);
-      return path === sourceRoot || (path !== readRunCopies && path !== scratch && basename(path) !== 'node_modules');
+      if (path === sourceRoot) return true;
+      if (path === readRunCopies || path === scratch || basename(path) === 'node_modules') return false;
+      return byteLessWorkspaceEntry(sourceRoot, relative(sourceRoot, path)) === null;
     } });
   const entries = readdirSync(workspaceRoot).length;
   const manifestPath = join(workspaceRoot, PROBE_MANIFEST_FILENAME);

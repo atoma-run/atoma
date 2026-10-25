@@ -396,7 +396,9 @@ Neighbours:
   the next run; never remove them from a sealed checkpoint restore),
   and keeps other links as written (`verbatimSymlinks`): a rewritten absolute
   `node_modules/.bin` link is an escaping link to the checkpoint, which then
-  disabled pause, questions and resume for every seeded Node project.
+  disabled pause, questions and resume for every seeded Node project. What
+  the publication inventory omits as byte-less (`byteLessWorkspaceEntry`: a
+  dangling link, a socket, a FIFO) is never seeded, for the same reason.
 - `ATOMA_ACCEPTANCE_SPEC` is read and re-digested at LAUNCH
   (`readAcceptanceSpec`): unreadable, or present on a run that is not
   depth-routed, is a `RunnerConfigError` before any model call. Present, it

@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtemp, mkdir, readFile, writeFile, stat, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, stat, rm, lstat, symlink, realpath } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gitBlobSha, planRepositorySync, repositoryDebt } from '../src/projects/repositorySync.js';
 import { materialiseRepositorySeed } from '../src/projects/repositorySeed.js';
+import { seedWorkspace } from '../src/run/workspace.js';
+import { checkpointWorkspaceDigest } from '../src/run/checkpoint.js';
 import type { RepositoryInventory } from '../src/contracts/repositorySync.js';
 import { repositoryInventorySchema } from '../src/contracts/repositorySync.js';
 const file = (text: string) => ({ mode: '100644' as const, sha: gitBlobSha(Buffer.from(text)) });
@@ -57,6 +61,27 @@ describe('materialised seed', () => {
       expect(await readFile(join(destination, 'app.js'), 'utf8')).toBe('remote');
       expect((await stat(join(source, 'keep.txt'))).ino).toBe((await stat(join(destination, 'keep.txt'))).ino);
       expect(await readFile(join(destination, '.atoma-probes.json'), 'utf8')).toBe('trusted');
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+  // Review 2026-10-25, 1: what the inventory leaves out as byte-less is never
+  // seeded. A FIFO threw 'Unsupported seed entry'; a dangling absolute link
+  // reached the next run, whose checkpoint refused it.
+  it.skipIf(process.platform === 'win32')('never carries byte-less entries into the next run', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'repository-seed-')));
+    try {
+      const source = join(root, 'source'), destination = join(root, 'seed'), workspace = join(root, 'workspace');
+      await mkdir(join(source, 'cancel-lift-x', 'profile'), { recursive: true });
+      await writeFile(join(source, 'app.js'), 'ours');
+      await writeFile(join(source, 'cancel-lift-x', 'profile', 'Local State'), '{}');
+      await symlink(`/tmp/org.chromium.Chromium.${randomUUID()}/SingletonSocket`, join(source, 'cancel-lift-x', 'profile', 'SingletonSocket'));
+      execFileSync('mkfifo', [join(source, 'events.fifo')]);
+      await materialiseRepositorySeed({ source, destination, take: ['app.js'], theirs: state('remote'),
+        blob: async () => Buffer.from('remote'), signal: new AbortController().signal });
+      await expect(lstat(join(destination, 'cancel-lift-x', 'profile', 'SingletonSocket'))).rejects.toThrow('ENOENT');
+      await expect(lstat(join(destination, 'events.fifo'))).rejects.toThrow('ENOENT');
+      expect(await readFile(join(destination, 'cancel-lift-x', 'profile', 'Local State'), 'utf8')).toBe('{}');
+      seedWorkspace(destination, workspace);
+      expect(checkpointWorkspaceDigest(workspace)).toMatch(/^[a-f0-9]{64}$/);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 });
