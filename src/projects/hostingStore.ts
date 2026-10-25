@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { openStoreHandle } from '../core/stores.js';
+import { z } from 'zod';
 import { hostedDeploymentSchema, type HostedDeployment } from '../contracts/projectHosting.js';
 import { ProjectStateConflict } from './store.js';
 
@@ -18,6 +19,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS hosted_one_start ON project_hosted_deployments
 export function holdsApplicationData(row: HostedDeployment): boolean {
   return (row.state === 'ready' && row.kind === 'node') || row.error === 'runtime-unavailable' || row.error === 'cleanup-failed';
 }
+/**
+ * Rows are READ tolerantly: a field a later release added is dropped instead
+ * of failing every listing, which is what a release before `previousRunId`
+ * does with rows that carry it (a rollback past 2026-10-25 breaks hosting
+ * until those rows are rewritten). Writes stay strict.
+ */
+const storedDeploymentSchema = z.object(hostedDeploymentSchema.shape);
 export class HostingStore {
   constructor(private readonly db: Database.Database) { db.exec(HOSTING_DDL); }
   static open(file: string): HostingStore { return new HostingStore(openStoreHandle(file, HOSTING_DDL)); }
@@ -25,7 +33,7 @@ export class HostingStore {
     const rows = orgId && projectId
       ? this.db.prepare('SELECT record FROM project_hosted_deployments WHERE org_id=? AND project_id=? ORDER BY created_at DESC, rowid DESC').all(orgId, projectId)
       : this.db.prepare("SELECT record FROM project_hosted_deployments WHERE (state IN ('starting','ready') OR (state='failed' AND json_extract(record,'$.error') IN ('runtime-unavailable','cleanup-failed'))) ORDER BY created_at DESC, rowid DESC").all();
-    return (rows as { record: string }[]).map(r => hostedDeploymentSchema.parse(JSON.parse(r.record)));
+    return (rows as { record: string }[]).map(r => storedDeploymentSchema.parse(JSON.parse(r.record)));
   }
   reserve(row: HostedDeployment, expected: string | null, max: number): void {
     hostedDeploymentSchema.parse(row);
@@ -37,6 +45,16 @@ export class HostingStore {
       if (count.n >= max) throw new ProjectStateConflict('Hosting capacity is full');
       this.db.prepare('INSERT INTO project_hosted_deployments VALUES (?,?,?,?,?,?)').run(row.deploymentId, row.orgId, row.projectId, row.state, JSON.stringify(row), row.createdAt);
     }).immediate();
+  }
+  /**
+   * A version that never reached `starting`: an update stopped its predecessor
+   * and then could not reserve it. Failed rows hold no data and no capacity,
+   * so none of `reserve`'s refusals apply. The caller holds the project's lock.
+   */
+  recordFailed(row: HostedDeployment): void {
+    hostedDeploymentSchema.parse(row);
+    if (row.state !== 'failed') throw new ProjectStateConflict('Only a failed version is recorded this way');
+    this.db.prepare('INSERT INTO project_hosted_deployments VALUES (?,?,?,?,?,?)').run(row.deploymentId, row.orgId, row.projectId, row.state, JSON.stringify(row), row.createdAt);
   }
   update(row: HostedDeployment, from: HostedDeployment['state']): void {
     hostedDeploymentSchema.parse(row);

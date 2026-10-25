@@ -15,6 +15,8 @@ import { holdsApplicationData, HostingStore } from './hostingStore.js';
 import { ensureHostingSubdomain, type HostingSubdomainNamer } from './hostingSubdomain.js';
 
 const identity = (row: HostedDeployment): HostingIdentity => ({ orgId: row.orgId, projectId: row.projectId, deploymentId: row.deploymentId });
+/** A project's update between stopping its online version and the new one's readiness or failure. */
+interface Swap { orgId: string; projectId: string; browser: boolean; settled: Promise<void>; end(): void }
 
 export class HostingService {
   private healthBusy = false;
@@ -203,37 +205,107 @@ export class HostingService {
     if (!project.hostingSubdomain) await ensureHostingSubdomain({ store: this.deps.projects, namer: this.deps.namer, events: this.deps.events }, viewer.orgId, projectId);
     if (this.mutating.has(projectId)) throw new ProjectHttpError(409, 'A deployment operation is still running');
     this.mutating.add(projectId);
-    let row: HostedDeployment;
+    const rows = this.deps.store.list(viewer.orgId, projectId);
+    let row: HostedDeployment | undefined; let swap: Swap | undefined; let stopped = false; let reserved = false;
     try {
-      const rows = this.deps.store.list(viewer.orgId, projectId);
       expectedRows(rows);
       const online = rows.find(r => r.state === 'ready') ?? rows.find(holdsApplicationData);
-      if (rows.some(holdsApplicationData)) {
-        await this.stopRows(rows.filter(r => r.state === 'ready' || holdsApplicationData(r)), viewer.principalId, operation);
-      }
       row = this.newRow(viewer.orgId, projectId, input, release, operation === 'update' ? online?.runId : undefined);
-      this.reserve(row, input.expectedDeploymentId);
+      // Everything that does not touch the online version happens before it
+      // stops: bytes copied and revalidated, engine objects created. A failure
+      // here stops nothing; the online version keeps serving.
+      await this.prepare(row, release.run);
+      expectedRows(this.deps.store.list(viewer.orgId, projectId));
+      const holders = this.deps.store.list(viewer.orgId, projectId).filter(r => r.state === 'ready' || holdsApplicationData(r));
+      if (holders.some(holdsApplicationData)) {
+        // From here until the new version is ready (or failed), the gateway
+        // holds this project's visitors instead of answering errors.
+        swap = this.beginSwap(row);
+        await this.stopRows(holders, viewer.principalId, operation);
+        stopped = true;
+      }
+      try { this.reserve(row, input.expectedDeploymentId); reserved = true; }
+      catch (error) {
+        // The online version is already stopped: say so, and offer it back.
+        if (stopped) this.recordNotStarted(row, viewer.principalId, operation);
+        throw error;
+      }
+    } catch (error) {
+      if (row && !reserved) await this.deps.launcher.stopHosting(identity(row)).catch(() => undefined);
+      swap?.end();
+      throw error;
     } finally { this.mutating.delete(projectId); }
     this.event(row, viewer.principalId, operation);
-    this.launch(row, release.run);
+    this.launch(row, release.run, { prepared: true, ...(swap ? { swap } : {}) });
     return this.status(viewer, projectId);
   }
-  private launch(row: HostedDeployment, run: ProjectRun): void {
+  private launchSpec(row: HostedDeployment) {
+    return { orgId: row.orgId, projectId: row.projectId, deploymentId: row.deploymentId, kind: row.kind, entry: row.entry, browser: row.browser };
+  }
+  /**
+   * Copies the release's retained bytes into the deployment's own directory,
+   * revalidates them against the accepted manifest, and, when `engine`, creates
+   * its engine objects without starting them. A launcher from before
+   * `createHosting` answers `invalid-request`; its start then creates them.
+   */
+  private async prepare(row: HostedDeployment, run: ProjectRun, engine = true): Promise<void> {
+    const destination = await this.deps.launcher.prepareHosting(identity(row));
+    try {
+      materializePreviewWorkspace({ sourceRoot: run.hostPaths.workspacePath, destinationRoot: destination, preserveExecutable: true,
+        ...(this.deps.copyOwnership ? { ownership: this.deps.copyOwnership } : {}) });
+      revalidateArtifactManifest({ workspaceRoot: destination, manifest: run.artifactManifest!, expectedHash: row.manifestHash });
+    } catch (error) {
+      if (!engine) throw error;
+      throw new ProjectHttpError(409, 'The accepted version no longer matches its retained bytes; nothing was stopped');
+    }
+    if (!engine) return;
+    try { await this.deps.launcher.createHosting(this.launchSpec(row)); }
+    catch (error) { if (!(error instanceof Error && error.message === 'Launcher invalid-request')) throw error; }
+  }
+  /**
+   * The online version stopped but the new one was never reserved: a failed
+   * row that names the stopped version, so the put-back is offered. It holds
+   * no data and no capacity. Best effort: the request already fails.
+   */
+  private recordNotStarted(row: HostedDeployment, principalId: string, operation: 'update' | 'restore'): void {
+    const failed = { ...row, state: 'failed' as const, error: 'startup-failed' as const };
+    try { this.deps.store.recordFailed(failed); this.event(failed, principalId, operation); } catch { /* the stop is journaled */ }
+  }
+  /** The swap window of each project being updated, for the gateway: see `swapping`. */
+  private readonly swaps = new Map<string, Swap>();
+  private beginSwap(row: HostedDeployment): Swap {
+    let end!: () => void;
+    const settled = new Promise<void>(resolve => { end = resolve; });
+    const swap: Swap = { orgId: row.orgId, projectId: row.projectId, browser: !!row.browser, settled,
+      end: () => { if (this.swaps.get(row.projectId) === swap) this.swaps.delete(row.projectId); end(); } };
+    this.swaps.set(row.projectId, swap);
+    return swap;
+  }
+  /**
+   * The project answering at `host` while its update is between stopping the
+   * online version and the new one's readiness or failure, or null. `settled`
+   * resolves when that window closes, whatever its outcome.
+   */
+  swapping(host: string): Pick<Swap, 'orgId' | 'projectId' | 'browser' | 'settled'> | null {
+    for (const swap of this.swaps.values()) if (this.hostOf(swap.orgId, swap.projectId) === host) return swap;
+    return null;
+  }
+  private launch(row: HostedDeployment, run: ProjectRun, options: { prepared?: boolean; swap?: Swap } = {}): void {
     const projectId = row.projectId;
     const job = (async () => {
       try {
-        const destination = await this.deps.launcher.prepareHosting(identity(row));
-        materializePreviewWorkspace({ sourceRoot: run.hostPaths.workspacePath, destinationRoot: destination, preserveExecutable: true,
-          ...(this.deps.copyOwnership ? { ownership: this.deps.copyOwnership } : {}) });
-        revalidateArtifactManifest({ workspaceRoot: destination, manifest: run.artifactManifest!, expectedHash: row.manifestHash });
-        const handle = await this.deps.launcher.startHosting({ orgId: row.orgId, projectId, deploymentId: row.deploymentId, kind: row.kind, entry: row.entry, browser: row.browser });
+        if (!options.prepared) await this.prepare(row, run, false);
+        const handle = await this.deps.launcher.startHosting(this.launchSpec(row));
+        // Every quarter second, about thirty seconds as before: during an
+        // update's swap, visitors wait for this answer.
         let ready = false;
-        for (let attempt = 0; attempt < 30; attempt++) {
+        for (let attempt = 0; attempt < 120; attempt++) {
           if (await this.deps.probe(handle.hostPort).catch(() => false)) { ready = true; break; }
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 250));
         }
         if (!ready) throw new Error('Not ready');
         this.deps.store.update({ ...row, state: 'ready', ...handle }, 'starting');
+        options.swap?.end();
         this.event({ ...row, state: 'ready' });
         // Static replacements have no application data writers. A Node
         // replacement was reserved only after its predecessor stopped.
@@ -254,7 +326,7 @@ export class HostingService {
           const failed = { ...row, state: 'failed' as const, error: clean ? 'startup-failed' as const : 'cleanup-failed' as const };
           this.deps.store.update(failed, 'starting'); this.event(failed);
         }
-      }
+      } finally { options.swap?.end(); }
     })();
     this.jobs.add(job); void job.then(() => this.jobs.delete(job), () => this.jobs.delete(job));
   }

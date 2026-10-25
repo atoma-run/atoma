@@ -89,7 +89,7 @@ export async function serveLauncher(options: {
     const dispatch = async (request: LauncherRequest): Promise<unknown> => {
       if (request.op === 'hello') { greeted = true; return hello; }
       if (!greeted) throw new Error('Handshake required');
-      if (options.hostingOnly && !['heartbeat', 'prepareHosting', 'startHosting', 'inspectHosting', 'stopHosting'].includes(request.op)) throw new Error('Hosting-only launcher');
+      if (options.hostingOnly && !['heartbeat', 'prepareHosting', 'createHosting', 'startHosting', 'inspectHosting', 'stopHosting'].includes(request.op)) throw new Error('Hosting-only launcher');
       if (request.op !== 'startWorker' && request.op !== 'stopWorker') {
         const ownerId = 'ownerId' in request ? request.ownerId
           : 'spec' in request && 'ownerId' in request.spec ? request.spec.ownerId : 'handle' in request ? request.handle.ownerId : undefined;
@@ -99,6 +99,9 @@ export async function serveLauncher(options: {
         case 'prepareHosting':
           if (!options.hosting) throw new Error('Hosting disabled');
           return options.hosting.prepareHosting(request.identity);
+        case 'createHosting':
+          if (!options.hosting) throw new Error('Hosting disabled');
+          await options.hosting.createHosting(request.spec); return null;
         case 'startHosting':
           if (!options.hosting) throw new Error('Hosting disabled');
           return options.hosting.startHosting(request.spec);

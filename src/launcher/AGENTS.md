@@ -400,7 +400,13 @@ teardown must share ONE deadline, not each get a fresh budget.
 
 ## Persistent application hosting
 
-`hosting.ts` owns the closed prepare/start/inspect/stop profile for deployments.
+`hosting.ts` owns the closed prepare/create/start/inspect/stop profile for deployments.
+`createHosting` makes a deployment's networks and containers unstarted, labelled with a
+digest of its launch and images; `startHosting` starts only objects made for its own
+digest, else creates them first, so an update's outage is starts and readiness alone. A
+web newer than its launcher meets `invalid-request` and falls back to that full start.
+Stop gives the application (the only data writer) ten seconds, the stateless relay and
+proxy none: as PID 1 they ignore SIGTERM, which cost ten seconds each per update.
 Its `dev.atoma.owner=hosting` objects are excluded from ephemeral sweeps and
 survive control-socket disconnect and platform restart. `hostingMain` offers
 only those operations for installations still using the legacy run launcher.

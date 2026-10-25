@@ -19,9 +19,10 @@ import type { HostingIdentity, HostingLaunch } from '../src/contracts/projectHos
 let root: string; let db: Database.Database; let projects: ProjectStore; let service: HostingService;
 let viewer: Viewer; let projectId: string; let runId: string; let manifestHash: string;
 let source: string;
-const launcher = { prepareHosting: vi.fn(async (_id: HostingIdentity) => ''), startHosting: vi.fn(async (_spec: HostingLaunch) => ({ hostPort: 12345, image: 'runtime@sha256:abc' })), inspectHosting: vi.fn(async () => ({ hostPort: 12345, image: 'runtime@sha256:abc' })), stopHosting: vi.fn(async (_id: HostingIdentity) => {}) };
+const launcher = { prepareHosting: vi.fn(async (_id: HostingIdentity) => ''), createHosting: vi.fn(async (_spec: HostingLaunch) => {}), startHosting: vi.fn(async (_spec: HostingLaunch) => ({ hostPort: 12345, image: 'runtime@sha256:abc' })), inspectHosting: vi.fn(async () => ({ hostPort: 12345, image: 'runtime@sha256:abc' })), stopHosting: vi.fn(async (_id: HostingIdentity) => {}) };
 beforeEach(() => {
   vi.clearAllMocks(); launcher.startHosting.mockResolvedValue({ hostPort: 12345, image: 'runtime@sha256:abc' });
+  launcher.createHosting.mockImplementation(async () => {}); launcher.stopHosting.mockImplementation(async () => {});
   root = mkdtempSync(join(tmpdir(), 'hosting-')); db = new Database(join(root, 'product.db')); db.exec(AUTH_TABLES_DDL);
   projects = new ProjectStore(db); const previews = new PreviewStore(db);
   const orgId = randomUUID(); const principalId = randomUUID(); const now = new Date().toISOString();
@@ -345,4 +346,141 @@ it('holds the online version from retention', async () => {
   const plan = retentionPlan(db, realpathSync(root), undefined, new Date('2026-10-25T00:00:00Z'));
   expect(plan.find(row => row.runId === first.runId)?.held).toBe('hosted application version');
   expect(plan.find(row => row.runId === second.runId)?.held).toBe('accepted project reference');
+});
+
+// ---------------------------------------------------------------------------
+// Prepare before stop, hold visitors meanwhile (owner decisions 2026-10-25).
+// ---------------------------------------------------------------------------
+function deferred() { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; }
+
+it('prepares the new version completely before stopping the online one', async () => {
+  asNodeApplication();
+  const { second, online } = await onlineWithNewerVersion();
+  const order: string[] = [];
+  launcher.prepareHosting.mockImplementation(async id => { order.push(`prepare ${id.deploymentId}`); return join(root, id.deploymentId); });
+  launcher.createHosting.mockImplementation(async spec => {
+    // The bytes are already copied and revalidated when the engine objects are made.
+    expect(readFileSync(join(root, spec.deploymentId, 'index.html'), 'utf8')).toBe('<h1>two</h1>');
+    order.push(`create ${spec.deploymentId}`);
+  });
+  launcher.stopHosting.mockImplementation(async id => { order.push(`stop ${id.deploymentId}`); });
+  launcher.startHosting.mockImplementation(async spec => { order.push(`start ${spec.deploymentId}`); return { hostPort: 23456, image: 'runtime@sha256:abc' }; });
+  await service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId }); await service.idle();
+  const next = service.status(viewer, projectId).deploymentId;
+  // After the stop, only the start (and readiness) remains.
+  expect(order).toEqual([`prepare ${next}`, `create ${next}`, `stop ${online.deploymentId}`, `start ${next}`]);
+});
+
+it('stops nothing when the new version cannot be prepared: the online version keeps serving', async () => {
+  asNodeApplication();
+  const { first, second, online } = await onlineWithNewerVersion();
+  launcher.stopHosting.mockClear();
+  writeFileSync(join(second.workspace, 'index.html'), '<h1>changed after acceptance</h1>');
+  await expect(service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId }))
+    .rejects.toMatchObject({ status: 409, message: expect.stringMatching(/nothing was stopped/) });
+  writeFileSync(join(second.workspace, 'index.html'), '<h1>two</h1>');
+  launcher.createHosting.mockRejectedValueOnce(new Error('engine refused the network'));
+  await expect(service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId })).rejects.toThrow('engine refused');
+  await service.idle();
+  // Only the half-prepared candidates were cleaned up; never the online version.
+  expect(launcher.stopHosting.mock.calls.map(([id]) => id.deploymentId)).not.toContain(online.deploymentId);
+  expect(service.deps.store.list(viewer.orgId, projectId)).toHaveLength(1);
+  expect(service.status(viewer, projectId)).toMatchObject({ state: 'ready', runId: first.runId });
+  expect(launcher.startHosting).toHaveBeenCalledTimes(1);
+});
+
+it('still updates through a launcher from before createHosting: its start creates the objects', async () => {
+  asNodeApplication();
+  const { second, online } = await onlineWithNewerVersion();
+  launcher.createHosting.mockRejectedValueOnce(new Error('Launcher invalid-request'));
+  await service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId }); await service.idle();
+  expect(service.status(viewer, projectId)).toMatchObject({ state: 'ready', runId: second.runId });
+});
+
+it('refuses every concurrent click while an update is stopping the online version, and reserves exactly one version', async () => {
+  asNodeApplication();
+  const { first, second, online } = await onlineWithNewerVersion();
+  const gate = deferred();
+  launcher.stopHosting.mockImplementationOnce(async () => gate.promise);
+  launcher.startHosting.mockImplementation(async () => {
+    // Never a start while the online row is not recorded stopped.
+    expect(service.deps.store.list(viewer.orgId, projectId).find(r => r.deploymentId === online.deploymentId)?.state).toBe('stopped');
+    return { hostPort: 23456, image: 'runtime@sha256:abc' };
+  });
+  const startsBefore = launcher.startHosting.mock.calls.length;
+  const body = { ...ref(second), expectedDeploymentId: online.deploymentId };
+  const updating = service.update(viewer, projectId, body);
+  await vi.waitFor(() => expect(launcher.stopHosting).toHaveBeenCalledWith(expect.objectContaining({ deploymentId: online.deploymentId })));
+  await expect(service.update(viewer, projectId, body)).rejects.toMatchObject({ status: 409 });
+  await expect(service.deploy(viewer, projectId, body)).rejects.toMatchObject({ status: 409 });
+  await expect(service.stop(viewer, projectId, online.deploymentId)).rejects.toMatchObject({ status: 409 });
+  await expect(service.restore(viewer, projectId, { ...ref(first), expectedDeploymentId: online.deploymentId })).rejects.toMatchObject({ status: 409 });
+  expect(launcher.startHosting.mock.calls.length).toBe(startsBefore);
+  gate.resolve(); await updating; await service.idle();
+  const rows = service.deps.store.list(viewer.orgId, projectId);
+  expect(rows.map(r => [r.runId, r.state])).toEqual([[second.runId, 'ready'], [first.runId, 'stopped']]);
+  expect(launcher.startHosting.mock.calls.length).toBe(startsBefore + 1);
+});
+
+it('offers the stopped version back when the new one cannot be reserved after the stop', async () => {
+  asNodeApplication();
+  const { first, second, online } = await onlineWithNewerVersion();
+  const { ProjectStateConflict } = await import('../src/projects/store.js');
+  vi.spyOn(service.deps.store, 'reserve').mockImplementationOnce(() => { throw new ProjectStateConflict('Hosting capacity is full'); });
+  await expect(service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId })).rejects.toMatchObject({ status: 409 });
+  const failed = service.status(viewer, projectId);
+  expect(failed).toMatchObject({ state: 'failed', error: 'startup-failed', url: null, previous: { runId: first.runId } });
+  expect(service.swapping('acme-site.app.atoma.run')).toBeNull();
+  await service.restore(viewer, projectId, { ...ref(first), expectedDeploymentId: failed.deploymentId }); await service.idle();
+  expect(service.status(viewer, projectId)).toMatchObject({ state: 'ready', runId: first.runId });
+});
+
+it('marks the swap window for the gateway from the stop until the new version is ready, and only for a stopping update', async () => {
+  asNodeApplication();
+  const { second, online } = await onlineWithNewerVersion();
+  const host = service.host(service.deps.store.list(viewer.orgId, projectId)[0]!);
+  expect(service.swapping(host)).toBeNull();
+  const seen: string[] = [];
+  launcher.stopHosting.mockImplementationOnce(async () => { seen.push(`stop ${service.swapping(host)?.projectId}`); });
+  const ready = deferred();
+  service.deps.probe = async () => { await ready.promise; return true; };
+  await service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId });
+  const swap = service.swapping(host)!;
+  expect(seen).toEqual([`stop ${projectId}`]);
+  expect(swap).toMatchObject({ orgId: viewer.orgId, projectId });
+  expect(service.swapping('other.app.atoma.run')).toBeNull();
+  let settled = false; void swap.settled.then(() => { settled = true; });
+  await Promise.resolve(); expect(settled).toBe(false);
+  ready.resolve(); await service.idle();
+  expect(settled).toBe(true);
+  expect(service.swapping(host)).toBeNull();
+  expect(service.status(viewer, projectId).state).toBe('ready');
+});
+
+it('closes the swap window when the new version fails to start', async () => {
+  asNodeApplication();
+  const { second, online } = await onlineWithNewerVersion();
+  const host = service.host(service.deps.store.list(viewer.orgId, projectId)[0]!);
+  launcher.startHosting.mockRejectedValueOnce(new Error('crashed on start'));
+  await service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId });
+  const swap = service.swapping(host);
+  await service.idle(); await swap?.settled;
+  expect(service.swapping(host)).toBeNull();
+  expect(service.status(viewer, projectId).state).toBe('failed');
+});
+
+it('opens no swap window for a static update, which keeps serving the old version until the new one is ready', async () => {
+  const { second, online } = await onlineWithNewerVersion();
+  const host = service.host(service.deps.store.list(viewer.orgId, projectId)[0]!);
+  launcher.startHosting.mockImplementation(async () => { expect(service.swapping(host)).toBeNull(); return { hostPort: 23456, image: 'runtime@sha256:abc' }; });
+  await service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId }); await service.idle();
+  expect(service.status(viewer, projectId)).toMatchObject({ state: 'ready', runId: second.runId });
+});
+
+it('reads a row carrying a field a later release added instead of failing every listing', async () => {
+  publish(); await service.deploy(viewer, projectId, input()); await service.idle();
+  const row = service.deps.store.list()[0]!;
+  db.prepare('UPDATE project_hosted_deployments SET record = ? WHERE deployment_id = ?').run(JSON.stringify({ ...row, laterField: 'x' }), row.deploymentId);
+  expect(service.deps.store.list()).toEqual([row]);
+  expect(service.status(viewer, projectId).state).toBe('ready');
 });

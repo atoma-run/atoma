@@ -14,12 +14,13 @@ const launcher = new RecordingLauncher({
   },
   waitUntilReady: async () => undefined,
 });
-const hosted = new Map();
+const hosted = new Map(); const created = new Set();
 const service = await serveLauncher({
   hosting: {
     prepareHosting: async id => `/retained/${id.deploymentId}`,
+    createHosting: async spec => { created.add(spec.deploymentId); },
     startHosting: async spec => {
-      const handle = { hostPort: 12345, image: 'runtime-image' };
+      const handle = { hostPort: created.delete(spec.deploymentId) ? 12346 : 12345, image: 'runtime-image' };
       hosted.set(spec.deploymentId, handle); return handle;
     },
     inspectHosting: async id => hosted.get(id.deploymentId) ?? null,

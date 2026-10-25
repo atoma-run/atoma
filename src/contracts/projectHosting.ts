@@ -8,6 +8,13 @@ export type HostingLaunch = z.infer<typeof hostingLaunchSchema>;
 export type HostingHandle = z.infer<typeof hostingHandleSchema>;
 export interface HostingLauncher {
   prepareHosting(identity: HostingIdentity): Promise<string>;
+  /**
+   * Creates every engine object of a deployment (networks, containers, pinned
+   * addresses) without starting any, so a later `startHosting` of the same
+   * spec only starts them. Nothing of another deployment is touched: an update
+   * prepares its new version this way while the online one keeps serving.
+   */
+  createHosting(spec: HostingLaunch): Promise<void>;
   startHosting(spec: HostingLaunch): Promise<HostingHandle>;
   inspectHosting(identity: HostingIdentity): Promise<HostingHandle | null>;
   stopHosting(identity: HostingIdentity): Promise<void>;

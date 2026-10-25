@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import { mkdirSync, lstatSync, chownSync } from 'node:fs';
 import path from 'node:path';
@@ -67,46 +68,93 @@ export class DockerHosting implements HostingLauncher {
     const image = await this.run(['inspect', '--format', '{{.Config.Image}}', n.app]);
     return { hostPort: Number(match[1]), image: image.trim() };
   }
-  async startHosting(raw: HostingLaunch): Promise<HostingHandle> {
-    const spec = hostingLaunchSchema.parse(raw);
+  /** Which images, user and launch a set of created objects was made for: a start uses only objects made for its own. */
+  private specDigest(spec: HostingLaunch): string {
+    return createHash('sha256').update(JSON.stringify([spec.kind, spec.entry, !!spec.browser, this.options.image,
+      this.options.browserImage ?? null, this.options.relayImage, this.options.user])).digest('hex').slice(0, 32);
+  }
+  private launchable(spec: HostingLaunch): { id: HostingIdentity; n: ReturnType<DockerHosting['names']> } {
     if (spec.browser && (spec.kind !== 'node' || !this.options.browserImage)) throw new Error('Browser hosting is not configured');
     const id = { orgId: spec.orgId, projectId: spec.projectId, deploymentId: spec.deploymentId };
-    const n = this.names(id);
-    // Recovery observes the existing runtime; it never silently replaces its image.
-    const existing = await this.inspectHosting(id); if (existing) return existing;
+    return { id, n: this.names(id) };
+  }
+  /**
+   * Networks, pinned addresses and containers, created and never started.
+   * Everything an update can do while the online version keeps serving: a
+   * deployment's objects are its own, and only its application container
+   * mounts the project's data, which creation does not run.
+   */
+  async createHosting(raw: HostingLaunch): Promise<void> {
+    const spec = hostingLaunchSchema.parse(raw);
+    const { id, n } = this.launchable(spec);
+    if (await this.inspectHosting(id)) throw new Error('Deployment already running');
     await this.stopHosting(id);
     await this.prepareHosting(id);
     const labels = ['--label', 'dev.atoma.owner=hosting', '--label', `dev.atoma.deployment=${spec.deploymentId}`];
+    const made = [...labels, '--label', `dev.atoma.spec=${this.specDigest(spec)}`];
     try {
       await this.run(['network', 'create', '--internal', ...labels, '--opt', 'com.docker.network.bridge.gateway_mode_ipv4=isolated', '--opt', 'com.docker.network.bridge.gateway_mode_ipv6=isolated', n.internal]);
       await this.run(['network', 'create', ...labels, n.uplink]);
       const pinned = pinnedHostingAddresses(await this.run(['network', 'inspect', '--format', '{{range .IPAM.Config}}{{.Subnet}} {{end}}', n.internal]));
       const bounds = ['--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--memory', '512m', '--memory-swap', '512m', '--cpus', '0.5', '--pids-limit', '128', '--log-opt', 'max-size=1m', '--log-opt', 'max-file=2'];
-      let proxyIp = '';
       if (spec.browser) {
-        await this.run(['run', '-d', '--name', n.proxy, ...labels, '--restart', 'unless-stopped', '--network', n.uplink,
+        await this.run(['create', '--name', n.proxy, ...made, '--restart', 'unless-stopped', '--network', n.uplink,
           '--user', this.options.user, '--read-only', ...bounds, '-e', 'ATOMA_EGRESS_ALLOWLIST=*',
           '--entrypoint', 'node', this.options.relayImage, '/app/dist/tools/egressProxy.js']);
         await this.run(['network', 'connect', '--ip', pinned.proxy, n.internal, n.proxy]);
-        proxyIp = (await this.run(['inspect', '--format', `{{with index .NetworkSettings.Networks ${JSON.stringify(n.internal)}}}{{.IPAddress}}{{end}}`, n.proxy])).trim();
-        if (proxyIp !== pinned.proxy) throw new Error('No browser proxy address');
       }
       const appBounds = spec.browser ? ['--memory', '1536m', '--memory-swap', '1536m', '--cpus', '1', '--pids-limit', '256', '--shm-size', '256m'] : [];
-      await this.run(['run', '-d', '--name', n.app, ...labels, '--restart', 'unless-stopped', '--network', n.internal, '--ip', pinned.app,
+      await this.run(['create', '--name', n.app, ...made, '--restart', 'unless-stopped', '--network', n.internal, '--ip', pinned.app,
         ...(spec.browser ? ['--label', 'dev.atoma.browser=true'] : []),
         '--runtime', 'runsc', '--user', this.options.user, '--read-only', ...bounds, ...appBounds,
         '--tmpfs', spec.browser ? '/tmp:rw,noexec,nosuid,size=256m' : '/tmp:rw,noexec,nosuid,size=64m', '--mount', `type=bind,src=${n.source},dst=/workspace,readonly`,
         '--mount', `type=bind,src=${n.data},dst=/data`, '-w', '/workspace',
         '-e', spec.browser ? 'PORT=8082' : 'PORT=8080', '-e', 'HOST=0.0.0.0', '-e', 'NODE_ENV=production', '-e', 'HOME=/tmp', '-e', 'ATOMA_DATA_DIR=/data',
-        ...(spec.browser ? ['-e', `ATOMA_BROWSER_PROXY=http://${proxyIp}:3128`, '-e', 'ATOMA_BROWSER_URL=http://127.0.0.1:9222', '-e', 'ATOMA_BROWSER_DESKTOP_URL=/.atoma/browser/'] : []),
+        // The proxy's address is pinned, so it is known before anything starts; the start checks it.
+        ...(spec.browser ? ['-e', `ATOMA_BROWSER_PROXY=http://${pinned.proxy}:3128`, '-e', 'ATOMA_BROWSER_URL=http://127.0.0.1:9222', '-e', 'ATOMA_BROWSER_DESKTOP_URL=/.atoma/browser/'] : []),
         '--entrypoint', 'node', spec.browser ? this.options.browserImage! : this.options.image,
         ...(spec.browser ? ['/opt/atoma-hosting/browser.mjs', spec.entry] : [spec.kind === 'static' ? '/opt/atoma-hosting/static.mjs' : spec.entry])]);
-      const ip = (await this.run(['inspect', '--format', `{{with index .NetworkSettings.Networks ${JSON.stringify(n.internal)}}}{{.IPAddress}}{{end}}`, n.app])).trim();
-      if (ip !== pinned.app) throw new Error('No isolated application address');
-      await this.run(['run', '-d', '--name', n.relay, ...labels, '--restart', 'unless-stopped', '--network', n.uplink,
-        '-p', '127.0.0.1::8081', ...bounds, '-e', 'ATOMA_PREVIEW_INGRESS_PORT=8081', '-e', `ATOMA_PREVIEW_UPSTREAM_HOST=${ip}`,
+      await this.run(['create', '--name', n.relay, ...made, '--restart', 'unless-stopped', '--network', n.uplink,
+        '-p', '127.0.0.1::8081', ...bounds, '-e', 'ATOMA_PREVIEW_INGRESS_PORT=8081', '-e', `ATOMA_PREVIEW_UPSTREAM_HOST=${pinned.app}`,
         '-e', 'ATOMA_PREVIEW_UPSTREAM_PORT=8080', '--entrypoint', 'node', this.options.relayImage, '/app/dist/tools/previewIngress.js']);
       await this.run(['network', 'connect', '--ip', pinned.relay, n.internal, n.relay]);
+    } catch (error) { await this.stopHosting(id); throw error; }
+  }
+  /** Every object of this deployment exists, unstarted, made for exactly this spec, and nothing else of it exists. */
+  private async created(spec: HostingLaunch, n: ReturnType<DockerHosting['names']>): Promise<boolean> {
+    const expected = [n.app, n.relay, ...(spec.browser ? [n.proxy] : [])];
+    const digest = this.specDigest(spec);
+    const rows = (await this.run(['ps', '-a', '--filter', `label=dev.atoma.deployment=${spec.deploymentId}`, '--format', '{{.Names}} {{.State}} {{.Label "dev.atoma.spec"}}']))
+      .split('\n').map(line => line.trim().split(/\s+/)).filter(parts => parts[0]);
+    if (rows.length !== expected.length || !expected.every(name => rows.some(([found, state, made]) => found === name && state === 'created' && made === digest))) return false;
+    for (const name of [n.internal, n.uplink]) {
+      if ((await this.run(['network', 'ls', '--filter', `name=^${name}$`, '--format', '{{.Name}}'])).trim() !== name) return false;
+    }
+    return true;
+  }
+  private async address(container: string, network: string): Promise<string> {
+    return (await this.run(['inspect', '--format', `{{with index .NetworkSettings.Networks ${JSON.stringify(network)}}}{{.IPAddress}}{{end}}`, container])).trim();
+  }
+  /**
+   * Starts a deployment: its prepared objects when `createHosting` made them
+   * for this spec, otherwise it creates them first. Either way only starts
+   * remain here, so an update's outage is the start and its readiness.
+   */
+  async startHosting(raw: HostingLaunch): Promise<HostingHandle> {
+    const spec = hostingLaunchSchema.parse(raw);
+    const { id, n } = this.launchable(spec);
+    // Recovery observes the existing runtime; it never silently replaces its image.
+    const existing = await this.inspectHosting(id); if (existing) return existing;
+    if (!await this.created(spec, n)) await this.createHosting(spec);
+    try {
+      const pinned = pinnedHostingAddresses(await this.run(['network', 'inspect', '--format', '{{range .IPAM.Config}}{{.Subnet}} {{end}}', n.internal]));
+      if (spec.browser) {
+        await this.run(['start', n.proxy]);
+        if (await this.address(n.proxy, n.internal) !== pinned.proxy) throw new Error('No browser proxy address');
+      }
+      await this.run(['start', n.app]);
+      if (await this.address(n.app, n.internal) !== pinned.app) throw new Error('No isolated application address');
+      await this.run(['start', n.relay]);
       const handle = await this.inspectHosting(id); if (!handle) throw new Error('Hosting start failed');
       return handle;
     } catch (error) { await this.stopHosting(id); throw error; }
@@ -114,9 +162,14 @@ export class DockerHosting implements HostingLauncher {
   async stopHosting(id: HostingIdentity): Promise<void> {
     const n = this.names(id);
     // Confirm absence before releasing networks. No source or data deletion here.
-    for (const name of [n.relay, n.app, n.proxy]) {
+    // The application, which alone writes the project's data, stops first
+    // and keeps its ten seconds. The relay and the proxy are stateless Node
+    // processes that ignore SIGTERM as PID 1: their ten-second grace was ten
+    // seconds of outage each (measured 2026-10-25: a Node update's stop went
+    // from 20.6 s to 10.6 s), and nothing is left for them to carry.
+    for (const [name, grace] of [[n.app, '10'], [n.relay, '0'], [n.proxy, '0']] as const) {
       const present = await this.run(['ps', '-a', '--filter', `name=^/${name}$`, '--format', '{{.Names}}']);
-      if (present.trim()) { await this.run(['stop', '--time', '10', name]); await this.run(['rm', '-f', name]); }
+      if (present.trim()) { await this.run(['stop', '--time', grace, name]); await this.run(['rm', '-f', name]); }
     }
     for (const name of [n.internal, n.uplink]) {
       const present = await this.run(['network', 'ls', '--filter', `name=^${name}$`, '--format', '{{.Name}}']);

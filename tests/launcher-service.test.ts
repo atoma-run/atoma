@@ -113,4 +113,8 @@ it('retains hosted applications across independent socket connections', async ()
   expect(await hosting.inspectHosting(identity)).toEqual(handle);
   await hosting.stopHosting(identity);
   expect(await hosting.inspectHosting(identity)).toBeNull();
+  // An update creates its new version before stopping the online one; the start then uses those objects.
+  await hosting.createHosting({ ...identity, kind: 'node', entry: 'server.js' });
+  expect(await hosting.startHosting({ ...identity, kind: 'node', entry: 'server.js' })).toMatchObject({ hostPort: 12346 });
+  await hosting.stopHosting(identity);
 });

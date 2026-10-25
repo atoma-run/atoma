@@ -10,6 +10,7 @@ export class HostingClient implements HostingLauncher {
     try { return await operation(client); } finally { client.close(); }
   }
   prepareHosting(identity: HostingIdentity): Promise<string> { return this.use(c => c.prepareHosting(identity)); }
+  createHosting(spec: HostingLaunch): Promise<void> { return this.use(c => c.createHosting(spec)); }
   startHosting(spec: HostingLaunch): Promise<HostingHandle> { return this.use(c => c.startHosting(spec)); }
   inspectHosting(identity: HostingIdentity): Promise<HostingHandle | null> { return this.use(c => c.inspectHosting(identity)); }
   stopHosting(identity: HostingIdentity): Promise<void> { return this.use(c => c.stopHosting(identity)); }
