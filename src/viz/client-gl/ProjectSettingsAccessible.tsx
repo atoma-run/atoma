@@ -1,4 +1,4 @@
-import { COMPUTE_CONTACT_HREF, computeTargetKey, showComputeSetup, type ComputeSettingsView } from './project-compute.js';
+import { COMPUTE_CONTACT_HREF, computeNoticeIsStatus, computeTargetKey, pendingComputeRunRow, showComputeSetup, type ComputeSettingsView } from './project-compute.js';
 import { useState } from 'react';
 import { ButtonIcon } from './ButtonIcon.js';
 import { buttonIconKind } from './button-icons.js';
@@ -6,8 +6,10 @@ import { HOSTING_SUBDOMAIN_MAX } from '../../contracts/projectDeployment.js';
 import { deploymentCopy, hostingCopy, type DeploymentSettingsView } from './project-deployment.js';
 import { connectorsCopy, type ConnectorSettingsView } from './project-connectors.js';
 
-export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress, connectors, compute }: {
+export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress, connectors, compute, locale = 'en' }: {
   view: DeploymentSettingsView; t: (key: string, vars?: Record<string, unknown>) => string; onActivate: (id: string) => void;
+  /** Formats a pending run's start date. */
+  locale?: string;
   onRenameAddress?: (subdomain: string) => void;
   connectors?: ConnectorSettingsView | null;
   compute?: ComputeSettingsView | null;
@@ -34,7 +36,7 @@ export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress
       {hosted.stop ? control(hosted.stop) : null}
       <p>{t('hosting.private')}</p>
     </section> : null}
-    {compute ? <ComputeSection view={compute} t={t} onActivate={onActivate} /> : null}
+    {compute ? <ComputeSection view={compute} t={t} locale={locale} onActivate={onActivate} /> : null}
     <h2>{t('deployment.title')}</h2><p>{t('deployment.intro')}</p>
     <fieldset disabled={!view.canEdit || view.busy}>
       <legend>{t('deployment.title')}</legend>
@@ -108,7 +110,8 @@ function AddressForm({ label, domain, view, t, onSave, onCancel }: {
   </form>;
 }
 
-function ComputeSection({ view, t, onActivate }: { view: ComputeSettingsView; t: (key: string) => string; onActivate: (id: string) => void }) {
+function ComputeSection({ view, t, locale, onActivate }: { view: ComputeSettingsView; t: (key: string, vars?: Record<string, unknown>) => string;
+  locale: string; onActivate: (id: string) => void }) {
   if (view.loadFailed) return <section aria-label={t('compute.title')}><h2>{t('compute.title')}</h2>
     <p role="alert">{t('compute.loadFailed')}</p><button type="button" onClick={() => onActivate('compute.refresh')}>{t('compute.refresh')}</button></section>;
   const selected = computeTargetKey(view.selected), saved = computeTargetKey(view.project.target);
@@ -131,12 +134,15 @@ function ComputeSection({ view, t, onActivate }: { view: ComputeSettingsView; t:
     </fieldset>
     {!view.project.devices.length ? <p>{t('compute.empty')}</p> : null}
     <p>{t('compute.scope')}</p>
-    {(view.project.pendingRuns ?? []).map(run => <div key={run.runId}>
-      <p>{t('compute.pending')} · {run.runId.slice(0, 8)}</p>
-      <button type="button" disabled={view.busy} onClick={() => onActivate(`compute.finalize.${run.runId}`)}>{t('compute.finalize')}</button>
-    </div>)}
+    {(view.project.pendingRuns ?? []).map(run => {
+      const row = pendingComputeRunRow(run, t, locale);
+      return <div key={run.runId}>
+        <p>{row.text}</p>
+        <button type="button" disabled={view.busy} onClick={() => onActivate(row.action.id)}><ButtonIcon kind={buttonIconKind(row.action.id)} />{t(row.action.label)}</button>
+      </div>;
+    })}
     {!view.project.canEdit ? <p>{t('deployment.adminOnly')}</p> : null}
-    {view.notice !== 'idle' ? <p role={view.notice === 'saved' ? 'status' : 'alert'}>{t(`compute.${view.notice}`)}</p> : null}
+    {view.notice !== 'idle' ? <p role={computeNoticeIsStatus(view.notice) ? 'status' : 'alert'}>{t(`compute.${view.notice}`)}</p> : null}
     {selected !== saved ? <button type="button" disabled={!view.project.canEdit || view.busy} onClick={() => onActivate('compute.save')}><ButtonIcon kind="check" />{t('compute.save')}</button> : null}
   </section>;
 }

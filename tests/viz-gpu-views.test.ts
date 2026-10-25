@@ -2836,6 +2836,42 @@ describe('drawProjects', () => {
     }
   });
 
+  it.each([1280, 360])('shows a finished Compute run waiting for its results, with "Get the results", at width %s', width => {
+    const project: VizProject = { projectId: 'p-1', name: 'App', slug: 'app', status: 'active', family: 'build',
+      repositoryTarget: { installationId: '501', owner: 'acme', name: 'app', visibility: 'private' },
+      repositoryStatus: 'pending', repositoryFullName: null, repositoryUrl: null, repositoryError: null,
+      createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z' };
+    const run: VizProjectRun = { projectRunId: 'run-1', projectId: 'p-1', orgId: 'org-1', goal: 'Saved request', status: 'running',
+      requestedByPrincipalId: 'person', traceId: 'run-1', costUsd: 0.4, durationS: null, error: null, publication: null,
+      createdAt: '2026-08-20T00:00:00.000Z', endedAt: null, resultsWaiting: { since: '2026-08-20T00:30:00.000Z' } };
+    for (const principalId of ['person', 'colleague']) {
+      const ctx = createRecordingCtx();
+      const auth = makeAuth({ principalId, activeOrganisation: { id: 'org-1', name: 'Org', role: 'org:member' } });
+      drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: 'p-1' }, {
+        auth, projects: [project], projectRuns: { 'p-1': [run] },
+      }), width, 1400);
+      const copy = ctx.texts.map(text => text.value).join(' ');
+      const requester = principalId === 'person';
+      expect(copy).toContain(t('projects.resultsWaiting.status'));
+      expect(copy).not.toContain(t('runs.status.live'));
+      // Wrapped over measured lines: every word of the sentence is drawn.
+      expect(copy.replace(/\s+/g, ' ')).toContain(t(requester ? 'projects.resultsWaiting.message' : 'projects.resultsWaiting.messageOther'));
+      const button = ctx.buttons.find(b => b.id === 'project.computeResults.run-1')!;
+      expect(button).toBeDefined();
+      expect(button.label).toBe(t('projects.resultsWaiting.get'));
+      expect(!!button.disabled).toBe(!requester);
+      expect(button.width).toBeLessThan(width);
+      if (!requester) expect(copy).toContain(t('projects.resultsWaiting.requesterOnly'));
+    }
+    // A running run without the server's fact is simply live: nothing is inferred.
+    const ctx = createRecordingCtx();
+    drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: 'p-1' }, {
+      auth: makeAuth({ principalId: 'person', activeOrganisation: { id: 'org-1', name: 'Org', role: 'org:member' } }),
+      projects: [project], projectRuns: { 'p-1': [{ ...run, resultsWaiting: null }] },
+    }), width, 1400);
+    expect(ctx.buttons.some(b => b.id.startsWith('project.computeResults.'))).toBe(false);
+  });
+
   it.each([1280, 360])('offers bounded GitHub recovery controls at width %s and disables repeat checks', width => {
     const project: VizProject = { projectId: 'p-1', name: 'App', slug: 'app', status: 'active', family: 'build',
       repositoryTarget: { installationId: '501', owner: 'acme', name: 'app', visibility: 'public' },
@@ -3179,6 +3215,17 @@ describe('drawProjects', () => {
     // Visible BEFORE the repository exists, which is when it still matters:
     // the repository is created at publication, not at project creation.
     expect(publicCtx.texts.some((text) => String(text.value).includes('github.com'))).toBe(false);
+  });
+
+  it('says a project whose only running runs wait for results on a computer is not "in progress"', () => {
+    for (const runningRunsAwaitResults of [true, false]) {
+      const project: VizProject = { ...guidanceProject(), runCount: 1, lastRunAt: new Date().toISOString(), hasRunningRun: true, runningRunsAwaitResults };
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot({ view: 'projects' }, { auth: makeAuth(), projects: [project], projectRuns: {}, runs: [] }), 1280, 720);
+      const metadata = String(ctx.texts.find(text => String(text.value).includes('Created'))!.value);
+      expect(metadata.includes(t('projects.resultsWaiting.projectStatus'))).toBe(runningRunsAwaitResults);
+      expect(metadata.includes(t('projects.runInProgress'))).toBe(!runningRunsAwaitResults);
+    }
   });
 
   it.each([true, false, undefined])('labels project activity from its summary without loading run history (running: %s)', (hasRunningRun) => {
@@ -4505,6 +4552,12 @@ describe('GPU notifications menu', () => {
       expect(notificationTarget(foreign, member)).toBeNull();
       // …while the platform admin's run corpus spans every organisation.
       expect(notificationTarget(foreign, admin)).toBe('notifications.go.run.trace-9');
+    });
+
+    it('takes a results-waiting notice to the project\'s Runs, where "Get the results" is', () => {
+      const notice = makeNotification(5, { kind: 'run.results_waiting', orgId: 'org-1', projectId: 'proj-7' });
+      expect(notificationTarget(notice, member)).toBe('notifications.go.projectRuns.proj-7');
+      expect(notificationTarget({ ...notice, orgId: 'org-2' }, member)).toBeNull();
     });
 
     it('falls back to the project, then to the role-scoped surfaces', () => {
@@ -6124,6 +6177,36 @@ describe('drawRuns behavior', () => {
     const ctx = createRecordingCtx();
     drawRuns(ctx, makeSnapshot({}, { run, runs: [] }), WIDTH, HEIGHT);
     expect(ctx.texts.some((text) => text.value === 'Operator runs')).toBe(true);
+  });
+
+  it('shows a project run finished on a computer as waiting for its results, with "Get the results", not as delivered', () => {
+    // The trace ended and reads delivered; the run's files are still on the device.
+    const run = makeRun([makeLlmEvent('one', { role: 'execute' })]);
+    const entry = { id: run.id, label: run.label, startedAt: run.startedAt, projectId: 'project-a', projectName: 'Clock', projectRunId: run.id };
+    const projectRun: VizProjectRun = { projectRunId: run.id, projectId: 'project-a', orgId: 'org-1', goal: 'Saved request', status: 'running',
+      requestedByPrincipalId: 'person', traceId: run.id, costUsd: 0.4, durationS: null, error: null, publication: null,
+      createdAt: '2026-08-20T00:00:00.000Z', endedAt: null, resultsWaiting: { since: '2026-08-20T00:30:00.000Z', computerReady: false } };
+    const auth = makeAuth({ principalId: 'person', activeOrganisation: { id: 'org-1', name: 'Org', role: 'org:member' } });
+    const draw = (rows: VizProjectRun[]) => {
+      const ctx = createRecordingCtx();
+      drawRuns(ctx, makeSnapshot({}, { run, runs: [entry], auth, projectRuns: { 'project-a': rows } }), WIDTH, HEIGHT);
+      return ctx;
+    };
+    const waiting = draw([projectRun]);
+    const copy = waiting.texts.map(text => String(text.value)).join(' ').replace(/\s+/g, ' ');
+    expect(copy).toContain(t('projects.resultsWaiting.status'));
+    expect(copy).not.toContain(t('runs.flag.delivered'));
+    expect(copy).toContain(t('projects.resultsWaiting.message'));
+    const button = waiting.buttons.find(candidate => candidate.id === `project.computeResults.${run.id}`);
+    expect(button?.label).toBe(t('projects.resultsWaiting.get'));
+    expect(button?.disabled).toBeFalsy();
+    // Connected and accepting work, yet stuck: the neutral sentence instead.
+    const stalled = draw([{ ...projectRun, resultsWaiting: { since: '2026-08-20T00:30:00.000Z', computerReady: true } }]);
+    expect(stalled.texts.map(text => String(text.value)).join(' ').replace(/\s+/g, ' ')).toContain(t('projects.resultsWaiting.stalled'));
+    // Without the server's fact the trace's own verdict stands.
+    const delivered = draw([{ ...projectRun, resultsWaiting: null }]);
+    expect(delivered.texts.map(text => String(text.value))).toContain(t('runs.flag.delivered'));
+    expect(delivered.buttons.some(candidate => candidate.id.startsWith('project.computeResults.'))).toBe(false);
   });
 
   it('leads a project run\'s readers with the way back to its project', () => {

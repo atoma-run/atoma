@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { acceptanceSchema } from '../contracts/depthRouting.js';
 import { PROJECT_RUN_WAITING_MESSAGE, type ProjectRun } from '../contracts/projects.js';
 import type { RunParentTests, RunProgress } from '../contracts/clientExperience.js';
+import { COMPUTE_RESULTS_WAITING_MESSAGE, computeResultsWaitingMessage, type ComputeResultsWaiting } from '../contracts/computeDevice.js';
 import { summarizeParentTests, type ParentTestLimits, type ParentTestSummary } from '../contracts/parentTestRecord.js';
 import { readBoundedRunFile } from '../viz/runIndex.js';
 import { resolveProjectRunTraceFile } from './store.js';
@@ -98,14 +99,23 @@ const messages: Record<RunProgress['stage'], string> = {
   queued: PROJECT_RUN_WAITING_MESSAGE, preparing: 'Preparing the run.', planning: 'Planning the work.',
   building: 'Carrying out the planned work.', checking: 'Checking the work against its requirements.',
   finalizing: 'Finalizing the result and its files.', finished: 'Run finished.', unknown: 'Run in progress; detailed activity is unavailable.',
+  'awaiting-results': COMPUTE_RESULTS_WAITING_MESSAGE,
 };
+
+/**
+ * `resultsWaiting` is the coordinator's host-fact answer
+ * (`computeResultsWaiting`: a customer-device run whose runner ended and whose
+ * transfer no process is driving). It outranks the trace, which cannot know
+ * where the files are, and never the persisted lifecycle status.
+ */
+interface ProgressOptions { readonly reuseWithinMs?: number; readonly resultsWaiting?: ComputeResultsWaiting | null }
 
 /**
  * Read-only projection. Persisted lifecycle status always outranks trace activity.
  * A poller passes `reuseWithinMs` (POLLED_PROGRESS_REUSE_MS) to bound how often
  * it parses a trace that is still being written; a read on demand omits it.
  */
-export function projectRunProgress(run: ProjectRun, options: { readonly reuseWithinMs?: number } = {}): RunProgress {
+export function projectRunProgress(run: ProjectRun, options: ProgressOptions = {}): RunProgress {
   return projectRunEvidence(run, options).progress;
 }
 
@@ -113,15 +123,18 @@ export function projectRunProgress(run: ProjectRun, options: { readonly reuseWit
  * Progress and the parent-test records from ONE evidence read, so a review
  * never mixes two snapshots of a trace that is being rewritten.
  */
-export function projectRunEvidence(run: ProjectRun, options: { readonly reuseWithinMs?: number } = {}): { progress: RunProgress; parentTests: RunParentTests } {
+export function projectRunEvidence(run: ProjectRun, options: ProgressOptions = {}): { progress: RunProgress; parentTests: RunParentTests } {
   const file = resolveProjectRunTraceFile({ projectRunId: run.projectRunId, runsPath: run.hostPaths.runsPath, traceId: run.traceId });
   const detail = file ? evidence(file, run.traceId ?? run.projectRunId, options.reuseWithinMs ?? 0) : null;
   const terminal = run.status !== 'queued' && run.status !== 'running';
-  const stage = terminal ? 'finished' : run.status === 'queued' ? 'queued' : detail?.ended ? 'finalizing' : detail?.stage ?? 'unknown';
+  const stage = terminal ? 'finished' : run.status === 'queued' ? 'queued'
+    : options.resultsWaiting && run.status === 'running' ? 'awaiting-results'
+    : detail?.ended ? 'finalizing' : detail?.stage ?? 'unknown';
   const criteria = detail?.criteria ?? [];
   const met = criteria.filter(item => item.met === true).length;
   const progress: RunProgress = {
-    stage, message: terminal ? `Run ${run.status}.` : messages[stage] + (criteria.length ? ` Latest recorded review: ${met}/${criteria.length} criteria judged met.` : ''),
+    stage, message: terminal ? `Run ${run.status}.` : (stage === 'awaiting-results' && options.resultsWaiting
+      ? computeResultsWaitingMessage(options.resultsWaiting) : messages[stage]) + (criteria.length ? ` Latest recorded review: ${met}/${criteria.length} criteria judged met.` : ''),
     source: detail ? 'trace' : 'run', evidence: detail ? 'available' : 'unavailable',
     lastActivityAt: detail?.lastActivityAt ?? run.endedAt ?? run.startedAt ?? run.createdAt,
     criteria, criteriaTruncated: detail?.criteriaTruncated ?? false, acceptanceApproved: detail?.acceptanceApproved ?? null,

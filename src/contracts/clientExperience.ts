@@ -30,6 +30,13 @@ export const serviceProblemSchema = z.object({
   retryable: z.boolean(),
   nextAction: z.string(),
   fields: z.array(z.string()).optional(),
+  /**
+   * Additive (2026-10-25): a typed cause a web surface maps to its own plain
+   * copy, while `message` stays the machine-facing sentence. Today: a start
+   * refused because finished work waits for its results on a computer, the
+   * caller's own (`results-waiting`) or another member's.
+   */
+  reason: z.enum(['results-waiting', 'others-results-waiting']).optional(),
 });
 export type ServiceProblem = z.infer<typeof serviceProblemSchema>;
 
@@ -50,7 +57,8 @@ export function serviceProblem(status: number, message: string, details?: Partia
 }
 
 export const runProgressSchema = z.object({
-  stage: z.enum(['queued', 'preparing', 'planning', 'building', 'checking', 'finalizing', 'finished', 'unknown']),
+  /** `awaiting-results` (additive, 2026-10-25): a Compute run's work ended; its files wait on the customer's computer. */
+  stage: z.enum(['queued', 'preparing', 'planning', 'building', 'checking', 'finalizing', 'finished', 'unknown', 'awaiting-results']),
   message: z.string(),
   lastActivityAt: z.string().nullable(),
   source: z.enum(['trace', 'run']),

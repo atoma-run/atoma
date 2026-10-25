@@ -56,6 +56,13 @@ export const platformEventKindSchema = z.enum([
   'org.run_limit_changed',
   'run.finished',
   'run.cancelled',
+  /**
+   * A Compute run's work ended but its files have waited on the requester's
+   * computer for ten minutes (the computer is off, or Atoma Compute is
+   * closed). Emitted at most once per run, from a claim the projects domain
+   * owns; the requester is the one told.
+   */
+  'run.results_waiting',
   'publication.published',
   'publication.failed',
   'run.client_accepted',
@@ -390,6 +397,8 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'org.run_limit_changed': 'security',
   'run.finished': 'info',
   'run.cancelled': 'info',
+  // Nothing failed: finished work waits for the customer's computer.
+  'run.results_waiting': 'info',
   'publication.published': 'info',
   // A delivered run whose artifacts never reached GitHub: the deliverable
   // exists and is unreachable. That is an error, not a warning.

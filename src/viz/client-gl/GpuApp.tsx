@@ -10,6 +10,7 @@ import { AssistantPanel } from './AssistantPanel.js';
 import { workspaceIndexSchema } from '../../contracts/workspaceBrowser.js';
 import { latestWorkspaceRun, workspacePreviewPath, workspaceSplitForViewport } from './workspace-browser.js';
 import { canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from './github-access.js';
+import { canGetComputeResults, computeResultsAttempt, COMPUTE_RESULTS_ACTION } from './compute-results.js';
 import { fetchJson } from '../client/data-api.js';
 import {
   useCallback,
@@ -329,6 +330,17 @@ function GpuAppContent({
         : {},
     [projectRunsQuery.data, selectedProject]
   );
+  // The project behind the Runs view's selected trace: its run list carries
+  // the host facts the run's own page shows (finished work whose results wait
+  // on a computer), whichever project is selected elsewhere.
+  const runViewProjectId = state.view === 'runs'
+    ? runsQuery.data?.find(run => run.id === state.selectedRunId)?.projectId ?? null : null;
+  const runViewProjectRunsQuery = useProjectRuns(runViewProjectId, authed && !!runViewProjectId);
+  const runViewProjectRun = useMemo(() => {
+    const entry = runsQuery.data?.find(run => run.id === state.selectedRunId);
+    const id = entry?.projectRunId ?? entry?.id;
+    return state.view === 'runs' && id ? runViewProjectRunsQuery.data?.find(run => run.projectRunId === id) ?? null : null;
+  }, [runsQuery.data, runViewProjectRunsQuery.data, state.selectedRunId, state.view]);
   const resultProjectId = state.view === 'projects' ? selectedProject?.projectId
     : runsQuery.data?.find(run => run.id === state.resultRunId)?.projectId ?? selectedProject?.projectId;
   const resultProjectRunsQuery = useProjectRuns(resultProjectId ?? null,
@@ -790,6 +802,10 @@ function GpuAppContent({
       store.setView('runs');
       return;
     }
+    if (id.startsWith('notifications.go.projectRuns.')) {
+      store.openProjectRuns(id.slice('notifications.go.projectRuns.'.length));
+      return;
+    }
     if (id.startsWith('notifications.go.project.')) {
       store.selectProject(id.slice('notifications.go.project.'.length));
       store.setView('projects');
@@ -1046,6 +1062,27 @@ function GpuAppContent({
         });
       return;
     }
+    if (id.startsWith(COMPUTE_RESULTS_ACTION)) {
+      // The existing explicit finalization: it moves only the saved files and
+      // runs no model or tool. Success ends the run, which the list then shows.
+      const runId = id.slice(COMPUTE_RESULTS_ACTION.length);
+      const run = projectRunsQuery.data?.find(candidate => candidate.projectRunId === runId)
+        ?? runViewProjectRunsQuery.data?.find(candidate => candidate.projectRunId === runId);
+      if (!run || !canGetComputeResults(run, authSnapshot) || githubRecoveryLock.current) return;
+      githubRecoveryLock.current = true;
+      setGitHubRecovery({ runId: run.projectRunId, busy: true });
+      // A transfer already running (often the automatic one) or a request
+      // that timed out is still working: say so and refetch, never "try again".
+      void api.getComputeResults(run.projectRunId).then(() => { setGitHubRecovery(null); })
+        .catch((error: unknown) => { setGitHubRecovery({ runId: run.projectRunId, busy: false,
+          message: t(computeResultsAttempt(error) === 'working' ? 'projects.resultsWaiting.working' : 'projects.resultsWaiting.stillWaiting') }); })
+        .finally(() => {
+          githubRecoveryLock.current = false;
+          void queryClient.invalidateQueries({ queryKey: ['viz', 'projects'] });
+          void queryClient.invalidateQueries({ queryKey: ['viz', 'project', run.projectId, 'runs'] });
+        });
+      return;
+    }
     if (id.startsWith('project.githubAuthorize.') || id.startsWith('project.githubContinue.') || id.startsWith('project.githubRetry.')) {
       const run = projectRunsQuery.data?.find(candidate => candidate.projectRunId === id.split('.').at(-1));
       const access = run && pendingGitHubAccess(run);
@@ -1225,6 +1262,7 @@ function GpuAppContent({
     pendingLoginProvider,
     previewQuery.data?.state,
     projectRunsQuery.data,
+    runViewProjectRunsQuery.data,
     setGitHubRecovery,
     projectsQuery.data,
     requestPreview,
@@ -1318,8 +1356,11 @@ function GpuAppContent({
     computeSettings: compute.view,
     projects: projectsQuery.data ?? [],
     githubRecovery,
-    projectRuns: resultProjectId && resultProjectRunsQuery.data
-      ? { ...projectRuns, [resultProjectId]: resultProjectRunsQuery.data } : projectRuns,
+    projectRuns: {
+      ...(runViewProjectId && runViewProjectRunsQuery.data ? { [runViewProjectId]: runViewProjectRunsQuery.data } : {}),
+      ...(resultProjectId && resultProjectRunsQuery.data
+        ? { ...projectRuns, [resultProjectId]: resultProjectRunsQuery.data } : projectRuns),
+    },
     githubInstallations: githubInstallationsQuery.data ?? [],
     adminOrganisations: adminOrganisationsQuery.data ?? [],
     adminEvents: adminEventsQuery.data?.pages.flatMap((page) => page.events) ?? [],
@@ -1398,6 +1439,8 @@ function GpuAppContent({
     resultQuery.isError,
     resultProjectId,
     resultProjectRunsQuery.data,
+    runViewProjectId,
+    runViewProjectRunsQuery.data,
     state.resultRunId,
     runsQuery.data,
     skillDetailQuery.data,
@@ -1499,6 +1542,7 @@ function GpuAppContent({
           githubInstallations={githubInstallationsQuery.data ?? []}
           projects={projectsQuery.data ?? []}
           projectRuns={projectRunsQuery.data ?? []}
+          runViewProjectRun={runViewProjectRun}
           githubRecovery={githubRecovery}
           auth={authSnapshot}
           // ONE card on Projects (owner, 2026-10-09): the guide hosts the

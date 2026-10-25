@@ -30,6 +30,12 @@ export function notificationTarget(
   if (notification.traceId && (viewer.platformAdmin || sameOrg)) {
     return `notifications.go.run.${notification.traceId}`;
   }
+  // Results waiting on a computer: the project's Runs, where that run's card
+  // carries "Get the results". A running row has no trace link yet, and the
+  // project itself opens on its conversation.
+  if (notification.kind === 'run.results_waiting' && notification.projectId && sameOrg) {
+    return `notifications.go.projectRuns.${notification.projectId}`;
+  }
   if (notification.projectId && sameOrg) {
     return `notifications.go.project.${notification.projectId}`;
   }

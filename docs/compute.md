@@ -128,6 +128,20 @@ never to a caller-selected local URL or port. Disconnecting makes the preview
 unavailable. Restarting the Atoma server never asserts that a client workload
 has stopped.
 
+When a run's work is finished but its files have not reached Atoma yet, the
+run and its page read **Finished — waiting for its results** (its project card:
+**Results waiting on a computer**): "The work is finished. Its results are on
+your computer and will arrive by themselves as soon as Atoma Compute is open,
+connected and accepting work." If that
+computer is already connected and accepting work, the run says instead that the
+results could not be transferred yet. Its requester can press **Get the
+results** (formerly **Reconcile and finish transfer**) on the run, on its page
+or in the project's Compute settings, where each pending run is named by its
+title and start; one that stopped before it finished offers **Close this run**.
+After the files have waited ten minutes (counted from when nothing was moving
+them) the requester is told once through an Atoma notification that opens the
+project's runs, and a refused start says the place is held by finished work.
+
 ## Connection diagnostics
 
 Compute keeps connection events in `~/.atoma/compute/connection.log` on the

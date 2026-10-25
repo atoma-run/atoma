@@ -164,7 +164,14 @@ export class ComputeHttp {
       const finalization = pathname.match(/^\/api\/compute\/runs\/([a-f0-9-]{36})\/finalize$/);
       if (finalization && req.method === 'POST' && this.options.finalize) {
         z.object({}).strict().parse(JSON.parse(await body(req)));
-        await this.options.finalize(actor.orgId, finalization[1]!, actor.principalId);
+        try { await this.options.finalize(actor.orgId, finalization[1]!, actor.principalId); }
+        catch (error) {
+          // A typed outcome the page maps to plain copy: `active` while a
+          // transfer is running (often the automatic one), else `pending`.
+          const reason = error instanceof Error && 'reason' in error && (error.reason === 'active' || error.reason === 'pending') ? error.reason : null;
+          if (!reason) throw error;
+          json(res, 409, { error: 'Compute results not transferred yet', reason }); return true;
+        }
         json(res, 200, { ok: true }); return true;
       }
       const projectView = pathname.match(/^\/api\/compute\/projects\/([a-f0-9-]{36})$/);

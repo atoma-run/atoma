@@ -49,7 +49,8 @@ export function callExecutor<T>(socketPath: string, input: ExecutorRequest): Pro
         try {
           const reply = JSON.parse(Buffer.concat(parts).toString('utf8')) as { value?: T; error?: ExecutorFailure };
           if (reply.error) { reject(Object.assign(new Error(reply.error.message), { name: reply.error.name,
-            ...(reply.error.access ? { access: githubAccessRequiredSchema.parse(reply.error.access) } : {}) })); return; }
+            ...(reply.error.access ? { access: githubAccessRequiredSchema.parse(reply.error.access) } : {}),
+            ...(typeof reply.error.reason === 'string' ? { reason: reply.error.reason.slice(0, 64) } : {}) })); return; }
           if (res.statusCode !== 200) throw new ExecutorUnavailable();
           resolve(reply.value as T);
         } catch (error) { reject(error instanceof Error ? error : new ExecutorUnavailable()); }
@@ -83,6 +84,7 @@ export async function serveExecutor(socketPath: string, dispatch: (input: Execut
       res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: {
         name: error instanceof Error ? error.name : 'Error', message: error instanceof Error ? error.message : 'Executor request failed',
         ...(error instanceof Error && 'access' in error && githubAccessRequiredSchema.safeParse(error.access).success ? { access: error.access } : {}),
+        ...(error instanceof Error && 'reason' in error && typeof error.reason === 'string' ? { reason: error.reason.slice(0, 64) } : {}),
       } }));
     });
   });

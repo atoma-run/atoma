@@ -264,6 +264,8 @@ export interface VizProject {
   lastRunAt?: string | null;
   /** A persisted project run is executing. Absent on an older server. */
   hasRunningRun?: boolean;
+  /** Every running run is finished work whose results wait on a computer (server host facts). */
+  runningRunsAwaitResults?: boolean;
   /**
    * Kept on, or off, the public showcase. Absent on an older server, and for a
    * project of an organisation no platform admin founded and still owns, which
@@ -304,6 +306,8 @@ export interface VizProjectRun {
   clientAcceptance?: import('../../contracts/projects.js').DeliveryAcceptance | null;
   resumeOf?: string;
   checkpoint?: import('../../contracts/runCheckpoint.js').ProjectCheckpointStatus;
+  /** A Compute run whose work ended while its files wait on the requester's computer (server host facts). */
+  resultsWaiting?: import('../../contracts/computeDevice.js').ComputeResultsWaiting | null;
   orgId?: string;
   githubAccess?: import('../../contracts/projects.js').GitHubAccessRequired;
   requestedByPrincipalId?: string;

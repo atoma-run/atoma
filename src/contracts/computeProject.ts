@@ -6,7 +6,11 @@ export const COMPUTE_RUN_RESOURCES = { cpus: 5, memoryBytes: 6 * 1024 ** 3, disk
 export const computeAvailabilitySchema = z.union([z.literal('ready'), computeAdmissionSchema.options[1].shape.reason]);
 export const computeProjectViewSchema = z.object({
   projectId: z.string().uuid(), target: executionTargetSchema, canEdit: z.boolean(), hostedAllowed: z.boolean().default(false),
-  pendingRuns: z.array(z.object({ runId: z.string().uuid() }).strict()).max(100).optional(),
+  /** The viewer's undriven Compute runs. Additive (2026-10-25): each is named by
+   * its title or goal (`label`) and start, and carries its transfer-journal
+   * `phase`: `finalizing`/`transferred` wait for results; anything else stopped. */
+  pendingRuns: z.array(z.object({ runId: z.string().uuid(), label: z.string().max(200).optional(), startedAt: z.string().optional(),
+    phase: z.enum(['executing', 'finalizing', 'transferred', 'interrupted']).nullable().optional() }).strict()).max(100).optional(),
   devices: z.array(z.object({ deviceId: z.string().uuid(), name: z.string().max(120), allowed: z.boolean(),
     revoked: z.boolean(), availability: computeAvailabilitySchema }).strict()).max(100),
 }).strict();

@@ -72,6 +72,12 @@ could loop; it is now terminal, and the export runs no tool or model. Run
 40c20c5d waited 4.5 hours for a buried button. Public readers never perform
 this reconciliation.
 
+Results WAITING on a computer (2026-10-25) are host facts: a running Compute row
+whose journal says `finalizing` with no driver (`computeResultsWaiting`), and
+`computerReady` picks a neutral sentence. Readers: stage `awaiting-results`, run
+`resultsWaiting`, project `runningRunsAwaitResults`, a typed busy `reason`. Once
+`RESULTS_WAITING_NOTICE_MS` passed since the first driver stop: one claimed notice.
+
 Legacy project targets remain hosted and run receipts are immutable. On gated
 hosts, only a current platform admin may start hosted work; other members must
 pair and explicitly select a granted device. The coordinator rechecks this before
@@ -762,6 +768,9 @@ acceptance, publication or the immutable child trace.
   run, never a byte or a name. Not stat-ing it means omitting every such
   link, one the application reads included, or refusing them all, run
   40c20c5d's `/tmp` links included.
+- "Results waiting" from the trace's `endedAt`, row age or error text; telling
+  again per reconnect; a clock reset by every driver stop (failing automatic
+  attempts would postpone the notice forever): refused. Claim first, then journal.
 - Letting a reader repair a `running` row it noticed: refused. That is
   `reconcileInterrupted`'s job at the next boot. `hasProjectTables` exists
   precisely so a reader can ask about the control plane without triggering

@@ -7,6 +7,7 @@ import { projectContextReadSchema, projectContextUpdateSchema } from '../contrac
 import { ProjectContextConflict } from './context.js';
 import { ensureHostingSubdomain, type HostingSubdomainNamer } from './hostingSubdomain.js';
 import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
+import type { ComputeResultsWaiting } from '../contracts/computeDevice.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { artifactPageInputSchema, artifactReadInputSchema, pageCursorSchema, projectPageInputSchema, runPageInputSchema,
@@ -40,6 +41,7 @@ import { HostingAddressInvalid, ProjectStateConflict, resolveProjectRunTraceFile
 import { projectRunHostRedactions, redactHostPaths } from './hostPaths.js';
 import type { RunPayerLedger } from '../contracts/runPayers.js';
 import {
+  ComputeResultsWaitingConflict,
   ProjectRunBusy,
   ProjectRunConfigurationError,
   ProjectRunCoordinator,
@@ -202,7 +204,7 @@ interface ShowcaseView {
 
 function publicProject(
   project: Project,
-  runSummary: ReturnType<ProjectServiceDeps['store']['projectRunSummary']> = {
+  runSummary: ReturnType<ProjectServiceDeps['store']['projectRunSummary']> & { readonly runningRunsAwaitResults?: boolean } = {
     costUsd: 0,
     runCount: 0,
     lastRunAt: null,
@@ -306,7 +308,7 @@ export class ProjectService {
   }
 
   private present(run: ProjectRun, publication: import('../contracts/projects.js').Publication | null,
-    options: { readonly costBreakdown?: boolean } = {}) {
+    options: { readonly costBreakdown?: boolean; readonly liveLeases?: () => ReadonlySet<string> } = {}) {
     const clientAcceptance = this.store.getDeliveryAcceptance(run.orgId, run.projectRunId);
     const clientQuestion = this.coordinator.clientQuestion(run);
     return { ...publicRun(run, publication, this.store.getRunPayers(run.orgId, run.projectRunId), options),
@@ -316,7 +318,41 @@ export class ProjectService {
       awaitingClientAcceptance: run.status === 'delivered' && !run.rerunOf && !run.bytesExpiredAt && Boolean(run.artifactManifestHash)
         && publication?.status !== 'published' && !clientAcceptance,
       computeProgress: this.coordinator.computeProgress(run),
+      resultsWaiting: this.resultsWaiting(run, options.liveLeases),
       checkpoint: this.coordinator.checkpointStatus(run) };
+  }
+
+  /**
+   * The coordinator's host-fact answer, asked only of a running Compute run.
+   * A list passes `liveLeases`, so the machine-global lease store is read
+   * once per answer rather than once per row.
+   */
+  private resultsWaiting(run: ProjectRun, liveLeases?: () => ReadonlySet<string>): ComputeResultsWaiting | null {
+    return run.status === 'running' && run.executionTarget.kind === 'customer-device'
+      ? this.coordinator.computeResultsWaiting(run, liveLeases?.()) : null;
+  }
+
+  /** One lease read per answer, taken only if some row asks for it. */
+  private leaseSnapshot(): () => ReadonlySet<string> {
+    let live: ReadonlySet<string> | null = null;
+    return () => (live ??= this.coordinator.liveRunLeases());
+  }
+
+  /**
+   * A project card's activity: true when the project has running runs and
+   * every one of them is finished work waiting for its results on a
+   * computer, so the card must not say "Run in progress". Asked only of a
+   * project with a running run; customer-device rows only.
+   */
+  private runningRunsAwaitResults(orgId: string, projectId: string, hasRunningRun: boolean, live: () => ReadonlySet<string>): boolean {
+    if (!hasRunningRun) return false;
+    const running = this.store.listRunningProjectRuns(orgId, projectId);
+    return running.length > 0 && running.every(run => this.resultsWaiting(run, live) !== null);
+  }
+
+  private projectSummary(orgId: string, projectId: string, live: () => ReadonlySet<string>) {
+    const summary = this.store.projectRunSummary(orgId, projectId);
+    return { ...summary, runningRunsAwaitResults: this.runningRunsAwaitResults(orgId, projectId, summary.hasRunningRun, live) };
   }
 
   /** GET /api/github/installations — org-scoped. */
@@ -334,11 +370,12 @@ export class ProjectService {
   /** GET /api/projects — a platform admin reads ALL organisations' projects. */
   listProjects(viewer: Viewer): unknown {
     const showcase = this.showcaseViews();
+    const live = this.leaseSnapshot();
     if (viewer.platformAdmin) {
       return this.store.listAllProjects().map((project) => {
         this.auditRead(viewer, project.orgId, 'projects.index');
         return {
-          ...publicProject(project, this.store.projectRunSummary(project.orgId, project.projectId),
+          ...publicProject(project, this.projectSummary(project.orgId, project.projectId, live),
             showcase(project.orgId, project.projectId)),
           orgId: project.orgId,
           orgName: project.orgName,
@@ -348,7 +385,7 @@ export class ProjectService {
     return this.store.listProjects(viewer.orgId).map((project) =>
       publicProject(
         project,
-        this.store.projectRunSummary(viewer.orgId, project.projectId),
+        this.projectSummary(viewer.orgId, project.projectId, live),
         showcase(viewer.orgId, project.projectId)
       )
     ).sort(newestActivityFirst);
@@ -827,7 +864,7 @@ export class ProjectService {
     nextSteps.push({ tool: 'atoma_run_status', purpose: 'Read publication details and the current lifecycle; publication does not establish deployment or PR merge.' });
     if (canRequestAcceptance) nextSteps.push({ tool: 'atoma_run_accept', purpose: 'Only after the client tests/reviews and explicitly accepts: pass this artifactManifestHash and their review summary. Reading this review grants no consent.' });
     // One evidence read for both, so they describe the same trace snapshot.
-    const { progress, parentTests: projected } = projectRunEvidence(run);
+    const { progress, parentTests: projected } = projectRunEvidence(run, { resultsWaiting: this.resultsWaiting(run) });
     // The additive field is validated on its own: a projection fault reads as
     // unavailable evidence and never fails the review it rides on.
     const checked = runParentTestsSchema.safeParse(projected);
@@ -870,9 +907,10 @@ export class ProjectService {
     // Who launched each run, by name: the overview lists them. Members of the
     // organisation already read each other's names on /api/org.
     const names = this.store.principalDisplayNames(runs.map(run => run.requestedByPrincipalId));
+    const liveLeases = this.leaseSnapshot();
     return runs.map((run) => {
       const publication = this.store.getPublicationForRun(orgId, run.projectRunId);
-      return { ...this.present(run, publication, { costBreakdown: true }),
+      return { ...this.present(run, publication, { costBreakdown: true, liveLeases }),
         requestedByName: names.get(run.requestedByPrincipalId) ?? null };
     });
   }
@@ -907,7 +945,7 @@ export class ProjectService {
       projectId: run.projectId, projectRunId: run.projectRunId, orgId: run.orgId,
       requestedByPrincipalId: run.requestedByPrincipalId, status: run.status,
       createdAt: run.createdAt, updatedAt: run.updatedAt, endedAt: run.endedAt ?? null,
-      progress: projectRunProgress(run, { reuseWithinMs: POLLED_PROGRESS_REUSE_MS }),
+      progress: projectRunProgress(run, { reuseWithinMs: POLLED_PROGRESS_REUSE_MS, resultsWaiting: this.resultsWaiting(run) }),
     };
   }
 
@@ -916,9 +954,10 @@ export class ProjectService {
     const run = this.store.getProjectRun(orgId, projectRunId);
     if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
     // A superset of the run's entry in the project's run list, which MCP readers compare.
-    return { ...this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId), { costBreakdown: true }),
+    const presented = this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId), { costBreakdown: true });
+    return { ...presented,
       requestedByName: this.store.principalDisplayNames([run.requestedByPrincipalId]).get(run.requestedByPrincipalId) ?? null,
-      progress: projectRunProgress(run),
+      progress: projectRunProgress(run, { resultsWaiting: presented.resultsWaiting }),
       actions: { canCancel: orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member') && (run.status === 'queued' || run.status === 'running') } };
   }
 
@@ -988,6 +1027,8 @@ export class ProjectService {
         { code: 'busy', retryable: true, nextAction: 'Follow the active run or wait for the instance update, then retry the same request.' });
       if (error instanceof ProjectRunConfigurationError) throw new ProjectHttpError(400, error.message,
         { code: 'configuration_required', nextAction: 'Check project readiness and your provider/model settings before starting again.' });
+      if (error instanceof ComputeResultsWaitingConflict) throw new ProjectHttpError(409, error.message, { code: 'busy', retryable: true,
+        reason: error.reason, nextAction: 'Follow the finished run with atoma_run_status; start again once its results have arrived.' });
       if (error instanceof ProjectStateConflict) throw new ProjectHttpError(409, error.message);
       if (error instanceof Error && error.message === 'project not found') {
         throw new ProjectHttpError(404, 'project not found');

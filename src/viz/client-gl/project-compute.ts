@@ -2,9 +2,32 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { computeProjectViewSchema, type ComputeProjectView } from '../../contracts/computeProject.js';
 import type { ExecutionTarget } from '../../contracts/executionTarget.js';
+import { formatDateTime } from '../client/date-format.js';
+import { computeResultsAttempt } from './compute-results.js';
 export interface ComputeSettingsView {
   project: ComputeProjectView; selected: ExecutionTarget; busy: boolean;
-  loadFailed?: boolean; notice: 'idle' | 'saved' | 'failed' | 'conflict';
+  loadFailed?: boolean;
+  notice: 'idle' | 'saved' | 'failed' | 'conflict' | 'resultsArrived' | 'resultsPending' | 'resultsGetting' | 'runClosed' | 'closePending';
+}
+/** Notices that report progress or success, read as a status rather than an alert. */
+export function computeNoticeIsStatus(notice: ComputeSettingsView['notice']): boolean {
+  return notice === 'saved' || notice === 'resultsArrived' || notice === 'resultsGetting' || notice === 'runClosed';
+}
+type PendingRun = NonNullable<ComputeProjectView['pendingRuns']>[number];
+/** The journal phases whose runner ended: only the files are left to fetch. */
+export function pendingRunHasResults(run: PendingRun): boolean { return run.phase === 'finalizing' || run.phase === 'transferred'; }
+/**
+ * ONE row model for a pending Compute run, GPU and accessible alike: named by
+ * its title (else its goal) and start, never by an id, with plain copy and an
+ * action that match what it is. Finished work gets "Get the results"; a run
+ * that stopped before it finished gets "Close this run" (an older server sends
+ * no phase and keeps the results wording it always had).
+ */
+export function pendingComputeRunRow(run: PendingRun, t: (key: string, vars?: Record<string, unknown>) => string, locale: string) {
+  const results = run.phase === undefined || pendingRunHasResults(run);
+  const vars = { label: run.label ?? t('compute.pendingUnnamed'), date: run.startedAt ? formatDateTime(run.startedAt, locale) : '—' };
+  return { text: t(results ? 'compute.pending' : 'compute.pendingInterrupted', vars),
+    action: { id: `${results ? 'compute.finalize.' : 'compute.close.'}${run.runId}`, label: results ? 'compute.finalize' : 'compute.close' } };
 }
 export const COMPUTE_CONTACT_HREF = 'mailto:mgf@iotanet.net?subject=Atoma%20Compute';
 export function showComputeSetup(project: ComputeProjectView): boolean { return project.devices.length === 0; }
@@ -29,18 +52,28 @@ export function useProjectCompute(projectId: string | null, enabled: boolean) {
     if (id === 'compute.contact') { window.location.assign(COMPUTE_CONTACT_HREF); return; }
     if (id === 'compute.refresh') { void query.refetch(); return; }
     if (!view || !projectId || inFlight.current) return;
-    const pending = id.startsWith('compute.finalize.') ? view.project.pendingRuns?.find(run => run.runId === id.slice('compute.finalize.'.length)) : undefined;
+    const closing = id.startsWith('compute.close.');
+    const pendingId = id.startsWith('compute.finalize.') ? id.slice('compute.finalize.'.length) : closing ? id.slice('compute.close.'.length) : null;
+    const pending = pendingId ? view.project.pendingRuns?.find(run => run.runId === pendingId) : undefined;
     if (pending) {
+      // One route for both: it fetches finished files, or closes a run whose
+      // computer confirmed it stopped. A transfer already running (often the
+      // automatic one) or a timed-out request is still working, never "try again".
       inFlight.current = true; setBusy(true);
       void (async () => {
+        let value: ComputeSettingsView['notice'];
         try {
           const response = await fetch(`/api/compute/runs/${pending.runId}/finalize`, {
             method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
           });
-          setNotice({ projectId, value: response.ok ? 'saved' : 'failed' });
-          await query.refetch();
-        } catch { setNotice({ projectId, value: 'failed' }); }
-        finally { inFlight.current = false; setBusy(false); }
+          let reason: unknown;
+          if (!response.ok) { try { reason = ((await response.json()) as { reason?: unknown }).reason; } catch { /* no body */ } }
+          value = response.ok ? closing ? 'runClosed' : 'resultsArrived'
+            : !closing && computeResultsAttempt({ status: response.status, reason }) === 'working' ? 'resultsGetting'
+            : closing ? 'closePending' : 'resultsPending';
+        } catch { value = closing ? 'closePending' : 'resultsGetting'; }
+        setNotice({ projectId, value });
+        try { await query.refetch(); } finally { inFlight.current = false; setBusy(false); }
       })();
       return;
     }

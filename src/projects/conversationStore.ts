@@ -40,7 +40,10 @@ export interface AssistantScope { principalId: string; orgId: string; projectId:
 export const emptyConversation = (projectId: string | null = null): AssistantConversation => ({ id: null, projectId, version: 0, messages: [], proposal: null,
   lastRun: null, costUsd: 0, inputTokens: 0, outputTokens: 0, lastRequestId: null });
 
-export class AssistantConflict extends Error {}
+export class AssistantConflict extends Error {
+  /** A typed refusal reason a web surface maps to its own copy (`ServiceProblem.reason`). */
+  constructor(message: string, readonly reason?: string) { super(message); }
+}
 
 /**
  * Shared writes (`atoma_conversation_update`) admitted per principal and

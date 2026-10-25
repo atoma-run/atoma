@@ -42,6 +42,29 @@ export type ComputeAssignment = z.infer<typeof computeAssignmentSchema>;
 export const computeRunProgressSchema = z.enum(['executing', 'finalizing', 'transferred', 'stop-confirmation-pending', 'stopped']);
 export type ComputeRunProgress = z.infer<typeof computeRunProgressSchema>;
 
+/**
+ * A Compute run whose runner ended (its result is persisted and the transfer
+ * journal says `finalizing`) while no host process is moving the files: the
+ * work is finished and its results wait on the customer's computer. Host
+ * facts only, never model text. `since` is when the files started waiting:
+ * the first time no driver held the run after its runner ended, else the
+ * journal's own timestamp. `computerReady` (additive): that computer is
+ * connected and accepting work, so "open Atoma Compute" is not the remedy.
+ */
+export const computeResultsWaitingSchema = z.object({ since: z.string(), computerReady: z.boolean().optional() }).strict();
+export type ComputeResultsWaiting = z.infer<typeof computeResultsWaitingSchema>;
+/**
+ * The plain sentences every reader (web, MCP, task line) shows for it. They
+ * are viewer-neutral: other members read them too. The results arrive by
+ * themselves: the selected executor finishes the transfer once the computer
+ * is connected (src/projects/AGENTS.md).
+ */
+export const COMPUTE_RESULTS_WAITING_MESSAGE = 'The work is finished. Its results are on the computer that ran it and will arrive by themselves as soon as Atoma Compute is open, connected and accepting work there.';
+export const COMPUTE_RESULTS_STALLED_MESSAGE = 'The work is finished, but its results could not be transferred from the computer that ran it yet. The person who started the run can choose "Get the results"; contact support if this continues.';
+export function computeResultsWaitingMessage(waiting: Pick<ComputeResultsWaiting, 'computerReady'>): string {
+  return waiting.computerReady ? COMPUTE_RESULTS_STALLED_MESSAGE : COMPUTE_RESULTS_WAITING_MESSAGE;
+}
+
 export const computeAdmissionSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('ready'), session: computeSessionSchema }).strict(),
   z.object({ status: z.literal('waiting'), reason: z.enum([

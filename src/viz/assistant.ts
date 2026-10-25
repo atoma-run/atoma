@@ -30,7 +30,7 @@ function bounded(value: unknown, max = 20_000): string {
  * first paths.
  */
 const LATEST_RUN_FACTS = ['projectRunId', 'title', 'status', 'statusMessage', 'error', 'awaitingClientAcceptance',
-  'clientAcceptance', 'publication', 'awaitingClientAnswer', 'clientQuestion', 'checkpoint', 'progress',
+  'clientAcceptance', 'publication', 'awaitingClientAnswer', 'clientQuestion', 'checkpoint', 'progress', 'resultsWaiting',
   'acceptedReferenceRunId', 'rerunOf', 'resumeOf', 'baseRunId', 'readRunIds', 'depth', 'bytesExpiredAt',
   'createdAt', 'endedAt', 'durationS', 'costUsd', 'goal'] as const;
 /** The newest run's saved paths the model reads, in manifest order, by their characters; the rest are counted. */
@@ -133,7 +133,9 @@ export class AssistantService {
       status: typeof status['status'] === 'string' ? status['status'] : 'unknown', traceId: typeof status['traceId'] === 'string' ? status['traceId'] : null,
       costUsd: typeof status['costUsd'] === 'number' ? status['costUsd'] : null,
       error: typeof status['error'] === 'string' ? status['error'] : null,
-      endedAt: typeof status['endedAt'] === 'string' ? status['endedAt'] : null } : null;
+      endedAt: typeof status['endedAt'] === 'string' ? status['endedAt'] : null,
+      resultsWaiting: typeof status['resultsWaiting'] === 'object' && status['resultsWaiting'] !== null,
+      resultsStalled: object(status['resultsWaiting'])['computerReady'] === true } : null;
     const choices = await this.models.choices(scope);
     const subscriptions = await this.models.subscriptions(scope);
     const selected = choices.find(choice => choice.id === conversation.modelChoice);
@@ -165,7 +167,7 @@ export class AssistantService {
           ...(readRunIds.length ? { readRunIds } : {}),
           idempotencyKey: `assistant:${input.proposalId}`, conversationApproval }, true);
       } catch (error) {
-        if (error instanceof AssistantToolError) throw new AssistantConflict(error.message);
+        if (error instanceof AssistantToolError) throw new AssistantConflict(error.message, error.reason);
         throw new AssistantConflict('The action could not be confirmed. Check Projects and Runs before making another proposal.');
       }
       return current.id!;

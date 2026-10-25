@@ -20,6 +20,8 @@ import { drawProjectAside, drawProjectOverviewCard, projectAsideLayout, projectS
 import { attachLiveAtomaMark } from '../atoma-mark.js';
 import { RUN_STATUS_COLOR } from './runs.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from '../../github-access.js';
+import { computeResultsWaiting } from '../../compute-results.js';
+import { computeResultsBlock, drawComputeResultsBlock, wrapCopyLines } from '../compute-results-block.js';
 
 /**
  * Projects view: the organisation's projects, their GitHub repository state
@@ -152,20 +154,6 @@ function showsPartialGuidance(run: VizProjectRun, newest: boolean): boolean {
 }
 
 /** Wrap explanatory copy against the same glyph metrics used to draw it. */
-function runCopyLines(ctx: RendererCtx, copy: string, width: number): string[] {
-  const lines: string[] = [];
-  let rest = copy.replace(/\s+/g, ' ').trim();
-  while (rest) {
-    if (ctx.measureText(rest, { size: 12 }) <= width) { lines.push(rest); break; }
-    const fitted = ctx.fitText(rest, width, { size: 12 }).replace(/…$/, '');
-    const boundary = fitted.lastIndexOf(' ');
-    const length = Math.max(1, boundary > 0 ? boundary : fitted.length);
-    lines.push(rest.slice(0, length));
-    rest = rest.slice(length).trimStart();
-  }
-  return lines;
-}
-
 /** One measured layout owns the frame, its contents and the scroll extent. */
 function runCardLayout(ctx: RendererCtx, snapshot: GpuRenderSnapshot, run: VizProjectRun, width: number, newest: boolean) {
   const textWidth = Math.max(1, width - RUN_CARD_PAD * 2);
@@ -198,18 +186,22 @@ function runCardLayout(ctx: RendererCtx, snapshot: GpuRenderSnapshot, run: VizPr
     (run.publication?.status === 'published' && run.publication.pullRequestUrl));
   const checkpointCopy = run.checkpoint && run.checkpoint.state !== 'unavailable'
     ? snapshot.t('projects.checkpoint.progress', { completed: run.checkpoint.completed, total: run.checkpoint.total }) : null;
-  const checkpointLines = checkpointCopy ? runCopyLines(ctx, checkpointCopy, textWidth) : [];
+  const checkpointLines = checkpointCopy ? wrapCopyLines(ctx, checkpointCopy, textWidth) : [];
   const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
   const checkpointMessage = checkpointCopy ? progress?.message ?? (run.checkpoint?.reason ? snapshot.t(`projects.checkpoint.reason.${run.checkpoint.reason}`) : null) : null;
-  const messageLines = checkpointMessage ? runCopyLines(ctx, checkpointMessage, textWidth) : [];
+  const messageLines = checkpointMessage ? wrapCopyLines(ctx, checkpointMessage, textWidth) : [];
   const checkpointHeight = checkpointLines.length ? 16 + checkpointLines.length * 20 + 12 + 40 +
     (messageLines.length ? 12 + messageLines.length * 20 : 0) + RUN_CARD_PAD : 0;
   const recoveryHeight = pendingGitHubAccess(run) ? GITHUB_ACCESS_HEIGHT : run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0;
   const recoveryY = baseHeight + (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0);
   const checkpointY = recoveryY + recoveryHeight;
-  const height = checkpointY + checkpointHeight;
+  // Finished work whose files wait on the requester's computer: the plain
+  // sentence, "Get the results", and why it failed or who may press it.
+  const results = computeResultsBlock(ctx, snapshot, run, textWidth);
+  const resultsY = checkpointY + checkpointHeight;
+  const height = resultsY + (results ? results.height + RUN_CARD_PAD : 0);
   return { height, baseHeight, metrics, metricRows, metricsY, resultLabel, resultWidth, resultY, stackedResult,
-    recoveryY, checkpointY, checkpointLines, messageLines, textWidth };
+    recoveryY, checkpointY, checkpointLines, messageLines, resultsY, results, textWidth };
 }
 
 const STATUS_COLORS: Record<string, number> = {
@@ -801,7 +793,8 @@ export function drawProjects(
         snapshot.t('projects.cardCreated', {
           date: projectCreatedDate(project.createdAt, snapshot.state.locale),
         }),
-        project.hasRunningRun ? snapshot.t('projects.runInProgress')
+        // Finished work whose files wait on a computer is not "in progress".
+        project.hasRunningRun ? snapshot.t(project.runningRunsAwaitResults ? 'projects.resultsWaiting.projectStatus' : 'projects.runInProgress')
           : lastRunAgo ? snapshot.t('projects.cardLastRun', { ago: lastRunAgo }) : null,
       ].filter((value): value is string => value !== null).join(' · ');
       ctx.text(
@@ -855,10 +848,13 @@ export function drawProjects(
           ? Math.max(0, textWidth - resultWidth - 16) : textWidth;
         // A plain running run wears the Runs view's live badge — the turning
         // crystal and LIVE in the success colour — rather than a word of its own.
+        // Finished work waiting on a computer is not "live": no crystal, its own words.
+        const resultsWaiting = computeResultsWaiting(run) !== null;
         const live = run.status === 'running' && run.checkpoint?.state !== 'paused' && !access
-          && !run.githubAccess?.resumedRunId && !run.awaitingClientAcceptance;
-        const runStatusColor = access ? GPU_COLORS.warning : live ? RUN_STATUS_COLOR.live : statusColor(run.status);
-        const statusText = run.checkpoint?.state === 'paused' ? snapshot.t('projects.checkpoint.paused') : access ? snapshot.t('projects.githubAccess.title')
+          && !run.githubAccess?.resumedRunId && !run.awaitingClientAcceptance && !resultsWaiting;
+        const runStatusColor = access || resultsWaiting ? GPU_COLORS.warning : live ? RUN_STATUS_COLOR.live : statusColor(run.status);
+        const statusText = resultsWaiting ? snapshot.t('projects.resultsWaiting.status')
+          : run.checkpoint?.state === 'paused' ? snapshot.t('projects.checkpoint.paused') : access ? snapshot.t('projects.githubAccess.title')
           : run.githubAccess?.resumedRunId ? snapshot.t('projects.githubAccess.resumed')
           : run.awaitingClientAcceptance ? snapshot.t('projects.awaitingClientAcceptance')
           : live ? snapshot.t('runs.status.live')
@@ -993,6 +989,7 @@ export function drawProjects(
           card.messageLines.forEach((line, index) => ctx.text(pane.content, line, textX, actionY + 52 + index * 20,
             { size: 12, color: GPU_COLORS.warning, width: textWidth, singleLine: true }));
         }
+        if (card.results) drawComputeResultsBlock(ctx, pane.content, snapshot, run, card.results, textX, cursor + card.resultsY, textWidth);
         cursor += rowHeight;
       });
     } else if (selected && runs.length === 0) {

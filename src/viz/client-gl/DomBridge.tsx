@@ -6,6 +6,7 @@ import { ButtonIcon } from './ButtonIcon.js';
 import { WELCOME_LEGAL_LINKS } from './legal-links.js';
 import { previewActionsFor } from './renderer/preview-control.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
+import { canGetComputeResults, computeResultsMessageKey, computeResultsWaiting, COMPUTE_RESULTS_ACTION } from './compute-results.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
 import { ProjectOverviewAccessible } from './ProjectOverviewAccessible.js';
 import { formatDateTime } from '../client/date-format.js';
@@ -175,6 +176,29 @@ function AccessibleDocs({
   );
 }
 
+/**
+ * Finished work whose files wait on a computer: the plain sentence, "Get the
+ * results" and its outcome. ONE twin for the project's run card and the run's
+ * own page, mirroring the canvas block through the same activation id.
+ */
+function ComputeResultsSection({ run, auth, githubRecovery, t, onActivate }: {
+  run: import('../client/types.js').VizProjectRun; auth: AuthUiSnapshot | null; githubRecovery: GitHubRecoveryProgress | null;
+  t: (key: string, vars?: Record<string, unknown>) => string; onActivate?: ((id: string) => void) | undefined;
+}) {
+  const progress = githubRecovery?.runId === run.projectRunId ? githubRecovery : null;
+  const mayGet = canGetComputeResults(run, auth);
+  return <section aria-label={t('projects.resultsWaiting.status')}>
+    <h3>{t('projects.resultsWaiting.status')}</h3>
+    <p>{run.title ?? run.goal}</p>
+    <p>{t(computeResultsMessageKey(run, auth))}</p>
+    <button type="button" disabled={!mayGet || !!progress?.busy}
+      onClick={() => onActivate?.(`${COMPUTE_RESULTS_ACTION}${run.projectRunId}`)}>
+      <ButtonIcon kind="download" />{t(progress?.busy ? 'projects.resultsWaiting.getting' : 'projects.resultsWaiting.get')}
+    </button>
+    <p role="status">{progress?.message ?? (!mayGet ? t('projects.resultsWaiting.requesterOnly') : '')}</p>
+  </section>;
+}
+
 export function DomBridge({
   platformStats = null,
   platformDays = 30,
@@ -194,7 +218,7 @@ export function DomBridge({
   onEnter,
   githubInstallations = [],
   projects = [],
-  projectRuns = [], githubRecovery = null, auth = null,
+  projectRuns = [], runViewProjectRun = null, githubRecovery = null, auth = null,
   workspace,
   deploymentSettings,
   connectorSettings,
@@ -237,6 +261,8 @@ export function DomBridge({
   onEnter?: () => void;
   githubInstallations?: VizGitHubInstallation[];
   projectRuns?: import('../client/types.js').VizProjectRun[];
+  /** The project run behind the Runs view's selected trace, when it has one. */
+  runViewProjectRun?: import('../client/types.js').VizProjectRun | null;
   githubRecovery?: GitHubRecoveryProgress | null;
   auth?: AuthUiSnapshot | null;
   /** Minimal project index mirrored for keyboard and assistive navigation. */
@@ -502,6 +528,8 @@ export function DomBridge({
             ))}
           </select>
         ) : null}
+        {view === 'runs' && runViewProjectRun && computeResultsWaiting(runViewProjectRun) ?
+          <ComputeResultsSection run={runViewProjectRun} auth={auth} githubRecovery={githubRecovery} t={t} onActivate={onActivate} /> : null}
         {view === 'runs' && run && onActivate ?
           <TimelineNavigator key={run.id} run={run} t={t} onActivate={onActivate} /> : null}
         {view === 'runs' && eventExplanation && onActivate ? <section aria-label={eventExplanation.title}>
@@ -550,7 +578,7 @@ export function DomBridge({
           </nav>
         ) : null}
         {view === 'projects' && selectedProjectId && projectSection === 'settings' && deploymentSettings && onActivate ?
-          <ProjectSettingsAccessible view={deploymentSettings} t={t} onActivate={onActivate}
+          <ProjectSettingsAccessible view={deploymentSettings} t={t} onActivate={onActivate} locale={locale}
             connectors={connectorSettings ?? null} compute={computeSettings ?? null}
             {...(onRenameAddress ? { onRenameAddress } : {})} /> : null}
         {view === 'projects' && selectedProjectId && (projectSection === 'conversation' || projectSection === 'runs') ?
@@ -564,6 +592,8 @@ export function DomBridge({
             </button>
             <p role="status">{githubRecovery?.runId === run.projectRunId ? githubRecovery.message : run.checkpoint?.reason ? t(`projects.checkpoint.reason.${run.checkpoint.reason}`) : ''}</p>
           </section>) : null}
+        {view === 'projects' && selectedProjectId && projectSection === 'runs' ? projectRuns.filter(run => run.projectId === selectedProjectId && computeResultsWaiting(run)).map(run =>
+          <ComputeResultsSection key={`results-${run.projectRunId}`} run={run} auth={auth} githubRecovery={githubRecovery} t={t} onActivate={onActivate} />) : null}
         {view === 'projects' && selectedProjectId && projectSection === 'runs' && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && pendingGitHubAccess(run)).map(run => {
           const access = pendingGitHubAccess(run)!;
           const progress = githubRecovery?.runId === run.projectRunId ? githubRecovery : null;
