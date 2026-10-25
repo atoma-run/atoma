@@ -823,8 +823,9 @@ taught exactly that shape ("integration index 3 dependsOn:[1,2]").
 **Why the two placements are one rule.** A subtask's suite runs when that
 subtask returns, in the supervise loop above it, before its result is judged; a
 plan-level suite runs after the aggregation. Every branch shares one workspace,
-an aggregation writes nothing, and a dependent never starts behind a failed
-producer (it lands, as a plan-level suite does not run on a landing). So a
+an aggregation writes nothing, and in a parallel plan a subtask never starts
+behind a failed `dependsOn` producer (it lands, as a plan-level suite does not
+run on a landing). So a
 suite on the plan's sink, the subtask every other one comes before, reads the
 workspace the plan-level suite would read.
 Its failure is cheaper to repair: the join's own branch retries, where a failed
@@ -843,7 +844,10 @@ parallel plan, the incident's shape, nor in a cell under a tissue. The first
 version exempted them; its adversarial review found the gap. At least two tested branches come before it besides itself: the last
 branch of a chain keeps its own contract, as before, so the gate is relaxed only
 for a genuine join. A resumed root re-enforces its recorded approval with the
-same function, reading its sequential suffix by order.
+same function, reading its sequential suffix by order. When a recorded approval
+no longer binds and only the suffix is reviewed again, a suffix holding fewer
+than two tested branches before the join is refused as before and replanned:
+the gate counts the plan it is shown, never the completed prefix.
 
 **What root acceptance reads.** The join's suite is a phase suite there, and
 not the root's own: the tissue judged it in the join's loop
@@ -854,10 +858,11 @@ and its source, an authored suite of at most 12,000 characters inside the root's
 32,000, is shown whole after only the sources nobody below judged (pinned in
 `tests/parent-tests-observations.test.ts`). A failed one never reaches the root
 approved: it rejected the join in its own loop, and if the join exhausts, its
-observations go up unjudged and the root judges them first. The one difference
-is an UNAVAILABLE join suite: the tissue reviewed it and withheld the join's
-credit, and the root does not review it a second time, where an unavailable
-plan-level suite is the root's to review. That is the judged-once rule, kept on
+observations go up unjudged and the root judges them first. What differs is
+every consequence that is not a rejection, an UNAVAILABLE join suite and the
+reviewed repeat of a reject-once cause alike: the tissue judged it in the
+join's loop and the root does not judge it a second time, where the same
+observation on a plan-level suite is the root's to review. That is the judged-once rule, kept on
 purpose: un-judging the join's observations at aggregation would need the
 aggregate to know which subtask is the join and would review one fact twice,
 and tagging the approved plan's join digest for the root block would be a

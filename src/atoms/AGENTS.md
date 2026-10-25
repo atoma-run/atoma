@@ -367,8 +367,8 @@ load-bearing.
 - [Parent-owned tests](../../docs/decisions/parent-owned-tests-2026-10-16.md): L3
   assigns L2 suites and reviews L2-authored L1 suites before execution; unchanged
   approved plans reuse review, revisions require it. The loop and compiled dispatch
-  run the fixed harness before validation/credit, fallbacks included; the plan's suite
-  or its sink join's checks integration (`PARENT_TEST_INTEGRATION_PLACEMENT`).
+  run the fixed harness before validation/credit, fallbacks included; the plan-level suite,
+  or the suite on its sink join, checks integration (`PARENT_TEST_INTEGRATION_PLACEMENT`).
   `core/parentTests.ts` alone maps typed status/cause to reject, reject-once or
   review, never credit. Observations go up typed, reach validators only as a host
   block, judged once; green needs semantic review. The delegation review's mechanical
