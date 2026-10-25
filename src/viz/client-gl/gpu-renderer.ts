@@ -702,6 +702,13 @@ export class GpuRenderer {
   private runsScrollHeight = 0;
 
   readonly scrollMax: Partial<Record<ViewName, number>> = {};
+  /**
+   * One item a view asks to bring into view, ONCE per `request` (a store
+   * counter): its content-space top and bottom inside that view's scroll pane,
+   * set during the draw. Applied after it through the ordinary scroll channel.
+   */
+  scrollReveal: { view: ViewName; top: number; bottom: number; request: number } | null = null;
+  private revealedRequest = 0;
   private readonly tickerCallbacks = new Set<(ticker: Ticker) => void>();
   /**
    * The animated bands, RETAINED across scene rebuilds — see `animatedLayer`.
@@ -1068,6 +1075,17 @@ export class GpuRenderer {
     if (deltaY > 0 && maximum > 0 && next >= maximum) {
       this.snapshot.onActivate(`scroll.end.${view}`);
     }
+  }
+
+  /** Brings a view's `scrollReveal` into view once per request, a little air above it. */
+  private applyScrollReveal(snapshot: GpuRenderSnapshot): void {
+    const reveal = this.scrollReveal;
+    if (!reveal || reveal.request === this.revealedRequest) return;
+    this.revealedRequest = reveal.request;
+    const current = snapshot.state.scrollY[reveal.view];
+    const target = Math.max(0, Math.min(this.scrollMax[reveal.view] ?? 0, reveal.top - 16));
+    // After this draw, never inside it: a scroll is a store change that redraws.
+    if (target !== current) queueMicrotask(() => snapshot.onScroll(reveal.view, target - current));
   }
 
   /**
@@ -2069,6 +2087,7 @@ export class GpuRenderer {
     this.detailBounds = null;
     this.detailScrollMax = 0;
     this.scrollMax[snapshot.state.view] = 0;
+    this.scrollReveal = null;
 
     const hostWidth = this.host?.clientWidth ?? this.app.screen.width;
     const hostHeight = this.host?.clientHeight ?? this.app.screen.height;
@@ -2229,6 +2248,7 @@ export class GpuRenderer {
             style?.setProperty('--gpu-project-section-height',
               `${workspaceReaderHeight(viewFrame(contentWidth, layoutHeight).bottom, guideTop)}px`);
             drawProjects(this, snapshot, contentWidth, layoutHeight);
+            this.applyScrollReveal(snapshot);
             break;
           }
           case 'platform':
@@ -5669,6 +5689,7 @@ export type RendererCtx = Pick<
   | 'animateEnteringFilterSpace'
   | 'metrics'
   | 'scrollMax'
+  | 'scrollReveal'
   | 'runsScroll'
   | 'timelineMinimapScroll'
   | 'timelineMinimapMotion'

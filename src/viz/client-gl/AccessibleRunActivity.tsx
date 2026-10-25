@@ -8,9 +8,11 @@ import { runCost, runDuration, runElapsedMs, runStatus, runUsageValue } from '..
 import { formatDateTime } from '../client/date-format.js';
 
 /** Semantic twin of the GPU progress reader; all controls use the same store actions. */
-export function AccessibleRunActivity({ run, t }: {
+export function AccessibleRunActivity({ run, t, awaitingResults = false }: {
   run: VizRun;
   t: (key: string, vars?: Record<string, unknown>) => string;
+  /** Finished work whose files wait on a computer: it outranks the trace's own verdict. */
+  awaitingResults?: boolean;
 }) {
   const state = useGpuStore();
   const activity = buildRunActivity(run);
@@ -23,7 +25,7 @@ export function AccessibleRunActivity({ run, t }: {
       {t(state.runActivityOpen ? 'activity.backTrace' : 'activity.open', { count: activity.touched })}
     </button>
     {state.runActivityOpen && <>
-      <p>{t(`runs.flag.${runStatus(run)}`)}</p>
+      <p>{t(awaitingResults ? 'projects.resultsWaiting.status' : `runs.flag.${runStatus(run)}`)}</p>
       {selected ? <>
         <button onClick={() => state.selectActivityFile(null)}><ButtonIcon kind="back" />{t('activity.backFiles')}</button>
         <h2>{selected.path}</h2>

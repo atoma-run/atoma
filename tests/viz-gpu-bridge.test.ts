@@ -218,6 +218,28 @@ describe('full-GL minimal DOM bridge', () => {
     expect(screen.queryByRole('button', { name: 'Back to project' })).not.toBeInTheDocument();
   });
 
+  // Review 2026-10-25: the run's own page said "Delivered" in its accessible
+  // Progress reader while its results were still on the customer's computer.
+  it('reads a run whose results wait on a computer as waiting in the accessible Progress reader', () => {
+    useGpuStore.setState({ view: 'runs', entered: true, runActivityOpen: true });
+    const run = { id: 'run-waiting', label: 'Booking page', startedAt: '2026-08-20T00:00:00.000Z', endedAt: '2026-08-20T00:30:00.000Z',
+      result: { summary: 'done' }, events: [] };
+    const projectRun = { projectRunId: 'run-waiting', projectId: 'project-a', orgId: 'org-1', goal: 'Booking page',
+      status: 'running' as const, requestedByPrincipalId: 'person', traceId: 'run-waiting', costUsd: 0.4, durationS: null,
+      error: null, publication: null, createdAt: '2026-08-20T00:00:00.000Z', endedAt: null,
+      resultsWaiting: { since: '2026-08-20T00:30:00.000Z' } };
+    const props = { runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onActivate: vi.fn(), run,
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars) };
+    const view = render(createElement(DomBridge, { ...props, runViewProjectRun: projectRun }));
+    const progress = screen.getByRole('region', { name: translate('en', 'activity.title') });
+    expect(within(progress).getByText(translate('en', 'projects.resultsWaiting.status'))).toBeInTheDocument();
+    expect(within(progress).queryByText(translate('en', 'runs.flag.delivered'))).not.toBeInTheDocument();
+    view.unmount();
+    render(createElement(DomBridge, { ...props, runViewProjectRun: { ...projectRun, status: 'delivered' as const, resultsWaiting: null } }));
+    const delivered = screen.getByRole('region', { name: translate('en', 'activity.title') });
+    expect(within(delivered).getByText(translate('en', 'runs.flag.delivered'))).toBeInTheDocument();
+  });
+
   it('opens recorded changes by keyboard and returns to the same source event', async () => {
     const user = userEvent.setup();
     render(createElement(AccessibleRunActivity, {

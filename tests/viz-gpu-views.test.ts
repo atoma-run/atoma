@@ -153,6 +153,8 @@ import {
 } from '../src/viz/client-gl/renderer/views/runs.js';
 import { drawSkills } from '../src/viz/client-gl/renderer/views/skills.js';
 import { drawRunPicker } from '../src/viz/client-gl/renderer/views/run-picker.js';
+import { RUN_STATUS_GLYPH } from '../src/viz/client/run-utils.js';
+import { COMPUTE_RESULTS_WAITING_GLYPH } from '../src/viz/client-gl/compute-results.js';
 import { timelineConnectorGeometry } from '../src/viz/client-gl/renderer/timeline-rails.js';
 import {
   ADMIN_VIEWS,
@@ -212,6 +214,8 @@ interface RecordedButton {
   active: boolean;
   spinning?: boolean;
   disabled?: boolean;
+  /** The colour the button wears (its outcome, on a run picker row). */
+  accent?: number;
   onActivate?: (id: string) => void;
 }
 
@@ -357,6 +361,7 @@ function createRecordingCtx(): RecordingCtx {
       );
     },
     scrollMax: {},
+    scrollReveal: null,
     runGoalBounds: null,
     runGoalScrollY: 0,
     runGoalScrollMax: 0,
@@ -514,7 +519,7 @@ function createRecordingCtx(): RecordingCtx {
       height,
       active,
       onActivate,
-      _accent,
+      accent,
       _centerLabel,
       spinning,
       labelMaxWidth,
@@ -542,6 +547,7 @@ function createRecordingCtx(): RecordingCtx {
         active,
         spinning: spinning === true,
         disabled: disabled === true,
+        ...(typeof accent === 'number' ? { accent } : {}),
         onActivate,
       });
       ctx.recordHitTarget(parent, {
@@ -644,6 +650,8 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     view: 'runs',
     sceneCameraMode: 'overview',
     locale: 'en',
+    focusedProjectRunId: null,
+    projectRunFocusRequest: 0,
     selectedRunId: null,
     resultRunId: null,
     resultActionStatus: null,
@@ -2870,6 +2878,36 @@ describe('drawProjects', () => {
       projects: [project], projectRuns: { 'p-1': [{ ...run, resultsWaiting: null }] },
     }), width, 1400);
     expect(ctx.buttons.some(b => b.id.startsWith('project.computeResults.'))).toBe(false);
+  });
+
+  // Review 2026-10-25: the results-waiting notification opened the Runs but
+  // left the run it named somewhere in the list.
+  it('highlights the run a notification named and asks the renderer to bring it into view, once per request', () => {
+    const project: VizProject = { projectId: 'p-1', name: 'App', slug: 'app', status: 'active', family: 'build',
+      repositoryTarget: { installationId: '501', owner: 'acme', name: 'app', visibility: 'private' },
+      repositoryStatus: 'pending', repositoryFullName: null, repositoryUrl: null, repositoryError: null,
+      createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z' };
+    const runs: VizProjectRun[] = Array.from({ length: 8 }, (_, index) => ({ projectRunId: `run-${index}`, projectId: 'p-1', orgId: 'org-1',
+      goal: `Change ${index}`, status: 'delivered', requestedByPrincipalId: 'person', traceId: `run-${index}`, costUsd: 0.4, durationS: 60,
+      error: null, publication: null, createdAt: '2026-08-20T00:00:00.000Z', endedAt: '2026-08-20T00:01:00.000Z' }));
+    const draw = (focusedProjectRunId: string | null) => {
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: 'p-1', projectSection: 'runs', focusedProjectRunId, projectRunFocusRequest: 4 }, {
+        auth: makeAuth(), projects: [project], projectRuns: { 'p-1': runs },
+      }), 1280, 720);
+      return ctx;
+    };
+    const focused = draw('run-6');
+    const card = focused.buttons.find(button => button.id === 'project.run.run-6')!;
+    expect(card.active).toBe(true);
+    expect(focused.buttons.filter(button => button.id.startsWith('project.run.') && button.active).map(button => button.id)).toEqual(['project.run.run-6']);
+    expect(focused.scrollReveal).toMatchObject({ view: 'projects', request: 4 });
+    // Content-space: the card's own top and bottom inside the scroll pane, below the earlier cards.
+    expect(focused.scrollReveal!.bottom - focused.scrollReveal!.top).toBe(card.height);
+    expect(focused.scrollReveal!.top).toBeGreaterThan(focused.buttons.find(button => button.id === 'project.run.run-5')!.y - 1);
+    const plain = draw(null);
+    expect(plain.scrollReveal).toBeNull();
+    expect(plain.buttons.some(button => button.id.startsWith('project.run.') && button.active)).toBe(false);
   });
 
   it.each([1280, 360])('offers bounded GitHub recovery controls at width %s and disables repeat checks', width => {
@@ -7569,6 +7607,29 @@ describe('render groups — per-frame animation stays off the root batch', () =>
 });
 
 
+describe('scroll reveal — a view brings one item into view once per request', () => {
+  it('scrolls to the item after the draw, clamped, and never again for the same request', async () => {
+    const renderer = new GpuRenderer();
+    const internals = renderer as unknown as { scrollMax: Partial<Record<string, number>>; applyScrollReveal(snapshot: GpuRenderSnapshot): void };
+    const onScroll = vi.fn();
+    const snapshot = { ...makeSnapshot({ view: 'projects' }), onScroll } as GpuRenderSnapshot;
+    internals.scrollMax.projects = 900;
+    renderer.scrollReveal = { view: 'projects', top: 616, bottom: 760, request: 1 };
+    internals.applyScrollReveal(snapshot);
+    expect(onScroll).not.toHaveBeenCalled(); // after the draw, never inside it
+    await Promise.resolve();
+    expect(onScroll).toHaveBeenCalledWith('projects', 600);
+    internals.applyScrollReveal(snapshot);
+    await Promise.resolve();
+    expect(onScroll).toHaveBeenCalledOnce();
+    renderer.scrollReveal = { view: 'projects', top: 5_000, bottom: 5_100, request: 2 };
+    internals.applyScrollReveal(snapshot);
+    await Promise.resolve();
+    expect(onScroll).toHaveBeenLastCalledWith('projects', 900);
+    renderer.destroy();
+  });
+});
+
 describe('touch scrolling — a finger drag drives the same router as the wheel', () => {
   // Node has no TouchEvent; the handlers read only these members.
   type TouchLike = { identifier: number; clientX: number; clientY: number };
@@ -8581,6 +8642,29 @@ describe('project-grouped run picker', () => {
     }, { runs }), WIDTH, HEIGHT);
     expect(searched.buttons).toHaveLength(0);
     expect(searched.texts.map(text => text.value)).toContain('0 / 2 RUNS');
+  });
+
+  // Review 2026-10-25: the picker said "✓ delivered" for a run whose results
+  // were still on the customer's computer, while its header said waiting.
+  it('marks a project run whose results wait on a computer as waiting, not with the trace\'s verdict', () => {
+    const runs = [{ id: 'waiting', projectId: 'a', projectSlug: 'a', label: 'Booking page', startedAt: '2026-10-03',
+      endedAt: '2026-10-03T00:10:00.000Z', projectRunId: 'waiting' }];
+    const projectRun: VizProjectRun = { projectRunId: 'waiting', projectId: 'a', orgId: 'org-1', goal: 'Booking page', status: 'running',
+      requestedByPrincipalId: 'person', traceId: 'waiting', costUsd: 0.4, durationS: null, error: null, publication: null,
+      createdAt: '2026-10-03T00:00:00.000Z', endedAt: null, resultsWaiting: { since: '2026-10-03T00:10:00.000Z' } };
+    const draw = (rows: VizProjectRun[]) => {
+      const ctx = createRecordingCtx();
+      drawRunPicker(ctx, makeSnapshot({ selectedRunId: 'other', selectedProjectId: 'a' }, { runs, projectRuns: { a: rows } }), WIDTH, HEIGHT);
+      return ctx.buttons.find(button => button.id === 'run.select.waiting')!;
+    };
+    const waiting = draw([projectRun]);
+    expect(waiting.label.startsWith(`${COMPUTE_RESULTS_WAITING_GLYPH} `)).toBe(true);
+    expect(waiting.label.startsWith(RUN_STATUS_GLYPH.delivered)).toBe(false);
+    expect(waiting.accent).toBe(GPU_COLORS.warning);
+    // Delivered for real: its own verdict again.
+    const delivered = draw([{ ...projectRun, status: 'delivered', resultsWaiting: null }]);
+    expect(delivered.label.startsWith(`${RUN_STATUS_GLYPH.delivered} `)).toBe(true);
+    expect(delivered.accent).not.toBe(GPU_COLORS.warning);
   });
 
   it('keeps projects together, prioritises live activity and never merges equal slugs', () => {

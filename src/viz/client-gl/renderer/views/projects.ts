@@ -869,16 +869,20 @@ export function drawProjects(
         const cost = run.costUsd === null ? '' : ' · ' + runCost(run.costUsd);
         const date = ctx.relativeTime(run.createdAt, snapshot.t, snapshot.state.locale) || run.createdAt;
         const runTitle = run.title ?? run.goal.replace(/\s+/g, ' ');
+        // The run a link asked for (a results-waiting notification) stands out,
+        // and the renderer brings it into view once per request.
+        const focused = run.projectRunId === snapshot.state.focusedProjectRunId;
+        if (focused) ctx.scrollReveal = { view: 'projects', top: cursor, bottom: cursor + cardHeight, request: snapshot.state.projectRunFocusRequest };
         if (run.traceId) {
           ctx.button(pane.content, 'project.run.' + run.traceId, 'button',
             // The short title once the run was named; the bubble keeps the whole goal.
             runTitle, runColumnX, cursor, goalWidth, cardHeight,
-            false, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 16,
+            focused, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 16,
             [run.goal, date, statusText + cost, ...metrics].join(' · '));
         } else {
           // A run that failed during preparation has no trace for /api/runs/:id.
           // Keep its status and error here without offering a link that 404s.
-          ctx.panel(pane.content, runColumnX, cursor, goalWidth, cardHeight, GPU_COLORS.panelRaised, GPU_COLORS.border, 7);
+          ctx.panel(pane.content, runColumnX, cursor, goalWidth, cardHeight, GPU_COLORS.panelRaised, focused ? GPU_COLORS.primary : GPU_COLORS.border, 7);
           ctx.text(pane.content, runTitle, textX, cursor + 16,
             { size: 13, weight: '600', color: GPU_COLORS.text, width: textWidth, singleLine: true });
           ctx.tooltip(pane.content, { x: runColumnX, y: cursor, width: goalWidth,

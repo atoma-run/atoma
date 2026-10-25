@@ -371,6 +371,21 @@ describe('full-GL Zustand scene state', () => {
     expect(useGpuStore.getState()).toMatchObject({
       view: 'projects', selectedProjectId: 'project-a', projectSection: 'runs', sceneCameraMode: 'focus',
     });
+    expect(useGpuStore.getState().focusedProjectRunId).toBeNull();
+  });
+
+  // Review 2026-10-25: a results-waiting notification names its run.
+  it('opens a project\'s Runs on a named run, once per request, and lets go on any other navigation', () => {
+    const before = useGpuStore.getState().projectRunFocusRequest;
+    useGpuStore.getState().openProjectRuns('project-a', 'run-3');
+    expect(useGpuStore.getState()).toMatchObject({ view: 'projects', selectedProjectId: 'project-a', projectSection: 'runs',
+      focusedProjectRunId: 'run-3', projectRunFocusRequest: before + 1 });
+    useGpuStore.getState().selectProjectSection('conversation');
+    expect(useGpuStore.getState().focusedProjectRunId).toBeNull();
+    useGpuStore.getState().openProjectRuns('project-a', 'run-3');
+    expect(useGpuStore.getState().projectRunFocusRequest).toBe(before + 2);
+    useGpuStore.getState().selectProject('project-b');
+    expect(useGpuStore.getState().focusedProjectRunId).toBeNull();
   });
 
   it('opens the end-user guide on quick start and resets scroll between topics', () => {

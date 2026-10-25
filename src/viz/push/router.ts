@@ -182,6 +182,7 @@ export class NotificationRouter {
       orgId: event.orgId,
       projectId: event.projectId,
       traceId,
+      runId: event.runId,
     });
   }
 }

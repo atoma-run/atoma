@@ -22,7 +22,20 @@ describe('notification link', () => {
     const bare = { kind: 'announcement', orgId: null, projectId: null, traceId: null };
     expect(notificationLinkUrl(bare)).toBe('/?atomaNotification=announcement');
     expect(parseNotificationLink('?lang=fr')).toBeNull();
-    expect(withoutNotificationLink('?lang=fr&atomaNotification=x&atomaTrace=t')).toBe('?lang=fr');
+    expect(withoutNotificationLink('?lang=fr&atomaNotification=x&atomaTrace=t&atomaRun=r')).toBe('?lang=fr');
+    const withRun = { ...link, kind: 'run.results_waiting', traceId: null, runId: 'run-3' };
+    expect(parseNotificationLink(new URL(notificationLinkUrl(withRun), 'https://x').search)).toEqual(withRun);
+  });
+
+  // Review 2026-10-25: the results-waiting click opened the project's Runs but
+  // not the run it was about.
+  it('a results-waiting click opens the project\'s Runs on that run, from a push link or a tray row', () => {
+    const viewer = { platformAdmin: false, activeOrgId: 'org-1' };
+    const pushed = parseNotificationLink(new URL(notificationLinkUrl({ kind: 'run.results_waiting', orgId: 'org-1',
+      projectId: 'proj-1', traceId: null, runId: 'run-3' }), 'https://x').search)!;
+    expect(notificationTarget(pushed, viewer)).toBe('notifications.go.projectRuns.proj-1.run-3');
+    expect(notificationTarget({ ...pushed, runId: null }, viewer)).toBe('notifications.go.projectRuns.proj-1');
+    expect(notificationTarget(pushed, { ...viewer, activeOrgId: 'org-2' })).toBeNull();
   });
 
   it('a click on a delivered run opens that run for a member of its organisation', () => {

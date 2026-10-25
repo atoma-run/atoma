@@ -187,7 +187,9 @@ function ComputeResultsSection({ run, auth, githubRecovery, t, onActivate }: {
 }) {
   const progress = githubRecovery?.runId === run.projectRunId ? githubRecovery : null;
   const mayGet = canGetComputeResults(run, auth);
-  return <section aria-label={t('projects.resultsWaiting.status')}>
+  // The run a results-waiting notification named: marked current, as the canvas highlights its card.
+  const focused = useGpuStore(state => state.focusedProjectRunId === run.projectRunId);
+  return <section aria-label={t('projects.resultsWaiting.status')} aria-current={focused ? 'true' : undefined}>
     <h3>{t('projects.resultsWaiting.status')}</h3>
     <p>{run.title ?? run.goal}</p>
     <p>{t(computeResultsMessageKey(run, auth))}</p>
@@ -634,7 +636,8 @@ export function DomBridge({
           return entry?.projectId && entry.projectName ? <button type="button"
             onClick={() => onActivate?.(`runs.project.back.${entry.projectId}`)}><ButtonIcon kind="back" />{t('runs.backToProject')}</button> : null;
         })() : null}
-        {view === 'runs' && run ? <AccessibleRunActivity run={run} t={t} /> : null}
+        {view === 'runs' && run ? <AccessibleRunActivity run={run} t={t}
+          awaitingResults={!!runViewProjectRun && computeResultsWaiting(runViewProjectRun) !== null} /> : null}
         {view === 'platform' && auth?.viewer.platformAdmin ? <PlatformStatsAccessible
           stats={platformStats} days={platformDays} locale={locale} t={t} onActivate={onActivate} /> : null}
         {view === 'sentinel' && auth?.viewer.platformAdmin ? (

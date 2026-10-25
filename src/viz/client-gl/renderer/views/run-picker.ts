@@ -7,6 +7,8 @@ import { RUN_STATUS_GLYPH, runIndexStatus } from '../../../client/run-utils.js';
 import { fmtTokenCount } from '../copy.js';
 import { drawScrollbarThumb } from '../scroll-pane.js';
 import { runsPaneLayout, runsPickerControlLayout, RUN_STATUS_COLOR } from './runs.js';
+import { runAwaitingResults } from '../compute-results-block.js';
+import { COMPUTE_RESULTS_WAITING_GLYPH } from '../../compute-results.js';
 
 const RUN_PICKER_ROW_LABEL_TOP = 5;
 const RUN_PICKER_ROW_SECOND_TOP = 24;
@@ -90,6 +92,10 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
       // and NOTHING for a run that worked, so a delivered run was the one
       // outcome the list could not name.
       const status = runIndexStatus(run);
+      // Finished work whose files wait on a computer: the trace may read
+      // delivered, the run has not ended. The server's host fact outranks it,
+      // as in the run header and on the project's run card.
+      const awaitingResults = runAwaitingResults(snapshot, run) !== null;
       ctx.button(
         listLayer,
         `run.select.${run.id}`,
@@ -107,7 +113,7 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
         // for an index that predates the goal, or a run that never had one.
         // A named run shows its TITLE first: a goal is up to 4 000 characters
         // of specification, and one row cannot say which run it is with that.
-        `${RUN_STATUS_GLYPH[status]} ${
+        `${awaitingResults ? COMPUTE_RESULTS_WAITING_GLYPH : RUN_STATUS_GLYPH[status]} ${
           run.title ?? run.goal ?? run.label.replace(/^(?:build-app|baseline):\s*/i, '')
         }`,
         rowX,
@@ -117,7 +123,7 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
         keyboardActive,
         snapshot.onActivate,
         // Selection keeps its own accent; everything else wears its outcome.
-        selected ? GPU_COLORS.tiers[3] : RUN_STATUS_COLOR[status],
+        selected ? GPU_COLORS.tiers[3] : awaitingResults ? GPU_COLORS.warning : RUN_STATUS_COLOR[status],
         false,
         false,
         undefined,

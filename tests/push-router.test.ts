@@ -399,6 +399,8 @@ describe('push click destination', () => {
       orgId: 'org-1',
       projectId: 'proj-1',
       traceId: 'trace-1',
+      // The project run too (2026-10-25): a results-waiting click opens that run's card.
+      runId: 'run-1',
     });
   });
 

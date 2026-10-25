@@ -17,6 +17,8 @@ export interface NotificationLink {
   readonly orgId: string | null;
   readonly projectId: string | null;
   readonly traceId: string | null;
+  /** The project run the event is about (additive, 2026-10-25): a run with no trace link yet is still named. */
+  readonly runId?: string | null;
 }
 
 const PARAM = {
@@ -24,6 +26,7 @@ const PARAM = {
   orgId: 'atomaOrg',
   projectId: 'atomaProject',
   traceId: 'atomaTrace',
+  runId: 'atomaRun',
 } as const;
 
 const MAX_ID = 200;
@@ -34,6 +37,7 @@ export function notificationLinkUrl(link: NotificationLink): string {
   if (link.orgId) params.set(PARAM.orgId, link.orgId);
   if (link.projectId) params.set(PARAM.projectId, link.projectId);
   if (link.traceId) params.set(PARAM.traceId, link.traceId);
+  if (link.runId) params.set(PARAM.runId, link.runId);
   return `/?${params.toString()}`;
 }
 
@@ -46,11 +50,13 @@ export function parseNotificationLink(search: string): NotificationLink | null {
     const value = params.get(key);
     return value && value.length <= MAX_ID ? value : null;
   };
+  const runId = id(PARAM.runId);
   return {
     kind,
     orgId: id(PARAM.orgId),
     projectId: id(PARAM.projectId),
     traceId: id(PARAM.traceId),
+    ...(runId ? { runId } : {}),
   };
 }
 

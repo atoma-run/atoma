@@ -208,6 +208,13 @@ export function projectSelectionAfterProjects(
 
 export interface GpuUiState {
   view: ViewName;
+  /**
+   * A project run a link asked for (a results-waiting notification): its card
+   * in the project's Runs is highlighted, and brought into view once per
+   * request (`projectRunFocusRequest`). Cleared by any other project navigation.
+   */
+  focusedProjectRunId: string | null;
+  projectRunFocusRequest: number;
   /** Pulled-back whole scene, or the navigation focus on the content column. */
   sceneCameraMode: SceneCameraMode;
   locale: Locale;
@@ -339,8 +346,8 @@ export interface GpuUiState {
   selectSentinelSection: (section: SentinelSection) => void;
   toggleProjectOverview: () => void;
   openWorkspace: (runId: string | null) => void;
-  /** A run's way back: its project, on the Runs section that lists it. */
-  openProjectRuns: (projectId: string) => void;
+  /** A run's way back: its project, on the Runs section that lists it, that run's card in view when named. */
+  openProjectRuns: (projectId: string, runId?: string | null) => void;
   setGitHubRecovery: (value: import('./github-access.js').GitHubRecoveryProgress | null) => void;
   selectWorkspacePath: (path: string) => void;
   previewFile: (file: FilePreviewTarget | null) => void;
@@ -460,6 +467,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   view: 'projects',
   sceneCameraMode: 'overview',
   locale: initialLocale(),
+  focusedProjectRunId: null,
+  projectRunFocusRequest: 0,
   selectedRunId: null,
   selectedEventId: null,
   contextRawOpen: false,
@@ -710,6 +719,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectSkill: (selectedSkill) => set({ selectedSkill }),
   selectProject: (selectedProjectId) => set((state) => ({
     selectedProjectId,
+    focusedProjectRunId: null,
     // Opening a project focuses its content from both canvas and keyboard.
     sceneCameraMode: selectedProjectId ? 'focus' : state.sceneCameraMode,
     projectSection: 'conversation',
@@ -724,6 +734,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   })),
   selectProjectSection: (projectSection, runId = null) => set(state => ({
     projectSection,
+    focusedProjectRunId: null,
     workspaceRunId: projectSection === 'files' ? runId : null,
     workspacePath: '', filePreview: null,
     resultRunId: projectSection === 'result' ? runId : null,
@@ -740,10 +751,11 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     projectSection: workspaceRunId ? 'files' : 'runs',
     workspaceRunId, workspacePath: '', filePreview: null, scrollY: { ...state.scrollY, projects: 0 },
   })),
-  openProjectRuns: (projectId) => {
+  openProjectRuns: (projectId, runId = null) => {
     get().selectProject(projectId);
     get().selectProjectSection('runs');
     get().setView('projects');
+    if (runId) set(state => ({ focusedProjectRunId: runId, projectRunFocusRequest: state.projectRunFocusRequest + 1 }));
   },
   previewFile: (filePreview) => set({ filePreview }),
   selectWorkspacePath: (workspacePath) => set(state => ({ workspacePath, scrollY: { ...state.scrollY, projects: 0 } })),

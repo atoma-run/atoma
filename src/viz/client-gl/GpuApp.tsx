@@ -819,7 +819,9 @@ function GpuAppContent({
       return;
     }
     if (id.startsWith('notifications.go.projectRuns.')) {
-      store.openProjectRuns(id.slice('notifications.go.projectRuns.'.length));
+      // `<projectId>[.<projectRunId>]`: ids carry no dot.
+      const [projectId, runId] = id.slice('notifications.go.projectRuns.'.length).split('.');
+      if (projectId) store.openProjectRuns(projectId, runId ?? null);
       return;
     }
     if (id.startsWith('notifications.go.project.')) {

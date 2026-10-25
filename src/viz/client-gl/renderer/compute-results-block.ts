@@ -62,7 +62,7 @@ export function drawComputeResultsBlock(ctx: RendererCtx, parent: Container, sna
  * on a computer (the server's host fact on the project's run list). The trace
  * ended and may read delivered; this outranks it wherever the run's verdict shows.
  */
-export function runAwaitingResults(snapshot: GpuRenderSnapshot, run: VizRun): VizProjectRun | null {
+export function runAwaitingResults(snapshot: GpuRenderSnapshot, run: Pick<VizRun, 'id'>): VizProjectRun | null {
   const entry = snapshot.data.runs.find(candidate => candidate.id === run.id);
   const projectRunId = entry?.projectRunId ?? entry?.id;
   const projectRun = entry?.projectId && projectRunId
