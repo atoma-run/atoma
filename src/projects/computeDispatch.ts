@@ -209,8 +209,8 @@ export class ComputeDispatcher {
       return log;
     } catch (error) {
       if (error instanceof WorkspaceExportRefusedError) throw new ComputeFinalizationRefusedError(log, error);
-      logPending(run.projectRunId, 'finalization', error);
       this.transferStopped(run.projectRunId);
+      logPending(run.projectRunId, 'finalization', error);
       throw new ComputeDispatchPendingError();
     } finally { peer.close('dispatch-finished'); }
   }
