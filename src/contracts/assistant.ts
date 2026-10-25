@@ -104,7 +104,9 @@ export const assistantViewSchema = z.object({
   nextBefore: z.number().int().positive().nullable().default(null),
   /** The run the conversation presents: the project's newest, else the one this conversation started. */
   run: assistantRunSchema.extend({ status: z.string(), traceId: z.string().nullable(), costUsd: z.number().nullable(), error: z.string().nullable(),
-    endedAt: z.string().datetime().nullable() }).nullable(),
+    endedAt: z.string().datetime().nullable(),
+    /** Additive (2026-10-25): the run's work ended and its files wait on the requester's computer (host facts). */
+    resultsWaiting: z.boolean().optional() }).nullable(),
 });
 export type AssistantView = z.infer<typeof assistantViewSchema>;
 

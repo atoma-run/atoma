@@ -304,6 +304,8 @@ export interface VizProjectRun {
   clientAcceptance?: import('../../contracts/projects.js').DeliveryAcceptance | null;
   resumeOf?: string;
   checkpoint?: import('../../contracts/runCheckpoint.js').ProjectCheckpointStatus;
+  /** A Compute run whose work ended while its files wait on the requester's computer (server host facts). */
+  resultsWaiting?: import('../../contracts/computeDevice.js').ComputeResultsWaiting | null;
   orgId?: string;
   githubAccess?: import('../../contracts/projects.js').GitHubAccessRequired;
   requestedByPrincipalId?: string;

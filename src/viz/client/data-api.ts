@@ -143,6 +143,9 @@ export const api = {
     mutateJson<VizProjectRun>(`/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/github-access`, {}),
   retryPublication: (projectId: string, runId: string) =>
     mutateJson<VizProjectRun>(`/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/publish`, {}),
+  /** "Get the results": the existing explicit Compute finalization, requester only. */
+  getComputeResults: (runId: string) =>
+    mutateJson<{ ok: true }>(`/api/compute/runs/${encodeURIComponent(runId)}/finalize`, {}),
   // Polled by the receipt card: revalidated, so an unchanged review is a 304.
   runReview: (projectId: string, runId: string) =>
     fetchRevalidatedJson<RunReview>(`/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/review`),

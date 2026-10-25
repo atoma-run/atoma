@@ -124,6 +124,32 @@ function EntryFadeProbe() {
 }
 
 describe('full-GL minimal DOM bridge', () => {
+  it('mirrors "Get the results" for a finished Compute run, enabled for its requester only', async () => {
+    useGpuStore.setState({ view: 'projects', entered: true, selectedProjectId: 'project-selected', projectSection: 'runs' });
+    const run = { projectRunId: 'run-waiting', projectId: 'project-selected', orgId: 'org-1', goal: 'Booking page',
+      status: 'running' as const, requestedByPrincipalId: 'person', traceId: 'run-waiting', costUsd: 0.4, durationS: null,
+      error: null, publication: null, createdAt: '2026-08-20T00:00:00.000Z', endedAt: null,
+      resultsWaiting: { since: '2026-08-20T00:30:00.000Z' } };
+    const auth = (principalId: string) => ({ viewer: { displayName: 'P', role: 'org:member' as const, principalId,
+      activeOrganisation: { id: 'org-1', name: 'Org', role: 'org:member' as const }, organisations: [], platformAdmin: false,
+      avatarUrl: null, displayNameSource: 'provider' as const }, failure: false, signingOut: false, switchingOrganisationId: null });
+    const onActivate = vi.fn();
+    const props = { runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onActivate, projectRuns: [run],
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+      projects: [{ projectId: 'project-selected', name: 'Weather Lab' }] };
+    const view = render(createElement(DomBridge, { ...props, auth: auth('person') }));
+    const section = screen.getByRole('region', { name: translate('en', 'projects.resultsWaiting.status') });
+    expect(within(section).getByText(translate('en', 'projects.resultsWaiting.message'))).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('button', { name: translate('en', 'projects.resultsWaiting.get') }));
+    expect(onActivate).toHaveBeenCalledWith('project.computeResults.run-waiting');
+    view.unmount();
+    render(createElement(DomBridge, { ...props, auth: auth('colleague') }));
+    const other = screen.getByRole('region', { name: translate('en', 'projects.resultsWaiting.status') });
+    expect(within(other).getByRole('button', { name: translate('en', 'projects.resultsWaiting.get') })).toBeDisabled();
+    expect(within(other).getByText(translate('en', 'projects.resultsWaiting.messageOther'))).toBeInTheDocument();
+    expect(within(other).getByRole('status')).toHaveTextContent(translate('en', 'projects.resultsWaiting.requesterOnly'));
+  });
+
   it('exposes the action explanation and technical disclosure to the keyboard', () => {
     useGpuStore.setState({ selectedEventId: 'edit' });
     const onActivate = vi.fn();

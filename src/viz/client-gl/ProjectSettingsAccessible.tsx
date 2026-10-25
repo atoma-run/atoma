@@ -132,11 +132,11 @@ function ComputeSection({ view, t, onActivate }: { view: ComputeSettingsView; t:
     {!view.project.devices.length ? <p>{t('compute.empty')}</p> : null}
     <p>{t('compute.scope')}</p>
     {(view.project.pendingRuns ?? []).map(run => <div key={run.runId}>
-      <p>{t('compute.pending')} · {run.runId.slice(0, 8)}</p>
-      <button type="button" disabled={view.busy} onClick={() => onActivate(`compute.finalize.${run.runId}`)}>{t('compute.finalize')}</button>
+      <p>{t('compute.pending')}</p>
+      <button type="button" disabled={view.busy} onClick={() => onActivate(`compute.finalize.${run.runId}`)}><ButtonIcon kind="download" />{t('compute.finalize')}</button>
     </div>)}
     {!view.project.canEdit ? <p>{t('deployment.adminOnly')}</p> : null}
-    {view.notice !== 'idle' ? <p role={view.notice === 'saved' ? 'status' : 'alert'}>{t(`compute.${view.notice}`)}</p> : null}
+    {view.notice !== 'idle' ? <p role={view.notice === 'saved' || view.notice === 'resultsArrived' ? 'status' : 'alert'}>{t(`compute.${view.notice}`)}</p> : null}
     {selected !== saved ? <button type="button" disabled={!view.project.canEdit || view.busy} onClick={() => onActivate('compute.save')}><ButtonIcon kind="check" />{t('compute.save')}</button> : null}
   </section>;
 }

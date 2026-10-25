@@ -304,12 +304,12 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       </div> : null}
     </div>
     {shownRun && !finishedRun ? <div className="gpu-assistant-run" role="status">
-      <span>{t('assistant.runStatus', { status: t(`projects.runStatus.${shownRun.status}`) })}
+      <span>{t('assistant.runStatus', { status: t(shownRun.resultsWaiting ? 'projects.resultsWaiting.status' : `projects.runStatus.${shownRun.status}`) })}
         {shownRun.costUsd !== null ? ` · $${shownRun.costUsd.toFixed(2)}` : ''}</span>
       <button type="button" onClick={() => onRun({ projectId: shownRun.projectId, runId: shownRun.runId }, shownRun.traceId)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
     </div> : null}
     {error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
-    {runInProgress ? <p role="status">{t('assistant.runInProgress')}</p> : <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>
+    {runInProgress ? <p role="status">{t(shownRun?.resultsWaiting ? 'assistant.resultsWaiting' : 'assistant.runInProgress')}</p> : <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>
       <label htmlFor="assistant-message" className={newProjectPrompt ? 'gpu-assistant-empty' : undefined}>{t(newProjectPrompt ? 'assistant.newHint' : 'assistant.message')}</label>
       <textarea id="assistant-message" ref={composer} value={draft} maxLength={4000} rows={2} enterKeyHint="send"
         placeholder={waiting ? '' : t('assistant.placeholder')} disabled={waiting || !canSend}

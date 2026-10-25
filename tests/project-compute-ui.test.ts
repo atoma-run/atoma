@@ -73,9 +73,26 @@ it('offers an explicit pending-transfer action to its requester without project 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
   render(createElement(Harness), { wrapper });
+  expect(await screen.findByText('compute.pending')).toBeInTheDocument();
+  // Plain words only: the run is named by the action, never by a truncated id.
+  expect(screen.queryByText(new RegExp(runId.slice(0, 8)))).not.toBeInTheDocument();
   await userEvent.click(await screen.findByRole('button', { name: 'compute.finalize' }));
   expect(fetcher).toHaveBeenCalledWith(`/api/compute/runs/${runId}/finalize`, expect.objectContaining({ method: 'POST', body: '{}' }));
   await waitFor(() => expect(screen.queryByRole('button', { name: 'compute.finalize' })).not.toBeInTheDocument());
+  expect(screen.getByText('compute.resultsArrived')).toHaveAttribute('role', 'status');
+  client.clear();
+});
+it('says plainly when the results could not be fetched yet', async () => {
+  const runId = '85124e11-3e28-4c96-80f7-dbc13db6b205';
+  const state: ComputeProjectView = { projectId, hostedAllowed: true, canEdit: false, target: { kind: 'customer-device', deviceId }, devices: [], pendingRuns: [{ runId }] };
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => init
+    ? new Response(JSON.stringify({ error: 'Compute request unavailable or changed; refresh before retrying' }), { status: 409 })
+    : new Response(JSON.stringify(state))));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
+  render(createElement(Harness), { wrapper });
+  await userEvent.click(await screen.findByRole('button', { name: 'compute.finalize' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('compute.resultsPending');
   client.clear();
 });
 it('shows an actionable loading failure instead of silently hiding compute settings', async () => {

@@ -2836,6 +2836,42 @@ describe('drawProjects', () => {
     }
   });
 
+  it.each([1280, 360])('shows a finished Compute run waiting for its results, with "Get the results", at width %s', width => {
+    const project: VizProject = { projectId: 'p-1', name: 'App', slug: 'app', status: 'active', family: 'build',
+      repositoryTarget: { installationId: '501', owner: 'acme', name: 'app', visibility: 'private' },
+      repositoryStatus: 'pending', repositoryFullName: null, repositoryUrl: null, repositoryError: null,
+      createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z' };
+    const run: VizProjectRun = { projectRunId: 'run-1', projectId: 'p-1', orgId: 'org-1', goal: 'Saved request', status: 'running',
+      requestedByPrincipalId: 'person', traceId: 'run-1', costUsd: 0.4, durationS: null, error: null, publication: null,
+      createdAt: '2026-08-20T00:00:00.000Z', endedAt: null, resultsWaiting: { since: '2026-08-20T00:30:00.000Z' } };
+    for (const principalId of ['person', 'colleague']) {
+      const ctx = createRecordingCtx();
+      const auth = makeAuth({ principalId, activeOrganisation: { id: 'org-1', name: 'Org', role: 'org:member' } });
+      drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: 'p-1' }, {
+        auth, projects: [project], projectRuns: { 'p-1': [run] },
+      }), width, 1400);
+      const copy = ctx.texts.map(text => text.value).join(' ');
+      const requester = principalId === 'person';
+      expect(copy).toContain(t('projects.resultsWaiting.status'));
+      expect(copy).not.toContain(t('runs.status.live'));
+      // Wrapped over measured lines: every word of the sentence is drawn.
+      expect(copy.replace(/\s+/g, ' ')).toContain(t(requester ? 'projects.resultsWaiting.message' : 'projects.resultsWaiting.messageOther'));
+      const button = ctx.buttons.find(b => b.id === 'project.computeResults.run-1')!;
+      expect(button).toBeDefined();
+      expect(button.label).toBe(t('projects.resultsWaiting.get'));
+      expect(!!button.disabled).toBe(!requester);
+      expect(button.width).toBeLessThan(width);
+      if (!requester) expect(copy).toContain(t('projects.resultsWaiting.requesterOnly'));
+    }
+    // A running run without the server's fact is simply live: nothing is inferred.
+    const ctx = createRecordingCtx();
+    drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: 'p-1' }, {
+      auth: makeAuth({ principalId: 'person', activeOrganisation: { id: 'org-1', name: 'Org', role: 'org:member' } }),
+      projects: [project], projectRuns: { 'p-1': [{ ...run, resultsWaiting: null }] },
+    }), width, 1400);
+    expect(ctx.buttons.some(b => b.id.startsWith('project.computeResults.'))).toBe(false);
+  });
+
   it.each([1280, 360])('offers bounded GitHub recovery controls at width %s and disables repeat checks', width => {
     const project: VizProject = { projectId: 'p-1', name: 'App', slug: 'app', status: 'active', family: 'build',
       repositoryTarget: { installationId: '501', owner: 'acme', name: 'app', visibility: 'public' },

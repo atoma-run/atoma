@@ -32,6 +32,8 @@ import { acquireRunLease } from '../src/mcp/runLock.js';
 import { RunCheckpointStore, checkpointWorkspaceDigest } from '../src/run/checkpoint.js';
 import type { RunCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { ProjectService } from '../src/projects/service.js';
+import { ComputeDispatchStore } from '../src/projects/computeDispatch.js';
+import { COMPUTE_RESULTS_WAITING_MESSAGE } from '../src/contracts/computeDevice.js';
 import { POLLED_PROGRESS_REUSE_MS } from '../src/projects/runProgress.js';
 import { parentTestRowSchema } from '../src/contracts/parentTestRecord.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
@@ -210,6 +212,32 @@ it('projects recorded activity into status and durable tasks without inventing p
   expect(runViewSchema.parse((await f.call('atoma_run_status', ref)).structuredContent)).toMatchObject({ status: 'failed', progress: { stage: 'finished' }, actions: { canCancel: false } });
   writeFileSync(file, '{unfinished');
   expect(runViewSchema.parse((await f.call('atoma_run_status', ref)).structuredContent).progress).toMatchObject({ stage: 'finished', evidence: 'unavailable' });
+});
+
+it('says a Compute run whose results wait on the customer computer is finished, on status, task and review', async () => {
+  vi.stubEnv('ATOMA_MCP_RUN_LOCK', join(mkdtempSync(join(tmpdir(), 'atoma-mcp-results-lock-')), 'lock.db'));
+  try {
+    const f = await fixture(true);
+    const db = new Database(f.dbPath);
+    db.prepare('UPDATE projects SET execution_target_json=? WHERE project_id=?')
+      .run(JSON.stringify({ kind: 'customer-device', deviceId: randomUUID() }), f.project.projectId);
+    db.close();
+    const { run, layout } = f.makeRun();
+    const ref = { projectId: f.project.projectId, runId: run.projectRunId };
+    mkdirSync(layout.runsPath, { recursive: true });
+    writeFileSync(join(layout.runsPath, `${run.projectRunId}.json`), JSON.stringify({ id: run.projectRunId,
+      endedAt: new Date().toISOString(), events: [{ kind: 'tool', ts: Date.now() }] }));
+    const journal = ComputeDispatchStore.open(f.dbPath);
+    journal.begin(run.projectRunId, 1);
+    journal.phase(run.projectRunId, 1, 'finalizing');
+    const status = (await f.call('atoma_run_status', ref)).structuredContent as Record<string, unknown>;
+    expect(runViewSchema.parse(status).progress).toMatchObject({ stage: 'awaiting-results', message: COMPUTE_RESULTS_WAITING_MESSAGE });
+    expect(status['resultsWaiting']).toEqual({ since: expect.any(String) });
+    const task = await (f.client as LegacyClient).request({ method: 'tasks/get', params: { taskId: projectRunTaskId(ref.projectId, ref.runId) } }, GetTaskResultSchema);
+    expect(task.status).toBe('working');
+    expect(task.statusMessage).toContain(COMPUTE_RESULTS_WAITING_MESSAGE);
+    expect(runReviewSchema.parse((await f.call('atoma_run_review', ref)).structuredContent).verification.stage).toBe('awaiting-results');
+  } finally { vi.unstubAllEnvs(); }
 });
 
 it('parses a live trace at most once per window for a polled task, not at every rewrite (code review 2026-10-09 2.15)', async () => {

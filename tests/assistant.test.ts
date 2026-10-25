@@ -115,6 +115,17 @@ describe('the integrated assistant', () => {
     });
   });
 
+  it('carries the server\'s results-waiting fact into the conversation view, and only that fact', async () => {
+    for (const [resultsWaiting, expected] of [[{ since: '2026-10-25T10:00:00.000Z' }, true], [null, false]] as const) {
+      const f = fixture(start);
+      const call = f.call.getMockImplementation()!;
+      f.call.mockImplementation(async (name, args, task) => name === 'atoma_run_status'
+        ? { projectId, projectRunId: runId, status: 'running', costUsd: 0.7, traceId: 'trace', error: null, endedAt: null, resultsWaiting }
+        : call(name, args, task));
+      expect((await f.service.view(f.service.scope(f.viewer, projectId), f.mcp)).run).toMatchObject({ status: 'running', resultsWaiting: expected });
+    }
+  });
+
   it('keeps a delivery awaiting acceptance in view behind later cancelled or comparison runs', async () => {
     type Row = { id: string; status: string; awaiting?: boolean; rerunOf?: string };
     const presented = async (history: Row[]) => {

@@ -4,7 +4,7 @@ import { computeProjectViewSchema, type ComputeProjectView } from '../../contrac
 import type { ExecutionTarget } from '../../contracts/executionTarget.js';
 export interface ComputeSettingsView {
   project: ComputeProjectView; selected: ExecutionTarget; busy: boolean;
-  loadFailed?: boolean; notice: 'idle' | 'saved' | 'failed' | 'conflict';
+  loadFailed?: boolean; notice: 'idle' | 'saved' | 'failed' | 'conflict' | 'resultsArrived' | 'resultsPending';
 }
 export const COMPUTE_CONTACT_HREF = 'mailto:mgf@iotanet.net?subject=Atoma%20Compute';
 export function showComputeSetup(project: ComputeProjectView): boolean { return project.devices.length === 0; }
@@ -37,9 +37,9 @@ export function useProjectCompute(projectId: string | null, enabled: boolean) {
           const response = await fetch(`/api/compute/runs/${pending.runId}/finalize`, {
             method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
           });
-          setNotice({ projectId, value: response.ok ? 'saved' : 'failed' });
+          setNotice({ projectId, value: response.ok ? 'resultsArrived' : 'resultsPending' });
           await query.refetch();
-        } catch { setNotice({ projectId, value: 'failed' }); }
+        } catch { setNotice({ projectId, value: 'resultsPending' }); }
         finally { inFlight.current = false; setBusy(false); }
       })();
       return;

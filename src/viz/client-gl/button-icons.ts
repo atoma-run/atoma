@@ -80,6 +80,8 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'context.raw.toggle') return 'code';
   if (id === 'detail.technical.toggle') return 'code';
   if (/^result.download$/.test(id)) return 'download';
+  // "Get the results": a finished run's files, fetched from the requester's computer.
+  if (/^project\.computeResults\.|^compute\.finalize\./.test(id)) return 'download';
   if (id === 'run.preview.terminal') return 'terminal';
   if (id === 'run.preview.stop') return 'stop';
   if (/^run.preview\./.test(id)) return 'eye';

@@ -20,6 +20,7 @@ import { drawProjectAside, drawProjectOverviewCard, projectAsideLayout, projectS
 import { attachLiveAtomaMark } from '../atoma-mark.js';
 import { RUN_STATUS_COLOR } from './runs.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from '../../github-access.js';
+import { canGetComputeResults, computeResultsWaiting, COMPUTE_RESULTS_ACTION } from '../../compute-results.js';
 
 /**
  * Projects view: the organisation's projects, their GitHub repository state
@@ -207,9 +208,19 @@ function runCardLayout(ctx: RendererCtx, snapshot: GpuRenderSnapshot, run: VizPr
   const recoveryHeight = pendingGitHubAccess(run) ? GITHUB_ACCESS_HEIGHT : run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0;
   const recoveryY = baseHeight + (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0);
   const checkpointY = recoveryY + recoveryHeight;
-  const height = checkpointY + checkpointHeight;
+  // Finished work whose files wait on the requester's computer: the plain
+  // sentence, "Get the results", and why it failed or who may press it.
+  const waiting = computeResultsWaiting(run) !== null;
+  const mayGet = canGetComputeResults(run, snapshot.data.auth);
+  const resultsLines = waiting ? runCopyLines(ctx, snapshot.t(mayGet ? 'projects.resultsWaiting.message' : 'projects.resultsWaiting.messageOther'), textWidth) : [];
+  const resultsNotice = waiting ? progress?.message ?? (!mayGet ? snapshot.t('projects.resultsWaiting.requesterOnly') : null) : null;
+  const resultsNoticeLines = resultsNotice ? runCopyLines(ctx, resultsNotice, textWidth) : [];
+  const resultsY = checkpointY + checkpointHeight;
+  const resultsHeight = resultsLines.length ? 16 + resultsLines.length * 20 + 12 + 40 +
+    (resultsNoticeLines.length ? 12 + resultsNoticeLines.length * 20 : 0) + RUN_CARD_PAD : 0;
+  const height = resultsY + resultsHeight;
   return { height, baseHeight, metrics, metricRows, metricsY, resultLabel, resultWidth, resultY, stackedResult,
-    recoveryY, checkpointY, checkpointLines, messageLines, textWidth };
+    recoveryY, checkpointY, checkpointLines, messageLines, resultsY, resultsLines, resultsNoticeLines, textWidth };
 }
 
 const STATUS_COLORS: Record<string, number> = {
@@ -855,10 +866,13 @@ export function drawProjects(
           ? Math.max(0, textWidth - resultWidth - 16) : textWidth;
         // A plain running run wears the Runs view's live badge — the turning
         // crystal and LIVE in the success colour — rather than a word of its own.
+        // Finished work waiting on a computer is not "live": no crystal, its own words.
+        const resultsWaiting = computeResultsWaiting(run) !== null;
         const live = run.status === 'running' && run.checkpoint?.state !== 'paused' && !access
-          && !run.githubAccess?.resumedRunId && !run.awaitingClientAcceptance;
-        const runStatusColor = access ? GPU_COLORS.warning : live ? RUN_STATUS_COLOR.live : statusColor(run.status);
-        const statusText = run.checkpoint?.state === 'paused' ? snapshot.t('projects.checkpoint.paused') : access ? snapshot.t('projects.githubAccess.title')
+          && !run.githubAccess?.resumedRunId && !run.awaitingClientAcceptance && !resultsWaiting;
+        const runStatusColor = access || resultsWaiting ? GPU_COLORS.warning : live ? RUN_STATUS_COLOR.live : statusColor(run.status);
+        const statusText = resultsWaiting ? snapshot.t('projects.resultsWaiting.status')
+          : run.checkpoint?.state === 'paused' ? snapshot.t('projects.checkpoint.paused') : access ? snapshot.t('projects.githubAccess.title')
           : run.githubAccess?.resumedRunId ? snapshot.t('projects.githubAccess.resumed')
           : run.awaitingClientAcceptance ? snapshot.t('projects.awaitingClientAcceptance')
           : live ? snapshot.t('runs.status.live')
@@ -991,6 +1005,22 @@ export function drawProjects(
             false, snapshot.onActivate, GPU_COLORS.primary, false, !!progress?.busy, undefined, undefined, undefined,
             !canControlCheckpoint(run, snapshot.data.auth) || !!progress?.busy);
           card.messageLines.forEach((line, index) => ctx.text(pane.content, line, textX, actionY + 52 + index * 20,
+            { size: 12, color: GPU_COLORS.warning, width: textWidth, singleLine: true }));
+        }
+        if (card.resultsLines.length) {
+          const y = cursor + card.resultsY;
+          pane.content.addChild(new Graphics().moveTo(textX, y).lineTo(textX + textWidth, y)
+            .stroke({ color: GPU_COLORS.border, width: 1 }));
+          const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
+          card.resultsLines.forEach((line, index) => ctx.text(pane.content, line, textX, y + 16 + index * 20,
+            { size: 12, color: GPU_COLORS.text, width: textWidth, singleLine: true }));
+          const actionY = y + 16 + card.resultsLines.length * 20 + 12;
+          const label = snapshot.t(progress?.busy ? 'projects.resultsWaiting.getting' : 'projects.resultsWaiting.get');
+          const actionWidth = Math.min(textWidth, Math.ceil(ctx.measureText(label, { size: 11, weight: '600' })) + BUTTON_LABEL_INSET * 2 + BUTTON_ICON_SPACE);
+          ctx.button(pane.content, `${COMPUTE_RESULTS_ACTION}${run.projectRunId}`, 'button', label,
+            textX, actionY, actionWidth, 40, false, snapshot.onActivate, GPU_COLORS.primary, false, !!progress?.busy,
+            undefined, undefined, undefined, !canGetComputeResults(run, snapshot.data.auth) || !!progress?.busy);
+          card.resultsNoticeLines.forEach((line, index) => ctx.text(pane.content, line, textX, actionY + 52 + index * 20,
             { size: 12, color: GPU_COLORS.warning, width: textWidth, singleLine: true }));
         }
         cursor += rowHeight;

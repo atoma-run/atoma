@@ -277,6 +277,16 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   // A cancellation REQUEST is not news to the person who just clicked it; the
   // run's actual end arrives as `run.finished`.
   'run.cancelled': null,
+  // The requester alone: the results are on THEIR computer, and only they can
+  // open Atoma Compute there. Copy from the shared catalog, `goal` from detail.
+  'run.results_waiting': {
+    audience: { requester: true },
+    vars: (event, locale) => ({
+      title: translate(locale, 'push.resultsWaiting.title'),
+      body: translate(locale, 'push.resultsWaiting.body', { goal: text(event, 'goal') }),
+    }),
+    copy: { en: { title: '{{title}}', body: '{{body}}' } },
+  },
   'publication.published': {
     audience: { requester: true },
     vars: (event) => ({ repository: text(event, 'repository') }),

@@ -49,6 +49,15 @@ function panel(data: AssistantView = view(), scopeKey = 'alice:org-a') {
   return { client, props, unmount };
 }
 
+it('says a finished Compute run is waiting for its results instead of "in progress"', async () => {
+  const data = view();
+  data.run = { projectId, runId: 'run-1', status: 'running', costUsd: 0.52, traceId: 'trace-1', error: null, endedAt: null, resultsWaiting: true };
+  panel(data);
+  expect(await screen.findByText(translate('en', 'assistant.resultsWaiting'))).toBeVisible();
+  expect(screen.getByText(translate('en', 'assistant.runStatus', { status: translate('en', 'projects.resultsWaiting.status') }), { exact: false })).toBeVisible();
+  expect(screen.queryByText(translate('en', 'assistant.runInProgress'))).not.toBeInTheDocument();
+});
+
 it('sends only the typed message and presents a proposal without executing it', async () => {
   const initial = view();
   const next: AssistantView = { ...initial, conversation: { ...initial.conversation, version: 1,

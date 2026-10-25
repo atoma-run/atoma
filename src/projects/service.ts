@@ -316,7 +316,14 @@ export class ProjectService {
       awaitingClientAcceptance: run.status === 'delivered' && !run.rerunOf && !run.bytesExpiredAt && Boolean(run.artifactManifestHash)
         && publication?.status !== 'published' && !clientAcceptance,
       computeProgress: this.coordinator.computeProgress(run),
+      resultsWaiting: this.resultsWaiting(run),
       checkpoint: this.coordinator.checkpointStatus(run) };
+  }
+
+  /** The coordinator's host-fact answer, asked only of a running Compute run. */
+  private resultsWaiting(run: ProjectRun): import('../contracts/computeDevice.js').ComputeResultsWaiting | null {
+    return run.status === 'running' && run.executionTarget.kind === 'customer-device'
+      ? this.coordinator.computeResultsWaiting(run) : null;
   }
 
   /** GET /api/github/installations — org-scoped. */
@@ -827,7 +834,7 @@ export class ProjectService {
     nextSteps.push({ tool: 'atoma_run_status', purpose: 'Read publication details and the current lifecycle; publication does not establish deployment or PR merge.' });
     if (canRequestAcceptance) nextSteps.push({ tool: 'atoma_run_accept', purpose: 'Only after the client tests/reviews and explicitly accepts: pass this artifactManifestHash and their review summary. Reading this review grants no consent.' });
     // One evidence read for both, so they describe the same trace snapshot.
-    const { progress, parentTests: projected } = projectRunEvidence(run);
+    const { progress, parentTests: projected } = projectRunEvidence(run, { resultsWaiting: this.resultsWaiting(run) !== null });
     // The additive field is validated on its own: a projection fault reads as
     // unavailable evidence and never fails the review it rides on.
     const checked = runParentTestsSchema.safeParse(projected);
@@ -907,7 +914,7 @@ export class ProjectService {
       projectId: run.projectId, projectRunId: run.projectRunId, orgId: run.orgId,
       requestedByPrincipalId: run.requestedByPrincipalId, status: run.status,
       createdAt: run.createdAt, updatedAt: run.updatedAt, endedAt: run.endedAt ?? null,
-      progress: projectRunProgress(run, { reuseWithinMs: POLLED_PROGRESS_REUSE_MS }),
+      progress: projectRunProgress(run, { reuseWithinMs: POLLED_PROGRESS_REUSE_MS, resultsWaiting: this.resultsWaiting(run) !== null }),
     };
   }
 
@@ -916,9 +923,10 @@ export class ProjectService {
     const run = this.store.getProjectRun(orgId, projectRunId);
     if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
     // A superset of the run's entry in the project's run list, which MCP readers compare.
-    return { ...this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId), { costBreakdown: true }),
+    const presented = this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId), { costBreakdown: true });
+    return { ...presented,
       requestedByName: this.store.principalDisplayNames([run.requestedByPrincipalId]).get(run.requestedByPrincipalId) ?? null,
-      progress: projectRunProgress(run),
+      progress: projectRunProgress(run, { resultsWaiting: presented.resultsWaiting !== null }),
       actions: { canCancel: orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member') && (run.status === 'queued' || run.status === 'running') } };
   }
 

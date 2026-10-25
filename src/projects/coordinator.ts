@@ -1,6 +1,8 @@
 import { RUN_TIMEOUT_MS } from '../contracts/runTimeouts.js';
 import { observeTiming, timingSidecar } from '../core/runtimeTiming.js';
-import { ComputeDispatchPendingError, ComputeFinalizationRefusedError, type ComputeDispatcher } from './computeDispatch.js';
+import { ComputeDispatchPendingError, ComputeDispatchStore, ComputeFinalizationRefusedError, type ComputeDispatcher } from './computeDispatch.js';
+import type { ComputeResultsWaiting } from '../contracts/computeDevice.js';
+import { eventLabel, type PlatformEventInput } from '../contracts/platformEvents.js';
 import { ClientQuestionConflict } from '../run/clientQuestions.js';
 import { LearningQueue } from '../skills/learningQueue.js';
 import { spawnApprovedLearning } from '../run/learningProcess.js';
@@ -132,6 +134,36 @@ export interface ProjectRunFinishedEvent {
   readonly status: 'delivered' | 'partial' | 'failed' | 'cancelled';
 }
 
+/**
+ * A Compute run's results have waited on the requester's computer for
+ * `RESULTS_WAITING_NOTICE_MS`: emitted at most ONCE per run (the claim is a
+ * row in the product store), after the claim, never before.
+ */
+export interface ComputeResultsWaitingEvent {
+  readonly orgId: string;
+  readonly projectId: string;
+  readonly projectRunId: string;
+  /** The principal who requested the run — the one to tell. */
+  readonly principalId: string;
+  readonly goal: string;
+  /** When the runner ended and the files started waiting (journal time). */
+  readonly since: string;
+}
+
+/** How long results may wait on a computer before the requester is told, once. */
+export const RESULTS_WAITING_NOTICE_MS = 10 * 60_000;
+
+/** The ONE journal row for that notice: the requester is its actor, and the
+ * push copy renders from `detail.goal` (a bounded label, never the prompt). */
+export function resultsWaitingEventInput(event: ComputeResultsWaitingEvent): PlatformEventInput {
+  return {
+    kind: 'run.results_waiting', actorType: 'principal', actorId: event.principalId,
+    orgId: event.orgId, projectId: event.projectId, runId: event.projectRunId,
+    summary: `Run results waiting on the requester's computer: ${eventLabel(event.goal, 120)}`,
+    detail: { goal: eventLabel(event.goal, 120), since: event.since },
+  };
+}
+
 export interface ProjectCoordinatorOptions {
   /** Host-owned executor socket; a frontend never owns a run driver. */
   readonly executorSocket?: string;
@@ -156,6 +188,8 @@ export interface ProjectCoordinatorOptions {
   readonly yieldBackground?: () => Promise<boolean>;
   readonly publisher?: ProjectRunPublisher;
   readonly onRunFinished?: (event: ProjectRunFinishedEvent) => void | Promise<void>;
+  /** Journals `run.results_waiting`; the router decides who hears it. Fail-open. */
+  readonly onComputeResultsWaiting?: (event: ComputeResultsWaitingEvent) => void;
   /**
    * The requesting principal's per-tier model pins, when the deployment has
    * accounts (the viz gate supplies `authStore.modelPins`). Fail-open: a
@@ -375,6 +409,25 @@ export function tenantBusyMessage(
     return `the instance is running scheduled maintenance; ${again} shortly`;
   }
   return `another run is in progress on this instance; ${yours} once that one finishes`;
+}
+
+/**
+ * The refusal when the place is held by a finished Compute run whose results
+ * wait on a computer: plain words and the one thing to do. The run id stays
+ * at the end, for an agent following it with `atoma_run_status`.
+ */
+export function resultsWaitingBusyMessage(
+  run: { readonly projectRunId: string },
+  projectName: string | null,
+  own: boolean
+): string {
+  const where = projectName ? ` in ${eventLabel(projectName, 80)}` : '';
+  return own
+    ? `your previous run${where} is finished, but its results are still on your computer. ` +
+      'Open Atoma Compute on that computer and keep it connected so they can arrive, or choose "Get the results" on that run. ' +
+      `You can start a new run once they have arrived (run ${run.projectRunId}).`
+    : `a finished run${where} is waiting for its results from the computer of the person who started it. ` +
+      'Your run can start once Atoma Compute is open and connected on that computer and the results have arrived.';
 }
 
 /** The refusal when the run holding the place is the caller's own. */
@@ -1318,6 +1371,7 @@ export class ProjectRunCoordinator {
   pollRunControls(): void {
     if (this.executorSocket) return;
     this.reconcileStoppedComputeRuns();
+    this.noticeWaitingComputeResults();
     for (const [runId, active] of this.active) {
       if (this.store.runCancellationRequested(active.orgId, runId)) active.controller.abort(new Error('project run cancelled'));
     }
@@ -1397,6 +1451,8 @@ export class ProjectRunCoordinator {
   private readonly yieldBackground?: () => Promise<boolean>;
   private readonly publisher?: ProjectRunPublisher;
   private readonly onRunFinished?: (event: ProjectRunFinishedEvent) => void | Promise<void>;
+  private readonly onComputeResultsWaiting?: (event: ComputeResultsWaitingEvent) => void;
+  private nextResultsNotice = 0;
   private readonly tierModelsFor?: (principalId: string) => TierModelPins;
   private readonly orgTierModelsFor?: (orgId: string) => TierModelPins;
   private readonly orgProviderKeyFor?: (
@@ -1464,6 +1520,7 @@ export class ProjectRunCoordinator {
     this.yieldBackground = options.yieldBackground;
     this.publisher = options.publisher;
     if (options.onRunFinished) this.onRunFinished = options.onRunFinished;
+    if (options.onComputeResultsWaiting) this.onComputeResultsWaiting = options.onComputeResultsWaiting;
     if (options.tierModelsFor) this.tierModelsFor = options.tierModelsFor;
     if (options.principalCodexModelsFor) this.principalCodexModelsFor = options.principalCodexModelsFor;
     if (options.orgTierModelsFor) this.orgTierModelsFor = options.orgTierModelsFor;
@@ -1803,6 +1860,69 @@ export class ProjectRunCoordinator {
 
   computeProgress(run: ProjectRun) {
     return this.compute?.()?.progress?.(run) ?? null;
+  }
+
+  /**
+   * Whether this run's results wait on the requester's computer: a running
+   * customer-device row whose transfer journal says `finalizing` (the runner
+   * ended and its result is persisted) while no process drives the transfer —
+   * not in this coordinator's `active` set and no live `project:` lease in the
+   * machine-global store, which the executor holds while it drives or
+   * retries. Host facts only. Read-only, and it answers on a web frontend
+   * too, whose coordinator has no dispatcher: the journal is in the product
+   * store. An unreadable journal answers null (unknown), never "waiting".
+   */
+  computeResultsWaiting(run: ProjectRun, liveLeases?: ReadonlySet<string>): ComputeResultsWaiting | null {
+    if (run.status !== 'running' || run.executionTarget.kind !== 'customer-device' || this.active.has(run.projectRunId)) return null;
+    let record: ReturnType<ComputeDispatchStore['inspect']>;
+    try { record = ComputeDispatchStore.open(this.dbPath).inspect(run.projectRunId); }
+    catch { return null; }
+    if (record?.phase !== 'finalizing') return null;
+    const live = liveLeases ?? new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
+    return live.has(`project:${run.projectRunId}`) ? null : { since: record.updatedAt };
+  }
+
+  /**
+   * Tell each requester ONCE that a run's results have waited on their
+   * computer for `RESULTS_WAITING_NOTICE_MS`. Only the selected execution
+   * owner asks, at most every 30 s; the claim row is written before the
+   * journal row, so a crash between the two loses one notice and never
+   * repeats one.
+   */
+  noticeWaitingComputeResults(now = Date.now()): void {
+    if (!this.onComputeResultsWaiting || this.executorSocket || !this.dispatchAllowed() || now < this.nextResultsNotice) return;
+    this.nextResultsNotice = now + 30_000;
+    try {
+      const journal = ComputeDispatchStore.open(this.dbPath);
+      const candidates = journal.unnoticedFinalizingSince(new Date(now - RESULTS_WAITING_NOTICE_MS).toISOString());
+      if (candidates.length === 0) return;
+      const live = new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
+      for (const candidate of candidates) {
+        const run = this.store.getProjectRun(candidate.orgId, candidate.runId);
+        const waiting = run ? this.computeResultsWaiting(run, live) : null;
+        if (!run || !waiting || !journal.claimResultsNotice(run.projectRunId)) continue;
+        try {
+          this.onComputeResultsWaiting({ orgId: run.orgId, projectId: run.projectId, projectRunId: run.projectRunId,
+            principalId: run.requestedByPrincipalId, goal: run.goal, since: waiting.since });
+        } catch (error) {
+          process.stderr.write(`[atoma projects] results-waiting notice failed for ${run.projectRunId}: ${String(error)}\n`);
+        }
+      }
+    } catch (error) {
+      process.stderr.write(`[atoma projects] results-waiting notices unavailable: ${String(error).slice(0, 500)}\n`);
+    }
+  }
+
+  /** The organisation's live runs whose results wait on a computer, own first. */
+  private runsAwaitingResults(orgId: string, principalId: string): ProjectRun[] {
+    let rows: { runId: string; orgId: string }[];
+    try { rows = ComputeDispatchStore.open(this.dbPath).finalizingRunsOf(orgId); }
+    catch { return []; }
+    if (rows.length === 0) return [];
+    const live = new Set(peekRunLeases(undefined, true).map(owner => owner.runId));
+    return rows.map(row => this.store.getProjectRun(row.orgId, row.runId))
+      .filter((run): run is ProjectRun => !!run && this.computeResultsWaiting(run, live) !== null)
+      .sort((a, b) => Number(b.requestedByPrincipalId === principalId) - Number(a.requestedByPrincipalId === principalId));
   }
 
   clientQuestion(run: ProjectRun) {
@@ -2464,6 +2584,15 @@ export class ProjectRunCoordinator {
   private namingOwnRun(error: unknown, orgId: string, principalId: string): unknown {
     if (!(error instanceof ProjectStateConflict) || !/concurrent run limit/.test(error.message)) return error;
     const own = this.store.liveRunOf(orgId, principalId);
+    // A place held by finished work whose files wait on a computer says so,
+    // and what to do: "still in progress" sent a customer to wait 4.5 hours
+    // for a run that had ended (run 40c20c5d).
+    const waiting = this.runsAwaitingResults(orgId, principalId);
+    const blocking = own ? waiting.find(run => run.projectRunId === own.projectRunId) : waiting[0];
+    if (blocking) {
+      const project = this.store.getProject(orgId, blocking.projectId)?.name ?? null;
+      return new ProjectStateConflict(`${error.message}: ${resultsWaitingBusyMessage(blocking, project, blocking.requestedByPrincipalId === principalId)}`);
+    }
     return own ? new ProjectStateConflict(`${error.message}: ${ownLiveRunMessage(own)}`) : error;
   }
 
@@ -2783,6 +2912,7 @@ export class ProjectRunCoordinator {
     if (this.executorSocket || !this.dispatchAllowed()) return;
     this.queueStopped = false;
     this.reconcileStoppedComputeRuns();
+    this.noticeWaitingComputeResults();
     if (this.externalExecution) this.resumeLearning(true);
     if (this.queueTimer || this.queuePumping || this.store.listQueuedRuns().length === 0) return;
     this.queueTimer = setTimeout(() => {

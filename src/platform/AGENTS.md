@@ -67,6 +67,10 @@ Neighbours:
   (warning, requester and owners), and `project.upstream_follow_changed`
   (security, journal only). Push movement coalesces by read-back since the last
   run start, never by a project flag or a journal uniqueness constraint.
+- `run.results_waiting` (info, requester only, copy from the JSON catalogs): a
+  Compute run's files waited ten minutes on the requester's computer. At most
+  once per run, by a claim row the projects domain writes BEFORE the journal
+  row ([src/projects](../projects/AGENTS.md#customer-compute-control)).
 
 ## Process boundaries
 

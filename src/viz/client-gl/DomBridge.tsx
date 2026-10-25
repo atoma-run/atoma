@@ -6,6 +6,7 @@ import { ButtonIcon } from './ButtonIcon.js';
 import { WELCOME_LEGAL_LINKS } from './legal-links.js';
 import { previewActionsFor } from './renderer/preview-control.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
+import { canGetComputeResults, computeResultsWaiting, COMPUTE_RESULTS_ACTION } from './compute-results.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
 import { ProjectOverviewAccessible } from './ProjectOverviewAccessible.js';
 import { formatDateTime } from '../client/date-format.js';
@@ -564,6 +565,19 @@ export function DomBridge({
             </button>
             <p role="status">{githubRecovery?.runId === run.projectRunId ? githubRecovery.message : run.checkpoint?.reason ? t(`projects.checkpoint.reason.${run.checkpoint.reason}`) : ''}</p>
           </section>) : null}
+        {view === 'projects' && selectedProjectId && projectSection === 'runs' && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && computeResultsWaiting(run)).map(run => {
+          const progress = githubRecovery?.runId === run.projectRunId ? githubRecovery : null;
+          return <section key={`results-${run.projectRunId}`} aria-label={t('projects.resultsWaiting.status')}>
+            <h3>{t('projects.resultsWaiting.status')}</h3>
+            <p>{run.title ?? run.goal}</p>
+            <p>{t(canGetComputeResults(run, auth) ? 'projects.resultsWaiting.message' : 'projects.resultsWaiting.messageOther')}</p>
+            <button type="button" disabled={!canGetComputeResults(run, auth) || !!progress?.busy}
+              onClick={() => onActivate?.(`${COMPUTE_RESULTS_ACTION}${run.projectRunId}`)}>
+              <ButtonIcon kind="download" />{t(progress?.busy ? 'projects.resultsWaiting.getting' : 'projects.resultsWaiting.get')}
+            </button>
+            <p role="status">{progress?.message ?? (!canGetComputeResults(run, auth) ? t('projects.resultsWaiting.requesterOnly') : '')}</p>
+          </section>;
+        }) : null}
         {view === 'projects' && selectedProjectId && projectSection === 'runs' && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && pendingGitHubAccess(run)).map(run => {
           const access = pendingGitHubAccess(run)!;
           const progress = githubRecovery?.runId === run.projectRunId ? githubRecovery : null;

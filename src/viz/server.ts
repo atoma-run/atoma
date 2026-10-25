@@ -147,6 +147,7 @@ import type { ConnectorCreateInput, ConnectorUpdateInput, ProjectConnectorsInput
 import {
   DEFAULT_PROJECTS_ROOT,
   ProjectRunCoordinator,
+  resultsWaitingEventInput,
 } from '../projects/coordinator.js';
 import { hostRunTitler } from '../projects/runTitle.js';
 import { hostHostingSubdomainNamer } from '../projects/hostingSubdomain.js';
@@ -1084,7 +1085,13 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
       });
       await PREVIEW_RUNTIME?.service.runFinished(event);
     },
+    // Results waiting on the requester's computer: journaled once per run (the
+    // coordinator claims it first); the router tells the requester.
+    onComputeResultsWaiting: (event) => { emit(resultsWaitingEventInput(event)); },
   });
+  // A process that is its own executor (no executor socket) has no control
+  // poll; this is that poll's results-waiting half, throttled inside.
+  if (!EXECUTOR_SOCKET) setInterval(() => coordinator.noticeWaitingComputeResults(), 60_000).unref();
   // A previous process that died mid-run left rows only its in-memory
   // drivers could ever move. Recover them BEFORE any new run can start,
   // and say so — silent reaping hides the crash from the operator.

@@ -10,6 +10,7 @@ import { AssistantPanel } from './AssistantPanel.js';
 import { workspaceIndexSchema } from '../../contracts/workspaceBrowser.js';
 import { latestWorkspaceRun, workspacePreviewPath, workspaceSplitForViewport } from './workspace-browser.js';
 import { canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from './github-access.js';
+import { canGetComputeResults, COMPUTE_RESULTS_ACTION } from './compute-results.js';
 import { fetchJson } from '../client/data-api.js';
 import {
   useCallback,
@@ -1039,6 +1040,22 @@ function GpuAppContent({
         .then(() => { setGitHubRecovery(null); })
         .catch((error: unknown) => { setGitHubRecovery({ runId: run.projectRunId, busy: false,
           message: error instanceof Error ? error.message : t('projects.checkpoint.failed') }); })
+        .finally(() => {
+          githubRecoveryLock.current = false;
+          void queryClient.invalidateQueries({ queryKey: ['viz', 'projects'] });
+          void queryClient.invalidateQueries({ queryKey: ['viz', 'project', run.projectId, 'runs'] });
+        });
+      return;
+    }
+    if (id.startsWith(COMPUTE_RESULTS_ACTION)) {
+      // The existing explicit finalization: it moves only the saved files and
+      // runs no model or tool. Success ends the run, which the list then shows.
+      const run = projectRunsQuery.data?.find(candidate => candidate.projectRunId === id.slice(COMPUTE_RESULTS_ACTION.length));
+      if (!run || !canGetComputeResults(run, authSnapshot) || githubRecoveryLock.current) return;
+      githubRecoveryLock.current = true;
+      setGitHubRecovery({ runId: run.projectRunId, busy: true });
+      void api.getComputeResults(run.projectRunId).then(() => { setGitHubRecovery(null); })
+        .catch(() => { setGitHubRecovery({ runId: run.projectRunId, busy: false, message: t('projects.resultsWaiting.stillWaiting') }); })
         .finally(() => {
           githubRecoveryLock.current = false;
           void queryClient.invalidateQueries({ queryKey: ['viz', 'projects'] });

@@ -32,6 +32,10 @@ const DDL = `CREATE TABLE IF NOT EXISTS compute_dispatches (
 CREATE TABLE IF NOT EXISTS compute_preview_observations (
  run_id TEXT PRIMARY KEY REFERENCES project_runs(project_run_id),
  classification_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS compute_result_notices (
+ run_id TEXT PRIMARY KEY REFERENCES project_runs(project_run_id),
+ noticed_at TEXT NOT NULL
 );`;
 
 /** This is a host-side transfer journal, never evidence of workload exit. */
@@ -55,8 +59,30 @@ export class ComputeDispatchStore {
     return row ? previewClassificationSchema.parse(JSON.parse(row.classification_json)) : undefined;
   }
   inspect(runId: string) {
-    return this.db.prepare('SELECT generation,phase FROM compute_dispatches WHERE run_id=?').get(runId) as
-      { generation: number; phase: 'executing' | 'finalizing' | 'transferred' | 'interrupted' } | undefined;
+    return this.db.prepare('SELECT generation,phase,updated_at AS updatedAt FROM compute_dispatches WHERE run_id=?').get(runId) as
+      { generation: number; phase: 'executing' | 'finalizing' | 'transferred' | 'interrupted'; updatedAt: string } | undefined;
+  }
+  /** Still-running runs whose runner ended at or before `cutoff` with files not
+   * yet arrived, and whose requester was not told yet; oldest first. */
+  unnoticedFinalizingSince(cutoff: string, limit = 100): { runId: string; orgId: string; since: string }[] {
+    return this.db.prepare(`SELECT d.run_id AS runId, r.org_id AS orgId, d.updated_at AS since FROM compute_dispatches d
+      JOIN project_runs r ON r.project_run_id=d.run_id AND r.status='running'
+      WHERE d.phase='finalizing' AND d.updated_at<=? AND NOT EXISTS (SELECT 1 FROM compute_result_notices n WHERE n.run_id=d.run_id)
+      ORDER BY d.updated_at LIMIT ?`).all(cutoff, limit) as { runId: string; orgId: string; since: string }[];
+  }
+  /** One organisation's still-running runs whose transfer journal says `finalizing`. */
+  finalizingRunsOf(orgId: string): { runId: string; orgId: string }[] {
+    return this.db.prepare(`SELECT d.run_id AS runId, r.org_id AS orgId FROM compute_dispatches d
+      JOIN project_runs r ON r.project_run_id=d.run_id AND r.status='running'
+      WHERE d.phase='finalizing' AND r.org_id=? ORDER BY d.updated_at LIMIT 100`).all(orgId) as { runId: string; orgId: string }[];
+  }
+  /**
+   * Claim the ONE results-waiting notice of a run: true for exactly one
+   * caller, across processes and restarts. Claimed before the journal row is
+   * written, so a crash between the two loses a notice rather than repeating it.
+   */
+  claimResultsNotice(runId: string): boolean {
+    return this.db.prepare('INSERT OR IGNORE INTO compute_result_notices VALUES (?,?)').run(runId, new Date().toISOString()).changes === 1;
   }
 }
 

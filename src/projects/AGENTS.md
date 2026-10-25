@@ -61,6 +61,14 @@ reconciles confirmed interrupted stops during its control poll, including after
 a generation change; pending finalization transfers remain explicit. Public
 readers never perform this reconciliation.
 
+Results WAITING on a computer (2026-10-25) are a read of host facts:
+`computeResultsWaiting` answers for a running customer-device row whose journal
+says `finalizing` while nothing drives it (not active here, no live `project:`
+lease). Readers then show stage `awaiting-results`, `resultsWaiting` on the run
+and, on a refused start, `resultsWaitingBusyMessage`; run 40c20c5d read "in
+progress" for 4.5 hours. After `RESULTS_WAITING_NOTICE_MS` the selected owner
+claims `compute_result_notices`, then journals `run.results_waiting` once.
+
 Legacy project targets remain hosted and run receipts are immutable. On gated
 hosts, only a current platform admin may start hosted work; other members must
 pair and explicitly select a granted device. The coordinator rechecks this before
@@ -744,6 +752,11 @@ acceptance, publication or the immutable child trace.
   run, never a byte or a name. Not stat-ing it means omitting every such
   link, one the application reads included, or refusing them all, run
   40c20c5d's `/tmp` links included.
+- Deriving "results waiting" from the trace's `endedAt`, the row's age or an
+  error string: refused. Every trace ends before its transfer; only the journal
+  phase with no driver says the files are on the customer's computer. Telling
+  the requester again per reconnect, or deduplicating by journal read-back:
+  refused; the claim row is written first, so a crash loses one notice instead.
 - Letting a reader repair a `running` row it noticed: refused. That is
   `reconcileInterrupted`'s job at the next boot. `hasProjectTables` exists
   precisely so a reader can ask about the control plane without triggering
