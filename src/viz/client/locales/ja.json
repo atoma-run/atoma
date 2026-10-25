@@ -2228,7 +2228,7 @@
   "compute.allowProject": "このプロジェクトを許可",
   "compute.removeAccess": "プロジェクトへのアクセスを削除",
   "compute.empty": "ここで使用するには、コンピューターをAtoma Computeとペアリングしてください。",
-  "compute.scope": "変更は新しいrunに適用されます。アクセスを削除すると、新しい操作は直ちに停止します。切断されたrunには明示的な復旧操作が必要であり、自動的にAtomaサーバーへ移行することはありません。",
+  "compute.scope": "",
   "compute.save": "実行先を保存",
   "compute.saved": "Compute設定を保存しました。",
   "compute.failed": "保存できませんでした。接続を確認して、もう一度お試しください。",

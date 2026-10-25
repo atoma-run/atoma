@@ -2228,7 +2228,7 @@
   "compute.allowProject": "Dieses Projekt zulassen",
   "compute.removeAccess": "Projektzugriff entfernen",
   "compute.empty": "Koppeln Sie einen Computer mit Atoma Compute, um ihn hier zu verwenden.",
-  "compute.scope": "Änderungen gelten für neue Runs. Das Entfernen des Zugriffs stoppt neue Vorgänge sofort. Ein getrennter Run muss ausdrücklich wiederhergestellt werden und wird niemals automatisch auf Atoma-Server verschoben.",
+  "compute.scope": "",
   "compute.save": "Ausführungsziel speichern",
   "compute.saved": "Compute-Einstellungen gespeichert.",
   "compute.failed": "Speichern fehlgeschlagen. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",

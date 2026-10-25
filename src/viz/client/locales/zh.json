@@ -2228,7 +2228,7 @@
   "compute.allowProject": "允许此项目",
   "compute.removeAccess": "移除项目访问权限",
   "compute.empty": "将计算机与 Atoma Compute 配对，即可在此处使用。",
-  "compute.scope": "更改适用于新的 run。移除访问权限会立即停止新操作。断开连接的 run 需要手动恢复，绝不会自动转移到 Atoma 服务器。",
+  "compute.scope": "",
   "compute.save": "保存执行目标",
   "compute.saved": "计算设置已保存。",
   "compute.failed": "无法保存。请检查连接后重试。",

@@ -2228,7 +2228,7 @@
   "compute.allowProject": "Permitir este projeto",
   "compute.removeAccess": "Remover acesso ao projeto",
   "compute.empty": "Emparelhe um computador com o Atoma Compute para o utilizar aqui.",
-  "compute.scope": "As alterações aplicam-se a novos runs. Remover o acesso interrompe imediatamente novas operações. Um run desconectado exige recuperação explícita; nunca é transferido automaticamente para os servidores da Atoma.",
+  "compute.scope": "",
   "compute.save": "Guardar destino de execução",
   "compute.saved": "Definições de computação guardadas.",
   "compute.failed": "Não foi possível guardar. Verifique a ligação e tente novamente.",

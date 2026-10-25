@@ -2386,7 +2386,7 @@
   "compute.allowProject": "Allow this project",
   "compute.removeAccess": "Remove project access",
   "compute.empty": "Pair a computer with Atoma Compute to use it here.",
-  "compute.scope": "Changes apply to new runs. Removing access stops new operations immediately. A disconnected run requires explicit recovery; it never moves automatically to Atoma servers.",
+  "compute.scope": "Changes apply to new runs. Removing access stops new work right away. Work that finished while this computer was offline sends its results by itself when the computer reconnects. Interrupted work never moves to Atoma servers on its own.",
   "compute.save": "Save execution target",
   "compute.saved": "Compute settings saved.",
   "compute.failed": "Could not save. Check your connection and try again.",

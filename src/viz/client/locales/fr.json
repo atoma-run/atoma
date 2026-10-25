@@ -2228,7 +2228,7 @@
   "compute.allowProject": "Autoriser ce projet",
   "compute.removeAccess": "Retirer l’accès au projet",
   "compute.empty": "Associe un ordinateur à Atoma Compute pour l’utiliser ici.",
-  "compute.scope": "Les modifications s’appliquent aux nouveaux runs. Retirer l’accès arrête immédiatement les nouvelles opérations. Un run déconnecté nécessite une récupération explicite ; il n’est jamais transféré automatiquement vers les serveurs Atoma.",
+  "compute.scope": "",
   "compute.save": "Enregistrer la cible d’exécution",
   "compute.saved": "Paramètres de calcul enregistrés.",
   "compute.failed": "Échec de l’enregistrement. Vérifie ta connexion et réessaie.",

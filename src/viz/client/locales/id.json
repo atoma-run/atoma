@@ -2228,7 +2228,7 @@
   "compute.allowProject": "Izinkan proyek ini",
   "compute.removeAccess": "Hapus akses proyek",
   "compute.empty": "Pasangkan komputer dengan Atoma Compute untuk menggunakannya di sini.",
-  "compute.scope": "Perubahan berlaku untuk run baru. Menghapus akses akan langsung menghentikan operasi baru. Run yang terputus memerlukan pemulihan eksplisit; run tersebut tidak pernah dipindahkan secara otomatis ke server Atoma.",
+  "compute.scope": "",
   "compute.save": "Simpan target eksekusi",
   "compute.saved": "Pengaturan komputasi disimpan.",
   "compute.failed": "Tidak dapat menyimpan. Periksa koneksi Anda dan coba lagi.",
