@@ -2673,7 +2673,7 @@ describe('automatic Compute finalization', () => {
 
   async function computeFinalizationFixture(options: { phase?: 'finalizing' | 'transferred'; stopReported?: boolean;
     connected?: boolean; selected?: () => boolean; recover?: (run: import('../src/contracts/projects.js').ProjectRun) => Promise<string>;
-    acquireLease?: () => Promise<RunLease> } = {}) {
+    acquireLease?: () => Promise<RunLease>; allowed?: () => boolean } = {}) {
     const { ComputeDeviceStore } = await import('../src/projects/computeDevices.js');
     const { ComputeDispatcher, ComputeDispatchStore } = await import('../src/projects/computeDispatch.js');
     const { createHash, randomBytes } = await import('node:crypto');
@@ -2725,7 +2725,7 @@ describe('automatic Compute finalization', () => {
     const driver = vi.fn<ProjectRunDriver>(), finished = vi.fn();
     const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
       hostEnv: haystackTestEnvironment(f.root), compute: () => dispatcher, driver, onRunFinished: finished, acquireLease,
-      dispatchAllowed: options.selected ?? (() => true), queuedRunAllowed: () => true });
+      dispatchAllowed: options.selected ?? (() => true), queuedRunAllowed: options.allowed ?? (() => true) });
     let clock = Date.now();
     vi.spyOn(Date, 'now').mockImplementation(() => clock);
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -2743,6 +2743,13 @@ describe('automatic Compute finalization', () => {
         const session = devices.connect(device.credential, cap).session;
         connections.add(session.sessionId);
         return session;
+      },
+      /** What the desktop app does a second after an attempt closed its socket. */
+      reportStop: () => {
+        const generation = devices.inspect(owner, device.deviceId).assignment!.generation;
+        const session = devices.connect(device.credential, cap).session;
+        connections.add(session.sessionId);
+        devices.acknowledgeStopped(device.credential, session, runId, generation);
       },
       close: () => { coordinator.stopQueue(); db.close(); },
     };
@@ -2812,12 +2819,13 @@ describe('automatic Compute finalization', () => {
       expect(s.recover).toHaveBeenCalledTimes(2);
       await s.poll(30_000);
       expect(s.recover).toHaveBeenCalledTimes(3);
-      // A reconnection is what usually changes the outcome: tried at once,
-      // floored by the minimum gap, and then backed off afresh.
+      // These attempts never reached the computer, so a reconnection is news:
+      // tried sooner, under a floor that grows with the failures (5 s × 4).
       s.reconnect();
       await s.poll(1_001);
-      expect(s.recover).toHaveBeenCalledTimes(3);
       await s.poll(5_000);
+      expect(s.recover).toHaveBeenCalledTimes(3);
+      await s.poll(15_000);
       expect(s.recover).toHaveBeenCalledTimes(4);
       for (let i = 0; i < 10; i++) await s.poll();
       expect(s.recover).toHaveBeenCalledTimes(4);
@@ -2826,6 +2834,72 @@ describe('automatic Compute finalization', () => {
       expect(s.recover).toHaveBeenCalledTimes(16);
       expect(s.status()).toBe('running');
       expect(s.finished).not.toHaveBeenCalled();
+    } finally { s.close(); }
+  });
+
+  it('keeps backing off an attempt that reached the computer, though its close makes the computer reconnect', async () => {
+    const { ComputeDispatchPendingError } = await import('../src/projects/computeDispatch.js');
+    // The real shape of a failure after assign: the slot is taken, the socket
+    // closed ('dispatch-finished'), and the app comes back a second later.
+    const s: Scenario = await computeFinalizationFixture({ recover: async run => {
+      const session = s.devices.currentSession(s.device.deviceId)!;
+      s.devices.assign(s.owner, session, run.projectRunId, { cpus: 1, memoryBytes: 1024 ** 3, diskBytes: 1024 ** 3 });
+      s.devices.disconnect(session);
+      throw new ComputeDispatchPendingError(true);
+    } });
+    try {
+      await s.poll();
+      expect(s.recover).toHaveBeenCalledTimes(1);
+      for (const [failures, wait] of [30, 60, 120, 240, 480, 600, 600].map((seconds, i) => [i + 1, seconds * 1_000] as const)) {
+        s.reportStop();
+        // Past the five-second floor a new connection alone used to re-arm.
+        await s.poll(6_000);
+        await s.poll(wait - 7_000);
+        expect(s.recover).toHaveBeenCalledTimes(failures);
+        await s.poll(1_001);
+        expect(s.recover).toHaveBeenCalledTimes(failures + 1);
+      }
+      expect(s.status()).toBe('running');
+    } finally { s.close(); }
+  });
+
+  it('never fetches the files of a cancelled run: it closes as cancelled once its stop is confirmed', async () => {
+    const s = await computeFinalizationFixture({ stopReported: false });
+    try {
+      s.coordinator.cancel(s.owner.orgId, s.runId);
+      for (let i = 0; i < 3; i++) await s.poll(60_000);
+      expect(s.status()).toBe('running');
+      // The button cannot export it either.
+      await expect(s.coordinator.retryComputeFinalization(s.owner.orgId, s.runId, s.owner.principalId)).rejects.toThrow('cancellation');
+      s.reportStop();
+      await s.poll();
+      const row = s.f.store.getProjectRun(s.owner.orgId, s.runId)!;
+      expect(row.status).toBe('cancelled');
+      expect(row.error).toContain('cancellation requested');
+      await s.poll(60_000);
+      expect(s.recover).not.toHaveBeenCalled();
+      expect(s.acquireLease).not.toHaveBeenCalled();
+      await vi.waitFor(() => expect(s.finished).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' })));
+    } finally { s.close(); }
+  });
+
+  it.each(['requester', 'project'] as const)('waits without retrying while the %s blocks it, says so once, and finishes once that changes', async blocked => {
+    let allowed = blocked !== 'requester';
+    const s = await computeFinalizationFixture({ allowed: () => allowed });
+    const setProject = (status: string) => s.db.prepare('UPDATE projects SET status=? WHERE project_id=?').run(status, s.f.project.projectId);
+    try {
+      if (blocked === 'project') setProject('archived');
+      for (let i = 0; i < 8; i++) await s.poll(10 * 60_000 + 1);
+      expect(s.recover).not.toHaveBeenCalled();
+      expect(s.acquireLease).not.toHaveBeenCalled();
+      const lines = logged(s).split('\n').filter(line => line.includes(s.runId));
+      expect(lines).toEqual([`[atoma projects] automatic compute finalization of ${s.runId} waits: ${blocked === 'requester'
+        ? 'its requester may no longer run work here' : 'its project is archived'}`]);
+      allowed = true;
+      if (blocked === 'project') setProject('active');
+      await s.poll();
+      expect(s.recover).toHaveBeenCalledOnce();
+      expect(s.status()).toBe('delivered');
     } finally { s.close(); }
   });
 

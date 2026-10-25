@@ -322,23 +322,34 @@ export interface SubscriptionTransportUse {
 
 /** The coordinator's view of the Compute dispatcher; tests inject a fake. */
 type ComputeControl = Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' | 'interruptedStopped'> &
-  Partial<Pick<ComputeDispatcher, 'previewClassification' | 'progress' | 'finalizationReady'>>;
+  Partial<Pick<ComputeDispatcher, 'previewClassification' | 'progress' | 'finalizationReady' | 'finishedStopped'>>;
 
 /** How long a member's start waits for the analysis it preempts to let go of the slot. */
 export const PREEMPT_ANALYST_WAIT_MS = 20_000;
 
 /**
- * Automatic Compute finalization pacing. A NEW device connection re-arms an
- * attempt at once (that is what usually changes a pending outcome), floored
- * by the gap so a flapping link cannot drive an export per reconnect. On the
- * SAME connection a pending outcome backs off from the base, doubling up to
- * the cap: causes that clear without reconnecting (a lease held elsewhere, a
- * paused device) are retried, never in a tight loop. In memory only: the
- * journal is the durable state, and a restart costs one more attempt.
+ * Automatic Compute finalization pacing, counted in consecutive failed
+ * attempts per run whatever the connection: after the n-th, the next waits
+ * the base doubled n-1 times, capped. An attempt that reached the device
+ * closes its connection, and the device reconnects a second later; a new
+ * connection is therefore news only when the failed attempt never reached
+ * the device (absent, paused, its slot busy): it may re-arm sooner, under a
+ * floor that grows the same way. Success or the run leaving `running`
+ * resets. In memory only: the journal is the durable state, and a restart
+ * costs one more attempt.
  */
 export const COMPUTE_FINALIZE_BACKOFF_MS = 30_000;
 export const COMPUTE_FINALIZE_BACKOFF_MAX_MS = 10 * 60_000;
 export const COMPUTE_FINALIZE_MIN_GAP_MS = 5_000;
+
+interface ComputeFinalizationFailure { readonly key: string; readonly failures: number; readonly reachedDevice: boolean; readonly at: number }
+
+/** How long after `last` an attempt on the connection `key` may start. */
+function computeFinalizationWait(last: ComputeFinalizationFailure, key: string): number {
+  const growth = 2 ** Math.min(last.failures - 1, 20);
+  const backoff = Math.min(COMPUTE_FINALIZE_BACKOFF_MS * growth, COMPUTE_FINALIZE_BACKOFF_MAX_MS);
+  return !last.reachedDevice && last.key !== key ? Math.min(COMPUTE_FINALIZE_MIN_GAP_MS * growth, backoff) : backoff;
+}
 
 /** Every way a run ENDS; each one is named, so no list prints a whole goal. */
 const TITLED_STATUSES: ReadonlySet<string> = new Set(['delivered', 'partial', 'failed', 'cancelled']);
@@ -1359,16 +1370,29 @@ export class ProjectRunCoordinator {
       const run = this.store.getProjectRun(item.orgId, item.projectRunId);
       if (run?.executionTarget.kind !== 'customer-device') continue;
       if (compute.interruptedStopped(run)) this.settleStoppedComputeRun(run);
-      else this.finalizeComputeRunAutomatically(run, compute);
+      // A cancelled run's files are not fetched: it closes as cancelled
+      // once its workload stop is confirmed, as an interrupted one does.
+      else if (this.store.runCancellationRequested(run.orgId, run.projectRunId)) {
+        if (compute.finishedStopped?.(run)) this.settleStoppedComputeRun(run);
+      } else this.finalizeComputeRunAutomatically(run, compute);
     }
-    for (const runId of this.computeFinalizationPacing.keys()) {
-      if (!live.has(runId)) this.computeFinalizationPacing.delete(runId);
+    for (const memory of [this.computeFinalizationPacing, this.computeFinalizationBlocked]) {
+      for (const runId of memory.keys()) if (!live.has(runId)) memory.delete(runId);
     }
   }
 
-  /** Per run: the connection key last attempted and when the next may be. */
-  private readonly computeFinalizationPacing = new Map<string, { key: string; attempts: number; at: number; nextAt: number }>();
+  /** Per run: its consecutive failed attempts, the last one's connection and end. */
+  private readonly computeFinalizationPacing = new Map<string, ComputeFinalizationFailure>();
+  /** Per run: the fact only a person can change that keeps it waiting, logged once. */
+  private readonly computeFinalizationBlocked = new Map<string, string>();
   private readonly computeFinalizing = new Set<string>();
+
+  /** Facts only a person can change; null when finalization may proceed. */
+  private computeFinalizationBlocker(run: ProjectRun): string | null {
+    if (this.queuedRunAllowed && !this.queuedRunAllowed(run.requestedByPrincipalId, run.orgId)) return 'its requester may no longer run work here';
+    const project = this.store.getProject(run.orgId, run.projectId);
+    return project?.status === 'active' ? null : `its project is ${project?.status ?? 'missing'}`;
+  }
 
   /** One attempt in flight per run, through exactly the explicit path, acting
    * for the requester with the same authority rechecks. Tracked as detached
@@ -1377,17 +1401,26 @@ export class ProjectRunCoordinator {
     const runId = run.projectRunId;
     const key = compute.finalizationReady?.(run) ?? null;
     if (!key || this.computeFinalizing.has(runId)) return;
-    const now = Date.now(), last = this.computeFinalizationPacing.get(runId);
-    if (last && (last.key === key ? now < last.nextAt : now < last.at + COMPUTE_FINALIZE_MIN_GAP_MS)) return;
-    const attempts = last?.key === key ? last.attempts + 1 : 1;
-    this.computeFinalizationPacing.set(runId, { key, attempts, at: now,
-      nextAt: now + Math.min(COMPUTE_FINALIZE_BACKOFF_MS * 2 ** (attempts - 1), COMPUTE_FINALIZE_BACKOFF_MAX_MS) });
+    // Retrying cannot restore a membership or reopen a project: wait, say so once.
+    const blocker = this.computeFinalizationBlocker(run);
+    if (blocker) {
+      if (this.computeFinalizationBlocked.get(runId) !== blocker) {
+        this.computeFinalizationBlocked.set(runId, blocker);
+        process.stderr.write(`[atoma projects] automatic compute finalization of ${runId} waits: ${blocker}\n`);
+      }
+      return;
+    }
+    this.computeFinalizationBlocked.delete(runId);
+    const last = this.computeFinalizationPacing.get(runId);
+    if (last && Date.now() < last.at + computeFinalizationWait(last, key)) return;
     this.computeFinalizing.add(runId);
-    process.stderr.write(`[atoma projects] automatic compute finalization of ${runId} started (attempt ${attempts} on ${key.split(':')[0]})\n`);
-    const attempt: Promise<void> = this.finalizeComputeRun(run.orgId, runId, run.requestedByPrincipalId, true).then(settled => {
+    process.stderr.write(`[atoma projects] automatic compute finalization of ${runId} started (attempt ${(last?.failures ?? 0) + 1} on ${key.split(':')[0]})\n`);
+    const outcome = { reachedDevice: false };
+    const attempt: Promise<void> = this.finalizeComputeRun(run.orgId, runId, run.requestedByPrincipalId, outcome).then(settled => {
       this.computeFinalizationPacing.delete(runId);
       process.stderr.write(`[atoma projects] automatic compute finalization of ${runId} ended: ${settled.status}\n`);
     }, (error: unknown) => {
+      this.computeFinalizationPacing.set(runId, { key, failures: (last?.failures ?? 0) + 1, reachedDevice: outcome.reachedDevice, at: Date.now() });
       const cause = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
       process.stderr.write(`[atoma projects] automatic compute finalization of ${runId} remains pending: ${cause.replace(/\s+/g, ' ').slice(0, 2_000)}\n`);
     }).finally(() => {
@@ -2971,19 +3004,26 @@ export class ProjectRunCoordinator {
       try { return await callExecutor(this.executorSocket, { method: 'compute-finalize', orgId, runId: projectRunId, principalId }); }
       catch (error) { throw this.executorError(error); }
     }
-    return this.finalizeComputeRun(orgId, projectRunId, principalId, false);
+    return this.finalizeComputeRun(orgId, projectRunId, principalId);
   }
 
-  private async finalizeComputeRun(orgId: string, projectRunId: string, principalId: string, automatic: boolean): Promise<ProjectRun> {
+  /** `automatic` is the executor's own attempt; it learns whether the device was reached. */
+  private async finalizeComputeRun(orgId: string, projectRunId: string, principalId: string,
+    automatic?: { reachedDevice: boolean }): Promise<ProjectRun> {
     const run = this.store.getProjectRun(orgId, projectRunId);
     if (!run || run.executionTarget.kind !== 'customer-device' || run.status !== 'running' ||
-        run.requestedByPrincipalId !== principalId || (this.queuedRunAllowed && !this.queuedRunAllowed(principalId, orgId))) {
+        run.requestedByPrincipalId !== principalId || this.computeFinalizationBlocker(run)) {
       throw new ProjectStateConflict('Compute finalization unavailable');
     }
     const compute = this.compute?.(), project = this.store.getProject(orgId, run.projectId);
-    if (!compute || !project || project.status !== 'active' || this.active.has(projectRunId)) throw new ProjectStateConflict('Compute run is active or unavailable');
+    if (!compute || !project || this.active.has(projectRunId)) throw new ProjectStateConflict('Compute run is active or unavailable');
     if (compute.interruptedStopped(run)) {
       return this.settleStoppedComputeRun(run);
+    }
+    // A cancelled run is closed, not exported and delivered.
+    if (this.store.runCancellationRequested(orgId, projectRunId)) {
+      if (compute.finishedStopped?.(run)) return this.settleStoppedComputeRun(run);
+      throw new ProjectStateConflict('Compute run cancellation awaits its workload stop');
     }
     const lease = await this.acquireLeasePreempting(`project:${projectRunId}`, orgId);
     if (this.active.has(projectRunId) || this.store.getProjectRun(orgId, projectRunId)?.status !== 'running') {
@@ -2996,6 +3036,7 @@ export class ProjectRunCoordinator {
     this.active.set(projectRunId, { orgId, principalId, controller });
     const manifestPath = projectRunHostLayout(this.root, orgId, run.projectId, projectRunId).artifactManifestPath;
     const driven = compute.recover(run, manifestPath).catch((error: unknown) => {
+      if (automatic && error instanceof ComputeDispatchPendingError && error.reachedDevice) automatic.reachedDevice = true;
       // A refused export is terminal, as on the first attempt; anything else
       // (an interrupted execution, a lost device) leaves the run pending.
       if (error instanceof ComputeFinalizationRefusedError || error instanceof ComputeDispatchPendingError) throw error;

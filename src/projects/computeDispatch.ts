@@ -61,7 +61,9 @@ export class ComputeDispatchStore {
 }
 
 export class ComputeDispatchPendingError extends Error {
-  constructor() { super('Customer compute disconnected or finalization incomplete; it resumes when the device reconnects'); }
+  /** `reachedDevice`: this attempt held the device's slot, so its close made
+   * the device reconnect; a new connection then says nothing new. */
+  constructor(readonly reachedDevice = false) { super('Customer compute disconnected or finalization incomplete; it resumes when the device reconnects'); }
 }
 
 /** The device's publication inventory refused the finished workspace. The same
@@ -110,6 +112,15 @@ export class ComputeDispatcher {
     if (!record) return this.options.devices.confirmedRunStop(run.executionTarget.deviceId, run.projectRunId);
     return       (record.phase === 'executing' || record.phase === 'interrupted') &&
       this.options.devices.confirmedStop(run.executionTarget.deviceId, run.projectRunId, record.generation);
+  }
+  /** A finished run whose transfer may be abandoned (its cancellation was
+   * requested): only the transfer was left, and a launcher reported the
+   * workload stopped with no slot still held for this run. */
+  finishedStopped(run: ProjectRun): boolean {
+    if (run.executionTarget.kind !== 'customer-device') return false;
+    const phase = this.options.journal.inspect(run.projectRunId)?.phase;
+    return (phase === 'finalizing' || phase === 'transferred') &&
+      this.options.devices.confirmedRunStop(run.executionTarget.deviceId, run.projectRunId);
   }
   private async receive(run: ProjectRun, peer: ComputeConnection, execution: ComputeExecution, log: string, manifestPath: string) {
     const outcome = parseRunLog(log).outcome;
@@ -173,7 +184,7 @@ export class ComputeDispatcher {
     } catch (error) {
       if (error instanceof WorkspaceExportRefusedError) throw new ComputeFinalizationRefusedError(log, error);
       logPending(run.projectRunId, 'finalization', error);
-      throw new ComputeDispatchPendingError();
+      throw new ComputeDispatchPendingError(true);
     } finally { peer.close('dispatch-finished'); }
   }
   async drive(run: ProjectRun, driver: ProjectRunDriver, input: Parameters<ProjectRunDriver>[0], manifestPath: string): Promise<string> {
@@ -211,7 +222,7 @@ export class ComputeDispatcher {
       if (finalizing !== undefined && error instanceof WorkspaceExportRefusedError) throw new ComputeFinalizationRefusedError(finalizing, error);
       logPending(run.projectRunId, finalizing === undefined ? 'dispatch' : 'finalization', error);
       if (finalizing === undefined && this.options.journal.inspect(run.projectRunId)) this.options.journal.phase(run.projectRunId, execution.generation, 'interrupted');
-      throw new ComputeDispatchPendingError();
+      throw new ComputeDispatchPendingError(true);
     } finally {
       try { await bridge?.close(); } finally { peer.close(finalizing !== undefined ? 'dispatch-finished' : 'dispatch-interrupted'); }
       // Closing requests local lease teardown. It is never an exit assertion;

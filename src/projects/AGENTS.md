@@ -43,11 +43,11 @@ pairing requires current identity, one-use consent, exact origin and app-secret
 proof. Every dispatch, result and heartbeat rechecks authority. `computeDispatch`
 bridges the existing host child to that connection. Terminal channel loss aborts host orchestration;
 no command is executed twice. Its product-store journal preserves incomplete delivery
-across server restart. Explicit finalization binds a fresh export-only generation
-to the recorded local allocation; only verified received bytes become delivered.
-A typed `export-refused` reply (the device's publication inventory refused the
-finished tree) is terminal on dispatch and on explicit retry alike: the row
-fails exactly as a hosted refusal does, same message, stats kept from the
+across server restart. Finalization (automatic or explicit) binds a fresh
+export-only generation to the recorded local allocation; only verified received
+bytes become delivered. A typed `export-refused` reply (the device's publication
+inventory refused the finished tree) is terminal on dispatch and on retry alike:
+the row fails exactly as a hosted refusal does, same message, stats kept from the
 persisted `.compute-result`, slot released through the normal close. Run
 40c20c5d sat `running` instead, its cause discarded. Only a refusal the same
 tree reproduces (`artifactRefusalCodeSchema`) is terminal: a race or an I/O
@@ -61,10 +61,16 @@ reconciles confirmed interrupted stops during its control poll, including after
 a generation change. It also finishes pending finalization transfers by itself
 (2026-10-25): once the journal says only the transfer is left and the device is
 connected with no execution holding its slot, the explicit retry's own path runs
-for the requester, one attempt per run, re-armed by a new connection, else
-backed off to ten minutes. They were explicit while a refused export could loop;
-it is now terminal, and the export runs no tool or model. Run 40c20c5d waited
-4.5 hours for a buried button. Public readers never perform this reconciliation.
+for the requester, one attempt per run. Consecutive failures back off 30 s
+doubling to ten minutes, whatever the connection: an attempt that reached the
+device closes its socket and the app reconnects a second later. Only a failure
+before assign lets a new connection re-arm sooner, under a floor that grows too.
+A lost membership or an archived project is logged once and never retried until
+it changes. A run cancelled before an attempt is not exported: it closes as
+cancelled once its stop is confirmed, button included. They were explicit while a refused export
+could loop; it is now terminal, and the export runs no tool or model. Run
+40c20c5d waited 4.5 hours for a buried button. Public readers never perform
+this reconciliation.
 
 Legacy project targets remain hosted and run receipts are immutable. On gated
 hosts, only a current platform admin may start hosted work; other members must
@@ -716,10 +722,11 @@ acceptance, publication or the immutable child trace.
   stop acknowledgement. `stop-confirmation-pending` never releases the slot.
 - Automatic Compute finalization (2026-10-25) lives in the executor's control
   poll, not in the gateway's connect callback: a connection arrives before its
-  launcher reports the old stop, so that attempt would meet a held slot, and
-  the poll already owns selection, demotion and restart. A fixed retry timer without a connection key was refused (an
-  export per tick against an absent device), and so was a durable attempt
-  counter: the journal is the state, a restart costs one attempt.
+  launcher reports the old stop, so that attempt would meet a held slot, and the
+  poll owns selection, demotion and restart. Refused: a retry timer blind to
+  connections (an export per tick against an absent device), resetting the
+  count on each new connection (every attempt's close makes one: an export
+  every 6 s), and a durable counter (the journal is the state).
 
 - The project learning reader shares one org-authorized body across HTTP/MCP, including deferred-worker ledger provenance. Read-only, bounded and explicit about coverage: [contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
