@@ -24,6 +24,8 @@ const packageMetadata = JSON.parse(
   await readFile(new URL('../package.json', import.meta.url), 'utf8')
 );
 const releaseVersion = packageMetadata.version;
+/** The English catalog the account scenario reads its expected copy from. */
+const enCatalog = JSON.parse(await readFile(new URL('../src/viz/client/locales/en.json', import.meta.url), 'utf8'));
 const extraPreviewFixtures = await fileViewerFixtures();
 if (typeof releaseVersion !== 'string' || releaseVersion.length === 0) {
   throw new Error('package.json must declare a non-empty version');
@@ -2160,6 +2162,17 @@ try {
       const principalId = '11111111-2222-3333-4444-555555555555';
       const projectId = 'aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb';
       const computeDeviceId = 'cccccccc-1111-4222-8333-dddddddddddd';
+      // The hosted application's status, as the hosting route answers it. A
+      // complete summary: the client parses it strictly, so a partial stub
+      // read as an error rather than as "not configured".
+      const unconfiguredHosting = {
+        available: false, state: 'not-deployed', deploymentId: null, runId: null, commitSha: null,
+        url: null, error: null, address: null, candidate: null, version: null, previous: null, updateStops: false,
+      };
+      let hostingSummary = unconfiguredHosting;
+      /** Hosting POSTs as sent; the response waits for `releaseHostingPost` so the progress is observable. */
+      const hostingPosts = [];
+      let releaseHostingPost = null;
       const stubs = {
         '/auth/whoami': {
           enabled: true,
@@ -2398,10 +2411,17 @@ try {
           return;
         }
         if (/^\/api\/projects\/[^/]+\/hosting$/.test(path) && request.method() === 'GET') {
-          void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({
-            available: false, state: 'not-deployed', deploymentId: null, runId: null, commitSha: null,
-            url: null, error: null, address: null, candidate: null,
-          }) });
+          void request.respond({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
+            body: JSON.stringify(hostingSummary) });
+          return;
+        }
+        const hostingPost = /^\/api\/projects\/([^/]+)\/hosting\/(deploy|update|restore|stop|open)$/.exec(path);
+        if (hostingPost && request.method() === 'POST') {
+          hostingPosts.push({ projectId: hostingPost[1], action: hostingPost[2], body: JSON.parse(request.postData() ?? '{}') });
+          releaseHostingPost = () => {
+            releaseHostingPost = null;
+            void request.respond({ status: 202, contentType: 'application/json', body: '{}' });
+          };
           return;
         }
         if (path === `/api/compute/devices/${computeDeviceId}/projects` && request.method() === 'POST') {
@@ -2582,8 +2602,27 @@ try {
       await passArrivalGate(accountPage);
       await accountPage.evaluate(() => new Promise((resolve) => setTimeout(resolve, 900)));
 
+      // An organisation that already has projects opens Projects with the
+      // creation card folded (owner, 2026-10-25): its heading toggle is the
+      // one way in, so the scenario opens it as a person would.
+      const openCreationCard = async () => {
+        await accountPage.waitForSelector('.gpu-project-mcp-toggle', { visible: true });
+        if (await accountPage.$('.gpu-project-mcp-toggle[aria-expanded="true"]')) return;
+        // A view change paints a departing cube snapshot over the page for a
+        // moment: click only once the toggle itself is under the pointer.
+        const spot = await (await accountPage.waitForFunction(() => {
+          const node = document.querySelector('.gpu-project-mcp-toggle'); const box = node?.getBoundingClientRect();
+          if (!node || !box?.width) return null;
+          const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+          const top = document.elementFromPoint(point.x, point.y);
+          return top === node || node.contains(top) ? point : null;
+        }, { timeout: READY_TIMEOUT_MS })).jsonValue();
+        await accountPage.mouse.click(spot.x, spot.y);
+        await accountPage.waitForSelector('.gpu-project-mcp-toggle[aria-expanded="true"]');
+      };
       // An owner starts in the conversation. The external-agent disclosure
       // opens the MCP connection panel, then the reader can return to the list.
+      await openCreationCard();
       await accountPage.waitForSelector('.gpu-assistant textarea:not([disabled])', { visible: true });
       await accountPage.click('.gpu-project-mcp-own-agent > summary');
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions button', { visible: true });
@@ -2638,15 +2677,25 @@ try {
           guide.querySelector('.gpu-project-mcp-connection')?.textContent ===
             'Atoma MCP connected for this organisation. Your agent is ready to work.';
       };
-      await accountPage.waitForFunction(connectedGuideState, { timeout: READY_TIMEOUT_MS }, true);
+      // With projects, the creation card is folded on arrival and folds again
+      // when the organisation's agent connection changes (owner, 2026-10-25).
+      // Wait for the connection to be read, then open the card the person's
+      // way and prove the conversation in it is usable.
+      const openConnectedGuide = async () => {
+        await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp .gpu-project-mcp-connection')?.textContent ===
+          'Atoma MCP connected for this organisation. Your agent is ready to work.', { timeout: READY_TIMEOUT_MS });
+        await openCreationCard();
+        await accountPage.waitForFunction(connectedGuideState, { timeout: READY_TIMEOUT_MS }, true);
+      };
+      await openConnectedGuide();
       await accountPage.reload({ waitUntil: 'load' });
       await passArrivalGate(accountPage);
-      await accountPage.waitForFunction(connectedGuideState, { timeout: READY_TIMEOUT_MS }, true);
+      await openConnectedGuide();
       await accountPage.click('.gpu-project-mcp-own-agent > summary');
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-connection', { visible: true });
       await accountPage.click('.gpu-project-mcp-own-agent > summary');
-      await accountPage.waitForFunction(connectedGuideState, { timeout: READY_TIMEOUT_MS }, true);
-      console.log('Projects connected MCP access ok: owner conversation stays open on focus and reload; external guide remains reachable');
+      await openConnectedGuide();
+      console.log('Projects connected MCP access ok: owner conversation reopens usable after focus and reload; external guide remains reachable');
 
       // A viewer has no assistant: its standalone guide still folds once
       // connected. Restore the owner before continuing the account scenario.
@@ -2669,7 +2718,7 @@ try {
       stubs['/api/org'] = ownerOrg;
       await accountPage.reload({ waitUntil: 'load' });
       await passArrivalGate(accountPage);
-      await accountPage.waitForFunction(connectedGuideState, { timeout: READY_TIMEOUT_MS }, true);
+      await openConnectedGuide();
       accountStage = 'project-selection';
 
       // Real Pixi metrics, at the width that exposed the regression: a
@@ -2936,6 +2985,105 @@ try {
       await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
       console.log('Deployment preference ok: explicit save, retained selection, desktop and narrow settings');
       await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+
+      // "Update the application" (owner decision 2026-10-25): an explicit
+      // click and a plain Confirm, through the real canvas hit targets of
+      // Project settings and of the accepted run's result page, then its
+      // progress in words; a member is told whom to ask and gets no button.
+      accountStage = 'hosting-update';
+      const acceptedRun = stubs[`/api/projects/${projectId}/runs`]
+        .filter(row => row.status === 'delivered' && !row.rerunOf && row.traceId)
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+      if (!acceptedRun) throw new Error('hosting arm: the scenario has no delivered run to offer');
+      const onlineDeployment = '99999999-1111-4222-8333-444444444444';
+      const updatedDeployment = '99999999-1111-4222-8333-555555555555';
+      const onlineRun = '99999999-2222-4222-8333-444444444444';
+      const onlineVersion = { runId: onlineRun, commitSha: 'a'.repeat(40), title: 'First smoke version', acceptedAt: '2026-10-24T09:00:00.000Z' };
+      const acceptedVersion = { runId: acceptedRun.projectRunId, commitSha: 'b'.repeat(40), title: 'Smoke update', acceptedAt: '2026-10-25T09:00:00.000Z' };
+      const olderOnline = () => ({
+        available: true, state: 'ready', deploymentId: onlineDeployment, runId: onlineRun, commitSha: onlineVersion.commitSha,
+        url: 'https://smoke.app.atoma.run/', error: null, address: 'https://smoke.app.atoma.run/',
+        version: onlineVersion, candidate: { ...acceptedVersion, manifestHash: 'f'.repeat(64) }, previous: null, updateStops: true,
+      });
+      // Each surface's DOM twin carries the copy the canvas draws; the scope
+      // keeps one surface's text from proving another's.
+      const settingsRegion = `section[aria-label="${enCatalog['hosting.title']}"]`;
+      const resultRegion = `section[aria-label="${enCatalog['hosting.offer.region']}"]`;
+      const bodyHas = (key, scope) => accountPage.waitForFunction((text, selector) =>
+        [...document.querySelectorAll(selector)].some(node => node.textContent.includes(text)),
+      { timeout: READY_TIMEOUT_MS }, enCatalog[key], scope).catch(async error => {
+        await accountPage.screenshot({ path: '/tmp/atoma-hosting-update-failure.png' });
+        throw new Error(`hosting arm: "${key}" never shown: ${JSON.stringify(await accountPage.evaluate(() => ({
+          text: document.body.innerText.slice(-3000), targets: globalThis.__ATOMA_GPU__.hitTargets().map(row => row.id).filter(id => id.startsWith('hosting.')) })))}`, { cause: error });
+      });
+      const hostingTargets = () => accountPage.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets()
+        .map(row => row.id).filter(id => id.startsWith('hosting.')));
+      const updateThroughCanvas = async (surface, scope) => {
+        hostingPosts.length = 0;
+        await waitForHitTarget(accountPage, 'hosting.update', `${surface}: no "Update the application" for a newer accepted version`);
+        await clickAccountTarget('hosting.update');
+        await waitForHitTarget(accountPage, 'hosting.confirm', `${surface}: the update asked no confirmation`);
+        await bodyHas('hosting.confirm.update', scope);
+        if ((await hostingTargets()).includes('hosting.update')) throw new Error(`${surface}: the update button stayed beside its confirmation`);
+        if (hostingPosts.length) throw new Error(`${surface}: the update was requested before Confirm`);
+        await clickAccountTarget('hosting.confirm');
+        // Still in flight: the new version is prepared before the old one stops.
+        await bodyHas('hosting.progress.stopping', scope);
+        const post = hostingPosts[0];
+        const expected = { runId: acceptedVersion.runId, manifestHash: 'f'.repeat(64), expectedDeploymentId: onlineDeployment };
+        if (hostingPosts.length !== 1 || post.action !== 'update' || post.projectId !== projectId || JSON.stringify(post.body) !== JSON.stringify(expected)) {
+          throw new Error(`${surface}: unexpected hosting requests ${JSON.stringify(hostingPosts)}`);
+        }
+        hostingSummary = { ...olderOnline(), state: 'starting', deploymentId: updatedDeployment, runId: acceptedVersion.runId,
+          commitSha: acceptedVersion.commitSha, url: null, version: acceptedVersion };
+        releaseHostingPost();
+        await bodyHas('hosting.progress.starting', scope);
+        hostingSummary = { ...hostingSummary, state: 'ready', url: 'https://smoke.app.atoma.run/' };
+        await bodyHas('hosting.outcome.updated', scope);
+      };
+      hostingSummary = olderOnline();
+      await clickAccountTarget('project.section.settings');
+      await updateThroughCanvas('Project settings', settingsRegion);
+      console.log('Hosted update ok: Project settings canvas Update -> Confirm -> prepared, starting, updated');
+      hostingSummary = olderOnline();
+      await clickAccountTarget('project.section.result');
+      await waitForHitTarget(accountPage, 'result.details', 'hosting arm: the result page did not open');
+      await bodyHas('hosting.offer.outdated', resultRegion);
+      await updateThroughCanvas('Result page', resultRegion);
+      console.log('Hosted update ok: accepted run result page canvas Update -> Confirm -> prepared, starting, updated');
+      // A member reads the same offer and is told whom to ask, with no button.
+      hostingSummary = olderOnline();
+      const hostingOwnerAuth = stubs['/auth/whoami'];
+      stubs['/auth/whoami'] = {
+        ...hostingOwnerAuth, role: 'org:member',
+        activeOrganisation: { ...hostingOwnerAuth.activeOrganisation, role: 'org:member' },
+        organisations: hostingOwnerAuth.organisations.map(org => org.id === 'org-a' ? { ...org, role: 'org:member' } : org),
+      };
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await waitForHitTarget(accountPage, 'result.details', 'hosting arm: the member result page did not reopen');
+      await bodyHas('hosting.offer.outdated', resultRegion);
+      await bodyHas('hosting.offer.askAdmin', resultRegion);
+      await clickAccountTarget('project.section.settings');
+      await bodyHas('hosting.update.available', settingsRegion);
+      await bodyHas('hosting.offer.askAdmin', settingsRegion);
+      // Opening the application (its button or its address) is every member's.
+      const memberControls = (await hostingTargets()).filter(id => id !== 'hosting.open' && id !== 'hosting.open.address');
+      const memberButtons = await accountPage.evaluate(labels => [...document.querySelectorAll('button')]
+        .filter(button => labels.includes(button.textContent.trim())).map(button => button.textContent.trim()),
+      [enCatalog['hosting.update'], enCatalog['hosting.confirm'], enCatalog['hosting.stop']]);
+      if (memberControls.length || memberButtons.length) {
+        throw new Error(`hosting arm: a member was offered ${JSON.stringify({ memberControls, memberButtons })}`);
+      }
+      stubs['/auth/whoami'] = hostingOwnerAuth;
+      hostingSummary = unconfiguredHosting;
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await waitForHitTarget(accountPage, 'deployment.choose.atoma', 'hosting arm: owner settings did not reopen');
+      await clickAccountTarget('project.section.conversation');
+      console.log('Hosted update ok: a member reads the offer and whom to ask, with no hosting control');
+      // The project arms that follow run under the stage whose known preview warnings are scoped to it.
+      accountStage = 'project-selection';
       await clickAccountTarget('project.section.settings');
       await accountPage.waitForSelector('section[aria-label="Run execution"]');
       await accountPage.evaluate(() => {
