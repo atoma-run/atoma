@@ -30,6 +30,8 @@ package is not automatically converted into a hosted application.
 Hosting is private to the organisation, including for a public repository.
 Opening mints a one-time, thirty-second fragment claim. A host-only HttpOnly
 Secure cookie lasts five idle minutes and is renewed by authorised traffic.
+It opens the project's application, not one deployment of it, so an update
+does not sign visitors out.
 Membership is checked on every request, and platform logout revokes grants.
 Platform credentials and app-provided cookies never cross the gateway; service
 workers and document-domain relaxation are disabled. Applications cannot set
@@ -51,29 +53,59 @@ When a newer delivery is accepted and published, Project settings, the
 conversation's run card and that run's result page offer **Update the
 application** to organisation administrators; other members are told to ask
 one. Versions are described by the run's title and acceptance date, with the
-commit only as secondary detail. Nothing updates on acceptance, even by choice:
-updating stops the site for about a minute, so it stays an explicit click
-behind a plain confirmation (owner decision, 2026-10-25). The first deployment
-is **Put the application online**.
+commit only as secondary detail. Nothing updates on acceptance, even by choice,
+static sites included: updating a stateful application interrupts it while it
+restarts, so it stays an explicit click behind a plain confirmation (owner
+decision, 2026-10-25). The first deployment is **Put the application online**.
 
 One request (`POST …/hosting/update`, same-origin, same authority as deploy)
 does what Stop then Deploy did. It checks the deployment the person saw and
-that the candidate is still the newest accepted version, stops every runtime
-that may hold the data, and only then reserves the new version; the store
-refuses a start beside such a runtime. A stop that fails ends the request
-with nothing started. Static applications keep their no-downtime replacement.
+that the candidate is still the newest accepted version. It then prepares the
+new version while the online one keeps serving: retained bytes copied and
+revalidated against the accepted manifest, networks and containers created but
+not started. A preparation failure stops nothing. Only then does it stop every
+runtime that may hold the data and reserve the new version; the store refuses
+a start beside such a runtime, so two versions never write the data. A stop
+that fails ends the request with nothing started. Static applications keep
+their no-downtime replacement.
 
-If the new version does not start, the status says so and offers **Put the
-previous version back** (`…/hosting/restore`): the version the update stopped,
-recorded on the new deployment, redeployed through the same checks. Retention
-holds the online version and that previous one, and the offer disappears when
-its bytes are gone. Deploy and Stop remain available on their own.
+During that swap the gateway holds the project's visitors instead of answering
+errors: a request that passes the usual access checks (grant, membership,
+origin) waits up to 45 seconds, 64 per project and 512 overall, and is served
+by the new version once it answers. A browser desktop's WebSocket reconnection
+waits the same way. Past those bounds, or if the new version fails to start,
+visitors get a plain "This application is being updated. Please try again in a
+moment." page (503, `Retry-After: 10`), never a bare 502. Other projects are
+unaffected.
+
+After the stop only the start and readiness remain. The stop gives the
+application ten seconds to exit, so a Node application without a SIGTERM
+handler (which ignores it as PID 1) is down about ten seconds longer than one
+that closes its server and exits: on a Docker engine without gVisor, about
+11 s against under 1 s, where both took 10 s more before this change
+([measurement](../records/incidents/hosted-update-outage-2026-10-25.md)).
+
+If the new version does not start, or cannot be reserved once the old one has
+stopped, the status says so and offers **Put the previous version back**
+(`…/hosting/restore`): the version the update stopped, recorded on the new
+deployment, redeployed through the same checks. Retention holds the online
+version and that previous one, and the offer disappears when its bytes are
+gone. Deploy and Stop remain available on their own.
+
+Compatibility: a deployment row that records a previous version
+(`previousRunId`) cannot be read by a release from before 2026-10-25, whose
+reader refuses unknown fields, and that refusal breaks every hosting listing.
+Before rolling back past it, remove the field
+(`UPDATE project_hosted_deployments SET record = json_remove(record, '$.previousRunId')`).
+Readers from this release on ignore fields a later release adds. Browser tabs
+opened before an update of Atoma need a reload to offer these actions.
 
 Rejected: sequencing Stop then Deploy in the browser (a lost second request, or
 another administrator's deploy in between, left the site down or raced it); a
-put-back target chosen by the client (the host records what it stopped); and
+put-back target chosen by the client (the host records what it stopped);
 updating automatically on acceptance, which would stop a customer's site
-without a click.
+without a click; and blue-green for a stateful application, which would run two
+writers of its data, two schedulers and two browsers on one Chromium profile.
 
 ## Operator installation
 
@@ -82,6 +114,9 @@ The launcher owns all engine operations. Hosted objects use the separate
 `dev.atoma.owner=hosting` label and survive launcher/socket/platform restarts;
 ephemeral worker/preview sweeps never collect them. Startup reattaches running
 containers. Interrupted candidates fail closed and require an explicit retry.
+A web restart between an update's preparation and its reservation leaves that
+version's created, never-started objects without a deployment row; nothing
+removes them yet (`docker ps -a --filter label=dev.atoma.owner=hosting`).
 The hosting launcher restarts itself on the active release: when `current`
 points elsewhere and no request is open, it exits with status 75 and
 `Restart=on-failure` starts the new code. Hosted applications keep serving
@@ -199,7 +234,8 @@ The desktop HTTP and WebSocket routes require the same short-lived private
 application grant, exact upgrade origin and current organisation membership.
 Established sockets recheck access every second; expiry, logout, membership
 removal, stop or deployment replacement closes them. Application status polling
-keeps the HTTP grant cookie alive; after expiry reopen from Atoma. CDP and VNC
+keeps the HTTP grant cookie alive; after expiry reopen from Atoma. During an
+update, a reconnecting desktop waits for the new version. CDP and VNC
 ports are never published. Nginx must forward WebSocket upgrades (see the supplied
 hosting configuration). Browser output and input are available to authorised
 project users; use this session only for project work.

@@ -91,22 +91,22 @@ The WSS bind acknowledgement follows local allocation; loss during allocation
 is indeterminate and cannot free the persisted assignment. Tools use a separate
 bounded concurrent channel; their acknowledged drain leaves workspace RPC alive.
 
-The coordinator selects a host-configured retrieval override by the immutable
-run target's device UUID; legacy devices keep their existing fallback. The
-schema and bounded reader live in [contracts](../contracts/AGENTS.md#haystack-runtime-configuration).
+The coordinator selects a host-configured retrieval override by the immutable run target's device UUID;
+legacy devices keep their existing fallback. The schema and bounded reader live in [contracts](../contracts/AGENTS.md#haystack-runtime-configuration).
 
 ## Deployment preference
 
-`deploymentDestination` is `none` (default), `atoma`, or `external` (no provider is
-implemented): an admin-only, same-origin, org-scoped, journaled setting with an expected
-value; saving it never deploys or stops anything. Preview, acceptance, publication and
-deployment stay separate. Hosting (`hostingService`, `hostingStore`, its own launcher;
-[project hosting](../../docs/project-hosting.md)) runs accepted, published, hash-verified
-copies. Saving Atoma assigns the `hostingSubdomain` label; a rename retires the old one
-as a permanent redirect, never reused. `update` (owner, 2026-10-25) is an explicit admin
-click, never automatic, not even opt-in: ONE request stops every `holdsApplicationData`
-row, then reserves the candidate, under Stop's lock and CAS; a failed start offers
-`restore` of `previousRunId`, which retention holds.
+`deploymentDestination` is `none` (default), `atoma`, or `external` (no provider is implemented): an
+admin-only, same-origin, org-scoped, journaled setting with an expected value; saving it never deploys or
+stops anything. Preview, acceptance, publication and deployment stay separate. Hosting (`hostingService`,
+`hostingStore`, its own launcher; [project hosting](../../docs/project-hosting.md)) runs accepted, published,
+hash-verified copies. Saving Atoma assigns the `hostingSubdomain` label; a rename retires the old one as a
+permanent redirect, never reused. `update` (owner, 2026-10-25) is an explicit admin click, never automatic:
+ONE request, under Stop's lock and CAS, first copies, revalidates and creates (`createHosting`, unstarted)
+the candidate, so a failure there stops nothing; only then it stops every `holdsApplicationData` row and
+reserves the candidate. From the stop to readiness, `swapping(host)` makes the gateway hold that project's
+authorised visitors and desktop upgrades (`HOSTING_HOLD`), then a 503 page, never a bare 502. A failed
+start, or a reserve refused after the stop, offers `restore` of `previousRunId`, which retention holds.
 
 ## The organisation's MCP servers
 
@@ -714,11 +714,10 @@ See [checkpoints](../../docs/decisions/run-checkpoints-2026-10-08.md) and [clien
 
 ## Host latency receipts
 
-The existing coordinator/driver records preparation, process, process finalization,
-customer-compute handoff, host finalization and detached naming in an optional
-host-owned timing sidecar beside the trace. Transfer failures record elapsed time
-without claiming completion; failed timing writes never affect admission, leases,
-acceptance, publication or the immutable child trace.
+The existing coordinator/driver records preparation, process, process finalization, customer-compute
+handoff, host finalization and detached naming in an optional host-owned timing sidecar beside the trace.
+Transfer failures record elapsed time without claiming completion; failed timing writes never affect
+admission, leases, acceptance, publication or the immutable child trace.
 
 ## Intentional choices and rejected shortcuts
 
@@ -737,7 +736,8 @@ acceptance, publication or the immutable child trace.
 
 - The project learning reader shares one org-authorized body across HTTP/MCP, including deferred-worker ledger provenance. Read-only, bounded and explicit about coverage: [contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
-- Hosted update on acceptance, client-sequenced Stop then Deploy, a client-chosen put-back: refused ([why](../../docs/project-hosting.md#updating-an-application)).
+- Hosted update on acceptance, client-sequenced Stop then Deploy, a client-chosen put-back, blue-green
+  for a stateful application (two writers, two schedulers, one Chromium profile): refused ([why](../../docs/project-hosting.md#updating-an-application)).
 - Reading egress settings, or an ollama destination, from a tenant prompt:
   refused. They come from the HOST snapshot. An organisation picks ollama
   MODELS, never an endpoint — a tenant URL would be SSRF from the platform's
