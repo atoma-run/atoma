@@ -2836,11 +2836,18 @@ describe('drawProjects', () => {
       drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: 'p-1' }, {
         auth, projects: [project], projectRuns: { 'p-1': [shown] },
       }), width, 1000);
-      const button = ctx.buttons.find(b => b.id === 'project.checkpoint.run-1')!;
-      expect(button).toBeDefined();
-      expect(!!button.disabled).toBe(blocked);
-      expect(button.width).toBeLessThan(width);
-      if (blocked) expect(ctx.texts.map(text => text.value).join(' ')).toContain(t('projects.checkpoint.reason.external_effect'));
+      const button = ctx.buttons.find(b => b.id === 'project.checkpoint.run-1');
+      const copy = ctx.texts.map(text => text.value).join(' ');
+      if (blocked) {
+        // Nothing to press: one sentence says so, never a dimmed button.
+        expect(button).toBeUndefined();
+        expect(copy).toContain(t('projects.checkpoint.blocked'));
+        expect(copy).toContain(t('projects.checkpoint.reason.external_effect'));
+      } else {
+        expect(button).toBeDefined();
+        expect(!!button!.disabled).toBe(false);
+        expect(button!.width).toBeLessThan(width);
+      }
     }
   });
 
@@ -3759,9 +3766,10 @@ describe('drawProjects', () => {
     expect(row(single, 'README.md').width).toBe(row(draw(900, null), 'README.md').width);
   });
 
-  // Result belongs to its run: inside the card, at its right edge beside the
-  // short date and status lines, never a free-standing row under the card.
-  it('keeps Result inside its card, beside metadata or on its own row when narrow', () => {
+  // Result belongs to its run: inside the card, centred at its right edge
+  // beside the two lines, never a free-standing row under the card. A plain
+  // card is two lines tall (owner, 2026-10-25).
+  it('keeps Result inside a two-line card, beside its lines or on its own row when narrow', () => {
     const project = guidanceProject();
     const run = (index: number, traceId: string | null) => ({
       projectId: project.projectId, projectRunId: `run-${index}`, traceId,
@@ -3782,20 +3790,23 @@ describe('drawProjects', () => {
         expect(result.parent).toBe(card.parent);
         expect(result.x).toBeGreaterThan(card.x);
         expect(result.x + result.width).toBeLessThanOrEqual(card.x + card.width);
-        expect(result.y).toBeGreaterThan(card.y + 26);
         expect(result.y + result.height).toBeLessThanOrEqual(card.y + card.height);
-        // The lines beside it stop short of it; the metrics below run full width.
-        for (const offset of [44, 68]) {
-          const line = ctx.texts.find(text => text.parent === card.parent && text.y === card.y + offset)!;
-          if (width > 440) expect(line.x + (line.options as { width: number }).width).toBeLessThan(result.x);
-          else expect(line.y + 18).toBeLessThan(result.y);
+        // The verdict and the facts share one line and stop short of Result.
+        const line = ctx.texts.filter(text => text.parent === card.parent && text.y === card.y + 36);
+        // Narrow, the facts wrap whole onto the lines below the verdict.
+        expect(line.map(text => text.value).join(' ')).toMatch(width > 440 ? /^delivered · \$0\.21 · {2}Sep 2\d, 2026 · 2m 1s · Tokens/ : /^delivered · \$0\.21$/);
+        for (const text of line) {
+          if (width > 440) expect(text.x + (text.options as { width: number }).width).toBeLessThan(result.x);
+          else expect(text.y + 18).toBeLessThan(result.y);
         }
-        const metrics = ctx.texts.find(text => text.parent === card.parent && text.y === card.y + 98)!;
-        if (width > 440) expect(metrics.y).toBeGreaterThanOrEqual(result.y + result.height);
-        else expect(metrics.y + 18).toBeLessThan(result.y);
+        if (width > 440) {
+          expect(card.height).toBe(64);
+          // Centred on the card's height.
+          expect(result.y - card.y).toBe(card.y + card.height - result.y - result.height);
+        }
       }
       // No row is reserved under a card any more: the next card follows the gap.
-      expect(cards[1]!.y).toBe(cards[0]!.y + cards[0]!.height + 18);
+      expect(cards[1]!.y).toBe(cards[0]!.y + cards[0]!.height + 10);
       expect(ctx.buttons.some(button => button.id === 'result.open.null')).toBe(false);
     }
   });
@@ -3820,7 +3831,9 @@ describe('drawProjects', () => {
     expect(text).toContain('Tokens: 8.6M');
     expect(text).not.toContain('5118.30s');
     expect(text).not.toContain('8,616,288');
-    expect(draw({ ...run, durationS: null, tokens: null })).toContain('Tokens: —');
+    const unknown = draw({ ...run, durationS: null, tokens: null });
+    expect(unknown).toContain('Tokens: —');
+    expect(unknown).not.toMatch(/ago · —/);
     expect(draw({ ...run, durationS: 0, tokens: 0 })).toContain('Tokens: 0');
   });
 
@@ -3842,18 +3855,23 @@ describe('drawProjects', () => {
     }), width, 900);
     const cards = runs.map(run => ctx.buttons.find(button => button.id === `project.run.${run.traceId}`)!);
     cards.forEach((card, index) => {
-      const action = ctx.buttons.find(button => button.id === `project.checkpoint.checkpoint-${index}`)!;
-      expect(action.x).toBeGreaterThanOrEqual(card.x + 16);
-      expect(action.x + action.width).toBeLessThanOrEqual(card.x + card.width - 16);
-      expect(action.y + action.height).toBeLessThanOrEqual(card.y + card.height - 16);
+      const action = ctx.buttons.find(button => button.id === `project.checkpoint.checkpoint-${index}`);
       const copy = ctx.texts.filter(text => text.parent === card.parent && text.y >= card.y && text.y < card.y + card.height);
+      if (runs[index]!.checkpoint!.state === 'blocked') {
+        expect(action).toBeUndefined();
+        expect(copy.map(text => text.value).join(' ')).toContain(t('projects.checkpoint.blocked'));
+      } else {
+        expect(action!.x).toBeGreaterThanOrEqual(card.x + 16);
+        expect(action!.x + action!.width).toBeLessThanOrEqual(card.x + card.width - 16);
+        expect(action!.y + action!.height).toBeLessThanOrEqual(card.y + card.height - 16);
+      }
       expect(copy.map(text => text.value).join(' ')).toContain(t('projects.checkpoint.progress', { completed: index, total: 4 }));
       for (const line of copy) {
         const options = line.options as { width: number; size: number };
         expect(line.x + options.width).toBeLessThanOrEqual(card.x + card.width - 16);
         expect(line.y + options.size * 1.35).toBeLessThanOrEqual(card.y + card.height - 8);
       }
-      if (index > 0) expect(card.y).toBe(cards[index - 1]!.y + cards[index - 1]!.height + 18);
+      if (index > 0) expect(card.y).toBe(cards[index - 1]!.y + cards[index - 1]!.height + 10);
     });
     // Wrapped recovery text participates in scrolling; the last card is reachable.
     const last = cards.at(-1)!;
@@ -4043,7 +4061,10 @@ describe('drawProjects', () => {
       if (lowerBound) expect(ctx.tooltips.some(tooltip => tooltip.text.includes('Minimum confirmed'))).toBe(true);
       expect(metrics.value).toContain('Tokens: 12.5k');
       expect(metrics.value).toContain('LLM calls: 7');
-      expect(metrics.x).toBe(card.x + 16);
+      // The facts follow the verdict on its line.
+      const verdict = ctx.texts.find((text) => String(text.value).startsWith('delivered'))!;
+      expect(metrics.y).toBe(verdict.y);
+      expect(metrics.x).toBeGreaterThan(verdict.x);
       expect(metrics.y).toBeGreaterThan(card.y + 30);
       expect(metrics.y + 12).toBeLessThan(card.y + card.height);
       expect(ctx.tooltips.length).toBeGreaterThanOrEqual(2);
@@ -4122,7 +4143,7 @@ describe('drawProjects', () => {
         y: secondLine!.y,
       }).y;
       // Secondary information stays below metrics, inside the card.
-      expect(secondLineTop).toBeGreaterThan(titleTop + 68);
+      expect(secondLineTop).toBeGreaterThan(titleTop + 52);
       expect(secondLineTop + 12).toBeLessThanOrEqual(titleTop + title.height);
       expect(ctx.texts.some(text => String(text.value).includes('0123456789'))).toBe(false);
 

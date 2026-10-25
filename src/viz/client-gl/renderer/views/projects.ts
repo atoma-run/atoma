@@ -44,13 +44,24 @@ const ROW_HEIGHT = 58;
 const PROJECT_BUTTON_HEIGHT = 46;
 const COMPACT_ROW_HEIGHT = ROW_HEIGHT;
 const COMPACT_PROJECT_PANEL_WIDTH = 400;
-const RUN_ROW_GAP = 18;
+/**
+ * A run card is TWO LINES (owner, 2026-10-25): the title, then the verdict in
+ * its colour followed by the muted facts (age, duration, tokens, calls), with
+ * Result centred on the right. It was five stacked lines — title, age,
+ * verdict, metrics — and a list of runs read as a column of empty boxes.
+ */
+const RUN_ROW_GAP = 10;
 const RUN_CARD_PAD = 16;
 /** Room the live crystal takes before LIVE, as in the Runs view's status chip. */
 const LIVE_CRYSTAL_SPACE = 18;
-const RUN_RESULT_Y = 42;
-const RUN_RESULT_HEIGHT = 40;
-const RUN_SECOND_LINE_EXTRA = 28;
+const RUN_TITLE_Y = 12;
+const RUN_STATUS_Y = 36;
+const RUN_LINE_HEIGHT = 20;
+const RUN_CARD_BOTTOM_PAD = 12;
+const RUN_RESULT_HEIGHT = 32;
+const RUN_CHECKPOINT_ACTION_HEIGHT = 32;
+const RUN_SECOND_LINE_EXTRA = 20;
+const RUN_FACTS_SEPARATOR = '·  ';
 const GITHUB_ACCESS_HEIGHT = 198;
 const PUBLICATION_RECOVERY_HEIGHT = 90;
 const STATUS_FONT_SIZE = 10;
@@ -153,45 +164,90 @@ function showsPartialGuidance(run: VizProjectRun, newest: boolean): boolean {
   return newest && run.status === 'partial' && !['paused', 'recoverable'].includes(run.checkpoint?.state ?? '');
 }
 
-/** Wrap explanatory copy against the same glyph metrics used to draw it. */
+/** The verdict a run card shows, in its colour; LIVE wears the turning crystal. */
+function runStatusView(snapshot: GpuRenderSnapshot, run: VizProjectRun) {
+  const access = pendingGitHubAccess(run);
+  // A plain running run wears the Runs view's live badge — the turning
+  // crystal and LIVE in the success colour — rather than a word of its own.
+  // Finished work waiting on a computer is not "live": no crystal, its own words.
+  const resultsWaiting = computeResultsWaiting(run) !== null;
+  const live = run.status === 'running' && run.checkpoint?.state !== 'paused' && !access
+    && !run.githubAccess?.resumedRunId && !run.awaitingClientAcceptance && !resultsWaiting;
+  const color = access || resultsWaiting ? GPU_COLORS.warning : live ? RUN_STATUS_COLOR.live : statusColor(run.status);
+  const label = resultsWaiting ? snapshot.t('projects.resultsWaiting.status')
+    : run.checkpoint?.state === 'paused' ? snapshot.t('projects.checkpoint.paused') : access ? snapshot.t('projects.githubAccess.title')
+    : run.githubAccess?.resumedRunId ? snapshot.t('projects.githubAccess.resumed')
+    : run.awaitingClientAcceptance ? snapshot.t('projects.awaitingClientAcceptance')
+    : live ? snapshot.t('runs.status.live')
+    : statusLabel(snapshot.t, run.status, 'projects.runStatus');
+  const text = label + (run.costUsd === null ? '' : ' · ' + runCost(run.costUsd));
+  return { access, live, color, text, style: { size: 12, weight: live ? '700' : '400' } as const };
+}
+
 /** One measured layout owns the frame, its contents and the scroll extent. */
 function runCardLayout(ctx: RendererCtx, snapshot: GpuRenderSnapshot, run: VizProjectRun, width: number, newest: boolean) {
   const textWidth = Math.max(1, width - RUN_CARD_PAD * 2);
+  const status = runStatusView(snapshot, run);
+  // A run still in flight has no duration yet: say nothing rather than "—".
   const metrics = [
-    runDuration(run.durationS == null ? undefined : run.durationS * 1000, snapshot.t),
+    ...(run.durationS == null ? [] : [runDuration(run.durationS * 1000, snapshot.t)]),
     snapshot.t('projects.runTokens', { value: fmtTokenCount(run.tokens ?? undefined, snapshot.state.locale) || '—' }),
     snapshot.t('projects.runLlmCalls', { value: run.llmCalls?.toLocaleString(snapshot.state.locale) ?? '—' }),
     snapshot.t('projects.runJevCalls', { value: run.jevCalls == null ? '—'
       : (run.jevCallsLowerBound ? '≥ ' : '') + run.jevCalls.toLocaleString(snapshot.state.locale) }),
   ];
-  const metricRows: string[] = [];
-  if (pendingGitHubAccess(run)?.phase !== 'run') {
-    for (const metric of metrics) {
-      const last = metricRows.at(-1);
-      const joined = last ? last + ' · ' + metric : metric;
-      if (last && ctx.measureText(joined, { size: 12 }) <= textWidth) metricRows[metricRows.length - 1] = joined;
-      else metricRows.push(metric);
-    }
-  }
+  const age = ctx.relativeTime(run.createdAt, snapshot.t, snapshot.state.locale) || run.createdAt;
   const resultLabel = snapshot.t('result.title');
   const resultWidth = run.traceId ? Math.min(textWidth,
     Math.ceil(ctx.measureText(resultLabel, { size: 11, weight: '600' })) + BUTTON_LABEL_INSET * 2 + BUTTON_ICON_SPACE) : 0;
-  // On a narrow card actions get their own row; metadata keeps its full width.
+  // On a narrow card Result gets its own row; the lines keep the full width.
   const stackedResult = width < 440;
-  const metricsY = 98;
-  const resultY = stackedResult ? metricsY + metricRows.length * 24 + 4 : RUN_RESULT_Y;
-  const baseHeight = (stackedResult && resultWidth ? resultY + RUN_RESULT_HEIGHT : metricsY + metricRows.length * 24) + RUN_CARD_PAD;
+  const lineWidth = resultWidth && !stackedResult ? Math.max(0, textWidth - resultWidth - 16) : textWidth;
+  // The facts follow the verdict on its line and wrap, whole, to the next.
+  const statusWidth = Math.ceil(ctx.measureText(status.text, status.style)) + (status.live ? LIVE_CRYSTAL_SPACE : 0);
+  const factsX = statusWidth + 8;
+  const facts = pendingGitHubAccess(run)?.phase === 'run' ? [age] : [age, ...metrics];
+  const factRows: { text: string; line: number; x: number; width: number }[] = [];
+  let line = 0;
+  let row = '';
+  const rowX = () => (line === 0 ? factsX : 0);
+  const flush = () => {
+    if (row) factRows.push({ text: line === 0 ? RUN_FACTS_SEPARATOR + row : row, line, x: rowX(), width: Math.max(0, lineWidth - rowX()) });
+    row = ''; line += 1;
+  };
+  for (const fact of facts) {
+    const joined = row ? row + ' · ' + fact : fact;
+    const shown = line === 0 ? RUN_FACTS_SEPARATOR + joined : joined;
+    if (ctx.measureText(shown, { size: 12 }) <= lineWidth - rowX()) { row = joined; continue; }
+    if (row || line === 0) flush();
+    row = fact;
+  }
+  if (row) flush();
+  const lines = Math.max(1, (factRows.at(-1)?.line ?? 0) + 1);
+  const linesBottom = RUN_STATUS_Y + lines * RUN_LINE_HEIGHT - 4;
+  const resultY = stackedResult ? linesBottom + 8 : Math.round((RUN_STATUS_Y + 16 + RUN_CARD_BOTTOM_PAD - RUN_RESULT_HEIGHT) / 2);
+  const baseHeight = (stackedResult && resultWidth ? resultY + RUN_RESULT_HEIGHT : linesBottom) + RUN_CARD_BOTTOM_PAD;
   const hasSecondLine = Boolean(run.status === 'queued' || showsPartialGuidance(run, newest) ||
     (run.error && run.status !== 'partial' && !run.githubAccess) ||
     (run.publication?.status === 'published' && run.publication.pullRequestUrl));
-  const checkpointCopy = run.checkpoint && run.checkpoint.state !== 'unavailable'
-    ? snapshot.t('projects.checkpoint.progress', { completed: run.checkpoint.completed, total: run.checkpoint.total }) : null;
+  // Saved progress. A blocked recovery has nothing to press: it says why in
+  // one sentence instead of drawing a disabled button over a reason.
+  const checkpoint = run.checkpoint && run.checkpoint.state !== 'unavailable' ? run.checkpoint : null;
+  const checkpointBlocked = checkpoint?.state === 'blocked';
+  const checkpointCopy = checkpoint && checkpoint.total > 0
+    ? snapshot.t('projects.checkpoint.progress', { completed: checkpoint.completed, total: checkpoint.total }) : null;
   const checkpointLines = checkpointCopy ? wrapCopyLines(ctx, checkpointCopy, textWidth) : [];
   const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
-  const checkpointMessage = checkpointCopy ? progress?.message ?? (run.checkpoint?.reason ? snapshot.t(`projects.checkpoint.reason.${run.checkpoint.reason}`) : null) : null;
-  const messageLines = checkpointMessage ? wrapCopyLines(ctx, checkpointMessage, textWidth) : [];
-  const checkpointHeight = checkpointLines.length ? 16 + checkpointLines.length * 20 + 12 + 40 +
-    (messageLines.length ? 12 + messageLines.length * 20 : 0) + RUN_CARD_PAD : 0;
+  const blockedCopy = checkpointBlocked ? snapshot.t('projects.checkpoint.blocked')
+    + (checkpoint.reason ? ' · ' + snapshot.t(`projects.checkpoint.reason.${checkpoint.reason}`) : '') : null;
+  const checkpointMessage = checkpoint && !checkpointBlocked
+    ? progress?.message ?? (checkpoint.reason ? snapshot.t(`projects.checkpoint.reason.${checkpoint.reason}`) : null) : null;
+  const messageLines = blockedCopy ? wrapCopyLines(ctx, blockedCopy, textWidth)
+    : checkpointMessage ? wrapCopyLines(ctx, checkpointMessage, textWidth) : [];
+  const checkpointHeight = !checkpoint ? 0 : checkpointBlocked
+    ? (checkpointLines.length + messageLines.length) * RUN_LINE_HEIGHT + 4 + RUN_CARD_BOTTOM_PAD
+    : 12 + checkpointLines.length * RUN_LINE_HEIGHT + 4 + RUN_CHECKPOINT_ACTION_HEIGHT
+      + (messageLines.length ? 8 + messageLines.length * RUN_LINE_HEIGHT : 0) + RUN_CARD_PAD;
   const recoveryHeight = pendingGitHubAccess(run) ? GITHUB_ACCESS_HEIGHT : run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0;
   const recoveryY = baseHeight + (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0);
   const checkpointY = recoveryY + recoveryHeight;
@@ -200,8 +256,8 @@ function runCardLayout(ctx: RendererCtx, snapshot: GpuRenderSnapshot, run: VizPr
   const results = computeResultsBlock(ctx, snapshot, run, textWidth);
   const resultsY = checkpointY + checkpointHeight;
   const height = resultsY + (results ? results.height + RUN_CARD_PAD : 0);
-  return { height, baseHeight, metrics, metricRows, metricsY, resultLabel, resultWidth, resultY, stackedResult,
-    recoveryY, checkpointY, checkpointLines, messageLines, resultsY, results, textWidth };
+  return { height, baseHeight, status, age, metrics, factRows, lineWidth, resultLabel, resultWidth, resultY, stackedResult,
+    recoveryY, checkpoint, checkpointBlocked, checkpointY, checkpointLines, messageLines, resultsY, results, textWidth };
 }
 
 const STATUS_COLORS: Record<string, number> = {
@@ -839,35 +895,19 @@ export function drawProjects(
         const newest = runIndex === 0;
         const card = runLayouts[runIndex]!;
         const rowHeight = card.height + RUN_ROW_GAP;
-        const access = pendingGitHubAccess(run);
         const cardHeight = card.height;
         const goalWidth = cardWidth;
         const textX = runColumnX + RUN_CARD_PAD;
-        const { textWidth, resultLabel, resultWidth, metrics, metricRows } = card;
-        const besideResultWidth = resultWidth && !card.stackedResult
-          ? Math.max(0, textWidth - resultWidth - 16) : textWidth;
-        // A plain running run wears the Runs view's live badge — the turning
-        // crystal and LIVE in the success colour — rather than a word of its own.
-        // Finished work waiting on a computer is not "live": no crystal, its own words.
-        const resultsWaiting = computeResultsWaiting(run) !== null;
-        const live = run.status === 'running' && run.checkpoint?.state !== 'paused' && !access
-          && !run.githubAccess?.resumedRunId && !run.awaitingClientAcceptance && !resultsWaiting;
-        const runStatusColor = access || resultsWaiting ? GPU_COLORS.warning : live ? RUN_STATUS_COLOR.live : statusColor(run.status);
-        const statusText = resultsWaiting ? snapshot.t('projects.resultsWaiting.status')
-          : run.checkpoint?.state === 'paused' ? snapshot.t('projects.checkpoint.paused') : access ? snapshot.t('projects.githubAccess.title')
-          : run.githubAccess?.resumedRunId ? snapshot.t('projects.githubAccess.resumed')
-          : run.awaitingClientAcceptance ? snapshot.t('projects.awaitingClientAcceptance')
-          : live ? snapshot.t('runs.status.live')
-          : statusLabel(snapshot.t, run.status, 'projects.runStatus');
+        const { textWidth, resultLabel, resultWidth, status, age, metrics, factRows, lineWidth } = card;
+        const { access, live } = status;
         const rail = new Graphics();
         const railX = runColumnX - 12;
-        rail.moveTo(railX, cursor + (newest ? 16 : -RUN_ROW_GAP));
-        rail.lineTo(railX, cursor + (runIndex === runs.length - 1 ? 16 : rowHeight));
+        const dotY = cursor + RUN_TITLE_Y + 8;
+        rail.moveTo(railX, newest ? dotY : cursor - RUN_ROW_GAP);
+        rail.lineTo(railX, runIndex === runs.length - 1 ? dotY : cursor + rowHeight);
         rail.stroke({ color: GPU_COLORS.border, width: 2 });
-        rail.circle(railX, cursor + 16, 4).fill(runStatusColor);
+        rail.circle(railX, dotY, 4).fill(status.color);
         pane.content.addChild(rail);
-        const cost = run.costUsd === null ? '' : ' · ' + runCost(run.costUsd);
-        const date = ctx.relativeTime(run.createdAt, snapshot.t, snapshot.state.locale) || run.createdAt;
         const runTitle = run.title ?? run.goal.replace(/\s+/g, ' ');
         // The run a link asked for (a results-waiting notification) stands out,
         // and the renderer brings it into view once per request.
@@ -877,40 +917,39 @@ export function drawProjects(
           ctx.button(pane.content, 'project.run.' + run.traceId, 'button',
             // The short title once the run was named; the bubble keeps the whole goal.
             runTitle, runColumnX, cursor, goalWidth, cardHeight,
-            focused, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 16,
-            [run.goal, date, statusText + cost, ...metrics].join(' · '));
+            focused, snapshot.onActivate, GPU_COLORS.primary, false, false, lineWidth, RUN_TITLE_Y,
+            [run.goal, age, status.text, ...metrics].join(' · '));
         } else {
           // A run that failed during preparation has no trace for /api/runs/:id.
           // Keep its status and error here without offering a link that 404s.
           ctx.panel(pane.content, runColumnX, cursor, goalWidth, cardHeight, GPU_COLORS.panelRaised, focused ? GPU_COLORS.primary : GPU_COLORS.border, 7);
-          ctx.text(pane.content, runTitle, textX, cursor + 16,
-            { size: 13, weight: '600', color: GPU_COLORS.text, width: textWidth, singleLine: true });
+          ctx.text(pane.content, runTitle, textX, cursor + RUN_TITLE_Y,
+            { size: 11, weight: '600', color: GPU_COLORS.muted, width: textWidth, singleLine: true });
           ctx.tooltip(pane.content, { x: runColumnX, y: cursor, width: goalWidth,
-            height: cardHeight, text: [run.goal, run.error, statusText].filter(Boolean).join(' · ') });
+            height: cardHeight, text: [run.goal, run.error, status.text].filter(Boolean).join(' · ') });
         }
-        ctx.text(pane.content, date, textX, cursor + 44,
-          { size: 12, color: GPU_COLORS.muted, width: besideResultWidth, singleLine: true });
-        const exact = timestampTooltip(run.createdAt, snapshot.state.locale);
-        if (exact) ctx.tooltip(pane.content, { x: textX, y: cursor + 44, width: besideResultWidth, height: 18, text: exact });
+        const statusY = cursor + RUN_STATUS_Y;
         if (live) {
-          const liveText = ctx.text(pane.content, statusText + cost, textX + LIVE_CRYSTAL_SPACE, cursor + 68,
-            { size: 12, weight: '700', color: runStatusColor, width: besideResultWidth - LIVE_CRYSTAL_SPACE, singleLine: true });
+          const liveText = ctx.text(pane.content, status.text, textX + LIVE_CRYSTAL_SPACE, statusY,
+            { ...status.style, color: status.color, width: lineWidth - LIVE_CRYSTAL_SPACE, singleLine: true });
           liveLayer ??= ctx.animatedLayer(pane.content, 'project-run-live-crystal');
           attachLiveAtomaMark(liveLayer, callback => ctx.addTicker(callback),
-            textX, cursor + 68 + (liveText.height - 14) / 2, runStatusColor);
+            textX, statusY + (liveText.height - 14) / 2, status.color);
         } else {
-          ctx.text(pane.content, statusText + cost, textX, cursor + 68,
-            { size: 12, color: runStatusColor, width: besideResultWidth, singleLine: true });
+          ctx.text(pane.content, status.text, textX, statusY,
+            { ...status.style, color: status.color, width: lineWidth, singleLine: true });
         }
-        metricRows.forEach((copy, metricIndex) => {
-          const metricY = cursor + card.metricsY + metricIndex * 24;
-          ctx.text(pane.content, copy, textX, metricY,
-            { size: 12, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
-          const tooltip = run.jevCallsLowerBound && metricIndex === metricRows.length - 1
-            ? copy + '\n' + snapshot.t('projects.runJevCallsLowerBound') : copy;
-          ctx.tooltip(pane.content, { x: textX, y: metricY, width: textWidth, height: 18, text: tooltip });
+        // One bubble over the facts: the exact start, then every figure in full.
+        const exact = timestampTooltip(run.createdAt, snapshot.state.locale);
+        const factsTooltip = [exact, metrics.join(' · '),
+          run.jevCallsLowerBound ? snapshot.t('projects.runJevCallsLowerBound') : null].filter(Boolean).join('\n');
+        factRows.forEach(row => {
+          const y = statusY + row.line * RUN_LINE_HEIGHT;
+          ctx.text(pane.content, row.text, textX + row.x, y,
+            { size: 12, color: GPU_COLORS.muted, width: row.width, singleLine: true });
+          ctx.tooltip(pane.content, { x: textX + row.x, y, width: row.width, height: 18, text: factsTooltip });
         });
-        const extraY = cursor + card.baseHeight;
+        const extraY = cursor + card.baseHeight - 4;
         if (run.publication?.status === 'published' && run.publication.pullRequestUrl) {
           ctx.text(pane.content, snapshot.t('projects.pullRequest'), textX, extraY,
             { size: 9, color: GPU_COLORS.primary, width: textWidth, singleLine: true });
@@ -933,7 +972,7 @@ export function drawProjects(
           // Drawn after the card, so it is the topmost target where they overlap.
           ctx.button(pane.content, `result.open.${run.traceId}`, 'button', resultLabel,
             card.stackedResult ? textX : runColumnX + goalWidth - RUN_CARD_PAD - resultWidth, cursor + card.resultY,
-            resultWidth, RUN_RESULT_HEIGHT, false, snapshot.onActivate);
+            resultWidth, RUN_RESULT_HEIGHT, false, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, (RUN_RESULT_HEIGHT - 16) / 2);
         }
         if (!access && run.publication?.status === 'failed') {
           const retryY = cursor + card.recoveryY;
@@ -975,22 +1014,29 @@ export function drawProjects(
             ctx.tooltip(pane.content, { x: textX, y: actionY + 164, width: textWidth, height: 18, text: notice });
           }
         }
-        if (card.checkpointLines.length) {
+        if (card.checkpoint && card.checkpointBlocked) {
+          const y = cursor + card.checkpointY - 4;
+          card.checkpointLines.forEach((line, index) => ctx.text(pane.content, line, textX, y + index * RUN_LINE_HEIGHT,
+            { size: 12, color: GPU_COLORS.muted, width: textWidth, singleLine: true }));
+          card.messageLines.forEach((line, index) => ctx.text(pane.content, line, textX,
+            y + (card.checkpointLines.length + index) * RUN_LINE_HEIGHT,
+            { size: 12, color: GPU_COLORS.warning, width: textWidth, singleLine: true }));
+        } else if (card.checkpoint) {
           const y = cursor + card.checkpointY;
           const divider = new Graphics().moveTo(textX, y).lineTo(textX + textWidth, y)
             .stroke({ color: GPU_COLORS.border, width: 1 });
           pane.content.addChild(divider);
           const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
           const label = snapshot.t(checkpointActionKey(run));
-          card.checkpointLines.forEach((line, index) => ctx.text(pane.content, line, textX, y + 16 + index * 20,
+          card.checkpointLines.forEach((line, index) => ctx.text(pane.content, line, textX, y + 12 + index * RUN_LINE_HEIGHT,
             { size: 12, color: GPU_COLORS.muted, width: textWidth, singleLine: true }));
-          const actionY = y + 16 + card.checkpointLines.length * 20 + 12;
+          const actionY = y + 12 + card.checkpointLines.length * RUN_LINE_HEIGHT + 4;
           const actionWidth = Math.min(textWidth, Math.ceil(ctx.measureText(label, { size: 11, weight: '600' })) + BUTTON_LABEL_INSET * 2 + BUTTON_ICON_SPACE);
           ctx.button(pane.content, `project.checkpoint.${run.projectRunId}`, 'button', label,
-            textX, actionY, actionWidth, 40,
-            false, snapshot.onActivate, GPU_COLORS.primary, false, !!progress?.busy, undefined, undefined, undefined,
+            textX, actionY, actionWidth, RUN_CHECKPOINT_ACTION_HEIGHT,
+            false, snapshot.onActivate, GPU_COLORS.primary, false, !!progress?.busy, undefined, (RUN_CHECKPOINT_ACTION_HEIGHT - 16) / 2, undefined,
             !canControlCheckpoint(run, snapshot.data.auth) || !!progress?.busy);
-          card.messageLines.forEach((line, index) => ctx.text(pane.content, line, textX, actionY + 52 + index * 20,
+          card.messageLines.forEach((line, index) => ctx.text(pane.content, line, textX, actionY + RUN_CHECKPOINT_ACTION_HEIGHT + 8 + index * RUN_LINE_HEIGHT,
             { size: 12, color: GPU_COLORS.warning, width: textWidth, singleLine: true }));
         }
         if (card.results) drawComputeResultsBlock(ctx, pane.content, snapshot, run, card.results, textX, cursor + card.resultsY, textWidth);
