@@ -367,13 +367,13 @@ load-bearing.
 - [Parent-owned tests](../../docs/decisions/parent-owned-tests-2026-10-16.md): L3
   assigns L2 suites and reviews L2-authored L1 suites before execution; unchanged
   approved plans reuse review, revisions require it. The loop and compiled dispatch
-  run the fixed harness before validation/credit, fallbacks included; a plan suite or a join subtask's checks integration (`PARENT_TEST_INTEGRATION_PLACEMENT`,
-  [run 40c20c5d](../../docs/decisions/parent-owned-tests-2026-10-16.md#an-integration-suite-on-the-join-subtask-2026-10-25)). `core/parentTests.ts` alone maps typed status/cause to reject,
-  reject-once or review; none grants credit. Observations survive aggregation typed,
-  reach validators only as a host block, and are judged once. Green still needs
-  semantic review. The mechanical half of the delegation review owns the suite
-  API check (`parentSuiteCheck.ts`): what the runner's integrity guard refuses
-  is refused in the parent's plan, so no child is rejected for it. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
+  run the fixed harness before validation/credit, fallbacks included; the plan's suite
+  or its sink join's checks integration (`PARENT_TEST_INTEGRATION_PLACEMENT`).
+  `core/parentTests.ts` alone maps typed status/cause to reject, reject-once or
+  review, never credit. Observations go up typed, reach validators only as a host
+  block, judged once; green needs semantic review. The delegation review's mechanical
+  half owns the suite API check (`parentSuiteCheck.ts`): what the runner's integrity
+  guard refuses is refused in the parent's plan, not blamed on a child. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
   Before any review, reviewed root plans and cell plans get the suite regex
   check (`suiteRegexPrecheck`, run 2e6bdcfc): an invalid regex literal refuses
   every time, an escaped backslash before a class letter once per planner and

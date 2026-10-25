@@ -845,6 +845,24 @@ branch of a chain keeps its own contract, as before, so the gate is relaxed only
 for a genuine join. A resumed root re-enforces its recorded approval with the
 same function, reading its sequential suffix by order.
 
+**What root acceptance reads.** The join's suite is a phase suite there, and
+not the root's own: the tissue judged it in the join's loop
+(`markParentTestsJudged`), so the root block labels it "judged by the supervisor
+below" and no root gate counts it. A passed one reads as a plan-level one would:
+the sink's observations are the plan's newest, so it leads the judged entries,
+and its source, an authored suite of at most 12,000 characters inside the root's
+32,000, is shown whole after only the sources nobody below judged (pinned in
+`tests/parent-tests-observations.test.ts`). A failed one never reaches the root
+approved: it rejected the join in its own loop, and if the join exhausts, its
+observations go up unjudged and the root judges them first. The one difference
+is an UNAVAILABLE join suite: the tissue reviewed it and withheld the join's
+credit, and the root does not review it a second time, where an unavailable
+plan-level suite is the root's to review. That is the judged-once rule, kept on
+purpose: un-judging the join's observations at aggregation would need the
+aggregate to know which subtask is the join and would review one fact twice,
+and tagging the approved plan's join digest for the root block would be a
+second notion of "the root's own suite" for a rank the sink already holds.
+
 **Rejected.** Refusing the shape and telling the planner up front: the review
 already read the join suite as the integration, and the guidance taught the
 join, so the refusal punished the taught plan. Accepting any subtask suite on a

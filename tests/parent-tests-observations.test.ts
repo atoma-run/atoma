@@ -310,6 +310,34 @@ describe('the host block replaces the summary prefix', () => {
     expect(block).toMatch(/source omitted \(\d+ chars\): its assertions are not shown/);
     expect(block.indexOf('- UNAVAILABLE')).toBeLessThan(block.indexOf('- PASSED'));
   });
+
+  // Run 40c20c5d (2026-10-25): an integration suite may sit on the plan's join
+  // subtask, its sink. Its supervisor judged it in the join's loop, so the root
+  // reads it judged-below; being the sink, its observations are the newest, so
+  // it leads the judged ones and its source comes whole, after only the
+  // sources nobody below judged.
+  it('ranks the join subtask\'s integration suite first among judged ones, its source whole after the unjudged', () => {
+    const sized = (requirement: string) => suite({ requirement,
+      source: `import { test, expect } from 'vitest';\nimport { add } from './add.ts';\n${`test('${requirement}', () => { expect(add(1, 1)).toBe(2); });\n`.repeat(200)}`.slice(0, 11_900) });
+    const [left, right, join, landed] = [sized('left branch'), sized('right branch'), sized('join integration'), sized('landed phase')];
+    const delivered = [observation({ judged: true }, left), observation({ judged: true }, right), observation({ judged: true }, join)];
+
+    const block = renderParentTestsBlock(delivered, { tier: 'root' });
+    const heads = block.split('\n').filter((line) => line.startsWith('  requirement: '));
+    expect(heads).toEqual(['join integration', 'right branch', 'left branch'].map((requirement) => `  requirement: ${JSON.stringify(requirement)}`));
+    expect(block).toContain('(judged by the supervisor below)');
+    expect(block.split('\n').filter((line) => line === '  source:')).toHaveLength(2);
+    const whole = ['  source:', ...join.source.split('\n').map((line) => `    | ${line}`)].join('\n');
+    expect(block.indexOf(whole)).toBeGreaterThan(block.indexOf('requirement: "join integration"'));
+    expect(block.indexOf(whole)).toBeLessThan(block.indexOf('requirement: "right branch"'));
+    expect(block).toMatch(/source omitted \(\d+ chars\)/);
+
+    // An observation nobody below judged comes first, and the join still fits whole.
+    const after = renderParentTestsBlock([observation({ status: 'unavailable', cause: 'landing', details: 'landed' }, landed), ...delivered], { tier: 'root' });
+    expect(after.indexOf('requirement: "landed phase"')).toBeLessThan(after.indexOf('requirement: "join integration"'));
+    const joinAt = after.indexOf('requirement: "join integration"');
+    expect(after.slice(joinAt, after.indexOf('  requirement: ', joinAt + 1))).toContain(whole);
+  });
 });
 
 describe('one mapping, three rows', () => {
