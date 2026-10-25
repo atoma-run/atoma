@@ -45,12 +45,12 @@ function watchedOwner(target: ts.Expression): { owner: string; keys: readonly st
 
 /**
  * The unavailable APIs a suite source names, sorted and unique; empty when
- * there are none. Tolerant: a source that does not parse is never refused
- * here, because the run reports it. Strings and comments are never read.
+ * there are none. A source that does not parse yields nothing here, since
+ * `parentSuiteParseRefusal` reports it. Strings and comments are never read.
  */
 export function parentSuiteUnsupported(source: string): string[] {
   const file = ts.createSourceFile('atoma.acceptance.test.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  if ((file as unknown as { parseDiagnostics?: readonly unknown[] }).parseDiagnostics?.length) return [];
+  if (suiteParseErrors(file).length) return [];
   const found = new Set<string>();
   const extended = new Set<string>();
   const visit = (node: ts.Node): void => {
@@ -116,21 +116,82 @@ export interface SuiteParseDiagnostic {
 }
 
 /**
- * The syntax errors of a suite source, as TypeScript's parser reads the file
- * the runner writes (`atoma.acceptance.test.ts`); empty when it parses. The
- * runner's own parser (Vite's, in the worker) is not a control-plane
- * dependency, so TypeScript, already loaded here, stands in for it: they
- * agreed on each of 796 Vitest sources on 2026-10-25 (this repository's and
- * its dependencies' test files, the suites in local traces), and both refuse
- * run 7d071257's suite. One parse, bounded by the suite size bound (32,000).
+ * Strict-mode lexical errors TypeScript's parser reports and the runner's
+ * (oxc, through Vite) accepts: a legacy octal literal (`0777`, 1121), an octal
+ * escape (`'\01'`, 1487), `'\8'` (1488), a decimal with a leading zero (`08`,
+ * 1489). Refusing them would refuse a suite whose tests run. 1487 and 1488
+ * stay errors inside an untagged template, where the runner refuses them too.
+ */
+const RUNNER_ACCEPTS = new Set([1121, 1487, 1488, 1489]);
+const TEMPLATE_ESCAPES = new Set([1487, 1488]);
+const TEMPLATE_KINDS = new Set([ts.SyntaxKind.NoSubstitutionTemplateLiteral, ts.SyntaxKind.TemplateHead,
+  ts.SyntaxKind.TemplateMiddle, ts.SyntaxKind.TemplateTail]);
+const LITERAL_KINDS = new Set([...TEMPLATE_KINDS, ts.SyntaxKind.StringLiteral, ts.SyntaxKind.RegularExpressionLiteral]);
+
+const isAsync = (node: ts.Node): boolean =>
+  ts.canHaveModifiers(node) && (ts.getModifiers(node)?.some(each => each.kind === ts.SyntaxKind.AsyncKeyword) ?? false);
+
+/**
+ * One walk of the tree TypeScript built: the string, regex and template tokens
+ * (where a backslash is the source's own), and the module errors TypeScript
+ * leaves to its checker while the runner refuses them at parse: `await` or
+ * `for await` whose nearest function is not async (a test callback written
+ * without `async`; a class field initializer counts as one), `return` outside
+ * any function. Top-level `await` is a module's own. A computed name or a
+ * decorator belongs to the enclosing function, as the language evaluates it.
+ */
+function suiteModuleScan(file: ts.SourceFile): { literals: Array<{ start: number; end: number; template: boolean }>; misplaced: Array<{ start: number; message: string }> } {
+  const literals: Array<{ start: number; end: number; template: boolean }> = [];
+  const misplaced: Array<{ start: number; message: string }> = [];
+  const visit = (node: ts.Node, context: 'module' | 'async' | 'sync'): void => {
+    if (LITERAL_KINDS.has(node.kind)) literals.push({ start: node.getStart(file), end: node.end, template: TEMPLATE_KINDS.has(node.kind) });
+    if (ts.isAwaitExpression(node) && context === 'sync') {
+      misplaced.push({ start: node.getStart(file), message: "'await' expressions are only allowed within async functions and at the top levels of modules" });
+    }
+    if (ts.isForOfStatement(node) && node.awaitModifier && context === 'sync') {
+      misplaced.push({ start: node.getStart(file), message: "'for await' loops are only allowed within async functions and at the top levels of modules" });
+    }
+    if (ts.isReturnStatement(node) && context === 'module') {
+      misplaced.push({ start: node.getStart(file), message: "A 'return' statement can only be used within a function body" });
+    }
+    const inner = ts.isFunctionLike(node) ? (isAsync(node) ? 'async' : 'sync') : context;
+    ts.forEachChild(node, child => visit(child,
+      ts.isPropertyDeclaration(node) && child === node.initializer ? 'sync'
+        : child === (node as { name?: ts.Node }).name || ts.isDecorator(child) ? context : inner));
+  };
+  visit(file, 'module');
+  return { literals, misplaced };
+}
+
+/**
+ * The syntax errors of a suite source, as the runner's parser reads the file
+ * it writes (`atoma.acceptance.test.ts`); empty when it parses. That parser
+ * (oxc, through Vite, in the worker) is not a control-plane dependency, so
+ * TypeScript's, already loaded here, stands in for it with two corrections
+ * measured against Vite's `parseAst` (2026-10-25): the strict-mode lexical
+ * errors oxc accepts are dropped (`RUNNER_ACCEPTS`), and the module errors
+ * TypeScript leaves to its checker are found by `suiteModuleScan`, reported
+ * only once the source parses otherwise. So corrected, they agreed on each
+ * of 5,381 sources that day (this repository's sources and tests, its
+ * dependencies' test files and JavaScript modules). Agreement, not parity: an
+ * error neither covers still surfaces at run time as "the suite module did
+ * not load". One parse and one walk, bounded by the suite size (32,000).
  */
 export function parentSuiteParseDiagnostics(source: string): SuiteParseDiagnostic[] {
-  const file = ts.createSourceFile('atoma.acceptance.test.ts', source, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
-  const diagnostics = (file as unknown as { parseDiagnostics?: readonly ts.DiagnosticWithLocation[] }).parseDiagnostics ?? [];
-  return diagnostics.map(diagnostic => {
-    const { line, character } = file.getLineAndCharacterOfPosition(diagnostic.start);
-    return { line: line + 1, column: character + 1, message: ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ').slice(0, 160),
-      atBackslash: source[diagnostic.start] === '\\' };
+  return suiteParseErrors(ts.createSourceFile('atoma.acceptance.test.ts', source, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS));
+}
+
+function suiteParseErrors(file: ts.SourceFile): SuiteParseDiagnostic[] {
+  const source = file.text;
+  const parsed = (file as unknown as { parseDiagnostics?: readonly ts.DiagnosticWithLocation[] }).parseDiagnostics ?? [];
+  const { literals, misplaced } = suiteModuleScan(file);
+  const within = (start: number, template?: boolean): boolean =>
+    literals.some(each => each.start <= start && start < each.end && (template === undefined || each.template === template));
+  const errors = parsed.filter(each => !RUNNER_ACCEPTS.has(each.code) || (TEMPLATE_ESCAPES.has(each.code) && within(each.start, true)))
+    .map(each => ({ start: each.start, message: ts.flattenDiagnosticMessageText(each.messageText, ' ') }));
+  return (errors.length > 0 ? errors : misplaced).map(({ start, message }) => {
+    const { line, character } = file.getLineAndCharacterOfPosition(start);
+    return { line: line + 1, column: character + 1, message: message.slice(0, 160), atBackslash: source[start] === '\\' && !within(start) };
   });
 }
 
@@ -149,9 +210,10 @@ export function parentSuiteParseRefusal(label: string, source: string): string |
   if (diagnostics.length === 0) return undefined;
   const shown = diagnostics.slice(0, 3).map(each => `line ${each.line}, column ${each.column}: ${each.message.replace(/\.$/, '')}`).join('; ');
   const more = diagnostics.length > 3 ? ` (${diagnostics.length} errors in all)` : '';
-  // The two marks of a source escaped twice: no line break but literal `\n`s, or an error on a bare backslash.
-  const flattened = !source.includes('\n') && source.includes('\\n');
-  const escapedTwice = flattened || diagnostics.some(each => each.atBackslash);
+  // A source escaped twice errs on a bare backslash, outside any string, regex or template; with no line
+  // break, its `\n`s are the flattened line breaks. A one-line suite's `'\n'` in a string is neither.
+  const escapedTwice = diagnostics.some(each => each.atBackslash);
+  const flattened = escapedTwice && !source.includes('\n') && source.includes('\\n');
   const twice = !escapedTwice ? '' : (flattened
     ? ' Its source holds the two characters \\n and no line break: it was escaped twice in the JSON and must carry real line breaks.'
     : ' A backslash stands outside any string: the source was escaped twice in the JSON.') +
@@ -207,12 +269,12 @@ const shownPattern = (text: string): string => (text.length > 80 ? `${text.slice
  * Regex literals and the first argument of `RegExp(…)`/`new RegExp(…)` when it
  * is a string, a template without substitutions, or `String.raw`: the
  * patterns that cannot match what their author meant. Strings, comments and
- * computed patterns are never read; a source that does not parse is left to
- * the run, as above.
+ * computed patterns are never read; a source that does not parse yields
+ * nothing here, since `parentSuiteParseRefusal` reports it.
  */
 export function parentSuiteRegexFindings(source: string): SuiteRegexFinding[] {
   const file = ts.createSourceFile('atoma.acceptance.test.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  if ((file as unknown as { parseDiagnostics?: readonly unknown[] }).parseDiagnostics?.length) return [];
+  if (suiteParseErrors(file).length) return [];
   const findings: SuiteRegexFinding[] = [];
   const at = (node: ts.Node): number => file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
   const escaped = (node: ts.Node, body: string, form: SuiteRegexFinding['form']): void => {

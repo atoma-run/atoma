@@ -5,7 +5,7 @@ import { openDb } from '../src/registry/db.js';
 import { L3Atom, ROOT_PLAN_ATTEMPTS } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { enforceParsedDelegationReview } from '../src/atoms/delegationReview.js';
-import { parentSuiteParseDiagnostics, parentSuiteParseRefusal, planSuitePrecheck } from '../src/atoms/parentSuiteCheck.js';
+import { parentSuiteParseDiagnostics, parentSuiteParseRefusal, parentSuiteRefusal, parentSuiteRegexFindings, planSuitePrecheck } from '../src/atoms/parentSuiteCheck.js';
 import { PARENT_TEST_SOURCE_MAX_CHARS, type DelegationReview } from '../src/contracts/parentTests.js';
 import { MockLlmClient } from '../src/core/llm.js';
 import type { LlmCompletionRequest, LlmCompletionResponse, Plan, Result } from '../src/core/types.js';
@@ -101,6 +101,71 @@ describe('a suite source that does not parse', () => {
       expect(parentSuiteParseRefusal('on subtask 0', source)).toBeUndefined();
     }
     expect(INTENDED.split('\n')).toHaveLength(20);
+  });
+
+  it('admits the strict-mode lexical forms the runner accepts, and refuses an octal escape in an untagged template, as it does', () => {
+    const head = "import { test, expect } from 'vitest';\n";
+    for (const body of ["expect('\\01').toBe('\\x01');", "expect('\\8').toBe('8');", "expect('\\09'.length).toBe(2);",
+      'expect(010).toBe(8);', "test('mode', () => { expect(0o777 & 0777).toBe(511); });", 'expect(08.5).toBe(8.5);',
+      'expect(String.raw`\\01`).toBe("\\\\01");']) {
+      const source = `${head}${body}\n`;
+      expect(runnerRefusal(source), body).toBeUndefined();
+      expect(parentSuiteParseRefusal('on subtask 0', source), body).toBeUndefined();
+    }
+    // Admitted, such a suite still gets the API and regex checks a parsed suite gets.
+    const spied = `${head}import { vi } from 'vitest';\nvi.spyOn(Object, 'is');\nexpect(0777).toBe(511);\n`;
+    expect(parentSuiteRefusal('on subtask 0', spied)).toContain("vi.spyOn(Object, \"is\")");
+    expect(parentSuiteRegexFindings(`${head}expect('a1').toMatch(/a\\\\d/);\nexpect(0777).toBe(511);\n`)).toMatchObject([{ kind: 'escaped-backslash' }]);
+    for (const [body, error] of [['expect(`\\01`).toBe("");', 'Octal escape sequences are not allowed'], ['expect(`a${1}\\8`).toBe("");', "Escape sequence '\\8' is not allowed"]]) {
+      const source = `${head}${body}\n`;
+      expect(runnerRefusal(source), body).toMatch(/Bad escape sequence in untagged template literal/);
+      expect(parentSuiteParseRefusal('on subtask 0', source), body).toContain(error);
+    }
+  });
+
+  it('gives no escaping advice to a one-line suite whose only \\n is inside a string', () => {
+    const source = String.raw`import { test, expect } from 'vitest'; test('lines', () => { expect('a\nb'.split('\n')).toHaveLength(2);`;
+    expect(source).not.toContain('\n');
+    expect(runnerRefusal(source)).toMatch(/^Parse failed with 1 error/);
+    const text = parentSuiteParseRefusal('on subtask 0', source);
+    expect(text).toContain("'}' expected");
+    expect(text).not.toContain('escaped twice');
+    expect(text).not.toContain('Escape once');
+    expect(parentSuiteParseDiagnostics(String.raw`const a = 'x\u{zz}';`)[0]).toMatchObject({ atBackslash: false });
+  });
+
+  it('refuses an await, a for await or a return the module cannot hold, as the runner does, and admits their valid shapes', () => {
+    const head = "import { describe, test, expect } from 'vitest';\n";
+    const refused: Array<[string, string]> = [
+      ["test('loads', () => {\n  const value = await Promise.resolve(1);\n  expect(value).toBe(1);\n});", "line 3, column 17: 'await' expressions"],
+      ["describe('group', () => {\n  await Promise.resolve();\n});", "line 3, column 3: 'await' expressions"],
+      ["function collect(items) {\n  for await (const item of items) expect(item).toBe(1);\n}", "line 3, column 3: 'for await' loops"],
+      ["class Fixture { value = await Promise.resolve(1); }", "line 2, column 25: 'await' expressions"],
+      ["class Fixture { get value() { return await Promise.resolve(1); } }", "line 2, column 38: 'await' expressions"],
+      ["if (process.env.SKIP) return;\ntest('a', () => { expect(1).toBe(1); });", "line 2, column 23: A 'return' statement can only be used within a function body"],
+    ];
+    for (const [body, finding] of refused) {
+      const source = `${head}${body}\n`;
+      expect(runnerRefusal(source), body).toMatch(/^Parse failed with 1 error/);
+      const text = parentSuiteParseRefusal('on subtask 0', source);
+      expect(text, body).toContain(`Acceptance suite on subtask 0 does not parse as the TypeScript module the runner loads, so no test in it can run: ${finding}`);
+      expect(text, body).not.toContain('escaped twice');
+    }
+    const admitted = [
+      "const config = await Promise.resolve({ ok: true });\ntest('a', () => { expect(config.ok).toBe(true); });",
+      'for await (const item of [Promise.resolve(1)]) expect(item).toBe(1);',
+      "test('loads', async () => {\n  await expect(Promise.resolve(1)).resolves.toBe(1);\n  for await (const item of [1]) expect(item).toBe(1);\n});",
+      "describe('group', () => {\n  test('a', async function () { expect(await Promise.resolve(2)).toBe(2); });\n});",
+      "class Fixture { async load() { return await Promise.resolve(1); } run = async () => await this.load(); }",
+      "async function load(value = await Promise.resolve(1)) { return value; }",
+      "const object = { async read() { return await Promise.resolve(1); }, await: 2 };\nfunction plain() { return object.await; }",
+      "test('a', () => { const f = () => { return 1; }; expect(f()).toBe(1); });",
+    ];
+    for (const body of admitted) {
+      const source = `${head}${body}\n`;
+      expect(runnerRefusal(source), body).toBeUndefined();
+      expect(parentSuiteParseRefusal('on subtask 0', source), body).toBeUndefined();
+    }
   });
 
   it('stays bounded on the largest suite a plan may carry', () => {

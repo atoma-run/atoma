@@ -2296,7 +2296,12 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     };
   }
 
-  /** Mutualization target: peer runs the task end-to-end without further supervision. */
+  /**
+   * Mutualization target: peer runs the task end-to-end without further supervision.
+   * Known residual (2026-10-25), recorded, not changed: this plan reaches no L3
+   * `validatePlan`, so the L1 suites it authors skip `planSuitePrecheck`; one
+   * that does not parse surfaces only at run time ("the suite module did not load").
+   */
   async handleDirect(task: Task, ctx: RunContext): Promise<Result> {
     const plan = await this.plan(task, ctx);
     return this.execute(task, plan, ctx);

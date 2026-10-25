@@ -375,18 +375,19 @@ load-bearing.
   half owns the suite API and parse checks (`parentSuiteCheck.ts`): what the runner refuses
   is refused in the parent's plan, not blamed on a child. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
   Before any review, reviewed root plans (replans included) and cell plans get the zero-token
-  suite precheck (`planSuitePrecheck`), every finding in one refusal. A source TypeScript's
-  parser refuses (`parentSuiteParseRefusal`; run 7d071257 wrote `\\n` for each line break)
-  and an invalid regex literal refuse every time: no test of that module can run. An escaped
-  backslash before a class letter (`suiteRegexPrecheck`, run 2e6bdcfc) and a test-file import
-  refuse once per planner, then reach the review as host facts (reject-once-then-honour).
-  The review reads `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves;
-  `parentSuiteSources.ts` follows relative dependencies within six observation-only source
-  reads, direct imports first) and `parentSuiteReach.ts`'s line on written modules no suite
-  imports, names or calls into, withheld on any open walk or bound. Observation-only reads
-  withhold overwrite permission. A refused root's latest bounded facts reach its next planner,
-  parse retries included, as untrusted feedback; omissions establish nothing. No carry-over
-  to another task. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
+  suite precheck (`planSuitePrecheck`), every finding in one refusal. A source the runner's
+  parser refuses (`parentSuiteParseRefusal`: TypeScript's parse less the strict-mode lexical
+  errors oxc accepts, such as `0777`, plus a misplaced `await` or `return`; run 7d071257 wrote
+  `\\n` per line break) and an invalid regex literal refuse every time: no test of that module
+  can run. An escaped backslash before a class letter (`suiteRegexPrecheck`, run 2e6bdcfc) and
+  a test-file import refuse once per planner, then reach the review as host facts
+  (reject-once-then-honour). The review reads `parentSuiteFacts.ts`'s HOST FACTS (where each
+  import resolves; `parentSuiteSources.ts` follows relative dependencies within six
+  observation-only source reads, direct imports first) and `parentSuiteReach.ts`'s line on
+  written modules no suite imports, names or calls into, withheld on any open walk or bound.
+  Observation-only reads withhold overwrite permission. A refused root's latest bounded facts
+  reach its next planner, parse retries included, as untrusted feedback; omissions establish
+  nothing. No carry-over to another task. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
 - A SUITE DISPUTE (`taskSuiteDispute`, measured only): the task's own suite failed with one failing set on 3+ runs over 2+
   `subjectDigest`s, looked for where the loop escalates. Counted once per suite per attempt (`suiteDisputes`), logged and recorded in the
   trace for a [pre-registered](../../benchmark/suite-dispute-2026-10-17/PREREGISTRATION.md) classification; no routing, no text a run's models read ([decision](../../docs/decisions/parent-owned-tests-2026-10-16.md#a-suite-that-fails-the-same-way-on-every-implementation-measured-only)).
@@ -783,9 +784,8 @@ Read the archived sections before changing something that merely looks odd.
   and the short runs' root-cell plans measured on 2026-09-30, and a restoration names every
   file it lost. Do not tell a read-only molecule to change nothing: obeyed, it reported a
   failure the gate then coached it to fix, three identical rejections deep (review 2026-09-30).
-- An unparseable suite refuses every time, never once-then-honour as an escaped regex backslash
-  does (a heuristic a deliberate pattern may trip). Rejected: a regex for a literal `\n`, and
-  the runner's Vite parser (a dev dependency with a native binding, absent on the host).
+- An unparseable suite refuses every time, never once-then-honour like a regex backslash (a
+  heuristic). Rejected: a regex for a literal `\n`; Vite's parser (native binding, not on the host).
 - `salvageResultEnvelope` reads a malformed summary STRUCTURALLY — everything
   between `"summary":"` and the closing `"}` — only when the envelope is the
   whole response with `output` first and every bare quote of the summary
