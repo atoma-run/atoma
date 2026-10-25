@@ -401,7 +401,7 @@ load-bearing.
   a blocking defect or another rule's breach; a refusal lists EVERY blocking
   defect at once (b920faf6 replanned one cell eight times, one new gap per
   round); since 2026-10-23 the cell review reads its own history and after
-  `MAX_CELL_PLAN_REFUSALS` merits refusals the next clean plan executes (00fc7063).
+  `MAX_CELL_PLAN_REFUSALS` merits refusals the next clean plan executes (00fc7063), unless that refusal lists typed `unsatisfiableSuites` (`PARENT_TEST_UNSATISFIABLE`: a suite the plan carries that no correct implementation passes; the host drops any other citation, so a coverage request never qualifies): that plan takes the plan budget's ladder instead (40c20c5d executed one and root refused a correct delivery). Refused: dropping the cited suite host-side (it leaves a testable subtask unsuited, on a fallible index), reading the contradiction from prose, and counting such refusals apart from the bound.
 
 - All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
   logic and maintained tests created or changed by the requested implementation.

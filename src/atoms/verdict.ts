@@ -1,5 +1,5 @@
 import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
-import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceParsedDelegationReview, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, previousRefusalsNote, routingIndexNote } from './delegationReview.js';
+import { DELEGATION_REVIEW_REQUEST, citedUnsatisfiableSuites, delegationRefusal, enforceParsedDelegationReview, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, previousRefusalsNote, routingIndexNote } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { ValidationError } from '../core/errors.js';
@@ -1250,5 +1250,10 @@ export async function llmVerdict(args: {
   const criteria = raw.criteria ?? undefined;
   const inherited = raw.inherited ?? undefined;
   if (raw.approved) return { ...raw, activeSkillFollowed, criteria, inherited, ...(delegationReview ? { delegationReview } : {}) };
-  return { ...raw, branchName: raw.branchName ?? undefined, activeSkillFollowed, criteria, inherited };
+  // Kept on a delegation review's refusal alone, and only the citations of
+  // suites the reviewed plan carries; any other verdict drops the field.
+  const { unsatisfiableSuites: cited, ...refusal } = raw;
+  const unsatisfiableSuites = args.delegationContract ? citedUnsatisfiableSuites(args.delegationContract.plan, cited) : [];
+  return { ...refusal, branchName: raw.branchName ?? undefined, activeSkillFollowed, criteria, inherited,
+    ...(unsatisfiableSuites.length > 0 ? { unsatisfiableSuites } : {}) };
 }

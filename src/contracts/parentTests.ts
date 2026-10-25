@@ -186,6 +186,21 @@ export type DelegationReview = z.infer<typeof delegationReviewSchema>;
 export const delegationReviewEnvelopeSchema = z.object({ delegationReview: delegationReviewSchema });
 
 /**
+ * A suite a delegation REFUSAL names as one no correct implementation can pass
+ * (`PARENT_TEST_UNSATISFIABLE`), by the reviewed plan's own index: a subtask's
+ * zero-based index, or "plan" for the plan-level integration suite. Typed,
+ * never read from the refusal's prose. Run 40c20c5d (2026-10-25): the review
+ * refused three cell plans for one suite asserting that cancelling an ACTIVE
+ * collection answers 400, the cell's refusal bound executed the third, and
+ * root acceptance refused a correct implementation on that suite's failure.
+ */
+export const unsatisfiableSuiteSchema = z.object({
+  suite: z.union([z.number().int().nonnegative(), z.literal('plan')]),
+  reason: z.string().trim().min(1).max(400),
+});
+export type UnsatisfiableSuite = z.infer<typeof unsatisfiableSuiteSchema>;
+
+/**
  * What a parent-owned suite can execute, and how a plan proves what it cannot.
  * ONE definition for both sides of the contract: planners read it inside
  * `PARENT_TEST_PLANNING`, the delegation review inside
@@ -219,7 +234,16 @@ export const PARENT_TEST_SUFFICIENCY = [
 ].join('\n');
 
 /** The suite defects that refuse a plan in every review round; see PARENT_TEST_SUFFICIENCY. */
-export const PARENT_TEST_BLOCKING_DEFECTS = 'BLOCKING SUITE DEFECTS, which refuse a plan in any review round: a suite that does not import and call the real module it claims to test, or tests a helper or mock standing in for it; trivial or placeholder assertions, or none on values the module produces; no negative or boundary case; an interface the suite assumes that the application does not have; a testable implementation subtask without a parent-owned suite; interacting implementation branches without a plan-level integration suite; a behaviour the task or its criteria name that no suite can fail on; a proof the runtime cannot execute.';
+export const PARENT_TEST_BLOCKING_DEFECTS = 'BLOCKING SUITE DEFECTS, which refuse a plan in any review round: a suite that does not import and call the real module it claims to test, or tests a helper or mock standing in for it; trivial or placeholder assertions, or none on values the module produces; no negative or boundary case; an interface the suite assumes that the application does not have; an assertion no correct implementation can pass, because it contradicts the task, its criteria or another assertion; a testable implementation subtask without a parent-owned suite; interacting implementation branches without a plan-level integration suite; a behaviour the task or its criteria name that no suite can fail on; a proof the runtime cannot execute.';
+
+/**
+ * What a delegation review lists in a refusal's `unsatisfiableSuites`: the
+ * blocking defects no correct implementation survives, as against a suite that
+ * is merely insufficient, which a correct implementation passes. Only the
+ * former may never execute; the cell's refusal bound (`MAX_CELL_PLAN_REFUSALS`,
+ * L3Atom) executes the latter's plan rather than replan for coverage forever.
+ */
+export const PARENT_TEST_UNSATISFIABLE = 'UNSATISFIABLE SUITES: a refusal also lists, in "unsatisfiableSuites", every suite of this plan that no correct implementation of the task can pass: an assertion that contradicts the task, its criteria or another assertion of the plan; an interface neither the application nor this plan\'s implementation provides; a proof the runtime cannot execute. Each entry is {"suite": <the zero-based index of the subtask carrying it, or "plan" for the plan-level suite>, "reason": "the contradiction, naming the assertion and the requirement it breaks"}. Never list a suite a correct implementation passes, however insufficient: a missing suite, case, negative case or assertion is a request, not an unsatisfiable suite. Give [] when there is none.';
 
 /** Shared execution ownership for planners and delegation reviewers (Attica a99ef64e). */
 export const PARENT_TEST_EXECUTION = [
