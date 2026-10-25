@@ -33,8 +33,9 @@ export function pendingComputeRunRow(run: PendingRun, t: (key: string, vars?: Re
   const results = run.phase === undefined || pendingRunHasResults(run);
   const vars = { label: run.label ?? t('compute.pendingUnnamed'), date: run.startedAt ? formatDateTime(run.startedAt, locale) : '—' };
   if (!results) return { text: t('compute.pendingInterrupted', vars), action: { id: `compute.close.${run.runId}`, label: 'compute.close' } };
-  if (run.transferring) return { text: t('compute.pendingTransferring', vars), action: null };
+  // A cancellation wins over a transfer in flight: that run closes as cancelled.
   if (run.cancelling) return { text: t('compute.pendingCancelling', vars), action: null };
+  if (run.transferring) return { text: t('compute.pendingTransferring', vars), action: null };
   const key = run.phase === 'transferred' ? 'compute.pendingTransferred' : run.computerReady ? 'compute.pendingStalled' : 'compute.pending';
   return { text: t(key, vars), action: { id: `compute.finalize.${run.runId}`, label: 'compute.finalize' } };
 }

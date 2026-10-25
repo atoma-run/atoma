@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
-import { computeSettingsNoticeStale, useProjectCompute } from '../src/viz/client-gl/project-compute.js';
+import { computeSettingsNoticeStale, pendingComputeRunRow, useProjectCompute } from '../src/viz/client-gl/project-compute.js';
 import { ProjectSettingsAccessible } from '../src/viz/client-gl/ProjectSettingsAccessible.js';
 import type { ComputeProjectView } from '../src/contracts/computeProject.js';
 import { translate } from '../src/viz/client/i18n-catalog.js';
@@ -152,6 +152,12 @@ it('says the results are on their way when a transfer is already running, instea
   expect(await screen.findByText(translate('en', 'compute.resultsGetting'))).toHaveAttribute('role', 'status');
   expect(screen.queryByText(translate('en', 'compute.resultsPending'))).not.toBeInTheDocument();
   client.clear();
+});
+it('says a run is being cancelled even while its transfer is still in flight', () => {
+  const t = (key: string, vars?: Record<string, unknown>) => translate('en', key, vars);
+  const row = pendingComputeRunRow({ runId: 'r', label: 'L', phase: 'finalizing', computerReady: true,
+    transferring: true, cancelling: true }, t, 'en');
+  expect(row).toEqual({ text: t('compute.pendingCancelling', { label: 'L', date: '—' }), action: null });
 });
 it('treats a timed-out "Get the results" as still working', () => {
   expect(computeResultsAttempt(new TypeError('Failed to fetch'))).toBe('working');
