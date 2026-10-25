@@ -6172,7 +6172,7 @@ function hostedSummary(projectId: string): NonNullable<NonNullable<GpuDataSnapsh
     url: `https://${projectId.slice(0, 4)}.app.atoma.run/`, error: null, address: `https://${projectId.slice(0, 4)}.app.atoma.run/`,
     version: { runId: HOSTED_RUN_A, commitSha: a, title: 'First control page', acceptedAt: '2026-10-24T09:00:00.000Z' },
     candidate: { runId: HOSTED_RUN_B, commitSha: b, manifestHash: 'f'.repeat(64), title: 'Finish Attica control page repair', acceptedAt: '2026-10-25T09:00:00.000Z' },
-    previous: null, updateStops: true };
+    previous: null, updateStops: true, failed: null };
 }
 
 function guidanceProject(): VizProject {

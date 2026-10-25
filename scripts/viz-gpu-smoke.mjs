@@ -2167,7 +2167,7 @@ try {
       // read as an error rather than as "not configured".
       const unconfiguredHosting = {
         available: false, state: 'not-deployed', deploymentId: null, runId: null, commitSha: null,
-        url: null, error: null, address: null, candidate: null, version: null, previous: null, updateStops: false,
+        url: null, error: null, address: null, candidate: null, version: null, previous: null, updateStops: false, failed: null,
       };
       let hostingSummary = unconfiguredHosting;
       /** Hosting POSTs as sent; the response waits for `releaseHostingPost` so the progress is observable. */
@@ -3003,7 +3003,7 @@ try {
       const olderOnline = () => ({
         available: true, state: 'ready', deploymentId: onlineDeployment, runId: onlineRun, commitSha: onlineVersion.commitSha,
         url: 'https://smoke.app.atoma.run/', error: null, address: 'https://smoke.app.atoma.run/',
-        version: onlineVersion, candidate: { ...acceptedVersion, manifestHash: 'f'.repeat(64) }, previous: null, updateStops: true,
+        version: onlineVersion, candidate: { ...acceptedVersion, manifestHash: 'f'.repeat(64) }, previous: null, updateStops: true, failed: null,
       });
       // Each surface's DOM twin carries the copy the canvas draws; the scope
       // keeps one surface's text from proving another's.

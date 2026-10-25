@@ -88,7 +88,8 @@ export class HostingService {
         ? { ...this.describe(viewer.orgId, run.projectRunId, publication.commitSha), manifestHash: run.artifactManifestHash } : null,
       version: shown ? this.describe(viewer.orgId, shown.runId, shown.commitSha) : null,
       previous: previous ? { ...this.describe(viewer.orgId, previous.runId, previous.commitSha), manifestHash: previous.manifestHash } : null,
-      updateStops: rows.some(holdsApplicationData) };
+      updateStops: rows.some(holdsApplicationData),
+      failed: row?.state === 'failed' ? { runId: row.runId } : null };
   }
   /** A version in words: the run's title and the client's acceptance date, never only its hash. */
   private describe(orgId: string, runId: string, commitSha: string): HostingVersion {

@@ -70,7 +70,7 @@ it('discards a draft when switching projects and restricts member controls', asy
 
 it('renames the hosting address only after an explicit, valid save and says the old one redirects', async () => {
   const summary = { available: true, state: 'ready', deploymentId: null, runId: null, commitSha: null, url: null, error: null,
-    address: 'https://report.app.atoma.run/', candidate: null, version: null, previous: null, updateStops: false };
+    address: 'https://report.app.atoma.run/', candidate: null, version: null, previous: null, updateStops: false, failed: null };
   const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => new Response(JSON.stringify(init?.method === 'PUT' ? {} : summary), { status: 200 }));
   vi.stubGlobal('fetch', fetch);
   const { client } = mount();
@@ -101,7 +101,7 @@ function summary(overrides: Partial<Summary> = {}): Summary {
     url: 'https://attica.app.atoma.run/', error: null, address: 'https://attica.app.atoma.run/',
     version: { runId: RUN_A, commitSha: a, title: 'First control page', acceptedAt: '2026-10-24T09:00:00.000Z' },
     candidate: { runId: RUN_B, commitSha: b, manifestHash: 'f'.repeat(64), title: 'Finish Attica control page repair', acceptedAt: '2026-10-25T09:00:00.000Z' },
-    previous: null, updateStops: true, ...overrides };
+    previous: null, updateStops: true, failed: null, ...overrides };
 }
 const settings = (hosting: DeploymentSettingsView['hosting'], overrides: Partial<DeploymentSettingsView> = {}): DeploymentSettingsView =>
   ({ projectId: 'project-1', hosting, destination: 'atoma', saved: 'atoma', canEdit: true, busy: false, status: 'idle', ...overrides });
@@ -145,7 +145,7 @@ it('asks a plain confirmation before an update, worded by whether the site goes 
 
 it('says plainly when the new version did not start and offers the previous one back', () => {
   const failed = summary({ state: 'failed', url: null, runId: RUN_B, commitSha: b, error: 'startup-failed', updateStops: false,
-    version: summary().candidate, previous: { ...summary().version!, manifestHash: 'e'.repeat(64) } });
+    failed: { runId: RUN_B }, version: summary().candidate, previous: { ...summary().version!, manifestHash: 'e'.repeat(64) } });
   const copy = hostingCopy(settings(failed, { hostingAction: 'update' }))!;
   expect(copy).toMatchObject({ tone: 'error', update: 'hosting.outcome.failed', primary: { id: 'hosting.restore' },
     retry: { id: 'hosting.deploy', label: 'hosting.retry' }, target: { key: 'hosting.version.previous', words: { title: 'First control page' } } });
@@ -256,7 +256,7 @@ it('drops a pending confirmation when the person leaves the screen that asked fo
 it('keeps a failed newer version explained beside the version still online, and after a reload', () => {
   // A replacement that did not start beside the version still serving: the
   // newest deployment failed, the ready one is still online.
-  const failedBeside = summary({ state: 'failed', error: 'startup-failed', updateStops: false });
+  const failedBeside = summary({ state: 'failed', error: 'startup-failed', updateStops: false, failed: { runId: RUN_B } });
   const copy = hostingCopy(settings(failedBeside))!;
   expect(copy).toMatchObject({ status: 'hosting.ready', tone: 'warning', update: 'hosting.outcome.failedOnline',
     current: { key: 'hosting.version.online' }, primary: { id: 'hosting.update', label: 'hosting.retry' } });
@@ -266,9 +266,22 @@ it('keeps a failed newer version explained beside the version still online, and 
   expect(hostedUpdateOffer(settings(failedBeside), run)).toMatchObject({ lead: 'hosting.outcome.failedOnline',
     actions: [{ id: 'hosting.update', label: 'hosting.retry' }] });
   // Off line after the update stopped the old version, with nothing to put back.
-  const failedAlone = summary({ state: 'failed', url: null, runId: RUN_B, commitSha: b, error: 'startup-failed', version: summary().candidate });
+  const failedAlone = summary({ state: 'failed', url: null, runId: RUN_B, commitSha: b, error: 'startup-failed', failed: { runId: RUN_B }, version: summary().candidate });
   expect(hostedUpdateOffer(settings(failedAlone), run)).toMatchObject({ lead: 'hosting.outcome.failed',
     actions: [{ id: 'hosting.update', label: 'hosting.retry' }] });
   // Another run's page says nothing about it.
   expect(hostedUpdateOffer(settings(failedAlone), { projectId: 'project-1', projectRunId: RUN_A })).toBeNull();
+});
+
+it('never calls a newer accepted version failed because an older attempt failed beside a static version still online', () => {
+  // Static: version A online, an attempt with version C failed beside it,
+  // then version B was accepted. B was never tried: it is simply newer.
+  const RUN_C = '44444444-4444-4444-8444-444444444444';
+  const olderFailed = summary({ state: 'failed', error: 'startup-failed', updateStops: false, failed: { runId: RUN_C } });
+  const copy = hostingCopy(settings(olderFailed))!;
+  expect(copy).toMatchObject({ candidateFailed: false, status: 'hosting.ready', tone: 'success', update: 'hosting.update.available',
+    primary: { id: 'hosting.update' } });
+  expect(copy.primary).not.toHaveProperty('label');
+  expect(hostedUpdateOffer(settings(olderFailed), { projectId: 'project-1', projectRunId: RUN_B }))
+    .toMatchObject({ lead: 'hosting.offer.outdated', actions: [{ id: 'hosting.update' }] });
 });

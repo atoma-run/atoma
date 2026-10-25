@@ -63,6 +63,13 @@ export const hostingSummarySchema = z.object({
   previous: hostingVersionSchema.extend({ manifestHash: z.string() }).nullable(),
   /** Replacing what runs now stops it first (a stateful Node application): the site is down meanwhile. */
   updateStops: z.boolean(),
+  /**
+   * The version the newest deployment tried to put online, when that attempt
+   * failed; null otherwise. Which version failed is named, never inferred: a
+   * static application keeps serving beside a failed attempt, and the
+   * accepted version may have moved on since.
+   */
+  failed: z.object({ runId: z.string().uuid() }).strict().nullable(),
 }).strict();
 export type HostingSummary = z.infer<typeof hostingSummarySchema>;
 

@@ -231,10 +231,10 @@ export function hostingCopy(view: DeploymentSettingsView) {
   const shownAddress = hosting?.address ?? hosting?.url ?? null;
   const candidate = hosting?.candidate ?? null;
   const newer = !!candidate && candidate.commitSha !== hosting?.commitSha;
-  // The newest deployment failed and it was the accepted candidate. Off line
-  // the status names the failed version; online, only the candidate is ever
-  // started beside the version that serves, so a newer candidate is the one.
-  const candidateFailed = state === 'failed' && !!candidate && (online ? newer : hosting?.runId === candidate.runId);
+  // The newest deployment failed and it was the accepted candidate, as the
+  // status names it: beside a static version still online, a failed attempt
+  // may be an older version than the candidate accepted since.
+  const candidateFailed = !!candidate && hosting?.failed?.runId === candidate.runId;
   const tone: HostingTone = view.hostingError || (state === 'failed' && !online) ? 'error'
     : candidateFailed || state === 'starting' || (view.hostingBusy && !online) ? 'warning' : online ? 'success' : 'muted';
   // A confirmation holds only while the status still offers what it named.

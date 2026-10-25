@@ -298,7 +298,7 @@ it('says when the new version did not start and puts the previous version back a
   await service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId }); await service.idle();
   const failed = service.status(viewer, projectId);
   expect(failed).toMatchObject({ state: 'failed', error: 'startup-failed', url: null, runId: second.runId, updateStops: false,
-    previous: { runId: first.runId, manifestHash: first.manifestHash, title: 'First control page', commitSha: 'c'.repeat(40) } });
+    failed: { runId: second.runId }, previous: { runId: first.runId, manifestHash: first.manifestHash, title: 'First control page', commitSha: 'c'.repeat(40) } });
   // Only the version the update stopped can be put back, and only against the state that was shown.
   await expect(service.restore(viewer, projectId, { ...ref(second), expectedDeploymentId: failed.deploymentId })).rejects.toMatchObject({ status: 409 });
   await expect(service.restore(viewer, projectId, { ...ref(first), expectedDeploymentId: online.deploymentId })).rejects.toMatchObject({ status: 409 });
@@ -337,6 +337,20 @@ it('keeps the no-downtime path for a static application: the new version starts 
   const updated = service.status(viewer, projectId);
   expect(order).toEqual([`start ${updated.deploymentId}`, `stop ${online.deploymentId}`]);
   expect(updated).toMatchObject({ state: 'ready', runId: second.runId });
+});
+
+it('names the version that failed, so a newer accepted one beside a static version online is not called failed', async () => {
+  const { first, second, online } = await onlineWithNewerVersion();
+  expect(online.failed).toBeNull();
+  launcher.startHosting.mockRejectedValueOnce(new Error('crashed on start'));
+  await service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId }); await service.idle();
+  const beside = service.status(viewer, projectId);
+  // Still online with the first version; the second, the candidate, failed.
+  expect(beside).toMatchObject({ state: 'failed', runId: first.runId, failed: { runId: second.runId }, candidate: { runId: second.runId } });
+  expect(beside.url).not.toBeNull();
+  const third = deliver('three', 'e'.repeat(40), 'Third control page');
+  // A newer accepted version since: the failure still names the second.
+  expect(service.status(viewer, projectId)).toMatchObject({ failed: { runId: second.runId }, candidate: { runId: third.runId } });
 });
 
 it('holds the online version from retention', async () => {

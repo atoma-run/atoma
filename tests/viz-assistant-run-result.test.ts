@@ -96,7 +96,7 @@ describe('the run card offers the hosted application update', () => {
     url: 'https://attica.app.atoma.run/', error: null, address: 'https://attica.app.atoma.run/',
     version: { runId: 'run-0', commitSha: a, title: 'First control page', acceptedAt: '2026-10-24T09:00:00.000Z' },
     candidate: { runId: target.runId, commitSha: b, manifestHash: 'f'.repeat(64), title: 'Finish Attica control page repair', acceptedAt: '2026-10-25T09:00:00.000Z' },
-    previous: null, updateStops: true, ...overrides });
+    previous: null, updateStops: true, failed: null, ...overrides });
   const view = (hosting: DeploymentSettingsView['hosting'], overrides: Partial<DeploymentSettingsView> = {}): DeploymentSettingsView =>
     ({ projectId: target.projectId, hosting, destination: 'atoma', saved: 'atoma', canEdit: true, busy: false, status: 'idle', ...overrides });
   const published = { ...review(parentTests()), publicationStatus: 'published' as const };
@@ -134,11 +134,11 @@ describe('the run card offers the hosted application update', () => {
 
   it('still explains, after a reload, that this run\'s version did not start', () => {
     // No action from this tab: the status alone says the newest deployment, this run's version, failed.
-    const beside = card(parentTests(), { hosting: { view: view(online({ state: 'failed', error: 'startup-failed', updateStops: false })),
+    const beside = card(parentTests(), { hosting: { view: view(online({ state: 'failed', error: 'startup-failed', updateStops: false, failed: { runId: target.runId } })),
       onActivate: () => {} }, review: published });
     expect(beside).toContain(t('hosting.outcome.failedOnline'));
     expect(beside).toContain(button('hosting.retry'));
-    const offline = card(parentTests(), { hosting: { view: view(online({ state: 'failed', error: 'startup-failed', url: null,
+    const offline = card(parentTests(), { hosting: { view: view(online({ state: 'failed', error: 'startup-failed', url: null, failed: { runId: target.runId },
       runId: target.runId, commitSha: b, version: online().candidate })), onActivate: () => {} }, review: published });
     expect(offline).toContain(t('hosting.outcome.failed'));
     expect(offline).toContain(button('hosting.retry'));
