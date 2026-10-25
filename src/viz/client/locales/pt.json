@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "O resultado da ação não está confirmado. Consulte Projetos e Runs antes de pedir outra ação.",
   "assistant.runStatus": "Run: {{status}}",
   "assistant.message": "A sua mensagem",
-  "assistant.placeholder": "Descreva a sua ideia ou a próxima alteração…",
+  "assistant.placeholder": "",
   "assistant.cost": "Conversa: estimativa equivalente à API de ${{cost}} · utilização de run à parte",
   "assistant.send": "Enviar",
   "assistant.actionApproved": "Proposta aprovada.",

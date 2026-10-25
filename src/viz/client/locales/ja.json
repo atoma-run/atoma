@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "操作結果を確認できません。別の操作を依頼する前に、プロジェクトとrunを確認してください。",
   "assistant.runStatus": "run：{{status}}",
   "assistant.message": "メッセージ",
-  "assistant.placeholder": "アイデアまたは次の変更を説明してください…",
+  "assistant.placeholder": "",
   "assistant.cost": "会話：API換算の推定額 ${{cost}}・runの使用量は別途",
   "assistant.send": "送信",
   "assistant.actionApproved": "提案を承認しました。",

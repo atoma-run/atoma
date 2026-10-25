@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "Hasil tindakan belum dikonfirmasi. Periksa Proyek dan Run sebelum meminta tindakan lain.",
   "assistant.runStatus": "Run: {{status}}",
   "assistant.message": "Pesan Anda",
-  "assistant.placeholder": "Jelaskan ide Anda atau perubahan berikutnya…",
+  "assistant.placeholder": "",
   "assistant.cost": "Percakapan: estimasi setara API ${{cost}} · penggunaan run terpisah",
   "assistant.send": "Kirim",
   "assistant.actionApproved": "Usulan disetujui.",

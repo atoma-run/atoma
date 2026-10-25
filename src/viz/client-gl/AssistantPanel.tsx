@@ -312,7 +312,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     {runInProgress ? <p role="status">{t('assistant.runInProgress')}</p> : <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>
       <label htmlFor="assistant-message" className={newProjectPrompt ? 'gpu-assistant-empty' : undefined}>{t(newProjectPrompt ? 'assistant.newHint' : 'assistant.message')}</label>
       <textarea id="assistant-message" ref={composer} value={draft} maxLength={4000} rows={2} enterKeyHint="send"
-        placeholder={waiting ? '' : t('assistant.placeholder')} disabled={waiting || !canSend}
+        placeholder={waiting ? '' : t(projectId ? 'assistant.placeholder' : 'assistant.placeholderNew')} disabled={waiting || !canSend}
         onKeyDown={event => {
           if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
           event.preventDefault();

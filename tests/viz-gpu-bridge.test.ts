@@ -494,6 +494,33 @@ describe('full-GL minimal DOM bridge', () => {
     unmount(); client.clear();
   });
 
+  // An organisation with projects opens on its list (owner, 2026-10-25): the
+  // creation card starts folded, conversation included, and reopens on demand.
+  it('folds the creation card when the organisation already has projects', async () => {
+    useGpuStore.setState({ view: 'projects', entered: true, projectMcpCollapsed: false });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.spyOn(api, 'assistant').mockResolvedValue({ available: false, busy: false, nextBefore: null,
+      choices: [], model: null, run: null, conversation: emptyConversation() });
+    const { unmount } = render(createElement(QueryClientProvider, { client }, createElement(DomBridge, {
+      runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onOpenMcp: vi.fn(),
+      mcpAccessState: 'unconnected',
+      projects: [{ projectId: 'project-existing', name: 'Weather Lab' }],
+      assistant: (externalAgentGuide, heading) => createElement(AssistantPanel, {
+        heading, collapsed: useGpuStore.getState().projectMcpCollapsed,
+        scopeKey: 'alice:org-a', projectId: null, locale: 'en', externalAgentGuide,
+        t: (key, vars) => translate('en', key, vars),
+        onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn(),
+      }),
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+    })));
+    expect(useGpuStore.getState().projectMcpCollapsed).toBe(true);
+    const toggle = screen.getByRole('button', { name: 'Create a new project with Atoma' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(toggle);
+    expect(useGpuStore.getState().projectMcpCollapsed).toBe(false);
+    unmount(); client.clear();
+  });
+
   it('uses the selected project in a short agent request without showing a run form', () => {
     useGpuStore.setState({ view: 'projects', entered: true });
     renderBridge(vi.fn(), runs, undefined, [], 'Weather Lab');

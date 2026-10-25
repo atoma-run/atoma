@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "Das Ergebnis der Aktion ist unbestätigt. Prüfen Sie Projekte und Runs, bevor Sie eine weitere Aktion anfordern.",
   "assistant.runStatus": "Run: {{status}}",
   "assistant.message": "Ihre Nachricht",
-  "assistant.placeholder": "Beschreiben Sie Ihre Idee oder die nächste Änderung…",
+  "assistant.placeholder": "",
   "assistant.cost": "Unterhaltung: API-äquivalente Schätzung von ${{cost}} · Run-Nutzung separat",
   "assistant.send": "Senden",
   "assistant.actionApproved": "Vorschlag genehmigt.",

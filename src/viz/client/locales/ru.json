@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "Результат действия не подтверждён. Проверьте разделы «Проекты» и «Run», прежде чем запрашивать другое действие.",
   "assistant.runStatus": "Run: {{status}}",
   "assistant.message": "Ваше сообщение",
-  "assistant.placeholder": "Опишите свою идею или следующее изменение…",
+  "assistant.placeholder": "",
   "assistant.cost": "Диалог: оценка в эквиваленте API — ${{cost}} · использование run учитывается отдельно",
   "assistant.send": "Отправить",
   "assistant.actionApproved": "Предложение одобрено.",

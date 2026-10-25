@@ -301,12 +301,15 @@ export function DomBridge({
   const projectAssistantCompact = useGpuStore(state => state.projectAssistantCompact);
   // ONE card (owner, 2026-10-09): when the app hands this guide the assistant
   // conversation, the guide is its frame and the external-agent path folds
-  // under it. Its one automatic rule, folding once an external agent is
-  // connected, then no longer applies: the conversation is what the card is for.
+  // under it. Folding once an external agent is connected then no longer
+  // applies: the conversation is what the card is for. An organisation that
+  // already has projects opens on its list, so the creation card starts folded
+  // (owner, 2026-10-25).
   const assistantShown = assistant !== undefined && assistant !== null;
+  const hasProjects = projects.length > 0;
   useLayoutEffect(() => {
-    useGpuStore.setState({ projectMcpCollapsed: !assistantShown && mcpAccessState === 'connected' });
-  }, [mcpAccessState, assistantShown]);
+    useGpuStore.setState({ projectMcpCollapsed: hasProjects || (!assistantShown && mcpAccessState === 'connected') });
+  }, [mcpAccessState, assistantShown, hasProjects]);
   const selectedDocsTheme = useGpuStore((state) => state.selectedDocsTheme);
   const accountMenuOpen = useGpuStore((state) => state.accountMenuOpen);
   const localeMenuOpen = useGpuStore((state) => state.localeMenuOpen);

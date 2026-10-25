@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "کارروائی کے نتیجے کی تصدیق نہیں ہوئی۔ کسی اور کارروائی کی درخواست کرنے سے پہلے پروجیکٹس اور runs دیکھیں۔",
   "assistant.runStatus": "run: {{status}}",
   "assistant.message": "آپ کا پیغام",
-  "assistant.placeholder": "اپنا خیال یا اگلی تبدیلی بیان کریں…",
+  "assistant.placeholder": "",
   "assistant.cost": "گفتگو: ${{cost}} API کے مساوی تخمینہ · run کا استعمال الگ ہے",
   "assistant.send": "بھیجیں",
   "assistant.actionApproved": "تجویز منظور ہو گئی۔",

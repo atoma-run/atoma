@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "نتيجة الإجراء غير مؤكدة. تحقّق من المشاريع وعمليات run قبل طلب إجراء آخر.",
   "assistant.runStatus": "run: {{status}}",
   "assistant.message": "رسالتك",
-  "assistant.placeholder": "صِف فكرتك أو التغيير التالي…",
+  "assistant.placeholder": "",
   "assistant.cost": "المحادثة: تقدير يعادل ${{cost}} عبر API · استخدام run منفصل",
   "assistant.send": "إرسال",
   "assistant.actionApproved": "تمت الموافقة على المقترح.",

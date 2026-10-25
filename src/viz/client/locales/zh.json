@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "操作结果尚未确认。请求其他操作前，请先检查“项目”和“Run”。",
   "assistant.runStatus": "Run：{{status}}",
   "assistant.message": "你的消息",
-  "assistant.placeholder": "描述你的想法或下一项变更…",
+  "assistant.placeholder": "",
   "assistant.cost": "对话：${{cost}} API等值估算·run用量另计",
   "assistant.send": "发送",
   "assistant.actionApproved": "提案已批准。",
