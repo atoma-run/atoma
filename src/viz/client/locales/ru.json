@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "Результат действия не подтверждён. Проверьте разделы «Проекты» и «Run», прежде чем запрашивать другое действие.",
   "assistant.runStatus": "Run: {{status}}",
   "assistant.message": "Ваше сообщение",
-  "assistant.placeholder": "",
+  "assistant.placeholder": "Опишите следующее изменение…",
   "assistant.cost": "Диалог: оценка в эквиваленте API — ${{cost}} · использование run учитывается отдельно",
   "assistant.send": "Отправить",
   "assistant.actionApproved": "Предложение одобрено.",
@@ -2716,5 +2716,7 @@
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "Что обнаружено",
   "sentinel.col.actor": "Субъект",
-  "now.doing.verdictRepair": "{{actor}} повторно формирует вердикт по работе {{child}}, формат которой не удалось распознать."
+  "now.doing.verdictRepair": "{{actor}} повторно формирует вердикт по работе {{child}}, формат которой не удалось распознать.",
+  "assistant.placeholderNew": "Опишите свою идею…",
+  "compute.connectAnother": "Подключить другой компьютер"
 }

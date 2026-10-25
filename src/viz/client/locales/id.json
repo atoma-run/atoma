@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "Hasil tindakan belum dikonfirmasi. Periksa Proyek dan Run sebelum meminta tindakan lain.",
   "assistant.runStatus": "Run: {{status}}",
   "assistant.message": "Pesan Anda",
-  "assistant.placeholder": "",
+  "assistant.placeholder": "Jelaskan perubahan berikutnya…",
   "assistant.cost": "Percakapan: estimasi setara API ${{cost}} · penggunaan run terpisah",
   "assistant.send": "Kirim",
   "assistant.actionApproved": "Usulan disetujui.",
@@ -2716,5 +2716,7 @@
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "Yang terlihat",
   "sentinel.col.actor": "Aktor",
-  "now.doing.verdictRepair": "{{actor}} sedang menerbitkan ulang putusan atas pekerjaan {{child}} karena format putusan tersebut gagal diurai."
+  "now.doing.verdictRepair": "{{actor}} sedang menerbitkan ulang putusan atas pekerjaan {{child}} karena format putusan tersebut gagal diurai.",
+  "assistant.placeholderNew": "Jelaskan ide Anda…",
+  "compute.connectAnother": "Hubungkan komputer lain"
 }

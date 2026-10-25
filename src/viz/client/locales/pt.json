@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "O resultado da ação não está confirmado. Consulte Projetos e Runs antes de pedir outra ação.",
   "assistant.runStatus": "Run: {{status}}",
   "assistant.message": "A sua mensagem",
-  "assistant.placeholder": "",
+  "assistant.placeholder": "Descreva a próxima alteração…",
   "assistant.cost": "Conversa: estimativa equivalente à API de ${{cost}} · utilização de run à parte",
   "assistant.send": "Enviar",
   "assistant.actionApproved": "Proposta aprovada.",
@@ -2716,5 +2716,7 @@
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "O que foi observado",
   "sentinel.col.actor": "Ator",
-  "now.doing.verdictRepair": "{{actor}} volta a emitir um veredicto sobre o trabalho de {{child}}, cuja formatação não pôde ser interpretada."
+  "now.doing.verdictRepair": "{{actor}} volta a emitir um veredicto sobre o trabalho de {{child}}, cuja formatação não pôde ser interpretada.",
+  "assistant.placeholderNew": "Descreva a sua ideia…",
+  "compute.connectAnother": "Ligar outro computador"
 }

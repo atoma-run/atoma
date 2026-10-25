@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "Das Ergebnis der Aktion ist unbestätigt. Prüfen Sie Projekte und Runs, bevor Sie eine weitere Aktion anfordern.",
   "assistant.runStatus": "Run: {{status}}",
   "assistant.message": "Ihre Nachricht",
-  "assistant.placeholder": "",
+  "assistant.placeholder": "Beschreiben Sie die nächste Änderung…",
   "assistant.cost": "Unterhaltung: API-äquivalente Schätzung von ${{cost}} · Run-Nutzung separat",
   "assistant.send": "Senden",
   "assistant.actionApproved": "Vorschlag genehmigt.",
@@ -2716,5 +2716,7 @@
   "sentinel.col.run": "Run",
   "sentinel.col.summary": "Beobachtung",
   "sentinel.col.actor": "Akteur",
-  "now.doing.verdictRepair": "{{actor}} gibt erneut ein Urteil über die Arbeit von {{child}} aus, dessen Formatierung nicht geparst werden konnte."
+  "now.doing.verdictRepair": "{{actor}} gibt erneut ein Urteil über die Arbeit von {{child}} aus, dessen Formatierung nicht geparst werden konnte.",
+  "assistant.placeholderNew": "Beschreiben Sie Ihre Idee…",
+  "compute.connectAnother": "Weiteren Computer verbinden"
 }

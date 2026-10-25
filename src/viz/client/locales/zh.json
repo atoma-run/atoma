@@ -1732,7 +1732,7 @@
   "assistant.uncertain": "操作结果尚未确认。请求其他操作前，请先检查“项目”和“Run”。",
   "assistant.runStatus": "Run：{{status}}",
   "assistant.message": "你的消息",
-  "assistant.placeholder": "",
+  "assistant.placeholder": "描述下一项更改…",
   "assistant.cost": "对话：${{cost}} API等值估算·run用量另计",
   "assistant.send": "发送",
   "assistant.actionApproved": "提案已批准。",
@@ -2716,5 +2716,7 @@
   "sentinel.col.run": "run",
   "sentinel.col.summary": "观察到的内容",
   "sentinel.col.actor": "执行者",
-  "now.doing.verdictRepair": "{{actor}}正在重新发出对{{child}}工作的裁定，因其格式无法解析。"
+  "now.doing.verdictRepair": "{{actor}}正在重新发出对{{child}}工作的裁定，因其格式无法解析。",
+  "assistant.placeholderNew": "描述你的想法…",
+  "compute.connectAnother": "连接另一台计算机"
 }
