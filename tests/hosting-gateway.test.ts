@@ -21,7 +21,7 @@ it('exchanges a one-time private claim, strips credentials, and refuses cross-or
   const upstreamPort = await listen(createServer((req, res) => { received = req.headers; res.setHeader('Set-Cookie', 'evil=1; Domain=atoma.run'); res.end('offers'); }));
   const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'node', entry: 'server.js', createdAt: new Date().toISOString(), error: null, hostPort: upstreamPort, image: 'image' };
   const host = `p-${row.projectId}.app.atoma.run`;
-  const service = { deps: { store: { list: () => [row] } }, host: () => host, movedHost: () => null, status: vi.fn() } as unknown as HostingService;
+  const service = { deps: { store: { list: () => [row] } }, host: () => host, movedHost: () => null, swapping: () => null, status: vi.fn() } as unknown as HostingService;
   const viewer = { orgId: row.orgId, principalId: randomUUID() } as Viewer;
   let allowed = true;
   const gateway = createHostingGateway(service, 'https://atoma.run', () => allowed);
@@ -47,7 +47,7 @@ it('appends the Atoma badge to hosted pages but not to the platform desktop', as
   }));
   const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'node', entry: 'server.js', createdAt: new Date().toISOString(), error: null, hostPort: upstreamPort, image: 'image', browser: true };
   const host = 'weather-lab.app.atoma.run';
-  const service = { deps: { store: { list: () => [row] } }, host: () => host, movedHost: () => null, status: vi.fn() } as unknown as HostingService;
+  const service = { deps: { store: { list: () => [row] } }, host: () => host, movedHost: () => null, swapping: () => null, status: vi.fn() } as unknown as HostingService;
   const gateway = createHostingGateway(service, 'https://atoma.run', () => true);
   const port = await listen(gateway.server);
   const url = new URL(gateway.open({ orgId: row.orgId, principalId: randomUUID() } as Viewer, row.projectId));
@@ -69,7 +69,7 @@ it('appends the Atoma badge to hosted pages but not to the platform desktop', as
 it('answers an unknown address exactly as a private one, so readable addresses cannot be enumerated', async () => {
   const upstreamPort = await listen(createServer((_req, res) => res.end('offers')));
   const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'static', entry: 'index.js', createdAt: new Date().toISOString(), error: null, hostPort: upstreamPort, image: 'image' };
-  const service = { deps: { store: { list: () => [row] } }, host: () => 'weather-lab.app.atoma.run', movedHost: () => null, status: vi.fn() } as unknown as HostingService;
+  const service = { deps: { store: { list: () => [row] } }, host: () => 'weather-lab.app.atoma.run', movedHost: () => null, swapping: () => null, status: vi.fn() } as unknown as HostingService;
   const port = await listen(createHostingGateway(service, 'https://atoma.run', () => true).server);
   for (const path of ['/', '/.atoma/open']) {
     const known = await call(port, 'weather-lab.app.atoma.run', path); const unknown = await call(port, 'weather-lob.app.atoma.run', path);
@@ -79,7 +79,7 @@ it('answers an unknown address exactly as a private one, so readable addresses c
   expect((await claim('weather-lob.app.atoma.run')).status).toBe((await claim('weather-lab.app.atoma.run')).status);
 });
 it('redirects a retired address permanently to the current one, keeping path and query but never the request host', async () => {
-  const service = { deps: { store: { list: () => [] } }, host: () => 'none', status: vi.fn(),
+  const service = { deps: { store: { list: () => [] } }, host: () => 'none', swapping: () => null, status: vi.fn(),
     movedHost: (host: string) => host === 'weather-lab.app.atoma.run' ? 'cloud-desk.app.atoma.run' : null } as unknown as HostingService;
   const port = await listen(createHostingGateway(service, 'https://atoma.run', () => true).server);
   const moved = await call(port, 'weather-lab.app.atoma.run', '/offers?page=2');
@@ -104,7 +104,7 @@ it('protects desktop HTTP and WebSocket and revokes an established tunnel after 
   });
   const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'node', browser: true, entry: 'server.js', createdAt: new Date().toISOString(), error: null, hostPort: await listen(upstream), image: 'image' };
   const host = `p-${row.projectId}.app.atoma.run`;
-  const service = { deps: { store: { list: () => [row] } }, host: () => host, movedHost: () => null, status: vi.fn() } as unknown as HostingService;
+  const service = { deps: { store: { list: () => [row] } }, host: () => host, movedHost: () => null, swapping: () => null, status: vi.fn() } as unknown as HostingService;
   let allowed = true;
   const gateway = createHostingGateway(service, 'https://atoma.run', () => allowed);
   const port = await listen(gateway.server);
@@ -127,4 +127,133 @@ it('protects desktop HTTP and WebSocket and revokes an established tunnel after 
   const closed = new Promise<void>(resolve => { socket.on('close', () => resolve()); socket.resume(); });
   allowed = false;
   await closed;
+});
+
+// ---------------------------------------------------------------------------
+// Holding visitors while an update swaps versions (owner decision 2026-10-25).
+// ---------------------------------------------------------------------------
+function swapFixture(upstreamPort: number, overrides: Partial<HostedDeployment> = {}) {
+  const old: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'node', entry: 'server.js', createdAt: new Date(Date.now() - 60_000).toISOString(), error: null, hostPort: upstreamPort, image: 'image', ...overrides };
+  const host = 'weather-lab.app.atoma.run';
+  let rows: HostedDeployment[] = [old];
+  let swap: { orgId: string; projectId: string; browser: boolean; settled: Promise<void> } | null = null;
+  let end = () => {};
+  const service = { deps: { store: { list: (_org?: string, project?: string) => rows.filter(r => !project || r.projectId === project) } }, host: (r: HostedDeployment) => r.projectId === old.projectId ? host : 'other.app.atoma.run',
+    movedHost: () => null, swapping: (h: string) => h === host ? swap : null, status: vi.fn() } as unknown as HostingService;
+  return { old, host, service,
+    begin() { swap = { orgId: old.orgId, projectId: old.projectId, browser: !!old.browser, settled: new Promise<void>(resolve => { end = resolve; }) }; rows = [{ ...old, state: 'stopped' }]; },
+    /** The new version is ready (or, with no port, failed), then the window closes, in the service's order. */
+    finish(port: number | null) {
+      rows = port ? [{ ...old, deploymentId: randomUUID(), createdAt: new Date().toISOString(), hostPort: port }, { ...old, state: 'stopped' }] : [{ ...old, state: 'stopped' }];
+      swap = null; end();
+    } };
+}
+async function claimed(gateway: ReturnType<typeof createHostingGateway>, port: number, host: string, row: HostedDeployment) {
+  const url = new URL(gateway.open({ orgId: row.orgId, principalId: randomUUID() } as Viewer, row.projectId));
+  const redeemed = await call(port, host, '/.atoma/claim', { origin: `https://${host}` }, JSON.stringify({ token: url.hash.slice(1) }));
+  return redeemed.headers['set-cookie']![0]!.split(';')[0]!;
+}
+const settle = () => new Promise(resolve => setTimeout(resolve, 50));
+
+it('holds an authorised visitor through the swap and serves the new version, on the same grant', async () => {
+  const before = await listen(createServer((_req, res) => res.end('version one')));
+  const after = await listen(createServer((req, res) => { let body = ''; req.on('data', b => body += String(b)); req.on('end', () => res.end(`version two ${req.method} ${body}`)); }));
+  const f = swapFixture(before);
+  const gateway = createHostingGateway(f.service, 'https://atoma.run', () => true);
+  const port = await listen(gateway.server);
+  const cookie = await claimed(gateway, port, f.host, f.old);
+  expect((await call(port, f.host, '/', { cookie })).body).toBe('version one');
+  f.begin();
+  let answered = false;
+  const page = call(port, f.host, '/', { cookie }).finally(() => { answered = true; });
+  const form = call(port, f.host, '/save', { cookie, origin: `https://${f.host}` }, 'draft=1');
+  await settle(); expect(answered).toBe(false);
+  f.finish(after);
+  expect(await page).toMatchObject({ status: 200, body: 'version two GET ' });
+  // A held write is forwarded once, body intact, after the new version is ready.
+  expect((await form).body).toBe('version two POST draft=1');
+  expect((await call(port, f.host, '/', { cookie })).body).toBe('version two GET ');
+});
+
+it('never holds a request that may not open the application: it is answered as an unknown address', async () => {
+  const f = swapFixture(await listen(createServer((_req, res) => res.end('x'))));
+  let allowed = true;
+  const gateway = createHostingGateway(f.service, 'https://atoma.run', () => allowed);
+  const port = await listen(gateway.server);
+  const cookie = await claimed(gateway, port, f.host, f.old);
+  f.begin();
+  const unknown = await call(port, 'weather-lob.app.atoma.run', '/');
+  expect(await call(port, f.host, '/')).toEqual(expect.objectContaining({ status: unknown.status, body: unknown.body }));
+  expect((await call(port, f.host, '/', { cookie, origin: 'https://evil.test' }, '{}')).status).toBe(403);
+  // Membership is asked again after the wait.
+  const held = call(port, f.host, '/', { cookie });
+  await settle(); allowed = false; f.finish(f.old.hostPort);
+  expect(await held).toMatchObject({ status: 404, body: 'Open this private application from its Atoma project.' });
+});
+
+it('answers a plain "being updated" page with Retry-After on a timeout, a failed start, or a full queue, never a bare 502', async () => {
+  const f = swapFixture(await listen(createServer((_req, res) => res.end('x'))));
+  const gateway = createHostingGateway(f.service, 'https://atoma.run', () => true, undefined, { ms: 200, perProject: 1, total: 8 });
+  const port = await listen(gateway.server);
+  const cookie = await claimed(gateway, port, f.host, f.old);
+  f.begin();
+  const first = call(port, f.host, '/', { cookie });
+  await settle();
+  const full = await call(port, f.host, '/', { cookie });
+  expect(full).toMatchObject({ status: 503, body: expect.stringContaining('This application is being updated. Please try again in a moment.') });
+  expect(full.headers['retry-after']).toBe('10');
+  expect(full.headers['content-security-policy']).toContain('sandbox');
+  expect((await first).status).toBe(503);
+  // The new version failed to start: the held visitor is told, plainly.
+  const failed = call(port, f.host, '/', { cookie });
+  await settle(); f.finish(null);
+  expect(await failed).toMatchObject({ status: 503, body: expect.stringContaining('being updated') });
+});
+
+it('leaves other projects alone while one swaps, and answers the update page, not a 502, for a request the swap cut', async () => {
+  const other: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'node', entry: 'server.js', createdAt: new Date().toISOString(), error: null, hostPort: await listen(createServer((_req, res) => res.end('other app'))), image: 'image' };
+  let cut = false;
+  // Forwarded just before the update began; the stop then drops the connection.
+  const f: ReturnType<typeof swapFixture> = swapFixture(await listen(createServer((req, res) => { if (!cut) { res.end('x'); return; } f.begin(); req.socket.destroy(); })));
+  const list = f.service.deps.store.list.bind(f.service.deps.store);
+  (f.service.deps.store as { list: (org?: string, project?: string) => HostedDeployment[] }).list = (org, project) => [...list(org, project), other].filter(r => !project || r.projectId === project);
+  const gateway = createHostingGateway(f.service, 'https://atoma.run', () => true);
+  const port = await listen(gateway.server);
+  const cookie = await claimed(gateway, port, f.host, f.old);
+  const otherCookie = await claimed(gateway, port, 'other.app.atoma.run', other);
+  cut = true;
+  expect(await call(port, f.host, '/', { cookie })).toMatchObject({ status: 503, body: expect.stringContaining('being updated') });
+  expect((await call(port, 'other.app.atoma.run', '/', { cookie: otherCookie })).body).toBe('other app');
+});
+
+it('holds the desktop WebSocket upgrade through the swap, or refuses it plainly so the desktop reconnects', async () => {
+  const desktop = (label: string) => {
+    const server = createServer((_req, res) => res.end(label));
+    server.on('upgrade', (req, socket) => {
+      const accept = createHash('sha1').update(`${req.headers['sec-websocket-key']}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
+      socket.write(`HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n${label}`);
+      socket.on('error', () => {}); socket.on('end', () => socket.end());
+    });
+    return listen(server);
+  };
+  const f = swapFixture(await desktop('one'), { browser: true });
+  const gateway = createHostingGateway(f.service, 'https://atoma.run', () => true, undefined, { ms: 300, perProject: 4, total: 8 });
+  const port = await listen(gateway.server);
+  const cookie = await claimed(gateway, port, f.host, f.old);
+  const connect = () => new Promise<{ status: number; first: string }>((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port, path: '/.atoma/browser/websockify', headers: { host: f.host, cookie, origin: `https://${f.host}`, connection: 'Upgrade', upgrade: 'websocket', 'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==', 'sec-websocket-version': '13' } });
+    req.on('upgrade', (_res, socket, head) => {
+      const done = (first: string) => { socket.destroy(); resolve({ status: 101, first }); };
+      if (head.length) done(String(head)); else socket.once('data', b => done(String(b)));
+    });
+    req.on('response', res => { res.resume(); resolve({ status: res.statusCode!, first: String(res.headers['retry-after']) }); });
+    req.on('error', reject); req.end();
+  });
+  f.begin();
+  const held = connect();
+  await settle();
+  f.finish(await desktop('two'));
+  expect(await held).toEqual({ status: 101, first: 'two' });
+  f.begin();
+  expect(await connect()).toEqual({ status: 503, first: '10' });
 });

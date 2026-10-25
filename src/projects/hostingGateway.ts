@@ -8,17 +8,56 @@ import type { Viewer } from '../auth/store.js';
 
 const COOKIE = '__Host-AtomaHosted';
 const PRIVATE = 'Open this private application from its Atoma project.';
-/** Private applications: platform credentials never cross to generated code. */
+const UPDATING = '<!doctype html><meta charset="utf-8"><title>Updating</title><p>This application is being updated. Please try again in a moment.</p>';
+/**
+ * How long, and how many, visitors of a project are held while its update
+ * swaps versions (owner decision 2026-10-25): the stop's ten-second grace plus
+ * a start and its readiness, under nginx's 360 s read timeout and the
+ * server's 60 s request timeout. Past either bound a visitor gets UPDATING.
+ */
+export const HOSTING_HOLD = { ms: 45_000, perProject: 64, total: 512 };
+type HoldOutcome = 'settled' | 'timeout' | 'left' | 'full';
+/**
+ * Private applications: platform credentials never cross to generated code.
+ * A grant opens the PROJECT's application at its address, so it survives an
+ * update replacing the deployment; membership is still checked per request,
+ * and a desktop tunnel still closes when its deployment is replaced.
+ */
 export function createHostingGateway(service: HostingService, controlOrigin: string, member: (org: string, principal: string) => boolean,
   /** The organisation's plan carries the Atoma mark; asked per navigation. */
-  attribution: (org: string) => boolean = () => true) {
+  attribution: (org: string) => boolean = () => true, hold: typeof HOSTING_HOLD = HOSTING_HOLD) {
   const claims = new PreviewClaimRegistry();
+  const waiting = new Map<string, number>(); let waitingTotal = 0;
+  /** Waits, bounded in time and number, for a project's swap to settle; never past the visitor leaving. */
+  function holdFor(swap: { projectId: string; settled: Promise<void> }, peer: { once(event: 'close', listener: () => void): unknown; off(event: 'close', listener: () => void): unknown }): Promise<HoldOutcome> {
+    const count = waiting.get(swap.projectId) ?? 0;
+    if (count >= hold.perProject || waitingTotal >= hold.total) return Promise.resolve('full');
+    waiting.set(swap.projectId, count + 1); waitingTotal++;
+    return new Promise(resolve => {
+      let done = false;
+      const finish = (outcome: HoldOutcome) => {
+        if (done) return; done = true; clearTimeout(timer); peer.off('close', left); waitingTotal--;
+        const remaining = (waiting.get(swap.projectId) ?? 1) - 1;
+        if (remaining > 0) waiting.set(swap.projectId, remaining); else waiting.delete(swap.projectId);
+        resolve(outcome);
+      };
+      const left = () => finish('left');
+      const timer = setTimeout(() => finish('timeout'), hold.ms); timer.unref();
+      peer.once('close', left);
+      void swap.settled.then(() => finish('settled'));
+    });
+  }
+  const readyRow = (host: string) => service.deps.store.list().filter(r => r.state === 'ready').sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find(r => service.host(r) === host);
   const sweep = setInterval(() => claims.sweep(), 60_000); sweep.unref();
   const policy: Record<string, string> = { ...previewResponseHeaders({ visualizerOrigin: controlOrigin, allowedHosts: [] }),
     'cross-origin-opener-policy': 'same-origin' };
   policy['content-security-policy'] += "; worker-src 'none'";
   function cookie(token: string) { return `${COOKIE}=${token}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=300`; }
   const respond = (res: ServerResponse, status: number, body = '') => { res.writeHead(status, policy); res.end(body); };
+  /** Never a bare 502 while a version is being replaced: a plain page and when to come back. */
+  const updating = (res: ServerResponse) => {
+    res.writeHead(503, { ...policy, 'content-type': 'text/html; charset=utf-8', 'retry-after': '10', 'cache-control': 'no-store' }); res.end(UPDATING);
+  };
   async function handler(req: IncomingMessage, res: ServerResponse) {
     const host = req.headers.host?.toLowerCase();
     if (!host || req.headers['service-worker']) { respond(res, 404); return; }
@@ -35,7 +74,7 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
     // Addresses are readable words, so they are guessable: an unknown address
     // and a private one must answer alike, or the gateway tells strangers
     // which projects exist and are online.
-    const row = service.deps.store.list().filter(r => r.state === 'ready').sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find(r => service.host(r) === host);
+    let row = readyRow(host);
     const origin = `https://${host}`;
     const pathname = new URL(req.url ?? '/', origin).pathname;
     if (pathname === '/.atoma/open' && req.method === 'GET') {
@@ -52,29 +91,45 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
       let token: unknown; try { token = (JSON.parse(Buffer.concat(chunks).toString()) as { token?: unknown }).token; } catch { respond(res, 400); return; }
       if (!row || typeof token !== 'string' || token.length > 128) { respond(res, 404); return; }
       const redeemed = claims.redeem(token, host);
-      if (!redeemed.ok || redeemed.grant.binding.projectRunId !== row.deploymentId || !member(row.orgId, redeemed.grant.binding.principalId)) { respond(res, 404); return; }
+      if (!redeemed.ok || redeemed.grant.binding.projectRunId !== row.projectId || !member(row.orgId, redeemed.grant.binding.principalId)) { respond(res, 404); return; }
       res.setHeader('set-cookie', cookie(redeemed.token)); respond(res, 204); return;
     }
-    if (!row) { respond(res, 404, PRIVATE); return; }
-    const binding = { orgId: row.orgId, projectRunId: row.deploymentId, generation: 1, host };
+    // While an update swaps this project's versions, its visitors wait here
+    // for the new one instead of meeting a stopped one. Access first: an
+    // unauthorised request is answered exactly as before, never held.
+    const swap = service.swapping(host);
+    if (!row && !swap) { respond(res, 404, PRIVATE); return; }
+    const orgId = swap?.orgId ?? row!.orgId; const projectId = swap?.projectId ?? row!.projectId;
+    const binding = { orgId, projectRunId: projectId, generation: 1, host };
     const token = req.headers.cookie?.split(';').map(x => x.trim()).find(x => x.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
-    const grant = token ? claims.authorise(token, binding) : null;
-    if (!grant || !member(row.orgId, grant.binding.principalId)) { respond(res, 404, PRIVATE); return; }
+    const granted = () => { const grant = token ? claims.authorise(token, binding) : null; return !!grant && member(orgId, grant.binding.principalId); };
+    if (!granted()) { respond(res, 404, PRIVATE); return; }
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? 'GET') && req.headers.origin !== origin) { respond(res, 403); return; }
-    if (pathname.startsWith('/.atoma/') && !(row.browser && pathname.startsWith('/.atoma/browser/'))) { respond(res, 404); return; }
+    if (swap) {
+      const outcome = await holdFor(swap, res);
+      if (outcome === 'left') return;
+      row = readyRow(host);
+      if (outcome !== 'settled' || !row || row.projectId !== projectId) { updating(res); return; }
+      // Membership may have ended while this request waited.
+      if (!granted()) { respond(res, 404, PRIVATE); return; }
+    }
+    const served = row!;
+    if (pathname.startsWith('/.atoma/') && !(served.browser && pathname.startsWith('/.atoma/browser/'))) { respond(res, 404); return; }
     claims.renew(token!, binding); res.setHeader('set-cookie', cookie(token!));
     const headers = sanitizeRequestHeaders(req.headers);
     // Hop-by-hop headers, including extension headers nominated by Connection, never cross.
     for (const name of ['authorization', 'connection', 'upgrade', 'proxy-authorization', 'proxy-authenticate', 'keep-alive', 'te', 'trailer', 'transfer-encoding', ...(req.headers.connection ?? '').split(',').map(x => x.trim().toLowerCase())]) delete headers[name];
     headers.host = host;
     // `/.atoma/browser/` is the platform's desktop, not the application.
-    const attribute = !pathname.startsWith('/.atoma/') && isAttributableRequest(req.method, req.headers) && attribution(row.orgId);
+    const attribute = !pathname.startsWith('/.atoma/') && isAttributableRequest(req.method, req.headers) && attribution(served.orgId);
     if (attribute) headers['accept-encoding'] = 'identity';
-    const upstream = request({ host: '127.0.0.1', port: row.hostPort!, path: req.url, method: req.method, headers, timeout: 30_000 }, incoming => {
+    const upstream = request({ host: '127.0.0.1', port: served.hostPort!, path: req.url, method: req.method, headers, timeout: 30_000 }, incoming => {
       if (incoming.headers.location && !isSamePreviewRedirect(incoming.headers.location, origin)) { incoming.destroy(); respond(res, 502); return; }
+      // The relay's own 502 when the update began after this request was forwarded.
+      if (incoming.statusCode === 502 && service.swapping(host)) { incoming.destroy(); updating(res); return; }
       const output = sanitizeResponseHeaders(incoming.headers);
       for (const name of ['connection', 'upgrade', 'transfer-encoding', ...(incoming.headers.connection ?? '').split(',').map(x => x.trim().toLowerCase())]) delete output[name];
-      const responsePolicy = row.browser ? { ...policy, 'content-security-policy': policy['content-security-policy']!.replace('sandbox ', 'sandbox allow-popups ').replace("connect-src 'self'", `connect-src 'self' wss://${host}`) } : policy;
+      const responsePolicy = served.browser ? { ...policy, 'content-security-policy': policy['content-security-policy']!.replace('sandbox ', 'sandbox allow-popups ').replace("connect-src 'self'", `connect-src 'self' wss://${host}`) } : policy;
       if (attribute && isAttributableResponse(incoming.statusCode, incoming.headers)) {
         delete output['content-length'];
         res.writeHead(200, { ...output, ...responsePolicy }); incoming.pipe(attributionAppender()).pipe(res); return;
@@ -82,22 +137,39 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
       res.writeHead(incoming.statusCode ?? 502, { ...output, ...responsePolicy }); incoming.pipe(res);
     });
     upstream.on('timeout', () => upstream.destroy());
-    upstream.on('error', () => { if (!res.headersSent) respond(res, 502); else res.destroy(); });
+    upstream.on('error', () => { if (res.headersSent) res.destroy(); else if (service.swapping(host)) updating(res); else respond(res, 502); });
     req.on('aborted', () => upstream.destroy()); res.on('close', () => upstream.destroy()); req.pipe(upstream);
   }
   const server = createServer({ maxHeaderSize: 16384 }, (req, res) => { void handler(req, res).catch(() => { if (!res.headersSent) respond(res, 500); else res.destroy(); }); });
   // Desktop upgrades have the same claim, origin and membership boundary as HTTP.
   const tunnels = new Set<() => void>();
-  server.on('upgrade', (req, socket, head) => {
+  server.on('upgrade', (req, socket, head: Buffer) => { void upgrade(req, socket, head).catch(() => socket.destroy()); });
+  async function upgrade(req: IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) {
+    // A socket that fails while held only ends its wait ('close' follows).
+    socket.on('error', () => socket.destroy());
     const host = req.headers.host?.toLowerCase();
-    const row = service.deps.store.list().find(r => r.state === 'ready' && r.browser && service.host(r) === host);
+    const browserRow = () => service.deps.store.list().find(r => r.state === 'ready' && r.browser && service.host(r) === host);
+    let row = browserRow();
+    const swap = host ? service.swapping(host) : null;
     const token = req.headers.cookie?.split(';').map(x => x.trim()).find(x => x.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
-    if (!row || !host || !token || req.url !== '/.atoma/browser/websockify' || req.headers.origin !== `https://${host}` || req.headers.upgrade?.toLowerCase() !== 'websocket') { socket.destroy(); return; }
-    const binding = { orgId: row.orgId, projectRunId: row.deploymentId, generation: 1, host };
-    const authorized = () => {
-      const grant = claims.authorise(token, binding);
-      return !!grant && member(row.orgId, grant.binding.principalId) && service.deps.store.list().some(r => r.deploymentId === row.deploymentId && r.state === 'ready' && r.hostPort === row.hostPort);
-    };
+    if ((!row && !swap?.browser) || !host || !token || req.url !== '/.atoma/browser/websockify' || req.headers.origin !== `https://${host}` || req.headers.upgrade?.toLowerCase() !== 'websocket') { socket.destroy(); return; }
+    const orgId = swap?.orgId ?? row!.orgId; const projectId = swap?.projectId ?? row!.projectId;
+    const binding = { orgId, projectRunId: projectId, generation: 1, host };
+    const granted = () => { const grant = claims.authorise(token, binding); return !!grant && member(orgId, grant.binding.principalId); };
+    if (!granted()) { socket.destroy(); return; }
+    // The desktop reconnects on its own: hold its upgrade through the swap,
+    // or refuse it plainly so it tries again.
+    if (swap) {
+      const outcome = await holdFor(swap, socket);
+      if (outcome === 'left') return;
+      row = browserRow();
+      if (outcome !== 'settled' || !row || row.projectId !== projectId || !granted()) {
+        socket.end('HTTP/1.1 503 Service Unavailable\r\nRetry-After: 10\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); return;
+      }
+    }
+    const tunnelled = row!;
+    // A tunnel belongs to one deployment: replacing it closes the tunnel.
+    const authorized = () => granted() && service.deps.store.list().some(r => r.deploymentId === tunnelled.deploymentId && r.state === 'ready' && r.hostPort === tunnelled.hostPort);
     if (!authorized()) { socket.destroy(); return; }
     const headers = sanitizeRequestHeaders(req.headers);
     // Only the RFC6455 handshake crosses; no platform credential or arbitrary header.
@@ -105,7 +177,7 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
     for (const key of ['sec-websocket-key', 'sec-websocket-version', 'sec-websocket-protocol']) {
       const value = headers[key]; if (typeof value === 'string') handshake[key] = value;
     }
-    const upstream = request({ host: '127.0.0.1', port: row.hostPort!, path: req.url, headers: handshake, timeout: 10_000 });
+    const upstream = request({ host: '127.0.0.1', port: tunnelled.hostPort!, path: req.url, headers: handshake, timeout: 10_000 });
     let remote: import('node:stream').Duplex | undefined;
     const close = () => { clearInterval(check); tunnels.delete(close); upstream.destroy(); remote?.destroy(); socket.destroy(); };
     const check = setInterval(() => { try { if (!authorized()) close(); } catch { close(); } }, 1000); check.unref();
@@ -121,7 +193,7 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
     });
     upstream.on('timeout', close); upstream.on('error', close); upstream.on('response', res => { res.destroy(); close(); });
     socket.on('error', close); socket.on('close', close); upstream.end();
-  });
+  }
   server.on('close', () => { for (const close of tunnels) close(); });
   server.requestTimeout = 60_000;
   server.on('close', () => clearInterval(sweep));
@@ -130,7 +202,7 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
     const row = service.deps.store.list(viewer.orgId, projectId).find(r => r.state === 'ready');
     if (!row) throw new Error('Application not ready');
     const host = service.host(row);
-    const claim = mintPreviewClaim({ ...viewer, sessionId: null, projectRunId: row.deploymentId, generation: 1, host }, Date.now());
+    const claim = mintPreviewClaim({ ...viewer, sessionId: null, projectRunId: row.projectId, generation: 1, host }, Date.now());
     claims.register(claim);
     return `https://${host}/.atoma/open#${claim.secret}`;
   } };

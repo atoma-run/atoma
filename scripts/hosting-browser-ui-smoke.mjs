@@ -14,7 +14,7 @@ execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-keyout',jo
 const row = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), state:'ready', browser:true, createdAt:new Date().toISOString(), hostPort:Number(process.argv[2]) };
 let host;
 const viewer = { orgId:row.orgId, principalId:randomUUID() };
-const gateway = createHostingGateway({deps:{store:{list:()=>[row]}},host:()=>host,status:()=>({})},'https://atoma.run',()=>true);
+const gateway = createHostingGateway({deps:{store:{list:()=>[row]}},host:()=>host,movedHost:()=>null,swapping:()=>null,status:()=>({})},'https://atoma.run',()=>true);
 const server = createServer({key:readFileSync(join(root,'key.pem')),cert:readFileSync(join(root,'cert.pem'))});
 server.on('request',(req,res)=>gateway.server.emit('request',req,res));
 server.on('upgrade',(req,socket,head)=>gateway.server.emit('upgrade',req,socket,head));
