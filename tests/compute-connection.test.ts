@@ -1611,6 +1611,88 @@ it('finishes a transfer lost with its connection by itself once the computer rec
   }
 }, 30_000);
 
+// Review 2026-10-25: a paused computer keeps its connection. Attempts used to
+// fail at assign on that same connection, backing off to ten minutes, so
+// resuming (a control frame, no new connection) waited the backoff out. Over
+// the real WSS: paused, nothing is attempted; resumed on the same connection,
+// the next poll finishes the transfer.
+it('attempts nothing on a paused computer and finishes on the next poll once it resumes on the same connection', async () => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const folder = join(root, randomUUID()), projectsRoot = join(folder, 'projects');
+  const workspace = localWorkspaceRuntime({ root: join(folder, 'remote'), log: () => {} });
+  await workspace.prepare(true);
+  writeFileSync(join(folder, 'remote', 'result.txt'), 'remote delivery');
+  const handler = workspaceCommandHandler(workspace);
+  const runId = randomUUID(), paths = projectRunHostLayout(projectsRoot, owner.orgId, p.projectId, runId);
+  const receipt = projects.createProjectRun({ orgId: owner.orgId, projectId: p.projectId, principalId: owner.principalId, projectRunId: runId,
+    request: { idempotencyKey: randomUUID(), goal: 'Compute dispatch' },
+    hostPaths: { workspacePath: paths.workspacePath, runsPath: paths.runsPath, logPath: paths.logPath } })!.run;
+  mkdirSync(paths.runsPath, { recursive: true });
+  writeFileSync(paths.artifactManifestPath, JSON.stringify({ version: 1, runId, generatedAt: new Date().toISOString(), outputs: ['result.txt'] }));
+  const stopWorkloads = vi.fn(async () => {});
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads,
+    assign: async () => ({ execute: async command => {
+      if (command.method === 'artifact-open') throw new Error('Lost transport');
+      return handler(command);
+    }, tools: { has: () => true, execute: async () => null, drain: async () => {} } }) });
+  const journal = new ComputeDispatchStore(db);
+  const dispatcher = new ComputeDispatcher({ devices, journal, resources, connectionFor: session => gateway.connectionFor(session) });
+  projects.transitionProjectRun({ orgId: owner.orgId, projectRunId: runId, from: 'queued', to: 'running' });
+  const log = formatRunStatsEpilogue({ outcome: 'delivered', costUsd: 0.42, llmCalls: 7, opusCalls: 0, sonnetCalls: 0, haikuCalls: 0, otherCalls: 7,
+    deterministicPhases: 0, deepenings: 0, rootRemediations: 0, landingRemediations: 0, unjudgedRemediations: 0,
+    discardedLessons: 0, triggerRejections: 0, suiteDisputes: 0, landingReasons: [], escalations: 0, learnedSkills: 0,
+    learnedEventSkills: 0, promotions: 0, refusals: 0, compileErrors: 0, demotions: 0, dispatchFallbacks: 0, uncoveredObligations: 0 });
+  await expect(dispatcher.drive(receipt, async () => {
+    writeFileSync(join(paths.runsPath, `${runId}.json`), JSON.stringify({ id: runId, endedAt: new Date().toISOString(), result: { summary: 'verified' } }));
+    return log;
+  }, { goal: receipt.goal, timeoutMs: 5000, logPath: receipt.hostPaths.logPath }, paths.artifactManifestPath)).rejects.toBeInstanceOf(ComputeDispatchPendingError);
+  await vi.waitFor(() => expect(stopWorkloads).toHaveBeenCalledOnce());
+  await client.close();
+  const driver = vi.fn(), finished = vi.fn(), release = vi.fn();
+  const acquireLease = vi.fn(async () => ({ path: '/test/lease', attachChild: vi.fn(), release }));
+  const controlDb = join(folder, 'control.db');
+  const { AuthStore } = await import('../src/auth/store.js');
+  AuthStore.open(controlDb); ProjectStore.open(controlDb);
+  const coordinator = new ProjectRunCoordinator({ store: projects, dbPath: controlDb, projectsRoot,
+    skillsDir: join(folder, 'skills'), hostEnv: haystackTestEnvironment(folder), compute: () => dispatcher, driver,
+    acquireLease, onRunFinished: finished, queuedRunAllowed: () => true });
+  const recover = vi.spyOn(dispatcher, 'recover');
+  const tick = async () => {
+    await new Promise(resolve => setTimeout(resolve, 1_050));
+    coordinator.pollRunControls();
+    await coordinator.waitForIdle();
+  };
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+  // The app reconnects (its stop reported), then its person pauses it.
+  const app = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: async () => {}, reconcile: async () => {},
+    assign: async () => ({ execute: handler }) });
+  try {
+    await vi.waitFor(() => expect(devices.inspect(owner, paired.deviceId).assignment).toBeNull());
+    await app.requestControl('accepting', false);
+    const session = devices.currentSession(paired.deviceId)!;
+    for (let i = 0; i < 3; i++) await tick();
+    expect(recover).not.toHaveBeenCalled();
+    expect(acquireLease).not.toHaveBeenCalled();
+    expect(projects.getProjectRun(owner.orgId, runId)?.status).toBe('running');
+    // Resumed on the same connection: the next poll fetches the files.
+    await app.requestControl('accepting', true);
+    expect(devices.currentSession(paired.deviceId)).toEqual(session);
+    await tick();
+    expect(recover).toHaveBeenCalledOnce();
+    const row = projects.getProjectRun(owner.orgId, runId)!;
+    expect(row.status).toBe('delivered');
+    expect(readFileSync(join(paths.workspacePath, 'result.txt'), 'utf8')).toBe('remote delivery');
+    expect(driver).not.toHaveBeenCalled();
+  } finally {
+    stderr.mockRestore(); coordinator.stopQueue();
+    await app.close(); await client.close();
+  }
+}, 30_000);
+
 // Review 2026-10-25: automatic finalization paces by whether a failed attempt
 // reached the computer (`ComputeDispatchPendingError.reachedDevice`). Over the
 // real WSS: an export lost after assign says it did; an assign the computer

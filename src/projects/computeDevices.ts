@@ -300,6 +300,10 @@ export class ComputeDeviceStore {
     if (!row.session_id || row.revoked || row.lease_until <= this.now()) return undefined;
     return { deviceId, sessionId: row.session_id, generation: row.connection_generation };
   }
+  /** Host-only: the device accepts work (its person did not pause it). Advisory; assign rechecks. */
+  accepting(deviceId: string): boolean {
+    return !!this.device(deviceId).accepting;
+  }
   /** Host-only: no execution holds this device's slot. Advisory; assign rechecks. */
   unassigned(deviceId: string): boolean {
     return this.device(deviceId).run_id === null;

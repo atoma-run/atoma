@@ -1,6 +1,6 @@
 import { RUN_TIMEOUT_MS } from '../contracts/runTimeouts.js';
 import { observeTiming, timingSidecar } from '../core/runtimeTiming.js';
-import { ComputeDispatchPendingError, ComputeDispatchStore, ComputeFinalizationRefusedError, type ComputeDispatcher } from './computeDispatch.js';
+import { COMPUTE_NOT_ACCEPTING, ComputeDispatchPendingError, ComputeDispatchStore, ComputeFinalizationRefusedError, type ComputeDispatcher } from './computeDispatch.js';
 import type { ComputeResultsWaiting } from '../contracts/computeDevice.js';
 import { eventLabel, type PlatformEventInput } from '../contracts/platformEvents.js';
 import { ClientQuestionConflict } from '../run/clientQuestions.js';
@@ -175,6 +175,22 @@ export function resultsWaitingEventInput(event: ComputeResultsWaitingEvent): Pla
     summary: `Run results waiting on the requester's computer: ${eventLabel(event.goal, 120)}`,
     detail: { goal: eventLabel(event.goal, 120), since: event.since, ...(event.computerReady ? { computerReady: true } : {}) },
   };
+}
+
+/**
+ * A process that is its own executor (no executor socket) runs no executor
+ * host, so nothing else polls its run controls: this is that poll. It finishes
+ * waiting Compute transfers and tells their requesters by itself (each
+ * throttled inside `pollRunControls`), as the selected executor's host does.
+ * Returns the stop function; the timer never holds the process open.
+ */
+export function startSelfExecutorControlPoll(coordinator: Pick<ProjectRunCoordinator, 'pollRunControls'>, intervalMs = 1_000): () => void {
+  const timer = setInterval(() => {
+    try { coordinator.pollRunControls(); }
+    catch (error) { process.stderr.write(`[atoma projects] control poll failed: ${String(error).slice(0, 500)}\n`); }
+  }, intervalMs);
+  timer.unref();
+  return () => clearInterval(timer);
 }
 
 export interface ProjectCoordinatorOptions {
@@ -389,10 +405,16 @@ export const COMPUTE_FINALIZE_BACKOFF_MS = 30_000;
 export const COMPUTE_FINALIZE_BACKOFF_MAX_MS = 10 * 60_000;
 export const COMPUTE_FINALIZE_MIN_GAP_MS = 5_000;
 
-interface ComputeFinalizationFailure { readonly key: string; readonly failures: number; readonly reachedDevice: boolean; readonly at: number }
+/** `paused`: since this failure the poll saw its computer paused by its person. */
+interface ComputeFinalizationFailure {
+  readonly key: string; readonly failures: number; readonly reachedDevice: boolean; readonly at: number; readonly paused?: boolean;
+}
 
-/** How long after `last` an attempt on the connection `key` may start. */
+/** How long after `last` an attempt on the connection `key` may start. Resuming
+ * a paused computer is news (it keeps its connection): no wait. Only a person
+ * pauses, so this cannot loop the way a reconnection could. */
 function computeFinalizationWait(last: ComputeFinalizationFailure, key: string): number {
+  if (last.paused) return 0;
   const growth = 2 ** Math.min(last.failures - 1, 20);
   const backoff = Math.min(COMPUTE_FINALIZE_BACKOFF_MS * growth, COMPUTE_FINALIZE_BACKOFF_MAX_MS);
   return !last.reachedDevice && last.key !== key ? Math.min(COMPUTE_FINALIZE_MIN_GAP_MS * growth, backoff) : backoff;
@@ -1518,6 +1540,12 @@ export class ProjectRunCoordinator {
   private finalizeComputeRunAutomatically(run: ProjectRun, compute: ComputeControl): void {
     const runId = run.projectRunId;
     const key = compute.finalizationReady?.(run) ?? null;
+    // Paused by its person: assign would refuse, so nothing is attempted or counted.
+    if (key === COMPUTE_NOT_ACCEPTING) {
+      const last = this.computeFinalizationPacing.get(runId);
+      if (last && !last.paused) this.computeFinalizationPacing.set(runId, { ...last, paused: true });
+      return;
+    }
     if (!key || this.computeFinalizing.has(runId)) return;
     // Retrying cannot restore a membership or reopen a project: wait, say so once.
     const blocker = this.computeFinalizationBlocker(run);

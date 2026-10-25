@@ -109,6 +109,9 @@ export class ComputeDispatchStore {
   }
 }
 
+/** `finalizationReady`'s answer for a connected computer its person paused. */
+export const COMPUTE_NOT_ACCEPTING = 'not-accepting';
+
 export class ComputeDispatchPendingError extends Error {
   /** `reachedDevice`: this attempt held the device's slot, so its close made
    * the device reconnect; a new connection then says nothing new. */
@@ -203,7 +206,9 @@ export class ComputeDispatcher {
   }
   /** Whether `recover` could finish this pending transfer now, without asking
    * anyone: a key naming the connection it would use (a new one on every
-   * reconnection), `transferred` when the bytes are already here, else null.
+   * reconnection), `transferred` when the bytes are already here,
+   * `not-accepting` while its person paused a connected computer (assign
+   * would refuse, and resuming opens no new connection), else null.
    * Advisory and read-only: `recover`'s assign rechecks every authority. A
    * device that still holds an execution slot (its own stop not yet reported,
    * or another run) is never attempted. */
@@ -214,7 +219,9 @@ export class ComputeDispatcher {
     if (record?.phase !== 'finalizing') return null;
     try {
       const session = this.options.devices.currentSession(run.executionTarget.deviceId);
-      if (!session || !this.options.connectionFor(session) || !this.options.devices.unassigned(session.deviceId)) return null;
+      if (!session || !this.options.connectionFor(session)) return null;
+      if (!this.options.devices.accepting(session.deviceId)) return COMPUTE_NOT_ACCEPTING;
+      if (!this.options.devices.unassigned(session.deviceId)) return null;
       return `connection:${session.sessionId}:${session.generation}`;
     } catch { return null; }
   }

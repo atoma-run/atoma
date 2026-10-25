@@ -2781,6 +2781,19 @@ describe('automatic Compute finalization', () => {
     } finally { s.close(); }
   });
 
+  // Review 2026-10-25: a process that is its own executor (no executor
+  // socket) ran only the results-waiting notice on a timer, so it finished a
+  // waiting run only at boot or when a lease was released.
+  it('finishes a waiting run on its own timer in a process that is its own executor', async () => {
+    const { startSelfExecutorControlPoll } = await import('../src/projects/coordinator.js');
+    const s = await computeFinalizationFixture();
+    const stop = startSelfExecutorControlPoll(s.coordinator, 10);
+    try {
+      await vi.waitFor(() => expect(s.status()).toBe('delivered'));
+      expect(s.recover).toHaveBeenCalledOnce();
+    } finally { stop(); s.close(); }
+  });
+
   it('waits while the computer is offline, then finishes as soon as it reconnects', async () => {
     const s = await computeFinalizationFixture({ connected: false });
     try {
@@ -2912,23 +2925,77 @@ describe('automatic Compute finalization', () => {
 
   // Review 2026-10-25: the pacing reads `reachedDevice` from the REAL
   // dispatcher. A failure after assign closed the computer's socket, so the
-  // reconnection that follows is no news; a refused assign (computer paused)
-  // never reached it, so a new connection is.
+  // reconnection that follows is no news; a refused assign (the computer
+  // paused between the poll's look and the assign) never reached it, so a
+  // new connection is.
   it.each([
     ['fails after assign: its own close is no news', false, 1],
     ['is refused at assign: a new connection is news', true, 2],
   ] as const)('paces a real finalization attempt that %s', async (_case, paused, attempts) => {
-    const s = await computeFinalizationFixture({ realRecover: true });
+    const pause = (on: boolean) => s.devices.setAccepting(s.device.credential, s.devices.currentSession(s.device.deviceId)!, !on);
+    const s: Scenario = await computeFinalizationFixture({ realRecover: true, acquireLease: async () => {
+      if (paused && s.leases.length === 0) pause(true);
+      return lease();
+    } });
     try {
-      if (paused) s.devices.setAccepting(s.device.credential, s.devices.currentSession(s.device.deviceId)!, false);
       await s.poll();
       expect(s.recover).toHaveBeenCalledTimes(1);
       expect(s.status()).toBe('running');
+      if (paused) pause(false);
       // A second later the app is back on a new connection (its stop reported, if it held the slot).
       if (paused) s.reconnect(); else s.reportStop();
       await s.poll(6_000);
       expect(s.recover).toHaveBeenCalledTimes(attempts);
       expect(s.status()).toBe('running');
+    } finally { s.close(); }
+  });
+
+  // Review 2026-10-25: a paused computer keeps its connection, and resuming
+  // opens no new one. Attempts used to fail at assign on that connection while
+  // it was paused, growing the backoff to ten minutes that resuming then had
+  // to wait out, and every reader called the transfer stalled meanwhile.
+  it('attempts nothing while its computer is paused, reads it as waiting, and tries again as soon as it resumes on the same connection', async () => {
+    const { ComputeDispatchPendingError } = await import('../src/projects/computeDispatch.js');
+    const { COMPUTE_RESULTS_WAITING_MESSAGE, COMPUTE_RESULTS_STALLED_MESSAGE, computeResultsWaitingMessage } = await import('../src/contracts/computeDevice.js');
+    let failing = true;
+    const s: Scenario = await computeFinalizationFixture({ recover: async () => {
+      if (failing) throw new ComputeDispatchPendingError();
+      return s.log;
+    } });
+    const run = () => s.f.store.getProjectRun(s.owner.orgId, s.runId)!;
+    const session = s.devices.currentSession(s.device.deviceId)!;
+    const accepting = (value: boolean) => s.devices.setAccepting(s.device.credential, session, value);
+    const reader = () => s.coordinator.computeResultsWaiting(run());
+    const row = () => s.coordinator.pendingComputeRuns(s.owner.orgId, s.f.project.projectId, s.owner.principalId)[0];
+    try {
+      await s.poll();
+      await s.poll(31_000);
+      expect(s.recover).toHaveBeenCalledTimes(2);
+      // Connected and accepting, the files did not move: the stalled sentence.
+      expect(computeResultsWaitingMessage(reader()!)).toBe(COMPUTE_RESULTS_STALLED_MESSAGE);
+      accepting(false);
+      // Paused: the plain waiting sentence ("open, connected and accepting work"), never "contact support".
+      expect(reader()).toMatchObject({ computerReady: false });
+      expect(computeResultsWaitingMessage(reader()!)).toBe(COMPUTE_RESULTS_WAITING_MESSAGE);
+      expect(row()).toMatchObject({ phase: 'finalizing', computerReady: false });
+      for (let i = 0; i < 5; i++) await s.poll();
+      expect(s.recover).toHaveBeenCalledTimes(2);
+      // Resumed seconds later, inside the sixty-second backoff, on the same connection: tried at once.
+      accepting(true);
+      expect(s.devices.currentSession(s.device.deviceId)).toEqual(session);
+      await s.poll();
+      expect(s.recover).toHaveBeenCalledTimes(3);
+      // Paused again, for longer than any backoff: nothing attempted, nothing counted.
+      accepting(false);
+      for (let i = 0; i < 8; i++) await s.poll(10 * 60_000 + 1);
+      expect(s.recover).toHaveBeenCalledTimes(3);
+      expect(s.acquireLease).toHaveBeenCalledTimes(3);
+      expect(s.status()).toBe('running');
+      failing = false;
+      accepting(true);
+      await s.poll();
+      expect(s.recover).toHaveBeenCalledTimes(4);
+      expect(s.status()).toBe('delivered');
     } finally { s.close(); }
   });
 
