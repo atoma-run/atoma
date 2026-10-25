@@ -75,6 +75,11 @@ export const artifactPolicyCodeSchema = z.enum([
   'empty', 'path', 'excluded', 'missing', 'symlink', 'special', 'limit', 'changed', 'hash',
 ]);
 export type ArtifactPolicyCode = z.infer<typeof artifactPolicyCodeSchema>;
+/** The refusals the same finished tree reproduces on every attempt, and so the
+ * only ones a Compute export may report as terminal. `missing`, `changed` and
+ * `hash` describe a race or an I/O failure: the inventory turns every
+ * filesystem error (EACCES, EIO, EMFILE...) into `changed`. */
+export const artifactRefusalCodeSchema = artifactPolicyCodeSchema.extract(['empty', 'path', 'excluded', 'symlink', 'special', 'limit']);
 
 /**
  * Workspace entries the inventory left out because they hold no bytes: a

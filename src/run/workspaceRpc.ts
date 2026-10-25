@@ -3,6 +3,7 @@ import type { WorkspaceRuntime, RuntimePhaseGuard, WorkspaceRestoration } from '
 import { WORKSPACE_REFUSAL_MESSAGE_CHARS, WorkspaceExportRefusedError, workspaceCommandSchema, workspaceReplySchema,
   type WorkspaceCommand, type WorkspaceReply } from '../contracts/workspaceProtocol.js';
 import { ArtifactPolicyError } from '../projects/artifacts.js';
+import { artifactRefusalCodeSchema } from '../contracts/artifactInventory.js';
 import type { ReadOnlyRestoration } from '../contracts/readOnlyPhase.js';
 import type { CheckpointExport, CheckpointExportFrame } from '../contracts/checkpointTransfer.js';
 
@@ -70,10 +71,14 @@ export function workspaceCommandHandler(runtime: WorkspaceRuntime): ((input: unk
         let snapshot;
         try { snapshot = await runtime.artifactExport(command.options); }
         catch (error) {
-          // The publication inventory's own refusal is a typed, terminal answer
-          // about this tree; every other failure stays an operation failure.
-          if (!(error instanceof ArtifactPolicyError)) throw error;
-          throw new WorkspaceExportRefusedError({ code: error.code, message: (error.message || 'workspace refused').slice(0, WORKSPACE_REFUSAL_MESSAGE_CHARS) });
+          // The publication inventory's own deterministic refusal is a typed,
+          // terminal answer about this tree. A race or an I/O failure (EACCES,
+          // EIO, EMFILE, inventoried as `changed`) stays an operation failure,
+          // which leaves the run pending for an explicit retry.
+          const code = error instanceof ArtifactPolicyError ? artifactRefusalCodeSchema.safeParse(error.code) : undefined;
+          if (!code?.success) throw error;
+          throw new WorkspaceExportRefusedError({ code: code.data,
+            message: ((error as Error).message || 'workspace refused').slice(0, WORKSPACE_REFUSAL_MESSAGE_CHARS) });
         }
         const handle = randomUUID();
         exports.set(handle, { snapshot, frames: snapshot.frames(), expiresAt: Date.now() + 30 * 60_000 });

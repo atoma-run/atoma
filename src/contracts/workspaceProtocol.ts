@@ -4,7 +4,7 @@ import { readOnlyExecutionRecordSchema, readOnlyRestorationSchema } from './read
 import { startingSnapshotSchema, deliveredSnapshotSchema } from './startingWorkspace.js';
 import { readRunCopyCheckSchema, readRunFileComparisonsSchema } from './readRuns.js';
 import { routingRepositorySchema } from './tissueRouting.js';
-import { artifactManifestSchema, artifactPolicyCodeSchema, omittedArtifactsSchema } from './artifactInventory.js';
+import { artifactManifestSchema, artifactRefusalCodeSchema, omittedArtifactsSchema } from './artifactInventory.js';
 import { inheritedWorkspaceStateSchema, workspaceSourceSchema, workspaceSourceBindingSchema, artifactExportOptionsSchema } from './workspaceRuntime.js';
 import { checkpointConfirmationSchema, checkpointTransferHeaderSchema, checkpointWireFrameSchema } from './checkpointTransfer.js';
 
@@ -77,7 +77,7 @@ export type WorkspaceReply = z.infer<typeof workspaceReplySchema>;
  * the same tree refuses again, so a finalization that meets it is terminal. */
 export const WORKSPACE_REFUSAL_MESSAGE_CHARS = 2000;
 export const workspaceExportRefusalSchema = z.object({
-  code: artifactPolicyCodeSchema, message: z.string().min(1).max(WORKSPACE_REFUSAL_MESSAGE_CHARS),
+  code: artifactRefusalCodeSchema, message: z.string().min(1).max(WORKSPACE_REFUSAL_MESSAGE_CHARS),
 }).strict();
 export class WorkspaceExportRefusedError extends Error {
   readonly code: z.infer<typeof workspaceExportRefusalSchema>['code'];

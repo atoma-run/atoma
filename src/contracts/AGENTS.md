@@ -42,7 +42,8 @@ untrusted diagnostics, not executable instructions. Source selectors carry only
 a seed discriminator or an authorized reference id. Artifact exports share the
 chunk channel but carry the publication inventory for independent byte validation,
 plus its bounded byte-less omissions; an inventory refusal is the one typed
-error reply (`export-refused`: `artifactPolicyCodeSchema` code, 2,000-char message).
+error reply (`export-refused`: an `artifactRefusalCodeSchema` code, the policy
+codes the same tree reproduces, and a 2,000-char message).
 
 ## Haystack runtime configuration
 

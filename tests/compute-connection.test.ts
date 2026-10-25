@@ -678,7 +678,7 @@ it.each(['complete', 'lost-command', 'lost-transfer'] as const)('dispatches the 
   } finally { await client.close(); }
 });
 
-import { mkdirSync, symlinkSync, existsSync } from 'node:fs';
+import { chmodSync, mkdirSync, symlinkSync, existsSync } from 'node:fs';
 import { startWorkspaceProcess } from '../src/run/workspaceProcess.js';
 import { workspaceReplySchema } from '../src/contracts/workspaceProtocol.js';
 import { ComputeFinalizationRefusedError } from '../src/projects/computeDispatch.js';
@@ -687,7 +687,12 @@ import { ComputeFinalizationRefusedError } from '../src/projects/computeDispatch
 // left at the workspace root, closed the channel with no reason, and the run
 // stayed running. This crosses the same boundaries: the workspace service
 // process the device spawns, the device's WSS client and the server dispatcher.
-it.each(['omitted', 'refused', 'recovered'] as const)('finalizes a Compute export through the device workspace service: %s', async scenario => {
+// `unreadable`: an I/O failure is no refusal, the run stays pending (review
+// 2026-10-25, 2). `resumed`: a server crash after the copy landed, before its
+// journal commit, never logs the omissions twice (review 2026-10-25, 3).
+it.each(['omitted', 'refused', 'recovered', 'unreadable', 'resumed'] as const)('finalizes a Compute export through the device workspace service: %s', async scenario => {
+  // Root reads a mode-000 directory: there is no I/O failure to provoke.
+  if (scenario === 'unreadable' && process.getuid?.() === 0) return;
   const owner = actor(), paired = pairing(owner), p = project(owner);
   devices.grantProject(owner, paired.deviceId, p.projectId, true);
   devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
@@ -703,7 +708,9 @@ it.each(['omitted', 'refused', 'recovered'] as const)('finalizes a Compute expor
     symlinkSync(`/tmp/org.chromium.Chromium.${randomUUID()}/SingletonSocket`, join(remote, profile, 'SingletonSocket'));
   }
   // A link that resolves still refuses delivery, as on a hosted run.
-  if (scenario !== 'omitted') symlinkSync('browser/collector.js', join(remote, 'latest.js'));
+  if (scenario === 'refused' || scenario === 'recovered') symlinkSync('browser/collector.js', join(remote, 'latest.js'));
+  // Never descended: the inventory meets EACCES, a filesystem error it reports as `changed`.
+  if (scenario === 'unreadable') { mkdirSync(join(remote, 'locked')); chmodSync(join(remote, 'locked'), 0o000); }
   const receipt = projects.createProjectRun({ orgId: owner.orgId, projectId: p.projectId, principalId: owner.principalId,
     request: { idempotencyKey: randomUUID(), goal: 'Compute export' },
     hostPaths: { workspacePath: join(folder, 'received'), runsPath: join(folder, 'traces'), logPath: join(folder, 'run.log') } })!.run;
@@ -718,6 +725,13 @@ it.each(['omitted', 'refused', 'recovered'] as const)('finalizes a Compute expor
       return workspaceReplySchema.parse(await service.command(command));
     }, tools: { has: () => true, execute: async () => null, drain: async () => {} } }) });
   const journal = new ComputeDispatchStore(db);
+  const commit = journal.phase.bind(journal);
+  let crashed = false;
+  if (scenario === 'resumed') vi.spyOn(journal, 'phase').mockImplementation((id, generation, phase) => {
+    if (phase === 'transferred' && !crashed) { crashed = true; throw new Error('server stopped before the journal commit'); }
+    commit(id, generation, phase);
+  });
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
   const dispatcher = new ComputeDispatcher({ devices, journal, resources, connectionFor: session => gateway.connectionFor(session) });
   projects.transitionProjectRun({ orgId: owner.orgId, projectRunId: receipt.projectRunId, from: 'queued', to: 'running' });
   const log = formatRunStatsEpilogue({ outcome: 'partial', costUsd: 0.42, llmCalls: 7, opusCalls: 0, sonnetCalls: 0, haikuCalls: 0, otherCalls: 7,
@@ -747,6 +761,26 @@ it.each(['omitted', 'refused', 'recovered'] as const)('finalizes a Compute expor
       expect((error as InstanceType<typeof ComputeFinalizationRefusedError>).log).toBe(log);
       expect(journal.inspect(receipt.projectRunId)?.phase).toBe('finalizing');
       expect(existsSync(receipt.hostPaths.workspacePath)).toBe(false);
+    } else if (scenario === 'unreadable') {
+      await expect(result).rejects.toBeInstanceOf(ComputeDispatchPendingError);
+      expect(journal.inspect(receipt.projectRunId)?.phase).toBe('finalizing');
+      expect(existsSync(receipt.hostPaths.workspacePath)).toBe(false);
+      expect(stderr.mock.calls.map(call => String(call[0])).join('')).toContain(`finalization of ${receipt.projectRunId} remains pending`);
+    } else if (scenario === 'resumed') {
+      await expect(result).rejects.toBeInstanceOf(ComputeDispatchPendingError);
+      expect(journal.inspect(receipt.projectRunId)?.phase).toBe('finalizing');
+      expect(readFileSync(join(receipt.hostPaths.workspacePath, 'browser', 'collector.js'), 'utf8')).toBe('collector');
+      await vi.waitFor(() => expect(stopWorkloads).toHaveBeenCalledOnce());
+      await client.close();
+      const recovery = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities,
+        ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: async () => {}, reconcile: async () => {},
+        assign: async () => ({ execute: async command => workspaceReplySchema.parse(await service.command(command)) }) });
+      try {
+        expect(await dispatcher.recover(projects.getProjectRun(owner.orgId, receipt.projectRunId)!, manifestPath)).toBe(log);
+      } finally { await recovery.close(); }
+      expect(journal.inspect(receipt.projectRunId)?.phase).toBe('transferred');
+      // The recovery revalidated the copy the first export published and logged.
+      expect(readFileSync(receipt.hostPaths.logPath, 'utf8').split('holding no bytes').length - 1).toBe(1);
     } else {
       await expect(result).rejects.toBeInstanceOf(ComputeDispatchPendingError);
       expect(journal.inspect(receipt.projectRunId)?.phase).toBe('finalizing');
@@ -766,7 +800,25 @@ it.each(['omitted', 'refused', 'recovered'] as const)('finalizes a Compute expor
     }
     // The server, not a device failure, ends the execution in both cases.
     await vi.waitFor(() => expect(stopWorkloads).toHaveBeenCalledOnce());
-  } finally { await client.close(); await service.close(); }
+  } finally {
+    stderr.mockRestore();
+    if (scenario === 'unreadable') chmodSync(join(remote, 'locked'), 0o700);
+    await client.close(); await service.close();
+  }
+});
+
+it('logs why a dispatch with no connected device stays pending', async () => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const receipt = projects.getProjectRun(owner.orgId, run(owner, p.projectId))!;
+  const dispatcher = new ComputeDispatcher({ devices, journal: new ComputeDispatchStore(db), resources, connectionFor: () => undefined });
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+  try {
+    await expect(dispatcher.drive(receipt, async () => 'never', { goal: receipt.goal, timeoutMs: 5000, logPath: '/not-used/log' }, '/not-used/manifest'))
+      .rejects.toBeInstanceOf(ComputeDispatchPendingError);
+    expect(stderr.mock.calls.map(call => String(call[0])).join('')).toContain(`dispatch of ${receipt.projectRunId} remains pending: Error: device not connected`);
+  } finally { stderr.mockRestore(); }
 });
 
 it('rejects a replacement inventory even when it presents the existing device credential', async () => {

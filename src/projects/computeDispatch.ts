@@ -123,10 +123,13 @@ export class ComputeDispatcher {
     if (existsSync(run.hostPaths.workspacePath)) {
       // A crash may happen after atomic directory publication and before the
       // journal commit. Verify the saved bytes; never overwrite or replay tools.
+      // The export that published that copy already logged its omissions.
       try { revalidateArtifactManifest({ workspaceRoot: run.hostPaths.workspacePath, manifest: exporting.manifest }); }
       finally { await exporting.close(); }
-    } else await receiveArtifactExport(exporting, run.hostPaths.workspacePath);
-    recordOmittedArtifacts(run.hostPaths.logPath, run.projectRunId, exporting.omitted);
+    } else {
+      await receiveArtifactExport(exporting, run.hostPaths.workspacePath);
+      recordOmittedArtifacts(run.hostPaths.logPath, run.projectRunId, exporting.omitted);
+    }
     // Remote observations describe only the verified delivery, never platform trust.
     const admitted = classification.entry === null || exporting.manifest.files.some(file => file.path === classification.entry);
     this.options.journal.recordPreview(run.projectRunId, admitted ? classification : {
@@ -162,7 +165,7 @@ export class ComputeDispatcher {
     // authority and resources transactionally, without relying on readiness.
     const session = this.options.devices.currentSession(run.executionTarget.deviceId);
     const peer = session && this.options.connectionFor(session);
-    if (!session || !peer) throw new ComputeDispatchPendingError();
+    if (!session || !peer) { logPending(run.projectRunId, 'dispatch', new Error('device not connected')); throw new ComputeDispatchPendingError(); }
     const assignment = this.options.devices.assign({ orgId: run.orgId, principalId: run.requestedByPrincipalId }, session, run.projectRunId, this.options.resources);
     const execution = { runId: run.projectRunId, generation: assignment.generation };
     let bridge: Awaited<ReturnType<typeof serveComputeBridge>> | undefined;
