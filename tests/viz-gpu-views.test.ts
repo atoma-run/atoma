@@ -3915,7 +3915,7 @@ describe('drawProjects', () => {
     expect(values.some(value => /aaaaaaaa|bbbbbbbb/.test(value))).toBe(false);
     expect(ctx.tooltips.map(tip => tip.text)).toEqual(expect.arrayContaining([t('hosting.versionShort', { version: 'aaaaaaaa' }),
       t('hosting.versionShort', { version: 'bbbbbbbb' })]));
-    const confirming = draw(settings({ confirming: 'update' }));
+    const confirming = draw(settings({ confirming: { action: 'update', runId: HOSTED_RUN_B, deploymentId: '22222222-2222-4222-8222-222222222222' } }));
     expect(confirming.texts.some(text => text.value === t('hosting.confirm.update'))).toBe(true);
     expect(confirming.buttons.map(button => button.id)).toEqual(expect.arrayContaining(['hosting.confirm', 'hosting.cancel']));
     expect(confirming.buttons.some(button => button.id === 'hosting.update' || button.id === 'hosting.stop')).toBe(false);
@@ -6066,7 +6066,7 @@ describe('the shared final result panel', () => {
     const offered = draw();
     expect(offered.texts.some(text => text.value === t('hosting.offer.outdated'))).toBe(true);
     expect(offered.buttons.find(button => button.id === 'hosting.update')?.label).toBe(t('hosting.update'));
-    const confirming = draw({ confirming: 'update' });
+    const confirming = draw({ confirming: { action: 'update', runId: HOSTED_RUN_B, deploymentId: '22222222-2222-4222-8222-222222222222' } });
     expect(confirming.texts.some(text => text.value === t('hosting.confirm.update'))).toBe(true);
     expect(confirming.buttons.map(button => button.id)).toEqual(expect.arrayContaining(['hosting.confirm', 'hosting.cancel']));
     expect(confirming.buttons.some(button => button.id === 'hosting.update')).toBe(false);

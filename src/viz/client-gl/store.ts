@@ -239,9 +239,12 @@ export interface GpuUiState {
   /**
    * The hosted application's update or put-back awaiting its explicit
    * Confirm: one signal for the canvas settings card, its DOM twin, the run's
-   * result page and the conversation's run card.
+   * result page and the conversation's run card. It names the version it
+   * would put online and the deployment the person saw, so a status that moved
+   * meanwhile drops it instead of confirming something else; leaving the
+   * screen drops it too.
    */
-  hostingConfirm: { projectId: string; action: 'update' | 'restore' } | null;
+  hostingConfirm: HostingConfirm | null;
   projectAssistantCompact: boolean;
   projectAssistantCompactHeight: number | null;
   workspaceRunId: string | null;
@@ -351,7 +354,7 @@ export interface GpuUiState {
   selectProjectSection: (section: GpuUiState['projectSection'], runId?: string | null) => void;
   selectSentinelSection: (section: SentinelSection) => void;
   toggleProjectOverview: () => void;
-  setHostingConfirm: (confirm: { projectId: string; action: 'update' | 'restore' } | null) => void;
+  setHostingConfirm: (confirm: HostingConfirm | null) => void;
   openWorkspace: (runId: string | null) => void;
   /** A run's way back: its project, on the Runs section that lists it, that run's card in view when named. */
   openProjectRuns: (projectId: string, runId?: string | null) => void;
@@ -411,6 +414,9 @@ function initialTuningPanelOpen(): boolean {
   return value === '1' || value?.trim().toLowerCase() === 'true';
 }
 
+/** An update or put-back awaiting Confirm: the version it targets and the deployment it replaces. */
+export interface HostingConfirm { projectId: string; action: 'update' | 'restore'; runId: string; deploymentId: string | null }
+
 function viewChange(
   state: GpuUiState,
   view: ViewName,
@@ -428,9 +434,12 @@ function viewChange(
   | 'notificationsMenuOpen'
   | 'announcementResetSignal'
   | 'filePreview'
+  | 'hostingConfirm'
 > {
   return {
     view,
+    // A pending hosting confirmation belongs to the screen that asked for it.
+    hostingConfirm: view === state.view ? state.hostingConfirm : null,
     // A reader docked in the Files section belongs to the screen being left.
     filePreview: view === state.view ? state.filePreview : null,
     resultRunId: null,
@@ -728,6 +737,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectProject: (selectedProjectId) => set((state) => ({
     selectedProjectId,
     focusedProjectRunId: null,
+    hostingConfirm: null,
     // Opening a project focuses its content from both canvas and keyboard.
     sceneCameraMode: selectedProjectId ? 'focus' : state.sceneCameraMode,
     projectSection: 'conversation',
@@ -743,6 +753,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectProjectSection: (projectSection, runId = null) => set(state => ({
     projectSection,
     focusedProjectRunId: null,
+    hostingConfirm: null,
     workspaceRunId: projectSection === 'files' ? runId : null,
     workspacePath: '', filePreview: null,
     resultRunId: projectSection === 'result' ? runId : null,
@@ -757,7 +768,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   toggleProjectOverview: () => set(state => ({ projectOverviewCollapsed: !state.projectOverviewCollapsed })),
   setHostingConfirm: (hostingConfirm) => set({ hostingConfirm }),
   openWorkspace: (workspaceRunId) => set(state => ({
-    projectSection: workspaceRunId ? 'files' : 'runs',
+    projectSection: workspaceRunId ? 'files' : 'runs', hostingConfirm: null,
     workspaceRunId, workspacePath: '', filePreview: null, scrollY: { ...state.scrollY, projects: 0 },
   })),
   openProjectRuns: (projectId, runId = null) => {
@@ -774,7 +785,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   setActivityChangeExpanded: (id, expanded) => set(state => ({
     runActivityExpandedChanges: { ...state.runActivityExpandedChanges, [id]: expanded },
   })),
-  selectResult: (resultRunId) => set({ resultRunId, resultActionStatus: null, resultDetailsOpen: false, runActivityOpen: false }),
+  selectResult: (resultRunId) => set(state => ({ resultRunId, resultActionStatus: null, resultDetailsOpen: false, runActivityOpen: false,
+    hostingConfirm: resultRunId === state.resultRunId ? state.hostingConfirm : null })),
   setResultActionStatus: (resultActionStatus) => set({ resultActionStatus }),
   toggleResultDetails: () => set(state => ({ resultDetailsOpen: !state.resultDetailsOpen })),
   setRunFilters: (runFilters) =>

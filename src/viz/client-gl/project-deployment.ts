@@ -1,10 +1,10 @@
 import { hostingSummarySchema, type HostingSummary, type HostingVersion } from '../../contracts/projectHosting.js';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deploymentDestinationSchema, hostingSubdomainSchema, RESERVED_HOSTING_SUBDOMAINS, type DeploymentDestination } from '../../contracts/projectDeployment.js';
 import type { VizProject } from '../client/types.js';
 import { dateTimeFormat } from '../client/date-format.js';
-import { useGpuStore } from './store.js';
+import { useGpuStore, type HostingConfirm } from './store.js';
 
 /** A hosting operation the person started from this client. */
 export type HostingAction = 'deploy' | 'update' | 'restore' | 'stop' | 'open';
@@ -19,8 +19,11 @@ export interface DeploymentSettingsView {
   hostingError?: boolean;
   /** The last update, put-back or first deployment requested here, to word its outcome. */
   hostingAction?: 'deploy' | 'update' | 'restore' | null;
-  /** An update or put-back waiting for its explicit Confirm (store signal, shared by every surface). */
-  confirming?: 'update' | 'restore' | null;
+  /**
+   * An update or put-back waiting for its explicit Confirm (store signal, shared
+   * by every surface), with the version and deployment it was asked against.
+   */
+  confirming?: Pick<HostingConfirm, 'action' | 'runId' | 'deploymentId'> | null;
   destination: DeploymentDestination;
   saved: DeploymentDestination;
   canEdit: boolean;
@@ -59,10 +62,16 @@ export function useProjectDeployment(project: VizProject | null | undefined, can
     hosting: hosting.data, hostingBusy: hostingBusy !== null, hostingBusyAction: hostingBusy,
     hostingError: hostingError || hosting.isError, saved, canEdit, busy: saving === project?.projectId && saving !== undefined,
     hostingAction: lastAction?.projectId === project?.projectId ? lastAction?.action ?? null : null,
-    confirming: confirm && confirm.projectId === project?.projectId && canEdit ? confirm.action : null,
+    confirming: confirm && confirm.projectId === project?.projectId && canEdit
+      ? { action: confirm.action, runId: confirm.runId, deploymentId: confirm.deploymentId } : null,
     status: edit?.key === key ? edit.status : 'idle',
     renaming: rename?.projectId === project?.projectId && rename !== undefined, renameBusy: rename?.busy ?? false, renameError: rename?.error ?? null }),
   [edit, key, saved, canEdit, saving, project, hosting.data, hostingBusy, hostingError, hosting.isError, rename, lastAction, confirm]);
+  // A refreshed status that no longer offers the confirmed version, or names
+  // another deployment, drops the confirmation on every surface at once.
+  useEffect(() => {
+    if (confirm && project && confirm.projectId === project.projectId && hosting.data && !confirmationHolds(hosting.data, confirm)) setConfirm(null);
+  }, [confirm, project, hosting.data, setConfirm]);
   const activate = useCallback((id: string) => {
     if (!project || inFlight.current) return;
     if (id === 'hosting.rename') {
@@ -74,8 +83,10 @@ export function useProjectDeployment(project: VizProject | null | undefined, can
     // Updating or putting back stops the site: it waits for an explicit Confirm.
     if (id === 'hosting.update' || id === 'hosting.restore') {
       const action = id === 'hosting.update' ? 'update' : 'restore';
-      if (canEdit && hosting.data && hostingBusy === null && (action === 'update' ? hosting.data.candidate : hosting.data.previous)) {
-        setHostingError(false); setConfirm({ projectId: project.projectId, action });
+      const target = action === 'update' ? hosting.data?.candidate : hosting.data?.previous;
+      if (canEdit && hosting.data && hostingBusy === null && target) {
+        setHostingError(false);
+        setConfirm({ projectId: project.projectId, action, runId: target.runId, deploymentId: hosting.data.deploymentId });
       }
       return;
     }
@@ -85,8 +96,12 @@ export function useProjectDeployment(project: VizProject | null | undefined, can
         ? id.slice('hosting.'.length) as HostingAction : null);
       if (!action || !hosting.data || hostingBusy !== null || (action !== 'open' && !canEdit)) return;
       const summary = hosting.data;
+      // A confirmation posts exactly what it named: if the status moved since
+      // (another accepted version, another deployment), it is dropped instead.
+      if (confirmed && confirm && !confirmationHolds(summary, confirm)) { setConfirm(null); return; }
       const target = action === 'restore' ? summary.previous : action === 'deploy' || action === 'update' ? summary.candidate : null;
       if ((action === 'deploy' || action === 'update' || action === 'restore') && !target) return;
+      const expectedDeploymentId = confirmed && confirm ? confirm.deploymentId : summary.deploymentId;
       if (confirmed) setConfirm(null);
       const popup = action === 'open' ? window.open('about:blank', '_blank') : null;
       if (action === 'open' && !popup) { setHostingError(true); return; }
@@ -97,8 +112,8 @@ export function useProjectDeployment(project: VizProject | null | undefined, can
         try {
           const response = await fetch(`/api/projects/${encodeURIComponent(project.projectId)}/hosting/${action}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(target ? { runId: target.runId, manifestHash: target.manifestHash,
-              expectedDeploymentId: summary.deploymentId } : { expectedDeploymentId: summary.deploymentId }),
+            body: JSON.stringify(target ? { runId: target.runId, manifestHash: target.manifestHash, expectedDeploymentId }
+              : { expectedDeploymentId }),
           });
           if (!response.ok) throw new Error('Hosting request failed');
           if (action === 'open') {
@@ -205,32 +220,43 @@ export function hostingCopy(view: DeploymentSettingsView) {
   if (view.saved !== 'atoma' && !view.hosting?.deploymentId) return null;
   const hosting = view.hosting;
   const state = hosting?.state;
-  const tone: HostingTone = view.hostingError || state === 'failed' ? 'error'
-    : state === 'ready' ? 'success' : state === 'starting' || view.hostingBusy ? 'warning' : 'muted';
   const version = hosting?.commitSha?.slice(0, 8) ?? null;
   const candidateVersion = hosting?.candidate?.commitSha.slice(0, 8) ?? null;
-  const online = state === 'ready' && !!hosting?.url;
+  // Online is what serves, not the newest deployment's state: the server
+  // names a ready deployment's address (and describes that version) even
+  // while a newer one beside it starts or has failed.
+  const online = !!hosting?.url;
   const busy = !!view.hostingBusy || state === 'starting';
   // The project's address; a deployment from before addresses existed is still served at its `p-<uuid>` host.
   const shownAddress = hosting?.address ?? hosting?.url ?? null;
   const candidate = hosting?.candidate ?? null;
   const newer = !!candidate && candidate.commitSha !== hosting?.commitSha;
+  // The newest deployment failed and it was the accepted candidate. Off line
+  // the status names the failed version; online, only the candidate is ever
+  // started beside the version that serves, so a newer candidate is the one.
+  const candidateFailed = state === 'failed' && !!candidate && (online ? newer : hosting?.runId === candidate.runId);
+  const tone: HostingTone = view.hostingError || (state === 'failed' && !online) ? 'error'
+    : candidateFailed || state === 'starting' || (view.hostingBusy && !online) ? 'warning' : online ? 'success' : 'muted';
+  // A confirmation holds only while the status still offers what it named.
+  const confirming = view.confirming && view.canEdit && hosting && confirmationHolds(hosting, view.confirming)
+    ? view.confirming.action : null;
   const previous = !online && state === 'failed' ? hosting?.previous ?? null : null;
   // Off line with a version to put online: a runtime that may still hold the
   // data (its state unknown) is stopped first, so it takes the update path.
   const startNew = !online && !!candidate && state !== 'starting' ? (hosting?.updateStops ? 'update' : 'deploy') : null;
   const next = online ? (newer ? 'update' : null) : previous ? 'restore' : startNew;
-  const update = next === 'update' && online ? 'hosting.update.available'
-    : next === 'restore' ? 'hosting.outcome.failed'
+  const update = candidateFailed && online ? 'hosting.outcome.failedOnline'
+    : next === 'update' && online ? 'hosting.update.available'
+    : next === 'restore' || candidateFailed ? 'hosting.outcome.failed'
     : next ? 'hosting.update.startable'
     : !candidate && !online ? 'hosting.update.none' : null;
-  const primary: HostingControl | null = !next || !view.canEdit || view.confirming ? null
-    : { id: `hosting.${next}`, disabled: busy };
+  const primary: HostingControl | null = !next || !view.canEdit || confirming ? null
+    : { id: `hosting.${next}`, ...(candidateFailed && next !== 'restore' ? { label: 'hosting.retry' } : {}), disabled: busy };
   // A failed update keeps its own retry beside the put-back.
-  const retry: HostingControl | null = next === 'restore' && startNew && view.canEdit && !view.confirming
+  const retry: HostingControl | null = next === 'restore' && startNew && view.canEdit && !confirming
     ? { id: `hosting.${startNew}`, label: 'hosting.retry', disabled: busy } : null;
-  const confirm = view.confirming && view.canEdit && hosting ? {
-    message: view.confirming === 'restore' ? 'hosting.confirm.restore' : !online ? 'hosting.confirm.start'
+  const confirm = confirming && hosting ? {
+    message: confirming === 'restore' ? 'hosting.confirm.restore' : !online ? 'hosting.confirm.start'
       : hosting.updateStops ? 'hosting.confirm.update' : 'hosting.confirm.updateLive',
     actions: [{ id: 'hosting.confirm', disabled: busy }, { id: 'hosting.cancel' }] as HostingControl[],
   } : null;
@@ -246,8 +272,9 @@ export function hostingCopy(view: DeploymentSettingsView) {
     ...(hosting?.address && view.canEdit ? [{ id: 'hosting.rename', disabled: !!view.hostingBusy || !!view.renameBusy }] : []),
   ];
   return {
-    status: view.hostingError ? 'hosting.error' : view.hostingBusy ? (progress ?? 'hosting.busy') : hosting ? `hosting.${hosting.state}` : 'hosting.unconfigured',
-    tone, version, candidateVersion, address: shownAddress,
+    status: view.hostingError ? 'hosting.error' : view.hostingBusy ? (progress ?? 'hosting.busy')
+      : hosting ? `hosting.${online && state === 'failed' ? 'ready' : hosting.state}` : 'hosting.unconfigured',
+    tone, version, candidateVersion, address: shownAddress, candidateFailed,
     ...addressParts(hosting?.address ?? null),
     actions,
     /** What runs now, or what was stopped, in words; a version starting or failed is not "online". */
@@ -259,9 +286,15 @@ export function hostingCopy(view: DeploymentSettingsView) {
       : next ? line(online ? 'hosting.version.candidate' : 'hosting.version.ready', candidate) : null,
     primary, retry, confirm, progress,
     askAdmin: next && !view.canEdit ? (next === 'deploy' ? 'hosting.offer.askAdminDeploy' : 'hosting.offer.askAdmin') : null,
-    stop: view.canEdit && hosting?.deploymentId && state !== 'stopped' && !view.confirming
+    stop: view.canEdit && hosting?.deploymentId && state !== 'stopped' && !confirming
       ? { id: 'hosting.stop', disabled: busy } : null,
   };
+}
+
+/** Whether a pending confirmation still names what the status offers: the same version, against the same deployment. */
+export function confirmationHolds(summary: HostingSummary, confirm: Pick<HostingConfirm, 'action' | 'runId' | 'deploymentId'>): boolean {
+  const target = confirm.action === 'restore' ? summary.previous : summary.candidate;
+  return !!target && target.runId === confirm.runId && summary.deploymentId === confirm.deploymentId;
 }
 export type HostingCopy = NonNullable<ReturnType<typeof hostingCopy>>;
 
@@ -270,7 +303,8 @@ export type HostingCopy = NonNullable<ReturnType<typeof hostingCopy>>;
  * page): the same next step as Settings, offered only for this run's accepted
  * version, when the project is hosted on Atoma and the application is online
  * with an older version or was never put online — and, once started here,
- * its progress and outcome.
+ * its progress and outcome. A failed attempt to put this run's version online
+ * stays explained after a reload, not only in the tab that asked for it.
  */
 export function hostedUpdateOffer(view: DeploymentSettingsView | null | undefined,
   run: { projectId: string; projectRunId: string } | null | undefined) {
@@ -279,11 +313,12 @@ export function hostedUpdateOffer(view: DeploymentSettingsView | null | undefine
   if (!hosting?.candidate || hosting.candidate.runId !== run.projectRunId) return null;
   const copy = hostingCopy(view);
   if (!copy) return null;
-  const online = hosting.state === 'ready' && !!hosting.url;
-  const lead = online && hosting.candidate.commitSha !== hosting.commitSha ? 'hosting.offer.outdated'
+  const online = !!hosting.url;
+  const lead = copy.candidateFailed ? copy.update
+    : online && hosting.candidate.commitSha !== hosting.commitSha ? 'hosting.offer.outdated'
     : hosting.state === 'not-deployed' ? 'hosting.offer.notOnline' : null;
   const followed = !!view.hostingAction && (!!copy.progress || copy.update === 'hosting.outcome.failed');
-  if (!lead && !followed && !view.confirming) return null;
+  if (!lead && !followed && !copy.confirm) return null;
   return {
     lead: lead ?? (copy.update === 'hosting.outcome.failed' ? copy.update : null),
     progress: copy.progress,

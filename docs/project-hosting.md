@@ -57,6 +57,12 @@ commit only as secondary detail. Nothing updates on acceptance, even by choice,
 static sites included: updating a stateful application interrupts it while it
 restarts, so it stays an explicit click behind a plain confirmation (owner
 decision, 2026-10-25). The first deployment is **Put the application online**.
+The confirmation names the version and the deployment it was asked against: if
+another version is accepted or the deployment changes before **Confirm**, it is
+withdrawn rather than confirming something else, and leaving the screen
+withdraws it too. A version that did not start stays explained on its run's
+card and result page after a reload, including while the earlier version is
+still online beside it.
 
 One request (`POST …/hosting/update`, same-origin, same authority as deploy)
 does what Stop then Deploy did. It checks the deployment the person saw and

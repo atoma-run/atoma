@@ -111,7 +111,7 @@ describe('the run card offers the hosted application update', () => {
   });
 
   it('shows the plain confirmation in place of the button once asked', () => {
-    const html = card(parentTests(), { hosting: { view: view(online(), { confirming: 'update' }), onActivate: () => {} }, review: published });
+    const html = card(parentTests(), { hosting: { view: view(online(), { confirming: { action: 'update', runId: target.runId, deploymentId: 'deployment-1' } }), onActivate: () => {} }, review: published });
     expect(html).toContain(t('hosting.confirm.update'));
     expect(html).toContain(button('hosting.confirm'));
     expect(html).toContain(button('hosting.cancel'));
@@ -130,6 +130,18 @@ describe('the run card offers the hosted application update', () => {
     expect(html).toContain(t('hosting.offer.outdated'));
     expect(html).toContain(t('hosting.offer.askAdmin'));
     expect(html).not.toContain(button('hosting.update'));
+  });
+
+  it('still explains, after a reload, that this run\'s version did not start', () => {
+    // No action from this tab: the status alone says the newest deployment, this run's version, failed.
+    const beside = card(parentTests(), { hosting: { view: view(online({ state: 'failed', error: 'startup-failed', updateStops: false })),
+      onActivate: () => {} }, review: published });
+    expect(beside).toContain(t('hosting.outcome.failedOnline'));
+    expect(beside).toContain(button('hosting.retry'));
+    const offline = card(parentTests(), { hosting: { view: view(online({ state: 'failed', error: 'startup-failed', url: null,
+      runId: target.runId, commitSha: b, version: online().candidate })), onActivate: () => {} }, review: published });
+    expect(offline).toContain(t('hosting.outcome.failed'));
+    expect(offline).toContain(button('hosting.retry'));
   });
 
   it('offers it only where it applies', () => {

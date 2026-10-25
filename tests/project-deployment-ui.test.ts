@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
-import { deploymentCopy, hostingCopy, useProjectDeployment, versionLineText, versionWords, type DeploymentSettingsView } from '../src/viz/client-gl/project-deployment.js';
+import { deploymentCopy, hostedUpdateOffer, hostingCopy, useProjectDeployment, versionLineText, versionWords, type DeploymentSettingsView } from '../src/viz/client-gl/project-deployment.js';
 import { translate } from '../src/viz/client/i18n-catalog.js';
 import { useGpuStore } from '../src/viz/client-gl/store.js';
 import { ProjectSettingsAccessible } from '../src/viz/client-gl/ProjectSettingsAccessible.js';
@@ -127,13 +127,15 @@ it('shows only what applies: nothing to update when the online version is the la
   expect(deploymentCopy(settings(summary()))).toMatchObject({ notice: null, showSave: false, description: 'deployment.atomaDescription' });
 });
 
+const UPDATE = { action: 'update' as const, runId: RUN_B, deploymentId: DEPLOYMENT };
+
 it('asks a plain confirmation before an update, worded by whether the site goes down', () => {
-  const stateful = hostingCopy(settings(summary(), { confirming: 'update' }))!;
+  const stateful = hostingCopy(settings(summary(), { confirming: UPDATE }))!;
   expect(stateful.primary).toBeNull(); expect(stateful.stop).toBeNull();
   expect(stateful.confirm).toEqual({ message: 'hosting.confirm.update', actions: [{ id: 'hosting.confirm', disabled: false }, { id: 'hosting.cancel' }] });
-  expect(hostingCopy(settings(summary({ updateStops: false }), { confirming: 'update' }))!.confirm!.message).toBe('hosting.confirm.updateLive');
+  expect(hostingCopy(settings(summary({ updateStops: false }), { confirming: UPDATE }))!.confirm!.message).toBe('hosting.confirm.updateLive');
   // A member never sees a confirmation, even when the store holds one.
-  expect(hostingCopy(settings(summary(), { confirming: 'update', canEdit: false }))!.confirm).toBeNull();
+  expect(hostingCopy(settings(summary(), { confirming: UPDATE, canEdit: false }))!.confirm).toBeNull();
   // Progress and outcome in plain words.
   expect(hostingCopy(settings(summary(), { hostingBusy: true, hostingBusyAction: 'update' }))).toMatchObject({
     status: 'hosting.progress.stopping', primary: { id: 'hosting.update', disabled: true } });
@@ -147,7 +149,7 @@ it('says plainly when the new version did not start and offers the previous one 
   const copy = hostingCopy(settings(failed, { hostingAction: 'update' }))!;
   expect(copy).toMatchObject({ tone: 'error', update: 'hosting.outcome.failed', primary: { id: 'hosting.restore' },
     retry: { id: 'hosting.deploy', label: 'hosting.retry' }, target: { key: 'hosting.version.previous', words: { title: 'First control page' } } });
-  expect(hostingCopy(settings(failed, { confirming: 'restore' }))!.confirm!.message).toBe('hosting.confirm.restore');
+  expect(hostingCopy(settings(failed, { confirming: { action: 'restore', runId: RUN_A, deploymentId: DEPLOYMENT } }))!.confirm!.message).toBe('hosting.confirm.restore');
   expect(hostingCopy(settings(failed, { canEdit: false }))).toMatchObject({ primary: null, retry: null, askAdmin: 'hosting.offer.askAdmin' });
 });
 
@@ -193,4 +195,80 @@ it('updates from the accessible twin only after an explicit Confirm, then shows 
     body: JSON.stringify({ runId: RUN_B, manifestHash: 'f'.repeat(64), expectedDeploymentId: DEPLOYMENT }) })]);
   await waitFor(() => expect(screen.getAllByText('hosting.progress.starting').length).toBeGreaterThan(0));
   expect(screen.queryByText('hosting.confirm.update')).not.toBeInTheDocument();
+});
+
+const RUN_C = '44444444-4444-4444-8444-444444444444';
+const c = 'c'.repeat(40);
+/** Version C was accepted after the person asked to update to B. */
+const newerThanAsked = () => summary({ candidate: { ...summary().candidate!, runId: RUN_C, commitSha: c, manifestHash: 'd'.repeat(64) } });
+
+it('drops a confirmation the status no longer matches: another accepted version, or another deployment', () => {
+  const moved = hostingCopy(settings(newerThanAsked(), { confirming: UPDATE }))!;
+  expect(moved.confirm).toBeNull();
+  expect(moved.primary).toMatchObject({ id: 'hosting.update' });
+  expect(hostingCopy(settings(summary({ deploymentId: '55555555-5555-4555-8555-555555555555' }), { confirming: UPDATE }))!.confirm).toBeNull();
+  // The run card and the result page read the same rule.
+  expect(hostedUpdateOffer(settings(newerThanAsked(), { confirming: UPDATE }), { projectId: 'project-1', projectRunId: RUN_C }))
+    .toMatchObject({ confirm: null, actions: [{ id: 'hosting.update' }] });
+});
+
+it('records what a confirmation names, drops it when the status moves, and posts only the recorded version', async () => {
+  let current = summary();
+  const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => init?.method === 'POST'
+    ? new Response('{}', { status: 202 }) : new Response(JSON.stringify(current), { status: 200 }));
+  vi.stubGlobal('fetch', fetch);
+  const { client } = mount();
+  client.setQueryData(['viz', 'projects'], [{ ...project, deploymentDestination: 'atoma', hostingSubdomain: 'attica' }]);
+  const posts = () => fetch.mock.calls.filter(([, init]) => init?.method === 'POST');
+  await userEvent.click(await screen.findByRole('button', { name: 'hosting.update' }));
+  expect(useGpuStore.getState().hostingConfirm).toEqual({ projectId: 'project-1', action: 'update', runId: RUN_B, deploymentId: DEPLOYMENT });
+  current = newerThanAsked();
+  await client.refetchQueries({ queryKey: ['hosting', 'project-1'] });
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'hosting.confirm' })).not.toBeInTheDocument());
+  expect(useGpuStore.getState().hostingConfirm).toBeNull();
+  expect(posts()).toHaveLength(0);
+  await userEvent.click(screen.getByRole('button', { name: 'hosting.update' }));
+  await userEvent.click(screen.getByRole('button', { name: 'hosting.confirm' }));
+  await waitFor(() => expect(posts()).toHaveLength(1));
+  expect(posts()[0]![1]!.body).toBe(JSON.stringify({ runId: RUN_C, manifestHash: 'd'.repeat(64), expectedDeploymentId: DEPLOYMENT }));
+});
+
+it('drops a pending confirmation when the person leaves the screen that asked for it', () => {
+  const pending = { projectId: 'project-1', action: 'update' as const, runId: RUN_B, deploymentId: DEPLOYMENT };
+  const leaves: Array<() => void> = [
+    () => useGpuStore.getState().selectProjectSection('runs'),
+    () => useGpuStore.getState().selectProject('project-2'),
+    () => useGpuStore.getState().setView('settings'),
+    () => useGpuStore.getState().selectResult('another-run'),
+    () => useGpuStore.getState().openWorkspace(null),
+  ];
+  for (const leave of leaves) {
+    useGpuStore.setState({ view: 'projects', resultRunId: null, hostingConfirm: pending });
+    leave();
+    expect(useGpuStore.getState().hostingConfirm).toBeNull();
+  }
+  // Re-asserting the screen already shown is not leaving it.
+  useGpuStore.setState({ view: 'projects', hostingConfirm: pending });
+  useGpuStore.getState().setView('projects');
+  expect(useGpuStore.getState().hostingConfirm).toEqual(pending);
+});
+
+it('keeps a failed newer version explained beside the version still online, and after a reload', () => {
+  // A replacement that did not start beside the version still serving: the
+  // newest deployment failed, the ready one is still online.
+  const failedBeside = summary({ state: 'failed', error: 'startup-failed', updateStops: false });
+  const copy = hostingCopy(settings(failedBeside))!;
+  expect(copy).toMatchObject({ status: 'hosting.ready', tone: 'warning', update: 'hosting.outcome.failedOnline',
+    current: { key: 'hosting.version.online' }, primary: { id: 'hosting.update', label: 'hosting.retry' } });
+  expect(copy.actions.map(action => action.id)).toContain('hosting.open');
+  const run = { projectId: 'project-1', projectRunId: RUN_B };
+  // No action from this tab (a reload): the run's own failure is still said.
+  expect(hostedUpdateOffer(settings(failedBeside), run)).toMatchObject({ lead: 'hosting.outcome.failedOnline',
+    actions: [{ id: 'hosting.update', label: 'hosting.retry' }] });
+  // Off line after the update stopped the old version, with nothing to put back.
+  const failedAlone = summary({ state: 'failed', url: null, runId: RUN_B, commitSha: b, error: 'startup-failed', version: summary().candidate });
+  expect(hostedUpdateOffer(settings(failedAlone), run)).toMatchObject({ lead: 'hosting.outcome.failed',
+    actions: [{ id: 'hosting.update', label: 'hosting.retry' }] });
+  // Another run's page says nothing about it.
+  expect(hostedUpdateOffer(settings(failedAlone), { projectId: 'project-1', projectRunId: RUN_A })).toBeNull();
 });
