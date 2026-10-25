@@ -668,12 +668,12 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedProjectId: null,
     projectMcpCollapsed: false,
     sentinelSection: 'watch',
-    projectOverviewCollapsed: false,
+    projectOverviewCollapsed: false, hostingConfirm: null,
     projectAssistantCompact: false,
     projectAssistantCompactHeight: null,
     workspaceRunId: null, workspacePath: '', filePreview: null, previewFile: () => {},
     githubRecovery: null, setGitHubRecovery: vi.fn(),
-    openWorkspace: vi.fn(), openProjectRuns: vi.fn(), selectProjectSection: vi.fn(), selectSentinelSection: vi.fn(), toggleProjectOverview: vi.fn(), selectWorkspacePath: vi.fn(),
+    openWorkspace: vi.fn(), openProjectRuns: vi.fn(), selectProjectSection: vi.fn(), selectSentinelSection: vi.fn(), toggleProjectOverview: vi.fn(), setHostingConfirm: vi.fn(), selectWorkspacePath: vi.fn(),
     runFilters: { kind: 'all', role: 'all', branchId: 'all' },
     branchHeadingExpanded: true,
     runSummaryExpanded: true,
@@ -3892,6 +3892,38 @@ describe('drawProjects', () => {
     }
   });
 
+  it('draws one "Update the application" step, its confirmation, and versions in words', () => {
+    const project = guidanceProject();
+    const hosting = hostedSummary(project.projectId);
+    const settings = (overrides: Partial<NonNullable<GpuDataSnapshot['deploymentSettings']>> = {}) => ({
+      projectId: project.projectId, hosting, saved: 'atoma' as const, destination: 'atoma' as const, canEdit: true, busy: false, status: 'idle' as const, ...overrides });
+    const draw = (deploymentSettings: NonNullable<GpuDataSnapshot['deploymentSettings']>) => {
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId, projectSection: 'settings' }, {
+        auth: makeAuth(), projects: [{ ...project, deploymentDestination: 'atoma' }], deploymentSettings }), 1280, 1600);
+      return ctx;
+    };
+    const ctx = draw(settings());
+    const update = ctx.buttons.find(button => button.id === 'hosting.update');
+    expect(update?.label).toBe(t('hosting.update'));
+    expect(ctx.buttons.some(button => button.id === 'hosting.deploy')).toBe(false);
+    expect(ctx.buttons.some(button => button.id === 'hosting.stop')).toBe(true);
+    const values = ctx.texts.map(text => String(text.value));
+    expect(values.some(value => value.startsWith('Online: First control page, accepted'))).toBe(true);
+    expect(values.some(value => value.startsWith('Newer: Finish Attica control page repair, accepted'))).toBe(true);
+    // The hash is secondary: a tooltip, never drawn copy.
+    expect(values.some(value => /aaaaaaaa|bbbbbbbb/.test(value))).toBe(false);
+    expect(ctx.tooltips.map(tip => tip.text)).toEqual(expect.arrayContaining([t('hosting.versionShort', { version: 'aaaaaaaa' }),
+      t('hosting.versionShort', { version: 'bbbbbbbb' })]));
+    const confirming = draw(settings({ confirming: 'update' }));
+    expect(confirming.texts.some(text => text.value === t('hosting.confirm.update'))).toBe(true);
+    expect(confirming.buttons.map(button => button.id)).toEqual(expect.arrayContaining(['hosting.confirm', 'hosting.cancel']));
+    expect(confirming.buttons.some(button => button.id === 'hosting.update' || button.id === 'hosting.stop')).toBe(false);
+    const member = draw(settings({ canEdit: false }));
+    expect(member.texts.some(text => text.value === t('hosting.offer.askAdmin'))).toBe(true);
+    expect(member.buttons.some(button => button.id.startsWith('hosting.') && button.id !== 'hosting.open')).toBe(false);
+  });
+
   it('draws the project\'s MCP servers as canvas toggles named as the organisation wrote them', () => {
     const project = guidanceProject();
     const ctx = createRecordingCtx();
@@ -6020,6 +6052,34 @@ describe('the shared final result panel', () => {
     expect(values.some(value => /GROUND TRUTH|\*\*|##/.test(value))).toBe(false);
   });
 
+  it('offers the hosted application update on the accepted run\'s result page, only where it applies', () => {
+    const run = makeRun([], { result: { output: 'ok', summary: 'Repaired the control page.' } });
+    const projectRun: VizProjectRun = { projectId: GUIDANCE_PROJECT_ID, projectRunId: HOSTED_RUN_B, traceId: run.id, goal: 'Repair',
+      status: 'delivered', costUsd: 0, durationS: 1, error: null, createdAt: run.startedAt, endedAt: run.endedAt!, publication: null };
+    const draw = (overrides: Partial<NonNullable<GpuDataSnapshot['deploymentSettings']>> = {}, row = projectRun) => {
+      const ctx = createRecordingCtx();
+      drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id }, { resultRun: run, projectRuns: { [GUIDANCE_PROJECT_ID]: [row] },
+        deploymentSettings: { projectId: GUIDANCE_PROJECT_ID, hosting: hostedSummary(GUIDANCE_PROJECT_ID), saved: 'atoma', destination: 'atoma',
+          canEdit: true, busy: false, status: 'idle', ...overrides } }), 10, 100, 1180, 900);
+      return ctx;
+    };
+    const offered = draw();
+    expect(offered.texts.some(text => text.value === t('hosting.offer.outdated'))).toBe(true);
+    expect(offered.buttons.find(button => button.id === 'hosting.update')?.label).toBe(t('hosting.update'));
+    const confirming = draw({ confirming: 'update' });
+    expect(confirming.texts.some(text => text.value === t('hosting.confirm.update'))).toBe(true);
+    expect(confirming.buttons.map(button => button.id)).toEqual(expect.arrayContaining(['hosting.confirm', 'hosting.cancel']));
+    expect(confirming.buttons.some(button => button.id === 'hosting.update')).toBe(false);
+    const member = draw({ canEdit: false });
+    expect(member.texts.some(text => text.value === t('hosting.offer.askAdmin'))).toBe(true);
+    expect(member.buttons.some(button => button.id.startsWith('hosting.'))).toBe(false);
+    // Another run's page, or a project not hosted on Atoma, offers nothing.
+    for (const quiet of [draw({}, { ...projectRun, projectRunId: HOSTED_RUN_A }), draw({ saved: 'none', destination: 'none' })]) {
+      expect(quiet.texts.some(text => text.value === t('hosting.offer.outdated'))).toBe(false);
+      expect(quiet.buttons.some(button => button.id.startsWith('hosting.'))).toBe(false);
+    }
+  });
+
   it('draws a Markdown answer as headings and paragraphs, not raw marks', () => {
     const run = makeRun([], { result: { output: '## Timetable\n\n| Task | Start |\n|---|---:|\n| A | 0 |\n\n- **E** finishes at 8', summary: 'Scheduled.' } });
     const ctx = createRecordingCtx();
@@ -6102,6 +6162,18 @@ describe('the shared final result panel', () => {
     expect(ctx.buttons.some(button => button.id === 'result.close')).toBe(true);
   });
 });
+
+const HOSTED_RUN_A = '11111111-1111-4111-8111-111111111111';
+const HOSTED_RUN_B = '33333333-3333-4333-8333-333333333333';
+/** A stateful application online with version A; version B was accepted and published since. */
+function hostedSummary(projectId: string): NonNullable<NonNullable<GpuDataSnapshot['deploymentSettings']>['hosting']> {
+  const a = 'a'.repeat(40); const b = 'b'.repeat(40);
+  return { available: true, state: 'ready', deploymentId: '22222222-2222-4222-8222-222222222222', runId: HOSTED_RUN_A, commitSha: a,
+    url: `https://${projectId.slice(0, 4)}.app.atoma.run/`, error: null, address: `https://${projectId.slice(0, 4)}.app.atoma.run/`,
+    version: { runId: HOSTED_RUN_A, commitSha: a, title: 'First control page', acceptedAt: '2026-10-24T09:00:00.000Z' },
+    candidate: { runId: HOSTED_RUN_B, commitSha: b, manifestHash: 'f'.repeat(64), title: 'Finish Attica control page repair', acceptedAt: '2026-10-25T09:00:00.000Z' },
+    previous: null, updateStops: true };
+}
 
 function guidanceProject(): VizProject {
   return {

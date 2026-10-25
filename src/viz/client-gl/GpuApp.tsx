@@ -1,5 +1,5 @@
 import { useProjectCompute } from './project-compute.js';
-import { useProjectDeployment } from './project-deployment.js';
+import { hostedUpdateOffer, useProjectDeployment } from './project-deployment.js';
 import { WELCOME_LEGAL_LINKS } from './legal-links.js';
 import { useProjectConnectors } from './project-connectors.js';
 import { FilePreview } from './FilePreview.js';
@@ -293,9 +293,15 @@ function GpuAppContent({
   // identities with it.
   const selectedProject =
     projectsQuery.data?.find((project) => project.projectId === state.selectedProjectId) ?? null;
-  const deployment = useProjectDeployment(selectedProject,
+  // The hosted application a page may act on: the selected project's, or on
+  // Runs the project of the run being read, whose result page offers its update.
+  const hostingProjectId = state.view === 'runs'
+    ? runsQuery.data?.find(run => run.id === (state.resultRunId ?? state.selectedRunId))?.projectId ?? selectedProject?.projectId
+    : selectedProject?.projectId;
+  const hostingProject = projectsQuery.data?.find(project => project.projectId === hostingProjectId) ?? null;
+  const deployment = useProjectDeployment(hostingProject,
     (authSnapshot?.viewer.role === 'org:owner' || authSnapshot?.viewer.role === 'org:admin') &&
-    (!selectedProject?.orgId || selectedProject.orgId === authSnapshot?.viewer.activeOrganisation?.id));
+    (!hostingProject?.orgId || hostingProject.orgId === authSnapshot?.viewer.activeOrganisation?.id));
   // Read only where it is shown: a selected project's Settings section.
   const connectors = useProjectConnectors(selectedProject?.projectId ?? null,
     state.view === 'projects' && state.projectSection === 'settings' && !!selectedProject && !!authSnapshot);
@@ -1467,6 +1473,12 @@ function GpuAppContent({
     skillDetailQuery.isError,
     skillLists.byNamespace,
   ]);
+  // The run the result page reads, found as that page finds it (renderer/views/result.ts).
+  const resultHostingOffer = useMemo(() => {
+    const row = state.resultRunId ? Object.values(data.projectRuns).flat()
+      .find(candidate => candidate.traceId === state.resultRunId || candidate.projectRunId === state.resultRunId) : undefined;
+    return row?.status === 'delivered' ? hostedUpdateOffer(deployment.view, row) : null;
+  }, [data.projectRuns, state.resultRunId, deployment.view]);
 
   const updateMetrics = useCallback((next: GpuRenderMetrics) => {
     metrics.current = next;
@@ -1578,6 +1590,7 @@ function GpuAppContent({
             onSettings={tab => state.openSettings(tab)}
             onScopeChange={id => { state.selectProject(id); useGpuStore.setState({ projectMcpCollapsed: false }); }}
             onProject={id => { state.selectProject(id); state.selectProjectSection('runs'); }}
+            hosting={{ view: deployment.view, onActivate: activate }}
             onRun={(run, traceId) => {
               state.selectProject(run.projectId);
               state.selectProjectSection('runs');
@@ -1585,6 +1598,7 @@ function GpuAppContent({
             }}
           /> : null}
           deploymentSettings={deployment.view}
+          resultHostingOffer={resultHostingOffer}
           connectorSettings={connectors.view}
           computeSettings={compute.view}
           onRenameAddress={deployment.renameAddress}

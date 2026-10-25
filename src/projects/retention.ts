@@ -41,6 +41,7 @@ export function retentionPlan(db: Database.Database, projectsRoot: string, works
   const columns = db.prepare('PRAGMA table_info(project_runs)').all() as { name: string }[];
   const deletedFilter = columns.some(column => column.name === 'bytes_deleted_at') ? 'AND r.bytes_deleted_at IS NULL' : '';
   const hasCheckpoints = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='run_checkpoints'").get());
+  const hasHosting = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_hosted_deployments'").get());
   // Read on the caller's handle, which the plan command opens read-only. A
   // checkpoint this binary cannot read holds, never releases.
   const continuable = (reader: { project_run_id: string; org_id: string; status: string }): boolean => {
@@ -94,6 +95,15 @@ export function retentionPlan(db: Database.Database, projectsRoot: string, works
         held = 'active read run';
       }
     }
+    // The hosted application's versions: the one online (or whose runtime
+    // state is unknown), and the one the latest update stopped, which "put
+    // the previous version back" redeploys from these bytes.
+    if (hasHosting && (db.prepare(`SELECT 1 FROM project_hosted_deployments WHERE org_id = ? AND project_id = ?
+        AND json_extract(record, '$.runId') = ? AND (state IN ('starting','ready')
+          OR (state = 'failed' AND json_extract(record, '$.error') IN ('runtime-unavailable','cleanup-failed')))`)
+      .get(row.org_id, row.project_id, row.project_run_id) || (db.prepare(`SELECT json_extract(record, '$.previousRunId') AS previous
+        FROM project_hosted_deployments WHERE org_id = ? AND project_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`)
+      .get(row.org_id, row.project_id) as { previous: string | null } | undefined)?.previous === row.project_run_id)) held = 'hosted application version';
     const publication = db.prepare("SELECT 1 FROM project_publications WHERE project_run_id = ? AND status <> 'published'").get(row.project_run_id);
     if (publication) held = 'unfinished publication';
     if (columns.some(column => column.name === 'resume_of_run_id') && db.prepare(

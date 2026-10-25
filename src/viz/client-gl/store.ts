@@ -236,6 +236,12 @@ export interface GpuUiState {
   projectMcpCollapsed: boolean;
   /** The selected project's overview column folded to a strip; one setting for every project. */
   projectOverviewCollapsed: boolean;
+  /**
+   * The hosted application's update or put-back awaiting its explicit
+   * Confirm: one signal for the canvas settings card, its DOM twin, the run's
+   * result page and the conversation's run card.
+   */
+  hostingConfirm: { projectId: string; action: 'update' | 'restore' } | null;
   projectAssistantCompact: boolean;
   projectAssistantCompactHeight: number | null;
   workspaceRunId: string | null;
@@ -345,6 +351,7 @@ export interface GpuUiState {
   selectProjectSection: (section: GpuUiState['projectSection'], runId?: string | null) => void;
   selectSentinelSection: (section: SentinelSection) => void;
   toggleProjectOverview: () => void;
+  setHostingConfirm: (confirm: { projectId: string; action: 'update' | 'restore' } | null) => void;
   openWorkspace: (runId: string | null) => void;
   /** A run's way back: its project, on the Runs section that lists it, that run's card in view when named. */
   openProjectRuns: (projectId: string, runId?: string | null) => void;
@@ -486,6 +493,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedProjectId: null,
   projectMcpCollapsed: false,
   projectOverviewCollapsed: false,
+  hostingConfirm: null,
   projectAssistantCompact: false,
   projectAssistantCompactHeight: null,
   projectSection: 'conversation',
@@ -747,6 +755,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     scrollY: { ...state.scrollY, sentinel: 0 },
   })),
   toggleProjectOverview: () => set(state => ({ projectOverviewCollapsed: !state.projectOverviewCollapsed })),
+  setHostingConfirm: (hostingConfirm) => set({ hostingConfirm }),
   openWorkspace: (workspaceRunId) => set(state => ({
     projectSection: workspaceRunId ? 'files' : 'runs',
     workspaceRunId, workspacePath: '', filePreview: null, scrollY: { ...state.scrollY, projects: 0 },

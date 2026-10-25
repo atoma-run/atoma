@@ -2,6 +2,7 @@ import type { AssayerViewData } from './assayer-presentation.js';
 import { SentinelAccessible } from './SentinelAccessible.js';
 import { PlatformStatsAccessible } from './PlatformStatsAccessible.js';
 import { ProjectSettingsAccessible } from './ProjectSettingsAccessible.js';
+import { HostedUpdateOfferSection } from './HostedUpdateOffer.js';
 import { ButtonIcon } from './ButtonIcon.js';
 import { WELCOME_LEGAL_LINKS } from './legal-links.js';
 import { previewActionsFor } from './renderer/preview-control.js';
@@ -223,6 +224,7 @@ export function DomBridge({
   projectRuns = [], runViewProjectRun = null, githubRecovery = null, auth = null,
   workspace,
   deploymentSettings,
+  resultHostingOffer = null,
   connectorSettings,
   computeSettings,
   onRenameAddress,
@@ -278,6 +280,8 @@ export function DomBridge({
   projectGuideEnabled?: boolean;
   workspace?: WorkspaceBrowserData;
   deploymentSettings?: import('./project-deployment.js').DeploymentSettingsView;
+  /** The result page's hosted-application step: the canvas draws the same model (renderer/views/result.ts). */
+  resultHostingOffer?: import('./project-deployment.js').HostedUpdateOffer | null;
   connectorSettings?: import('./project-connectors.js').ConnectorSettingsView | null;
   computeSettings?: import('./project-compute.js').ComputeSettingsView | null;
   onRenameAddress?: (subdomain: string) => void;
@@ -634,6 +638,8 @@ export function DomBridge({
             ))}
           </section>
         ) : null}
+        {resultRunId && resultHostingOffer && onActivate && (view === 'runs' || (view === 'projects' && selectedProjectId)) ?
+          <HostedUpdateOfferSection offer={resultHostingOffer} t={t} onActivate={onActivate} /> : null}
         {view === 'runs' && run ? (() => {
           const entry = runs.find(candidate => candidate.id === run.id);
           return entry?.projectId && entry.projectName ? <button type="button"

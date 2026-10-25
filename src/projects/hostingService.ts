@@ -3,13 +3,15 @@ import type { PlatformEventSink } from '../contracts/platformEvents.js';
 import { request } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { Viewer } from '../auth/store.js';
-import { hostingDeployInputSchema, type HostedDeployment, type HostingHandle, type HostingIdentity, type HostingLauncher, type HostingSummary } from '../contracts/projectHosting.js';
+import { existsSync } from 'node:fs';
+import { hostingDeployInputSchema, type HostedDeployment, type HostingHandle, type HostingIdentity, type HostingLauncher, type HostingSummary, type HostingVersion } from '../contracts/projectHosting.js';
+import type { ProjectRun } from '../contracts/projects.js';
 import { ProjectHttpError, roleAtLeast } from './service.js';
 import { ProjectStateConflict, type ProjectStore } from './store.js';
 import type { PreviewStore } from '../preview/store.js';
 import { materializePreviewWorkspace } from '../preview/policy.js';
 import { revalidateArtifactManifest } from './artifacts.js';
-import { HostingStore } from './hostingStore.js';
+import { holdsApplicationData, HostingStore } from './hostingStore.js';
 import { ensureHostingSubdomain, type HostingSubdomainNamer } from './hostingSubdomain.js';
 
 const identity = (row: HostedDeployment): HostingIdentity => ({ orgId: row.orgId, projectId: row.projectId, deploymentId: row.deploymentId });
@@ -24,11 +26,11 @@ export class HostingService {
     /** Proposes the project's address label; absent, the label is derived from its slug and name. */
     namer?: HostingSubdomainNamer;
     copyOwnership?: { uid: number; gid: number } | null }) {}
-  private event(row: HostedDeployment, principalId?: string): void {
+  private event(row: HostedDeployment, principalId?: string, operation?: 'update' | 'restore'): void {
     this.deps.events?.({ kind: row.state === 'failed' ? 'project.hosting_failed' : 'project.hosting_changed',
       actorType: principalId ? 'principal' : 'system', ...(principalId ? { actorId: principalId } : {}),
       orgId: row.orgId, projectId: row.projectId, summary: `Project application ${row.state}`,
-      detail: { deploymentId: row.deploymentId, runId: row.runId, state: row.state, commitSha: row.commitSha } });
+      detail: { deploymentId: row.deploymentId, runId: row.runId, state: row.state, commitSha: row.commitSha, ...(operation ? { operation } : {}) } });
   }
   private project(viewer: Viewer, projectId: string, write = false) {
     const project = this.deps.projects.getProject(viewer.orgId, projectId);
@@ -74,41 +76,150 @@ export class HostingService {
     const descriptor = run ? this.deps.previews.getDescriptor(viewer.orgId, run.projectRunId) : null;
     let browser = false;
     try { browser = !!(run && readHostingManifest(run.hostPaths.workspacePath, run.artifactManifest)); } catch { /* invalid capability is not deployable */ }
+    const shown = active ?? row;
+    const previous = this.restorable(viewer.orgId, projectId, rows);
     return { available: true, state: row?.state ?? 'not-deployed', deploymentId: row?.deploymentId ?? null,
-      runId: active?.runId ?? row?.runId ?? null, commitSha: active?.commitSha ?? row?.commitSha ?? null,
+      runId: shown?.runId ?? null, commitSha: shown?.commitSha ?? null,
       url: active ? `https://${this.host(active)}/` : null, error: row?.error ?? null,
       address: project.hostingSubdomain ? `https://${project.hostingSubdomain}.${this.deps.domain}/` : null,
       candidate: run?.artifactManifestHash && !run.bytesExpiredAt && (descriptor?.availability === 'available' || browser) && publication?.status === 'published' && publication.commitSha
-        ? { runId: run.projectRunId, manifestHash: run.artifactManifestHash, commitSha: publication.commitSha } : null };
+        ? { ...this.describe(viewer.orgId, run.projectRunId, publication.commitSha), manifestHash: run.artifactManifestHash } : null,
+      version: shown ? this.describe(viewer.orgId, shown.runId, shown.commitSha) : null,
+      previous: previous ? { ...this.describe(viewer.orgId, previous.runId, previous.commitSha), manifestHash: previous.manifestHash } : null,
+      updateStops: rows.some(holdsApplicationData) };
+  }
+  /** A version in words: the run's title and the client's acceptance date, never only its hash. */
+  private describe(orgId: string, runId: string, commitSha: string): HostingVersion {
+    return { runId, commitSha, title: this.deps.projects.getProjectRun(orgId, runId)?.title ?? null,
+      acceptedAt: this.deps.projects.getDeliveryAcceptance(orgId, runId)?.acceptedAt ?? null };
+  }
+  /**
+   * One deployable release: an accepted, published, retained delivery of this
+   * project whose manifest is the one accepted. Every operation that puts a
+   * version online goes through it, the put-back included.
+   */
+  private release(orgId: string, projectId: string, runId: string, manifestHash: string) {
+    const run = this.deps.projects.getProjectRun(orgId, runId);
+    const acceptance = this.deps.projects.getDeliveryAcceptance(orgId, runId);
+    const publication = this.deps.projects.getPublicationForRun(orgId, runId);
+    const descriptor = this.deps.previews.getDescriptor(orgId, runId);
+    let browserConfig;
+    try { browserConfig = run ? readHostingManifest(run.hostPaths.workspacePath, run.artifactManifest) : null; }
+    catch { throw new ProjectHttpError(409, 'Invalid hosting configuration in the accepted delivery'); }
+    if (!run || run.projectId !== projectId || run.status !== 'delivered' || run.bytesExpiredAt || run.rerunOf ||
+      !run.artifactManifest || run.artifactManifestHash !== manifestHash || acceptance?.manifestHash !== manifestHash ||
+      publication?.status !== 'published' || publication.manifestHash !== manifestHash || !publication.commitSha || (!browserConfig && descriptor?.availability !== 'available')) {
+      throw new ProjectHttpError(409, 'Deploy an accepted, published, retained application version');
+    }
+    return { run, commitSha: publication.commitSha, browserConfig, descriptor };
+  }
+  /**
+   * The version to put back: the one an update stopped, while that update's
+   * new version failed to start and nothing is online. Offered only while it
+   * is still deployable and its retained bytes are on disk (retention holds
+   * them: src/projects/retention.ts).
+   */
+  private restorable(orgId: string, projectId: string, rows: HostedDeployment[]): { runId: string; manifestHash: string; commitSha: string } | null {
+    const latest = rows[0];
+    if (!latest?.previousRunId || latest.state !== 'failed' || latest.error === 'runtime-unavailable' ||
+      rows.some(r => r.state === 'ready' || r.state === 'starting')) return null;
+    const run = this.deps.projects.getProjectRun(orgId, latest.previousRunId);
+    if (!run?.artifactManifestHash || !existsSync(run.hostPaths.workspacePath)) return null;
+    try {
+      const release = this.release(orgId, projectId, run.projectRunId, run.artifactManifestHash);
+      return { runId: run.projectRunId, manifestHash: run.artifactManifestHash, commitSha: release.commitSha };
+    } catch { return null; }
+  }
+  private parseInput(raw: unknown) {
+    const parsed = hostingDeployInputSchema.safeParse(raw);
+    if (!parsed.success) throw new ProjectHttpError(400, 'Invalid deployment request');
+    return parsed.data;
+  }
+  private newRow(orgId: string, projectId: string, input: { runId: string; manifestHash: string },
+    release: ReturnType<HostingService['release']>, previousRunId?: string): HostedDeployment {
+    return { orgId, projectId, deploymentId: randomUUID(), runId: input.runId,
+      manifestHash: input.manifestHash, commitSha: release.commitSha, state: 'starting', kind: release.browserConfig ? 'node' : release.descriptor!.kind!, browser: !!release.browserConfig,
+      entry: release.browserConfig?.entry ?? release.descriptor?.entry ?? 'index.js', createdAt: new Date().toISOString(), error: null, hostPort: null, image: null,
+      ...(previousRunId ? { previousRunId } : {}) };
+  }
+  private reserve(row: HostedDeployment, expected: string | null): void {
+    try { this.deps.store.reserve(row, expected, this.deps.maxDeployments); }
+    catch (e) { if (e instanceof ProjectStateConflict) throw new ProjectHttpError(409, e.message); throw e; }
   }
   async deploy(viewer: Viewer, projectId: string, raw: unknown): Promise<HostingSummary> {
     const project = this.project(viewer, projectId, true);
     if (this.mutating.has(projectId)) throw new ProjectHttpError(409, 'A deployment operation is still running');
     if (project.deploymentDestination !== 'atoma') throw new ProjectHttpError(409, 'Save Deploy on Atoma first');
-    const parsed = hostingDeployInputSchema.safeParse(raw);
-    if (!parsed.success) throw new ProjectHttpError(400, 'Invalid deployment request');
-    const input = parsed.data;
-    const run = this.deps.projects.getProjectRun(viewer.orgId, input.runId);
-    const acceptance = this.deps.projects.getDeliveryAcceptance(viewer.orgId, input.runId);
-    const publication = this.deps.projects.getPublicationForRun(viewer.orgId, input.runId);
-    const descriptor = this.deps.previews.getDescriptor(viewer.orgId, input.runId);
-    let browserConfig;
-    try { browserConfig = run ? readHostingManifest(run.hostPaths.workspacePath, run.artifactManifest) : null; }
-    catch { throw new ProjectHttpError(409, 'Invalid hosting configuration in the accepted delivery'); }
-    if (!run || run.projectId !== projectId || run.status !== 'delivered' || run.bytesExpiredAt || run.rerunOf ||
-      !run.artifactManifest || run.artifactManifestHash !== input.manifestHash || acceptance?.manifestHash !== input.manifestHash ||
-      publication?.status !== 'published' || publication.manifestHash !== input.manifestHash || !publication.commitSha || (!browserConfig && descriptor?.availability !== 'available')) {
-      throw new ProjectHttpError(409, 'Deploy an accepted, published, retained application version');
-    }
+    const input = this.parseInput(raw);
+    const release = this.release(viewer.orgId, projectId, input.runId, input.manifestHash);
     // Normally chosen when the destination was saved; a project saved before
     // addresses existed, or whose choice is still in flight, gets it here.
     if (!project.hostingSubdomain) await ensureHostingSubdomain({ store: this.deps.projects, namer: this.deps.namer, events: this.deps.events }, viewer.orgId, projectId);
-    const row: HostedDeployment = { orgId: viewer.orgId, projectId, deploymentId: randomUUID(), runId: input.runId,
-      manifestHash: input.manifestHash, commitSha: publication.commitSha, state: 'starting', kind: browserConfig ? 'node' : descriptor!.kind!, browser: !!browserConfig,
-      entry: browserConfig?.entry ?? descriptor?.entry ?? 'index.js', createdAt: new Date().toISOString(), error: null, hostPort: null, image: null };
-    try { this.deps.store.reserve(row, input.expectedDeploymentId, this.deps.maxDeployments); }
-    catch (e) { if (e instanceof ProjectStateConflict) throw new ProjectHttpError(409, e.message); throw e; }
+    // An update may have begun while the address was chosen: it owns the project until its reservation.
+    if (this.mutating.has(projectId)) throw new ProjectHttpError(409, 'A deployment operation is still running');
+    const row = this.newRow(viewer.orgId, projectId, input, release);
+    this.reserve(row, input.expectedDeploymentId);
     this.event(row, viewer.principalId);
+    this.launch(row, release.run);
+    return this.status(viewer, projectId);
+  }
+  /**
+   * "Update the application": the accepted candidate replaces what runs now,
+   * in one request. A runtime that may write the project's data is stopped
+   * first, under the same lock and compare-and-set as Stop, and the candidate
+   * is reserved only after every such runtime stopped: the store refuses a
+   * start beside one, so two versions never write the data at once. A static
+   * application keeps its no-downtime replacement. If the new version then
+   * fails to start, the status offers the stopped version back (`restore`).
+   */
+  async update(viewer: Viewer, projectId: string, raw: unknown): Promise<HostingSummary> {
+    return this.replace(viewer, projectId, raw, 'update');
+  }
+  /** Puts back the version a failed update stopped: the same sequence, its target chosen by the host. */
+  async restore(viewer: Viewer, projectId: string, raw: unknown): Promise<HostingSummary> {
+    return this.replace(viewer, projectId, raw, 'restore');
+  }
+  private async replace(viewer: Viewer, projectId: string, raw: unknown, operation: 'update' | 'restore'): Promise<HostingSummary> {
+    const project = this.project(viewer, projectId, true);
+    if (this.mutating.has(projectId)) throw new ProjectHttpError(409, 'A deployment operation is still running');
+    if (project.deploymentDestination !== 'atoma') throw new ProjectHttpError(409, 'Save Deploy on Atoma first');
+    const input = this.parseInput(raw);
+    const expectedRows = (rows: HostedDeployment[]) => {
+      if ((rows[0]?.deploymentId ?? null) !== input.expectedDeploymentId || rows.some(r => r.state === 'starting')) {
+        throw new ProjectHttpError(409, 'Deployment changed or still starting');
+      }
+    };
+    const before = this.deps.store.list(viewer.orgId, projectId);
+    expectedRows(before);
+    if (operation === 'update') {
+      // The version the person was shown must still be the one to put online.
+      if (this.deps.projects.acceptedReference(viewer.orgId, projectId)?.projectRunId !== input.runId) {
+        throw new ProjectHttpError(409, 'A newer accepted version exists; refresh before updating');
+      }
+    } else if (this.restorable(viewer.orgId, projectId, before)?.runId !== input.runId) {
+      throw new ProjectHttpError(409, 'The previous version can no longer be put back');
+    }
+    const release = this.release(viewer.orgId, projectId, input.runId, input.manifestHash);
+    if (!project.hostingSubdomain) await ensureHostingSubdomain({ store: this.deps.projects, namer: this.deps.namer, events: this.deps.events }, viewer.orgId, projectId);
+    if (this.mutating.has(projectId)) throw new ProjectHttpError(409, 'A deployment operation is still running');
+    this.mutating.add(projectId);
+    let row: HostedDeployment;
+    try {
+      const rows = this.deps.store.list(viewer.orgId, projectId);
+      expectedRows(rows);
+      const online = rows.find(r => r.state === 'ready') ?? rows.find(holdsApplicationData);
+      if (rows.some(holdsApplicationData)) {
+        await this.stopRows(rows.filter(r => r.state === 'ready' || holdsApplicationData(r)), viewer.principalId, operation);
+      }
+      row = this.newRow(viewer.orgId, projectId, input, release, operation === 'update' ? online?.runId : undefined);
+      this.reserve(row, input.expectedDeploymentId);
+    } finally { this.mutating.delete(projectId); }
+    this.event(row, viewer.principalId, operation);
+    this.launch(row, release.run);
+    return this.status(viewer, projectId);
+  }
+  private launch(row: HostedDeployment, run: ProjectRun): void {
+    const projectId = row.projectId;
     const job = (async () => {
       try {
         const destination = await this.deps.launcher.prepareHosting(identity(row));
@@ -124,7 +235,8 @@ export class HostingService {
         if (!ready) throw new Error('Not ready');
         this.deps.store.update({ ...row, state: 'ready', ...handle }, 'starting');
         this.event({ ...row, state: 'ready' });
-        // Static replacements have no application data writers. Node replacements require an explicit stop.
+        // Static replacements have no application data writers. A Node
+        // replacement was reserved only after its predecessor stopped.
         for (const previous of this.deps.store.list(row.orgId, projectId)) {
           if (previous.state === 'ready' && previous.deploymentId !== row.deploymentId) {
             try {
@@ -145,7 +257,14 @@ export class HostingService {
       }
     })();
     this.jobs.add(job); void job.then(() => this.jobs.delete(job), () => this.jobs.delete(job));
-    return this.status(viewer, projectId);
+  }
+  /** Stops each row, then records it stopped, in order; a launcher failure ends the sequence and propagates. */
+  private async stopRows(rows: HostedDeployment[], principalId: string, operation?: 'update' | 'restore'): Promise<void> {
+    for (const row of rows) {
+      await this.deps.launcher.stopHosting(identity(row));
+      this.deps.store.update({ ...row, state: 'stopped', hostPort: null, error: null }, row.state);
+      this.event({ ...row, state: 'stopped' }, principalId, operation);
+    }
   }
   async stop(viewer: Viewer, projectId: string, expectedId: unknown): Promise<HostingSummary> {
     this.project(viewer, projectId, true);
@@ -154,11 +273,7 @@ export class HostingService {
     if (rows[0]?.deploymentId !== expectedId || rows.some(r => r.state === 'starting')) throw new ProjectHttpError(409, 'Deployment changed or still starting');
     this.mutating.add(projectId);
     try {
-    for (const row of rows.filter(r => r.state === 'ready' || r.deploymentId === expectedId || r.error === 'runtime-unavailable' || r.error === 'cleanup-failed')) {
-      await this.deps.launcher.stopHosting(identity(row));
-      this.deps.store.update({ ...row, state: 'stopped', hostPort: null, error: null }, row.state);
-      this.event({ ...row, state: 'stopped' }, viewer.principalId);
-    }
+      await this.stopRows(rows.filter(r => r.state === 'ready' || r.deploymentId === expectedId || r.error === 'runtime-unavailable' || r.error === 'cleanup-failed'), viewer.principalId);
     } finally { this.mutating.delete(projectId); }
     return this.status(viewer, projectId);
   }

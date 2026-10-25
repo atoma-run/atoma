@@ -1,7 +1,7 @@
 import { computeNoticeIsStatus, computeTargetKey, pendingComputeRunRow, showComputeSetup } from '../../project-compute.js';
 import { Container } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
-import { deploymentCopy, hostingCopy, type HostingTone } from '../../project-deployment.js';
+import { deploymentCopy, hostingCopy, versionLineText, type HostingControl, type HostingTone, type HostingVersionLine } from '../../project-deployment.js';
 import { connectorsCopy } from '../../project-connectors.js';
 import { GPU_COLORS } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
@@ -67,8 +67,16 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
 
   if (hosted) card(() => {
     line(snapshot.t('hosting.title'), { size: 16, weight: '600', color: GPU_COLORS.text, gap: 10 });
-    const status = `● ${snapshot.t(hosted.status)}${hosted.version && hosted.tone === 'success' ? `  ·  ${snapshot.t('hosting.versionShort', { version: hosted.version })}` : ''}`;
-    line(status, { color: TONE[hosted.tone], weight: '600', gap: 16 });
+    line(`● ${snapshot.t(hosted.status)}`, { color: TONE[hosted.tone], weight: '600', gap: hosted.current ? 6 : 16 });
+    // A version in words; its short hash is the tooltip, never the lead.
+    const version = (value: HostingVersionLine | null, gap = 12) => {
+      if (!value) return;
+      const top = y;
+      line(versionLineText(value, snapshot.t, snapshot.state.locale), { color: GPU_COLORS.text, gap });
+      ctx.tooltip(content, { x: PAD, y: top, width: inner, height: y - top - gap,
+        text: snapshot.t('hosting.versionShort', { version: value.hash }) });
+    };
+    version(hosted.current, 16);
     if (hosted.address) {
       line(snapshot.t('hosting.address'), { size: 12, gap: 4 });
       const open = hosted.actions.find(action => action.id === 'hosting.open' && !action.disabled);
@@ -81,10 +89,18 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
       } else line(hosted.address, { color: GPU_COLORS.text, gap: 14 });
     }
     buttonRow(hosted.actions);
+    if (hosted.progress && hosted.progress !== hosted.status) line(snapshot.t(hosted.progress), { color: GPU_COLORS.text });
     if (hosted.update) {
       line(snapshot.t('hosting.updateTitle'), { weight: '600', color: GPU_COLORS.text, gap: 6 });
-      line(snapshot.t(hosted.update, { version: hosted.candidateVersion }), { gap: 12 });
-      if (hosted.deploy) buttonRow([hosted.deploy], 280);
+      line(snapshot.t(hosted.update), { gap: 8 });
+      version(hosted.target);
+      if (hosted.askAdmin) line(snapshot.t(hosted.askAdmin));
+      if (hosted.confirm) {
+        line(snapshot.t(hosted.confirm.message), { color: GPU_COLORS.text });
+        buttonRow(hosted.confirm.actions, 200);
+      }
+      const next = [hosted.primary, hosted.retry].filter((control): control is HostingControl => !!control);
+      if (next.length) buttonRow(next, 280);
     }
     if (hosted.stop) buttonRow([hosted.stop], 280);
     line(snapshot.t('hosting.private'), { size: 12 });

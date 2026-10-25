@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ButtonIcon } from './ButtonIcon.js';
 import { buttonIconKind } from './button-icons.js';
 import { HOSTING_SUBDOMAIN_MAX } from '../../contracts/projectDeployment.js';
-import { deploymentCopy, hostingCopy, type DeploymentSettingsView } from './project-deployment.js';
+import { deploymentCopy, hostingCopy, versionLineText, type DeploymentSettingsView, type HostingControl, type HostingVersionLine } from './project-deployment.js';
 import { connectorsCopy, type ConnectorSettingsView } from './project-connectors.js';
 
 export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress, connectors, compute, locale = 'en' }: {
@@ -16,22 +16,31 @@ export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress
 }) {
   const copy = deploymentCopy(view);
   const hosted = hostingCopy(view);
-  const control = (button: { id: string; disabled?: boolean }) => <button key={button.id} type="button" disabled={Boolean(button.disabled)}
-    onClick={() => onActivate(button.id)}><ButtonIcon kind={buttonIconKind(button.id)} />{t(button.id)}</button>;
+  const control = (button: HostingControl) => <button key={button.id} type="button" disabled={Boolean(button.disabled)}
+    onClick={() => onActivate(button.id)}><ButtonIcon kind={buttonIconKind(button.id)} />{t(button.label ?? button.id)}</button>;
   return <section aria-label={t('projects.settings')} aria-busy={view.busy}>
     {hosted ? <section aria-label={t('hosting.title')}>
       <h3>{t('hosting.title')}</h3>
-      <p role="status">{t(hosted.status)}{hosted.version && hosted.tone === 'success' ? ` · ${t('hosting.versionShort', { version: hosted.version })}` : ''}</p>
+      <p role="status">{t(hosted.status)}</p>
+      {hosted.current ? <VersionLine line={hosted.current} t={t} locale={locale} /> : null}
       {hosted.address ? <p>{t('hosting.address')}: {hosted.actions.some(action => action.id === 'hosting.open')
         ? <button type="button" onClick={() => onActivate('hosting.open')}>{hosted.address}</button> : hosted.address}</p> : null}
       {hosted.actions.map(control)}
       {view.renaming && hosted.label && hosted.domain && onRenameAddress ?
         <AddressForm key={hosted.label} label={hosted.label} domain={hosted.domain} view={view} t={t}
           onSave={onRenameAddress} onCancel={() => onActivate('hosting.renameCancel')} /> : null}
+      {hosted.progress && hosted.progress !== hosted.status ? <p role="status">{t(hosted.progress)}</p> : null}
       {hosted.update ? <>
         <h4>{t('hosting.updateTitle')}</h4>
-        <p>{t(hosted.update, { version: hosted.candidateVersion })}</p>
-        {hosted.deploy ? control(hosted.deploy) : null}
+        <p>{t(hosted.update)}</p>
+        {hosted.target ? <VersionLine line={hosted.target} t={t} locale={locale} /> : null}
+        {hosted.askAdmin ? <p>{t(hosted.askAdmin)}</p> : null}
+        {hosted.confirm ? <div role="group" aria-label={t('hosting.update')}>
+          <p>{t(hosted.confirm.message)}</p>
+          {hosted.confirm.actions.map(control)}
+        </div> : null}
+        {hosted.primary ? control(hosted.primary) : null}
+        {hosted.retry ? control(hosted.retry) : null}
       </> : null}
       {hosted.stop ? control(hosted.stop) : null}
       <p>{t('hosting.private')}</p>
@@ -145,4 +154,11 @@ function ComputeSection({ view, t, locale, onActivate }: { view: ComputeSettings
     {view.notice !== 'idle' ? <p role={computeNoticeIsStatus(view.notice) ? 'status' : 'alert'}>{t(`compute.${view.notice}`)}</p> : null}
     {selected !== saved ? <button type="button" disabled={!view.project.canEdit || view.busy} onClick={() => onActivate('compute.save')}><ButtonIcon kind="check" />{t('compute.save')}</button> : null}
   </section>;
+}
+
+/** A version in words; its short hash stays in a disclosure, never the lead. */
+export function VersionLine({ line, t, locale }: { line: HostingVersionLine; locale: string;
+  t: (key: string, vars?: Record<string, unknown>) => string }) {
+  return <div><p>{versionLineText(line, t, locale)}</p>
+    <details><summary>{t('hosting.versionDetails')}</summary><p>{t('hosting.versionShort', { version: line.hash })}</p></details></div>;
 }

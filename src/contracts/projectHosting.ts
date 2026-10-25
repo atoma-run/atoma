@@ -22,15 +22,40 @@ export const hostedDeploymentSchema = hostingIdentitySchema.extend({
   kind: z.enum(['node', 'static']), entry: z.string(), browser: z.boolean().optional(),
   createdAt: z.string(), error: z.enum(['startup-failed', 'runtime-unavailable', 'interrupted', 'cleanup-failed']).nullable(),
   hostPort: z.number().int().nullable(), image: z.string().nullable(),
+  /**
+   * The accepted run that was online when an update stopped it to start this
+   * one: what "put the previous version back" redeploys. Absent on first
+   * deployments, plain deploys and rows written before 2026-10-25.
+   */
+  previousRunId: z.string().uuid().optional(),
 }).strict();
 export type HostedDeployment = z.infer<typeof hostedDeploymentSchema>;
+/** An accepted version described in words: the run's title and the client's acceptance date. */
+export const hostingVersionSchema = z.object({
+  runId: z.string().uuid(), commitSha: z.string(),
+  /** The run's one-line title; null until the run is named, and on runs named before titles existed. */
+  title: z.string().nullable(),
+  /** When the client accepted it; null for a publication receipt older than client acceptance. */
+  acceptedAt: z.string().nullable(),
+}).strict();
+export type HostingVersion = z.infer<typeof hostingVersionSchema>;
 export const hostingSummarySchema = z.object({
   available: z.boolean(), state: z.enum(['not-deployed', 'starting', 'ready', 'failed', 'stopped']),
   deploymentId: z.string().uuid().nullable(), runId: z.string().uuid().nullable(),
   commitSha: z.string().nullable(), url: z.string().nullable(), error: z.string().nullable(),
   /** The project's stable address, assigned before its first deployment; null until then. */
   address: z.string().nullable(),
-  candidate: z.object({ runId: z.string().uuid(), manifestHash: z.string(), commitSha: z.string() }).nullable(),
+  candidate: hostingVersionSchema.extend({ manifestHash: z.string() }).nullable(),
+  /** The version `runId`/`commitSha` name, in words; null when nothing was ever deployed. */
+  version: hostingVersionSchema.nullable(),
+  /**
+   * The version an update stopped, offered back while the update's new version
+   * failed to start and nothing is online. Only when its bytes are retained
+   * and it is still accepted and published.
+   */
+  previous: hostingVersionSchema.extend({ manifestHash: z.string() }).nullable(),
+  /** Replacing what runs now stops it first (a stateful Node application): the site is down meanwhile. */
+  updateStops: z.boolean(),
 }).strict();
 export type HostingSummary = z.infer<typeof hostingSummarySchema>;
 

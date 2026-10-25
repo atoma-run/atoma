@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
-import { deploymentCopy, hostingCopy, useProjectDeployment, type DeploymentSettingsView } from '../src/viz/client-gl/project-deployment.js';
+import { deploymentCopy, hostingCopy, useProjectDeployment, versionLineText, versionWords, type DeploymentSettingsView } from '../src/viz/client-gl/project-deployment.js';
+import { translate } from '../src/viz/client/i18n-catalog.js';
+import { useGpuStore } from '../src/viz/client-gl/store.js';
 import { ProjectSettingsAccessible } from '../src/viz/client-gl/ProjectSettingsAccessible.js';
 import type { VizProject } from '../src/viz/client/types.js';
 
@@ -26,7 +28,8 @@ function mount(canEdit = true) {
   const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
   return { client, ...render(createElement(Harness, { canEdit }), { wrapper }) };
 }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); useGpuStore.setState({ hostingConfirm: null }); });
+const translateEn = (key: string, vars?: Record<string, unknown>) => translate('en', key, vars);
 
 it('saves only after explicit confirmation and keeps the server preference visible', async () => {
   const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => new Response('{}', { status: init?.method === 'PUT' ? 200 : 503 }));
@@ -67,7 +70,7 @@ it('discards a draft when switching projects and restricts member controls', asy
 
 it('renames the hosting address only after an explicit, valid save and says the old one redirects', async () => {
   const summary = { available: true, state: 'ready', deploymentId: null, runId: null, commitSha: null, url: null, error: null,
-    address: 'https://report.app.atoma.run/', candidate: null };
+    address: 'https://report.app.atoma.run/', candidate: null, version: null, previous: null, updateStops: false };
   const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => new Response(JSON.stringify(init?.method === 'PUT' ? {} : summary), { status: 200 }));
   vi.stubGlobal('fetch', fetch);
   const { client } = mount();
@@ -87,25 +90,107 @@ it('renames the hosting address only after an explicit, valid save and says the 
   await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument());
 });
 
-it('shows only what applies: no update when the online version is the latest, stop-first only for a newer one', () => {
-  const a = 'a'.repeat(40); const b = 'b'.repeat(40);
-  const online = { available: true, state: 'ready' as const, deploymentId: '22222222-2222-4222-8222-222222222222', runId: null, commitSha: a,
-    url: 'https://attica.app.atoma.run/', error: null, address: 'https://attica.app.atoma.run/', candidate: { runId: '11111111-1111-4111-8111-111111111111', manifestHash: 'f'.repeat(64), commitSha: a } };
-  const view = (hosting: DeploymentSettingsView['hosting'], canEdit = true): DeploymentSettingsView =>
-    ({ hosting, destination: 'atoma', saved: 'atoma', canEdit, busy: false, status: 'idle' });
-  const current = hostingCopy(view(online))!;
-  expect(current).toMatchObject({ tone: 'success', version: 'aaaaaaaa', address: 'https://attica.app.atoma.run/', update: null, deploy: null,
+const RUN_A = '11111111-1111-4111-8111-111111111111';
+const RUN_B = '33333333-3333-4333-8333-333333333333';
+const DEPLOYMENT = '22222222-2222-4222-8222-222222222222';
+const a = 'a'.repeat(40); const b = 'b'.repeat(40);
+type Summary = NonNullable<DeploymentSettingsView['hosting']>;
+/** A stateful application online with version A; version B was accepted and published since. */
+function summary(overrides: Partial<Summary> = {}): Summary {
+  return { available: true, state: 'ready', deploymentId: DEPLOYMENT, runId: RUN_A, commitSha: a,
+    url: 'https://attica.app.atoma.run/', error: null, address: 'https://attica.app.atoma.run/',
+    version: { runId: RUN_A, commitSha: a, title: 'First control page', acceptedAt: '2026-10-24T09:00:00.000Z' },
+    candidate: { runId: RUN_B, commitSha: b, manifestHash: 'f'.repeat(64), title: 'Finish Attica control page repair', acceptedAt: '2026-10-25T09:00:00.000Z' },
+    previous: null, updateStops: true, ...overrides };
+}
+const settings = (hosting: DeploymentSettingsView['hosting'], overrides: Partial<DeploymentSettingsView> = {}): DeploymentSettingsView =>
+  ({ projectId: 'project-1', hosting, destination: 'atoma', saved: 'atoma', canEdit: true, busy: false, status: 'idle', ...overrides });
+
+it('shows only what applies: nothing to update when the online version is the latest, one update for a newer one', () => {
+  const current = hostingCopy(settings(summary({ candidate: { ...summary().candidate!, runId: RUN_A, commitSha: a } })))!;
+  expect(current).toMatchObject({ tone: 'success', address: 'https://attica.app.atoma.run/', update: null, primary: null, confirm: null,
+    current: { key: 'hosting.version.online', words: { title: 'First control page' }, hash: 'aaaaaaaa' },
     stop: { id: 'hosting.stop', disabled: false } });
   expect(current.actions.map(action => action.id)).toEqual(['hosting.open', 'hosting.rename']);
-  expect(hostingCopy(view({ ...online, candidate: { ...online.candidate, commitSha: b } }))).toMatchObject({
-    update: 'hosting.update.stopFirst', candidateVersion: 'bbbbbbbb', deploy: { disabled: true } });
-  const stopped = hostingCopy(view({ ...online, state: 'stopped', url: null }))!;
-  expect(stopped).toMatchObject({ tone: 'muted', update: 'hosting.update.ready', deploy: { disabled: false }, stop: null });
+  expect(hostingCopy(settings(summary()))).toMatchObject({ update: 'hosting.update.available', primary: { id: 'hosting.update', disabled: false },
+    target: { key: 'hosting.version.candidate', words: { title: 'Finish Attica control page repair' }, hash: 'bbbbbbbb' }, askAdmin: null });
+  // Stopped: putting it online is the existing first deployment, needing no stop.
+  const stopped = hostingCopy(settings(summary({ state: 'stopped', url: null, updateStops: false })))!;
+  expect(stopped).toMatchObject({ tone: 'muted', update: 'hosting.update.startable', primary: { id: 'hosting.deploy', disabled: false },
+    current: { key: 'hosting.version.last' }, stop: null });
   expect(stopped.actions.map(action => action.id)).toEqual(['hosting.rename']);
-  // A legacy deployment still shows where it is served; a member sees no administrative control.
-  const member = hostingCopy(view({ ...online, address: null }, false))!;
-  expect(member).toMatchObject({ address: 'https://attica.app.atoma.run/', deploy: null, stop: null });
+  // A legacy deployment still shows where it is served; a member is told whom to ask instead of a button.
+  const member = hostingCopy(settings(summary({ address: null }), { canEdit: false }))!;
+  expect(member).toMatchObject({ address: 'https://attica.app.atoma.run/', primary: null, stop: null, askAdmin: 'hosting.offer.askAdmin' });
   expect(member.actions.map(action => action.id)).toEqual(['hosting.open']);
   // The destination card never repeats the hosted card's privacy sentence, and has nothing to save once saved.
-  expect(deploymentCopy(view(online))).toMatchObject({ notice: null, showSave: false, description: 'deployment.atomaDescription' });
+  expect(deploymentCopy(settings(summary()))).toMatchObject({ notice: null, showSave: false, description: 'deployment.atomaDescription' });
+});
+
+it('asks a plain confirmation before an update, worded by whether the site goes down', () => {
+  const stateful = hostingCopy(settings(summary(), { confirming: 'update' }))!;
+  expect(stateful.primary).toBeNull(); expect(stateful.stop).toBeNull();
+  expect(stateful.confirm).toEqual({ message: 'hosting.confirm.update', actions: [{ id: 'hosting.confirm', disabled: false }, { id: 'hosting.cancel' }] });
+  expect(hostingCopy(settings(summary({ updateStops: false }), { confirming: 'update' }))!.confirm!.message).toBe('hosting.confirm.updateLive');
+  // A member never sees a confirmation, even when the store holds one.
+  expect(hostingCopy(settings(summary(), { confirming: 'update', canEdit: false }))!.confirm).toBeNull();
+  // Progress and outcome in plain words.
+  expect(hostingCopy(settings(summary(), { hostingBusy: true, hostingBusyAction: 'update' }))).toMatchObject({
+    status: 'hosting.progress.stopping', primary: { id: 'hosting.update', disabled: true } });
+  expect(hostingCopy(settings(summary({ state: 'starting', url: null }), { hostingAction: 'update' }))!.progress).toBe('hosting.progress.starting');
+  expect(hostingCopy(settings(summary({ runId: RUN_B, commitSha: b }), { hostingAction: 'update' }))!.progress).toBe('hosting.outcome.updated');
+});
+
+it('says plainly when the new version did not start and offers the previous one back', () => {
+  const failed = summary({ state: 'failed', url: null, runId: RUN_B, commitSha: b, error: 'startup-failed', updateStops: false,
+    version: summary().candidate, previous: { ...summary().version!, manifestHash: 'e'.repeat(64) } });
+  const copy = hostingCopy(settings(failed, { hostingAction: 'update' }))!;
+  expect(copy).toMatchObject({ tone: 'error', update: 'hosting.outcome.failed', primary: { id: 'hosting.restore' },
+    retry: { id: 'hosting.deploy', label: 'hosting.retry' }, target: { key: 'hosting.version.previous', words: { title: 'First control page' } } });
+  expect(hostingCopy(settings(failed, { confirming: 'restore' }))!.confirm!.message).toBe('hosting.confirm.restore');
+  expect(hostingCopy(settings(failed, { canEdit: false }))).toMatchObject({ primary: null, retry: null, askAdmin: 'hosting.offer.askAdmin' });
+});
+
+it('describes versions in words: the title and when it was accepted, never the hash first', () => {
+  const now = new Date('2026-10-25T18:00:00');
+  const words = { title: 'Finish Attica control page repair', acceptedAt: new Date('2026-10-25T09:00:00').toISOString() };
+  expect(versionWords(words, translateEn, 'en', now)).toBe('Finish Attica control page repair, accepted today');
+  expect(versionWords({ ...words, acceptedAt: new Date('2026-10-24T09:00:00').toISOString() }, translateEn, 'en', now))
+    .toBe('Finish Attica control page repair, accepted yesterday');
+  expect(versionWords({ ...words, acceptedAt: new Date('2026-10-03T09:00:00').toISOString() }, translateEn, 'en', now))
+    .toBe('Finish Attica control page repair, accepted on October 3, 2026');
+  expect(versionWords({ title: null, acceptedAt: null }, translateEn, 'en', now)).toBe('an earlier version');
+  expect(versionLineText({ key: 'hosting.version.online', words, hash: 'aaaaaaaa' }, translateEn, 'en', now))
+    .toBe('Online: Finish Attica control page repair, accepted today');
+});
+
+it('updates from the accessible twin only after an explicit Confirm, then shows its progress', async () => {
+  let current = summary();
+  const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+    if (init?.method === 'POST') { current = summary({ state: 'starting', url: null }); return new Response('{}', { status: 202 }); }
+    return new Response(JSON.stringify(current), { status: 200 });
+  });
+  vi.stubGlobal('fetch', fetch);
+  const { client } = mount();
+  client.setQueryData(['viz', 'projects'], [{ ...project, deploymentDestination: 'atoma', hostingSubdomain: 'attica' }]);
+  const posts = () => fetch.mock.calls.filter(([, init]) => init?.method === 'POST');
+  const update = await screen.findByRole('button', { name: 'hosting.update' });
+  // The versions lead in words; their hashes sit only inside the technical details.
+  expect(screen.getAllByText(/^hosting\.version\.(online|candidate)$/)).toHaveLength(2);
+  for (const paragraph of screen.getAllByText(/hosting\.version\./)) expect(paragraph.textContent).not.toMatch(/aaaaaaaa|bbbbbbbb/);
+  expect(screen.getAllByText('hosting.versionDetails').map(summary => summary.tagName)).toEqual(['SUMMARY', 'SUMMARY']);
+  await userEvent.click(update);
+  expect(screen.getByText('hosting.confirm.update')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'hosting.update' })).not.toBeInTheDocument();
+  expect(posts()).toHaveLength(0);
+  await userEvent.click(screen.getByRole('button', { name: 'hosting.cancel' }));
+  expect(screen.queryByText('hosting.confirm.update')).not.toBeInTheDocument();
+  expect(posts()).toHaveLength(0);
+  await userEvent.click(screen.getByRole('button', { name: 'hosting.update' }));
+  await userEvent.click(screen.getByRole('button', { name: 'hosting.confirm' }));
+  await waitFor(() => expect(posts()).toHaveLength(1));
+  expect(posts()[0]).toEqual(['/api/projects/project-1/hosting/update', expect.objectContaining({
+    body: JSON.stringify({ runId: RUN_B, manifestHash: 'f'.repeat(64), expectedDeploymentId: DEPLOYMENT }) })]);
+  await waitFor(() => expect(screen.getAllByText('hosting.progress.starting').length).toBeGreaterThan(0));
+  expect(screen.queryByText('hosting.confirm.update')).not.toBeInTheDocument();
 });

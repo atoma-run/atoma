@@ -97,17 +97,16 @@ schema and bounded reader live in [contracts](../contracts/AGENTS.md#haystack-ru
 
 ## Deployment preference
 
-`deploymentDestination` is `none` (default), `atoma`, or `external`. The
-admin-only same-origin project setting uses an expected value to reject stale
-writes, is org-scoped and journaled, and never deploys or stops anything.
-Preview, acceptance, GitHub publication and deployment remain separate.
-Private hosted applications use `hostingService`, `hostingStore` and the separate
-hosting launcher; see [project hosting](../../docs/project-hosting.md). Hosting
-uses accepted, published, hash-verified copies. Settings never execute it.
-Saving Atoma assigns the `hostingSubdomain` label (model-proposed, `[a-z]`
-words); an admin rename retires the old label as a permanent redirect, never
-reused ([rules](../../docs/project-hosting.md#dns-and-https)).
-External provider execution is not implemented.
+`deploymentDestination` is `none` (default), `atoma`, or `external` (no provider is
+implemented): an admin-only, same-origin, org-scoped, journaled setting with an expected
+value; saving it never deploys or stops anything. Preview, acceptance, publication and
+deployment stay separate. Hosting (`hostingService`, `hostingStore`, its own launcher;
+[project hosting](../../docs/project-hosting.md)) runs accepted, published, hash-verified
+copies. Saving Atoma assigns the `hostingSubdomain` label; a rename retires the old one
+as a permanent redirect, never reused. `update` (owner, 2026-10-25) is an explicit admin
+click, never automatic, not even opt-in: ONE request stops every `holdsApplicationData`
+row, then reserves the candidate, under Stop's lock and CAS; a failed start offers
+`restore` of `previousRunId`, which retention holds.
 
 ## The organisation's MCP servers
 
@@ -738,6 +737,7 @@ acceptance, publication or the immutable child trace.
 
 - The project learning reader shares one org-authorized body across HTTP/MCP, including deferred-worker ledger provenance. Read-only, bounded and explicit about coverage: [contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
+- Hosted update on acceptance, client-sequenced Stop then Deploy, a client-chosen put-back: refused ([why](../../docs/project-hosting.md#updating-an-application)).
 - Reading egress settings, or an ollama destination, from a tenant prompt:
   refused. They come from the HOST snapshot. An organisation picks ollama
   MODELS, never an endpoint — a tenant URL would be SSRF from the platform's

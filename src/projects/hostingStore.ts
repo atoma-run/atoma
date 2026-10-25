@@ -10,6 +10,14 @@ export const HOSTING_DDL = `CREATE TABLE IF NOT EXISTS project_hosted_deployment
  FOREIGN KEY(project_id, org_id) REFERENCES projects(project_id, org_id)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS hosted_one_start ON project_hosted_deployments(project_id) WHERE state='starting';`;
+/**
+ * A row whose runtime may still write the project's data: a ready Node
+ * application, or one whose state is unknown. Replacing any of them needs a
+ * stop first, so two versions never write the same data.
+ */
+export function holdsApplicationData(row: HostedDeployment): boolean {
+  return (row.state === 'ready' && row.kind === 'node') || row.error === 'runtime-unavailable' || row.error === 'cleanup-failed';
+}
 export class HostingStore {
   constructor(private readonly db: Database.Database) { db.exec(HOSTING_DDL); }
   static open(file: string): HostingStore { return new HostingStore(openStoreHandle(file, HOSTING_DDL)); }
@@ -24,7 +32,7 @@ export class HostingStore {
     this.db.transaction(() => {
       const rows = this.list(row.orgId, row.projectId);
       if ((rows[0]?.deploymentId ?? null) !== expected || rows.some(r => r.state === 'starting')) throw new ProjectStateConflict('Deployment changed; refresh before continuing');
-      if (rows.some(r => (r.state === 'ready' && r.kind === 'node') || r.error === 'runtime-unavailable' || r.error === 'cleanup-failed')) throw new ProjectStateConflict('Stop the running application before updating its persistent data');
+      if (rows.some(holdsApplicationData)) throw new ProjectStateConflict('Stop the running application before updating its persistent data');
       const count = this.db.prepare("SELECT COUNT(*) AS n FROM project_hosted_deployments WHERE (state IN ('starting','ready') OR (state='failed' AND json_extract(record,'$.error') IN ('runtime-unavailable','cleanup-failed')))").get() as { n: number };
       if (count.n >= max) throw new ProjectStateConflict('Hosting capacity is full');
       this.db.prepare('INSERT INTO project_hosted_deployments VALUES (?,?,?,?,?,?)').run(row.deploymentId, row.orgId, row.projectId, row.state, JSON.stringify(row), row.createdAt);

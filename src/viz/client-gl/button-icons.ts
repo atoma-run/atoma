@@ -64,6 +64,10 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'deployment.choose.atoma') return 'globe';
   if (id === 'deployment.choose.external') return 'link';
   if (id === 'hosting.deploy') return 'globe';
+  if (id === 'hosting.update') return 'refresh';
+  if (id === 'hosting.restore') return 'back';
+  if (id === 'hosting.confirm') return 'check';
+  if (id === 'hosting.cancel') return 'close';
   if (id === 'hosting.open') return 'link';
   if (id === 'hosting.stop') return 'close';
   if (id === 'hosting.rename') return 'edit';

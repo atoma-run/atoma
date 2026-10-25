@@ -16,6 +16,8 @@ interface Props {
   collapsed?: boolean;
   t: (key: string, vars?: Record<string, unknown>) => string;
   onSettings: (tab: 'subscriptions' | 'keys') => void; onScopeChange: (id: string) => void; onProject: (id: string) => void; onRun: (run: AssistantRun, traceId: string | null) => void;
+  /** The selected project's hosted application, for the run card's update offer. */
+  hosting?: { view: import('./project-deployment.js').DeploymentSettingsView; onActivate: (id: string) => void } | null;
 }
 
 interface OptimisticMessage {
@@ -53,7 +55,7 @@ export function assistantFailureCopy(failure: unknown, t: (key: string) => strin
   return failure instanceof Error ? failure.message : t('assistant.failed');
 }
 
-export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide, onboarding, heading, collapsed = false, t, onSettings, onScopeChange, onProject, onRun }: Props) {
+export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide, onboarding, heading, collapsed = false, t, onSettings, onScopeChange, onProject, onRun, hosting = null }: Props) {
   const client = useQueryClient();
   const queryKey = ['viz', 'assistant', scopeKey, projectId];
   const conversationId = useRef<string | undefined>(undefined);
@@ -131,7 +133,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     messages.map((message, index) => ({ kind: 'message', message, index }));
   if (finishedRun) timeline.splice(resultPosition, 0, { kind: 'result' });
   const resultCard = finishedRun ? <AssistantRunResult key={`${scopeKey}:${finishedRun.runId}`} scopeKey={scopeKey}
-    target={{ projectId: finishedRun.projectId, runId: finishedRun.runId }} run={finishedRun} locale={locale} t={t} onRun={onRun} /> : null;
+    target={{ projectId: finishedRun.projectId, runId: finishedRun.runId }} run={finishedRun} locale={locale} t={t} onRun={onRun} hosting={hosting} /> : null;
   const empty = quiet && !finishedRun;
   const newProjectPrompt = empty && !projectId && !shownRun;
   const compact = externalAgentOpen || Boolean(query.data && choices.length > 0 && quiet && !error && !query.isError);

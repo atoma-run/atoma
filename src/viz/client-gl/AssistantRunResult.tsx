@@ -5,13 +5,17 @@ import { api } from '../client/data-api.js';
 import { ButtonIcon } from './ButtonIcon.js';
 import { RelativeTime } from './RelativeTime.js';
 import { parentTestCardLine } from './run-result.js';
+import { hostedUpdateOffer, type DeploymentSettingsView } from './project-deployment.js';
+import { HostedUpdateOfferSection } from './HostedUpdateOffer.js';
 
 /** Current host receipts, not a generated reply or a rewrite of the conversation journal. */
-export function AssistantRunResult({ scopeKey, target, run, locale, t, onRun }: {
+export function AssistantRunResult({ scopeKey, target, run, locale, t, onRun, hosting }: {
   scopeKey: string; target: AssistantRun; run: NonNullable<AssistantView['run']>;
   locale: string;
   t: (key: string, vars?: Record<string, unknown>) => string;
   onRun: (run: AssistantRun, traceId: string | null) => void;
+  /** The selected project's hosted application: offered an update once this run is its accepted version. */
+  hosting?: { view: DeploymentSettingsView; onActivate: (id: string) => void } | null;
 }) {
   const client = useQueryClient();
   const query = useQuery({
@@ -28,6 +32,8 @@ export function AssistantRunResult({ scopeKey, target, run, locale, t, onRun }: 
   const [error, setError] = useState<string | null>(null);
   const publishFiles = review?.delivery === 'files' && (review.files?.total ?? 0) > 0;
   const canAccept = run.status === 'delivered' && review?.canRequestAcceptance && !!review.run.artifactManifestHash;
+  // Accepted and published: the online application may still run an older version.
+  const offer = run.status === 'delivered' ? hostedUpdateOffer(hosting?.view, { projectId: target.projectId, projectRunId: target.runId }) : null;
 
   async function accept(retry = false) {
     if (inFlight.current || query.isError || !review || (retry ? !review.canRetryPublication : !canAccept || !reviewText.trim())) return;
@@ -61,6 +67,7 @@ export function AssistantRunResult({ scopeKey, target, run, locale, t, onRun }: 
       : review?.clientAcceptance ? <p>{t(publishFiles ? 'assistant.deliveryAcceptedPending' : 'assistant.deliveryAccepted')}</p>
       : canAccept ? <p>{t(publishFiles ? 'assistant.deliveryReady' : 'assistant.deliveryReadyText')}</p> : null}
     {review?.filesState === 'expired' ? <p>{t('assistant.deliveryExpired')}</p> : null}
+    {offer && hosting ? <HostedUpdateOfferSection offer={offer} t={t} onActivate={hosting.onActivate} /> : null}
     <div className="gpu-assistant-message-actions">
       <button type="button" onClick={() => onRun(target, run.traceId)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
       {canAccept && !confirming ? <button type="button" disabled={busy || query.isError} onClick={() => setConfirming(true)}>

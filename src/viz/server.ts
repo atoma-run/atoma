@@ -26,6 +26,7 @@ import { ConnectedAssistantModels } from './assistantModels.js';
 import { AssistantStore } from './assistantStore.js';
 import { connectAssistantMcp } from './assistantMcp.js';
 import { assistantHttp } from './assistantHttp.js';
+import { HOSTING_ROUTE, hostingHttp } from './hostingHttp.js';
 import { observeRepositoryPush } from '../projects/repositoryPush.js';
 import { assertPersonalCodexModels, UNAVAILABLE_CODEX_MODELS } from '../contracts/codexModels.js';
 import { openDb, unfoldedRegistryPredicate } from '../registry/db.js';
@@ -5180,28 +5181,16 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
-    const hostedProject = pathname.match(/^\/api\/projects\/([^/]+)\/hosting(?:\/(deploy|stop|open))?$/);
+    const hostedProject = pathname.match(HOSTING_ROUTE);
     if (hostedProject) {
-      const action = hostedProject[2];
-      if (!methodAllowed(req, res, action ? 'POST' : 'GET') || (action && !sameOrigin(req, res))) return;
-      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
-      const runtime = await hostingRuntime();
-      if (!runtime) { sendJson(res, 503, { error: 'Project hosting is not configured yet' }); return; }
-      try {
-        const projectId = hostedProject[1]!;
-        if (!action) sendJson(res, 200, runtime.service.status(viewer, projectId));
-        else if (action === 'open') sendJson(res, 200, { url: runtime.gateway.open(viewer, projectId) });
-        else {
-          let body: unknown;
-          try { body = JSON.parse((await readBodyBounded(req, 4096)).toString('utf8')); }
-          catch { sendJson(res, 400, { error: 'Invalid hosting request' }); return; }
-          if (action === 'deploy') sendJson(res, 202, await runtime.service.deploy(viewer, projectId, body));
-          else sendJson(res, 200, await runtime.service.stop(viewer, projectId, (body as { expectedDeploymentId?: unknown } | null)?.expectedDeploymentId));
-        }
-      } catch (error) {
-        if (error instanceof ProjectHttpError) sendJson(res, error.status, { error: error.message });
-        else sendJson(res, 503, { error: 'Hosting operation unavailable; refresh its status before retrying' });
-      }
+      await hostingHttp(hostedProject, {
+        viewer,
+        methodAllowed: method => methodAllowed(req, res, method),
+        sameOrigin: () => sameOrigin(req, res),
+        readBody: () => readBodyBounded(req, 4096),
+        runtime: hostingRuntime,
+        send: (status, body) => sendJson(res, status, body),
+      });
       return;
     }
 

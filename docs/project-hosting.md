@@ -36,14 +36,44 @@ workers and document-domain relaxation are disabled. Applications cannot set
 headers that weaken this policy. A stable project address does not carry a
 reusable access credential. Reopen through Atoma after an idle session expires.
 
-Stop keeps source and project data. Updates to a stateful Node application
-require an explicit stop before deploying another version, so two versions
-never write its data simultaneously. The UI explains the resulting maintenance
-interval. Static replacement can start before the old version is removed.
+Stop keeps source and project data. Updating a stateful Node application stops
+it before the new version starts (see [Updating an application](#updating-an-application)),
+so two versions never write its data simultaneously.
+Static replacement can start before the old version is removed.
 Application-level data migrations and rollback are not automatic; retained
 bytes are not a backup policy. Operators must include the hosting root in their
 backups and monitor its disk usage. There is no automatic deletion of releases
 or persistent data, and no enforced per-project disk quota yet.
+
+## Updating an application
+
+When a newer delivery is accepted and published, Project settings, the
+conversation's run card and that run's result page offer **Update the
+application** to organisation administrators; other members are told to ask
+one. Versions are described by the run's title and acceptance date, with the
+commit only as secondary detail. Nothing updates on acceptance, even by choice:
+updating stops the site for about a minute, so it stays an explicit click
+behind a plain confirmation (owner decision, 2026-10-25). The first deployment
+is **Put the application online**.
+
+One request (`POST …/hosting/update`, same-origin, same authority as deploy)
+does what Stop then Deploy did. It checks the deployment the person saw and
+that the candidate is still the newest accepted version, stops every runtime
+that may hold the data, and only then reserves the new version; the store
+refuses a start beside such a runtime. A stop that fails ends the request
+with nothing started. Static applications keep their no-downtime replacement.
+
+If the new version does not start, the status says so and offers **Put the
+previous version back** (`…/hosting/restore`): the version the update stopped,
+recorded on the new deployment, redeployed through the same checks. Retention
+holds the online version and that previous one, and the offer disappears when
+its bytes are gone. Deploy and Stop remain available on their own.
+
+Rejected: sequencing Stop then Deploy in the browser (a lost second request, or
+another administrator's deploy in between, left the site down or raced it); a
+put-back target chosen by the client (the host records what it stopped); and
+updating automatically on acceptance, which would stop a customer's site
+without a click.
 
 ## Operator installation
 
@@ -178,8 +208,8 @@ Browser deployments remain non-root, read-only and gVisor-isolated, with 1536 Mi
 RAM, 1 CPU and 256 PIDs. A per-deployment egress proxy uses the host-owned public
 Internet policy (all TCP ports), resolves and pins public addresses, and rejects private/loopback/link-local
 network targets. No direct uplink reaches the application. The profile and data
-survive application and platform restarts; source updates require stopping the
-previous Node deployment. The Linux smoke script exercises a synthetic manual
+survive application and platform restarts; an update stops the previous Node
+deployment before the new one starts. The Linux smoke script exercises a synthetic manual
 checkpoint, desktop WebSocket, persisted profile/data and network isolation.
 A real third-party CAPTCHA still requires client verification after deployment.
 

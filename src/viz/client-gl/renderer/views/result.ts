@@ -11,6 +11,7 @@ import { runStatus } from '../../../client/run-utils.js';
 import { formatDateTime } from '../../../client/date-format.js';
 import { drawPreviewControl } from '../preview-control.js';
 import { drawSectionLoading, revealSection } from '../loading-notice.js';
+import { hostedUpdateOffer, type HostingControl } from '../../project-deployment.js';
 
 /** One bounded result reader shared by Projects and Runs. No model HTML executes. */
 export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
@@ -68,6 +69,20 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
       Math.min(contentWidth, buttonWidth(label)), 32, false, snapshot.onActivate);
     cursor += 42;
   };
+  /** Side by side at their measured widths, wrapping when the row is full. */
+  const controls = (row: HostingControl[]) => {
+    if (!row.length) return;
+    let left = 4;
+    for (const control of row) {
+      const label = snapshot.t(control.label ?? control.id);
+      const controlWidth = Math.min(contentWidth, buttonWidth(label));
+      if (left > 4 && left + controlWidth > contentWidth) { left = 4; cursor += 42; }
+      ctx.button(pane.content, control.id, 'button', label, left, cursor, controlWidth, 32, false, snapshot.onActivate,
+        undefined, false, false, undefined, undefined, undefined, Boolean(control.disabled));
+      left += controlWidth + 8;
+    }
+    cursor += 42;
+  };
   const sections = (values: { title: string; text: string }[]) => {
     let remaining = 24000;
     let shortened = false;
@@ -101,6 +116,20 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
     text(`${snapshot.t(awaiting ? 'projects.resultsWaiting.status' : `runs.flag.${runStatus(run)}`)} · ${formatDateTime(run.endedAt ?? run.startedAt, snapshot.state.locale)}`, false, true);
     if (awaiting) text(snapshot.t(computeResultsMessageKey(awaiting, snapshot.data.auth)));
     else if (runStatus(run) !== 'delivered') text(snapshot.t('result.notFinal'));
+    // This run is the accepted version and the online application is older,
+    // or was never put online: the same step and confirmation as Settings.
+    const offer = projectRun?.status === 'delivered' ? hostedUpdateOffer(snapshot.data.deploymentSettings, projectRun) : null;
+    if (offer) {
+      if (offer.lead) text(snapshot.t(offer.lead));
+      if (offer.progress) text(snapshot.t(offer.progress));
+      if (offer.error) text(snapshot.t(offer.error));
+      if (offer.askAdmin) text(snapshot.t(offer.askAdmin), false, true);
+      if (offer.confirm) {
+        text(snapshot.t(offer.confirm.message));
+        controls(offer.confirm.actions);
+      }
+      controls(offer.actions);
+    }
   } else if (snapshot.data.resultFailed) {
     text(snapshot.t('result.unavailable'));
   } else {
