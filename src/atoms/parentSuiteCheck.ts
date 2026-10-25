@@ -106,6 +106,60 @@ export function parentSuiteRefusal(label: string, source: string): string | unde
     'equality reads (Object.is, Object.keys, Array.prototype methods and the like). Revise the suite.';
 }
 
+/** One syntax error of a suite source: where TypeScript's parser stopped and why. */
+export interface SuiteParseDiagnostic {
+  readonly line: number;
+  readonly column: number;
+  readonly message: string;
+  /** The error sits on a backslash outside any string, regex or template: a second escaping layer's mark. */
+  readonly atBackslash: boolean;
+}
+
+/**
+ * The syntax errors of a suite source, as TypeScript's parser reads the file
+ * the runner writes (`atoma.acceptance.test.ts`); empty when it parses. The
+ * runner's own parser (Vite's, in the worker) is not a control-plane
+ * dependency, so TypeScript, already loaded here, stands in for it: they
+ * agreed on each of 796 Vitest sources on 2026-10-25 (this repository's and
+ * its dependencies' test files, the suites in local traces), and both refuse
+ * run 7d071257's suite. One parse, bounded by the suite size bound (32,000).
+ */
+export function parentSuiteParseDiagnostics(source: string): SuiteParseDiagnostic[] {
+  const file = ts.createSourceFile('atoma.acceptance.test.ts', source, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const diagnostics = (file as unknown as { parseDiagnostics?: readonly ts.DiagnosticWithLocation[] }).parseDiagnostics ?? [];
+  return diagnostics.map(diagnostic => {
+    const { line, character } = file.getLineAndCharacterOfPosition(diagnostic.start);
+    return { line: line + 1, column: character + 1, message: ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ').slice(0, 160),
+      atBackslash: source[diagnostic.start] === '\\' };
+  });
+}
+
+/**
+ * A suite whose source does not parse (run 7d071257, 2026-10-25): a cell's
+ * plan reply carried `\\n` for every line break, so the suite held the two
+ * characters `\n` and no line break. The runner answered "the suite module did
+ * not load; no test ran", the child could not edit the parent's suite, and the
+ * root refused a delivery whose code was verified correct. Refused every
+ * time, unlike an escaped regex backslash (`suiteRegexPrecheck`): that one is
+ * a heuristic a deliberate pattern may trip, this is a fact, since a module
+ * that does not parse runs no test whatever the planner meant.
+ */
+export function parentSuiteParseRefusal(label: string, source: string): string | undefined {
+  const diagnostics = parentSuiteParseDiagnostics(source);
+  if (diagnostics.length === 0) return undefined;
+  const shown = diagnostics.slice(0, 3).map(each => `line ${each.line}, column ${each.column}: ${each.message.replace(/\.$/, '')}`).join('; ');
+  const more = diagnostics.length > 3 ? ` (${diagnostics.length} errors in all)` : '';
+  // The two marks of a source escaped twice: no line break but literal `\n`s, or an error on a bare backslash.
+  const flattened = !source.includes('\n') && source.includes('\\n');
+  const escapedTwice = flattened || diagnostics.some(each => each.atBackslash);
+  const twice = !escapedTwice ? '' : (flattened
+    ? ' Its source holds the two characters \\n and no line break: it was escaped twice in the JSON and must carry real line breaks.'
+    : ' A backslash stands outside any string: the source was escaped twice in the JSON.') +
+    ' Escape once: a line break is \\n in the JSON string, never \\\\n, and a backslash the TypeScript keeps is \\\\, never \\\\\\\\.';
+  return `Acceptance suite ${label} does not parse as the TypeScript module the runner loads, so no test in it can run: ` +
+    `${shown}${more}.${twice} Revise the suite.`;
+}
+
 /**
  * A regular expression a suite cannot mean (run 2e6bdcfc, 2026-10-16): a
  * cell's plan reply carried `/!\\\\s+-name…/` in its JSON, so the suite the
@@ -435,7 +489,8 @@ export function readRunCopiesRefusal(label: string, source: string): string | un
 
 /**
  * Every zero-token suite finding of a plan, as ONE refusal, before any review:
- * the regexes it cannot mean (`suiteRegexPrecheck`), the APIs the runner's
+ * a source that does not parse (`parentSuiteParseRefusal`), the regexes it
+ * cannot mean (`suiteRegexPrecheck`), the APIs the runner's
  * guard refuses, test files imported as subjects, and a suite naming the
  * read-run copies. One message, so the planner hears every host finding in
  * one round (2026-10-17). A test-file import refuses once per planner and
@@ -447,8 +502,13 @@ export function planSuitePrecheck(
   memo: Set<string>,
   planner: string,
 ): { refusal?: string; facts: string[] } {
+  // Named first, in every round: while a source does not parse, none of its tests runs.
+  const parse = suites.flatMap(({ label, source }) => {
+    const refusal = source ? parentSuiteParseRefusal(label, source) : undefined;
+    return refusal ? [refusal] : [];
+  });
   const regexes = suiteRegexPrecheck(suites, memo, planner);
-  const findings: string[] = regexes.refusal ? [regexes.refusal] : [];
+  const findings: string[] = [...parse, ...(regexes.refusal ? [regexes.refusal] : [])];
   const facts = [...regexes.facts];
   const told = new Set<string>();
   for (const { label, source, cwd } of suites) {

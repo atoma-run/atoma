@@ -887,7 +887,7 @@ describe('root delegation review robustness', () => {
     const ctx = makeCtx({ llm: routedLlm(cellName, [{ text: planReply(cellName) }], [{ text: approval }]) });
     vi.spyOn(tissue, 'execute').mockResolvedValue(result);
     await tissue.handle({ description: 'Implement signed addition' }, ctx);
-    const sentence = 'source is a JSON string: write every backslash as \\\\ (a regex \\d becomes \\\\d in JSON) and escape double quotes and newlines; prefer single-quoted TypeScript strings in test code.';
+    const sentence = 'source is a JSON string: write every backslash as \\\\ (a regex \\d becomes \\\\d in JSON) and escape double quotes and newlines, once (a line break is \\n in JSON, never \\\\n); prefer single-quoted TypeScript strings in test code.';
     expect(ctx.llm.calls.find(call => call.role === 'plan')?.userContent).toContain(sentence);
 
     const { cell } = actors();

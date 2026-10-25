@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { DelegationRefusalKind, NegativeVerdict, Plan, Task } from '../core/types.js';
 import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_EXECUTION, PARENT_TEST_INTEGRATION_PLACEMENT, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_SUFFICIENCY, PARENT_TEST_UNSATISFIABLE, delegationReviewEnvelopeSchema, type DelegationReview, type UnsatisfiableSuite } from '../contracts/parentTests.js';
 import { parseWith, planSchema } from './json.js';
-import { parentSuiteRefusal, readRunCopiesRefusal } from './parentSuiteCheck.js';
+import { parentSuiteParseRefusal, parentSuiteRefusal, readRunCopiesRefusal } from './parentSuiteCheck.js';
 import { VALIDATION_SYSTEM_PROMPT } from './verdict.js';
 
 export type { DelegationRefusalKind } from '../core/types.js';
@@ -197,9 +197,12 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
       ...(integration ? ['plan integration (plan-level, or on a join subtask that is the plan\'s last, declares outputs and comes after every other subtask)'] : []),
     ].join('; ')}. Supply executable suites before implementation, or request a genuine inspection-only discovery plan at L3.`);
   }
-  // APIs the runner's integrity guard refuses, and the read-run copies its
-  // snapshot leaves out: the parent's choice, refused before a child is blamed for it.
+  // A source that does not parse, APIs the runner's integrity guard refuses, and
+  // the read-run copies its snapshot leaves out: the parent's choice, refused
+  // before a child is blamed for it, also when a resumed run reuses an approval.
   for (const { label, source } of planSuites(plan)) {
+    const parse = source ? parentSuiteParseRefusal(label, source) : undefined;
+    if (parse) findings.push(parse);
     const refusal = source ? parentSuiteRefusal(label, source) : undefined;
     if (refusal) findings.push(refusal);
     const copies = source ? readRunCopiesRefusal(label, source) : undefined;

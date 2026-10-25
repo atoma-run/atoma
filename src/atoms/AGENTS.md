@@ -372,19 +372,21 @@ load-bearing.
   `core/parentTests.ts` alone maps typed status/cause to reject, reject-once or
   review, never credit. Observations go up typed, reach validators only as a host
   block, judged once; green needs semantic review. The delegation review's mechanical
-  half owns the suite API check (`parentSuiteCheck.ts`): what the runner's integrity
-  guard refuses is refused in the parent's plan, not blamed on a child. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
-  Before any review, reviewed root plans and cell plans get the suite regex
-  check (`suiteRegexPrecheck`, run 2e6bdcfc): an invalid regex literal refuses
-  every time, an escaped backslash before a class letter once per planner and
-  pattern, then reaches the review as a host fact (reject-once-then-honour).
-  The same zero-token precheck refuses a test-file import once per planner and
-  states every suite finding in one refusal; the review then reads
-  `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves; `parentSuiteSources.ts` follows relative dependencies within six observation-only source reads, direct imports first;
-  source, and `parentSuiteReach.ts`'s line on written modules no suite imports, names
-  or calls into, withheld on any open walk or bound). Observation-only reads withhold
-  overwrite permission. A refused root's latest bounded facts reach its next planner, including parse retries,
-  as untrusted feedback; omissions establish nothing. No carry-over to another task. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
+  half owns the suite API and parse checks (`parentSuiteCheck.ts`): what the runner refuses
+  is refused in the parent's plan, not blamed on a child. [Review](../../records/reviews/parent-owned-tests-2026-10-16.md), [fixes](../../records/reviews/parent-tests-review-fixes-2026-10-16.md).
+  Before any review, reviewed root plans (replans included) and cell plans get the zero-token
+  suite precheck (`planSuitePrecheck`), every finding in one refusal. A source TypeScript's
+  parser refuses (`parentSuiteParseRefusal`; run 7d071257 wrote `\\n` for each line break)
+  and an invalid regex literal refuse every time: no test of that module can run. An escaped
+  backslash before a class letter (`suiteRegexPrecheck`, run 2e6bdcfc) and a test-file import
+  refuse once per planner, then reach the review as host facts (reject-once-then-honour).
+  The review reads `parentSuiteFacts.ts`'s HOST FACTS (where each import resolves;
+  `parentSuiteSources.ts` follows relative dependencies within six observation-only source
+  reads, direct imports first) and `parentSuiteReach.ts`'s line on written modules no suite
+  imports, names or calls into, withheld on any open walk or bound. Observation-only reads
+  withhold overwrite permission. A refused root's latest bounded facts reach its next planner,
+  parse retries included, as untrusted feedback; omissions establish nothing. No carry-over
+  to another task. [Protocol](../../docs/decisions/parent-owned-tests-2026-10-16.md).
 - A SUITE DISPUTE (`taskSuiteDispute`, measured only): the task's own suite failed with one failing set on 3+ runs over 2+
   `subjectDigest`s, looked for where the loop escalates. Counted once per suite per attempt (`suiteDisputes`), logged and recorded in the
   trace for a [pre-registered](../../benchmark/suite-dispute-2026-10-17/PREREGISTRATION.md) classification; no routing, no text a run's models read ([decision](../../docs/decisions/parent-owned-tests-2026-10-16.md#a-suite-that-fails-the-same-way-on-every-implementation-measured-only)).
@@ -747,15 +749,14 @@ Read the archived sections before changing something that merely looks odd.
   recipe: 24 of the model's 42 credited picks were misroutes, 19 under 0.5.
 - Do not introduce plan templating until a typed instantiation/validation layer
   exists; free-form substitution is another unvalidated router.
-- A spent ladder is a STAMP written where a ladder ends, never derived (G3,
-  review 2026-10-16). Refused: deriving it from `viaFallback` (`selfExecute`
-  stamps it on a null-strategy or in-flight peer path that walked no ladder);
-  counting fallbacks or one more tissue retry (the refused counter);
-  re-dispatching only the subtasks that did not fall back (a fragment);
-  attributing the tissue's refusal to one part (prose); `ladderSpent` reading
-  `cell.peers` (a peer never used for this phase); rewriting a mutualized
-  `producedBy` (false provenance); a hand-up without root acceptance (delivered
-  unread). The `[A, C]` reach lands by analogy, with a pre-registered count:
+- A spent ladder is a STAMP written where a ladder ends, never derived (G3, review
+  2026-10-16). Refused: deriving it from `viaFallback` (`selfExecute` stamps it on a
+  null-strategy or in-flight peer path that walked no ladder); counting fallbacks or one more
+  tissue retry (the refused counter); re-dispatching only the subtasks that did not fall back
+  (a fragment); attributing the tissue's refusal to one part (prose); `ladderSpent` reading
+  `cell.peers` (a peer never used for this phase); rewriting a mutualized `producedBy` (false
+  provenance); a hand-up without root acceptance (delivered unread). The `[A, C]` reach lands
+  by analogy, with a pre-registered count:
   [record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-spent-ladders-that-are-not-recognised).
 - Suite disputes route nothing and reach no model until measured (2026-10-17). Refused: a "SUITE DISPUTE" line in
   the hand-up and the root's refusal (it reached every call of the next pass as an invitation to contest a suite
@@ -763,29 +764,28 @@ Read the archived sections before changing something that merely looks odd.
   challenge field the child fills in (run 2e6bdcfc's child tried to game its suite instead).
 - Split verification (G5, 2026-10-16,
   [record](../../records/reviews/parent-tests-review-fixes-2026-10-16.md#follow-up-split-verification-parts-land-on-the-right-cell-and-own-their-criteria)).
-  Do not bind a split checkpoint's criteria to a part whose cell cannot prove
-  both browser and command evidence: a README phase judged on a keyboard
-  criterion loops (first-refusals 2026-10-10). Ownership goes by cell type,
-  never by criterion wording or `check.kind` (an http criterion bound to the
-  static split's fetch_url cell would push it to write a Node server). Browser
-  holders follow `browserHolderFor`, at L3 and at the L2 redirect, never
-  "first validate_html by ordinal" (notes-app 2026-09-07). A whole reroute
-  names both proofs in one host line (guestbook, 31st iteration).
-- A read-only phase is RESTORED when it ends, never refused its writes. The
-  refusal was built and reviewed first (2026-09-30): a verifier that found a
-  real defect was coached by the internal-validation gate to fix what the
-  fence refused, spent its retries and a branch, and the cell's fallback,
-  which the fence did not reach, rewrote the page anyway; a shell, a compiled
-  script and a recipe's scratch file each passed it. Restoring covers every
-  writer and leaves supervision as it is. What it costs: a fix such a phase
-  makes is undone, so the defect is left to a phase with outputs or to root
-  acceptance — the validator rule says so, and never rejects a read-only phase
-  to have it fixed where changes are undone. A mutating phase whose plan
-  forgot its outputs is undone too; none was, among the 36 root phases of
-  the deep runs and the short runs' root-cell plans measured on 2026-09-30,
-  and a restoration names every file it lost. Do not tell a read-only
-  molecule to change nothing: obeyed, it reported a failure the gate then
-  coached it to fix, three identical rejections deep (review 2026-09-30).
+  Do not bind a split checkpoint's criteria to a part whose cell cannot prove both browser
+  and command evidence: a README phase judged on a keyboard criterion loops (first-refusals
+  2026-10-10). Ownership goes by cell type, never by criterion wording or `check.kind` (an
+  http criterion bound to the static split's fetch_url cell would push it to write a Node
+  server). Browser holders follow `browserHolderFor`, at L3 and at the L2 redirect, never
+  "first validate_html by ordinal" (notes-app 2026-09-07). A whole reroute names both proofs
+  in one host line (guestbook, 31st iteration).
+- A read-only phase is RESTORED when it ends, never refused its writes. The refusal was built
+  and reviewed first (2026-09-30): a verifier that found a real defect was coached by the
+  internal-validation gate to fix what the fence refused, spent its retries and a branch, and
+  the cell's fallback, which the fence did not reach, rewrote the page anyway; a shell, a
+  compiled script and a recipe's scratch file each passed it. Restoring covers every writer
+  and leaves supervision as it is. Cost: a fix such a phase makes is undone, so the defect is
+  left to a phase with outputs or to root acceptance (the validator rule says so, and never
+  rejects a read-only phase to have it fixed where changes are undone). A mutating phase whose
+  plan forgot its outputs is undone too; none was, among the 36 root phases of the deep runs
+  and the short runs' root-cell plans measured on 2026-09-30, and a restoration names every
+  file it lost. Do not tell a read-only molecule to change nothing: obeyed, it reported a
+  failure the gate then coached it to fix, three identical rejections deep (review 2026-09-30).
+- An unparseable suite refuses every time, never once-then-honour as an escaped regex backslash
+  does (a heuristic a deliberate pattern may trip). Rejected: a regex for a literal `\n`, and
+  the runner's Vite parser (a dev dependency with a native binding, absent on the host).
 - `salvageResultEnvelope` reads a malformed summary STRUCTURALLY — everything
   between `"summary":"` and the closing `"}` — only when the envelope is the
   whole response with `output` first and every bare quote of the summary
