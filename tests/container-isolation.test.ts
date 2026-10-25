@@ -12,6 +12,7 @@ import { egressObjectId } from '../src/tools/egressSidecar.js';
 import { drainLines, encodeMessage, isWorkerHello } from '../src/tools/containerProtocol.js';
 import { HOST_REPLAY_ARG } from '../src/contracts/inheritedChecks.js';
 import { assertCheckpointWorkerAbsent } from '../src/launcher/checkpointRecovery.js';
+import { WORKER_PIDS_LIMIT } from '../src/launcher/workerProfile.js';
 import { OUTSIDE_THE_COPY_FILES, OUTSIDE_THE_COPY_SUITE, OUTSIDE_THE_COPY_TESTS } from './helpers/outsideTheCopy.js';
 import { randomUUID } from 'node:crypto';
 import { buildWorkspaceArtifactManifest } from '../src/projects/artifacts.js';
@@ -140,6 +141,19 @@ describe('workerRunArgs — the isolation is in the flags, so assert them', () =
   it('bounds memory and cpu', () => {
     expect(args).toContain('--memory');
     expect(args).toContain('--cpus');
+  });
+
+  it('bounds tasks with ONE limit for hosted and Compute workers (run 40c20c5d)', () => {
+    // Real-container proof that it fits concurrent browsers, and that the
+    // former 256 did not: tests/worker-thread-headroom.test.ts.
+    const machineId = '0b0c8f8e-6f1e-4b8f-9d61-2f7e1c3a5b10';
+    const compute = workerRunArgs({ image: 'img', workspaceHostPath: '/x', workspaceVolume: `atoma-compute-${machineId}-workspace`,
+      volumeSubpath: 'current', computeMachineId: machineId });
+    for (const a of [args, compute]) {
+      expect(a.filter((x) => x === '--pids-limit')).toHaveLength(1);
+      expect(a[a.indexOf('--pids-limit') + 1]).toBe(WORKER_PIDS_LIMIT);
+    }
+    expect(Number(WORKER_PIDS_LIMIT)).toBeGreaterThanOrEqual(2048);
   });
 
   it('EGRESS MODE swaps none for the internal network and points HTTP_PROXY at the one peer', () => {
