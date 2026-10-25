@@ -222,13 +222,13 @@ export const PARENT_TEST_SUFFICIENCY = [
  * Where a plan's integration suite sits: ONE rule, read by the planner, the
  * delegation review and the host's refusal (`enforceParsedDelegationReview`).
  * A join subtask's suite runs when that subtask returns, on the workspace every
- * implementation branch and every declared writer before it left; a plan-level
- * suite runs after aggregation, which writes nothing, on that same workspace.
+ * other subtask, all before it, left; a plan-level suite runs after
+ * aggregation, which writes nothing, on that same workspace.
  * Run 40c20c5d (2026-10-25) put its integration suite on such a join, the
  * review approved it as the plan's, and the host refused it for want of a
  * plan-level copy: a 121 s top-tier replan moved the same suite up a level.
  */
-export const PARENT_TEST_INTEGRATION_PLACEMENT = 'AN INTEGRATION SUITE is either the plan-level acceptanceTests or the acceptanceTests of a JOIN subtask: one that declares outputs and comes after every implementation branch (at least two besides itself) and every other subtask that declares outputs, through dependsOn directly or transitively, or by order in a sequential plan. Both run on the joined workspace; the join\'s suite runs when that subtask returns, so its own branch repairs what the suite finds.';
+export const PARENT_TEST_INTEGRATION_PLACEMENT = 'AN INTEGRATION SUITE is either the plan-level acceptanceTests or the acceptanceTests of the plan\'s JOIN subtask: its LAST subtask, which declares outputs and comes after every other subtask (at least two implementation branches among them), through dependsOn directly or transitively, or by order in a sequential plan. Nothing may run beside or after the join, not even a report; put a later step before it or keep the suite at plan level. Both run on the joined workspace; the join\'s suite runs when that subtask returns, so its own branch repairs what the suite finds.';
 
 /** The suite defects that refuse a plan in every review round; see PARENT_TEST_SUFFICIENCY. */
 export const PARENT_TEST_BLOCKING_DEFECTS = 'BLOCKING SUITE DEFECTS, which refuse a plan in any review round: a suite that does not import and call the real module it claims to test, or tests a helper or mock standing in for it; trivial or placeholder assertions, or none on values the module produces; no negative or boundary case; an interface the suite assumes that the application does not have; a testable implementation subtask without a parent-owned suite; interacting implementation branches without an integration suite, at plan level or on their join subtask; a behaviour the task or its criteria name that no suite can fail on; a proof the runtime cannot execute.';

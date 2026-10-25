@@ -174,11 +174,11 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
   // A join subtask's suite is the integration too (run 40c20c5d).
   const tested = review.subtasks.filter(s => s.kind === 'vitest').map(s => s.index);
   const integration = review.integration.kind === 'vitest' && !plan.acceptanceTests && tested.length >= 2 &&
-    joinSuite(plan, tested, depends) === undefined;
+    !joinCarriesIntegration(plan, tested, depends);
   if (missing.length || integration) {
     findings.push(`Missing parent-owned acceptanceTests on ${[
       ...missing.map(s => `subtask ${s.index} (${s.reason})`),
-      ...(integration ? ['plan integration (plan-level, or on a join subtask that declares outputs and comes after every implementation branch and every other subtask declaring outputs)'] : []),
+      ...(integration ? ['plan integration (plan-level, or on a join subtask that is the plan\'s last, declares outputs and comes after every other subtask)'] : []),
     ].join('; ')}. Supply executable suites before implementation, or request a genuine inspection-only discovery plan at L3.`);
   }
   // APIs the runner's integrity guard refuses, and the read-run copies its
@@ -201,28 +201,29 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
 }
 
 /**
- * The subtask whose suite is the plan's integration suite
- * (`PARENT_TEST_INTEGRATION_PLACEMENT`), or undefined. Its suite runs when it
- * returns (`superviseLoop`), and nothing that writes runs after it or beside
- * it, so it observes the workspace a plan-level suite would observe after an
- * aggregation that writes nothing. It declares outputs: in a sequential root
- * plan a phase without them is read-only, and its fixes would be put back.
- * Two tested branches at least come before it besides itself: a chain's last
- * tested branch keeps its own contract, and a plan suite still joins the two.
- * Order is `dependsOn` in a parallel plan and the index in a sequential one,
- * the order dispatch runs them in; a resumed root's plan is sequential, so the
- * suffix it re-enforces is read by index.
+ * Whether the plan's join subtask carries its integration suite
+ * (`PARENT_TEST_INTEGRATION_PLACEMENT`). The join is the plan's SINK: every
+ * other subtask comes before it, so it is the last index (`dependsOn` names
+ * earlier indices only). Its suite runs when it returns (`superviseLoop`) on
+ * the workspace a plan-level suite would read after an aggregation that
+ * writes nothing. Every subtask, outputs declared or not: one without them is
+ * read-only (photographed and restored) only in a sequential plan of two
+ * phases or more at the root or in a root cell's own plan, and anywhere else
+ * — a parallel plan, a cell under a tissue — it can write beside or after the
+ * join, where only a plan-level suite would see it (review 2026-10-25). The
+ * join declares outputs: as a sequential root phase without them it would be
+ * read-only, and the fixes its suite asks for would be put back. Two tested
+ * branches at least come before it: a chain's last tested branch keeps its
+ * own contract. Order is `dependsOn` in a parallel plan and the index in a
+ * sequential one, the order dispatch runs them in; a resumed root's plan is
+ * sequential, so the suffix it re-enforces is read by index.
  */
-function joinSuite(plan: Plan, tested: readonly number[], depends: (a: number, b: number) => boolean): number | undefined {
-  const before = (earlier: number, join: number): boolean =>
-    plan.aggregation.mode === 'sequential' ? earlier < join : depends(join, earlier);
-  const index = plan.subtasks.findIndex((join, j) => {
-    if (!join.acceptanceTests || !join.outputs?.length) return false;
-    const branches = tested.filter(i => i !== j);
-    return branches.length >= 2 && branches.every(i => before(i, j)) &&
-      plan.subtasks.every((other, i) => i === j || !other.outputs?.length || before(i, j));
-  });
-  return index === -1 ? undefined : index;
+function joinCarriesIntegration(plan: Plan, tested: readonly number[], depends: (a: number, b: number) => boolean): boolean {
+  const last = plan.subtasks.length - 1;
+  const join = plan.subtasks[last];
+  if (!join?.acceptanceTests || !join.outputs?.length) return false;
+  if (tested.filter(i => i !== last).length < 2) return false;
+  return plan.aggregation.mode === 'sequential' || plan.subtasks.every((_, i) => i === last || depends(last, i));
 }
 
 /**

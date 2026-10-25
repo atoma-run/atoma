@@ -825,18 +825,22 @@ subtask returns, in the supervise loop above it, before its result is judged; a
 plan-level suite runs after the aggregation. Every branch shares one workspace,
 an aggregation writes nothing, and a dependent never starts behind a failed
 producer (it lands, as a plan-level suite does not run on a landing). So a
-suite on a subtask that comes after every implementation branch and every other
-subtask declaring outputs reads the workspace the plan-level suite would read.
+suite on the plan's sink, the subtask every other one comes before, reads the
+workspace the plan-level suite would read.
 Its failure is cheaper to repair: the join's own branch retries, where a failed
 plan-level suite costs a root remediation pass. `PARENT_TEST_INTEGRATION_PLACEMENT`
 states the rule once for the planner, the review and the host's refusal.
 
 **The conditions, each against a failure.** The join declares outputs: in a
 sequential root plan a phase without them is read-only, and the fixes its suite
-asks for would be put back. Every subtask declaring outputs comes before it,
-through `dependsOn` or, in a sequential plan, by order: a writer beside or after
-it could change what the suite checked, and only a plan-level suite would see
-that. At least two tested branches come before it besides itself: the last
+asks for would be put back. Every other subtask comes before it, through
+`dependsOn` or, in a sequential plan, by order, so it is the last: a subtask
+beside or after it could change what the suite checked, and only a plan-level
+suite would see that. Declaring no outputs does not exempt one: such a phase is
+photographed and restored only in a sequential plan of two phases or more at
+the root or in a root cell's own plan (`undeclaredIsReadOnly`), never in a
+parallel plan, the incident's shape, nor in a cell under a tissue. The first
+version exempted them; its adversarial review found the gap. At least two tested branches come before it besides itself: the last
 branch of a chain keeps its own contract, as before, so the gate is relaxed only
 for a genuine join. A resumed root re-enforces its recorded approval with the
 same function, reading its sequential suffix by order.
@@ -845,6 +849,10 @@ same function, reading its sequential suffix by order.
 already read the join suite as the integration, and the guidance taught the
 join, so the refusal punished the taught plan. Accepting any subtask suite on a
 subtask downstream of the tested branches: a README written after it, or a
-branch beside it, escapes the suite. Requiring the join to be classified
+branch beside it, escapes the suite. Keeping a trailing read-only report legal
+through a flag from the caller: the read-only condition is the dispatcher's
+(planned phase count, branch id, prefilter route) and a resumed root
+re-enforces a sliced plan, so the flag would be a second definition of it;
+the planner moves the report before the join or the suite up a level. Requiring the join to be classified
 `vitest`: the incident's review classified it `other` for its browser proof,
 with its suite still the integration.

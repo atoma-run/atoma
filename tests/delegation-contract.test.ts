@@ -1712,22 +1712,32 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
         ({ ...plan, subtasks: [...plan.subtasks, { description: 'Document the repair in README.md.', preferredChild: 'Cell', dependsOn: [3], outputs: ['README.md'] }] })],
       ['a writer that runs beside the join', (plan: ReturnType<typeof incidentPlan>) =>
         ({ ...plan, subtasks: [...plan.subtasks, { description: 'Document the repair in README.md.', preferredChild: 'Cell', dependsOn: [0], outputs: ['README.md'] }] })],
+      // Review 2026-10-25: a subtask without declared outputs is read-only
+      // only in a sequential root plan (or a root cell's own); in a parallel
+      // plan it writes beside or after the join like any other.
+      ['a report without declared outputs after the join', (plan: ReturnType<typeof incidentPlan>) =>
+        ({ ...plan, subtasks: [...plan.subtasks, { description: 'Report the observed results.', preferredChild: 'Cell', dependsOn: [3] }] })],
+      ['a subtask without declared outputs beside the join', (plan: ReturnType<typeof incidentPlan>) =>
+        ({ ...plan, subtasks: [...plan.subtasks.slice(0, 3), { description: 'Tidy the evidence folder.', preferredChild: 'Cell', dependsOn: [0] },
+          { ...plan.subtasks[3]!, dependsOn: [1, 2] }] })],
     ])('still refuses %s', (_, shape) => {
       const refusal = refusalOf(shape(incidentPlan('Cell')), [...KINDS, 'other']);
       expect(refusal).toMatchObject({ delegationRefusal: 'plan' });
       expect(refusal?.reasoning).toContain('Missing parent-owned acceptanceTests on plan integration (plan-level, or on a join subtask');
     });
 
-    it('accepts a read-only report after the join, and orders a sequential plan by index', () => {
+    it('orders a sequential plan by index, and the join must come last there too', () => {
       const plan = incidentPlan('Cell');
-      expect(refusalOf({ ...plan, subtasks: [...plan.subtasks, { description: 'Report the observed results.', preferredChild: 'Cell', dependsOn: [3] }] },
-        [...KINDS, 'other'])).toBeUndefined();
       const sequential = (subtasks: Record<string, unknown>[]) => ({ ...plan, aggregation: { mode: 'sequential' },
         subtasks: subtasks.map(({ dependsOn: _dropped, ...rest }) => rest) });
       expect(refusalOf(sequential(plan.subtasks))).toBeUndefined();
       // The join before the presentation repair: a tested branch comes after it.
       const [prepare, server, presentation, join] = plan.subtasks as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>];
       expect(refusalOf(sequential([prepare, server, join, presentation]), ['other', 'vitest', 'other', 'vitest'])).toMatchObject({ delegationRefusal: 'plan' });
+      // A report after the join, even one a sequential root would restore:
+      // the gate cannot see whether this plan's phases are read-only.
+      const report = { description: 'Report the observed results.', preferredChild: 'Cell' };
+      expect(refusalOf(sequential([prepare, server, presentation, join, report]), [...KINDS, 'other'])).toMatchObject({ delegationRefusal: 'plan' });
     });
 
     it('keeps a chain\'s last tested branch its own contract: two tested branches come before a join', () => {
