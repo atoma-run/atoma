@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # benchmark/haystack/requirements-observed.txt is the observed environment of
+  # the pre-registered 2026-09-09 Haystack experiment, hashed in
+  # results-2026-09-09/registration.json. Nothing installs it, so a bump fixes
+  # nothing and rewrites the record. Ignore rules also apply to security updates.
+  - package-ecosystem: pip
+    directory: /benchmark/haystack
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "*"
