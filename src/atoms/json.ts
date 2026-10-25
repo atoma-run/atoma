@@ -1,6 +1,6 @@
 import { inheritedJudgementSchema } from '../contracts/inheritedChecks.js';
 import { z } from 'zod';
-import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS, parentTestSuiteSchema } from '../contracts/parentTests.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS, parentTestSuiteSchema, unsatisfiableSuiteSchema, type UnsatisfiableSuite } from '../contracts/parentTests.js';
 import { deliveryKindSchema, executionModeSchema } from '../contracts/taskExecution.js';
 import { jsonrepair, JSONRepairError } from 'jsonrepair';
 import { PlanParseError, type PlanParseCause, ValidationError } from '../core/errors.js';
@@ -1381,7 +1381,13 @@ export function coerceVerdictDefaults(raw: unknown): unknown {
     asf !== undefined && asf !== null && typeof asf !== 'boolean';
   const needsCriteriaCoercion = obj['criteria'] !== undefined && obj['criteria'] !== null;
   const needsInheritedCoercion = obj['inherited'] !== undefined && obj['inherited'] !== null;
-  const out: Record<string, unknown> = needsAsfCoercion || needsCriteriaCoercion || needsInheritedCoercion || obj['approved'] === false ? { ...obj } : obj;
+  const needsUnsatisfiableCoercion = obj['unsatisfiableSuites'] !== undefined && obj['unsatisfiableSuites'] !== null;
+  const out: Record<string, unknown> = needsAsfCoercion || needsCriteriaCoercion || needsInheritedCoercion || needsUnsatisfiableCoercion || obj['approved'] === false ? { ...obj } : obj;
+  if (needsUnsatisfiableCoercion) {
+    const unsatisfiable = coerceUnsatisfiableSuites(obj['unsatisfiableSuites']);
+    if (unsatisfiable === undefined) delete out['unsatisfiableSuites'];
+    else out['unsatisfiableSuites'] = unsatisfiable;
+  }
   if (needsCriteriaCoercion) {
     const criteria = coerceCriteria(obj['criteria']);
     if (criteria === undefined) delete out['criteria'];
@@ -1446,6 +1452,31 @@ function coerceInherited(raw: unknown): Array<{ id: string; asked: boolean; reas
   return out;
 }
 
+/**
+ * A delegation refusal's unsatisfiable suites, read as tolerantly as the
+ * criteria: an entry without a readable index ("2" reads as 2) or "plan" is
+ * dropped, and never fails an otherwise valid verdict; one without a reason
+ * is kept, its reason 'unstated' (`unsatisfiableSuiteSchema`). Dropping one
+ * only lets the cell's refusal bound apply as before 40c20c5d.
+ */
+function coerceUnsatisfiableSuites(raw: unknown): UnsatisfiableSuite[] | undefined {
+  // A lone citation object is one citation: dropping it would silently restore
+  // the fail-open bound on the very refusal that named the suite.
+  const entries = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? [raw] : undefined;
+  if (!entries) return undefined;
+  const out: UnsatisfiableSuite[] = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const text = typeof e['suite'] === 'string' ? e['suite'].trim().toLowerCase() : undefined;
+    const index = text?.match(/^(?:subtask\s*)?(\d+)$/);
+    const suite = text === undefined ? e['suite'] : index ? Number(index[1]) : text;
+    const parsed = unsatisfiableSuiteSchema.safeParse({ suite, reason: e['reason'] });
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
+
 /** One judgement per acceptance criterion; entries the coercion could not read are dropped before this. */
 const criterionJudgementsSchema = z.array(z.object({
   id: z.string().min(1).max(40),
@@ -1499,6 +1530,8 @@ export const verdictSchema = z
       activeSkillFollowed: z.boolean().nullish(),
       criteria: criterionJudgementsSchema.nullish(),
       inherited: inheritedJudgementsSchema.nullish(),
+      // A delegation review's refusal only (PARENT_TEST_UNSATISFIABLE); `llmVerdict` keeps it there alone.
+      unsatisfiableSuites: z.array(unsatisfiableSuiteSchema).nullish(),
     }),
   ])
   // A rejected verdict targeting the canonical type (`patch` or `branch`)

@@ -445,6 +445,13 @@ export type NegativeVerdict = {
   inherited?: readonly import('../contracts/inheritedChecks.js').InheritedJudgement[];
   /** Set by the host on a delegation-contract refusal, never by a model. */
   delegationRefusal?: DelegationRefusalKind;
+  /**
+   * A delegation review's refusal only: the suites it names as no correct
+   * implementation can pass, each one the reviewed plan carries (the host
+   * drops any other citation). Such a refusal is never bounded into an
+   * approval (`L3Atom.MAX_CELL_PLAN_REFUSALS`, run 40c20c5d).
+   */
+  unsatisfiableSuites?: readonly import('../contracts/parentTests.js').UnsatisfiableSuite[];
 };
 export type Verdict = PositiveVerdict | NegativeVerdict;
 

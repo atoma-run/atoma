@@ -389,19 +389,20 @@ load-bearing.
   `subjectDigest`s, looked for where the loop escalates. Counted once per suite per attempt (`suiteDisputes`), logged and recorded in the
   trace for a [pre-registered](../../benchmark/suite-dispute-2026-10-17/PREREGISTRATION.md) classification; no routing, no text a run's models read ([decision](../../docs/decisions/parent-owned-tests-2026-10-16.md#a-suite-that-fails-the-same-way-on-every-implementation-measured-only)).
 
-- One text states what a parent suite can run and how browser-only behaviour is
-  proven (`PARENT_TEST_RUNNER_SCOPE`: a `validate_html` subtask, with the
-  `dom-interaction` obligation for real input), and one what makes a suite
-  sufficient (`PARENT_TEST_SUFFICIENCY`: real module import, exact values with a
-  negative case, able to fail on what the task or its criteria name, nothing
-  more), with `PARENT_TEST_BLOCKING_DEFECTS` the defects that refuse in every
-  round. Planners and the delegation review read the same texts. Each root
-  refusal reaches the planner with its requests (`additionalContext`), and the
-  review reads its earlier refusals: one that still stands refuses again only as
-  a blocking defect or another rule's breach; a refusal lists EVERY blocking
-  defect at once (b920faf6 replanned one cell eight times, one new gap per
-  round); since 2026-10-23 the cell review reads its own history and after
-  `MAX_CELL_PLAN_REFUSALS` merits refusals the next clean plan executes (00fc7063).
+- One text states what a parent suite can run and how browser-only behaviour is proven
+  (`PARENT_TEST_RUNNER_SCOPE`: a `validate_html` subtask, with the `dom-interaction` obligation for
+  real input), and one what makes a suite sufficient (`PARENT_TEST_SUFFICIENCY`: real module import,
+  exact values with a negative case, able to fail on what the task or its criteria name, nothing
+  more), with `PARENT_TEST_BLOCKING_DEFECTS` the defects that refuse in every round. Planners and
+  the delegation review read the same texts. Each root refusal reaches the planner with its requests
+  (`additionalContext`), and the review reads its earlier refusals: one that still stands refuses
+  again only as a blocking defect or another rule's breach; a refusal lists EVERY blocking defect at
+  once (b920faf6: eight replans of one cell, one new gap each); since 2026-10-23 the cell review
+  reads its own history and after `MAX_CELL_PLAN_REFUSALS` merits refusals the next clean plan
+  executes (00fc7063), unless the refusal cites typed `unsatisfiableSuites`
+  (`PARENT_TEST_UNSATISFIABLE`: a suite of the plan no correct implementation passes, 40c20c5d); the
+  plan budget's ladder then decides. A suite the tissue assigned cannot be cited and stays bounded.
+  Rejected options, run stats: the `MAX_CELL_PLAN_REFUSALS` comment.
 
 - All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
   logic and maintained tests created or changed by the requested implementation.
@@ -602,8 +603,7 @@ load-bearing.
   kept check, its approval is refused and the run lands (run 5dff35b0
   approved and published a page its first acceptance had refused, after a
   second replay that the deadline stopped before its first check).
-  A replay that left kept checks unrun says so in the block and forces the
-  review.
+  A replay that left kept checks unrun says so in the block and forces review.
   The replays use `validate_html`'s host mode on the base executor: never
   attested, they cover no checklist item or floor and earn no credit. A check
   is judged by its smoke verdict, never by console noise. What a file STARTING

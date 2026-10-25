@@ -277,6 +277,8 @@ function machineRunStats(
     discardedLessons: signals['discarded-lesson'],
     triggerRejections: signals['skill-trigger-rejected'],
     suiteDisputes: signals['suite-dispute'],
+    cellBoundsWithheld: signals['cell-bound-withheld'],
+    cellBoundsApplied: signals['cell-bound-applied'],
     landingReasons: [...landing],
   };
 }
@@ -1081,6 +1083,8 @@ async function startTaskInternal(
     'discarded-lesson': 0,
     'skill-trigger-rejected': 0,
     'suite-dispute': 0,
+    'cell-bound-withheld': 0,
+    'cell-bound-applied': 0,
   };
   // ONE construction switch per transport, shared with curriculum and the viz
   // server (review §3.9): only the transports the three selectors reach are

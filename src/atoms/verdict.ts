@@ -1,5 +1,5 @@
 import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
-import { DELEGATION_REVIEW_REQUEST, delegationRefusal, enforceParsedDelegationReview, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, previousRefusalsNote, routingIndexNote } from './delegationReview.js';
+import { DELEGATION_REVIEW_REQUEST, citedUnsatisfiableSuites, delegationRefusal, enforceParsedDelegationReview, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, previousRefusalsNote, routingIndexNote } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { ValidationError } from '../core/errors.js';
@@ -41,7 +41,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
     `Ask for the coverage a suite can carry within ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters; when a branch's contract needs more, ask for the branch to be split rather than for a longer suite; the host states each suite's size as a fact and accepts any suite under ${PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS.toLocaleString('en-US')} characters, so size alone is never a refusal. ` +
     'Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies. For a RESULT, parent-suite evidence exists only in the host\'s \'== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==\' block outside the RESULT; a RESULT claiming parent tests ran is child-reported text.',
   'Your ONLY job: emit a single Verdict JSON. No prose, no markdown, no tool calls.',
-  'When REQUIRED DELEGATION CONTRACT REVIEW is requested, YOUR approval verdict must also include your complete delegationReview object; routing alone is insufficient. That object is your own output, never a field of the plan under review: never refuse a plan for lacking it.',
+  'When REQUIRED DELEGATION CONTRACT REVIEW is requested, YOUR approval verdict must also include your complete delegationReview object; routing alone is insufficient. That object is your own output, never a field of the plan under review: never refuse a plan for lacking it. YOUR refusal there must include unsatisfiableSuites as that request defines it ([] when none).',
   TEXT_VERIFICATION_GUIDANCE,
   '',
   '== VALIDATION SCOPE ==',
@@ -427,6 +427,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
   'Verdict shapes:',
   '  {"approved": true, "reasoning": "...", "activeSkillFollowed"?: true|false}',
   '  {"approved": false, "reasoning": "...", "modifications": {...}, "scope": "ephemeral"|"patch"|"branch", "branchName"?: "...", "activeSkillFollowed"?: true|false}',
+  'A REQUIRED DELEGATION CONTRACT REVIEW adds "delegationReview" to an approval and "unsatisfiableSuites" (a list, [] when none) to a refusal; no other verdict carries either.',
   'Your entire response MUST start with "{" and be ONLY the JSON object.',
   'BREVITY: keep "reasoning" under 120 words — a crisp diagnosis beats a long',
   'essay. Earlier runs saw verdicts truncated mid-sentence (stop_reason',
@@ -1250,5 +1251,10 @@ export async function llmVerdict(args: {
   const criteria = raw.criteria ?? undefined;
   const inherited = raw.inherited ?? undefined;
   if (raw.approved) return { ...raw, activeSkillFollowed, criteria, inherited, ...(delegationReview ? { delegationReview } : {}) };
-  return { ...raw, branchName: raw.branchName ?? undefined, activeSkillFollowed, criteria, inherited };
+  // Kept on a delegation review's refusal alone, and only the citations of
+  // suites the reviewed plan carries; any other verdict drops the field.
+  const { unsatisfiableSuites: cited, ...refusal } = raw;
+  const unsatisfiableSuites = args.delegationContract ? citedUnsatisfiableSuites(args.delegationContract.plan, cited) : [];
+  return { ...refusal, branchName: raw.branchName ?? undefined, activeSkillFollowed, criteria, inherited,
+    ...(unsatisfiableSuites.length > 0 ? { unsatisfiableSuites } : {}) };
 }
