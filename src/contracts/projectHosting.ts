@@ -71,7 +71,8 @@ export const hostingSummarySchema = z.object({
   updateStops: z.boolean(),
   /**
    * The version the newest deployment tried to put online, when that attempt
-   * failed; null otherwise. Which version failed is named, never inferred: a
+   * failed to START (a later runtime loss of a version that ran is not one);
+   * null otherwise. Which version failed is named, never inferred: a
    * static application keeps serving beside a failed attempt, and the
    * accepted version may have moved on since.
    */

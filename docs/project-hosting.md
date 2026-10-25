@@ -263,7 +263,8 @@ Operator validation: `scripts/hosting-container-smoke.mjs` runs on Linux with
 gVisor, after `npm run build`, with `ATOMA_HOSTING_IMAGE` and
 `ATOMA_HOSTING_RELAY_IMAGE`. It creates a deployment's objects, starts those
 same objects at their pinned addresses, prepares a second version while the
-first serves, swaps them with the data kept, and leaves nothing listed.
+first serves, swaps them with the data kept, and leaves nothing listed. Do not
+run it while the web service restarts: its boot sweep removes unrecorded objects.
 `scripts/hosting-browser-smoke.mjs` runs on Linux with the
 three immutable hosting image variables; it creates and removes its own fixture
 containers and data. `ATOMA_BROWSER_SMOKE_HOLD=1` leaves that fixture available

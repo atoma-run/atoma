@@ -182,6 +182,8 @@ it('keeps a ready application ready while its launcher cannot be reached', async
   launcher.inspectHosting.mockResolvedValueOnce(null as never); // reachable launcher, application gone
   await service.refreshHealth();
   expect(service.status(viewer, projectId).state).toBe('failed');
+  // A version that ran and was later lost did not fail to START: never "the new version did not start".
+  expect(service.status(viewer, projectId).failed).toBeNull();
 });
 it('does not resurrect a stopped application from an in-flight health probe', async () => {
   publish(); await service.deploy(viewer, projectId, input()); await service.idle();

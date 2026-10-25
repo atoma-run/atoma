@@ -102,7 +102,8 @@ provider): admin-only, org-scoped, journaled, CAS on an expected value, never
 deploying or stopping anything; preview, acceptance, publication and
 deployment stay separate. Hosting ([project hosting](../../docs/project-hosting.md),
 `hostingService`) runs accepted, published, hash-verified copies at the
-`hostingSubdomain` label; a rename leaves a permanent redirect. `update`
+`hostingSubdomain` label; a rename leaves a permanent redirect, never reused
+([rules](../../docs/project-hosting.md#dns-and-https)). `update`
 (owner, 2026-10-25) is one explicit admin request under Stop's lock and CAS:
 candidate created unstarted, then every `holdsApplicationData` row stopped and
 the candidate reserved, visitors held (`swapping`); failure offers `restore`.

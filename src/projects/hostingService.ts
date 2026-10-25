@@ -89,7 +89,7 @@ export class HostingService {
       version: shown ? this.describe(viewer.orgId, shown.runId, shown.commitSha) : null,
       previous: previous ? { ...this.describe(viewer.orgId, previous.runId, previous.commitSha), manifestHash: previous.manifestHash } : null,
       updateStops: rows.some(holdsApplicationData),
-      failed: row?.state === 'failed' ? { runId: row.runId } : null };
+      failed: row?.state === 'failed' && row.error !== 'runtime-unavailable' ? { runId: row.runId } : null };
   }
   /** A version in words: the run's title and the client's acceptance date, never only its hash. */
   private describe(orgId: string, runId: string, commitSha: string): HostingVersion {
