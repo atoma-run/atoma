@@ -128,6 +128,17 @@ export const runStatsSchema = z.object({
    */
   suiteDisputes: countSchema.default(0),
   /**
+   * The cell refusal bound (`L3Atom.MAX_CELL_PLAN_REFUSALS`) past its count:
+   * withheld because the refusal cited a suite the plan carries as one no
+   * correct implementation passes (`unsatisfiableSuites`, run 40c20c5d), or
+   * applied, executing a refused plan that cited none. Their ratio is the
+   * citation's emission rate at the bound; a withheld bound whose suite a
+   * correct delivery later passes is a false positive. Optional like
+   * `planRefusals`: absent in epilogues written before 2026-10-25.
+   */
+  cellBoundsWithheld: countSchema.optional(),
+  cellBoundsApplied: countSchema.optional(),
+  /**
    * WHY a `partial` run did not deliver, in the words `landingReasons` builds
    * from the typed fields (`src/contracts/runLanding.ts`). Empty on every other
    * outcome.
@@ -168,7 +179,9 @@ export type RunStatSignal =
   | 'unjudged-remediation'
   | 'discarded-lesson'
   | 'skill-trigger-rejected'
-  | 'suite-dispute';
+  | 'suite-dispute'
+  | 'cell-bound-withheld'
+  | 'cell-bound-applied';
 
 export function formatRunStatsEpilogue(stats: RunStats): string {
   // The trace retains full descriptions; the epilogue is a bounded projection.

@@ -8,6 +8,7 @@ import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { parseVerdict, planSchema } from '../src/atoms/json.js';
 import { superviseLoop, type SupervisionHooks } from '../src/core/supervisor.js';
 import type { BranchEventInfo, LlmCompletionRequest, LlmCompletionResponse, Plan, Result, RunContext, Task, Tool, ToolExecutor } from '../src/core/types.js';
+import { RUN_STATS_PREFIX, parseRunStatsEpilogue, type RunStatSignal } from '../src/contracts/runStats.js';
 import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_EXECUTION, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_UNSATISFIABLE, parentTestSuiteDigest, type DelegationReview, type ParentTestSuite } from '../src/contracts/parentTests.js';
 import { PROOF_OBLIGATIONS } from '../src/contracts/attestation.js';
 import { READ_ONLY_TASK_LINE } from '../src/contracts/readOnlyPhase.js';
@@ -47,6 +48,7 @@ function actors() {
   return {
     tissue: L3Atom.buildWithModel(tissue, registry, 'mock'),
     cell: L2Atom.fromType(registry.getByName(cell.name)!, registry),
+    registry,
   };
 }
 
@@ -685,20 +687,35 @@ describe('root delegation review robustness', () => {
       ...(onFailed ? { onFailed } : {}),
     });
 
-    it('is never bounded into an approval, and still counts toward the bound', async () => {
+    it('is never bounded into an approval, still counts toward the bound, and counts each side in the run stats', async () => {
       const { tissue, cell } = actors();
-      const ctx = makeCtx();
+      const stats: RunStatSignal[] = [];
+      const ctx = { ...makeCtx(), recordRunStat: (signal: RunStatSignal) => { stats.push(signal); } };
       for (let n = 1; n <= 3; n++) ctx.llm.enqueueText(contradiction(n));
       expect((await tissue.validatePlan(cell, incidentPlan(1), task, ctx)).approved).toBe(false);
       expect((await tissue.validatePlan(cell, incidentPlan(2), task, ctx)).approved).toBe(false);
+      expect(stats).toEqual([]);
       const third = await tissue.validatePlan(cell, incidentPlan(3), task, ctx);
       expect(third).toMatchObject({ approved: false, unsatisfiableSuites: [{ suite: 0 }] });
       expect(third.reasoning).toContain('Round 3');
+      expect(stats).toEqual(['cell-bound-withheld']);
       // A later refusal that names no unsatisfiable suite is past the bound: that plan executes.
       ctx.llm.enqueueText(coverage(4));
       const fourth = await tissue.validatePlan(cell, incidentPlan(4), task, ctx);
       expect(fourth.approved).toBe(true);
       expect(fourth.reasoning).toContain('Delegation review bounded: 3 earlier plans');
+      expect(stats).toEqual(['cell-bound-withheld', 'cell-bound-applied']);
+    });
+
+    it('keeps a citation whose reason is missing or blank: the index decides, never the prose', async () => {
+      const { tissue, cell } = actors();
+      const ctx = makeCtx();
+      for (let n = 1; n <= 2; n++) ctx.llm.enqueueText(coverage(n));
+      ctx.llm.enqueueText(contradiction(3, [{ suite: 0 }]));
+      await tissue.validatePlan(cell, incidentPlan(1), task, ctx);
+      await tissue.validatePlan(cell, incidentPlan(2), task, ctx);
+      expect(await tissue.validatePlan(cell, incidentPlan(3), task, ctx))
+        .toMatchObject({ approved: false, unsatisfiableSuites: [{ suite: 0, reason: 'unstated' }] });
     });
 
     it('drops a citation of a suite the plan does not carry, so a coverage request cannot hold the bound', async () => {
@@ -740,6 +757,70 @@ describe('root delegation review robustness', () => {
       expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(3);
     });
 
+    // A branched replacement cell is another planner: its review history
+    // starts empty, and the tissue reserves it exactly one substantive review.
+    describe('when the escalation branches a replacement cell', () => {
+      const replacementOf = (registry: AtomRegistry) => L2Atom.fromType(registry.create(2,
+        { description: 'lifecycle author, branched', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' }), registry);
+      const corrected = makePlan({ subtasks: [{ description: 'Implement collection lift and cancellation, corrected', outputs: ['src/server.ts'],
+        acceptanceTests: { ...lifecycleSuite, source: lifecycleSuite.source.replace('toBe(400)', 'toBe(202)') } }] });
+
+      it('falls back after one review of its plan when it repeats the unsatisfiable suite; no child executes', async () => {
+        const { tissue, cell, registry } = actors();
+        const replacement = replacementOf(registry);
+        const stats: RunStatSignal[] = [];
+        const ctx = { ...makeCtx(), recordRunStat: (signal: RunStatSignal) => { stats.push(signal); } };
+        for (let n = 1; n <= 4; n++) ctx.llm.enqueueText(contradiction(n));
+        let round = 0;
+        vi.spyOn(cell, 'plan').mockImplementation(() => Promise.resolve(incidentPlan(++round)));
+        vi.spyOn(replacement, 'plan').mockImplementation(() => Promise.resolve(incidentPlan(++round)));
+        const cellExecute = vi.spyOn(cell, 'execute').mockResolvedValue(result);
+        const replacementExecute = vi.spyOn(replacement, 'execute').mockResolvedValue(result);
+        vi.spyOn(tissue, 'plan').mockResolvedValue(makePlan({ subtasks: [{ description: 'self-execute' }] }));
+        const tissueExecute = vi.spyOn(tissue, 'execute').mockResolvedValue({ ...result, summary: 'the tissue implemented the lift itself' });
+        const branch = vi.fn<SupervisionHooks<L2Atom>['branchOnEscalation']>(() => Promise.resolve(replacement));
+
+        const delivered = await superviseLoop(tissue, cell, task, ctx, { ...plainHooks(), branchOnEscalation: branch });
+
+        expect(cellExecute).not.toHaveBeenCalled();
+        expect(replacementExecute).not.toHaveBeenCalled();
+        expect(tissueExecute).toHaveBeenCalledOnce();
+        expect(delivered.producedBy.viaFallback).toBe(true);
+        expect(branch).toHaveBeenCalledTimes(2);
+        expect(branch.mock.calls.map(call => call[0])).toEqual([cell, replacement]);
+        const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+        expect(reviews).toHaveLength(4);
+        // The replacement's review reads none of the first cell's refusals.
+        expect(reviews[3]?.userContent).not.toContain('PREVIOUS REFUSALS OF THIS DELEGATION');
+        expect(stats.filter(signal => signal.startsWith('cell-bound-'))).toEqual(['cell-bound-withheld']);
+        expect(stats.filter(signal => signal === 'plan-refusal')).toHaveLength(4);
+      });
+
+      it('executes the replacement\'s corrected plan, never the refused one', async () => {
+        const { tissue, cell, registry } = actors();
+        const replacement = replacementOf(registry);
+        const ctx = makeCtx();
+        for (let n = 1; n <= 3; n++) ctx.llm.enqueueText(contradiction(n));
+        ctx.llm.enqueueText(JSON.stringify(review(['vitest'])));
+        ctx.llm.enqueueText(JSON.stringify({ approved: true, reasoning: 'the phase holds' }));
+        let round = 0;
+        vi.spyOn(cell, 'plan').mockImplementation(() => Promise.resolve(incidentPlan(++round)));
+        vi.spyOn(replacement, 'plan').mockResolvedValue(corrected);
+        const cellExecute = vi.spyOn(cell, 'execute').mockResolvedValue(result);
+        const replacementExecute = vi.spyOn(replacement, 'execute').mockResolvedValue(result);
+        const tissueExecute = vi.spyOn(tissue, 'execute');
+
+        const delivered = await superviseLoop(tissue, cell, task, ctx, { ...plainHooks(), branchOnEscalation: () => Promise.resolve(replacement) });
+
+        expect(cellExecute).not.toHaveBeenCalled();
+        expect(tissueExecute).not.toHaveBeenCalled();
+        expect(replacementExecute).toHaveBeenCalledOnce();
+        expect(replacementExecute.mock.calls[0]?.[1]).toBe(corrected);
+        expect(delivered.producedBy.viaFallback).toBe(false);
+        expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(4);
+      });
+    });
+
     it('still executes the 00fc7063 shape (coverage refusals) at the bound through superviseLoop', async () => {
       const { tissue, cell } = actors();
       const ctx = makeCtx();
@@ -762,10 +843,37 @@ describe('root delegation review robustness', () => {
       expect(DELEGATION_REVIEW_REQUEST).toContain(PARENT_TEST_UNSATISFIABLE);
       expect(PARENT_TEST_BLOCKING_DEFECTS).toContain('an assertion no correct implementation can pass');
       const parsed = parseVerdict(JSON.stringify({ approved: false, reasoning: 'r',
-        unsatisfiableSuites: [{ suite: '0', reason: 'contradiction' }, { suite: 'all', reason: 'x' }, { suite: 1 }, 'junk'] }));
-      expect(!parsed.approved && parsed.unsatisfiableSuites).toEqual([{ suite: 0, reason: 'contradiction' }]);
+        unsatisfiableSuites: [{ suite: '0', reason: 'contradiction' }, { suite: 'all', reason: 'x' }, { suite: 1 }, { suite: 'plan', reason: '  ' }, 'junk'] }));
+      expect(!parsed.approved && parsed.unsatisfiableSuites).toEqual([
+        { suite: 0, reason: 'contradiction' }, { suite: 1, reason: 'unstated' }, { suite: 'plan', reason: 'unstated' }]);
       expect(parseVerdict(JSON.stringify({ approved: false, reasoning: 'r', unsatisfiableSuites: 'none' }))).not.toHaveProperty('unsatisfiableSuites');
       expect(parseVerdict(JSON.stringify({ approved: true, reasoning: 'ok', unsatisfiableSuites: [{ suite: 0, reason: 'x' }] }))).not.toHaveProperty('unsatisfiableSuites');
+    });
+
+    it('carries both bound counts on the epilogue, and still reads an archived one without them', () => {
+      const archived = { outcome: 'delivered', costUsd: 0, llmCalls: 0, opusCalls: 0, sonnetCalls: 0, haikuCalls: 0, otherCalls: 0,
+        deterministicPhases: 0, escalations: 0, learnedSkills: 0, learnedEventSkills: 0, promotions: 0, refusals: 0,
+        compileErrors: 0, demotions: 0, dispatchFallbacks: 0 };
+      const old = parseRunStatsEpilogue(`${RUN_STATS_PREFIX}${JSON.stringify(archived)}`);
+      expect(old).not.toBeNull();
+      expect(old).not.toHaveProperty('cellBoundsWithheld');
+      const counted = parseRunStatsEpilogue(`${RUN_STATS_PREFIX}${JSON.stringify({ ...archived, cellBoundsWithheld: 1, cellBoundsApplied: 2 })}`);
+      expect(counted).toMatchObject({ cellBoundsWithheld: 1, cellBoundsApplied: 2 });
+    });
+
+    // Review 2026-10-25: the request's last word on a refusal was "no
+    // classification is required", so a reviewer had no reason to emit the
+    // field the bound now depends on.
+    it('asks every refusal for the field, with one literal refusal that parses as a citation', () => {
+      expect(DELEGATION_REVIEW_REQUEST).not.toContain('no classification is required');
+      expect(DELEGATION_REVIEW_REQUEST).toContain('For rejection use the ordinary negative Verdict with actionable reasoning and "unsatisfiableSuites" as defined above ([] when none)');
+      expect(VALIDATION_SYSTEM_PROMPT).toContain('YOUR refusal there must include unsatisfiableSuites');
+      expect(VALIDATION_SYSTEM_PROMPT).toContain('"unsatisfiableSuites" (a list, [] when none) to a refusal');
+      const example = /A refusal citing one: (\{.*\})\.$/.exec(PARENT_TEST_UNSATISFIABLE)?.[1];
+      expect(example).toBeDefined();
+      const read = parseVerdict(example!);
+      expect(read.approved).toBe(false);
+      expect(!read.approved && read.unsatisfiableSuites).toEqual([{ suite: 1, reason: 'expects 404 for a stored id the task requires to return 200' }]);
     });
   });
 

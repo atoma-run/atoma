@@ -1454,9 +1454,10 @@ function coerceInherited(raw: unknown): Array<{ id: string; asked: boolean; reas
 
 /**
  * A delegation refusal's unsatisfiable suites, read as tolerantly as the
- * criteria: an entry without a readable index ("2" reads as 2) or "plan", or
- * without a reason, is dropped, and never fails an otherwise valid verdict.
- * Dropping one only lets the cell's refusal bound apply as before 40c20c5d.
+ * criteria: an entry without a readable index ("2" reads as 2) or "plan" is
+ * dropped, and never fails an otherwise valid verdict; one without a reason
+ * is kept, its reason 'unstated' (`unsatisfiableSuiteSchema`). Dropping one
+ * only lets the cell's refusal bound apply as before 40c20c5d.
  */
 function coerceUnsatisfiableSuites(raw: unknown): UnsatisfiableSuite[] | undefined {
   if (!Array.isArray(raw)) return undefined;
@@ -1465,7 +1466,7 @@ function coerceUnsatisfiableSuites(raw: unknown): UnsatisfiableSuite[] | undefin
     if (!entry || typeof entry !== 'object') continue;
     const e = entry as Record<string, unknown>;
     const suite = typeof e['suite'] === 'string' && /^\d+$/.test(e['suite'].trim()) ? Number(e['suite'].trim()) : e['suite'];
-    const parsed = unsatisfiableSuiteSchema.safeParse({ suite, reason: typeof e['reason'] === 'string' ? e['reason'].slice(0, 400) : e['reason'] });
+    const parsed = unsatisfiableSuiteSchema.safeParse({ suite, reason: e['reason'] });
     if (parsed.success) out.push(parsed.data);
   }
   return out;

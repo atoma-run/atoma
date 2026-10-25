@@ -196,7 +196,13 @@ export const delegationReviewEnvelopeSchema = z.object({ delegationReview: deleg
  */
 export const unsatisfiableSuiteSchema = z.object({
   suite: z.union([z.number().int().nonnegative(), z.literal('plan')]),
-  reason: z.string().trim().min(1).max(400),
+  // The index is what decides; a missing, blank or non-text reason reads as
+  // 'unstated' rather than dropping the citation, which would restore the
+  // bound on the very refusal that named the suite (review of 2026-10-25).
+  reason: z.preprocess(
+    value => typeof value === 'string' && value.trim() !== '' ? value.trim().slice(0, 400) : 'unstated',
+    z.string().min(1).max(400),
+  ),
 });
 export type UnsatisfiableSuite = z.infer<typeof unsatisfiableSuiteSchema>;
 
@@ -243,7 +249,7 @@ export const PARENT_TEST_BLOCKING_DEFECTS = 'BLOCKING SUITE DEFECTS, which refus
  * former may never execute; the cell's refusal bound (`MAX_CELL_PLAN_REFUSALS`,
  * L3Atom) executes the latter's plan rather than replan for coverage forever.
  */
-export const PARENT_TEST_UNSATISFIABLE = 'UNSATISFIABLE SUITES: a refusal also lists, in "unsatisfiableSuites", every suite of this plan that no correct implementation of the task can pass: an assertion that contradicts the task, its criteria or another assertion of the plan; an interface neither the application nor this plan\'s implementation provides; a proof the runtime cannot execute. Each entry is {"suite": <the zero-based index of the subtask carrying it, or "plan" for the plan-level suite>, "reason": "the contradiction, naming the assertion and the requirement it breaks"}. Never list a suite a correct implementation passes, however insufficient: a missing suite, case, negative case or assertion is a request, not an unsatisfiable suite. Give [] when there is none.';
+export const PARENT_TEST_UNSATISFIABLE = 'UNSATISFIABLE SUITES: a refusal also lists, in "unsatisfiableSuites", every suite of this plan that no correct implementation of the task can pass: an assertion that contradicts the task, its criteria or another assertion of the plan; an interface neither the application nor this plan\'s implementation provides; a proof the runtime cannot execute. Each entry is {"suite": <the zero-based index of the subtask carrying it, or "plan" for the plan-level suite>, "reason": "the contradiction, naming the assertion and the requirement it breaks"}. Never list a suite a correct implementation passes, however insufficient: a missing suite, case, negative case or assertion is a request, not an unsatisfiable suite. Give [] when there is none. A refusal citing one: {"approved": false, "reasoning": "subtask 1\'s suite expects 404 for a stored id the task says is returned", "scope": "ephemeral", "modifications": {"additionalContext": "assert 200 with the stored record; keep 404 for an unknown id"}, "unsatisfiableSuites": [{"suite": 1, "reason": "expects 404 for a stored id the task requires to return 200"}]}.';
 
 /** Shared execution ownership for planners and delegation reviewers (Attica a99ef64e). */
 export const PARENT_TEST_EXECUTION = [

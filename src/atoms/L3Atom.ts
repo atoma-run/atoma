@@ -1215,7 +1215,19 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * executed it, and root acceptance refused a correct implementation after
    * 1h55. Such a refusal still counts toward the bound, and the plan budget
    * and its ladder (a branched type, then the tissue's own fallback, which
-   * runs no suite of the refused plans) decide what follows.
+   * runs no suite of the refused plans) decide what follows. The run stats
+   * count each side (`cellBoundsWithheld`, `cellBoundsApplied`).
+   *
+   * Refused: dropping the cited suite host-side (it leaves a testable subtask
+   * unsuited, on a fallible index), reading the contradiction from the
+   * refusal's prose (vocabulary-frozen), and counting such refusals apart from
+   * the bound (an unbounded replan loop when the citation is wrong).
+   *
+   * Not covered: a contradictory suite the TISSUE assigned to the cell
+   * (`task.acceptanceTests`). The cell's plan does not carry it, so the
+   * review cannot cite it (`citedUnsatisfiableSuites` drops any index the plan
+   * does not carry) and the bound still applies: such a suite still fails
+   * the cell's executed result (`verifyParentTests`), as before this change.
    */
   static readonly MAX_CELL_PLAN_REFUSALS = 2;
 
@@ -1906,7 +1918,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       if (list.length > L3Atom.MAX_CELL_PLAN_REFUSALS && unsatisfiable.length > 0) {
         const named = unsatisfiable.map(entry => entry.suite === 'plan' ? 'the plan-level suite' : `subtask ${entry.suite}'s suite`).join(', ');
         ctx.logger.warn(`[l3] delegation review bound withheld for ${child.name}: the refusal names ${named} unsatisfiable; the plan budget decides`);
+        ctx.recordRunStat?.('cell-bound-withheld');
       } else if (list.length > L3Atom.MAX_CELL_PLAN_REFUSALS) {
+        ctx.recordRunStat?.('cell-bound-applied');
         const reasoning = `Delegation review bounded: ${list.length - 1} earlier plans of this cell were refused on their merits ` +
           `and this plan passed every mechanical suite check, so it executes; the review's remaining requests are a result-time ` +
           `finding, not a plan gate: ${refusalWithRequests(verdict)}`;
