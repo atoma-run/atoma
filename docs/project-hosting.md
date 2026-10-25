@@ -121,8 +121,12 @@ The launcher owns all engine operations. Hosted objects use the separate
 ephemeral worker/preview sweeps never collect them. Startup reattaches running
 containers. Interrupted candidates fail closed and require an explicit retry.
 A web restart between an update's preparation and its reservation leaves that
-version's created, never-started objects without a deployment row; nothing
-removes them yet (`docker ps -a --filter label=dev.atoma.owner=hosting`).
+version's created, never-started objects without a deployment row. The next
+web start lists the launcher's hosting objects by their identity labels and
+stops every deployment no running row names, networks included; its release
+directory stays, like a stopped deployment's. A launcher older than that
+listing, or an engine error, leaves them for the following start. Objects
+created before 2026-10-25 carry no identity labels and are never listed.
 The hosting launcher restarts itself on the active release: when `current`
 points elsewhere and no request is open, it exits with status 75 and
 `Restart=on-failure` starts the new code. Hosted applications keep serving

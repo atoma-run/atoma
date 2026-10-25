@@ -99,6 +99,7 @@ export class SocketLauncher implements ContainerLauncher {
   async createHosting(spec: HostingLaunch): Promise<void> { await this.call({ op: 'createHosting', spec }); }
   startHosting(spec: HostingLaunch): Promise<HostingHandle> { return this.call({ op: 'startHosting', spec }); }
   inspectHosting(identity: HostingIdentity): Promise<HostingHandle | null> { return this.call({ op: 'inspectHosting', identity }); }
+  listHosting(): Promise<HostingIdentity[]> { return this.call({ op: 'listHosting' }); }
   async stopHosting(identity: HostingIdentity): Promise<void> { await this.call({ op: 'stopHosting', identity }); }
 
   startWorker(spec: LauncherWorkerSpec): Promise<LauncherWorkerHandle> { return this.call({ op: 'startWorker', spec }); }

@@ -361,6 +361,23 @@ export class HostingService {
         else this.deps.store.update({ ...row, state: 'failed', error: 'runtime-unavailable', hostPort: null }, row.state);
       }
     }
+    await this.removeUnrecorded();
+  }
+  /**
+   * Engine objects no running or unknown row names. An update creates its new
+   * version before reserving it, so a web process that dies in between leaves
+   * created containers and two networks with no row, holding address pools
+   * forever. They are removed with the ordinary stop; data and release bytes
+   * stay, as for every stopped deployment. Best effort: a launcher without the
+   * listing, or an engine error, leaves them for the next boot.
+   */
+  private async removeUnrecorded(): Promise<void> {
+    let found: HostingIdentity[];
+    try { found = await this.deps.launcher.listHosting(); } catch { return; }
+    const live = new Set(this.deps.store.list().map(row => row.deploymentId));
+    for (const id of found) {
+      if (!live.has(id.deploymentId)) await this.deps.launcher.stopHosting(id).catch(() => undefined);
+    }
   }
   async refreshHealth(): Promise<void> {
     if (this.healthBusy) return;

@@ -23,6 +23,7 @@ export const launcherRequestSchema = z.discriminatedUnion('op', [
   operation('createHosting', { spec: hostingLaunchSchema }),
   operation('startHosting', { spec: hostingLaunchSchema }),
   operation('inspectHosting', { identity: hostingIdentitySchema }),
+  operation('listHosting', {}),
   operation('stopHosting', { identity: hostingIdentitySchema }),
   operation('startWorker', { spec: launcherWorkerSpecSchema }),
   operation('stopWorker', { id: z.string().uuid() }),
@@ -61,6 +62,7 @@ export const launcherResponseSchema = z.discriminatedUnion('ok', [
 /** Per-operation response validation; void is encoded as null. */
 export const launcherResults = {
   prepareHosting: z.string(), createHosting: z.null(), startHosting: hostingHandleSchema, inspectHosting: hostingHandleSchema.nullable(), stopHosting: z.null(),
+  listHosting: z.array(hostingIdentitySchema).max(4096),
   heartbeat: z.null(), hello: launcherHelloSchema, startWorker: launcherWorkerHandleSchema, stopWorker: z.null(),
   checkpointWorkerAbsent: z.boolean(),
   purgeOwner: z.null(), armHardExitCleanup: z.null(), disarmHardExitCleanup: z.null(),

@@ -10,24 +10,33 @@ afterEach(() => { roots.splice(0).forEach(root => rmSync(root, { recursive: true
 /** A fake engine that knows created, running and removed containers, their labels and networks. */
 function engine(record: string[][], image: string, browserImage = image) {
   const containers = new Map<string, { state: 'created' | 'running' | 'exited'; labels: Map<string, string> }>(); const networks = new Set<string>();
+  const networkLabels = new Map<string, Map<string, string>>();
+  const labelsOf = (args: string[]) => new Map(args.flatMap((a, i) => a === '--label' ? [args[i + 1]!.split('=') as [string, string]] : []));
+  // `{{.Label "x"}}` placeholders filled from an object's labels, empty when absent, as the engine does.
+  const formatted = (format: string, labels: Map<string, string>) => format.replace(/\{\{\.Label "([^"]+)"\}\}/g, (_, key: string) => labels.get(key) ?? '');
   const run = async (args: string[]) => {
     record.push(args);
-    if (args[0] === 'create') {
-      const labels = new Map(args.flatMap((a, i) => a === '--label' ? [args[i + 1]!.split('=') as [string, string]] : []));
-      containers.set(args[args.indexOf('--name') + 1]!, { state: 'created', labels });
-    }
+    if (args[0] === 'create') containers.set(args[args.indexOf('--name') + 1]!, { state: 'created', labels: labelsOf(args) });
     if (args[0] === 'start') containers.get(args[1]!)!.state = 'running';
     if (args[0] === 'stop') containers.get(args.at(-1)!)!.state = 'exited';
     if (args[0] === 'rm') containers.delete(args.at(-1)!);
-    if (args[0] === 'network' && args[1] === 'create') networks.add(args.at(-1)!);
-    if (args[0] === 'network' && args[1] === 'rm') networks.delete(args.at(-1)!);
-    if (args[0] === 'network' && args[1] === 'ls') { const filter = args[args.indexOf('--filter') + 1]!.slice(6, -1); return [...networks].filter(n => n === filter).join('\n'); }
+    if (args[0] === 'network' && args[1] === 'create') { networks.add(args.at(-1)!); networkLabels.set(args.at(-1)!, labelsOf(args)); }
+    if (args[0] === 'network' && args[1] === 'rm') { networks.delete(args.at(-1)!); networkLabels.delete(args.at(-1)!); }
+    if (args[0] === 'network' && args[1] === 'ls') {
+      const filter = args[args.indexOf('--filter') + 1]!;
+      if (filter === 'label=dev.atoma.owner=hosting') {
+        const format = args[args.indexOf('--format') + 1]!;
+        return [...networkLabels.values()].filter(l => l.get('dev.atoma.owner') === 'hosting').map(l => formatted(format, l)).join('\n');
+      }
+      return [...networks].filter(n => n === filter.slice(6, -1)).join('\n');
+    }
     if (args[0] === 'ps') {
       const filter = args[args.indexOf('--filter') + 1]!; const all = args.includes('-a');
       const listed = [...containers].filter(([name, c]) => (all || c.state === 'running') && (filter.startsWith('name=') ? filter === `name=^/${name}$`
         : filter.startsWith('label=dev.atoma.deployment=') ? c.labels.get('dev.atoma.deployment') === filter.slice('label=dev.atoma.deployment='.length) : c.labels.get('dev.atoma.owner') === 'hosting'));
       const format = args[args.indexOf('--format') + 1]!;
-      return listed.map(([name, c]) => format.includes('.State') ? `${name} ${c.state} ${c.labels.get('dev.atoma.spec') ?? ''}` : name).join('\n');
+      return listed.map(([name, c]) => format.includes('.State') ? `${name} ${c.state} ${c.labels.get('dev.atoma.spec') ?? ''}`
+        : format.includes('.Label') ? formatted(format, c.labels) : name).join('\n');
     }
     if (args[0] === 'port') return '127.0.0.1:32123';
     if (args[0] === 'network' && args[1] === 'inspect') return '10.5.0.0/24 ';
@@ -145,4 +154,22 @@ it('gives the application its ten-second grace and stops the stateless relay at 
   f.calls.length = 0; await f.launcher.stopHosting(f.id);
   expect(f.calls.filter(a => a[0] === 'stop')).toEqual([
     ['stop', '--time', '10', `atoma-hosted-${f.id.deploymentId}-app`], ['stop', '--time', '0', `atoma-hosted-${f.id.deploymentId}-relay`]]);
+});
+it('lists every deployment it created, started or not, by the identity on its labels', async () => {
+  // A web process that dies between creating an update's version and reserving
+  // its row leaves created objects no row names: recovery needs their identity.
+  const f = fixture();
+  await f.launcher.createHosting({ ...f.id, entry: 'server.js', kind: 'node' });
+  const app = f.calls.find(a => a[0] === 'create' && a.includes('runsc'))!;
+  expect(app).toEqual(expect.arrayContaining([`dev.atoma.org=${f.id.orgId}`, `dev.atoma.project=${f.id.projectId}`]));
+  expect(await f.launcher.listHosting()).toEqual([f.id]);
+  // Networks alone (a create interrupted before its containers) are listed too.
+  for (const name of [...f.containers.keys()]) f.containers.delete(name);
+  expect(await f.launcher.listHosting()).toEqual([f.id]);
+  await f.launcher.stopHosting(f.id);
+  expect(f.networks.size).toBe(0);
+  expect(await f.launcher.listHosting()).toEqual([]);
+  // An object from before the identity labels is not listed: its row existed before it.
+  f.containers.set('atoma-hosted-legacy-app', { state: 'running', labels: new Map([['dev.atoma.owner', 'hosting'], ['dev.atoma.deployment', f.id.deploymentId]]) });
+  expect(await f.launcher.listHosting()).toEqual([]);
 });

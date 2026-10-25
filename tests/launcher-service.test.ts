@@ -117,4 +117,10 @@ it('retains hosted applications across independent socket connections', async ()
   await hosting.createHosting({ ...identity, kind: 'node', entry: 'server.js' });
   expect(await hosting.startHosting({ ...identity, kind: 'node', entry: 'server.js' })).toMatchObject({ hostPort: 12346 });
   await hosting.stopHosting(identity);
+  // Recovery lists created, never-started objects across the socket, and removes them with the ordinary stop.
+  const created = { orgId: '11111111-1111-4111-8111-111111111111', projectId: '22222222-2222-4222-8222-222222222222', deploymentId: randomUUID() };
+  await hosting.createHosting({ ...created, kind: 'node', entry: 'server.js' });
+  expect(await hosting.listHosting()).toEqual([created]);
+  await hosting.stopHosting(created);
+  expect(await hosting.listHosting()).toEqual([]);
 });

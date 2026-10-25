@@ -17,6 +17,12 @@ export interface HostingLauncher {
   createHosting(spec: HostingLaunch): Promise<void>;
   startHosting(spec: HostingLaunch): Promise<HostingHandle>;
   inspectHosting(identity: HostingIdentity): Promise<HostingHandle | null>;
+  /**
+   * Every deployment with engine objects (containers or networks), as its
+   * creation labelled them, started or not. Recovery compares it with the
+   * store and removes, through `stopHosting`, what no running row names.
+   */
+  listHosting(): Promise<HostingIdentity[]>;
   stopHosting(identity: HostingIdentity): Promise<void>;
 }
 export const hostingDeployInputSchema = z.object({

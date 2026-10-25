@@ -15,6 +15,8 @@ const launcher = new RecordingLauncher({
   waitUntilReady: async () => undefined,
 });
 const hosted = new Map(); const created = new Set();
+// One organisation and project for every fixture deployment, as the test uses.
+const listed = { orgId: '11111111-1111-4111-8111-111111111111', projectId: '22222222-2222-4222-8222-222222222222' };
 const service = await serveLauncher({
   hosting: {
     prepareHosting: async id => `/retained/${id.deploymentId}`,
@@ -24,7 +26,8 @@ const service = await serveLauncher({
       hosted.set(spec.deploymentId, handle); return handle;
     },
     inspectHosting: async id => hosted.get(id.deploymentId) ?? null,
-    stopHosting: async id => { hosted.delete(id.deploymentId); },
+    listHosting: async () => [...hosted.keys(), ...created].map(deploymentId => ({ ...listed, deploymentId })),
+    stopHosting: async id => { hosted.delete(id.deploymentId); created.delete(id.deploymentId); },
   },
   socketPath: process.env.ATOMA_TEST_SOCKET,
   launcher,

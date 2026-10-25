@@ -19,10 +19,11 @@ import type { HostingIdentity, HostingLaunch } from '../src/contracts/projectHos
 let root: string; let db: Database.Database; let projects: ProjectStore; let service: HostingService;
 let viewer: Viewer; let projectId: string; let runId: string; let manifestHash: string;
 let source: string;
-const launcher = { prepareHosting: vi.fn(async (_id: HostingIdentity) => ''), createHosting: vi.fn(async (_spec: HostingLaunch) => {}), startHosting: vi.fn(async (_spec: HostingLaunch) => ({ hostPort: 12345, image: 'runtime@sha256:abc' })), inspectHosting: vi.fn(async () => ({ hostPort: 12345, image: 'runtime@sha256:abc' })), stopHosting: vi.fn(async (_id: HostingIdentity) => {}) };
+const launcher = { prepareHosting: vi.fn(async (_id: HostingIdentity) => ''), createHosting: vi.fn(async (_spec: HostingLaunch) => {}), startHosting: vi.fn(async (_spec: HostingLaunch) => ({ hostPort: 12345, image: 'runtime@sha256:abc' })), inspectHosting: vi.fn(async () => ({ hostPort: 12345, image: 'runtime@sha256:abc' })), listHosting: vi.fn(async (): Promise<HostingIdentity[]> => []), stopHosting: vi.fn(async (_id: HostingIdentity) => {}) };
 beforeEach(() => {
   vi.clearAllMocks(); launcher.startHosting.mockResolvedValue({ hostPort: 12345, image: 'runtime@sha256:abc' });
   launcher.createHosting.mockImplementation(async () => {}); launcher.stopHosting.mockImplementation(async () => {});
+  launcher.listHosting.mockImplementation(async () => []);
   root = mkdtempSync(join(tmpdir(), 'hosting-')); db = new Database(join(root, 'product.db')); db.exec(AUTH_TABLES_DDL);
   projects = new ProjectStore(db); const previews = new PreviewStore(db);
   const orgId = randomUUID(); const principalId = randomUUID(); const now = new Date().toISOString();
@@ -109,6 +110,40 @@ it('marks interrupted startup failed on recovery and never converts it into a re
   const row = service.deps.store.list()[0]!;
   service.deps.store.update({ ...row, state: 'starting' }, 'ready');
   await service.recover(); expect(service.status(viewer, projectId)).toMatchObject({ state: 'failed', error: 'interrupted' });
+});
+it('removes on recovery the engine objects of an update whose process died before its row was written', async () => {
+  asNodeApplication();
+  const { second, online } = await onlineWithNewerVersion();
+  // The engine, as the launcher lists it: every deployment with objects.
+  const engine = new Map<string, HostingIdentity>(
+    service.deps.store.list().map(row => [row.deploymentId, { orgId: row.orgId, projectId: row.projectId, deploymentId: row.deploymentId }]));
+  launcher.listHosting.mockImplementation(async () => [...engine.values()]);
+  launcher.stopHosting.mockImplementation(async id => { engine.delete(id.deploymentId); });
+  // The web process dies right after creating the new version's objects:
+  // nothing after createHosting ever runs, so no row names them.
+  launcher.createHosting.mockImplementation(spec => {
+    engine.set(spec.deploymentId, { orgId: spec.orgId, projectId: spec.projectId, deploymentId: spec.deploymentId });
+    return new Promise<void>(() => {});
+  });
+  void service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId });
+  await vi.waitFor(() => expect(engine.size).toBe(2));
+  const orphan = [...engine.keys()].find(id => id !== online.deploymentId)!;
+  expect(service.deps.store.list(viewer.orgId, projectId).map(row => row.deploymentId)).not.toContain(orphan);
+  launcher.stopHosting.mockClear();
+  // The next process recovers: the orphan goes, the online version stays.
+  const restarted = new HostingService({ ...service.deps, store: new HostingStore(db) });
+  await restarted.recover();
+  expect(launcher.stopHosting.mock.calls.map(([id]) => id.deploymentId)).toEqual([orphan]);
+  expect([...engine.keys()]).toEqual([online.deploymentId]);
+  expect(restarted.status(viewer, projectId)).toMatchObject({ state: 'ready', deploymentId: online.deploymentId });
+});
+it('recovers with a launcher that cannot list its objects yet, and leaves them for the next boot', async () => {
+  publish(); await service.deploy(viewer, projectId, input()); await service.idle();
+  launcher.listHosting.mockRejectedValue(new Error('Launcher invalid-request'));
+  launcher.stopHosting.mockClear();
+  await service.recover();
+  expect(launcher.stopHosting).not.toHaveBeenCalled();
+  expect(service.status(viewer, projectId).state).toBe('ready');
 });
 it('rejects unsafe domains and invalid host configuration', () => {
   expect(hostingConfig({}, 'https://atoma.run')).toBeNull();

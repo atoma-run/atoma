@@ -13,5 +13,6 @@ export class HostingClient implements HostingLauncher {
   createHosting(spec: HostingLaunch): Promise<void> { return this.use(c => c.createHosting(spec)); }
   startHosting(spec: HostingLaunch): Promise<HostingHandle> { return this.use(c => c.startHosting(spec)); }
   inspectHosting(identity: HostingIdentity): Promise<HostingHandle | null> { return this.use(c => c.inspectHosting(identity)); }
+  listHosting(): Promise<HostingIdentity[]> { return this.use(c => c.listHosting()); }
   stopHosting(identity: HostingIdentity): Promise<void> { return this.use(c => c.stopHosting(identity)); }
 }

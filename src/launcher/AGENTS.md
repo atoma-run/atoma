@@ -400,7 +400,9 @@ teardown must share ONE deadline, not each get a fresh budget.
 
 ## Persistent application hosting
 
-`hosting.ts` owns the closed prepare/create/start/inspect/stop profile for deployments.
+`hosting.ts` owns the closed prepare/create/start/inspect/list/stop profile for deployments.
+Objects carry their full identity as labels; `listHosting` reads them back so the web's
+boot recovery stops, with `stopHosting`, deployments no running row names.
 `createHosting` makes a deployment's networks and containers unstarted, labelled with a
 digest of its launch and images; `startHosting` starts only objects made for its own
 digest, else creates them first, so an update's outage is starts and readiness alone. A

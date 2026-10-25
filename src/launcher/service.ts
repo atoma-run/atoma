@@ -89,7 +89,7 @@ export async function serveLauncher(options: {
     const dispatch = async (request: LauncherRequest): Promise<unknown> => {
       if (request.op === 'hello') { greeted = true; return hello; }
       if (!greeted) throw new Error('Handshake required');
-      if (options.hostingOnly && !['heartbeat', 'prepareHosting', 'createHosting', 'startHosting', 'inspectHosting', 'stopHosting'].includes(request.op)) throw new Error('Hosting-only launcher');
+      if (options.hostingOnly && !['heartbeat', 'prepareHosting', 'createHosting', 'startHosting', 'inspectHosting', 'listHosting', 'stopHosting'].includes(request.op)) throw new Error('Hosting-only launcher');
       if (request.op !== 'startWorker' && request.op !== 'stopWorker') {
         const ownerId = 'ownerId' in request ? request.ownerId
           : 'spec' in request && 'ownerId' in request.spec ? request.spec.ownerId : 'handle' in request ? request.handle.ownerId : undefined;
@@ -108,6 +108,9 @@ export async function serveLauncher(options: {
         case 'inspectHosting':
           if (!options.hosting) throw new Error('Hosting disabled');
           return options.hosting.inspectHosting(request.identity);
+        case 'listHosting':
+          if (!options.hosting) throw new Error('Hosting disabled');
+          return options.hosting.listHosting();
         case 'stopHosting':
           if (!options.hosting) throw new Error('Hosting disabled');
           await options.hosting.stopHosting(request.identity); return null;

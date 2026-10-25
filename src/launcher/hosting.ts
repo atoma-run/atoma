@@ -90,7 +90,10 @@ export class DockerHosting implements HostingLauncher {
     if (await this.inspectHosting(id)) throw new Error('Deployment already running');
     await this.stopHosting(id);
     await this.prepareHosting(id);
-    const labels = ['--label', 'dev.atoma.owner=hosting', '--label', `dev.atoma.deployment=${spec.deploymentId}`];
+    // The full identity, so a boot recovery can name, and remove, objects
+    // whose row was never written (listHosting).
+    const labels = ['--label', 'dev.atoma.owner=hosting', '--label', `dev.atoma.deployment=${spec.deploymentId}`,
+      '--label', `dev.atoma.org=${spec.orgId}`, '--label', `dev.atoma.project=${spec.projectId}`];
     const made = [...labels, '--label', `dev.atoma.spec=${this.specDigest(spec)}`];
     try {
       await this.run(['network', 'create', '--internal', ...labels, '--opt', 'com.docker.network.bridge.gateway_mode_ipv4=isolated', '--opt', 'com.docker.network.bridge.gateway_mode_ipv6=isolated', n.internal]);
@@ -158,6 +161,25 @@ export class DockerHosting implements HostingLauncher {
       const handle = await this.inspectHosting(id); if (!handle) throw new Error('Hosting start failed');
       return handle;
     } catch (error) { await this.stopHosting(id); throw error; }
+  }
+  /**
+   * Every deployment with containers or networks here, from their creation
+   * labels. Objects created before the identity labels (2026-10-25) are not
+   * listed: only a start made them then, after the row naming them existed.
+   */
+  async listHosting(): Promise<HostingIdentity[]> {
+    const format = '{{.Label "dev.atoma.org"}};{{.Label "dev.atoma.project"}};{{.Label "dev.atoma.deployment"}}';
+    const lines = [
+      ...(await this.run(['ps', '-a', '--filter', 'label=dev.atoma.owner=hosting', '--format', format])).split('\n'),
+      ...(await this.run(['network', 'ls', '--filter', 'label=dev.atoma.owner=hosting', '--format', format])).split('\n'),
+    ];
+    const found = new Map<string, HostingIdentity>();
+    for (const line of lines) {
+      const [orgId, projectId, deploymentId] = line.trim().split(';');
+      const parsed = hostingIdentitySchema.safeParse({ orgId, projectId, deploymentId });
+      if (parsed.success) found.set(parsed.data.deploymentId, parsed.data);
+    }
+    return [...found.values()];
   }
   async stopHosting(id: HostingIdentity): Promise<void> {
     const n = this.names(id);
