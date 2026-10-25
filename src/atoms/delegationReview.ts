@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { DelegationRefusalKind, NegativeVerdict, Plan, Task } from '../core/types.js';
-import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_EXECUTION, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_SUFFICIENCY, PARENT_TEST_UNSATISFIABLE, delegationReviewEnvelopeSchema, type DelegationReview, type UnsatisfiableSuite } from '../contracts/parentTests.js';
+import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_EXECUTION, PARENT_TEST_INTEGRATION_PLACEMENT, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_SUFFICIENCY, PARENT_TEST_UNSATISFIABLE, delegationReviewEnvelopeSchema, type DelegationReview, type UnsatisfiableSuite } from '../contracts/parentTests.js';
 import { parseWith, planSchema } from './json.js';
 import { parentSuiteRefusal, readRunCopiesRefusal } from './parentSuiteCheck.js';
 import { VALIDATION_SYSTEM_PROMPT } from './verdict.js';
@@ -26,7 +26,7 @@ Classify EVERY subtask exactly once using zero-based indices. Classify testable 
 ${PARENT_TEST_RUNNER_SCOPE}
 ${PARENT_TEST_EXECUTION}
 ${BROWSER_PROOF_REVIEW}
-Require plan-level Vitest integration tests when branches implement interacting application modules. Review all suite sources for real application imports, useful assertions, negative cases, faithful interfaces, and no replacement of the subject under test. Trivial assertions or placeholders must be rejected even when a suite exists.
+Require a Vitest integration suite when branches implement interacting application modules. ${PARENT_TEST_INTEGRATION_PLACEMENT} Never ask a plan whose join subtask carries it for a plan-level copy. Review all suite sources for real application imports, useful assertions, negative cases, faithful interfaces, and no replacement of the subject under test. Trivial assertions or placeholders must be rejected even when a suite exists.
 ${PARENT_TEST_SUFFICIENCY}
 ${PARENT_TEST_BLOCKING_DEFECTS} Name any other gap in a suite's coverage in your reasoning; it does not refuse the plan.
 ${PARENT_TEST_UNSATISFIABLE}
@@ -182,15 +182,19 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
     findings.push('replanAfter is allowed once at L3 for a read-only inspection-only plan. Remove implementation and writes from discovery.');
   }
   const missing = review.subtasks.filter(s => s.kind === 'vitest' && !plan.subtasks[s.index]?.acceptanceTests);
+  const depends = (a: number, b: number): boolean =>
+    (plan.subtasks[a]?.dependsOn ?? []).some(i => i < a && (i === b || depends(i, b)));
   // "When branches implement interacting application modules": one tested
   // branch interacts with no other, and its own suite is the integration
   // (run 760fef4c's c3379f8c was refused for want of a second copy of it).
-  const integration = review.integration.kind === 'vitest' && !plan.acceptanceTests &&
-    review.subtasks.filter(s => s.kind === 'vitest').length >= 2;
+  // A join subtask's suite is the integration too (run 40c20c5d).
+  const tested = review.subtasks.filter(s => s.kind === 'vitest').map(s => s.index);
+  const integration = review.integration.kind === 'vitest' && !plan.acceptanceTests && tested.length >= 2 &&
+    !joinCarriesIntegration(plan, tested, depends);
   if (missing.length || integration) {
     findings.push(`Missing parent-owned acceptanceTests on ${[
       ...missing.map(s => `subtask ${s.index} (${s.reason})`),
-      ...(integration ? ['plan integration'] : []),
+      ...(integration ? ['plan integration (plan-level, or on a join subtask that is the plan\'s last, declares outputs and comes after every other subtask)'] : []),
     ].join('; ')}. Supply executable suites before implementation, or request a genuine inspection-only discovery plan at L3.`);
   }
   // APIs the runner's integrity guard refuses, and the read-run copies its
@@ -201,8 +205,6 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
     const copies = source ? readRunCopiesRefusal(label, source) : undefined;
     if (copies) findings.push(copies);
   }
-  const depends = (a: number, b: number): boolean =>
-    (plan.subtasks[a]?.dependsOn ?? []).some(i => i < a && (i === b || depends(i, b)));
   const parallelPair = plan.aggregation.mode !== 'sequential' && plan.subtasks.some((_, a) =>
     plan.subtasks.some((_, b) => a < b && !depends(a, b) && !depends(b, a)));
   if (findings.length) return delegationRefusal(findings.join(' '), 'plan');
@@ -212,6 +214,32 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
     return delegationRefusal(`Independent work must have parallel child branches with real dependencies: ${review.parallelReason}`, 'fan-out');
   }
   return undefined;
+}
+
+/**
+ * Whether the plan's join subtask carries its integration suite
+ * (`PARENT_TEST_INTEGRATION_PLACEMENT`). The join is the plan's SINK: every
+ * other subtask comes before it, so it is the last index (`dependsOn` names
+ * earlier indices only). Its suite runs when it returns (`superviseLoop`) on
+ * the workspace a plan-level suite would read after an aggregation that
+ * writes nothing. Every subtask, outputs declared or not: one without them is
+ * read-only (photographed and restored) only in a sequential plan of two
+ * phases or more at the root or in a root cell's own plan, and anywhere else
+ * — a parallel plan, a cell under a tissue — it can write beside or after the
+ * join, where only a plan-level suite would see it (review 2026-10-25). The
+ * join declares outputs: as a sequential root phase without them it would be
+ * read-only, and the fixes its suite asks for would be put back. Two tested
+ * branches at least come before it: a chain's last tested branch keeps its
+ * own contract. Order is `dependsOn` in a parallel plan and the index in a
+ * sequential one, the order dispatch runs them in; a resumed root's plan is
+ * sequential, so the suffix it re-enforces is read by index.
+ */
+function joinCarriesIntegration(plan: Plan, tested: readonly number[], depends: (a: number, b: number) => boolean): boolean {
+  const last = plan.subtasks.length - 1;
+  const join = plan.subtasks[last];
+  if (!join?.acceptanceTests || !join.outputs?.length) return false;
+  if (tested.filter(i => i !== last).length < 2) return false;
+  return plan.aggregation.mode === 'sequential' || plan.subtasks.every((_, i) => i === last || depends(last, i));
 }
 
 /**

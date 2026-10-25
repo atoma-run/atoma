@@ -9,7 +9,7 @@ import { parseVerdict, planSchema } from '../src/atoms/json.js';
 import { superviseLoop, type SupervisionHooks } from '../src/core/supervisor.js';
 import type { BranchEventInfo, LlmCompletionRequest, LlmCompletionResponse, Plan, Result, RunContext, Task, Tool, ToolExecutor } from '../src/core/types.js';
 import { RUN_STATS_PREFIX, parseRunStatsEpilogue, type RunStatSignal } from '../src/contracts/runStats.js';
-import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_EXECUTION, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_UNSATISFIABLE, parentTestSuiteDigest, type DelegationReview, type ParentTestSuite } from '../src/contracts/parentTests.js';
+import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_EXECUTION, PARENT_TEST_INTEGRATION_PLACEMENT, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_UNSATISFIABLE, parentTestSuiteDigest, type DelegationReview, type ParentTestSuite } from '../src/contracts/parentTests.js';
 import { PROOF_OBLIGATIONS } from '../src/contracts/attestation.js';
 import { READ_ONLY_TASK_LINE } from '../src/contracts/readOnlyPhase.js';
 import { mockOtherProofReview } from './helpers/delegationReview.js';
@@ -926,9 +926,9 @@ describe('root delegation review robustness', () => {
 
     type Actor = { name: string; atomId?: string; version: number | null };
     function savedRoot(tissue: L3Atom, task: Task, plan: Plan, bound: {
-      model?: string; actor?: (actor: Actor) => Actor; digest?: (args: Parameters<typeof approvalDigest>[0]) => string;
+      model?: string; actor?: (actor: Actor) => Actor; digest?: (args: Parameters<typeof approvalDigest>[0]) => string; review?: DelegationReview;
     } = {}) {
-      const review = {
+      const review = bound.review ?? {
         subtasks: [{ index: 0, kind: 'vitest' as const, reason: 'module' }],
         integration: { kind: 'other' as const, reason: 'one module' },
         independentWork: false,
@@ -1082,6 +1082,44 @@ describe('root delegation review robustness', () => {
         expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(0);
         expect(execute).not.toHaveBeenCalled();
       });
+    });
+
+    // Run 40c20c5d (2026-10-25): the resumed side re-enforces the same rule,
+    // reading a sequential plan's join by order.
+    it('resumes a recorded approval whose integration suite sits on the join phase, and reviews again when the join cannot repair', async () => {
+      const { tissue } = actors();
+      const task: Task = { description: 'Implement signed addition and its rendering', inputs: { a: 1 } };
+      const joined = (join: Record<string, unknown>) => planSchema.parse({ ...makePlan({ subtasks: [
+        { description: 'Implement add', outputs: ['add.ts'], acceptanceTests: suite },
+        { description: 'Implement render', outputs: ['render.ts'], acceptanceTests: suite },
+        { description: 'Integrate add and render', ...join, acceptanceTests: { ...suite, requirement: 'rendered sums' } },
+      ] }), aggregation: { mode: 'sequential' } });
+      const classified: DelegationReview = {
+        subtasks: [{ index: 0, kind: 'vitest', reason: 'module' }, { index: 1, kind: 'vitest', reason: 'module' }, { index: 2, kind: 'other', reason: 'join' }],
+        integration: { kind: 'vitest', reason: 'the join phase suite imports both modules' },
+        independentWork: false,
+        parallelReason: 'render consumes add',
+      };
+      const accepted = resumingCtx(savedRoot(tissue, task, joined({ outputs: ['app.ts'] }), { review: classified }));
+      const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+      await tissue.handle(task, accepted.ctx);
+      expect(accepted.ctx.llm.calls).toHaveLength(0);
+      expect(execute).toHaveBeenCalledOnce();
+
+      // The same approval over a join without outputs no longer holds: the
+      // saved plan is reviewed again, refused by the host, and only the
+      // replanned join that declares its outputs executes.
+      const readOnlyJoin = resumingCtx(savedRoot(tissue, task, joined({}), { review: classified }));
+      const approved = JSON.stringify({ approved: true, reasoning: 'r', delegationReview: classified });
+      readOnlyJoin.ctx.llm.enqueueText(approved);
+      readOnlyJoin.ctx.llm.enqueueText(approved);
+      const replan = vi.spyOn(tissue, 'plan').mockResolvedValue(joined({ outputs: ['app.ts'] }));
+      await tissue.handle(task, readOnlyJoin.ctx);
+      expect(readOnlyJoin.ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(2);
+      expect(replan).toHaveBeenCalledOnce();
+      expect(replan.mock.calls[0]?.[2]?.at(-1)).toContain('plan integration (plan-level, or on a join subtask');
+      expect(execute).toHaveBeenCalledTimes(2);
+      expect(execute.mock.calls[1]?.[1].subtasks[2]?.outputs).toEqual(['app.ts']);
     });
 
     it('reviews again when the recorded classification no longer holds mechanically', async () => {
@@ -1772,11 +1810,172 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
     expect(notRun).not.toHaveBeenCalled();
   });
 
-  it('keeps the plan-level suite an integration classified vitest requires: the join branch suite is not the plan suite', () => {
+  // Until run 40c20c5d (2026-10-25) this test pinned the opposite: a join
+  // branch's suite was "not the plan suite". It runs on the same joined
+  // workspace (PARENT_TEST_INTEGRATION_PLACEMENT), so it is the integration.
+  it('takes the join branch suite as the integration suite an integration classified vitest requires', () => {
     const actors = atticaActors();
     const plan = planSchema.parse(atticaPlan(actors));
-    expect(enforceDelegationReview(plan, JSON.stringify(approve(plan, 'vitest')), false)).toMatchObject({ delegationRefusal: 'plan' });
+    expect(enforceDelegationReview(plan, JSON.stringify(approve(plan, 'vitest')), false)).toBeUndefined();
     expect(enforceDelegationReview(plan, JSON.stringify(approve(plan, 'other')), false)).toBeUndefined();
+    // A join that skips one tested branch is not the integration of it.
+    const partial = planSchema.parse({ ...atticaPlan(actors), subtasks: atticaPlan(actors).subtasks.map((subtask, index) =>
+      index === 4 ? { ...subtask, dependsOn: [1, 2] } : subtask) });
+    expect(enforceDelegationReview(partial, JSON.stringify(approve(partial, 'vitest')), false)).toMatchObject({ delegationRefusal: 'plan' });
+  });
+
+  // Run 40c20c5d (2026-10-25), root plan event ab1d0e64, reduced to its
+  // contract-bearing fields: shared preparation, two parallel repairs with
+  // their suites, and a join that depends on both and carries the suite
+  // importing the real server, store and presentation modules. The review
+  // approved it (event 24bca720: subtasks other, vitest, vitest, other;
+  // integration vitest, "the plan-level suite"), the host refused it for want
+  // of plan-level acceptanceTests, and a 121 s replan moved the same suite up.
+  describe('an integration suite on the join subtask (run 40c20c5d)', () => {
+    const joinSuiteSource = [
+      "import { test, expect } from 'vitest';",
+      "import { createServer } from './browser/control-server.ts';",
+      "import { AtticaStore } from './browser/attica-store.ts';",
+      "import { presentControl } from './browser/control-presentation.ts';",
+      "test('a lifted cancellation keeps rows and admits a start', async () => {",
+      "  const store = new AtticaStore('data');",
+      "  store.saveCancellation({ status: 'cancelled', reason: 'bounded collection complete' });",
+      "  const server = createServer({ store });",
+      "  expect(presentControl(await server.status(), {}, 0).controls.lift).toBe(true);",
+      "  expect((await server.lift()).status).toBe(200);",
+      "  expect(store.loadCancellation().cancellationStatus).toBeNull();",
+      "  expect((await server.start()).status).toBe(202);",
+      "});",
+    ].join('\n');
+    const KINDS: ('vitest' | 'other')[] = ['other', 'vitest', 'vitest', 'other'];
+
+    function incidentPlan(cell: string): Record<string, unknown> & { subtasks: Record<string, unknown>[]; aggregation: { mode: string; instruction?: string } } {
+      return {
+        reasoning: 'Shared preparation, then independent server and presentation repairs, then a dependent integration that builds and verifies the joined application.',
+        delivery: 'files',
+        subtasks: [
+          { description: 'Prepare the existing application: install pinned dependencies, build baseline compiled modules and record preservation evidence.',
+            preferredChild: cell, outputs: ['evidence/attica-control-preservation.json', 'dist'], criteria: [] },
+          { description: 'Repair browser/control-server.ts only in the cancellation admission path.', preferredChild: cell, dependsOn: [0],
+            outputs: ['browser/control-server.ts', 'tests/attica-control-cancel.vitest.test.ts'], criteria: ['c5'],
+            acceptanceTests: suiteOf('idle cancellation is refused without persisting', "import { test, expect } from 'vitest';\nimport { cancelAdmission } from './browser/control-server.ts';\ntest('idle', () => {\n  expect(cancelAdmission({ active: false, status: null })).toBe(400);\n  expect(cancelAdmission({ active: true, status: null })).toBe(202);\n});") },
+          { description: 'Introduce browser/control-presentation.ts, consumed by browser/control.ts, with French explanations.', preferredChild: cell, dependsOn: [0],
+            outputs: ['browser/control.ts', 'browser/control.html', 'browser/control-presentation.ts'], criteria: [],
+            acceptanceTests: suiteOf('the presentation translates reasons', "import { test, expect } from 'vitest';\nimport { presentControl } from './browser/control-presentation.ts';\ntest('reasons', () => {\n  expect(presentControl({ reason: 'bounded collection complete' }, {}, 0).reasonText).toBe('Collecte bornée terminée.');\n  expect(presentControl({ reason: 'other' }, {}, 0).reasonText).toBe('Motif non reconnu.');\n});") },
+          { description: 'Integrate and verify the joined repair: check, build, then real-browser and HTTP verification on the built server.', preferredChild: cell,
+            dependsOn: [1, 2], outputs: ['tests/attica-control-recovery.browser.vitest.test.ts', 'dist', 'evidence/attica-control-repair.md'],
+            proofObligations: ['dom-interaction'], criteria: ['c1', 'c2'],
+            acceptanceTests: suiteOf('integration uses the actual server, store and presentation', joinSuiteSource) },
+        ],
+        aggregation: { mode: 'llm-synthesize', instruction: 'Combine implementation and observed verification results only.' },
+        expectedOutput: 'A strict-TypeScript repair with French rendering and actionable cancellation recovery.',
+      };
+    }
+
+    const refusalOf = (plan: Record<string, unknown>, kinds: ('vitest' | 'other')[] = KINDS) => {
+      const parsed = planSchema.parse(plan);
+      const approval = approve(parsed, 'vitest', kinds);
+      // A sequential plan has no parallel pair; its review finds no independent work.
+      const independentWork = parsed.aggregation.mode !== 'sequential';
+      return enforceDelegationReview(parsed, JSON.stringify({ ...approval, delegationReview: { ...approval.delegationReview, independentWork } }), false);
+    };
+
+    it('executes the approved plan through the real root review, without a replan', async () => {
+      const actors = atticaActors();
+      const plan = incidentPlan(actors.browserCell);
+      const llm = new MockLlmClient();
+      const reply = (value: unknown): LlmCompletionResponse =>
+        ({ text: JSON.stringify(value), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } });
+      for (let i = 0; i < 12; i++) llm.enqueue((req: LlmCompletionRequest) => {
+        if (req.role === 'prefilter') return reply({ kind: 'reuse', target: actors.browserCell, confidence: 'high', reasoning: 'fits' });
+        if (req.role === 'plan') return reply([{ strategy: 'reuse', target: actors.browserCell, reasoning: 'fits' }, plan]);
+        if (req.role === 'validate-plan') {
+          const encoded = /^PLAN: (.*)$/m.exec(req.userContent)?.[1];
+          if (!encoded) throw new Error('the root review was not shown its plan');
+          return reply(approve(JSON.parse(encoded) as Plan, 'vitest', KINDS));
+        }
+        throw new Error(`Unexpected ${req.role} call`);
+      });
+      const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+      const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+      await tissue.handle({ description: 'Repair the Attica control page as the owner sees it' }, makeCtx({ llm }));
+
+      expect(llm.calls.filter(call => call.role === 'plan')).toHaveLength(1);
+      expect(llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
+      expect(execute).toHaveBeenCalledOnce();
+      const executed = execute.mock.calls[0]![1];
+      expect(executed.acceptanceTests).toBeUndefined();
+      expect(executed.subtasks[3]).toMatchObject({ dependsOn: [1, 2], acceptanceTests: { source: joinSuiteSource } });
+      // One rule, read by the planner and the review alike.
+      expect(llm.calls.find(call => call.role === 'plan')!.userContent).toContain(PARENT_TEST_INTEGRATION_PLACEMENT);
+      const request = llm.calls.find(call => call.role === 'validate-plan')!.userContent;
+      expect(request.slice(request.indexOf(DELEGATION_REVIEW_HEADER))).toContain(PARENT_TEST_INTEGRATION_PLACEMENT);
+    });
+
+    it('takes the suite at plan level too, and asks for none when integration is not classified vitest', () => {
+      const plan = incidentPlan('Cell');
+      const { acceptanceTests, ...join } = plan.subtasks[3]!;
+      expect(refusalOf({ ...plan, acceptanceTests, subtasks: [...plan.subtasks.slice(0, 3), join] })).toBeUndefined();
+      const parsed = planSchema.parse({ ...plan, subtasks: [...plan.subtasks.slice(0, 3), join] });
+      expect(enforceDelegationReview(parsed, JSON.stringify(approve(parsed, 'other', KINDS)), false)).toBeUndefined();
+    });
+
+    it.each([
+      ['a join that does not depend on every tested branch', (plan: ReturnType<typeof incidentPlan>) =>
+        ({ ...plan, subtasks: plan.subtasks.map((subtask, index) => index === 3 ? { ...subtask, dependsOn: [1] } : subtask) })],
+      ['no suite anywhere', (plan: ReturnType<typeof incidentPlan>) =>
+        ({ ...plan, subtasks: plan.subtasks.map((subtask, index) => {
+          if (index !== 3) return subtask;
+          const { acceptanceTests: _dropped, ...rest } = subtask;
+          return rest;
+        }) })],
+      ['a join that declares no outputs, so cannot repair what its suite finds', (plan: ReturnType<typeof incidentPlan>) =>
+        ({ ...plan, subtasks: plan.subtasks.map((subtask, index) => {
+          if (index !== 3) return subtask;
+          const { outputs: _dropped, ...rest } = subtask;
+          return rest;
+        }) })],
+      ['a writer that runs after the join', (plan: ReturnType<typeof incidentPlan>) =>
+        ({ ...plan, subtasks: [...plan.subtasks, { description: 'Document the repair in README.md.', preferredChild: 'Cell', dependsOn: [3], outputs: ['README.md'] }] })],
+      ['a writer that runs beside the join', (plan: ReturnType<typeof incidentPlan>) =>
+        ({ ...plan, subtasks: [...plan.subtasks, { description: 'Document the repair in README.md.', preferredChild: 'Cell', dependsOn: [0], outputs: ['README.md'] }] })],
+      // Review 2026-10-25: a subtask without declared outputs is read-only
+      // only in a sequential root plan (or a root cell's own); in a parallel
+      // plan it writes beside or after the join like any other.
+      ['a report without declared outputs after the join', (plan: ReturnType<typeof incidentPlan>) =>
+        ({ ...plan, subtasks: [...plan.subtasks, { description: 'Report the observed results.', preferredChild: 'Cell', dependsOn: [3] }] })],
+      ['a subtask without declared outputs beside the join', (plan: ReturnType<typeof incidentPlan>) =>
+        ({ ...plan, subtasks: [...plan.subtasks.slice(0, 3), { description: 'Tidy the evidence folder.', preferredChild: 'Cell', dependsOn: [0] },
+          { ...plan.subtasks[3]!, dependsOn: [1, 2] }] })],
+    ])('still refuses %s', (_, shape) => {
+      const refusal = refusalOf(shape(incidentPlan('Cell')), [...KINDS, 'other']);
+      expect(refusal).toMatchObject({ delegationRefusal: 'plan' });
+      expect(refusal?.reasoning).toContain('Missing parent-owned acceptanceTests on plan integration (plan-level, or on a join subtask');
+    });
+
+    it('orders a sequential plan by index, and the join must come last there too', () => {
+      const plan = incidentPlan('Cell');
+      const sequential = (subtasks: Record<string, unknown>[]) => ({ ...plan, aggregation: { mode: 'sequential' },
+        subtasks: subtasks.map(({ dependsOn: _dropped, ...rest }) => rest) });
+      expect(refusalOf(sequential(plan.subtasks))).toBeUndefined();
+      // The join before the presentation repair: a tested branch comes after it.
+      const [prepare, server, presentation, join] = plan.subtasks as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>];
+      expect(refusalOf(sequential([prepare, server, join, presentation]), ['other', 'vitest', 'other', 'vitest'])).toMatchObject({ delegationRefusal: 'plan' });
+      // A report after the join, even one a sequential root would restore:
+      // the gate cannot see whether this plan's phases are read-only.
+      const report = { description: 'Report the observed results.', preferredChild: 'Cell' };
+      expect(refusalOf(sequential([prepare, server, presentation, join, report]), [...KINDS, 'other'])).toMatchObject({ delegationRefusal: 'plan' });
+    });
+
+    it('keeps a chain\'s last tested branch its own contract: two tested branches come before a join', () => {
+      const plan = incidentPlan('Cell');
+      // The join itself classified vitest, with one other tested branch before it.
+      expect(refusalOf({ ...plan, subtasks: plan.subtasks.slice(0, 2).concat({ ...plan.subtasks[3]!, dependsOn: [1] }) }, ['other', 'vitest', 'vitest']))
+        .toMatchObject({ delegationRefusal: 'plan' });
+      // Classified vitest beside two tested branches before it, it is a join.
+      expect(refusalOf(plan, ['other', 'vitest', 'vitest', 'vitest'])).toBeUndefined();
+    });
   });
 
   it('tells the review of a cell plan which obligation its subtasks already inherit', async () => {

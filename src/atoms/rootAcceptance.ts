@@ -596,6 +596,13 @@ async function acceptRootResultInternal(args: {
     ? await textReviewReference(ctx, task, checklist) : undefined;
   // The delivery's parent-owned suites, typed and host-rendered: the root's
   // own integration suite first and whole, then the phase suites' sources.
+  // An integration suite on the plan's join subtask (its sink, run 40c20c5d)
+  // is a phase suite here, deliberately: the tissue judged it in the join's
+  // loop, so it renders "judged by the supervisor below" and no root gate
+  // re-raises it, an unavailable one included. As the sink's, its
+  // observations are the newest: it leads the judged ones, and its source
+  // (an authored suite, at most 12,000 characters) comes whole after only the
+  // sources nobody below judged (docs/decisions/parent-owned-tests-2026-10-16.md).
   const parentTestsBlock = reviewing && result.parentTests?.length
     ? renderParentTestsBlock(result.parentTests, { tier: 'root' }) : '';
   // Which landing this is: the clock cut phases, a failed phase held its

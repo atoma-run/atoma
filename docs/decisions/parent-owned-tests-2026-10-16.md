@@ -808,3 +808,74 @@ say pass. Not built now: the rule may fail; the measurement takes weeks and a
 holdout as long again; the variant touches the most fragile prompt surfaces; and
 034d176d shows the suite's author can be the tissue rather than the cell the
 loop sees, so the labelled units should decide where the fact goes.
+
+## An integration suite on the join subtask (2026-10-25)
+
+Run 40c20c5d's root plan (event ab1d0e64) prepared the workspace, ran a server
+repair and a presentation repair in parallel, each with its suite, and ended
+with a subtask that `dependsOn` both, declared its outputs and carried the suite
+importing the real server, store and presentation modules. The review approved
+it, calling that suite "the plan-level suite" (event 24bca720); the host refused
+it because `plan.acceptanceTests` was empty, and a 121 s top-tier replan plus a
+39 s review moved the same suite one level up. The planning guidance had
+taught exactly that shape ("integration index 3 dependsOn:[1,2]").
+
+**Why the two placements are one rule.** A subtask's suite runs when that
+subtask returns, in the supervise loop above it, before its result is judged; a
+plan-level suite runs after the aggregation. Every branch shares one workspace,
+an aggregation writes nothing, and in a parallel plan a subtask never starts
+behind a failed `dependsOn` producer (it lands, as a plan-level suite does not
+run on a landing). So a
+suite on the plan's sink, the subtask every other one comes before, reads the
+workspace the plan-level suite would read.
+Its failure is cheaper to repair: the join's own branch retries, where a failed
+plan-level suite costs a root remediation pass. `PARENT_TEST_INTEGRATION_PLACEMENT`
+states the rule once for the planner, the review and the host's refusal.
+
+**The conditions, each against a failure.** The join declares outputs: in a
+sequential root plan a phase without them is read-only, and the fixes its suite
+asks for would be put back. Every other subtask comes before it, through
+`dependsOn` or, in a sequential plan, by order, so it is the last: a subtask
+beside or after it could change what the suite checked, and only a plan-level
+suite would see that. Declaring no outputs does not exempt one: such a phase is
+photographed and restored only in a sequential plan of two phases or more at
+the root or in a root cell's own plan (`undeclaredIsReadOnly`), never in a
+parallel plan, the incident's shape, nor in a cell under a tissue. The first
+version exempted them; its adversarial review found the gap. At least two tested branches come before it besides itself: the last
+branch of a chain keeps its own contract, as before, so the gate is relaxed only
+for a genuine join. A resumed root re-enforces its recorded approval with the
+same function, reading its sequential suffix by order. When a recorded approval
+no longer binds and only the suffix is reviewed again, a suffix holding fewer
+than two tested branches before the join is refused as before and replanned:
+the gate counts the plan it is shown, never the completed prefix.
+
+**What root acceptance reads.** The join's suite is a phase suite there, and
+not the root's own: the tissue judged it in the join's loop
+(`markParentTestsJudged`), so the root block labels it "judged by the supervisor
+below" and no root gate counts it. A passed one reads as a plan-level one would:
+the sink's observations are the plan's newest, so it leads the judged entries,
+and its source, an authored suite of at most 12,000 characters inside the root's
+32,000, is shown whole after only the sources nobody below judged (pinned in
+`tests/parent-tests-observations.test.ts`). A failed one never reaches the root
+approved: it rejected the join in its own loop, and if the join exhausts, its
+observations go up unjudged and the root judges them first. What differs is
+every consequence that is not a rejection, an UNAVAILABLE join suite and the
+reviewed repeat of a reject-once cause alike: the tissue judged it in the
+join's loop and the root does not judge it a second time, where the same
+observation on a plan-level suite is the root's to review. That is the judged-once rule, kept on
+purpose: un-judging the join's observations at aggregation would need the
+aggregate to know which subtask is the join and would review one fact twice,
+and tagging the approved plan's join digest for the root block would be a
+second notion of "the root's own suite" for a rank the sink already holds.
+
+**Rejected.** Refusing the shape and telling the planner up front: the review
+already read the join suite as the integration, and the guidance taught the
+join, so the refusal punished the taught plan. Accepting any subtask suite on a
+subtask downstream of the tested branches: a README written after it, or a
+branch beside it, escapes the suite. Keeping a trailing read-only report legal
+through a flag from the caller: the read-only condition is the dispatcher's
+(planned phase count, branch id, prefilter route) and a resumed root
+re-enforces a sliced plan, so the flag would be a second definition of it;
+the planner moves the report before the join or the suite up a level. Requiring the join to be classified
+`vitest`: the incident's review classified it `other` for its browser proof,
+with its suite still the integration.
