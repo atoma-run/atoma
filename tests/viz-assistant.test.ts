@@ -59,7 +59,9 @@ it('says a finished Compute run is waiting for its results instead of "in progre
 });
 
 it('shows a start refused for results waiting in plain words, never the machine-facing refusal', async () => {
-  for (const [reason, key] of [['results-waiting', 'assistant.busyResultsWaiting'], ['others-results-waiting', 'assistant.busyResultsWaitingOther']] as const) {
+  for (const [reason, key] of [['results-waiting', 'assistant.busyResultsWaiting'], ['others-results-waiting', 'assistant.busyResultsWaitingOther'],
+    // Its computer was connected and accepting work (review 2026-10-25): never "open Atoma Compute".
+    ['results-stalled', 'assistant.busyResultsStalled'], ['others-results-stalled', 'assistant.busyResultsStalledOther']] as const) {
     const data = view();
     data.conversation.version = 3;
     data.conversation.proposal = { id: proposalId, state: 'pending', action: { kind: 'start_run', projectId,

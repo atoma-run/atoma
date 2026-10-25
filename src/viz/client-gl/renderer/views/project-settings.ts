@@ -135,7 +135,7 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
     for (const run of compute.project.pendingRuns ?? []) {
       const row = pendingComputeRunRow(run, snapshot.t, snapshot.state.locale);
       line(row.text, { size: 12 });
-      buttonRow([{ ...row.action, disabled: compute.busy }], 280);
+      if (row.action) buttonRow([{ ...row.action, disabled: compute.busy }], 280);
     }
     if (!compute.project.canEdit) line(snapshot.t('deployment.adminOnly'));
     if (compute.notice !== 'idle') line(snapshot.t(`compute.${compute.notice}`), { color: computeNoticeIsStatus(compute.notice) ? GPU_COLORS.muted : GPU_COLORS.error });

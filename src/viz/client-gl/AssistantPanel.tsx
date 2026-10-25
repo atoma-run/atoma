@@ -47,6 +47,9 @@ function isRecordedMessage(message: OptimisticMessage, view: AssistantView | und
 export function assistantFailureCopy(failure: unknown, t: (key: string) => string): string {
   if (failure instanceof ApiHttpError && failure.reason === 'results-waiting') return t('assistant.busyResultsWaiting');
   if (failure instanceof ApiHttpError && failure.reason === 'others-results-waiting') return t('assistant.busyResultsWaitingOther');
+  // Its computer was connected and accepting work: "open Atoma Compute" would be the wrong advice.
+  if (failure instanceof ApiHttpError && failure.reason === 'results-stalled') return t('assistant.busyResultsStalled');
+  if (failure instanceof ApiHttpError && failure.reason === 'others-results-stalled') return t('assistant.busyResultsStalledOther');
   return failure instanceof Error ? failure.message : t('assistant.failed');
 }
 

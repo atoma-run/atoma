@@ -5,12 +5,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
-import { useProjectCompute } from '../src/viz/client-gl/project-compute.js';
+import { computeSettingsNoticeStale, useProjectCompute } from '../src/viz/client-gl/project-compute.js';
 import { ProjectSettingsAccessible } from '../src/viz/client-gl/ProjectSettingsAccessible.js';
 import type { ComputeProjectView } from '../src/contracts/computeProject.js';
 import { translate } from '../src/viz/client/i18n-catalog.js';
 import { formatDateTime } from '../src/viz/client/date-format.js';
-import { computeResultsAttempt } from '../src/viz/client-gl/compute-results.js';
+import { COMPUTE_RESULTS_NOTICE_HOLD_MS, computeResultsAttempt, computeResultsNoticeStale } from '../src/viz/client-gl/compute-results.js';
 const projectId = 'e5115060-d1a1-46bf-8daa-c22af757f3e8', deviceId = 'cfaec756-b83e-46fc-b787-2128f05ce7b8';
 function Harness() {
   const compute = useProjectCompute(projectId, true);
@@ -85,17 +85,22 @@ it('offers an explicit pending-transfer action to its requester without project 
   expect(screen.getByText('compute.resultsArrived')).toHaveAttribute('role', 'status');
   client.clear();
 });
-it('says plainly when the results could not be fetched yet', async () => {
+// Review 2026-10-25: only a transfer that was tried says "open Atoma Compute";
+// a refusal no computer can change (access, archived project) says so neutrally.
+it.each([
+  [{ error: 'Compute results not transferred yet', reason: 'pending' }, 'compute.resultsPending'],
+  [{ error: 'Compute request unavailable or changed; refresh before retrying' }, 'compute.resultsUnavailable'],
+] as const)('says plainly when the results could not be fetched yet: %j', async (body, notice) => {
   const runId = '85124e11-3e28-4c96-80f7-dbc13db6b205';
   const state: ComputeProjectView = { projectId, hostedAllowed: true, canEdit: false, target: { kind: 'customer-device', deviceId }, devices: [], pendingRuns: [{ runId }] };
   vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => init
-    ? new Response(JSON.stringify({ error: 'Compute request unavailable or changed; refresh before retrying' }), { status: 409 })
+    ? new Response(JSON.stringify(body), { status: 409 })
     : new Response(JSON.stringify(state))));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
   render(createElement(Harness), { wrapper });
   await userEvent.click(await screen.findByRole('button', { name: 'compute.finalize' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('compute.resultsPending');
+  expect(await screen.findByRole('alert')).toHaveTextContent(notice);
   client.clear();
 });
 it('shows an actionable loading failure instead of silently hiding compute settings', async () => {
@@ -153,5 +158,81 @@ it('treats a timed-out "Get the results" as still working', () => {
   expect(computeResultsAttempt({ status: 504 })).toBe('working');
   expect(computeResultsAttempt({ status: 409, reason: 'active' })).toBe('working');
   expect(computeResultsAttempt({ status: 409, reason: 'pending' })).toBe('waiting');
-  expect(computeResultsAttempt({ status: 409 })).toBe('waiting');
+  // A refusal with no transfer behind it is neither: neutral words, never "open Atoma Compute".
+  expect(computeResultsAttempt({ status: 409 })).toBe('unavailable');
+  expect(computeResultsAttempt({ status: 403 })).toBe('unavailable');
+});
+
+it('words each finished row by where its files are, and offers nothing while they move', async () => {
+  const ids = ['85124e11-3e28-4c96-80f7-dbc13db6b205', '0c1f3a2e-0b7c-4f61-9a55-7d3d8f0c9e11', '6d2b9f40-1c3a-4e5b-8f7d-2a9c0e1b3d44', '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'];
+  const startedAt = '2026-10-24T09:30:00.000Z', date = formatDateTime(startedAt, 'en');
+  const client = renderEnglish({ projectId, hostedAllowed: true, canEdit: false, target: { kind: 'customer-device', deviceId }, devices: [],
+    pendingRuns: [
+      { runId: ids[0]!, label: 'Offline', startedAt, phase: 'finalizing', computerReady: false, transferring: false },
+      { runId: ids[1]!, label: 'Stalled', startedAt, phase: 'finalizing', computerReady: true, transferring: false },
+      { runId: ids[2]!, label: 'Arrived', startedAt, phase: 'transferred', computerReady: false, transferring: false },
+      { runId: ids[3]!, label: 'Moving', startedAt, phase: 'finalizing', computerReady: true, transferring: true },
+    ] }, () => new Response('{}'));
+  expect(await screen.findByText(translate('en', 'compute.pending', { label: 'Offline', date }))).toBeInTheDocument();
+  const stalled = translate('en', 'compute.pendingStalled', { label: 'Stalled', date });
+  expect(screen.getByText(stalled)).toBeInTheDocument();
+  expect(stalled).not.toMatch(/as soon as Atoma Compute is open/);
+  const arrived = translate('en', 'compute.pendingTransferred', { label: 'Arrived', date });
+  expect(screen.getByText(arrived)).toBeInTheDocument();
+  expect(arrived).not.toMatch(/on your computer/);
+  expect(screen.getByText(translate('en', 'compute.pendingTransferring', { label: 'Moving', date }))).toBeInTheDocument();
+  expect(screen.getAllByRole('button', { name: translate('en', 'compute.finalize') })).toHaveLength(3);
+  client.clear();
+});
+
+// Review 2026-10-25: "Getting the results…" stayed after the run had finished.
+it('retires a results notice with its run: once the transfer it reported ends, or the run leaves the list', async () => {
+  const runId = '85124e11-3e28-4c96-80f7-dbc13db6b205';
+  const row = { runId, label: 'Booking page', startedAt: '2026-10-24T09:30:00.000Z', phase: 'finalizing' as const, computerReady: true, transferring: false };
+  const state: ComputeProjectView = { projectId, hostedAllowed: true, canEdit: false, target: { kind: 'customer-device', deviceId }, devices: [], pendingRuns: [row] };
+  const client = renderEnglish(state, () => {
+    // The automatic transfer holds the run: the press meets it, and the row now says it is moving.
+    state.pendingRuns = [{ ...row, transferring: true }];
+    return new Response(JSON.stringify({ error: 'Compute results are being transferred', reason: 'active' }), { status: 409 });
+  });
+  await userEvent.click(await screen.findByRole('button', { name: translate('en', 'compute.finalize') }));
+  expect(await screen.findByText(translate('en', 'compute.resultsGetting'))).toBeInTheDocument();
+  await client.refetchQueries();
+  expect(screen.getByText(translate('en', 'compute.resultsGetting'))).toBeInTheDocument();
+  // The transfer delivered the run: it left the list, and the notice goes with it.
+  state.pendingRuns = [];
+  await client.refetchQueries();
+  await waitFor(() => expect(screen.queryByText(translate('en', 'compute.resultsGetting'))).not.toBeInTheDocument());
+  client.clear();
+});
+
+it('judges a results notice only on data fetched after it, by its run', () => {
+  const runId = '85124e11-3e28-4c96-80f7-dbc13db6b205';
+  const row = { runId, phase: 'finalizing' as const, transferring: true };
+  const notice = { value: 'resultsGetting' as const, runId, at: 1_000 };
+  expect(computeSettingsNoticeStale(notice, [], 900)).toBe(false);
+  expect(computeSettingsNoticeStale(notice, [row], 1_001)).toBe(false);
+  expect(computeSettingsNoticeStale(notice, [{ ...row, transferring: false }], 1_001)).toBe(true);
+  expect(computeSettingsNoticeStale(notice, [], 1_001)).toBe(true);
+  expect(computeSettingsNoticeStale({ ...notice, value: 'resultsPending' }, [{ ...row, transferring: false }], 1_001)).toBe(false);
+  expect(computeSettingsNoticeStale({ ...notice, value: 'resultsPending' }, [], 1_001)).toBe(true);
+  expect(computeSettingsNoticeStale({ ...notice, value: 'resultsArrived' }, [], 1_001)).toBe(false);
+});
+
+// Review 2026-10-25: the run card's "Getting the results…" never left.
+it('retires a run card\'s "Get the results" outcome on later run data, never on the data it was shown with', () => {
+  const since = '2026-10-25T10:00:00.000Z';
+  const run = (resultsWaiting: { since: string; computerReady?: boolean } | null, status = 'running') =>
+    ({ projectRunId: 'r', status, resultsWaiting }) as unknown as Parameters<typeof computeResultsNoticeStale>[1];
+  const notice = { at: 10_000, waitingSince: since };
+  // Same data it was shown with: kept, whatever it says.
+  expect(computeResultsNoticeStale(notice, run(null), 10_000)).toBe(false);
+  // Still waiting right after: kept, so it can be read.
+  expect(computeResultsNoticeStale(notice, run({ since }), 10_500)).toBe(false);
+  // A transfer took it, or it ended: the card shows the run's own state.
+  expect(computeResultsNoticeStale(notice, run(null), 10_500)).toBe(true);
+  expect(computeResultsNoticeStale(notice, run({ since }, 'delivered'), 10_500)).toBe(true);
+  // It waits anew (another stop), or a poll after the hold still shows it waiting with no transfer.
+  expect(computeResultsNoticeStale(notice, run({ since: '2026-10-25T10:05:00.000Z' }), 10_500)).toBe(true);
+  expect(computeResultsNoticeStale(notice, run({ since }), 10_000 + COMPUTE_RESULTS_NOTICE_HOLD_MS)).toBe(true);
 });

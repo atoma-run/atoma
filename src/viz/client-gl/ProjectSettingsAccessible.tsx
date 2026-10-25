@@ -135,10 +135,10 @@ function ComputeSection({ view, t, locale, onActivate }: { view: ComputeSettings
     {!view.project.devices.length ? <p>{t('compute.empty')}</p> : null}
     <p>{t('compute.scope')}</p>
     {(view.project.pendingRuns ?? []).map(run => {
-      const row = pendingComputeRunRow(run, t, locale);
+      const { text, action } = pendingComputeRunRow(run, t, locale);
       return <div key={run.runId}>
-        <p>{row.text}</p>
-        <button type="button" disabled={view.busy} onClick={() => onActivate(row.action.id)}><ButtonIcon kind={buttonIconKind(row.action.id)} />{t(row.action.label)}</button>
+        <p>{text}</p>
+        {action ? <button type="button" disabled={view.busy} onClick={() => onActivate(action.id)}><ButtonIcon kind={buttonIconKind(action.id)} />{t(action.label)}</button> : null}
       </div>;
     })}
     {!view.project.canEdit ? <p>{t('deployment.adminOnly')}</p> : null}

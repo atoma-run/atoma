@@ -159,7 +159,8 @@ export interface ComputePendingRun {
   readonly startedAt: string;
   readonly phase: 'executing' | 'finalizing' | 'transferred' | 'interrupted' | null;
   /** Its files are still on a computer that is connected and accepting work: the transfer stalled. */
-  readonly computerReady: boolean;
+  readonly computerReady: boolean;  /** A process is moving its files right now: nothing to press. */
+  readonly transferring: boolean;
 }
 
 /** How long results may wait on a computer before the requester is told, once. */
@@ -3202,28 +3203,34 @@ export class ProjectRunCoordinator {
   }
 
   /**
-   * The requester's undriven Compute runs for Project settings, each named by
+   * The requester's pending Compute runs for Project settings, each named by
    * its title (else its goal) and start, with its transfer-journal phase:
    * `finalizing`/`transferred` wait for their results, anything else stopped
-   * before it finished.
+   * before it finished. A finished run whose files a process is moving right
+   * now stays listed as `transferring` (no action), so the page can say so;
+   * a run a process drives for any other reason is not pending.
    */
   pendingComputeRuns(orgId: string, projectId: string, principalId: string): ComputePendingRun[] {
     const live = this.liveRunLeases();
     let journal: ComputeDispatchStore | null = null;
     try { journal = this.dispatchJournal(); } catch { /* phases unknown */ }
-    return (this.store.listProjectRuns(orgId, projectId) ?? []).filter(run =>
-      run.executionTarget.kind === 'customer-device' && run.status === 'running' &&
-      run.requestedByPrincipalId === principalId && !this.active.has(run.projectRunId) && !live.has(`project:${run.projectRunId}`))
-      .slice(0, 100).map(run => {
-        let phase: ComputePendingRun['phase'] = null, computerReady = false;
-        try {
-          phase = journal?.inspect(run.projectRunId)?.phase ?? null;
-          // Only files still on the computer have a "computer ready" story.
-          if (phase === 'finalizing' && run.executionTarget.kind === 'customer-device') computerReady = journal!.deviceReady(run.executionTarget.deviceId);
-        } catch { /* unknown: not ready */ }
-        return { runId: run.projectRunId, label: eventLabel(run.title ?? run.goal, 80),
-          startedAt: run.startedAt ?? run.createdAt, phase, computerReady };
-      });
+    const rows: ComputePendingRun[] = [];
+    for (const run of this.store.listProjectRuns(orgId, projectId) ?? []) {
+      if (rows.length === 100) break;
+      if (run.executionTarget.kind !== 'customer-device' || run.status !== 'running' || run.requestedByPrincipalId !== principalId) continue;
+      let phase: ComputePendingRun['phase'] = null, computerReady = false;
+      try {
+        phase = journal?.inspect(run.projectRunId)?.phase ?? null;
+        // Only files still on the computer have a "computer ready" story.
+        if (phase === 'finalizing') computerReady = journal!.deviceReady(run.executionTarget.deviceId);
+      } catch { /* unknown: not ready */ }
+      const driven = this.active.has(run.projectRunId) || live.has(`project:${run.projectRunId}`);
+      const finished = phase === 'finalizing' || phase === 'transferred';
+      if (driven && !finished) continue;
+      rows.push({ runId: run.projectRunId, label: eventLabel(run.title ?? run.goal, 80),
+        startedAt: run.startedAt ?? run.createdAt, phase, computerReady, transferring: driven });
+    }
+    return rows;
   }
 
   /**

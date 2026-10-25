@@ -337,16 +337,26 @@ describe('results waiting: what each reader is told, and when', () => {
     } finally { coordinator.stopQueue(); }
   });
 
-  it('names each pending run in Project settings by title and start, with its journal phase', () => {
+  it('names each pending run in Project settings by title and start, with its journal phase', async () => {
     const f = fixture(), coordinator = coordinatorFor(f);
     const finished = remoteRun(f), interrupted = remoteRun(f, 'executing');
+    const moving = remoteRun(f), executing = remoteRun(f, 'executing');
+    let lease = await acquireRunLease(`project:${moving.projectRunId}`, lockPath);
     try {
       const rows = coordinator.pendingComputeRuns(f.owner.orgId, f.project.projectId, f.owner.principalId);
       expect(computeProjectViewSchema.shape.pendingRuns.parse(rows)).toEqual(rows);
       expect(rows).toEqual(expect.arrayContaining([
-        { runId: finished.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'finalizing', computerReady: false },
-        { runId: interrupted.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'executing', computerReady: false },
+        { runId: finished.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'finalizing', computerReady: false, transferring: false },
+        { runId: interrupted.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'executing', computerReady: false, transferring: false },
+        // Its files are being moved now: listed, with nothing to press (review 2026-10-25).
+        { runId: moving.projectRunId, label: 'Build the booking page', startedAt: expect.any(String), phase: 'finalizing', computerReady: false, transferring: true },
       ]));
+      lease.release();
+      // A run that is simply executing, driven, is not pending.
+      lease = await acquireRunLease(`project:${executing.projectRunId}`, lockPath);
+      expect(coordinator.pendingComputeRuns(f.owner.orgId, f.project.projectId, f.owner.principalId).map(row => row.runId))
+        .not.toContain(executing.projectRunId);
+      lease.release();
       // Its computer connected and accepting work: the row says the transfer stalled, so Settings
       // can pick the neutral copy (review 2026-10-25). A stopped run has no such story.
       connectDevice(f);

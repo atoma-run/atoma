@@ -2,7 +2,11 @@ import { githubAccessRequiredSchema } from '../../contracts/projects.js';
 import type { VizProjectRun } from '../client/types.js';
 import type { AuthUiSnapshot } from './session-controller.js';
 
-export interface GitHubRecoveryProgress { runId: string; busy: boolean; message?: string }
+export interface GitHubRecoveryProgress {
+  runId: string; busy: boolean; message?: string;
+  /** "Get the results" only: when its outcome was shown, and the run's waiting `since` then (`computeResultsNoticeStale`). */
+  at?: number; waitingSince?: string | null;
+}
 
 export function pendingGitHubAccess(run: VizProjectRun) {
   const parsed = githubAccessRequiredSchema.safeParse(run.githubAccess);

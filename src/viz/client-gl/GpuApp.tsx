@@ -10,7 +10,8 @@ import { AssistantPanel } from './AssistantPanel.js';
 import { workspaceIndexSchema } from '../../contracts/workspaceBrowser.js';
 import { latestWorkspaceRun, workspacePreviewPath, workspaceSplitForViewport } from './workspace-browser.js';
 import { canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from './github-access.js';
-import { canGetComputeResults, computeResultsAttempt, COMPUTE_RESULTS_ACTION } from './compute-results.js';
+import { canGetComputeResults, computeResultsAttempt, computeResultsNoticeStale, computeResultsWaiting, COMPUTE_RESULTS_ACTION,
+  COMPUTE_RESULTS_ATTEMPT_KEYS } from './compute-results.js';
 import { fetchJson } from '../client/data-api.js';
 import {
   useCallback,
@@ -341,6 +342,21 @@ function GpuAppContent({
     const id = entry?.projectRunId ?? entry?.id;
     return state.view === 'runs' && id ? runViewProjectRunsQuery.data?.find(run => run.projectRunId === id) ?? null : null;
   }, [runsQuery.data, runViewProjectRunsQuery.data, state.selectedRunId, state.view]);
+  // A "Get the results" outcome is never sticky: run data fetched after it
+  // retires it once the run stopped or restarted waiting, or still waits a
+  // poll later with no transfer running (review 2026-10-25).
+  const { data: projectRunRows, dataUpdatedAt: projectRunsUpdatedAt } = projectRunsQuery;
+  const { data: runViewRunRows, dataUpdatedAt: runViewRunsUpdatedAt } = runViewProjectRunsQuery;
+  useEffect(() => {
+    if (!githubRecovery || githubRecovery.busy || githubRecovery.at === undefined) return;
+    const notice = { at: githubRecovery.at, waitingSince: githubRecovery.waitingSince ?? null };
+    // Only a list holding the run speaks for it: another project's list says nothing.
+    const stale = ([[projectRunRows, projectRunsUpdatedAt], [runViewRunRows, runViewRunsUpdatedAt]] as const).some(([rows, updatedAt]) => {
+      const run = rows?.find(candidate => candidate.projectRunId === githubRecovery.runId);
+      return !!run && computeResultsNoticeStale(notice, run, updatedAt);
+    });
+    if (stale) setGitHubRecovery(null);
+  }, [githubRecovery, setGitHubRecovery, projectRunRows, projectRunsUpdatedAt, runViewRunRows, runViewRunsUpdatedAt]);
   const resultProjectId = state.view === 'projects' ? selectedProject?.projectId
     : runsQuery.data?.find(run => run.id === state.resultRunId)?.projectId ?? selectedProject?.projectId;
   const resultProjectRunsQuery = useProjectRuns(resultProjectId ?? null,
@@ -1073,9 +1089,11 @@ function GpuAppContent({
       setGitHubRecovery({ runId: run.projectRunId, busy: true });
       // A transfer already running (often the automatic one) or a request
       // that timed out is still working: say so and refetch, never "try again".
+      // The outcome is dated, so the next run data can retire it (`computeResultsNoticeStale`).
+      const waitingSince = computeResultsWaiting(run)?.since ?? null;
       void api.getComputeResults(run.projectRunId).then(() => { setGitHubRecovery(null); })
         .catch((error: unknown) => { setGitHubRecovery({ runId: run.projectRunId, busy: false,
-          message: t(computeResultsAttempt(error) === 'working' ? 'projects.resultsWaiting.working' : 'projects.resultsWaiting.stillWaiting') }); })
+          message: t(COMPUTE_RESULTS_ATTEMPT_KEYS[computeResultsAttempt(error)]), at: Date.now(), waitingSince }); })
         .finally(() => {
           githubRecoveryLock.current = false;
           void queryClient.invalidateQueries({ queryKey: ['viz', 'projects'] });

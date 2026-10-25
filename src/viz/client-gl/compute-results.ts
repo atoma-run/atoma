@@ -14,6 +14,9 @@ export function computeResultsWaiting(run: VizProjectRun): ComputeResultsWaiting
   return parsed.success ? parsed.data : null;
 }
 
+/** The run picker's mark for finished work waiting for its results: waiting, not an alarm. */
+export const COMPUTE_RESULTS_WAITING_GLYPH = '◷';
+
 /** The activation id prefix of "Get the results" on a run card, GPU and DOM alike. */
 export const COMPUTE_RESULTS_ACTION = 'project.computeResults.';
 
@@ -44,13 +47,43 @@ export function computeResultsMessageKey(run: VizProjectRun, auth: AuthUiSnapsho
  * it. `working`: a transfer is running (the server's typed 409 `active`, often
  * the automatic one), or the request timed out or lost its connection, whose
  * transfer may still be running; the page refetches instead of asking for a
- * retry. `waiting`: nothing moved the files; try again later.
+ * retry. `waiting`: the transfer was tried and nothing moved the files (409
+ * `pending`): open Atoma Compute and try again. `unavailable`: a refusal no
+ * computer can change (the requester's access, an archived project, an
+ * unavailable server): neutral words, never "open Atoma Compute".
  */
-export function computeResultsAttempt(error: unknown): 'working' | 'waiting' {
+export function computeResultsAttempt(error: unknown): 'working' | 'waiting' | 'unavailable' {
   // Duck-typed `ApiHttpError` (status, reason): this module is drawn by the
   // renderer, which stays clear of the data client.
   const status = error && typeof error === 'object' && 'status' in error && typeof error.status === 'number' ? error.status : null;
   if (status === null) return 'working';
-  if (status === 409) return 'reason' in (error as object) && (error as { reason?: unknown }).reason === 'active' ? 'working' : 'waiting';
-  return status === 502 || status === 503 || status === 504 ? 'working' : 'waiting';
+  const reason = 'reason' in (error as object) ? (error as { reason?: unknown }).reason : undefined;
+  if (status === 409 && reason === 'active') return 'working';
+  if (status === 409 && reason === 'pending') return 'waiting';
+  return status === 502 || status === 504 ? 'working' : 'unavailable';
+}
+
+/** The catalog key for a failed "Get the results", by `computeResultsAttempt`. */
+export const COMPUTE_RESULTS_ATTEMPT_KEYS = {
+  working: 'projects.resultsWaiting.working',
+  waiting: 'projects.resultsWaiting.stillWaiting',
+  unavailable: 'projects.resultsWaiting.unavailable',
+} as const;
+
+/** How long a "Get the results" outcome stays on a run still waiting, so it can be read. */
+export const COMPUTE_RESULTS_NOTICE_HOLD_MS = 10_000;
+
+/**
+ * Whether a "Get the results" outcome shown on a run card is out of date,
+ * judged only on run data fetched after it was shown (`at`): the run stopped
+ * waiting (a transfer took it, or it ended), it started waiting anew (`since`
+ * moved), or a poll at least `COMPUTE_RESULTS_NOTICE_HOLD_MS` later still shows
+ * it waiting with no transfer running. The card then shows the run's own state.
+ */
+export function computeResultsNoticeStale(notice: { readonly at: number; readonly waitingSince: string | null },
+  run: VizProjectRun | undefined, dataUpdatedAt: number): boolean {
+  if (dataUpdatedAt <= notice.at) return false;
+  const waiting = run ? computeResultsWaiting(run) : null;
+  if (!waiting || waiting.since !== notice.waitingSince) return true;
+  return dataUpdatedAt >= notice.at + COMPUTE_RESULTS_NOTICE_HOLD_MS;
 }
