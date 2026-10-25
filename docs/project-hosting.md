@@ -259,7 +259,12 @@ deployment before the new one starts. The Linux smoke script exercises a synthet
 checkpoint, desktop WebSocket, persisted profile/data and network isolation.
 A real third-party CAPTCHA still requires client verification after deployment.
 
-Operator validation: `scripts/hosting-browser-smoke.mjs` runs on Linux with the
+Operator validation: `scripts/hosting-container-smoke.mjs` runs on Linux with
+gVisor, after `npm run build`, with `ATOMA_HOSTING_IMAGE` and
+`ATOMA_HOSTING_RELAY_IMAGE`. It creates a deployment's objects, starts those
+same objects at their pinned addresses, prepares a second version while the
+first serves, swaps them with the data kept, and leaves nothing listed.
+`scripts/hosting-browser-smoke.mjs` runs on Linux with the
 three immutable hosting image variables; it creates and removes its own fixture
 containers and data. `ATOMA_BROWSER_SMOKE_HOLD=1` leaves that fixture available
 for three minutes for `scripts/hosting-browser-ui-smoke.mjs <forwarded-relay-port>`
