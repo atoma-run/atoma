@@ -57,20 +57,20 @@ A device sends these shapes to a server that knows them only if the server
 deploys first: rollout order in [src/launcher](../launcher/AGENTS.md).
 A persisted launcher stop report, never a deadline, permits closing an interrupted
 run and consulting its normal checkpoint eligibility. The selected executor
-reconciles confirmed interrupted stops during its control poll, including after
-a generation change. It also finishes pending finalization transfers by itself
-(2026-10-25): once the journal says only the transfer is left and the device is
-connected with no execution holding its slot, the explicit retry's own path runs
-for the requester, one attempt per run. Consecutive failures back off 30 s
-doubling to ten minutes, whatever the connection: an attempt that reached the
-device closes its socket and the app reconnects a second later. Only a failure
-before assign lets a new connection re-arm sooner, under a floor that grows too.
-A lost membership or an archived project is logged once and never retried until
-it changes. A run cancelled before an attempt, or while it waits for the slot,
-is not exported: it closes as cancelled once its stop is confirmed (the button
-too). Pending transfers were explicit while a refused export could loop; it is
-now terminal, and the export runs no tool or model. Run 40c20c5d waited 4.5
-hours for a buried button. Public readers never perform this reconciliation.
+reconciles confirmed interrupted stops during its control poll, including after a
+generation change (`startSelfExecutorControlPoll` with no executor socket). It also
+finishes pending finalization transfers by itself (2026-10-25), running the explicit
+retry's path for the requester, one attempt per run, once only the transfer is left
+and the device is connected and accepting work with no execution holding its slot. A
+paused device is never attempted (assign would refuse); resuming on the same
+connection retries at once. Failures back off 30 s doubling to ten minutes whatever
+the connection: an attempt that reached the device closes its socket and the app
+reconnects a second later. Only a failure before assign lets a new connection re-arm
+sooner, under a floor that grows too. A lost membership or archived project is
+logged once, not retried while it lasts. A run cancelled before an attempt or while
+waiting for the slot is never exported: it closes as cancelled once its stop is
+confirmed; readers drop its waiting state, the button refuses with typed
+`cancelling`. The export runs no tool or model. Public readers never reconcile.
 
 Results WAITING on a computer (2026-10-25) are host facts: a running Compute row
 whose journal says `finalizing` with no driver (`computeResultsWaiting`);

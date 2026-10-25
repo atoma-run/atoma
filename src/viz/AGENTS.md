@@ -233,7 +233,7 @@ fail closed as before. The web service's executor dependency is one-way only.
   runs) send a body-hash weak ETag and an empty 304, held by `data-api.ts` (`no-store`
   stays); `runIndex.ts` caches the rows of SETTLED traces only, live ones re-read.
   `/api/runs` is PAGED (`limit`, position cursor `before`, `projectId`): the picker
-  reads the selected run's project whole and the platform pages at its bottom.
+  reads the selected run's project whole and the platform pages at its bottom. Its results-waiting mark (`runAwaitingResults`) reads the SELECTED project's loaded run list, not an index field: a waiting run of another project shows its trace verdict until that project is selected (known limit, 2026-10-25).
 - The runs timeline reads NEWEST FIRST and is framed by two bookend rows
   (run ended / run started) that carry the verdict. Bookends are view rows:
   the view publishes `rowOffset` on the timeline viewport and overlays add it,
