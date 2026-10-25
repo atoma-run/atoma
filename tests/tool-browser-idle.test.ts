@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ToolSandbox } from '../src/tools/sandbox.js';
 import { createToolBrowser, defaultBuiltinTools, type BuiltinTool } from '../src/tools/builtin.js';
 import { SharedToolBrowser } from '../src/tools/toolBrowser.js';
+import { forceKillTestProcessTree } from './helpers.js';
 
 /**
  * validate_html's Chromium is a CACHE, not a resource the run owns (run
@@ -185,12 +186,15 @@ describe.skipIf(process.platform === 'win32')('validate_html releases its idle b
 describe.skipIf(process.platform === 'win32')('a wedged browser close is bounded', () => {
   let root: string;
   let sandbox: ToolSandbox;
+  const spawned: number[] = [];
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'tool-browser-wedge-'));
     sandbox = new ToolSandbox(root);
   });
   afterEach(async () => {
     await sandbox.cleanup().catch(() => undefined);
+    // A failed assertion must not leave the detached stand-in running.
+    for (const pid of spawned.splice(0)) forceKillTestProcessTree(pid);
     rmSync(root, { recursive: true, force: true });
   });
 
@@ -199,6 +203,7 @@ describe.skipIf(process.platform === 'win32')('a wedged browser close is bounded
       detached: true,
       stdio: 'ignore',
     });
+    if (child.pid) spawned.push(child.pid);
     let calls = 0;
     const browser = {
       connected: true,
