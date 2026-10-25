@@ -847,6 +847,11 @@ describe('root delegation review robustness', () => {
       expect(!parsed.approved && parsed.unsatisfiableSuites).toEqual([
         { suite: 0, reason: 'contradiction' }, { suite: 1, reason: 'unstated' }, { suite: 'plan', reason: 'unstated' }]);
       expect(parseVerdict(JSON.stringify({ approved: false, reasoning: 'r', unsatisfiableSuites: 'none' }))).not.toHaveProperty('unsatisfiableSuites');
+      // A lone citation object, "subtask 0" and " Plan " still cite: each dropped would restore the bound.
+      const lone = parseVerdict(JSON.stringify({ approved: false, reasoning: 'r', unsatisfiableSuites: { suite: 'subtask 0', reason: 'c' } }));
+      expect(!lone.approved && lone.unsatisfiableSuites).toEqual([{ suite: 0, reason: 'c' }]);
+      const plan = parseVerdict(JSON.stringify({ approved: false, reasoning: 'r', unsatisfiableSuites: [{ suite: ' Plan ', reason: 'c' }] }));
+      expect(!plan.approved && plan.unsatisfiableSuites).toEqual([{ suite: 'plan', reason: 'c' }]);
       expect(parseVerdict(JSON.stringify({ approved: true, reasoning: 'ok', unsatisfiableSuites: [{ suite: 0, reason: 'x' }] }))).not.toHaveProperty('unsatisfiableSuites');
     });
 

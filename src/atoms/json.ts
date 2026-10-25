@@ -1460,12 +1460,17 @@ function coerceInherited(raw: unknown): Array<{ id: string; asked: boolean; reas
  * only lets the cell's refusal bound apply as before 40c20c5d.
  */
 function coerceUnsatisfiableSuites(raw: unknown): UnsatisfiableSuite[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
+  // A lone citation object is one citation: dropping it would silently restore
+  // the fail-open bound on the very refusal that named the suite.
+  const entries = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? [raw] : undefined;
+  if (!entries) return undefined;
   const out: UnsatisfiableSuite[] = [];
-  for (const entry of raw) {
+  for (const entry of entries) {
     if (!entry || typeof entry !== 'object') continue;
     const e = entry as Record<string, unknown>;
-    const suite = typeof e['suite'] === 'string' && /^\d+$/.test(e['suite'].trim()) ? Number(e['suite'].trim()) : e['suite'];
+    const text = typeof e['suite'] === 'string' ? e['suite'].trim().toLowerCase() : undefined;
+    const index = text?.match(/^(?:subtask\s*)?(\d+)$/);
+    const suite = text === undefined ? e['suite'] : index ? Number(index[1]) : text;
     const parsed = unsatisfiableSuiteSchema.safeParse({ suite, reason: e['reason'] });
     if (parsed.success) out.push(parsed.data);
   }
