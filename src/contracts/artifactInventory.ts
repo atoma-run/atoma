@@ -4,7 +4,7 @@ import { deliveryKindSchema } from './taskExecution.js';
 /**
  * A RUN'S SAVED FILES: the artifact manifest and its entries, the shape a
  * delivered or partial run's inventory is stored, compared, published and read
- * in. Defined here, below `projects.ts`, which re-exports every name, so a
+ * in. Defined here, below `projects.ts`, which re-exports the manifest names, so a
  * contract `projects.ts` itself imports can use the manifest without an import
  * cycle (`readRuns.ts`, whose launch index carries other runs' manifests).
  */

@@ -83,7 +83,10 @@ Checkpoint open/digest operation failures return an explicit refusal without clo
 Those reply shapes (`export-refused`, an export's `omitted` list) are not
 negotiated, so rollout order is the gate: server first (a push to `main`),
 then the workspace image adopted in `computeImages.ts` together with the
-desktop app that pins it. Against an older server they parse as
+desktop app that pins it; a CLI-paired client receives its own pinned
+archive (`COMPUTE_CLIENT_ARCHIVE`, src/viz) beside the current images, so
+adopting the new workspace image also bumps that archive, or an older CLI
+client rejects the new replies and its run pends. Against an older server they parse as
 `invalid-frame` and the run pends, as that server already left such a tree;
 the export of a tree holding byte-less entries cannot succeed there. A
 handshake flag was declined: `ready` cannot carry one (an older app refuses
