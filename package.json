@@ -64,7 +64,7 @@
     "viz:dev": "node --import tsx scripts/viz-dev.mjs",
     "viz:gpu": "node --import tsx scripts/viz-dev.mjs",
     "viz:build": "node scripts/viz-build.mjs",
-    "viz:shot": "node scripts/viz-screenshot.mjs",
+    "viz:shot": "node --import tsx scripts/viz-screenshot.mjs",
     "viz:smoke": "npm run build && node scripts/mcp-oauth-browser-smoke.mjs && node scripts/compute-browser-smoke.mjs && node scripts/viz-gpu-smoke.mjs",
     "viz:smoke:gc": "node scripts/viz-gpu-gc-smoke.mjs",
     "viz:mark-turn": "node scripts/viz-mark-turn.mjs",

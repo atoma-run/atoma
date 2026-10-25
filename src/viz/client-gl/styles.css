@@ -627,7 +627,10 @@ html.atoma-cursor-active * {
   .gpu-project-mcp.gpu-project-mcp--assistant-compact { height: var(--gpu-project-guide-height, 360px); }
 }
 
-.gpu-project-mcp.gpu-project-mcp--collapsed { height: 48px; }
+/* Folded, only the title row remains: centre it in the band, with or without
+   the hosted conversation around it. */
+.gpu-project-mcp.gpu-project-mcp--collapsed { height: 48px; padding-block: 0; justify-content: center; }
+.gpu-project-mcp--collapsed .gpu-assistant { justify-content: center; }
 
 /* The external-agent path, folded under the conversation. */
 .gpu-project-mcp-own-agent { margin-top: 2px; }

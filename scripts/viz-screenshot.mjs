@@ -1595,6 +1595,12 @@ try {
       if (!authed || view !== 'Projects') throw new Error('--assistant requires --auth and Projects');
       // The conversation lives inside the project guide card (2026-10-09).
       if (!(await page.$('.gpu-project-mcp--assistant .gpu-assistant'))) throw new Error('The integrated assistant is missing from the guide');
+      // The stubbed organisation has projects, so the creation card opens
+      // folded (2026-10-25): open it the way a reader does.
+      if (await page.$('.gpu-project-mcp--collapsed')) {
+        await page.click('.gpu-project-mcp-toggle');
+        await page.waitForFunction(() => !document.querySelector('.gpu-project-mcp--collapsed'));
+      }
       try { await page.waitForSelector(assistantReconnect ? '.gpu-assistant-setup' : assistantEmpty ? '.gpu-project-mcp--assistant-compact .gpu-assistant-empty' : assistantHistory ? '.gpu-assistant-message--assistant' : assistantLinksProbe ? '.gpu-assistant-message--receipt' : '.gpu-assistant-proposal', { timeout: 10_000 }); }
       catch (error) { await page.screenshot({ path: '/tmp/atoma-assistant-failure.png' }); throw error; }
       await page.evaluate(() => {
