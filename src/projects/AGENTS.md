@@ -49,8 +49,12 @@ A typed `export-refused` reply (the device's publication inventory refused the
 finished tree) is terminal on dispatch and on explicit retry alike: the row
 fails exactly as a hosted refusal does, same message, stats kept from the
 persisted `.compute-result`, slot released through the normal close. Run
-40c20c5d sat `running` instead, its cause discarded. Every cause a dispatch
-leaves pending is now logged; only transport loss and lease failures pend.
+40c20c5d sat `running` instead, its cause discarded. Only a refusal the same
+tree reproduces (`artifactRefusalCodeSchema`) is terminal: a race or an I/O
+failure (inventoried as `changed`) stays an operation failure and pends.
+Every cause a dispatch leaves pending is logged, including an absent device.
+A device sends these shapes to a server that knows them only if the server
+deploys first: rollout order in [src/launcher](../launcher/AGENTS.md).
 A persisted launcher stop report, never a deadline, permits closing an interrupted
 run and consulting its normal checkpoint eligibility. The selected executor
 reconciles confirmed interrupted stops during its control poll, including after
@@ -374,11 +378,13 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   except entries that hold no bytes: sockets, FIFOs, and links whose target
   exists nowhere and names no existing workspace path, here or under the
   workers' `/workspace` mount (Chromium's `Singleton*` links that run 40c20c5d's
-  own tests left at its root). They are never followed or published; they
-  stay out of the manifest and its hash and are listed, bounded, in the run
-  log (by the device export for Compute runs). A link that resolves still
-  refuses, and one that starts resolving refuses at revalidation. Hosted
-  inventory, device export and revalidation share this one function.
+  own tests left at its root; the profile files beside them hold bytes and
+  are inventoried like any other). They are never followed, published or
+  seeded (`byteLessWorkspaceEntry`: the next run's checkpoint refuses them);
+  they stay out of the manifest and its hash and are listed, bounded, once in
+  the run log (by the export that wrote the copy, for Compute runs). A link
+  that resolves still refuses, and one that starts resolving refuses at
+  revalidation. Inventory, device export, revalidation and seeds share it.
   `WORKSPACE_LIMITS` is shared with import and sync: 100,000 files, 10 MiB
   per file, 512 MiB total. Text and file deliveries use the same inventory.
   Publication loads bytes lazily and sends only changed files for existing
@@ -731,7 +737,13 @@ acceptance, publication or the immutable child trace.
   application reads), and so was judging a link absolute `/workspace/...` by
   this host alone (the device's service sees `/workspace/current`). Recording
   omissions in the manifest was refused too: copies never hold them, so every
-  transfer revalidation would disagree with its own manifest.
+  transfer revalidation would disagree with its own manifest. Accepted
+  trade-off: a link naming no workspace path is `stat`-ed on the host doing
+  the inventory (the control plane for hosted runs), so success against
+  refusal tells a member whether that host path exists: one bit per paid
+  run, never a byte or a name. Not stat-ing it means omitting every such
+  link, one the application reads included, or refusing them all, run
+  40c20c5d's `/tmp` links included.
 - Letting a reader repair a `running` row it noticed: refused. That is
   `reconcileInterrupted`'s job at the next boot. `hasProjectTables` exists
   precisely so a reader can ask about the control plane without triggering

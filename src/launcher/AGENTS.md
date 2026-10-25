@@ -80,6 +80,16 @@ Queues are bounded to 128 frames / 8 MiB; overflow fails closed. A new process,
 expired lease or explicit stop cannot resume this in-memory channel. Legacy peers
 use the original transport. Reattachment never renews the lease.
 Checkpoint open/digest operation failures return an explicit refusal without closing the live channel: automatic continuation can be disabled while the run proceeds. Snapshot restrictions remain unchanged. An `artifact-open` the publication inventory refuses answers `export-refused` with its typed code and bounded message, also keeping the channel: the server ends the run with that reason. Lease expiry, malformed replies and failures of other workspace operations still fail closed.
+Those reply shapes (`export-refused`, an export's `omitted` list) are not
+negotiated, so rollout order is the gate: server first (a push to `main`),
+then the workspace image adopted in `computeImages.ts` together with the
+desktop app that pins it. Against an older server they parse as
+`invalid-frame` and the run pends, as that server already left such a tree;
+the export of a tree holding byte-less entries cannot succeed there. A
+handshake flag was declined: `ready` cannot carry one (an older app refuses
+an unknown field) and `hello.services` neither (an older server refuses an
+unknown service), so gating would need server-first anyway and would turn
+one pending run into a device that cannot connect.
 `ComputeLease` guards this channel, but engine teardown remains caller-injected. Authenticated heartbeat acknowledgements renew from dispatch
 time, never receipt time. Monotonic and wall deadlines jointly detect expiry and
 sleep; every operation must call `assertActive`. Expiry starts cleanup once. Both ends log bounded transport causes and pending
