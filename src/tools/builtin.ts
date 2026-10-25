@@ -7,7 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { FILE_OBSERVATION_ONLY_ARG, MAX_FILE_PAGE_CHARS, MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
 import { readRunCopyWriteRefusal, writesIntoReadRunCopies } from './readRunCopies.js';
 import type { Tool, Logger } from '../core/types.js';
-import { sandboxChildEnv, type ToolSandbox } from './sandbox.js';
+import { reapEscapedProcessGroups, sandboxChildEnv, type ToolSandbox } from './sandbox.js';
 import { scaffoldApplication } from './applicationSkeleton.js';
 import {
   DECORATED_CMD_RE,
@@ -1163,6 +1163,10 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
           // behind (`&`-backgrounded servers and the like). By contract
           // they do not belong to run_shell's lifetime.
           killGroup();
+          // A grandchild in ITS OWN process group (a browser a test runner
+          // launched detached) escaped that kill and is now an orphan.
+          const escaped = reapEscapedProcessGroups();
+          if (escaped.length) opts.logger?.warn(`[tool:run_shell] killed ${escaped.length} process group(s) a finished command left behind: ${escaped.join(', ')}`);
           if (timedOut) {
             resolvePromise({
               exitCode: 1,

@@ -99,6 +99,7 @@ Neighbours:
   command is still holding.
 - Concurrent browser checks share the in-flight Chromium launch. A host replay whose page creation fails closes its already-created context.
 - A tracked group leader exiting also kills its remaining owned group immediately; dead servers must not leave descendants consuming the run budget until final cleanup.
+- Every finished `run_shell`/`record_probe` command also kills ESCAPED process groups (`reapEscapedProcessGroups`): orphans reparented to the container's init whose group no live process of the worker shares. A browser a test launched in its own group survived its runner's timeout, and seven such leaks exhausted run 9e134e49's 256-task Compute worker. Only inside a worker started with `--init`: on a host, ppid 1 is the machine's orphans.
 - Cleanup is mandatory on success, failure, timeout, signal, and hard-exit paths.
   Network teardown races need bounded retry.
 - `ToolSandbox.drain()` is the stronger local contract before workspace

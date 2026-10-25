@@ -504,6 +504,30 @@ describe('one common root acceptance, independent of phase credit', () => {
     expect(accepted.reasoning).toContain('definition is absent');
   });
 
+  // Run 9e134e49 (2026-10-24): every required check failed to start on an
+  // exhausted worker, the remediation reported that accurately, and the root
+  // text review approved the report as the validation the task asked for.
+  it('tells the root text review that an accurate report of unperformed required work does not supply it, and keeps its refusal', async () => {
+    const ctx = context();
+    ctx.llm.enqueueText('Required: run npm run check and the browser suites; report their outcomes.');
+    ctx.llm.enqueue(req => {
+      const review = req.userContent.slice(req.userContent.lastIndexOf('FINAL ROOT TEXT REVIEW'));
+      expect(review).toContain('WORK THE TASK REQUIRES PERFORMED');
+      expect(review).toContain('does not supply that component, however accurately it reports the blocker');
+      expect(review).toContain('a test that ran and failed is a result the answer can deliver');
+      expect(review).toContain('a check it could not run stays unrun');
+      return { text: jsonText({ approved: false, scope: 'ephemeral', modifications: {},
+        reasoning: 'The answer accurately reports that npm run check and both browser suites could not start; none of the required checks was established.' }),
+      stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    const accepted = await acceptRootResult({ actor: new Actor(3),
+      task: { description: 'Run npm run check and the browser suites offline; report commands, outcomes and coverage.' },
+      result: { ...result, output: 'npm run check exit 2: Cannot fork. Both browser suites failed before collection: EAGAIN.' },
+      delivery: 'text', ctx, floor: [], phaseCoverage: [] });
+    expect(accepted.approved).toBe(false);
+    expect(accepted.reasoning).toContain('none of the required checks was established');
+  });
+
   it.each(['text', 'files', undefined] as const)('routes the recorded %s delivery to the configured review tier', async (delivery) => {
     const ctx = context();
     if (delivery === 'text') ctx.llm.enqueueText('Independent reference');

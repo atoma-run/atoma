@@ -657,6 +657,37 @@ describeDocker('read-run copies beside whole-tree tools in a containerised run',
 // isolated tag explicitly, so a stale shared :latest cannot masquerade as proof.
 const acceptanceImage = process.env['ATOMA_TEST_ACCEPTANCE_IMAGE'];
 describe.skipIf(!acceptanceImage && process.env['CI_REQUIRE_DOCKER'] !== '1')('compiled parent-test worker', () => {
+  // Run 9e134e49 (2026-10-24): a test runner launched Chromium in its own
+  // process group; run_shell killed the runner's group on timeout and the
+  // browser survived, until the worker's task limit stopped every build.
+  // The detached process lives in the worker container, never on the test host.
+  it.skipIf(process.platform === 'win32').each([
+    ['times out', 'setInterval(() => {}, 1000);', { timeoutMs: 1500 }],
+    ['exits', 'setTimeout(() => process.exit(0), 300);', {}],
+  ] as const)('kills a detached grandchild when the command that launched it %s', async (_mode, parentTail, extra) => {
+    const workspace = mkdtempSync(join(tmpdir(), 'atoma-escaped-group-image-'));
+    const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,
+      image: acceptanceImage ?? 'atoma-worker:latest', forwardWorkerLogs: false });
+    writeFileSync(join(workspace, 'launcher.cjs'), `
+      const {spawn} = require('node:child_process');
+      const browser = spawn(process.execPath, ['-e', "setInterval(() => require('node:fs').appendFileSync('heartbeat', '.'), 20)"],
+        {stdio: 'ignore', detached: true});
+      browser.unref();
+      ${parentTail}
+    `);
+    try {
+      await executor.execute('run_shell', { cmd: 'node launcher.cjs', ...extra });
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const stopped = readFileSync(join(workspace, 'heartbeat'), 'utf8');
+      expect(stopped.length).toBeGreaterThan(0);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      expect(readFileSync(join(workspace, 'heartbeat'), 'utf8')).toBe(stopped);
+    } finally {
+      await executor.drain();
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it('stops a crashed server group before the next worker command', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'atoma-server-exit-image-'));
     const executor = new ContainerToolExecutor({ workspaceHostPath: workspace,

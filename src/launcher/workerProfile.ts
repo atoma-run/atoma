@@ -82,7 +82,14 @@ export function workerRunArgs(opts: {
   return [
     'run',
     '--rm',
-    ...(opts.computeMachineId ? ['--init', '--read-only', '--pids-limit', '256',
+    // EVERY worker runs under Docker's init: an orphan a command left behind
+    // (a browser a test launched in its own process group, then a timeout
+    // killed the test) is reparented to an init the worker does not own,
+    // which reaps it and lets the worker tell orphans from its own children
+    // (`reapEscapedProcessGroups`, src/tools/sandbox.ts). Without it the
+    // worker was PID 1 and an orphan became its unreaped zombie.
+    '--init',
+    ...(opts.computeMachineId ? ['--read-only', '--pids-limit', '256',
       '--memory-swap', opts.memory ?? '2g', '--tmpfs', '/tmp:rw,nosuid,nodev,size=1g',
       '--label', `dev.atoma.compute=${opts.computeMachineId}`, '--label', 'dev.atoma.compute.kind=worker'] : []),
     ...(opts.socketHostPath ? ['-d', '--mount', `type=bind,src=${opts.socketHostPath},dst=/run/atoma-worker.sock,readonly`, '-e', 'ATOMA_WORKER_SOCKET=/run/atoma-worker.sock'] : ['-i']),

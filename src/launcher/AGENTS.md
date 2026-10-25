@@ -141,6 +141,11 @@ remains in-process and does not satisfy the deployment boundary.
 
 ## Worker lifecycle and transport
 
+Every worker container runs with `--init` (`workerRunArgs`): an orphan a command
+leaves is reaped by that init, and the worker can tell orphans from its own
+children ([src/tools](../tools/AGENTS.md), escaped process groups). Without it
+the worker was PID 1 and each orphan became its unreaped zombie.
+
 `ContainerToolExecutor` is a compatibility facade. Local stdio attach lives
 in `localWorker.ts`; the service mode uses `RemoteWorkerExecutor` and the
 closed `WorkerLauncher` contract. The launcher chooses image, uid, workspace

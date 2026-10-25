@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, realpathSync, mkdtempSync, lstatSync, readlinkSync, constants as fsConstants } from 'node:fs';
+import { mkdirSync, existsSync, realpathSync, mkdtempSync, lstatSync, readlinkSync, readFileSync, readdirSync, constants as fsConstants } from 'node:fs';
 import { open, readlink, realpath, stat, type FileHandle } from 'node:fs/promises';
 import { resolve, relative, isAbsolute, join, dirname, basename, sep } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
@@ -520,6 +520,102 @@ export class ToolSandbox {
     }
     for (const group of groups) this.childGroups.delete(group);
   }
+}
+
+/** The fields of one `/proc/<pid>/stat` row the orphan sweep reads. */
+export interface ProcessRow { readonly pid: number; readonly ppid: number; readonly pgid: number }
+
+/**
+ * Process groups a finished command left behind, in a container whose PID 1
+ * is an init the worker does not own (`docker run --init`). An ORPHAN is a
+ * process reparented to that init (ppid 1) that is neither the worker nor
+ * one of its ancestors; its group is ESCAPED when no live process of the
+ * worker's own tree shares it. A group shared with the worker's tree is kept:
+ * Chromium's crash handler double-forks out of a browser the worker still
+ * holds (the shared validate_html browser, a lane's test still running).
+ *
+ * Run 9e134e49 (2026-10-24): a test runner launched Chromium in its own
+ * process group, run_shell's timeout killed the runner's group, and the
+ * browser survived; seven such leaks exhausted the Compute worker's 256-task
+ * limit and every later build aborted (`newosproc`, EAGAIN). Pure, so it is
+ * tested on a synthetic table; `reapEscapedProcessGroups` reads /proc.
+ */
+export function escapedProcessGroups(table: readonly ProcessRow[], self: number): number[] {
+  const byPid = new Map(table.map(row => [row.pid, row]));
+  const ancestors = new Set<number>();
+  for (let row = byPid.get(self); row && !ancestors.has(row.pid); row = byPid.get(row.ppid)) ancestors.add(row.pid);
+  const children = new Map<number, ProcessRow[]>();
+  for (const row of table) children.set(row.ppid, [...(children.get(row.ppid) ?? []), row]);
+  const owned = new Set<number>();
+  const queue = [self];
+  while (queue.length) {
+    const pid = queue.pop()!;
+    if (owned.has(pid)) continue;
+    owned.add(pid);
+    for (const child of children.get(pid) ?? []) queue.push(child.pid);
+  }
+  const keptGroups = new Set<number>();
+  for (const pid of [...owned, ...ancestors]) {
+    const group = byPid.get(pid)?.pgid;
+    if (group !== undefined) keptGroups.add(group);
+  }
+  const escaped = new Set<number>();
+  for (const row of table) {
+    if (row.ppid !== 1 || row.pid <= 1 || ancestors.has(row.pid) || owned.has(row.pid)) continue;
+    if (row.pgid <= 1 || keptGroups.has(row.pgid)) continue;
+    escaped.add(row.pgid);
+  }
+  return [...escaped].sort((a, b) => a - b);
+}
+
+let initOwnedElsewhere: boolean | undefined;
+/** True only inside a container started with an init the worker does not own. */
+function underForeignInit(): boolean {
+  if (initOwnedElsewhere !== undefined) return initOwnedElsewhere;
+  initOwnedElsewhere = false;
+  if (process.platform !== 'linux' || process.pid === 1 || process.ppid !== 1 || !existsSync('/.dockerenv')) return false;
+  try {
+    const argv0 = readFileSync('/proc/1/cmdline', 'utf8').split('\0')[0] ?? '';
+    initOwnedElsewhere = ['docker-init', 'tini', 'tini-static'].includes(basename(argv0));
+  } catch {
+    initOwnedElsewhere = false;
+  }
+  return initOwnedElsewhere;
+}
+
+function processTable(): ProcessRow[] {
+  const rows: ProcessRow[] = [];
+  for (const name of readdirSync('/proc')) {
+    if (!/^\d+$/.test(name)) continue;
+    try {
+      const stat = readFileSync(`/proc/${name}/stat`, 'utf8');
+      // `pid (comm) state ppid pgrp ...`: comm may hold spaces and parens.
+      const rest = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      rows.push({ pid: Number(name), ppid: Number(rest[1]), pgid: Number(rest[2]) });
+    } catch {
+      // Gone between the listing and the read.
+    }
+  }
+  return rows;
+}
+
+/**
+ * SIGKILL every escaped group (see `escapedProcessGroups`). A no-op outside a
+ * container whose init the worker does not own: on a host, ppid 1 is the
+ * whole machine's orphans. Returns the groups it signalled.
+ */
+export function reapEscapedProcessGroups(): number[] {
+  if (!underForeignInit()) return [];
+  let groups: number[];
+  try {
+    groups = escapedProcessGroups(processTable(), process.pid);
+  } catch {
+    return [];
+  }
+  for (const group of groups) {
+    try { process.kill(-group, 'SIGKILL'); } catch { /* already gone */ }
+  }
+  return groups;
 }
 
 function sleepMs(ms: number): Promise<void> {

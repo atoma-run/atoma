@@ -282,6 +282,27 @@ describe('a reviewer asking the plan for its own delegationReview (run f41efe87,
   });
 });
 
+// Run 9e134e49 (2026-10-24): the root review asked a verification plan that
+// runs the project's own browser suites for a dom-interaction obligation; the
+// browser and server it then started stayed alive beside those suites.
+it('reaches the root delegation reviewer with the existing browser suites as a browser route', async () => {
+  const db = openDb(':memory:');
+  databases.push(db);
+  const registry = new AtomRegistry(db);
+  const seed = { description: 'verifier', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' };
+  const tissue = L3Atom.buildWithModel(registry.create(3, seed), registry, 'mock');
+  registry.create(2, seed);
+  const ctx = makeCtx();
+  vi.spyOn(tissue, 'plan').mockResolvedValue(makePlan({ subtasks: [{ description: 'Run npm run test:browser:ui and npm run test:browser and report their outcomes' }] }));
+  vi.spyOn(tissue, 'execute').mockResolvedValue({ output: 'done', summary: 'done', trace: [], producedBy: { tier: 3, name: tissue.name, viaFallback: false } });
+  ctx.llm.enqueueText(JSON.stringify(review(['other'])));
+  await tissue.handle({ description: 'Run the project browser suites offline and report' }, ctx);
+  const reviewCall = ctx.llm.calls.find(call => call.role === 'validate-plan');
+  expect(reviewCall?.userContent).toContain("runs the project's own existing real-browser suites through run_shell or record_probe");
+  expect(reviewCall?.userContent).toContain('never ask that plan for an added validate_html subtask or a dom-interaction obligation');
+  expect(reviewCall?.userContent).toContain('Behaviour no such suite exercises still needs its browser route');
+});
+
 // Group D, review 2026-10-16: the root review runs on tier 2 with its own
 // parameters, a reviewer's own failure re-reviews the same plan on the
 // validation model, and an unparseable root plan spends an attempt.
