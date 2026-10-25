@@ -23,7 +23,9 @@ export const TOOL_BROWSER_IDLE_MS = 30_000;
  * resolves) and waits up to the protocol timeout for the CDP close, then
  * for the process exit with no bound at all; the release runs on
  * `run_shell`'s critical path, so it must not inherit either wait. A healthy
- * headless Chromium closes in well under a second.
+ * headless Chromium closes in well under a second. Worst case on that path:
+ * this grace, then `stopChild`'s 250 ms SIGTERM grace and its bounded
+ * SIGKILL confirmation (5 s), about 7 s in all.
  */
 export const TOOL_BROWSER_CLOSE_GRACE_MS = 1_500;
 
@@ -193,6 +195,7 @@ export async function stopBrowser(browser: Browser, sandbox: ToolSandbox, graceM
   let timer: ReturnType<typeof setTimeout> | undefined;
   const grace = new Promise<void>((resolve) => {
     timer = setTimeout(resolve, graceMs);
+    timer.unref?.();
   });
   try {
     await Promise.race([browser.close().catch(() => undefined), grace]);

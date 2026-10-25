@@ -119,7 +119,8 @@ Neighbours:
 - A close is bounded (`stopBrowser`): `Browser.close()` never rejects and
   can wait the protocol timeout then an unbounded exit, so it is raced
   against `TOOL_BROWSER_CLOSE_GRACE_MS` (1.5 s), then the tree is stopped by
-  `sandbox.stopChild` and its exit confirmed. A release and a relaunch wait
+  `sandbox.stopChild` and its exit confirmed (about 7 s at worst on
+  `run_shell`'s path). A release and a relaunch wait
   for any close in flight, so a command never starts beside a dying tree.
 - A tracked group leader exiting also kills its remaining owned group immediately; dead servers must not leave descendants consuming the run budget until final cleanup.
 - Every finished `run_shell`/`record_probe` command also kills ESCAPED process groups (`reapEscapedProcessGroups`): orphans reparented to the container's init whose group no live process of the worker shares. A browser a test launched in its own group survived its runner's timeout, and seven such leaks exhausted run 9e134e49's 256-task Compute worker. Only inside a worker started with `--init`: on a host, ppid 1 is the machine's orphans.
