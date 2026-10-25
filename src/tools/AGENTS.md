@@ -97,7 +97,7 @@ Neighbours:
   silence clock while a host tool runs; the Claude CLI clock does not, so an
   `llm.callTimeoutMs` ceiling under five minutes can end a call a long
   command is still holding.
-- Concurrent browser checks share the in-flight Chromium launch. A host replay whose page creation fails closes its already-created context.
+- Concurrent browser checks share the in-flight Chromium launch. A call whose page creation fails closes its already-created context.
 - `validate_html`'s browser is a CACHE (`SharedToolBrowser`, `toolBrowser.ts`,
   one per tool set): every call holds it for its whole duration; it closes
   after `TOOL_BROWSER_IDLE_MS` (30 s) with no call holding it, and at once
@@ -107,6 +107,20 @@ Neighbours:
   a Compute worker whose task bound the project's own browser suites then
   could not fit under (46 EAGAIN or launch failures). Each launch keeps
   `trackChild` and an `onCleanup` hook, disposed when the browser closes.
+- So the cache holds no state a check sees: EVERY `validate_html` call, not
+  only a host replay, opens a browser context of its own and closes it on
+  every exit path. Storage, cookies, IndexedDB, service workers and the HTTP
+  cache never pass from one call to the next, whatever the idle timer did;
+  a reload inside one call keeps them (`{ type: 'reload' }`, the one taught
+  persistence proof). The host replays recorded checks in fresh contexts,
+  and the two-call shape assumes call 2 opens at the initial state
+  (`SMOKE_TWO_CALL_SHAPE`). A fresh context keeps the launch's proxy
+  (verified 2026-10-25 with a loopback proxy).
+- A close is bounded (`stopBrowser`): `Browser.close()` never rejects and
+  can wait the protocol timeout then an unbounded exit, so it is raced
+  against `TOOL_BROWSER_CLOSE_GRACE_MS` (1.5 s), then the tree is stopped by
+  `sandbox.stopChild` and its exit confirmed. A release and a relaunch wait
+  for any close in flight, so a command never starts beside a dying tree.
 - A tracked group leader exiting also kills its remaining owned group immediately; dead servers must not leave descendants consuming the run budget until final cleanup.
 - Every finished `run_shell`/`record_probe` command also kills ESCAPED process groups (`reapEscapedProcessGroups`): orphans reparented to the container's init whose group no live process of the worker shares. A browser a test launched in its own group survived its runner's timeout, and seven such leaks exhausted run 9e134e49's 256-task Compute worker. Only inside a worker started with `--init`: on a host, ppid 1 is the machine's orphans.
 - Cleanup is mandatory on success, failure, timeout, signal, and hard-exit paths.
@@ -517,7 +531,10 @@ Neighbours:
   and streams would answer otherwise: one concept, two definitions).
 - The idle tool browser (2026-10-25): a browser per call (each smoke would
   pay a launch, and parallel branches would each hold a tree); a run-long
-  browser (run 40c20c5d); yielding only to commands that LOOK like browser
+  browser (run 40c20c5d); a persistent `userDataDir` so storage outlives a
+  relaunch (it would keep one call's storage reaching the next, which no
+  host replay reproduces and the two-call shape contradicts, and leave a
+  profile directory to clean); yielding only to commands that LOOK like browser
   tests (a vocabulary-frozen detector: any runner, script or `npm test` may
   launch Chromium); stopping servers judged unused (no use signal covers a
   `run_shell` client, and a later phase's probe needs them).

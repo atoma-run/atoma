@@ -2217,24 +2217,32 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
       }
 
       const browser = await toolBrowser.browser();
-      // A host replay opens its page in a context of its own, so no storage
-      // or cookie of a molecule's call, or of another replay, reaches it. The
-      // context's proxy is dead for everything but the page's own origin:
-      // request interception never sees a WebSocket handshake, a service
-      // worker's own fetches or a popup's requests, which reached a stranger
-      // loopback port in the review of 2026-10-01. The page's own APIs stay
-      // as they are, so feature detection keeps working.
+      // EVERY call opens its page in a browser context of its own, closed on
+      // every exit path: no localStorage, cookie, IndexedDB, service worker
+      // or HTTP cache of one call reaches the next. The browser is an idle
+      // cache (`SharedToolBrowser`), so state left in its default context
+      // would outlive a call or not depending on the clock and on other
+      // branches' commands; and the host replays a recorded check in a fresh
+      // context, so a molecule's check must not pass on what an earlier call
+      // stored. What survives a reload is proven inside ONE call
+      // (`{ type: 'reload' }`). A fresh context keeps the launch's proxy.
+      // A host replay's context also has a proxy that is dead for everything
+      // but the page's own origin: request interception never sees a
+      // WebSocket handshake, a service worker's own fetches or a popup's
+      // requests, which reached a stranger loopback port in the review of
+      // 2026-10-01. The page's own APIs stay as they are, so feature
+      // detection keeps working.
       const context = hostReplay
         ? await browser.createBrowserContext({ proxyServer: HOST_REPLAY_DEAD_PROXY, proxyBypassList: ['<-loopback>', hostOf(url)] })
-        : undefined;
+        : await browser.createBrowserContext();
       let page;
       try {
-        page = await (context ?? browser).newPage();
+        page = await context.newPage();
       } catch (error) {
-        await context?.close().catch(() => undefined);
+        await context.close().catch(() => undefined);
         throw error;
       }
-      const closePage = (): Promise<void> => (context ? context.close() : page.close());
+      const closePage = (): Promise<void> => context.close();
       try {
         await page.setViewport(viewport);
       } catch (error) {

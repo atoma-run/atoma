@@ -1,10 +1,12 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { Browser } from 'puppeteer';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ToolSandbox } from '../src/tools/sandbox.js';
 import { createToolBrowser, defaultBuiltinTools, type BuiltinTool } from '../src/tools/builtin.js';
-import type { SharedToolBrowser } from '../src/tools/toolBrowser.js';
+import { SharedToolBrowser } from '../src/tools/toolBrowser.js';
 
 /**
  * validate_html's Chromium is a CACHE, not a resource the run owns (run
@@ -46,11 +48,11 @@ describe.skipIf(process.platform === 'win32')('validate_html releases its idle b
     rmSync(root, { recursive: true, force: true });
   });
 
-  function toolSet(idleMs: number): { browser: SharedToolBrowser; validate: BuiltinTool; shell: BuiltinTool } {
+  function toolSet(idleMs: number): { browser: SharedToolBrowser; validate: BuiltinTool; shell: BuiltinTool; serve: BuiltinTool } {
     const browser = createToolBrowser({ sandbox, idleMs });
     const tools = defaultBuiltinTools({ sandbox, toolBrowser: browser });
     const byName = (name: string): BuiltinTool => tools.find((t) => t.declaration.name === name)!;
-    return { browser, validate: byName('validate_html'), shell: byName('run_shell') };
+    return { browser, validate: byName('validate_html'), shell: byName('run_shell'), serve: byName('start_static_server') };
   }
 
   const page = { url: 'about:blank', waitMs: 10, smoke: '({ok: document.title === ""})' };
@@ -121,4 +123,131 @@ describe.skipIf(process.platform === 'win32')('validate_html releases its idle b
     expect(browser.open).toBe(false);
     expect(alive(pid!)).toBe(false);
   }, 60_000);
+
+  // STORAGE IS PER CALL, whatever the clock did (review of 2026-10-25). Before
+  // the idle release, the default context's storage lived as long as the run;
+  // with it, a second call would have read the first call's storage or not
+  // depending on a 30-second timer and on another branch's commands. Every
+  // call now opens a context of its own, as the host replay always did.
+  const WRITE = "(() => { localStorage.setItem('k', 'set'); sessionStorage.setItem('k', 'set'); document.cookie = 'k=set; max-age=3600'; return { ok: true }; })()";
+  const READ = "(() => ({ ok: true, local: localStorage.getItem('k'), session: sessionStorage.getItem('k'), cookie: document.cookie }))()";
+  const EMPTY = { local: null, session: null, cookie: '' };
+
+  async function served(serve: BuiltinTool): Promise<string> {
+    writeFileSync(join(root, 'index.html'), '<!doctype html><title>storage</title><p>storage</p>');
+    const result = (await serve.execute({})) as { ok: boolean; url: string };
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    return result.url;
+  }
+
+  it('a call never reads what an earlier call stored, on the same browser', async () => {
+    const { browser, validate, serve } = toolSet(60_000);
+    const url = await served(serve);
+    await expect(validate.execute({ url, smoke: WRITE })).resolves.toMatchObject({ ok: true });
+    const read = (await validate.execute({ url, smoke: READ })) as { ok: boolean; smokeResult: unknown };
+    expect(read.ok).toBe(true);
+    expect(read.smokeResult).toMatchObject(EMPTY);
+    expect(browser.launchCount).toBe(1);
+  }, 60_000);
+
+  it('nor across an idle release: the same answer either way', async () => {
+    const { browser, validate, serve } = toolSet(200);
+    const url = await served(serve);
+    await expect(validate.execute({ url, smoke: WRITE })).resolves.toMatchObject({ ok: true });
+    expect(await until(() => !browser.open)).toBe(true);
+    const read = (await validate.execute({ url, smoke: READ })) as { ok: boolean; smokeResult: unknown };
+    expect(read.smokeResult).toMatchObject(EMPTY);
+    expect(browser.launchCount).toBe(2);
+  }, 60_000);
+
+  it('within one call, storage still survives a reload', async () => {
+    const { validate, serve } = toolSet(60_000);
+    const url = await served(serve);
+    // What a reload proves stays inside one call: a click stores, the reload
+    // reads a new document of the same context.
+    writeFileSync(join(root, 'index.html'),
+      "<!doctype html><title>s</title><button id=b onclick=\"localStorage.setItem('k','set')\">b</button>");
+    const result = (await validate.execute({ url, interactions: [{ type: 'click', selector: '#b' }, { type: 'reload' }], smoke: READ })) as {
+      ok: boolean; smokeResult: unknown;
+    };
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    expect(result.smokeResult).toMatchObject({ local: 'set' });
+  }, 60_000);
+});
+
+/**
+ * THE RELEASE IS BOUNDED (review of 2026-10-25). Puppeteer's `Browser.close()`
+ * never rejects, waits the protocol timeout for a wedged CDP close and then an
+ * unbounded process exit — and `releaseIdle` runs before every project
+ * command. A fake browser whose close never settles stands for the wedge; its
+ * process is a real one in its own group, as Puppeteer launches Chromium.
+ */
+describe.skipIf(process.platform === 'win32')('a wedged browser close is bounded', () => {
+  let root: string;
+  let sandbox: ToolSandbox;
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'tool-browser-wedge-'));
+    sandbox = new ToolSandbox(root);
+  });
+  afterEach(async () => {
+    await sandbox.cleanup().catch(() => undefined);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  function wedged(ignoreTerm: boolean): { browser: Browser; pid: () => number; closeCalls: () => number } {
+    const child = spawn(process.execPath, ['-e', `${ignoreTerm ? "process.on('SIGTERM', () => {});" : ''} setInterval(() => {}, 1000);`], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    let calls = 0;
+    const browser = {
+      connected: true,
+      process: () => child,
+      close: () => {
+        calls += 1;
+        return new Promise<void>(() => undefined);
+      },
+    } as unknown as Browser;
+    return { browser, pid: () => child.pid!, closeCalls: () => calls };
+  }
+
+  for (const ignoreTerm of [false, true]) {
+    it(`releaseIdle returns within the bound and stops the process${ignoreTerm ? ' that ignores SIGTERM' : ''}`, async () => {
+      const fake = wedged(ignoreTerm);
+      const shared = new SharedToolBrowser({ sandbox, launch: () => Promise.resolve(fake.browser), idleMs: 60_000, closeGraceMs: 300 });
+      shared.hold();
+      await shared.browser();
+      shared.unhold();
+      expect(sandbox.trackedChildPids()).toEqual([fake.pid()]);
+
+      const started = Date.now();
+      await shared.releaseIdle();
+      const elapsed = Date.now() - started;
+      expect(fake.closeCalls()).toBe(1);
+      // Grace (300 ms) + the stop's SIGTERM grace (250 ms) + kill confirmation.
+      expect(elapsed).toBeLessThan(3_000);
+      expect(alive(fake.pid())).toBe(false);
+      expect(shared.open).toBe(false);
+    }, 20_000);
+  }
+
+  it('an idle close in flight is awaited by the release and by the next launch', async () => {
+    const first = wedged(true);
+    const second = wedged(false);
+    const browsers = [first.browser, second.browser];
+    const shared = new SharedToolBrowser({ sandbox, launch: () => Promise.resolve(browsers.shift()!), idleMs: 50, closeGraceMs: 300 });
+    shared.hold();
+    await shared.browser();
+    shared.unhold();
+    expect(await until(() => !shared.open, 2_000)).toBe(true);
+    // The idle timer started the close; the release must not return beside a live tree.
+    await shared.releaseIdle();
+    expect(alive(first.pid())).toBe(false);
+    shared.hold();
+    await shared.browser();
+    shared.unhold();
+    expect(shared.launchCount).toBe(2);
+    await shared.releaseIdle();
+    expect(alive(second.pid())).toBe(false);
+  }, 20_000);
 });

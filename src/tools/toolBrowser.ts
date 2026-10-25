@@ -18,6 +18,16 @@ import type { ToolSandbox } from './sandbox.js';
 export const TOOL_BROWSER_IDLE_MS = 30_000;
 
 /**
+ * How long a graceful `Browser.close()` may take before the process tree is
+ * stopped by the sandbox. Puppeteer's close never throws (it logs and
+ * resolves) and waits up to the protocol timeout for the CDP close, then
+ * for the process exit with no bound at all; the release runs on
+ * `run_shell`'s critical path, so it must not inherit either wait. A healthy
+ * headless Chromium closes in well under a second.
+ */
+export const TOOL_BROWSER_CLOSE_GRACE_MS = 1_500;
+
+/**
  * The shared `validate_html` browser of ONE tool set: launched lazily,
  * shared by concurrent validations (parallel branches share the in-flight
  * launch as well as the browser), and closed once no validation has held it
@@ -28,11 +38,18 @@ export const TOOL_BROWSER_IDLE_MS = 30_000;
  * never closed while one is held. Every launched process is registered with
  * `sandbox.trackChild` (hard-exit SIGKILL) and an `onCleanup` hook whose
  * disposer is dropped when the browser is closed here, so relaunches do not
- * accumulate hooks.
+ * accumulate hooks. A close is BOUNDED (`stopBrowser`), and a release or a
+ * relaunch waits for the close in flight, so a command never starts, and a
+ * second tree never launches, beside a tree still dying.
+ *
+ * The browser holds no state a validation can see: each call opens and
+ * closes a browser context of its own (`validateHtmlTool`), so closing it
+ * when idle changes nothing a check observes.
  */
 export class SharedToolBrowser {
   private current: { browser: Browser; disposeCleanup: () => void } | null = null;
   private launching: Promise<Browser> | null = null;
+  private closing = new Set<Promise<void>>();
   private holds = 0;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private launches = 0;
@@ -42,6 +59,8 @@ export class SharedToolBrowser {
       sandbox: ToolSandbox;
       launch: () => Promise<Browser>;
       idleMs?: number;
+      /** Graceful-close bound; `TOOL_BROWSER_CLOSE_GRACE_MS` unless a test shortens it. */
+      closeGraceMs?: number;
       logger?: Logger;
     }
   ) {}
@@ -75,7 +94,7 @@ export class SharedToolBrowser {
     if (live) await this.close(live);
     // Parallel branches must share the in-flight launch as well as the browser.
     // Otherwise each starts a Chromium process tree before any can publish it.
-    this.launching ??= this.launch();
+    this.launching ??= this.settleCloses().then(() => this.launch());
     try {
       return await this.launching;
     } finally {
@@ -89,8 +108,13 @@ export class SharedToolBrowser {
    * tool's idle one would only take threads and memory from it.
    */
   async releaseIdle(): Promise<void> {
-    if (this.holds > 0 || this.launching || !this.current) return;
-    await this.close(this.current);
+    if (this.holds === 0 && !this.launching && this.current) void this.close(this.current);
+    await this.settleCloses();
+  }
+
+  /** Every close in flight, the idle timer's included, has stopped its tree. */
+  private async settleCloses(): Promise<void> {
+    while (this.closing.size > 0) await Promise.all([...this.closing]);
   }
 
   private async launch(): Promise<Browser> {
@@ -114,7 +138,7 @@ export class SharedToolBrowser {
       disposeCleanup: this.opts.sandbox.onCleanup(async () => {
         this.clearIdle();
         if (this.current === entry) this.current = null;
-        await closeQuietly(browser);
+        await stopBrowser(browser, this.opts.sandbox, this.graceMs);
       }),
     };
     this.current = entry;
@@ -139,24 +163,42 @@ export class SharedToolBrowser {
     this.idleTimer = null;
   }
 
-  private async close(entry: { browser: Browser; disposeCleanup: () => void }): Promise<void> {
+  private get graceMs(): number {
+    return this.opts.closeGraceMs ?? TOOL_BROWSER_CLOSE_GRACE_MS;
+  }
+
+  private close(entry: { browser: Browser; disposeCleanup: () => void }): Promise<void> {
     if (this.current === entry) this.current = null;
     this.clearIdle();
     entry.disposeCleanup();
     this.opts.logger?.info('[tool:validate_html] closing its browser (idle, disconnected, or yielding to a command)');
-    await closeQuietly(entry.browser);
+    const closing = stopBrowser(entry.browser, this.opts.sandbox, this.graceMs).finally(() => {
+      this.closing.delete(closing);
+    });
+    this.closing.add(closing);
+    return closing;
   }
 }
 
-/** Puppeteer's close waits for the process to exit; a refusal falls back to SIGKILL. */
-async function closeQuietly(browser: Browser): Promise<void> {
+/**
+ * Close a launched browser within `graceMs`, then CONFIRM its process tree is
+ * gone. `Browser.close()` cannot be the whole stop: it never rejects (Puppeteer
+ * catches and logs), and on a wedged browser it waits the protocol timeout
+ * and then an unbounded process exit. So it is raced against the grace, and
+ * the tracked process is then stopped by the sandbox's bounded group stop
+ * (`stopChild`: SIGTERM, SIGKILL, exit confirmed), which returns at once when
+ * the graceful close already ended it. Never throws.
+ */
+export async function stopBrowser(browser: Browser, sandbox: ToolSandbox, graceMs: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const grace = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, graceMs);
+  });
   try {
-    await browser.close();
-  } catch {
-    try {
-      browser.process()?.kill('SIGKILL');
-    } catch {
-      /* already gone */
-    }
+    await Promise.race([browser.close().catch(() => undefined), grace]);
+  } finally {
+    clearTimeout(timer);
   }
+  const proc = browser.process();
+  if (proc) await sandbox.stopChild(proc, 250).catch(() => false);
 }
