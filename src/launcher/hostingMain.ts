@@ -5,6 +5,7 @@ import { DockerHosting } from './hosting.js';
 import { DockerLauncher, hostContainerUser } from './docker.js';
 import { serveLauncher } from './service.js';
 import { LAUNCHER_PROTOCOL_VERSION } from '../contracts/launcherRpc.js';
+import { RELEASE_RESTART_EXIT_CODE, watchRelease } from './releaseWatch.js';
 
 /** Optional hosting-only endpoint for hosts still using the legacy run launcher. */
 async function main(): Promise<void> {
@@ -37,6 +38,14 @@ async function main(): Promise<void> {
   let closing = false;
   const stop = () => { if (closing) return; closing = true; void service.close().then(() => process.exit(0)); };
   process.once('SIGTERM', stop); process.once('SIGINT', stop);
+  // A deployment moves `current` but never restarts this unit: restart on the
+  // new code at the first moment no operation is open (src/launcher/releaseWatch.ts).
+  if (process.argv[1]) watchRelease({ entry: process.argv[1], idle: () => service.idle(), restart: (from, to) => {
+    if (closing) return;
+    closing = true;
+    console.log(`Hosting launcher restarting on the active release: ${path.basename(path.dirname(path.dirname(path.dirname(from))))} -> ${path.basename(path.dirname(path.dirname(path.dirname(to))))}`);
+    void service.close().then(() => process.exit(RELEASE_RESTART_EXIT_CODE), () => process.exit(RELEASE_RESTART_EXIT_CODE));
+  } });
   console.log('Hosting launcher ready');
 }
 main().catch(() => { console.error('Hosting launcher failed; check private configuration and socket directory'); process.exitCode = 1; });

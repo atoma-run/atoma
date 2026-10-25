@@ -15,6 +15,7 @@ import { HostingService, probeHostedApplication } from '../projects/hostingServi
 import { HostingStore } from '../projects/hostingStore.js';
 import { hostingConfig } from '../projects/hostingConfig.js';
 import { createHostingGateway } from '../projects/hostingGateway.js';
+import { retryingStart } from './retryingStart.js';
 import { SocketLauncher } from '../launcher/client.js';
 import { sendTraceResponse } from './traceResponse.js';
 import { traceDocumentChunks } from '../contracts/traceFields.js';
@@ -1300,7 +1301,7 @@ const PREVIEW_RUNTIME_PROMISE: Promise<PreviewRuntime | null> = (async () => {
   };
 })();
 
-const HOSTING_RUNTIME_PROMISE = (async () => {
+async function startHostingRuntime() {
   if (EXECUTOR_MODE) return null;
   if (!PROJECTS_RUNTIME || !AUTH_RUNTIME) return null;
   const config = hostingConfig(process.env, AUTH_RUNTIME.publicOrigin.origin);
@@ -1320,9 +1321,15 @@ const HOSTING_RUNTIME_PROMISE = (async () => {
   const health = setInterval(() => { void service.refreshHealth().catch(() => undefined); }, 15_000); health.unref();
   gateway.server.once('close', () => clearInterval(health));
   return { service, gateway };
-})();
-let HOSTING_RUNTIME: Awaited<typeof HOSTING_RUNTIME_PROMISE> = null;
-void HOSTING_RUNTIME_PROMISE.then(runtime => { HOSTING_RUNTIME = runtime; }, () => undefined);
+}
+// Retried in the background: a launcher restarting at web startup (it now
+// restarts on a release change) must not disable hosting for this process.
+const HOSTING_START = retryingStart(startHostingRuntime, {
+  onFailure: (_error, attempt) => { if (attempt === 1) console.error('[atoma viz] project hosting unavailable; retrying every 10 s (check launcher and hosting configuration)'); },
+});
+/** The started runtime, or the first attempt's outcome while none has succeeded. */
+const hostingRuntime = async (): Promise<Awaited<ReturnType<typeof startHostingRuntime>>> =>
+  HOSTING_START.current() ?? await HOSTING_START.first.catch(() => null);
 /**
  * Each listed project carries where its application is online now
  * (`hostedUrl`), so every project surface can link to it. The list is
@@ -1330,14 +1337,14 @@ void HOSTING_RUNTIME_PROMISE.then(runtime => { HOSTING_RUNTIME = runtime; }, () 
  */
 function withHostedUrls<T>(payload: T): T {
   const rows = Array.isArray(payload) ? payload : (payload as { projects?: unknown } | null)?.projects;
-  if (!HOSTING_RUNTIME || !Array.isArray(rows)) return payload;
+  const hosting = HOSTING_START.current();
+  if (!hosting || !Array.isArray(rows)) return payload;
   const list = rows as Array<{ projectId: string; hostedUrl?: string | null }>;
-  const urls = HOSTING_RUNTIME.service.onlineUrls(list.map(row => row.projectId));
+  const urls = hosting.service.onlineUrls(list.map(row => row.projectId));
   for (const row of list) row.hostedUrl = urls.get(row.projectId) ?? null;
   return payload;
 }
 // A hosting outage must not take away project editing or the existing preview.
-void HOSTING_RUNTIME_PROMISE.catch(() => console.error('[atoma viz] project hosting unavailable; check launcher and hosting configuration'));
 
 let PREVIEW_RUNTIME: PreviewRuntime | null = null;
 void PREVIEW_RUNTIME_PROMISE.then((runtime) => {
@@ -3164,7 +3171,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       }
       if (candidates.tokens.length > 0) {
         const principals = candidates.tokens.map(token => authStore.resolveSession(token)?.principalId).filter(Boolean);
-        const hosting = await HOSTING_RUNTIME_PROMISE.catch(() => null);
+        const hosting = await hostingRuntime();
         for (const principal of principals) hosting?.gateway.claims.revokePrincipal(principal!);
         authStore.revokeSessions(candidates.tokens);
       }
@@ -5169,7 +5176,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       const action = hostedProject[2];
       if (!methodAllowed(req, res, action ? 'POST' : 'GET') || (action && !sameOrigin(req, res))) return;
       if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
-      const runtime = await HOSTING_RUNTIME_PROMISE.catch(() => null);
+      const runtime = await hostingRuntime();
       if (!runtime) { sendJson(res, 503, { error: 'Project hosting is not configured yet' }); return; }
       try {
         const projectId = hostedProject[1]!;

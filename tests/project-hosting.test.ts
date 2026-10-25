@@ -130,6 +130,22 @@ it('follows a relay republished on a new port while the application stays health
   await service.refreshHealth();
   expect(service.deps.store.list().find(r => r.state === 'ready')?.hostPort).toBe(23456);
 });
+// 2026-10-25: the launcher now restarts on a release change while its
+// applications keep serving. An unreachable launcher is no verdict on them.
+it('keeps a ready application ready while its launcher cannot be reached', async () => {
+  publish(); await service.deploy(viewer, projectId, input()); await service.idle();
+  const before = service.status(viewer, projectId);
+  expect(before.state).toBe('ready');
+  const events = vi.fn();
+  service.deps.events = events;
+  launcher.inspectHosting.mockRejectedValueOnce(new Error('connect ECONNREFUSED launcher.sock'));
+  await service.refreshHealth();
+  expect(service.status(viewer, projectId).state).toBe('ready');
+  expect(events).not.toHaveBeenCalled();
+  launcher.inspectHosting.mockResolvedValueOnce(null as never); // reachable launcher, application gone
+  await service.refreshHealth();
+  expect(service.status(viewer, projectId).state).toBe('failed');
+});
 it('does not resurrect a stopped application from an in-flight health probe', async () => {
   publish(); await service.deploy(viewer, projectId, input()); await service.idle();
   let complete!: (value: boolean) => void;

@@ -364,6 +364,12 @@ capability cross RPC. The browser image, persistent profile, private desktop and
 public-only egress proxy are fixed by the host. CDP/VNC never publish ports. Source is
 read-only; per-project `/data` survives every stop. No deletion API exists.
 See [project hosting](../../docs/project-hosting.md) for supported limitations.
+A deployment moves `current` but never restarts `atoma-hosting-launcher`, so
+`hostingMain` watches its own release path (`releaseWatch.ts`) and exits 75 for
+systemd's `Restart=on-failure` once the release changed and no connection is
+open: started minutes before address pinning, it created a pinless deployment
+nine days later (2026-10-25). The web retries its hosting start, and an
+unreachable launcher never marks an application unavailable.
 
 ## Desktop companion
 

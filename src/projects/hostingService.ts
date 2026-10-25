@@ -3,7 +3,7 @@ import type { PlatformEventSink } from '../contracts/platformEvents.js';
 import { request } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { Viewer } from '../auth/store.js';
-import { hostingDeployInputSchema, type HostedDeployment, type HostingIdentity, type HostingLauncher, type HostingSummary } from '../contracts/projectHosting.js';
+import { hostingDeployInputSchema, type HostedDeployment, type HostingHandle, type HostingIdentity, type HostingLauncher, type HostingSummary } from '../contracts/projectHosting.js';
 import { ProjectHttpError, roleAtLeast } from './service.js';
 import { ProjectStateConflict, type ProjectStore } from './store.js';
 import type { PreviewStore } from '../preview/store.js';
@@ -180,7 +180,12 @@ export class HostingService {
     try {
       for (const row of this.deps.store.list()) {
         if (this.mutating.has(row.projectId) || (row.state !== 'ready' && row.error !== 'runtime-unavailable')) continue;
-        const handle = await this.deps.launcher.inspectHosting(identity(row)).catch(() => null);
+        // An unreachable launcher says nothing about the application: it
+        // restarts on a release change (src/launcher/releaseWatch.ts) while the
+        // containers keep serving. Keep the state; the next check decides.
+        let handle: HostingHandle | null;
+        try { handle = await this.deps.launcher.inspectHosting(identity(row)); }
+        catch { continue; }
         const healthy = handle && await this.deps.probe(handle.hostPort).catch(() => false);
         const current = this.deps.store.list(row.orgId, row.projectId).find(r => r.deploymentId === row.deploymentId);
         if (this.mutating.has(row.projectId) || current?.state !== row.state) continue;

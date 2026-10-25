@@ -52,6 +52,12 @@ The launcher owns all engine operations. Hosted objects use the separate
 `dev.atoma.owner=hosting` label and survive launcher/socket/platform restarts;
 ephemeral worker/preview sweeps never collect them. Startup reattaches running
 containers. Interrupted candidates fail closed and require an explicit retry.
+The hosting launcher restarts itself on the active release: when `current`
+points elsewhere and no request is open, it exits with status 75 and
+`Restart=on-failure` starts the new code. Hosted applications keep serving
+meanwhile. The web keeps retrying its hosting start every ten seconds, and a
+health check that cannot reach the launcher leaves the application's state
+unchanged.
 
 Build the fixed image with `npm run build:hosting`. Configure an immutable
 image digest or engine content ID, never the mutable build tag. The relay uses

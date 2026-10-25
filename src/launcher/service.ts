@@ -23,7 +23,7 @@ export async function serveLauncher(options: {
   hostingOnly?: boolean;
   workers?: WorkerLauncher & { reconcileOrphans(): Promise<number>; stopOwner(ownerId: string): Promise<void> };
   disconnectOwner(family: LauncherFamily, ownerId: string): Promise<void>;
-}): Promise<{ close(): Promise<void> }> {
+}): Promise<{ close(): Promise<void>; idle(): boolean }> {
   const { launcher, hello, socketPath } = options;
   if (!path.isAbsolute(socketPath)) throw new Error('Launcher socket must be absolute');
   if (process.platform !== 'win32') {
@@ -276,6 +276,8 @@ export async function serveLauncher(options: {
     });
   });
   return {
+    /** No client connected and no disconnect cleanup still running. */
+    idle: () => clients.size === 0 && cleanups.size === 0,
     close: async () => {
       clearInterval(retryTimer);
       const closed = new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
