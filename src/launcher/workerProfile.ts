@@ -29,6 +29,25 @@ export function verifiedRunCopiesSource(workspace: string): string {
 }
 
 /**
+ * The task bound of every worker container. Linux `pids.max` counts THREADS,
+ * not processes, and one headless Chromium with one page is ~113 of them in
+ * the worker image (measured 2026-10-25: 8 tasks before launch, 121 after).
+ * Run 40c20c5d's Compute worker hit its 256 bound 9,822 times: the worker
+ * (11), validate_html's browser (~100) and four node servers (7–11 each)
+ * already held 150 while the run only read files, so the project's own
+ * browser suites, npm and node failed with EAGAIN.
+ *
+ * Sized for what a run legitimately starts at once: Playwright's default of
+ * one worker per two host CPUs (seven Chromium trees, ~800 threads, on a
+ * 14-CPU Docker Desktop VM, where `os.cpus()` ignores `--cpus`) with their
+ * runner processes, the tool browser, four servers and an install — about
+ * 1,100 — doubled. It remains a fork-bomb bound: 2,048 tasks cost the kernel
+ * tens of MB, charged to the same `--memory` cap that bounds what those
+ * tasks can allocate.
+ */
+export const WORKER_PIDS_LIMIT = '2048';
+
+/**
  * `docker run` arguments that carry the isolation. Exported so a test can
  * assert them rather than trusting a comment — every one of them was
  * verified against a real container before this file existed.
@@ -89,7 +108,10 @@ export function workerRunArgs(opts: {
     // (`reapEscapedProcessGroups`, src/tools/sandbox.ts). Without it the
     // worker was PID 1 and an orphan became its unreaped zombie.
     '--init',
-    ...(opts.computeMachineId ? ['--read-only', '--pids-limit', '256',
+    // Every worker, hosted and Compute: one bound, one rationale
+    // (`WORKER_PIDS_LIMIT`). It was 256 on Compute and absent on hosted.
+    '--pids-limit', WORKER_PIDS_LIMIT,
+    ...(opts.computeMachineId ? ['--read-only',
       '--memory-swap', opts.memory ?? '2g', '--tmpfs', '/tmp:rw,nosuid,nodev,size=1g',
       '--label', `dev.atoma.compute=${opts.computeMachineId}`, '--label', 'dev.atoma.compute.kind=worker'] : []),
     ...(opts.socketHostPath ? ['-d', '--mount', `type=bind,src=${opts.socketHostPath},dst=/run/atoma-worker.sock,readonly`, '-e', 'ATOMA_WORKER_SOCKET=/run/atoma-worker.sock'] : ['-i']),

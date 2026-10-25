@@ -98,6 +98,15 @@ Neighbours:
   `llm.callTimeoutMs` ceiling under five minutes can end a call a long
   command is still holding.
 - Concurrent browser checks share the in-flight Chromium launch. A host replay whose page creation fails closes its already-created context.
+- `validate_html`'s browser is a CACHE (`SharedToolBrowser`, `toolBrowser.ts`,
+  one per tool set): every call holds it for its whole duration; it closes
+  after `TOOL_BROWSER_IDLE_MS` (30 s) with no call holding it, and at once
+  when `run_shell`/`record_probe` starts a project command, then relaunches
+  lazily. One tree is ~113 threads in the worker image and relaunches in
+  150–250 ms (measured 2026-10-25). Run 40c20c5d kept one open 21 minutes on
+  a Compute worker whose task bound the project's own browser suites then
+  could not fit under (46 EAGAIN or launch failures). Each launch keeps
+  `trackChild` and an `onCleanup` hook, disposed when the browser closes.
 - A tracked group leader exiting also kills its remaining owned group immediately; dead servers must not leave descendants consuming the run budget until final cleanup.
 - Every finished `run_shell`/`record_probe` command also kills ESCAPED process groups (`reapEscapedProcessGroups`): orphans reparented to the container's init whose group no live process of the worker shares. A browser a test launched in its own group survived its runner's timeout, and seven such leaks exhausted run 9e134e49's 256-task Compute worker. Only inside a worker started with `--init`: on a host, ppid 1 is the machine's orphans.
 - Cleanup is mandatory on success, failure, timeout, signal, and hard-exit paths.
@@ -125,7 +134,12 @@ Neighbours:
   confirmation, bounded), and marks it `stoppedByHost` only once its exit is
   confirmed, so a probe of its port says so. A SIGTERM sent is not a stop: a
   server that handles it kept answering (code review 2026-10-09, 1.8). Run 96d5c845 (2026-10-04) held 53, 812 MB, and swapped
-  the production host until nothing on it answered.
+  the production host until nothing on it answered. The cap stays 4 after
+  run 40c20c5d (2026-10-25, four servers at 7–11 threads each, ~40 of 256):
+  the cap is per tool set and parallel branches share it, servers live
+  across phases on purpose (later probes and the final review reach them),
+  and the thread shortage was the worker's bound, fixed in
+  [src/launcher](../launcher/AGENTS.md).
 - A loopback URL with NO port is refused PRE-FLIGHT by both probe tools
   (`unservedLoopbackProbeRefusal`, prefix `PROBE_URL_REFUSAL_PREFIX` from
   [src/contracts](../contracts/AGENTS.md)): the server tools never bind the
@@ -501,6 +515,12 @@ Neighbours:
   alias or loader hook for `node:fs` (misses `require` and externalized
   dependencies); wrapping `statSync`/`accessSync` alone (callbacks, promises
   and streams would answer otherwise: one concept, two definitions).
+- The idle tool browser (2026-10-25): a browser per call (each smoke would
+  pay a launch, and parallel branches would each hold a tree); a run-long
+  browser (run 40c20c5d); yielding only to commands that LOOK like browser
+  tests (a vocabulary-frozen detector: any runner, script or `npm test` may
+  launch Chromium); stopping servers judged unused (no use signal covers a
+  `run_shell` client, and a later phase's probe needs them).
 - Moving smoke guidance closer to the call site is NOT the untried variable.
   The erased-intermediate-state rule already sits in the `smoke` PARAMETER
   description and the model still violated it six times across two batches.

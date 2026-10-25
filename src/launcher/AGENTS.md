@@ -146,6 +146,20 @@ leaves is reaped by that init, and the worker can tell orphans from its own
 children ([src/tools](../tools/AGENTS.md), escaped process groups). Without it
 the worker was PID 1 and each orphan became its unreaped zombie.
 
+Every worker, hosted and Compute, carries ONE task bound, `WORKER_PIDS_LIMIT`
+(2048). Linux `pids.max` counts threads, and one headless Chromium tree is
+~113. Compute's 256 was hit 9,822 times in run 40c20c5d (2026-10-25): the
+worker, validate_html's browser and four servers held 150 while the run only
+read files, so the project's browser suites, npm and node failed with EAGAIN.
+2048 is twice what a run legitimately starts at once — Playwright's default
+of one Chromium per two `os.cpus()` (which ignores `--cpus`: seven on a
+14-CPU Docker Desktop VM), the tool browser, four servers, an install — and
+stays a fork-bomb bound whose kernel cost is charged to the same `--memory`
+cap. Hosted workers had no bound at all; they take the same one.
+`tests/worker-thread-headroom.test.ts` launches four Chromium trees in the
+real Compute profile, and the former 256 as its failing control. The bound is
+in the desktop app's launcher, so it reaches a device with a desktop release.
+
 `ContainerToolExecutor` is a compatibility facade. Local stdio attach lives
 in `localWorker.ts`; the service mode uses `RemoteWorkerExecutor` and the
 closed `WorkerLauncher` contract. The launcher chooses image, uid, workspace

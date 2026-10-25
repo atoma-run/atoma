@@ -55,8 +55,9 @@ import {
 // What a browser check runs is read once, in src/contracts/webCheck.ts;
 // re-exported so consumers and tests importing them from here keep working.
 export { FALSE_FIELD_DEPTH, FALSE_FIELD_LIMIT, falseBooleanFields, MAX_HOLD_MS, MAX_WAIT_MS, parseInteractions, type ParsedInteraction };
-import puppeteer, { type Browser } from 'puppeteer';
+import puppeteer from 'puppeteer';
 import { processHoldsListeningPort } from './listeningPorts.js';
+import { SharedToolBrowser } from './toolBrowser.js';
 
 /**
  * Which server THIS tool set bound on which loopback port.
@@ -244,6 +245,12 @@ export interface BuiltinToolOptions {
    * `defaultBuiltinTools` supplies one per tool set.
    */
   servedOrigins?: ServedOrigins;
+  /**
+   * `validate_html`'s browser, shared with `run_shell` and `record_probe`,
+   * which close it when idle before a project command starts;
+   * `defaultBuiltinTools` supplies one per tool set.
+   */
+  toolBrowser?: SharedToolBrowser;
 }
 
 /** Simple declaration + implementation bundle for an atom tool. */
@@ -1093,6 +1100,11 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
         );
       }
       opts.logger?.info(`[tool:run_shell] ${command} ${argv.join(' ')}`);
+      // A project command gets the worker before the tool's IDLE browser: a
+      // test runner may launch Chromium of its own, and run 40c20c5d's
+      // suites could not while validate_html's sat open for 21 minutes. A
+      // browser a validation holds right now is left alone.
+      await opts.toolBrowser?.releaseIdle();
       if (command === 'atoma-verify') return runParentTests(opts.sandbox, argv, timeoutMs, opts.logger);
       if (command === 'atoma-scaffold') {
         try {
@@ -1955,63 +1967,42 @@ export async function bindObservedDocument(args: {
   return { path: designated.path, sha256: createHash('sha256').update(response).digest('hex') };
 }
 
-export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
-  // Chromium does not consume HTTP(S)_PROXY like Node and package managers.
-  // Capture the operator/worker environment before any generated code runs.
+/**
+ * The `validate_html` browser of one tool set. The proxy is captured here, at
+ * tool-set construction: Chromium does not consume HTTP(S)_PROXY like Node and
+ * package managers, and the operator/worker environment must be read before
+ * any generated code runs.
+ */
+export function createToolBrowser(
+  opts: Pick<BuiltinToolOptions, 'sandbox' | 'logger'> & { idleMs?: number }
+): SharedToolBrowser {
   const proxy = process.env['HTTPS_PROXY'] ?? process.env['HTTP_PROXY'];
   const proxyArgs = proxy ? [`--proxy-server=${proxy}`] : [];
-  // One shared browser per sandbox so we don't pay the 500ms+ launch cost on
-  // every validation iteration.
-  let sharedBrowser: Browser | null = null;
-  let launchingBrowser: Promise<Browser> | null = null;
-  const launchBrowser = async (): Promise<Browser> => {
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', ...proxyArgs],
-      // Puppeteer defaults this to 180s, so a single wedged CDP command
-      // stalls for three minutes. Observed: one call spent 546s mostly
-      // inside `Input.dispatchMouseEvent timed out`. Local pages answer in
-      // milliseconds — this turns a wedge into a prompt, reportable failure.
-      protocolTimeout: CDP_PROTOCOL_TIMEOUT_MS,
-    });
-    sharedBrowser = browser;
-    // TRACK THE BROWSER PROCESS, not just the graceful close. `onCleanup`
-    // hooks are async and only run on the orderly path — a hard exit (the
-    // burn-in harness group-killing a run at its wall-clock budget, the
-    // build-app watchdog, a crash) skips them entirely, and headless Chrome
-    // then survives with its whole helper fleet. Measured 2026-08-08: one
-    // web run killed at its 900s budget after 46 validations left Chrome
-    // behind; 126 puppeteer processes (42 reparented to init, up to 22h
-    // old) had accumulated, loading the machine enough that the next two
-    // runs blew their own budgets — a leak that cascades into failures.
-    // `trackChild` puts it under the same synchronous process.on('exit')
-    // SIGKILL every run_shell / server child already gets.
-    const proc = browser.process();
-    if (proc) opts.sandbox.trackChild(proc);
-    opts.sandbox.onCleanup(async () => {
-      try {
-        await browser.close();
-      } catch {
-        /* already closed */
-      }
-    });
-    return browser;
-  };
-  const getBrowser = async (): Promise<Browser> => {
-    if (sharedBrowser?.connected) return sharedBrowser;
-    // Parallel branches must share the in-flight launch as well as the browser.
-    // Otherwise each starts a Chromium process tree before any can publish it.
-    launchingBrowser ??= launchBrowser();
-    try {
-      return await launchingBrowser;
-    } finally {
-      launchingBrowser = null;
-    }
-  };
+  return new SharedToolBrowser({
+    sandbox: opts.sandbox,
+    ...(opts.logger ? { logger: opts.logger } : {}),
+    ...(opts.idleMs !== undefined ? { idleMs: opts.idleMs } : {}),
+    launch: () =>
+      puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', ...proxyArgs],
+        // Puppeteer defaults this to 180s, so a single wedged CDP command
+        // stalls for three minutes. Observed: one call spent 546s mostly
+        // inside `Input.dispatchMouseEvent timed out`. Local pages answer in
+        // milliseconds — this turns a wedge into a prompt, reportable failure.
+        protocolTimeout: CDP_PROTOCOL_TIMEOUT_MS,
+      }),
+  });
+}
+
+export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
+  // One browser per tool set, launched lazily and closed when idle
+  // (`SharedToolBrowser`, src/tools/toolBrowser.ts).
+  const toolBrowser = opts.toolBrowser ?? createToolBrowser(opts);
 
   const stuck = makeSmokeStuckTracker(SMOKE_STUCK_WINDOW);
 
-  return {
+  const tool: BuiltinTool = {
     declaration: {
       name: 'validate_html',
       // THIS PAYS FOR the two parameter descriptions below. Both "OPTIONAL:
@@ -2225,7 +2216,7 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
         };
       }
 
-      const browser = await getBrowser();
+      const browser = await toolBrowser.browser();
       // A host replay opens its page in a context of its own, so no storage
       // or cookie of a molecule's call, or of another replay, reaches it. The
       // context's proxy is dead for everything but the page's own origin:
@@ -2766,6 +2757,19 @@ ${pageRevision}`;
       }
     },
   };
+  // The WHOLE call holds the browser, so the idle close can never land
+  // between its launch and its page, nor under a long smoke of a parallel
+  // branch.
+  const observe = tool.execute;
+  tool.execute = async (args) => {
+    toolBrowser.hold();
+    try {
+      return await observe(args);
+    } finally {
+      toolBrowser.unhold();
+    }
+  };
+  return tool;
 }
 
 /** A smoke that reads the page, as against a literal verdict; with no interactions, only such a smoke is a check worth recording. */
@@ -4029,6 +4033,7 @@ export function defaultBuiltinTools(options: BuiltinToolOptions): BuiltinTool[] 
     ...options,
     servedOrigins: options.servedOrigins ?? new Map(),
   };
+  opts.toolBrowser ??= createToolBrowser(opts);
   return [
     writeFileTool(opts),
     editFileTool(opts),
