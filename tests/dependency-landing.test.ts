@@ -259,6 +259,125 @@ describe('a root plan whose first phase failed its typed checks', () => {
   });
 });
 
+/**
+ * Run 40c20c5d (2026-10-25): the integration suite sits on the root plan's join
+ * subtask, which depends on two tested branches and is the plan's sink. The
+ * real root review gate admits it; dispatch runs the join, and so its suite,
+ * only once both branches returned; a failing join suite is refused in the
+ * join's own loop, never approved, and reaches root acceptance unjudged.
+ */
+describe('an integration suite on the root plan\'s join subtask', () => {
+  let reg: AtomRegistry;
+  beforeEach(() => {
+    reg = new AtomRegistry(openDb(':memory:'));
+    reg.create(3, { ...seed, description: 'tissue', systemPrompt: 'You are an L3.' });
+    reg.create(2, seed);
+    reg.create(1, { ...seed, description: 'web builder', systemPrompt: 'You are an L1.' });
+  });
+
+  const RENDER_SUITE: ParentTestSuite = { ...ADD_SUITE, requirement: 'render prints a sum',
+    source: "import { test, expect } from 'vitest';\nimport { render } from './render.ts';\ntest('renders', () => {\n  expect(render(5)).toBe('= 5');\n});" };
+  const JOIN_SUITE: ParentTestSuite = { ...ADD_SUITE, requirement: 'the app renders a sum it computed',
+    source: "import { test, expect } from 'vitest';\nimport { add } from './add.ts';\nimport { render } from './render.ts';\nimport { app } from './app.ts';\ntest('app', () => {\n  expect(app(2, 3)).toBe(render(add(2, 3)));\n});" };
+  const [adder, renderer, join] = ['build the adder', 'build the renderer', 'integrate the adder and the renderer'];
+  const rootPlan: Plan = {
+    reasoning: 'two independent branches and their join', aggregation: { mode: 'concat' }, expectedOutput: 'app',
+    subtasks: [
+      { description: adder, preferredChild: 'Tracheid', outputs: ['add.ts'], acceptanceTests: ADD_SUITE },
+      { description: renderer, preferredChild: 'Tracheid', outputs: ['render.ts'], acceptanceTests: RENDER_SUITE },
+      { description: join, preferredChild: 'Tracheid', outputs: ['app.ts'], dependsOn: [0, 1], acceptanceTests: JOIN_SUITE },
+    ],
+  };
+  const cellPlans = Object.fromEntries([[adder, 'write add.ts'], [renderer, 'write render.ts'], [join, 'write app.ts']].map(([phase, leaf]) =>
+    [phase!, { reasoning: 'one file', subtasks: [{ description: leaf!, preferredChild: 'Water' }], aggregation: { mode: 'concat' as const }, expectedOutput: leaf! }]));
+
+  /** One log of molecule executions and suite runs, in the order they happened. */
+  function harness(joinStatus: 'passed' | 'failed') {
+    const events: string[] = [];
+    const fixture = model({ rootPlan, cellPlans });
+    const respond = (req: LlmCompletionRequest) => {
+      if (req.role === 'execute' || req.role === 'fallback-execute') {
+        const leaf = ['write add.ts', 'write render.ts', 'write app.ts'].find((description) => req.userContent.includes(description));
+        events.push(`execute ${leaf ?? 'other'}`);
+      }
+      // The root review classifies both branches vitest and the integration
+      // vitest, so the host's own gate decides the join suite is the plan's.
+      const plan = req.role === 'validate-plan' ? /^PLAN: (.*)$/m.exec(req.userContent)?.[1] : undefined;
+      if (plan && (JSON.parse(plan) as Plan).subtasks.length === 3) {
+        return ok(jsonText({ approved: true, reasoning: 'fine', delegationReview: {
+          subtasks: [{ index: 0, kind: 'vitest', reason: 'adder' }, { index: 1, kind: 'vitest', reason: 'renderer' }, { index: 2, kind: 'other', reason: 'join' }],
+          integration: { kind: 'vitest', reason: 'the join suite imports both modules' },
+          independentWork: true, parallelReason: 'adder and renderer are independent',
+        } }));
+      }
+      return fixture.respond(req);
+    };
+    const tools: ToolExecutor = {
+      has: (name) => name === 'run_shell',
+      execute: async (name, args) => {
+        if (name !== 'run_shell' || args['command'] !== 'atoma-verify') return {};
+        const suite = JSON.parse((args['args'] as string[])[0]!) as ParentTestSuite;
+        events.push(`suite ${suite.requirement}`);
+        const status = suite.requirement === JOIN_SUITE.requirement ? joinStatus : 'passed';
+        return {
+          suiteDigest: parentTestSuiteDigest(suite), workspaceDigest: 'w'.repeat(64), status, cause: 'ran',
+          passed: status === 'passed' ? 1 : 0, failed: status === 'passed' ? 0 : 1, skipped: 0,
+          details: status === 'passed' ? JSON.stringify(['', { name: 'app', status: 'passed', failures: [] }]) : FAILED_DETAILS,
+        };
+      },
+    };
+    const ctx = { ...makeCtx(), tools, rootAcceptance: true as const };
+    for (let i = 0; i < 800; i++) ctx.llm.enqueue(respond);
+    return { ctx, events };
+  }
+
+  it('is admitted by the root gate, and runs only after both branches and their suites', async () => {
+    const tissue = L3Atom.buildWithModel(reg.listByTier(3)[0]!, reg, FALLBACK_OPUS);
+    const { ctx, events } = harness('passed');
+
+    const result = await tissue.handle({ description: 'Build an app that renders sums' }, ctx);
+
+    expect(ctx.llm.calls.filter((req) => req.role === 'plan' && req.actor?.tier === 3)).toHaveLength(1);
+    const joinRun = events.indexOf(`suite ${JOIN_SUITE.requirement}`);
+    expect(events.filter((event) => event === `suite ${JOIN_SUITE.requirement}`)).toHaveLength(1);
+    for (const before of ['execute write add.ts', 'execute write render.ts', `suite ${ADD_SUITE.requirement}`, `suite ${RENDER_SUITE.requirement}`]) {
+      expect(events.indexOf(before)).toBeGreaterThanOrEqual(0);
+      expect(events.indexOf(before)).toBeLessThan(events.indexOf('execute write app.ts'));
+    }
+    expect(events.indexOf('execute write app.ts')).toBeLessThan(joinRun);
+    // No plan-level suite was asked for, and none ran after the join.
+    expect(events.slice(joinRun + 1).filter((event) => event.startsWith('suite '))).toEqual([]);
+    expect(result.parentTests?.map((held) => [held.suite?.requirement, held.status, held.judged])).toEqual([
+      [ADD_SUITE.requirement, 'passed', true], [RENDER_SUITE.requirement, 'passed', true], [JOIN_SUITE.requirement, 'passed', true],
+    ]);
+  });
+
+  it('refuses a failing join suite in the join\'s own loop, and hands it up unjudged when the join exhausts', async () => {
+    const tissue = L3Atom.buildWithModel(reg.listByTier(3)[0]!, reg, FALLBACK_OPUS);
+    const { ctx, events } = harness('failed');
+
+    const result = await tissue.handle({ description: 'Build an app that renders sums' }, ctx);
+
+    const joinRuns = events.filter((event) => event === `suite ${JOIN_SUITE.requirement}`);
+    expect(joinRuns.length).toBeGreaterThan(1);
+    expect(events.indexOf(`suite ${JOIN_SUITE.requirement}`)).toBeGreaterThan(events.indexOf('execute write render.ts'));
+    expect(events.indexOf(`suite ${JOIN_SUITE.requirement}`)).toBeGreaterThan(events.indexOf('execute write add.ts'));
+    // The tissue judged each branch with a model, and refused the join with
+    // its typed gate, never a model call.
+    const judgedByModel = ctx.llm.calls.filter((req) => req.role === 'validate-result' && req.actor?.tier === 3);
+    expect(judgedByModel).toHaveLength(2);
+    expect(judgedByModel.some((req) => req.userContent.includes(join))).toBe(false);
+    const held = result.parentTests ?? [];
+    const joinHeld = held.filter((observation) => observation.suite?.requirement === JOIN_SUITE.requirement);
+    expect(joinHeld.length).toBeGreaterThan(0);
+    expect(joinHeld.every((observation) => observation.status === 'failed' && !observation.judged)).toBe(true);
+    expect(held.filter((observation) => observation.suite?.requirement !== JOIN_SUITE.requirement).every((observation) => observation.judged)).toBe(true);
+    // The join's ladder ran out into the tissue's own fallback, and the
+    // fallback's run of the suite failed too: nothing approved it.
+    expect(result.spentLadder).toEqual({ by: tissue.name, on: [join] });
+  });
+});
+
 describe('root acceptance of a dependency landing', () => {
   const rootCtx = () => ({ ...makeCtx(), tools: { has: () => false, execute: async () => ({}) } as ToolExecutor, attempt: 1, attestations: createAttestationLog() });
   const entry = 'wire add (not started: its prerequisite "write add.ts" was not approved and its parent-owned suite did not pass)';
