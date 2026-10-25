@@ -157,8 +157,27 @@ of one Chromium per two `os.cpus()` (which ignores `--cpus`: seven on a
 stays a fork-bomb bound whose kernel cost is charged to the same `--memory`
 cap. Hosted workers had no bound at all; they take the same one.
 `tests/worker-thread-headroom.test.ts` launches four Chromium trees in the
-real Compute profile, and the former 256 as its failing control. The bound is
-in the desktop app's launcher, so it reaches a device with a desktop release.
+real Compute profile, and the former 256 as its failing control; both Docker
+CI jobs that build the worker run it. The bound is in the desktop app's
+launcher, so it reaches a device with a desktop release.
+
+MEMORY, not tasks, is the next wall. Measured 2026-10-25 on a Mac (Docker
+Desktop, 14 CPUs, worker image of 2026-10-21, Chromium 155) with
+`ATOMA_SIZE_WORKER=1` (`ATOMA_SIZE_WORKER_TREES` sets the count): each tree a
+node process on a 1,500-row page, beside a resident tool browser, at the
+smallest Compute tools budget (2 GiB, no swap). 7+1 trees: 985–998 tasks,
+`memory.peak` 1,596–1,618 MiB (1,425 anonymous), no OOM kill; 8+1:
+1,107–1,123 tasks, 1,784–1,838 MiB, none; 9+1: 1,246 tasks, 1,976 MiB, none;
+10+1: 1,345 tasks, the 2 GiB cap, 6 `oom_kill`s, 6 of 11 browsers failed.
+So ~190 MiB a tree: ten workers fail on memory with 700 tasks free, and
+eight leave 210–260 MiB for the worker and the run's servers. No default
+changed: no run has hit it yet, and only the 6 GiB minimum budget leaves the
+tools worker 2 GiB (`computeWorkloadBudget`; the recommended budget gave it
+5 here).
+Other containers keep smaller bounds on purpose, running no test runner: a
+hosted browser app (`hosting.ts`, 256) holds one host-fixed Chromium beside
+its server under gVisor, and a desktop preview (`desktopPreview.ts`, 128)
+serves the delivered app from an image with no browser.
 
 `ContainerToolExecutor` is a compatibility facade. Local stdio attach lives
 in `localWorker.ts`; the service mode uses `RemoteWorkerExecutor` and the

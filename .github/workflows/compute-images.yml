@@ -51,7 +51,7 @@ jobs:
           docker build -f docker/compute-retrieval-models.Dockerfile --build-arg RETRIEVAL_IMAGE=atoma-retrieval:compute-base -t atoma-retrieval:compute-ci .
           docker tag atoma-worker:compute-ci atoma-worker:latest
       - name: Verify packaged isolation, retrieval, transfers and preview
-        run: npx vitest run tests/container-isolation.test.ts tests/workspace-service-container.test.ts tests/desktop-compute.test.ts tests/compute-connection.test.ts tests/compute-retrieval.test.ts tests/compute-preview.test.ts
+        run: npx vitest run tests/container-isolation.test.ts tests/worker-thread-headroom.test.ts tests/workspace-service-container.test.ts tests/desktop-compute.test.ts tests/compute-connection.test.ts tests/compute-retrieval.test.ts tests/compute-preview.test.ts
         env:
           CI_REQUIRE_DOCKER: '1'
           ATOMA_TEST_ACCEPTANCE_IMAGE: atoma-worker:compute-ci

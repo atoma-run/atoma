@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFile, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
-import { workerRunArgs } from '../src/launcher/workerProfile.js';
+import { WORKER_PIDS_LIMIT, workerRunArgs } from '../src/launcher/workerProfile.js';
 
 const run = promisify(execFile);
 
@@ -56,12 +56,15 @@ const tasks = () => {
 let peak = 0;
 const sampler = setInterval(() => { peak = Math.max(peak, tasks()); }, 100);
 const outcomes = Array.from({ length: ${BROWSERS} }, () => 'pending: launch or page did not finish');
+const cgroup = (f) => { try { return fs.readFileSync('/sys/fs/cgroup/' + f, 'utf8'); } catch { return ''; } };
 const report = () => {
   clearInterval(sampler);
   console.log('RESULT:' + JSON.stringify({
     ok: outcomes.filter((o) => o === 'ok').length,
     errors: outcomes.filter((o) => o !== 'ok'),
     peak,
+    memoryPeakMiB: Math.round(Number(cgroup('memory.peak')) / 1048576),
+    oomKills: Number((/oom_kill (\\d+)/.exec(cgroup('memory.events')) || [0, 0])[1]),
   }));
   process.exit(0);
 };
@@ -87,6 +90,63 @@ setTimeout(report, 30000);
 })();
 `;
 
+const SIZED_TREES = Number(process.env['ATOMA_SIZE_WORKER_TREES'] ?? 8);
+
+// Each tree in its own node process, as Playwright workers are, on a light
+// app page (1,500 rows, ~5 MB of script state); the first is the resident
+// tool browser, started first and held across the others.
+const SIZED_CHILD = `
+const puppeteer = require('/app/node_modules/puppeteer');
+(async () => {
+  let browser;
+  try {
+    browser = await puppeteer.launch({ headless: true, timeout: 30000, protocolTimeout: 30000, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    const rows = Array.from({ length: 1500 }, (_, i) => '<li><input type=checkbox><span>item ' + i + '</span><button>x</button></li>').join('');
+    await page.setContent('<ul>' + rows + '</ul><script>window.__state = Array.from({ length: 50000 }, (_, i) => ({ id: i, text: "row " + i }));</script>');
+    await page.click('li:nth-child(10) input');
+    await new Promise((r) => setTimeout(r, 6000));
+    process.stdout.write((await page.$$eval('li', (l) => l.length)) === 1500 ? 'ok' : 'wrong page content');
+  } catch (e) { process.stdout.write(String(e && e.message || e).slice(0, 200)); }
+  finally { if (browser) await browser.close().catch(() => {}); }
+})();
+`;
+
+const SIZED_SCRIPT = `
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const cgroup = (f) => { try { return fs.readFileSync('/sys/fs/cgroup/' + f, 'utf8'); } catch { return ''; } };
+const tasks = () => {
+  let n = 0;
+  for (const p of fs.readdirSync('/proc')) {
+    if (!/^\\d+$/.test(p)) continue;
+    try { n += Number(/Threads:\\s+(\\d+)/.exec(fs.readFileSync('/proc/' + p + '/status', 'utf8'))[1]); } catch {}
+  }
+  return n;
+};
+let peak = 0;
+const sampler = setInterval(() => { peak = Math.max(peak, tasks()); }, 100);
+const child = () => new Promise((resolve) => {
+  const c = spawn(process.execPath, ['-e', ${JSON.stringify(SIZED_CHILD)}], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let out = '';
+  c.stdout.on('data', (d) => { out += d; });
+  c.on('exit', (code, signal) => resolve(out || 'exit ' + code + ' ' + signal));
+});
+(async () => {
+  const resident = child();
+  await new Promise((r) => setTimeout(r, 1500));
+  const outcomes = await Promise.all([resident, ...Array.from({ length: ${SIZED_TREES} }, child)]);
+  clearInterval(sampler);
+  console.log('RESULT:' + JSON.stringify({
+    ok: outcomes.filter((o) => o === 'ok').length,
+    errors: outcomes.filter((o) => o !== 'ok'),
+    peak,
+    memoryPeakMiB: Math.round(Number(cgroup('memory.peak')) / 1048576),
+    oomKills: Number((/oom_kill (\\d+)/.exec(cgroup('memory.events')) || [0, 0])[1]),
+  }));
+})();
+`;
+
 describeDocker('the Compute worker profile fits a project\'s own browsers', () => {
   const machineId = randomUUID();
   const volume = `atoma-compute-${machineId}-workspace`;
@@ -104,7 +164,9 @@ describeDocker('the Compute worker profile fits a project\'s own browsers', () =
     await run('docker', ['volume', 'rm', '-f', volume]).catch(() => undefined);
   }, 60_000);
 
-  async function launchBrowsersUnder(pidsLimit?: string): Promise<{ ok: number; errors: string[]; peak: number }> {
+  type Outcome = { ok: number; errors: string[]; peak: number; memoryPeakMiB: number; oomKills: number };
+
+  async function launchBrowsersUnder(pidsLimit?: string, script = SCRIPT): Promise<Outcome> {
     const args = workerRunArgs({
       image: 'atoma-worker:latest',
       workspaceHostPath: '/unused-with-a-volume',
@@ -118,13 +180,13 @@ describeDocker('the Compute worker profile fits a project\'s own browsers', () =
     names.push(name);
     // Same profile, another command: the image's worker would wait for a socket.
     const image = args.lastIndexOf('atoma-worker:latest');
-    const command = [...args.slice(0, image), '--entrypoint', 'node', 'atoma-worker:latest', '-e', SCRIPT];
+    const command = [...args.slice(0, image), '--entrypoint', 'node', 'atoma-worker:latest', '-e', script];
     command.splice(1, 0, '--name', name);
     command.splice(command.indexOf('-i'), 1);
     const { stdout } = await run('docker', command, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 });
     const match = /RESULT:(\{.*\})/.exec(stdout);
     expect(match, stdout).toBeTruthy();
-    return JSON.parse(match![1]!) as { ok: number; errors: string[]; peak: number };
+    return JSON.parse(match![1]!) as Outcome;
   }
 
   it(`launches ${BROWSERS} concurrent Chromium trees under the production bound`, async () => {
@@ -133,11 +195,29 @@ describeDocker('the Compute worker profile fits a project\'s own browsers', () =
     expect(result.ok).toBe(BROWSERS);
     // The measured shape the bound was sized from: well over the old 256.
     expect(result.peak).toBeGreaterThan(256);
+    expect(result.oomKills).toBe(0);
   }, 150_000);
 
   it('the former 256 bound reproduces run 40c20c5d\'s launch failures (control)', async () => {
     const result = await launchBrowsersUnder('256');
     expect(result.ok).toBeLessThan(BROWSERS);
     expect(result.errors.length).toBeGreaterThan(0);
+  }, 150_000);
+
+  // THE SIZED CASE, opt-in (ATOMA_SIZE_WORKER=1, ~15 s): the 2048 bound is
+  // justified by Playwright's default of seven workers on a 14-CPU Docker
+  // Desktop VM, so this runs eight Chromium trees (ATOMA_SIZE_WORKER_TREES
+  // sets the count), each in a node process of its own as a Playwright
+  // worker is, beside a resident tool browser, at the smallest Compute tools
+  // budget (2 GiB, no swap). It prints what src/launcher/AGENTS.md records.
+  // Not in CI: on a 4-vCPU runner it measures the runner, and memory, not
+  // tasks, is what it nears.
+  it.runIf(process.env['ATOMA_SIZE_WORKER'] === '1')(`the sized case: ${SIZED_TREES} trees and the tool browser`, async () => {
+    const result = await launchBrowsersUnder(undefined, SIZED_SCRIPT);
+    console.log(`[sized case] ${JSON.stringify(result)}`);
+    expect(result.errors).toEqual([]);
+    expect(result.ok).toBe(SIZED_TREES + 1);
+    expect(result.peak).toBeLessThan(Number(WORKER_PIDS_LIMIT));
+    expect(result.oomKills).toBe(0);
   }, 150_000);
 });
