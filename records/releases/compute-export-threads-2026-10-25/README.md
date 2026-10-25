@@ -27,3 +27,11 @@ then these pins with the desktop app built from the commit that adopts them.
 `COMPUTE_CLIENT_ARCHIVE` (CLI-paired clients) was not bumped: an older CLI client
 running these images pends on an export that leaves entries out or is refused,
 instead of finishing it.
+
+| Desktop release | `compute-desktop-preview-0e0b7d6c4411`, version 0.4.128 |
+|---|---|
+| Installer, mac arm64 | `Atoma-Compute-0.4.128-mac-arm64.dmg`, checksum verified against its `.sha256` |
+
+Production admission received version 0.4.128 and both new worker digests,
+with earlier entries retained and a backup of the environment file kept on the
+host. It takes effect with the executor generation deployed after this record.
