@@ -319,6 +319,41 @@ describe('ProjectStore — idempotency and CAS state machines', () => {
     ).toThrow(ProjectStateConflict);
   });
 
+  it('keeps the door a run came through: first writer wins, immutable, an unreadable one read as unknown', () => {
+    const alice = actor('Alice');
+    const project = createProject(alice);
+    const reserve = (key: string, requestedVia?: { door: 'mcp' | 'cli'; client?: string }) => store.createProjectRun({
+      orgId: alice.orgId, projectId: project.projectId, principalId: alice.principalId,
+      request: runRequest(key), hostPaths: hostPaths(key), ...(requestedVia ? { requestedVia } : {}),
+    })!;
+    const first = reserve('door-1', { door: 'mcp', client: 'claude-code' });
+    expect(first.run.requestedVia).toEqual({ door: 'mcp', client: 'claude-code' });
+    // An exact retry through another door is the same run, still from its first door.
+    expect(reserve('door-1', { door: 'cli' }).run.requestedVia).toEqual({ door: 'mcp', client: 'claude-code' });
+    expect(reserve('door-2').run).not.toHaveProperty('requestedVia');
+    expect(() => db.prepare('UPDATE project_runs SET requested_via_json = ? WHERE project_run_id = ?')
+      .run(JSON.stringify({ door: 'web' }), first.run.projectRunId)).toThrow(/immutable/);
+    // Attribution, never evidence: a row that no longer parses must not make its run unreadable.
+    db.exec('DROP TRIGGER project_runs_requested_via_immutable');
+    db.prepare('UPDATE project_runs SET requested_via_json = ? WHERE project_run_id = ?').run('{"door":"fax"}', first.run.projectRunId);
+    expect(store.getProjectRun(alice.orgId, first.run.projectRunId)).not.toHaveProperty('requestedVia');
+    expect(store.projectRunPage(alice.orgId, project.projectId, {}, null).find(row => row.projectRunId === first.run.projectRunId))
+      .not.toHaveProperty('requestedVia');
+  });
+
+  it('adds the run door column to a store created before it, leaving older runs unknown', () => {
+    const alice = actor('Alice');
+    const project = createProject(alice);
+    const old = store.createProjectRun({ orgId: alice.orgId, projectId: project.projectId, principalId: alice.principalId,
+      request: runRequest('before-doors'), hostPaths: hostPaths('before-doors') })!;
+    db.exec('DROP TRIGGER project_runs_requested_via_immutable');
+    db.exec('ALTER TABLE project_runs DROP COLUMN requested_via_json');
+    const reopened = new ProjectStore(db);
+    expect((db.prepare('PRAGMA table_info(project_runs)').all() as { name: string }[]).some(column => column.name === 'requested_via_json')).toBe(true);
+    expect(reopened.getProject(alice.orgId, project.projectId)).not.toBeNull();
+    expect(reopened.getProjectRun(alice.orgId, old.run.projectRunId)).not.toHaveProperty('requestedVia');
+  });
+
   it('moves a run with compare-and-swap, accepts identical replay and refuses stale/conflicting writes', () => {
     const alice = actor('Alice');
     const project = createProject(alice);

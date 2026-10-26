@@ -22,6 +22,8 @@ import {
   createProjectInputSchema,
   createProjectRunInputSchema,
   rerunProjectRunInputSchema,
+  runRequestedViaSchema,
+  type RunRequestedVia,
   runSeedSchema,
   runTitleReceiptSchema,
   runTitleSchema,
@@ -496,6 +498,7 @@ interface ProjectRunRow {
   resume_of_run_id?: string | null;
   base_run_id?: string | null;
   read_run_ids_json?: string | null;
+  requested_via_json?: string | null;
   context_version?: number | null;
   model_overrides_json?: string | null;
   requested_timeout_ms?: number | null;
@@ -614,6 +617,19 @@ function isRunLookupId(value: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,254}$/.test(value);
 }
 
+/**
+ * A persisted door is attribution, not evidence anything decides from: one
+ * that no longer parses reads as unknown rather than making its run, and
+ * every reader of its project, unreadable.
+ */
+function requestedViaFromRow(json: string | null | undefined): { requestedVia?: RunRequestedVia } {
+  if (!json) return {};
+  try {
+    const parsed = runRequestedViaSchema.safeParse(JSON.parse(json));
+    return parsed.success ? { requestedVia: parsed.data } : {};
+  } catch { return {}; }
+}
+
 function runFromRow(row: ProjectRunRow): ProjectRun {
   return projectRunSchema.parse({
     ...(row.github_access_json ? { githubAccess: parseJson(row.github_access_json, 'GitHub access') } : {}),
@@ -622,6 +638,7 @@ function runFromRow(row: ProjectRunRow): ProjectRun {
     projectId: row.project_id,
     orgId: row.org_id,
     requestedByPrincipalId: row.requested_by_principal_id,
+    ...requestedViaFromRow(row.requested_via_json),
     requestKey: row.request_key,
     goal: row.goal,
     ...(row.title ? { title: row.title } : {}),
@@ -920,6 +937,7 @@ export class ProjectStore {
         ['project_runs', 'depth'],
         ['project_runs', 'title'],
         ['project_runs', 'title_receipt_json'],
+        ['project_runs', 'requested_via_json'],
         ['project_run_acceptance', 'source'],
         ['project_publications', 'pull_request_url'],
         ['project_publications', 'seed_commit_sha'],
@@ -987,6 +1005,9 @@ BEGIN SELECT RAISE(ABORT, 'iteration base is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS project_runs_read_runs_immutable BEFORE UPDATE OF read_run_ids_json ON project_runs
 WHEN NEW.read_run_ids_json IS NOT OLD.read_run_ids_json
 BEGIN SELECT RAISE(ABORT, 'the runs a run reads are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS project_runs_requested_via_immutable BEFORE UPDATE OF requested_via_json ON project_runs
+WHEN NEW.requested_via_json IS NOT OLD.requested_via_json
+BEGIN SELECT RAISE(ABORT, 'the door a run was started from is immutable'); END;
 CREATE UNIQUE INDEX IF NOT EXISTS project_runs_resume_once ON project_runs(resume_of_run_id) WHERE resume_of_run_id IS NOT NULL AND status NOT IN ('failed','cancelled');
 CREATE TRIGGER IF NOT EXISTS project_runs_resume_immutable BEFORE UPDATE OF resume_of_run_id ON project_runs
 WHEN NEW.resume_of_run_id IS NOT OLD.resume_of_run_id
@@ -1221,16 +1242,21 @@ END;
       SELECT r.project_run_id AS projectRunId, r.project_id AS projectId, r.title,
         substr(r.goal, 1, 240) AS goalExcerpt, r.status, r.created_at AS createdAt,
         r.started_at AS startedAt, r.ended_at AS endedAt, json_extract(r.stats_json, '$.costUsd') AS costUsd,
-        p.status AS publicationStatus, p.repository_url AS repositoryUrl, p.pull_request_url AS pullRequestUrl
+        p.status AS publicationStatus, p.repository_url AS repositoryUrl, p.pull_request_url AS pullRequestUrl,
+        r.requested_by_principal_id AS requestedByPrincipalId, who.display_name AS requestedByName,
+        r.requested_via_json AS requestedViaJson, r.resume_of_run_id AS resumeOf, r.rerun_of_run_id AS rerunOf, r.trace_id AS traceId,
+        accepted.accepted_at AS acceptedAt
       FROM project_runs r LEFT JOIN project_publications p ON p.project_run_id=r.project_run_id AND p.org_id=r.org_id
+        LEFT JOIN auth_principals who ON who.principal_id=r.requested_by_principal_id
+        LEFT JOIN project_delivery_acceptance accepted ON accepted.project_run_id=r.project_run_id AND accepted.org_id=r.org_id
       WHERE r.org_id=@org AND r.project_id=@project
         AND (@status IS NULL OR r.status=@status)
         AND (@search='' OR instr(lower(COALESCE(r.title,'') || ' ' || r.goal), lower(@search))>0)
         AND (@at IS NULL OR r.created_at<@at OR (r.created_at=@at AND r.project_run_id>@id))
       ORDER BY r.created_at DESC, r.project_run_id ASC LIMIT @limit
     `).all({ org: orgId, project: projectId, status: input.status ?? null, search: input.search ?? '',
-      at: cursor?.at ?? null, id: cursor?.id ?? '', limit: (input.limit ?? 20) + 1 });
-    return rows.map(row => compactRunSchema.parse(row));
+      at: cursor?.at ?? null, id: cursor?.id ?? '', limit: (input.limit ?? 20) + 1 }) as Array<Record<string, unknown> & { requestedViaJson: string | null }>;
+    return rows.map(({ requestedViaJson, ...row }) => compactRunSchema.parse({ ...row, ...requestedViaFromRow(requestedViaJson) }));
   }
 
   /**
@@ -1744,6 +1770,8 @@ END;
     readonly projectRunId?: string;
     readonly enforceCapacity?: boolean;
     readonly requestedTimeoutMs?: number;
+    /** The door, stamped by the host; an idempotent retry keeps the first one. */
+    readonly requestedVia?: RunRequestedVia;
   }): { readonly run: ProjectRun; readonly created: boolean } | null {
     const orgId = organisationIdSchema.parse(input.orgId);
     const projectId = projectIdSchema.parse(input.projectId);
@@ -1759,6 +1787,7 @@ END;
     const requestedTimeoutMs = projectRunSchema.shape.requestedTimeoutMs.parse(input.requestedTimeoutMs);
     const paths = hostPaths(input.hostPaths);
     const requestedRunId = projectRunIdSchema.parse(input.projectRunId ?? randomUUID());
+    const requestedVia = input.requestedVia ? runRequestedViaSchema.parse(input.requestedVia) : null;
     let acceptance: RunAcceptance | null = null;
     if (rerun && input.origin!.acceptance) {
       acceptance = { spec: parseAcceptanceSpec(input.origin!.acceptance.spec), source: input.origin!.acceptance.source };
@@ -1794,8 +1823,8 @@ END;
              project_run_id, project_id, org_id, requested_by_principal_id, request_key,
              goal, status, workspace_path, runs_path, log_path, skills_path,
              rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms, resume_of_run_id, base_run_id, context_version,
-             read_run_ids_json, execution_target_json
-           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             read_run_ids_json, execution_target_json, requested_via_json
+           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           requestedRunId,
@@ -1818,7 +1847,8 @@ END;
           request.baseRunId ?? null,
           contextVersion ?? null,
           encodeReadRunIds(readRunIds),
-          JSON.stringify(request.resumeOf ? contextOrigin!.executionTarget : project.executionTarget)
+          JSON.stringify(request.resumeOf ? contextOrigin!.executionTarget : project.executionTarget),
+          requestedVia ? JSON.stringify(requestedVia) : null
         );
       if (acceptance) {
         // `source` NULL is a user list, which is every row written before

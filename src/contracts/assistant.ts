@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { accountSubscriptionStatusSchema } from './accountSubscriptions.js';
-import { createProjectInputSchema, projectGoalSchema, projectIdSchema, projectRunIdSchema } from './projects.js';
+import { createProjectInputSchema, projectGoalSchema, projectIdSchema, projectRunIdSchema, runRequestedViaSchema } from './projects.js';
 import { MAX_CHECKLIST_ITEMS, parseChecklistLines } from './acceptanceChecklist.js';
 import { readRunIdsSchema, storedReadRunIdsSchema } from './readRuns.js';
 
@@ -97,18 +97,38 @@ export const assistantConversationSchema = z.object({
   lastRequestId: z.string().nullable(), modelChoice: z.string().max(512).optional(),
 });
 export type AssistantConversation = z.infer<typeof assistantConversationSchema>;
+/**
+ * One of the project's recent runs as its conversation narrates it
+ * (2026-10-26): host facts from the compact run page, never a message in the
+ * journal. `mine` is the viewer's own run; `requestedVia` is absent on a run
+ * started before doors were recorded, and its `client` is that client's claim.
+ */
+export const assistantActivitySchema = z.object({
+  runId: projectRunIdSchema, projectId: projectIdSchema, title: z.string().nullable(), goalExcerpt: z.string(),
+  status: z.string(), createdAt: z.string().datetime(), endedAt: z.string().datetime().nullable(), costUsd: z.number().nullable(),
+  requestedByName: z.string().nullable(), mine: z.boolean(), requestedVia: runRequestedViaSchema.optional(),
+  continuation: z.boolean(), comparison: z.boolean(), acceptedAt: z.string().datetime().nullable(),
+  publicationStatus: z.string().nullable(),
+  /** Where "See the details" opens it; absent until its trace exists. */
+  traceId: z.string().nullable().optional(),
+});
+const assistantViewRunSchema = assistantRunSchema.extend({ status: z.string(), traceId: z.string().nullable(), costUsd: z.number().nullable(), error: z.string().nullable(),
+  endedAt: z.string().datetime().nullable(),
+  /** Additive (2026-10-25): the run's work ended and its files wait on the requester's computer (host facts). */
+  resultsWaiting: z.boolean().optional(),
+  /** Additive: those results wait although the computer is connected and accepting work. */
+  resultsStalled: z.boolean().optional() });
 export const assistantViewSchema = z.object({
   conversation: assistantConversationSchema, available: z.boolean(), model: z.string().nullable(), busy: z.boolean(),
   choices: z.array(assistantModelChoiceSchema).max(1500).default([]),
   subscriptions: z.array(accountSubscriptionStatusSchema).max(2).optional(),
   nextBefore: z.number().int().positive().nullable().default(null),
   /** The run the conversation presents: the project's newest, else the one this conversation started. */
-  run: assistantRunSchema.extend({ status: z.string(), traceId: z.string().nullable(), costUsd: z.number().nullable(), error: z.string().nullable(),
-    endedAt: z.string().datetime().nullable(),
-    /** Additive (2026-10-25): the run's work ended and its files wait on the requester's computer (host facts). */
-    resultsWaiting: z.boolean().optional(),
-    /** Additive: those results wait although the computer is connected and accepting work. */
-    resultsStalled: z.boolean().optional() }).nullable(),
+  run: assistantViewRunSchema.nullable(),
+  /** Additive (2026-10-26): the delivery awaiting the client's acceptance (`awaitingClientAcceptance`), live run or not. */
+  awaiting: assistantViewRunSchema.nullable().optional(),
+  /** Additive (2026-10-26): the project's newest runs, newest first; empty before a project. */
+  activity: z.array(assistantActivitySchema).max(20).optional(),
 });
 export type AssistantView = z.infer<typeof assistantViewSchema>;
 

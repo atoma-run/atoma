@@ -202,6 +202,12 @@ it('reuses a project run across MCP sessions while its real lease is held', asyn
   try {
     const original = await start(first);
     expect(original.task.status).toBe('working');
+    // The door this run came through, stamped by the host from the session's own initialize (2026-10-26).
+    const [stamped] = store.listProjectRuns(login.viewer.orgId, project.projectId)!;
+    expect(stamped!.requestedVia).toEqual({ door: 'mcp', client: 'test' });
+    expect(service.projectRunsPage(login.viewer, project.projectId, { view: 'compact' }).runs[0]).toMatchObject({
+      requestedVia: { door: 'mcp', client: 'test' }, requestedByPrincipalId: login.viewer.principalId, requestedByName: 'Owner', acceptedAt: null, traceId: null,
+    });
     const retry = await start(second);
     expect(retry.task.status).toBe('working');
     expect(retry.task.statusMessage).toBe(original.task.statusMessage);

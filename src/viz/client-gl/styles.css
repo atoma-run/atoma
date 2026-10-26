@@ -2077,6 +2077,7 @@ html.atoma-cursor-active * {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .gpu-assistant-footer { margin-top: 6px; }
+.gpu-assistant-run--review { padding: 4px 8px; border: 1px solid #ada0cd66; border-radius: 6px; background: #ada0cd14; }
 .gpu-assistant h2, .gpu-assistant h3, .gpu-assistant p { margin: 0; }
 .gpu-assistant h2 { font-size: 18px; }
 .gpu-assistant h3 { font-size: 15px; }
@@ -2125,6 +2126,12 @@ html.atoma-cursor-active * {
 .gpu-assistant-message--receipt { border-left-color: #ada0cd; background: #ada0cd0f; }
 .gpu-assistant-message--assistant .gpu-assistant-message-meta strong { color: #9bdcc7; }
 .gpu-assistant-message--receipt .gpu-assistant-message-meta strong { color: #c3b8df; }
+/* The project's runs told in the log (2026-10-26): quieter than a message, its own rail. */
+.gpu-assistant-message--activity { border-style: dashed; border-left-style: solid; border-left-color: #8f9fb5; background: transparent; }
+.gpu-assistant-message--activity .gpu-assistant-message-meta strong { color: #c9d4e3; }
+.gpu-assistant-error-details { margin-top: 4px; }
+.gpu-assistant-error-details summary { cursor: pointer; color: #b5c5dc; }
+.gpu-assistant-error-details p { color: #b5c5dc; }
 .gpu-assistant-message-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; }
 .gpu-assistant-typing-dots { display: flex; align-items: center; gap: 4px; height: 20px; }
 .gpu-assistant-typing-dots > span { width: 6px; height: 6px; border-radius: 50%; background: #9bdcc7; animation: gpu-assistant-typing 1.2s ease-in-out infinite; }

@@ -3,7 +3,7 @@ import type { AssistantModels, AssistantModel } from './assistantModels.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Viewer } from '../auth/store.js';
-import { assistantReplySchema, canonicalAction, type AssistantConversation, type AssistantRequest, type AssistantRun,
+import { assistantActivitySchema, assistantReplySchema, canonicalAction, type AssistantConversation, type AssistantRequest, type AssistantRun,
   type AssistantView } from '../contracts/assistant.js';
 import { estimateCostUsd, partialUsageOf, pricesFor } from '../core/metrics.js';
 import { goalPromptText } from '../mcp/prompts.js';
@@ -18,6 +18,33 @@ const list = (value: unknown, key: string): Record<string, unknown>[] => {
 };
 /** Recent deliveries a conversation looks through for one still awaiting client acceptance. */
 const PENDING_ACCEPTANCE_SCAN = 5;
+/** The project's newest runs a conversation narrates, from the page it reads anyway. */
+const ACTIVITY_RUNS = 12;
+
+type AssistantActivity = NonNullable<AssistantView['activity']>[number];
+
+/** One compact run row as the conversation narrates it; a row it cannot read is left out, never guessed. */
+function activityEntry(row: Record<string, unknown>, principalId: string): AssistantActivity[] {
+  const parsed = assistantActivitySchema.safeParse({
+    runId: row['projectRunId'], projectId: row['projectId'], title: row['title'] ?? null, goalExcerpt: row['goalExcerpt'],
+    status: row['status'], createdAt: row['createdAt'], endedAt: row['endedAt'] ?? null, costUsd: row['costUsd'] ?? null,
+    requestedByName: row['requestedByName'] ?? null, mine: row['requestedByPrincipalId'] === principalId,
+    ...(row['requestedVia'] ? { requestedVia: row['requestedVia'] } : {}),
+    continuation: typeof row['resumeOf'] === 'string', comparison: typeof row['rerunOf'] === 'string',
+    acceptedAt: row['acceptedAt'] ?? null, publicationStatus: row['publicationStatus'] ?? null, traceId: row['traceId'] ?? null,
+  });
+  return parsed.success ? [parsed.data] : [];
+}
+
+function viewRun(target: AssistantRun, status: Record<string, unknown>): NonNullable<AssistantView['run']> {
+  return { ...target,
+    status: typeof status['status'] === 'string' ? status['status'] : 'unknown', traceId: typeof status['traceId'] === 'string' ? status['traceId'] : null,
+    costUsd: typeof status['costUsd'] === 'number' ? status['costUsd'] : null,
+    error: typeof status['error'] === 'string' ? status['error'] : null,
+    endedAt: typeof status['endedAt'] === 'string' ? status['endedAt'] : null,
+    resultsWaiting: typeof status['resultsWaiting'] === 'object' && status['resultsWaiting'] !== null,
+    resultsStalled: object(status['resultsWaiting'])['computerReady'] === true };
+}
 function bounded(value: unknown, max = 20_000): string {
   const text = JSON.stringify(value);
   return text.length > max ? `${text.slice(0, max)}\n[Context truncated; do not infer omitted evidence.]` : text;
@@ -75,7 +102,7 @@ const SYSTEM = [
   'For an existing project, use only its supplied id. Read readiness and recent-run evidence. No access to live GitHub or local files is implied.',
   'Propose one concrete outcome at a time. Acceptance criteria are optional: each must be one plain line, at most 160 characters; at most 12 entries.',
   'A run uses the existing configured models and spends run quota. The conversation uses the connection selected by the person and is accounted separately.',
-  'Open run shows progress and recorded results; the project offers supported previews. Delivered runs show a separate review and acceptance control in the conversation: the person reviews the result and explicitly accepts it there to publish files to GitHub. Never propose a new run merely to publish a delivery. You cannot accept or publish through a chat reply. Answering a blocking run question and cancelling still require the existing MCP client; state that limit honestly if asked. Never claim these actions happened.',
+  'The conversation shows the project’s recent runs, whoever started them and from where; older ones are in the Runs tab. See the details shows progress and recorded results; the project offers supported previews. Delivered runs show a separate Accept this result control in the conversation: the person looks at the result and explicitly accepts it there to send its files to GitHub. Never propose a new run merely to publish a delivery. You cannot accept or publish through a chat reply. Answering a blocking run question and cancelling still require the existing MCP client; state that limit honestly if asked. Never claim these actions happened.',
   goalPromptText('(the person’s request in the conversation)', 'project'),
   'Return ONLY JSON matching this schema. Use proposal:null while discussing or when there is not enough evidence.',
   JSON.stringify(z.toJSONSchema(assistantReplySchema, { io: 'input' })),
@@ -102,44 +129,60 @@ export class AssistantService {
    * the newest delivery still awaiting acceptance — a later cancelled, failed
    * or comparison run must not hide it (2026-10-12) — else the newest run. An
    * unbound conversation keeps the run it started.
+   *
+   * Beside it (2026-10-26): the delivery the server says awaits the client's
+   * acceptance, which a live run must not hide either (and which is the
+   * presented run otherwise), and the project's recent runs as the
+   * conversation narrates them. Both come from the same compact page; a status
+   * is read only for a run a card presents.
    */
-  private async presentedRun(conversation: AssistantConversation, mcp: AssistantMcp):
-    Promise<{ target: AssistantRun | null; status: Record<string, unknown> | null }> {
+  private async presentedRun(conversation: AssistantConversation, mcp: AssistantMcp, principalId: string): Promise<{
+    target: AssistantRun | null; status: Record<string, unknown> | null;
+    awaiting: { target: AssistantRun; status: Record<string, unknown> } | null; activity: AssistantActivity[];
+  }> {
     const projectId = conversation.projectId;
     const read = async (target: AssistantRun) => ({ target, status: object(await mcp.call('atoma_run_status', target)) });
-    if (!projectId) return conversation.lastRun ? read(conversation.lastRun) : { target: null, status: null };
+    const alone = async () => ({ ...(conversation.lastRun ? await read(conversation.lastRun) : { target: null, status: null }), awaiting: null, activity: [] });
+    if (!projectId) return alone();
     const page = async (args: Record<string, unknown>) =>
       list(await mcp.call('atoma_project_runs', { projectId, view: 'compact', ...args }), 'runs')
-        .flatMap(row => typeof row['projectRunId'] === 'string' ? [{ projectId, runId: row['projectRunId'], status: row['status'] }] : []);
-    const [newest] = await page({ limit: 1 });
-    if (!newest) return conversation.lastRun ? read(conversation.lastRun) : { target: null, status: null };
-    if (newest.status === 'queued' || newest.status === 'running') return read({ projectId, runId: newest.runId });
-    for (const delivered of await page({ status: 'delivered', limit: PENDING_ACCEPTANCE_SCAN })) {
-      const candidate = await read({ projectId, runId: delivered.runId });
-      if (candidate.status['awaitingClientAcceptance'] === true) return candidate;
-      // A comparison rerun never publishes; look past it. Any other settled
-      // delivery (accepted, published) supersedes the older ones: stop.
-      if (typeof candidate.status['rerunOf'] !== 'string') break;
+        .filter(row => typeof row['projectRunId'] === 'string');
+    const recent = await page({ limit: ACTIVITY_RUNS });
+    const newest = recent[0];
+    if (!newest) return alone();
+    const activity = recent.flatMap(row => activityEntry(row, principalId));
+    const newestTarget = { projectId, runId: newest['projectRunId'] as string };
+    // Accepted rows are settled: only an unaccepted delivery costs a status read.
+    const pendingDelivery = async () => {
+      for (const delivered of await page({ status: 'delivered', limit: PENDING_ACCEPTANCE_SCAN })) {
+        if (!delivered['acceptedAt']) {
+          const candidate = await read({ projectId, runId: delivered['projectRunId'] as string });
+          if (candidate.status['awaitingClientAcceptance'] === true) return candidate;
+        }
+        // A comparison rerun never publishes; look past it. Any other settled
+        // delivery (accepted, published) supersedes the older ones: stop.
+        if (typeof delivered['rerunOf'] !== 'string') break;
+      }
+      return null;
+    };
+    if (newest['status'] === 'queued' || newest['status'] === 'running') {
+      return { ...await read(newestTarget), awaiting: await pendingDelivery(), activity };
     }
-    return read({ projectId, runId: newest.runId });
+    const pending = await pendingDelivery();
+    return { ...(pending ?? await read(newestTarget)), awaiting: pending, activity };
   }
 
   async view(scope: AssistantScope, mcp: AssistantMcp, before?: number): Promise<AssistantView> {
     // Validate access even for an existing conversation after project access changed.
     const { conversation, busy, nextBefore } = this.store.page(scope, before);
     if (conversation.projectId) await mcp.call('atoma_project_context', { projectId: conversation.projectId });
-    const { target, status } = await this.presentedRun(conversation, mcp);
-    const run: AssistantView['run'] = target && status ? { ...target,
-      status: typeof status['status'] === 'string' ? status['status'] : 'unknown', traceId: typeof status['traceId'] === 'string' ? status['traceId'] : null,
-      costUsd: typeof status['costUsd'] === 'number' ? status['costUsd'] : null,
-      error: typeof status['error'] === 'string' ? status['error'] : null,
-      endedAt: typeof status['endedAt'] === 'string' ? status['endedAt'] : null,
-      resultsWaiting: typeof status['resultsWaiting'] === 'object' && status['resultsWaiting'] !== null,
-      resultsStalled: object(status['resultsWaiting'])['computerReady'] === true } : null;
+    const { target, status, awaiting, activity } = await this.presentedRun(conversation, mcp, scope.principalId);
+    const run = target && status ? viewRun(target, status) : null;
     const choices = await this.models.choices(scope);
     const subscriptions = await this.models.subscriptions(scope);
     const selected = choices.find(choice => choice.id === conversation.modelChoice);
-    return { conversation, busy, nextBefore, choices, subscriptions, available: choices.length > 0, model: selected?.model ?? null, run };
+    return { conversation, busy, nextBefore, choices, subscriptions, available: choices.length > 0, model: selected?.model ?? null, run,
+      awaiting: awaiting ? viewRun(awaiting.target, awaiting.status) : null, activity };
   }
 
   async request(scope: AssistantScope, input: AssistantRequest, mcp: AssistantMcp): Promise<string> {

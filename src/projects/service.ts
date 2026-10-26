@@ -33,6 +33,7 @@ import {
   platformLiveRunSchema,
   type Project,
   type ProjectRun,
+  type RunRequestedVia,
 } from '../contracts/projects.js';
 import { eventLabel, type CrossOrgRead, type CrossOrgReadSink, type PlatformEventSink } from '../contracts/platformEvents.js';
 import { GitHubStore } from '../github/store.js';
@@ -917,7 +918,7 @@ export class ProjectService {
 
   /** POST /api/projects/:id/runs — org:member or above; idempotent by key. */
   async startProjectRun(req: IncomingMessage, viewer: Viewer, projectId: string): Promise<unknown> {
-    return this.startProjectRunFromInput(viewer, projectId, await readJsonBody(req));
+    return this.startProjectRunFromInput(viewer, projectId, await readJsonBody(req), { door: 'web' });
   }
 
   /** One project run, for a poller: the MCP's `atoma_run_status`. */
@@ -1000,7 +1001,7 @@ export class ProjectService {
   }
 
   /** The same start from an already-parsed payload: the MCP's door. */
-  async startProjectRunFromInput(viewer: Viewer, projectId: string, body: unknown): Promise<unknown> {
+  async startProjectRunFromInput(viewer: Viewer, projectId: string, body: unknown, requestedVia?: RunRequestedVia): Promise<unknown> {
     if (!roleAtLeast(viewer.role, 'org:member')) {
       throw new ProjectHttpError(403, 'org:member role or above is required to start runs');
     }
@@ -1015,6 +1016,7 @@ export class ProjectService {
         principalId: viewer.principalId,
         projectId,
         request: input.data,
+        ...(requestedVia ? { requestedVia } : {}),
       });
       // The GOAL is model-facing prose of arbitrary length and content; only
       // its bounded label reaches the journal, and never the whole prompt.
@@ -1077,7 +1079,7 @@ export class ProjectService {
     }
   }
 
-  async controlCheckpoint(viewer: Viewer, projectId: string, projectRunId: string, action: 'pause' | 'resume'): Promise<unknown> {
+  async controlCheckpoint(viewer: Viewer, projectId: string, projectRunId: string, action: 'pause' | 'resume', requestedVia?: RunRequestedVia): Promise<unknown> {
     if (!roleAtLeast(viewer.role, 'org:member')) throw new ProjectHttpError(403, 'org:member role or above is required');
     const run = this.store.getProjectRun(viewer.orgId, projectRunId);
     if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
@@ -1091,7 +1093,7 @@ export class ProjectService {
     return this.startProjectRunFromInput(viewer, projectId, {
       resumeOf: projectRunId, goal: run.goal, depth: run.depth, idempotencyKey: this.coordinator.continuationRequestKey(run),
       ...(acceptance ? { acceptanceChecklist: acceptance.items.map(({ behaviour, check }) => ({ behaviour, check })) } : {}),
-    });
+    }, requestedVia);
   }
 
   /** POST /api/projects/:id/runs/:runId/cancel */
@@ -1125,7 +1127,7 @@ export class ProjectService {
   }
 
   /** Resume only a host-recorded GitHub access interruption, never arbitrary failed work. */
-  async continueGitHubAccess(viewer: Viewer, projectId: string, projectRunId: string): Promise<unknown> {
+  async continueGitHubAccess(viewer: Viewer, projectId: string, projectRunId: string, requestedVia?: RunRequestedVia): Promise<unknown> {
     if (!roleAtLeast(viewer.role, 'org:member')) throw new ProjectHttpError(403, 'org:member role or above is required');
     const run = this.store.getProjectRun(viewer.orgId, projectRunId);
     const project = this.store.getProject(viewer.orgId, projectId);
@@ -1151,7 +1153,7 @@ export class ProjectService {
       ...(run.baseRunId ? { baseRunId: run.baseRunId } : {}),
       ...(run.readRunIds ? { readRunIds: run.readRunIds } : {}),
       ...(acceptance ? { acceptanceChecklist: acceptance.items.map(({ behaviour, check }) => ({ behaviour, check })) } : {}),
-    }) as { projectRunId: string };
+    }, requestedVia) as { projectRunId: string };
     this.store.setGitHubAccess(viewer.orgId, projectRunId, { ...access, resumedRunId: resumed.projectRunId });
     return resumed;
   }

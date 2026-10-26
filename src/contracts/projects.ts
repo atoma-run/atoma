@@ -359,6 +359,19 @@ export const rerunProjectRunInputSchema = z
 export const startProjectRunInputSchema = z.union([createProjectRunInputSchema, rerunProjectRunInputSchema]);
 
 /**
+ * WHICH DOOR STARTED A RUN (2026-10-26), stamped by the host beside the
+ * request, never read from it: an approved conversation proposal, an MCP
+ * client, the CLI or a browser route. `client` is the MCP client's own
+ * `clientInfo.name`, reported attribution and never an identity. Absent on
+ * runs started before it existed, and on a door that does not say: unknown.
+ */
+export const runRequestedViaSchema = z.object({
+  door: z.enum(['conversation', 'mcp', 'cli', 'web']),
+  client: z.string().trim().min(1).max(60).optional(),
+}).strict();
+export type RunRequestedVia = z.infer<typeof runRequestedViaSchema>;
+
+/**
  * WHERE A RUN'S WORKSPACE CAME FROM, recorded once when the seed is resolved.
  * `run` names the run whose workspace was copied in; `repository` is an
  * imported project's snapshot of its default branch (the commit is the run's
@@ -420,6 +433,7 @@ export const projectRunSchema = z
     projectId: projectIdSchema,
     orgId: organisationIdSchema,
     requestedByPrincipalId: principalIdSchema,
+    requestedVia: runRequestedViaSchema.optional(),
     requestKey: idempotencyKeySchema,
     goal: projectGoalSchema,
     /** Absent until the run ended and was named, and on every run named before titles existed. */

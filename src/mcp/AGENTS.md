@@ -255,6 +255,10 @@ owners rather than assuming a different process's run is abandoned.
   not a FIXED deadline (Codex tool_timeout_sec 300s: Settings sets 32400). 2026
   calls are SSE with keepalives (`responseMode: 'sse'`). A cut call's run goes
   on; a re-sent identical start re-attaches to it (`src/projects`).
+- A project start stamps its door (`requestedVia`, [src/projects](../projects/AGENTS.md)):
+  `mcp` with `getClientVersion().name` read at call time — the 2025 session's
+  `initialize`, or a 2026 request's own `_meta` — or `conversation` when it
+  carries `conversationApproval`. The name is the client's claim, never identity.
 - `atoma_run_start.acceptanceCriteria` takes one criterion per ENTRY in the
   console's line grammar (`parseChecklistLines`), not the structured shape: one
   grammar for every human entry point, and a JSON Schema free of transforms.

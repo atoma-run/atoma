@@ -97,10 +97,33 @@ describe('the integrated assistant', () => {
     const scope = f.service.scope(f.viewer, projectId);
     expect(f.store.read(scope).conversation.lastRun).toBeNull();
     expect((await f.service.view(scope, f.mcp)).run).toMatchObject({ projectId, runId, status: 'running', traceId: 'trace' });
-    expect(f.call).toHaveBeenCalledWith('atoma_project_runs', { projectId, view: 'compact', limit: 1 });
+    expect(f.call).toHaveBeenCalledWith('atoma_project_runs', { projectId, view: 'compact', limit: 12 });
     expect(f.call).toHaveBeenCalledWith('atoma_run_status', { projectId, runId });
     // An unbound conversation has no project to list, and no run until it starts one.
     expect((await f.service.view(f.scope, f.mcp)).run).toBeNull();
+  });
+
+  it("narrates the project's recent runs with who started each and through which door, and leaves out a row it cannot read", async () => {
+    const f = fixture(start);
+    const call = f.call.getMockImplementation()!;
+    const olderId = randomUUID();
+    const row = { projectId, title: null, goalExcerpt: 'Add stock alerts', createdAt: '2026-10-26T08:00:00.000Z', startedAt: null,
+      endedAt: null, costUsd: null, publicationStatus: null, repositoryUrl: null, pullRequestUrl: null, resumeOf: null, rerunOf: null, acceptedAt: null };
+    f.call.mockImplementation(async (name, args, task) => name === 'atoma_project_runs' ? { runs: [
+      { ...row, projectRunId: runId, status: 'running', requestedByPrincipalId: f.viewer.principalId, requestedByName: 'Alice',
+        requestedVia: { door: 'mcp', client: 'claude-code' } },
+      { ...row, projectRunId: olderId, status: 'delivered', endedAt: '2026-10-25T08:00:00.000Z', costUsd: 0.4,
+        requestedByPrincipalId: 'someone-else', requestedByName: 'Sam', rerunOf: 'first', acceptedAt: '2026-10-25T09:00:00.000Z' },
+      { projectRunId: 'unreadable', status: 'delivered' },
+    ] } : call(name, args, task));
+    const { activity } = await f.service.view(f.service.scope(f.viewer, projectId), f.mcp);
+    expect(activity).toEqual([
+      expect.objectContaining({ runId, mine: true, requestedByName: 'Alice', requestedVia: { door: 'mcp', client: 'claude-code' }, comparison: false }),
+      expect.objectContaining({ runId: olderId, mine: false, requestedByName: 'Sam', comparison: true, acceptedAt: '2026-10-25T09:00:00.000Z', costUsd: 0.4 }),
+    ]);
+    expect(activity![1]).not.toHaveProperty('requestedVia');
+    // Before a project exists there is nothing to narrate.
+    expect((await f.service.view(f.scope, f.mcp)).activity).toEqual([]);
   });
 
   it('passes the run completion instant through to the conversation view', async () => {
@@ -127,15 +150,18 @@ describe('the integrated assistant', () => {
   });
 
   it('keeps a delivery awaiting acceptance in view behind later cancelled or comparison runs', async () => {
-    type Row = { id: string; status: string; awaiting?: boolean; rerunOf?: string };
-    const presented = async (history: Row[]) => {
+    type Row = { id: string; status: string; awaiting?: boolean; rerunOf?: string; acceptedAt?: string };
+    const statusReads: string[] = [];
+    const presented = async (history: Row[], field: 'run' | 'awaiting' = 'run') => {
       const f = fixture(start);
       const call = f.call.getMockImplementation()!;
       f.call.mockImplementation(async (name, args, task) => {
         if (name === 'atoma_project_runs') {
           const rows = history.filter(row => !args['status'] || row.status === args['status']).slice(0, Number(args['limit']));
-          return { runs: rows.map(row => ({ projectRunId: row.id, status: row.status })) };
+          // The compact page's own fields (2026-10-26): what it re-ran, when the client accepted it.
+          return { runs: rows.map(row => ({ projectRunId: row.id, status: row.status, rerunOf: row.rerunOf ?? null, acceptedAt: row.acceptedAt ?? null })) };
         }
+        if (name === 'atoma_run_status') statusReads.push(String(args['runId']));
         if (name === 'atoma_run_status') {
           const row = history.find(entry => entry.id === args['runId'])!;
           return { projectId, projectRunId: row.id, status: row.status, awaitingClientAcceptance: row.awaiting ?? false,
@@ -143,15 +169,24 @@ describe('the integrated assistant', () => {
         }
         return call(name, args, task);
       });
-      return (await f.service.view(f.service.scope(f.viewer, projectId), f.mcp)).run?.runId;
+      return (await f.service.view(f.service.scope(f.viewer, projectId), f.mcp))[field]?.runId;
     };
     const pending = { id: 'pending', status: 'delivered', awaiting: true };
     // Newest first, as the store lists them. Measured on production 2026-10-12:
     // a cancelled run and a comparison rerun each hid the delivery to accept.
     expect(await presented([{ id: 'cancelled', status: 'cancelled' }, { id: 'rerun', status: 'delivered', rerunOf: 'pending' }, pending]))
       .toBe('pending');
-    // A live run shows its status first.
+    // The server's fact the banner reads, live run or not; never a guess from the row.
+    expect(await presented([{ id: 'cancelled', status: 'cancelled' }, pending], 'awaiting')).toBe('pending');
+    expect(await presented([{ id: 'expired', status: 'delivered', awaiting: false }], 'awaiting')).toBeUndefined();
+    // A live run shows its status first, and no longer hides the delivery to accept (2026-10-26).
     expect(await presented([{ id: 'live', status: 'running' }, pending])).toBe('live');
+    expect(await presented([{ id: 'live', status: 'running' }, pending], 'awaiting')).toBe('pending');
+    expect(await presented([{ id: 'live', status: 'running' }, { ...pending, awaiting: false, acceptedAt: '2026-10-26T08:00:00.000Z' }], 'awaiting')).toBeUndefined();
+    // An accepted delivery is settled by its row: no status read to learn that.
+    statusReads.length = 0;
+    expect(await presented([{ id: 'accepted', status: 'delivered', acceptedAt: '2026-10-26T08:00:00.000Z' }, pending])).toBe('accepted');
+    expect(statusReads).toEqual(['accepted']);
     // A newer accepted delivery supersedes an older unaccepted one: never offer it.
     expect(await presented([{ id: 'accepted', status: 'delivered' }, pending])).toBe('accepted');
     // Nothing to accept: the newest run, whatever its outcome.

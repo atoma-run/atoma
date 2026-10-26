@@ -2788,11 +2788,22 @@ try {
       const originalAssistant = stubs['/api/assistant'];
       const deliveryRunId = 'eeeeeeee-1111-4222-8333-ffffffffffff';
       const reviewPath = `/api/projects/${projectId}/runs/${deliveryRunId}/review`;
+      const deliveredRun = { projectId, runId: deliveryRunId, status: 'delivered', costUsd: 0.22, traceId: 'trace-delivered', error: null,
+        endedAt: '2026-10-12T03:40:00.000Z' };
       stubs['/api/assistant'] = { ...originalAssistant,
-        run: { projectId, runId: deliveryRunId, status: 'delivered', costUsd: 0.22, traceId: 'trace-delivered', error: null },
+        run: deliveredRun, awaiting: deliveredRun,
+        // The project's runs told in the log: one from an agent, one from a teammate's terminal (2026-10-26).
+        activity: [
+          { runId: deliveryRunId, projectId, title: 'Deliver the app', goalExcerpt: 'Deliver the app', status: 'delivered',
+            createdAt: '2026-10-12T03:19:18.000Z', endedAt: '2026-10-12T03:40:00.000Z', costUsd: 0.22, requestedByName: 'Owner', mine: true,
+            requestedVia: { door: 'conversation' }, continuation: false, comparison: false, acceptedAt: null, publicationStatus: null, traceId: 'trace-delivered' },
+          { runId: '0f3c1b2a-4d5e-4f60-8a7b-9c0d1e2f3a4b', projectId, title: 'First version of the board', goalExcerpt: 'Build a first version of the board with columns and cards that can be moved between them',
+            status: 'failed', createdAt: '2026-10-11T08:00:00.000Z', endedAt: '2026-10-11T08:25:00.000Z', costUsd: 0.31, requestedByName: 'Sam Rivera', mine: false,
+            requestedVia: { door: 'mcp', client: 'claude-code' }, continuation: false, comparison: false, acceptedAt: null, publicationStatus: null, traceId: null },
+        ],
         conversation: { ...originalAssistant.conversation, projectId,
           lastRun: { projectId, runId: deliveryRunId }, messages: [
-            { role: 'receipt', text: 'assistant.runStarted', at: '2026-10-12T03:19:18.000Z' },
+            { role: 'receipt', text: 'assistant.runStarted', at: '2026-10-12T03:19:18.000Z', run: { projectId, runId: deliveryRunId } },
           ] },
       };
       stubs[reviewPath] = {
@@ -2817,9 +2828,9 @@ try {
             requests: performance.getEntriesByType('resource').filter(entry => entry.name.includes('/api/assistant')).map(entry => entry.name) })) }), { cause: error });
       });
       await accountPage.waitForFunction(() => [...document.querySelectorAll('.gpu-assistant-result button')]
-        .some(button => button.textContent === 'Review and publish to GitHub'));
+        .some(button => button.textContent === 'Accept this result'));
       await accountPage.evaluate(() => [...document.querySelectorAll('.gpu-assistant-result button')]
-        .find(button => button.textContent === 'Review and publish to GitHub').click());
+        .find(button => button.textContent === 'Accept this result').click());
       await accountPage.waitForSelector('#assistant-delivery-review', { visible: true });
       await accountPage.type('#assistant-delivery-review', 'Tested the delivered app.');
       await accountPage.screenshot({ path: '/tmp/atoma-assistant-delivery-review.png' });
@@ -2828,6 +2839,13 @@ try {
         return { fits: element.scrollWidth <= element.clientWidth, logFits: log.scrollWidth <= log.clientWidth };
       });
       if (!reviewLayout.fits || !reviewLayout.logFits) throw new Error('Delivery review overflows the conversation');
+      const narration = await accountPage.$$eval('.gpu-assistant-message--activity', nodes => nodes.map(node => node.textContent));
+      if (!narration.some(text => text.includes('Sam Rivera, from Claude Code')) || !narration.some(text => text.includes('The work did not complete'))) {
+        throw new Error(`Project runs are not narrated in the conversation: ${JSON.stringify(narration)}`);
+      }
+      if (!await accountPage.$('.gpu-assistant-run--review')) throw new Error('The result awaiting acceptance has no banner');
+      // Its receipt already tells the run this conversation started: never a second line.
+      if (narration.some(text => text.includes('from this conversation'))) throw new Error('A run started here is told twice');
       await clickAccountTarget('project.section.runs');
       await clickAccountTarget('project.section.conversation');
       if (await accountPage.$eval('#assistant-delivery-review', element => element.value) !== 'Tested the delivered app.') {

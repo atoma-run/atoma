@@ -775,6 +775,7 @@ async function main(): Promise<void> {
     principalId: principal.principalId,
     projectId: target.projectId,
     request: { goal, idempotencyKey: requestKey.data, ...(criteria ? { acceptanceChecklist: criteria } : {}) },
+    requestedVia: { door: 'cli' },
   });
   if (created && !admissionJournaled) events.append({
     kind: 'run.started',

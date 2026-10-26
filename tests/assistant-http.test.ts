@@ -300,6 +300,8 @@ it('continues a browser proposal through a second MCP client, then returns its r
     const conversationApproval = { conversationId: read.conversation.id, proposalId: proposal.id, version: read.conversation.version,
       requestId: randomUUID(), confirmation: 'Yes, start these stock alerts.' };
     await client.call('atoma_run_start', { ...action, conversationApproval }, true);
+    // A saved proposal approved anywhere is the conversation's start; the client that confirmed it rides along.
+    expect(f.start).toHaveBeenCalledWith(expect.anything(), f.projectId, expect.anything(), { door: 'conversation', client: 'atoma-assistant' });
     const browser = await (await fetch(`${f.url}/api/assistant?projectId=${f.projectId}`, { headers: { cookie: 'session=test' } })).json() as AssistantView;
     expect(browser.conversation.id).toBe(view.conversation.id);
     expect(browser.conversation.lastRun?.runId).toBe(f.runId);

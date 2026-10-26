@@ -41,6 +41,7 @@ import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
 import { declaredArtifactManifestSchema } from '../contracts/artifactManifest.js';
 import type {
   ArtifactManifest,
+  RunRequestedVia,
   StartProjectRunInput,
   Project,
   ProjectRun,
@@ -2308,6 +2309,8 @@ export class ProjectRunCoordinator {
     readonly principalId: string;
     readonly projectId: string;
     readonly request: StartProjectRunInput;
+    /** Which door asked: the caller's stamp, never the request's. */
+    readonly requestedVia?: RunRequestedVia;
   }): Promise<{ readonly run: ProjectRun; readonly created: boolean; readonly admissionJournaled?: boolean }> {
     if (this.executorSocket) {
       try { return await callExecutor(this.executorSocket, { method: 'start', input }); }
@@ -2418,6 +2421,7 @@ export class ProjectRunCoordinator {
         ...(rerun ? { origin: { goal: rerun.origin.goal, acceptance: rerun.acceptance,
           ...(rerun.origin.depth ? { depth: rerun.origin.depth } : {}) } } : {}),
         projectRunId: candidateRunId,
+        ...(input.requestedVia ? { requestedVia: input.requestedVia } : {}),
         enforceCapacity: true,
         ...(this.explicitTimeoutMs !== undefined ? { requestedTimeoutMs: this.explicitTimeoutMs } : {}),
         hostPaths: {

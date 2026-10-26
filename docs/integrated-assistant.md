@@ -22,18 +22,31 @@ tables and code blocks inside the conversation. Saved text remains unchanged;
 raw HTML is displayed as text and external images are not loaded. Web links
 open in a new tab.
 
-The conversation shows recorded run status and cost, including a result card
-when a run finishes, even after returning to the project. In a project, that
-card follows the project's runs whoever started them (the conversation, an MCP
-client or the CLI): a live run's status first, else the newest delivery still
-awaiting acceptance, which a later cancelled, failed or comparison run does not
-hide, else the newest run. **Open run** leads to
-the existing progress and result reader; the project offers supported previews.
-For a delivered result, **Review and publish to GitHub** opens a review field.
-After testing or reviewing the result, enter your review and choose **Accept
-and publish to GitHub**. Acceptance binds the exact saved delivery; publication
-uses the existing server checks. Text-only results offer acceptance without
-GitHub publication. A failed publication can be retried without another run.
+In a project, the conversation tells every run of the project at its place in
+time, whoever started it and from where: "You, from Claude Code", "Sam, from
+the command line", "from this conversation", or the name alone for a run
+started before Atoma recorded where runs come from. Each run gets a line when
+it was requested and a line when it ended, with its cost and whether its
+result was accepted or sent to GitHub. These lines are computed from the
+project's runs each time the conversation is read; they are never written into
+the conversation's history, and a run this conversation started is told once,
+by its receipt. The client name is what the connected agent declared about
+itself, shown as a known product name (Claude Code, Codex, Cursor) or as sent.
+
+A result card follows the project's runs: a live run's status first, else the
+newest delivery still awaiting acceptance, which a later cancelled, failed or
+comparison run does not hide, else the newest run. While a later run is live,
+a delivery still awaiting acceptance keeps its own card. Above the message
+field, one line says what is asked of you (**A result is waiting for you to
+look at it**, with **See it**) and one says what is happening (the work in
+progress, with **Follow the work**). **See the details** leads to the existing
+progress and result reader; the project offers supported previews. A failed
+run says it did not complete; the host's own message stays behind **See the
+details** in the card. For a delivered result, **Accept this result** opens
+**What did you check?**; then choose **Accept and send to GitHub**. Acceptance
+binds the exact saved delivery; publication uses the existing server checks.
+Text-only results offer acceptance without GitHub publication. A failed
+publication can be retried without another run.
 These controls read host receipts and make no model call. Answering blocking
 run questions and cancelling still use an external MCP client connected through
 Settings. Delivery alone does not publish.

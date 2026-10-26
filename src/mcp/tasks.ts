@@ -11,7 +11,7 @@ import { retrievalRegistrationSchema } from '../contracts/retrievalCampaign.js';
 import { MAX_CHECKLIST_BEHAVIOUR_CHARS, MAX_CHECKLIST_ITEMS, parseChecklistLines } from '../contracts/acceptanceChecklist.js';
 import type { RetrievalCampaignStart } from '../cli/retrievalCampaignHost.js';
 import { ProjectHttpError, type ProjectService } from '../projects/service.js';
-import { idempotencyKeySchema, createProjectRunInputSchema } from '../contracts/projects.js';
+import { idempotencyKeySchema, createProjectRunInputSchema, type RunRequestedVia } from '../contracts/projects.js';
 import { MAX_READ_RUN_BYTES, MAX_READ_RUN_FILES, MAX_READ_RUNS, readRunCopyPath } from '../contracts/readRuns.js';
 import type { Viewer } from '../auth/store.js';
 import {
@@ -381,9 +381,11 @@ export const PROJECT_CHECKPOINT_INPUT = {
 export interface ProjectRunTaskDeps {
   readonly conversations?: Conversations | null;
   readonly viewer: () => Viewer;
+  /** The connected client's own `clientInfo.name`, read at call time: reported attribution only. */
+  readonly clientName?: () => string | undefined;
   readonly service: {
     runTaskBudgetMs(): number;
-    startProjectRunFromInput(viewer: Viewer, projectId: string, body: unknown): Promise<unknown>;
+    startProjectRunFromInput(viewer: Viewer, projectId: string, body: unknown, requestedVia?: RunRequestedVia): Promise<unknown>;
     projectRunStatus(viewer: Viewer, projectId: string, projectRunId: string): unknown;
     /** The row state alone (no presentation): what a task's status needs. Absent: the status payload. */
     projectRunState?(viewer: Viewer, projectId: string, projectRunId: string): unknown;
@@ -732,6 +734,12 @@ export function benchmarkRunTask(
   };
 }
 
+/** The door an MCP start records: this client, by its own claimed name when it gave one. */
+function mcpDoor(deps: Pick<ProjectRunTaskDeps, 'clientName'>): RunRequestedVia {
+  const client = deps.clientName?.()?.trim().slice(0, 60);
+  return { door: 'mcp', ...(client ? { client } : {}) };
+}
+
 /** A continuation uses the service's durable retry identity and the successor's ordinary task. */
 export function projectResumeTask(
   tasks: CallerTasks,
@@ -744,7 +752,7 @@ export function projectResumeTask(
       const refuse = (message: string, problem?: ServiceProblem) => tasks.refuse(message, ttl, deps.pollMs ?? TASK_POLL_INTERVAL_MS, problem);
       if (!tasks.projectRuns) return refuse('refused: project runs are not available to this caller');
       try {
-        const started = await deps.service.controlCheckpoint(deps.viewer(), args.projectId, args.runId, 'resume') as { projectRunId: string };
+        const started = await deps.service.controlCheckpoint(deps.viewer(), args.projectId, args.runId, 'resume', mcpDoor(deps)) as { projectRunId: string };
         return tasks.projectRuns.task(projectRunTaskId(args.projectId, started.projectRunId))
           ?? refuse(`run ${started.projectRunId} already exists and is past its task retention; read it with atoma_run_status (projectId ${args.projectId}, runId ${started.projectRunId})`);
       } catch (error) {
@@ -793,7 +801,8 @@ export function projectRunTask(
           ...(args.rerunOf !== undefined ? { rerunOf: args.rerunOf } : {}),
           ...(args.models !== undefined ? { models: args.models } : {}),
           ...(args.depth !== undefined ? { depth: args.depth } : {}),
-        })) as { projectRunId: string };
+          // An approved saved proposal is the conversation's start, whichever client confirmed it.
+        }, args.conversationApproval ? { ...mcpDoor(deps), door: 'conversation' } : mcpDoor(deps))) as { projectRunId: string };
         if (args.conversationApproval) {
           if (!deps.conversations) throw new AssistantConflict('Shared conversations are unavailable.');
           if (args.goal === undefined || args.baseRunId !== undefined || args.rerunOf !== undefined || args.models !== undefined || args.depth !== undefined ||

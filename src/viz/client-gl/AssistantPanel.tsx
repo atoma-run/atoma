@@ -8,6 +8,7 @@ import { AtomaLoader, loaderVisible, revealClass, useLoadingReveal } from './Ato
 import { ButtonIcon } from './ButtonIcon.js';
 import { AssistantMarkdown } from './AssistantMarkdown.js';
 import { AssistantRunResult } from './AssistantRunResult.js';
+import { activityLines, activitySettled, activityWhat, activityWho, type ActivityLine } from './assistant-activity.js';
 
 interface Props {
   scopeKey: string; projectId: string | null; locale: string;
@@ -32,6 +33,43 @@ interface OptimisticMessage {
 function isRecordedMessage(message: OptimisticMessage, view: AssistantView | undefined): boolean {
   return view?.conversation.lastRequestId === message.requestId && view.conversation.messages.some(saved =>
     saved.role === 'user' && saved.text === message.text && !!saved.id && !message.knownMessageIds.has(saved.id));
+}
+
+type TimelineEntry<M> = { kind: 'message'; message: M; index: number }
+  | { kind: 'line'; line: ActivityLine } | { kind: 'result'; run: NonNullable<AssistantView['run']> };
+
+/**
+ * Messages in their saved order, each insert before the first message later
+ * than it; an insert without a time goes last. A tie keeps the message first.
+ */
+function interleave<M extends { at: string }>(messages: readonly M[],
+  inserts: ReadonlyArray<{ at: string | null; entry: TimelineEntry<M> }>): TimelineEntry<M>[] {
+  const time = (at: string | null) => { const ms = at ? Date.parse(at) : NaN; return Number.isFinite(ms) ? ms : Infinity; };
+  const pending = [...inserts].sort((a, b) => time(a.at) - time(b.at));
+  const timeline: TimelineEntry<M>[] = [];
+  messages.forEach((message, index) => {
+    while (pending.length && time(pending[0]!.at) < time(message.at)) timeline.push(pending.shift()!.entry);
+    timeline.push({ kind: 'message', message, index });
+  });
+  return [...timeline, ...pending.map(insert => insert.entry)];
+}
+
+const resultCardId = (runId: string) => `assistant-result-${runId}`;
+
+/** One narrated run: who asked and from where, or how it ended; never a model's words. */
+function ActivityLineView({ line, locale, t, onRun }: { line: ActivityLine; locale: string;
+  t: (key: string, vars?: Record<string, unknown>) => string; onRun: (run: AssistantRun, traceId: string | null) => void }) {
+  const { run } = line;
+  const settled = line.kind === 'ended' ? activitySettled(run, t) : null;
+  return <article className="gpu-assistant-message gpu-assistant-message--activity">
+    <div className="gpu-assistant-message-meta"><strong>{line.kind === 'started' ? activityWho(run, t) : t('assistant.receipt')}</strong>
+      <RelativeTime at={line.at} locale={locale} t={t} /></div>
+    <p>{activityWhat(line, t)}{line.kind === 'ended' && run.costUsd !== null ? ` · $${run.costUsd.toFixed(2)}` : ''}</p>
+    {settled ? <p>{settled}</p> : null}
+    {line.kind === 'ended' ? <div className="gpu-assistant-message-actions">
+      <button type="button" onClick={() => onRun({ projectId: run.projectId, runId: run.runId }, run.traceId ?? null)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
+    </div> : null}
+  </article>;
 }
 
 /**
@@ -98,7 +136,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   const waiting = busy || query.data?.busy === true;
   const active = useGpuStore(state => !state.selectedProjectId || state.projectSection === 'conversation');
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; },
-    [conversation?.messages.at(-1)?.id ?? conversation?.messages.length, visibleOptimistic?.requestId, query.data?.run?.status, waiting, active]);
+    [conversation?.messages.at(-1)?.id ?? conversation?.messages.length, visibleOptimistic?.requestId, query.data?.run?.status, waiting, active,
+      query.data?.activity?.[0]?.runId, query.data?.activity?.[0]?.status]);
   const proposal = conversation?.proposal;
   // A start's read runs, as saved; Approve echoes exactly these back.
   const readRunIds = proposal?.action.kind === 'start_run' ? proposal.action.readRunIds ?? [] : [];
@@ -108,6 +147,9 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     queryFn: () => api.projectRuns(readRunsProjectId!), enabled: readRunIds.length > 0 && readRunsProjectId !== null, staleTime: 5_000 });
   const shownRun = query.data?.run ?? null;
   const runInProgress = shownRun?.status === 'queued' || shownRun?.status === 'running';
+  // The delivery the server says awaits the client's acceptance: a live run must not hide it.
+  const awaitingRun = query.data?.awaiting ?? null;
+  const activity = query.data?.activity ?? [];
   const modelChoice = selection ?? conversation?.modelChoice ?? '';
   const choices = query.data?.choices ?? [];
   const selected = choices.find(choice => choice.id === modelChoice);
@@ -120,20 +162,21 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   // No exchange yet. A run started elsewhere does not make the conversation
   // tall: the card keeps its natural height, the result card or the live
   // status included (2026-10-12: a full-height empty log above "running").
-  const quiet = !waiting && !visibleOptimistic && older.length === 0 && !conversation?.messages.length && !before &&
-    (!proposal || proposal.state === 'done');
   const finishedRun = shownRun && ['delivered', 'partial', 'failed', 'cancelled'].includes(shownRun.status) ? shownRun : null;
   const messages = [...older, ...(conversation?.messages ?? []), ...(visibleOptimistic
     ? [{ id: visibleOptimistic.requestId, role: 'user' as const, text: visibleOptimistic.text, at: visibleOptimistic.at }]
     : [])];
-  const endedAtMs = finishedRun?.endedAt ? Date.parse(finishedRun.endedAt) : NaN;
-  const firstLaterMessage = Number.isFinite(endedAtMs) ? messages.findIndex(message => Date.parse(message.at) > endedAtMs) : -1;
-  const resultPosition = firstLaterMessage < 0 ? messages.length : firstLaterMessage;
-  const timeline: Array<{ kind: 'message'; message: typeof messages[number]; index: number } | { kind: 'result' }> =
-    messages.map((message, index) => ({ kind: 'message', message, index }));
-  if (finishedRun) timeline.splice(resultPosition, 0, { kind: 'result' });
-  const resultCard = finishedRun ? <AssistantRunResult key={`${scopeKey}:${finishedRun.runId}`} scopeKey={scopeKey}
-    target={{ projectId: finishedRun.projectId, runId: finishedRun.runId }} run={finishedRun} locale={locale} t={t} onRun={onRun} hosting={hosting} /> : null;
+  // Outside a live run the presented run usually IS the awaiting delivery: one card.
+  const cards = [awaitingRun, finishedRun?.runId === awaitingRun?.runId ? null : finishedRun].flatMap(run => run ? [run] : []);
+  // The project's runs, whoever started them and from where, told at their place in time (2026-10-26).
+  const lines = activityLines({ activity, messages, carded: new Set(cards.map(run => run.runId)), olderUnloaded: before !== null });
+  const quiet = !waiting && !visibleOptimistic && older.length === 0 && !conversation?.messages.length && !before &&
+    (!proposal || proposal.state === 'done') && lines.length === 0;
+  const timeline = interleave(messages, [
+    ...lines.map(line => ({ at: line.at, entry: { kind: 'line' as const, line } })),
+    ...cards.map(run => ({ at: run.endedAt, entry: { kind: 'result' as const, run } })),
+  ]);
+  const liveEntry = shownRun && runInProgress ? activity.find(entry => entry.runId === shownRun.runId) : undefined;
   const empty = quiet && !finishedRun;
   const newProjectPrompt = empty && !projectId && !shownRun;
   const compact = externalAgentOpen || Boolean(query.data && choices.length > 0 && quiet && !error && !query.isError);
@@ -274,7 +317,10 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       {before ? <button type="button" disabled={loadingHistory} onClick={() => void loadOlder()}>{t('assistant.olderMessages')}</button> : null}
       {empty && conversation && projectId ? <p className="gpu-assistant-empty">{t('assistant.existingHint')}</p> : null}
       {timeline.map(entry => {
-        if (entry.kind === 'result') return resultCard;
+        if (entry.kind === 'result') return <AssistantRunResult key={`${scopeKey}:${entry.run.runId}`} scopeKey={scopeKey}
+          id={resultCardId(entry.run.runId)} target={{ projectId: entry.run.projectId, runId: entry.run.runId }} run={entry.run}
+          locale={locale} t={t} onRun={onRun} hosting={hosting} />;
+        if (entry.kind === 'line') return <ActivityLineView key={entry.line.key} line={entry.line} locale={locale} t={t} onRun={onRun} />;
         const { message } = entry;
         return <article key={message.id ?? `${message.at}:${entry.index}`} className={`gpu-assistant-message gpu-assistant-message--${message.role}`}>
         <div className="gpu-assistant-message-meta"><strong>{t(message.role === 'user' ? 'assistant.you' : message.role === 'receipt' ? 'assistant.receipt' : 'assistant.title')}</strong>
@@ -320,10 +366,19 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
         <span className="gpu-assistant-typing-dots" aria-hidden="true"><span /><span /><span /></span>
       </div> : null}
     </div>
+    {/* What is asked of the person first, then what is happening: the log is where it is told, this is where one acts. */}
+    {awaitingRun ? <div className="gpu-assistant-run gpu-assistant-run--review" role="status">
+      <span>{t('assistant.banner.resultWaiting')}</span>
+      <button type="button" onClick={() => document.getElementById(resultCardId(awaitingRun.runId))?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}>
+        {t('assistant.banner.seeResult')}</button>
+    </div> : null}
     {shownRun && !finishedRun ? <div className="gpu-assistant-run" role="status">
-      <span>{t('assistant.runStatus', { status: t(shownRun.resultsWaiting ? 'projects.resultsWaiting.status' : `projects.runStatus.${shownRun.status}`) })}
+      <span>{shownRun.resultsWaiting || !liveEntry
+        ? t('assistant.runStatus', { status: t(shownRun.resultsWaiting ? 'projects.resultsWaiting.status' : `projects.runStatus.${shownRun.status}`) })
+        : <>{t(shownRun.status === 'queued' ? 'assistant.banner.queued' : 'assistant.banner.running', { title: liveEntry.title ?? liveEntry.goalExcerpt })}
+          {' · '}<RelativeTime at={liveEntry.createdAt} locale={locale} t={t} /></>}
         {shownRun.costUsd !== null ? ` · $${shownRun.costUsd.toFixed(2)}` : ''}</span>
-      <button type="button" onClick={() => onRun({ projectId: shownRun.projectId, runId: shownRun.runId }, shownRun.traceId)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
+      <button type="button" onClick={() => onRun({ projectId: shownRun.projectId, runId: shownRun.runId }, shownRun.traceId)}><ButtonIcon kind="play" />{t('assistant.followRun')}</button>
     </div> : null}
     {error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
     {runInProgress ? <p role="status">{t(shownRun?.resultsStalled ? 'assistant.resultsStalled' : shownRun?.resultsWaiting ? 'assistant.resultsWaiting' : 'assistant.runInProgress')}</p> : <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>

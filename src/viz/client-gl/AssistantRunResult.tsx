@@ -9,8 +9,10 @@ import { hostedUpdateOffer, type DeploymentSettingsView } from './project-deploy
 import { HostedUpdateOfferSection } from './HostedUpdateOffer.js';
 
 /** Current host receipts, not a generated reply or a rewrite of the conversation journal. */
-export function AssistantRunResult({ scopeKey, target, run, locale, t, onRun, hosting }: {
+export function AssistantRunResult({ scopeKey, id, target, run, locale, t, onRun, hosting }: {
   scopeKey: string; target: AssistantRun; run: NonNullable<AssistantView['run']>;
+  /** The card's element id, which the conversation's "see the result" control scrolls to. */
+  id?: string;
   locale: string;
   t: (key: string, vars?: Record<string, unknown>) => string;
   onRun: (run: AssistantRun, traceId: string | null) => void;
@@ -54,12 +56,13 @@ export function AssistantRunResult({ scopeKey, target, run, locale, t, onRun, ho
     }
   }
 
-  return <article className="gpu-assistant-message gpu-assistant-message--receipt gpu-assistant-result" aria-label={t('assistant.runResult')}>
+  return <article id={id} className="gpu-assistant-message gpu-assistant-message--receipt gpu-assistant-result" aria-label={t('assistant.runResult')}>
     <div className="gpu-assistant-message-meta"><strong>{t('assistant.receipt')}</strong>
       {run.endedAt ? <RelativeTime at={run.endedAt} locale={locale} t={t} /> : null}</div>
     <p><strong>{t(`assistant.outcome.${run.status}`)}</strong>
       {run.costUsd !== null ? ` · $${run.costUsd.toFixed(2)}` : ''}</p>
-    {run.error ? <p>{run.error}</p> : null}
+    {/* The outcome line already says it did not complete; the host's own words stay one click away. */}
+    {run.error ? <details className="gpu-assistant-error-details"><summary>{t('assistant.errorDetails')}</summary><p>{run.error}</p></details> : null}
     {review?.verification.acceptanceApproved === true ? <p>{t('assistant.checksApproved')}</p> : null}
     {parentTestsLine ? <p>{parentTestsLine}</p> : null}
     {review?.publicationStatus === 'published' ? <p>{t('assistant.deliveryPublished')}</p>

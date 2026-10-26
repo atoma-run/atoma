@@ -777,7 +777,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           annotations: MUTATING,
         },
         projectRunTask(ctx.tasks.tasks, {
-          viewer: ctx.viewer, service: tenant(ctx).service, conversations: ctx.deps.conversations,
+          viewer: ctx.viewer, service: tenant(ctx).service, conversations: ctx.deps.conversations, clientName: () => server.server.getClientVersion()?.name,
           ...(ctx.deps.taskPollMs !== undefined ? { pollMs: ctx.deps.taskPollMs } : {}),
         }) as TaskStart<unknown>
       ),
@@ -804,7 +804,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       inputSchema: PROJECT_CHECKPOINT_INPUT,
       annotations: MUTATING,
     }, projectResumeTask(ctx.tasks.tasks, {
-      viewer: ctx.viewer, service: tenant(ctx).service, ...(ctx.deps.taskPollMs !== undefined ? { pollMs: ctx.deps.taskPollMs } : {}),
+      viewer: ctx.viewer, service: tenant(ctx).service, clientName: () => server.server.getClientVersion()?.name, ...(ctx.deps.taskPollMs !== undefined ? { pollMs: ctx.deps.taskPollMs } : {}),
     }) as TaskStart<unknown>),
   },
   {

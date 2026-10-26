@@ -1767,9 +1767,9 @@ try {
         throw new Error('Opening the current project discarded the conversation draft');
       }
       await page.screenshot({ path: outPath.replace(/\.png$/, '-chat.png') });
-      await clickReceipt('Open run');
+      await clickReceipt('See the details');
       await page.waitForFunction(() => document.querySelector('[data-viz-live]')?.textContent?.startsWith('Runs —'));
-      console.log(`Assistant links: current project opens its Runs tab, draft retained, Open run opens the trace; buttons ${JSON.stringify(buttons)}`);
+      console.log(`Assistant links: current project opens its Runs tab, draft retained, See the details opens the trace; buttons ${JSON.stringify(buttons)}`);
     }
 
     if (projectTabsProbe) {

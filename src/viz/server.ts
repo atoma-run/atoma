@@ -5303,7 +5303,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       if (!projectId || !runId) { sendJson(res, 400, { error: 'bad project run id' }); return; }
       try {
         sendJson(res, 200, await PROJECTS_RUNTIME.projects.controlCheckpoint(viewer, projectId, runId,
-          checkpointControl[3] as 'pause' | 'resume'));
+          checkpointControl[3] as 'pause' | 'resume', { door: 'web' }));
       } catch (error) {
         if (error instanceof ProjectHttpError) { sendJson(res, error.status, { error: error.message }); return; }
         throw error;
@@ -5500,7 +5500,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
           await (retryPublish[3] === 'accept'
             ? PROJECTS_RUNTIME.projects.acceptDeliveryRequest(req, viewer, projectId, projectRunId)
             : retryPublish[3] === 'github-access'
-            ? PROJECTS_RUNTIME.projects.continueGitHubAccess(viewer, projectId, projectRunId)
+            ? PROJECTS_RUNTIME.projects.continueGitHubAccess(viewer, projectId, projectRunId, { door: 'web' })
             : PROJECTS_RUNTIME.projects.retryPublication(viewer, projectId, projectRunId))
         );
       } catch (error) {

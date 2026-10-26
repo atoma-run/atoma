@@ -15,6 +15,7 @@ import { mcpHostWiring } from '../src/mcp/server.js';
 import { MemoryTasks, forgetTasksForTest } from '../src/mcp/tasks.js';
 import { TASKS_EXTENSION } from '../src/mcp/taskWire.js';
 import type { McpToolDeps } from '../src/mcp/tools.js';
+import { ProjectHttpError } from '../src/projects/service.js';
 
 /**
  * THE 2026-07-28 ERA ON THE SAME ROUTE. What these hold, through the SDK v2
@@ -210,6 +211,29 @@ describe('the 2026-07-28 era', () => {
     } finally {
       await client.close();
     }
+  });
+
+  it('records the client a 2026 request declares as the door a run started from, with and without a task', async () => {
+    // Claude Code speaks this era (production, 2026-10-26): it has no session,
+    // so the declared client rides each request's _meta, and the start must read it there.
+    const seen: unknown[] = [];
+    const member: McpCaller = { kind: 'principal', viewer: viewer('org:member'), tokenId: 'm' };
+    const { url } = await listen(() => member, {
+      ...NO_TENANT, operatorRuns: false, auth: {} as never,
+      projects: { store: {} as never, service: {
+        runTaskBudgetMs: () => 60_000,
+        startProjectRunFromInput: async (_viewer: Viewer, _projectId: string, _body: unknown, requestedVia: unknown) => {
+          seen.push(requestedVia);
+          throw new ProjectHttpError(409, 'stop before any run');
+        },
+      } as never },
+    });
+    for (const tasks of [false, true]) {
+      // Without a task the refusal is the answer; with one, a task that ended at once.
+      const { body } = await modernRequest(url, 'tools/call', { name: 'atoma_run_start', arguments: { projectId: 'p', goal: 'Build it.' } }, { tasks });
+      expect(JSON.stringify(body)).toMatch(tasks ? /"resultType":"task"/ : /stop before any run/);
+    }
+    expect(seen).toEqual([{ door: 'mcp', client: 'hand-built' }, { door: 'mcp', client: 'hand-built' }]);
   });
 
   it('serves a 2026 client per request with its tier’s tools, beside a 2025 session, and counts who speaks what', async () => {

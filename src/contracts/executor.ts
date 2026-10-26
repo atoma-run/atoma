@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { startProjectRunInputSchema, type GitHubAccessRequired } from './projects.js';
+import { runRequestedViaSchema, startProjectRunInputSchema, type GitHubAccessRequired } from './projects.js';
 import { previewClassificationSchema, previewEgressHostsSchema } from './preview.js';
 
 const identity = z.string().min(1).max(200);
@@ -15,7 +15,10 @@ export const executorRequestSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('yield-background') }).strict(),
   z.object({ method: z.literal('retire-previews') }).strict(),
   z.object({ method: z.literal('start'), input: z.object({ orgId: identity, principalId: identity,
-    projectId: identity, request: startProjectRunInputSchema }).strict() }).strict(),
+    // `requestedVia` (2026-10-26) without a compatibility bump: only a web of the
+    // same release sends it, and activation switches the admission socket before
+    // starting that web and restores both together on failure (automatic-deployment.md).
+    projectId: identity, request: startProjectRunInputSchema, requestedVia: runRequestedViaSchema.optional() }).strict() }).strict(),
   z.object({ method: z.literal('publish'), orgId: identity, runId: identity }).strict(),
   z.object({ method: z.literal('compute-finalize'), orgId: identity, runId: identity, principalId: identity }).strict(),
   z.object({ method: z.literal('preview-start'), input: executorPreviewStartSchema }).strict(),

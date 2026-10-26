@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { createElement } from 'react';
 import { userEvent } from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, expect, it, onTestFinished, vi } from 'vitest';
 import { AssistantPanel } from '../src/viz/client-gl/AssistantPanel.js';
 import { api } from '../src/viz/client/data-api.js';
 import { translate } from '../src/viz/client/i18n-catalog.js';
@@ -388,9 +388,9 @@ it('shows run status, opens the existing run view and separates conversation cos
   data.conversation.inputTokens = 900;
   data.conversation.outputTokens = 240;
   const { props } = panel(data);
-  expect(await screen.findByRole('article', { name: 'Run result' })).toHaveTextContent('$0.52');
+  expect(await screen.findByRole('article', { name: 'Result of the work' })).toHaveTextContent('$0.52');
   expect(screen.getByText(/Conversation:/)).toHaveTextContent('$0.0012');
-  await userEvent.click(screen.getByRole('button', { name: 'Open run' }));
+  await userEvent.click(screen.getByRole('button', { name: 'See the details' }));
   expect(props.onRun).toHaveBeenCalledWith(data.conversation.lastRun, 'trace-1');
 });
 
@@ -405,20 +405,20 @@ it('recovers a delivered run on re-entry and publishes only after explicit revie
   });
   const inference = vi.spyOn(api, 'assistantRequest');
   panel({ ...deliveredView(), available: false, choices: [] }); // No connected model is needed.
-  const result = await screen.findByRole('article', { name: 'Run result' });
-  expect(within(result).getByText('Run delivered — ready for your review.')).toBeVisible();
-  await userEvent.click(await screen.findByRole('button', { name: 'Review and publish to GitHub' }));
+  const result = await screen.findByRole('article', { name: 'Result of the work' });
+  expect(within(result).getByText(translate('en', 'assistant.outcome.delivered'))).toBeVisible();
+  await userEvent.click(await screen.findByRole('button', { name: 'Accept this result' }));
   expect(fetch).not.toHaveBeenCalled();
-  const confirm = screen.getByRole('button', { name: 'Accept and publish to GitHub' });
+  const confirm = screen.getByRole('button', { name: 'Accept and send to GitHub' });
   expect(confirm).toBeDisabled();
-  await userEvent.type(screen.getByRole('textbox', { name: 'Your review of this delivery' }), 'Tested adding and removing books.');
+  await userEvent.type(screen.getByRole('textbox', { name: 'What did you check?' }), 'Tested adding and removing books.');
   await userEvent.click(confirm);
   expect(fetch).toHaveBeenCalledOnce();
   expect(fetch).toHaveBeenCalledWith(`/api/projects/${projectId}/runs/run-1/accept`, expect.objectContaining({
     method: 'POST', body: JSON.stringify({ manifestHash: 'a'.repeat(64), review: 'Tested adding and removing books.' }),
   }));
-  expect(await screen.findByText('Published to GitHub. Open the run for publication details.')).toBeVisible();
-  expect(screen.queryByRole('button', { name: 'Review and publish to GitHub' })).not.toBeInTheDocument();
+  expect(await screen.findByText(translate('en', 'assistant.deliveryPublished'))).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Accept this result' })).not.toBeInTheDocument();
   expect(inference).not.toHaveBeenCalled();
 });
 
@@ -428,9 +428,9 @@ it('offers review and publication for a run this conversation did not start', as
   const read = vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
   const data = deliveredView(); data.conversation.lastRun = null;
   const { props } = panel(data);
-  expect(await screen.findByRole('button', { name: 'Review and publish to GitHub' })).toBeVisible();
+  expect(await screen.findByRole('button', { name: 'Accept this result' })).toBeVisible();
   expect(read).toHaveBeenCalledWith(projectId, 'run-1');
-  await userEvent.click(screen.getByRole('button', { name: 'Open run' }));
+  await userEvent.click(screen.getByRole('button', { name: 'See the details' }));
   expect(props.onRun).toHaveBeenCalledWith({ projectId, runId: 'run-1' }, 'trace-1');
 });
 
@@ -438,7 +438,7 @@ it.each(['partial', 'failed', 'cancelled'])('announces a %s outcome without offe
   const read = vi.spyOn(api, 'runReview');
   const data = deliveredView(); data.run!.status = status;
   panel(data);
-  expect(await screen.findByRole('article', { name: 'Run result' })).toBeVisible();
+  expect(await screen.findByRole('article', { name: 'Result of the work' })).toBeVisible();
   expect(screen.queryByRole('button', { name: /publish to GitHub/ })).not.toBeInTheDocument();
   expect(read).not.toHaveBeenCalled();
 });
@@ -449,7 +449,7 @@ it('replaces live status with the completion card when the polling result change
   const { client } = panel(data);
   expect(await screen.findByText(/Run: running/)).toBeVisible();
   await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], deliveredView()); });
-  expect(await screen.findByRole('button', { name: 'Review and publish to GitHub' })).toBeVisible();
+  expect(await screen.findByRole('button', { name: 'Accept this result' })).toBeVisible();
   expect(screen.queryByText(/Run: running/)).not.toBeInTheDocument();
 });
 
@@ -457,13 +457,13 @@ it('offers acceptance without GitHub for text-only results and refuses unavailab
   const review = deliveryReview(); review.delivery = 'text'; review.files!.files = []; review.files!.total = 0;
   vi.spyOn(api, 'runReview').mockResolvedValue(review);
   const first = panel(deliveredView());
-  expect(await screen.findByRole('button', { name: 'Review and accept delivery' })).toBeVisible();
+  expect(await screen.findByRole('button', { name: 'Accept this result' })).toBeVisible();
   expect(screen.queryByRole('button', { name: /GitHub/ })).not.toBeInTheDocument();
   first.unmount();
   vi.mocked(api.runReview).mockRejectedValue(new Error('Unavailable'));
   panel(deliveredView());
-  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the delivery review');
-  expect(screen.queryByRole('button', { name: /Review and/ })).not.toBeInTheDocument();
+  expect(await screen.findByRole('alert')).toHaveTextContent(translate('en', 'assistant.deliveryReadFailed'));
+  expect(screen.queryByRole('button', { name: 'Accept this result' })).not.toBeInTheDocument();
 });
 
 it('refreshes acceptance after a lost publication response and retries publication without accepting again', async () => {
@@ -476,10 +476,10 @@ it('refreshes acceptance after a lost publication response and retries publicati
   });
   const publish = vi.spyOn(api, 'retryPublication').mockResolvedValue({} as Awaited<ReturnType<typeof api.retryPublication>>);
   panel(deliveredView());
-  await userEvent.click(await screen.findByRole('button', { name: 'Review and publish to GitHub' }));
-  await userEvent.type(screen.getByRole('textbox', { name: 'Your review of this delivery' }), 'Reviewed.');
-  await userEvent.click(screen.getByRole('button', { name: 'Accept and publish to GitHub' }));
-  const retry = await screen.findByRole('button', { name: 'Retry GitHub publication' });
+  await userEvent.click(await screen.findByRole('button', { name: 'Accept this result' }));
+  await userEvent.type(screen.getByRole('textbox', { name: 'What did you check?' }), 'Reviewed.');
+  await userEvent.click(screen.getByRole('button', { name: 'Accept and send to GitHub' }));
+  const retry = await screen.findByRole('button', { name: 'Send to GitHub again' });
   await waitFor(() => expect(retry).toBeEnabled());
   await userEvent.click(retry);
   expect(accept).toHaveBeenCalledOnce();
@@ -563,7 +563,7 @@ it('keeps a conversation without messages at its natural height while a run show
   expect(screen.getByRole('log')).toHaveClass('gpu-assistant-log--empty');
   expect(useGpuStore.getState().projectAssistantCompact).toBe(true);
   await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], { ...data, run: { ...data.run!, status: 'delivered' } }); });
-  expect(await screen.findByRole('button', { name: 'Review and publish to GitHub' })).toBeVisible();
+  expect(await screen.findByRole('button', { name: 'Accept this result' })).toBeVisible();
   expect(screen.getByRole('log')).not.toHaveClass('gpu-assistant-log--empty');
   expect(useGpuStore.getState().projectAssistantCompact).toBe(true);
   await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], { ...data, run: { ...data.run!, status: 'delivered' },
@@ -584,14 +584,14 @@ it.each(['delivered', 'partial', 'failed', 'cancelled'])('hides the composer dur
     await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], { ...data, run: { ...run, status: liveStatus } }); });
     await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
-    expect(screen.getByText('A run is queued or in progress. You can request a change after its result is available.')).toBeVisible();
-    await userEvent.click(screen.getByRole('button', { name: 'Open run' }));
+    expect(screen.getByText(translate('en', 'assistant.runInProgress'))).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Follow the work' }));
     expect(props.onRun).toHaveBeenLastCalledWith({ projectId, runId: run.runId }, run.traceId);
   }
   await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], { ...data, run: { ...run, status } }); });
   expect(await screen.findByRole('textbox')).toHaveValue('Keep this draft');
   expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
-  expect(screen.queryByText('A run is queued or in progress. You can request a change after its result is available.')).not.toBeInTheDocument();
+  expect(screen.queryByText(translate('en', 'assistant.runInProgress'))).not.toBeInTheDocument();
   expect(request).not.toHaveBeenCalled();
 });
 
@@ -606,8 +606,11 @@ it('places a finished run before a later question and shows its completion time'
   const log = await screen.findByRole('log');
   const items = within(log).getAllByRole('article');
   expect(items).toHaveLength(3);
-  expect(items[0]).toHaveTextContent('Run requested.');
-  expect(items[1]).toHaveTextContent('Run failed');
+  expect(items[0]).toHaveTextContent('Work requested.');
+  expect(items[1]).toHaveTextContent('The work did not complete.');
+  // The host's own words stay behind a disclosure, never in the card's sentence.
+  expect(within(items[1]!).getByText('See the details', { selector: 'summary' })).toBeVisible();
+  expect(within(items[1]!).getByText('runner finished with outcome error')).not.toBeVisible();
   expect(items[2]).toHaveTextContent('Why did the run fail?');
   const time = items[1]!.querySelector('time');
   expect(time).toHaveAttribute('dateTime', data.run.endedAt);
@@ -726,4 +729,92 @@ it('lets the user choose a model when browser storage is unavailable', async () 
   await userEvent.selectOptions(await screen.findByRole('combobox'), 'api:openai:small');
   expect(screen.getByRole('textbox')).toBeEnabled();
   expect(screen.getByRole('button', { name: 'Change model' })).toBeVisible();
+});
+
+function activity(overrides: Partial<NonNullable<AssistantView['activity']>[number]>): NonNullable<AssistantView['activity']>[number] {
+  return { runId: 'c3a2c3f4-6f0e-4f43-9d0e-7f4a3f1f9a10', projectId, title: null, goalExcerpt: 'Add a contact form', status: 'running',
+    createdAt: '2026-10-26T08:00:00.000Z', endedAt: null, costUsd: null, requestedByName: 'Alice', mine: true,
+    continuation: false, comparison: false, acceptedAt: null, publicationStatus: null, ...overrides };
+}
+
+it('tells who asked for each project run and from where, once, at its place among the messages', async () => {
+  const fromClaude = activity({ requestedVia: { door: 'mcp', client: 'claude-code' } });
+  const teammate = activity({ runId: '1d0ef6d6-1d7a-4d36-9a7e-34b1e5a6b0c1', mine: false, requestedByName: 'Sam', status: 'delivered',
+    title: 'Contact form', createdAt: '2026-10-25T08:00:00.000Z', endedAt: '2026-10-25T09:00:00.000Z', costUsd: 0.42,
+    requestedVia: { door: 'cli' }, acceptedAt: '2026-10-25T10:00:00.000Z', publicationStatus: 'published', traceId: 'trace-sam' });
+  const fromChat = activity({ runId: '9f1f3a51-2a0e-4c9b-8d4c-6b5b3a7f2e11', createdAt: '2026-10-24T08:00:00.000Z',
+    requestedVia: { door: 'conversation' }, status: 'failed', endedAt: '2026-10-24T08:30:00.000Z' });
+  const unknownDoor = activity({ runId: '5b8c2d0e-3f4a-4b6c-9d7e-8f9a0b1c2d3e', mine: false, requestedByName: 'Robin',
+    createdAt: '2026-10-23T08:00:00.000Z', status: 'cancelled', endedAt: '2026-10-23T08:10:00.000Z' });
+  const data = view();
+  data.conversation.projectId = projectId;
+  data.run = { projectId, runId: fromClaude.runId, status: 'running', costUsd: null, traceId: 'trace-live', error: null, endedAt: null };
+  data.activity = [fromClaude, teammate, fromChat, unknownDoor];
+  data.conversation.messages = [
+    { role: 'receipt', text: 'assistant.runStarted', at: fromChat.createdAt, run: { projectId, runId: fromChat.runId } },
+    { role: 'user', text: 'What happened yesterday?', at: '2026-10-25T12:00:00.000Z' },
+  ];
+  const { props } = panel(data, 'alice:org-a', projectId);
+  const log = await screen.findByRole('log');
+  await within(log).findByText('What happened yesterday?');
+  const items = within(log).getAllByRole('article').map(item => item.textContent);
+  expect(items).toEqual([
+    expect.stringContaining('Robin'),
+    expect.stringContaining('Work cancelled: Add a contact form'),
+    // Started from this conversation: its receipt tells it, never a second line.
+    expect.stringContaining('Work requested.'),
+    expect.stringContaining('The work did not complete: Add a contact form'),
+    expect.stringContaining('Sam, from the command line'),
+    expect.stringContaining('Work finished: Contact form'),
+    expect.stringContaining('What happened yesterday?'),
+    expect.stringContaining('You, from Claude Code'),
+  ]);
+  expect(items[0]).not.toContain(','); // an unrecorded door is not guessed
+  expect(items[5]).toContain('$0.42');
+  expect(items[5]).toContain('This result was accepted and sent to GitHub.');
+  expect(items[7]).toContain('Work requested: “Add a contact form”');
+  // An ended line opens its own run, by its trace.
+  const ended = within(log).getAllByRole('article')[5]!;
+  await userEvent.click(within(ended).getByRole('button', { name: 'See the details' }));
+  expect(props.onRun).toHaveBeenLastCalledWith({ projectId, runId: teammate.runId }, 'trace-sam');
+  expect(screen.getByText('Work in progress: Add a contact form', { exact: false })).toBeVisible();
+});
+
+it('keeps a result to accept in view while later work runs, and leads to it from the banner', async () => {
+  const read = vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
+  const scroll = vi.fn();
+  const original = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = scroll;
+  onTestFinished(() => { Element.prototype.scrollIntoView = original; });
+  const data = view();
+  data.conversation.projectId = projectId;
+  data.run = { projectId, runId: 'c3a2c3f4-6f0e-4f43-9d0e-7f4a3f1f9a10', status: 'running', costUsd: null, traceId: 'trace-live', error: null, endedAt: null };
+  data.awaiting = { projectId, runId: 'run-1', status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null, endedAt: '2026-10-25T09:00:00.000Z' };
+  panel(data, 'alice:org-a', projectId);
+  expect(await screen.findByRole('article', { name: 'Result of the work' })).toHaveTextContent('$0.52');
+  expect(await screen.findByRole('button', { name: 'Accept this result' })).toBeVisible();
+  expect(read).toHaveBeenCalledWith(projectId, 'run-1');
+  const banner = screen.getByText('A result is waiting for you to look at it.');
+  // Asked of the person first, then what is happening.
+  expect(banner.compareDocumentPosition(screen.getByRole('button', { name: 'Follow the work' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  await userEvent.click(screen.getByRole('button', { name: 'See it' }));
+  expect(scroll).toHaveBeenCalled();
+  expect(scroll.mock.contexts[0]).toBe(document.getElementById('assistant-result-run-1'));
+});
+
+it('shows one card and the banner when the presented run is itself the result to accept, and no banner for an expired one', async () => {
+  vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
+  const data = deliveredView();
+  data.awaiting = data.run;
+  const first = panel(data);
+  expect(await screen.findByRole('button', { name: 'Accept this result' })).toBeVisible();
+  expect(screen.getAllByRole('article', { name: 'Result of the work' })).toHaveLength(1);
+  expect(screen.getByText('A result is waiting for you to look at it.')).toBeVisible();
+  first.unmount();
+  // Not awaiting by the server's account (its files expired): the card says why, the banner says nothing.
+  const expired = deliveryReview(); expired.filesState = 'expired'; expired.canRequestAcceptance = false;
+  vi.mocked(api.runReview).mockResolvedValue(expired);
+  panel(deliveredView());
+  expect(await screen.findByText(translate('en', 'assistant.deliveryExpired'))).toBeVisible();
+  expect(screen.queryByText('A result is waiting for you to look at it.')).not.toBeInTheDocument();
 });

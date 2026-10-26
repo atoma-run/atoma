@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { parentTestSummarySchema } from './parentTestRecord.js';
-import { projectRunStatusSchema, projectRunPublicSchema, deliveryAcceptanceSchema, publicationStatusSchema, publicationSchema } from './projects.js';
+import { projectRunStatusSchema, projectRunPublicSchema, deliveryAcceptanceSchema, publicationStatusSchema, publicationSchema, runRequestedViaSchema } from './projects.js';
 
 /** Opt-in paging keeps the original no-argument list responses compatible. */
 export const projectPageInputSchema = z.object({
@@ -20,6 +20,15 @@ export const compactRunSchema = z.object({
   status: projectRunStatusSchema, createdAt: z.string(), startedAt: z.string().nullable(), endedAt: z.string().nullable(),
   costUsd: z.number().nullable(), publicationStatus: z.string().nullable(), repositoryUrl: z.string().nullable(),
   pullRequestUrl: z.string().nullable(),
+  /**
+   * Additive (2026-10-26): who started the run and through which door, what it
+   * continues or re-ran, and when the client accepted it. What the project's
+   * conversation narrates without a second read.
+   */
+  requestedByPrincipalId: z.string().optional(), requestedByName: z.string().nullable().optional(),
+  requestedVia: runRequestedViaSchema.optional(),
+  resumeOf: z.string().nullable().optional(), rerunOf: z.string().nullable().optional(), traceId: z.string().nullable().optional(),
+  acceptedAt: z.string().nullable().optional(),
 });
 export type CompactRun = z.infer<typeof compactRunSchema>;
 

@@ -131,7 +131,7 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   require CAS and idempotency; only explicit client-confirmed guidance reaches
   models. Admission pins the revision; retries/resumes/reruns preserve it.
   History never becomes platform skills or trust. See the full bounded storage,
-  transport and provenance contract in [project context](../../docs/project-context.md).
+  transport and provenance contract in [project context](../../docs/project-context.md). `requestedVia` (`requested_via_json`, 2026-10-26) is a run's door, stamped by its caller, never read from the request: first writer wins, immutable, unparseable reads as unknown. Attribution only.
 - A run's USER-APPROVED acceptance list is captured in `project_run_acceptance`
   in the reservation transaction, digested by `src/run/acceptanceSpec.ts` and
   immutable by trigger; `getRunAcceptanceSpec` re-digests on read and throws
