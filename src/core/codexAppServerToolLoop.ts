@@ -99,8 +99,19 @@ const MAX_REFUSALS_WHILE_INTERRUPTING = 256;
  * (`llm.ts`, the Responses and Chat Completions loops): a response may batch
  * several calls. Counted in calls, run 96d5c845 (2026-10-04) spent its 40 in
  * two responses of 25 HTTP checks each and never reached its browser check.
- * Codex reports usage once per completed model response; that count is the
- * response number. Calls stay bounded too, at this many per allowed response.
+ * Calls stay bounded too, at this many per allowed response.
+ *
+ * WHAT A RESPONSE IS on this wire: a `thread/tokenUsage/updated` that arrives
+ * while NO host call is pending. While one is (queued or running), Codex keeps
+ * sampling the model on its own: measured 2026-10-26 against app-server
+ * 0.156.1 and gpt-5.6-luna, a usage event and a new reasoning item about every
+ * 31 s with no new tool call, five usage events for three model decisions
+ * around one 75 s host tool; production 0.153.4 was faster (aba8e94c: six or
+ * seven during one 34.4 s record_probe, a budget of 24 cut at 20 responses
+ * that carried host calls). Those WAITING SAMPLINGS are real spend but not the
+ * model's decisions, so they are counted apart and charged to the budget only
+ * beyond the budget itself: no call starts once the two together reach twice
+ * the budget. Every usage event still updates the cumulative usage.
  */
 const MAX_CALLS_PER_RESPONSE = 12;
 
@@ -401,9 +412,14 @@ async function runSession(
   let executed = 0;
   let refused = 0;
   let drained = 0;
-  // Completed model responses so far: a call belongs to response `responses + 1`.
+  // Completed model responses so far (usage with no host call pending): a call
+  // belongs to response `responses + 1`.
   let responses = 0;
-  const overBudget = (): boolean => responses >= budget || executed >= budget * MAX_CALLS_PER_RESPONSE;
+  // Usage events while a host call was pending: Codex sampling on its own.
+  let waitingSamplings = 0;
+  // What the budget is charged: responses, plus waiting samplings past the budget.
+  const charged = (): number => responses + Math.max(0, waitingSamplings - budget);
+  const overBudget = (): boolean => charged() >= budget || executed >= budget * MAX_CALLS_PER_RESPONSE;
   let finalTurn: 'none' | 'requested' | 'started' = 'none';
   let completed = false;
   let failure: CodexFailureCode | null = null;
@@ -500,8 +516,10 @@ async function runSession(
       let content: string;
       try { content = error === undefined ? formatToolResultContent(name, result) : truncateToolResultContent(error); }
       catch { content = 'The tool result could not be serialized.'; }
-      // The last allowed response hears that no tool will run after it.
-      const last = responses === budget - 1 || executed >= budget * MAX_CALLS_PER_RESPONSE;
+      // The last allowed response hears that no tool will run after it, and so
+      // does a call during which the budget ran out: the model is told before
+      // its next call is refused, never by the refusal.
+      const last = charged() >= budget - 1 || executed >= budget * MAX_CALLS_PER_RESPONSE;
       reply(id, last ? `${content}\n${BUDGET_EXHAUSTED_HINT}` : content, error === undefined);
     } finally {
       bump();
@@ -571,10 +589,13 @@ async function runSession(
       }
     } else if (method === 'thread/tokenUsage/updated') {
       responseObserved();
-      observeTiming(req.onTiming, 'response-envelope', responseStarted);
+      // A host call still pending: Codex sampled while it waited (see MAX_CALLS_PER_RESPONSE).
+      const waiting = pendingTools > 0;
+      observeTiming(req.onTiming, waiting ? 'tool-wait-response' : 'response-envelope', responseStarted);
       responseStarted = Date.now();
       onFirstResponse();
-      responses++;
+      if (waiting) waitingSamplings++;
+      else responses++;
       usageTotal = record(record(params['tokenUsage'])['total']);
     } else if (method === 'error') {
       if (params['willRetry'] !== true) diagnostic = classifyCodexAppServerError(params['error'] ?? params);
@@ -674,7 +695,7 @@ async function runSession(
     return {
       text, stopReason: 'end_turn', usage: spent, servedModel: opts.model,
       // A final written after the last allowed response is a finalization, as in exec.
-      ...(refused > 0 || responses > budget ? { toolBudgetExhausted: true as const } : {}),
+      ...(refused > 0 || charged() > budget ? { toolBudgetExhausted: true as const } : {}),
     };
   }
   const code: CodexFailureCode = timedOut ? 'timeout' : completed ? 'empty-response' : failure ?? 'provider-error';

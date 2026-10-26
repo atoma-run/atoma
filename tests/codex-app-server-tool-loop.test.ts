@@ -11,7 +11,10 @@ import { buildCodexAppServerArgs, type CodexAppServerSpawn } from '../src/core/c
 import { BUDGET_EXHAUSTED_HINT } from '../src/core/llm.js';
 import { PERSONAL_CODEX_PROFILE_ROOT_ENV, tryAcquireCodexHomeLease } from '../src/core/codexHomeLease.js';
 import type { LlmCompletionRequest } from '../src/core/types.js';
-import { makeTool } from './helpers/factories.js';
+import { makePlan, makeTool } from './helpers/factories.js';
+import { makeCtx } from './helpers.js';
+import { L1Atom } from '../src/atoms/L1Atom.js';
+import { MIN_TOOL_ITERATION_MS } from '../src/core/limits.js';
 import { ToolSandbox } from '../src/tools/sandbox.js';
 import { editFileTool, writeFileTool, fetchUrlTool, readFileTool } from '../src/tools/builtin.js';
 
@@ -34,6 +37,8 @@ interface FakeServer {
   callTool(tool: string, args: unknown): Promise<{ contentItems: { text: string }[]; success: boolean }>;
   message(text: string): void;
   usage(total: Record<string, number>): void;
+  /** A reasoning item with no tool call: what Codex samples while a host tool runs. */
+  reasoning(): void;
   complete(status?: string, error?: unknown): void;
   /** Raw stdout bytes, to split a line wherever a test needs. */
   raw(chunk: Buffer): void;
@@ -66,6 +71,11 @@ function fakeAppServer(onTurn: (server: FakeServer, turn: number) => Promise<voi
       }),
       message: (text) => emit({ method: 'item/completed', params: { item: { type: 'agentMessage', id: 'm', text } } }),
       usage: (total) => emit({ method: 'thread/tokenUsage/updated', params: { tokenUsage: { total, last: total } } }),
+      reasoning: () => {
+        const item = { type: 'reasoning', id: `rs${nextId++}`, summary: [], content: [] };
+        emit({ method: 'item/started', params: { item, threadId: 't', turnId: 'u' } });
+        emit({ method: 'item/completed', params: { item, threadId: 't', turnId: 'u' } });
+      },
       complete: (status = 'completed', error = null) => emit({ method: 'turn/completed', params: { turn: { id: 'u', status, error } } }),
       raw: (chunk) => setImmediate(() => { if (!closed) stdout.emit('data', chunk); }),
       stdin,
@@ -124,6 +134,41 @@ function execFinal(text: string) {
     return child;
   });
 }
+
+/** Every line the fake already emitted has reached the host. */
+const delivered = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+/**
+ * A host tool the test holds open, so Codex can sample while it waits: the
+ * order captured from a real app-server 0.156.1 stream (2026-10-26) — the call,
+ * then usage plus a reasoning item about every 31 s with no new call, then
+ * the host's reply, then usage again.
+ */
+function heldTool() {
+  let release!: () => void;
+  let started!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const running = new Promise<void>((resolve) => { started = resolve; });
+  return {
+    release, running,
+    executor: (slowUrl: string) => ({
+      has: () => true,
+      execute: vi.fn(async (name: string, args: Record<string, unknown>) => {
+        if (args['url'] === slowUrl) { started(); await gate; }
+        return { ok: true, name, args };
+      }),
+    }),
+    /** Emit `samplings` usage envelopes while the held call is still pending, then let it finish. */
+    async waitThrough(server: FakeServer, samplings: number, usageAt: (n: number) => Record<string, number>) {
+      await running;
+      for (let i = 0; i < samplings; i++) { server.usage(usageAt(i)); server.reasoning(); }
+      await delivered();
+      release();
+    },
+  };
+}
+
+const tokens = (n: number): Record<string, number> => ({ inputTokens: 100 * n, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: n, reasoningOutputTokens: 0 });
 
 function request(over: Partial<LlmCompletionRequest> = {}): LlmCompletionRequest {
   return {
@@ -357,6 +402,132 @@ describe('Codex app-server tool session', () => {
     expect(replies[1]!.text).toContain(BUDGET_EXHAUSTED_HINT);
     expect(replies[2]).toEqual({ success: false, text: BUDGET_EXHAUSTED_HINT });
     expect(response).toMatchObject({ text: 'final after budget', toolBudgetExhausted: true });
+  });
+
+  // Measured 2026-10-26 (app-server 0.156.1): one 75 s host tool, five usage
+  // events for three model decisions. Production 0.153.4 (aba8e94c Ammonia
+  // #2) counted seven during one 34.4 s record_probe and cut a 24 budget at 20.
+  it('does not charge the budget for samplings Codex makes while a host tool is pending', async () => {
+    const home = codexHome();
+    const held = heldTool();
+    const timings: import('../src/contracts/runtimeTiming.js').RuntimeTiming[] = [];
+    const replies: string[] = [];
+    const fake = fakeAppServer(async (server) => {
+      server.reasoning();
+      const slow = server.callTool('fetch_url', { url: 'http://localhost:1/slow' });
+      await held.waitThrough(server, 2, (i) => tokens(i + 1));
+      replies.push((await slow).contentItems[0]!.text);
+      server.usage(tokens(3));
+      server.reasoning();
+      replies.push((await server.callTool('read_file', { path: 'note' })).contentItems[0]!.text);
+      server.usage(tokens(4));
+      server.message('DONE');
+      server.usage(tokens(5));
+      server.complete();
+    });
+    const req = request({ maxToolIterations: 3, executor: held.executor('http://localhost:1/slow'), onTiming: (t) => timings.push(t) });
+    const response = await new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(req);
+    expect(req.executor!.execute).toHaveBeenCalledTimes(2);
+    expect(replies.some((text) => text.includes(BUDGET_EXHAUSTED_HINT))).toBe(false);
+    expect(response.text).toBe('DONE');
+    expect(response.toolBudgetExhausted).toBeUndefined();
+    // Cumulative usage still counts every sampling, the waiting ones included.
+    expect(response.usage).toMatchObject({ inputTokens: 500, outputTokens: 5 });
+    expect(timings.filter((t) => t.phase === 'tool-wait-response')).toHaveLength(2);
+    expect(timings.filter((t) => t.phase === 'response-envelope')).toHaveLength(3);
+  });
+
+  it('warns on the reply of the call during which waiting samplings used up the budget', async () => {
+    const home = codexHome();
+    const held = heldTool();
+    const replies: { success: boolean; text: string }[] = [];
+    const fake = fakeAppServer(async (server) => {
+      const quick = await server.callTool('fetch_url', { url: 'http://localhost:1/quick' });
+      replies.push({ success: quick.success, text: quick.contentItems[0]!.text });
+      server.usage(tokens(1));
+      const slow = server.callTool('fetch_url', { url: 'http://localhost:1/slow' });
+      // Three waiting samplings on a budget of 2: one past it is charged.
+      await held.waitThrough(server, 3, (i) => tokens(i + 2));
+      const reply = await slow;
+      replies.push({ success: reply.success, text: reply.contentItems[0]!.text });
+      server.usage(tokens(5));
+      const refused = await server.callTool('fetch_url', { url: 'http://localhost:1/after' });
+      replies.push({ success: refused.success, text: refused.contentItems[0]!.text });
+      server.message('final after waiting');
+      server.complete();
+    });
+    const req = request({ maxToolIterations: 2, executor: held.executor('http://localhost:1/slow') });
+    const response = await new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(req);
+    expect(req.executor!.execute).toHaveBeenCalledTimes(2);
+    expect(replies[0]!.text).not.toContain(BUDGET_EXHAUSTED_HINT);
+    // Told on the reply, before any refusal.
+    expect(replies[1]).toMatchObject({ success: true });
+    expect(replies[1]!.text).toContain(BUDGET_EXHAUSTED_HINT);
+    expect(replies[2]).toEqual({ success: false, text: BUDGET_EXHAUSTED_HINT });
+    expect(response).toMatchObject({ text: 'final after waiting', toolBudgetExhausted: true });
+  });
+
+  it('still bounds a flood of waiting samplings: past the budget they are charged to it', async () => {
+    const home = codexHome();
+    const held = heldTool();
+    const replies: { success: boolean; text: string }[] = [];
+    const fake = fakeAppServer(async (server) => {
+      const slow = server.callTool('fetch_url', { url: 'http://localhost:1/slow' });
+      await held.waitThrough(server, 6, (i) => tokens(i + 1));
+      const reply = await slow;
+      replies.push({ success: reply.success, text: reply.contentItems[0]!.text });
+      const refused = await server.callTool('fetch_url', { url: 'http://localhost:1/after' });
+      replies.push({ success: refused.success, text: refused.contentItems[0]!.text });
+      server.message('final after a flood');
+      server.usage(tokens(7));
+      server.complete();
+    });
+    const req = request({ maxToolIterations: 3, executor: held.executor('http://localhost:1/slow') });
+    const response = await new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(req);
+    expect(req.executor!.execute).toHaveBeenCalledOnce();
+    expect(replies[0]!.text).toContain(BUDGET_EXHAUSTED_HINT);
+    expect(replies[1]).toEqual({ success: false, text: BUDGET_EXHAUSTED_HINT });
+    expect(response).toMatchObject({ text: 'final after a flood', toolBudgetExhausted: true, usage: { inputTokens: 700 } });
+  });
+
+  // Across atoms → core: the molecule's own budget (24, cut to 3 by the run
+  // deadline) on the production Codex path, with a host tool Codex waits on.
+  it('lets a molecule finish normally when Codex samples during its long host tool', async () => {
+    const home = codexHome();
+    const held = heldTool();
+    let executePrompt = '';
+    const fake = fakeAppServer(async (server) => {
+      const slow = server.callTool('fetch_url', { url: 'http://127.0.0.1:9/suite' });
+      await held.waitThrough(server, 2, (i) => tokens(i + 1));
+      await slow;
+      server.usage(tokens(3));
+      await server.callTool('read_file', { path: 'report.txt' });
+      server.usage(tokens(4));
+      server.message(JSON.stringify({ output: 'suite passed', summary: 'Ran the suite and read its report.' }));
+      server.usage(tokens(5));
+      server.complete();
+    });
+    const llm = new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn });
+    const complete = llm.complete.bind(llm);
+    llm.complete = (req) => { executePrompt = req.userContent; return complete(req); };
+    const ctx = {
+      ...makeCtx(), llm,
+      tools: held.executor('http://127.0.0.1:9/suite'),
+      deadlineAt: Date.now() + 3 * MIN_TOOL_ITERATION_MS + MIN_TOOL_ITERATION_MS / 2,
+    };
+    const atom = new L1Atom({
+      name: 'Ammonia', ordinal: 1, systemPrompt: 'you are ammonia', model: 'gpt-5.6-luna', params: {},
+      tools: [
+        makeTool('fetch_url', { inputSchema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] } }),
+        makeTool('read_file', { inputSchema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } }),
+      ],
+    });
+    const result = await atom.execute({ description: 'Run the suite and read its report.' }, makePlan(), ctx);
+    expect(executePrompt).toContain('at most 3 tool iterations');
+    expect(ctx.tools.execute).toHaveBeenCalledTimes(2);
+    expect(result.toolBudgetExhausted).toBeUndefined();
+    expect(result.toolCallResults).toEqual([{ name: 'fetch_url', ok: true }, { name: 'read_file', ok: true }]);
+    expect(result.output).toBe('suite passed');
   });
 
   it('falls back to the exec loop when the session fails before any tool reached the host', async () => {

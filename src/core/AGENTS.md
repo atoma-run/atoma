@@ -77,12 +77,21 @@ Neighbours:
   response (a stale login is refreshed before it): the copy is written back then
   and the lease released, so other lanes and tiers are not queued behind minutes
   of host tools; a later rotation is written back only over what this session
-  last wrote. The budget counts MODEL RESPONSES, as the native loops do (Codex
-  reports usage once per response), with calls bounded at 12 per allowed
-  response: counted in calls, run 96d5c845 spent 40 in two batches of HTTP checks
-  and never reached its browser check. Calls of the last allowed response carry
-  the exhaustion hint, later calls are refused, eight refusals end the turn for a
-  tool-free finalizing turn, and that final is `toolBudgetExhausted`. The rest of
+  last wrote. The budget counts MODEL RESPONSES, as the native loops do, with
+  calls bounded at 12 per allowed response: counted in calls, run 96d5c845 spent
+  40 in two batches of HTTP checks and never reached its browser check. A
+  response is a `thread/tokenUsage/updated` with NO host call pending. Codex
+  does not report usage once per response: while a host call is pending it
+  samples on its own, a usage event and a reasoning item about every 31 s with
+  no new call (app-server 0.156.1, gpt-5.6-luna, 2026-10-26: five events for
+  three decisions around one 75 s tool; production 0.153.4 counted seven during
+  one 34.4 s record_probe and cut aba8e94c's 24 at 20 responses carrying host calls). Those
+  waiting samplings are counted apart, timed as `tool-wait-response`, and charged
+  to the budget only past the budget itself, so spend stays bounded; cumulative
+  usage counts them all. Calls of the last allowed response, and a call during
+  which the budget ran out, carry the exhaustion hint; later calls are refused,
+  eight refusals end the turn for a tool-free finalizing turn, and that final is
+  `toolBudgetExhausted`. The rest of
   a batch refused while the interrupt is in flight drains under its own bound of
   256; sixteen refusals counted outside that drain fail the call.
   A session that fails before any tool call reached the host falls back to the
@@ -340,7 +349,8 @@ Neighbours:
 
 `runtimeTiming` records bounded transport/stage intervals through optional,
 non-vetoing observers. Codex tool-loop observations distinguish profile wait,
-first response/token, per-turn response envelopes, tool queue and finalization.
+first response/token, per-turn response envelopes, samplings Codex makes while
+a host tool is pending (`tool-wait-response`), tool queue and finalization.
 Text transport records the local profile queue and first completed response;
 unsupported first-token measurement stays absent. Timing never releases a lease,
 changes tool ordering or grants proof. Late host transfer/cleanup spans use a
@@ -348,6 +358,12 @@ host-owned sidecar beside the trace rather than rewriting its completed bytes.
 
 ## Intentional choices and rejected shortcuts
 
+- Codex samplings during a pending host tool (2026-10-26): neither charged as
+  responses (they cut executors before their final check) nor left unbounded
+  (they are real spend). Raising the budget instead, or a low-budget prompt
+  notice before the accounting was right, were refused; a notice waits on the
+  pre-registered split of the next exhaustions into host-call responses,
+  waiting samplings and responses spent on missing dependencies.
 - Reusing `src/auth/codexAppServer.ts` for tool sessions: refused. It is the
   account client: it answers no server-initiated request and serves personal
   profiles only. The supervisor's session carries mender and analyst policy.

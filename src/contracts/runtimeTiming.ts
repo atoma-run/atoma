@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /** Observations only: envelopes overlap tools and never imply inference time. */
 export const runtimeTimingSchema = z.object({
-  phase: z.enum(['profile-wait', 'profile-local-wait', 'first-response', 'first-token', 'response-envelope', 'tool-queue',
+  phase: z.enum(['profile-wait', 'profile-local-wait', 'first-response', 'first-token', 'response-envelope', 'tool-wait-response', 'tool-queue',
     'preparation', 'process', 'process-finalization', 'handoff', 'host-finalization', 'naming', 'deepening', 'transport-finalization', 'transport-cleanup', 'setup', 'execution', 'acceptance', 'parent-tests', 'finalization']),
   startedAt: z.number().finite().nonnegative(),
   durationMs: z.number().finite().nonnegative(),
