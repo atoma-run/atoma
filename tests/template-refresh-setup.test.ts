@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
-import { L2Atom, buildNarrowL1Prompt } from '../src/atoms/L2Atom.js';
-import { L3Atom, buildNarrowL2Prompt } from '../src/atoms/L3Atom.js';
+import { L2Atom, buildNarrowL1Prompt, isNarrowL1Template } from '../src/atoms/L2Atom.js';
+import { L3Atom, buildNarrowL2Prompt, isNarrowL2Template } from '../src/atoms/L3Atom.js';
 import { refreshTemplateBornTypes } from '../src/atoms/promptRepair.js';
 import { scopeTools } from '../src/atoms/toolMerge.js';
 import { GROUND_TRUTH_EVIDENCE_LINES, groundTruthEvidenceLines } from '../src/atoms/capability.js';
@@ -16,7 +16,8 @@ import { tissueForRun, tissuePrompt } from '../src/run/tissueRouting.js';
 import { defaultBuiltinTools } from '../src/tools/builtin.js';
 import { ToolSandbox } from '../src/tools/sandbox.js';
 import type { AtomType } from '../src/registry/atomRegistry.js';
-import type { Tool } from '../src/core/types.js';
+import type { Task, Tool } from '../src/core/types.js';
+import { makeCtx } from './helpers.js';
 
 /**
  * Production molecule Sucrose (run f91cdb19, 2026-10-25): a template-born
@@ -224,6 +225,122 @@ describe('the bootstrap refreshes every template-born type', () => {
       const settled = registry.getByName(guard.name)!.version;
       seedCatalog({ registry, toolDecls: live, log: () => undefined });
       expect(registry.getByName(guard.name)!.version).toBe(settled);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  /*
+   * Review 2026-10-26, second round, finding 3: the bootstrap recorded the
+   * current render as the baseline of a legacy row whose prompt it had NOT
+   * replaced (an older render, production's Glucose). The prompt could never
+   * match that baseline, so the row stopped being template-born: the next
+   * release's declarations never reached it, and the next creation of its
+   * signature made a zero-trust clone instead of reusing it.
+   */
+  it('keeps a legacy row whose older render it cannot replace baseline-less, so later bootstraps and creations still reach it', () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-legacy-older-render-'));
+    try {
+      const live = defaultBuiltinTools({ sandbox: new ToolSandbox(root) }).map((tool) => tool.declaration);
+      const names = ['write_file', 'edit_file', 'read_file', 'list_files', 'start_static_server', 'validate_html'];
+      const staleTools = scopeTools(live.map((tool) => tool.name === 'write_file' ? { ...tool, description: STALE_WRITE_FILE } : tool), names);
+      const older = buildNarrowL1Prompt('', staleTools).replace('Up to 4 iterations.', 'Up to 3 iterations.') +
+        '\n\nPROBE MANIFEST ON DISK: ALSO write_file ".atoma-probes.json"';
+      expect(isNarrowL1Template(older)).toBe(true);
+      expect(older.startsWith(buildNarrowL1Prompt('', staleTools))).toBe(false);
+      const registry = new AtomRegistry(openDb(':memory:'));
+      // Glucose-shaped: written by plain `create` before the baselines existed.
+      const glucose = registry.create(1, { description: 'web', systemPrompt: older, tools: staleTools, params: {}, createdBy: 'Idioblast' });
+      for (let i = 0; i < 6; i++) registry.recordSuccess(glucose.name, 'test');
+
+      const changed = live.map((tool) => tool.name === 'validate_html' ? { ...tool, description: `${tool.description} Changed by a later release.` } : tool);
+      let version = glucose.version;
+      for (const toolDecls of [live, changed]) {
+        seedCatalog({ registry, toolDecls, log: () => undefined });
+        const after = registry.getByName(glucose.name)!;
+        expect(after.tools).toEqual(scopeTools(toolDecls, names));
+        expect(after.systemPrompt).toBe(older);
+        expect(registry.templatePrompt(after)).toBeUndefined();
+        expect(registry.isTemplateBorn(after, isNarrowL1Template)).toBe(true);
+        expect(after.consecutiveSuccesses).toBe(6);
+        expect(after.version).toBe(version + 1);
+        version = after.version;
+      }
+
+      const tools = scopeTools(changed, names);
+      const molecules = registry.listByTier(1).length;
+      const again = registry.createOrRefresh(1, {
+        description: 'web', systemPrompt: buildNarrowL1Prompt('', tools), tools, params: {}, createdBy: 'Idioblast',
+      }, isNarrowL1Template);
+      expect(again).toMatchObject({ name: glucose.name, atomId: glucose.atomId, consecutiveSuccesses: 6 });
+      expect(registry.listByTier(1)).toHaveLength(molecules);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  /*
+   * Second round, finding 4: the tissue held live declarations, but a cell
+   * it REUSED ran on its stored ones, and a cell whose prompt a validator
+   * wrote is never refreshed by the bootstrap. Each molecule it created
+   * missed the exact match against the template-born molecule the bootstrap
+   * had refreshed, and `createOrRefresh`'s family put the stale text back:
+   * one version per run, and a concurrent credit stopped growing the streak.
+   */
+  it('a tissue runs every cell on the live declarations, so a validator-written cell reverts no molecule', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-custom-cell-decls-'));
+    try {
+      const live = defaultBuiltinTools({ sandbox: new ToolSandbox(root) }).map((tool) => tool.declaration);
+      const stale = live.map((tool) => tool.name === 'record_probe' ? { ...tool, description: STALE_PROBE } : tool);
+      const registry = new AtomRegistry(openDb(':memory:'));
+      const log = () => undefined;
+      const cellTools = scopeTools(stale, CREATE.seed.tools);
+      // The template-born cell of the signature, and one an L3 validator patched with its own prompt.
+      const template = registry.createTemplate(2, { description: 'cell', systemPrompt: buildNarrowL2Prompt('', cellTools), tools: cellTools, params: {}, createdBy: 'Meristem' });
+      const custom = registry.create(2, { description: 'cell', systemPrompt: buildNarrowL2Prompt('', cellTools), tools: cellTools, params: {}, createdBy: 'Meristem' });
+      registry.patch(custom.name, { systemPromptReplace: 'You are a cell that verifies the server with record_probe.' }, 'Meristem', 'validator patch');
+      const molecule = createMolecule(registry, registry.getByName(custom.name)!);
+      for (let i = 0; i < 5; i++) registry.recordSuccess(molecule.name, 'test');
+
+      for (let run = 0; run < 2; run++) {
+        const meristem = seedTissueCatalog({ registry, toolDecls: live, log });
+        seedCatalog({ registry, toolDecls: live, log });
+        // The validator-written cell keeps its prompt and its declarations.
+        const stored = registry.getByName(custom.name)!;
+        expect(registry.isTemplateBorn(stored, isNarrowL2Template)).toBe(false);
+        expect(probe(stored.tools)).toBe(STALE_PROBE);
+        const loaded = registry.getByName(molecule.name)!;
+        const loadedTemplate = registry.getByName(template.name)!;
+        expect(probe(loaded.tools)).toBe(probe(live));
+
+        // The tissue reuses the custom cell: `runSubtask` builds the instance, then the
+        // (aborted) supervise loop stops before any model call.
+        const tissue = L3Atom.fromType(tissueForRun(meristem, live), registry);
+        const controller = new AbortController();
+        controller.abort(new Error('stop before planning'));
+        const ctx = { ...makeCtx(), signal: controller.signal };
+        const subtask = { description: 'check' };
+        const parentTask: Task = { description: 'task' };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const internals = tissue as any;
+        await expect(internals.runSubtask({
+          subtask, strategy: { strategy: 'reuse', target: custom.name }, parentTask, idx: 0, total: 1,
+          siblings: [subtask], aggregationMode: 'sequential', hooks: {}, ctx, undeclaredIsReadOnly: false,
+        })).rejects.toThrow('stop before planning');
+        const cell = internals.l2Peers[0] as L2Atom;
+        expect(cell.name).toBe(custom.name);
+        expect(cell.registryVersion()).toBe(stored.version);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const created = (cell as any).createSubtaskL1({ description: 'check' }, CREATE, parentTask) as AtomType;
+        expect(created).toMatchObject({ name: molecule.name, version: loaded.version });
+        expect(probe(registry.getByName(molecule.name)!.tools)).toBe(probe(live));
+        // A concurrent run's credit at the version it loaded still grows the streak.
+        registry.recordSuccess(molecule.name, 'concurrent', loaded.version);
+        expect(registry.getByName(molecule.name)!.consecutiveSuccesses).toBe(loaded.consecutiveSuccesses + 1);
+
+        // Its escalation branch is seeded from the live declarations too: the template-born cell, unchanged.
+        const branched = await internals.makeL2Hooks(ctx, 'check').branchOnEscalation(cell, [], 'escalated') as L2Atom;
+        expect(branched.name).toBe(template.name);
+        expect(registry.getByName(template.name)!.version).toBe(loadedTemplate.version);
+        expect(probe(registry.getByName(template.name)!.tools)).toBe(probe(live));
+        expect(registry.getByName(custom.name)).toEqual(stored);
+      }
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 

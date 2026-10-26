@@ -1,5 +1,6 @@
 import { extractJson } from '../atoms/json.js';
 import { resolveCreationDescription } from '../atoms/capability.js';
+import { withLiveDeclarations } from '../atoms/toolMerge.js';
 import { PROPORTIONATE_PLANNING_GUIDANCE } from '../atoms/taskContext.js';
 import { tissueDefinitionSchema, tissueRoutingDecisionSchema, type RoutingRepository } from '../contracts/tissueRouting.js';
 import { RUN_ACTORS } from '../contracts/runActors.js';
@@ -62,18 +63,15 @@ const isHostTool = (tool: Tool): boolean => (HOST_TOOL_NAMES as readonly string[
  * stored declarations are never refreshed, and seeding from them reverted the
  * cells and molecules the bootstrap had just refreshed (`createOrRefresh`
  * picks a family on tool names), one version bump per run, which cost
- * concurrent runs their streak credits. The only path that builds a run's L3
- * (`runner.ts`: routed, comparison and resumed roots alike).
+ * concurrent runs their streak credits. The L3 hands the same live
+ * declarations to every cell it instantiates (`withLiveDeclarations`). The
+ * only path that builds a run's L3 (`runner.ts`: routed, comparison and
+ * resumed roots alike).
  */
 export function tissueForRun(type: AtomType, toolDecls: readonly Tool[]): AtomType {
-  const live = new Map(toolDecls.map((tool) => [tool.name, tool]));
-  const held = type.tools.map((tool) => {
-    const current = live.get(tool.name);
-    return current && JSON.stringify(current) !== JSON.stringify(tool) ? current : tool;
-  });
+  const held = withLiveDeclarations(type, toolDecls);
   const host = toolDecls.filter((tool) => isHostTool(tool) && !type.tools.some((own) => own.name === tool.name));
-  const unchanged = host.length === 0 && held.every((tool, index) => tool === type.tools[index]);
-  return unchanged ? type : { ...type, tools: [...held, ...host] };
+  return host.length === 0 ? held : { ...held, tools: [...held.tools, ...host] };
 }
 
 /** One root decision per run, before execution; no separate profile-to-tissue map. */

@@ -66,7 +66,7 @@ import { VALIDATION_PARAMS, renderTransportEvidence } from './verdict.js';
 import type { RootDelegationApproval, RootPhaseCheckpoint, RootPlanCheckpoint } from '../contracts/runCheckpoint.js';
 import type { DelegationReview } from '../contracts/parentTests.js';
 import type { RoutedFrom } from '../contracts/routedFrom.js';
-import { scopeTools } from './toolMerge.js';
+import { scopeTools, withLiveDeclarations } from './toolMerge.js';
 import {
   prefilterStrategy,
   shouldTrustType,
@@ -1289,7 +1289,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     } = args;
     const l2Type = this.resolveL2ForSubtask(subtask, strategy, parentTask, idx, ctx);
     this.triedChildren.mark(l2Type.name);
-    const l2 = L2Atom.fromType(l2Type, this.registry, this.l2Peers, this.skillRegistry);
+    const l2 = this.instantiateCell(l2Type, this.l2Peers);
     const seedContext = this.pendingSeedContext.get(l2Type.atomId);
     if (seedContext) {
       l2.injectContext({ source: 'coaching', text: seedContext });
@@ -1366,6 +1366,19 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     } finally {
       ctx.recordBranch?.({ op: 'end', ...branchInfo });
     }
+  }
+
+  /**
+   * Every cell this tissue runs is built here, holding this tissue's LIVE
+   * declaration of each tool it holds (`tissueForRun` gave them to
+   * `this.tools`). The cell seeds its molecules from them (`scopeTools`), so
+   * a cell whose stored declarations the bootstrap never refreshes (a
+   * validator-written or custom prompt) no longer reverts the molecules it
+   * had refreshed, one version per run. Its stored row stays as written:
+   * patch and branch read the registry, never this instance.
+   */
+  private instantiateCell(type: AtomType, peers: L2Atom[]): L2Atom {
+    return L2Atom.fromType(withLiveDeclarations(type, this.tools), this.registry, peers, this.skillRegistry);
   }
 
   private resolveL2ForSubtask(
@@ -1481,7 +1494,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
             this.name,
             verdict.reasoning
           );
-          const fresh = carryTaskCoaching(child, L2Atom.fromType(patched, this.registry, this.l2Peers, this.skillRegistry));
+          const fresh = carryTaskCoaching(child, this.instantiateCell(patched, this.l2Peers));
           if (additionalContext) fresh.injectContext({ source: 'coaching', text: additionalContext });
           return fresh;
         }
@@ -1492,7 +1505,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
           verdict.branchName
         );
         ctx.logger.info(`[${this.name}] branched L2 ${child.name} → ${branched.name}`);
-        const fresh = carryTaskCoaching(child, L2Atom.fromType(branched, this.registry, this.l2Peers, this.skillRegistry));
+        const fresh = carryTaskCoaching(child, this.instantiateCell(branched, this.l2Peers));
         if (additionalContext) fresh.injectContext({ source: 'coaching', text: additionalContext });
         this.l2Peers.push(fresh);
         return fresh;
@@ -1507,7 +1520,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // the branched L2 can target the specific failure (#1).
         const childType = this.registry.getByName(child.name);
         if (!childType) throw new RegistryNotFoundError(child.name);
-        const childTools = childType.tools;
+        // Seeded from the live declarations, as the instance is: a cell
+        // whose prompt a validator wrote keeps stale stored ones, and they
+        // would revert the template-born family the bootstrap refreshed.
+        const childTools = withLiveDeclarations(childType, this.tools).tools;
         const diagnostic = extractBranchDiagnostic(trace);
         // Capability-first description — match the rule enforced in
         // createSubtaskL2. The task and diagnosis live only in the recovery
@@ -1530,7 +1546,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // the narrow-template branch exists specifically to fix the failure
         // that just escalated — letting it try in-flight is strictly more
         // informative than recording it and never exercising it.
-        const fresh = carryTaskCoaching(child, L2Atom.fromType(branched, this.registry, [], this.skillRegistry));
+        const fresh = carryTaskCoaching(child, this.instantiateCell(branched, []));
         fresh.injectContext({ source: 'coaching', text: recoveryContext(subtaskDescription, diagnostic) });
         return fresh;
       },

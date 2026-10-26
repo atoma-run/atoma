@@ -443,15 +443,22 @@ export class AtomRegistry {
       const next = mods.systemPromptReplace;
       if (next === undefined) return this.patch(name, mods, by, reason, opts);
       const previous = this.templatePrompt(current);
-      // Legacy mismatches have no trustworthy boundary. Preserve their content;
-      // the new baseline records what future exact template updates may replace.
+      // Legacy mismatches have no trustworthy boundary. Preserve their content.
       const prefix = previous ?? next;
       const matches = current.systemPrompt === prefix || current.systemPrompt.startsWith(prefix + '\n\n');
       const { systemPromptReplace: _replacement, ...other } = mods;
       const patched = this.patch(name, { ...other,
         ...(matches ? { systemPromptReplace: next + current.systemPrompt.slice(prefix.length) } : {}),
       }, by, matches ? reason : reason + ' (custom prompt preserved)', opts);
-      if ((matches || previous === undefined) && previous !== next) {
+      // The baseline records what future exact template updates may replace,
+      // so only a prefix that WAS replaced becomes one. A legacy row whose
+      // prompt the render cannot be laid over keeps its prompt, takes the
+      // declarations and stays baseline-less, hence template-born under the
+      // template predicate (`isTemplateBorn`): a baseline its prompt can never
+      // match made it non-template-born for good, so later bootstraps stopped
+      // refreshing its declarations and the next creation of its signature
+      // made a zero-trust clone (review 2026-10-26).
+      if (matches && previous !== next) {
         this.prepare('INSERT INTO atom_prompt_templates(atom_id, prompt) VALUES (?, ?) ON CONFLICT(atom_id) DO UPDATE SET prompt = excluded.prompt')
           .run(current.atomId, next);
       }

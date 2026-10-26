@@ -73,9 +73,11 @@ export function repairTaskBakedPrompts(registry: AtomRegistry): string[] {
  * (`AtomRegistry.isTemplateBorn`, the definition `createOrRefresh` uses) is
  * touched: a stored prompt that IS its recorded host baseline, optionally
  * followed by a learned suffix (kept by `refreshTemplate`), or a row older
- * than the baselines whose prompt the template recognises — that one keeps
- * its prompt, gets the live declarations and is baselined, as
- * `createOrRefresh` treats it. A validator-written or custom prompt keeps
+ * than the baselines whose prompt the template recognises — that one gets
+ * the live declarations, as `createOrRefresh` treats it, and is baselined
+ * only when its prompt is the current render; an older render is kept,
+ * baseline-less and so still template-born, rather than frozen as custom by
+ * a baseline it can never match. A validator-written or custom prompt keeps
  * its prompt and its declarations. The streak is kept, as for any template
  * revision (owner decision 2026-10-10). Declarations are replaced by name and
  * keep their order; a tool the live set does not declare keeps its own.

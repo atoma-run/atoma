@@ -30,3 +30,26 @@ export function scopeTools(parentTools: readonly Tool[], seedToolNames: readonly
   const scoped = parentTools.filter((tool) => asked.has(tool.name));
   return scoped.length > 0 ? scoped : [...parentTools];
 }
+
+/**
+ * `type` holding the LIVE declaration of every tool it holds that `live`
+ * declares, in its own order; a tool `live` does not declare keeps its own.
+ * The same object back when nothing differs. For the INSTANCE a run executes
+ * and the seeds it hands its children, never for a stored row: a cell or
+ * tissue whose prompt a validator or an author wrote is never refreshed by
+ * the bootstrap, so its stored declarations go stale, and every child seeded
+ * from them (`scopeTools`) failed the exact match against the template-born
+ * family the bootstrap had just refreshed and reverted it through
+ * `createOrRefresh`, one version per run (review 2026-10-26).
+ */
+export function withLiveDeclarations<T extends { tools: Tool[] }>(type: T, live: readonly Tool[]): T {
+  const byName = new Map(live.map((tool) => [tool.name, tool]));
+  let changed = false;
+  const tools = type.tools.map((tool) => {
+    const current = byName.get(tool.name);
+    if (!current || JSON.stringify(current) === JSON.stringify(tool)) return tool;
+    changed = true;
+    return current;
+  });
+  return changed ? { ...type, tools } : type;
+}
