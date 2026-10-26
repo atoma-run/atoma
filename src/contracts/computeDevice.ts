@@ -65,6 +65,13 @@ export function computeResultsWaitingMessage(waiting: Pick<ComputeResultsWaiting
   return waiting.computerReady ? COMPUTE_RESULTS_STALLED_MESSAGE : COMPUTE_RESULTS_WAITING_MESSAGE;
 }
 
+/**
+ * Run progress stage `stopping`: a running Compute row whose execution was
+ * interrupted (or whose cancellation was requested once only the transfer was
+ * left) and which closes only on its computer's stop report. Viewer-neutral.
+ */
+export const COMPUTE_RUN_STOPPING_MESSAGE = 'This run is stopping. It closes once Atoma Compute is open and connected on the computer that ran it and confirms the work stopped. No files will be transferred.';
+
 export const computeAdmissionSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('ready'), session: computeSessionSchema }).strict(),
   z.object({ status: z.literal('waiting'), reason: z.enum([

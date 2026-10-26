@@ -72,13 +72,13 @@ waiting for the slot is never exported: it closes as cancelled once its stop is
 confirmed; readers drop its waiting state, the button refuses with typed
 `cancelling`. The export runs no tool or model. Public readers never reconcile.
 
-Results WAITING on a computer (2026-10-25) are host facts: a running Compute row
-whose journal says `finalizing` with no driver (`computeResultsWaiting`);
-`computerReady` picks a neutral sentence. Readers: stage `awaiting-results`, run
-`resultsWaiting`, project `runningRunsAwaitResults`, Settings rows, a busy `reason`
-(`-stalled` when ready). One claimed notice once `RESULTS_WAITING_NOTICE_MS` passed
-since the first driver stop. "Get the results" answers `ComputeResultsNotYet` only
-for what passes by itself; access, project and executor refusals keep their type.
+Results WAITING on a computer (2026-10-25) are host facts: a running Compute row whose journal says
+`finalizing` with no driver (`computeResultsWaiting`); `computerReady` picks a neutral sentence. Readers:
+stage `awaiting-results`, run `resultsWaiting`, project `runningRunsAwaitResults`, Settings rows, a busy
+`reason` (`-stalled` when ready). One claimed notice once `RESULTS_WAITING_NOTICE_MS` passed since the first
+driver stop. "Get the results" answers `ComputeResultsNotYet` only for what passes by itself; access, project
+and executor refusals keep their type. Journal `interrupted` (or `finalizing` once cancelled) reads stage
+`stopping`, never `finalizing` (run a4dcf853, 2026-10-26); with no dispatcher, `computeProgress` reads the journal, never `stopped`.
 
 Legacy project targets remain hosted and run receipts are immutable. On gated
 hosts, only a current platform admin may start hosted work; other members must

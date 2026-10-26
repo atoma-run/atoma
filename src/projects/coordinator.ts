@@ -1,7 +1,7 @@
 import { RUN_TIMEOUT_MS } from '../contracts/runTimeouts.js';
 import { observeTiming, timingSidecar } from '../core/runtimeTiming.js';
 import { COMPUTE_NOT_ACCEPTING, ComputeDispatchPendingError, ComputeDispatchStore, ComputeFinalizationRefusedError, type ComputeDispatcher } from './computeDispatch.js';
-import type { ComputeResultsWaiting } from '../contracts/computeDevice.js';
+import type { ComputeResultsWaiting, ComputeRunProgress } from '../contracts/computeDevice.js';
 import { eventLabel, type PlatformEventInput } from '../contracts/platformEvents.js';
 import { ClientQuestionConflict } from '../run/clientQuestions.js';
 import { LearningQueue } from '../skills/learningQueue.js';
@@ -2055,8 +2055,29 @@ export class ProjectRunCoordinator {
     return projectedCheckpointStatus(this.checkpoints.projectStatus(run.projectRunId, run.orgId), run.status);
   }
 
-  computeProgress(run: ProjectRun) {
-    return this.compute?.()?.progress?.(run) ?? null;
+  /**
+   * A running Compute run's dispatch phase. The dispatcher answers where one
+   * is attached; a web frontend beside a separate executor has none and reads
+   * the journal from the product store, as `computeResultsWaiting` does. It
+   * answers conservatively there: `interrupted` reads
+   * `stop-confirmation-pending`, never `stopped`, since that would need the
+   * stop report; neither releases anything. Unreadable answers null (unknown).
+   */
+  computeProgress(run: ProjectRun): ComputeRunProgress | null {
+    const compute = this.compute?.();
+    if (compute) return compute.progress?.(run) ?? null;
+    if (run.status !== 'running' || run.executionTarget.kind !== 'customer-device') return null;
+    let record: ReturnType<ComputeDispatchStore['inspect']>;
+    try { record = this.dispatchJournal().inspect(run.projectRunId); }
+    catch { return null; }
+    if (!record) return null;
+    return record.phase === 'interrupted' ? 'stop-confirmation-pending' : record.phase;
+  }
+
+  /** Whether this run's cancellation was requested; an unreadable store answers false (not known). */
+  cancellationRequested(run: ProjectRun): boolean {
+    try { return this.store.runCancellationRequested(run.orgId, run.projectRunId); }
+    catch { return false; }
   }
 
   /**

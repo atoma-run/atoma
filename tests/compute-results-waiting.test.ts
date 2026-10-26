@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthStore, type Viewer } from '../src/auth/store.js';
-import { COMPUTE_RESULTS_STALLED_MESSAGE, COMPUTE_RESULTS_WAITING_MESSAGE } from '../src/contracts/computeDevice.js';
+import { COMPUTE_RESULTS_STALLED_MESSAGE, COMPUTE_RESULTS_WAITING_MESSAGE, COMPUTE_RUN_STOPPING_MESSAGE } from '../src/contracts/computeDevice.js';
 import { computeProjectViewSchema } from '../src/contracts/computeProject.js';
 import { runProgressSchema, runReviewSchema } from '../src/contracts/clientExperience.js';
 import { closeStoreHandles } from '../src/core/stores.js';
@@ -75,7 +75,7 @@ function fixture() {
 }
 
 /** A running Compute run whose transfer journal reached `phase`, as `drive` leaves it. */
-function remoteRun(f: ReturnType<typeof fixture>, phase: 'executing' | 'finalizing' = 'finalizing') {
+function remoteRun(f: ReturnType<typeof fixture>, phase: 'executing' | 'finalizing' | 'interrupted' = 'finalizing') {
   const runId = randomUUID(), paths = projectRunHostLayout(f.root, f.owner.orgId, f.project.projectId, runId);
   mkdirSync(paths.runsPath, { recursive: true });
   const run = f.store.createProjectRun({ orgId: f.owner.orgId, principalId: f.owner.principalId, projectId: f.project.projectId,
@@ -91,6 +91,8 @@ function remoteRun(f: ReturnType<typeof fixture>, phase: 'executing' | 'finalizi
     writeFileSync(`${paths.logPath}.compute-result`, 'runner result');
     journal.phase(runId, 1, 'finalizing');
   }
+  // As `drive` leaves it when the device link aborts the execution.
+  if (phase === 'interrupted') journal.phase(runId, 1, 'interrupted');
   return run;
 }
 
@@ -525,5 +527,56 @@ describe('a start refused for results waiting crosses the executor socket typed'
       expect(error).toBeInstanceOf(ComputeResultsWaitingConflict);
       expect(error).toMatchObject({ reason: 'others-results-waiting' });
     } finally { frontend.stopQueue(); await new Promise(resolve => server.close(resolve)); }
+  });
+});
+
+/**
+ * Run a4dcf853 (2026-10-26): its Compute app stopped mid-run, the journal said
+ * `interrupted`, and every reader said "Finalizing the result and its files."
+ * while nothing would be transferred and the row waited only for the device's
+ * stop report. The web frontend answering MCP has no dispatcher attached.
+ */
+describe('a Compute run waiting for its computer to confirm it stopped', () => {
+  it('reads as stopping, never finalizing, on a frontend without a dispatcher', () => {
+    const f = fixture(), coordinator = coordinatorFor(f), service = serviceFor(f, coordinator);
+    const run = remoteRun(f, 'interrupted');
+    try {
+      const status = service.projectRunStatus(f.member, f.project.projectId, run.projectRunId) as Record<string, unknown>;
+      expect(status['status']).toBe('running');
+      expect(status['computeProgress']).toBe('stop-confirmation-pending');
+      expect(status['resultsWaiting']).toBeNull();
+      const progress = runProgressSchema.parse(status['progress']);
+      expect(progress.stage).toBe('stopping');
+      expect(progress.message).toBe(COMPUTE_RUN_STOPPING_MESSAGE);
+      expect(progress.message).not.toMatch(/finaliz|your computer/i);
+      expect(runProgressSchema.parse(service.projectRunState(f.owner, f.project.projectId, run.projectRunId).progress).stage)
+        .toBe('stopping');
+      expect(runReviewSchema.parse(service.reviewRun(f.owner, f.project.projectId, run.projectRunId)).verification.stage)
+        .toBe('stopping');
+      const listed = (service.listProjectRuns(f.owner, f.project.projectId) as Array<Record<string, unknown>>)
+        .find(row => row['projectRunId'] === run.projectRunId)!;
+      expect(listed['computeProgress']).toBe('stop-confirmation-pending');
+    } finally { coordinator.stopQueue(); }
+  });
+
+  it('reads as stopping once a finished run is cancelled, and as finalizing before', () => {
+    const f = fixture(), coordinator = coordinatorFor(f), service = serviceFor(f, coordinator);
+    const finished = remoteRun(f), executing = remoteRun(f, 'executing');
+    try {
+      // The runner ended but the journal has not reached `finalizing` yet: the host is finalizing.
+      expect(runProgressSchema.parse((service.projectRunStatus(f.owner, f.project.projectId, executing.projectRunId) as
+        Record<string, unknown>)['progress']).stage).toBe('finalizing');
+      f.store.requestRunCancellation(f.owner.orgId, finished.projectRunId);
+      const status = service.projectRunStatus(f.owner, f.project.projectId, finished.projectRunId) as Record<string, unknown>;
+      expect(status['computeProgress']).toBe('finalizing');
+      expect(status['resultsWaiting']).toBeNull();
+      expect(runProgressSchema.parse(status['progress']).stage).toBe('stopping');
+    } finally { coordinator.stopQueue(); }
+  });
+
+  it('a stage a reader does not know yet reads as unknown, so an open client keeps parsing a newer server', () => {
+    const view = runProgressSchema.parse({ stage: 'a-later-stage', message: 'm', lastActivityAt: null, source: 'run',
+      evidence: 'unavailable', criteria: [], criteriaTruncated: false, acceptanceApproved: null });
+    expect(view.stage).toBe('unknown');
   });
 });

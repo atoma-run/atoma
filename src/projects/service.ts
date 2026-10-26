@@ -7,7 +7,7 @@ import { projectContextReadSchema, projectContextUpdateSchema } from '../contrac
 import { ProjectContextConflict } from './context.js';
 import { ensureHostingSubdomain, type HostingSubdomainNamer } from './hostingSubdomain.js';
 import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
-import type { ComputeResultsWaiting } from '../contracts/computeDevice.js';
+import type { ComputeResultsWaiting, ComputeRunProgress } from '../contracts/computeDevice.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { artifactPageInputSchema, artifactReadInputSchema, pageCursorSchema, projectPageInputSchema, runPageInputSchema,
@@ -331,6 +331,21 @@ export class ProjectService {
   private resultsWaiting(run: ProjectRun, liveLeases?: () => ReadonlySet<string>): ComputeResultsWaiting | null {
     return run.status === 'running' && run.executionTarget.kind === 'customer-device'
       ? this.coordinator.computeResultsWaiting(run, liveLeases?.()) : null;
+  }
+
+  /**
+   * What a progress projection needs of a Compute row beside its trace: the
+   * results-waiting answer, the dispatch phase and, only for a finished run,
+   * whether its cancellation was requested (`stopping`). Asked only of a
+   * running customer-device row; `computeProgress` is reused when the caller
+   * already presented it.
+   */
+  private computeProgressOptions(run: ProjectRun, resultsWaiting: ComputeResultsWaiting | null,
+    presented?: ComputeRunProgress | null) {
+    if (run.status !== 'running' || run.executionTarget.kind !== 'customer-device') return { resultsWaiting };
+    const computeProgress = presented === undefined ? this.coordinator.computeProgress(run) : presented;
+    return { resultsWaiting, computeProgress,
+      cancellationRequested: computeProgress === 'finalizing' && this.coordinator.cancellationRequested(run) };
   }
 
   /** One lease read per answer, taken only if some row asks for it. */
@@ -865,7 +880,7 @@ export class ProjectService {
     nextSteps.push({ tool: 'atoma_run_status', purpose: 'Read publication details and the current lifecycle; publication does not establish deployment or PR merge.' });
     if (canRequestAcceptance) nextSteps.push({ tool: 'atoma_run_accept', purpose: 'Only after the client tests/reviews and explicitly accepts: pass this artifactManifestHash and their review summary. Reading this review grants no consent.' });
     // One evidence read for both, so they describe the same trace snapshot.
-    const { progress, parentTests: projected } = projectRunEvidence(run, { resultsWaiting: this.resultsWaiting(run) });
+    const { progress, parentTests: projected } = projectRunEvidence(run, this.computeProgressOptions(run, this.resultsWaiting(run)));
     // The additive field is validated on its own: a projection fault reads as
     // unavailable evidence and never fails the review it rides on.
     const checked = runParentTestsSchema.safeParse(projected);
@@ -946,7 +961,7 @@ export class ProjectService {
       projectId: run.projectId, projectRunId: run.projectRunId, orgId: run.orgId,
       requestedByPrincipalId: run.requestedByPrincipalId, status: run.status,
       createdAt: run.createdAt, updatedAt: run.updatedAt, endedAt: run.endedAt ?? null,
-      progress: projectRunProgress(run, { reuseWithinMs: POLLED_PROGRESS_REUSE_MS, resultsWaiting: this.resultsWaiting(run) }),
+      progress: projectRunProgress(run, { reuseWithinMs: POLLED_PROGRESS_REUSE_MS, ...this.computeProgressOptions(run, this.resultsWaiting(run)) }),
     };
   }
 
@@ -958,7 +973,7 @@ export class ProjectService {
     const presented = this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId), { costBreakdown: true });
     return { ...presented,
       requestedByName: this.store.principalDisplayNames([run.requestedByPrincipalId]).get(run.requestedByPrincipalId) ?? null,
-      progress: projectRunProgress(run, { resultsWaiting: presented.resultsWaiting }),
+      progress: projectRunProgress(run, this.computeProgressOptions(run, presented.resultsWaiting, presented.computeProgress)),
       actions: { canCancel: orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member') && (run.status === 'queued' || run.status === 'running') } };
   }
 

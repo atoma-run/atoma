@@ -67,8 +67,14 @@ export function serviceProblem(status: number, message: string, details?: Partia
 }
 
 export const runProgressSchema = z.object({
-  /** `awaiting-results` (additive, 2026-10-25): a Compute run's work ended; its files wait on the customer's computer. */
-  stage: z.enum(['queued', 'preparing', 'planning', 'building', 'checking', 'finalizing', 'finished', 'unknown', 'awaiting-results']),
+  /**
+   * `awaiting-results` (additive, 2026-10-25): a Compute run's work ended; its files wait on the customer's computer.
+   * `stopping` (additive, 2026-10-26): a Compute run was interrupted or cancelled and waits for its computer's
+   * stop report; no files will be transferred. A stage this build does not know reads as `unknown`, so a
+   * reader bundled before a later additive stage (an open MCP App) keeps parsing the answer.
+   */
+  stage: z.enum(['queued', 'preparing', 'planning', 'building', 'checking', 'finalizing', 'finished', 'unknown', 'awaiting-results', 'stopping'])
+    .catch('unknown'),
   message: z.string(),
   lastActivityAt: z.string().nullable(),
   source: z.enum(['trace', 'run']),

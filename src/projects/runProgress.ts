@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { acceptanceSchema } from '../contracts/depthRouting.js';
 import { PROJECT_RUN_WAITING_MESSAGE, type ProjectRun } from '../contracts/projects.js';
 import type { RunParentTests, RunProgress } from '../contracts/clientExperience.js';
-import { COMPUTE_RESULTS_WAITING_MESSAGE, computeResultsWaitingMessage, type ComputeResultsWaiting } from '../contracts/computeDevice.js';
+import { COMPUTE_RESULTS_WAITING_MESSAGE, COMPUTE_RUN_STOPPING_MESSAGE, computeResultsWaitingMessage,
+  type ComputeResultsWaiting, type ComputeRunProgress } from '../contracts/computeDevice.js';
 import { summarizeParentTests, type ParentTestLimits, type ParentTestSummary } from '../contracts/parentTestRecord.js';
 import { readBoundedRunFile } from '../viz/runIndex.js';
 import { resolveProjectRunTraceFile } from './store.js';
@@ -99,7 +100,7 @@ const messages: Record<RunProgress['stage'], string> = {
   queued: PROJECT_RUN_WAITING_MESSAGE, preparing: 'Preparing the run.', planning: 'Planning the work.',
   building: 'Carrying out the planned work.', checking: 'Checking the work against its requirements.',
   finalizing: 'Finalizing the result and its files.', finished: 'Run finished.', unknown: 'Run in progress; detailed activity is unavailable.',
-  'awaiting-results': COMPUTE_RESULTS_WAITING_MESSAGE,
+  'awaiting-results': COMPUTE_RESULTS_WAITING_MESSAGE, stopping: COMPUTE_RUN_STOPPING_MESSAGE,
 };
 
 /**
@@ -108,7 +109,23 @@ const messages: Record<RunProgress['stage'], string> = {
  * transfer no process is driving). It outranks the trace, which cannot know
  * where the files are, and never the persisted lifecycle status.
  */
-interface ProgressOptions { readonly reuseWithinMs?: number; readonly resultsWaiting?: ComputeResultsWaiting | null }
+interface ProgressOptions {
+  readonly reuseWithinMs?: number; readonly resultsWaiting?: ComputeResultsWaiting | null;
+  /**
+   * The coordinator's dispatch-journal answer (`computeProgress`) and whether
+   * the run's cancellation was requested. A Compute run waiting for its
+   * computer's stop report reads `stopping`: its trace ended too, but nothing
+   * is being finalized and no file will be transferred (run a4dcf853 read
+   * "Finalizing the result and its files." for that wait, 2026-10-26).
+   */
+  readonly computeProgress?: ComputeRunProgress | null; readonly cancellationRequested?: boolean;
+}
+
+/** A running Compute row that only waits for its computer's stop report. Host facts only. */
+function computeStopping(options: ProgressOptions): boolean {
+  const phase = options.computeProgress;
+  return phase === 'stop-confirmation-pending' || phase === 'stopped' || (phase === 'finalizing' && options.cancellationRequested === true);
+}
 
 /**
  * Read-only projection. Persisted lifecycle status always outranks trace activity.
@@ -129,6 +146,7 @@ export function projectRunEvidence(run: ProjectRun, options: ProgressOptions = {
   const terminal = run.status !== 'queued' && run.status !== 'running';
   const stage = terminal ? 'finished' : run.status === 'queued' ? 'queued'
     : options.resultsWaiting && run.status === 'running' ? 'awaiting-results'
+    : run.status === 'running' && computeStopping(options) ? 'stopping'
     : detail?.ended ? 'finalizing' : detail?.stage ?? 'unknown';
   const criteria = detail?.criteria ?? [];
   const met = criteria.filter(item => item.met === true).length;
