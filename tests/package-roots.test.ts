@@ -370,7 +370,12 @@ describe('rendering the receipt', () => {
     expect(instruction).toContain('When the task itself adds, removes or upgrades a dependency, change package.json and its lockfile together');
     expect(instruction).not.toContain('no install rewrites a lockfile');
     expect(instruction).toContain('web (pnpm-lock.yaml) uses another package manager');
-    expect(instruction).toContain('never an unpinned npx or npm exec download');
+    expect(instruction).toContain('Never an unpinned npx or npm exec download');
+    // Only forms run_shell runs as written: a bare node_modules/.bin program is
+    // not in its allowlist (run a4dcf853, refusals 1a2bd9c6 and 2467e8fe).
+    expect(instruction).toContain('npm run <script> -- <runner options>');
+    expect(instruction).toContain('a binary of its node_modules/.bin through bash (cmd "bash -c \'node_modules/.bin/<runner> <options>\'")');
+    expect(instruction).not.toContain('its node_modules/.bin)');
     expect(instruction).toContain('never recorded as a probe');
     expect(undeclaredToolMentions(instruction, ['run_shell'], { minNonNegated: 1 })).toEqual([]);
     expect(workspacePreparationGuidance({ ...receipt, packageRootsComplete: false }, true)).toContain('other roots may exist deeper');

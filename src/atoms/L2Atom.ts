@@ -262,7 +262,8 @@ export function buildNarrowL1Prompt(
     bucketBody = canonicalHttpL1PromptLines(childTools.map((tool) => tool.name));
   } else if (bucket === 'web-artefact-build+validate') {
     bucketBody = [
-      `Call tools sequentially to produce the deliverable:`,
+      `Use tools to produce the deliverable; calls that do not depend on each`,
+      `other's results may go in one response (each response is one tool iteration):`,
       `  1. write_file the complete source of a NEW page; to change an existing`,
       `     page, read_file it and edit_file what changes`,
       `  2. start_static_server to serve it (port 0 = OS-assigned is fine)`,
@@ -293,9 +294,10 @@ export function buildNarrowL1Prompt(
     // to every molecule made Sucrose, which holds no record_probe, plan its
     // tests through it (run f91cdb19).
     bucketBody = [
-      `Call tools sequentially to produce the deliverable. Use ONLY the`,
-      `tools you were handed — do NOT invoke anything that isn't in your`,
-      `declared tool list.`,
+      `Use tools to produce the deliverable; calls that do not depend on each`,
+      `other's results may go in one response (each response is one tool`,
+      `iteration). Use ONLY the tools you were handed — do NOT invoke anything`,
+      `that isn't in your declared tool list.`,
       ``,
       SCRIBE_PORTABLE_DOC_GUIDANCE,
       ``,

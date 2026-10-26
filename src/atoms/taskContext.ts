@@ -6,6 +6,7 @@ import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
 import { PROBE_REVIEW_GUIDANCE } from '../contracts/probeManifest.js';
 import { workspacePreparationSchema, type PackageRoot } from '../contracts/workspacePreparation.js';
 import { SHELL_TIMEOUT_MAX_MS } from '../contracts/commandTimeouts.js';
+import { stripLiteralContractBlock } from './prompts.js';
 
 /** Stable trace boundary between a task's multiline description and runtime guidance. */
 export const TASK_CONTEXT_HEADER = '== TASK CONTEXT ==';
@@ -56,6 +57,34 @@ export const PROPORTIONATE_PLANNING_GUIDANCE = [
 
 /** Host-owned delegation scope; a child report cannot defer its own requirements. */
 export const DELEGATED_SCOPE_GUIDANCE = 'Task scope: This is a delegated phase, not final acceptance of the whole root goal. Judge the current Task and its required evidence. originalTask preserves applicable facts, behavior and constraints; it does not add deliverables or executed tests that the current Task explicitly assigns to a later phase. A child report or proposed plan cannot create that deferral. Missing implementation, contradictory evidence, and missing checks required by the current Task still fail. Approval of this phase does not establish completion of the root goal or its acceptance criteria.';
+
+/**
+ * The parent's own assignment, as its delegated child reads it. A cell's
+ * rewrite of its branch dropped the branch's scope exclusions ("does not
+ * modify the server", "runs after the join"), and the literal-contract
+ * carry-over keeps only API-shaped clauses, so the cell reviewed its molecule
+ * against originalTask alone and demanded sibling and join work three times
+ * (run a4dcf853). Carried verbatim, never filtered by vocabulary.
+ */
+export const ENCLOSING_PHASE_GUIDANCE = 'Enclosing phase: the parent\'s assignment containing the current Task, copied by the host. It bounds the current Task and adds no requirement to it: work it excludes or assigns to a sibling or later phase is not a current requirement, even when originalTask asks for it. The current Task may narrow it but not widen it.';
+/** Bound on the copied assignment; a longer one keeps its head and its tail. */
+export const ENCLOSING_PHASE_MAX_CHARS = 3000;
+
+/**
+ * A delegated task's declared outputs, as guidance and never a gate: a plan
+ * reviewer refused a molecule's plans three times for not changing files its
+ * siblings and the join owned (run a4dcf853).
+ */
+export function declaredOutputsLine(outputs: readonly string[]): string {
+  return `Declared outputs (the files the parent plan assigned to this task): ${JSON.stringify(outputs)}. Other work the original task names belongs to sibling branches or the parent's join unless the current Task asks for it. Never refuse a plan or result for not changing a file outside this list, and never ask for it. A requirement that cannot be met without changing another file is a contradiction to report to the parent, not work to add here. A file this list omits stays allowed when the current Task needs it.`;
+}
+
+function enclosingPhaseText(description: string): string {
+  const text = stripLiteralContractBlock(description);
+  if (text.length <= ENCLOSING_PHASE_MAX_CHARS) return text;
+  const tail = 1000;
+  return `${text.slice(0, ENCLOSING_PHASE_MAX_CHARS - tail - 3)}\n…\n${text.slice(-tail)}`;
+}
 
 /**
  * The criteria a delegated phase records evidence for, in the words the root
@@ -240,7 +269,7 @@ export function workspacePreparationGuidance(value: unknown, hasShell: boolean):
     `These preparation installs never rewrite a lockfile${npmRootWithoutLockfile ? '; the repository root without one installs with npm install --no-save' : ''}. When the task itself adds, removes or upgrades a dependency, change package.json and its lockfile together through the package manager (npm install <pkg> --prefix <dir>). When a frozen install fails because package.json and its lockfile disagree, regenerate that lockfile only when the task covers that root's dependencies; otherwise report the root as not installed, with the error.`,
     foreign.length > 0 ? `${foreign.map(rootLabel).join(', ')} uses another package manager: install it once per execution, before the first command that resolves modules from it, with that manager's frozen-lockfile mode${pnpmWorkspaces.length > 0 ? ` (${PNPM_NO_LOCKFILE} for a pnpm workspace without a lockfile, which has none to freeze to and gets none written; never npm, which ignores pnpm-workspace.yaml and refuses its workspace: and catalog: dependencies)` : ''} in a run_shell command with timeoutMs ${SHELL_TIMEOUT_MAX_MS}; where pnpm or yarn is not on PATH, run it through corepack (env COREPACK_ENABLE_STRICT=0 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm|yarn ...); otherwise report it as not installed. That manager never writes <dir>/${INSTALL_MARKER}: never guard its install with that file.` : '',
     incomplete ? 'A root not listed is installed the same way, only when a command needs it.' : '',
-    'Once a root is installed, run its checks through its local runner (npm test, npm run <script>, its node_modules/.bin), never an unpinned npx or npm exec download. Reinstall a completed tree only after its lockfile changed or a failure shows it broken. An install is never evidence and is never recorded as a probe.',
+    'Once a root is installed, run its checks through its local runner: npm test, npm run <script> -- <runner options>, or a binary of its node_modules/.bin through bash (cmd "bash -c \'node_modules/.bin/<runner> <options>\'"); run_shell refuses a node_modules/.bin program named on its own. Never an unpinned npx or npm exec download. Reinstall a completed tree only after its lockfile changed or a failure shows it broken. An install is never evidence and is never recorded as a probe.',
     DEPENDENCY_CARRY_OVER,
   ].filter(Boolean).join(' ');
 }
@@ -291,8 +320,13 @@ export function taskContextLines(task: Task, options: {
       inputs['originalTask'] = { ...original, inputs: originalInputs };
     }
   }
+  // Rendered once, beside the scope guidance: Jev caps its context head-first.
+  const enclosing = task.originalTask && typeof inputs?.['enclosingPhase'] === 'string' ? inputs['enclosingPhase'] : undefined;
+  if (enclosing !== undefined) delete inputs!['enclosingPhase'];
   return [
     task.originalTask ? DELEGATED_SCOPE_GUIDANCE : '',
+    enclosing !== undefined ? `${ENCLOSING_PHASE_GUIDANCE} enclosingPhase: ${JSON.stringify(enclosing)}` : '',
+    task.originalTask && task.outputs?.length ? declaredOutputsLine(task.outputs) : '',
     task.readOnly ? READ_ONLY_TASK_LINE : '',
     // A reasoning task holds no tools (L2Atom and L3Atom fallback `hasTools`,
     // L1 `reasoningPrompt`), so it writes no application, and
@@ -337,6 +371,14 @@ export function reasoningPrompt(task: Task, plan?: Plan): string {
   ].filter(Boolean).join('\n');
 }
 
+/** A parent's own enclosing phase is its grandparent's, never its child's. */
+function withoutEnclosingPhase(inputs: Task['inputs']): Task['inputs'] {
+  if (inputs?.['enclosingPhase'] === undefined) return inputs;
+  const rest = { ...inputs };
+  delete rest['enclosingPhase'];
+  return rest;
+}
+
 /** Keep one original task across every delegation; model-authored inputs cannot replace it. */
 export function delegatedTaskContext(parent: Task, child: SubtaskSpec): Pick<Task, 'inputs' | 'constraints' | 'originalTask' | 'executionMode' | 'acceptanceTests'> {
   const originalTask = parent.originalTask ?? {
@@ -355,16 +397,27 @@ export function delegatedTaskContext(parent: Task, child: SubtaskSpec): Pick<Tas
   delete childInputs['readRuns'];
   delete childInputs['repositoryPreparation'];
   delete childInputs['workspacePreparation'];
+  // Host-owned too: a plan cannot forge or replace its parent's assignment.
+  delete childInputs['enclosingPhase'];
+  // Only a delegated parent is a phase; the root goal already is originalTask.
+  // The immediate parent wins over the copy it inherited, except for a child
+  // handed the parent's own text (a one-subtask passthrough): it already reads
+  // that text as its Task, and keeps the parent's enclosing phase.
+  const inherited = parent.inputs?.['enclosingPhase'];
+  const enclosingPhase = !parent.originalTask ? undefined
+    : stripLiteralContractBlock(parent.description) !== stripLiteralContractBlock(child.description) ? enclosingPhaseText(parent.description)
+      : typeof inherited === 'string' ? inherited : undefined;
   const executionMode = parent.executionMode === 'reasoning' ? 'reasoning' : child.executionMode;
   return {
     originalTask,
     ...(child.acceptanceTests ? { acceptanceTests: Object.freeze({ ...child.acceptanceTests }) } : {}),
-    inputs: { ...parent.inputs, ...childInputs, originalTask,
+    inputs: { ...withoutEnclosingPhase(parent.inputs), ...childInputs, originalTask,
       ...(parent.inputs?.['previousPhaseObservations'] !== undefined && child.inputs?.['previousPhaseObservations'] !== undefined
         ? { previousPhaseObservations: previousResultInput({
           inherited: parent.inputs['previousPhaseObservations'],
           local: child.inputs['previousPhaseObservations'],
         }) } : {}),
+      ...(enclosingPhase ? { enclosingPhase } : {}),
     },
     ...(parent.constraints ? { constraints: parent.constraints } : {}),
     ...(executionMode ? { executionMode } : {}),

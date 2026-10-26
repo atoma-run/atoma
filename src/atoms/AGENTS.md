@@ -276,10 +276,10 @@ load-bearing.
   Declared reasoning mode disables tools/skills through descendants and fallbacks; only its observed-action gate
   is skipped, and the plan parse drops it on a subtask declaring outputs or proof obligations (review 2026-10-09 2.6). [Contract and review](../../records/incidents/text-delivery-2026-10-02.md).
   Runtime planning keeps the current phase's scope and scales reusable workflows to the task, without a phase-count gate ([review](../../records/incidents/planning-scope-2026-10-03.md)).
-  Validation retains that host-owned scope too: original facts remain binding,
-  but tests assigned to a forthcoming phase are not current-phase prerequisites.
-  Current defects/checks and final root acceptance stay strict. A child cannot
-  defer its own requirements. Paired replay: `benchmark/reservation-transactions-2026-10-05/`.
+  Validation retains that host-owned scope too: original facts remain binding, but tests assigned to a forthcoming phase are not
+  current-phase prerequisites; a delegated parent's own text rides as host-owned `inputs.enclosingPhase` (verbatim, never a keyword filter;
+  a child's copy is dropped) and a delegated task's `outputs` as guidance, never a gate (run a4dcf853: a cell demanded join work). Current
+  defects/checks and final root acceptance stay strict. A child cannot defer its own requirements. Paired replay: `benchmark/reservation-transactions-2026-10-05/`.
 - `llm-synthesize` reads exact task criteria and bounded host tool/suite observations beside fallible branch reports; it grants no proof credit.
   File assembly requires an L1 phase. [Attica evidence losses](../../records/incidents/attica-recipe-evidence-2026-10-20.md).
 - Aggregation is behavioral: `concat` and `llm-synthesize` dispatch orthogonal

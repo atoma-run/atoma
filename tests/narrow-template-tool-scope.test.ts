@@ -173,11 +173,14 @@ describe('the L1 request names only the recorders a molecule holds', () => {
     const scribe = buildNarrowL1Prompt('', declarations.filter((tool) =>
       ['write_file', 'edit_file', 'read_file', 'list_files', 'run_shell', 'record_probe'].includes(tool.name)));
     expect(scribe.endsWith(GROUND_TRUTH_EVIDENCE_LINES.join('\n'))).toBe(true);
-    // Digests of the renders at d184d281, before the composition existed.
+    // Digests of the renders at d184d281, before the composition existed. The
+    // whole render moved once since, on purpose: its "Call tools sequentially"
+    // line now allows independent calls in one response (run a4dcf853); a
+    // template revision is refreshed with the streak kept (src/registry).
     const sha = (text: string): string => createHash('sha256').update(text).digest('hex');
     expect(sha(GROUND_TRUTH_EVIDENCE_LINES.join('\n'))).toBe('7c16d0ce600d3a30b03c4879d597f5a1e8daacb8fabd399fb32cc1f17a561252');
     expect(sha(CANONICAL_FILESCRIBE_L1_SYSTEM_PROMPT_LINES.join('\n'))).toBe('a8a3bf2833c3491afc3270969946144c612db7b6accd7a28d9b0648f8a28dd95');
-    expect(sha(scribe)).toBe('040d4e105ec1b6a39eb8fa0bbc084aad2b98e1db398e8e9a61160b47633437e4');
+    expect(sha(scribe)).toBe('2331dce766720439ede9901bc8ea60061d5aacc9e583fe4e43439f8a505a271e');
   });
 
   it('Sucrose, created through the real createSubtaskL1 from Idioblast, gets one web-aware contract and no record_probe', () => {
