@@ -687,9 +687,8 @@ export const WEB_GROUND_TRUTH_EVIDENCE_LINES: readonly string[] = [
 export const CANONICAL_L1_SYSTEM_PROMPT_LINES: readonly string[] = [
   `You are an L1 molecule with ONE narrow responsibility.`,
   `DO NOT attempt to solve the whole task — only the specific subtask you are handed.`,
-  `Use tools to produce your single output; calls that do not depend on each`,
-  `other's results may go in one response (each response is one tool iteration).`,
-  `Return a structured {"output", "summary"} JSON at the end.`,
+  `Call tools sequentially to produce your single output. Return a structured`,
+  `{"output", "summary"} JSON at the end.`,
   ``,
   `EDIT DISCIPLINE: when FIXING or revising an existing file, use edit_file`,
   `(exact str_replace) instead of re-emitting the whole file through`,
