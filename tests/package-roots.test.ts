@@ -326,7 +326,7 @@ describe('rendering the receipt', () => {
     expect(instruction).toContain("Package roots the seed held at launch, outside dot-directories and build or vendor trees ('.' is the repository root): . (pnpm workspace, no lockfile), browser (package-lock.json).");
     expect(instruction).toContain(`For the listed roots: ${BROWSER_INSTALL} `);
     expect(instruction).toContain('. (pnpm workspace, no lockfile) uses another package manager: install it once per execution');
-    expect(instruction).toContain('env COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --no-lockfile for a pnpm workspace without a lockfile');
+    expect(instruction).toContain('env COREPACK_ENABLE_STRICT=0 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --no-lockfile for a pnpm workspace without a lockfile');
     expect(instruction).toContain('never guard its install with that file');
     expect(instruction).not.toContain('npm install --no-save');
     expect(instruction).not.toContain('the repository root without');
@@ -343,7 +343,7 @@ describe('rendering the receipt', () => {
     const guidance = workspacePreparationGuidance({ dependencies: 'excluded-from-seed', packageRootsComplete: true, packageRoots: [
       { dir: '.', lockfile: 'package-lock.json' }, { dir: 'tests/fixtures/mono', lockfile: null, workspace: 'pnpm' }] }, true);
     expect(guidance).toContain('tests/fixtures/mono (pnpm workspace, no lockfile) hold a package.json without a lockfile');
-    expect(guidance).toContain('(a pnpm workspace: env COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --no-lockfile --dir <dir>, never npm)');
+    expect(guidance).toContain('(a pnpm workspace: env COREPACK_ENABLE_STRICT=0 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --no-lockfile --dir <dir>, never npm)');
     expect(guidance).not.toContain('uses another package manager');
     expect(packageRootInstallCommand([{ dir: '.', lockfile: 'package-lock.json' }, { dir: 'tests/fixtures/mono', lockfile: null, workspace: 'pnpm' }]))
       .toBe('(test -f node_modules/.package-lock.json || npm ci --include=dev)');

@@ -166,9 +166,10 @@ const pnpmWorkspaceRoot = (root: PackageRoot): boolean => root.lockfile === null
 /**
  * pnpm through corepack: the worker image ships corepack, not pnpm (review
  * 2026-10-26). Through `env`, which run_shell allowlists, so the line runs
- * whether or not it is routed through bash.
+ * whether or not it is routed through bash. Not strict: a root package.json
+ * declaring another `packageManager` would otherwise refuse it.
  */
-const PNPM_NO_LOCKFILE = 'env COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --no-lockfile';
+const PNPM_NO_LOCKFILE = 'env COREPACK_ENABLE_STRICT=0 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --no-lockfile';
 const rootLabel = (root: PackageRoot): string => `${root.dir} (${pnpmWorkspaceRoot(root) ? 'pnpm workspace, no lockfile' : root.lockfile ?? 'no lockfile'})`;
 
 /**
@@ -237,7 +238,7 @@ export function workspacePreparationGuidance(value: unknown, hasShell: boolean):
     unpinned.length > 0 ? `${unpinned.map(root => pnpmWorkspaceRoot(root) ? rootLabel(root) : root.dir).join(', ')} hold a package.json without a lockfile (possibly a fixture, template or example): install one only when a command you run resolves modules from it, with npm install --no-save --prefix <dir>${unpinned.some(pnpmWorkspaceRoot) ? ` (a pnpm workspace: ${PNPM_NO_LOCKFILE} --dir <dir>, never npm)` : ''}.` : '',
     fixtures.length > 0 ? `${fixtures.map(root => `${root.dir} (${root.lockfile})`).join(', ')} sit under a fixture directory: install one, frozen to its lockfile (npm ci --include=dev --prefix <dir> for an npm lockfile), only when a command you run resolves modules from it.` : '',
     `These preparation installs never rewrite a lockfile${npmRootWithoutLockfile ? '; the repository root without one installs with npm install --no-save' : ''}. When the task itself adds, removes or upgrades a dependency, change package.json and its lockfile together through the package manager (npm install <pkg> --prefix <dir>). When a frozen install fails because package.json and its lockfile disagree, regenerate that lockfile only when the task covers that root's dependencies; otherwise report the root as not installed, with the error.`,
-    foreign.length > 0 ? `${foreign.map(rootLabel).join(', ')} uses another package manager: install it once per execution, before the first command that resolves modules from it, with that manager's frozen-lockfile mode${pnpmWorkspaces.length > 0 ? ` (${PNPM_NO_LOCKFILE} for a pnpm workspace without a lockfile, which has none to freeze to and gets none written; never npm, which ignores pnpm-workspace.yaml and refuses its workspace: and catalog: dependencies)` : ''} in a run_shell command with timeoutMs ${SHELL_TIMEOUT_MAX_MS}; where the manager is not on PATH, run it through corepack (env COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack <manager> ...); otherwise report it as not installed. That manager never writes <dir>/${INSTALL_MARKER}: never guard its install with that file.` : '',
+    foreign.length > 0 ? `${foreign.map(rootLabel).join(', ')} uses another package manager: install it once per execution, before the first command that resolves modules from it, with that manager's frozen-lockfile mode${pnpmWorkspaces.length > 0 ? ` (${PNPM_NO_LOCKFILE} for a pnpm workspace without a lockfile, which has none to freeze to and gets none written; never npm, which ignores pnpm-workspace.yaml and refuses its workspace: and catalog: dependencies)` : ''} in a run_shell command with timeoutMs ${SHELL_TIMEOUT_MAX_MS}; where pnpm or yarn is not on PATH, run it through corepack (env COREPACK_ENABLE_STRICT=0 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm|yarn ...); otherwise report it as not installed. That manager never writes <dir>/${INSTALL_MARKER}: never guard its install with that file.` : '',
     incomplete ? 'A root not listed is installed the same way, only when a command needs it.' : '',
     'Once a root is installed, run its checks through its local runner (npm test, npm run <script>, its node_modules/.bin), never an unpinned npx or npm exec download. Reinstall a completed tree only after its lockfile changed or a failure shows it broken. An install is never evidence and is never recorded as a probe.',
     DEPENDENCY_CARRY_OVER,
