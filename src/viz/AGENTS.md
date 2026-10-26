@@ -107,8 +107,8 @@ fail closed as before. The web service's executor dependency is one-way only.
   Keep decorative icons hidden from accessibility and preserve the button's
   text or explicit accessible name. Do not introduce text-only action buttons,
   emoji substitutes, or a separate icon style for one feature.
-- The renderer stops its ticker when the document is hidden or loses focus. Camera draws are gated too;
-  background snapshots coalesce until focus returns, when the latest scene is rebuilt before animation resumes.
+- The ticker stops when the document is hidden or loses focus. HIDDEN suspends: camera draws gated, snapshots coalesced until visible, then the latest rebuilt before animation resumes.
+  VISIBLE UNFOCUSED still draws new data, ticks `BACKGROUND_SETTLE_MS`, then idles: an MCP-started run stayed unseen beside the editor until a reload (2026-10-26).
 - Keep GPU animation state out of React/Zustand hot paths. Use mutable samples
   read once per frame; do not rebuild the scene for pointer motion. A subtree
   that MUTATES EVERY FRAME draws into its own render group (`ctx.animatedLayer`,

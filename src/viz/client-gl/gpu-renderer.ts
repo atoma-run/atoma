@@ -547,6 +547,8 @@ import {
   type TimelineCardMaterial,
 } from './renderer/timeline-card-material.js';
 
+/** How long an unfocused window animates after drawing new data. */
+export const BACKGROUND_SETTLE_MS = 1_500;
 
 export class GpuRenderer {
   app = new Application();
@@ -659,14 +661,41 @@ export class GpuRenderer {
    */
   onDeferredRender: (() => void) | null = null;
 
+  /**
+   * Visible but unfocused: the window sits beside the editor or agent that
+   * started a run. The ticker idles, but new data is still drawn — a run
+   * started over MCP stayed invisible here until the page was clicked or
+   * reloaded (2026-10-26). Hidden documents stay fully suspended.
+   */
+  private background = false;
+  private backgroundSettleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Runs the ticker long enough for a fresh scene's entry and reveal motion to land. */
+  private settleInBackground() {
+    if (this.backgroundSettleTimer) clearTimeout(this.backgroundSettleTimer);
+    this.app.start();
+    this.backgroundSettleTimer = setTimeout(() => {
+      this.backgroundSettleTimer = null;
+      if (this.background) this.app.stop();
+    }, BACKGROUND_SETTLE_MS);
+  }
+
+  private clearBackgroundSettle() {
+    if (!this.backgroundSettleTimer) return;
+    clearTimeout(this.backgroundSettleTimer);
+    this.backgroundSettleTimer = null;
+  }
+
   private readonly syncRenderActivity = () => {
-    const suspended = document.hidden || !document.hasFocus();
+    const suspended = document.hidden;
     this.suspended = suspended;
+    this.background = !suspended && !document.hasFocus();
     if (suspended) {
       this.relativeTimes.stop();
       const waiting = this.deferredRefresh?.snapshot;
       this.dropDeferredRefresh();
       if (waiting) this.pendingSnapshot = waiting;
+      this.clearBackgroundSettle();
       this.app.stop();
       return;
     }
@@ -675,6 +704,11 @@ export class GpuRenderer {
     this.pendingSnapshot = null;
     if (pending && this.render(pending, true)) this.onDeferredRender?.();
     this.relativeTimes.start();
+    if (this.background) {
+      this.settleInBackground();
+      return;
+    }
+    this.clearBackgroundSettle();
     this.app.start();
   };
   private snapshot: GpuRenderSnapshot | null = null;
@@ -1675,6 +1709,8 @@ export class GpuRenderer {
     if (this.runsRecenterTimer) clearTimeout(this.runsRecenterTimer);
     this.runsRecenterTimer = null;
     this.suspended = true;
+    this.background = false;
+    this.clearBackgroundSettle();
     this.app.stop();
     window.removeEventListener('focus', this.syncRenderActivity);
     window.removeEventListener('blur', this.syncRenderActivity);
@@ -1845,6 +1881,7 @@ export class GpuRenderer {
         this.metrics.labelsReused = this.labels.reused;
       }
     }
+    if (rendered && this.background) this.settleInBackground();
     return rendered;
   }
 

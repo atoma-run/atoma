@@ -27,6 +27,7 @@ import type {
   VizRun,
 } from '../src/viz/client/types.js';
 import {
+  BACKGROUND_SETTLE_MS,
   BUTTON_LABEL_INSET,
   GpuRenderer,
   NAV_HOVER_SCALE,
@@ -1714,10 +1715,9 @@ describe('the nav rail', () => {
     expect(css).toMatch(/\.gpu-project-mcp\s*\{[\s\S]*?--gpu-overlay-top:\s*104px/);
   });
 
-  it('stops inactive rendering and rebuilds only the latest snapshot on return', () => {
-    let focused = true;
+  it('stops a hidden document and rebuilds only the latest snapshot on return', () => {
     let hidden = false;
-    vi.stubGlobal('document', { get hidden() { return hidden; }, hasFocus: () => focused,
+    vi.stubGlobal('document', { get hidden() { return hidden; }, hasFocus: () => !hidden,
       addEventListener: vi.fn(), removeEventListener: vi.fn() });
     const renderer = new GpuRenderer();
     const start = vi.fn();
@@ -1733,7 +1733,7 @@ describe('the nav rail', () => {
     internals.initialized = true;
     const rebuild = vi.spyOn(internals, 'renderScene').mockImplementation(() => {});
     try {
-      focused = false;
+      hidden = true;
       internals.syncRenderActivity();
       expect(stop).toHaveBeenCalledOnce();
       renderer.render(makeSnapshot({ view: 'runs' }));
@@ -1742,27 +1742,75 @@ describe('the nav rail', () => {
       // A camera callback must not reach the absent GPU renderer either.
       expect(() => internals.renderCameraFrame()).not.toThrow();
       expect(rebuild).not.toHaveBeenCalled();
-      hidden = true;
-      focused = true;
-      internals.syncRenderActivity();
       expect(start).not.toHaveBeenCalled();
       hidden = false;
       internals.syncRenderActivity();
       expect(rebuild).toHaveBeenCalledExactlyOnceWith(latest);
       expect(start).toHaveBeenCalledOnce();
     } finally {
-      focused = false;
+      hidden = true;
       internals.syncRenderActivity();
       vi.unstubAllGlobals();
     }
   });
 
-  it('refreshes relative dates without new data and catches up after losing focus', () => {
+  it('draws new data in a visible unfocused window, then lets the ticker idle', () => {
+    // 2026-10-26: a run started over MCP from the editor beside the browser
+    // did not appear in the project's run list until the page was reloaded,
+    // because blur suspended every rebuild until focus returned.
+    vi.useFakeTimers();
+    let focused = true;
+    let hidden = false;
+    vi.stubGlobal('document', { get hidden() { return hidden; }, hasFocus: () => focused,
+      addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    const renderer = new GpuRenderer();
+    const start = vi.fn();
+    const stop = vi.fn();
+    const internals = renderer as unknown as {
+      initialized: boolean;
+      app: unknown;
+      syncRenderActivity: () => void;
+      renderScene: (snapshot: GpuRenderSnapshot) => void;
+    };
+    internals.app = { start, stop };
+    internals.initialized = true;
+    const rebuild = vi.spyOn(internals, 'renderScene').mockImplementation(() => {});
+    try {
+      internals.syncRenderActivity();
+      focused = false;
+      internals.syncRenderActivity();
+      vi.advanceTimersByTime(BACKGROUND_SETTLE_MS);
+      expect(stop).toHaveBeenCalledOnce();
+      start.mockClear();
+      const arrived = makeSnapshot({ view: 'projects' });
+      expect(renderer.render(arrived)).toBe(true);
+      expect(rebuild).toHaveBeenCalledExactlyOnceWith(arrived);
+      // The fresh scene animates in, then the window idles again.
+      expect(start).toHaveBeenCalledOnce();
+      vi.advanceTimersByTime(BACKGROUND_SETTLE_MS - 1);
+      expect(stop).toHaveBeenCalledOnce();
+      vi.advanceTimersByTime(1);
+      expect(stop).toHaveBeenCalledTimes(2);
+      // Focus returning mid-settle keeps the ticker running for good.
+      renderer.render(makeSnapshot({ view: 'runs' }));
+      focused = true;
+      internals.syncRenderActivity();
+      vi.advanceTimersByTime(BACKGROUND_SETTLE_MS);
+      expect(stop).toHaveBeenCalledTimes(2);
+    } finally {
+      hidden = true;
+      internals.syncRenderActivity();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it('refreshes relative dates without new data and catches up after being hidden', () => {
     vi.useFakeTimers();
     const at = Date.parse('2026-10-20T12:00:00Z');
     vi.setSystemTime(at);
-    let focused = true;
-    vi.stubGlobal('document', { hidden: false, hasFocus: () => focused,
+    let hidden = false;
+    vi.stubGlobal('document', { get hidden() { return hidden; }, hasFocus: () => !hidden,
       addEventListener: vi.fn(), removeEventListener: vi.fn() });
     const renderer = new GpuRenderer();
     const snapshot = makeSnapshot({ view: 'runs' });
@@ -1788,16 +1836,16 @@ describe('the nav rail', () => {
       expect(redraw).toHaveBeenCalledExactlyOnceWith(snapshot, true);
       expect(label).toBe('a minute ago');
       expect(renderer.onDeferredRender).toHaveBeenCalledOnce();
-      focused = false;
+      hidden = true;
       internals.syncRenderActivity();
       vi.advanceTimersByTime(60_000);
       expect(redraw).toHaveBeenCalledOnce();
-      focused = true;
+      hidden = false;
       internals.syncRenderActivity();
       expect(label).toBe('a few minutes ago');
       expect(redraw).toHaveBeenCalledTimes(2);
     } finally {
-      focused = false;
+      hidden = true;
       internals.syncRenderActivity();
       vi.unstubAllGlobals();
       vi.useRealTimers();
