@@ -773,6 +773,11 @@ it('tells who asked for each project run and from where, once, at its place amon
   expect(items[5]).toContain('$0.42');
   expect(items[5]).toContain('This result was accepted and sent to GitHub.');
   expect(items[7]).toContain('Work requested: “Add a contact form”');
+  // Input on the right, output on the left: a request reads as the person's message, an ending as Atoma's receipt.
+  const articles = within(log).getAllByRole('article');
+  expect(articles[7]).toHaveClass('gpu-assistant-message--user');
+  expect(articles[5]).toHaveClass('gpu-assistant-message--receipt');
+  expect(articles[4]).toHaveClass('gpu-assistant-message--user'); // a teammate's request is an input too
   // An ended line opens its own run, by its trace.
   const ended = within(log).getAllByRole('article')[5]!;
   await userEvent.click(within(ended).getByRole('button', { name: 'See the details' }));
