@@ -8,7 +8,7 @@
 - [Verification discipline](verification-speed.md) — 2026-10-20: thorough checks before pushing; follow all relevant CI, desktop packaging and deploy jobs to completion; fix failures
 - [No cooling-off](no-cooling-off.md) — fix incidents in-session, but adversarially review every gate/prompt rule/parser salvage first
 - [Beta rules not fixed](beta-rules-not-fixed.md) — 2026-10-16: I decide owner-level design choices myself; documented rules and AGENTS.md can change if evidence says so
-- [Shared checkout staging](shared-checkout-staging.md) — never stage from a status listing; never reset --hard/stash/pull --rebase the shared tree; push only when origin/main..HEAD is mine (2026-10-16)
+- [Shared checkout staging](shared-checkout-staging.md) — never stage from a status listing; never reset --hard/stash/pull --rebase the shared tree; push only when origin/main..HEAD is mine; after commit --only with EN changes, unstage the target locales (2026-10-26)
 - [Worktree junction hazard](worktree-junction-hazard.md) — remove node_modules junctions before `git worktree remove --force`
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 

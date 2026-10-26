@@ -79,3 +79,11 @@ which their own rebase drops as already upstream.
 
 - Before any push from the shared tree, `git log --oneline origin/main..HEAD`
   must list only my commits; otherwise push from a scratch worktree.
+
+`commit --only` + the i18n hook (2026-10-26): when my commit changes EN values,
+the pre-commit hook blanks and re-stages the twelve target catalogs, and they
+land in the commit, but the shared INDEX keeps their pre-blank bytes
+(`git status` shows `MM`; disk equals HEAD). A later commit by anyone would
+restore the stale translations. After such a commit, run
+`git restore --staged -- src/viz/client/locales/<targets>.json`, then confirm
+`git status` no longer lists them.
