@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "revision": "d63cbdc6c96f12a4a9b179da629a8ac7afe8f34d",
+  "architecture": "arm64",
+  "images": {
+    "worker": {
+      "reference": "ghcr.io/atoma-run/atoma/compute-worker@sha256:d3f0de678c4be18aa097382a10b4797f702cedd6a1e8807c029d85da7c8567aa",
+      "contentDigest": "sha256:514cec42a32621818f490946dd899548098d3af0627fc8fc9114ba3341a6a2be"
+    },
+    "workspace": {
+      "reference": "ghcr.io/atoma-run/atoma/compute-workspace@sha256:26eece8f3ce820ed38b146158a6bb704f56ac82f53cd75ec42878f8ac8f86bea",
+      "contentDigest": "sha256:4b30a2c5a1aca63a0179c564eff1d7348f6fd4bfeb7911914ae88ff35d2dda2d"
+    },
+    "preview": {
+      "reference": "ghcr.io/atoma-run/atoma/compute-preview@sha256:c4edca59cbf90e246b8f26c20b1a264b0203afbfaa9ab58f92e41561746af581",
+      "contentDigest": "sha256:c8aa3adfec6f90533f7c19ef74c2b9338a8d32389afae5ea2c7800a455cae857"
+    },
+    "retrieval": {
+      "reference": "ghcr.io/atoma-run/atoma/compute-retrieval@sha256:9ecfa6e4b02257f4f9f32d8732883391722305e779fe3064dc9a364a01662680",
+      "contentDigest": "sha256:96c1cd0812cea6cdf3ffb9789617763333dcbf95fc721dc5ce6ebda4d683921d"
+    }
+  },
+  "haystackConfig": {
+    "python": "/opt/haystack/bin/python",
+    "runtimeSha256": "e2182a15cb39badba426e038d723d0900413efeae9578cad284b2fbfcbda4754",
+    "settings": {
+      "mode": "hybrid-rerank",
+      "embeddingRevision": "8481cae14ea3d37144274e82b407060d198aceaa31141955aa3794bcff0002be",
+      "rerankerRevision": "b4ef9bdd2c8d5e81541448743fe6392d378b7fc7b4f8d83db5ed9c34486b650d",
+      "queryPrefix": "query: ",
+      "documentPrefix": "passage: ",
+      "embeddingPath": "/models/embedding",
+      "rerankerPath": "/models/reranker"
+    }
+  }
+}
