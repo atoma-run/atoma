@@ -219,6 +219,16 @@ it(`marks an application unavailable after ${HOSTING_HEALTH.failures} consecutiv
   healthy = false; await service.refreshHealth();
   expect(service.status(viewer, projectId).state).toBe('ready');
 });
+it('adopts a republished relay port even while the application answers slowly', async () => {
+  // Review 2026-10-26: a slow probe must not keep the gateway on a port the
+  // launcher no longer maps to this deployment.
+  publish(); await service.deploy(viewer, projectId, input()); await service.idle();
+  service.deps.healthProbe = async () => false;
+  launcher.inspectHosting.mockResolvedValueOnce({ hostPort: 34567, image: 'runtime@sha256:abc' });
+  await service.refreshHealth();
+  const row = service.deps.store.list(viewer.orgId, projectId)[0];
+  expect(row).toMatchObject({ state: 'ready', hostPort: 34567 });
+});
 it('marks an application whose container is gone unavailable at the first check, even mid-count', async () => {
   publish(); await service.deploy(viewer, projectId, input()); await service.idle();
   const events = vi.fn(); service.deps.events = events;

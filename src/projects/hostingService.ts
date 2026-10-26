@@ -448,7 +448,13 @@ export class HostingService {
         // A container the launcher no longer has is gone now; a running one that
         // did not answer in time is one vote.
         const failures = handle ? (this.healthFailures.get(row.deploymentId) ?? 0) + 1 : HOSTING_HEALTH.failures;
-        if (failures < HOSTING_HEALTH.failures) { this.healthFailures.set(row.deploymentId, failures); continue; }
+        if (failures < HOSTING_HEALTH.failures) {
+          this.healthFailures.set(row.deploymentId, failures);
+          // The launcher's mapping is authoritative: a republished relay port is
+          // adopted even while the probe misses, never kept stale for the gateway.
+          if (handle && handle.hostPort !== row.hostPort) this.deps.store.update({ ...row, ...handle }, row.state);
+          continue;
+        }
         this.healthFailures.delete(row.deploymentId);
         const next = { ...row, state: 'failed' as const, error: 'runtime-unavailable' as const, hostPort: null };
         this.deps.store.update(next, row.state); this.event(next);
