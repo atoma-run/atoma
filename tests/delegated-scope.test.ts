@@ -6,7 +6,7 @@ import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { buildNarrowL1Prompt } from '../src/atoms/L2Atom.js';
-import { ENCLOSING_PHASE_GUIDANCE, ENCLOSING_PHASE_MAX_CHARS, delegatedTaskContext, taskContextLines } from '../src/atoms/taskContext.js';
+import { ENCLOSING_PHASE_CUT, ENCLOSING_PHASE_GUIDANCE, ENCLOSING_PHASE_MAX_CHARS, delegatedTaskContext, taskContextLines } from '../src/atoms/taskContext.js';
 import { mockOtherProofReview } from './helpers/delegationReview.js';
 import { FALLBACK_OPUS } from './tier-pins.js';
 import { makeCtx } from './helpers.js';
@@ -99,8 +99,9 @@ describe('a delegated phase reads the scope its parent was assigned', () => {
       expect(call.userContent.split(SCOPE_EXCLUSION)).toHaveLength(2);
       expect(call.userContent).not.toContain('FORGED_ENCLOSING_PHASE');
       expect(call.userContent).toContain(`Declared outputs (the files the parent plan assigned to this task): ${JSON.stringify(outputs)}.`);
-      expect(call.userContent).toContain('Never refuse a plan or result for not changing a file outside this list, and never ask for it.');
-      expect(call.userContent).toContain('A file this list omits stays allowed when the current Task needs it.');
+      expect(call.userContent).toContain('Never refuse a plan or result for not changing a file outside this list, and never ask for it, unless the current Task itself names that change');
+      expect(call.userContent).toContain('a change the current Task names is required even when this list omits its file');
+      expect(call.userContent).toContain('a file this list omits stays allowed when the current Task needs it.');
     }
     // The cell's own phase sits directly under the root goal: originalTask is its scope.
     const cellPlan = seen.filter(call => call.role === 'plan' && call.tier === 2);
@@ -131,6 +132,9 @@ describe('a delegated phase reads the scope its parent was assigned', () => {
     expect(bounded.length).toBeLessThanOrEqual(ENCLOSING_PHASE_MAX_CHARS);
     expect(bounded.startsWith('HEAD ')).toBe(true);
     expect(bounded.endsWith(' TAIL')).toBe(true);
+    // The cut is labelled: the omitted middle excludes nothing.
+    expect(bounded.split(ENCLOSING_PHASE_CUT)).toHaveLength(2);
+    expect(ENCLOSING_PHASE_CUT).toContain('is not excluded');
     // Rendered once, beside the scope guidance, not again inside the Inputs JSON.
     const lines = taskContextLines({ description: LEAF, ...leaf });
     expect(lines.filter(line => line.includes(SCOPE_EXCLUSION))).toHaveLength(1);

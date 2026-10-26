@@ -374,7 +374,8 @@ describe('rendering the receipt', () => {
     // Only forms run_shell runs as written: a bare node_modules/.bin program is
     // not in its allowlist (run a4dcf853, refusals 1a2bd9c6 and 2467e8fe).
     expect(instruction).toContain('npm run <script> -- <runner options>');
-    expect(instruction).toContain('a binary of its node_modules/.bin through bash (cmd "bash -c \'node_modules/.bin/<runner> <options>\'")');
+    expect(instruction).toContain('npx --no-install <runner> <runner options> (the locally installed binary, never a download)');
+    expect(instruction).not.toContain('bash -c');
     expect(instruction).not.toContain('its node_modules/.bin)');
     expect(instruction).toContain('never recorded as a probe');
     expect(undeclaredToolMentions(instruction, ['run_shell'], { minNonNegated: 1 })).toEqual([]);

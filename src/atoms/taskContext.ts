@@ -69,6 +69,8 @@ export const DELEGATED_SCOPE_GUIDANCE = 'Task scope: This is a delegated phase, 
 export const ENCLOSING_PHASE_GUIDANCE = 'Enclosing phase: the parent\'s assignment containing the current Task, copied by the host. It bounds the current Task and adds no requirement to it: work it excludes or assigns to a sibling or later phase is not a current requirement, even when originalTask asks for it. The current Task may narrow it but not widen it.';
 /** Bound on the copied assignment; a longer one keeps its head and its tail. */
 export const ENCLOSING_PHASE_MAX_CHARS = 3000;
+/** Marks the cut, so a reader never takes the omitted middle as excluding work. */
+export const ENCLOSING_PHASE_CUT = '\n… [middle omitted by the host; work the omitted passage may assign is not excluded] …\n';
 
 /**
  * A delegated task's declared outputs, as guidance and never a gate: a plan
@@ -76,14 +78,14 @@ export const ENCLOSING_PHASE_MAX_CHARS = 3000;
  * siblings and the join owned (run a4dcf853).
  */
 export function declaredOutputsLine(outputs: readonly string[]): string {
-  return `Declared outputs (the files the parent plan assigned to this task): ${JSON.stringify(outputs)}. Other work the original task names belongs to sibling branches or the parent's join unless the current Task asks for it. Never refuse a plan or result for not changing a file outside this list, and never ask for it. A requirement that cannot be met without changing another file is a contradiction to report to the parent, not work to add here. A file this list omits stays allowed when the current Task needs it.`;
+  return `Declared outputs (the files the parent plan assigned to this task): ${JSON.stringify(outputs)}. Other work the original task names belongs to sibling branches or the parent's join unless the current Task asks for it. Never refuse a plan or result for not changing a file outside this list, and never ask for it, unless the current Task itself names that change: a change the current Task names is required even when this list omits its file, and a file this list omits stays allowed when the current Task needs it. Only a requirement whose file the enclosing phase or the original task assigns to a sibling branch or the parent's join is a contradiction to report to the parent, not work to add here.`;
 }
 
 function enclosingPhaseText(description: string): string {
   const text = stripLiteralContractBlock(description);
   if (text.length <= ENCLOSING_PHASE_MAX_CHARS) return text;
   const tail = 1000;
-  return `${text.slice(0, ENCLOSING_PHASE_MAX_CHARS - tail - 3)}\n…\n${text.slice(-tail)}`;
+  return `${text.slice(0, ENCLOSING_PHASE_MAX_CHARS - tail - ENCLOSING_PHASE_CUT.length)}${ENCLOSING_PHASE_CUT}${text.slice(-tail)}`;
 }
 
 /**
@@ -269,7 +271,7 @@ export function workspacePreparationGuidance(value: unknown, hasShell: boolean):
     `These preparation installs never rewrite a lockfile${npmRootWithoutLockfile ? '; the repository root without one installs with npm install --no-save' : ''}. When the task itself adds, removes or upgrades a dependency, change package.json and its lockfile together through the package manager (npm install <pkg> --prefix <dir>). When a frozen install fails because package.json and its lockfile disagree, regenerate that lockfile only when the task covers that root's dependencies; otherwise report the root as not installed, with the error.`,
     foreign.length > 0 ? `${foreign.map(rootLabel).join(', ')} uses another package manager: install it once per execution, before the first command that resolves modules from it, with that manager's frozen-lockfile mode${pnpmWorkspaces.length > 0 ? ` (${PNPM_NO_LOCKFILE} for a pnpm workspace without a lockfile, which has none to freeze to and gets none written; never npm, which ignores pnpm-workspace.yaml and refuses its workspace: and catalog: dependencies)` : ''} in a run_shell command with timeoutMs ${SHELL_TIMEOUT_MAX_MS}; where pnpm or yarn is not on PATH, run it through corepack (env COREPACK_ENABLE_STRICT=0 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm|yarn ...); otherwise report it as not installed. That manager never writes <dir>/${INSTALL_MARKER}: never guard its install with that file.` : '',
     incomplete ? 'A root not listed is installed the same way, only when a command needs it.' : '',
-    'Once a root is installed, run its checks through its local runner: npm test, npm run <script> -- <runner options>, or a binary of its node_modules/.bin through bash (cmd "bash -c \'node_modules/.bin/<runner> <options>\'"); run_shell refuses a node_modules/.bin program named on its own. Never an unpinned npx or npm exec download. Reinstall a completed tree only after its lockfile changed or a failure shows it broken. An install is never evidence and is never recorded as a probe.',
+    'Once a root is installed, run its checks through its local runner: npm test, npm run <script> -- <runner options>, or npx --no-install <runner> <runner options> (the locally installed binary, never a download); run_shell refuses a node_modules/.bin program named on its own. Never an unpinned npx or npm exec download. Reinstall a completed tree only after its lockfile changed or a failure shows it broken. An install is never evidence and is never recorded as a probe.',
     DEPENDENCY_CARRY_OVER,
   ].filter(Boolean).join(' ');
 }
