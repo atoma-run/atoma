@@ -218,17 +218,23 @@ const LOCKFILE_PRECEDENCE: readonly PackageLockfile[] = ['npm-shrinkwrap.json', 
  * `pnpm-workspace.yaml` when pnpm owns the root (its lockfile is pnpm-lock.yaml
  * or there is none): a pnpm member installed standalone with npm fails on
  * `workspace:` dependencies, while npm, yarn and bun ignore that file
- * (review 2026-10-26).
+ * (review 2026-10-26). A root without a lockfile that holds that file is
+ * marked `workspace: 'pnpm'`, so the instruction installs it with pnpm too:
+ * npm would ignore its members and refuse its own `workspace:` and `catalog:`
+ * dependencies, stopping every install chained after it.
  *
  * Entries are read SORTED and only the names package.json and the lockfiles
  * are looked at, so the list never depends on the filesystem's read order.
  * Never derived from the routing inventory (`readRoutingRepository`): its
  * 160-entry cut is taken in raw read order, and in run 2f2643d5 it had stopped
- * partway through `browser/`. Skipped as the seed copy skips them: every
- * `node_modules`, every dot-directory (the read-run copies under
- * `.atoma-runs/node_modules/<id>/` carry other runs' manifests; also
- * `.atoma-scratch` and `.git`), the routing reader's omitted build and vendor
- * trees, and links, which are never followed. Bounded by depth and by
+ * partway through `browser/`. Skipped on purpose, although `seedWorkspace`
+ * copies all but the first: every `node_modules` (never seeded), every
+ * dot-directory (the read-run copies under `.atoma-runs/node_modules/<id>/`
+ * carry other runs' manifests; also `.atoma-scratch`, `.git`, `.github`), the
+ * routing reader's omitted build and vendor trees (`vendor`, `dist`, `build`,
+ * `coverage`, `target`), and links, which are never followed. A package.json
+ * there is copied into the workspace but is not a root the install names, and
+ * does not make the scan incomplete. Bounded by depth and by
  * directories read; `complete` is false when a bound, an unreadable directory,
  * a path longer than a receipt holds or the root cap cut it.
  */
@@ -259,7 +265,7 @@ export function packageRootsOf(seedRoot: string): { roots: PackageRoot[]; comple
       });
       if (!member) {
         if (roots.length >= MAX_PACKAGE_ROOTS) { complete = false; break; }
-        roots.push({ dir, lockfile });
+        roots.push(lockfile === null && files.has('pnpm-workspace.yaml') ? { dir, lockfile, workspace: 'pnpm' } : { dir, lockfile });
       }
       if (!member) {
         const patterns = [
@@ -323,20 +329,31 @@ function workspacePatterns(manifestPath: string): RegExp[] {
 /**
  * A `pnpm-workspace.yaml`'s `packages` globs, read by a line reader (no YAML
  * dependency): the block list under the top-level `packages:` key, or a flow
- * list on one line or several. A file without that key (pnpm 10 keeps its
- * settings there, `onlyBuiltDependencies`, even in a single-package
- * repository) is a root-only workspace: pnpm installs no member, so none is
- * left to it. Only a file that cannot be read, or a `packages` key whose
- * globs cannot be read, counts the whole subtree as the workspace: an npm
- * install inside a pnpm workspace is never right.
+ * list on one line or several, starting on the key's line or the next. A file
+ * without that key (pnpm 10 keeps its settings there, `onlyBuiltDependencies`,
+ * even in a single-package repository) is a root-only workspace: pnpm installs
+ * no member, so none is left to it. So is `packages: []`, a `packages:` with
+ * no value (`~`, `null`, nothing before the next key or the end) and a list of
+ * negations only, as pnpm 10.18 installs them (measured 2026-10-26). Only a
+ * file that cannot be read, or a `packages` value this reader cannot
+ * interpret (a scalar, which pnpm refuses, or an unclosed flow list), counts
+ * the whole subtree as the workspace: an npm install inside a pnpm workspace
+ * is never right.
  */
 function pnpmWorkspacePatterns(path: string): RegExp[] {
   const text = boundedManifestText(path);
   const globs: string[] = [];
   const unquote = (value: string): string => value.trim().replace(/^(['"])(.*)\1$/, '$2');
   const flowItems = (list: string): string[] => list.replace(/^\s*\[/, '').replace(/\].*$/, '').split(',').map(unquote).filter(Boolean);
+  // A flow list closed on its first line is read; an open one is returned, continued on the next lines.
+  const openFlow = (value: string): string | null => {
+    if (!value.includes(']')) return value;
+    globs.push(...flowItems(value));
+    return null;
+  };
   let inPackages = false;
-  let sawPackages = false;
+  // A `packages` value this reader could not interpret.
+  let unread = false;
   let flow: string | null = null;
   for (const line of (text ?? '').split(/\r?\n/)) {
     const content = line.replace(/\s+#.*$/, '');
@@ -352,17 +369,18 @@ function pnpmWorkspacePatterns(path: string): RegExp[] {
       const key = /^packages\s*:\s*(.*)$/.exec(content);
       inPackages = key !== null;
       if (!key) continue;
-      sawPackages = true;
       const value = key[1]!.trim();
-      if (value.startsWith('[')) {
-        if (value.includes(']')) globs.push(...flowItems(value));
-        else flow = value;
-      }
+      if (value.startsWith('[')) flow = openFlow(value);
+      else if (value !== '' && value !== '~' && value !== 'null') unread = true;
+      continue;
     }
+    if (!inPackages) continue;
+    const value = content.trim();
+    if (value.startsWith('[')) flow = openFlow(value);
+    else unread = true;
   }
-  const patterns = globMatchers(globs);
-  if (patterns.length > 0) return patterns;
-  return text === null || sawPackages ? [/^.*$/] : [];
+  if (flow !== null) unread = true;
+  return text === null || unread ? [/^.*$/] : globMatchers(globs);
 }
 
 /**

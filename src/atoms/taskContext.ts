@@ -157,6 +157,13 @@ const FIXTURE_SEGMENT = /^(fixtures?|__fixtures__|testdata)$/;
  * fake or out of sync on purpose. The repository root never is one.
  */
 const fixtureRoot = (root: PackageRoot): boolean => root.dir !== '.' && root.dir.split('/').some(part => FIXTURE_SEGMENT.test(part));
+/**
+ * A root without a lockfile that the scan found pnpm's (its pnpm-workspace.yaml):
+ * npm ignores that file, so its members go uninstalled, and refuses its
+ * `workspace:` and `catalog:` dependencies (review 2026-10-26).
+ */
+const pnpmWorkspaceRoot = (root: PackageRoot): boolean => root.lockfile === null && root.workspace === 'pnpm';
+const rootLabel = (root: PackageRoot): string => `${root.dir} (${pnpmWorkspaceRoot(root) ? 'pnpm workspace, no lockfile' : root.lockfile ?? 'no lockfile'})`;
 
 /**
  * The guarded install of every npm-installable listed root, root first: each
@@ -167,11 +174,13 @@ const fixtureRoot = (root: PackageRoot): boolean => root.dir !== '.' && root.dir
  * dependency would stop the `&&` chain before the real roots after it. Nor is
  * a nested root under a fixture directory, lockfile or not: a fixture's fake
  * or deliberately stale lockfile fails `npm ci` in every executor, and a
- * successful one changes what the fixture's tests resolve.
+ * successful one changes what the fixture's tests resolve. Nor is a pnpm
+ * workspace without a lockfile, the repository root included: npm would fail
+ * on its `workspace:` dependencies and stop the chain.
  */
 export function packageRootInstallCommand(roots: readonly PackageRoot[]): string | null {
   const steps = roots.flatMap((root) => {
-    if (root.lockfile === null ? root.dir !== '.' : !NPM_LOCKFILES.has(root.lockfile) || fixtureRoot(root)) return [];
+    if (root.lockfile === null ? root.dir !== '.' || pnpmWorkspaceRoot(root) : !NPM_LOCKFILES.has(root.lockfile) || fixtureRoot(root)) return [];
     const nested = root.dir !== '.';
     const install = `${root.lockfile === null ? 'npm install --no-save' : 'npm ci --include=dev'}${nested ? ` --prefix ${shellPath(root.dir)}` : ''}`;
     return [`(test -f ${nested ? shellPath(`${root.dir}/${INSTALL_MARKER}`) : INSTALL_MARKER} || ${install})`];
@@ -193,7 +202,7 @@ export function workspacePreparationGuidance(value: unknown, hasShell: boolean):
   const preparation = parsed.success ? parsed.data : undefined;
   const roots = preparation?.packageRoots;
   const incomplete = preparation?.packageRootsComplete === false;
-  const listed = roots?.map(root => `${root.dir} (${root.lockfile ?? 'no lockfile'})`).join(', ');
+  const listed = roots?.map(rootLabel).join(', ');
   const fact = [
     'workspacePreparation is the host\'s launch-time receipt, not current installation state, and not a plan requirement: no plan or phase is judged on the launch preparation install.',
     'excluded-from-seed means installed dependencies (node_modules at every depth) were deliberately not copied from the seed; preserved-unverified means a resumed workspace kept whatever was installed, unchecked.',
@@ -210,15 +219,18 @@ export function workspacePreparationGuidance(value: unknown, hasShell: boolean):
   }
   const command = packageRootInstallCommand(roots);
   const fixtures = roots.filter(root => root.lockfile !== null && fixtureRoot(root));
-  const foreign = roots.filter(root => root.lockfile !== null && !NPM_LOCKFILES.has(root.lockfile) && !fixtureRoot(root));
-  const unpinned = roots.filter(root => root.lockfile === null && root.dir !== '.');
+  const pnpmWorkspaces = roots.filter(pnpmWorkspaceRoot);
+  const foreign = roots.filter(root => pnpmWorkspaceRoot(root) || root.lockfile !== null && !NPM_LOCKFILES.has(root.lockfile) && !fixtureRoot(root));
+  const unpinned = roots.filter(root => root.lockfile === null && root.dir !== '.' && !pnpmWorkspaceRoot(root));
+  // Only a repository root npm installs without a lockfile is named as one.
+  const npmRootWithoutLockfile = roots.some(root => root.dir === '.' && root.lockfile === null && !pnpmWorkspaceRoot(root));
   return [fact,
     // The completion marker is npm's: only the roots npm installs read it.
-    command ? `Before the first command that resolves modules from a listed root (its scripts or tests, or tests importing <dir>/node_modules), run ONE run_shell command, with timeoutMs ${SHELL_TIMEOUT_MAX_MS}, that installs, root first, every listed npm root (package-lock.json or npm-shrinkwrap.json) outside a fixture directory, and the repository root without a lockfile, whose install did not complete (no <dir>/${INSTALL_MARKER}), frozen to its lockfile, and never runs a frozen install over a completed tree: a parallel sibling may already have installed it, and npm ci deletes the tree before installing. An install that timed out or failed leaves a broken tree without that file: the same guarded command reinstalls it. For the listed roots: ${command}` : '',
+    command ? `Before the first command that resolves modules from a listed root (its scripts or tests, or tests importing <dir>/node_modules), run ONE run_shell command, with timeoutMs ${SHELL_TIMEOUT_MAX_MS}, that installs, root first, every listed npm root (package-lock.json or npm-shrinkwrap.json) outside a fixture directory${npmRootWithoutLockfile ? ', and the repository root without a lockfile,' : ''} whose install did not complete (no <dir>/${INSTALL_MARKER}), frozen to its lockfile, and never runs a frozen install over a completed tree: a parallel sibling may already have installed it, and npm ci deletes the tree before installing. An install that timed out or failed leaves a broken tree without that file: the same guarded command reinstalls it. For the listed roots: ${command}` : '',
     unpinned.length > 0 ? `${unpinned.map(root => root.dir).join(', ')} hold a package.json without a lockfile (possibly a fixture, template or example): install one with npm install --no-save --prefix <dir> only when a command you run resolves modules from it.` : '',
     fixtures.length > 0 ? `${fixtures.map(root => `${root.dir} (${root.lockfile})`).join(', ')} sit under a fixture directory: install one, frozen to its lockfile (npm ci --include=dev --prefix <dir> for an npm lockfile), only when a command you run resolves modules from it.` : '',
-    'These preparation installs never rewrite a lockfile; the repository root without one installs with npm install --no-save. When the task itself adds, removes or upgrades a dependency, change package.json and its lockfile together through the package manager (npm install <pkg> --prefix <dir>). When a frozen install fails because package.json and its lockfile disagree, regenerate that lockfile only when the task covers that root\'s dependencies; otherwise report the root as not installed, with the error.',
-    foreign.length > 0 ? `${foreign.map(root => `${root.dir} (${root.lockfile})`).join(', ')} uses another package manager: install it once per execution, before the first command that resolves modules from it, with that manager's frozen-lockfile mode in a run_shell command with timeoutMs ${SHELL_TIMEOUT_MAX_MS}, when the shell allows it, otherwise report it as not installed. That manager never writes <dir>/${INSTALL_MARKER}: never guard its install with that file.` : '',
+    `These preparation installs never rewrite a lockfile${npmRootWithoutLockfile ? '; the repository root without one installs with npm install --no-save' : ''}. When the task itself adds, removes or upgrades a dependency, change package.json and its lockfile together through the package manager (npm install <pkg> --prefix <dir>). When a frozen install fails because package.json and its lockfile disagree, regenerate that lockfile only when the task covers that root's dependencies; otherwise report the root as not installed, with the error.`,
+    foreign.length > 0 ? `${foreign.map(rootLabel).join(', ')} uses another package manager: install it once per execution, before the first command that resolves modules from it, with that manager's frozen-lockfile mode${pnpmWorkspaces.length > 0 ? ' (pnpm install --no-lockfile for a pnpm workspace without a lockfile, which has none to freeze to and gets none written; never npm, which ignores pnpm-workspace.yaml and refuses its workspace: and catalog: dependencies)' : ''} in a run_shell command with timeoutMs ${SHELL_TIMEOUT_MAX_MS}, when the shell allows it, otherwise report it as not installed. That manager never writes <dir>/${INSTALL_MARKER}: never guard its install with that file.` : '',
     incomplete ? 'A root not listed is installed the same way, only when a command needs it.' : '',
     'Once a root is installed, run its checks through its local runner (npm test, npm run <script>, its node_modules/.bin), never an unpinned npx or npm exec download. Reinstall a completed tree only after its lockfile changed or a failure shows it broken. An install is never evidence and is never recorded as a probe.',
     DEPENDENCY_CARRY_OVER,

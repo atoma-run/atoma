@@ -144,13 +144,38 @@ describe('packageRootsOf: the package roots of a seed source', () => {
       { dir: 'libs/one', lockfile: null }, { dir: 'other/deep', lockfile: null }]);
   });
 
-  it('takes the whole subtree only when the file cannot be read or its packages key yields no glob', () => {
+  it('takes the whole subtree only when the file or its packages value cannot be read', () => {
     const unreadable = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': `# ${'x'.repeat(1024 * 1024)}\n`,
       'libs/one/package.json': '{}' });
     expect(packageRootsOf(unreadable).roots).toEqual([{ dir: '.', lockfile: 'pnpm-lock.yaml' }]);
-    const negationsOnly = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': "packages:\n  - '!test/**'\n",
-      'libs/one/package.json': '{}' });
-    expect(packageRootsOf(negationsOnly).roots).toEqual([{ dir: '.', lockfile: 'pnpm-lock.yaml' }]);
+    // A scalar, which pnpm refuses ("packages field is not an array"), and a flow list never closed.
+    for (const workspace of ['packages: libs/*\n', "packages: [ 'apps/*',\n", "packages:\n  [ 'apps/*',\n"]) {
+      const unread = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': workspace, 'libs/one/package.json': '{}' });
+      expect(packageRootsOf(unread).roots, workspace).toEqual([{ dir: '.', lockfile: 'pnpm-lock.yaml' }]);
+    }
+  });
+
+  // Measured with pnpm 10.18.0 (`pnpm ls -r`, 2026-10-26): `packages: []`, a
+  // `packages:` with no value before the next key or the end, `~`, `null` and
+  // negations only install the root alone; a flow list on the line after the
+  // key installs what it lists. None of them is a file that cannot be read.
+  it('reads an empty, bare or negations-only packages value as root-only, as pnpm 10 installs it', () => {
+    for (const workspace of ['packages: []\n', 'packages:\nonlyBuiltDependencies:\n  - esbuild\n', 'packages:\n', 'packages: ~\n',
+      'packages: null\n', "packages:\n  - '!test/**'\n"]) {
+      const rootOnly = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': workspace,
+        'apps/a/package.json': '{}', 'tools/t/package.json': '{}' });
+      expect(packageRootsOf(rootOnly), workspace).toEqual({ complete: true, roots: [{ dir: '.', lockfile: 'pnpm-lock.yaml' },
+        { dir: 'apps/a', lockfile: null }, { dir: 'tools/t', lockfile: null }] });
+    }
+  });
+
+  it('reads a flow list that starts on the line after the packages key', () => {
+    for (const workspace of ["packages:\n  [ 'apps/*' ]\n", "packages:\n  [ 'apps/*',   # apps\n    'libs/*' ]\ncatalog:\n  react: ^18\n"]) {
+      const nextLine = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': workspace,
+        'apps/a/package.json': '{}', 'libs/l/package.json': '{}', 'tools/t/package.json': '{}' });
+      expect(packageRootsOf(nextLine).roots.map(entry => entry.dir), workspace)
+        .toEqual(workspace.includes('libs') ? ['.', 'tools/t'] : ['.', 'libs/l', 'tools/t']);
+    }
   });
 
   // npm ci ignores pnpm-workspace.yaml: a root npm installs owns no member through it.
@@ -159,7 +184,7 @@ describe('packageRootsOf: the package roots of a seed source', () => {
       'apps/a/package.json': '{}' });
     expect(packageRootsOf(npmRoot).roots).toEqual([{ dir: '.', lockfile: 'package-lock.json' }, { dir: 'apps/a', lockfile: null }]);
     const lockfileLess = seed({ 'package.json': '{}', 'pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n", 'apps/a/package.json': '{}' });
-    expect(packageRootsOf(lockfileLess).roots).toEqual([{ dir: '.', lockfile: null }]);
+    expect(packageRootsOf(lockfileLess).roots).toEqual([{ dir: '.', lockfile: null, workspace: 'pnpm' }]);
   });
 
   it('leaves the members of a lockfile-less npm workspace to its root install', () => {
@@ -268,6 +293,37 @@ describe('rendering the receipt', () => {
     expect(mixed).toContain('docs (yarn.lock) uses another package manager');
     expect(mixed).toContain('never guard its install with that file');
     expect(undeclaredToolMentions(mixed, ['run_shell'], { minNonNegated: 1 })).toEqual([]);
+  });
+
+  // npm ignores pnpm-workspace.yaml and refuses `catalog:` and `workspace:`
+  // (EUNSUPPORTEDPROTOCOL, npm 11): a lockfile-less pnpm root in the npm chain
+  // failed its first step, so `browser/` after it was never installed either.
+  it('marks a lockfile-less pnpm workspace root as pnpm\'s, keeps it out of the npm chain and names pnpm for it', () => {
+    const root = seed({
+      'package.json': JSON.stringify({ name: 'mono', devDependencies: { typescript: 'catalog:', '@app/web': 'workspace:*' } }),
+      'pnpm-workspace.yaml': "packages:\n  - 'apps/*'\ncatalog:\n  typescript: ^5.6.0\n",
+      'apps/web/package.json': '{"name":"@app/web"}',
+      'browser/package.json': '{}', 'browser/package-lock.json': '{}',
+    });
+    const preparation = launchWorkspacePreparation({ resume: false, seedRoot: root });
+    expect(preparation).toEqual({ dependencies: 'excluded-from-seed', packageRootsComplete: true,
+      packageRoots: [{ dir: '.', lockfile: null, workspace: 'pnpm' }, { dir: 'browser', lockfile: 'package-lock.json' }] });
+    expect(packageRootInstallCommand(preparation.packageRoots!)).toBe(BROWSER_INSTALL);
+    const instruction = workspacePreparationGuidance(preparation, true);
+    expect(instruction).toContain("Package roots the seed held at launch ('.' is the repository root): . (pnpm workspace, no lockfile), browser (package-lock.json).");
+    expect(instruction).toContain(`For the listed roots: ${BROWSER_INSTALL} `);
+    expect(instruction).toContain('. (pnpm workspace, no lockfile) uses another package manager: install it once per execution');
+    expect(instruction).toContain('pnpm install --no-lockfile for a pnpm workspace without a lockfile');
+    expect(instruction).toContain('never guard its install with that file');
+    expect(instruction).not.toContain('npm install --no-save');
+    expect(instruction).not.toContain('the repository root without');
+    expect(instruction).not.toContain('apps/web');
+    // An npm root without a lockfile is still installed by npm, and said so.
+    const npmRoot = workspacePreparationGuidance({ dependencies: 'excluded-from-seed', packageRootsComplete: true,
+      packageRoots: [{ dir: '.', lockfile: null }, { dir: 'browser', lockfile: 'package-lock.json' }] }, true);
+    expect(npmRoot).toContain('and the repository root without a lockfile, whose install did not complete');
+    expect(npmRoot).toContain('the repository root without one installs with npm install --no-save');
+    expect(npmRoot).not.toContain('uses another package manager');
   });
 
   it('gives the fact to everyone and the instruction only to a declared shell, naming no other tool', () => {

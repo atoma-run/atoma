@@ -415,7 +415,8 @@ Neighbours:
   build tree or link; depth 4, 2,000 directories, 20 roots, a 512-character
   path, `complete` false when cut; a lockfile-less member of a root's
   package.json `workspaces`, or of its `pnpm-workspace.yaml` `packages` when
-  pnpm owns it, is left to that root; no `packages` key means no member),
+  pnpm owns it, is left to that root; no `packages` key, an empty one or
+  negations only means no member, as pnpm 10 installs it),
   and the receipt `inputs.workspacePreparation`
   ([src/contracts](../contracts/workspacePreparation.ts)) lists them; a resume
   merges `preserved-unverified` into the saved one. Never derived from the
@@ -429,9 +430,11 @@ Neighbours:
   a present tree, and a parallel sibling may have installed it); a nested
   root without a lockfile (a template), or under a `fixtures`, `fixture`,
   `__fixtures__` or `testdata` directory even with one, stays out of that
-  chain, installed only when a command needs it; a pnpm, yarn or bun root is
-  installed by its manager, never guarded by npm's marker; the no-rewrite
-  rule binds these preparation installs, never a task that changes a dependency; never evidence.
+  chain, installed only when a command needs it; a pnpm, yarn or bun root, or
+  a lockfile-less root holding a `pnpm-workspace.yaml` (`workspace: 'pnpm'`,
+  which npm ignores), is installed by its manager, never guarded by npm's
+  marker; the no-rewrite rule binds these preparation installs, never a task
+  that changes a dependency; never evidence.
 - `ATOMA_ACCEPTANCE_SPEC` is read and re-digested at LAUNCH
   (`readAcceptanceSpec`): unreadable, or present on a run that is not
   depth-routed, is a `RunnerConfigError` before any model call. Present, it

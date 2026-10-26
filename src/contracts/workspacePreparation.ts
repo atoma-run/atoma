@@ -16,9 +16,12 @@ import { z } from 'zod';
  * only when its browser suite failed, near the end of its tool budget: the
  * host held both manifests and said only "excluded-from-seed". A root's
  * `lockfile` is the one its install is frozen to, or null when its
- * package.json has none. `packageRootsComplete` is false when a bound cut the
- * scan, so other roots may exist deeper. Both are absent on a run with no
- * seed, and on a checkpoint saved before they existed.
+ * package.json has none. A root without one that holds a `pnpm-workspace.yaml`
+ * is pnpm's (`workspace: 'pnpm'`): npm ignores that file and refuses its
+ * `workspace:` and `catalog:` dependencies, so it is installed by pnpm, never
+ * by the npm chain (review 2026-10-26). `packageRootsComplete` is false when a
+ * bound cut the scan, so other roots may exist deeper. Both are absent on a
+ * run with no seed, and on a checkpoint saved before they existed.
  */
 export const PACKAGE_LOCKFILES = ['package-lock.json', 'npm-shrinkwrap.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'] as const;
 export const packageLockfileSchema = z.enum(PACKAGE_LOCKFILES);
@@ -37,6 +40,8 @@ export const packageRootSchema = z.object({
   /** Workspace-relative POSIX path; '.' is the repository root. */
   dir: z.string().min(1).max(MAX_PACKAGE_ROOT_DIR_LENGTH),
   lockfile: packageLockfileSchema.nullable(),
+  /** Set only on a root without a lockfile whose `pnpm-workspace.yaml` makes it pnpm's. */
+  workspace: z.literal('pnpm').optional(),
 }).strict();
 export type PackageRoot = z.infer<typeof packageRootSchema>;
 
