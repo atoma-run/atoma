@@ -105,7 +105,7 @@ runs accepted, published, hash-verified copies at the `hostingSubdomain` label;
 a rename leaves a permanent redirect, never reused ([rules](../../docs/project-hosting.md#dns-and-https)). `update`
 (owner, 2026-10-25) is one explicit admin request under Stop's lock and CAS:
 candidate created unstarted, then every `holdsApplicationData` row stopped and
-the candidate reserved, visitors held (`swapping`); failure offers `restore`.
+the candidate reserved, visitors held (`swapping`); failure offers `restore`. `status().history` (2026-10-26) tells the conversation each row's outcome from row facts only (`readyAt`, `replacedRunId`; `hostingHistory`).
 Health (2026-10-26): `HOSTING_HEALTH.failures` consecutive failed checks, or a
 gone container, fail a ready row; one slow answer journals nothing. A GRANTED
 visitor of an offline project gets 503, anyone else the unknown-address 404.

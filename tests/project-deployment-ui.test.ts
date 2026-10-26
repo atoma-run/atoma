@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
-import { deploymentCopy, hostedUpdateOffer, hostingCopy, useProjectDeployment, versionLineText, versionWords, type DeploymentSettingsView } from '../src/viz/client-gl/project-deployment.js';
+import { deploymentCopy, hostedUpdateOffer, hostingCopy, parseHostingSummary, useProjectDeployment, versionLineText, versionWords, type DeploymentSettingsView } from '../src/viz/client-gl/project-deployment.js';
 import { translate } from '../src/viz/client/i18n-catalog.js';
 import { useGpuStore } from '../src/viz/client-gl/store.js';
 import { ProjectSettingsAccessible } from '../src/viz/client-gl/ProjectSettingsAccessible.js';
@@ -284,4 +284,17 @@ it('never calls a newer accepted version failed because an older attempt failed 
   expect(copy.primary).not.toHaveProperty('label');
   expect(hostedUpdateOffer(settings(olderFailed), { projectId: 'project-1', projectRunId: RUN_B }))
     .toMatchObject({ lead: 'hosting.offer.outdated', actions: [{ id: 'hosting.update' }] });
+});
+
+it('reads a hosting status from a newer server that added a field, and still refuses a malformed one (2026-10-26)', () => {
+  const summary = { available: true, state: 'ready', deploymentId: null, runId: null, commitSha: null, url: null, error: null, address: null,
+    candidate: null, version: null, previous: null, updateStops: false, failed: null };
+  expect(parseHostingSummary({ ...summary, laterField: { any: 'shape' } })).toEqual(summary);
+  expect(() => parseHostingSummary({ ...summary, state: 'exploded' })).toThrow();
+  // A history entry with a later field is read; one this tab cannot word is skipped; a longer history is kept.
+  const entry = { deploymentId: '2d8f4b6a-3c4d-4e5f-8a0b-2c3d4e5f6a70', runId: '0b6d2f4e-1a2b-4c3d-8e9f-0a1b2c3d4e5f', title: 'v2', traceId: null,
+    createdAt: '2026-10-26T10:23:00.000Z', replaced: false, outcome: 'online', keptOnline: false };
+  const read = parseHostingSummary({ ...summary, history: [{ ...entry, laterField: 1 }, { ...entry, outcome: 'hibernating' }, ...Array(30).fill(entry)] });
+  expect(read.history).toHaveLength(31);
+  expect(read.history![0]).toEqual(entry);
 });

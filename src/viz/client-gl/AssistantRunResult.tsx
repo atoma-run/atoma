@@ -8,6 +8,19 @@ import { parentTestCardLine } from './run-result.js';
 import { hostedUpdateOffer, type DeploymentSettingsView } from './project-deployment.js';
 import { HostedUpdateOfferSection } from './HostedUpdateOffer.js';
 
+/**
+ * The card's headline. A delivery asks to be looked at only while it awaits
+ * acceptance: once accepted (or published) it says so, and one that can no
+ * longer be accepted (expired, superseded, or its review not read yet) just
+ * says it finished (2026-10-26: an accepted card still asked to be accepted).
+ */
+export function outcomeKey(status: string, review: { clientAcceptance?: unknown; publicationStatus?: string | null } | undefined,
+  canAccept: boolean | undefined): string {
+  if (status !== 'delivered') return `assistant.outcome.${status}`;
+  if (review?.clientAcceptance || review?.publicationStatus === 'published') return 'assistant.outcome.deliveredAccepted';
+  return canAccept ? 'assistant.outcome.delivered' : 'assistant.outcome.deliveredSettled';
+}
+
 /** Current host receipts, not a generated reply or a rewrite of the conversation journal. */
 export function AssistantRunResult({ scopeKey, id, target, run, locale, t, onRun, hosting }: {
   scopeKey: string; target: AssistantRun; run: NonNullable<AssistantView['run']>;
@@ -59,7 +72,7 @@ export function AssistantRunResult({ scopeKey, id, target, run, locale, t, onRun
   return <article id={id} className="gpu-assistant-message gpu-assistant-message--receipt gpu-assistant-result" aria-label={t('assistant.runResult')}>
     <div className="gpu-assistant-message-meta"><strong>{t('assistant.receipt')}</strong>
       {run.endedAt ? <RelativeTime at={run.endedAt} locale={locale} t={t} /> : null}</div>
-    <p><strong>{t(`assistant.outcome.${run.status}`)}</strong>
+    <p><strong>{t(outcomeKey(run.status, review, canAccept))}</strong>
       {run.costUsd !== null ? ` · $${run.costUsd.toFixed(2)}` : ''}</p>
     {/* The outcome line already says it did not complete; the host's own words stay one click away. */}
     {run.error ? <details className="gpu-assistant-error-details"><summary>{t('assistant.errorDetails')}</summary><p>{run.error}</p></details> : null}
@@ -67,7 +80,8 @@ export function AssistantRunResult({ scopeKey, id, target, run, locale, t, onRun
     {parentTestsLine ? <p>{parentTestsLine}</p> : null}
     {review?.publicationStatus === 'published' ? <p>{t('assistant.deliveryPublished')}</p>
       : review?.publicationStatus === 'publishing' ? <p role="status">{t('assistant.deliveryPublishing')}</p>
-      : review?.clientAcceptance ? <p>{t(publishFiles ? 'assistant.deliveryAcceptedPending' : 'assistant.deliveryAccepted')}</p>
+      // The headline already says it was accepted: only an unfinished publication adds a sentence.
+      : review?.clientAcceptance ? (publishFiles ? <p>{t('assistant.deliveryAcceptedPending')}</p> : null)
       : canAccept ? <p>{t(publishFiles ? 'assistant.deliveryReady' : 'assistant.deliveryReadyText')}</p> : null}
     {review?.filesState === 'expired' ? <p>{t('assistant.deliveryExpired')}</p> : null}
     {offer && hosting ? <HostedUpdateOfferSection offer={offer} t={t} onActivate={hosting.onActivate} /> : null}

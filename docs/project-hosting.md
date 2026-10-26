@@ -109,13 +109,19 @@ deployment, redeployed through the same checks. Retention holds the online
 version and that previous one, and the offer disappears when its bytes are
 gone. Deploy and Stop remain available on their own.
 
-Compatibility: a deployment row that records a previous version
-(`previousRunId`) cannot be read by a release from before 2026-10-25, whose
-reader refuses unknown fields, and that refusal breaks every hosting listing.
-Before rolling back past it, remove the field
-(`UPDATE project_hosted_deployments SET record = json_remove(record, '$.previousRunId')`).
-Readers from this release on ignore fields a later release adds. Browser tabs
-opened before an update of Atoma need a reload to offer these actions.
+Compatibility: a release from before 2026-10-25 (17fef5ac) reads deployment
+rows strictly and refuses every field it does not know, which breaks every
+hosting listing. Rows written since may carry `previousRunId`, and from
+2026-10-26 `readyAt` and `replacedRunId`: one boot of that release gives every
+running deployment `readyAt`. Before rolling back past 17fef5ac, remove all
+three from every row
+(`UPDATE project_hosted_deployments SET record = json_remove(record, '$.previousRunId', '$.readyAt', '$.replacedRunId')`).
+Readers from this release on ignore fields a later release adds, including
+the two facts of 2026-10-26: when a deployment first served (`readyAt`) and
+which version was serving when it was asked for (`replacedRunId`). The project
+conversation tells each deployment from them, and from nothing else: a version
+that never served is never "no longer online". Browser tabs opened before an
+update of Atoma need a reload to offer these actions.
 
 Rejected: sequencing Stop then Deploy in the browser (a lost second request, or
 another administrator's deploy in between, left the site down or raced it); a

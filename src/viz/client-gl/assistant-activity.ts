@@ -1,5 +1,6 @@
 import type { AssistantView } from '../../contracts/assistant.js';
 import type { RunRequestedVia } from '../../contracts/projects.js';
+import type { HostingSummary } from '../../contracts/projectHosting.js';
 
 /**
  * The project's runs narrated INSIDE its conversation (2026-10-26): who asked
@@ -96,4 +97,50 @@ export function activityWhat(line: ActivityLine, t: (key: string, vars?: Record<
 export function activitySettled(run: AssistantActivity, t: (key: string) => string): string | null {
   if (run.publicationStatus === 'published') return t('assistant.activity.published');
   return run.acceptedAt ? t('assistant.activity.accepted') : null;
+}
+
+/** One deployment of the project as its conversation narrates it (2026-10-26). */
+export type DeploymentEntry = NonNullable<HostingSummary['history']>[number];
+
+/** A deployment told at its place in time: which version went online, and what became of it. */
+export interface DeploymentLine {
+  readonly key: string;
+  readonly at: string;
+  readonly deployment: DeploymentEntry;
+}
+
+/**
+ * The project's deployments to interleave with the loaded messages, oldest
+ * first. Like `activityLines`, nothing older than the first loaded message is
+ * told while older messages remain unloaded.
+ */
+export function deploymentLines(input: {
+  readonly history: readonly DeploymentEntry[];
+  readonly messages: readonly Pick<Message, 'at'>[];
+  readonly olderUnloaded: boolean;
+}): DeploymentLine[] {
+  const first = input.messages[0] ? Date.parse(input.messages[0].at) : NaN;
+  return input.history
+    .filter(entry => Number.isFinite(Date.parse(entry.createdAt)))
+    .filter(entry => !input.olderUnloaded || !Number.isFinite(first) || Date.parse(entry.createdAt) >= first)
+    .map(deployment => ({ key: `deployed:${deployment.deploymentId}`, at: deployment.createdAt, deployment }))
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+
+/**
+ * What the deployment did, in one sentence, and where it stands now: the
+ * headline follows the outcome (an attempt that never served "tried"; a row
+ * from before 2026-10-26 that proves neither, a plain "Deployment"), and a
+ * failed replacement says whether the version before it stayed online.
+ */
+export function deploymentWhat(line: DeploymentLine, t: (key: string, vars?: Record<string, unknown>) => string): { what: string; state: string } {
+  const { deployment } = line;
+  const title = deployment.title ?? t('assistant.deployment.untitled');
+  const tense = deployment.outcome === 'starting' ? 'starting' : deployment.outcome === 'not-started' ? 'tried'
+    : deployment.outcome === 'stopped' ? 'unproven' : 'done';
+  const state = deployment.outcome === 'not-started' && deployment.keptOnline ? 'notStartedKept' : deployment.outcome;
+  return {
+    what: t(tense === 'unproven' ? 'assistant.deployment.unproven' : `assistant.deployment.${deployment.replaced ? 'replace' : 'online'}.${tense}`, { title }),
+    state: t(`assistant.deployment.state.${state}`),
+  };
 }

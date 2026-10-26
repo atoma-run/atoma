@@ -9,12 +9,12 @@ import { AUTH_TABLES_DDL, type Viewer } from '../src/auth/store.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { holdsApplicationData, HostingStore } from '../src/projects/hostingStore.js';
 import { retentionPlan } from '../src/projects/retention.js';
-import { HOSTING_HEALTH, HostingService } from '../src/projects/hostingService.js';
+import { HOSTING_HEALTH, HostingService, hostingHistory } from '../src/projects/hostingService.js';
 import { PreviewStore } from '../src/preview/store.js';
 import { recordDeliveredPreview } from '../src/preview/service.js';
 import { buildWorkspaceArtifactManifest } from '../src/projects/artifacts.js';
 import { hostingConfig } from '../src/projects/hostingConfig.js';
-import type { HostingIdentity, HostingLaunch } from '../src/contracts/projectHosting.js';
+import { HOSTING_HISTORY_MAX, type HostedDeployment, type HostingIdentity, type HostingLaunch } from '../src/contracts/projectHosting.js';
 
 let root: string; let db: Database.Database; let projects: ProjectStore; let service: HostingService;
 let viewer: Viewer; let projectId: string; let runId: string; let manifestHash: string;
@@ -67,6 +67,9 @@ it('deploys verified copied bytes, retains runtime through recovery, and stops w
   expect(recovered.status(viewer, projectId).state).toBe('ready');
   await recovered.stop(viewer, projectId, status.deploymentId);
   expect(recovered.status(viewer, projectId).state).toBe('stopped');
+  // The conversation narrates each deployment from these rows (2026-10-26).
+  expect(recovered.status(viewer, projectId).history).toEqual([{ deploymentId: status.deploymentId, runId, title: null, traceId: 'trace',
+    createdAt: expect.any(String), replaced: false, outcome: 'ended', keptOnline: false }]);
   expect(readFileSync(join(source, 'index.html'), 'utf8')).toContain('Accepted app');
 });
 it('gives a project its model-proposed address before the first deployment and serves it there', async () => {
@@ -339,6 +342,8 @@ function deliver(key: string, sha: string, title: string | null = null) {
 }
 /** What a request names: the version, never its paths. */
 const ref = (version: { runId: string; manifestHash: string }) => ({ runId: version.runId, manifestHash: version.manifestHash });
+/** The conversation's deployment history, newest first: run, title, outcome, replaced, kept online. */
+const narrated = () => (service.status(viewer, projectId).history ?? []).map(entry => [entry.runId, entry.title, entry.outcome, entry.replaced, entry.keptOnline]);
 /** A stateful Node application: its replacement may not run beside it. */
 function asNodeApplication() {
   vi.spyOn(service.deps.previews, 'getDescriptor').mockImplementation(() => ({ availability: 'available', kind: 'node', entry: 'index.js' }) as never);
@@ -373,6 +378,8 @@ it('updates a stateful application in one request: the online version stops befo
   expect(order).toEqual([`stop ${online.deploymentId}`, `start ${updated.deploymentId}`]);
   expect(updated).toMatchObject({ state: 'ready', runId: second.runId, previous: null, version: { title: 'Finish Attica control page repair' } });
   expect(service.deps.store.list(viewer.orgId, projectId)[0]).toMatchObject({ runId: second.runId, previousRunId: first.runId });
+  // The conversation tells the switch, and that the first version no longer serves.
+  expect(narrated()).toEqual([[second.runId, 'Finish Attica control page repair', 'online', true, false], [first.runId, 'First control page', 'ended', false, false]]);
   // Journaled like Stop and Deploy, under the person's authority, and named as an update.
   expect(events.mock.calls.map(([event]) => [event.detail.state, event.detail.operation, event.actorType])).toEqual([
     ['stopped', 'update', 'principal'], ['starting', 'update', 'principal'], ['ready', undefined, 'system']]);
@@ -421,6 +428,8 @@ it('says when the new version did not start and puts the previous version back a
   const failed = service.status(viewer, projectId);
   expect(failed).toMatchObject({ state: 'failed', error: 'startup-failed', url: null, runId: second.runId, updateStops: false,
     failed: { runId: second.runId }, previous: { runId: first.runId, manifestHash: first.manifestHash, title: 'First control page', commitSha: 'c'.repeat(40) } });
+  // A tried switch that never served; the version it replaced was stopped first, so nothing stayed online.
+  expect(narrated()).toEqual([[second.runId, 'Finish Attica control page repair', 'not-started', true, false], [first.runId, 'First control page', 'ended', false, false]]);
   // Only the version the update stopped can be put back, and only against the state that was shown.
   await expect(service.restore(viewer, projectId, { ...ref(second), expectedDeploymentId: failed.deploymentId })).rejects.toMatchObject({ status: 409 });
   await expect(service.restore(viewer, projectId, { ...ref(first), expectedDeploymentId: online.deploymentId })).rejects.toMatchObject({ status: 409 });
@@ -428,6 +437,8 @@ it('says when the new version did not start and puts the previous version back a
   await service.restore(viewer, projectId, { ...ref(first), expectedDeploymentId: failed.deploymentId }); await service.idle();
   expect(service.status(viewer, projectId)).toMatchObject({ state: 'ready', runId: first.runId, previous: null,
     candidate: { runId: second.runId } });
+  // Put back while nothing served: a plain put-online, not a switch.
+  expect(narrated()[0]).toEqual([first.runId, 'First control page', 'online', false, false]);
 });
 
 it('offers the previous version back only while its retained bytes exist', async () => {
@@ -459,6 +470,7 @@ it('keeps the no-downtime path for a static application: the new version starts 
   const updated = service.status(viewer, projectId);
   expect(order).toEqual([`start ${updated.deploymentId}`, `stop ${online.deploymentId}`]);
   expect(updated).toMatchObject({ state: 'ready', runId: second.runId });
+  expect(narrated().map(([, , outcome, replaced]) => [outcome, replaced])).toEqual([['online', true], ['ended', false]]);
 });
 
 it('names the version that failed, so a newer accepted one beside a static version online is not called failed', async () => {
@@ -470,9 +482,14 @@ it('names the version that failed, so a newer accepted one beside a static versi
   // Still online with the first version; the second, the candidate, failed.
   expect(beside).toMatchObject({ state: 'failed', runId: first.runId, failed: { runId: second.runId }, candidate: { runId: second.runId } });
   expect(beside.url).not.toBeNull();
+  // The tried switch says the version already online stayed online, and that one is still the one serving.
+  expect(narrated()).toEqual([[second.runId, 'Finish Attica control page repair', 'not-started', true, true], [first.runId, 'First control page', 'online', false, false]]);
   const third = deliver('three', 'e'.repeat(40), 'Third control page');
   // A newer accepted version since: the failure still names the second.
   expect(service.status(viewer, projectId)).toMatchObject({ failed: { runId: second.runId }, candidate: { runId: third.runId } });
+  // Stop rewrites both rows `stopped`: the attempt is still told as never started, the first as no longer online.
+  expect((await service.stop(viewer, projectId, beside.deploymentId)).state).toBe('stopped');
+  expect(narrated()).toEqual([[second.runId, 'Finish Attica control page repair', 'not-started', true, false], [first.runId, 'First control page', 'ended', false, false]]);
 });
 
 it('holds the online version from retention', async () => {
@@ -619,4 +636,106 @@ it('reads a row carrying a field a later release added instead of failing every 
   db.prepare('UPDATE project_hosted_deployments SET record = ? WHERE deployment_id = ?').run(JSON.stringify({ ...row, laterField: 'x' }), row.deploymentId);
   expect(service.deps.store.list()).toEqual([row]);
   expect(service.status(viewer, projectId).state).toBe('ready');
+});
+
+/**
+ * The conversation tells only what a deployment row proves (2026-10-26): a
+ * row that never served is never "no longer online", a failure after serving
+ * is not "did not start", and a row written before `readyAt` falls back on
+ * what its state, its error or a later update's `previousRunId` proves.
+ */
+it('narrates each deployment only from what its row proves', () => {
+  let n = 0;
+  const row = (overrides: Partial<HostedDeployment>): HostedDeployment => ({ orgId: viewer.orgId, projectId, deploymentId: randomUUID(), runId: randomUUID(),
+    manifestHash: 'h', commitSha: 'c', state: 'ready', kind: 'static', entry: 'index.html', createdAt: `2026-10-26T10:${String(59 - n++).padStart(2, '0')}:00.000Z`,
+    error: null, hostPort: null, image: null, ...overrides });
+  const runOf = vi.fn((id: string) => ({ title: `title ${id.slice(0, 4)}`, traceId: `trace-${id}` }));
+  const outcomes = (rows: HostedDeployment[]) => hostingHistory(rows, runOf).map(entry => [entry.outcome, entry.replaced, entry.keptOnline]);
+  const at = '2026-10-26T09:00:00.000Z';
+  // A failure after serving is not "did not start"; one that never served is.
+  expect(outcomes([row({ state: 'failed', error: 'runtime-unavailable', readyAt: at, replacedRunId: null })])).toEqual([['unavailable', false, false]]);
+  expect(outcomes([row({ state: 'failed', error: 'cleanup-failed', readyAt: at, replacedRunId: null })])).toEqual([['ended', false, false]]);
+  expect(outcomes([row({ state: 'failed', error: 'cleanup-failed', replacedRunId: null })])).toEqual([['not-started', false, false]]);
+  // cleanup-failed over `ready` keeps the stored port; over `starting` it has none: the port tells them apart, even on an older row.
+  expect(outcomes([row({ state: 'failed', error: 'cleanup-failed', hostPort: 23456 })])).toEqual([['ended', false, false]]);
+  expect(outcomes([row({ state: 'failed', error: 'cleanup-failed' })])).toEqual([['not-started', false, false]]);
+  expect(outcomes([row({ state: 'failed', error: 'interrupted', replacedRunId: null })])).toEqual([['not-started', false, false]]);
+  // Stopped: "no longer online" only when it served. A failed attempt Stop rewrote `stopped` still never served.
+  expect(outcomes([row({ state: 'stopped', readyAt: at, replacedRunId: null })])).toEqual([['ended', false, false]]);
+  expect(outcomes([row({ state: 'stopped', replacedRunId: null })])).toEqual([['not-started', false, false]]);
+  expect(outcomes([row({ state: 'stopped', replacedRunId: randomUUID() })])).toEqual([['not-started', true, false]]);
+  // Two ready rows during a static swap: only the newest serves.
+  expect(outcomes([row({ readyAt: at, replacedRunId: randomUUID() }), row({ readyAt: at, replacedRunId: null })])).toEqual([['online', true, false], ['ended', false, false]]);
+  // "Replaced" names a serving version, not an update's predecessor that was not serving.
+  expect(outcomes([row({ state: 'starting', replacedRunId: null, previousRunId: randomUUID() })])).toEqual([['starting', false, false]]);
+  // Rows written before these facts claim nothing they cannot prove: a stopped one may or may not have
+  // served, and an update's previousRunId named a predecessor serving or not, so no switch is told.
+  const legacy = row({ state: 'stopped' }); const legacyFailed = row({ state: 'failed', error: 'startup-failed', runId: legacy.runId });
+  expect(outcomes([row({ state: 'ready', previousRunId: legacy.runId }), legacyFailed, legacy])).toEqual([['online', false, false], ['not-started', false, false], ['stopped', false, false]]);
+  // One read per run, however often it was deployed, and at most the cap.
+  runOf.mockClear();
+  const same = randomUUID();
+  const many = Array.from({ length: HOSTING_HISTORY_MAX + 3 }, () => row({ state: 'stopped', runId: same, readyAt: at, replacedRunId: null }));
+  const told = hostingHistory(many, runOf);
+  expect(told).toHaveLength(HOSTING_HISTORY_MAX);
+  expect(runOf).toHaveBeenCalledTimes(1);
+  expect(told[0]).toMatchObject({ title: `title ${same.slice(0, 4)}`, traceId: `trace-${same}` });
+});
+
+it('retires a predecessor that stopped answering while the new version started', async () => {
+  const { second, online } = await onlineWithNewerVersion();
+  launcher.startHosting.mockImplementation(async () => {
+    // A health check fails the online version while the new one starts.
+    const row = service.deps.store.list(viewer.orgId, projectId).find(r => r.deploymentId === online.deploymentId)!;
+    service.deps.store.update({ ...row, state: 'failed', error: 'runtime-unavailable', hostPort: null }, 'ready');
+    return { hostPort: 23456, image: 'runtime@sha256:abc' };
+  });
+  await service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId }); await service.idle();
+  expect(launcher.stopHosting).toHaveBeenCalledWith(expect.objectContaining({ deploymentId: online.deploymentId }));
+  expect(service.deps.store.list(viewer.orgId, projectId).map(r => [r.runId, r.state])).toEqual([[second.runId, 'ready'], [online.runId, 'stopped']]);
+  expect(narrated().map(([, , outcome]) => outcome)).toEqual(['online', 'ended']);
+});
+
+it('never stops the version it just started when a concurrent check changes its predecessor during the clean-up', async () => {
+  const { second, online } = await onlineWithNewerVersion();
+  launcher.stopHosting.mockImplementation(async id => {
+    if (id.deploymentId !== online.deploymentId) return;
+    // The predecessor's container is already gone: a health check marks it unavailable mid-stop.
+    const row = service.deps.store.list(viewer.orgId, projectId).find(r => r.deploymentId === online.deploymentId)!;
+    service.deps.store.update({ ...row, state: 'failed', error: 'runtime-unavailable', hostPort: null }, 'ready');
+  });
+  await service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId }); await service.idle();
+  const updated = service.status(viewer, projectId);
+  expect(updated).toMatchObject({ state: 'ready', runId: second.runId });
+  expect(launcher.stopHosting).not.toHaveBeenCalledWith(expect.objectContaining({ deploymentId: updated.deploymentId }));
+  expect(service.deps.store.list(viewer.orgId, projectId).map(r => r.state)).toEqual(['ready', 'stopped']);
+});
+
+it('lets Stop finish when the clean-up of a just-started version recorded the same predecessor stopped first', async () => {
+  const { second, online } = await onlineWithNewerVersion();
+  let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; });
+  let retiring!: () => void; const retireStarted = new Promise<void>(resolve => { retiring = resolve; });
+  let calls = 0;
+  launcher.startHosting.mockImplementation(async () => {
+    const row = service.deps.store.list(viewer.orgId, projectId).find(r => r.deploymentId === online.deploymentId)!;
+    service.deps.store.update({ ...row, state: 'failed', error: 'runtime-unavailable', hostPort: null }, 'ready');
+    return { hostPort: 23456, image: 'runtime@sha256:abc' };
+  });
+  const predecessorState = () => service.deps.store.list(viewer.orgId, projectId).find(r => r.deploymentId === online.deploymentId)!.state;
+  launcher.stopHosting.mockImplementation(async id => {
+    if (id.deploymentId !== online.deploymentId) return;
+    // The clean-up's stop of the predecessor is held until Stop has listed it; Stop's own stop
+    // of it then waits until the clean-up recorded it stopped, so Stop's write comes second.
+    if (++calls === 1) { retiring(); await held; return; }
+    release();
+    await vi.waitFor(() => expect(predecessorState()).toBe('stopped'));
+  });
+  await service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId });
+  await retireStarted;
+  const updated = service.status(viewer, projectId);
+  expect(updated).toMatchObject({ state: 'ready', runId: second.runId });
+  const stopping = service.stop(viewer, projectId, updated.deploymentId);
+  await expect(stopping).resolves.toMatchObject({ state: 'stopped' });
+  await service.idle();
+  expect(service.deps.store.list(viewer.orgId, projectId).map(r => r.state)).toEqual(['stopped', 'stopped']);
 });

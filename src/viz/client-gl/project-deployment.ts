@@ -1,4 +1,5 @@
-import { hostingSummarySchema, type HostingSummary, type HostingVersion } from '../../contracts/projectHosting.js';
+import { z } from 'zod';
+import { hostingHistoryEntrySchema, hostingSummarySchema, type HostingSummary, type HostingVersion } from '../../contracts/projectHosting.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deploymentDestinationSchema, hostingSubdomainSchema, RESERVED_HOSTING_SUBDOMAINS, type DeploymentDestination } from '../../contracts/projectDeployment.js';
@@ -7,6 +8,24 @@ import { dateTimeFormat } from '../client/date-format.js';
 import { useGpuStore, type HostingConfirm } from './store.js';
 
 /** A hosting operation the person started from this client. */
+/**
+ * The hosting status as this tab reads it: tolerant at the top and in each
+ * deployment of its history, so a server newer than the open tab may add a
+ * field, an outcome or more entries without the tab losing its whole hosting
+ * view until it reloads (2026-10-26). An entry this tab cannot word is skipped.
+ */
+const tolerantHistoryEntrySchema = z.object(hostingHistoryEntrySchema.shape);
+const tolerantHostingSummarySchema = z.object({
+  ...hostingSummarySchema.shape,
+  history: z.array(z.unknown()).optional().transform(entries => entries?.flatMap(entry => {
+    const parsed = tolerantHistoryEntrySchema.safeParse(entry);
+    return parsed.success ? [parsed.data] : [];
+  })),
+});
+export function parseHostingSummary(raw: unknown): HostingSummary {
+  return tolerantHostingSummarySchema.parse(raw);
+}
+
 export type HostingAction = 'deploy' | 'update' | 'restore' | 'stop' | 'open';
 
 export interface DeploymentSettingsView {
@@ -50,10 +69,10 @@ export function useProjectDeployment(project: VizProject | null | undefined, can
   const hosting = useQuery({ queryKey: ['hosting', project?.projectId], enabled: !!project,
     retry: false, refetchInterval: project ? 5000 : false,
     queryFn: async () => {
-      const response = await fetch(`/api/projects/${encodeURIComponent(project!.projectId)}/hosting`);
+      const response = await fetch(`/api/projects/${encodeURIComponent(project!.projectId)}/hosting?history=1`);
       if (response.status === 503) return null;
       if (!response.ok) throw new Error('Hosting unavailable');
-      return hostingSummarySchema.parse(await response.json());
+      return parseHostingSummary(await response.json());
     } });
   // A change of project or a refreshed server preference discards the old draft.
   const key = `${project?.projectId}:${saved}`;

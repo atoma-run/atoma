@@ -21,9 +21,9 @@ export function holdsApplicationData(row: HostedDeployment): boolean {
 }
 /**
  * Rows are READ tolerantly: a field a later release added is dropped instead
- * of failing every listing, which is what a release before `previousRunId`
- * does with rows that carry it (a rollback past 2026-10-25 breaks hosting
- * until those rows are rewritten). Writes stay strict.
+ * of failing every listing, which is what a release before 17fef5ac does with
+ * rows carrying `previousRunId`, `readyAt` or `replacedRunId` (a rollback past
+ * it needs all three removed: docs/project-hosting.md). Writes stay strict.
  */
 const storedDeploymentSchema = z.object(hostedDeploymentSchema.shape);
 export class HostingStore {

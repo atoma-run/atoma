@@ -3,7 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { RunParentTests, RunReview } from '../src/contracts/clientExperience.js';
-import { AssistantRunResult } from '../src/viz/client-gl/AssistantRunResult.js';
+import { AssistantRunResult, outcomeKey } from '../src/viz/client-gl/AssistantRunResult.js';
 import { translate } from '../src/viz/client/i18n-catalog.js';
 import type { DeploymentSettingsView } from '../src/viz/client-gl/project-deployment.js';
 
@@ -59,6 +59,35 @@ function card(tests: RunParentTests, options: { hosting?: { view: DeploymentSett
   return renderToStaticMarkup(createElement(QueryClientProvider, { client },
     createElement(AssistantRunResult, { scopeKey: 'scope', target, run, locale: 'en', t, onRun: () => {}, hosting: options.hosting ?? null })));
 }
+
+describe('the card headline follows the delivery state (2026-10-26)', () => {
+  const accepted = { manifestHash: 'h', review: 'Ok', principalId: 'p', acceptedAt: '2026-10-26T10:22:14.146Z' };
+  it('asks to be looked at only while the delivery awaits acceptance', () => {
+    expect(outcomeKey('delivered', { clientAcceptance: null, publicationStatus: null }, true)).toBe('assistant.outcome.delivered');
+    expect(outcomeKey('delivered', { clientAcceptance: accepted, publicationStatus: 'published' }, false)).toBe('assistant.outcome.deliveredAccepted');
+    expect(outcomeKey('delivered', { clientAcceptance: accepted, publicationStatus: 'failed' }, false)).toBe('assistant.outcome.deliveredAccepted');
+    expect(outcomeKey('delivered', { clientAcceptance: null, publicationStatus: null }, false)).toBe('assistant.outcome.deliveredSettled');
+    expect(outcomeKey('delivered', undefined, undefined)).toBe('assistant.outcome.deliveredSettled');
+    expect(outcomeKey('partial', undefined, undefined)).toBe('assistant.outcome.partial');
+  });
+  it('no longer asks to accept an accepted and published result', () => {
+    const html = card(parentTests(), { review: { ...review(parentTests()), clientAcceptance: accepted, publicationStatus: 'published' } });
+    expect(html).toContain(t('assistant.outcome.deliveredAccepted'));
+    expect(html).not.toContain(t('assistant.outcome.delivered'));
+    expect(html).toContain(t('assistant.deliveryPublished'));
+  });
+  it('says "accepted" once: the headline, never a second sentence', () => {
+    const text = card(parentTests(), { review: { ...review(parentTests()), clientAcceptance: accepted } });
+    expect(text).toContain(t('assistant.outcome.deliveredAccepted'));
+    expect(text).not.toContain(t('assistant.deliveryAccepted'));
+    const pending = card(parentTests(), { review: { ...review(parentTests()), delivery: 'files',
+      files: { projectId: target.projectId, runId: target.runId, status: 'delivered', files: [{ path: 'index.html', size: 10 }], total: 1, nextOffset: null },
+      clientAcceptance: accepted, publicationStatus: 'failed' } });
+    expect(pending).toContain(t('assistant.deliveryAcceptedPending'));
+    expect(t('assistant.deliveryAcceptedPending')).not.toMatch(/accepted/i);
+    expect(t('assistant.deliveryPublished')).not.toMatch(/accepted/i);
+  });
+});
 
 describe('the receipt card at the acceptance moment', () => {
   it('says that a suite did not run', () => {

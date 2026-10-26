@@ -41,6 +41,18 @@ export const hostedDeploymentSchema = hostingIdentitySchema.extend({
    * deployments, plain deploys and rows written before 2026-10-25.
    */
   previousRunId: z.string().uuid().optional(),
+  /**
+   * When it first answered visitors (2026-10-26). Absent while it never did,
+   * and on rows written before: the conversation then says only what the
+   * state proves.
+   */
+  readyAt: z.string().optional(),
+  /**
+   * The run that was serving visitors when this deployment was requested, or
+   * null when none was (2026-10-26). Unlike `previousRunId` it names only a
+   * serving version, whatever the operation. Absent on older rows.
+   */
+  replacedRunId: z.string().uuid().nullable().optional(),
 }).strict();
 export type HostedDeployment = z.infer<typeof hostedDeploymentSchema>;
 /** An accepted version described in words: the run's title and the client's acceptance date. */
@@ -52,6 +64,35 @@ export const hostingVersionSchema = z.object({
   acceptedAt: z.string().nullable(),
 }).strict();
 export type HostingVersion = z.infer<typeof hostingVersionSchema>;
+/**
+ * One deployment of the project, as its conversation narrates it (2026-10-26):
+ * which accepted version was asked online, when, whether it was to replace a
+ * version serving visitors, and what its row proves became of it. Host facts
+ * from the deployment rows, never a journal message.
+ */
+export const hostingHistoryEntrySchema = z.object({
+  deploymentId: z.string().uuid(), runId: z.string().uuid(),
+  /** The run's one-line title; null until the run is named. */
+  title: z.string().nullable(),
+  /** The run's trace, so "See the details" opens it; null when it has none. */
+  traceId: z.string().nullable(),
+  createdAt: z.string(),
+  /** Another version was serving visitors when this one was asked for. */
+  replaced: z.boolean(),
+  /**
+   * `starting`; `online`, the version visitors reach now; `ended`, it served
+   * and no longer does; `unavailable`, it served and stopped answering;
+   * `not-started`, it never served (failed, or stopped after failing);
+   * `stopped`, a row written before these facts, stopped with no proof
+   * either way.
+   */
+  outcome: z.enum(['starting', 'online', 'ended', 'unavailable', 'not-started', 'stopped']),
+  /** A `not-started` replacement left an older version serving: it is still online. */
+  keptOnline: z.boolean(),
+}).strict();
+export type HostingHistoryEntry = z.infer<typeof hostingHistoryEntrySchema>;
+/** How many deployments the summary carries for the conversation, newest first: as many as the runs it tells. */
+export const HOSTING_HISTORY_MAX = 20;
 export const hostingSummarySchema = z.object({
   available: z.boolean(), state: z.enum(['not-deployed', 'starting', 'ready', 'failed', 'stopped']),
   deploymentId: z.string().uuid().nullable(), runId: z.string().uuid().nullable(),
@@ -77,6 +118,8 @@ export const hostingSummarySchema = z.object({
    * accepted version may have moved on since.
    */
   failed: z.object({ runId: z.string().uuid() }).strict().nullable(),
+  /** Additive (2026-10-26): the newest deployments, newest first, at most `HOSTING_HISTORY_MAX`. Absent from an older server. */
+  history: z.array(hostingHistoryEntrySchema).max(HOSTING_HISTORY_MAX).optional(),
 }).strict();
 export type HostingSummary = z.infer<typeof hostingSummarySchema>;
 

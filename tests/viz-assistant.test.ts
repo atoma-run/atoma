@@ -14,6 +14,8 @@ import type { RunReview } from '../src/contracts/clientExperience.js';
 import { EXAMPLE_ACCOUNT_SUBSCRIPTIONS } from '../src/contracts/accountSubscriptions.js';
 import { timestampTooltip } from '../src/viz/client-gl/renderer/relative-time.js';
 import { useGpuStore } from '../src/viz/client-gl/store.js';
+import type { DeploymentSettingsView } from '../src/viz/client-gl/project-deployment.js';
+import type { HostingHistoryEntry } from '../src/contracts/projectHosting.js';
 
 const clients: QueryClient[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); vi.restoreAllMocks(); vi.useRealTimers(); localStorage.clear(); });
@@ -38,13 +40,14 @@ function deliveredView() {
   data.conversation.lastRun = { projectId, runId: 'run-1' };
   return data;
 }
-function panel(data: AssistantView = view(), scopeKey = 'alice:org-a', boundProjectId: string | null = null) {
+function panel(data: AssistantView = view(), scopeKey = 'alice:org-a', boundProjectId: string | null = null,
+  hosting: { view: DeploymentSettingsView; onActivate: (id: string) => void } | null = null) {
   vi.spyOn(api, 'assistant').mockResolvedValue(data);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }); clients.push(client);
   const props = { scopeKey, projectId: boundProjectId, locale: 'en', inert: false,
     externalAgentGuide: createElement('button', { type: 'button' }, 'Connect your agent'),
     t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
-    onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn() };
+    onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn(), hosting };
   const { unmount } = render(createElement(QueryClientProvider, { client }, createElement(AssistantPanel, props)));
   return { client, props, unmount };
 }
@@ -822,4 +825,52 @@ it('shows one card and the banner when the presented run is itself the result to
   panel(deliveredView());
   expect(await screen.findByText(translate('en', 'assistant.deliveryExpired'))).toBeVisible();
   expect(screen.queryByText('A result is waiting for you to look at it.')).not.toBeInTheDocument();
+});
+
+/** The project's deployments told in its conversation, among its messages (2026-10-26). */
+function deployed(history: HostingHistoryEntry[], forProject = projectId) {
+  const hosting = { available: true, state: 'ready' as const, deploymentId: null, runId: null, commitSha: null, url: null, error: null, address: null,
+    candidate: null, version: null, previous: null, updateStops: false, failed: null, history };
+  return { view: { projectId: forProject, hosting, destination: 'atoma' as const, saved: 'atoma' as const, canEdit: true, busy: false, status: 'idle' as const },
+    onActivate: vi.fn() };
+}
+function deployment(overrides: Partial<HostingHistoryEntry>): HostingHistoryEntry {
+  return { deploymentId: '2d8f4b6a-3c4d-4e5f-8a0b-2c3d4e5f6a70', runId: '0b6d2f4e-1a2b-4c3d-8e9f-0a1b2c3d4e5f', title: 'Repair the control page',
+    traceId: 'trace-repair', createdAt: '2026-10-26T13:00:00.000Z', replaced: true, outcome: 'online', keptOnline: false, ...overrides };
+}
+
+it('tells each deployment at its place among the messages, and opens its run', async () => {
+  const first = deployment({ deploymentId: '3e9a5c7b-4d5e-4f60-9b1c-3d4e5f6a7b80', runId: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', title: 'First control page',
+    traceId: 'trace-first', createdAt: '2026-10-26T10:00:00.000Z', replaced: false, outcome: 'ended' });
+  const data = view();
+  data.conversation.projectId = projectId;
+  data.conversation.messages = [{ role: 'user', text: 'Is the new version online?', at: '2026-10-26T12:00:00.000Z' }];
+  const { props } = panel(data, 'alice:org-a', projectId, deployed([deployment({}), first]));
+  const log = await screen.findByRole('log');
+  await within(log).findByText('Is the new version online?');
+  expect(within(log).getAllByRole('article').map(item => item.textContent)).toEqual([
+    expect.stringContaining('Put online: First control pageNo longer online.'),
+    expect.stringContaining('Is the new version online?'),
+    expect.stringContaining('Online application switched to: Repair the control pageOnline now.'),
+  ]);
+  await userEvent.click(within(within(log).getAllByRole('article')[2]!).getByRole('button', { name: 'See the details' }));
+  expect(props.onRun).toHaveBeenLastCalledWith({ projectId, runId: deployment({}).runId }, 'trace-repair');
+});
+
+it('tells no deployment older than the loaded messages, nor another project\'s', async () => {
+  const data = view();
+  data.conversation.projectId = projectId;
+  data.nextBefore = 1;
+  data.conversation.messages = [{ role: 'user', text: 'Later question', at: '2026-10-26T12:00:00.000Z' }];
+  panel(data, 'alice:org-a', projectId, deployed([deployment({ createdAt: '2026-10-26T09:00:00.000Z' })]));
+  const log = await screen.findByRole('log');
+  await within(log).findByText('Later question');
+  expect(within(log).queryByText(/Online application switched to/)).not.toBeInTheDocument();
+  cleanup();
+  const other = view();
+  other.conversation.projectId = projectId;
+  other.conversation.messages = [{ role: 'user', text: 'Question', at: '2026-10-26T12:00:00.000Z' }];
+  panel(other, 'alice:org-a', projectId, deployed([deployment({})], 'b770bb5f-5c86-4a59-a565-55ac88d17e0e'));
+  await within(await screen.findByRole('log')).findByText('Question');
+  expect(screen.queryByText(/Online application switched to/)).not.toBeInTheDocument();
 });

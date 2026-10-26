@@ -25,7 +25,7 @@ const service = {
   stop: vi.fn(async (viewer: Viewer) => { admin(viewer); return { state: 'stopped' }; }),
 };
 
-async function serve(viewer: Viewer | null) {
+async function serve(viewer: Viewer | null, history = false) {
   const server = createServer((req, res) => {
     const send = (status: number, body: unknown) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
     const match = new URL(req.url!, 'http://localhost').pathname.match(HOSTING_ROUTE);
@@ -37,6 +37,7 @@ async function serve(viewer: Viewer | null) {
       readBody: async () => { const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(chunk as Buffer); return Buffer.concat(chunks); },
       runtime: async () => ({ service: service as never, gateway: { open: () => 'https://app.atoma.run/#claim' } }),
       send,
+      history: history && new URL(req.url!, 'http://localhost').searchParams.get('history') === '1',
     });
   });
   servers.push(server);
@@ -87,4 +88,18 @@ it('answers a member exactly as deploy does, and an anonymous caller not at all'
   expect((await call(owned, 'POST', `/api/projects/${projectId}/hosting/stop`, { origin: ORIGIN }, body)).status).toBe(200);
   expect((await call(owned, 'POST', `/api/projects/${projectId}/hosting/deploy`, { origin: ORIGIN }, body)).status).toBe(202);
   expect(`/api/projects/${projectId}/hosting/rollback`.match(HOSTING_ROUTE)).toBeNull();
+});
+
+it('sends the deployment history only to a tab that asks for it, never in an action answer (2026-10-26)', async () => {
+  vi.clearAllMocks();
+  const entry = { deploymentId: randomUUID(), runId: randomUUID(), title: null, traceId: null, createdAt: '2026-10-26T10:00:00.000Z',
+    replaced: false, outcome: 'online', keptOnline: false };
+  service.status.mockReturnValue({ state: 'ready', history: [entry] } as never);
+  service.stop.mockResolvedValueOnce({ state: 'stopped', history: [entry] } as never);
+  const port = await serve(owner, true);
+  // A tab from before the history parses strictly: an unknown field would cost it the whole hosting view.
+  expect(JSON.parse((await call(port, 'GET', `/api/projects/${projectId}/hosting`)).body)).toEqual({ state: 'ready' });
+  expect(JSON.parse((await call(port, 'GET', `/api/projects/${projectId}/hosting?history=1`)).body)).toEqual({ state: 'ready', history: [entry] });
+  expect(JSON.parse((await call(port, 'POST', `/api/projects/${projectId}/hosting/stop`, { origin: ORIGIN }, body)).body)).toEqual({ state: 'stopped' });
+  service.status.mockReturnValue({ state: 'ready' });
 });

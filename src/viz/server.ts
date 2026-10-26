@@ -5191,6 +5191,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         readBody: () => readBodyBounded(req, 4096),
         runtime: hostingRuntime,
         send: (status, body) => sendJson(res, status, body),
+        history: url.searchParams.get('history') === '1',
       });
       return;
     }

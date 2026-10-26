@@ -4,7 +4,7 @@ import { request } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { Viewer } from '../auth/store.js';
 import { existsSync } from 'node:fs';
-import { hostingDeployInputSchema, type HostedDeployment, type HostingHandle, type HostingIdentity, type HostingLauncher, type HostingSummary, type HostingVersion } from '../contracts/projectHosting.js';
+import { HOSTING_HISTORY_MAX, hostingDeployInputSchema, type HostedDeployment, type HostingHandle, type HostingHistoryEntry, type HostingIdentity, type HostingLauncher, type HostingSummary, type HostingVersion } from '../contracts/projectHosting.js';
 import type { ProjectRun } from '../contracts/projects.js';
 import { ProjectHttpError, roleAtLeast } from './service.js';
 import { ProjectStateConflict, type ProjectStore } from './store.js';
@@ -115,7 +115,8 @@ export class HostingService {
       version: shown ? this.describe(viewer.orgId, shown.runId, shown.commitSha) : null,
       previous: previous ? { ...this.describe(viewer.orgId, previous.runId, previous.commitSha), manifestHash: previous.manifestHash } : null,
       updateStops: rows.some(holdsApplicationData),
-      failed: row?.state === 'failed' && row.error !== 'runtime-unavailable' ? { runId: row.runId } : null };
+      failed: row?.state === 'failed' && row.error !== 'runtime-unavailable' ? { runId: row.runId } : null,
+      history: hostingHistory(rows, runId => this.deps.projects.getProjectRun(viewer.orgId, runId)) };
   }
   /** A version in words: the run's title and the client's acceptance date, never only its hash. */
   private describe(orgId: string, runId: string, commitSha: string): HostingVersion {
@@ -165,11 +166,11 @@ export class HostingService {
     return parsed.data;
   }
   private newRow(orgId: string, projectId: string, input: { runId: string; manifestHash: string },
-    release: ReturnType<HostingService['release']>, previousRunId?: string): HostedDeployment {
+    release: ReturnType<HostingService['release']>, replacedRunId: string | null, previousRunId?: string): HostedDeployment {
     return { orgId, projectId, deploymentId: randomUUID(), runId: input.runId,
       manifestHash: input.manifestHash, commitSha: release.commitSha, state: 'starting', kind: release.browserConfig ? 'node' : release.descriptor!.kind!, browser: !!release.browserConfig,
       entry: release.browserConfig?.entry ?? release.descriptor?.entry ?? 'index.js', createdAt: new Date().toISOString(), error: null, hostPort: null, image: null,
-      ...(previousRunId ? { previousRunId } : {}) };
+      replacedRunId, ...(previousRunId ? { previousRunId } : {}) };
   }
   private reserve(row: HostedDeployment, expected: string | null): void {
     try { this.deps.store.reserve(row, expected, this.deps.maxDeployments); }
@@ -186,7 +187,8 @@ export class HostingService {
     if (!project.hostingSubdomain) await ensureHostingSubdomain({ store: this.deps.projects, namer: this.deps.namer, events: this.deps.events }, viewer.orgId, projectId);
     // An update may have begun while the address was chosen: it owns the project until its reservation.
     if (this.mutating.has(projectId)) throw new ProjectHttpError(409, 'A deployment operation is still running');
-    const row = this.newRow(viewer.orgId, projectId, input, release);
+    const serving = this.deps.store.list(viewer.orgId, projectId).find(r => r.state === 'ready');
+    const row = this.newRow(viewer.orgId, projectId, input, release, serving?.runId ?? null);
     this.reserve(row, input.expectedDeploymentId);
     this.event(row, viewer.principalId);
     this.launch(row, release.run);
@@ -237,7 +239,8 @@ export class HostingService {
     try {
       expectedRows(rows);
       const online = rows.find(r => r.state === 'ready') ?? rows.find(holdsApplicationData);
-      row = this.newRow(viewer.orgId, projectId, input, release, operation === 'update' ? online?.runId : undefined);
+      row = this.newRow(viewer.orgId, projectId, input, release, rows.find(r => r.state === 'ready')?.runId ?? null,
+        operation === 'update' ? online?.runId : undefined);
       // Everything that does not touch the online version happens before it
       // stops: bytes copied and revalidated, engine objects created. A failure
       // here stops nothing; the online version keeps serving.
@@ -320,6 +323,7 @@ export class HostingService {
   private launch(row: HostedDeployment, run: ProjectRun, options: { prepared?: boolean; swap?: Swap } = {}): void {
     const projectId = row.projectId;
     const job = (async () => {
+      let started = false;
       try {
         if (!options.prepared) await this.prepare(row, run, false);
         const handle = await this.deps.launcher.startHosting(this.launchSpec(row));
@@ -331,21 +335,10 @@ export class HostingService {
           await new Promise(resolve => setTimeout(resolve, 250));
         }
         if (!ready) throw new Error('Not ready');
-        this.deps.store.update({ ...row, state: 'ready', ...handle }, 'starting');
+        this.deps.store.update({ ...row, state: 'ready', ...handle, readyAt: new Date().toISOString() }, 'starting');
         options.swap?.end();
         this.event({ ...row, state: 'ready' });
-        // Static replacements have no application data writers. A Node
-        // replacement was reserved only after its predecessor stopped.
-        for (const previous of this.deps.store.list(row.orgId, projectId)) {
-          if (previous.state === 'ready' && previous.deploymentId !== row.deploymentId) {
-            try {
-              await this.deps.launcher.stopHosting(identity(previous));
-              this.deps.store.update({ ...previous, state: 'stopped' }, 'ready');
-            } catch {
-              this.deps.store.update({ ...previous, state: 'failed', error: 'cleanup-failed' }, 'ready');
-            }
-          }
-        }
+        started = true;
       } catch {
         const clean = await this.deps.launcher.stopHosting(identity(row)).then(() => true, () => false);
         const current = this.deps.store.list(row.orgId, projectId).find(r => r.deploymentId === row.deploymentId);
@@ -354,14 +347,47 @@ export class HostingService {
           this.deps.store.update(failed, 'starting'); this.event(failed);
         }
       } finally { options.swap?.end(); }
+      if (started) await this.retirePredecessors(row);
     })();
     this.jobs.add(job); void job.then(() => this.jobs.delete(job), () => this.jobs.delete(job));
   }
-  /** Stops each row, then records it stopped, in order; a launcher failure ends the sequence and propagates. */
+  /**
+   * Once a version is ready, every older one still running, or running but not
+   * answering, is stopped. Static replacements have no application data
+   * writers; a Node replacement was reserved only after its predecessor
+   * stopped. Outside the startup sequence on purpose (2026-10-26): a clean-up
+   * error there stopped the version just started while its row stayed ready,
+   * and a predecessor that turned unavailable during the start was left
+   * running. Each write re-reads the row and yields to a concurrent change.
+   */
+  private async retirePredecessors(row: HostedDeployment): Promise<void> {
+    const running = (r: HostedDeployment) => r.deploymentId !== row.deploymentId && (r.state === 'ready' || r.error === 'runtime-unavailable');
+    for (const previous of this.deps.store.list(row.orgId, row.projectId).filter(running)) {
+      const clean = await this.deps.launcher.stopHosting(identity(previous)).then(() => true, () => false);
+      const current = this.deps.store.list(row.orgId, row.projectId).find(r => r.deploymentId === previous.deploymentId);
+      if (!current || !running(current)) continue;
+      // A stop that failed leaves an unanswering row as it is: its state was already unknown.
+      const next = clean ? { ...current, state: 'stopped' as const, hostPort: null, error: null }
+        : current.state === 'ready' ? { ...current, state: 'failed' as const, error: 'cleanup-failed' as const } : null;
+      if (!next) continue;
+      try { this.deps.store.update(next, current.state); }
+      catch (error) { if (!(error instanceof ProjectStateConflict)) throw error; }
+    }
+  }
+  /**
+   * Stops each row, then records it stopped, in order; a launcher failure ends
+   * the sequence and propagates. A row `retirePredecessors` (outside the lock)
+   * recorded stopped meanwhile is already what this wanted, not a conflict.
+   */
   private async stopRows(rows: HostedDeployment[], principalId: string, operation?: 'update' | 'restore'): Promise<void> {
     for (const row of rows) {
       await this.deps.launcher.stopHosting(identity(row));
-      this.deps.store.update({ ...row, state: 'stopped', hostPort: null, error: null }, row.state);
+      try { this.deps.store.update({ ...row, state: 'stopped', hostPort: null, error: null }, row.state); }
+      catch (error) {
+        const current = this.deps.store.list(row.orgId, row.projectId).find(r => r.deploymentId === row.deploymentId);
+        if (error instanceof ProjectStateConflict && current?.state === 'stopped') continue;
+        throw error;
+      }
       this.event({ ...row, state: 'stopped' }, principalId, operation);
     }
   }
@@ -386,7 +412,7 @@ export class HostingService {
         const healthy = handle && await this.deps.probe(handle.hostPort).catch(() => false);
         // A web restart (every deployment of Atoma) is no verdict on a busy
         // application: a running one that was ready stays so, one failure counted.
-        if (handle && (healthy || row.state === 'ready')) this.deps.store.update({ ...row, ...handle, state: 'ready', error: null }, row.state);
+        if (handle && (healthy || row.state === 'ready')) this.deps.store.update({ ...row, ...handle, state: 'ready', error: null, readyAt: row.readyAt ?? new Date().toISOString() }, row.state);
         else this.deps.store.update({ ...row, state: 'failed', error: 'runtime-unavailable', hostPort: null }, row.state);
         if (handle && !healthy && row.state === 'ready') this.healthFailures.set(row.deploymentId, 1);
       }
@@ -437,7 +463,7 @@ export class HostingService {
         if (this.mutating.has(row.projectId) || current?.state !== row.state) { this.healthFailures.delete(row.deploymentId); continue; }
         if (healthy) {
           this.healthFailures.delete(row.deploymentId);
-          const next = { ...row, ...handle!, state: 'ready' as const, error: null };
+          const next = { ...row, ...handle!, state: 'ready' as const, error: null, readyAt: row.readyAt ?? new Date().toISOString() };
           if (row.state !== 'ready') { this.deps.store.update(next, row.state); this.event(next); }
           // A restarted engine republishes the relay on a new loopback port while
           // the application stays healthy: the gateway proxies to row.hostPort.
@@ -464,6 +490,37 @@ export class HostingService {
   async idle(): Promise<void> { await Promise.all(this.jobs); }
 }
 
+/**
+ * The project's deployments as its conversation tells them (2026-10-26),
+ * newest first. Each says only what its row proves: a row without `readyAt`
+ * is not said to have served unless its state, error or kept port proves it,
+ * and a row written before these facts is never said to have switched the
+ * application. A run is read once per call, however often it was deployed.
+ */
+export function hostingHistory(rows: readonly HostedDeployment[],
+  runOf: (runId: string) => { title?: string | null; traceId: string | null } | null): HostingHistoryEntry[] {
+  const serving = rows.find(r => r.state === 'ready');
+  const runs = new Map<string, { title?: string | null; traceId: string | null } | null>();
+  const run = (runId: string) => { if (!runs.has(runId)) runs.set(runId, runOf(runId)); return runs.get(runId) ?? null; };
+  return rows.slice(0, HOSTING_HISTORY_MAX).map((row, index) => {
+    // `startup-failed` and `interrupted` are only written over `starting`. `cleanup-failed`
+    // is written over `ready` from the stored row, which keeps its port, or over `starting`
+    // from the unstarted row, whose port is null: the port tells which, on any row.
+    const served = row.readyAt !== undefined || row.state === 'ready' || row.error === 'runtime-unavailable' ||
+      (row.error === 'cleanup-failed' && row.hostPort !== null);
+    // A row carrying `replacedRunId` records `readyAt` whenever it serves: without it, it never did,
+    // even once Stop rewrote it `stopped`. Only an older row stays unproven.
+    const outcome: HostingHistoryEntry['outcome'] = row.state === 'starting' ? 'starting'
+      : row.state === 'ready' ? (row === serving ? 'online' : 'ended')
+      : row.error === 'runtime-unavailable' ? 'unavailable'
+      : served ? 'ended' : row.state === 'failed' || row.replacedRunId !== undefined ? 'not-started' : 'stopped';
+    // An older row's `previousRunId` names an update's predecessor, serving or not: no proof of a switch.
+    const replaced = row.replacedRunId != null;
+    const { title = null, traceId = null } = run(row.runId) ?? {};
+    return { deploymentId: row.deploymentId, runId: row.runId, title: title ?? null, traceId, createdAt: row.createdAt, replaced, outcome,
+      keptOnline: outcome === 'not-started' && replaced && serving !== undefined && rows.indexOf(serving) > index };
+  });
+}
 /**
  * Readiness must reach a successful application response, not a relay-generated
  * 502. Two seconds at start; the periodic check passes `HOSTING_HEALTH.timeoutMs`.

@@ -8,7 +8,7 @@ import { AtomaLoader, loaderVisible, revealClass, useLoadingReveal } from './Ato
 import { ButtonIcon } from './ButtonIcon.js';
 import { AssistantMarkdown } from './AssistantMarkdown.js';
 import { AssistantRunResult } from './AssistantRunResult.js';
-import { activityLines, activitySettled, activityWhat, activityWho, type ActivityLine } from './assistant-activity.js';
+import { activityLines, activitySettled, activityWhat, activityWho, deploymentLines, deploymentWhat, type ActivityLine, type DeploymentLine } from './assistant-activity.js';
 
 interface Props {
   scopeKey: string; projectId: string | null; locale: string;
@@ -36,7 +36,8 @@ function isRecordedMessage(message: OptimisticMessage, view: AssistantView | und
 }
 
 type TimelineEntry<M> = { kind: 'message'; message: M; index: number }
-  | { kind: 'line'; line: ActivityLine } | { kind: 'result'; run: NonNullable<AssistantView['run']> };
+  | { kind: 'line'; line: ActivityLine } | { kind: 'deployment'; line: DeploymentLine }
+  | { kind: 'result'; run: NonNullable<AssistantView['run']> };
 
 /**
  * Messages in their saved order, each insert before the first message later
@@ -55,6 +56,21 @@ function interleave<M extends { at: string }>(messages: readonly M[],
 }
 
 const resultCardId = (runId: string) => `assistant-result-${runId}`;
+
+/** One deployment of the project, told by Atoma: which accepted version went online and where it stands. */
+function DeploymentLineView({ line, projectId, locale, t, onRun }: { line: DeploymentLine; projectId: string; locale: string;
+  t: (key: string, vars?: Record<string, unknown>) => string; onRun: (run: AssistantRun, traceId: string | null) => void }) {
+  const { what, state } = deploymentWhat(line, t);
+  return <article className="gpu-assistant-message gpu-assistant-message--activity gpu-assistant-message--receipt">
+    <div className="gpu-assistant-message-meta"><strong>{t('assistant.receipt')}</strong>
+      <RelativeTime at={line.at} locale={locale} t={t} /></div>
+    <p>{what}</p>
+    <p>{state}</p>
+    <div className="gpu-assistant-message-actions">
+      <button type="button" onClick={() => onRun({ projectId, runId: line.deployment.runId }, line.deployment.traceId)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
+    </div>
+  </article>;
+}
 
 /** One narrated run: who asked and from where, or how it ended; never a model's words. */
 function ActivityLineView({ line, locale, t, onRun }: { line: ActivityLine; locale: string;
@@ -138,7 +154,9 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   const active = useGpuStore(state => !state.selectedProjectId || state.projectSection === 'conversation');
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; },
     [conversation?.messages.at(-1)?.id ?? conversation?.messages.length, visibleOptimistic?.requestId, query.data?.run?.status, waiting, active,
-      query.data?.activity?.[0]?.runId, query.data?.activity?.[0]?.status]);
+      query.data?.activity?.[0]?.runId, query.data?.activity?.[0]?.status,
+      // A new deployment, and its start settling; never a health flap of one long told.
+      hosting?.view.hosting?.history?.[0]?.deploymentId, hosting?.view.hosting?.history?.[0]?.outcome === 'starting']);
   const proposal = conversation?.proposal;
   // A start's read runs, as saved; Approve echoes exactly these back.
   const readRunIds = proposal?.action.kind === 'start_run' ? proposal.action.readRunIds ?? [] : [];
@@ -170,11 +188,18 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   // Outside a live run the presented run usually IS the awaiting delivery: one card.
   const cards = [awaitingRun, finishedRun?.runId === awaitingRun?.runId ? null : finishedRun].flatMap(run => run ? [run] : []);
   // The project's runs, whoever started them and from where, told at their place in time (2026-10-26).
-  const lines = activityLines({ activity, messages, carded: new Set(cards.map(run => run.runId)), olderUnloaded: before !== null });
+  // Older messages remain unloaded. `before` is set by an effect, so until a
+  // page is loaded the first frame reads the conversation's own cursor.
+  const olderUnloaded = (older.length > 0 ? before : before ?? query.data?.nextBefore ?? null) !== null;
+  const lines = activityLines({ activity, messages, carded: new Set(cards.map(run => run.runId)), olderUnloaded });
+  // The project's deployments, told beside its runs (2026-10-26): only the selected project's hosting view.
+  const deployments = projectId && hosting?.view.projectId === projectId
+    ? deploymentLines({ history: hosting.view.hosting?.history ?? [], messages, olderUnloaded }) : [];
   const quiet = !waiting && !visibleOptimistic && older.length === 0 && !conversation?.messages.length && !before &&
-    (!proposal || proposal.state === 'done') && lines.length === 0;
+    (!proposal || proposal.state === 'done') && lines.length === 0 && deployments.length === 0;
   const timeline = interleave(messages, [
     ...lines.map(line => ({ at: line.at, entry: { kind: 'line' as const, line } })),
+    ...deployments.map(line => ({ at: line.at, entry: { kind: 'deployment' as const, line } })),
     ...cards.map(run => ({ at: run.endedAt, entry: { kind: 'result' as const, run } })),
   ]);
   const liveEntry = shownRun && runInProgress ? activity.find(entry => entry.runId === shownRun.runId) : undefined;
@@ -322,6 +347,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
           id={resultCardId(entry.run.runId)} target={{ projectId: entry.run.projectId, runId: entry.run.runId }} run={entry.run}
           locale={locale} t={t} onRun={onRun} hosting={hosting} />;
         if (entry.kind === 'line') return <ActivityLineView key={entry.line.key} line={entry.line} locale={locale} t={t} onRun={onRun} />;
+        if (entry.kind === 'deployment') return <DeploymentLineView key={entry.line.key} line={entry.line} projectId={projectId!} locale={locale} t={t}
+          onRun={onRun} />;
         const { message } = entry;
         return <article key={message.id ?? `${message.at}:${entry.index}`} className={`gpu-assistant-message gpu-assistant-message--${message.role}`}>
         <div className="gpu-assistant-message-meta"><strong>{t(message.role === 'user' ? 'assistant.you' : message.role === 'receipt' ? 'assistant.receipt' : 'assistant.title')}</strong>
