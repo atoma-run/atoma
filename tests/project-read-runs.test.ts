@@ -434,7 +434,10 @@ describe('a run that reads other runs, in the coordinator', () => {
         await coordinator.waitForIdle();
         coordinator.stopQueue();
       `;
-      const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], { encoding: 'utf8', timeout: 20_000 });
+      // A real restart: a fresh process that compiles the coordinator with tsx
+      // from cold. ~1.4 s on a developer Mac, 15.6 s on a loaded CI shard
+      // (2026-10-26, run 40302895790), so the child gets 30 s and the test 45 s.
+      const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], { encoding: 'utf8', timeout: 30_000 });
       expect(child.status, child.stderr).toBe(0);
       const row = f.projects.getProjectRun(f.viewer.orgId, queued.projectRunId)!;
       expect(row.readRunIds).toEqual([read.projectRunId]);
@@ -453,7 +456,7 @@ describe('a run that reads other runs, in the coordinator', () => {
           .toThrow('immutable');
       } finally { db.close(); }
     } finally { coordinator.stopQueue(); holder.release(); }
-  });
+  }, 45_000);
 
   it('does not re-attach a live request naming other runs, and holds every run a live run reads from retention', async () => {
     const f = await fixture();
