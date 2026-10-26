@@ -50,7 +50,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, planFeedbackLines } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
-import { scopeTools } from './toolMerge.js';
+import { scopeTools, withLiveDeclarations } from './toolMerge.js';
 import {
   prefilterStrategy,
   shouldTrustSkill,
@@ -358,6 +358,14 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
    * across every atom in a run.
    */
   readonly skillRegistry: SkillRegistry | null;
+  /**
+   * The run's LIVE declaration of every tool (`backend.toolDecls`). Every
+   * molecule this cell instantiates from a stored row, and every seed it
+   * builds from one, takes it (`withLiveDeclarations`): a row whose prompt a
+   * validator wrote is never refreshed by the bootstrap, so its stored
+   * declarations go stale. This cell's own tools when the caller passes none.
+   */
+  private readonly liveTools: readonly Tool[];
 
   constructor(args: {
     atomId?: string;
@@ -372,6 +380,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     model?: string;
     validationModel?: string;
     skillRegistry?: SkillRegistry | null;
+    liveTools?: readonly Tool[];
   }) {
     super({
       atomId: args.atomId,
@@ -386,14 +395,21 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     this.validationModel = args.validationModel ?? modelForTier(1);
     this.registry = args.registry;
     this.skillRegistry = args.skillRegistry ?? null;
+    this.liveTools = [...(args.liveTools ?? args.tools)];
     if (args.peers) this.peers.push(...args.peers);
   }
 
+  /**
+   * `liveTools`: the run's live declarations. Given, the instance holds the
+   * live declaration of every tool its stored row holds, and its molecules
+   * take them too; the stored row, its atomId and its version are unchanged.
+   */
   static fromType(
     type: AtomType,
     registry: AtomRegistry,
     peers: L2Atom[] = [],
-    skillRegistry: SkillRegistry | null = null
+    skillRegistry: SkillRegistry | null = null,
+    liveTools?: readonly Tool[]
   ): L2Atom {
     if (type.tier !== 2) throw new Error(`L2Atom.fromType requires tier=2`);
     return new L2Atom({
@@ -402,12 +418,22 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       name: type.name,
       ordinal: type.ordinal,
       systemPrompt: type.systemPrompt,
-      tools: type.tools,
+      tools: liveTools ? withLiveDeclarations(type, liveTools).tools : type.tools,
       params: type.params,
       registry,
       peers,
       skillRegistry,
+      ...(liveTools ? { liveTools } : {}),
     });
+  }
+
+  /**
+   * Every molecule this cell runs is built here from its stored row, on the
+   * run's live declarations (`liveTools`): reused, patched, branched, revised
+   * or escalated alike. Its stored row stays as written.
+   */
+  private instantiateMolecule(type: AtomType): L1Atom {
+    return L1Atom.fromType(withLiveDeclarations(type, this.liveTools));
   }
 
   addPeer(p: L2Atom): void {
@@ -865,7 +891,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     } = args;
     const l1Type = this.resolveL1ForSubtask(subtask, strategy, parentTask, idx, ctx);
     this.triedChildren.mark(l1Type.name);
-    const l1 = L1Atom.fromType(l1Type);
+    const l1 = this.instantiateMolecule(l1Type);
     // This cell's own root plan made the subtask read-only: the phase starts here.
     const readOnlyHere = undeclaredIsReadOnly && !subtask.outputs?.length && !parentTask.readOnly;
     const seedContext = this.pendingSeedContext.get(l1Type.atomId);
@@ -1720,7 +1746,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
             this.name,
             verdict.reasoning
           );
-          const fresh = carrySkill(L1Atom.fromType(patched));
+          const fresh = carrySkill(this.instantiateMolecule(patched));
           if (additionalContext) fresh.injectContext({ source: 'coaching', text: additionalContext });
           await injectEventSkill(fresh, rejectionEventText(verdict));
           return fresh;
@@ -1732,7 +1758,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           verdict.branchName
         );
         ctx.logger.info(`[${this.name}] branched L1 ${child.name} → ${branched.name}`);
-        const freshBranch = carrySkill(L1Atom.fromType(branched));
+        const freshBranch = carrySkill(this.instantiateMolecule(branched));
         if (additionalContext) freshBranch.injectContext({ source: 'coaching', text: additionalContext });
         await injectEventSkill(freshBranch, rejectionEventText(verdict));
         return freshBranch;
@@ -1760,10 +1786,12 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         // Capability-first registry description: task and diagnosis
         // stay in the recovery instance; the registry row stays tier /
         // tool scoped so prefilter cross-domain reuse stays clean.
-        // Atom.tools is protected, so we re-resolve the toolset via
-        // the registry — the registry is the authoritative source.
+        // The toolset is the registry row's, with the run's live
+        // declarations mapped in, as at L3: a molecule whose prompt a
+        // validator wrote keeps stale stored ones, and seeded from them the
+        // branch reverted the template-born family the bootstrap refreshed.
         const childType = this.registry.getByName(child.name);
-        const childTools = childType?.tools ?? [];
+        const childTools = childType ? withLiveDeclarations(childType, this.liveTools).tools : [];
         const diagnostic = extractBranchDiagnostic(trace);
 
         // Skill update path (C2b). When the failed run was driven by
@@ -1868,7 +1896,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
                   actorTier: 2,
                   reasoning: diagnostic.slice(0, 400),
                 });
-                const fresh = carryTaskCoaching(child, L1Atom.fromType(childType));
+                const fresh = carryTaskCoaching(child, this.instantiateMolecule(childType));
                 fresh.injectContext({
                   source: 'skill',
                   skillId: activeSkillId,
@@ -1914,7 +1942,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         // actually tried on the current task — purely a lesson for future
         // runs. By handing the new instance back we let the anti-
         // Frankenstein narrow prompt prove itself in-flight.
-        const freshBranched = carryTaskCoaching(child, L1Atom.fromType(branched));
+        const freshBranched = carryTaskCoaching(child, this.instantiateMolecule(branched));
         freshBranched.injectContext({ source: 'coaching', text: recoveryContext(subtaskDescription, diagnostic) });
         // Event-driven recovery guidance rides along with the diagnostic:
         // the branch prompt says WHAT failed, a matched event skill says

@@ -47,9 +47,10 @@ Neighbours:
   Tools, parameters and delegation discipline remain host-owned. A written
   tissue is registered WITHOUT host tools and `tissueForRun` lends the run's
   back to the executing L3, as Meristem's seeding patch does; kept, they hid
-  a project-run tissue from every other run (review 2026-10-09 2.8). It also
-  gives the L3 the run's LIVE declaration of every tool the tissue holds: the
-  cells and molecules it creates are seeded from them ([src/registry](../registry/AGENTS.md)).
+  a project-run tissue from every other run (review 2026-10-09 2.8). The L3,
+  and a short run's entry cell and peers, are built on the run's LIVE
+  declarations and hand them down to every cell and molecule they build from
+  a stored row ([src/registry](../registry/AGENTS.md)).
   Repository excerpts are untrusted context, never persisted agent prompts.
   `tissues.ts` seeds the existing builder as a candidate, not a default route;
   bootstrap recognizes its provenance so a custom Meristem is never replaced.

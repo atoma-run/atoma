@@ -427,6 +427,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
   private pendingSeedContext = new Map<string, string>();
   /** SkillRegistry threaded down to every L2 instance L3 creates. */
   readonly skillRegistry: SkillRegistry | null;
+  /**
+   * The run's LIVE declaration of every tool (`backend.toolDecls`), handed to
+   * every cell this tissue instantiates and to every seed it builds from a
+   * stored row (`withLiveDeclarations`). This tissue's own tools when the
+   * caller passes none.
+   */
+  private readonly liveTools: readonly Tool[];
 
   private constructor(args: {
     atomId?: string;
@@ -441,6 +448,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     validationModel?: string;
     rootReviewModel?: string;
     skillRegistry?: SkillRegistry | null;
+    liveTools?: readonly Tool[];
   }) {
     super({
       atomId: args.atomId,
@@ -456,12 +464,15 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     this.rootReviewModelPin = args.rootReviewModel;
     this.registry = args.registry;
     this.skillRegistry = args.skillRegistry ?? null;
+    this.liveTools = [...(args.liveTools ?? args.tools)];
   }
 
+  /** `liveTools`: the run's live declarations (`backend.toolDecls`); see the field. */
   static fromType(
     type: AtomType,
     registry: AtomRegistry,
-    skillRegistry: SkillRegistry | null = null
+    skillRegistry: SkillRegistry | null = null,
+    liveTools?: readonly Tool[]
   ): L3Atom {
     if (type.tier !== 3) throw new Error(`L3Atom.fromType requires tier=3`);
     // ATOMA_MODEL_L3 is required and names the tier's model in full; there is
@@ -473,11 +484,12 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       name: type.name,
       ordinal: type.ordinal,
       systemPrompt: type.systemPrompt,
-      tools: type.tools,
+      tools: liveTools ? withLiveDeclarations(type, liveTools).tools : type.tools,
       params: type.params,
       registry,
       model,
       skillRegistry,
+      ...(liveTools ? { liveTools } : {}),
     });
   }
 
@@ -1369,16 +1381,16 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
   }
 
   /**
-   * Every cell this tissue runs is built here, holding this tissue's LIVE
-   * declaration of each tool it holds (`tissueForRun` gave them to
-   * `this.tools`). The cell seeds its molecules from them (`scopeTools`), so
-   * a cell whose stored declarations the bootstrap never refreshes (a
+   * Every cell this tissue runs is built here, on the run's LIVE declaration
+   * of each tool it holds, and handed the same live set for the molecules it
+   * builds. The cell seeds its molecules from them (`scopeTools`), so a cell
+   * whose stored declarations the bootstrap never refreshes (a
    * validator-written or custom prompt) no longer reverts the molecules it
    * had refreshed, one version per run. Its stored row stays as written:
    * patch and branch read the registry, never this instance.
    */
   private instantiateCell(type: AtomType, peers: L2Atom[]): L2Atom {
-    return L2Atom.fromType(withLiveDeclarations(type, this.tools), this.registry, peers, this.skillRegistry);
+    return L2Atom.fromType(type, this.registry, peers, this.skillRegistry, this.liveTools);
   }
 
   private resolveL2ForSubtask(
@@ -1523,7 +1535,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // Seeded from the live declarations, as the instance is: a cell
         // whose prompt a validator wrote keeps stale stored ones, and they
         // would revert the template-born family the bootstrap refreshed.
-        const childTools = withLiveDeclarations(childType, this.tools).tools;
+        const childTools = withLiveDeclarations(childType, this.liveTools).tools;
         const diagnostic = extractBranchDiagnostic(trace);
         // Capability-first description — match the rule enforced in
         // createSubtaskL2. The task and diagnosis live only in the recovery

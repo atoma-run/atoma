@@ -1293,7 +1293,7 @@ async function startTaskInternal(
         author: getTissueAuthor,
       });
       if (checkpoint) checkpoint.data.actor = { name: selectedTissue.name, atomId: selectedTissue.atomId, version: selectedTissue.version };
-      return L3Atom.fromType(tissueForRun(selectedTissue, backend.toolDecls), registry, skillRegistry);
+      return L3Atom.fromType(tissueForRun(selectedTissue, backend.toolDecls), registry, skillRegistry, backend.toolDecls);
     };
 
     // Skill store — shared by every atom in the run. Bodies are
@@ -1338,9 +1338,11 @@ async function startTaskInternal(
           const currentSeed = { ...seedCtx, toolDecls: backend.toolDecls };
           if (mode === 'short') {
             const entry = DEPTH_CONTRACT.entryCell(currentSeed);
+            // On the run's live declarations, as a tissue builds its cells: a
+            // peer whose prompt a validator wrote keeps stale stored ones.
             const peers = registry.listByTier(2).filter((type) => type.name !== entry.name)
-              .map((type) => L2Atom.fromType(type, registry, [], skillRegistry));
-            const cell = L2Atom.fromType(entry, registry, peers, skillRegistry);
+              .map((type) => L2Atom.fromType(type, registry, [], skillRegistry, backend.toolDecls));
+            const cell = L2Atom.fromType(entry, registry, peers, skillRegistry, backend.toolDecls);
             return { actor: cell, handle: shortRootHandle(cell) };
           }
           const tissue = await tissueFor(t, c);

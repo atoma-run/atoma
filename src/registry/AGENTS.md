@@ -82,13 +82,20 @@ Neighbours:
   render is baselined, an older one kept stays baseline-less (never frozen).
   The check, the derivation and the write share one `withWriteLock`
   transaction on a row read under it, so a validator patch committed after
-  the listing is never half reverted. A run's root tissue holds the live
-  declaration of every tool it holds (`tissueForRun`, src/run) and hands it to
-  every cell it instantiates (`withLiveDeclarations`), and Meristem's
-  stored row is refreshed like a canonical: seeded from stale tissue
+  the listing is never half reverted. THE INVARIANT: during a run every atom
+  instance and every creation seed built from a stored row holds the run's
+  LIVE declaration of each tool it holds (`withLiveDeclarations`), and no row
+  is rewritten for its declarations. The runner hands `backend.toolDecls` to
+  the root tissue (`tissueForRun`, `L3Atom.fromType`) and to a short run's
+  entry cell and peers (`L2Atom.fromType`); a tissue hands it to every cell it
+  instantiates and its escalation seeds, a cell to every molecule it runs
+  (reused, patched, branched, revised, escalated) and its escalation seeds.
+  Meristem's stored row is refreshed like a canonical. Seeded from stale
   declarations, every in-run creation reverted the family the bootstrap had
-  just refreshed, one version per run, and concurrent credits stopped growing
-  the streak (review 2026-10-26).
+  just refreshed, one version per run, concurrent credits stopped growing the
+  streak, and a reused validator-written molecule ran on removed text
+  (reviews 2026-10-26); `tests/live-declarations-runner.test.ts` holds it
+  across the runner, short and deep. Stored rows keep atomId and version.
 
 ## Trust counters
 

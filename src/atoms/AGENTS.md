@@ -729,7 +729,7 @@ Read the archived sections before changing something that merely looks odd.
   domain-match rule could only spawn identical clones once descriptions became
   capability labels; the theme travels in the subtask description. Since
   2026-10-10 a known signature keeps its canonical label, a seed NARROWS its parent's
-  tools (`scopeTools`), and template-born types go through `createOrRefresh` ([src/registry](../registry/AGENTS.md)).
+  tools (`scopeTools`), every instance or seed built from a stored row takes the run's live declarations (`liveTools`), and template-born types go through `createOrRefresh` ([src/registry](../registry/AGENTS.md)).
 - The full-stack canonical pairs Node-server and browser tools without a static
   server. It precedes HTTP in bucket selection; HTTP-only and static-web
   canonicals retain their narrower scopes and identities.

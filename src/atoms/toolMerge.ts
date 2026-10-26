@@ -35,8 +35,8 @@ export function scopeTools(parentTools: readonly Tool[], seedToolNames: readonly
  * `type` holding the LIVE declaration of every tool it holds that `live`
  * declares, in its own order; a tool `live` does not declare keeps its own.
  * The same object back when nothing differs. For the INSTANCE a run executes
- * and the seeds it hands its children, never for a stored row: a cell or
- * tissue whose prompt a validator or an author wrote is never refreshed by
+ * and the seeds it hands its children, never for a stored row: a molecule,
+ * cell or tissue whose prompt a validator or an author wrote is never refreshed by
  * the bootstrap, so its stored declarations go stale, and every child seeded
  * from them (`scopeTools`) failed the exact match against the template-born
  * family the bootstrap had just refreshed and reverted it through
