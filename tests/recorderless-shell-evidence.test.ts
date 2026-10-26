@@ -95,6 +95,18 @@ describe('a stored shell row a later host execution superseded', () => {
     const trunk = await checkGroundTruth({ ctx, subject: 'RESULT', payload, child, evidence: [] });
     expect(trunk.block).toContain('SUPERSEDED. This attempt\'s latest host execution of this exact command (run_shell, branch sibling) exited 1');
   });
+  it('reads the latest of the judged branch\'s OWN runs: a sibling\'s later pass does not hide its kill', async () => {
+    const { ctx } = workspace({ version: 1, entries: [{ cmd: SUITE, exitCode: 0 }] }, [1, 0]);
+    const judged = forkBranch(ctx, 'judged');
+    const sibling = forkBranch(ctx, 'sibling');
+    await judged.tools!.execute('run_shell', { cmd: SUITE });
+    await sibling.tools!.execute('run_shell', { cmd: SUITE });
+    const own = await checkGroundTruth({ ctx: judged, subject: 'RESULT', payload, child, evidence: [] });
+    expect(own.block).toContain('SUPERSEDED. This attempt\'s latest host execution of this exact command (run_shell, branch judged) exited 1');
+    // The trunk owns the whole attempt: the sibling's pass is the latest there, equal to the row.
+    const trunk = await checkGroundTruth({ ctx, subject: 'RESULT', payload, child, evidence: [] });
+    expect(trunk.block).not.toContain('SUPERSEDED');
+  });
 });
 
 describe('the required-command gate for a child without record_probe', () => {
@@ -115,14 +127,27 @@ describe('the required-command gate for a child without record_probe', () => {
     expect(outcome.reviewFindings).toEqual([]);
   });
 
-  it('is refused, with tool-agnostic coaching, on a failing receipt or none at all', async () => {
+  it('is refused, coached to quote the host receipt, on a failing receipt or none at all', async () => {
     const failing = await gate(recorderless, [1], true);
     expect(failing.rejection).toMatchObject({ gateId: 'required-command-manifest' });
     expect(failing.rejection!.reasoning).toBe(`the task requires ${HARNESS} to pass, but its latest host receipt exited 1`);
-    expect(failing.rejection!.coaching).not.toMatch(/through record_probe/);
-    expect(failing.rejection!.coaching).toContain('if you hold none, run it and quote the host receipt');
+    // Sucrose holds validate_html, a recorder that runs no command: the
+    // coaching must not send it to "the recording tool you hold".
+    expect(failing.rejection!.coaching).not.toContain('record_probe');
+    expect(failing.rejection!.coaching).not.toContain('recording tool');
+    expect(failing.rejection!.coaching).toContain('Run that same command until it exits 0 and quote its host receipt');
     const none = await gate(recorderless, [], false);
     expect(none.rejection!.reasoning).toBe(`the task requires ${HARNESS} to pass, but this attempt holds no host receipt of that exact command`);
+    expect(none.rejection!.coaching).toBe(failing.rejection!.coaching);
+  });
+
+  it('coaches a child without record_probe to the receipt even where no attestation log reads its runs', async () => {
+    const { ctx } = workspace(stale, []);
+    const bare = { ...forkBranch(ctx, 'leaf'), attestations: undefined };
+    const outcome = await runResultGates(buildResultGateEnv({ task, result: result(), childName: 'Sucrose', childToolNames: recorderless, ctx: bare }), new Set());
+    expect(outcome.rejection!.reasoning).toBe(`the task requires ${HARNESS} to pass, but its latest recorded exit code is 1`);
+    expect(outcome.rejection!.coaching).not.toContain('record_probe');
+    expect(outcome.rejection!.coaching).toContain('quote its host receipt');
   });
 
   it('is not met by a sibling branch\'s passing run of the command', async () => {
@@ -137,5 +162,6 @@ describe('the required-command gate for a child without record_probe', () => {
   it('keeps the manifest rule for a holder of record_probe', async () => {
     const holder = await gate(['write_file', 'read_file', 'run_shell', 'record_probe'], [0], true);
     expect(holder.rejection!.reasoning).toBe(`the task requires ${HARNESS} to pass, but its latest recorded exit code is 1`);
+    expect(holder.rejection!.coaching).toContain('Run that same command through record_probe until it exits 0');
   });
 });

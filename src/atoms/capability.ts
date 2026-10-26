@@ -1,5 +1,5 @@
 import type { Tier, Tool } from '../core/types.js';
-import { manifestSectionLines, manifestWriterLines, WEB_PROBE_DISCRIMINANT } from '../contracts/probeManifest.js';
+import { httpManifestWriterLines, manifestSectionLines, manifestWriterLines, WEB_PROBE_DISCRIMINANT } from '../contracts/probeManifest.js';
 import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
 import {
   HTTP_PORTABLE_DOC_GUIDANCE,
@@ -720,7 +720,15 @@ export const CANONICAL_L2_SYSTEM_PROMPT_LINES: readonly string[] = [
   `registry metadata. Keep the catalog reusable.`,
 ];
 
-export const CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES: readonly string[] = [
+/**
+ * The HTTP molecule's prompt for the tools it HOLDS. Only its manifest block
+ * varies (`httpManifestWriterLines`): a holder of record_probe in this bucket
+ * runs its harness through record_probe, which the required-command gate reads
+ * for it, never through run_shell. The canonical HTTP molecule, without
+ * record_probe, renders `CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES` byte for byte.
+ */
+export function canonicalHttpL1PromptLines(toolNames: readonly string[]): string[] {
+  return [
   `You are an L1 molecule specialised for Node HTTP server builds.`,
   `Your job: write the server entry point and every separate asset file the`,
   `task requests, install any required dependencies, boot it, and verify the`,
@@ -791,7 +799,7 @@ export const CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES: readonly string[] = [
   `  - schema/state: <one-line summary of any DB/file mutations the run`,
   `    produced — e.g. "matches=40, picks=200, champions=172">`,
   ``,
-...manifestWriterLines('http').map((l) => `${l}`),
+...httpManifestWriterLines(toolNames),
   ``,
   `WHY: the supervisor validator rejects RESULTs that read as self-reported`,
   `("I started the server, all endpoints work") because they are`,
@@ -806,7 +814,10 @@ export const CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES: readonly string[] = [
   `    "output": {"url": "http://localhost:53320", "entry": "server.js"},`,
   `    "summary": "Built Node SSR app with SQLite + Data Dragon ingest.\\n== GROUND TRUTH ==\\nLISTENING_ON_PORT=53320\\nbound URL: http://localhost:53320\\nprobe: GET / -> 200  body[0:200]: <!doctype html><title>Draft…\\nprobe: GET /api/stats/Akali -> 200  body[0:200]: {\\"champion\\":\\"Akali\\",\\"games\\":3,\\"wins\\":0}\\nschema/state: matches=40, picks=200, champions=172"`,
   `  }`,
-];
+  ];
+}
+
+export const CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES: readonly string[] = canonicalHttpL1PromptLines(HTTP_L1_TOOL_SCOPE);
 
 export const CANONICAL_HTTP_L2_SYSTEM_PROMPT_LINES: readonly string[] = [
   `You are a domain-neutral L2 cell for Node HTTP server builds.`,

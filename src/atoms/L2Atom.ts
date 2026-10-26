@@ -64,7 +64,7 @@ import {
   browserHolderFor,
   bucketIdForTools,
   canonicalFullStackPrompt,
-  CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES,
+  canonicalHttpL1PromptLines,
   extractBranchDiagnostic,
   groundTruthEvidenceLines,
   WEB_GROUND_TRUTH_EVIDENCE_LINES,
@@ -259,7 +259,7 @@ export function buildNarrowL1Prompt(
   } else if (bucket === 'http-server-build+probe') {
     // HTTP sequence + LISTENING_ON_PORT contract, mirror of the
     // canonical HTTP L1 prompt (single source of truth).
-    bucketBody = [...CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES];
+    bucketBody = canonicalHttpL1PromptLines(childTools.map((tool) => tool.name));
   } else if (bucket === 'web-artefact-build+validate') {
     bucketBody = [
       `Call tools sequentially to produce the deliverable:`,

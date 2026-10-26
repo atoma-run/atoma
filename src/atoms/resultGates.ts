@@ -335,10 +335,15 @@ export function requiredCommandReceiptMismatch(
 /* The table                                                           */
 /* ------------------------------------------------------------------ */
 
-// Tool-agnostic: the gate coaches holders of record_probe and molecules
-// without it alike, and naming a tool a child lacks taught it that tool.
+// Split by the branch the gate takes: naming a tool a child lacks taught it
+// that tool, and "the recording tool you hold" sent a holder of validate_html
+// or fetch_url, recorders that run no command, to the wrong one (2026-10-26).
+// Shown only to a holder of record_probe.
 const COMMAND_MANIFEST_COACHING =
-  'Fix the exact required finite test/probe script instead of substituting a different harness. Run that same command through the recording tool you hold until it exits 0 (if you hold none, run it and quote the host receipt); its latest observation must be the successful one before returning.';
+  'Fix the exact required finite test/probe script instead of substituting a different harness. Run that same command through record_probe until it exits 0; its latest manifest observation must be the successful one before returning.';
+// A child without record_probe: its evidence is the host receipt of the command it runs. Names no tool.
+const COMMAND_RECEIPT_COACHING =
+  'Fix the exact required finite test/probe script instead of substituting a different harness. Run that same command until it exits 0 and quote its host receipt (the exact command and its observed exit code); its latest run must be the successful one before returning.';
 
 /** An executor's admission that its verification did not happen; read only by a `requires-review` gate. */
 export const DECLARED_UNVERIFIED_RE = new RegExp([
@@ -406,26 +411,28 @@ const RESULT_GATES: readonly ResultGate[] = [
     check: async (env) => {
       const commands = requiredPassingCommands(env.task.description);
       if (commands.length === 0) return null;
-      if (!env.childToolNames.includes('record_probe') && env.attemptRecords !== undefined) {
+      const recorder = env.childToolNames.includes('record_probe');
+      const coaching = recorder ? COMMAND_MANIFEST_COACHING : COMMAND_RECEIPT_COACHING;
+      if (!recorder && env.attemptRecords !== undefined) {
         const mismatch = requiredCommandReceiptMismatch(env.task.description, env.attemptRecords);
-        return mismatch ? { reasoning: mismatch, coaching: COMMAND_MANIFEST_COACHING } : null;
+        return mismatch ? { reasoning: mismatch, coaching } : null;
       }
       const read = await env.readWorkspaceFile(PROBE_MANIFEST_FILENAME);
       if (read.status === 'no-tool') return null;
       if (read.status === 'unreadable') {
         return {
           reasoning: `the task requires ${commands.join(', ')} to pass, but the probe manifest could not be read`,
-          coaching: COMMAND_MANIFEST_COACHING,
+          coaching,
         };
       }
       if (!read.content.trim()) {
         return {
           reasoning: `the task requires ${commands.join(', ')} to pass, but the probe manifest is missing or empty`,
-          coaching: COMMAND_MANIFEST_COACHING,
+          coaching,
         };
       }
       const mismatch = requiredCommandManifestMismatch(env.task.description, read.content);
-      return mismatch ? { reasoning: mismatch, coaching: COMMAND_MANIFEST_COACHING } : null;
+      return mismatch ? { reasoning: mismatch, coaching } : null;
     },
   },
   {

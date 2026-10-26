@@ -88,11 +88,14 @@ public setting or client capability, and introduces no stored runtime identity.
   (`manifestSectionLines`, 2026-10-26): the shell block with `record_probe`,
   the HTTP block with `fetch_url`, the web block with `validate_html`, and
   for shell commands nothing records `SHELL_RECEIPT_LINES` (tool-free: quote
-  the host receipt). The HTTP block asks for its harness's host receipt, never
-  a hand-appended shell entry. Production molecule Sucrose, without
-  `record_probe`, was taught "USE record_probe" and planned through it (run
-  f91cdb19). The shell block's hand-write sentence survives only so the file
-  scribe's render stays byte for byte (pinned by digest).
+  the host receipt). The HTTP block (`httpManifestWriterLines`) has a holder
+  of `record_probe` record its harness, and one without it quote run_shell's
+  host receipt, never a hand-appended shell entry; it tells only a holder of
+  `start_node_server` without `record_probe` to boot through it (Melatonin and
+  ATP, 2026-10-26). Production molecule Sucrose, without `record_probe`, was
+  taught "USE record_probe" and planned through it (run f91cdb19). The shell
+  block's hand-write sentence survives only so the file scribe's render stays
+  byte for byte; the canonical HTTP render too (both pinned by digest).
 - Manifest MERGE semantics have one definition: `src/contracts/probeManifest.ts`
   owns entry identity per shape (shell by `cmd`, web by `webEntryIdentity`,
   http = ordered append) and documents the three writers' corrupt-input

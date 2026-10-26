@@ -248,16 +248,19 @@ export function ownedByReview(
  * showed the pass alone. A row whose exact command this attempt's latest host
  * execution ended with a DIFFERENT exit code is labelled with that receipt,
  * passing rows and failing ones alike. Same exit, another command, or no
- * observed exit code: no line. Nor when that latest execution belongs to
- * another branch than the one under review (`ownedByReview`). A fixed host
- * sentence; it credits nothing and proves nothing about other commands.
+ * observed exit code: no line. "Latest" is the latest among the records the
+ * result under review owns (`ownedByReview`), the same selection as the
+ * required-command gate: a sibling's later run neither speaks for this result
+ * nor hides its own contradicting receipt. A fixed host sentence; it credits
+ * nothing and proves nothing about other commands.
  */
 export function supersededProbeRowLines(
   manifest: string,
   records: readonly AttestationRecord[],
   owned: (record: AttestationRecord) => boolean = () => true
 ): string[] {
-  if (records.length === 0) return [];
+  const mine = records.filter(owned);
+  if (mine.length === 0) return [];
   let parsed: { entries: unknown[] };
   try {
     parsed = probeManifestSchema.parse(JSON.parse(manifest));
@@ -268,9 +271,8 @@ export function supersededProbeRowLines(
   for (const value of parsed.entries) {
     const entry = shellEntrySchema.safeParse(value);
     if (!entry.success || probeEntryKind(value as Record<string, unknown>) !== 'shell') continue;
-    const latest = latestCommandExecution(records, entry.data.cmd);
-    // Another branch's later run is not this result's outcome: no line.
-    if (!latest || !owned(latest.record) || latest.exitCode === undefined || latest.exitCode === entry.data.exitCode) continue;
+    const latest = latestCommandExecution(mine, entry.data.cmd);
+    if (!latest || latest.exitCode === undefined || latest.exitCode === entry.data.exitCode) continue;
     lines.push(
       `- ${JSON.stringify(entry.data.cmd)} (stored exitCode=${entry.data.exitCode}): SUPERSEDED. This attempt's latest host ` +
         `execution of this exact command (${latest.record.tool}, branch ${(latest.record.branchId ?? 'root').slice(0, 8)}) ` +

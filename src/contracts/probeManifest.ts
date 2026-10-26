@@ -745,52 +745,111 @@ function exampleLines(entry: ManifestEntry): string[] {
   return [`  {"version": 1, "entries": [`, ...json, `  ]}`];
 }
 
+/** What the canonical HTTP molecule holds: `manifestWriterLines('http')` renders its bytes. */
+const CANONICAL_HTTP_HOLDINGS: readonly string[] = ['run_shell', 'fetch_url', 'start_node_server'];
+
+const HTTP_SEQUENCE_LINES: readonly string[] = [
+  `PROBE MANIFEST ON DISK: whenever an HTTP request is evidence, call`,
+  `fetch_url with "record": true. The tool appends its REAL observed`,
+  `method/path/status/body to "${PROBE_MANIFEST_FILENAME}" itself — never`,
+  `transcribe a fetch result, and never use curl or node -e as a substitute:`,
+  ...exampleLines(EXAMPLE_HTTP_ENTRY),
+  `One entry per verified request, in the order you ran them. fetch_url`,
+  `ACCUMULATES across phases and preserves earlier entries automatically.`,
+  `HTTP observations APPEND in`,
+  `order — never merge by method+path: an HTTP manifest is a SEQUENCE,`,
+  `and the same route legitimately appears several times with different`,
+  `outcomes (a real CRUD manifest recorded POST /recipes four times: 201,`,
+  `400 malformed, 400 missing-fields). Merging on the route would collapse`,
+  `the sequence and silently delete the error cases.`,
+];
+
+/**
+ * For a holder of start_node_server WITHOUT record_probe (the canonical HTTP
+ * molecule): "record_probe is intentionally NOT in the HTTP toolset" is true
+ * only there. A holder of record_probe reads the same rule in its declaration
+ * ("never start a server here"); a molecule without start_node_server is
+ * never told to boot through it.
+ */
+const HTTP_SERVER_BOOT_LINES: readonly string[] = [
+  `NEVER record the long-running server command itself as a shell probe`,
+  `(\`node server.js\` or equivalent). A server is supposed to keep running,`,
+  `and record_probe is intentionally NOT in the HTTP toolset. Boot through`,
+  `start_node_server, then call fetch_url for finite requests; the L1 runtime`,
+  `forces every loopback fetch to record even if "record": true was omitted.`,
+];
+
+const HTTP_FORCED_RECORD_LINES: readonly string[] = [
+  `The L1 runtime forces every loopback fetch to record even if "record":`,
+  `true was omitted.`,
+];
+
+/** The harness paragraph for a molecule that runs commands but cannot record them. */
+const HTTP_HARNESS_RECEIPT_LINES: readonly string[] = [
+  `HARNESS RECEIPT — MANDATORY WHENEVER A TEST SCRIPT EXISTS. If the`,
+  `workspace holds an EXECUTABLE probe harness (test-api.js or similar —`,
+  `a script that boots the server and exits non-zero on any mismatch),`,
+  `run it with run_shell and quote the host receipt — the exact command`,
+  `and its observed exit code — in GROUND TRUTH, IN ADDITION to the http`,
+  `entries. The http entries carry no request payload, so that receipt is`,
+  `what shows the reviewers the harness itself passed. You never write a`,
+  `shell entry into "${PROBE_MANIFEST_FILENAME}": nothing but its recording`,
+  `tools writes it.`,
+];
+
+/**
+ * The harness paragraph for a holder of record_probe: the required-command
+ * gate reads a holder's manifest row, never its run_shell receipt, so a
+ * holder told to use run_shell (production molecule Melatonin, 2026-10-26)
+ * would be refused on a passing harness.
+ */
+const HTTP_HARNESS_RECORD_LINES: readonly string[] = [
+  `HARNESS RECORD — MANDATORY WHENEVER A TEST SCRIPT EXISTS. If the`,
+  `workspace holds an EXECUTABLE probe harness (test-api.js or similar —`,
+  `a script that boots the server and exits non-zero on any mismatch),`,
+  `run it with record_probe {"cmd": "node <harness>"}: the tool records its`,
+  `real exit code into "${PROBE_MANIFEST_FILENAME}" IN ADDITION to the http`,
+  `entries. The http entries carry no request payload, so that record is`,
+  `what shows the reviewers the harness itself passed.`,
+];
+
+const HTTP_FIELD_NAME_LINES: readonly string[] = [
+  `FIELD NAMES ARE EXACT — do not rename, abbreviate or "improve" them,`,
+  `and do not add a discriminator of your own. It is "probe", not "kind";`,
+  `"status", not "expect"/"expectedStatus"; "cmd", not "command";`,
+  `"exitCode", not "expectExitCode". A renamed field is an UNKNOWN shape`,
+  `to every reader — measured twice: one run burned four rejection`,
+  `cycles on {kind, expect} and another five on "expectExitCode".`,
+  `WHY: this file is the machine-readable interface later verification`,
+  `passes re-run and diff against — prose in a README cannot be parsed`,
+  `reliably, this can.`,
+];
+
+/**
+ * The HTTP writer block for the tools a fetch_url holder HOLDS (2026-10-26):
+ * the server-boot lines only to a holder of start_node_server without
+ * record_probe, and the harness paragraph by the command tool it has —
+ * record_probe's record, else run_shell's host receipt, else none. The
+ * canonical HTTP molecule's holdings render `manifestWriterLines('http')`
+ * byte for byte. Production molecule ATP (record_probe and fetch_url, no
+ * start_node_server) was told it lacked record_probe and to boot through a
+ * tool it did not hold.
+ */
+export function httpManifestWriterLines(toolNames: readonly string[]): string[] {
+  const held = new Set(toolNames);
+  const recorder = held.has('record_probe');
+  const boot = held.has('start_node_server') && !recorder ? HTTP_SERVER_BOOT_LINES : HTTP_FORCED_RECORD_LINES;
+  const harness = recorder ? HTTP_HARNESS_RECORD_LINES : held.has('run_shell') ? HTTP_HARNESS_RECEIPT_LINES : [];
+  return [...HTTP_SEQUENCE_LINES, ...boot, ...harness, ...HTTP_FIELD_NAME_LINES];
+}
+
 /**
  * WRITER block for the L1 evidence contracts — one per bucket. The
  * surrounding prose is bucket-specific (merge key, WHY framing) but the
  * embedded example is rendered from the schema-validated constants above.
  */
 export function manifestWriterLines(kind: 'shell' | 'http' | 'web'): string[] {
-  if (kind === 'http') {
-    return [
-      `PROBE MANIFEST ON DISK: whenever an HTTP request is evidence, call`,
-      `fetch_url with "record": true. The tool appends its REAL observed`,
-      `method/path/status/body to "${PROBE_MANIFEST_FILENAME}" itself — never`,
-      `transcribe a fetch result, and never use curl or node -e as a substitute:`,
-      ...exampleLines(EXAMPLE_HTTP_ENTRY),
-      `One entry per verified request, in the order you ran them. fetch_url`,
-      `ACCUMULATES across phases and preserves earlier entries automatically.`,
-      `HTTP observations APPEND in`,
-      `order — never merge by method+path: an HTTP manifest is a SEQUENCE,`,
-      `and the same route legitimately appears several times with different`,
-      `outcomes (a real CRUD manifest recorded POST /recipes four times: 201,`,
-      `400 malformed, 400 missing-fields). Merging on the route would collapse`,
-      `the sequence and silently delete the error cases.`,
-      `NEVER record the long-running server command itself as a shell probe`,
-      `(\`node server.js\` or equivalent). A server is supposed to keep running,`,
-      `and record_probe is intentionally NOT in the HTTP toolset. Boot through`,
-      `start_node_server, then call fetch_url for finite requests; the L1 runtime`,
-      `forces every loopback fetch to record even if "record": true was omitted.`,
-      `HARNESS RECEIPT — MANDATORY WHENEVER A TEST SCRIPT EXISTS. If the`,
-      `workspace holds an EXECUTABLE probe harness (test-api.js or similar —`,
-      `a script that boots the server and exits non-zero on any mismatch),`,
-      `run it with run_shell and quote the host receipt — the exact command`,
-      `and its observed exit code — in GROUND TRUTH, IN ADDITION to the http`,
-      `entries. The http entries carry no request payload, so that receipt is`,
-      `what shows the reviewers the harness itself passed. You never write a`,
-      `shell entry into "${PROBE_MANIFEST_FILENAME}": nothing but its recording`,
-      `tools writes it.`,
-      `FIELD NAMES ARE EXACT — do not rename, abbreviate or "improve" them,`,
-      `and do not add a discriminator of your own. It is "probe", not "kind";`,
-      `"status", not "expect"/"expectedStatus"; "cmd", not "command";`,
-      `"exitCode", not "expectExitCode". A renamed field is an UNKNOWN shape`,
-      `to every reader — measured twice: one run burned four rejection`,
-      `cycles on {kind, expect} and another five on "expectExitCode".`,
-      `WHY: this file is the machine-readable interface later verification`,
-      `passes re-run and diff against — prose in a README cannot be parsed`,
-      `reliably, this can.`,
-    ];
-  }
+  if (kind === 'http') return httpManifestWriterLines(CANONICAL_HTTP_HOLDINGS);
   if (kind === 'web') {
     return [
       `PROBE MANIFEST ON DISK: validate_html RECORDS every PASSING check it ran`,
@@ -913,7 +972,7 @@ export function manifestSectionLines(toolNames: readonly string[]): string[] {
   const blocks: (readonly string[])[] = [];
   if (held.has('record_probe')) blocks.push(manifestWriterLines('shell'));
   else if (held.has('run_shell')) blocks.push(SHELL_RECEIPT_LINES);
-  if (held.has('fetch_url')) blocks.push(manifestWriterLines('http'));
+  if (held.has('fetch_url')) blocks.push(httpManifestWriterLines(toolNames));
   if (held.has('validate_html')) blocks.push(manifestWriterLines('web'));
   return blocks.flatMap((block, index) => (index === 0 ? [...block] : ['', ...block]));
 }
