@@ -69,9 +69,13 @@ export function repairTaskBakedPrompts(registry: AtomRegistry): string[] {
  * described a hand-written manifest that tool refuses since 2026-10-11.
  *
  * Per type, never the family elder `createOrRefresh` picks, so two types of
- * one signature are both refreshed. Only a type whose stored prompt IS its
- * recorded host baseline, optionally followed by a learned suffix (kept by
- * `refreshTemplate`), is touched: a validator-written or custom prompt keeps
+ * one signature are both refreshed. Only a template-born type
+ * (`AtomRegistry.isTemplateBorn`, the definition `createOrRefresh` uses) is
+ * touched: a stored prompt that IS its recorded host baseline, optionally
+ * followed by a learned suffix (kept by `refreshTemplate`), or a row older
+ * than the baselines whose prompt the template recognises — that one keeps
+ * its prompt, gets the live declarations and is baselined, as
+ * `createOrRefresh` treats it. A validator-written or custom prompt keeps
  * its prompt and its declarations. The streak is kept, as for any template
  * revision (owner decision 2026-10-10). Declarations are replaced by name and
  * keep their order; a tool the live set does not declare keeps its own.
@@ -84,17 +88,23 @@ export function refreshTemplateBornTypes(registry: AtomRegistry, liveTools: read
   for (const tier of [1, 2] as const) {
     const isTemplate = tier === 1 ? isNarrowL1Template : isNarrowL2Template;
     const render = tier === 1 ? buildNarrowL1Prompt : buildNarrowL2Prompt;
-    for (const type of registry.listByTier(tier)) {
-      const baseline = registry.templatePrompt(type);
-      if (baseline === undefined || !isTemplate(baseline)) continue;
-      if (type.systemPrompt !== baseline && !type.systemPrompt.startsWith(`${baseline}\n\n`)) continue;
-      const tools = type.tools.map((tool) => live.get(tool.name) ?? tool);
-      const after = registry.refreshTemplate(type.name, {
-        systemPromptReplace: render('', tools),
-        removeTools: type.tools.map((tool) => tool.name),
-        addTools: tools,
-      }, 'build-app-bootstrap', 'template refresh', { keepStreak: true });
-      if (after.version !== type.version) refreshed.push(type.name);
+    for (const { name } of registry.listByTier(tier)) {
+      // The check, the declarations and the write share one IMMEDIATE
+      // transaction on a row read under it: from the listing, a validator
+      // patch another run commits meanwhile came back as its custom prompt
+      // kept beside the tools it had removed, streak and all.
+      const changed = registry.withWriteLock(() => {
+        const type = registry.getByName(name);
+        if (!type || !registry.isTemplateBorn(type, isTemplate)) return false;
+        const tools = type.tools.map((tool) => live.get(tool.name) ?? tool);
+        const after = registry.refreshTemplate(type.name, {
+          systemPromptReplace: render('', tools),
+          removeTools: type.tools.map((tool) => tool.name),
+          addTools: tools,
+        }, 'build-app-bootstrap', 'template refresh', { keepStreak: true });
+        return after.version !== type.version;
+      });
+      if (changed) refreshed.push(name);
     }
   }
   return refreshed;

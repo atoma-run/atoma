@@ -410,6 +410,30 @@ export class AtomRegistry {
       { prompt: string } | undefined)?.prompt;
   }
 
+  /**
+   * THE definition of a template-born type, shared by `createOrRefresh`'s
+   * family and the bootstrap's `refreshTemplateBornTypes`: a stored prompt
+   * that is its recorded host baseline, optionally plus a learned suffix, or,
+   * for a row older than the baselines (2026-10-12) that has none, a prompt
+   * the template predicate recognises. Two definitions let the bootstrap skip
+   * a baseline-less cell whose stale declarations `createOrRefresh` then
+   * pushed back into the molecule family the bootstrap had just refreshed.
+   */
+  isTemplateBorn(type: AtomType, isTemplate: (systemPrompt: string) => boolean): boolean {
+    const baseline = this.templatePrompt(type);
+    if (baseline === undefined) return isTemplate(type.systemPrompt);
+    return isTemplate(baseline) && (type.systemPrompt === baseline || type.systemPrompt.startsWith(baseline + '\n\n'));
+  }
+
+  /**
+   * Run `fn` under the write lock: a check and the write it decides are one
+   * IMMEDIATE transaction, and registry writes inside it become savepoints.
+   * `fn` is synchronous by construction, like every transaction here.
+   */
+  withWriteLock<T>(fn: () => T): T {
+    return this.db.transaction(fn).immediate();
+  }
+
   /** Refresh the known template prefix, retaining appended learning. Unknown replacements stay intact. */
   refreshTemplate(name: string, mods: AtomModifications, by: string, reason: string,
     opts: { keepStreak?: boolean } = {}): AtomType {
@@ -505,11 +529,7 @@ export class AtomRegistry {
         .filter(type =>
           type.tools.map(tool => tool.name).sort().join(',') === names &&
           canonicalJson(type.params) === params &&
-          (() => {
-            const baseline = this.templatePrompt(type);
-            return baseline === undefined ? isTemplate(type.systemPrompt) : isTemplate(baseline) &&
-              (type.systemPrompt === baseline || type.systemPrompt.startsWith(baseline + '\n\n'));
-          })())
+          this.isTemplateBorn(type, isTemplate))
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.ordinal - b.ordinal);
       const elder = family[0];
       if (!elder) return this.createTemplate(tier, seed);

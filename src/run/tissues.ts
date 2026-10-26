@@ -28,16 +28,28 @@ export function seedTissueCatalog({ registry, toolDecls, log }: SeedContext): At
     log(`bootstrapped L3 tissue: ${l3Type.name}`);
   } else {
     // Always refresh the tools (executor set may have changed across
-    // runs) and re-align the system prompt with the current seed.
+    // runs) and re-align the system prompt with the current seed. The tools
+    // it holds take their LIVE declarations, as `refreshCanonical` does for
+    // the canonicals: adding by name alone kept a stale `record_probe` text.
+    // A refresh of declarations alone keeps the streak, as there.
+    const existing = l3Type;
+    const live = new Map(toolDecls.map((tool) => [tool.name, tool]));
+    const removed = new Set<string>(HOST_TOOL_NAMES.filter(name => !live.has(name)));
+    const kept = existing.tools.filter((tool) => !removed.has(tool.name)).map((tool) => live.get(tool.name) ?? tool);
+    const added = toolDecls.filter((tool) => !existing.tools.some((held) => held.name === tool.name));
+    const baseline = registry.templatePrompt(existing);
+    const declarationsOnly = (baseline === undefined || baseline === MERISTEM_SYSTEM_PROMPT) &&
+      kept.length === existing.tools.length && added.length === 0;
     l3Type = registry.refreshTemplate(
-      l3Type.name,
+      existing.name,
       {
-        addTools: [...toolDecls],
-        removeTools: HOST_TOOL_NAMES.filter(name => !toolDecls.some(tool => tool.name === name)),
+        removeTools: existing.tools.map((tool) => tool.name),
+        addTools: [...kept, ...added],
         systemPromptReplace: MERISTEM_SYSTEM_PROMPT,
       },
       'run-catalog',
-      'refresh system tools + seed prompt'
+      'refresh system tools + seed prompt',
+      { keepStreak: declarationsOnly }
     );
     log(`catalog L3 tissue: ${l3Type.name} (v${l3Type.version})`);
   }

@@ -52,16 +52,28 @@ export function tissuePrompt(workflow: string): string {
 const isHostTool = (tool: Tool): boolean => (HOST_TOOL_NAMES as readonly string[]).includes(tool.name);
 
 /**
- * The type a run's root L3 executes as: the persisted tissue plus the host
- * tools THIS run offers, never persisted. A written tissue is registered
- * without host tools (see `selectTissue`), so the catalog does not hide it
- * from runs without them, and a run with them still offers them to the cells
- * the tissue creates. Meristem reaches the same per-run tool set through its
- * seeding patch (`tissues.ts`); for it this adds nothing.
+ * The type a run's root L3 executes as: the persisted tissue holding THIS
+ * run's live declaration of every tool it holds, plus the host tools this
+ * run offers, never persisted. A written tissue is registered without host
+ * tools (see `selectTissue`), so the catalog does not hide it from runs
+ * without them, and a run with them still offers them to the cells the
+ * tissue creates. The live declarations matter because every cell and
+ * molecule the tissue creates is seeded from them (`scopeTools`): a tissue's
+ * stored declarations are never refreshed, and seeding from them reverted the
+ * cells and molecules the bootstrap had just refreshed (`createOrRefresh`
+ * picks a family on tool names), one version bump per run, which cost
+ * concurrent runs their streak credits. The only path that builds a run's L3
+ * (`runner.ts`: routed, comparison and resumed roots alike).
  */
 export function tissueForRun(type: AtomType, toolDecls: readonly Tool[]): AtomType {
+  const live = new Map(toolDecls.map((tool) => [tool.name, tool]));
+  const held = type.tools.map((tool) => {
+    const current = live.get(tool.name);
+    return current && JSON.stringify(current) !== JSON.stringify(tool) ? current : tool;
+  });
   const host = toolDecls.filter((tool) => isHostTool(tool) && !type.tools.some((own) => own.name === tool.name));
-  return host.length > 0 ? { ...type, tools: [...type.tools, ...host] } : type;
+  const unchanged = host.length === 0 && held.every((tool, index) => tool === type.tools[index]);
+  return unchanged ? type : { ...type, tools: [...held, ...host] };
 }
 
 /** One root decision per run, before execution; no separate profile-to-tissue map. */

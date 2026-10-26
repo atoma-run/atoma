@@ -76,6 +76,17 @@ Neighbours:
   validator-written or custom prompt keeps prompt and declarations. Until then
   `createOrRefresh` refreshed one only when its signature was created again,
   and a reused molecule (Sucrose, run f91cdb19) kept teaching a tool it lacks.
+  `isTemplateBorn` is the ONE definition, `createOrRefresh`'s family uses it
+  too: a row older than the baselines (2026-10-12) whose prompt the template
+  recognises keeps that prompt, takes the live declarations and is baselined.
+  The check, the derivation and the write share one `withWriteLock`
+  transaction on a row read under it, so a validator patch committed after
+  the listing is never half reverted. A run's root tissue holds the live
+  declaration of every tool it holds (`tissueForRun`, src/run), and Meristem's
+  stored row is refreshed like a canonical: seeded from stale tissue
+  declarations, every in-run creation reverted the family the bootstrap had
+  just refreshed, one version per run, and concurrent credits stopped growing
+  the streak (review 2026-10-26).
 
 ## Trust counters
 
