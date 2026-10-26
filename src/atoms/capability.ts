@@ -1,5 +1,5 @@
 import type { Tier, Tool } from '../core/types.js';
-import { manifestWriterLines, WEB_PROBE_DISCRIMINANT } from '../contracts/probeManifest.js';
+import { manifestSectionLines, manifestWriterLines, WEB_PROBE_DISCRIMINANT } from '../contracts/probeManifest.js';
 import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
 import {
   HTTP_PORTABLE_DOC_GUIDANCE,
@@ -457,10 +457,8 @@ export function ensureCanonicalFullStack(
   const systemPrompt = canonicalFullStackPrompt(tier);
   const existing = registry.listByTier(tier).find(type => type.createdBy === CANONICAL_FULL_STACK_BOOTSTRAP_MARKER);
   if (existing) {
-    return registry.refreshTemplate(existing.name, {
-      addTools: scoped,
-      systemPromptReplace: systemPrompt,
-    }, 'build-app-bootstrap', 'refresh canonical full-stack tools + seed prompt');
+    return refreshCanonical(registry, existing, scoped, { systemPromptReplace: systemPrompt },
+      'refresh canonical full-stack tools + seed prompt');
   }
   return registry.createTemplate(tier, {
     description: capabilityDescription(scoped, tier), systemPrompt, tools: scoped,
@@ -842,7 +840,7 @@ export const CANONICAL_HTTP_L2_SYSTEM_PROMPT_LINES: readonly string[] = [
  * The rejection was CORRECT per the validation contract; the missing
  * piece was teaching non-web/http L1s how to report evidence.
  */
-export const GROUND_TRUTH_EVIDENCE_LINES: readonly string[] = [
+const GROUND_TRUTH_EVIDENCE_HEAD: readonly string[] = [
   `RESULT-REPORTING CONTRACT (mandatory): the {"output", "summary"}`,
   `envelope you return MUST embed a verbatim "== GROUND TRUTH ==" block`,
   `inside "summary": one headline sentence, then a real newline ("\\n"),`,
@@ -883,9 +881,25 @@ export const GROUND_TRUTH_EVIDENCE_LINES: readonly string[] = [
   `that your own recorded probe contradicts (exitCode 0) is the single most`,
   `common way a deliverable ships wrong — and prose cannot be checked`,
   `mechanically, so a table in "summary" does not substitute for this.`,
-  ``,
-...manifestWriterLines('shell').map((l) => `${l}`),
 ];
+
+/** The generic contract of a holder of `record_probe`: the file scribe's, byte for byte. */
+export const GROUND_TRUTH_EVIDENCE_LINES: readonly string[] = [
+  ...GROUND_TRUTH_EVIDENCE_HEAD,
+  ``,
+  ...manifestWriterLines('shell'),
+];
+
+/**
+ * The generic contract for the tools a molecule HOLDS: its manifest section
+ * names only the recorders it has (`manifestSectionLines`). The unknown-bucket
+ * narrow template renders this; a holder of `record_probe` alone gets
+ * `GROUND_TRUTH_EVIDENCE_LINES` exactly.
+ */
+export function groundTruthEvidenceLines(toolNames: readonly string[]): string[] {
+  const section = manifestSectionLines(toolNames);
+  return section.length === 0 ? [...GROUND_TRUTH_EVIDENCE_HEAD] : [...GROUND_TRUTH_EVIDENCE_HEAD, ``, ...section];
+}
 
 /**
  * Workspace-root filename of the probe manifest taught by
@@ -933,6 +947,39 @@ export const CANONICAL_FILESCRIBE_L1_SYSTEM_PROMPT_LINES: readonly string[] = [
 ];
 
 /**
+ * The bootstrap refresh of a canonical: its current prompt, and the LIVE
+ * declaration of every tool it holds that the scope covers, in the order it
+ * holds them, then the scope's new tools. Adding by name alone (until
+ * 2026-10-26) never replaced a declaration it already held, so a canonical
+ * cell kept the `write_file` text of before 2026-10-11 ("Writing
+ * .atoma-probes.json preserves and merges entries...") and handed it, through
+ * `scopeTools`, to every molecule it created. A refresh that changes only
+ * declarations keeps the streak, as a template revision does (owner decision
+ * 2026-10-10: the code's finding, not a validator's); a prompt revision resets
+ * it as before. Without a recorded baseline the prompt is preserved, so it
+ * cannot change either.
+ */
+function refreshCanonical(
+  registry: AtomRegistry,
+  existing: AtomType,
+  scoped: readonly Tool[],
+  mods: { systemPromptReplace: string; removeTools?: readonly string[]; descriptionReplace?: string },
+  reason: string
+): AtomType {
+  const live = new Map(scoped.map((tool) => [tool.name, tool]));
+  const removed = new Set(mods.removeTools ?? []);
+  const kept = existing.tools.filter((tool) => !removed.has(tool.name)).map((tool) => live.get(tool.name) ?? tool);
+  const added = scoped.filter((tool) => !existing.tools.some((held) => held.name === tool.name));
+  const baseline = registry.templatePrompt(existing);
+  const promptUnchanged = baseline === undefined || baseline === mods.systemPromptReplace;
+  return registry.refreshTemplate(existing.name, {
+    ...mods,
+    removeTools: existing.tools.map((tool) => tool.name),
+    addTools: [...kept, ...added],
+  }, 'build-app-bootstrap', reason, { keepStreak: promptUnchanged });
+}
+
+/**
  * Idempotently ensure the registry has a canonical L1 "web artefact
  * builder" — the one L2.prefilter is supposed to reuse for every
  * single-file web build, regardless of theme. If a canonical entry is
@@ -964,15 +1011,7 @@ export function ensureCanonicalL1(
     // The patch no-op guard keeps this free (no version bump, counters
     // preserved) on every run where nothing actually changed; a real
     // prompt change legitimately resets trust (changed type must re-earn).
-    return registry.refreshTemplate(
-      existing.name,
-      {
-        addTools: scoped,
-        systemPromptReplace: systemPrompt,
-      },
-      'build-app-bootstrap',
-      'refresh canonical L1 tools + seed prompt'
-    );
+    return refreshCanonical(registry, existing, scoped, { systemPromptReplace: systemPrompt }, 'refresh canonical L1 tools + seed prompt');
   }
   return registry.createTemplate(1, {
     description: capabilityDescription(scoped, 1),
@@ -997,15 +1036,7 @@ export function ensureCanonicalL2(
     .listByTier(2)
     .find((t) => t.createdBy === CANONICAL_BOOTSTRAP_MARKER);
   if (existing) {
-    return registry.refreshTemplate(
-      existing.name,
-      {
-        addTools: scoped,
-        systemPromptReplace: systemPrompt,
-      },
-      'build-app-bootstrap',
-      'refresh canonical L2 tools + seed prompt'
-    );
+    return refreshCanonical(registry, existing, scoped, { systemPromptReplace: systemPrompt }, 'refresh canonical L2 tools + seed prompt');
   }
   return registry.createTemplate(2, {
     description: capabilityDescription(scoped, 2),
@@ -1040,15 +1071,7 @@ export function ensureCanonicalHttpL1(
     .listByTier(1)
     .find((t) => t.createdBy === CANONICAL_HTTP_BOOTSTRAP_MARKER);
   if (existing) {
-    return registry.refreshTemplate(
-      existing.name,
-      {
-        addTools: scoped,
-        systemPromptReplace: systemPrompt,
-      },
-      'build-app-bootstrap',
-      'refresh canonical HTTP L1 tools + seed prompt'
-    );
+    return refreshCanonical(registry, existing, scoped, { systemPromptReplace: systemPrompt }, 'refresh canonical HTTP L1 tools + seed prompt');
   }
   return registry.createTemplate(1, {
     description: capabilityDescription(scoped, 1),
@@ -1076,15 +1099,7 @@ export function ensureCanonicalHttpL2(
     .listByTier(2)
     .find((t) => t.createdBy === CANONICAL_HTTP_BOOTSTRAP_MARKER);
   if (existing) {
-    return registry.refreshTemplate(
-      existing.name,
-      {
-        addTools: scoped,
-        systemPromptReplace: systemPrompt,
-      },
-      'build-app-bootstrap',
-      'refresh canonical HTTP L2 tools + seed prompt'
-    );
+    return refreshCanonical(registry, existing, scoped, { systemPromptReplace: systemPrompt }, 'refresh canonical HTTP L2 tools + seed prompt');
   }
   return registry.createTemplate(2, {
     description: capabilityDescription(scoped, 2),
@@ -1134,15 +1149,7 @@ export function ensureCanonicalFileScribeL1(
     .listByTier(1)
     .find((t) => t.createdBy === CANONICAL_FILESCRIBE_BOOTSTRAP_MARKER);
   if (existing) {
-    return registry.refreshTemplate(
-      existing.name,
-      {
-        addTools: scoped,
-        systemPromptReplace: systemPrompt,
-      },
-      'build-app-bootstrap',
-      'refresh canonical file-scribe L1 tools + seed prompt'
-    );
+    return refreshCanonical(registry, existing, scoped, { systemPromptReplace: systemPrompt }, 'refresh canonical file-scribe L1 tools + seed prompt');
   }
   return registry.createTemplate(1, {
     description: capabilityDescription(scoped, 1),
@@ -1183,11 +1190,11 @@ export function ensureCanonicalProjectDocsL1(registry: AtomRegistry, tools: read
   if (!enabled && !existing) return undefined;
   const scoped = pickTools(tools, [...FILESCRIBE_L1_TOOL_SCOPE, ...(enabled ? [search] : [])]);
   const systemPrompt = canonicalProjectDocsPrompt(enabled);
-  if (existing) return registry.refreshTemplate(existing.name, {
-    addTools: scoped, ...(!enabled ? { removeTools: [search] } : {}),
+  if (existing) return refreshCanonical(registry, existing, scoped, {
+    ...(!enabled ? { removeTools: [search] } : {}),
     systemPromptReplace: systemPrompt,
     ...(existing.description !== capabilityDescription(scoped, 1) ? { descriptionReplace: capabilityDescription(scoped, 1) } : {}),
-  }, 'build-app-bootstrap', 'refresh project document capability');
+  }, 'refresh project document capability');
   return registry.createTemplate(1, { description: capabilityDescription(scoped, 1), systemPrompt,
     tools: scoped, params: {}, createdBy: CANONICAL_PROJECT_DOCS_MARKER });
 }
@@ -1220,11 +1227,11 @@ export function ensureCanonicalConnectorsL1(registry: AtomRegistry, tools: reado
   if (!enabled && !existing) return undefined;
   const scoped = pickTools(tools, [...FILESCRIBE_L1_TOOL_SCOPE, ...(enabled ? connectorTools : [])]);
   const systemPrompt = canonicalConnectorsPrompt(enabled);
-  if (existing) return registry.refreshTemplate(existing.name, {
-    addTools: scoped, ...(!enabled ? { removeTools: connectorTools } : {}),
+  if (existing) return refreshCanonical(registry, existing, scoped, {
+    ...(!enabled ? { removeTools: connectorTools } : {}),
     systemPromptReplace: systemPrompt,
     ...(existing.description !== capabilityDescription(scoped, 1) ? { descriptionReplace: capabilityDescription(scoped, 1) } : {}),
-  }, 'build-app-bootstrap', 'refresh MCP connector capability');
+  }, 'refresh MCP connector capability');
   return registry.createTemplate(1, { description: capabilityDescription(scoped, 1), systemPrompt,
     tools: scoped, params: {}, createdBy: CANONICAL_CONNECTORS_MARKER });
 }

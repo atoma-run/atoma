@@ -1,5 +1,5 @@
 import { SMOKE_DESIGN_GUIDANCE } from '../atoms/prompts.js';
-import { repairTaskBakedPrompts } from '../atoms/promptRepair.js';
+import { refreshTemplateBornTypes, repairTaskBakedPrompts } from '../atoms/promptRepair.js';
 import {
   ensureCanonicalL1,
   ensureCanonicalL2,
@@ -177,4 +177,7 @@ export function seedCatalog({ registry, toolDecls, log }: SeedContext): void {
   // Branch rows created before the capability-first reset still carry the
   // one task they were branched for, and get reused for any other.
   for (const name of repairTaskBakedPrompts(registry)) log(`stored prompt freed of its task: ${name}`);
+  // Template-born types follow the current template and the live declarations
+  // even when nothing creates their signature again (Sucrose, run f91cdb19).
+  for (const name of refreshTemplateBornTypes(registry, toolDecls)) log(`template-born type refreshed: ${name}`);
 }

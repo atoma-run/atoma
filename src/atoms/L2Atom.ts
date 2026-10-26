@@ -66,7 +66,7 @@ import {
   canonicalFullStackPrompt,
   CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES,
   extractBranchDiagnostic,
-  GROUND_TRUTH_EVIDENCE_LINES,
+  groundTruthEvidenceLines,
   WEB_GROUND_TRUTH_EVIDENCE_LINES,
   lastResultVerdictSkillFollowed,
   resolveCreationDescription,
@@ -288,7 +288,10 @@ export function buildNarrowL1Prompt(
     // GROUND-TRUTH evidence contract, however, is bucket-neutral and
     // REQUIRED: without it, non-web/http L1s return narrative-only
     // summaries that the validator correctly rejects as unverifiable
-    // (the wc-cli README rejection loop).
+    // (the wc-cli README rejection loop). Its manifest section names only
+    // the recorders this molecule HOLDS (2026-10-26): the shell block taught
+    // to every molecule made Sucrose, which holds no record_probe, plan its
+    // tests through it (run f91cdb19).
     bucketBody = [
       `Call tools sequentially to produce the deliverable. Use ONLY the`,
       `tools you were handed — do NOT invoke anything that isn't in your`,
@@ -296,7 +299,7 @@ export function buildNarrowL1Prompt(
       ``,
       SCRIBE_PORTABLE_DOC_GUIDANCE,
       ``,
-      ...GROUND_TRUTH_EVIDENCE_LINES,
+      ...groundTruthEvidenceLines(childTools.map((tool) => tool.name)),
     ];
   }
 

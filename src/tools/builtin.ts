@@ -3861,8 +3861,7 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
         're-running one after a fix replaces its record. If a corrected probe needs a DIFFERENT',
         'command, pass supersedes with the exact accidental command to remove only that stale entry',
         'after the replacement command has run. FINITE CLI/script commands only: never start a',
-        'server here and never use curl/wget; use start_node_server followed by fetch_url with',
-        'record=true for HTTP evidence.',
+        'server here and never use curl/wget, which are refused: HTTP evidence is not a command probe.',
         PROBE_HISTORY_GUIDANCE,
       ].join(' '),
       inputSchema: {

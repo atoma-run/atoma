@@ -364,6 +364,11 @@ Neighbours:
   written prose labels where a smoke belongs, then tried to repair them, and
   the old message pointed at `record_probe`, a tool web molecules do not hold
   ([measurement](../../records/incidents/edit-file-failures-2026-10-11.md)).
+- A declaration names no OTHER tool affirmatively (2026-10-26): it travels to
+  every molecule holding its tool, with or without the one it would name.
+  `record_probe` told the file scribe, which holds no `fetch_url`, to "use
+  start_node_server followed by fetch_url"; its refusal messages, read only
+  after a refused call, still name the request tools.
 - `validate_html` records a PASSING check bound to its document
   (`appendWebProbe`, replay identity `webEntryIdentity`): the interactions as
   sent, the viewport and waitMs only when the caller gave them (a defaulted
@@ -463,6 +468,10 @@ Neighbours:
   `httpStatus`.
 
 ## Intentional choices and rejected shortcuts
+
+- Auto-recording every `run_shell` command into the manifest, so a molecule
+  without `record_probe` gets entries: refused (the shell contract: the record
+  would drown in scratch commands). Its commands are host receipts instead.
 
 - `read_file` with the internal `observationOnly` flag withholds its `markSeen`
   side effect: supervisor inspection must not authorize a child's blind overwrite.

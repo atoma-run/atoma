@@ -1,7 +1,7 @@
 import { posix } from 'node:path';
 import type { RunContext } from '../core/types.js';
 import { baseExecutorOf } from '../core/attestation.js';
-import { fileReadsNeedingReadback } from '../contracts/attestation.js';
+import { fileReadsNeedingReadback, type AttestationRecord } from '../contracts/attestation.js';
 import { pathHeldNoFile } from '../contracts/toolOutput.js';
 import { criteriaFilesBlock } from './fileEvidence.js';
 import type { Atom } from '../core/atom.js';
@@ -205,6 +205,80 @@ function requestCommandLine(request: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The latest host execution of EXACTLY `command` (run_shell or record_probe)
+ * among `records`, the attempt's attestation log in append order. A request
+ * the host cut before its command, or spelled differently, is not that command.
+ */
+export function latestCommandExecution(
+  records: readonly AttestationRecord[],
+  command: string
+): { readonly record: AttestationRecord; readonly exitCode: number | undefined } | undefined {
+  const wanted = command.trim();
+  for (let index = records.length - 1; index >= 0; index--) {
+    const record = records[index]!;
+    if ((record.tool !== 'run_shell' && record.tool !== 'record_probe') || record.observation.kind !== 'execution') continue;
+    if (requestCommandLine(record.observation.request) !== wanted) continue;
+    return { record, exitCode: record.observation.exitCode };
+  }
+  return undefined;
+}
+
+/**
+ * Whether a host record belongs to the result under review: made in its
+ * branch, or among its own witnesses. A reviewer with no branch (the trunk,
+ * root acceptance) owns every record of the attempt. A sibling's mid-edit run
+ * is never this result's outcome (run 51c4e71d, `parallelBranchProbeLines`).
+ */
+export function ownedByReview(
+  branchId: string | undefined,
+  evidence: readonly Witness[] | undefined
+): (record: AttestationRecord) => boolean {
+  const witnessed = new Set(transportWitnesses(evidence).map((witness) => witness.eventId));
+  return (record) => branchId === undefined || record.branchId === branchId || witnessed.has(record.eventId);
+}
+
+/**
+ * A stored shell row is a REPLAY BASELINE, kept per exact command and written
+ * only by record_probe; a later run of that command through run_shell writes
+ * nothing. Run f91cdb19 (2026-10-25) kept a pre-edit 25/25 row for its browser
+ * suite while the same command, run after the edit, was killed: the index
+ * showed the pass alone. A row whose exact command this attempt's latest host
+ * execution ended with a DIFFERENT exit code is labelled with that receipt,
+ * passing rows and failing ones alike. Same exit, another command, or no
+ * observed exit code: no line. Nor when that latest execution belongs to
+ * another branch than the one under review (`ownedByReview`). A fixed host
+ * sentence; it credits nothing and proves nothing about other commands.
+ */
+export function supersededProbeRowLines(
+  manifest: string,
+  records: readonly AttestationRecord[],
+  owned: (record: AttestationRecord) => boolean = () => true
+): string[] {
+  if (records.length === 0) return [];
+  let parsed: { entries: unknown[] };
+  try {
+    parsed = probeManifestSchema.parse(JSON.parse(manifest));
+  } catch {
+    return [];
+  }
+  const lines: string[] = [];
+  for (const value of parsed.entries) {
+    const entry = shellEntrySchema.safeParse(value);
+    if (!entry.success || probeEntryKind(value as Record<string, unknown>) !== 'shell') continue;
+    const latest = latestCommandExecution(records, entry.data.cmd);
+    // Another branch's later run is not this result's outcome: no line.
+    if (!latest || !owned(latest.record) || latest.exitCode === undefined || latest.exitCode === entry.data.exitCode) continue;
+    lines.push(
+      `- ${JSON.stringify(entry.data.cmd)} (stored exitCode=${entry.data.exitCode}): SUPERSEDED. This attempt's latest host ` +
+        `execution of this exact command (${latest.record.tool}, branch ${(latest.record.branchId ?? 'root').slice(0, 8)}) ` +
+        `exited ${latest.exitCode}; that receipt, not the stored row, is its current outcome.`
+    );
+    if (lines.length >= 8) break;
+  }
+  return lines;
 }
 
 /**
@@ -412,7 +486,9 @@ async function probeGroundTruthBase(args: Parameters<typeof probeGroundTruthEx>[
           ? `${PROBE_MANIFEST_FILENAME}: well-formed web probe record present`
           : `${PROBE_MANIFEST_FILENAME}: MALFORMED — ${problems.slice(0, 4).join('; ')}`
       );
-      manifestLines.push(...shellProbeManifestEvidence(text).lines);
+      manifestLines.push(...shellProbeManifestEvidence(text).lines,
+        ...supersededProbeRowLines(text, args.ctx.attestations?.forAttempt(args.ctx.attempt ?? 1) ?? [],
+          ownedByReview(args.ctx.currentBranchId, args.evidence)));
     } catch {
       webFacts.manifestMalformed = true;
       manifestLines.push(
@@ -868,7 +944,9 @@ async function probeFilesGroundTruth(args: {
           : `${PROBE_MANIFEST_FILENAME}: MALFORMED — ${problems.slice(0, 4).join('; ')}`
       );
       const index = shellProbeManifestEvidence(text, probes.map(probe => probe.cmd));
-      lines.push(...index.lines, ...parallelBranchProbeLines(text, args));
+      lines.push(...index.lines, ...parallelBranchProbeLines(text, args),
+        ...supersededProbeRowLines(text, args.ctx.attestations?.forAttempt(args.ctx.attempt ?? 1) ?? [],
+          ownedByReview(args.ctx.currentBranchId, args.evidence)));
       if (problems.length === 0 && index.shellOnly) indexedShellManifest = text;
     }
   } catch {

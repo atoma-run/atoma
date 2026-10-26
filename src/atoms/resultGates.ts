@@ -4,7 +4,8 @@ import { stripLiteralContractBlock } from './prompts.js';
 import { NON_JSON_PAYLOAD_SUMMARY_PREFIX } from './json.js';
 import { INTERNAL_VALIDATION_FAILED_PREFIX } from './L1Atom.js';
 import { READ_ONLY_RESTORED_PREFIX } from '../contracts/readOnlyPhase.js';
-import { DURABLE_HTTP_PORT_LITERAL_RE } from './groundTruth.js';
+import { DURABLE_HTTP_PORT_LITERAL_RE, latestCommandExecution, ownedByReview } from './groundTruth.js';
+import type { AttestationRecord } from '../contracts/attestation.js';
 import {
   PROBE_MANIFEST_FILENAME,
   smokeOkIncludesStyling,
@@ -92,6 +93,12 @@ export interface ResultGateEnv {
    * probe manifest, and used to pay two `read_file` calls for it.
    */
   readonly readWorkspaceFile: (path: string) => Promise<WorkspaceRead>;
+  /**
+   * This attempt's host attestations the result under review owns (its
+   * branch's, or its witnesses), in append order; undefined when the run
+   * keeps no log.
+   */
+  readonly attemptRecords?: readonly AttestationRecord[];
 }
 
 interface ResultGate {
@@ -156,6 +163,8 @@ export function buildResultGateEnv(args: {
     childToolNames: args.childToolNames,
     requireObservedToolAction: args.ctx.requireObservedToolAction === true,
     readWorkspaceFile,
+    ...(args.ctx.attestations ? { attemptRecords: args.ctx.attestations.forAttempt(args.ctx.attempt ?? 1)
+      .filter(ownedByReview(args.ctx.currentBranchId, args.result.evidence)) } : {}),
   };
 }
 
@@ -296,12 +305,40 @@ export function requiredCommandManifestMismatch(
   return null;
 }
 
+/**
+ * The required-command check for a child that holds NO command recorder: its
+ * run_shell executions never reach the manifest (only record_probe writes a
+ * shell entry, and write_file/edit_file refuse the file since 2026-10-11), so
+ * the manifest could only ever hold another molecule's row. The requirement
+ * is met by the exact command's latest host receipt in this attempt instead,
+ * among the records the result under review owns (`ownedByReview`): a
+ * sibling's passing run says nothing about this child's code.
+ */
+export function requiredCommandReceiptMismatch(
+  taskDescription: string,
+  records: readonly AttestationRecord[]
+): string | null {
+  for (const command of requiredPassingCommands(taskDescription)) {
+    const latest = latestCommandExecution(records, command);
+    if (!latest) {
+      return `the task requires ${command} to pass, but this attempt holds no host receipt of that exact command`;
+    }
+    if (latest.exitCode !== 0) {
+      return `the task requires ${command} to pass, but its latest host receipt ` +
+        (latest.exitCode === undefined ? 'has no observed exit code' : `exited ${latest.exitCode}`);
+    }
+  }
+  return null;
+}
+
 /* ------------------------------------------------------------------ */
 /* The table                                                           */
 /* ------------------------------------------------------------------ */
 
+// Tool-agnostic: the gate coaches holders of record_probe and molecules
+// without it alike, and naming a tool a child lacks taught it that tool.
 const COMMAND_MANIFEST_COACHING =
-  'Fix the exact required finite test/probe script instead of substituting a different harness. Run it through record_probe until that same command exits 0; its manifest entry must be replaced with the successful observation before returning.';
+  'Fix the exact required finite test/probe script instead of substituting a different harness. Run that same command through the recording tool you hold until it exits 0 (if you hold none, run it and quote the host receipt); its latest observation must be the successful one before returning.';
 
 /** An executor's admission that its verification did not happen; read only by a `requires-review` gate. */
 export const DECLARED_UNVERIFIED_RE = new RegExp([
@@ -361,12 +398,18 @@ const RESULT_GATES: readonly ResultGate[] = [
   {
     // The task names a finite harness (`node test-api.js`); the manifest must
     // hold a passing entry for that EXACT command (thirty-first iteration:
-    // substituted harnesses shipped a failing `node test-api.js`).
+    // substituted harnesses shipped a failing `node test-api.js`). A child
+    // without record_probe cannot write that entry: its latest host receipt
+    // of the command answers instead (2026-10-26).
     id: 'required-command-manifest',
     disposition: 'reject-once',
     check: async (env) => {
       const commands = requiredPassingCommands(env.task.description);
       if (commands.length === 0) return null;
+      if (!env.childToolNames.includes('record_probe') && env.attemptRecords !== undefined) {
+        const mismatch = requiredCommandReceiptMismatch(env.task.description, env.attemptRecords);
+        return mismatch ? { reasoning: mismatch, coaching: COMMAND_MANIFEST_COACHING } : null;
+      }
       const read = await env.readWorkspaceFile(PROBE_MANIFEST_FILENAME);
       if (read.status === 'no-tool') return null;
       if (read.status === 'unreadable') {

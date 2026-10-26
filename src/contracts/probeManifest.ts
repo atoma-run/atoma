@@ -771,17 +771,15 @@ export function manifestWriterLines(kind: 'shell' | 'http' | 'web'): string[] {
       `and record_probe is intentionally NOT in the HTTP toolset. Boot through`,
       `start_node_server, then call fetch_url for finite requests; the L1 runtime`,
       `forces every loopback fetch to record even if "record": true was omitted.`,
-      `HARNESS ENTRY — MANDATORY WHENEVER A TEST SCRIPT EXISTS. If the`,
+      `HARNESS RECEIPT — MANDATORY WHENEVER A TEST SCRIPT EXISTS. If the`,
       `workspace holds an EXECUTABLE probe harness (test-api.js or similar —`,
       `a script that boots the server and exits non-zero on any mismatch),`,
-      `run it through run_shell and APPEND a shell entry`,
-      `{"cmd":"node <harness>","exitCode":0} IN ADDITION to the http entries —`,
-      `omit "stdout", the bound port makes`,
-      `it vary run to run. This is not optional bookkeeping: the http entries`,
-      `carry no request payload, so WITHOUT the harness entry the manifest is`,
-      `mechanically unreplayable and every later verification pass fails.`,
-      `(Observed: one omission charged a healthy compiled verifier a direct`,
-      `failure at dispatch; a second demoted it.)`,
+      `run it with run_shell and quote the host receipt — the exact command`,
+      `and its observed exit code — in GROUND TRUTH, IN ADDITION to the http`,
+      `entries. The http entries carry no request payload, so that receipt is`,
+      `what shows the reviewers the harness itself passed. You never write a`,
+      `shell entry into "${PROBE_MANIFEST_FILENAME}": nothing but its recording`,
+      `tools writes it.`,
       `FIELD NAMES ARE EXACT — do not rename, abbreviate or "improve" them,`,
       `and do not add a discriminator of your own. It is "probe", not "kind";`,
       `"status", not "expect"/"expectedStatus"; "cmd", not "command";`,
@@ -823,6 +821,10 @@ export function manifestWriterLines(kind: 'shell' | 'http' | 'web'): string[] {
       `legitimate, tiny improvement to the deliverable, not a workaround.`,
     ];
   }
+  // Rendered only for a holder of record_probe (`manifestSectionLines`); a
+  // molecule without it gets `SHELL_RECEIPT_LINES` and never the hand-write
+  // sentence below, which stays only so the file scribe's stored prompt, and
+  // the trust it earned on it, are untouched (pinned byte for byte).
   return [
     `PROBE MANIFEST ON DISK — USE record_probe, DO NOT TRANSCRIBE BY HAND.`,
     `When you verify an invocation of a runnable artefact (a CLI, a script)`,
@@ -880,6 +882,40 @@ export function manifestWriterLines(kind: 'shell' | 'http' | 'web'): string[] {
     `machine-readable interface later verification passes re-run and diff`,
     `against — prose in a README cannot be parsed reliably, this can.`,
   ];
+}
+
+/**
+ * What a molecule that runs shell commands but holds no command recorder is
+ * told instead of the shell block. Tool-free on purpose: since 2026-10-11
+ * nothing writes the manifest by hand (`write_file`/`edit_file` refuse it),
+ * so the only honest account of its shell evidence is the host's receipt.
+ */
+export const SHELL_RECEIPT_LINES: readonly string[] = [
+  `SHELL RESULTS ARE HOST RECEIPTS: the host observes the exit code and output`,
+  `of every command you run, and the reviewers read those receipts. Quote each`,
+  `evidence command with its observed exit code verbatim in GROUND TRUTH and in`,
+  `"output.probes". You never write "${PROBE_MANIFEST_FILENAME}": only its`,
+  `recording tools write it.`,
+];
+
+/**
+ * The manifest section of an L1 evidence contract, composed from the
+ * recorders the molecule HOLDS (2026-10-26): the shell block only with
+ * `record_probe`, the HTTP block with `fetch_url`, the web block with
+ * `validate_html`, and `SHELL_RECEIPT_LINES` for shell commands it cannot
+ * record. Until then the generic contract taught the shell block to every
+ * molecule, and one holding no `record_probe` (production molecule Sucrose,
+ * run f91cdb19) planned its tests "through record_probe" and was refused.
+ * A holder of `record_probe` alone gets exactly `manifestWriterLines('shell')`.
+ */
+export function manifestSectionLines(toolNames: readonly string[]): string[] {
+  const held = new Set(toolNames);
+  const blocks: (readonly string[])[] = [];
+  if (held.has('record_probe')) blocks.push(manifestWriterLines('shell'));
+  else if (held.has('run_shell')) blocks.push(SHELL_RECEIPT_LINES);
+  if (held.has('fetch_url')) blocks.push(manifestWriterLines('http'));
+  if (held.has('validate_html')) blocks.push(manifestWriterLines('web'));
+  return blocks.flatMap((block, index) => (index === 0 ? [...block] : ['', ...block]));
 }
 
 /**

@@ -273,7 +273,8 @@ export const VALIDATION_SYSTEM_PROMPT = [
   '  REJECT when the end state is only ASSERTED — "already correct", "no',
   '  change needed" — with nothing in the ground-truth block showing it. That',
   '  is indistinguishable from skipped work. In additionalContext, ask the',
-  '  child to re-run the relevant invocation through record_probe and to',
+  '  child to re-run the relevant invocation through the recording tool it',
+  '  holds (holding none, to run it and quote the host receipt) and to',
   '  re-read the file; do NOT ask it to quote a specific string, which only',
   '  coaches the next attempt to produce that string.',
   '  A TRUNCATED EXCERPT IS SILENT, NEVER REFUTING. The read-back excerpt is a',
@@ -587,10 +588,11 @@ export const VALIDATION_SYSTEM_PROMPT = [
   '  Correct verdict: {"approved": false, "reasoning": "The end state is',
   '  asserted, not shown: nothing in the evidence reaches the counting line.",',
   '  "modifications": {"additionalContext": "Re-run the documented --chars',
-  '  invocation through record_probe and re-read wclite.js, then report what',
+  '  invocation through the recording tool you hold (if you hold none, run it',
+  '  and quote the host receipt) and re-read wclite.js, then report what',
   '  they show."}, "scope": "ephemeral"}',
   '  Why: a bare assertion is indistinguishable from skipped work. Note the',
-  '  coaching asks for a MACHINE-recorded probe and a re-read, never for a',
+  '  coaching asks for a host-observed run and a re-read, never for a',
   '  specific string — asking for the string coaches the next attempt to',
   '  emit it.',
   '',
@@ -672,9 +674,11 @@ export const ADHERENCE_BODY_MAX_CHARS = 2000;
  * Adding it is FALSE-POSITIVE-SAFE for the one text that names it most, and
  * that is not a coincidence to rely on twice: `manifestWriterLines` carries
  * "no record_probe in your declared tools" and the scanner is negation-aware,
- * so the contract's own hand-write branch stays unflagged. The affirmative
- * mentions ("USE record_probe") live in system prompts, which are never
- * scanned — only plans and skill bodies are.
+ * so the contract's own hand-write branch stays unflagged. System prompts are
+ * never scanned — only plans and skill bodies are — so a template must not
+ * name a tool its molecule lacks: since 2026-10-26 the generic contract
+ * composes its manifest section from the recorders held, and a test renders
+ * every tool subset (Sucrose planned "through record_probe" from its prompt).
  */
 export const BUILTIN_TOOL_VOCABULARY: readonly string[] = [
   ...BUILTIN_TOOL_NAMES, ...HOST_TOOL_NAMES,

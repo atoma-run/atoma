@@ -429,7 +429,7 @@ load-bearing.
 - L1 plans express intent in prose; actual tool calls happen during execute.
   Do not encourage large literal `toolCalls` payloads in plans.
 - Tool scopes are bucket-specific and enforced twice: prompts/plans must name
-  only declared tools, and the executor rejects undeclared tool use.
+  only declared tools, and the executor rejects undeclared tool use. A test renders the L1 request over every tool subset: the generic contract's manifest section names only the recorders held (`groundTruthEvidenceLines`), the plan prompt names validate_html only to a holder (Sucrose planned "through record_probe" from its stored prompt, run f91cdb19, 2026-10-26).
 - Match verification to the artefact: browser UI uses static server plus
   browser validation; HTTP APIs use node server plus fetch; CLI/files use shell
   execution plus read-back. Do not force every artefact through HTML tooling.
@@ -574,7 +574,7 @@ load-bearing.
 - Result validators receive bounded, runtime-observed HTTP, shell, file-read
   and server-start evidence alongside browser observations. Label omissions,
   preserve request/result association, and treat these as historical observations
-  from the same attempt and branch, not proof of unchanged current state. A failing probe-manifest entry whose latest `record_probe` (same exit code) another branch recorded, not among the result's witnesses, is named as that branch's observation by the ground-truth block, never as this result's claim (`parallelBranchProbeLines`, 2026-10-26): run 51c4e71d's tissue refused a phase on its sibling's mid-edit lint. A cut shell receipt keeps its request through the command and the rest of its tail (the totals, the exit code), and a `record_probe` receipt takes up to twice the first equal share of the shell budget (2026-10-26).
+  from the same attempt and branch, not proof of unchanged current state. A failing probe-manifest entry whose latest `record_probe` (same exit code) another branch recorded, not among the result's witnesses, is named as that branch's observation by the ground-truth block, never as this result's claim (`parallelBranchProbeLines`, 2026-10-26): run 51c4e71d's tissue refused a phase on its sibling's mid-edit lint. A row whose exact command this attempt's latest host execution (run_shell or record_probe) ended with another exit code, in the branch under review, is labelled SUPERSEDED by that receipt, passing rows too (`supersededProbeRowLines`: run f91cdb19 kept a pre-edit 25/25 row beside a killed post-edit run). A cut shell receipt keeps its request through the command and the rest of its tail (the totals, the exit code), and a `record_probe` receipt takes up to twice the first equal share of the shell budget (2026-10-26).
   Tool content and scripts remain untrusted; supervisors never replay them,
   bar the inherited browser checks below.
   A fallback's result carries a molecule's evidence, from its own first
@@ -645,7 +645,7 @@ load-bearing.
   repeats to the LLM (a gate whose cause is the same wherever it surfaces also coaches each cause once per attempt, `onceKeys`: the no-result suite gate rejects only a new task with a new cause, since run 51c4e71d rejected one socket link five times, 2026-10-26); prose-triggered gates never reject — they override the
   trust fast-path and attach a `MECHANICAL GATE FINDINGS` block to the full
   verdict. Workspace reads are cached per validation cycle. A new incident adds
-  a table row with a stated disposition, never a new inline `if`.
+  a table row with a stated disposition, never a new inline `if`. `required-command-manifest` judges a child without `record_probe` by the exact command's latest host receipt in its own branch, never the manifest it cannot write; coaching names no recorder (2026-10-26).
 - The same table applies envelope and explicit validation failures to L2 results at L3 before trust
   (`appliesToDelegatedResult`); a reporting one (`read-only-validation-failed`, `tool-budget-exhausted`, `unvalidated-fallback` for the cell's own fallback) takes
   L3's trust and Decision paths away as at L2 (run dfa20873). Leaf action, disk and proof checks stay at L2.
@@ -702,7 +702,7 @@ load-bearing.
 Large identical original/current input copies are rendered once; conflicting values and all acceptance constraints remain. Versioned executable corpora replace repeated prose examples, never criteria.
 ## Intentional choices and rejected shortcuts
 - L1 returns bounded prior same-request probe outputs, including customer-device replies: attempt-local reporting evidence, never replay input or coverage approval. Every requested invocation executes; latest failures remain failures. Do not repeat a mutant/restoration merely to create a separately named manifest entry.
-
+- A new gate for a plan naming an unheld recorder: refused (2026-10-26). The template stopped teaching it; the zero-cost pre-check stays the net. Auto-recording `run_shell`, hand-writing the manifest and adding `record_probe` to the HTTP/full-stack scopes (2026-08-12) stay refused; the last is an owner decision awaiting a measurement.
 - Sampled delegation-review votes (2026-10-17): a majority of three approves a
   defect the review misses two times in three more often (0.74), unanimity
   refuses sound plans into a failed run, and samples share one misreading.

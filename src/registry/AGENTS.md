@@ -64,7 +64,18 @@ Neighbours:
   adversarial review — the deferral the record asked for was the
   cooling-off rule, removed 2026-09-27.
 - Canonical bootstrap is idempotent and bucket-specific. Prompt/tool changes
-  patch and reset trust only when content genuinely differs.
+  patch and reset trust only when content genuinely differs. It REPLACES the
+  declarations a canonical holds with the live ones (`refreshCanonical`,
+  2026-10-26): adding by name alone kept a cell's `write_file` text of before
+  2026-10-11, which every molecule it created inherited. A refresh that
+  changes only declarations keeps the streak, as a template revision does.
+- Every run's bootstrap also refreshes each tier-1/2 TEMPLATE-BORN type, per
+  type (`refreshTemplateBornTypes`, after the task-baked repair): a stored
+  prompt that is its host baseline, optionally plus a learned suffix, gets the
+  current render and the live declarations by name, streak kept; a
+  validator-written or custom prompt keeps prompt and declarations. Until then
+  `createOrRefresh` refreshed one only when its signature was created again,
+  and a reused molecule (Sucrose, run f91cdb19) kept teaching a tool it lacks.
 
 ## Trust counters
 
@@ -129,3 +140,8 @@ recovery rolls back shared trust. See [checkpoints](../../docs/decisions/run-che
 - Host template baselines preserve learned suffixes; unknown replacements stay intact. Prompt amendments use transactional CAS/history/receipts and reset streaks. [Contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 - Registry rollback is roll-forward-to-old-content and resets the trust streak.
+
+- The bootstrap template refresh through `createOrRefresh`: refused
+  (2026-10-26). It refreshes the family ELDER, so a younger type of one
+  signature is never refreshed and the elder is patched once per sibling;
+  and it re-adds the caller's tools, stale declarations included.

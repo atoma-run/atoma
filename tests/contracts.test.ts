@@ -263,14 +263,15 @@ describe('http manifest: a SEQUENCE, not a keyed set', () => {
     expect(lines).not.toMatch(/merge by method\+path if/);
   });
 
-  it('asks for an executable harness as a SHELL entry — the replayable half', () => {
-    // http entries carry no request payload, so a compiled script cannot
-    // replay mutations from them. A harness recorded as {cmd, exitCode} is
-    // replayable by the already-compiled shell path.
+  it('asks for an executable harness\'s host receipt, never a shell entry nobody can write', () => {
+    // http entries carry no request payload, so the harness run is what shows
+    // the reviewers the API passed. Until 2026-10-26 the block asked for a
+    // hand-appended {cmd, exitCode} entry; write_file refuses the manifest
+    // since 2026-10-11 and the HTTP molecule holds no record_probe.
     const lines = manifestWriterLines('http').join(' ');
     expect(lines).toMatch(/EXECUTABLE probe harness/);
-    expect(lines).toMatch(/"cmd":"node <harness>","exitCode":0/);
-    expect(lines).toMatch(/omit "stdout"/);
+    expect(lines).toMatch(/quote the host receipt — the exact command\s+and its observed exit code/);
+    expect(lines).not.toMatch(/"cmd":"node <harness>"/);
   });
 
   it('forbids recording the long-running server process as a shell probe', () => {
@@ -283,7 +284,7 @@ describe('http manifest: a SEQUENCE, not a keyed set', () => {
     expect(lines).toMatch(/node server\.js/);
     expect(lines).toMatch(/record_probe is intentionally NOT in the HTTP toolset/);
     expect(lines).toMatch(/start_node_server.*fetch_url/s);
-    expect(lines).toMatch(/probe harness.*run it through run_shell/s);
+    expect(lines).toMatch(/probe harness.*run it with run_shell/s);
   });
 });
 
@@ -344,11 +345,14 @@ describe('decorated cmds: `; echo EXIT=$?` corrupts the record — all three sid
     expect(reader).toMatch(/LISTENING_ON_PORT=<n> is port-bearing/);
     expect(reader).toMatch(/compare the\s+exitCode ONLY/);
     expect(reader).toMatch(/do NOT write the fresh port back/);
-    // And the writer block makes the harness entry non-optional when a
-    // test script exists, naming the demotion this class caused.
+    // And the writer block makes the harness receipt non-optional when a test
+    // script exists. It asks for the host receipt, never for a shell entry the
+    // molecule would write by hand: write_file refuses the manifest since
+    // 2026-10-11 and the HTTP molecule holds no record_probe.
     const writer = manifestWriterLines('http').join(' ');
-    expect(writer).toMatch(/HARNESS ENTRY — MANDATORY WHENEVER A TEST SCRIPT EXISTS/);
-    expect(writer).toMatch(/omit "stdout"/);
+    expect(writer).toMatch(/HARNESS RECEIPT — MANDATORY WHENEVER A TEST SCRIPT EXISTS/);
+    expect(writer).toMatch(/run it with run_shell and quote the host receipt/);
+    expect(writer).not.toMatch(/APPEND a shell entry/);
   });
 
   it('a renamed field is named back: the checker says WHICH rename was made', () => {

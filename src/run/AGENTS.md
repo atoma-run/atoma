@@ -26,7 +26,9 @@ Neighbours:
   park-forever on delivery, SIGINT/SIGTERM → shutdown. Its stdout is an API
   (burn-in parses it) — the handle refactor kept it byte-identical.
   `setup.ts` holds the run's technical setup — workspace and store env names,
-  workspace preparation, the canonical child catalog, the depth contract — and
+  workspace preparation, the canonical child catalog (whose bootstrap also
+  refreshes every template-born type, [src/registry](../registry/AGENTS.md)),
+  the depth contract — and
   `guidance.ts` the one text on how to phrase a goal. THERE IS NO RUN FAMILY:
   the `TaskProfile` selected by a family id was removed on 2026-10-03, once
   `selectTissue` chose the root from the task and nothing varied between

@@ -84,6 +84,15 @@ public setting or client capability, and introduces no stored runtime identity.
   `.atoma-probes.json`; its three machine writers merge entries
   (`mergeShellProbe`, `appendHttpProbe`, `appendWebProbe`), and no model writes
   it: `write_file` and `edit_file` refuse the path (2026-10-11).
+- The WRITER contract a molecule reads names only the recorders it holds
+  (`manifestSectionLines`, 2026-10-26): the shell block with `record_probe`,
+  the HTTP block with `fetch_url`, the web block with `validate_html`, and
+  for shell commands nothing records `SHELL_RECEIPT_LINES` (tool-free: quote
+  the host receipt). The HTTP block asks for its harness's host receipt, never
+  a hand-appended shell entry. Production molecule Sucrose, without
+  `record_probe`, was taught "USE record_probe" and planned through it (run
+  f91cdb19). The shell block's hand-write sentence survives only so the file
+  scribe's render stays byte for byte (pinned by digest).
 - Manifest MERGE semantics have one definition: `src/contracts/probeManifest.ts`
   owns entry identity per shape (shell by `cmd`, web by `webEntryIdentity`,
   http = ordered append) and documents the three writers' corrupt-input
@@ -453,6 +462,12 @@ a second scorer. Neither contract changes acceptance or model selection.
   "just one field": refused. `probeManifest.ts` owns entry identity per shape,
   and the three writers' corrupt-input policies sit side by side there so they
   can be compared rather than discovered.
+- Teaching every molecule the shell block and its "write it by hand" branch:
+  refused since 2026-10-26. Nothing writes the manifest by hand since
+  2026-10-11; a molecule without `record_probe` quotes host receipts instead.
+  Giving it `record_probe` (adding it to the full-stack scope) re-proposes the
+  2026-08-12 rejection and stays an owner decision, after a measurement of
+  refused server/curl `record_probe` calls by the molecules already holding it.
 - Teaching a reported web-probe alias, or widening the on-disk checker to
   accept one: refused. `REPORTED_WEB_PROBE_ALIASES` is READER tolerance for
   recipes distilled before a rename, nothing more — a compiled script

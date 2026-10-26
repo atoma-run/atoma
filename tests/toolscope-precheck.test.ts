@@ -229,6 +229,28 @@ describe('L2.validatePlan — mechanical pre-check before any LLM call', () => {
     expect(ctx.llm.calls).toHaveLength(0);
   });
 
+  it('still refuses, for free, a plan naming record_probe twice for a child without it (Sucrose, run f91cdb19)', async () => {
+    // The template no longer teaches it, but the plan request also carries
+    // earlier phases' record_probe receipts: the pre-check stays the safety net.
+    const reg = new AtomRegistry(openDb(':memory:'));
+    reg.create(2, { description: 'l2', systemPrompt: 'l2', tools: [], params: {}, createdBy: 't' });
+    const sucroseTools = ['write_file', 'edit_file', 'read_file', 'list_files', 'run_shell', 'validate_html', 'start_node_server'];
+    const sucrose = L1Atom.fromType(reg.create(1, {
+      description: 'HTML writer + headless validator', systemPrompt: 'l1',
+      tools: sucroseTools.map((name) => ({ name, description: name, inputSchema: { type: 'object' } })), params: {}, createdBy: 't',
+    }));
+    const cell = L2Atom.fromType(reg.getByName('Tracheid')!, reg, []);
+    const ctx = makeCtx();
+    const verdict = await cell.validatePlan(sucrose, makePlan({
+      reasoning: 'Run the focused Vitest regression tests through record_probe.',
+      proposedAction: 'Then npm run check, npm run build and npm run test:browser:ui through record_probe.',
+      expectedOutput: 'all suites pass',
+    }), { description: 'Fix the control button and run the browser suite.' }, ctx);
+    expect(verdict.approved).toBe(false);
+    if (!verdict.approved) expect(verdict.reasoning).toContain('record_probe');
+    expect(ctx.llm.calls).toHaveLength(0);
+  });
+
   it('F1(b) hybrid gate: an HTTP child SERVING html gets the browser probe after a content sniff', async () => {
     const { child } = setup();
     const ctx = makeCtx();
