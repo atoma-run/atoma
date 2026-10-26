@@ -114,6 +114,11 @@ export const assistantActivitySchema = z.object({
 });
 const assistantViewRunSchema = assistantRunSchema.extend({ status: z.string(), traceId: z.string().nullable(), costUsd: z.number().nullable(), error: z.string().nullable(),
   endedAt: z.string().datetime().nullable(),
+  /**
+   * Additive (2026-10-26): the run's one-line title, the name its deployment
+   * line and its activity line give it; absent until the run is named.
+   */
+  title: z.string().nullable().optional(),
   /** Additive (2026-10-25): the run's work ended and its files wait on the requester's computer (host facts). */
   resultsWaiting: z.boolean().optional(),
   /** Additive: those results wait although the computer is connected and accepting work. */

@@ -42,6 +42,7 @@ function viewRun(target: AssistantRun, status: Record<string, unknown>): NonNull
     costUsd: typeof status['costUsd'] === 'number' ? status['costUsd'] : null,
     error: typeof status['error'] === 'string' ? status['error'] : null,
     endedAt: typeof status['endedAt'] === 'string' ? status['endedAt'] : null,
+    title: typeof status['title'] === 'string' ? status['title'] : null,
     resultsWaiting: typeof status['resultsWaiting'] === 'object' && status['resultsWaiting'] !== null,
     resultsStalled: object(status['resultsWaiting'])['computerReady'] === true };
 }

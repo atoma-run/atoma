@@ -52,10 +52,10 @@ function review(tests: RunParentTests): RunReview {
   };
 }
 
-function card(tests: RunParentTests, options: { hosting?: { view: DeploymentSettingsView; onActivate: (id: string) => void }; review?: RunReview } = {}): string {
+function card(tests: RunParentTests, options: { hosting?: { view: DeploymentSettingsView; onActivate: (id: string) => void }; review?: RunReview; title?: string } = {}): string {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   client.setQueryData(['viz', 'run-review', 'scope', target.projectId, target.runId], options.review ?? review(tests));
-  const run = { ...target, status: 'delivered', traceId: 'trace-1', costUsd: 0.25, error: null, endedAt: null };
+  const run = { ...target, status: 'delivered', traceId: 'trace-1', costUsd: 0.25, error: null, endedAt: null, ...(options.title ? { title: options.title } : {}) };
   return renderToStaticMarkup(createElement(QueryClientProvider, { client },
     createElement(AssistantRunResult, { scopeKey: 'scope', target, run, locale: 'en', t, onRun: () => {}, hosting: options.hosting ?? null })));
 }
@@ -75,6 +75,14 @@ describe('the card headline follows the delivery state (2026-10-26)', () => {
     expect(html).toContain(t('assistant.outcome.deliveredAccepted'));
     expect(html).not.toContain(t('assistant.outcome.delivered'));
     expect(html).toContain(t('assistant.deliveryPublished'));
+  });
+  it('names the version it accepted as its deployment line does, so the two read as one', () => {
+    const html = card(parentTests(), { title: 'Repair the control page', review: { ...review(parentTests()), clientAcceptance: accepted, publicationStatus: 'published' } });
+    expect(html).toContain('<p><strong>Repair the control page</strong></p>');
+    expect(html.indexOf('Repair the control page')).toBeLessThan(html.indexOf(t('assistant.outcome.deliveredAccepted')));
+    expect(t('assistant.deployment.replace.done', { title: 'Repair the control page' })).toContain('Repair the control page');
+    // Untitled: the outcome stays the card's headline.
+    expect(card(parentTests())).toContain(`<strong>${t('assistant.outcome.deliveredSettled')}</strong>`);
   });
   it('says "accepted" once: the headline, never a second sentence', () => {
     const text = card(parentTests(), { review: { ...review(parentTests()), clientAcceptance: accepted } });

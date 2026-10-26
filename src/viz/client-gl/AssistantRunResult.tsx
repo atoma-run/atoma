@@ -72,7 +72,9 @@ export function AssistantRunResult({ scopeKey, id, target, run, locale, t, onRun
   return <article id={id} className="gpu-assistant-message gpu-assistant-message--receipt gpu-assistant-result" aria-label={t('assistant.runResult')}>
     <div className="gpu-assistant-message-meta"><strong>{t('assistant.receipt')}</strong>
       {run.endedAt ? <RelativeTime at={run.endedAt} locale={locale} t={t} /> : null}</div>
-    <p><strong>{t(outcomeKey(run.status, review, canAccept))}</strong>
+    {/* Named as its deployment and activity lines name it, so "accepted" and "put online" read as one version (2026-10-26). */}
+    {run.title ? <p><strong>{run.title}</strong></p> : null}
+    <p>{run.title ? t(outcomeKey(run.status, review, canAccept)) : <strong>{t(outcomeKey(run.status, review, canAccept))}</strong>}
       {run.costUsd !== null ? ` · $${run.costUsd.toFixed(2)}` : ''}</p>
     {/* The outcome line already says it did not complete; the host's own words stay one click away. */}
     {run.error ? <details className="gpu-assistant-error-details"><summary>{t('assistant.errorDetails')}</summary><p>{run.error}</p></details> : null}

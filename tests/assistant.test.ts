@@ -138,6 +138,17 @@ describe('the integrated assistant', () => {
     });
   });
 
+  it('names the presented run by its title, and by nothing while it has none (2026-10-26)', async () => {
+    for (const [title, expected] of [['Repair the control page', 'Repair the control page'], [undefined, null]] as const) {
+      const f = fixture(start);
+      const call = f.call.getMockImplementation()!;
+      f.call.mockImplementation(async (name, args, task) => name === 'atoma_run_status'
+        ? { projectId, projectRunId: runId, status: 'delivered', costUsd: 0.7, traceId: 'trace', error: null, endedAt: null, ...(title ? { title } : {}) }
+        : call(name, args, task));
+      expect((await f.service.view(f.service.scope(f.viewer, projectId), f.mcp)).run).toMatchObject({ status: 'delivered', title: expected });
+    }
+  });
+
   it('carries the server\'s results-waiting fact into the conversation view, and only that fact', async () => {
     for (const [resultsWaiting, expected] of [[{ since: '2026-10-25T10:00:00.000Z' }, true], [null, false]] as const) {
       const f = fixture(start);
