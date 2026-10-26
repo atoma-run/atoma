@@ -432,9 +432,9 @@ Neighbours:
   root without a lockfile (a template), or under a `fixtures`, `fixture`,
   `__fixtures__` or `testdata` directory even with one, stays out of that
   chain, installed only when a command needs it; a pnpm, yarn or bun root, or
-  a lockfile-less root holding a `pnpm-workspace.yaml` (`workspace: 'pnpm'`,
-  which npm ignores), is installed by its manager, never guarded by npm's
-  marker; the no-rewrite rule binds these preparation installs, never a task
+  a lockfile-less root whose `pnpm-workspace.yaml` declares members or whose
+  manifest uses `workspace:`/`catalog:` (`workspace: 'pnpm'`), is installed by its
+  manager (through corepack: the worker has no pnpm), never by npm's marker; the no-rewrite rule binds these preparation installs, never a task
   that changes a dependency; never evidence.
 - `ATOMA_ACCEPTANCE_SPEC` is read and re-digested at LAUNCH
   (`readAcceptanceSpec`): unreadable, or present on a run that is not

@@ -187,6 +187,19 @@ describe('packageRootsOf: the package roots of a seed source', () => {
     expect(packageRootsOf(lockfileLess).roots).toEqual([{ dir: '.', lockfile: null, workspace: 'pnpm' }]);
   });
 
+  // The worker image has no pnpm: a root npm can install stays npm's (final review, 2026-10-26).
+  it('marks a lockfile-less root pnpm\'s only when npm cannot stand in for pnpm', () => {
+    const settingsOnly = seed({ 'package.json': '{"scripts":{"test":"vitest run"},"devDependencies":{"vitest":"^3.2.0"}}',
+      'pnpm-workspace.yaml': 'onlyBuiltDependencies:\n  - esbuild\n' });
+    const plain = packageRootsOf(settingsOnly).roots;
+    expect(plain).toEqual([{ dir: '.', lockfile: null }]);
+    expect(packageRootInstallCommand(plain)).toBe('(test -f node_modules/.package-lock.json || npm install --no-save)');
+    for (const manifest of ['{"devDependencies":{"typescript":"catalog:"}}', '{"dependencies":{"@x/lib":"workspace:*"}}']) {
+      const protocol = seed({ 'package.json': manifest, 'pnpm-workspace.yaml': 'onlyBuiltDependencies:\n  - esbuild\n' });
+      expect(packageRootsOf(protocol).roots, manifest).toEqual([{ dir: '.', lockfile: null, workspace: 'pnpm' }]);
+    }
+  });
+
   it('leaves the members of a lockfile-less npm workspace to its root install', () => {
     const root = seed({
       'package.json': JSON.stringify({ workspaces: ['packages/*'] }),
@@ -310,10 +323,10 @@ describe('rendering the receipt', () => {
       packageRoots: [{ dir: '.', lockfile: null, workspace: 'pnpm' }, { dir: 'browser', lockfile: 'package-lock.json' }] });
     expect(packageRootInstallCommand(preparation.packageRoots!)).toBe(BROWSER_INSTALL);
     const instruction = workspacePreparationGuidance(preparation, true);
-    expect(instruction).toContain("Package roots the seed held at launch ('.' is the repository root): . (pnpm workspace, no lockfile), browser (package-lock.json).");
+    expect(instruction).toContain("Package roots the seed held at launch, outside dot-directories and build or vendor trees ('.' is the repository root): . (pnpm workspace, no lockfile), browser (package-lock.json).");
     expect(instruction).toContain(`For the listed roots: ${BROWSER_INSTALL} `);
     expect(instruction).toContain('. (pnpm workspace, no lockfile) uses another package manager: install it once per execution');
-    expect(instruction).toContain('pnpm install --no-lockfile for a pnpm workspace without a lockfile');
+    expect(instruction).toContain('env COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --no-lockfile for a pnpm workspace without a lockfile');
     expect(instruction).toContain('never guard its install with that file');
     expect(instruction).not.toContain('npm install --no-save');
     expect(instruction).not.toContain('the repository root without');
@@ -324,6 +337,16 @@ describe('rendering the receipt', () => {
     expect(npmRoot).toContain('and the repository root without a lockfile, whose install did not complete');
     expect(npmRoot).toContain('the repository root without one installs with npm install --no-save');
     expect(npmRoot).not.toContain('uses another package manager');
+  });
+
+  it('installs a nested pnpm workspace without a lockfile only on demand, through corepack, never with npm', () => {
+    const guidance = workspacePreparationGuidance({ dependencies: 'excluded-from-seed', packageRootsComplete: true, packageRoots: [
+      { dir: '.', lockfile: 'package-lock.json' }, { dir: 'tests/fixtures/mono', lockfile: null, workspace: 'pnpm' }] }, true);
+    expect(guidance).toContain('tests/fixtures/mono (pnpm workspace, no lockfile) hold a package.json without a lockfile');
+    expect(guidance).toContain('(a pnpm workspace: env COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --no-lockfile --dir <dir>, never npm)');
+    expect(guidance).not.toContain('uses another package manager');
+    expect(packageRootInstallCommand([{ dir: '.', lockfile: 'package-lock.json' }, { dir: 'tests/fixtures/mono', lockfile: null, workspace: 'pnpm' }]))
+      .toBe('(test -f node_modules/.package-lock.json || npm ci --include=dev)');
   });
 
   it('gives the fact to everyone and the instruction only to a declared shell, naming no other tool', () => {
@@ -341,7 +364,7 @@ describe('rendering the receipt', () => {
     expect(instruction).toContain('npm ci deletes the tree');
     expect(instruction).toContain(`with timeoutMs ${SHELL_TIMEOUT_MAX_MS}`);
     expect(instruction).toContain('An install that timed out or failed leaves a broken tree without that file: the same guarded command reinstalls it.');
-    expect(instruction).toContain('tests/fixtures/app hold a package.json without a lockfile (possibly a fixture, template or example): install one with npm install --no-save --prefix <dir> only when a command you run resolves modules from it.');
+    expect(instruction).toContain('tests/fixtures/app hold a package.json without a lockfile (possibly a fixture, template or example): install one only when a command you run resolves modules from it, with npm install --no-save --prefix <dir>.');
     // Scoped to the preparation installs: a task that changes a dependency changes its lockfile too.
     expect(instruction).toContain('These preparation installs never rewrite a lockfile');
     expect(instruction).toContain('When the task itself adds, removes or upgrades a dependency, change package.json and its lockfile together');

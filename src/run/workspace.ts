@@ -227,14 +227,14 @@ const LOCKFILE_PRECEDENCE: readonly PackageLockfile[] = ['npm-shrinkwrap.json', 
  * are looked at, so the list never depends on the filesystem's read order.
  * Never derived from the routing inventory (`readRoutingRepository`): its
  * 160-entry cut is taken in raw read order, and in run 2f2643d5 it had stopped
- * partway through `browser/`. Skipped on purpose, although `seedWorkspace`
- * copies all but the first: every `node_modules` (never seeded), every
- * dot-directory (the read-run copies under `.atoma-runs/node_modules/<id>/`
- * carry other runs' manifests; also `.atoma-scratch`, `.git`, `.github`), the
- * routing reader's omitted build and vendor trees (`vendor`, `dist`, `build`,
- * `coverage`, `target`), and links, which are never followed. A package.json
- * there is copied into the workspace but is not a root the install names, and
- * does not make the scan incomplete. Bounded by depth and by
+ * partway through `browser/`. Skipped on purpose: every `node_modules` and
+ * the top-level `.atoma-runs` (read-run copies carrying other runs'
+ * manifests) and `.atoma-scratch`, none of them seeded; and, although
+ * `seedWorkspace` copies these, every other dot-directory (`.git`, `.github`),
+ * the routing reader's omitted build and vendor trees (`vendor`, `dist`,
+ * `build`, `coverage`, `target`), and links, which are never followed. A
+ * package.json there is not a root the install names, and does not make the
+ * scan incomplete. Bounded by depth and by
  * directories read; `complete` is false when a bound, an unreadable directory,
  * a path longer than a receipt holds or the root cap cut it.
  */
@@ -265,14 +265,15 @@ export function packageRootsOf(seedRoot: string): { roots: PackageRoot[]; comple
       });
       if (!member) {
         if (roots.length >= MAX_PACKAGE_ROOTS) { complete = false; break; }
-        roots.push(lockfile === null && files.has('pnpm-workspace.yaml') ? { dir, lockfile, workspace: 'pnpm' } : { dir, lockfile });
-      }
-      if (!member) {
-        const patterns = [
-          ...workspacePatterns(join(seedRoot, next.relative, 'package.json')),
-          ...(files.has('pnpm-workspace.yaml') && (lockfile === null || lockfile === 'pnpm-lock.yaml')
-            ? pnpmWorkspacePatterns(join(seedRoot, next.relative, 'pnpm-workspace.yaml')) : []),
-        ];
+        const pnpmPatterns = files.has('pnpm-workspace.yaml') && (lockfile === null || lockfile === 'pnpm-lock.yaml')
+          ? pnpmWorkspacePatterns(join(seedRoot, next.relative, 'pnpm-workspace.yaml')) : [];
+        // pnpm's only where npm cannot stand in: the file declares members npm
+        // would ignore, or the manifest uses a protocol npm refuses. A
+        // settings-only file (pnpm 10's onlyBuiltDependencies) leaves the root npm's.
+        const pnpmOnly = lockfile === null && files.has('pnpm-workspace.yaml') &&
+          (pnpmPatterns.length > 0 || /"(workspace|catalog):/.test(boundedManifestText(join(seedRoot, next.relative, 'package.json')) ?? ''));
+        roots.push(pnpmOnly ? { dir, lockfile, workspace: 'pnpm' } : { dir, lockfile });
+        const patterns = [...workspacePatterns(join(seedRoot, next.relative, 'package.json')), ...pnpmPatterns];
         if (patterns.length > 0) workspaces.push({ dir, patterns });
       }
     }
