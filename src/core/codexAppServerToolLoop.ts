@@ -106,10 +106,14 @@ const MAX_REFUSALS_WHILE_INTERRUPTING = 256;
  * sampling the model on its own: measured 2026-10-26 against app-server
  * 0.156.1 and gpt-5.6-luna, a usage event and a new reasoning item about every
  * 31 s with no new tool call, five usage events for three model decisions
- * around one 75 s host tool; production 0.153.4 was faster (aba8e94c: six or
- * seven during one 34.4 s record_probe, a budget of 24 cut at 20 responses
- * that carried host calls). Those WAITING SAMPLINGS are real spend but not the
- * model's decisions, so they are counted apart and charged to the budget only
+ * around one 75 s host tool; production 0.153.4 was faster (aba8e94c: six
+ * during one 34.4 s record_probe, the first 1 s in, and a seventh 24 ms after
+ * it; a budget of 24 cut at 20 responses that carried host calls). Codex
+ * reports a response's usage after it dispatched that response's call, so the
+ * first event during a call is usually the issuing response's own; it is
+ * counted apart too, and the envelope that lands once the call resolves takes
+ * its place among responses. WAITING SAMPLINGS therefore mix decisions and
+ * samplings; they are real spend, counted apart and charged to the budget only
  * beyond the budget itself: no call starts once the two together reach twice
  * the budget. Every usage event still updates the cumulative usage.
  */

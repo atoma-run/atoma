@@ -84,9 +84,11 @@ Neighbours:
   does not report usage once per response: while a host call is pending it
   samples on its own, a usage event and a reasoning item about every 31 s with
   no new call (app-server 0.156.1, gpt-5.6-luna, 2026-10-26: five events for
-  three decisions around one 75 s tool; production 0.153.4 counted seven during
-  one 34.4 s record_probe and cut aba8e94c's 24 at 20 responses carrying host calls). Those
-  waiting samplings are counted apart, timed as `tool-wait-response`, and charged
+  three decisions around one 75 s tool; production 0.153.4 ended six during one
+  34.4 s record_probe, the first 1 s in, and a seventh 24 ms after it; aba8e94c's 24 was cut at 20
+  responses carrying host calls). The first event during a call is usually the
+  issuing response's own usage, so the envelope landing once the call resolves takes its place:
+  waiting samplings mix decisions and samplings, counted apart, timed as `tool-wait-response`, and charged
   to the budget only past the budget itself, so spend stays bounded; cumulative
   usage counts them all. Calls of the last allowed response, and a call during
   which the budget ran out, carry the exhaustion hint; later calls are refused,
