@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "لم يبدأ. ظل الإصدار المتاح بالفعل على الإنترنت متاحًا.",
   "assistant.deployment.state.stopped": "تم الإيقاف.",
   "assistant.outcome.deliveredAccepted": "اكتمل العمل وتم قبوله.",
-  "assistant.outcome.deliveredSettled": "اكتمل العمل."
+  "assistant.outcome.deliveredSettled": "اكتمل العمل.",
+  "assistant.activity.superseded": "لم يتم قبوله؛ حلّ إصدار أحدث محلّه."
 }

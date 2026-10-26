@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "起動しませんでした。すでにオンラインのバージョンはそのままオンラインです。",
   "assistant.deployment.state.stopped": "停止しました。",
   "assistant.outcome.deliveredAccepted": "作業が完了し、承認されました。",
-  "assistant.outcome.deliveredSettled": "作業が完了しました。"
+  "assistant.outcome.deliveredSettled": "作業が完了しました。",
+  "assistant.activity.superseded": "採用されませんでした。後のバージョンに置き換えられました。"
 }

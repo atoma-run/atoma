@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "یہ شروع نہیں ہوا۔ پہلے سے آن لائن ورژن آن لائن ہی رہا۔",
   "assistant.deployment.state.stopped": "رک گیا۔",
   "assistant.outcome.deliveredAccepted": "کام مکمل اور منظور ہو گیا۔",
-  "assistant.outcome.deliveredSettled": "کام مکمل ہو گیا۔"
+  "assistant.outcome.deliveredSettled": "کام مکمل ہو گیا۔",
+  "assistant.activity.superseded": "قبول نہیں کیا گیا؛ بعد کے ورژن نے اس کی جگہ لے لی۔"
 }

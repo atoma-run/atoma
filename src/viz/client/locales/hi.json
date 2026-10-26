@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "यह शुरू नहीं हुआ। जो संस्करण पहले से ऑनलाइन था, वही ऑनलाइन रहा।",
   "assistant.deployment.state.stopped": "रोक दिया गया।",
   "assistant.outcome.deliveredAccepted": "काम पूरा हुआ और स्वीकार कर लिया गया।",
-  "assistant.outcome.deliveredSettled": "काम पूरा हुआ।"
+  "assistant.outcome.deliveredSettled": "काम पूरा हुआ।",
+  "assistant.activity.superseded": "स्वीकार नहीं किया गया; इसके स्थान पर बाद का संस्करण आ गया।"
 }

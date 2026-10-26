@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "Elle n’a pas démarré. La version déjà en ligne est restée en ligne.",
   "assistant.deployment.state.stopped": "Arrêtée.",
   "assistant.outcome.deliveredAccepted": "Travail terminé et accepté.",
-  "assistant.outcome.deliveredSettled": "Travail terminé."
+  "assistant.outcome.deliveredSettled": "Travail terminé.",
+  "assistant.activity.superseded": "Non acceptée ; une version ultérieure l’a remplacée."
 }

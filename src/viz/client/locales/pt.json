@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "Não iniciou. A versão que já estava online permaneceu online.",
   "assistant.deployment.state.stopped": "Parado.",
   "assistant.outcome.deliveredAccepted": "Trabalho concluído e aprovado.",
-  "assistant.outcome.deliveredSettled": "Trabalho concluído."
+  "assistant.outcome.deliveredSettled": "Trabalho concluído.",
+  "assistant.activity.superseded": "Não foi aceite; uma versão posterior substituiu-a."
 }

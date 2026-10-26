@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "Запуск не состоялся. Уже доступная онлайн версия осталась без изменений.",
   "assistant.deployment.state.stopped": "Остановлено.",
   "assistant.outcome.deliveredAccepted": "Работа завершена и принята.",
-  "assistant.outcome.deliveredSettled": "Работа завершена."
+  "assistant.outcome.deliveredSettled": "Работа завершена.",
+  "assistant.activity.superseded": "Не принято: заменено более поздней версией."
 }

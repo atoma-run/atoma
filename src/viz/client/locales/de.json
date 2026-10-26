@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "Start fehlgeschlagen. Die bereits online verfügbare Version blieb online.",
   "assistant.deployment.state.stopped": "Gestoppt.",
   "assistant.outcome.deliveredAccepted": "Arbeit abgeschlossen und akzeptiert.",
-  "assistant.outcome.deliveredSettled": "Arbeit abgeschlossen."
+  "assistant.outcome.deliveredSettled": "Arbeit abgeschlossen.",
+  "assistant.activity.superseded": "Nicht akzeptiert; eine spätere Version hat sie ersetzt."
 }

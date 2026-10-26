@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "Gagal dimulai. Versi yang sudah daring tetap daring.",
   "assistant.deployment.state.stopped": "Dihentikan.",
   "assistant.outcome.deliveredAccepted": "Pekerjaan selesai dan diterima.",
-  "assistant.outcome.deliveredSettled": "Pekerjaan selesai."
+  "assistant.outcome.deliveredSettled": "Pekerjaan selesai.",
+  "assistant.activity.superseded": "Tidak diterima; versi yang lebih baru menggantikannya."
 }

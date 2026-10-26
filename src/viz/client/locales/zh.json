@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "未能启动。已上线的版本仍保持在线。",
   "assistant.deployment.state.stopped": "已停止。",
   "assistant.outcome.deliveredAccepted": "工作已完成并获接受。",
-  "assistant.outcome.deliveredSettled": "工作已完成。"
+  "assistant.outcome.deliveredSettled": "工作已完成。",
+  "assistant.activity.superseded": "未接受；已被后续版本取代。"
 }

@@ -2829,5 +2829,6 @@
   "assistant.deployment.state.notStartedKept": "এটি শুরু হয়নি। ইতিমধ্যে অনলাইনে থাকা সংস্করণটি অনলাইনেই রয়েছে।",
   "assistant.deployment.state.stopped": "বন্ধ হয়েছে।",
   "assistant.outcome.deliveredAccepted": "কাজ শেষ হয়েছে এবং গৃহীত হয়েছে।",
-  "assistant.outcome.deliveredSettled": "কাজ শেষ হয়েছে।"
+  "assistant.outcome.deliveredSettled": "কাজ শেষ হয়েছে।",
+  "assistant.activity.superseded": "গৃহীত হয়নি; পরবর্তী একটি সংস্করণ এটিকে প্রতিস্থাপন করেছে।"
 }
