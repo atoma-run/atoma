@@ -520,9 +520,10 @@ async function runSession(
       let content: string;
       try { content = error === undefined ? formatToolResultContent(name, result) : truncateToolResultContent(error); }
       catch { content = 'The tool result could not be serialized.'; }
-      // The last allowed response hears that no tool will run after it, and so
-      // does a call during which the budget ran out: the model is told before
-      // its next call is refused, never by the refusal.
+      // Calls of the last allowed response, and a call during which the budget
+      // ran out, carry the exhaustion hint. A last response with no host call
+      // (a Codex-native step) has no reply to carry it, so its next call's
+      // refusal is the first warning.
       const last = charged() >= budget - 1 || executed >= budget * MAX_CALLS_PER_RESPONSE;
       reply(id, last ? `${content}\n${BUDGET_EXHAUSTED_HINT}` : content, error === undefined);
     } finally {

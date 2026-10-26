@@ -406,7 +406,8 @@ describe('Codex app-server tool session', () => {
 
   // Measured 2026-10-26 (app-server 0.156.1): one 75 s host tool, five usage
   // events for three model decisions. Production 0.153.4 (aba8e94c Ammonia
-  // #2) counted seven during one 34.4 s record_probe and cut a 24 budget at 20.
+  // #2) ended six during one 34.4 s record_probe, the first 1 s in, and a seventh
+  // 24 ms after it; a 24 budget was cut at 20.
   it('does not charge the budget for samplings Codex makes while a host tool is pending', async () => {
     const home = codexHome();
     const held = heldTool();

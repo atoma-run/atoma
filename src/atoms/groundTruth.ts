@@ -245,7 +245,7 @@ export function ownedByReview(
  * only by record_probe; a later run of that command through run_shell writes
  * nothing. Run f91cdb19 (2026-10-25) kept a pre-edit 25/25 row for its browser
  * suite while the same command, run after the edit, was killed: the index
- * showed the pass alone. A row whose exact command this attempt's latest host
+ * showed the pass alone. A row whose exact command this result's latest host
  * execution ended with a DIFFERENT exit code is labelled with that receipt,
  * passing rows and failing ones alike. Same exit, another command, or no
  * observed exit code: no line. "Latest" is the latest among the records the
@@ -274,9 +274,9 @@ export function supersededProbeRowLines(
     const latest = latestCommandExecution(mine, entry.data.cmd);
     if (!latest || latest.exitCode === undefined || latest.exitCode === entry.data.exitCode) continue;
     lines.push(
-      `- ${JSON.stringify(entry.data.cmd)} (stored exitCode=${entry.data.exitCode}): SUPERSEDED. This attempt's latest host ` +
+      `- ${JSON.stringify(entry.data.cmd)} (stored exitCode=${entry.data.exitCode}): SUPERSEDED for this result. This result's latest host ` +
         `execution of this exact command (${latest.record.tool}, branch ${(latest.record.branchId ?? 'root').slice(0, 8)}) ` +
-        `exited ${latest.exitCode}; that receipt, not the stored row, is its current outcome.`
+        `exited ${latest.exitCode}; that receipt, not the stored row, is this result's outcome.`
     );
     if (lines.length >= 8) break;
   }

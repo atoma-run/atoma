@@ -55,7 +55,7 @@ describe('a stored shell row a later host execution superseded', () => {
       await branch.tools!.execute('run_shell', { cmd: SUITE, timeoutMs: 30000 });
     });
     expect(block).toContain(`PRESENT in .atoma-probes.json: {"cmd":${JSON.stringify(SUITE)},"exitCode":0}`);
-    expect(block).toContain(`- ${JSON.stringify(SUITE)} (stored exitCode=0): SUPERSEDED. This attempt's latest host execution of this exact command (run_shell, branch sucrose) exited 1; that receipt, not the stored row, is its current outcome.`);
+    expect(block).toContain(`- ${JSON.stringify(SUITE)} (stored exitCode=0): SUPERSEDED for this result. This result's latest host execution of this exact command (run_shell, branch sucrose) exited 1; that receipt, not the stored row, is this result's outcome.`);
   });
 
   it('labels a failing row when the same command later passed, and reads the LATEST execution', async () => {
@@ -63,7 +63,7 @@ describe('a stored shell row a later host execution superseded', () => {
       await branch.tools!.execute('run_shell', { cmd: SUITE });
       await branch.tools!.execute('run_shell', { cmd: SUITE });
     });
-    expect(block).toContain(`(stored exitCode=1): SUPERSEDED. This attempt's latest host execution of this exact command (run_shell, branch sucrose) exited 0;`);
+    expect(block).toContain(`(stored exitCode=1): SUPERSEDED for this result. This result's latest host execution of this exact command (run_shell, branch sucrose) exited 0;`);
   });
 
   it('says nothing for another command, the same exit code, or a later record of the row itself', async () => {
@@ -93,7 +93,7 @@ describe('a stored shell row a later host execution superseded', () => {
     expect(own.block).not.toContain('SUPERSEDED');
     // The trunk owns the whole attempt: there, the sibling's run is the latest outcome.
     const trunk = await checkGroundTruth({ ctx, subject: 'RESULT', payload, child, evidence: [] });
-    expect(trunk.block).toContain('SUPERSEDED. This attempt\'s latest host execution of this exact command (run_shell, branch sibling) exited 1');
+    expect(trunk.block).toContain('SUPERSEDED for this result. This result\'s latest host execution of this exact command (run_shell, branch sibling) exited 1');
   });
   it('reads the latest of the judged branch\'s OWN runs: a sibling\'s later pass does not hide its kill', async () => {
     const { ctx } = workspace({ version: 1, entries: [{ cmd: SUITE, exitCode: 0 }] }, [1, 0]);
@@ -102,10 +102,23 @@ describe('a stored shell row a later host execution superseded', () => {
     await judged.tools!.execute('run_shell', { cmd: SUITE });
     await sibling.tools!.execute('run_shell', { cmd: SUITE });
     const own = await checkGroundTruth({ ctx: judged, subject: 'RESULT', payload, child, evidence: [] });
-    expect(own.block).toContain('SUPERSEDED. This attempt\'s latest host execution of this exact command (run_shell, branch judged) exited 1');
+    expect(own.block).toContain('SUPERSEDED for this result. This result\'s latest host execution of this exact command (run_shell, branch judged) exited 1');
     // The trunk owns the whole attempt: the sibling's pass is the latest there, equal to the row.
     const trunk = await checkGroundTruth({ ctx, subject: 'RESULT', payload, child, evidence: [] });
     expect(trunk.block).not.toContain('SUPERSEDED');
+  });
+  it('never calls this result\'s older receipt the attempt\'s current outcome over a sibling\'s newer row', async () => {
+    // judged recorded a pass, then a sibling's record_probe exited 1 and rewrote the row.
+    const { ctx } = workspace({ version: 1, entries: [{ cmd: SUITE, exitCode: 1 }] }, [0, 1]);
+    const judged = forkBranch(ctx, 'judged');
+    const sibling = forkBranch(ctx, 'sibling');
+    await judged.tools!.execute('record_probe', { cmd: SUITE });
+    await sibling.tools!.execute('record_probe', { cmd: SUITE });
+    const { block } = await checkGroundTruth({ ctx: judged, subject: 'RESULT', payload, child, evidence: [] });
+    expect(block).toContain('which is not among this result\'s receipts');
+    expect(block).toContain('SUPERSEDED for this result. This result\'s latest host execution of this exact command (record_probe, branch judged) exited 0');
+    expect(block).not.toContain('This attempt\'s latest');
+    expect(block).not.toContain('current outcome');
   });
 });
 
