@@ -1,0 +1,98 @@
+
+ RUN  v4.1.12 /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-validation-_pbq3tfz
+
+ ❯ tests/phase-evidence.test.ts (8 tests | 3 failed) 23ms
+     ✓ carries real run browser proof and earlier edits through dispatch, nested delegation and reporting validation 12ms
+     ✓ preserves enclosing and local observations across nested sequential delegation with labelled bounds 1ms
+     ✓ does not promote declared probes or leak observations between parallel siblings (sequential) 1ms
+     ✓ does not promote declared probes or leak observations between parallel siblings (concat) 0ms
+     × retains an earlier failure beside final success without replacing the final outcome 3ms
+     ✓ never revives a success when the latest check failed 1ms
+     × keeps only one contrasting outcome per request and branch and ignores invented status in output 1ms
+     × keeps the budget and prioritizes latest results under pressure 4ms
+ ❯ tests/verification-reuse.test.ts (7 tests | 1 failed) 1411ms
+     ✓ corrects a missing report detail without replaying the successful command 196ms
+     ✓ executes the check again after source changes and refuses its now-failing result 214ms
+     × carries a real contrasting outcome through validation and a fresh remediation planner without replay 221ms
+     ✓ executes the temporal boundary counterexample: guarded 190ms
+     ✓ executes the temporal boundary counterexample: guard-removed 195ms
+     ✓ executes the temporal boundary counterexample: concurrent 197ms
+     ✓ does not turn a receipt into a current tool action or bypass the zero-action gate 195ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/phase-evidence.test.ts > bounded contrasting command history > retains an earlier failure beside final success without replacing the final outcome
+AssertionError: expected [ 'final' ] to deeply equal ArrayContaining ["old", "final"]
+
+- Expected
++ Received
+
+- ArrayContaining [
+-   "old",
++ [
+    "final",
+  ]
+
+ ❯ tests/phase-evidence.test.ts:105:36
+    103|     const old = 1, latest = 0;
+    104|     const rendered = renderTransportEvidence([shell('old', old), shell…
+    105|     expect([...rendered.eventIds]).toEqual(expect.arrayContaining(['ol…
+       |                                    ^
+    106|     expect(rendered.lines[0]).toContain('EARLIER CONTRASTING OUTCOME');
+    107|     expect(rendered.lines[1]).not.toContain('EARLIER CONTRASTING OUTCO…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/phase-evidence.test.ts > bounded contrasting command history > keeps only one contrasting outcome per request and branch and ignores invented status in output
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/phase-evidence.test.ts:120:45
+    118|       shell('known', 0, 'c'), { source: 'recorded-probe' as const, cmd…
+    119|     const rendered = renderTransportEvidence(evidence);
+    120|     expect(rendered.eventIds.has('second')).toBe(true);
+       |                                             ^
+    121|     expect(rendered.eventIds.has('first')).toBe(false);
+    122|     expect(rendered.eventIds.has('old-green')).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/phase-evidence.test.ts > bounded contrasting command history > keeps the budget and prioritizes latest results under pressure
+AssertionError: expected 47820 to be less than or equal to 8000
+ ❯ tests/phase-evidence.test.ts:131:74
+    129|     for (const budget of [8000, MAX_TOOL_EVIDENCE_CHARS]) {
+    130|       const rendered = renderTransportEvidence(evidence, budget);
+    131|       expect(rendered.lines.reduce((sum, line) => sum + line.length, 0…
+       |                                                                          ^
+    132|       expect(rendered.omitted).toBeGreaterThan(0);
+    133|       expect(rendered.lines.every(line => line.startsWith('new-'))).to…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/verification-reuse.test.ts > verification receipts in the production supervision path > carries a real contrasting outcome through validation and a fresh remediation planner without replay
+AssertionError: expected '250e969f-44b4-49f7-b2f0-19f5fc4edc40:…' to contain 'observed exitCode=1'
+
+Expected: "observed exitCode=1"
+Received: "250e969f-44b4-49f7-b2f0-19f5fc4edc40: record_probe (attempt=1, branch=root): request={"cmd":"node check.cjs","note":"restored"}; observed result={"exitCode":0,"stdout":"actual-ready-assertion: passed\n","stderr":"","recorded":true,"manifest":".atoma-probes.json","recordedStdoutOmitted":false,"ranThroughShell":false}; observed exitCode=0"
+
+ ❯ tests/verification-reuse.test.ts:158:41
+    156|       const result = await molecule.execute(task, makePlan(), scoped);
+    157|       const rendered = renderTransportEvidence(result.evidence);
+    158|       expect(rendered.lines.join('\n')).toContain('observed exitCode=1…
+       |                                         ^
+    159|       expect(rendered.lines.join('\n')).toContain('observed exitCode=0…
+    160|       expect(rendered.lines.join('\n')).toContain('EARLIER CONTRASTING…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  4 failed | 11 passed (15)
+   Start at  13:53:26
+   Duration  2.12s (transform 500ms, setup 59ms, import 977ms, tests 1.43s, environment 0ms)
+

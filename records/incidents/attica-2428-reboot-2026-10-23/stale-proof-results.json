@@ -1,0 +1,75 @@
+{
+  "scope": "Controlled offline schedule with the recorded compiled UI; counterexample to assertion sufficiency, not an exact Playwright/Vitest replay or measurement of production timing.",
+  "outcomes": [
+    {
+      "mutation": false,
+      "recordedPredicatesPassed": true,
+      "deterministicPassed": true,
+      "before": {
+        "state": "En attente — aucune collecte active.",
+        "rows": "",
+        "error": "Arrêt refusé hors ligne",
+        "count": 0
+      },
+      "afterOld": {
+        "state": "En attente — aucune collecte active.",
+        "rows": "",
+        "error": "Arrêt refusé hors ligne",
+        "count": 0
+      },
+      "afterFresh": {
+        "state": "État actualisé",
+        "rows": "Non renseigné · Identifiant : newPrix : Non renseigné Non renseigné · Surface : Non renseigné · Localisation : Non renseignéDescription : Non renseignéSource : Non renseignéeNon renseigné · Identifiant : newerPrix : Non renseigné Non renseigné · Surface : Non renseigné · Localisation : Non renseignéDescription : Non renseignéSource : Non renseignée",
+        "error": "Arrêt refusé hors ligne",
+        "count": 2
+      },
+      "history": [
+        {
+          "state": "En attente — aucune collecte active.",
+          "rows": ""
+        },
+        {
+          "state": "État actualisé",
+          "rows": "Non renseigné · Identifiant : newPrix : Non renseigné Non renseigné · Surface : Non renseigné · Localisation : Non renseignéDescription : Non renseignéSource : Non renseignéeNon renseigné · Identifiant : newerPrix : Non renseigné Non renseigné · Surface : Non renseigné · Localisation : Non renseignéDescription : Non renseignéSource : Non renseignée"
+        }
+      ]
+    },
+    {
+      "mutation": true,
+      "recordedPredicatesPassed": true,
+      "deterministicPassed": false,
+      "before": {
+        "state": "En attente — aucune collecte active.",
+        "rows": "",
+        "error": "Arrêt refusé hors ligne",
+        "count": 0
+      },
+      "afterOld": {
+        "state": "Ancien état",
+        "rows": "Non renseigné · Identifiant : oldPrix : Non renseigné Non renseigné · Surface : Non renseigné · Localisation : Non renseignéDescription : Non renseignéSource : Non renseignée",
+        "error": "Arrêt refusé hors ligne",
+        "count": 1
+      },
+      "afterFresh": {
+        "state": "État actualisé",
+        "rows": "Non renseigné · Identifiant : newPrix : Non renseigné Non renseigné · Surface : Non renseigné · Localisation : Non renseignéDescription : Non renseignéSource : Non renseignéeNon renseigné · Identifiant : newerPrix : Non renseigné Non renseigné · Surface : Non renseigné · Localisation : Non renseignéDescription : Non renseignéSource : Non renseignée",
+        "error": "Arrêt refusé hors ligne",
+        "count": 2
+      },
+      "history": [
+        {
+          "state": "En attente — aucune collecte active.",
+          "rows": ""
+        },
+        {
+          "state": "Ancien état",
+          "rows": "Non renseigné · Identifiant : oldPrix : Non renseigné Non renseigné · Surface : Non renseigné · Localisation : Non renseignéDescription : Non renseignéSource : Non renseignée"
+        },
+        {
+          "state": "État actualisé",
+          "rows": "Non renseigné · Identifiant : newPrix : Non renseigné Non renseigné · Surface : Non renseigné · Localisation : Non renseignéDescription : Non renseignéSource : Non renseignéeNon renseigné · Identifiant : newerPrix : Non renseigné Non renseigné · Surface : Non renseigné · Localisation : Non renseignéDescription : Non renseignéSource : Non renseignée"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,626 @@
+
+> atoma@0.4.0 release:check:static
+> npm run docs:check && npm run typecheck && npm run lint && npm audit && npm run build && npm run application:skeleton:smoke && node scripts/release-smoke.mjs && node scripts/auth-release-smoke.mjs && npm run auth -- --help && npm run doctor -- --help && npm run analyst -- --help && npm run mender -- --help && npm run assayer -- --help && npm run backup -- --help && npm run projects:maintenance -- --help && npm run settings -- --help && npm run compute -- --help && npm run latency -- --help
+
+
+> atoma@0.4.0 docs:check
+> node scripts/check-agent-docs.mjs && node scripts/readme-facts.mjs && node scripts/architecture-ir.mjs
+
+agent docs ok: 500 root lines, 19 subsystem files (8236 lines), 5463 archived lines, 62 linked Markdown files
+readme facts ok: 60 MCP tools, 19 subsystems, Node 24.20+
+architecture ir ok: 19 components, 19 edges
+
+> atoma@0.4.0 typecheck
+> tsc -p tsconfig.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache/atoma/tsc-build.tsbuildinfo && tsc -p tsconfig.all.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache/atoma/tsc-all.tsbuildinfo
+
+
+> atoma@0.4.0 lint
+> eslint . --cache --cache-strategy content --cache-location node_modules/.cache/atoma/eslint/
+
+found 0 vulnerabilities
+
+> atoma@0.4.0 build
+> tsc -p tsconfig.json && npm run build:workspace-service && npm run build:compute-retrieval && npm run build:compute-preview && npm run build:preview-terminal && npm run mcp:build && npm run viz:build
+
+
+> atoma@0.4.0 build:workspace-service
+> node scripts/build-workspace-service.mjs
+
+
+> atoma@0.4.0 build:compute-retrieval
+> node scripts/build-compute-retrieval.mjs
+
+
+> atoma@0.4.0 build:compute-preview
+> node scripts/build-compute-preview.mjs
+
+
+> atoma@0.4.0 build:preview-terminal
+> node scripts/build-preview-terminal.mjs
+
+
+> atoma@0.4.0 mcp:build
+> node scripts/build-mcp-app.mjs
+
+MCP App: 970750 bytes, self-contained
+
+> atoma@0.4.0 viz:build
+> node scripts/viz-build.mjs
+
+vite v8.2.4 building client environment for production...
+transforming...
+[plugin rolldown:vite-resolve] Module "util" has been externalized for browser compatibility, imported by "/Users/mgtf/.codex/worktrees/temporal-validation-fix/atoma/node_modules/ag-psd/dist/abr.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin rolldown:vite-resolve] Module "util" has been externalized for browser compatibility, imported by "/Users/mgtf/.codex/worktrees/temporal-validation-fix/atoma/node_modules/ag-psd/dist/additionalInfo.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin rolldown:vite-resolve] Module "buffer" has been externalized for browser compatibility, imported by "/Users/mgtf/.codex/worktrees/temporal-validation-fix/atoma/node_modules/safer-buffer/safer.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin rolldown:vite-resolve] Module "buffer" has been externalized for browser compatibility, imported by "/Users/mgtf/.codex/worktrees/temporal-validation-fix/atoma/node_modules/safe-buffer/index.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+✓ 4332 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/viz/client/index.html                                           3.60 kB │ gzip:     1.43 kB
+dist/viz/client/assets/pdf.worker.min-CHFwMXne.mjs               1,262.39 kB
+dist/viz/client/assets/pdf.worker.min-CLrFZWeq.mjs               1,312.45 kB
+dist/viz/client/assets/index-CplZs-VN.css                           43.26 kB │ gzip:     8.74 kB
+dist/viz/client/assets/webworkerAll-Ba284eV6.js                      0.05 kB │ gzip:     0.06 kB
+dist/viz/client/assets/jszip.min-uVkIyW1g.js                         0.07 kB │ gzip:     0.09 kB
+dist/viz/client/assets/__vite-browser-external-DpH90L5b.js           0.09 kB │ gzip:     0.10 kB
+dist/viz/client/assets/array-BifhSqXX.js                             0.10 kB │ gzip:     0.11 kB
+dist/viz/client/assets/channel-Ca7R6CX6.js                           0.11 kB │ gzip:     0.12 kB
+dist/viz/client/assets/pie-WAS4IAKB-Boq9j486.js                      0.12 kB │ gzip:     0.12 kB
+dist/viz/client/assets/info-A6RAGUB7-BOzc2bf1.js                     0.12 kB │ gzip:     0.12 kB
+dist/viz/client/assets/radar-RG4KPBEZ-V-wmQw6B.js                    0.12 kB │ gzip:     0.13 kB
+dist/viz/client/assets/packet-AYTQ26CC-Dpgnwie1.js                   0.12 kB │ gzip:     0.13 kB
+dist/viz/client/assets/cynefin-OW5HDTMX-D9S0zMlc.js                  0.12 kB │ gzip:     0.13 kB
+dist/viz/client/assets/treemap-WGGIJYW6-XBkzpzTe.js                  0.12 kB │ gzip:     0.13 kB
+dist/viz/client/assets/wardley-WFR3VGLG-BzaNk6c-.js                  0.12 kB │ gzip:     0.13 kB
+dist/viz/client/assets/gitGraph-4MIJSDKK-CyVpEyop.js                 0.12 kB │ gzip:     0.13 kB
+dist/viz/client/assets/railroad-74A4TZTK-CZa44bvj.js                 0.12 kB │ gzip:     0.13 kB
+dist/viz/client/assets/treeView-Q6P3EWNA-Ct1yUZUc.js                 0.12 kB │ gzip:     0.13 kB
+dist/viz/client/assets/railroad-peg-WCYAUIDC-brtT48le.js             0.13 kB │ gzip:     0.13 kB
+dist/viz/client/assets/architecture-7GRP2DOG-C3ZAAvaL.js             0.13 kB │ gzip:     0.13 kB
+dist/viz/client/assets/railroad-abnf-HS5TGJTU-sX4fuWNc.js            0.13 kB │ gzip:     0.13 kB
+dist/viz/client/assets/railroad-ebnf-LZEXJU2U-CoOY1eDo.js            0.13 kB │ gzip:     0.13 kB
+dist/viz/client/assets/eventmodeling-NTZA5JFV-C6SUQIRs.js            0.13 kB │ gzip:     0.13 kB
+dist/viz/client/assets/init-C-OQMol4.js                              0.14 kB │ gzip:     0.12 kB
+dist/viz/client/assets/chunk-Y2CYZVJY-DsF7k-Jl.js                    0.15 kB │ gzip:     0.14 kB
+dist/viz/client/assets/chunk-2Q5K7J3B-C1jixKkw.js                    0.19 kB │ gzip:     0.16 kB
+dist/viz/client/assets/chunk-JWPE2WC7-DVXcaiue.js                    0.22 kB │ gzip:     0.17 kB
+dist/viz/client/assets/chunk-XXDRQBXY-CazVBYiP.js                    0.26 kB │ gzip:     0.22 kB
+dist/viz/client/assets/prism-properties-BEvvZlWN.js                  0.30 kB │ gzip:     0.20 kB
+dist/viz/client/assets/prism-ignore-DhqxNYSM.js                      0.34 kB │ gzip:     0.21 kB
+dist/viz/client/assets/getTextureBatchBindGroup-BrpopwPE.js          0.34 kB │ gzip:     0.26 kB
+dist/viz/client/assets/prism-editorconfig-D_2lxMb2.js                0.34 kB │ gzip:     0.23 kB
+dist/viz/client/assets/chunk-5VM5RSS4-ZNzvKenW.js                    0.36 kB │ gzip:     0.27 kB
+dist/viz/client/assets/tsx-A26VGWUK-BQ01P5Rj.js                      0.37 kB │ gzip:     0.25 kB
+dist/viz/client/assets/json5-EAGAEIPM-DTR01CQo.js                    0.43 kB │ gzip:     0.33 kB
+dist/viz/client/assets/prism-json-Dp_-W-Hv.js                        0.44 kB │ gzip:     0.27 kB
+dist/viz/client/assets/prism-r-QmNGR8LX.js                           0.52 kB │ gzip:     0.39 kB
+dist/viz/client/assets/chunk-POPQ4Y6H-B_7AH_Jo.js                    0.57 kB │ gzip:     0.40 kB
+dist/viz/client/assets/flowDiagram-HODETNUW-Dvopu2Vo.js              0.57 kB │ gzip:     0.31 kB
+dist/viz/client/assets/nav-icon-three-runtime-D9SLdKUj.js            0.58 kB │ gzip:     0.31 kB
+dist/viz/client/assets/prism-lua-CpZpYpyh.js                         0.59 kB │ gzip:     0.41 kB
+dist/viz/client/assets/prism-ini-BESK3y0r.js                         0.60 kB │ gzip:     0.27 kB
+dist/viz/client/assets/infoDiagram-27XIBGKW-BYaIoxcc.js              0.65 kB │ gzip:     0.42 kB
+dist/viz/client/assets/prism-less-Cy6FRbDx.js                        0.68 kB │ gzip:     0.36 kB
+dist/viz/client/assets/prism-nginx-B3l_WPu1.js                       0.72 kB │ gzip:     0.39 kB
+dist/viz/client/assets/CanvasPool-DmXAHALZ.js                        0.75 kB │ gzip:     0.41 kB
+dist/viz/client/assets/prism-erlang-Bh-2Lpd-.js                      0.76 kB │ gzip:     0.46 kB
+dist/viz/client/assets/classDiagram-ZZMXUADV-wlnK136b.js             0.77 kB │ gzip:     0.45 kB
+dist/viz/client/assets/classDiagram-v2-VYDZK3BY-wlnK136b.js          0.77 kB │ gzip:     0.45 kB
+dist/viz/client/assets/stateDiagram-v2-MP3YSRHH-COGxrR1r.js          0.78 kB │ gzip:     0.45 kB
+dist/viz/client/assets/swimlanesDiagram-VR7AAH4N-CsX0xD3F.js         0.83 kB │ gzip:     0.48 kB
+dist/viz/client/assets/sizeCapture-INFHLROL-B0uUizjq.js              0.87 kB │ gzip:     0.51 kB
+dist/viz/client/assets/prism-makefile-CRKWLQ8l.js                    0.93 kB │ gzip:     0.56 kB
+dist/viz/client/assets/line-3Wb0Ytw7.js                              0.94 kB │ gzip:     0.47 kB
+dist/viz/client/assets/prism-toml-DKb54GAT.js                        0.95 kB │ gzip:     0.50 kB
+dist/viz/client/assets/prism-go-C_8qAH5n.js                          0.97 kB │ gzip:     0.62 kB
+dist/viz/client/assets/prism-protobuf-yzSHlhwy.js                    0.98 kB │ gzip:     0.51 kB
+dist/viz/client/assets/prism-elm-Cw9KzQcz.js                         1.01 kB │ gzip:     0.60 kB
+dist/viz/client/assets/prism-latex-DNMbqcH_.js                       1.02 kB │ gzip:     0.48 kB
+dist/viz/client/assets/prism-markup-templating-KkSMBj6Y.js           1.06 kB │ gzip:     0.55 kB
+dist/viz/client/assets/defaultFilter.vert-CcenbsJ4.js                1.09 kB │ gzip:     0.53 kB
+dist/viz/client/assets/Cache-BGN8JqmA.js                             1.09 kB │ gzip:     0.55 kB
+dist/viz/client/assets/ordinal-BDEzSJ7C.js                           1.17 kB │ gzip:     0.56 kB
+dist/viz/client/assets/prism-dot-muz-bJnx.js                         1.18 kB │ gzip:     0.61 kB
+dist/viz/client/assets/rolldown-runtime-C0FnF6B9.js                  1.29 kB │ gzip:     0.71 kB
+dist/viz/client/assets/prism-typescript-BMqONzxf.js                  1.29 kB │ gzip:     0.58 kB
+dist/viz/client/assets/prism-scss-ClXbJmSV.js                        1.33 kB │ gzip:     0.63 kB
+dist/viz/client/assets/prism-hcl-B6Z0Ouoo.js                         1.39 kB │ gzip:     0.59 kB
+dist/viz/client/assets/scala-V5QQ35QA-BNCf6oks.js                    1.40 kB │ gzip:     0.74 kB
+dist/viz/client/assets/chunk-GVQU2GXP-v4zOIZXn.js                    1.41 kB │ gzip:     0.79 kB
+dist/viz/client/assets/base64-js-e_ScUrle.js                         1.44 kB │ gzip:     0.79 kB
+dist/viz/client/assets/prism-docker-DkT6yOFj.js                      1.54 kB │ gzip:     0.71 kB
+dist/viz/client/assets/prism-dart-CDv16Fbu.js                        1.58 kB │ gzip:     0.82 kB
+dist/viz/client/assets/prism-groovy-ve2nSEyk.js                      1.61 kB │ gzip:     0.88 kB
+dist/viz/client/assets/railroadDiagram-O6MQD6OU-CW5duyLv.js          1.65 kB │ gzip:     0.77 kB
+dist/viz/client/assets/prism-batch-B9jqdHtA.js                       1.67 kB │ gzip:     0.66 kB
+dist/viz/client/assets/prism-elixir-DhHhV5Rj.js                      1.84 kB │ gzip:     0.87 kB
+dist/viz/client/assets/abnfDiagram-VCTEODGH-sAfel5oM.js              1.84 kB │ gzip:     0.89 kB
+dist/viz/client/assets/prism-http-P0tfj_R7.js                        1.88 kB │ gzip:     0.88 kB
+dist/viz/client/assets/prism-c-04YixN25.js                           1.89 kB │ gzip:     0.97 kB
+dist/viz/client/assets/prism-kotlin-BUlJgC-o.js                      1.92 kB │ gzip:     0.94 kB
+dist/viz/client/assets/chunk-P2QGCYS3-RZXidBcs.js                    1.94 kB │ gzip:     0.95 kB
+dist/viz/client/assets/chunk-F27PBJKO-VtvidoIF.js                    1.97 kB │ gzip:     0.88 kB
+dist/viz/client/assets/prism-yaml-C0JHu8gr.js                        1.97 kB │ gzip:     0.86 kB
+dist/viz/client/assets/pegDiagram-XKGWAZYB-D-IJ6FxJ.js               2.01 kB │ gzip:     0.94 kB
+dist/viz/client/assets/ebnfDiagram-PWID7BFC-CAMlypOc.js              2.05 kB │ gzip:     0.88 kB
+dist/viz/client/assets/prism-python-CfiSVtM6.js                      2.11 kB │ gzip:     1.09 kB
+dist/viz/client/assets/prism-fsharp-CEOgdqPe.js                      2.11 kB │ gzip:     1.13 kB
+dist/viz/client/assets/prism-powershell-Cvud8pPk.js                  2.14 kB │ gzip:     1.27 kB
+dist/viz/client/assets/dist-Cz2MTljl.js                              2.17 kB │ gzip:     0.97 kB
+dist/viz/client/assets/path-fybaL0A-.js                              2.27 kB │ gzip:     0.98 kB
+dist/viz/client/assets/prism-jsx-D-D0NWtC.js                         2.41 kB │ gzip:     0.98 kB
+dist/viz/client/assets/prism-rust-Bu9N8X3N.js                        2.47 kB │ gzip:     1.18 kB
+dist/viz/client/assets/prism-graphql-XjvHrdQl.js                     2.53 kB │ gzip:     1.16 kB
+dist/viz/client/assets/cpp-EDJNJWGR-CTpKw9gK.js                      2.63 kB │ gzip:     1.24 kB
+dist/viz/client/assets/prism-java-6wtusvIl.js                        2.76 kB │ gzip:     1.23 kB
+dist/viz/client/assets/STLLoader-DD-LscVd.js                         2.92 kB │ gzip:     1.40 kB
+dist/viz/client/assets/prism-swift-B0kWc-ne.js                       2.94 kB │ gzip:     1.31 kB
+dist/viz/client/assets/prism-haskell-5hq1Nh9c.js                     2.97 kB │ gzip:     1.55 kB
+dist/viz/client/assets/prism-clojure-_z-zoNcE.js                     3.04 kB │ gzip:     1.51 kB
+dist/viz/client/assets/prism-sql-CYhVDMEE.js                         3.26 kB │ gzip:     1.85 kB
+dist/viz/client/assets/arc-SXJSVd7o.js                               3.47 kB │ gzip:     1.46 kB
+dist/viz/client/assets/prism-ruby-DFCASkuD.js                        3.56 kB │ gzip:     1.48 kB
+dist/viz/client/assets/diagram-Z3DM3KII-CSzwCTRA.js                  4.28 kB │ gzip:     1.84 kB
+dist/viz/client/assets/defaultLocale-BFoDCU3G.js                     4.63 kB │ gzip:     2.12 kB
+dist/viz/client/assets/linear-aVQWq3ZZ.js                            5.51 kB │ gzip:     2.25 kB
+dist/viz/client/assets/fflate.module-DXbirBWY.js                     5.56 kB │ gzip:     2.78 kB
+dist/viz/client/assets/chunk-PWAF6VOD-DZB0YMJy.js                    5.83 kB │ gzip:     2.68 kB
+dist/viz/client/assets/canvasUtils-De94x7Wr.js                       6.02 kB │ gzip:     2.02 kB
+dist/viz/client/assets/diagram-UQ7AKVKN-DmJnyUDe.js                  6.07 kB │ gzip:     2.56 kB
+dist/viz/client/assets/prism-bash-D6zCJ74D.js                        6.14 kB │ gzip:     3.04 kB
+dist/viz/client/assets/pieDiagram-E7YTZNPT-C5HbX0v8.js               6.22 kB │ gzip:     2.59 kB
+dist/viz/client/assets/prism-csharp-XPn2bw0d.js                      6.35 kB │ gzip:     2.49 kB
+dist/viz/client/assets/php-TTFBGZ5Q-Ch5LQWDw.js                      6.37 kB │ gzip:     2.03 kB
+dist/viz/client/assets/togeojson-Cy3MuzAx.js                         6.73 kB │ gzip:     2.68 kB
+dist/viz/client/assets/src-CL4Hiily.js                               6.86 kB │ gzip:     2.43 kB
+dist/viz/client/assets/TDSLoader-COVgJecZ.js                         8.01 kB │ gzip:     2.61 kB
+dist/viz/client/assets/diagram-S7CK7UJ4-HO_6RFXE.js                  8.19 kB │ gzip:     3.65 kB
+dist/viz/client/assets/PLYLoader-DWi4p2ZQ.js                         8.49 kB │ gzip:     3.10 kB
+dist/viz/client/assets/OBJLoader-DEKLpwSJ.js                         8.74 kB │ gzip:     2.88 kB
+dist/viz/client/assets/chunk-L3NEJ4N5-pyR0m_jk.js                    9.68 kB │ gzip:     2.93 kB
+dist/viz/client/assets/cynefinDiagram-5FMLGOSQ-OrXims9C.js           9.94 kB │ gzip:     3.51 kB
+dist/viz/client/assets/stateDiagram-D77RDMKH-UYaXkH0l.js            10.64 kB │ gzip:     3.74 kB
+dist/viz/client/assets/diagram-VSXAHHWV-B4XCkkoh.js                 10.65 kB │ gzip:     4.12 kB
+dist/viz/client/assets/dagre-GXQ25YYZ-C_UYb417.js                   10.99 kB │ gzip:     4.16 kB
+dist/viz/client/assets/BufferResource-jeyAHjZ7.js                   11.08 kB │ gzip:     2.85 kB
+dist/viz/client/assets/lib-nsaPoMgO.js                              11.15 kB │ gzip:     5.23 kB
+dist/viz/client/assets/3MFLoader-DrzTwmht.js                        13.63 kB │ gzip:     4.53 kB
+dist/viz/client/assets/init-Dujg6BY1.js                             14.69 kB │ gzip:     4.66 kB
+dist/viz/client/assets/chunk-SVP7TREG-C7iizzPi.js                   15.64 kB │ gzip:     4.35 kB
+dist/viz/client/assets/diagram-VX7I27RA-B9sewdTe.js                 15.75 kB │ gzip:     5.52 kB
+dist/viz/client/assets/mermaid-parser.core-mTyVCOUI.js              16.58 kB │ gzip:     3.92 kB
+dist/viz/client/assets/ishikawaDiagram-5VMMS53U-4M-v0qEw.js         17.31 kB │ gzip:     6.53 kB
+dist/viz/client/assets/prism-fD9xd4Ot.js                            18.87 kB │ gzip:     7.14 kB
+dist/viz/client/assets/GCManagedHash-DQEfvLcD.js                    19.32 kB │ gzip:     6.28 kB
+dist/viz/client/assets/OrbitControls-BviZQBC4.js                    19.71 kB │ gzip:     4.39 kB
+dist/viz/client/assets/xz-decompress-BlOG-Mkh.js                    20.08 kB │ gzip:     9.38 kB
+dist/viz/client/assets/kanban-definition-UXKFOSKX-BBw_mlB-.js       20.26 kB │ gzip:     7.15 kB
+dist/viz/client/assets/sankeyDiagram-P5KCCOFB-4mQgPLhI.js           22.79 kB │ gzip:     8.25 kB
+dist/viz/client/assets/journeyDiagram-3NMN7TZE-xZ2Gn-EI.js          23.15 kB │ gzip:     8.16 kB
+dist/viz/client/assets/mindmap-definition-YA3MSWOX-D9qdle5s.js      23.44 kB │ gzip:     8.01 kB
+dist/viz/client/assets/graphlib-DS17s2tU.js                         23.90 kB │ gzip:     8.31 kB
+dist/viz/client/assets/wardleyDiagram-VM6X3IG4-BDJnKhbk.js          25.20 kB │ gzip:     6.55 kB
+dist/viz/client/assets/rough.esm-Dy-Kn_BL.js                        27.10 kB │ gzip:     8.85 kB
+dist/viz/client/assets/gitGraphDiagram-WWUBYQGX-DD1r1UYT.js         29.00 kB │ gzip:     8.55 kB
+dist/viz/client/assets/timeline-definition-24CTP7MA-B6HFE26U.js     30.37 kB │ gzip:     9.97 kB
+dist/viz/client/assets/erDiagram-RLTQ6QDP-PNnrc_Qb.js               30.69 kB │ gzip:    10.57 kB
+dist/viz/client/assets/chunk-75Z2AOVW-DUU5OuyC.js                   30.75 kB │ gzip:     8.50 kB
+dist/viz/client/assets/requirementDiagram-BXWQKSXE-BsIrlv9R.js      31.00 kB │ gzip:     9.78 kB
+dist/viz/client/assets/quadrantDiagram-AXDQQJYC-Bn5-uW4g.js         33.51 kB │ gzip:     9.74 kB
+dist/viz/client/assets/chunk-OSK3NFVY-ClibuuiK.js                   36.46 kB │ gzip:     7.96 kB
+dist/viz/client/assets/dagre-PrKaheQc.js                            36.85 kB │ gzip:    13.22 kB
+dist/viz/client/assets/chunk-IMKFNOWR-D6fkIUvV.js                   37.67 kB │ gzip:    12.28 kB
+dist/viz/client/assets/Filter-CK7ThhpP.js                           38.93 kB │ gzip:    11.15 kB
+dist/viz/client/assets/vennDiagram-4TSXK5OY-sRqDoMHu.js             41.15 kB │ gzip:    15.11 kB
+dist/viz/client/assets/blockDiagram-I7D4REHJ-D0QzSxih.js            41.44 kB │ gzip:    13.36 kB
+dist/viz/client/assets/browserAll-gng9yQPX.js                       42.67 kB │ gzip:    11.16 kB
+dist/viz/client/assets/xychartDiagram-S5SC5T6Z-DnFzRs3G.js          44.14 kB │ gzip:    12.21 kB
+dist/viz/client/assets/GLTFLoader-qXE60D7C.js                       44.97 kB │ gzip:    13.34 kB
+dist/viz/client/assets/FBXLoader-RtlXJGJX.js                        45.62 kB │ gzip:    14.46 kB
+dist/viz/client/assets/src-CllyRBe0.js                              45.68 kB │ gzip:    16.00 kB
+dist/viz/client/assets/chunk-TICWLB2K-D6sVGr20.js                   48.82 kB │ gzip:    15.77 kB
+dist/viz/client/assets/chunk-GMAD6QVW-BgXPiUW4.js                   51.84 kB │ gzip:    16.69 kB
+dist/viz/client/assets/ColladaLoader-DwB1du51.js                    54.45 kB │ gzip:    14.53 kB
+dist/viz/client/assets/src-CDsjJVa1.js                              54.96 kB │ gzip:    16.86 kB
+dist/viz/client/assets/RenderTargetSystem-DogIUPlt.js               57.43 kB │ gzip:    16.19 kB
+dist/viz/client/assets/chunk-SHT3W25Y-DVq7WVmu.js                   61.23 kB │ gzip:    19.86 kB
+dist/viz/client/assets/GraphicsContext-BkQLv9WX.js                  61.72 kB │ gzip:    20.64 kB
+dist/viz/client/assets/lib-ChxHCEFV.js                              62.75 kB │ gzip:    23.84 kB
+dist/viz/client/assets/postal-mime-BzMcGF_y.js                      64.38 kB │ gzip:    22.08 kB
+dist/viz/client/assets/c4Diagram-7LVT6UL2-hYG2sxJ2.js               64.74 kB │ gzip:    18.53 kB
+dist/viz/client/assets/Geometry-D-hen8Dz.js                         64.79 kB │ gzip:    21.23 kB
+dist/viz/client/assets/USDLoader-C51e3iq2.js                        67.37 kB │ gzip:    19.71 kB
+dist/viz/client/assets/ganttDiagram-EL5Y4UJY-jgix6jvc.js            69.35 kB │ gzip:    22.74 kB
+dist/viz/client/assets/cose-bilkent-JH36ORCC-DmQebMBF.js            81.26 kB │ gzip:    21.55 kB
+dist/viz/client/assets/UTIF-CfTIC1EF.js                             83.55 kB │ gzip:    29.32 kB
+dist/viz/client/assets/mermaid.core-BuCmLlxL.js                     96.24 kB │ gzip:    32.94 kB
+dist/viz/client/assets/chunk-4HAMMTFA-DF-xxNyO.js                  104.85 kB │ gzip:    25.62 kB
+dist/viz/client/assets/swimlanes-42K2YHIH-BUg4C9ir.js              111.18 kB │ gzip:    38.03 kB
+dist/viz/client/assets/sequenceDiagram-WJ2MYXX4-C6PvmW3P.js        115.74 kB │ gzip:    30.58 kB
+dist/viz/client/assets/lib-BG51YRt-.js                             140.06 kB │ gzip:    47.12 kB
+dist/viz/client/assets/lib-wjPz-hQl.js                             148.17 kB │ gzip:    43.06 kB
+dist/viz/client/assets/leaflet-src-C7W7P099.js                     148.82 kB │ gzip:    43.39 kB
+dist/viz/client/assets/architectureDiagram-5GKGNRK7-CRmVtQyf.js    148.91 kB │ gzip:    41.13 kB
+dist/viz/client/assets/VRMLLoader-BWy8CiMy.js                      178.81 kB │ gzip:    44.62 kB
+dist/viz/client/assets/chunk-DU6HZSFF-D41yzGu9.js                  208.55 kB │ gzip:    27.44 kB
+dist/viz/client/assets/katex-D29apahB.js                           258.18 kB │ gzip:    77.48 kB
+dist/viz/client/assets/mpegts-BR5Q-zSz.js                          269.30 kB │ gzip:    61.52 kB
+dist/viz/client/assets/dist-DI7uRVmR.js                            279.02 kB │ gzip:    82.34 kB
+dist/viz/client/assets/lib-CE5NIfZ_.js                             331.64 kB │ gzip:   169.10 kB
+dist/viz/client/assets/dist-CB8hJwfO.js                            391.67 kB │ gzip:   137.59 kB
+dist/viz/client/assets/pdf-BqFfJ0VB.js                             427.30 kB │ gzip:   127.39 kB
+dist/viz/client/assets/cytoscape.esm-CECbKnxF.js                   434.92 kB │ gzip:   137.82 kB
+dist/viz/client/assets/gpu-renderer-DPgS8r_5.js                    445.06 kB │ gzip:   139.50 kB
+dist/viz/client/assets/pdf-jRg7VRz5.js                             482.29 kB │ gzip:   145.97 kB
+dist/viz/client/assets/xlsx-Bu7qA99U.js                            494.84 kB │ gzip:   161.54 kB
+dist/viz/client/assets/hls-CTPX-uAI.js                             574.80 kB │ gzip:   179.02 kB
+dist/viz/client/assets/chunk-FOHPRMQF-DHwB1DNv.js                  662.12 kB │ gzip:   143.15 kB
+dist/viz/client/assets/three.module-C5rh5wLt.js                    724.23 kB │ gzip:   184.67 kB
+dist/viz/client/assets/file-preview-runtime-_AZuDbMJ.js            953.57 kB │ gzip:   281.53 kB
+dist/viz/client/assets/aiden0z-pptx-renderer.es-WMqeI2oc.js      1,129.60 kB │ gzip:   346.50 kB
+dist/viz/client/assets/heic2any-CqBsKoxQ.js                      1,352.15 kB │ gzip:   344.72 kB
+dist/viz/client/assets/index-DNI0sDsD.js                         4,214.65 kB │ gzip: 1,111.97 kB
+
+✓ built in 1.57s
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+vite v8.2.4 building client environment for production...
+transforming...
+✓ 733 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/viz/client/showcase-assets/atoma-mark.js  817.97 kB │ gzip: 208.50 kB
+
+✓ built in 75ms
+viz build: precompressed 237 static assets with Brotli
+
+> atoma@0.4.0 application:skeleton:smoke
+> node scripts/application-skeleton-smoke.mjs
+
+application skeleton node: install, check, a broken read-run copy left out under v2 and v1 lint and Vitest's default include, npm ci keeping it, build, built server, source/test type errors, floating promise and failing assertion verified
+application skeleton web: install, check, a broken read-run copy left out under v2 and v1 lint and Vitest's default include, npm ci keeping it, build, built server, source/test type errors, floating promise and failing assertion verified
+application skeleton fullstack: install, check, a broken read-run copy left out under v2 and v1 lint and Vitest's default include, npm ci keeping it, build, built server, source/test type errors, floating promise and failing assertion verified
+SQLite compiled lifetime smoke passed (v24.20.0)
+Project retrieval compiled process smoke passed (container=false, Haystack=protocol fixture)
+Compiled code retrieval: parser, Haystack protocol and exact citation passed
+approved learning: compiled worker and durable receipt passed
+executor smoke (packaged): cutover, rollback, reattach, cancellation, no replay, retirement passed
+executor server boot: authenticated runtime, primary store, device isolation and retirement passed
+release smoke: MCP over HTTP — 26 operator tools, 7 prompts
+release smoke: MCP 2026-07-28 — 26 operator tools, a refused start as a task, listen acknowledged
+release smoke ok: compiled viz UI/API and the MCP through it
+auth release smoke ok: shell login, founder admission, CLI invite, member admission, PKCE, MCP OAuth, session gate, logout
+
+> atoma@0.4.0 auth
+> node dist/cli/auth.js --help
+
+atoma auth — identity admission and inspection
+
+usage:
+  npm run auth -- list [--db path]
+  npm run auth -- invite --org <org-id> [--role <role>] [--ttl-hours <hours>] [--db path]
+  npm run auth -- grant-admin --principal <id-or-email> [--db path]
+  npm run auth -- revoke-admin --principal <id-or-email> [--db path]
+  npm run auth -- grant-subscription --principal <id-or-email> [--org <org-id>] [--db path]
+  npm run auth -- revoke-subscription --principal <id-or-email> [--org <org-id>] [--db path]
+  npm run auth -- token --principal <id-or-email> --org <org-id-or-name> [--label <text>] [--db path]
+  npm run auth -- set-plan --org <org-id> --plan <free|pro|team> [--db path]
+
+roles:
+  org:owner | org:admin | org:member | org:viewer
+
+platform admin:
+  grant-admin/revoke-admin set the instance-wide operator flag on ONE
+  principal. The flag is never derived from OAuth claims — only this CLI,
+  run by the operator against the store on disk, can mint it. An email
+  reference must match exactly one principal.
+
+host subscription:
+  grant-subscription/revoke-subscription let ONE member of the declared
+  organisation (ATOMA_HOST_SUBSCRIPTION_ORG, the default for --org) name
+  this machine's own login session on a tier, WITHOUT the operator flag.
+  They still choose it themselves in Settings, and the run still has to
+  belong to that organisation. Revoking leaves their pins in place; the
+  next run refuses them by name.
+
+plan:
+  set-plan places ONE organisation on a plan. There is no billing during
+  the beta, so only this CLI can do it. Pro and Team remove the "Powered by
+  Atoma" mark from what the organisation's runs serve, from the next page
+  load, terminal or repository on. Journaled as org.plan_changed.
+
+token:
+  Mints a principal's bearer for the MCP (<origin>/mcp), bound to ONE
+  organisation the principal belongs to. Shown once, never stored in clear;
+  the principal lists and revokes it from Settings or /api/tokens. Journaled
+  as token.created by this CLI.
+
+flags:
+  --db <path>              use this product store
+  --label <text>           what this token is for (token)
+  --plan <plan>            free | pro | team (set-plan)
+  --org <org-id>           target organisation (required for invite;
+                           host-subscription commands default to the
+                           declared ATOMA_HOST_SUBSCRIPTION_ORG)
+  --role <role>            invitation role (default org:member)
+  --ttl-hours <hours>      invitation lifetime, 0 < hours <= 720 (default 24)
+  --principal <id-or-email> principal to grant/revoke platform admin or the
+                           host-subscription delegation
+  --help                   show this help
+
+> atoma@0.4.0 doctor
+> node dist/cli/doctor.js --help
+
+atoma doctor — quota-free runtime preflight
+
+usage:
+  npm run doctor
+  npm run doctor -- --container
+  npm run doctor -- --egress
+  npm run doctor -- --preview
+
+flags:
+  --container / --no-container   require or disable the Docker worker path
+  --egress / --no-egress         select proxied egress (implies container)
+  --preview                      add the result-preview preconditions
+  --help                         show this help
+
+The same ATOMA_MODEL_L1/L2/L3 (<api|sub|own>:<vendor>:<model>), ATOMA_CONTAINER
+and ATOMA_EGRESS variables used by run:build determine what doctor checks. When visualizer auth
+is enabled, its public origin and provider registry are checked offline too.
+
+> atoma@0.4.0 analyst
+> node dist/cli/analyst.js --help
+
+atoma analyst — post-mortem verdicts on finished runs
+
+usage:
+  npm run analyst [-- --once --backfill <n>] [--run <id>] [--dry-run] [--force]
+                  [--quiet-ms <ms>] [--poll-ms <ms>] [--budget-usd <usd>]
+                  [--timeout-ms <ms>] [--runs <dir>] [--supervisor-dir <dir>] [--db <path>]
+
+what it does:
+  Watches BOTH run corpora — the operator index and, when this store holds a
+  tenant control plane, every finished project run — and once a run has been
+  quiet for --quiet-ms and no run is active, drives ONE read-only headless session
+  over a mechanical digest of its trace. The structured verdict is validated
+  against src/contracts/supervisorVerdict.ts, written to supervisor/verdicts/,
+  routed (mechanism candidates → backlog.jsonl, security → ALERTS.jsonl) and
+  journaled as supervisor.verdict when this checkout has a product store.
+  With ATOMA_MENDER_DISPATCH_REPO and _TOKEN set, every cited high-confidence
+  defect is also sent to that repository's mender workflow (repository_dispatch)
+  and journaled as mender.dispatched.
+
+what it does NOT do:
+  Run beside a run, write anything but its own outputs, or follow trace text.
+
+provider:
+  ATOMA_ANALYST_MODEL=<api|sub>:<vendor>:<model>, REQUIRED, no default.
+  sub:anthropic:<alias> runs Claude Code on this machine's login;
+  api:anthropic:<model> and api:zai:<model> run Claude Code with
+  ANTHROPIC_API_KEY or ZAI_API_KEY (+ ZAI_BASE_URL), forwarded to the child
+  session only; sub:openai:<model> runs Codex on a ChatGPT login from
+  ATOMA_ANALYST_CODEX_HOME, with ATOMA_SUPERVISOR_CMD_CODEX for the binary.
+  api:openai is refused: the Codex session accepts no API key.
+
+flags:
+  --once                 analyse pending runs (see --backfill), then exit
+  --backfill <n>         re-queue the n newest un-analysed finished runs
+  --run <id>             analyse one run now (--force to redo an existing verdict)
+  --dry-run              build the digest and print the session line; spend nothing
+  --quiet-ms <ms>        quiet period before a finished run is analysed (default 120000)
+  --poll-ms <ms>         poll interval (default 15000)
+  --budget-usd <usd>     Claude spend ceiling per analysis (default 2; unsupported by Codex)
+  --timeout-ms <ms>      wall clock per analysis (default 900000)
+  --runs <dir>           operator runs directory (default ATOMA_RUNS_DIR or ./runs)
+  --supervisor-dir <dir> where verdicts live (default ATOMA_SUPERVISOR_DIR or ./supervisor)
+  --operator-only        do not read project runs even if this store has them
+  --db <path>            product store holding the journal (default ATOMA_DB_PATH or ./atoma.db)
+  --help                 show this help
+
+> atoma@0.4.0 mender
+> node dist/cli/mender.js --help
+
+atoma mender — a cited defect verdict becomes a pull request on main
+
+usage:
+  npm run mender [-- --once [--backfill <n>]] [--verdict <runId> [--finding <n>]]
+                 [--finding-file <request.json>] [--no-idle-gate] [--dry-run]
+                 [--force] [--keep-worktree] [--min-confidence high|medium|low]
+                 [--budget-usd <usd>] [--timeout-ms <ms>] [--max-diff-lines <n>]
+                 [--poll-ms <ms>] [--max-open-prs <n>] [--base <branch>] [--remote <name>]
+                 [--repo <path>] [--runs <dir>] [--supervisor-dir <dir>] [--db <path>]
+
+what it does:
+  For each analyst verdict carrying a `defect` or `mechanism_candidate`
+  finding at or above the confidence floor with a cited proposedFix: cut a
+  worktree at the tip of the base branch, install, run ONE restricted model
+  session that may edit src/, tests/ and records/incidents/ and run the checks,
+  then VERIFY on its own — the new test must fail without the source change
+  and `npm run check:changed` (docs, types, the changed files' lint and
+  tests) must pass with it — and only then commit, push and open the PR with
+  gh. CI runs the full `npm run check` on the PR, and the ruleset requires it.
+  A person merges; merge → CI → the existing production deployment.
+
+what it never does:
+  Merge anything (a mechanism_candidate's PR proposes a design choice), show the model any trace text,
+  merge, or run beside a live run. Refusals keep the worktree for inspection.
+
+provider:
+  ATOMA_MENDER_MODEL=<api|sub>:<vendor>:<model>, else ATOMA_ANALYST_MODEL;
+  REQUIRED, no default. sub:openai:<model> runs Codex on the dedicated ChatGPT
+  login in ATOMA_MENDER_CODEX_HOME — its temporary auth-only copy stays outside
+  command containers and refreshes are preserved; api:openai is refused.
+  sub:anthropic / api:anthropic / api:zai run Claude Code, with the key from
+  ANTHROPIC_API_KEY or ZAI_API_KEY. Host login files are never exposed to the
+  execution container.
+
+execution host:
+  Linux / WSL2 with Docker; build the disposable image before the first mend:
+  docker build -f docker/mender.Dockerfile -t atoma-mender:local .
+  ATOMA_MENDER_SANDBOX_IMAGE may select an operator-built image.
+  The model and checks have no host HOME, GitHub credentials or engine socket.
+
+commands (env, resolved inside the execution image):
+  ATOMA_MENDER_CMD_CLAUDE (claude)   ATOMA_MENDER_CMD_GH (gh)
+  ATOMA_MENDER_CMD_INSTALL (npm ci)  ATOMA_MENDER_CMD_TEST (npx vitest run)
+  ATOMA_MENDER_CMD_CHECK (npm run check:changed --, handed the changed files)
+
+authorship:
+  ATOMA_MENDER_GIT_AUTHOR="Name <email>" names the person who answers for the
+  mender's commits; the repository's required CLA check resolves it. Unset, the
+  author is atoma mender <mender@atoma.invalid>, which no CLA signature covers.
+
+flags:
+  --finding-file <path>  mend ONE request (atoma.supervisor.mend-request/v1) — what a
+                         an operator supplies for a single retry
+  --no-idle-gate         skip the live-run gate; only for a machine with nothing else to do (CI)
+  --once                 mend pending findings (all, or the --backfill newest verdicts), exit
+  --backfill <n>         limit --once to the n newest verdicts; in watch mode, re-queue them
+  --verdict <runId>      mend the eligible findings of one verdict (--finding <n> for one)
+  --force                redo a finding that already has a record
+  --dry-run              prepare the worktree and print the session line; spend nothing
+  --keep-worktree        keep the worktree even after a pull request
+  --min-confidence <c>   confidence floor (default high)
+  --budget-usd <usd>     Claude spend ceiling per mend (default 5; unsupported by Codex)
+  --timeout-ms <ms>      wall clock per phase (default 1800000)
+  --max-diff-lines <n>   refuse a larger change (default 600)
+  --poll-ms <ms>         watch poll interval (default 30000)
+  --max-open-prs <n>     watch mode starts no mend while this many mender pull requests are open
+                         (default ATOMA_MENDER_MAX_OPEN_PRS or 3)
+  --base <branch>        base branch (default main)     --remote <name>  (default origin)
+  --repo <path>          checkout to cut worktrees from (default cwd)
+  --runs <dir>           operator runs directory, for the idle gate (default ATOMA_RUNS_DIR or ./runs)
+  --supervisor-dir <dir> where verdicts and records live (default ATOMA_SUPERVISOR_DIR or ./supervisor)
+  --db <path>            product store holding the journal (default ATOMA_DB_PATH or ./atoma.db)
+  --help                 show this help
+
+> atoma@0.4.0 assayer
+> node dist/cli/assayer.js --help
+
+atoma assayer — judge learned recipes by execution, never beside a run
+
+usage:
+  npm run assayer [-- --once [--max <n>]] [--skill <namespace>/<id>] [--dry-run]
+                  [--cases <n>] [--timeout-ms <ms>] [--poll-ms <ms>]
+                  [--runs <dir>] [--skills-dir <dir>] [--supervisor-dir <dir>] [--db <path>]
+
+what it does:
+  Picks a task recipe whose current surface (kind, when_to_use, body) has not
+  been judged, takes up to --cases of the tasks it was credited on, and runs
+  each task twice through the ordinary runner: once on a copy of the catalog
+  holding the recipe, once on a copy without it. Store, workspace and runs
+  directory are copies too, and learning is off. The verdict reads what the
+  runs delivered; a recipe that delivered nothing on two or more matched
+  cases where the run without it delivered is RETIRED from the catalog.
+  Everything else is recorded and kept. Record: supervisor/assays/<recipe>/assay.json;
+  journal: one supervisor.assay row.
+
+what it does NOT do:
+  Run beside a run or a deployment, change a recipe's body, credit or blame
+  a recipe, or read anything model-authored as a fact.
+
+provider:
+  the three ATOMA_MODEL_L* pins and their credentials, as for any run.
+
+flags:
+  --once                 assay pending recipes (see --max), then exit
+  --max <n>              recipes per --once (default 1)
+  --skill <ns>/<id>      assay this recipe now, judged or not
+  --dry-run              name the cases and the runs; spend nothing
+  --container            run the arms as --container --egress (the resident host always does)
+  --cases <n>            credited tasks per recipe (default 2)
+  --timeout-ms <ms>      wall clock per arm run (default 900000)
+  --poll-ms <ms>         watch-mode poll (default 60000)
+  --runs <dir>           operator runs directory, read for the idle predicate (default ATOMA_RUNS_DIR or ./runs)
+  --skills-dir <dir>     the live catalog (default ATOMA_SKILLS_DIR or ./skills)
+  --supervisor-dir <dir> where assays live (default ATOMA_SUPERVISOR_DIR or ./supervisor)
+  --db <path>            the product store (default ATOMA_DB_PATH or ./atoma.db)
+  --help                 show this help
+
+> atoma@0.4.0 backup
+> node dist/cli/backup.js --help
+
+usage: npm run backup -- --dest <dir> [--keep N]
+Roots follow the running product: ATOMA_DB_PATH, ATOMA_SKILLS_DIR, ATOMA_RUNS_DIR,
+ATOMA_PROJECTS_ROOT (its orgs/ child) and ATOMA_SUPERVISOR_DIR, with the same defaults.
+ATOMA_LAUNCHER_WORKSPACE_ROOT adds its mandatory projects/ projection (layout v2).
+ATOMA_BACKUP_OPTIONAL_TIERS names the tiers this deployment does not have (e.g. "archive"
+on a server that runs no benchmarks). Every tier left out of it is mandatory: missing, it
+is reported as a loss and the restore drill fails.
+
+> atoma@0.4.0 projects:maintenance
+> node dist/cli/projects-maintenance.js --help
+
+atoma project maintenance
+
+  npm run projects:maintenance -- limits --org <uuid> [--max-concurrent <0|1>]
+  npm run projects:maintenance -- retention [--apply --services-stopped]
+  Both commands accept --db <path>.
+
+Retention defaults to a read-only plan. Before --apply, stop web, launcher,
+analyst and all other writers; verify a restorable backup. --services-stopped
+acknowledges this offline precondition. Active runtime rows or a held run lease
+refuse application; nothing is reaped. Never delete lifecycle_events.
+Roots: ATOMA_PROJECTS_ROOT and optional ATOMA_LAUNCHER_WORKSPACE_ROOT.
+Limits default to one; zero suspends new runs without cancelling existing work.
+
+> atoma@0.4.0 settings
+> node dist/cli/settings.js --help
+
+atoma settings — the run limits of this instance
+
+usage:
+  npm run settings -- list [--db path]
+  npm run settings -- set <key> <value> [--db path]
+  npm run settings -- unset <key> [<key> …] [--db path]
+
+keys:
+  run.concurrentMax        ceiling  1..1000 count (default 10)
+  run.timeoutDefaultMs     default  60000..7200000 ms (default 3600000)
+  run.timeoutMaxMs         ceiling  60000..86400000 ms (default 7200000)
+  run.tokenMaxTotal        ceiling  0..1000000000 tokens (default 0 = unlimited)
+  run.costMaxUsd           ceiling  0..10000 usd (default 0 = unlimited)
+  run.watchdogGraceMs      default  60000..150000 ms (default 60000)
+  llm.callTimeoutMs        ceiling  30000..3600000 ms (default 0 = unlimited)
+  llm.codexCallTimeoutMs   ceiling  30000..3600000 ms (default 0 = unlimited)
+  llm.maxToolIterations    ceiling  0..200 count (default 0 = unlimited)
+
+a DEFAULT is what a run gets when nothing asks; a launch-time request (a flag,
+an env var) still wins over it. a CEILING binds: a request above it is refused
+at launch, and the token and spend ceilings cancel the run that crosses them.
+
+unset removes the stated row rather than writing the default back, so a later
+change to a shipped default reaches this instance.
+
+flags:
+  --db <path>   use this product store (default ATOMA_DB_PATH, then ./atoma.db)
+  --help        show this help
+
+> atoma@0.4.0 compute
+> node dist/cli/compute.js --help
+
+Atoma Compute (headless, macOS / Windows)
+
+  compute pair --server https://atoma.run --name "My computer"
+               --workspace-image <image@sha256:digest> --worker-image <image@sha256:digest>
+               --retrieval-image <image@sha256:digest> --preview-image <image@sha256:digest>
+  compute doctor       Check Docker Desktop and installed pinned images
+  compute pull         Download the explicitly configured pinned images
+  compute start        Connect; commands: accept, drain, pause, stop, status
+                       Ctrl+C stops workloads and exits
+  compute status       Show local allocation and connection state
+  compute forget       Remove this machine's local credential (idle only)
+
+Requires Node 24 and Docker Desktop (WSL2 on Windows). No home directories
+are mounted. Disconnecting stops work. Reconnection reconciles stopped workloads;
+resuming an interrupted run remains explicit in Atoma. Docker settings are never changed automatically.
+
+
+> atoma@0.4.0 latency
+> node dist/cli/latency.js --help
+
+Usage: latency trace.json

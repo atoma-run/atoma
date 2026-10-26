@@ -1,0 +1,23 @@
+{
+  "baseRevision": "61ca418d7d935b00df1b55b35af93582bf595668",
+  "patchSha256": "c88591034e75beaef248def0132a03686bf1e5a4ed41a4d9c8b02d6afaacc008",
+  "commands": [
+    "npm ci",
+    "npm run release:check:static",
+    "npm test -- --maxWorkers=4"
+  ],
+  "summary": [
+    "Test Files  556 passed | 4 skipped (560)",
+    "Tests  7945 passed | 36 skipped (7981)",
+    "Duration  223.46s (transform 7.21s, setup 4.29s, import 101.23s, tests 746.74s, environment 7.16s)"
+  ],
+  "exitCode": 0,
+  "productionRunStarted": false,
+  "deployed": false,
+  "limits": [
+    "Models are mocked in regressions; production speedup is not yet measured.",
+    "Conditional tests remain skipped according to the suite configuration.",
+    "Compute progress is exposed in the API; this patch does not redesign the UI.",
+    "The Attica project temporal test still requires focused repair during a future authorized run."
+  ]
+}

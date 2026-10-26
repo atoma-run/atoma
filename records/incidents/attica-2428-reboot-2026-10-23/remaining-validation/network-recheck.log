@@ -1,0 +1,78 @@
+
+ RUN  v4.1.12 /Users/mgtf/.codex/worktrees/temporal-validation-fix/atoma
+
+[worker] [tool:write_file] saved.txt (12 bytes) 
+[worker] [tool:write_file] server.cjs (308 bytes) 
+[worker] [tool:start_node_server] node server.cjs :39417 in /workspace 
+[worker] [tool:write_file] fresh.txt (14 bytes) 
+[worker] [tool:write_file] hello.txt (18 bytes) 
+[worker] [tool:read_file] hello.txt (18 bytes) 
+[worker] [tool:write_file] probe.js (34 bytes) 
+[worker] [tool:run_shell] node probe.js 
+[worker] [tool:record_probe] node probe.js -> exit 0, recorded in .atoma-probes.json 
+[worker] [tool:write_file] probe-fixed.js (37 bytes) 
+[worker] [tool:run_shell] node probe-fixed.js 
+[worker] [tool:record_probe] node probe-fixed.js -> exit 0, recorded in .atoma-probes.json 
+[worker] [tool:run_shell] ls -1 ../atoma.db ../skills 
+[worker] [tool:run_shell] cat /var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-container-n63yH8/atoma.db 
+[worker] [tool:run_shell] bash -c getent hosts host.docker.internal || echo UNRESOLVABLE 
+[worker] [tool:write_file] server.js (191 bytes) 
+[worker] [tool:start_node_server] node server.js :40835 in /workspace 
+[worker] [tool:fetch_url] GET http://localhost:40835/ 
+[worker] [tool:write_file] replay.html (58 bytes) 
+[worker] [tool:write_file] ws-server.js (325 bytes) 
+[worker] [tool:start_node_server] node ws-server.js :38885 in /workspace 
+[worker] [tool:start_static_server] python3 http.server :39485 in /workspace 
+[worker] [tool:validate_html] loading http://localhost:39485/replay.html (+smoke) (host replay) 
+[worker] [tool:validate_html] loading http://localhost:39485/replay.html (+smoke) (host replay) 
+[worker] [tool:validate_html] loading http://localhost:39485/gone.html (+smoke) (host replay) 
+[worker] [tool:validate_html] loading http://localhost:39485/replay.html (+smoke) 
+[worker] [tool:validate_html] loading http://localhost:39485/replay.html (+smoke) (host replay) 
+[worker] [tool:write_file] server.js (184 bytes) 
+[worker] [tool:start_node_server] node server.js :44693 in /workspace 
+[worker] [tool:fetch_url] GET http://localhost:44693/ 
+[worker] [tool:fetch_url] GET https://registry.npmjs.org/left-pad/latest 
+[worker] [tool:write_file] index.html (95 bytes) 
+[worker] [tool:start_static_server] python3 http.server :35421 in /workspace 
+[worker] [tool:validate_html] loading http://localhost:35421/ (+smoke) 
+[worker] [tool:validate_html] recorded a passing check of index.html in .atoma-probes.json 
+[worker] [tool:fetch_url] GET http://host.docker.internal:4111/api/runs 
+[worker] [tool:fetch_url] GET https://example.com/ 
+[worker] [tool:fetch_url] GET http://private.atoma-test.invalid:4111/secret 
+[worker] [tool:read_file] .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/collect.js (28 bytes) 
+[worker] [tool:run_shell] ls -l .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/collect.js .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/bin/run.sh 
+[worker] [tool:run_shell] mkdir -p browser bin 
+[worker] [tool:run_shell] cp .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/collect.js browser/collect.js 
+[worker] [tool:run_shell] cp .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/bin/run.sh bin/run.sh 
+[worker] [tool:run_shell] bash -c ./bin/run.sh 
+[worker] [tool:read_file] browser/collect.js (28 bytes) 
+[worker] [tool:edit_file] browser/collect.js (1 replacement, 29 bytes) 
+[worker] [tool:read_file] .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/collect.js (28 bytes) 
+[worker] [tool:run_shell] bash -c printf CHANGED > .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/collect.js 
+[worker] [tool:run_shell] bash -c chmod 600 .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/collect.js 
+[worker] [tool:run_shell] bash -c touch .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/collect.js 
+[worker] [tool:run_shell] bash -c rm -f .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/collect.js 
+[worker] [tool:run_shell] bash -c mkdir .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/new 
+[worker] [tool:run_shell] bash -c mv .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a-aside 
+[worker] [tool:run_shell] bash -c mv .atoma-runs aside 
+[worker] [tool:run_shell] bash -c rm -rf .atoma-runs 
+[worker] [tool:run_shell] bash -c ln .atoma-runs/node_modules/50019ee0-1f0e-4a55-8a4b-1f2e3d4c5b6a/browser/collect.js hard.js 
+[worker] [tool:run_shell] bash -c cat /proc/self/mountinfo 
+[worker] [tool:run_shell] bash -c printf ok > writable.txt && cat writable.txt 
+[worker] [tool:run_shell] cat /var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-container-read-runs-8CkTyO/other-run/workspace/.env /var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-container-read-runs-8CkTyO/other-run/workspace/browser/collect.js 
+[worker] [tool:run_shell] npm ci --offline --no-audit --no-fund 
+[worker] [tool:run_shell] node /app/node_modules/vitest/vitest.mjs run --globals 
+[worker] [tool:run_shell] node /app/node_modules/vitest/vitest.mjs run --globals 
+ ✓ tests/container-isolation.test.ts (37 tests | 7 skipped) 10673ms
+     ✓ verifies a recorded worker identity against the real engine before and after SIGKILL  301ms
+     ✓ removes a SIGTERM-resistant worker before replacing its backend over the sealed workspace  558ms
+     ✓ replays an inherited check in the host mode, on the worker image's own browser  3124ms
+     ✓ keeps HTTP loopback working when proxied egress is enabled  2879ms
+     ✓ opens public Internet egress without exposing the private proxy network  2299ms
+     ✓ the image's Vitest, with its default include, never collects a copy's test, and does collect one in a dot-directory  509ms
+
+ Test Files  1 passed (1)
+      Tests  30 passed | 7 skipped (37)
+   Start at  14:02:55
+   Duration  11.16s (transform 251ms, setup 24ms, import 404ms, tests 10.67s, environment 0ms)
+

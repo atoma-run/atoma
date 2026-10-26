@@ -30,6 +30,16 @@ while this helper owns renewal. Reconnect using the helper's `login` command.
 Reload the MCP connection after changing its configuration. Existing clients
 holding the old grant cannot revoke the helper's separate grant.
 
+If disconnects return, check whether the desktop's **Connect** action recreated
+native OAuth credentials. That action can override the helper without removing
+`http_headers_helper` from the configuration: the configuration still looking
+correct does not prove that the helper owns authentication. If the helper's
+`status` is ready, remove only the competing credential with
+`codex mcp logout atoma`, then verify native tool discovery through the helper.
+Do not click the native OAuth Connect action again to repair this connection.
+An expired or uncertain helper grant instead requires the helper's own `login`.
+Never print `headers` output to diagnose either case.
+
 The helper takes an OS file lock and **rereads Keychain state after acquiring
 it**. Only an expiring access token triggers a refresh. It persists a renewing
 marker before the request: after a crash, timeout, rejected grant, malformed

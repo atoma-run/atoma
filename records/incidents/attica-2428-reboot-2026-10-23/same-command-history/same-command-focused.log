@@ -1,0 +1,14 @@
+
+ RUN  v4.1.12 /Users/mgtf/dev/atoma
+
+ ✓ tests/phase-evidence.test.ts (9 tests) 21ms
+ ✓ tests/ground-truth-files.test.ts (45 tests) 559ms
+ ✓ tests/record-probe.test.ts (74 tests) 10078ms
+     ✓ records a suite that outlives the default when the call asks for longer  1047ms
+     ✓ still kills the whole process group at the limit it was given, and says how to ask for more  1212ms
+
+ Test Files  3 passed (3)
+      Tests  128 passed (128)
+   Start at  18:35:46
+   Duration  10.37s (transform 655ms, setup 75ms, import 1.17s, tests 10.66s, environment 0ms)
+

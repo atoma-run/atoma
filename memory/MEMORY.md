@@ -10,9 +10,15 @@
 - [Beta rules not fixed](beta-rules-not-fixed.md) — 2026-10-16: I decide owner-level design choices myself; documented rules and AGENTS.md can change if evidence says so
 - [Shared checkout staging](shared-checkout-staging.md) — never stage from a status listing; never reset --hard/stash/pull --rebase the shared tree; push only when origin/main..HEAD is mine; after commit --only with EN changes, unstage the target locales (2026-10-26)
 - [Worktree junction hazard](worktree-junction-hazard.md) — remove node_modules junctions before `git worktree remove --force`
+- [Validation runs too slow](validation-runs-too-slow.md) — 2026-10-24: pure validations go local or short-depth; deep Attica runs only for work that changes files
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Attica run 51c4e71d](attica-run-51c4e71d-2026-10-26.md) — 2026-10-26: analysis validated; seven fixes pushed d63cbdc6; Codex login-copy parallelism withdrawn (login-loss risk); Compute worker rollout + follow-up run pending
+- [Attica run 40c20c5d analysis](attica-run-40c20c5d-analysis.md) — 2026-10-25: four defects fixed and deployed (6827f98e), Compute 0.4.128 installed; run finalized (partial) by the owner
+- [Hosted update stays explicit](hosted-update-explicit.md) — 2026-10-25: no auto-deploy on acceptance; one-click update with prepare-before-stop and visitor hold shipped (be1790c0)
+- [Compute results plain experience](compute-results-plain-experience.md) — 2026-10-25: results transfer automatically, waiting runs explained plainly everywhere (44c85654)
+- [Attica reboot analysis](attica-2428-reboot-analysis.md) — 2026-10-23: run2428 fully read; false Git refusals, dependency setup, weak stale-response proof demonstrated with a mutant; no relaunch
 - [Assayer recovery](assayer-recovery-2026-10-23.md) — 2026-10-23: launch/reporting fixed, 15 surfaces reopened; first real paired evaluation neutral, VIZ and three MCP readers; generation handoff fixed and verified in production
 - [CI critical path](ci-critical-path-state.md) — 2026-10-24: test job sharded ×3, skeleton smoke concurrent; static job (~5 min) is now the longer half; how to read CI timing
 - [Test suite speed](test-suite-speed.md) — 2026-10-23: 299 s → 95 s on the Mac; CPU-bound at 12 workers, 14+ oversubscribe; next lever is less work per file
