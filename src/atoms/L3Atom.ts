@@ -1696,7 +1696,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      ...taskContextLines(task, { executor: true }),
+      ...taskContextLines(task, { executor: true, hasShell: hasTools && this.tools.some((t) => t.name === 'run_shell') }),
       hasTools
         ? 'You HAVE tool access in this fallback turn (see Tools below). Plan concrete tool calls — do NOT describe work as prose when a tool can do it.'
         : 'You have NO tool access; produce a reasoning-only answer.',
@@ -1747,7 +1747,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      ...taskContextLines(task, { executor: true }),
+      ...taskContextLines(task, { executor: true, hasShell: hasTools && this.tools.some((t) => t.name === 'run_shell') }),
       `Plan: ${JSON.stringify(plan)}`,
       FALLBACK_VERIFICATION_GUIDANCE,
       hasTools ? STATEFUL_EVIDENCE_GUIDANCE : '',

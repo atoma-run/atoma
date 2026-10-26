@@ -6,7 +6,8 @@ const MAX_ENTRIES = 160;
 const MAX_DEPTH = 2;
 const MAX_EXCERPTS = 6;
 const EXCERPT_BYTES = 1400;
-const OMIT_DIRECTORIES = new Set(['node_modules', 'vendor', 'dist', 'build', 'coverage', 'target', '__pycache__']);
+/** Directories no host reader descends into: build output, vendored and installed trees. */
+export const OMIT_DIRECTORIES: ReadonlySet<string> = new Set(['node_modules', 'vendor', 'dist', 'build', 'coverage', 'target', '__pycache__']);
 const CONTEXT_FILES = /^(?:readme(?:\.(?:md|rst|txt))?|package\.json|pyproject\.toml|cargo\.toml|go\.mod|requirements\.txt|composer\.json)$/i;
 
 /**

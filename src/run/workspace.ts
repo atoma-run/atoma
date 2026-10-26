@@ -1,10 +1,12 @@
 import { dirname, basename, join, relative, resolve } from 'node:path';
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { inheritProbeManifest, PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
 import { byteLessWorkspaceEntry } from '../projects/artifacts.js';
 import type { DeliveredSnapshot, StartingSnapshot, WorkspaceFileSnapshot } from '../contracts/startingWorkspace.js';
+import { MAX_PACKAGE_ROOTS, workspacePreparationSchema, type PackageLockfile, type PackageRoot, type WorkspacePreparation } from '../contracts/workspacePreparation.js';
+import { OMIT_DIRECTORIES } from './routingRepository.js';
 
 /**
  * Stale artefacts from PREVIOUS runs pollute the current one. They land in
@@ -194,6 +196,116 @@ export function describeSeedManifest(report: SeedReport): string | null {
   return report.manifest === 'removed'
     ? `seed ${PROBE_MANIFEST_FILENAME}: not inherited, nothing replayable (${report.dropped} entries dropped)${detail}`
     : `seed ${PROBE_MANIFEST_FILENAME}: kept ${report.kept} entries${report.repaired ? ` (${report.repaired} without their run-varying stdout)` : ''}, dropped ${report.dropped} unreplayable${detail}`;
+}
+
+/** How deep below the seed root a package root is looked for ('.' is depth 0). */
+export const PACKAGE_ROOT_MAX_DEPTH = 4;
+/** Directories read at most; the bound is on directories, never on files. */
+export const PACKAGE_ROOT_MAX_DIRECTORIES = 2000;
+const PACKAGE_MANIFEST_MAX_BYTES = 1024 * 1024;
+/** The lockfile a root's install is frozen to when a directory holds several: npm's own precedence first. */
+const LOCKFILE_PRECEDENCE: readonly PackageLockfile[] = ['npm-shrinkwrap.json', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'];
+
+/**
+ * THE PACKAGE ROOTS OF A SEED, read on the server from the seed SOURCE at
+ * launch — local and Compute runs alike, since both hold `seedRoot` as a host
+ * path. A directory is a root when it holds a regular `package.json`; its
+ * `lockfile` is the one its install is frozen to, or null. A package.json
+ * without a lockfile that a lockfile root's `workspaces` field covers is that
+ * root's member, installed by its install, and is not listed.
+ *
+ * Entries are read SORTED and only the names package.json and the lockfiles
+ * are looked at, so the list never depends on the filesystem's read order.
+ * Never derived from the routing inventory (`readRoutingRepository`): its
+ * 160-entry cut is taken in raw read order, and in run 2f2643d5 it had stopped
+ * partway through `browser/`. Skipped as the seed copy skips them: every
+ * `node_modules`, every dot-directory (the read-run copies under
+ * `.atoma-runs/node_modules/<id>/` carry other runs' manifests; also
+ * `.atoma-scratch` and `.git`), the routing reader's omitted build and vendor
+ * trees, and links, which are never followed. Bounded by depth and by
+ * directories read; `complete` is false when a bound, an unreadable directory
+ * or the root cap cut it.
+ */
+export function packageRootsOf(seedRoot: string): { roots: PackageRoot[]; complete: boolean } {
+  const roots: PackageRoot[] = [];
+  const workspaces: { dir: string; patterns: RegExp[] }[] = [];
+  let complete = true;
+  let visited = 0;
+  const pending: { relative: string; depth: number }[] = [{ relative: '', depth: 0 }];
+  while (pending.length > 0) {
+    const next = pending.shift()!;
+    if (++visited > PACKAGE_ROOT_MAX_DIRECTORIES) { complete = false; break; }
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(join(seedRoot, next.relative), { withFileTypes: true })
+        .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    } catch {
+      complete = false;
+      continue;
+    }
+    const files = new Set(entries.filter(entry => entry.isFile()).map(entry => entry.name));
+    if (files.has('package.json')) {
+      const dir = next.relative || '.';
+      const lockfile = LOCKFILE_PRECEDENCE.find(name => files.has(name)) ?? null;
+      const member = lockfile === null && workspaces.some(({ dir: owner, patterns }) => {
+        const inside = owner === '.' ? dir : dir.startsWith(`${owner}/`) ? dir.slice(owner.length + 1) : null;
+        return inside !== null && patterns.some(pattern => pattern.test(inside));
+      });
+      if (!member) {
+        if (roots.length >= MAX_PACKAGE_ROOTS) { complete = false; break; }
+        roots.push({ dir, lockfile });
+      }
+      if (lockfile !== null) {
+        const patterns = workspacePatterns(join(seedRoot, next.relative, 'package.json'));
+        if (patterns.length > 0) workspaces.push({ dir, patterns });
+      }
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || OMIT_DIRECTORIES.has(entry.name)) continue;
+      if (next.depth >= PACKAGE_ROOT_MAX_DEPTH) { complete = false; continue; }
+      pending.push({ relative: next.relative ? `${next.relative}/${entry.name}` : entry.name, depth: next.depth + 1 });
+    }
+  }
+  return { roots, complete };
+}
+
+/** A lockfile root's `workspaces` globs, as anchored matchers over member paths; none when unreadable. */
+function workspacePatterns(manifestPath: string): RegExp[] {
+  let declared: unknown;
+  try {
+    const stat = lstatSync(manifestPath);
+    if (!stat.isFile() || stat.size > PACKAGE_MANIFEST_MAX_BYTES) return [];
+    declared = (JSON.parse(readFileSync(manifestPath, 'utf8')) as { workspaces?: unknown } | null)?.workspaces;
+  } catch {
+    return [];
+  }
+  const globs: unknown[] = Array.isArray(declared) ? declared
+    : declared && typeof declared === 'object' && Array.isArray((declared as { packages?: unknown }).packages)
+      ? (declared as { packages: unknown[] }).packages : [];
+  return globs.flatMap((glob) => {
+    if (typeof glob !== 'string' || glob.startsWith('!')) return [];
+    const normalized = glob.replace(/^\.\//, '').replace(/\/+$/, '');
+    if (!normalized) return [];
+    const source = normalized.split('/').map(part => part === '**' ? '.*'
+      : part.split('*').map(text => text.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('/');
+    return [new RegExp(`^${source}$`)];
+  });
+}
+
+/**
+ * The launch receipt (`inputs.workspacePreparation`), built through its one
+ * schema. A resumed run MERGES into the receipt its checkpoint saved: the
+ * roots its launch listed stay, only `dependencies` changes, because the
+ * checkpoint kept whatever was installed.
+ */
+export function launchWorkspacePreparation(input: { resume: boolean; saved?: unknown; seedRoot?: string | undefined }): WorkspacePreparation {
+  if (input.resume) {
+    const saved = workspacePreparationSchema.safeParse(input.saved);
+    return workspacePreparationSchema.parse({ ...(saved.success ? saved.data : {}), dependencies: 'preserved-unverified' });
+  }
+  if (!input.seedRoot) return { dependencies: 'unverified' };
+  const { roots, complete } = packageRootsOf(input.seedRoot);
+  return workspacePreparationSchema.parse({ dependencies: 'excluded-from-seed', packageRoots: roots, packageRootsComplete: complete });
 }
 
 const SNAPSHOT_MAX_FILES = 400;

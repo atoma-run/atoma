@@ -2,7 +2,7 @@ import { mockOtherProofReview } from './helpers/delegationReview.js';
 import * as jevModule from '../src/core/jev.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { TraceRecorder } from '../src/viz/trace.js';
-import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,7 +10,13 @@ import { startTask, resetHostLifecycleSnapshotForTests } from '../src/run/runner
 import { buildTierClients, makeTransportClient } from '../src/run/providers.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { ensureCanonicalFileScribeL1 } from '../src/atoms/capability.js';
-import type { LlmCompletionRequest } from '../src/core/types.js';
+import type { LlmCompletionRequest, Task } from '../src/core/types.js';
+import { workspacePreparationSchema } from '../src/contracts/workspacePreparation.js';
+import { serveComputeBridge } from '../src/run/computeBridge.js';
+import { computeRunnerOptions } from '../src/run/computeRunner.js';
+import { localWorkspaceRuntime } from '../src/run/workspaceRuntime.js';
+import { workspaceCommandHandler } from '../src/run/workspaceRpc.js';
+import { localToolBackend } from '../src/run/toolBackend.js';
 import type { VizRun } from '../src/viz/trace.js';
 import { OLLAMA_PINS } from './tier-pins.js';
 import { makePlan } from './helpers/factories.js';
@@ -223,6 +229,114 @@ describe('pending audits at runner shutdown', () => {
       if (watchdogTimer) clearTimeout(watchdogTimer);
       await handle?.shutdown();
       closeStoreHandles();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// The seed copy leaves out node_modules at every depth; the launch receipt
+// names the package roots the executor has to reinstall. They are read from
+// the seed SOURCE on the host, never from the routing inventory, whose 160-entry
+// cut stopped partway through browser/ in run 2f2643d5 (2026-10-26).
+describe('package roots of a seeded run', () => {
+  const readRunId = '0f0e0d0c-0b0a-4908-8706-050403020100';
+  const writeSeed = (seed: string): void => {
+    mkdirSync(join(seed, 'node_modules', 'x'), { recursive: true });
+    writeFileSync(join(seed, 'package.json'), '{"name":"app","scripts":{"test:browser":"vitest run"}}');
+    writeFileSync(join(seed, 'package-lock.json'), '{"lockfileVersion":3}');
+    writeFileSync(join(seed, 'node_modules', 'x', 'package.json'), '{}');
+    // More root entries than the routing reader's cap, whatever order the filesystem reads them in.
+    for (let i = 0; i < 200; i++) writeFileSync(join(seed, `note-${String(i).padStart(3, '0')}.md`), `note ${i}`);
+    mkdirSync(join(seed, 'browser', 'node_modules', 'playwright'), { recursive: true });
+    writeFileSync(join(seed, 'browser', 'package.json'), '{"dependencies":{"playwright":"1.55.1"}}');
+    writeFileSync(join(seed, 'browser', 'package-lock.json'), '{"lockfileVersion":3}');
+    writeFileSync(join(seed, 'browser', 'node_modules', 'playwright', 'package.json'), '{}');
+    mkdirSync(join(seed, 'tests', 'fixtures', 'app'), { recursive: true });
+    writeFileSync(join(seed, 'tests', 'fixtures', 'app', 'package.json'), '{"name":"fixture"}');
+    const readRunCopy = join(seed, '.atoma-runs', 'node_modules', readRunId);
+    mkdirSync(readRunCopy, { recursive: true });
+    writeFileSync(join(readRunCopy, 'package.json'), '{}');
+    writeFileSync(join(readRunCopy, 'package-lock.json'), '{}');
+  };
+  const expectedRoots = [
+    { dir: '.', lockfile: 'package-lock.json' },
+    { dir: 'browser', lockfile: 'package-lock.json' },
+    { dir: 'tests/fixtures/app', lockfile: null },
+  ];
+  const launch = async (root: string, opts: Parameters<typeof startTask>[1] = {}): Promise<{ trace: VizRun; task: Task }> => {
+    const runs = join(root, 'runs');
+    for (const [key, value] of Object.entries({ ...OLLAMA_PINS,
+      ATOMA_DB_PATH: join(root, 'store.db'), ATOMA_LEDGER_DB: join(root, 'store.db'),
+      ATOMA_SKILLS_DIR: join(root, 'skills'), ATOMA_RUNS_DIR: runs,
+      ATOMA_BUILD_WORKSPACE: join(root, 'workspace'), ATOMA_BUILD_TIMEOUT_MS: '60000',
+      ATOMA_CONTAINER: '0', ATOMA_REQUIRE_ISOLATION: '0', ATOMA_PREFILTER_CACHE: '0',
+    })) vi.stubEnv(key, value);
+    resetHostLifecycleSnapshotForTests();
+    for (const method of ['log', 'warn', 'error'] as const) vi.spyOn(console, method).mockImplementation(() => {});
+    vi.spyOn(jevModule, 'jevDeciderFromEnv').mockReturnValue({ choose: async () => null, approve: async () => null, twin: async () => null });
+    vi.mocked(buildTierClients).mockReturnValue({ ollama: { complete: async () => ({
+      text: JSON.stringify({ action: 'reuse', name: 'Meristem', reasoning: 'fixture' }),
+      usage: { inputTokens: 0, outputTokens: 0 }, stopReason: 'end_turn',
+    }) } });
+    let rootTask: Task | undefined;
+    vi.spyOn(L3Atom.prototype, 'handle').mockImplementation(async (task) => {
+      rootTask ??= task;
+      throw new Error('stop after launch');
+    });
+    let handle: Awaited<ReturnType<typeof startTask>> | undefined;
+    try {
+      handle = await startTask(['--seed', join(root, 'seed'), '--no-learn-skills', '--no-direct-skills', 'Repair the browser suite'], opts);
+      await handle.settled;
+    } finally { await handle?.shutdown(); closeStoreHandles(); }
+    const path = readdirSync(runs).find(name => name.endsWith('.json') && name !== 'index.json')!;
+    return { trace: JSON.parse(readFileSync(join(runs, path), 'utf8')) as VizRun, task: rootTask! };
+  };
+
+  it('lists every package root of the seed past the routing cap, and still copies no installed tree', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-package-roots-'));
+    try {
+      writeSeed(join(root, 'seed'));
+      const { trace, task } = await launch(root);
+      const preparation = workspacePreparationSchema.parse(trace.task.inputs?.['workspacePreparation']);
+      expect(preparation).toEqual({ dependencies: 'excluded-from-seed', packageRoots: expectedRoots, packageRootsComplete: true });
+      expect(task.inputs?.['workspacePreparation']).toEqual(preparation);
+      // The routing inventory this replaces was cut before browser/.
+      const repository = trace.task.inputs?.['startingRepository'] as { files: string[]; incomplete: boolean };
+      expect(repository.incomplete).toBe(true);
+      expect(repository.files).not.toContain('browser/package.json');
+      expect(JSON.stringify(preparation)).not.toContain(readRunId);
+      const workspace = join(root, 'workspace');
+      expect(existsSync(join(workspace, 'browser', 'package-lock.json'))).toBe(true);
+      expect(existsSync(join(workspace, 'node_modules'))).toBe(false);
+      expect(existsSync(join(workspace, 'browser', 'node_modules'))).toBe(false);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it('reads the roots of a Compute run from the seed on the server, never across the workspace channel', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-compute-roots-')));
+    const seed = join(root, 'seed');
+    const device = join(root, 'device-current');
+    writeSeed(seed);
+    const handler = workspaceCommandHandler(localWorkspaceRuntime({ root: device, sourceRoot: join(root, 'device-private'), log: () => {} }));
+    const commands: string[] = [];
+    const server = await serveComputeBridge(async call => {
+      commands.push(JSON.stringify(call));
+      if (call.channel !== 'workspace') throw new Error('Unexpected bridge call');
+      return handler(call.command);
+    });
+    let runtime: Awaited<ReturnType<typeof computeRunnerOptions>> | undefined;
+    try {
+      runtime = await computeRunnerOptions(server.address);
+      const { trace } = await launch(root, { workspaceRuntime: runtime.workspaceRuntime, prepareWorkspaceSources: runtime.prepareWorkspaceSources,
+        createToolBackend: async () => localToolBackend({ workspaceRoot: device, logger: { debug() {}, info() {}, warn() {}, error() {} } }) });
+      expect(workspacePreparationSchema.parse(trace.task.inputs?.['workspacePreparation']))
+        .toEqual({ dependencies: 'excluded-from-seed', packageRoots: expectedRoots, packageRootsComplete: true });
+      expect(commands.length).toBeGreaterThan(0);
+      expect(commands.join('\n')).not.toContain(seed);
+      expect(existsSync(join(device, 'browser', 'package.json'))).toBe(true);
+      expect(existsSync(join(device, 'browser', 'node_modules'))).toBe(false);
+    } finally {
+      runtime?.close(); await server.close(); await handler.close();
       rmSync(root, { recursive: true, force: true });
     }
   });

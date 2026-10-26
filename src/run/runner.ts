@@ -87,6 +87,7 @@ import { selectTissue, tissueForRun } from './tissueRouting.js';
 import { capturePlatformTissueAuthor, platformTissueAuthor, type TissueAuthor } from './tissueAuthor.js';
 import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
 import { localWorkspaceRuntime } from './workspaceRuntime.js';
+import { launchWorkspacePreparation } from './workspace.js';
 import { deepenBackend } from './deepenBackend.js';
 import { timed, observeTiming } from '../core/runtimeTiming.js';
 import { restoreWorkspaceExport } from './workspaceImport.js';
@@ -1479,8 +1480,12 @@ async function startTaskInternal(
     ...(savedCheckpoint?.root?.inputs ? { inputs: savedCheckpoint.root.inputs }
       : routingRepository ? { inputs: { startingRepository: routingRepository } } : {}),
   };
+  // The package roots are read from the seed SOURCE on this host (Compute
+  // included), never from the routing inventory; a resume keeps the roots its
+  // checkpoint saved and changes only `dependencies`.
   const withLanding = withPreviousRunInputs({ ...builtTask, inputs: { ...builtTask.inputs,
-    workspacePreparation: { dependencies: args.resume ? 'preserved-unverified' : seedRoot ? 'excluded-from-seed' : 'unverified' },
+    workspacePreparation: launchWorkspacePreparation({ resume: Boolean(args.resume),
+      saved: builtTask.inputs?.['workspacePreparation'], seedRoot }),
   } }, process.env, connectorLaunch, readRuns);
   const task = args.depth ? {
     ...withLanding,

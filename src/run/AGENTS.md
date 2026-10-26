@@ -405,6 +405,19 @@ Neighbours:
   disabled pause, questions and resume for every seeded Node project. What
   the publication inventory omits as byte-less (`byteLessWorkspaceEntry`: a
   dangling link, a socket, a FIFO) is never seeded, for the same reason.
+- WHO REINSTALLS: the executor, told the roots (2026-10-26). `packageRootsOf`
+  reads the seed SOURCE on this host, Compute included (sorted entries, only
+  package.json and lockfile names; no `node_modules`, dot-directory, omitted
+  build tree or link; depth 4, 2,000 directories, 20 roots, `complete` false
+  when cut), and the receipt `inputs.workspacePreparation`
+  ([src/contracts](../contracts/workspacePreparation.ts)) lists them; a resume
+  merges `preserved-unverified` into the saved one. Never derived from the
+  routing inventory: its 160-entry cut, in read order, dropped `browser/` in
+  run 2f2643d5. Every reader gets the fact, launch-time and not a plan
+  requirement; only an atom DECLARING run_shell gets the instruction
+  (`hasShell`, src/atoms/taskContext.ts): one guarded run_shell command,
+  root first, frozen to each lockfile, skipping a present tree (`npm ci`
+  deletes it, and a parallel sibling may have installed it); never evidence.
 - `ATOMA_ACCEPTANCE_SPEC` is read and re-digested at LAUNCH
   (`readAcceptanceSpec`): unreadable, or present on a run that is not
   depth-routed, is a `RunnerConfigError` before any model call. Present, it
@@ -444,6 +457,15 @@ Neighbours:
   its executable bit while its sha256 matched; the mode never stopped the
   workspace's owner's shell. The write tools refuse a copy, and the worker
   mounts the copies read-only instead (the kernel stops its shell).
+
+- A host-owned dependency install (a tools-owned frozen install in the
+  worker before the first branch) is DEFERRED, not refused (2026-10-26): it
+  needs a worker rollout, runs install scripts for the project and network on
+  every seeded run. Pre-registered: over at least 5 seeded Node runs on
+  Compute 0.4.141 or later, more than 1 executor whose first command needing
+  a listed root runs before that root is installed, or any concurrent-install
+  collision between branches, builds it. A failure-text hint
+  (`Cannot find module`) is the vocabulary-frozen detector class: rejected.
 
 - Replaying from the last checkpoint after an interrupted phase is refused:
   external effects and phase credits are not rolled back with files. Persist
