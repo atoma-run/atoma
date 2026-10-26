@@ -312,6 +312,22 @@ describe('package roots of a seeded run', () => {
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
+  // Four nested 150-character names put a root past the receipt's 512-character
+  // `dir`: its schema parse threw at launch and the run never started (review 2026-10-26).
+  it('launches a seed whose package root path a receipt cannot hold, with the scan marked incomplete', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-long-roots-'));
+    try {
+      writeSeed(join(root, 'seed'));
+      const long = join(root, 'seed', ...Array.from({ length: 4 }, (_, i) => `${String(i)}${'n'.repeat(149)}`));
+      mkdirSync(long, { recursive: true });
+      writeFileSync(join(long, 'package.json'), '{}');
+      const { trace, task } = await launch(root);
+      expect(workspacePreparationSchema.parse(task.inputs?.['workspacePreparation']))
+        .toEqual({ dependencies: 'excluded-from-seed', packageRoots: expectedRoots, packageRootsComplete: false });
+      expect(trace.task.inputs?.['workspacePreparation']).toEqual(task.inputs?.['workspacePreparation']);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
   it('reads the roots of a Compute run from the seed on the server, never across the workspace channel', async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-compute-roots-')));
     const seed = join(root, 'seed');

@@ -410,16 +410,23 @@ Neighbours:
 - WHO REINSTALLS: the executor, told the roots (2026-10-26). `packageRootsOf`
   reads the seed SOURCE on this host, Compute included (sorted entries, only
   package.json and lockfile names; no `node_modules`, dot-directory, omitted
-  build tree or link; depth 4, 2,000 directories, 20 roots, `complete` false
-  when cut), and the receipt `inputs.workspacePreparation`
+  build tree or link; depth 4, 2,000 directories, 20 roots, a 512-character
+  path, `complete` false when cut; a member of a root's package.json
+  `workspaces` or `pnpm-workspace.yaml` is left to that root, lockfile or
+  not), and the receipt `inputs.workspacePreparation`
   ([src/contracts](../contracts/workspacePreparation.ts)) lists them; a resume
   merges `preserved-unverified` into the saved one. Never derived from the
   routing inventory: its 160-entry cut, in read order, dropped `browser/` in
   run 2f2643d5. Every reader gets the fact, launch-time and not a plan
   requirement; only an atom DECLARING run_shell gets the instruction
-  (`hasShell`, src/atoms/taskContext.ts): one guarded run_shell command,
-  root first, frozen to each lockfile, skipping a present tree (`npm ci`
-  deletes it, and a parallel sibling may have installed it); never evidence.
+  (`hasShell`, src/atoms/taskContext.ts): one guarded run_shell command at
+  the maximum `timeoutMs`, root first, frozen to each lockfile, skipping a
+  tree whose install completed (`node_modules/.package-lock.json`, which npm
+  writes last: a tree killed at the timeout is reinstalled; `npm ci` deletes
+  a present tree, and a parallel sibling may have installed it); a nested
+  root without a lockfile (a fixture, a template) stays out of that chain,
+  installed only when a command needs it; the no-rewrite rule binds these
+  preparation installs, never a task that changes a dependency; never evidence.
 - `ATOMA_ACCEPTANCE_SPEC` is read and re-digested at LAUNCH
   (`readAcceptanceSpec`): unreadable, or present on a run that is not
   depth-routed, is a `RunnerConfigError` before any model call. Present, it
@@ -466,8 +473,13 @@ Neighbours:
   every seeded run. Pre-registered: over at least 5 seeded Node runs on
   Compute 0.4.141 or later, more than 1 executor whose first command needing
   a listed root runs before that root is installed, or any concurrent-install
-  collision between branches, builds it. A failure-text hint
+  collision between branches, builds it. A collision is counted from receipt
+  TIMING: two install commands from different branches whose run_shell
+  receipts overlap in time, never from failure text. A failure-text hint
   (`Cannot find module`) is the vocabulary-frozen detector class: rejected.
+  Until then a sibling still installing is a known residual race (the marker
+  is absent while it runs); a lock inside the model-run command is refused,
+  since a SIGKILL at the timeout leaves it held for every later sibling.
 
 - Replaying from the last checkpoint after an interrupted phase is refused:
   external effects and phase credits are not rolled back with files. Persist

@@ -26,10 +26,16 @@ export type PackageLockfile = z.infer<typeof packageLockfileSchema>;
 
 /** At most this many roots are listed; a scan that found more is incomplete. */
 export const MAX_PACKAGE_ROOTS = 20;
+/**
+ * The longest `dir` a receipt holds. The scan never goes below a directory
+ * whose path is longer and marks itself incomplete instead: four nested
+ * 150-character names made this parse throw at launch (review 2026-10-26).
+ */
+export const MAX_PACKAGE_ROOT_DIR_LENGTH = 512;
 
 export const packageRootSchema = z.object({
   /** Workspace-relative POSIX path; '.' is the repository root. */
-  dir: z.string().min(1).max(512),
+  dir: z.string().min(1).max(MAX_PACKAGE_ROOT_DIR_LENGTH),
   lockfile: packageLockfileSchema.nullable(),
 }).strict();
 export type PackageRoot = z.infer<typeof packageRootSchema>;

@@ -5,6 +5,7 @@ import { READ_RUNS_GUIDANCE } from '../contracts/readRuns.js';
 import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
 import { PROBE_REVIEW_GUIDANCE } from '../contracts/probeManifest.js';
 import { workspacePreparationSchema, type PackageRoot } from '../contracts/workspacePreparation.js';
+import { SHELL_TIMEOUT_MAX_MS } from '../contracts/commandTimeouts.js';
 
 /** Stable trace boundary between a task's multiline description and runtime guidance. */
 export const TASK_CONTEXT_HEADER = '== TASK CONTEXT ==';
@@ -142,18 +143,28 @@ export function planFeedbackLines(feedback: readonly string[] | undefined): stri
 const SHELL_SAFE_PATH = /^[A-Za-z0-9._/@+-]+$/;
 const shellPath = (path: string): string => SHELL_SAFE_PATH.test(path) ? path : `'${path.replace(/'/g, `'\\''`)}'`;
 const NPM_LOCKFILES: ReadonlySet<string> = new Set(['package-lock.json', 'npm-shrinkwrap.json']);
+/**
+ * npm's hidden lockfile, written into node_modules only when an install
+ * FINISHES (npm ci and npm install --no-save alike, checked on npm 11). A tree
+ * an install left behind when it was killed at its run_shell timeout, or
+ * failed, has none, so the guard reinstalls it instead of skipping it.
+ */
+const INSTALL_MARKER = 'node_modules/.package-lock.json';
 
 /**
  * The guarded install of every npm-installable listed root, root first: each
- * one runs only where its node_modules is absent, because a parallel sibling
- * may already have installed it and `npm ci` deletes a present tree first.
+ * one runs only where its install did not complete, because a parallel
+ * sibling may already have installed it and `npm ci` deletes a present tree
+ * first. A nested root without a lockfile (a fixture, a template, an example)
+ * is never part of it: installed from the registry unpinned, a placeholder
+ * dependency would stop the `&&` chain before the real roots after it.
  */
 export function packageRootInstallCommand(roots: readonly PackageRoot[]): string | null {
   const steps = roots.flatMap((root) => {
-    if (root.lockfile !== null && !NPM_LOCKFILES.has(root.lockfile)) return [];
+    if (root.lockfile === null ? root.dir !== '.' : !NPM_LOCKFILES.has(root.lockfile)) return [];
     const nested = root.dir !== '.';
     const install = `${root.lockfile === null ? 'npm install --no-save' : 'npm ci --include=dev'}${nested ? ` --prefix ${shellPath(root.dir)}` : ''}`;
-    return [`(test -d ${nested ? shellPath(`${root.dir}/node_modules`) : 'node_modules'} || ${install})`];
+    return [`(test -f ${nested ? shellPath(`${root.dir}/${INSTALL_MARKER}`) : INSTALL_MARKER} || ${install})`];
   });
   return steps.length > 0 ? steps.join(' && ') : null;
 }
@@ -174,7 +185,7 @@ export function workspacePreparationGuidance(value: unknown, hasShell: boolean):
   const incomplete = preparation?.packageRootsComplete === false;
   const listed = roots?.map(root => `${root.dir} (${root.lockfile ?? 'no lockfile'})`).join(', ');
   const fact = [
-    'workspacePreparation is the host\'s launch-time receipt, not current installation state, and not a plan requirement: no plan or phase is judged on an install step.',
+    'workspacePreparation is the host\'s launch-time receipt, not current installation state, and not a plan requirement: no plan or phase is judged on the launch preparation install.',
     'excluded-from-seed means installed dependencies (node_modules at every depth) were deliberately not copied from the seed; preserved-unverified means a resumed workspace kept whatever was installed, unchecked.',
     roots === undefined ? '' : roots.length > 0
       ? `Package roots the seed held at launch ('.' is the repository root): ${listed}.`
@@ -189,13 +200,15 @@ export function workspacePreparationGuidance(value: unknown, hasShell: boolean):
   }
   const command = packageRootInstallCommand(roots);
   const foreign = roots.filter(root => root.lockfile !== null && !NPM_LOCKFILES.has(root.lockfile));
+  const unpinned = roots.filter(root => root.lockfile === null && root.dir !== '.');
   return [fact,
-    'Before the first command that resolves modules from a listed root (its scripts or tests, or tests importing <dir>/node_modules), run ONE run_shell command that installs every listed root whose <dir>/node_modules is absent, root first, from its lockfile in frozen mode, and never runs a frozen install over a tree that is present: a parallel sibling may already have installed it, and npm ci deletes the tree before installing.',
+    `Before the first command that resolves modules from a listed root (its scripts or tests, or tests importing <dir>/node_modules), run ONE run_shell command, with timeoutMs ${SHELL_TIMEOUT_MAX_MS}, that installs, root first, every listed root with a lockfile, and the repository root without one, whose install did not complete (no <dir>/${INSTALL_MARKER}), frozen to its lockfile, and never runs a frozen install over a completed tree: a parallel sibling may already have installed it, and npm ci deletes the tree before installing. An install that timed out or failed leaves a broken tree without that file: the same guarded command reinstalls it.`,
     command ? `For the listed roots: ${command}` : '',
-    'A root without a lockfile installs with npm install --no-save; no install rewrites a lockfile.',
+    unpinned.length > 0 ? `${unpinned.map(root => root.dir).join(', ')} hold a package.json without a lockfile (possibly a fixture, template or example): install one with npm install --no-save --prefix <dir> only when a command you run resolves modules from it.` : '',
+    'These preparation installs never rewrite a lockfile; the repository root without one installs with npm install --no-save. When the task itself adds, removes or upgrades a dependency, change package.json and its lockfile together through the package manager (npm install <pkg> --prefix <dir>). When a frozen install fails because package.json and its lockfile disagree, regenerate that lockfile only when the task covers that root\'s dependencies; otherwise report the root as not installed, with the error.',
     foreign.length > 0 ? `${foreign.map(root => `${root.dir} (${root.lockfile})`).join(', ')} uses another package manager: install it with that manager's frozen-lockfile mode when the shell allows it, otherwise report it as not installed.` : '',
     incomplete ? 'A root not listed is installed the same way, only when a command needs it.' : '',
-    'Once a root is installed, run its checks through its local runner (npm test, npm run <script>, its node_modules/.bin), never an unpinned npx or npm exec download. Reinstall a present tree only after its lockfile changed or a failure shows it broken. An install is never evidence and is never recorded as a probe.',
+    'Once a root is installed, run its checks through its local runner (npm test, npm run <script>, its node_modules/.bin), never an unpinned npx or npm exec download. Reinstall a completed tree only after its lockfile changed or a failure shows it broken. An install is never evidence and is never recorded as a probe.',
     DEPENDENCY_CARRY_OVER,
   ].filter(Boolean).join(' ');
 }

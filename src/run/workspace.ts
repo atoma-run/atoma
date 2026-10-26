@@ -5,7 +5,7 @@ import { inheritProbeManifest, PROBE_MANIFEST_FILENAME } from '../contracts/prob
 import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
 import { byteLessWorkspaceEntry } from '../projects/artifacts.js';
 import type { DeliveredSnapshot, StartingSnapshot, WorkspaceFileSnapshot } from '../contracts/startingWorkspace.js';
-import { MAX_PACKAGE_ROOTS, workspacePreparationSchema, type PackageLockfile, type PackageRoot, type WorkspacePreparation } from '../contracts/workspacePreparation.js';
+import { MAX_PACKAGE_ROOT_DIR_LENGTH, MAX_PACKAGE_ROOTS, workspacePreparationSchema, type PackageLockfile, type PackageRoot, type WorkspacePreparation } from '../contracts/workspacePreparation.js';
 import { OMIT_DIRECTORIES } from './routingRepository.js';
 
 /**
@@ -211,8 +211,12 @@ const LOCKFILE_PRECEDENCE: readonly PackageLockfile[] = ['npm-shrinkwrap.json', 
  * launch — local and Compute runs alike, since both hold `seedRoot` as a host
  * path. A directory is a root when it holds a regular `package.json`; its
  * `lockfile` is the one its install is frozen to, or null. A package.json
- * without a lockfile that a lockfile root's `workspaces` field covers is that
- * root's member, installed by its install, and is not listed.
+ * without a lockfile that a listed root's workspace covers is that root's
+ * member, installed by its install, and is not listed. A workspace is read
+ * from the root's package.json `workspaces` and from its `pnpm-workspace.yaml`,
+ * whatever the root's lockfile: a lockfile-less npm workspace root installs
+ * its members itself, and a pnpm member installed standalone with npm fails
+ * on `workspace:` dependencies (review 2026-10-26).
  *
  * Entries are read SORTED and only the names package.json and the lockfiles
  * are looked at, so the list never depends on the filesystem's read order.
@@ -223,8 +227,8 @@ const LOCKFILE_PRECEDENCE: readonly PackageLockfile[] = ['npm-shrinkwrap.json', 
  * `.atoma-runs/node_modules/<id>/` carry other runs' manifests; also
  * `.atoma-scratch` and `.git`), the routing reader's omitted build and vendor
  * trees, and links, which are never followed. Bounded by depth and by
- * directories read; `complete` is false when a bound, an unreadable directory
- * or the root cap cut it.
+ * directories read; `complete` is false when a bound, an unreadable directory,
+ * a path longer than a receipt holds or the root cap cut it.
  */
 export function packageRootsOf(seedRoot: string): { roots: PackageRoot[]; complete: boolean } {
   const roots: PackageRoot[] = [];
@@ -255,33 +259,39 @@ export function packageRootsOf(seedRoot: string): { roots: PackageRoot[]; comple
         if (roots.length >= MAX_PACKAGE_ROOTS) { complete = false; break; }
         roots.push({ dir, lockfile });
       }
-      if (lockfile !== null) {
-        const patterns = workspacePatterns(join(seedRoot, next.relative, 'package.json'));
+      if (!member) {
+        const patterns = [
+          ...workspacePatterns(join(seedRoot, next.relative, 'package.json')),
+          ...(files.has('pnpm-workspace.yaml') ? pnpmWorkspacePatterns(join(seedRoot, next.relative, 'pnpm-workspace.yaml')) : []),
+        ];
         if (patterns.length > 0) workspaces.push({ dir, patterns });
       }
     }
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith('.') || OMIT_DIRECTORIES.has(entry.name)) continue;
       if (next.depth >= PACKAGE_ROOT_MAX_DEPTH) { complete = false; continue; }
-      pending.push({ relative: next.relative ? `${next.relative}/${entry.name}` : entry.name, depth: next.depth + 1 });
+      const relative = next.relative ? `${next.relative}/${entry.name}` : entry.name;
+      // No root below it fits the receipt's schema.
+      if (relative.length > MAX_PACKAGE_ROOT_DIR_LENGTH) { complete = false; continue; }
+      pending.push({ relative, depth: next.depth + 1 });
     }
   }
   return { roots, complete };
 }
 
-/** A lockfile root's `workspaces` globs, as anchored matchers over member paths; none when unreadable. */
-function workspacePatterns(manifestPath: string): RegExp[] {
-  let declared: unknown;
+/** A regular file within the manifest cap, as text; null when absent, a link or unreadable. */
+function boundedManifestText(path: string): string | null {
   try {
-    const stat = lstatSync(manifestPath);
-    if (!stat.isFile() || stat.size > PACKAGE_MANIFEST_MAX_BYTES) return [];
-    declared = (JSON.parse(readFileSync(manifestPath, 'utf8')) as { workspaces?: unknown } | null)?.workspaces;
+    const stat = lstatSync(path);
+    if (!stat.isFile() || stat.size > PACKAGE_MANIFEST_MAX_BYTES) return null;
+    return readFileSync(path, 'utf8');
   } catch {
-    return [];
+    return null;
   }
-  const globs: unknown[] = Array.isArray(declared) ? declared
-    : declared && typeof declared === 'object' && Array.isArray((declared as { packages?: unknown }).packages)
-      ? (declared as { packages: unknown[] }).packages : [];
+}
+
+/** Workspace globs as anchored matchers over member paths; negations are left out. */
+function globMatchers(globs: readonly unknown[]): RegExp[] {
   return globs.flatMap((glob) => {
     if (typeof glob !== 'string' || glob.startsWith('!')) return [];
     const normalized = glob.replace(/^\.\//, '').replace(/\/+$/, '');
@@ -290,6 +300,49 @@ function workspacePatterns(manifestPath: string): RegExp[] {
       : part.split('*').map(text => text.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('/');
     return [new RegExp(`^${source}$`)];
   });
+}
+
+/** A package.json's `workspaces` globs, as anchored matchers over member paths; none when unreadable. */
+function workspacePatterns(manifestPath: string): RegExp[] {
+  const text = boundedManifestText(manifestPath);
+  if (text === null) return [];
+  let declared: unknown;
+  try {
+    declared = (JSON.parse(text) as { workspaces?: unknown } | null)?.workspaces;
+  } catch {
+    return [];
+  }
+  return globMatchers(Array.isArray(declared) ? declared
+    : declared && typeof declared === 'object' && Array.isArray((declared as { packages?: unknown }).packages)
+      ? (declared as { packages: unknown[] }).packages : []);
+}
+
+/**
+ * A `pnpm-workspace.yaml`'s `packages` globs, read by a line reader (no YAML
+ * dependency): the block list under the top-level `packages:` key, or a
+ * one-line flow list. When none can be read the whole subtree counts as the
+ * workspace: an npm install inside a pnpm workspace is never right, and the
+ * root's own pnpm install covers its members.
+ */
+function pnpmWorkspacePatterns(path: string): RegExp[] {
+  const text = boundedManifestText(path);
+  const globs: string[] = [];
+  const unquote = (value: string): string => value.trim().replace(/^(['"])(.*)\1$/, '$2');
+  let inPackages = false;
+  for (const line of (text ?? '').split(/\r?\n/)) {
+    const content = line.replace(/\s+#.*$/, '');
+    if (/^\s*(#|$)/.test(content)) continue;
+    const item = inPackages ? /^\s*-\s+(.+)$/.exec(content) : null;
+    if (item) { globs.push(unquote(item[1]!)); continue; }
+    if (/^\S/.test(content)) {
+      const key = /^packages\s*:\s*(.*)$/.exec(content);
+      inPackages = key !== null;
+      const flow = key ? /^\[(.*)\]$/.exec(key[1]!.trim()) : null;
+      if (flow) globs.push(...flow[1]!.split(',').map(unquote).filter(Boolean));
+    }
+  }
+  const patterns = globMatchers(globs);
+  return patterns.length > 0 ? patterns : [/^.*$/];
 }
 
 /**

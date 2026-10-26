@@ -3,9 +3,10 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { launchWorkspacePreparation, packageRootsOf, PACKAGE_ROOT_MAX_DEPTH, PACKAGE_ROOT_MAX_DIRECTORIES } from '../src/run/workspace.js';
-import { MAX_PACKAGE_ROOTS, workspacePreparationSchema, type WorkspacePreparation } from '../src/contracts/workspacePreparation.js';
+import { MAX_PACKAGE_ROOT_DIR_LENGTH, MAX_PACKAGE_ROOTS, workspacePreparationSchema, type WorkspacePreparation } from '../src/contracts/workspacePreparation.js';
 import { delegatedTaskContext, packageRootInstallCommand, taskContextLines, workspacePreparationGuidance } from '../src/atoms/taskContext.js';
 import { undeclaredToolMentions } from '../src/atoms/verdict.js';
+import { SHELL_TIMEOUT_MAX_MS } from '../src/contracts/commandTimeouts.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import type { Task } from '../src/core/types.js';
 import { jsonText, makeCtx } from './helpers.js';
@@ -104,6 +105,52 @@ describe('packageRootsOf: the package roots of a seed source', () => {
   it('reports an unreadable seed as incomplete, never as a seed without roots', () => {
     expect(packageRootsOf(join(tmpdir(), 'atoma-no-such-seed-0f0e0d0c'))).toEqual({ complete: false, roots: [] });
   });
+
+  // A pnpm member installed standalone with npm fails on `workspace:*`, and a
+  // member of a lockfile-less npm workspace installed with --prefix never sees
+  // its sibling packages (review 2026-10-26).
+  it('leaves the members of a pnpm workspace to the pnpm root, which leaves npm nothing to install', () => {
+    const root = seed({
+      'package.json': '{"name":"mono"}', 'pnpm-lock.yaml': '',
+      'pnpm-workspace.yaml': "# workspace\npackages:\n  - 'packages/*'   # libraries\n  - \"apps/**\"\n  - '!**/test/**'\ncatalog:\n  react: ^18\n",
+      'packages/a/package.json': '{"dependencies":{"@x/shared":"workspace:*"}}',
+      'apps/web/site/package.json': '{}', 'tools/cli/package.json': '{}',
+    });
+    const { roots: found } = packageRootsOf(root);
+    expect(found).toEqual([{ dir: '.', lockfile: 'pnpm-lock.yaml' }, { dir: 'tools/cli', lockfile: null }]);
+    expect(packageRootInstallCommand(found.filter(entry => entry.dir === '.'))).toBeNull();
+  });
+
+  it('reads a flow or unindented pnpm list, and takes the whole subtree when it names no package', () => {
+    const flow = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': "packages: ['libs/*']\n",
+      'libs/one/package.json': '{}', 'other/package.json': '{}' });
+    expect(packageRootsOf(flow).roots.map(entry => entry.dir)).toEqual(['.', 'other']);
+    const flat = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': 'packages:\n- libs/*\n',
+      'libs/one/package.json': '{}', 'other/package.json': '{}' });
+    expect(packageRootsOf(flat).roots.map(entry => entry.dir)).toEqual(['.', 'other']);
+    const settingsOnly = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': 'onlyBuiltDependencies:\n  - esbuild\n',
+      'libs/one/package.json': '{}', 'other/deep/package.json': '{}', 'own/package.json': '{}', 'own/package-lock.json': '{}' });
+    expect(packageRootsOf(settingsOnly).roots).toEqual([{ dir: '.', lockfile: 'pnpm-lock.yaml' }, { dir: 'own', lockfile: 'package-lock.json' }]);
+  });
+
+  it('leaves the members of a lockfile-less npm workspace to its root install', () => {
+    const root = seed({
+      'package.json': JSON.stringify({ workspaces: ['packages/*'] }),
+      'packages/a/package.json': '{"dependencies":{"b":"1.0.0"}}', 'packages/b/package.json': '{"name":"b","version":"1.0.0"}',
+    });
+    const { roots: found } = packageRootsOf(root);
+    expect(found).toEqual([{ dir: '.', lockfile: null }]);
+    expect(packageRootInstallCommand(found)).toBe('(test -f node_modules/.package-lock.json || npm install --no-save)');
+  });
+
+  it('drops a directory whose path a receipt cannot hold and marks the scan incomplete, and the launch receipt still parses', () => {
+    const long = Array.from({ length: 4 }, (_, i) => `${String(i)}${'n'.repeat(149)}`).join('/');
+    expect(long.length).toBeGreaterThan(MAX_PACKAGE_ROOT_DIR_LENGTH);
+    const root = seed({ 'package.json': '{}', 'package-lock.json': '{}', [`${long}/package.json`]: '{}' });
+    expect(packageRootsOf(root)).toEqual({ complete: false, roots: [{ dir: '.', lockfile: 'package-lock.json' }] });
+    expect(launchWorkspacePreparation({ resume: false, seedRoot: root })).toEqual({ dependencies: 'excluded-from-seed',
+      packageRoots: [{ dir: '.', lockfile: 'package-lock.json' }], packageRootsComplete: false });
+  });
 });
 
 describe('launchWorkspacePreparation: the launch receipt', () => {
@@ -132,16 +179,26 @@ const receipt: WorkspacePreparation = { dependencies: 'excluded-from-seed', pack
   { dir: '.', lockfile: 'package-lock.json' }, { dir: 'browser', lockfile: 'package-lock.json' },
   { dir: 'tests/fixtures/app', lockfile: null }, { dir: 'web', lockfile: 'pnpm-lock.yaml' },
 ] };
-const BROWSER_INSTALL = '(test -d browser/node_modules || npm ci --include=dev --prefix browser)';
+const BROWSER_INSTALL = '(test -f browser/node_modules/.package-lock.json || npm ci --include=dev --prefix browser)';
 
 describe('rendering the receipt', () => {
-  it('composes one guarded install, root first, that never reinstalls a present tree', () => {
+  // npm writes node_modules/.package-lock.json only when an install finishes:
+  // a tree killed at the run_shell timeout has none, and is reinstalled.
+  it('composes one guarded install, root first, that reinstalls only a tree whose install did not complete', () => {
     expect(packageRootInstallCommand(receipt.packageRoots!)).toBe(
-      `(test -d node_modules || npm ci --include=dev) && ${BROWSER_INSTALL} && `
-      + '(test -d tests/fixtures/app/node_modules || npm install --no-save --prefix tests/fixtures/app)');
+      `(test -f node_modules/.package-lock.json || npm ci --include=dev) && ${BROWSER_INSTALL}`);
     expect(packageRootInstallCommand([{ dir: "my app", lockfile: 'package-lock.json' }]))
-      .toBe("(test -d 'my app/node_modules' || npm ci --include=dev --prefix 'my app')");
+      .toBe("(test -f 'my app/node_modules/.package-lock.json' || npm ci --include=dev --prefix 'my app')");
     expect(packageRootInstallCommand([{ dir: 'web', lockfile: 'pnpm-lock.yaml' }])).toBeNull();
+    expect(packageRootInstallCommand([{ dir: '.', lockfile: null }])).toBe('(test -f node_modules/.package-lock.json || npm install --no-save)');
+  });
+
+  it('never chains a nested root without a lockfile, which would stop the real roots after it', () => {
+    const command = packageRootInstallCommand([{ dir: '.', lockfile: 'package-lock.json' },
+      { dir: 'examples/broken', lockfile: null }, { dir: 'web', lockfile: 'package-lock.json' }]);
+    expect(command).toBe('(test -f node_modules/.package-lock.json || npm ci --include=dev) && '
+      + '(test -f web/node_modules/.package-lock.json || npm ci --include=dev --prefix web)');
+    expect(packageRootInstallCommand([{ dir: 'tests/fixtures/app', lockfile: null }])).toBeNull();
   });
 
   it('gives the fact to everyone and the instruction only to a declared shell, naming no other tool', () => {
@@ -149,7 +206,7 @@ describe('rendering the receipt', () => {
     expect(fact).toContain('not a plan requirement');
     expect(fact).toContain('browser (package-lock.json)');
     expect(fact).toContain('tests/fixtures/app (no lockfile)');
-    expect(fact).not.toMatch(/npm ci|test -d|run_shell|install every/);
+    expect(fact).not.toMatch(/npm ci|test -f|run_shell|timeoutMs|install every/);
     // The mechanical undeclared-tool pre-check stays silent even at one mention.
     expect(undeclaredToolMentions(fact, ['read_file', 'write_file', 'validate_html'], { minNonNegated: 1 })).toEqual([]);
     const instruction = workspacePreparationGuidance(receipt, true);
@@ -157,6 +214,13 @@ describe('rendering the receipt', () => {
     expect(instruction).toContain(BROWSER_INSTALL);
     expect(instruction).toContain('ONE run_shell command');
     expect(instruction).toContain('npm ci deletes the tree');
+    expect(instruction).toContain(`with timeoutMs ${SHELL_TIMEOUT_MAX_MS}`);
+    expect(instruction).toContain('An install that timed out or failed leaves a broken tree without that file: the same guarded command reinstalls it.');
+    expect(instruction).toContain('tests/fixtures/app hold a package.json without a lockfile (possibly a fixture, template or example): install one with npm install --no-save --prefix <dir> only when a command you run resolves modules from it.');
+    // Scoped to the preparation installs: a task that changes a dependency changes its lockfile too.
+    expect(instruction).toContain('These preparation installs never rewrite a lockfile');
+    expect(instruction).toContain('When the task itself adds, removes or upgrades a dependency, change package.json and its lockfile together');
+    expect(instruction).not.toContain('no install rewrites a lockfile');
     expect(instruction).toContain('web (pnpm-lock.yaml) uses another package manager');
     expect(instruction).toContain('never an unpinned npx or npm exec download');
     expect(instruction).toContain('never recorded as a probe');
@@ -167,7 +231,7 @@ describe('rendering the receipt', () => {
   it('falls back to the generic preparation for a shell when no root was listed', () => {
     const generic = workspacePreparationGuidance({ dependencies: 'unverified' }, true);
     expect(generic).toContain('Inspect the relevant package roots and lockfiles once');
-    expect(generic).not.toContain('test -d');
+    expect(generic).not.toContain('test -f');
     expect(workspacePreparationGuidance({ dependencies: 'excluded-from-seed', packageRoots: [], packageRootsComplete: true }, false))
       .toContain('The seed held no package root at launch.');
   });
@@ -183,8 +247,8 @@ describe('rendering the receipt', () => {
     expect(shell.split('Package roots the seed held at launch').length - 1).toBe(1);
     const planner = taskContextLines(leaf).join('\n');
     expect(planner).toContain('browser (package-lock.json)');
-    expect(planner).not.toContain('test -d');
-    expect(taskContextLines(leaf, { executor: true }).join('\n')).not.toContain('test -d');
+    expect(planner).not.toContain('test -f');
+    expect(taskContextLines(leaf, { executor: true }).join('\n')).not.toContain('test -f');
   });
 });
 
@@ -206,7 +270,7 @@ describe('the molecule prompts', () => {
     const { plan, execute } = await prompts(['read_file', 'write_file', 'edit_file', 'validate_html', 'start_static_server']);
     for (const prompt of [plan, execute]) {
       expect(prompt).toContain('browser (package-lock.json)');
-      expect(prompt).not.toContain('test -d');
+      expect(prompt).not.toContain('test -f');
       expect(prompt).not.toContain('npm ci');
     }
   });
