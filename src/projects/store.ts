@@ -2707,6 +2707,15 @@ END;
     return row?.current ?? null;
   }
 
+  /** The project answering at `label` now: its assigned label, or `p-<id>` while it has none. */
+  projectAtHostingLabel(label: string): { orgId: string; projectId: string } | null {
+    const legacy = /^p-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(label)?.[1];
+    const row = (legacy
+      ? this.db.prepare('SELECT org_id, project_id FROM projects WHERE project_id = ? AND hosting_subdomain IS NULL').get(legacy)
+      : this.db.prepare('SELECT org_id, project_id FROM projects WHERE hosting_subdomain = ?').get(label)) as { org_id: string; project_id: string } | undefined;
+    return row ? { orgId: row.org_id, projectId: row.project_id } : null;
+  }
+
   /** What choosing this project's hosting label cost; null when no model was paid. */
   getHostingSubdomainReceipt(orgIdInput: string, projectIdInput: string): RunTitleReceipt | null {
     const orgId = organisationIdSchema.parse(orgIdInput);

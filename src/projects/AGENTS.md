@@ -106,6 +106,9 @@ a rename leaves a permanent redirect, never reused ([rules](../../docs/project-h
 (owner, 2026-10-25) is one explicit admin request under Stop's lock and CAS:
 candidate created unstarted, then every `holdsApplicationData` row stopped and
 the candidate reserved, visitors held (`swapping`); failure offers `restore`.
+Health (2026-10-26): `HOSTING_HEALTH.failures` consecutive failed checks, or a
+gone container, fail a ready row; one slow answer journals nothing. A GRANTED
+visitor of an offline project gets 503, anyone else the unknown-address 404.
 
 ## The organisation's MCP servers
 
@@ -738,14 +741,11 @@ acceptance, publication or the immutable child trace.
 
 - Hosted update on acceptance, client-sequenced Stop then Deploy or put-back,
   stateful blue-green: refused ([why](../../docs/project-hosting.md#updating-an-application)).
+  So are a one-probe health verdict and a 503 for strangers (it names live addresses).
 - Reading egress settings, or an ollama destination, from a tenant prompt:
-  refused. They come from the HOST snapshot. An organisation picks ollama
-  MODELS, never an endpoint — a tenant URL would be SSRF from the platform's
-  own process.
+  refused; both come from the HOST snapshot ([tier selectors](#tier-selectors-and-credentials)).
 - A `sub:` selector as a deployment-wide or organisation-wide default:
-  refused whatever the requester's flag, because it is a payer-bearing default
-  nobody chose. The former whole-deployment regime (`ATOMA_LLM=claude-cli`) no
-  longer exists.
+  refused whatever the requester's flag: a payer-bearing default nobody chose.
 - Storing the authority to spend a subscription: refused, and this is the
   sharpest line here. A stored pin is DATA; permission is not storable.
   Authority is re-asked per run through `resolveSubscriptionGrant`, both

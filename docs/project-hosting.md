@@ -38,6 +38,17 @@ workers and document-domain relaxation are disabled. Applications cannot set
 headers that weaken this policy. A stable project address does not carry a
 reusable access credential. Reopen through Atoma after an idle session expires.
 
+Atoma checks each online application every 15 seconds with a request to `/`
+that may take 10 seconds. An application busy with its own work, such as a
+browser collection on one CPU, can miss one: it stays online until three checks
+in a row fail, and a slow answer is neither recorded nor journaled. A container
+that is gone is marked unavailable at once; an application is online again at
+its first good answer. While it is not online (unavailable, stopped or
+starting), a visitor who opened it from Atoma gets a plain "This application is
+temporarily unavailable. Please try again in a moment." page (503,
+`Retry-After: 15`), API requests included, and keeps their access. Anyone else
+gets the answer of an unknown address.
+
 Stop keeps source and project data. Updating a stateful Node application stops
 it before the new version starts (see [Updating an application](#updating-an-application)),
 so two versions never write its data simultaneously.

@@ -17,13 +17,30 @@ import { ensureHostingSubdomain, type HostingSubdomainNamer } from './hostingSub
 const identity = (row: HostedDeployment): HostingIdentity => ({ orgId: row.orgId, projectId: row.projectId, deploymentId: row.deploymentId });
 /** A project's update between stopping its online version and the new one's readiness or failure. */
 interface Swap { orgId: string; projectId: string; browser: boolean; settled: Promise<void>; end(): void }
+/**
+ * How a RUNNING application is judged unavailable (incident 2026-10-26: a
+ * browser application on one CPU, busy in Chromium, missed one 2 s probe; its
+ * row flapped failed/ready every check and the gateway answered 404 to its own
+ * page while it kept working). A check runs every `intervalMs`; its probe waits
+ * `timeoutMs`, under the interval so a sweep of two deployments rarely skips a
+ * tick (a skipped tick is dropped, never queued). Only `failures` consecutive
+ * failed checks mark the row failed: about 30 s of an application not answering
+ * within 10 s, three times. A dead process refuses at once, so it is declared
+ * within three ticks; a container the launcher no longer has fails at once.
+ * Readiness at start keeps its own 2 s probe and 30 s bound.
+ */
+export const HOSTING_HEALTH = { intervalMs: 15_000, timeoutMs: 10_000, failures: 3 };
 
 export class HostingService {
   private healthBusy = false;
+  /** Consecutive failed checks of each ready deployment; reset on success, on any state change, and when the row leaves the listing. */
+  private readonly healthFailures = new Map<string, number>();
   private readonly mutating = new Set<string>();
   private readonly jobs = new Set<Promise<void>>();
   constructor(readonly deps: { store: HostingStore; projects: ProjectStore; previews: PreviewStore;
     launcher: HostingLauncher; domain: string; maxDeployments: number; probe(port: number): Promise<boolean>;
+    /** The periodic check's probe, with its longer timeout (`HOSTING_HEALTH`); absent, `probe`. */
+    healthProbe?(port: number): Promise<boolean>;
     events?: PlatformEventSink;
     /** Proposes the project's address label; absent, the label is derived from its slug and name. */
     namer?: HostingSubdomainNamer;
@@ -57,6 +74,15 @@ export class HostingService {
       if (!urls.has(row.projectId)) urls.set(row.projectId, `https://${this.host(row)}/`);
     }
     return urls;
+  }
+  /**
+   * The project whose CURRENT address is `host`, online or not: its label, or
+   * `p-<id>` while it has none. The gateway asks it only to check a visitor's
+   * grant when nothing serves there; it decides nothing else.
+   */
+  projectAt(host: string): { orgId: string; projectId: string } | null {
+    const suffix = `.${this.deps.domain}`;
+    return host.endsWith(suffix) ? this.deps.projects.projectAtHostingLabel(host.slice(0, -suffix.length)) : null;
   }
   /**
    * Where a retired address now lives: the project's CURRENT address, never
@@ -357,8 +383,12 @@ export class HostingService {
         this.deps.store.update({ ...row, state: 'failed', error: 'interrupted' }, 'starting');
       } else if (row.error !== 'cleanup-failed') {
         const handle = await this.deps.launcher.inspectHosting(identity(row));
-        if (handle && await this.deps.probe(handle.hostPort)) this.deps.store.update({ ...row, ...handle, state: 'ready', error: null }, row.state);
+        const healthy = handle && await this.deps.probe(handle.hostPort).catch(() => false);
+        // A web restart (every deployment of Atoma) is no verdict on a busy
+        // application: a running one that was ready stays so, one failure counted.
+        if (handle && (healthy || row.state === 'ready')) this.deps.store.update({ ...row, ...handle, state: 'ready', error: null }, row.state);
         else this.deps.store.update({ ...row, state: 'failed', error: 'runtime-unavailable', hostPort: null }, row.state);
+        if (handle && !healthy && row.state === 'ready') this.healthFailures.set(row.deploymentId, 1);
       }
     }
     await this.removeUnrecorded();
@@ -379,37 +409,62 @@ export class HostingService {
       if (!live.has(id.deploymentId)) await this.deps.launcher.stopHosting(id).catch(() => undefined);
     }
   }
+  /**
+   * One health check of every running or runtime-unavailable deployment. A
+   * ready row survives `HOSTING_HEALTH.failures - 1` failed checks with its
+   * port, so a busy application changes nothing and journals nothing; a
+   * recovered one is ready again on its first good answer.
+   */
   async refreshHealth(): Promise<void> {
     if (this.healthBusy) return;
     this.healthBusy = true;
     try {
-      for (const row of this.deps.store.list()) {
-        if (this.mutating.has(row.projectId) || (row.state !== 'ready' && row.error !== 'runtime-unavailable')) continue;
+      const rows = this.deps.store.list();
+      const listed = new Set(rows.map(row => row.deploymentId));
+      for (const id of this.healthFailures.keys()) if (!listed.has(id)) this.healthFailures.delete(id);
+      for (const row of rows) {
+        if (this.mutating.has(row.projectId) || (row.state !== 'ready' && row.error !== 'runtime-unavailable')) {
+          this.healthFailures.delete(row.deploymentId); continue;
+        }
         // An unreachable launcher says nothing about the application: it
         // restarts on a release change (src/launcher/releaseWatch.ts) while the
         // containers keep serving. Keep the state; the next check decides.
         let handle: HostingHandle | null;
         try { handle = await this.deps.launcher.inspectHosting(identity(row)); }
         catch { continue; }
-        const healthy = handle && await this.deps.probe(handle.hostPort).catch(() => false);
+        const healthy = !!handle && await (this.deps.healthProbe ? this.deps.healthProbe(handle.hostPort) : this.deps.probe(handle.hostPort)).catch(() => false);
         const current = this.deps.store.list(row.orgId, row.projectId).find(r => r.deploymentId === row.deploymentId);
-        if (this.mutating.has(row.projectId) || current?.state !== row.state) continue;
-        const next = healthy ? { ...row, ...handle, state: 'ready' as const, error: null }
-          : { ...row, state: 'failed' as const, error: 'runtime-unavailable' as const, hostPort: null };
-        // A restarted engine republishes the relay on a new loopback port while
-        // the application stays healthy: the gateway proxies to row.hostPort.
-        if (next.state !== row.state) { this.deps.store.update(next, row.state); this.event(next); }
-        else if (healthy && next.hostPort !== row.hostPort) this.deps.store.update(next, row.state);
+        if (this.mutating.has(row.projectId) || current?.state !== row.state) { this.healthFailures.delete(row.deploymentId); continue; }
+        if (healthy) {
+          this.healthFailures.delete(row.deploymentId);
+          const next = { ...row, ...handle!, state: 'ready' as const, error: null };
+          if (row.state !== 'ready') { this.deps.store.update(next, row.state); this.event(next); }
+          // A restarted engine republishes the relay on a new loopback port while
+          // the application stays healthy: the gateway proxies to row.hostPort.
+          else if (next.hostPort !== row.hostPort) this.deps.store.update(next, row.state);
+          continue;
+        }
+        if (row.state !== 'ready') continue;
+        // A container the launcher no longer has is gone now; a running one that
+        // did not answer in time is one vote.
+        const failures = handle ? (this.healthFailures.get(row.deploymentId) ?? 0) + 1 : HOSTING_HEALTH.failures;
+        if (failures < HOSTING_HEALTH.failures) { this.healthFailures.set(row.deploymentId, failures); continue; }
+        this.healthFailures.delete(row.deploymentId);
+        const next = { ...row, state: 'failed' as const, error: 'runtime-unavailable' as const, hostPort: null };
+        this.deps.store.update(next, row.state); this.event(next);
       }
     } finally { this.healthBusy = false; }
   }
   async idle(): Promise<void> { await Promise.all(this.jobs); }
 }
 
-/** Readiness must reach a successful application response, not a relay-generated 502. */
-export function probeHostedApplication(port: number): Promise<boolean> {
+/**
+ * Readiness must reach a successful application response, not a relay-generated
+ * 502. Two seconds at start; the periodic check passes `HOSTING_HEALTH.timeoutMs`.
+ */
+export function probeHostedApplication(port: number, timeoutMs = 2000): Promise<boolean> {
   return new Promise(resolve => {
-    const req = request({ host: '127.0.0.1', port, path: '/', timeout: 2000 }, res => {
+    const req = request({ host: '127.0.0.1', port, path: '/', timeout: timeoutMs }, res => {
       res.resume(); resolve((res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 400);
     });
     req.on('error', () => resolve(false)); req.on('timeout', () => { req.destroy(); resolve(false); }); req.end();

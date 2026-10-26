@@ -3,12 +3,13 @@ import { randomBytes } from 'node:crypto';
 import { PreviewClaimRegistry, mintPreviewClaim } from '../preview/claims.js';
 import { previewResponseHeaders, sanitizeRequestHeaders, sanitizeResponseHeaders, isSamePreviewRedirect } from '../preview/gateway.js';
 import { attributionAppender, isAttributableRequest, isAttributableResponse } from '../preview/attribution.js';
-import type { HostingService } from './hostingService.js';
+import { HOSTING_HEALTH, type HostingService } from './hostingService.js';
 import type { Viewer } from '../auth/store.js';
 
 const COOKIE = '__Host-AtomaHosted';
 const PRIVATE = 'Open this private application from its Atoma project.';
 const UPDATING = '<!doctype html><meta charset="utf-8"><title>Updating</title><p>This application is being updated. Please try again in a moment.</p>';
+const UNAVAILABLE = '<!doctype html><meta charset="utf-8"><title>Unavailable</title><p>This application is temporarily unavailable. Please try again in a moment.</p>';
 /**
  * How long, and how many, visitors of a project are held while its update
  * swaps versions (owner decision 2026-10-25): the stop's ten-second grace plus
@@ -54,10 +55,11 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
   policy['content-security-policy'] += "; worker-src 'none'";
   function cookie(token: string) { return `${COOKIE}=${token}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=300`; }
   const respond = (res: ServerResponse, status: number, body = '') => { res.writeHead(status, policy); res.end(body); };
-  /** Never a bare 502 while a version is being replaced: a plain page and when to come back. */
-  const updating = (res: ServerResponse) => {
-    res.writeHead(503, { ...policy, 'content-type': 'text/html; charset=utf-8', 'retry-after': '10', 'cache-control': 'no-store' }); res.end(UPDATING);
+  const plain503 = (res: ServerResponse, body: string, retryAfter: string) => {
+    res.writeHead(503, { ...policy, 'content-type': 'text/html; charset=utf-8', 'retry-after': retryAfter, 'cache-control': 'no-store' }); res.end(body);
   };
+  /** Never a bare 502 while a version is being replaced: a plain page and when to come back. */
+  const updating = (res: ServerResponse) => plain503(res, UPDATING, '10');
   async function handler(req: IncomingMessage, res: ServerResponse) {
     const host = req.headers.host?.toLowerCase();
     if (!host || req.headers['service-worker']) { respond(res, 404); return; }
@@ -94,17 +96,29 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
       if (!redeemed.ok || redeemed.grant.binding.projectRunId !== row.projectId || !member(row.orgId, redeemed.grant.binding.principalId)) { respond(res, 404); return; }
       res.setHeader('set-cookie', cookie(redeemed.token)); respond(res, 204); return;
     }
-    // While an update swaps this project's versions, its visitors wait here
-    // for the new one instead of meeting a stopped one. Access first: an
-    // unauthorised request is answered exactly as before, never held.
+    // Access first, whatever is online: an unauthorised request is answered as
+    // an unknown address, never held nor told the application is unavailable.
+    // With nothing serving and no swap, the project is looked up only to check
+    // the grant a cookie presents.
     const swap = service.swapping(host);
-    if (!row && !swap) { respond(res, 404, PRIVATE); return; }
-    const orgId = swap?.orgId ?? row!.orgId; const projectId = swap?.projectId ?? row!.projectId;
-    const binding = { orgId, projectRunId: projectId, generation: 1, host };
     const token = req.headers.cookie?.split(';').map(x => x.trim()).find(x => x.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
+    const target = swap ?? row ?? (token ? service.projectAt(host) : null);
+    if (!target) { respond(res, 404, PRIVATE); return; }
+    const { orgId, projectId } = target;
+    const binding = { orgId, projectRunId: projectId, generation: 1, host };
     const granted = () => { const grant = token ? claims.authorise(token, binding) : null; return !!grant && member(orgId, grant.binding.principalId); };
     if (!granted()) { respond(res, 404, PRIVATE); return; }
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? 'GET') && req.headers.origin !== origin) { respond(res, 403); return; }
+    if (!row && !swap) {
+      // A granted visitor of an application that is not online (lost, stopped,
+      // starting): a plain page, never the 404 that told its own page it was
+      // private (incident 2026-10-26). The grant is renewed, so the page's polls
+      // resume when the application answers again; one health check later.
+      claims.renew(token!, binding); res.setHeader('set-cookie', cookie(token!));
+      plain503(res, UNAVAILABLE, String(HOSTING_HEALTH.intervalMs / 1000)); return;
+    }
+    // While an update swaps this project's versions, its visitors wait here
+    // for the new one instead of meeting a stopped one.
     if (swap) {
       const outcome = await holdFor(swap, res);
       if (outcome === 'left') return;

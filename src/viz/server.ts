@@ -11,7 +11,7 @@ import { ComputePreviewController, type RemotePreviewRuntime } from '../preview/
 import { COMPUTE_RUN_RESOURCES } from '../contracts/computeProject.js';
 import { ComputeDispatcher, ComputeDispatchStore } from '../projects/computeDispatch.js';
 import { HostingClient } from '../launcher/hostingClient.js';
-import { HostingService, probeHostedApplication } from '../projects/hostingService.js';
+import { HOSTING_HEALTH, HostingService, probeHostedApplication } from '../projects/hostingService.js';
 import { HostingStore } from '../projects/hostingStore.js';
 import { hostingConfig } from '../projects/hostingConfig.js';
 import { createHostingGateway } from '../projects/hostingGateway.js';
@@ -1322,13 +1322,14 @@ async function startHostingRuntime() {
   const ownership = launcher.previewOwnership(); launcher.close();
   const service = new HostingService({ store: HostingStore.open(DBS[0]!.path), projects: PROJECTS_RUNTIME.store,
     previews: PreviewStore.open(DBS[0]!.path), launcher: new HostingClient(socket), domain: config.domain, maxDeployments: config.maxDeployments,
-    events: emit, namer: HOSTING_NAMER, copyOwnership: ownership, probe: probeHostedApplication });
+    events: emit, namer: HOSTING_NAMER, copyOwnership: ownership, probe: probeHostedApplication,
+    healthProbe: port => probeHostedApplication(port, HOSTING_HEALTH.timeoutMs) });
   await service.recover();
   const gateway = createHostingGateway(service, AUTH_RUNTIME.publicOrigin.origin,
     (org, principal) => AUTH!.store!.listOrganisationsForPrincipal(principal).some(m => m.orgId === org),
     organisationShowsAttribution);
   await new Promise<void>((resolve, reject) => { gateway.server.once('error', reject); gateway.server.listen(config.port, '127.0.0.1', resolve); });
-  const health = setInterval(() => { void service.refreshHealth().catch(() => undefined); }, 15_000); health.unref();
+  const health = setInterval(() => { void service.refreshHealth().catch(() => undefined); }, HOSTING_HEALTH.intervalMs); health.unref();
   gateway.server.once('close', () => clearInterval(health));
   return { service, gateway };
 }

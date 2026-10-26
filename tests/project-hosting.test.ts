@@ -9,7 +9,7 @@ import { AUTH_TABLES_DDL, type Viewer } from '../src/auth/store.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { holdsApplicationData, HostingStore } from '../src/projects/hostingStore.js';
 import { retentionPlan } from '../src/projects/retention.js';
-import { HostingService } from '../src/projects/hostingService.js';
+import { HOSTING_HEALTH, HostingService } from '../src/projects/hostingService.js';
 import { PreviewStore } from '../src/preview/store.js';
 import { recordDeliveredPreview } from '../src/preview/service.js';
 import { buildWorkspaceArtifactManifest } from '../src/projects/artifacts.js';
@@ -184,6 +184,81 @@ it('keeps a ready application ready while its launcher cannot be reached', async
   expect(service.status(viewer, projectId).state).toBe('failed');
   // A version that ran and was later lost did not fail to START: never "the new version did not start".
   expect(service.status(viewer, projectId).failed).toBeNull();
+});
+// 2026-10-26: a busy browser application missed single probes; its row
+// flapped failed/ready every check and the gateway closed its own page.
+it('keeps a running application ready through isolated slow answers, journaling nothing', async () => {
+  publish(); await service.deploy(viewer, projectId, input()); await service.idle();
+  const events = vi.fn(); service.deps.events = events;
+  const answers = [false, false, true, false, false, true];
+  const probe = vi.fn(async () => answers.shift()!);
+  service.deps.probe = probe;
+  for (let check = 0; check < 6; check++) {
+    await service.refreshHealth();
+    expect(service.deps.store.list().find(r => r.state === 'ready')?.hostPort).toBe(12345);
+  }
+  expect(probe).toHaveBeenCalledTimes(6);
+  expect(events).not.toHaveBeenCalled();
+});
+it(`marks an application unavailable after ${HOSTING_HEALTH.failures} consecutive failed checks, once, and ready on its first good one`, async () => {
+  publish(); await service.deploy(viewer, projectId, input()); await service.idle();
+  const events = vi.fn(); service.deps.events = events;
+  // The periodic check uses its own probe (its longer timeout), never readiness's.
+  let healthy = false; service.deps.healthProbe = async () => healthy; service.deps.probe = async () => true;
+  for (let check = 1; check < HOSTING_HEALTH.failures; check++) await service.refreshHealth();
+  expect(service.status(viewer, projectId).state).toBe('ready');
+  await service.refreshHealth();
+  expect(service.status(viewer, projectId)).toMatchObject({ state: 'failed', error: 'runtime-unavailable', url: null });
+  expect(service.deps.store.list(viewer.orgId, projectId)[0]?.hostPort).toBeNull();
+  await service.refreshHealth(); await service.refreshHealth();
+  expect(events.mock.calls.map(([e]) => e.kind)).toEqual(['project.hosting_failed']);
+  healthy = true; await service.refreshHealth();
+  expect(service.status(viewer, projectId).state).toBe('ready');
+  expect(events.mock.calls.map(([e]) => e.kind)).toEqual(['project.hosting_failed', 'project.hosting_changed']);
+  // Recovery reset the count: one more slow answer is not a verdict.
+  healthy = false; await service.refreshHealth();
+  expect(service.status(viewer, projectId).state).toBe('ready');
+});
+it('marks an application whose container is gone unavailable at the first check, even mid-count', async () => {
+  publish(); await service.deploy(viewer, projectId, input()); await service.idle();
+  const events = vi.fn(); service.deps.events = events;
+  service.deps.probe = async () => false;
+  await service.refreshHealth();
+  expect(service.status(viewer, projectId).state).toBe('ready');
+  launcher.inspectHosting.mockResolvedValueOnce(null as never);
+  await service.refreshHealth();
+  expect(service.status(viewer, projectId).state).toBe('failed');
+  expect(events).toHaveBeenCalledOnce();
+});
+it('keeps a running ready application ready across a web restart that met one slow answer', async () => {
+  publish(); await service.deploy(viewer, projectId, input()); await service.idle();
+  // A lost container still fails at boot, and comes back on its first good check.
+  launcher.inspectHosting.mockResolvedValueOnce(null as never);
+  await new HostingService({ ...service.deps }).recover();
+  expect(service.status(viewer, projectId).state).toBe('failed');
+  await service.refreshHealth();
+  expect(service.status(viewer, projectId).state).toBe('ready');
+  const restarted = new HostingService({ ...service.deps, probe: async () => false });
+  await restarted.recover();
+  expect(restarted.status(viewer, projectId).state).toBe('ready');
+  // The restart's miss counts: the remaining failed checks decide.
+  for (let check = 2; check < HOSTING_HEALTH.failures; check++) await restarted.refreshHealth();
+  expect(restarted.status(viewer, projectId).state).toBe('ready');
+  await restarted.refreshHealth();
+  expect(restarted.status(viewer, projectId).state).toBe('failed');
+});
+it('resolves the project at its current address only, for the gateway\'s grant check', async () => {
+  const at = { orgId: viewer.orgId, projectId };
+  expect(service.projectAt(`p-${projectId}.app.atoma.run`)).toEqual(at);
+  projects.assignHostingSubdomain(viewer.orgId, projectId, ['acme-site'], null);
+  expect(service.projectAt('acme-site.app.atoma.run')).toEqual(at);
+  // The legacy address stops naming it once it has a label; a retired one only redirects.
+  expect(service.projectAt(`p-${projectId}.app.atoma.run`)).toBeNull();
+  projects.renameHostingSubdomain(viewer.orgId, projectId, { subdomain: 'acme-shop', expectedSubdomain: 'acme-site' });
+  expect(service.projectAt('acme-site.app.atoma.run')).toBeNull();
+  expect(service.projectAt('acme-shop.app.atoma.run')).toEqual(at);
+  expect(service.projectAt('acme-shop.app.atoma.run.evil.test')).toBeNull();
+  expect(service.projectAt('acme-shop.other.test')).toBeNull();
 });
 it('does not resurrect a stopped application from an in-flight health probe', async () => {
   publish(); await service.deploy(viewer, projectId, input()); await service.idle();

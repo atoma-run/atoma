@@ -2,7 +2,7 @@ import { createServer, request, type Server } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createHostingGateway } from '../src/projects/hostingGateway.js';
-import { probeHostedApplication, type HostingService } from '../src/projects/hostingService.js';
+import { HOSTING_HEALTH, probeHostedApplication, type HostingService } from '../src/projects/hostingService.js';
 import type { HostedDeployment } from '../src/contracts/projectHosting.js';
 import type { Viewer } from '../src/auth/store.js';
 import { ATTRIBUTION_BADGE_HTML } from '../src/preview/attribution.js';
@@ -91,6 +91,67 @@ it('redirects a retired address permanently to the current one, keeping path and
 it('does not confuse a relay 502 with application readiness', async () => {
   let status = 502; const port = await listen(createServer((_req, res) => { res.writeHead(status); res.end(); }));
   expect(await probeHostedApplication(port)).toBe(false); status = 200; expect(await probeHostedApplication(port)).toBe(true);
+});
+it('gives the periodic health check its own, longer probe timeout', async () => {
+  const port = await listen(createServer((_req, res) => { setTimeout(() => res.end('busy but alive'), 300); }));
+  expect(await probeHostedApplication(port, 100)).toBe(false);
+  expect(await probeHostedApplication(port, 2000)).toBe(true);
+  expect(HOSTING_HEALTH.timeoutMs).toBeGreaterThan(2000);
+  expect(HOSTING_HEALTH.timeoutMs).toBeLessThan(HOSTING_HEALTH.intervalMs);
+});
+
+// ---------------------------------------------------------------------------
+// An application that is not online (incident 2026-10-26): its own page's
+// polls met the 404 meant for strangers while the health check flapped.
+// ---------------------------------------------------------------------------
+async function offlineFixture() {
+  const upstreamPort = await listen(createServer((req, res) => res.end(`app ${req.url}`)));
+  const ready: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'node', browser: true, entry: 'server.js', createdAt: new Date().toISOString(), error: null, hostPort: upstreamPort, image: 'image' };
+  const host = 'attica-homes.app.atoma.run';
+  let rows: HostedDeployment[] = [ready];
+  const projectAt = vi.fn((h: string) => h === host ? { orgId: ready.orgId, projectId: ready.projectId } : null);
+  const service = { deps: { store: { list: (_org?: string, project?: string) => rows.filter(r => !project || r.projectId === project) } }, host: () => host,
+    movedHost: () => null, swapping: () => null, projectAt, status: vi.fn() } as unknown as HostingService;
+  let allowed = true;
+  const gateway = createHostingGateway(service, 'https://atoma.run', () => allowed);
+  const port = await listen(gateway.server);
+  const cookie = await claimed(gateway, port, host, ready);
+  return { ready, host, port, cookie, projectAt, set(next: HostedDeployment[]) { rows = next; }, deny() { allowed = false; } };
+}
+const lost = (row: HostedDeployment): HostedDeployment => ({ ...row, state: 'failed', error: 'runtime-unavailable', hostPort: null });
+
+it('tells a granted visitor of an application that is not online to come back, with Retry-After, and renews the grant', async () => {
+  const f = await offlineFixture();
+  expect((await call(f.port, f.host, '/api/status', { cookie: f.cookie })).body).toBe('app /api/status');
+  for (const rows of [[lost(f.ready)], [{ ...f.ready, state: 'stopped' as const, hostPort: null }], [{ ...f.ready, state: 'starting' as const, hostPort: null }]]) {
+    f.set(rows);
+    for (const path of ['/', '/api/schedule']) {
+      const answer = await call(f.port, f.host, path, { cookie: f.cookie });
+      expect(answer).toMatchObject({ status: 503, body: expect.stringContaining('This application is temporarily unavailable. Please try again in a moment.') });
+      expect(answer.headers['retry-after']).toBe(String(HOSTING_HEALTH.intervalMs / 1000));
+      expect(answer.headers['cache-control']).toBe('no-store');
+      expect(answer.headers['content-security-policy']).toContain('sandbox');
+      expect(answer.headers['set-cookie']![0]).toContain(f.cookie);
+    }
+  }
+  // Back online: the same grant reaches the application, as before.
+  f.set([f.ready]);
+  expect(await call(f.port, f.host, '/api/status', { cookie: f.cookie })).toMatchObject({ status: 200, body: 'app /api/status' });
+});
+
+it('answers anyone else at an application that is not online exactly as an unknown address', async () => {
+  const f = await offlineFixture();
+  f.set([lost(f.ready)]);
+  const strip = (r: { status: number; body: string; headers: import('node:http').IncomingHttpHeaders }) => [r.status, r.body, r.headers['retry-after'], r.headers['set-cookie']];
+  const unknown = await call(f.port, 'attica-homos.app.atoma.run', '/api/status', { cookie: f.cookie });
+  expect(unknown.status).toBe(404);
+  // No cookie, a forged one, and a granted visitor whose membership ended.
+  expect(strip(await call(f.port, f.host, '/api/status'))).toEqual(strip(unknown));
+  // A cookieless stranger costs no project lookup.
+  expect(f.projectAt).not.toHaveBeenCalledWith(f.host);
+  expect(strip(await call(f.port, f.host, '/api/status', { cookie: '__Host-AtomaHosted=guess' }))).toEqual(strip(unknown));
+  f.deny();
+  expect(strip(await call(f.port, f.host, '/api/status', { cookie: f.cookie }))).toEqual(strip(unknown));
 });
 
 it('protects desktop HTTP and WebSocket and revokes an established tunnel after membership loss', async () => {
