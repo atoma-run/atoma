@@ -413,9 +413,10 @@ Neighbours:
   reads the seed SOURCE on this host, Compute included (sorted entries, only
   package.json and lockfile names; no `node_modules`, dot-directory, omitted
   build tree or link; depth 4, 2,000 directories, 20 roots, a 512-character
-  path, `complete` false when cut; a member of a root's package.json
-  `workspaces` or `pnpm-workspace.yaml` is left to that root, lockfile or
-  not), and the receipt `inputs.workspacePreparation`
+  path, `complete` false when cut; a lockfile-less member of a root's
+  package.json `workspaces`, or of its `pnpm-workspace.yaml` `packages` when
+  pnpm owns it, is left to that root; no `packages` key means no member),
+  and the receipt `inputs.workspacePreparation`
   ([src/contracts](../contracts/workspacePreparation.ts)) lists them; a resume
   merges `preserved-unverified` into the saved one. Never derived from the
   routing inventory: its 160-entry cut, in read order, dropped `browser/` in
@@ -426,9 +427,11 @@ Neighbours:
   tree whose install completed (`node_modules/.package-lock.json`, which npm
   writes last: a tree killed at the timeout is reinstalled; `npm ci` deletes
   a present tree, and a parallel sibling may have installed it); a nested
-  root without a lockfile (a fixture, a template) stays out of that chain,
-  installed only when a command needs it; the no-rewrite rule binds these
-  preparation installs, never a task that changes a dependency; never evidence.
+  root without a lockfile (a template), or under a `fixtures`, `fixture`,
+  `__fixtures__` or `testdata` directory even with one, stays out of that
+  chain, installed only when a command needs it; a pnpm, yarn or bun root is
+  installed by its manager, never guarded by npm's marker; the no-rewrite
+  rule binds these preparation installs, never a task that changes a dependency; never evidence.
 - `ATOMA_ACCEPTANCE_SPEC` is read and re-digested at LAUNCH
   (`readAcceptanceSpec`): unreadable, or present on a run that is not
   depth-routed, is a `RunnerConfigError` before any model call. Present, it

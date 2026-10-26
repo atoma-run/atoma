@@ -213,10 +213,12 @@ const LOCKFILE_PRECEDENCE: readonly PackageLockfile[] = ['npm-shrinkwrap.json', 
  * `lockfile` is the one its install is frozen to, or null. A package.json
  * without a lockfile that a listed root's workspace covers is that root's
  * member, installed by its install, and is not listed. A workspace is read
- * from the root's package.json `workspaces` and from its `pnpm-workspace.yaml`,
- * whatever the root's lockfile: a lockfile-less npm workspace root installs
- * its members itself, and a pnpm member installed standalone with npm fails
- * on `workspace:` dependencies (review 2026-10-26).
+ * from the root's package.json `workspaces`, whatever the root's lockfile (a
+ * lockfile-less npm workspace root installs its members itself), and from its
+ * `pnpm-workspace.yaml` when pnpm owns the root (its lockfile is pnpm-lock.yaml
+ * or there is none): a pnpm member installed standalone with npm fails on
+ * `workspace:` dependencies, while npm, yarn and bun ignore that file
+ * (review 2026-10-26).
  *
  * Entries are read SORTED and only the names package.json and the lockfiles
  * are looked at, so the list never depends on the filesystem's read order.
@@ -262,7 +264,8 @@ export function packageRootsOf(seedRoot: string): { roots: PackageRoot[]; comple
       if (!member) {
         const patterns = [
           ...workspacePatterns(join(seedRoot, next.relative, 'package.json')),
-          ...(files.has('pnpm-workspace.yaml') ? pnpmWorkspacePatterns(join(seedRoot, next.relative, 'pnpm-workspace.yaml')) : []),
+          ...(files.has('pnpm-workspace.yaml') && (lockfile === null || lockfile === 'pnpm-lock.yaml')
+            ? pnpmWorkspacePatterns(join(seedRoot, next.relative, 'pnpm-workspace.yaml')) : []),
         ];
         if (patterns.length > 0) workspaces.push({ dir, patterns });
       }
@@ -319,30 +322,47 @@ function workspacePatterns(manifestPath: string): RegExp[] {
 
 /**
  * A `pnpm-workspace.yaml`'s `packages` globs, read by a line reader (no YAML
- * dependency): the block list under the top-level `packages:` key, or a
- * one-line flow list. When none can be read the whole subtree counts as the
- * workspace: an npm install inside a pnpm workspace is never right, and the
- * root's own pnpm install covers its members.
+ * dependency): the block list under the top-level `packages:` key, or a flow
+ * list on one line or several. A file without that key (pnpm 10 keeps its
+ * settings there, `onlyBuiltDependencies`, even in a single-package
+ * repository) is a root-only workspace: pnpm installs no member, so none is
+ * left to it. Only a file that cannot be read, or a `packages` key whose
+ * globs cannot be read, counts the whole subtree as the workspace: an npm
+ * install inside a pnpm workspace is never right.
  */
 function pnpmWorkspacePatterns(path: string): RegExp[] {
   const text = boundedManifestText(path);
   const globs: string[] = [];
   const unquote = (value: string): string => value.trim().replace(/^(['"])(.*)\1$/, '$2');
+  const flowItems = (list: string): string[] => list.replace(/^\s*\[/, '').replace(/\].*$/, '').split(',').map(unquote).filter(Boolean);
   let inPackages = false;
+  let sawPackages = false;
+  let flow: string | null = null;
   for (const line of (text ?? '').split(/\r?\n/)) {
     const content = line.replace(/\s+#.*$/, '');
     if (/^\s*(#|$)/.test(content)) continue;
+    if (flow !== null) {
+      flow += ` ${content}`;
+      if (content.includes(']')) { globs.push(...flowItems(flow)); flow = null; }
+      continue;
+    }
     const item = inPackages ? /^\s*-\s+(.+)$/.exec(content) : null;
     if (item) { globs.push(unquote(item[1]!)); continue; }
     if (/^\S/.test(content)) {
       const key = /^packages\s*:\s*(.*)$/.exec(content);
       inPackages = key !== null;
-      const flow = key ? /^\[(.*)\]$/.exec(key[1]!.trim()) : null;
-      if (flow) globs.push(...flow[1]!.split(',').map(unquote).filter(Boolean));
+      if (!key) continue;
+      sawPackages = true;
+      const value = key[1]!.trim();
+      if (value.startsWith('[')) {
+        if (value.includes(']')) globs.push(...flowItems(value));
+        else flow = value;
+      }
     }
   }
   const patterns = globMatchers(globs);
-  return patterns.length > 0 ? patterns : [/^.*$/];
+  if (patterns.length > 0) return patterns;
+  return text === null || sawPackages ? [/^.*$/] : [];
 }
 
 /**

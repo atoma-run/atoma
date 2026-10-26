@@ -121,16 +121,45 @@ describe('packageRootsOf: the package roots of a seed source', () => {
     expect(packageRootInstallCommand(found.filter(entry => entry.dir === '.'))).toBeNull();
   });
 
-  it('reads a flow or unindented pnpm list, and takes the whole subtree when it names no package', () => {
+  it('reads a flow or unindented pnpm list', () => {
     const flow = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': "packages: ['libs/*']\n",
       'libs/one/package.json': '{}', 'other/package.json': '{}' });
     expect(packageRootsOf(flow).roots.map(entry => entry.dir)).toEqual(['.', 'other']);
     const flat = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': 'packages:\n- libs/*\n',
       'libs/one/package.json': '{}', 'other/package.json': '{}' });
     expect(packageRootsOf(flat).roots.map(entry => entry.dir)).toEqual(['.', 'other']);
+    const multiline = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '',
+      'pnpm-workspace.yaml': "packages: [\n  'apps/*',   # apps\n  \"libs/**\",\n]\nonlyBuiltDependencies: [esbuild]\n",
+      'apps/a/package.json': '{}', 'libs/x/y/package.json': '{}', 'tools/t/package.json': '{}' });
+    expect(packageRootsOf(multiline).roots).toEqual([{ dir: '.', lockfile: 'pnpm-lock.yaml' }, { dir: 'tools/t', lockfile: null }]);
+  });
+
+  // pnpm 10 keeps its settings in pnpm-workspace.yaml even for one package:
+  // without `packages` it installs the root alone (pnpm 8 and 9 refuse the
+  // file), so a nested package.json is no member and stays listed.
+  it('reads a pnpm-workspace.yaml without packages as a root-only workspace', () => {
     const settingsOnly = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': 'onlyBuiltDependencies:\n  - esbuild\n',
       'libs/one/package.json': '{}', 'other/deep/package.json': '{}', 'own/package.json': '{}', 'own/package-lock.json': '{}' });
-    expect(packageRootsOf(settingsOnly).roots).toEqual([{ dir: '.', lockfile: 'pnpm-lock.yaml' }, { dir: 'own', lockfile: 'package-lock.json' }]);
+    expect(packageRootsOf(settingsOnly).roots).toEqual([{ dir: '.', lockfile: 'pnpm-lock.yaml' }, { dir: 'own', lockfile: 'package-lock.json' },
+      { dir: 'libs/one', lockfile: null }, { dir: 'other/deep', lockfile: null }]);
+  });
+
+  it('takes the whole subtree only when the file cannot be read or its packages key yields no glob', () => {
+    const unreadable = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': `# ${'x'.repeat(1024 * 1024)}\n`,
+      'libs/one/package.json': '{}' });
+    expect(packageRootsOf(unreadable).roots).toEqual([{ dir: '.', lockfile: 'pnpm-lock.yaml' }]);
+    const negationsOnly = seed({ 'package.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': "packages:\n  - '!test/**'\n",
+      'libs/one/package.json': '{}' });
+    expect(packageRootsOf(negationsOnly).roots).toEqual([{ dir: '.', lockfile: 'pnpm-lock.yaml' }]);
+  });
+
+  // npm ci ignores pnpm-workspace.yaml: a root npm installs owns no member through it.
+  it('reads pnpm-workspace.yaml only when pnpm owns the root', () => {
+    const npmRoot = seed({ 'package.json': '{}', 'package-lock.json': '{}', 'pnpm-lock.yaml': '', 'pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n",
+      'apps/a/package.json': '{}' });
+    expect(packageRootsOf(npmRoot).roots).toEqual([{ dir: '.', lockfile: 'package-lock.json' }, { dir: 'apps/a', lockfile: null }]);
+    const lockfileLess = seed({ 'package.json': '{}', 'pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n", 'apps/a/package.json': '{}' });
+    expect(packageRootsOf(lockfileLess).roots).toEqual([{ dir: '.', lockfile: null }]);
   });
 
   it('leaves the members of a lockfile-less npm workspace to its root install', () => {
@@ -199,6 +228,46 @@ describe('rendering the receipt', () => {
     expect(command).toBe('(test -f node_modules/.package-lock.json || npm ci --include=dev) && '
       + '(test -f web/node_modules/.package-lock.json || npm ci --include=dev --prefix web)');
     expect(packageRootInstallCommand([{ dir: 'tests/fixtures/app', lockfile: null }])).toBeNull();
+  });
+
+  // A fixture's lockfile may be fake or stale on purpose: npm ci fails in
+  // every executor, or installs packages the fixture's tests then resolve.
+  it('keeps a nested root under a fixture directory out of the chain, lockfile or not, and names it for an install on demand', () => {
+    const fixtureRoots = [{ dir: '.', lockfile: 'package-lock.json' }, { dir: 'tests/fixtures/app', lockfile: 'package-lock.json' },
+      { dir: 'src/__fixtures__/a', lockfile: 'yarn.lock' }, { dir: 'testdata/b', lockfile: 'package-lock.json' },
+      { dir: 'test/fixture/c', lockfile: 'npm-shrinkwrap.json' }, { dir: 'fixtures-tool', lockfile: 'package-lock.json' },
+      { dir: 'web', lockfile: 'package-lock.json' }] as const;
+    const command = packageRootInstallCommand(fixtureRoots);
+    expect(command).toBe('(test -f node_modules/.package-lock.json || npm ci --include=dev) && '
+      + '(test -f fixtures-tool/node_modules/.package-lock.json || npm ci --include=dev --prefix fixtures-tool) && '
+      + '(test -f web/node_modules/.package-lock.json || npm ci --include=dev --prefix web)');
+    expect(packageRootInstallCommand([{ dir: '.', lockfile: 'package-lock.json' }])).toBe('(test -f node_modules/.package-lock.json || npm ci --include=dev)');
+    const instruction = workspacePreparationGuidance({ dependencies: 'excluded-from-seed', packageRootsComplete: true, packageRoots: fixtureRoots }, true);
+    expect(instruction).toContain(`For the listed roots: ${command}`);
+    expect(instruction).toContain('tests/fixtures/app (package-lock.json), src/__fixtures__/a (yarn.lock), testdata/b (package-lock.json), test/fixture/c (npm-shrinkwrap.json) sit under a fixture directory: install one, frozen to its lockfile');
+    expect(instruction).not.toContain('uses another package manager');
+    expect(workspacePreparationGuidance({ dependencies: 'excluded-from-seed', packageRootsComplete: true, packageRoots: fixtureRoots }, false))
+      .toContain('tests/fixtures/app (package-lock.json)');
+  });
+
+  // pnpm, yarn and bun never write npm's marker: guarded by it, their tree
+  // never reads as complete and every executor reinstalls it.
+  it('scopes the guarded command and its marker to npm roots, and asks for no command it does not give', () => {
+    const pnpmOnly = workspacePreparationGuidance({ dependencies: 'excluded-from-seed', packageRootsComplete: true,
+      packageRoots: [{ dir: '.', lockfile: 'pnpm-lock.yaml' }, { dir: 'examples/x', lockfile: null }] }, true);
+    expect(pnpmOnly).not.toContain('ONE run_shell command');
+    expect(pnpmOnly).not.toContain('For the listed roots');
+    expect(pnpmOnly).not.toContain('test -f');
+    expect(pnpmOnly).toContain(`. (pnpm-lock.yaml) uses another package manager: install it once per execution, before the first command that resolves modules from it, with that manager's frozen-lockfile mode in a run_shell command with timeoutMs ${SHELL_TIMEOUT_MAX_MS}`);
+    expect(pnpmOnly).toContain('That manager never writes <dir>/node_modules/.package-lock.json: never guard its install with that file.');
+    expect(pnpmOnly).toContain('examples/x hold a package.json without a lockfile');
+    const mixed = workspacePreparationGuidance({ dependencies: 'excluded-from-seed', packageRootsComplete: true,
+      packageRoots: [{ dir: '.', lockfile: 'package-lock.json' }, { dir: 'browser', lockfile: 'package-lock.json' }, { dir: 'docs', lockfile: 'yarn.lock' }] }, true);
+    expect(mixed).toContain('every listed npm root (package-lock.json or npm-shrinkwrap.json) outside a fixture directory');
+    expect(mixed).toContain(BROWSER_INSTALL);
+    expect(mixed).toContain('docs (yarn.lock) uses another package manager');
+    expect(mixed).toContain('never guard its install with that file');
+    expect(undeclaredToolMentions(mixed, ['run_shell'], { minNonNegated: 1 })).toEqual([]);
   });
 
   it('gives the fact to everyone and the instruction only to a declared shell, naming no other tool', () => {
