@@ -123,7 +123,9 @@ registries; `--no-network` disables it. Engine-confirmed boot reconciliation
 also removes that machine’s proxy and both networks. Tools receive only `current/`; the
 private control service alone mounts the snapshot spool. A drained worker cannot
 restart until explicit next-attempt activation. Close confirms engine absence
-and preserves volumes; boot reconciliation requires the app's single-instance
+and preserves the workspace and snapshot volumes; it removes the allocation's
+retrieval corpus (recovery refuses retrieval, previews never mount it), never
+the shared embeddings cache. Boot reconciliation requires the app's single-instance
 lock. This profile is not equivalent to gVisor. WSS assignment allocation is
 joined before teardown, preventing a late allocation from escaping a lost lease.
 
@@ -134,6 +136,12 @@ Restart marks unfinished allocations unconfirmed. Engine reconciliation precedes
 WSS stop acknowledgement; an unknown allocation cannot prove another installation
 stopped. Recorded volumes may reopen for export only, with no tools or resume.
 Per-instance labels protect an existing control container from duplicate cleanup.
+Workspace and snapshot volumes have no retention yet (2026-10-26: 203 volumes,
+5.56 GB on one Mac). An age and count pass was built and withdrawn on review:
+the device cannot tell which runs still await finalization, and disposing one
+makes its later export-only recovery close the connection on every attempt, so
+the run never settles. It waits for the server to tell the device which runs it
+still needs.
 
 `connectContainerLauncher` selects the local backend when no
 `ATOMA_LAUNCHER_SOCKET` is configured, otherwise the separate Linux service.
@@ -378,6 +386,11 @@ teardown must share ONE deadline, not each get a fresh budget.
   workspace and mounted over it (host readers, the sandbox's link refusal,
   sealing and retention would all move).
 
+- **Compute retention driven by free disk, or by age and count alone.** Refused:
+  the first deletes the evidence a full disk is documented to protect; the
+  second (built and withdrawn 2026-10-26) deletes a run still awaiting its
+  transfer, whose recovery then fails forever. Retention needs the server's list
+  of runs it still needs from the device.
 - **A launcher that returns a pipe.** It would make the interface unswappable
   for the one operation that matters most, and it is what keeps the worker's
   transport behind an explicit socket protocol.

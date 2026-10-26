@@ -135,6 +135,18 @@ export class DesktopCompute {
     return { ...diagnostic, diskBytes, ...(retrievalRuntimeSha256 ? { retrievalRuntimeSha256 } : {}) };
   }
 
+  /** Removes only the named volumes carrying this machine's label and returns
+   * the names the engine no longer lists. A foreign or busy volume stays. */
+  private static async removeOwnedVolumes(machineId: string, names: readonly string[]): Promise<Set<string>> {
+    const listed = async (...filters: string[]) => new Set((await docker(['volume', 'ls', '-q', '--filter', 'name=atoma-compute-', ...filters])).split('\n').filter(Boolean));
+    const owned = await listed('--filter', `label=dev.atoma.compute=${machineId}`);
+    const removable = names.filter(name => owned.has(name));
+    // A partial failure is read back from the engine below, never from the exit code.
+    if (removable.length) await docker(['volume', 'rm', ...removable]).catch(() => undefined);
+    const remaining = await listed();
+    return new Set(names.filter(name => !remaining.has(name)));
+  }
+
   /** Boot-only reconciliation. The desktop single-instance owner must exclude
    * another launcher before calling this. Volumes survive for explicit recovery. */
   static async reconcile(machineId: string, workerImage?: string): Promise<void> {
@@ -217,13 +229,19 @@ export class DesktopCompute {
     return this.retrieval = computeRetrievalProcess(child);
   }
   private async stopRetrieval(): Promise<void> {
-    await this.retrievalStarting?.catch(() => undefined);
-    if (!this.retrieval) return;
-    const named = ['ps', '-aq', '--filter', `name=^/${this.retrievalName}$`];
-    const owned = await docker([...named, '--filter', `label=dev.atoma.compute.instance=${this.instanceId}`]);
-    if (owned) await docker(['rm', '-f', this.retrievalName]);
-    if (await docker(named)) throw new Error('Compute retrieval stop unconfirmed');
-    await this.retrieval.close(); this.retrieval = undefined;
+    const started = this.retrievalStarting;
+    await started?.catch(() => undefined);
+    if (this.retrieval) {
+      const named = ['ps', '-aq', '--filter', `name=^/${this.retrievalName}$`];
+      const owned = await docker([...named, '--filter', `label=dev.atoma.compute.instance=${this.instanceId}`]);
+      if (owned) await docker(['rm', '-f', this.retrievalName]);
+      if (await docker(named)) throw new Error('Compute retrieval stop unconfirmed');
+      await this.retrieval.close(); this.retrieval = undefined;
+    }
+    // Nothing reads this allocation's corpus after close: recovery refuses
+    // retrieval and previews never mount it. A failed removal leaves the volume;
+    // it never makes a confirmed stop unconfirmed.
+    if (started) await DesktopCompute.removeOwnedVolumes(this.config.machineId, [`${this.retrievalName}-data`]).catch(() => undefined);
   }
 
   private active() {
@@ -292,8 +310,9 @@ export class DesktopCompute {
     await this.drain();
     await this.stopRetrieval();
     await this.stopControl();
-    // Managed volumes deliberately persist until checkpoint/delivery retention
-    // decides they are disposable. Closing a window never deletes work.
+    // Workspace and snapshot volumes persist for preview and export-only
+    // recovery: no retention knows yet which runs still await their transfer.
+    // Closing never deletes work.
   }
   private async stopControl(): Promise<void> {
     const named = ['ps', '-aq', '--filter', `name=^/${this.serviceName}$`];

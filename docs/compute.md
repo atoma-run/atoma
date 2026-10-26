@@ -68,6 +68,9 @@ stops the connection if less than 1 GiB remains or Docker becomes unavailable.
 This is a free-space guard, not a filesystem quota. Docker settings are never
 changed automatically. Retained run volumes remain available for recovery;
 insufficient space refuses subsequent allocations rather than deleting evidence.
+A run's search corpus is removed when its work stops; the shared embeddings
+cache stays. Workspace and snapshot volumes stay until a retention exists that
+knows which runs still await their results' transfer.
 
 The launcher alone has Docker access. Workspaces are named Linux volumes; no
 home directory or arbitrary repository is mounted. Workloads are non-root,
