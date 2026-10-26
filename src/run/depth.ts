@@ -425,6 +425,13 @@ export async function runDepthTask(args: {
   // is one extra pass for the whole run, wherever it falls and whatever the
   // verdict that opened it: a refusal, or an approved dependency landing (G1).
   let remediations = 0;
+  // A FILE DELIVERY NEVER BECOMES A TEXT ONE. The extra pass plans for
+  // itself: run 51c4e71d's (2026-10-26) was a read-only verification whose
+  // plan declared `text`, the last recorded root plan fixed the manifest's
+  // kind, and the delivered files could be neither reviewed criterion by
+  // criterion, previewed nor published. Once a pass of this run delivered
+  // files, every later pass is judged, recorded and published as files.
+  let filesDelivered = false;
   for (const attempt of [1, 2]) {
     ctx.signal.throwIfAborted();
     const mode = attempt === 1 ? args.mode : 'deep';
@@ -498,10 +505,15 @@ export async function runDepthTask(args: {
             let rootPhases: readonly string[] = [];
             const passCtx: RunContext = { ...attemptCtx, deferredLearning: { defer: (learn, owner, lesson) => { lessons.push({ learn, owner, ...(lesson ? { lesson } : {}) }); } },
               recordRootPlan: (plan) => {
-                rootPlan = plan;
-                delivery = plan.delivery;
-                rootPhases = plan.subtasks.map((subtask) => subtask.description);
-                attemptCtx.recordRootPlan?.(plan);
+                // The pass's own text declaration still reaches its phases
+                // (`withPlannedDelivery`): its report is text. The run's
+                // delivery, judged and persisted here, stays the files.
+                const kept = plan.delivery === 'text' && filesDelivered ? { ...plan, delivery: 'files' as const } : plan;
+                if (kept !== plan) ctx.logger.warn('[root] this pass declared a text delivery after a file delivery; the run stays a file delivery');
+                rootPlan = kept;
+                delivery = kept.delivery;
+                rootPhases = kept.subtasks.map((subtask) => subtask.description);
+                attemptCtx.recordRootPlan?.(kept);
               } };
             try {
               result = await handle(currentTask, passCtx);
@@ -570,6 +582,12 @@ export async function runDepthTask(args: {
             // 2026-10-09, 1.2). A landing keeps its own protocol.
             const judged = rootPlan && !delivery && !landed ? observedDelivery(attemptCtx) : delivery;
             if (rootPlan && judged !== delivery) attemptCtx.recordRootPlan?.({ ...rootPlan, delivery: judged });
+            // Only a pass that WROTE files makes the run a file delivery: a
+            // prefilter pass judged files because it ran a shell command (a
+            // question answered after `npm test`) must still be able to answer
+            // in text on its extra pass (code review 2026-10-09, 1.2).
+            if (judged === 'files' && (attemptCtx.attestations?.forAttempt(attempt) ?? [])
+              .some((record) => record.tool === 'write_file' || record.tool === 'edit_file')) filesDelivered = true;
             let acceptance: AcceptanceInfo;
             try {
               acceptance = await withinSignal(acceptRootResult({ actor, task: currentTask, result, ctx: acceptanceCtx,

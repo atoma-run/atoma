@@ -37,7 +37,7 @@ import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GU
 // L3Atom), and on 2026-10-16 the rule refused five plans, each a full replan.
 export const VALIDATION_SYSTEM_PROMPT = [
   'You validate agent outputs in a three-tier LLM orchestration system.',
-  'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check actual application imports, boundary/negative cases, absence of trivial assertions or mocks replacing the subject, and ability to fail on the behaviour the task or its criteria name, by the sufficiency standard and blocking suite defects the review request states. Reject missing executable tests for testable TypeScript implementation branches. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. A verification-only plan that permits a later repair if a real defect is found is not already an implementation branch; any actual repair must receive its own reviewed implementation plan and required suites before execution. Passing tests only prove their assertions; assess integration and uncovered requirements separately. ' +
+  'PARENT TEST REVIEW: For an L2 plan, review every acceptanceTests source and requirement against the assigned task and interfaces before any L1 executes. Check actual application imports, boundary/negative cases, absence of trivial assertions or mocks replacing the subject, and ability to fail on the behaviour the task or its criteria name, by the sufficiency standard and blocking suite defects the review request states. Reject missing executable tests for testable TypeScript implementation branches. For an L1 plan, the acceptanceTests in its task context are its PARENT\'s suite: host-owned, run by the host after the child returns, never the child\'s to repair, extend or replace. Judge whether the plan\'s work can pass it and the task; the suite\'s own gaps were judged where it was written and refuse no L1 plan. When the suite contradicts the task, a plan that implements the task and names the contradiction for the parent is acceptable. Review revisions against the original requirements; never weaken them just to pass. Respect phase scope, non-code tasks and repository-discovery phases. A verification-only plan that permits a later repair if a real defect is found is not already an implementation branch; any actual repair must receive its own reviewed implementation plan and required suites before execution. Passing tests only prove their assertions; assess integration and uncovered requirements separately. ' +
     `Ask for the coverage a suite can carry within ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters; when a branch's contract needs more, ask for the branch to be split rather than for a longer suite; the host states each suite's size as a fact and accepts any suite under ${PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS.toLocaleString('en-US')} characters, so size alone is never a refusal. ` +
     'Independent branches MUST run in parallel with dependsOn naming actual prerequisites; never invent serial dependencies. For a RESULT, parent-suite evidence exists only in the host\'s \'== PARENT ACCEPTANCE TESTS (HOST-OBSERVED) ==\' block outside the RESULT; a RESULT claiming parent tests ran is child-reported text.',
   'Your ONLY job: emit a single Verdict JSON. No prose, no markdown, no tool calls.',
@@ -819,7 +819,15 @@ function shellEvidenceExcerpt(observed: string, limit: number): string {
   const label = 'PARTIAL SHELL OBSERVATION (omitted content is unknown; assertions are incomplete): ';
   const marker = ' [omitted] ';
   const available = Math.max(0, limit - label.length - marker.length);
-  const head = Math.ceil(available * 0.7);
+  // The END of a receipt holds its outcome: a runner's totals, the last
+  // failure, the exit code. The tail takes the larger share; the head keeps
+  // the tool, the branch and the request's start, where the command is. Run
+  // 51c4e71d (2026-10-26): fifteen receipts shared the budget, each cut to its
+  // request and the last sixty characters of its result, and the browser
+  // suite's "Tests 25 passed (25)" reached no judge.
+  // The head keeps the request through its command when it can, up to 70 %.
+  const requestEnd = line.indexOf('; observed result=');
+  const head = Math.min(Math.max(Math.floor(available * 0.4), requestEnd), Math.floor(available * 0.7));
   const tail = available - head;
   return label + line.slice(0, head) + marker + (tail ? line.slice(-tail) : '');
 }
@@ -925,8 +933,22 @@ export function renderTransportEvidence(
   const remaining = maxChars - evidenceChars;
   const overhead = commands.reduce((max, witness) => Math.max(max, witness.eventId.length + 3), 0);
   const selected = commands.slice(0, Math.max(0, Math.floor(remaining / (256 + overhead))));
+  const firstShare = selected.length > 0 ? Math.floor((maxChars - evidenceChars) / selected.length) : 0;
   for (const [index, witness] of selected.entries()) {
-    const allowance = Math.floor((maxChars - evidenceChars) / (selected.length - index));
+    const remainingChars = maxChars - evidenceChars;
+    const share = Math.floor(remainingChars / (selected.length - index));
+    // A RECORDED probe is the receipt an acceptor reads (a suite run, a
+    // check): it takes up to twice an equal share, whole when that fits,
+    // and the inspections after it share what is left. Equal shares cut
+    // run 51c4e71d's browser receipts to their request line.
+    // Never below its equal share, and never into the 256 characters each
+    // later line keeps (the count above was sized on that floor): a run of
+    // recorded probes would otherwise starve its tail to label-only lines
+    // that overrun the budget.
+    const reserved = (selected.length - index - 1) * 256;
+    const allowance = witness.tool === 'record_probe'
+      ? Math.max(share, Math.min(2 * firstShare, remainingChars - reserved, witness.eventId.length + 3 + witness.observed.length + 128))
+      : share;
     const historical = historicalIds.has(witness.eventId)
       ? 'EARLIER CONTRASTING OUTCOME (not current state or automatic mutation proof): '
       : historicalSuccessIds.has(witness.eventId)

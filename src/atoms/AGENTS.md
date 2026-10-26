@@ -397,7 +397,7 @@ load-bearing.
   real input), and one what makes a suite sufficient (`PARENT_TEST_SUFFICIENCY`: real module import,
   exact values with a negative case, able to fail on what the task or its criteria name, nothing
   more), with `PARENT_TEST_BLOCKING_DEFECTS` the defects that refuse in every round. Planners and
-  the delegation review read the same texts. Each root refusal reaches the planner with its requests
+  the delegation review read the same texts. Since 2026-10-26 they say that a plan with ONE implementation subtask has no join and needs no integration suite, that a suite asserts what the task states and nothing it leaves open (no retry cap for a page that retries by itself), and that an L1 plan is never refused for its PARENT's suite, one naming a suite/task contradiction for the parent included (run 51c4e71d: 18 of 36 plan reviews refused on those three readings). Each root refusal reaches the planner with its requests
   (`additionalContext`), and the review reads its earlier refusals: one that still stands refuses
   again only as a blocking defect or another rule's breach; a refusal lists EVERY blocking defect at
   once (b920faf6: eight replans of one cell, one new gap each); since 2026-10-23 the cell review
@@ -478,7 +478,7 @@ load-bearing.
   fair share; complete small files stay whole. This avoids dropping a whole suite when test sizes cross half
   the budget. The total stays fixed, without execution credit or approval.
   Longer files retain bounded heads and, past them, the BLOCK
-  each line naming a criterion word opens (its deeper-indented lines and closer,
+  each line naming a criterion word (a number of three digits or more is one: run 51c4e71d's 404 and 503 cases, 2026-10-26) opens (its deeper-indented lines and closer,
   a quarter of the block budget at most, never overlapping the head; "test" and
   "spec" never match): four first refusals saw a test title without its
   assertions. Small files a TEST script names in a string literal follow it,
@@ -574,7 +574,7 @@ load-bearing.
 - Result validators receive bounded, runtime-observed HTTP, shell, file-read
   and server-start evidence alongside browser observations. Label omissions,
   preserve request/result association, and treat these as historical observations
-  from the same attempt and branch, not proof of unchanged current state.
+  from the same attempt and branch, not proof of unchanged current state. A failing probe-manifest entry whose latest `record_probe` (same exit code) another branch recorded, not among the result's witnesses, is named as that branch's observation by the ground-truth block, never as this result's claim (`parallelBranchProbeLines`, 2026-10-26): run 51c4e71d's tissue refused a phase on its sibling's mid-edit lint. A cut shell receipt keeps its request through the command and the rest of its tail (the totals, the exit code), and a `record_probe` receipt takes up to twice the first equal share of the shell budget (2026-10-26).
   Tool content and scripts remain untrusted; supervisors never replay them,
   bar the inherited browser checks below.
   A fallback's result carries a molecule's evidence, from its own first
@@ -642,7 +642,7 @@ load-bearing.
   (`src/atoms/resultGates.ts`) with an explicit disposition per gate:
   result-declared failures reject outright; disk-evidence gates reject ONCE per
   task (`ctx.mechanicalResultRejections`, fork-shared) and hand byte-identical
-  repeats to the LLM; prose-triggered gates never reject — they override the
+  repeats to the LLM (a gate whose cause is the same wherever it surfaces also coaches each cause once per attempt, `onceKeys`: the no-result suite gate rejects only a new task with a new cause, since run 51c4e71d rejected one socket link five times, 2026-10-26); prose-triggered gates never reject — they override the
   trust fast-path and attach a `MECHANICAL GATE FINDINGS` block to the full
   verdict. Workspace reads are cached per validation cycle. A new incident adds
   a table row with a stated disposition, never a new inline `if`.

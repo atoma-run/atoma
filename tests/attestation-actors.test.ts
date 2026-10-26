@@ -356,6 +356,28 @@ describe('the result validator prompt', () => {
     expect(rendered.lines.reduce((total, line) => total + line.length, 0)).toBeLessThanOrEqual(MAX_TOOL_EVIDENCE_CHARS);
   });
 
+  it('keeps a recorded receipt\'s totals when receipts are cut (run 51c4e71d, 2026-10-26)', () => {
+    const record = (eventId: string, tool: string, args: Record<string, unknown>, raw: unknown) =>
+      ({ eventId, tool, observation: parseExecutionObservation(tool, args, raw)! });
+    const stdout = 'RUN v3.2.4 /workspace\n' + '✓ tests/control.test.ts\n'.repeat(60) +
+      ' Test Files  5 passed (5)\n      Tests  25 passed (25)\n   Start at  05:57:05\n   Duration  32.42s (transform 1.2s, setup 0ms, collect 2.1s, tests 28.9s)\n';
+    const records = [
+      record('suite', 'record_probe',
+        { cmd: 'CHROMIUM_PATH=/usr/bin/chromium npm run test:browser:ui -- --reporter=dot', note: 'Real browser suite over the built control page after the recovery repair' },
+        { exitCode: 0, stdout, stderr: '', ranThroughShell: true }),
+      ...Array.from({ length: 14 }, (_, i) => record(`grep-${i}`, 'run_shell',
+        { cmd: `grep -nE 'pattern${i}' tests/control.test.ts` }, { exitCode: 0, stdout: 'x'.repeat(900), stderr: '' })),
+    ];
+    const lines = renderObservations(records);
+    const rendered = renderTransportEvidence(records.map((entry, i) => ({ source: 'transport-observed',
+      eventId: entry.eventId, tool: entry.tool, observed: lines[i]! })), 6_000);
+    const receipt = rendered.lines.find(line => line.startsWith('suite:'))!;
+    expect(receipt).toContain('PARTIAL SHELL OBSERVATION');
+    expect(receipt).toContain('npm run test:browser:ui');
+    expect(receipt).toContain('25 passed (25)');
+    expect(rendered.lines.join('\n').length).toBeLessThanOrEqual(6_000);
+  });
+
   it('does not revive superseded assertions when reserving space for file reads', () => {
     const record = (eventId: string, tool: string, args: Record<string, unknown>, raw: unknown) =>
       ({ eventId, tool, observation: parseExecutionObservation(tool, args, raw)! });

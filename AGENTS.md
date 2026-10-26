@@ -451,7 +451,6 @@ Read the archived sections before changing something that merely looks odd.
   [`records/designs/documentation-freshness-2026-09-04.md`](records/designs/documentation-freshness-2026-09-04.md).
 
 ## Historical evidence
-
 The frozen record contains the full dated reasoning behind these rules:
 
 - [engineering record through 2026-08-14](records/incidents/engineering-record-2026-08-14.md)
@@ -472,6 +471,7 @@ The frozen record contains the full dated reasoning behind these rules:
 - [production runs, second day: criteria widths never laid out, form controls that could not be chosen — 2026-09-27](records/incidents/production-runs-2026-09-27.md)
 - [production runs, third day: a restored store refilled by its own server, and why the mender never opened a PR — 2026-09-28](records/incidents/production-runs-2026-09-28.md)
 - [the deployment's critical path, 7 to 11 minutes in ten days: the test suite on one runner, measured and sharded — 2026-10-24](records/incidents/ci-critical-path-2026-10-24.md)
+- [a file delivery recorded as text, and two thirds of a run's cost in avoidable retries: seven fixes — 2026-10-26](records/incidents/attica-run-51c4e71d-2026-10-26.md)
 - [compile at learn, dispatch at first match — owner decision 2026-09-26](docs/decisions/compile-at-learn-2026-09-26.md)
 - [external code review](records/reviews/code-review-2026-08-14.md)
 - [code review 2026-08-18](records/reviews/code-review-2026-08-18.md)

@@ -1746,6 +1746,9 @@ export class SkillLifecycle {
       const res = (await ctx.tools!.execute('run_shell', {
         command: interpreter,
         args: scriptInvocationArgv(filename, subTask.description),
+        // A compiled script is a fast path: a hung one falls back to the model
+        // loop after 30 s, as before run_shell's default rose to 120 s (2026-10-26).
+        timeoutMs: 30_000,
       })) as { exitCode?: number; stdout?: string; stderr?: string } | null;
       // The scratch script is NOT part of the deliverable: subtasks routinely
       // end with "list_files to confirm exactly <these files> exist", and a

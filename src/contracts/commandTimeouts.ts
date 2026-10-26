@@ -5,15 +5,22 @@
  * the worker, and both worker clients (`src/launcher/localWorker.ts`,
  * `remoteWorker.ts`) bound the call from the host.
  *
- * A run_shell call defaults to 30 s, a record_probe call to 120 s, and either
+ * A run_shell call and a record_probe call both default to 120 s, and either
  * may ask for up to five minutes with `timeoutMs` (2026-10-15: three Attica
  * runs lost paced suites at 30 s). The host bound was a flat 120 s, so the
  * first run after that change, 90ad4303, saw a 120 s probe abandoned by the
  * host at the instant the worker would have recorded it, and any longer limit
  * was capped at 120 s in a container. The host now waits for the command's own
  * limit plus a grace, and keeps 120 s for every other tool.
+ *
+ * run_shell defaulted to 30 s until 2026-10-26: run 51c4e71d's two browser
+ * suites (33 s each) were killed at 30 s, and every project run on 2026-10-25
+ * and 26 asked for more on its second try, so the default was a round trip
+ * paid by healthy suites. A hung command now holds a molecule 120 s instead
+ * of 30, inside the same host bound (`workerCallTimeoutMs`); a server still
+ * belongs to start_node_server.
  */
-export const SHELL_TIMEOUT_MS = 30_000;
+export const SHELL_TIMEOUT_MS = 120_000;
 export const PROBE_TIMEOUT_MS = 120_000;
 export const SHELL_TIMEOUT_MAX_MS = 300_000;
 export const WORKER_CALL_TIMEOUT_MS = 120_000;

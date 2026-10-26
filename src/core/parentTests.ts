@@ -222,6 +222,8 @@ const REPAIR_COACHING =
 export interface ParentTestFinding {
   readonly reasoning: string;
   readonly coaching: string;
+  /** Causes coached once per attempt (`ResultGateFinding.onceKeys`). */
+  readonly onceKeys?: readonly string[];
 }
 
 /** The rejecting findings: a failed suite, or one the code under test kept from finishing. */
@@ -249,6 +251,14 @@ export function parentTestNoResultFinding(result: Pick<Result, 'parentTests'>): 
     reasoning: once.map(({ observation, what }) =>
       `the parent-owned suite ${short(observation)} ${what}: ${observation.cause} (${observation.details.slice(0, 300)})`).join(' '),
     coaching: [...new Set(once.map(({ coaching }) => coaching))].join('\n'),
+    // Once per CAUSE in the attempt as well as once per task: a workspace no
+    // copy can take (run 51c4e71d's socket link) fails every suite of every
+    // branch and tier the same way. A copy cause is keyed by what it names (its
+    // details carry the path); a runner cause by its suite, whose own code may
+    // be what exits, so another suite's first failure is still coached.
+    onceKeys: once.map(({ observation }) => observation.cause!.startsWith('snapshot-')
+      ? `parent-acceptance-tests-no-result|${observation.cause}|${observation.details.slice(0, 300)}`
+      : `parent-acceptance-tests-no-result|${observation.cause}|${observation.suiteDigest}`),
   };
 }
 

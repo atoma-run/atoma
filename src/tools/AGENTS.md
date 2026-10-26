@@ -84,12 +84,15 @@ Neighbours:
   service, its sessions and its credentials belong to
   [src/connectors](../connectors/AGENTS.md).
 - `run_shell` and `record_probe` take a per-call `timeoutMs` (2026-10-15):
-  defaults 30 s and 120 s (`SHELL_TIMEOUT_MS`, `PROBE_TIMEOUT_MS`), at most
+  both default to 120 s (`SHELL_TIMEOUT_MS`, `PROBE_TIMEOUT_MS`), at most
   five minutes, an out-of-range value REFUSED before anything runs, never
   clamped. A timeout still SIGKILLs the whole process group, and its error
   names the argument. Until then every command died at 30 s: three Attica runs
   lost fifteen paced suites at 28–30 s and split them to fit, and the acceptor
-  refused the missing combined evidence. A container call crosses a host-side
+  refused the missing combined evidence. `run_shell` kept a 30 s default until
+  2026-10-26: run 51c4e71d's two 33 s browser suites died at it and were
+  re-run with the argument, a round trip every healthy suite paid; a hung
+  command now holds a molecule 120 s, inside the same host bound. A container call crosses a host-side
   bound too (`workerCallTimeoutMs`, `src/contracts/commandTimeouts.ts`): the
   command's own limit plus 15 s, 120 s for every other tool. It was a flat
   120 s, which cut run 90ad4303's 120 s probe at the instant it would have been
@@ -252,7 +255,11 @@ Neighbours:
   Every entry is opened through `openContained`; entries, depth and bytes are
   bounded. A link is never followed and never pointed at the live tree (Node
   permissions check the requested path, not the resolved one): an internal one
-  is recreated inside the copy, an escaping one refuses. A file is consistent
+  is recreated inside the copy, an escaping one refuses, unless its target is
+  a socket or a FIFO, which, like one in the tree, is skipped and counted as
+  the publication inventory omits it (2026-10-26: Chromium's `SingletonSocket`
+  link, left by run 51c4e71d's own browser tests, refused every copy of that
+  run and rejected both branches twice). A file is consistent
   on its own, not with its siblings. Read-run copies (`.atoma-runs`, up to
   64 MiB of another run) are never copied, beside `.git`, `.atoma-scratch` and
   `.atoma-skeleton`. ONE deadline covers the copy and the run;

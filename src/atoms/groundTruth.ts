@@ -8,6 +8,9 @@ import type { Atom } from '../core/atom.js';
 import {
   PROBE_MANIFEST_FILENAME,
   isReportedWebProbe,
+  probeEntryKind,
+  probeManifestSchema,
+  shellEntrySchema,
   validateProbeManifest,
   shellProbeManifestEvidence,
 } from '../contracts/probeManifest.js';
@@ -184,6 +187,66 @@ export async function probeGroundTruth(
   args: Parameters<typeof probeGroundTruthEx>[0]
 ): Promise<string> {
   return (await probeGroundTruthEx(args)).block;
+}
+
+/** The command line a shell observation's request names; undefined for a cut or shapeless request. */
+function requestCommandLine(request: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(request);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+    const args = parsed as Record<string, unknown>;
+    if (typeof args['cmd'] === 'string') return args['cmd'].trim();
+    if (typeof args['command'] !== 'string') return undefined;
+    // `renderProbeCmd` (src/tools) spells a command/args request this way; atoms may not import it.
+    const quote = (a: string): string =>
+      a.length > 0 && /^[A-Za-z0-9_./:=@,+-]+$/.test(a) ? a : `"${a.replace(/(["\\$`])/g, '\\$1')}"`;
+    const rest = Array.isArray(args['args']) ? args['args'].filter((item): item is string => typeof item === 'string') : [];
+    return [args['command'], ...rest.map(quote)].join(' ').trim();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The manifest is ONE file for every branch of a fan-out. A failing shell
+ * entry whose latest run a PARALLEL branch recorded, on the workspace that
+ * branch was changing at the time, is that branch's observation, not a
+ * contradiction of the result under review: run 51c4e71d (2026-10-26) had a
+ * phase refused on "the latest `npm run lint` is exitCode 1", written by its
+ * sibling mid-edit, and rebuilt it over twenty minutes. Decided from the
+ * attestation log (who made the latest call of that exact command) and the
+ * result's own witnesses; a trunk validator, with no branch, reads nothing
+ * here, and a passing entry is never credited by this line.
+ */
+function parallelBranchProbeLines(manifest: string, args: { ctx: RunContext; evidence?: readonly Witness[] }): string[] {
+  const branch = args.ctx.currentBranchId;
+  const records = args.ctx.attestations?.forAttempt(args.ctx.attempt ?? 1) ?? [];
+  if (branch === undefined || records.length === 0) return [];
+  let parsed: { entries: unknown[] };
+  try {
+    parsed = probeManifestSchema.parse(JSON.parse(manifest));
+  } catch {
+    return [];
+  }
+  const witnessed = new Set(transportWitnesses(args.evidence).map((witness) => witness.eventId));
+  const lines: string[] = [];
+  for (const value of parsed.entries) {
+    const entry = shellEntrySchema.safeParse(value);
+    if (!entry.success || probeEntryKind(value as Record<string, unknown>) !== 'shell' || entry.data.exitCode === 0) continue;
+    // Only record_probe writes the manifest; its record must hold this exit code.
+    const latest = [...records].reverse().find((record) =>
+      record.tool === 'record_probe' && record.observation.kind === 'execution' &&
+      requestCommandLine(record.observation.request) === entry.data.cmd.trim());
+    if (!latest || latest.observation.kind !== 'execution' || latest.observation.exitCode !== entry.data.exitCode ||
+      witnessed.has(latest.eventId) || latest.branchId === undefined || latest.branchId === branch) continue;
+    lines.push(
+      `- ${JSON.stringify(entry.data.cmd)} (exitCode=${entry.data.exitCode}): this stored outcome was recorded by branch ` +
+        `${latest.branchId.slice(0, 8)}, which is not among this result's receipts, on the workspace as it was then. It is that ` +
+        'branch\'s observation, not this result\'s claim; what the workspace gives now is unknown unless this result\'s own receipts show it.'
+    );
+    if (lines.length >= 8) break;
+  }
+  return lines;
 }
 
 export async function probeGroundTruthEx(args: {
@@ -805,7 +868,7 @@ async function probeFilesGroundTruth(args: {
           : `${PROBE_MANIFEST_FILENAME}: MALFORMED — ${problems.slice(0, 4).join('; ')}`
       );
       const index = shellProbeManifestEvidence(text, probes.map(probe => probe.cmd));
-      lines.push(...index.lines);
+      lines.push(...index.lines, ...parallelBranchProbeLines(text, args));
       if (problems.length === 0 && index.shellOnly) indexedShellManifest = text;
     }
   } catch {

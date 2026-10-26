@@ -724,6 +724,14 @@ describe('typed causes from the real runner', () => {
     const second = await cell.validateResult(leaf(), linked, task, ctx);
     expect(second.approved).toBe(true);
     expect(ctx.llm.calls[0]!.userContent).toContain('[parent-acceptance-tests-no-result]');
+    // The same cause under ANOTHER task of the attempt is already coached:
+    // reviewed, never rejected again (run 51c4e71d rejected one socket link
+    // five times, once per task and tier, and rebuilt both branches twice).
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'reviewed beside the same link' }));
+    const sibling = await cell.validateResult(leaf(), linked, { description: 'subtract', acceptanceTests: suite() }, ctx);
+    expect(sibling.approved).toBe(true);
+    expect(ctx.llm.calls).toHaveLength(2);
+    expect(ctx.llm.calls[1]!.userContent).toContain('[parent-acceptance-tests-no-result]');
 
     const reg = new AtomRegistry(openDb(':memory:'));
     const tissue = L3Atom.buildWithModel(reg.create(3, seed), reg, 'mock');

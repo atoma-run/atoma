@@ -20,7 +20,7 @@ import {
 import { jevOutcomeReport } from './jevOutcomes.js';
 import { DELEGATION_REVIEW_HEADER } from './delegationReview.js';
 import { PARENT_TESTS_BLOCK_HEADER } from './parentTestsBlock.js';
-import { PARENT_SUITE_CONTEXT_PREFIX, TASK_CONTEXT_HEADER } from './taskContext.js';
+import { LEGACY_PARENT_SUITE_CONTEXT_PREFIX, PARENT_SUITE_CONTEXT_PREFIX, TASK_CONTEXT_HEADER } from './taskContext.js';
 import {
   jevAsk,
   legacyApproval,
@@ -240,7 +240,7 @@ function historicalExclusion(decision: RecordedDecision): JevExclusion | undefin
   const after = lines.slice(payloadAt + 1);
   if (subject === 'PLAN' && after.includes(DELEGATION_REVIEW_HEADER)) return 'delegation-review';
   const parsed = parseValidationPrompt(decision);
-  const suiteInContext = parsed?.request.context?.some((line) => line.startsWith(PARENT_SUITE_CONTEXT_PREFIX)) ?? false;
+  const suiteInContext = parsed?.request.context?.some((line) => line.startsWith(PARENT_SUITE_CONTEXT_PREFIX) || line.startsWith(LEGACY_PARENT_SUITE_CONTEXT_PREFIX)) ?? false;
   if (subject === 'RESULT') {
     const observed = after.includes(PARENT_TESTS_BLOCK_HEADER) || lines[payloadAt]!.includes('PARENT ACCEPTANCE TESTS (');
     return suiteInContext || observed ? 'parent-suite' : undefined;

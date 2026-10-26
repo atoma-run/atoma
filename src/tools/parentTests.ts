@@ -1,4 +1,4 @@
-import { chmodSync, constants, existsSync, lstatSync, readFileSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
+import { chmodSync, constants, existsSync, lstatSync, readFileSync, rmSync, writeFileSync, type Dirent, type Stats } from 'node:fs';
 import { chmod, lstat, mkdir, mkdtemp, open, readdir, rm, stat, symlink, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -131,9 +131,12 @@ function subjectRecord(rel: Buffer): boolean {
  *    which the walk copies on its own pass (pnpm layouts keep working, and a
  *    link cycle or a directory-link fan-out costs one entry). One that
  *    resolves outside refuses the snapshot; one with no reachable target,
- *    or a target under an excluded name, is skipped and counted.
- *  - Any other non-regular file refuses. Entries (files, directories and
- *    links), depth and bytes are bounded before they are copied.
+ *    or a target under an excluded name, is skipped and counted; so is one
+ *    whose outside target is a socket or a FIFO (no bytes for any reader).
+ *  - A socket or a FIFO in the tree is skipped and counted, as the
+ *    publication inventory omits it; any other non-regular file refuses.
+ *    Entries (files, directories and links), depth and bytes are bounded
+ *    before they are copied.
  *  - Each file is read once: the same chunks feed the hash and the copy. A
  *    file that moved while it was read is re-read, then kept and counted as
  *    unstable: the snapshot is consistent per file, never across files.
@@ -232,7 +235,24 @@ export async function snapshotProject(
       if (VANISHED.has(errno(error) ?? '')) { skipped += 1; return; }
       throw readFailure(rel, error);
     }
-    if (!containedIn(real, realRoot)) throw new TypedFailure('snapshot-link', `Verification cannot copy links outside the project: ${shown(rel)}`);
+    if (!containedIn(real, realRoot)) {
+      // A link to a socket or a FIFO outside the project holds no bytes for
+      // any reader of the copy, as the publication inventory already judges
+      // it (`byteLessWorkspaceEntry`): Chromium's `SingletonSocket` ->
+      // /tmp/.org.chromium.Chromium.*/SingletonSocket, left by run 51c4e71d's
+      // own browser tests, refused every copy of that run and rejected both
+      // branches twice (2026-10-26). Skipped and counted; a link to outside
+      // BYTES still refuses the snapshot.
+      let target: Stats;
+      try {
+        target = await slots.run(() => stat(real));
+      } catch (error) {
+        if (VANISHED.has(errno(error) ?? '')) { skipped += 1; return; }
+        throw readFailure(rel, error);
+      }
+      if (target.isSocket() || target.isFIFO()) { skipped += 1; return; }
+      throw new TypedFailure('snapshot-link', `Verification cannot copy links outside the project: ${shown(rel)}`);
+    }
     const targetRel = real.length === realRoot.length ? Buffer.alloc(0) : real.subarray(realRoot.length + 1);
     if (targetRel.toString().split(path.sep).some(part => EXCLUDED.some(name => name.toString() === part))) { skipped += 1; return; }
     if (process.platform === 'win32') {
@@ -297,6 +317,9 @@ export async function snapshotProject(
         await link(source, copy, entryRel);
       } else if (entry.isFile()) {
         await schedule(() => copyFile(source, copy, entryRel));
+      } else if (entry.isSocket() || entry.isFIFO()) {
+        // Byte-less, as for a link to one: never copied, never recorded.
+        skipped += 1;
       } else {
         throw new TypedFailure('snapshot-special-file', `Verification snapshot contains a non-regular file: ${shown(entryRel)}`);
       }

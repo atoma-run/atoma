@@ -66,6 +66,13 @@ export interface ResultGateFinding {
   readonly reasoning: string;
   /** Actionable retry coaching — `modifications.additionalContext` on rejection. */
   readonly coaching: string;
+  /**
+   * Causes a `reject-once` gate coaches once in the whole attempt, beside its
+   * once per task: it rejects only when the task AND one of these causes are
+   * new. Run 51c4e71d (2026-10-26) rejected one uncopyable workspace five
+   * times, once per task and tier, and rebuilt both branches over one link.
+   */
+  readonly onceKeys?: readonly string[];
 }
 
 export type WorkspaceRead =
@@ -94,7 +101,7 @@ interface ResultGate {
   readonly appliesToDelegatedResult?: boolean;
   readonly check: (
     env: ResultGateEnv
-  ) => Promise<Pick<ResultGateFinding, 'reasoning' | 'coaching'> | null>;
+  ) => Promise<Pick<ResultGateFinding, 'reasoning' | 'coaching' | 'onceKeys'> | null>;
 }
 
 export interface ResultGateOutcome {
@@ -685,13 +692,15 @@ export async function runResultGates(
     }
     if (gate.disposition === 'reject-once') {
       const key = `${gate.id}|${env.task.description}`;
-      if (memo?.has(key)) {
+      const causes = hit.onceKeys ?? [];
+      if (memo?.has(key) || (causes.length > 0 && causes.every((cause) => memo?.has(cause)))) {
         // A byte-identical mechanical rejection repeated against the same
         // task must not trip the repeat tracker — hand the facts to the LLM.
         reviewFindings.push(finding);
         continue;
       }
       memo?.add(key);
+      for (const cause of causes) memo?.add(cause);
       return { rejection: finding, reviewFindings };
     }
     reviewFindings.push(finding);

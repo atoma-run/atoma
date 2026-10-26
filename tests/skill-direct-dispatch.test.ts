@@ -259,6 +259,8 @@ describe('L2.runSubtask — deterministic script dispatch (C4)', () => {
     expect(calls[1]!.args).toEqual({
       command: 'node',
       args: [scratch, JSON.stringify('scaffold the config')],
+      // A hung compiled script still falls back after 30 s, below run_shell's 120 s default.
+      timeoutMs: 30_000,
     });
     expect(calls[2]!.name).toBe('run_shell');
     expect(calls[2]!.args['args']).toEqual([

@@ -578,6 +578,53 @@ describe('one common root acceptance, independent of phase credit', () => {
     expect(ctx.llm.calls.map(call => call.model)).toEqual([modelForTier(2), modelForTier(2), modelForTier(1)]);
   });
 
+  it('keeps a file delivery when the extra pass plans only text (run 51c4e71d, 2026-10-26)', async () => {
+    const writer = new Executor();
+    const read = writer.execute.bind(writer);
+    writer.execute = async (name, args) => name === 'write_file' ? { ok: true } : read(name, args);
+    const ctx = context(writer);
+    const actor = new Actor(3);
+    const recorded: Plan[] = [];
+    let pass = 0;
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'The 404 and 503 pages were never observed in a browser.' }));
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'Observed now.' }));
+    const outcome = await runDepthTask({ mode: 'deep', task, ctx: { ...ctx, recordRootPlan: (plan) => recorded.push(plan) }, floor: [],
+      restart: vi.fn(), onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor, handle: async (_task, current) => {
+        // The first pass declares and writes its files; the remediation plans a read-only verification and declares text.
+        if (pass === 0) await current.tools!.execute('write_file', { path: 'control.ts', content: 'export {};' });
+        current.recordRootPlan?.(makePlan({ delivery: pass++ === 0 ? 'files' : 'text' }));
+        return result;
+      } }),
+    });
+    expect(outcome.refusal).toBeUndefined();
+    expect(pass).toBe(2);
+    // Both recorded root plans, the persisted manifest's source, say files; both passes took the file review tier.
+    expect(recorded.map((plan) => plan.delivery)).toEqual(['files', 'files']);
+    expect(ctx.llm.calls.map((call) => call.model)).toEqual([modelForTier(1), modelForTier(1)]);
+    expect(ctx.llm.calls.map((call) => call.actor?.name)).not.toContain('run-text-reference');
+  });
+
+  it('lets a pass judged files only for a shell command answer in text on its extra pass', async () => {
+    const ctx = context();
+    const actor = new Actor(3);
+    const recorded: Plan[] = [];
+    let pass = 0;
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'The question was not answered.' }));
+    ctx.llm.enqueueText('Independent reference');
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'Answered.' }));
+    const outcome = await runDepthTask({ mode: 'deep', task, ctx: { ...ctx, recordRootPlan: (plan) => recorded.push(plan) }, floor: [],
+      restart: vi.fn(), onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor, handle: async (_task, current) => {
+        if (pass === 0) await current.tools!.execute('run_shell', { cmd: 'npm test' });
+        current.recordRootPlan?.(makePlan({ delivery: pass++ === 0 ? 'files' : 'text' }));
+        return result;
+      } }),
+    });
+    expect(outcome.refusal).toBeUndefined();
+    expect(recorded.map((plan) => plan.delivery)).toEqual(['files', 'text']);
+  });
+
   it.each(['short', 'deep'] as const)('keeps L1 execution and routes both %s text passes to L2 review', async (mode) => {
     const ctx = context();
     const recorded = vi.fn();

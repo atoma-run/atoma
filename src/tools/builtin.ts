@@ -238,7 +238,7 @@ export interface BuiltinToolOptions {
   logger?: Logger;
   /** Allowed executables for `run_shell`. Defaults to a conservative list. */
   shellAllowlist?: string[];
-  /** Hard timeout for shell commands in ms. Defaults to 30s. */
+  /** Hard timeout for shell commands in ms. Defaults to 120 s (`SHELL_TIMEOUT_MS`). */
   shellTimeoutMs?: number;
   /**
    * Shared by both server tools, `fetch_url` and `validate_html`;
@@ -988,9 +988,10 @@ export const DEFAULT_SHELL_ALLOWLIST: readonly string[] = [
 const SHELL_LINE_RE = /[\s|&;><]/;
 
 /**
- * Per-call command limits. A run_shell call defaults to 30 s; a record_probe
- * call — the evidence an acceptor reads — to 120 s. Either may ask for up to
- * five minutes with `timeoutMs`. Until 2026-10-15 every command died at 30 s:
+ * Per-call command limits. A run_shell call and a record_probe call — the
+ * evidence an acceptor reads — both default to 120 s (run_shell to 30 s until
+ * 2026-10-26, when run 51c4e71d's 33 s browser suites died at the default).
+ * Either may ask for up to five minutes with `timeoutMs`. Until 2026-10-15 every command died at 30 s:
  * the Attica suites pace 10 s between pages and restart child processes, so
  * fifteen calls across three runs were killed at 28-30 s, the molecule split
  * the suites to fit, and the acceptor refused the missing combined evidence

@@ -299,6 +299,19 @@ describe('phase current file evidence', () => {
 // only EXECUTED — no criterion named it and no truncated read referenced it —
 // so its assertions never reached root acceptance; and the test files read
 // late in the attempt fell past the sixteen-read cap behind docs and sources.
+describe('a numeric criterion word', () => {
+  it('selects the blocks naming it, past the file head (run 51c4e71d: 404 and 503)', async () => {
+    const { ctx, files } = setup();
+    const cases = (status: number) =>
+      `test('classifies ${status}, clears stale values, recovers', async () => {\n  const response = new Response('', { status: ${status} });\n  expect(lost.message).toMatch(/perdue/);\n});\n`;
+    files['tests/recovery.test.ts'] = '// recovery\n'.padEnd(9_000, ' ') + cases(404) + cases(503);
+    const criterion = { id: 'c4', behaviour: 'When status requests fail (404, 503 HTML page, network), the page says within 5 s that the connection is lost.' };
+    const block = await criteriaFilesBlock(ctx, [criterion as never], ['tests/recovery.test.ts'], 'Repair the control page', 24_000);
+    expect(block).toContain('classifies 404');
+    expect(block).toContain('classifies 503');
+  });
+});
+
 describe('root acceptance reads the test files the attempt ran', () => {
   const suite = (name: string, size: number) =>
     `test('${name}', () => {\n${'  assert.ok(setup);\n'.repeat(Math.ceil(size / 20))}  assert.equal(${name}.afterRestart, 2);\n});\n`;

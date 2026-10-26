@@ -323,6 +323,12 @@ Neighbours:
   made against). The budget is one extra pass per RUN, not per attempt: a
   deepening is already this run's second chance at a structural failure.
   A pass the wall clock cannot pay for (`outOfPhaseBudget`) is not opened.
+  A pass after a pass that WROTE files (write_file/edit_file) is judged,
+  recorded and published as files whatever its own plan declares
+  (`filesDelivered`, 2026-10-26; a shell command alone keeps text open): run
+  51c4e71d's read-only remediation declared text, the last recorded root plan
+  fixed the manifest's kind, and the delivered files could be neither
+  reviewed by criterion, previewed nor published.
   Measured 2026-09-23: with one pass only, a goal naming nine verifiable
   behaviours was refused twice while a goal naming six was delivered, and the
   refusals named exactly which behaviours had never been probed.

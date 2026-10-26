@@ -190,19 +190,51 @@ describe('containment and shape of the copy', () => {
     expect(acceptanceCopies()).toEqual([]);
   });
 
-  it.skipIf(!POSIX)('refuses a FIFO, directly or behind an internal link, and returns instead of hanging', async () => {
+  it.skipIf(!POSIX)('skips a FIFO, directly or behind an internal link, as the publication inventory omits it, and returns instead of hanging', async () => {
     const direct = workspace();
+    write(direct.root, 'add.ts', 'export const add=(a:number,b:number)=>a+b;');
     execFileSync('mkfifo', [path.join(direct.root, 'pipe')]);
     const first = await verify(direct.box, ADD_SUITE);
-    expect(first.cause).toBe('snapshot-special-file');
+    expect(first.status).toBe('passed');
+    expect(first.details).toContain('skipped 1 unreachable');
     const behind = workspace();
+    write(behind.root, 'add.ts', 'export const add=(a:number,b:number)=>a+b;');
     mkdirSync(path.join(behind.root, 'sub'));
     execFileSync('mkfifo', [path.join(behind.root, 'sub', 'pipe')]);
     symlinkSync('sub/pipe', path.join(behind.root, 'link'));
     const second = await verify(behind.box, ADD_SUITE);
-    expect(second.cause).toBe('snapshot-special-file');
+    expect(second.status).toBe('passed');
     expect(acceptanceCopies()).toEqual([]);
   }, 20_000);
+
+  it.skipIf(!POSIX)('skips a link to a socket outside the project (Chromium\'s SingletonSocket, run 51c4e71d) and still refuses outside bytes', async () => {
+    // The socket Chromium leaves under /tmp while a browser suite runs; the
+    // link in the project's profile directory points at it.
+    const socketDir = mkdtempSync(path.join('/tmp', 'atoma-chromium-'));
+    const socketPath = path.join(socketDir, 'SingletonSocket');
+    const server = createServer();
+    await new Promise<void>(resolve => server.listen(socketPath, resolve));
+    try {
+      const { root, box } = workspace();
+      write(root, 'add.ts', 'export const add=(a:number,b:number)=>a+b;');
+      mkdirSync(path.join(root, '.atoma-runtime', 'xe-browser-profile'), { recursive: true });
+      symlinkSync(socketPath, path.join(root, '.atoma-runtime', 'xe-browser-profile', 'SingletonSocket'));
+      symlinkSync(path.join(socketDir, 'gone'), path.join(root, '.atoma-runtime', 'xe-browser-profile', 'SingletonLock'));
+      const observation = await verify(box, ADD_SUITE);
+      expect(observation.status).toBe('passed');
+      expect(observation.details).toContain('skipped 2 unreachable');
+      // Bytes outside the project still refuse: a link to a file there is not byte-less.
+      writeFileSync(path.join(socketDir, 'secret'), 'OUTSIDE');
+      symlinkSync(path.join(socketDir, 'secret'), path.join(root, 'escape'));
+      const refused = await verify(box, ADD_SUITE);
+      expect(refused.cause).toBe('snapshot-link');
+      expect(refused.details).toContain('"escape"');
+      expect(acceptanceCopies()).toEqual([]);
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()));
+      rmSync(socketDir, { recursive: true, force: true });
+    }
+  }, 30_000);
 
   it.skipIf(!POSIX)('recreates internal links instead of following them: cycles, fan-out, pnpm, .bin and dead links', async () => {
     const { root, box } = workspace();

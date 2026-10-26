@@ -1001,11 +1001,11 @@ describe('a command may ask for the time a finite suite needs', () => {
     expect(existsSync(join(root, PROBE_MANIFEST_FILENAME))).toBe(false);
   });
 
-  it('declares the defaults: 30 s for run_shell, 120 s for evidence', () => {
-    expect([SHELL_TIMEOUT_MS, PROBE_TIMEOUT_MS, SHELL_TIMEOUT_MAX_MS]).toEqual([30_000, 120_000, 300_000]);
+  it('declares the defaults: 120 s for run_shell (30 s until 2026-10-26) and for evidence', () => {
+    expect([SHELL_TIMEOUT_MS, PROBE_TIMEOUT_MS, SHELL_TIMEOUT_MAX_MS]).toEqual([120_000, 120_000, 300_000]);
     const described = (tool: { declaration: { inputSchema: unknown } }) =>
       (tool.declaration.inputSchema as { properties: { timeoutMs: { type: string; description: string } } }).properties.timeoutMs;
-    expect(described(runShellTool({ sandbox }))).toMatchObject({ type: 'integer', description: expect.stringContaining('default 30000, at most 300000') });
+    expect(described(runShellTool({ sandbox }))).toMatchObject({ type: 'integer', description: expect.stringContaining('default 120000, at most 300000') });
     expect(described(recordProbeTool({ sandbox }))).toMatchObject({ type: 'integer', description: expect.stringContaining('default 120000, at most 300000') });
   });
 });

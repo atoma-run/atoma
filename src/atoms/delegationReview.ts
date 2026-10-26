@@ -26,7 +26,7 @@ Classify EVERY subtask exactly once using zero-based indices. Classify testable 
 ${PARENT_TEST_RUNNER_SCOPE}
 ${PARENT_TEST_EXECUTION}
 ${BROWSER_PROOF_REVIEW}
-Require a Vitest integration suite when branches implement interacting application modules. ${PARENT_TEST_INTEGRATION_PLACEMENT} Never ask a plan whose join subtask carries it for a plan-level copy. Review all suite sources for real application imports, useful assertions, negative cases, faithful interfaces, and no replacement of the subject under test. Trivial assertions or placeholders must be rejected even when a suite exists.
+Require a Vitest integration suite when branches implement interacting application modules. ${PARENT_TEST_INTEGRATION_PLACEMENT} Never ask a plan whose join subtask carries it for a plan-level copy, and never ask a plan with one implementation subtask for an integration suite or to move its suite: it has no join. Review all suite sources for real application imports, useful assertions, negative cases, faithful interfaces, and no replacement of the subject under test. Trivial assertions or placeholders must be rejected even when a suite exists.
 ${PARENT_TEST_SUFFICIENCY}
 ${PARENT_TEST_BLOCKING_DEFECTS} Name any other gap in a suite's coverage in your reasoning; it does not refuse the plan.
 ${PARENT_TEST_UNSATISFIABLE}

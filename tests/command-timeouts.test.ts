@@ -14,8 +14,9 @@ describe('the host waits for a worker command as long as the command may run', (
     expect(workerCallTimeoutMs('record_probe', {})).toBe(PROBE_TIMEOUT_MS + WORKER_CALL_GRACE_MS);
     expect(workerCallTimeoutMs('record_probe', { timeoutMs: SHELL_TIMEOUT_MAX_MS })).toBe(SHELL_TIMEOUT_MAX_MS + WORKER_CALL_GRACE_MS);
     expect(workerCallTimeoutMs('run_shell', { timeoutMs: 200_000 })).toBe(200_000 + WORKER_CALL_GRACE_MS);
-    // A short command keeps the ordinary bound rather than a shorter one.
-    expect(workerCallTimeoutMs('run_shell', {})).toBe(WORKER_CALL_TIMEOUT_MS);
+    // The default run_shell limit (120 s since 2026-10-26) outlasts the ordinary bound by the grace;
+    // a short command keeps the ordinary bound rather than a shorter one.
+    expect(workerCallTimeoutMs('run_shell', {})).toBe(SHELL_TIMEOUT_MS + WORKER_CALL_GRACE_MS);
     expect(workerCallTimeoutMs('run_shell', { timeoutMs: 1_000 })).toBe(WORKER_CALL_TIMEOUT_MS);
   });
 

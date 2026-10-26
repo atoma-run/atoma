@@ -27,7 +27,9 @@ export const APPLICATION_TYPESCRIPT_GUIDANCE = [
 ].join('\n');
 
 /** The task-context line carrying a parent-owned suite; the calibration reader recognises it. */
-export const PARENT_SUITE_CONTEXT_PREFIX = 'Parent-owned acceptance suite (requirements and assertions; cannot be replaced by child files): ';
+export const PARENT_SUITE_CONTEXT_PREFIX = 'Parent-owned acceptance suite (requirements and assertions; host-run after this task returns; not this task\'s to repair, extend or replace, and cannot be replaced by child files): ';
+/** The prefix traces recorded before 2026-10-26 carry; the calibration reader recognises both. */
+export const LEGACY_PARENT_SUITE_CONTEXT_PREFIX = 'Parent-owned acceptance suite (requirements and assertions; cannot be replaced by child files): ';
 
 /** Runtime policy also applies to reusable methods written before this guidance. */
 export const PLANNING_SCOPE_GUIDANCE = [

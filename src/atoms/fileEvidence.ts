@@ -38,7 +38,17 @@ export const PARENT_TEST_ROOT_CHARS = PARENT_TEST_SOURCE_MAX_CHARS;
 const CRITERIA_FILE_MATCHED_BLOCKS = 15;
 const CRITERIA_BLOCK_LINES = 25;
 const CRITERIA_LINE_CHARS = 300;
-const CRITERIA_TOKEN = /[a-z][a-z0-9_-]{3,}/g;
+// A number of three digits or more is a criterion word too: an HTTP status
+// ("404", "503"), a width ("375 px"), a port. Run 51c4e71d's (2026-10-26)
+// c4 named 404 and 503; the browser suite's `test.each([404, 503, ...])`
+// cases sat past the file's head, no letter-led word selected them, and the
+// root judge refused the criterion as never exercised in a browser.
+const CRITERIA_TOKEN = /[a-z][a-z0-9_-]{3,}|\d{3,}/g;
+const CRITERIA_WORD = /[a-z][a-z0-9_-]{3,}/g;
+// Numbers come from the criteria alone, never the task description, and a
+// year is no criterion word: 2026 matches every dated fixture line.
+const CRITERIA_NUMBER = /(?<![\w.])\d{3,}(?![\w.])/g;
+const YEAR = /^(?:19|20)\d\d$/;
 const COMMON_WORDS = new Set(['with', 'that', 'this', 'every', 'each', 'from', 'into', 'have', 'shows', 'show', 'must',
   'documents', 'document', 'explains', 'lists', 'links', 'file', 'files', 'example', 'examples', 'readme',
   // On every title of a test file: "test/errors.test.js" would match each one before the one asked for.
@@ -214,9 +224,15 @@ export async function criteriaFilesBlock(
     attempted++;
     const stem = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toLowerCase();
     const naming = checklist.filter((item) => item.behaviour.toLowerCase().includes(stem)).map((item) => item.behaviour.toLowerCase());
-    if (refreshPaths.includes(path) || commandNamed.includes(path)) naming.push(taskDescription.toLowerCase(), text.toLowerCase());
-    const words = new Set(naming.flatMap((text) => [...text.matchAll(CRITERIA_TOKEN)].map((match) => match[0]))
-      .filter((word) => !COMMON_WORDS.has(word) && word !== stem));
+    const numbersFrom = [...naming];
+    if (refreshPaths.includes(path) || commandNamed.includes(path)) {
+      naming.push(taskDescription.toLowerCase(), text.toLowerCase());
+      numbersFrom.push(text.toLowerCase());
+    }
+    const words = new Set([
+      ...naming.flatMap((text) => [...text.matchAll(CRITERIA_WORD)].map((match) => match[0])),
+      ...numbersFrom.flatMap((text) => [...text.matchAll(CRITERIA_NUMBER)].map((match) => match[0])).filter((number) => !YEAR.test(number)),
+    ].filter((word) => !COMMON_WORDS.has(word) && word !== stem));
     try {
       const read: unknown = await tools.execute('read_file', { path, ...(options.observationOnly ? { [FILE_OBSERVATION_ONLY_ARG]: true } : {}) });
       const content = typeof read === 'string' ? read : read && typeof read === 'object' &&
