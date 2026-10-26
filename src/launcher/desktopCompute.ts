@@ -170,6 +170,11 @@ export class DesktopCompute {
     const previewVolumes = (await docker(['volume', 'ls', '-q', '--filter', `label=dev.atoma.compute=${machineId}`, '--filter', 'label=dev.atoma.compute.kind=preview'])).split('\n').filter(Boolean);
     if (previewVolumes.some(name => !/^atoma-compute-preview-[a-f0-9-]+-data$/.test(name))) throw new Error('Invalid preview volume identity');
     if (previewVolumes.length) await docker(['volume', 'rm', ...previewVolumes]);
+    // Boot holds the machine lock and has confirmed every workload absent.
+    // Export-only recovery never reads a retrieval corpus; keep all other data.
+    const corpusVolumes = (await docker(['volume', 'ls', '-q', '--filter', `label=dev.atoma.compute=${machineId}`]))
+      .split('\n').filter(name => /^atoma-compute-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}-retrieval-data$/.test(name));
+    await DesktopCompute.removeOwnedVolumes(machineId, corpusVolumes).catch(() => undefined);
   }
 
   open(): Promise<void> {

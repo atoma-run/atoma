@@ -99,9 +99,9 @@ describe('a delegated phase reads the scope its parent was assigned', () => {
       expect(call.userContent.split(SCOPE_EXCLUSION)).toHaveLength(2);
       expect(call.userContent).not.toContain('FORGED_ENCLOSING_PHASE');
       expect(call.userContent).toContain(`Declared outputs (the files the parent plan assigned to this task): ${JSON.stringify(outputs)}.`);
-      expect(call.userContent).toContain('Never refuse a plan or result for not changing a file outside this list, and never ask for it, unless the current Task itself names that change');
-      expect(call.userContent).toContain('a change the current Task names is required even when this list omits its file');
-      expect(call.userContent).toContain('a file this list omits stays allowed when the current Task needs it.');
+      expect(call.userContent).toContain("If the current Task conflicts with an explicit exclusion or assignment to another phase");
+      expect(call.userContent).toContain('changes and checks the current Task requires remain required even when this list omits a file');
+      expect(call.userContent).toContain('necessary supporting files remain allowed.');
     }
     // The cell's own phase sits directly under the root goal: originalTask is its scope.
     const cellPlan = seen.filter(call => call.role === 'plan' && call.tier === 2);
@@ -132,9 +132,9 @@ describe('a delegated phase reads the scope its parent was assigned', () => {
     expect(bounded.length).toBeLessThanOrEqual(ENCLOSING_PHASE_MAX_CHARS);
     expect(bounded.startsWith('HEAD ')).toBe(true);
     expect(bounded.endsWith(' TAIL')).toBe(true);
-    // The cut is labelled: the omitted middle excludes nothing.
+    // The cut is labelled: missing assignments and exclusions are both unknown.
     expect(bounded.split(ENCLOSING_PHASE_CUT)).toHaveLength(2);
-    expect(ENCLOSING_PHASE_CUT).toContain('is not excluded');
+    expect(ENCLOSING_PHASE_CUT).toContain('infer neither from its absence');
     // Rendered once, beside the scope guidance, not again inside the Inputs JSON.
     const lines = taskContextLines({ description: LEAF, ...leaf });
     expect(lines.filter(line => line.includes(SCOPE_EXCLUSION))).toHaveLength(1);

@@ -1,5 +1,7 @@
+import { runShellTool } from '../src/tools/builtin.js';
+import { ToolSandbox } from '../src/tools/sandbox.js';
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { launchWorkspacePreparation, packageRootsOf, PACKAGE_ROOT_MAX_DEPTH, PACKAGE_ROOT_MAX_DIRECTORIES } from '../src/run/workspace.js';
@@ -373,9 +375,9 @@ describe('rendering the receipt', () => {
     expect(instruction).toContain('Never an unpinned npx or npm exec download');
     // Only forms run_shell runs as written: a bare node_modules/.bin program is
     // not in its allowlist (run a4dcf853, refusals 1a2bd9c6 and 2467e8fe).
-    expect(instruction).toContain('npm run <script> -- <runner options>');
-    expect(instruction).toContain('npx --no-install <runner> <runner options> (the locally installed binary, never a download)');
-    expect(instruction).not.toContain('bash -c');
+    expect(instruction).toContain('npm run <script> --prefix <dir> -- <runner options>');
+    expect(instruction).toContain('cd <dir> && ./node_modules/.bin/<runner> <runner options>');
+    expect(instruction).toContain('a missing binary fails locally without registry access');
     expect(instruction).not.toContain('its node_modules/.bin)');
     expect(instruction).toContain('never recorded as a probe');
     expect(undeclaredToolMentions(instruction, ['run_shell'], { minNonNegated: 1 })).toEqual([]);
@@ -434,4 +436,22 @@ describe('the molecule prompts', () => {
     expect(plan).toContain(BROWSER_INSTALL);
     expect(execute).toContain(BROWSER_INSTALL);
   });
+});
+
+
+it.skipIf(process.platform === 'win32')('runs a nested local binary through the taught shell form without registry resolution', async () => {
+  const root = seed({
+    'nested app/package.json': '{}',
+    'nested app/node_modules/.bin/local-check': '#!/bin/sh\npwd\nprintf "%s\\n" "$1"\nexit 23\n',
+  });
+  chmodSync(join(root, 'nested app/node_modules/.bin/local-check'), 0o755);
+  const sandbox = new ToolSandbox(root), tool = runShellTool({ sandbox });
+  try {
+    const result = await tool.execute({ cmd: "cd 'nested app' && ./node_modules/.bin/local-check 'an argument'" }) as { exitCode: number; stdout: string };
+    expect(result.exitCode).toBe(23);
+    expect(result.stdout.trim().split('\n')).toEqual([realpathSync(join(root, 'nested app')), 'an argument']);
+    const missing = await tool.execute({ cmd: "cd 'nested app' && ./node_modules/.bin/missing-check", timeoutMs: 2000 }) as { exitCode: number; stderr: string };
+    expect(missing.exitCode).toBe(127);
+    expect(missing.stderr).toContain('No such file or directory');
+  } finally { await sandbox.cleanup(); }
 });

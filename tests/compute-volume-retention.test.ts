@@ -99,3 +99,33 @@ it('keeps a confirmed stop when the corpus volume cannot be removed', async () =
   expect(engine.containers.size).toBe(0);
   expect(engine.volumes.has(corpus)).toBe(true);
 });
+
+
+it('reclaims abandoned corpora on boot, preserving recovery, cache, foreign and busy volumes', async () => {
+  const machineId = randomUUID(), otherMachine = randomUUID();
+  const name = (suffix: string) => `atoma-compute-${randomUUID()}-${suffix}`;
+  const corpus = name('retrieval-data'), busy = name('retrieval-data'), foreign = name('retrieval-data');
+  const kept = [name('workspace'), name('snapshots'), name('embeddings'), 'atoma-compute-unrecognised-retrieval-data'];
+  for (const volume of [corpus, busy, ...kept]) engine.volumes.set(volume, { 'dev.atoma.compute': machineId });
+  engine.volumes.set(foreign, { 'dev.atoma.compute': otherMachine });
+  engine.busy.add(busy);
+  engine.containers.set('abandoned-retrieval', { id: '123456789abc', labels: { 'dev.atoma.compute': machineId } });
+  await DesktopCompute.reconcile(machineId);
+  expect(engine.containers.size).toBe(0);
+  expect([...engine.volumes.keys()].sort()).toEqual([busy, foreign, ...kept].sort());
+  const calls = engine.exec.mock.calls.map(([, args]) => args);
+  expect(calls.findIndex(args => args[0] === 'rm')).toBeLessThan(calls.findIndex(args => args[0] === 'volume' && args[1] === 'rm'));
+  engine.busy.clear();
+  await DesktopCompute.reconcile(machineId);
+  expect(engine.volumes.has(busy)).toBe(false);
+});
+
+it('never reclaims a corpus while workload absence is unconfirmed', async () => {
+  const machineId = randomUUID(), corpus = `atoma-compute-${randomUUID()}-retrieval-data`;
+  engine.volumes.set(corpus, { 'dev.atoma.compute': machineId });
+  engine.exec.mockImplementationOnce(async () => ({ stdout: '', stderr: '' }))
+    .mockImplementationOnce(async () => ({ stdout: '123456789abc', stderr: '' }));
+  await expect(DesktopCompute.reconcile(machineId)).rejects.toThrow('Compute workloads still exist');
+  expect(engine.volumes.has(corpus)).toBe(true);
+  expect(engine.exec.mock.calls.some(([, args]) => args[0] === 'volume' && args[1] === 'rm')).toBe(false);
+});

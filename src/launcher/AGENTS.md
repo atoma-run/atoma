@@ -125,7 +125,8 @@ private control service alone mounts the snapshot spool. A drained worker cannot
 restart until explicit next-attempt activation. Close confirms engine absence
 and preserves the workspace and snapshot volumes; it removes the allocation's
 retrieval corpus (recovery refuses retrieval, previews never mount it), never
-the shared embeddings cache. Boot reconciliation requires the app's single-instance
+the shared embeddings cache. Boot reconciliation also reclaims this machine's
+allocation corpora after confirming all its containers absent. Boot reconciliation requires the app's single-instance
 lock. This profile is not equivalent to gVisor. WSS assignment allocation is
 joined before teardown, preventing a late allocation from escaping a lost lease.
 

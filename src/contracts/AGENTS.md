@@ -22,7 +22,8 @@ proof. Server admission requires an operator-approved app version and image dige
 `computeResultsWaitingSchema` and `computeResultsWaitingMessage` are the one
 shape and the viewer-neutral sentences every reader shows for finished work whose
 files wait on the customer's computer (run progress stage `awaiting-results`).
-`COMPUTE_RUN_STOPPING_MESSAGE` is stage `stopping`'s (2026-10-26). Run progress
+`COMPUTE_RUN_STOPPING_MESSAGE` is stage `stopping`'s (2026-10-26);
+`COMPUTE_RUN_STOPPED_MESSAGE` instead names a confirmed stop awaiting host closure. Run progress
 stages are additive: one a reader does not know parses as `unknown`, so an open
 MCP App bundled earlier keeps reading a newer server.
 

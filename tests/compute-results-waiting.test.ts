@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthStore, type Viewer } from '../src/auth/store.js';
-import { COMPUTE_RESULTS_STALLED_MESSAGE, COMPUTE_RESULTS_WAITING_MESSAGE, COMPUTE_RUN_STOPPING_MESSAGE } from '../src/contracts/computeDevice.js';
+import { COMPUTE_RESULTS_STALLED_MESSAGE, COMPUTE_RESULTS_WAITING_MESSAGE, COMPUTE_RUN_STOPPING_MESSAGE, COMPUTE_RUN_STOPPED_MESSAGE } from '../src/contracts/computeDevice.js';
 import { computeProjectViewSchema } from '../src/contracts/computeProject.js';
 import { runProgressSchema, runReviewSchema } from '../src/contracts/clientExperience.js';
 import { closeStoreHandles } from '../src/core/stores.js';
@@ -571,6 +571,22 @@ describe('a Compute run waiting for its computer to confirm it stopped', () => {
       expect(status['computeProgress']).toBe('finalizing');
       expect(status['resultsWaiting']).toBeNull();
       expect(runProgressSchema.parse(status['progress']).stage).toBe('stopping');
+    } finally { coordinator.stopQueue(); }
+  });
+
+  it('does not ask the computer to confirm again after its stop is already confirmed', () => {
+    const f = fixture(), run = remoteRun(f, 'interrupted');
+    const dispatcher = new ComputeDispatcher({ journal: ComputeDispatchStore.open(f.dbPath),
+      devices: { confirmedStop: () => true } as unknown as ComputeDeviceStore,
+      resources: { cpus: 1, memoryBytes: 1, diskBytes: 1 }, connectionFor: () => undefined });
+    const coordinator = coordinatorFor(f, undefined, { compute: () => dispatcher }), service = serviceFor(f, coordinator);
+    try {
+      const status = service.projectRunStatus(f.member, f.project.projectId, run.projectRunId) as Record<string, unknown>;
+      expect(status['computeProgress']).toBe('stopped');
+      expect(runProgressSchema.parse(status['progress'])).toMatchObject({ stage: 'stopping', message: COMPUTE_RUN_STOPPED_MESSAGE });
+      expect(service.projectRunState(f.owner, f.project.projectId, run.projectRunId).progress.message).toBe(COMPUTE_RUN_STOPPED_MESSAGE);
+      expect(runReviewSchema.parse(service.reviewRun(f.owner, f.project.projectId, run.projectRunId)).verification.message).toBe(COMPUTE_RUN_STOPPED_MESSAGE);
+      expect(f.store.getProjectRun(f.owner.orgId, run.projectRunId)?.status).toBe('running');
     } finally { coordinator.stopQueue(); }
   });
 

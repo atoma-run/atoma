@@ -170,3 +170,26 @@ it.skipIf(!workspaceImage || !workerImage)('permits registry egress only through
     if (volumes.length) await docker(['volume', 'rm', ...volumes]);
   }
 }, 90_000);
+
+it.skipIf(!workspaceImage)('reclaims an abandoned corpus on boot without removing recoverable volumes', async () => {
+  const machineId = randomUUID(), allocationId = randomUUID(), foreignMachine = randomUUID();
+  const corpus = `atoma-compute-${allocationId}-retrieval-data`;
+  const retained = [`atoma-compute-${allocationId}-workspace`, `atoma-compute-${allocationId}-snapshots`,
+    `atoma-compute-${machineId}-embeddings`];
+  const foreign = `atoma-compute-${randomUUID()}-retrieval-data`;
+  const container = `atoma-compute-${allocationId}-retrieval`;
+  try {
+    for (const volume of [corpus, ...retained]) await docker(['volume', 'create', '--label', `dev.atoma.compute=${machineId}`, volume]);
+    await docker(['volume', 'create', '--label', `dev.atoma.compute=${foreignMachine}`, foreign]);
+    // A stopped container still holds its volume, as after a process crash.
+    await docker(['create', '--name', container, '--label', `dev.atoma.compute=${machineId}`,
+      '--network', 'none', '--mount', `type=volume,src=${corpus},dst=/retrieval`, workspaceImage!, 'node', '--version']);
+    await DesktopCompute.reconcile(machineId);
+    await expect(docker(['volume', 'inspect', corpus])).rejects.toThrow();
+    for (const volume of [...retained, foreign]) await expect(docker(['volume', 'inspect', volume])).resolves.toContain(volume);
+    expect(await docker(['ps', '-aq', '--filter', `name=^/${container}$`])).toBe('');
+  } finally {
+    await docker(['rm', '-f', container]).catch(() => undefined);
+    for (const volume of [corpus, ...retained, foreign]) await docker(['volume', 'rm', volume]).catch(() => undefined);
+  }
+}, 30_000);

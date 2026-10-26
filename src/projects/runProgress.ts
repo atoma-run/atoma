@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { acceptanceSchema } from '../contracts/depthRouting.js';
 import { PROJECT_RUN_WAITING_MESSAGE, type ProjectRun } from '../contracts/projects.js';
 import type { RunParentTests, RunProgress } from '../contracts/clientExperience.js';
-import { COMPUTE_RESULTS_WAITING_MESSAGE, COMPUTE_RUN_STOPPING_MESSAGE, computeResultsWaitingMessage,
+import { COMPUTE_RESULTS_WAITING_MESSAGE, COMPUTE_RUN_STOPPING_MESSAGE, COMPUTE_RUN_STOPPED_MESSAGE, computeResultsWaitingMessage,
   type ComputeResultsWaiting, type ComputeRunProgress } from '../contracts/computeDevice.js';
 import { summarizeParentTests, type ParentTestLimits, type ParentTestSummary } from '../contracts/parentTestRecord.js';
 import { readBoundedRunFile } from '../viz/runIndex.js';
@@ -152,7 +152,8 @@ export function projectRunEvidence(run: ProjectRun, options: ProgressOptions = {
   const met = criteria.filter(item => item.met === true).length;
   const progress: RunProgress = {
     stage, message: terminal ? `Run ${run.status}.` : (stage === 'awaiting-results' && options.resultsWaiting
-      ? computeResultsWaitingMessage(options.resultsWaiting) : messages[stage]) + (criteria.length ? ` Latest recorded review: ${met}/${criteria.length} criteria judged met.` : ''),
+      ? computeResultsWaitingMessage(options.resultsWaiting)
+      : stage === 'stopping' && options.computeProgress === 'stopped' ? COMPUTE_RUN_STOPPED_MESSAGE : messages[stage]) + (criteria.length ? ` Latest recorded review: ${met}/${criteria.length} criteria judged met.` : ''),
     source: detail ? 'trace' : 'run', evidence: detail ? 'available' : 'unavailable',
     lastActivityAt: detail?.lastActivityAt ?? run.endedAt ?? run.startedAt ?? run.createdAt,
     criteria, criteriaTruncated: detail?.criteriaTruncated ?? false, acceptanceApproved: detail?.acceptanceApproved ?? null,
