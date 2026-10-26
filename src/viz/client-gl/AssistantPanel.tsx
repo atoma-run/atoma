@@ -76,7 +76,7 @@ function DeploymentLineView({ line, projectId, locale, t, onRun }: { line: Deplo
 function ActivityLineView({ line, locale, t, onRun }: { line: ActivityLine; locale: string;
   t: (key: string, vars?: Record<string, unknown>) => string; onRun: (run: AssistantRun, traceId: string | null) => void }) {
   const { run } = line;
-  const settled = line.kind === 'ended' ? activitySettled(run, t) : null;
+  const settled = line.kind === 'ended' ? activitySettled(line, t) : null;
   // A request is an input, on the right like the person's messages; an ending is Atoma's output, on the left like its receipts.
   return <article className={`gpu-assistant-message gpu-assistant-message--activity gpu-assistant-message--${line.kind === 'started' ? 'user' : 'receipt'}`}>
     <div className="gpu-assistant-message-meta"><strong>{line.kind === 'started' ? activityWho(run, t) : t('assistant.receipt')}</strong>

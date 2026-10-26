@@ -17,6 +17,8 @@ export interface ActivityLine {
   readonly kind: 'started' | 'ended';
   readonly at: string;
   readonly run: AssistantActivity;
+  /** A delivery never accepted, while a later run of the project was: that later version replaced it. */
+  readonly superseded?: boolean;
 }
 
 const FINISHED = new Set(['delivered', 'partial', 'failed', 'cancelled']);
@@ -37,10 +39,14 @@ export function activityLines(input: {
   const receipted = new Set(input.messages.flatMap(message => message.role === 'receipt' && message.run ? [message.run.runId] : []));
   const first = input.messages[0] ? Date.parse(input.messages[0].at) : NaN;
   const lines: ActivityLine[] = [];
+  // Acceptance dates of the told runs: the newest page holds every run newer than any of its own.
+  const accepted = input.activity.filter(run => run.acceptedAt).map(run => Date.parse(run.createdAt));
   for (const run of input.activity) {
     if (!receipted.has(run.runId)) lines.push({ key: `started:${run.runId}`, kind: 'started', at: run.createdAt, run });
     if (FINISHED.has(run.status) && run.endedAt && !input.carded.has(run.runId)) {
-      lines.push({ key: `ended:${run.runId}`, kind: 'ended', at: run.endedAt, run });
+      const superseded = run.status === 'delivered' && !run.acceptedAt && run.publicationStatus !== 'published' &&
+        accepted.some(at => at > Date.parse(run.createdAt));
+      lines.push({ key: `ended:${run.runId}`, kind: 'ended', at: run.endedAt, run, ...(superseded ? { superseded } : {}) });
     }
   }
   return lines
@@ -93,10 +99,16 @@ export function activityWhat(line: ActivityLine, t: (key: string, vars?: Record<
   return t(`assistant.activity.ended.${run.status}`, { title: run.title ?? run.goalExcerpt });
 }
 
-/** The ended line's follow-up, when the client already settled the result. */
-export function activitySettled(run: AssistantActivity, t: (key: string) => string): string | null {
+/**
+ * The ended line's follow-up: the client accepted the result, or never did
+ * while a later version was (2026-10-26: an unaccepted delivery read only by
+ * the absence of an "accepted" sentence).
+ */
+export function activitySettled(line: Pick<ActivityLine, 'run' | 'superseded'>, t: (key: string) => string): string | null {
+  const { run } = line;
   if (run.publicationStatus === 'published') return t('assistant.activity.published');
-  return run.acceptedAt ? t('assistant.activity.accepted') : null;
+  if (run.acceptedAt) return t('assistant.activity.accepted');
+  return line.superseded ? t('assistant.activity.superseded') : null;
 }
 
 /** One deployment of the project as its conversation narrates it (2026-10-26). */

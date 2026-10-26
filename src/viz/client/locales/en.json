@@ -2205,6 +2205,7 @@
   "assistant.activity.ended.cancelled": "Work cancelled: {{title}}",
   "assistant.activity.accepted": "This result was accepted.",
   "assistant.activity.published": "This result was accepted and sent to GitHub.",
+  "assistant.activity.superseded": "Not accepted; a later version replaced it.",
   "assistant.proposal": "For your approval",
   "assistant.project": "Project",
   "assistant.repository": "Repository",

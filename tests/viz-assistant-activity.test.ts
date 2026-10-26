@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { activityLines, activityWho, deploymentLines, deploymentWhat, mcpClientLabel, type AssistantActivity, type DeploymentEntry } from '../src/viz/client-gl/assistant-activity.js';
+import { activityLines, activitySettled, activityWho, deploymentLines, deploymentWhat, mcpClientLabel, type AssistantActivity, type DeploymentEntry } from '../src/viz/client-gl/assistant-activity.js';
 import { translate } from '../src/viz/client/i18n-catalog.js';
 
 const t = (key: string, vars?: Record<string, unknown>) => translate('en', key, vars);
@@ -59,4 +59,25 @@ it('never says a deployment served when it did not, nor that it did not start wh
   expect(told({ outcome: 'unavailable' })).toEqual({ what: 'Put online: v2', state: 'Not answering right now.' });
   // A row from before these facts proves neither that it served nor that it switched anything.
   expect(told({ outcome: 'stopped', replaced: true })).toEqual({ what: 'Deployment of: v2', state: 'Stopped.' });
+});
+
+it('says a delivery was not accepted once a later version was, and nothing while none is (2026-10-26)', () => {
+  const at = (hour: number) => `2026-10-26T${String(hour).padStart(2, '0')}:00:00.000Z`;
+  const settledOf = (activity: AssistantActivity[], runId: string) => {
+    const line = activityLines({ activity, messages: [], carded: new Set(), olderUnloaded: false })
+      .find(item => item.kind === 'ended' && item.run.runId === runId)!;
+    return activitySettled(line, t);
+  };
+  const older = run({ runId: '1b0c9a3e-2d4f-4a6b-8c7d-9e0f1a2b3c4d', status: 'delivered', createdAt: at(8), endedAt: at(9) });
+  const failed = run({ runId: '2c1d0b4f-3e5a-4b7c-9d8e-0f1a2b3c4d5e', status: 'failed', createdAt: at(9), endedAt: at(10) });
+  const accepted = run({ runId: '3d2e1c5a-4f6b-4c8d-8e9f-1a2b3c4d5e6f', status: 'delivered', createdAt: at(10), endedAt: at(11),
+    acceptedAt: at(12), publicationStatus: 'published' });
+  const after = run({ runId: '4e3f2d6b-5a7c-4d9e-9f0a-2b3c4d5e6f70', status: 'delivered', createdAt: at(13), endedAt: at(14) });
+  const activity = [after, accepted, failed, older];
+  expect(settledOf(activity, older.runId)).toBe('Not accepted; a later version replaced it.');
+  expect(settledOf(activity, accepted.runId)).toBe('This result was accepted and sent to GitHub.');
+  // Only a delivery is "not accepted"; a newer delivery than the accepted one is not replaced by it.
+  expect(settledOf(activity, failed.runId)).toBeNull();
+  expect(settledOf(activity, after.runId)).toBeNull();
+  expect(settledOf([after, older], older.runId)).toBeNull();
 });

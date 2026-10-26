@@ -2130,6 +2130,21 @@ html.atoma-cursor-active * {
 .gpu-assistant-error-details summary { cursor: pointer; color: #b5c5dc; }
 .gpu-assistant-error-details p { color: #b5c5dc; }
 .gpu-assistant-message-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; }
+/*
+ * Where the conversation is wide, Atoma's receipts take the room instead of the
+ * height (owner, 2026-10-26): text on the left, its buttons beside it at the
+ * bottom right. The meta row spans both columns so the time stays at the right
+ * edge. A card whose acceptance form is open keeps buttons under the form.
+ */
+.gpu-assistant-log { container: assistant-log / inline-size; }
+@container assistant-log (min-width: 520px) {
+  .gpu-assistant-message--receipt:not(:has(> form)) { display: grid; grid-template-columns: minmax(0, auto) auto; column-gap: 16px; }
+  .gpu-assistant-message--receipt:not(:has(> form)) > * { grid-column: 1; }
+  .gpu-assistant-message--receipt:not(:has(> form)) > .gpu-assistant-message-meta { grid-column: 1 / -1; }
+  .gpu-assistant-message--receipt:not(:has(> form)) > .gpu-assistant-message-actions {
+    grid-column: 2; grid-row: 2 / span 40; align-self: end; justify-content: flex-end; margin-top: 2px;
+  }
+}
 .gpu-assistant-typing-dots { display: flex; align-items: center; gap: 4px; height: 20px; }
 .gpu-assistant-typing-dots > span { width: 6px; height: 6px; border-radius: 50%; background: #9bdcc7; animation: gpu-assistant-typing 1.2s ease-in-out infinite; }
 .gpu-assistant-typing-dots > span:nth-child(2) { animation-delay: .15s; }
