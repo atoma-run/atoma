@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync, symlinkSync } from 'node:fs';
-import { truncateToolResultContent } from '../src/core/llm.js';
+import { formatToolResultContent } from '../src/core/llm.js';
+import { MAX_FILE_READ_CHARS } from '../src/contracts/toolOutput.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ToolSandbox } from '../src/tools/sandbox.js';
@@ -101,8 +102,10 @@ describe('writeFileTool + readFileTool', () => {
       const page = await readFileTool({ sandbox }).execute({ path: 'page.txt', offset }) as {
         content: string; nextOffset: number | null; totalChars: number;
       };
-      const wire = JSON.stringify(page);
-      expect(truncateToolResultContent(wire)).toBe(wire);
+      // What every transport hands the model: the page verbatim between markers, never cut.
+      const shown = formatToolResultContent('read_file', page);
+      expect(shown).toContain(`\n${page.content}\n--- END FILE CONTENT`);
+      expect(shown).not.toContain('tool output truncated');
       expect(page.totalChars).toBe(content.length);
       rebuilt += page.content;
       if (page.nextOffset === null) break;
@@ -112,8 +115,39 @@ describe('writeFileTool + readFileTool', () => {
     expect(await readFileTool({ sandbox }).execute({ path: 'page.txt', offset: content.length + 10 })).toMatchObject({ content: '', nextOffset: null });
   });
 
-  it.each([{ offset: -1 }, { offset: 1.5 }, { offset: null }, { limit: 0 }, { limit: 2001 }, { limit: '2' }])('refuses invalid page arguments: %j', async args => {
-    await expect(readFileTool({ sandbox }).execute({ path: 'page.txt', ...args })).rejects.toThrow(/offset must/);
+  // Run 9d36e988 (2026-10-26): read-only audits asked for 12,000- and 3,000-character
+  // ranges of 25 KB sources, each refused at a 2,000 ceiling: a lost call each time.
+  it('reads every range a model asks for, never refusing one for its size or spelling', async () => {
+    const source = Array.from({ length: 900 }, (_, line) => `export const value${line} = "${'x'.repeat(20)}";`).join('\n');
+    writeFileSync(join(root, 'control-server.ts'), source);
+    const read = (args: Record<string, unknown>) => readFileTool({ sandbox }).execute({ path: 'control-server.ts', ...args }) as Promise<{
+      content: string; offset: number; nextOffset: number | null; totalChars: number }>;
+    expect(await read({ offset: 0, limit: 12000 })).toMatchObject({ content: source.slice(0, 12000), nextOffset: 12000, totalChars: source.length });
+    expect(await read({ offset: 7000, limit: 3000 })).toMatchObject({ content: source.slice(7000, 10000), nextOffset: 10000 });
+    expect(await read({ offset: 0, limit: 1_000_000 })).toMatchObject({ content: source, nextOffset: null });
+    // An unusable offset reads from the start, an unusable limit to the end, a numeric string is a number.
+    for (const args of [{ offset: -1 }, { offset: null }, { limit: 0 }, { limit: 'many' }]) {
+      expect(await read(args), JSON.stringify(args)).toMatchObject({ content: source, offset: 0, nextOffset: null });
+    }
+    expect(await read({ offset: 1.5, limit: '2' })).toMatchObject({ content: source.slice(1, 3), nextOffset: 3 });
+  });
+
+  it('reads a file of any size whole, in parts the model is shown uncut', async () => {
+    const big = 'é"\\\n'.repeat(80_000) + 'END';
+    writeFileSync(join(root, 'huge.txt'), big);
+    const first = await readFileTool({ sandbox }).execute({ path: 'huge.txt' }) as { content: string; nextOffset: number | null; totalChars: number };
+    expect(first).toMatchObject({ totalChars: big.length, nextOffset: MAX_FILE_READ_CHARS });
+    let rebuilt = first.content, offset = first.nextOffset;
+    while (offset !== null) {
+      const page = await readFileTool({ sandbox }).execute({ path: 'huge.txt', offset, limit: 10_000_000 }) as { content: string; nextOffset: number | null };
+      expect(page.content.length).toBeLessThanOrEqual(MAX_FILE_READ_CHARS);
+      expect(formatToolResultContent('read_file', page)).not.toContain('tool output truncated');
+      rebuilt += page.content; offset = page.nextOffset;
+    }
+    expect(rebuilt).toBe(big);
+    // A file that fits is still answered whole, without page metadata.
+    writeFileSync(join(root, 'small.txt'), 'small');
+    expect(await readFileTool({ sandbox }).execute({ path: 'small.txt' })).toEqual({ path: 'small.txt', content: 'small' });
   });
 
   it('creates nested parent directories on write', async () => {

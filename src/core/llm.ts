@@ -1,6 +1,6 @@
 import { withPartialUsage } from './metrics.js';
 import { BUDGET_EXHAUSTED_HINT } from '../contracts/hostInstructions.js';
-import { MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
+import { MAX_FILE_READ_CHARS, MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { modelSupportsEffort, modelSupportsSamplingParams } from './models.js';
 import type {
@@ -467,8 +467,10 @@ export function formatToolResultContent(name: string, result: unknown): string {
       `File text is verbatim between the markers; their adjacent framing newlines are not file text. ` +
       `Use only file text in edit_file.old_string, without these headers or JSON encoding.\n${begin}\n`;
     const footer = `\n${end}`;
-    // Keep paging metadata and both markers when a full-file read exceeds the budget.
-    const budget = MAX_TOOL_RESULT_CHARS - header.length - footer.length;
+    // read_file never returns more file text than MAX_FILE_READ_CHARS (a longer
+    // range comes back in parts with nextOffset), so its text is shown whole.
+    // Any other caller keeps the paging metadata, both markers and a cut text.
+    const budget = Math.max(MAX_TOOL_RESULT_CHARS - header.length - footer.length, MAX_FILE_READ_CHARS);
     if (budget >= 2000) return header + truncateToolResultContent(content, budget) + footer;
   }
   return truncateToolResultContent(typeof result === 'string' ? result : JSON.stringify(result) ?? 'null');

@@ -4,7 +4,7 @@ import { basename, dirname, join, relative, sep } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer } from 'node:net';
 import { createHash, randomUUID } from 'node:crypto';
-import { FILE_OBSERVATION_ONLY_ARG, MAX_FILE_PAGE_CHARS, MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
+import { FILE_OBSERVATION_ONLY_ARG, MAX_FILE_READ_CHARS, MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
 import { readRunCopyWriteRefusal, writesIntoReadRunCopies } from './readRunCopies.js';
 import type { Tool, Logger } from '../core/types.js';
 import { reapEscapedProcessGroups, sandboxChildEnv, type ToolSandbox } from './sandbox.js';
@@ -658,26 +658,28 @@ export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
     declaration: {
       name: 'read_file',
       description:
-        'Read a file, or a bounded page with offset/limit (UTF-16 character units). For large files use offset=0, then nextOffset until null; pages do not refetch HTTP content. Paths are always relative to the workspace root, never the last listed directory. Copy list_files entry.path unchanged; list the parent directory before reading an uncertain path. A path holding no file answers exists:false with the nearest existing directory; a directory answers its entries.',
+        `Read a file, or a range of it with offset/limit (UTF-16 character units). Any size and any range are accepted: a file or range longer than ${MAX_FILE_READ_CHARS} characters comes back as its first part with nextOffset; continue at nextOffset until null. Pages do not refetch HTTP content. Paths are always relative to the workspace root, never the last listed directory. Copy list_files entry.path unchanged; list the parent directory before reading an uncertain path. A path holding no file answers exists:false with the nearest existing directory; a directory answers its entries.`,
       inputSchema: {
         type: 'object',
         properties: {
           path: { type: 'string' },
-          offset: { type: 'integer', minimum: 0, description: 'Start of the requested page in UTF-16 character units. Defaults to 0 when limit is supplied.' },
-          limit: { type: 'integer', minimum: 1, maximum: MAX_FILE_PAGE_CHARS, description: `Page length in UTF-16 character units; defaults to ${MAX_FILE_PAGE_CHARS} when offset is supplied.` },
+          offset: { type: 'integer', minimum: 0, description: 'Start of the requested range in UTF-16 character units; defaults to 0.' },
+          limit: { type: 'integer', minimum: 1, description: 'Length of the requested range in UTF-16 character units; defaults to the rest of the file. A longer range than one result shows comes back in parts: continue at nextOffset.' },
         },
         required: ['path'],
       },
     },
     async execute(args) {
       const path = expectString(args, 'path');
-      const paged = args['offset'] !== undefined || args['limit'] !== undefined;
-      const offset = args['offset'] === undefined ? 0 : args['offset'];
-      const limit = args['limit'] === undefined ? MAX_FILE_PAGE_CHARS : args['limit'];
-      if (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0 ||
-        typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > MAX_FILE_PAGE_CHARS) {
-        throw new Error(`read_file: offset must be a nonnegative safe integer and limit an integer from 1 to ${MAX_FILE_PAGE_CHARS}`);
-      }
+      // Never a refused read for its range (run 9d36e988 lost ~15 calls that way):
+      // an unusable offset reads from the start, an unusable limit to the end.
+      const whole = (value: unknown): number | undefined => {
+        const number = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+        return typeof number === 'number' && Number.isFinite(number) ? Math.floor(number) : undefined;
+      };
+      const offset = Math.max(0, whole(args['offset']) ?? 0);
+      const requested = whole(args['limit']);
+      const limit = requested !== undefined && requested >= 1 ? requested : Number.MAX_SAFE_INTEGER;
       const abs = opts.sandbox.resolve(path);
       let content: string;
       try {
@@ -691,13 +693,12 @@ export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
       // replacing it. Withhold the authorization; never clear an existing one.
       if (args[FILE_OBSERVATION_ONLY_ARG] !== true) markSeen(opts.sandbox, abs);
       opts.logger?.debug(`[tool:read_file] ${path} (${Buffer.byteLength(content, 'utf8')} bytes)`);
-      if (paged) {
-        const start = Math.min(offset, content.length);
-        const end = Math.min(start + limit, content.length);
-        return { path, offset: start, totalChars: content.length, nextOffset: end < content.length ? end : null,
-          content: content.slice(start, end) };
-      }
-      return { path, content };
+      const start = Math.min(offset, content.length);
+      const end = Math.min(start + Math.min(limit, MAX_FILE_READ_CHARS), content.length);
+      // The whole file in one result: as before, no page metadata.
+      if (start === 0 && end === content.length && args['offset'] === undefined && args['limit'] === undefined) return { path, content };
+      return { path, offset: start, totalChars: content.length, nextOffset: end < content.length ? end : null,
+        content: content.slice(start, end) };
     },
   };
 }

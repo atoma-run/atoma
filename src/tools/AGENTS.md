@@ -205,7 +205,9 @@ Neighbours:
   sandbox-resolved `.atoma-http/` file, with `bodyFile` before the truncated
   payload. Recover it through `read_file` offset/limit or local parsing, never
   by repeating the request. File pages use UTF-16 offsets and remain partial
-  evidence; they cannot supersede a complete-file read.
+  evidence; they cannot supersede a complete-file read. `read_file` refuses no
+  range for its size or spelling: a file or range past `MAX_FILE_READ_CHARS`
+  comes back in parts with `nextOffset`, each shown whole (run 9d36e988, 2026-10-26).
 - Shared smoke guidance lives in one constant. Do not duplicate or specialize
   it around one widget vocabulary. The guidance and the `validate_html`
   pre-flight guards are ONE contract: `SMOKE_ASYNC_TRANSITION_EXAMPLE` is

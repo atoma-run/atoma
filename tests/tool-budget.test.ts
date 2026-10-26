@@ -6,6 +6,7 @@ import {
   truncateToolResultContent,
   formatToolResultContent,
 } from '../src/core/llm.js';
+import { MAX_FILE_READ_CHARS } from '../src/contracts/toolOutput.js';
 import type { ToolExecutor } from '../src/core/types.js';
 
 /**
@@ -419,15 +420,23 @@ describe('tool_result truncation', () => {
     expect(output).toContain(`--- BEGIN FILE CONTENT 2 ---\n${content}\n--- END FILE CONTENT 2 ---`);
   });
 
-  it('keeps framing and paging information around a truncated file', () => {
-    const content = 'H'.repeat(30_000) + 'MIDDLE' + 'T'.repeat(30_000);
+  // read_file returns at most MAX_FILE_READ_CHARS of file text, shown whole (2026-10-26).
+  it('shows a full read_file page whole, past the general result bound', () => {
+    const content = 'P'.repeat(MAX_FILE_READ_CHARS - 6) + 'MIDDLE';
+    const output = formatToolResultContent('read_file', { path: 'big.txt', offset: 0, nextOffset: 60_000, totalChars: 90_000, content });
+    expect(output).toContain(`--- BEGIN FILE CONTENT ---\n${content}\n--- END FILE CONTENT ---`);
+    expect(output).not.toContain('tool output truncated');
+    expect(MAX_FILE_READ_CHARS).toBeGreaterThan(MAX_TOOL_RESULT_CHARS);
+  });
+
+  it('keeps framing and paging information around a text longer than any read_file page', () => {
+    const content = 'H'.repeat(50_000) + 'MIDDLE' + 'T'.repeat(50_000);
     const output = formatToolResultContent('read_file', { path: 'big.txt', offset: 0, nextOffset: null, totalChars: content.length, content });
-    expect(output).toContain('"totalChars":60006');
+    expect(output).toContain('"totalChars":100006');
     expect(output).toContain('--- BEGIN FILE CONTENT ---\nHHH');
     expect(output).toContain('tool output truncated');
     expect(output).not.toContain('MIDDLE');
     expect(output.endsWith('TTT\n--- END FILE CONTENT ---')).toBe(true);
-    expect(output.length).toBeLessThanOrEqual(MAX_TOOL_RESULT_CHARS);
   });
 
   it.each([
