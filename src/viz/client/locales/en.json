@@ -875,7 +875,7 @@
   "admin.journalSummary_other": "{{count}} events loaded, newest first",
   "admin.journalEmpty": "Nothing recorded yet.",
   "admin.ledger": "Catalogue ledger",
-  "admin.ledgerHint": "This history shows how agents and saved methods (recipes) learn from their work. Success and failure counters inform shared trust. Withheld events are recorded without changing that trust. Learning credit here is not a payment. This is a separate record from the platform journal.",
+  "admin.ledgerHint": "This history shows how agents and saved methods (recipes) learn from their work. Success and failure counters track their reliability. Withheld events are recorded without changing those counters. Learning credit here is not a payment. This is a separate record from the platform journal.",
   "admin.ledgerSummary_one": "{{count}} entry, newest first",
   "admin.ledgerSummary_other": "{{count}} entries, newest first",
   "admin.ledgerEmpty": "The catalogue has learned nothing yet.",
@@ -2838,7 +2838,7 @@
   "admin.ledgerWithheld.revision": "Recipe change withheld.",
   "admin.ledgerWithheld.observation": "Observation recorded.",
   "admin.ledgerWithheld.counters": "Counters unchanged.",
-  "admin.ledgerWithheld.recipe": "This event does not change the saved method or its shared trust.",
-  "admin.ledgerWithheld.agent": "This event does not change the agent’s shared trust.",
+  "admin.ledgerWithheld.recipe": "This event does not change the saved method or its reliability record shared across Atoma.",
+  "admin.ledgerWithheld.agent": "This event does not change the agent’s reliability record shared across Atoma.",
   "admin.ledgerWithheld.compute": "The work ran on a personal computer with Atoma Compute. An independent check on Atoma’s servers is required before it can affect shared learning."
 }
