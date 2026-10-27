@@ -40,3 +40,15 @@ remediation inventory. CI exposed repetitive BPE work on large padded sources:
 token counts now memoize at most 128 bounded chunks per call, preserving exact
 counts and retaining no evidence between calls. Native macOS ARM typechecking
 also needs a 4 GiB Node heap (fresh full-program check peaked near 2.9 GB).
+
+Compute initial-state retention (2026-10-27): `run/initialState.ts` captures the
+fully prepared execution filesystem through the checkpoint transfer boundary,
+before backend/probe work. Immutable data-only context and resolved criteria
+join the snapshot; continuation plans/prefixes and archives are retained without
+restoring old spend, process authority or fresh execution credit. Verification
+restores the raw snapshot at launch and deepening. Scope/retention/integrity are
+checked before claiming budget. Referenced-run expiry invalidates dependent
+captures; shared GC also handles stores with no checkpoint table. Compatibility
+2 drains earlier executors before activation because their GC lacks these refs.
+Legacy seeded runs lacking a capture remain unavailable; external connector
+grants are never replayed. The independent hosted controller uses current models.

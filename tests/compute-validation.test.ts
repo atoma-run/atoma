@@ -1,3 +1,5 @@
+import { RunInitialStateStore, retainInitialWorkspace } from '../src/run/initialState.js';
+import { captureCheckpointExport } from '../src/run/checkpointExport.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
@@ -100,6 +102,35 @@ describe('resident Compute verification through the real queue, store and lease'
     expect(call.extraArgs).toContain('--container');
     expect(call.extraArgs).not.toContain('--egress');
     expect(call.onSpawn).toBeTypeOf('function');
+  });
+  async function savedInitial(f: ReturnType<typeof fixture>) {
+    const workspace = f.source.hostPaths.workspacePath;
+    mkdirSync(workspace, { recursive: true }); writeFileSync(join(workspace, '.env.local'), 'private fixture');
+    const states = new RunInitialStateStore(f.db);
+    const snapshot = await retainInitialWorkspace(f.db, captureCheckpointExport(workspace));
+    states.publish({ version: 1, runId: f.source.projectRunId, orgId: f.source.orgId, projectId: f.source.projectId,
+      principalId: f.source.requestedByPrincipalId, goal: f.source.goal, snapshot, externalConnectors: false,
+      environment: { ATOMA_PREVIOUS_RUN_RESULTS: '{"historyTruncated":false,"runs":[]}' } });
+    return snapshot;
+  }
+  it('verifies a seeded run from its complete retained initial state', async () => {
+    const f = fixture('seeded'); await savedInitial(f);
+    await validateComputeNext(f.options);
+    expect(f.launch).toHaveBeenCalledOnce();
+    expect(f.launch.mock.calls[0]![0].env['ATOMA_PREVIOUS_RUN_RESULTS']).toContain('historyTruncated');
+    expect(f.events().at(-1)?.detail).toMatchObject({ status: 'completed' });
+  });
+  it('refuses corrupt retained bytes before claiming budget or launching', async () => {
+    const f = fixture('seeded'); const snapshot = await savedInitial(f);
+    f.db.prepare("UPDATE run_checkpoint_files SET content=? WHERE snapshot=? AND path='.env.local'").run(Buffer.from('damaged'), snapshot.id);
+    await validateComputeNext(f.options);
+    expect(f.launch).not.toHaveBeenCalled();
+    expect(f.events().map(event => event.detail?.['status'])).toEqual(['queued', 'blocked']);
+  });
+  it('releases the shared lease even if private snapshot cleanup fails', async () => {
+    const f = fixture('seeded'); await savedInitial(f);
+    await expect(validateComputeNext({ ...f.options, cleanupInitial() { throw new Error('fixture cleanup failure'); } })).rejects.toThrow('cleanup failure');
+    const lease = acquireRunLeaseWithoutRecovery('next-product-run', f.options.leasePath); lease.release();
   });
   it('treats a forged stdout delivery without a host trace as inconclusive', async () => {
     const f = fixture();

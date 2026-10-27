@@ -206,3 +206,20 @@ export class CheckpointWorkspaceWriter {
     rmSync(this.temp, { recursive: true, force: true });
   }
 }
+
+/** Shared byte GC, including stores which have never created a resumable checkpoint. */
+export function pruneCheckpointWorkspaceSnapshots(db: Database.Database): void {
+  initializeCheckpointWorkspaces(db);
+  const has = (name: string) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
+  const references = ['SELECT snapshot FROM run_checkpoint_transfers'];
+  if (has('run_initial_states')) references.push('SELECT snapshot FROM run_initial_states');
+  if (has('run_checkpoints')) references.push("SELECT json_extract(payload,'$.snapshotId') FROM run_checkpoints WHERE state<>'finished' AND json_extract(payload,'$.snapshotId') IS NOT NULL");
+  db.transaction(() => {
+    db.prepare('DELETE FROM run_checkpoint_transfers WHERE expires_at<=?').run(Date.now());
+    const unreferenced = `SELECT id FROM run_checkpoint_snapshots WHERE id NOT IN (${references.join(' UNION ')})`;
+    db.exec(`DELETE FROM run_checkpoint_files WHERE snapshot IN (${unreferenced});
+      DELETE FROM run_checkpoint_snapshots WHERE id IN (${unreferenced});
+      DELETE FROM run_checkpoint_files WHERE snapshot NOT IN (SELECT id FROM run_checkpoint_snapshots)
+        AND snapshot NOT IN (SELECT snapshot FROM run_checkpoint_transfers)`);
+  }).immediate();
+}

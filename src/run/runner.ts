@@ -1,3 +1,4 @@
+import { RunInitialStateStore, retainInitialWorkspace, initialContextEnvironment, initialStateRuntime } from './initialState.js';
 import { RUN_SHUTDOWN_MESSAGE } from '../contracts/runShutdown.js';
 import { deferPromptLearning } from '../atoms/promptLearning.js';
 import { assessClientQuestion } from '../atoms/clientQuestion.js';
@@ -690,6 +691,16 @@ async function startTaskInternal(
   const useClaudeCli = referencedTransports(selectors).includes('claude-cli');
 
   const args = parseRunnerArgs(argv);
+  const computeValidation = computeValidationLaunch(process.env);
+  const initialStates = computeValidation ? new RunInitialStateStore(openLedgerHandle(process.env[RUN_ENV.dbPath] ?? RUN_DEFAULTS.dbPath)) : undefined;
+  if (computeValidation) {
+    if (process.env['ATOMA_TENANT_RUN'] === '1' || !args.container || args.egress || args.seed || args.resume) {
+      throw new RunnerConfigError('Compute validation requires an isolated host run without network access or replacement inputs');
+    }
+    assertComputeValidationClaim(initialStates!.db, computeValidation);
+  }
+  const validationInitial = computeValidation ? initialStates!.read(computeValidation) : null;
+  if (validationInitial && validationInitial.goal !== args.goal?.trim()) throw new RunnerConfigError('Compute validation goal differs from its captured initial state');
   const resolvedDepth = resolveSupervisionDepth(args, DEPTH_CONTRACT.defaultMode);
   if (resolvedDepth) args.depth = resolvedDepth;
   const checkpointAuthority = process.env['ATOMA_TENANT_RUN'] === '1' && args.checkpoint
@@ -705,7 +716,7 @@ async function startTaskInternal(
   if (args.checkpoint && process.env[RUN_ENV.dbPath] === ':memory:') {
     throw new RunnerConfigError('Durable checkpoints require a file-backed product store');
   }
-  const checkpointStore = args.checkpoint ? new RunCheckpointStore(process.env[RUN_ENV.dbPath] ?? RUN_DEFAULTS.dbPath) : undefined;
+  const checkpointStore = args.checkpoint || validationInitial?.continuation ? new RunCheckpointStore(process.env[RUN_ENV.dbPath] ?? RUN_DEFAULTS.dbPath) : undefined;
   let savedCheckpoint: RunCheckpoint | undefined;
   if (args.resume) {
     try { savedCheckpoint = checkpointStore!.read(args.resume); }
@@ -795,7 +806,7 @@ async function startTaskInternal(
   // is checked against the run's proven authority below.
   const readRunsPath = process.env[READ_RUNS_ENV];
   delete process.env[READ_RUNS_ENV];
-  if (readRunsPath && (process.env['ATOMA_TENANT_RUN'] !== '1' || !requestedRunId)) {
+  if (readRunsPath && ((!computeValidation && process.env['ATOMA_TENANT_RUN'] !== '1') || !requestedRunId)) {
     throw new RunnerConfigError('read runs require a tenant project run');
   }
   let decodedReadRuns: ReadRunsIndex | null = null;
@@ -830,7 +841,6 @@ async function startTaskInternal(
   // hand before the workspace is touched.
   const dbPath = process.env[RUN_ENV.dbPath] ?? RUN_DEFAULTS.dbPath;
   const tenantRun = process.env['ATOMA_TENANT_RUN'] === '1';
-  const computeValidation = computeValidationLaunch(process.env);
   if (computeValidation) {
     if (tenantRun || !args.container || args.egress) throw new RunnerConfigError('Compute validation requires an isolated host run without network access');
     assertComputeValidationClaim(openLedgerHandle(dbPath), computeValidation);
@@ -884,7 +894,7 @@ async function startTaskInternal(
   const workspaceRoot = (args.checkpoint && !opts?.workspaceRuntime ? canonicalCheckpointWorkspacePath : resolve)(
     process.env[RUN_ENV.workspace] ?? RUN_DEFAULTS.workspace
   );
-  const workspace = opts?.workspaceRuntime ?? localWorkspaceRuntime({ root: workspaceRoot, seedRoot,
+  let workspace = opts?.workspaceRuntime ?? localWorkspaceRuntime({ root: workspaceRoot, seedRoot,
     readRuns: readRuns ?? undefined, log: line => console.log(line) });
   try { if (!opts?.prepareWorkspaceSources) await workspace.validateSources(); }
   catch (error) { throw new RunnerConfigError((error as Error).message); }
@@ -978,6 +988,8 @@ async function startTaskInternal(
     );
   }
 
+  if (validationInitial) workspace = initialStateRuntime(workspace, initialStates!, validationInitial);
+
   const checkpointPolicy = JSON.stringify({
     selectors, acceptanceSpec, acceptanceSource, floor: DEPTH_CONTRACT.floor,
     learning: learning.enabled, promotion: promotion.enabled, direct: direct.enabled,
@@ -1015,6 +1027,7 @@ async function startTaskInternal(
   let runScope: LedgerScope = { actorType: 'cli' };
   if (computeValidation) runScope = { orgId: computeValidation.orgId, projectId: computeValidation.projectId,
     actorType: 'system', actorId: `compute-validation:${computeValidation.sourceRunId}` };
+  let projectAuthority: ReturnType<typeof assertProjectRunAuthority> | undefined;
   if (tenantRun) {
     // Container isolation is the one precondition of a tenant launch. The
     // lifecycle — learning, promotion, dispatch, the prefilter cache — is the
@@ -1026,6 +1039,7 @@ async function startTaskInternal(
     let authority;
     try { authority = assertProjectRunAuthority(projectPaths); }
     catch { throw new RunnerConfigError('project run launch is unavailable or denied'); }
+    projectAuthority = authority;
     runScope = { orgId: authority.orgId, projectId: authority.projectId,
       actorType: 'principal', actorId: authority.requestedByPrincipalId };
   }
@@ -1170,6 +1184,10 @@ async function startTaskInternal(
       actor: null, checklist: null, root: null, completed: [], workspaceDigest: null, processes: null,
       consumed: { tokens: 0, costUsd: 0 }, remainingMs: timeoutMs, lastRunId: null,
     };
+    if (validationInitial?.continuation) {
+      const { actor, checklist, root, completed } = validationInitial.continuation;
+      Object.assign(data, { actor, checklist, root, completed, id: requestedRunId!, workspace: resolve(workspaceRoot), policy: checkpointPolicy });
+    }
     // Claim before a backend can touch the workspace. A losing resumer starts no tools.
     try {
       checkpoint = new SequentialCheckpoint(data, checkpointStore, {
@@ -1191,6 +1209,8 @@ async function startTaskInternal(
             if (checkpointWorkspaceDigest(workspaceRoot) !== savedCheckpoint.workspaceDigest) throw new Error('Workspace changed while copying');
           }
         } : undefined,
+        ...(validationInitial ? { historicalEvidence: initialStates!.evidence(validationInitial.runId),
+          replanAfterAnswer: validationInitial.continuation?.replanAfterAnswer } : {}),
         evidence: () => ctx.attestations,
         worker: () => backend.checkpointWorker?.(),
         processes: () => backend.checkpointProcesses?.() ?? null,
@@ -1217,6 +1237,13 @@ async function startTaskInternal(
         `where runs before 2026-10-17 put it, not at ${READ_RUN_COPIES_DIRECTORY}/${legacy}; start a new run that reads it`);
     }
   } catch (error) { throw new RunnerConfigError((error as Error).message); }
+  let retainedInitial: { id: string; digest: string } | undefined;
+  const captureInitial = projectAuthority?.executionTarget.kind === 'customer-device'
+    ? new RunInitialStateStore(openLedgerHandle(dbPath)) : undefined;
+  if (captureInitial) {
+    try { retainedInitial = await retainInitialWorkspace(captureInitial.db, await workspace.checkpointExport(), signal); }
+    catch (error) { consoleLogger.warn(`Initial state unavailable for independent Compute validation: ${(error as Error).message}`); }
+  }
   const routingRepository = args.baseline ? undefined : await workspace.routingRepository();
 
   // Local by default; `--container` moves the tool layer into a container
@@ -1297,7 +1324,9 @@ async function startTaskInternal(
     else seedCatalog(seedCtx);
     let selectedTissue: Awaited<ReturnType<typeof selectTissue>> | undefined;
     const tissueFor = async (task: Task, context: RunContext) => {
-      if (savedCheckpoint?.actor && !selectedTissue) selectedTissue = savedRootActor(registry, savedCheckpoint.actor, checkpoint);
+      // Independent verification selects its own current host controller; only an actual resume pins the source actor.
+      const priorActor = savedCheckpoint?.actor;
+      if (priorActor && !selectedTissue) selectedTissue = savedRootActor(registry, priorActor, checkpoint);
       // Registered comparison arms retain their original fixed entry protocol.
       selectedTissue ??= args.comparison ? buildTissue : await selectTissue({
         registry, toolDecls: backend.toolDecls, task, repository: routingRepository!, ctx: context,
@@ -1333,9 +1362,10 @@ async function startTaskInternal(
       // A list the user approved REPLACES the draft, and no drafting call is
       // made: the model's reading of the goal never overrides the person's.
       handle = async (t, c) => {
-        const checklist = savedCheckpoint?.checklist ?? (acceptanceSource === 'none' ? [] :
+        const checklist = savedCheckpoint?.checklist ?? validationInitial?.continuation?.checklist ?? (acceptanceSource === 'none' ? [] :
           acceptanceSpec?.items ?? await draftAcceptanceChecklist(c, t.description));
         if (checkpoint) checkpoint.data.checklist = checklist;
+        captureInitialState(t, checklist);
         return runDepthTask({
         // A comparison rerun of a run that drafted its own list carries THAT
         // draft: the same yardstick as its origin, judged as a draft, with no
@@ -1398,7 +1428,7 @@ async function startTaskInternal(
     executionProvenance: backend.provenance ?? 'hosted',
     ...(checkpoint ? { rootCheckpoint: checkpoint } : {}),
     ...(args.depth ? { attestations: createAttestationLog((record) => recorder.recordAttestation(record),
-      checkpoint ? checkpointStore!.historicalEvidence(checkpoint.data) : []) } : {}),
+      validationInitial ? initialStates!.evidence(validationInitial.runId) : checkpoint ? checkpointStore!.historicalEvidence(checkpoint.data) : []) } : {}),
     logger: consoleLogger,
     signal,
     deadlineAt,
@@ -1504,10 +1534,27 @@ async function startTaskInternal(
     workspacePreparation: launchWorkspacePreparation({ resume: Boolean(args.resume),
       saved: builtTask.inputs?.['workspacePreparation'], seedRoot }),
   } }, process.env, connectorLaunch, readRuns);
+  const replayTask = validationInitial ? { ...withLanding, inputs: validationInitial.inputs } : withLanding;
   const task = args.depth ? {
-    ...withLanding,
+    ...replayTask,
     proofFloor: DEPTH_CONTRACT.floor.map((item) => ({ ...item })),
-  } : withLanding;
+  } : replayTask;
+
+  function captureInitialState(initialTask: Task, checklist?: import('../contracts/acceptanceChecklist.js').AcceptanceChecklist): void {
+    if (captureInitial && retainedInitial && projectAuthority) {
+      try {
+        captureInitial.publish({ version: 1, runId: projectAuthority.projectRunId, orgId: projectAuthority.orgId,
+          projectId: projectAuthority.projectId, principalId: projectAuthority.requestedByPrincipalId, goal: initialTask.description,
+          snapshot: retainedInitial, environment: initialContextEnvironment(process.env), inputs: initialTask.inputs, checklist,
+          startingSnapshot, ...(readRuns ? { readRuns } : {}), externalConnectors: Boolean(connectorLaunch),
+          ...(savedCheckpoint ? { continuation: { actor: savedCheckpoint.actor, checklist: savedCheckpoint.checklist,
+            root: savedCheckpoint.root, completed: savedCheckpoint.completed, replanAfterAnswer: checkpoint?.replanAfterAnswer } } : {}),
+        }, savedCheckpoint ? checkpointStore!.historicalEvidence(checkpoint!.data) : []);
+      } catch (error) { consoleLogger.warn(`Initial state unavailable for independent Compute validation: ${(error as Error).message}`); }
+      retainedInitial = undefined;
+    }
+  }
+  if (!args.depth) captureInitialState(task);
 
   console.log(`\ntask: ${task.description}\n`);
 

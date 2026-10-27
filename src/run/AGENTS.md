@@ -413,6 +413,17 @@ Neighbours:
   disabled pause, questions and resume for every seeded Node project. What
   the publication inventory omits as byte-less (`byteLessWorkspaceEntry`: a
   dangling link, a socket, a FIFO) is never seeded, for the same reason.
+- Customer-device runs retain a complete initial workspace through the existing
+  checkpoint export/receiver before backend or inherited-probe execution. `initialState.ts`
+  publishes the sealed snapshot with immutable data-only inputs and the resolved
+  checklist, bound to the authorized run/org/project/principal. No publication
+  filtering, secrets from the provider environment, or substitute empty captures.
+  A failed capture leaves validation unavailable and the ordinary run intact.
+  Independent validation restores raw bytes at launch/deepening; a continuation
+  clones its plan and completed prefix into a fresh checkpoint, with historical
+  proof and zero new spend/credit for the prefix, leaving the source untouched.
+  Snapshots live in the primary product store, participate in shared GC and expire
+  with run bytes; dependent read-run captures are invalidated on reference expiry.
 - WHO REINSTALLS: the executor, told the roots (2026-10-26). `packageRootsOf`
   reads the seed SOURCE on this host, Compute included (sorted entries, only
   package.json and lockfile names; no `node_modules`, dot-directory, omitted

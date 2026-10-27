@@ -122,7 +122,8 @@ mock.module(new URL('../../src/run/providers.ts', import.meta.url).href, {
 if (process.env['CHECKPOINT_TEST_TENANT'] === '1') {
   mock.module(new URL('../../src/run/toolBackend.ts', import.meta.url).href, {
     namedExports: { ...backends, containerToolBackend: async (opts: { workspaceRoot: string }) =>
-      backends.localToolBackend({ workspaceRoot: opts.workspaceRoot, logger: nullLogger }) },
+      ({ ...backends.localToolBackend({ workspaceRoot: opts.workspaceRoot, logger: nullLogger }),
+        ...(process.env['CHECKPOINT_TEST_CAPTURE_COMPUTE'] === '1' ? { provenance: 'customer-device' as const } : {}) }) },
   });
 }
 if (process.env['CHECKPOINT_TEST_REQUEST_PAUSE'] === '1') {

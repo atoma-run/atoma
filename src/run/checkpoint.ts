@@ -1,3 +1,4 @@
+import { initializeRunInitialStates, RunInitialStateStore } from './initialState.js';
 import { attestationRecordSchema, type AttestationLog, type AttestationRecord } from '../contracts/attestation.js';
 import { transportWitnesses } from '../contracts/witness.js';
 import { initializeClientQuestions, readClientQuestion, recordClientQuestion, answerClientQuestion, applyClientAnswer } from './clientQuestions.js';
@@ -17,7 +18,7 @@ import { isLanded } from '../contracts/runLanding.js';
 import { parentTestsGrantNothing } from '../core/parentTests.js';
 import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
 import { outOfPhaseBudget } from '../core/limits.js';
-import { canonicalCheckpointWorkspacePath, checkpointWorkspaceDigest, readCheckpointWorkspace, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
+import { canonicalCheckpointWorkspacePath, checkpointWorkspaceDigest, readCheckpointWorkspace, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces, pruneCheckpointWorkspaceSnapshots } from './checkpointWorkspace.js';
 import { CheckpointReceiver } from './checkpointTransfer.js';
 import type { CheckpointTransferHeader } from '../contracts/checkpointTransfer.js';
 import { storedCheckpointExport } from './checkpointExport.js';
@@ -137,6 +138,7 @@ export class RunCheckpointStore {
     this.db.exec('CREATE TABLE IF NOT EXISTS run_checkpoint_pauses (id TEXT PRIMARY KEY)');
     this.db.exec('CREATE TABLE IF NOT EXISTS run_checkpoint_evidence (id TEXT NOT NULL, event_id TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY(id,event_id))');
     initializeCheckpointWorkspaces(this.db);
+    initializeRunInitialStates(this.db);
     this.db.exec(`CREATE TABLE IF NOT EXISTS run_checkpoint_recovery (
       id TEXT PRIMARY KEY, boundary_seq INTEGER NOT NULL, blocked TEXT, consumed TEXT NOT NULL, deadline REAL NOT NULL
     ); CREATE TABLE IF NOT EXISTS run_checkpoint_actions (
@@ -361,16 +363,7 @@ export class RunCheckpointStore {
   }
 
   pruneSnapshots(): void {
-    this.db.transaction(() => {
-      this.db.prepare('DELETE FROM run_checkpoint_transfers WHERE expires_at<=?').run(Date.now());
-      this.db.exec(`DELETE FROM run_checkpoint_files WHERE snapshot IN (SELECT id FROM run_checkpoint_snapshots
-        WHERE id NOT IN (SELECT snapshot FROM run_checkpoint_transfers) AND id NOT IN (SELECT json_extract(payload,'$.snapshotId') FROM run_checkpoints WHERE state<>'finished' AND json_extract(payload,'$.snapshotId') IS NOT NULL));
-        DELETE FROM run_checkpoint_snapshots WHERE id NOT IN (SELECT snapshot FROM run_checkpoint_transfers)
-          AND id NOT IN (SELECT json_extract(payload,'$.snapshotId') FROM run_checkpoints
-          WHERE state<>'finished' AND json_extract(payload,'$.snapshotId') IS NOT NULL);
-        DELETE FROM run_checkpoint_files WHERE snapshot NOT IN (SELECT id FROM run_checkpoint_snapshots)
-          AND snapshot NOT IN (SELECT snapshot FROM run_checkpoint_transfers)`);
-    }).immediate();
+    pruneCheckpointWorkspaceSnapshots(this.db);
   }
 
   /**
@@ -420,6 +413,7 @@ export class RunCheckpointStore {
   /** Offline retention expires byte-bearing records along with the workspace. */
   expire(id: string): void {
     this.db.transaction(() => {
+      new RunInitialStateStore(this.db).expire(id);
       this.db.prepare("UPDATE run_checkpoints SET state='finished' WHERE id=?").run(id);
       this.db.prepare('DELETE FROM run_checkpoint_actions WHERE id=?').run(id);
       this.db.prepare('DELETE FROM run_checkpoint_recovery WHERE id=?').run(id);
@@ -472,6 +466,8 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     drain?: () => Promise<void>;
     processes: () => RunCheckpoint['processes'];
     evidence?: () => AttestationLog | undefined;
+    historicalEvidence?: readonly AttestationRecord[];
+    replanAfterAnswer?: boolean;
     worker?: () => RunCheckpoint['worker'];
     restoreWorkspace?: () => void | Promise<void>;
     workspace?: Pick<import('../contracts/workspaceRuntime.js').WorkspaceRuntime, 'checkpointDigest' | 'checkpointExport' | 'confirmCheckpoint'>;
@@ -489,6 +485,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     if (restored) this.ready = restored.then(completeRestore);
     else { completeRestore(); this.ready = Promise.resolve(); }
     setRecoveryEffectHandler(db => { if (this.active) store.blockMutation(data.id, this.owner, db); });
+    if (options.historicalEvidence) store.saveEvidence(data.id, this.owner, options.historicalEvidence);
     const historical = new Map(store.historicalEvidence(data).map(record => [record.eventId, record]));
     this.prior = data.completed.map(result => ({ ...result, trace: [],
       evidence: (result.historicalEvidenceIds ?? []).flatMap(id => {
@@ -516,7 +513,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     return this.data.root;
   }
   get replanAfterAnswer(): boolean {
-    return !!this.data.clientQuestionId && this.data.root?.reconciledQuestionId !== this.data.clientQuestionId;
+    return this.options.replanAfterAnswer === true || (!!this.data.clientQuestionId && this.data.root?.reconciledQuestionId !== this.data.clientQuestionId);
   }
   planned(task: Parameters<RootPhaseCheckpoint['planned']>[0], plan: Parameters<RootPhaseCheckpoint['planned']>[1],
     strategy: unknown, plannedPhases: number, approval?: RootDelegationApproval): void {
@@ -525,6 +522,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
       if (this.options.automatic) { this.finalizing(); return; }
       throw new Error('Durable checkpoints require a sequential root plan');
     }
+    this.options.replanAfterAnswer = false;
     this.phaseCount = plan.subtasks.length;
     if (this.options.pauseAfter !== undefined && this.options.pauseAfter > plan.subtasks.length) {
       throw new Error('--pause-after-phase exceeds the number of root phases');

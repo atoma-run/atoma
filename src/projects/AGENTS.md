@@ -611,7 +611,7 @@ or published ones do. GitHub divergence, byte, lease and scope checks remain.
 
 Finished run bytes are eligible after 90 days; current active-project seeds
 and unfinished publications hold them. Offline maintenance preserves run
-metadata, payers and lifecycle_events; expiry never changes delivery status.
+metadata, payers and lifecycle_events; expiry never changes delivery status. Complete Compute initial-state captures share the byte lifecycle; pending validation holds source/reference runs, and expiry invalidates captures containing expired read-run copies.
 Per-org admission defaults to one (zero suspends), with a configurable project-run ceiling (10 by default)
 on the host. Waiting rows hold no lease, survive restart, and can be cancelled. Dispatch rechecks membership, models and limits; its lease reserves the organisation before preparation, through
 cleanup and publication; excess global demand persists as queued runs and resumes FIFO. Recheck inside reservation after idempotency; an

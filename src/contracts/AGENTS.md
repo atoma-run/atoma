@@ -13,6 +13,11 @@ Neighbours:
 - [`src/platform`](../platform/AGENTS.md) — the closed event-kind vocabulary
 - [`src/atoms`](../atoms/AGENTS.md) — the plan and verdict shapes
 
+`runInitialState.ts` binds complete sealed launch bytes, data-only context,
+resolved criteria and continuation metadata to the original run scope. Its strict
+context allowlist excludes credentials and connector grants. Executor compatibility
+2 protects snapshot references from earlier generations' checkpoint GC.
+
 ## Workspace control protocol
 
 `computeDevice.ts` owns desktop capability, session, resource and assignment

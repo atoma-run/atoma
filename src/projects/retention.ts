@@ -1,3 +1,4 @@
+import { RunInitialStateStore } from '../run/initialState.js';
 import { previousSeedRun } from './coordinator.js';
 import { ProjectStore } from './store.js';
 import { RunCheckpointStore, projectRunContinuable } from '../run/checkpoint.js';
@@ -112,6 +113,11 @@ export function retentionPlan(db: Database.Database, projectsRoot: string, works
     if (hasCheckpoints && db.prepare(
       "SELECT 1 FROM run_checkpoints WHERE id = ? AND state='ready' AND released=1"
     ).get(row.project_run_id)) held = 'paused continuation';
+    if (db.prepare("SELECT 1 FROM sqlite_master WHERE name='compute_validation_jobs'").get() &&
+      db.prepare(`SELECT 1 FROM compute_validation_jobs j JOIN project_runs r ON r.project_run_id=j.source_run_id
+        WHERE j.status IN ('queued','budget-wait','running') AND (j.source_run_id=? OR EXISTS
+          (SELECT 1 FROM json_each(r.read_run_ids_json) WHERE value=?)) LIMIT 1`)
+        .get(row.project_run_id, row.project_run_id)) held = 'automatic Compute validation';
     return { runId: row.project_run_id, orgId: row.org_id, projectId: row.project_id, paths, held };
   });
 }
@@ -121,6 +127,7 @@ export function applyRetention(db: Database.Database, projectsRoot: string, work
   const hasTable = (name: string) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
   const blockers = [
     ["project_runs", "status IN ('queued','running')"],
+    ["compute_validation_jobs", "status = 'running'"],
     ["project_publications", "status = 'publishing'"],
     ["project_run_preview_instances", "state IN ('starting','ready','stopping')"],
   ];
@@ -141,7 +148,9 @@ export function applyRetention(db: Database.Database, projectsRoot: string, work
     emit(candidate, 'started');
     db.prepare('UPDATE project_runs SET bytes_expired_at = COALESCE(bytes_expired_at, ?) WHERE project_run_id = ?')
       .run(now.toISOString(), candidate.runId);
+    if (hasTable('run_initial_states')) new RunInitialStateStore(db).expireReferences(candidate.runId);
     if (hasTable('run_checkpoints')) new RunCheckpointStore(db.name).expire(candidate.runId);
+    else if (hasTable('run_initial_states')) new RunInitialStateStore(db).expire(candidate.runId);
     try {
       for (const target of candidate.paths) {
         assertRetentionPath(dirname(target), target);

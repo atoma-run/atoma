@@ -33,18 +33,29 @@ are not retried. Host policy bounds each attempt to 240 seconds, 60,000 tokens,
 $0.25 API-equivalent consumption, and four starts in a rolling 24 hours. In-flight
 calls may exceed consumption stops; unknown spend still reserves one attempt.
 
-An ordinary hosted run starts from the recorded empty seed and acceptance,
-never the device's output, with a separate trace/workspace, host model pins and
-network-disabled worker. Membership, project state, empty starting state and
-saved context are checked before spending; unavailable conditions are blocked.
-Seeded follow-ups (including inherited proof/configuration and prior results),
-read-run imports, crash recovery and repository-materialised seeds are not yet
-reproducible here: a publication inventory is not a complete launch snapshot. No
-publication or device credentials. Only this new run's own verified observations
-can affect the commons through ordinary hooks; the original receipt remains
-withheld. A failed/inconclusive rerun never retrospectively blames its recipe.
+An ordinary hosted run starts from the complete initial state captured by
+`run/initialState.ts`, never the device's finished output. Capture streams the
+prepared workspace before backend/probe work: hidden files, executable modes,
+relative internal links, read-run copies and preserved dependencies included.
+The primary product store owns both sealed bytes and immutable data-only launch
+context (prior text/landing, project guidance, repository preparation, inputs,
+checklist and any continuation plan/prefix). Provider credentials, model pins,
+process identities and connector grants are never replayed. External connector
+launches remain blocked. Scope, membership, project state, byte integrity and
+read-run retention are checked before admission. Legacy seeded runs lacking a
+complete capture stay blocked; historical missing bytes are never invented.
+Validation restores the same bytes at launch and deepening with a network-disabled
+worker and current host models/controller. Continuations use a fresh checkpoint
+with the captured plan/prefix and historical-only archives: no source claim,
+spend, process, counter or execution credit is restored. The original receipt
+remains withheld. Only newly observed hosted work can affect the commons.
 Logs cannot establish completion: host trace metadata and index must agree.
-The ledger records status, cost and whether independent counters/recipes changed.
+Snapshots share checkpoint GC and the run's retention; expiry invalidates captures
+containing expired read-run copies. Pending validations hold their source and
+references; cleanup handles read-only directories and always releases the lease.
+Executor compatibility 2 drains older generations whose GC lacks initial-state
+references before these new writers activate. The ledger retains status, cost
+and independent counter/recipe changes.
 
 ## Three risk profiles, one boundary between them
 
