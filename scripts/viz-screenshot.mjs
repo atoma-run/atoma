@@ -30,6 +30,7 @@
  *                        list and selected-project MCP guide).
  *   --assistant-empty    Empty conversation before choosing a model.
  *   --assistant-history  Conversation without an approval card.
+ *   --assistant-scroll-probe With --assistant-history, verify native wheel endpoints.
  *   --assistant-no-runs  Selected project has no runs yet.
  *   --assistant-read-runs A project start proposal that reads two earlier runs
  *                        (with --auth --select-first).
@@ -958,6 +959,8 @@ const stack = attached ? { url: attached, stop: () => {} } : await spawnDevStack
 try {
   const browser = await puppeteer.launch({
     headless: true,
+    // Screenshots must include native scrollbars, as the product does.
+    ignoreDefaultArgs: ['--hide-scrollbars'],
     args: ['--no-sandbox', '--enable-unsafe-swiftshader'],
   });
   try {
@@ -1691,6 +1694,30 @@ try {
           throw new Error(`Assistant Markdown did not render or overflowed its conversation: ${JSON.stringify(markdown)}`);
         }
         console.log('Assistant Markdown: headings, emphasis, lists, quote, code, table and link; no horizontal overflow');
+        if (has('--assistant-scroll-probe')) {
+          const point = await page.$eval('.gpu-assistant-log', log => {
+            const rect = log.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+          });
+          await page.mouse.move(point.x, point.y);
+          for (const deltaY of [-10000, 10000]) {
+            await page.mouse.wheel({ deltaY });
+            await page.waitForFunction(direction => {
+              const log = document.querySelector('.gpu-assistant-log');
+              return direction < 0 ? log.scrollTop === 0 : Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop) < 1;
+            }, { timeout: 5000 }, deltaY).catch(async error => {
+              await page.screenshot({ path: '/tmp/atoma-chat-scroll-failure.png' });
+              const state = await page.evaluate(point => {
+                const log = document.querySelector('.gpu-assistant-log');
+                return { top: log.scrollTop, height: log.clientHeight, scrollHeight: log.scrollHeight,
+                  target: document.elementFromPoint(point.x, point.y)?.outerHTML.slice(0,500), point };
+              }, point);
+              throw new Error(`Chat native scroll failed: ${JSON.stringify(state)}`, { cause: error });
+            });
+          }
+          console.log('Assistant native wheel: both endpoints reached');
+        }
+
       }
       if (assistantEmpty) {
         const spacing = await page.evaluate(() => {

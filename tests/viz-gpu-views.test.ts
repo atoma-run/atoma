@@ -1482,24 +1482,33 @@ describe('the nav rail', () => {
 
   it.each([56, 112, 208].flatMap(width =>
     (['overview', 'focus'] as const).map(mode => ({ width, mode }))))(
-    'keeps the rail scrollbar and its hit area outside buttons ($width / $mode)',
+    'shows only the scrollable rail edges without a scrollbar ($width / $mode)',
     ({ width, mode }) => {
-      const ctx = createRecordingCtx();
       const auth = makeAuth({ platformAdmin: true });
-      drawSidebar(ctx, makeSnapshot({ view: 'runs', sceneCameraMode: mode }, { auth }),
-        600, width, 400, 80);
-      const scrollbar = scrollbarThumbs(ctx.root)[0]!;
-      expect(scrollbar).toBeDefined();
-      const hit = scrollbar.hitArea as Rectangle;
-      const hitLeft = scrollbar.toGlobal({ x: hit.x, y: 0 }).x;
-      const trackLeft = scrollbar.toGlobal({ x: 0, y: 0 }).x;
-      for (const button of ctx.buttons.filter(button => button.id.startsWith('nav.'))) {
-        const right = button.parent.toGlobal({ x: button.x + button.width, y: button.y }).x;
-        expect(hitLeft).toBeGreaterThanOrEqual(right);
-        expect(trackLeft - right).toBeGreaterThanOrEqual(6);
+      const snapshot = makeSnapshot({ view: 'runs', sceneCameraMode: mode }, { auth });
+      const initial = createRecordingCtx();
+      drawSidebar(initial, snapshot, 600, width, 400, 80);
+      expect(initial.sidebarScrollMax).toBeGreaterThan(0);
+      for (const [offset, top, bottom] of [
+        [0, false, true], [initial.sidebarScrollMax / 2, true, true],
+        [initial.sidebarScrollMax, true, false],
+      ] as const) {
+        const ctx = createRecordingCtx();
+        ctx.sidebarScrollY = offset;
+        drawSidebar(ctx, snapshot, 600, width, 400, 80);
+        expect(scrollbarThumbs(ctx.root)).toHaveLength(0);
+        for (const [edge, visible] of [['top', top], ['bottom', bottom]] as const) {
+          const shadow = ctx.root.getChildByLabel(`scroll-shadow-${edge}`);
+          expect(!!shadow).toBe(visible);
+          if (shadow) expect(shadow.eventMode).toBe('none');
+        }
+        expect(ctx.sidebarBounds!.width).toBe(width);
       }
-      expect(trackLeft + 3).toBeLessThanOrEqual(width + GPU_LAYOUT.gap);
-      expect(ctx.sidebarBounds!.right).toBeGreaterThanOrEqual(hitLeft + hit.width);
+      const fitting = createRecordingCtx();
+      drawSidebar(fitting, snapshot, 2000, width, 2000, 80);
+      expect(fitting.sidebarScrollMax).toBe(0);
+      expect(fitting.root.getChildByLabel('scroll-shadow-top')).toBeNull();
+      expect(fitting.root.getChildByLabel('scroll-shadow-bottom')).toBeNull();
     }
   );
 

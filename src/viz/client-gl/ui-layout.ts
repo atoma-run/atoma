@@ -1,4 +1,4 @@
-import { GPU_LAYOUT } from './theme.js';
+import { GPU_COLORS, GPU_LAYOUT } from './theme.js';
 /** Presentation tokens shared by the canvas and its native form overlays. */
 export const UI_SPACE = { xs: 4, sm: 8, md: 12, card: 16, section: 24, lg: 32, xl: 48 } as const;
 export const UI_TYPE = { page: 24, section: 18, body: 16, dense: 14, meta: 13 } as const;
@@ -9,6 +9,8 @@ export const UI_LAYOUT = {
   splitBreakpoint: 900, overviewBreakpoint: 1200, runCompactBreakpoint: 600,
 } as const;
 export const UI_CSS_VARS = Object.fromEntries([
+  ['--ui-scroll-thumb', `#${GPU_COLORS.primary.toString(16)}e6`],
+  ['--ui-scroll-track', `#${GPU_COLORS.border.toString(16)}8c`],
   ['--ui-frame-pad', `${UI_SPACE.card}px`],
   ['--ui-frame-gap', `${GPU_LAYOUT.gap}px`],
   ['--ui-frame-content-top', `${GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap + UI_LAYOUT.frameContentTop}px`],

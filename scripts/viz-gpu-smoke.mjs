@@ -813,6 +813,8 @@ try {
 
   const browser = await puppeteer.launch({
     headless: true,
+    // Screenshots must include native scrollbars, as the product does.
+    ignoreDefaultArgs: ['--hide-scrollbars'],
     args: ['--no-sandbox', '--enable-unsafe-swiftshader'],
     protocolTimeout: PROTOCOL_TIMEOUT_MS,
   });
@@ -1417,31 +1419,38 @@ try {
       });
       await waitForSceneCamera(page, camera);
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      await page.evaluate(() => {
+      const railPoint = await page.evaluate(() => {
         const handle = globalThis.__ATOMA_GPU__;
         const content = handle.app.stage.getChildByLabel('sidebar-scroll-content', true);
-        const bar = content.parent.parent.getChildByLabel('scrollbar-thumb');
-        if (!bar?.hitArea) throw new Error('Short rail has no scrollbar');
-        const left = bar.toGlobal({ x: bar.hitArea.x, y: 0 }).x;
-        const overlap = handle.hitTargets().filter(row => row.id.startsWith('nav.') &&
-          row.x + row.width > left + 0.01);
-        if (overlap.length) throw new Error(`Rail scrollbar overlaps navigation: ${JSON.stringify(overlap)}`);
+        const point = content.parent.toGlobal({ x: 24, y: 20 });
+        return handle.projectRendererPoint(point.x, point.y);
       });
+      const expectRailEdges = async (top, bottom) => {
+        await page.waitForFunction(({ top, bottom }) => {
+          const content = globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('sidebar-scroll-content', true);
+          const root = content.parent.parent;
+          return !root.getChildByLabel('scrollbar-thumb') &&
+            !!root.getChildByLabel('scroll-shadow-top') === top &&
+            !!root.getChildByLabel('scroll-shadow-bottom') === bottom;
+        }, {}, { top, bottom });
+      };
+      await expectRailEdges(false, true);
+      await page.screenshot({ path: `/tmp/atoma-rail-cues-${camera}-top.png` });
+      await page.mouse.move(railPoint.x, railPoint.y);
+      await page.mouse.wheel({ deltaY: 40 });
+      await expectRailEdges(true, true);
+      await page.screenshot({ path: `/tmp/atoma-rail-cues-${camera}-middle.png` });
+      await page.mouse.wheel({ deltaY: 10000 });
+      await expectRailEdges(true, false);
+      await page.screenshot({ path: `/tmp/atoma-rail-cues-${camera}-end.png` });
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__.hitTargets()
+        .some(row => row.id === 'nav.burnin'));
+      await page.mouse.wheel({ deltaY: -10000 });
+      await expectRailEdges(false, true);
     }
-    const railPoint = await page.evaluate(() => {
-      const handle = globalThis.__ATOMA_GPU__;
-      const row = handle.hitTargets().find(row => row.id === 'nav.projects');
-      if (!row) throw new Error('Short rail has no first destination');
-      return handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
-    });
-    await page.mouse.move(railPoint.x, railPoint.y);
-    await page.mouse.wheel({ deltaY: 1000 });
-    await page.waitForFunction(() =>
-      globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('sidebar-scroll-content', true)?.y < -1 &&
-      globalThis.__ATOMA_GPU__.hitTargets().some(row => row.id === 'nav.burnin'));
     await page.setViewport(railViewport);
     await waitForSceneCamera(page, 'focus');
-    console.log('viz short rail: native wheel reaches the last destination with full-size targets');
+    console.log('viz short rail: native wheel, both camera modes, top/middle/end shadows, no scrollbar');
 
     // A real long request must remain inside the summary and reach its last
     // line through the same native wheel/scrollbar path as ordinary panes.
@@ -2874,6 +2883,8 @@ try {
         ],
         conversation: { ...originalAssistant.conversation, projectId,
           lastRun: { projectId, runId: deliveryRunId }, messages: [
+            { role: 'user', text: 'Please deliver the app with a readable activity history.', at: '2026-10-12T03:19:16.000Z' },
+            { role: 'assistant', text: 'The **delivery** and its verification will appear here.', at: '2026-10-12T03:19:17.000Z' },
             { role: 'receipt', text: 'assistant.runStarted', at: '2026-10-12T03:19:18.000Z', run: { projectId, runId: deliveryRunId } },
           ] },
       };
@@ -2898,6 +2909,10 @@ try {
           state: await accountPage.evaluate(() => ({ text: document.body.innerText.slice(-5000),
             requests: performance.getEntriesByType('resource').filter(entry => entry.name.includes('/api/assistant')).map(entry => entry.name) })) }), { cause: error });
       });
+      // Resize animates the camera and changes the log's available height.
+      // Native endpoint checks must start after its final layout is painted.
+      await waitForSceneCamera(accountPage, 'focus');
+      await accountPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await accountPage.waitForFunction(() => [...document.querySelectorAll('.gpu-assistant-result button')]
         .some(button => button.textContent === 'Accept this result'));
       await accountPage.evaluate(() => [...document.querySelectorAll('.gpu-assistant-result button')]
@@ -2910,6 +2925,46 @@ try {
         return { fits: element.scrollWidth <= element.clientWidth, logFits: log.scrollWidth <= log.clientWidth };
       });
       if (!reviewLayout.fits || !reviewLayout.logFits) throw new Error('Delivery review overflows the conversation');
+      const chatStyles = await accountPage.evaluate(() => {
+        const sizes = [...document.querySelectorAll('.gpu-assistant-message p')]
+          .map(node => ({ text: node.textContent.slice(0,60), size: getComputedStyle(node).fontSize,
+            lineHeight: getComputedStyle(node).lineHeight }));
+        const log = document.querySelector('.gpu-assistant-log');
+        const thumb = getComputedStyle(log, '::-webkit-scrollbar-thumb');
+        const bar = getComputedStyle(log, '::-webkit-scrollbar');
+        return { sizes, thumbColor: thumb.backgroundColor, width: bar.width,
+          dragWidth: parseFloat(bar.width), paintedWidth: parseFloat(bar.width) -
+            parseFloat(thumb.borderLeftWidth) - parseFloat(thumb.borderRightWidth),
+          overflowing: log.scrollHeight > log.clientHeight };
+      });
+      if (!chatStyles.sizes.length || chatStyles.sizes.some(row => row.size !== '16px' || row.lineHeight !== '24px') ||
+          chatStyles.dragWidth !== 14 || chatStyles.paintedWidth !== 3 || !chatStyles.overflowing) {
+        throw new Error(`Inconsistent conversation typography or scrollbar: ${JSON.stringify(chatStyles)}`);
+      }
+      for (const deltaY of [-10000, 10000]) {
+        await accountPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const chatPoint = await accountPage.$eval('.gpu-assistant-log', log => {
+          const rect = log.getBoundingClientRect();
+          // Stay in the log's padding rather than a nested textarea or code pane.
+          return { x: rect.right - 24, y: rect.y + rect.height / 2 };
+        });
+        await accountPage.mouse.move(chatPoint.x, chatPoint.y);
+        await accountPage.mouse.wheel({ deltaY });
+        await accountPage.waitForFunction(direction => {
+          const log = document.querySelector('.gpu-assistant-log');
+          return direction < 0 ? log.scrollTop === 0 : Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop) < 1;
+        }, {}, deltaY).catch(async error => {
+          await accountPage.screenshot({ path: '/tmp/atoma-chat-scroll-failure.png' });
+          const state = await accountPage.evaluate(point => {
+            const log = document.querySelector('.gpu-assistant-log');
+            return { top: log.scrollTop, height: log.clientHeight, scrollHeight: log.scrollHeight,
+              target: document.elementFromPoint(point.x, point.y)?.outerHTML.slice(0,500), point };
+          }, chatPoint);
+          throw new Error(`Chat native scroll failed: ${JSON.stringify(state)}`, { cause: error });
+        });
+      }
+      await accountPage.screenshot({ path: '/tmp/atoma-chat-typography-scrollbar.png' });
+      console.log('Assistant typography and scrollbar: 16px/24px message bodies, 3px track, native scroll to both ends');
       const narration = await accountPage.$$eval('.gpu-assistant-message--activity', nodes => nodes.map(node => node.textContent));
       if (!narration.some(text => text.includes('Sam Rivera, from Claude Code')) || !narration.some(text => text.includes('The work did not complete'))) {
         throw new Error(`Project runs are not narrated in the conversation: ${JSON.stringify(narration)}`);
@@ -4304,6 +4359,8 @@ try {
 
   const fallbackBrowser = await puppeteer.launch({
     headless: true,
+    // Screenshots must include native scrollbars, as the product does.
+    ignoreDefaultArgs: ['--hide-scrollbars'],
     args: ['--no-sandbox', '--enable-unsafe-swiftshader'],
     protocolTimeout: PROTOCOL_TIMEOUT_MS,
   });

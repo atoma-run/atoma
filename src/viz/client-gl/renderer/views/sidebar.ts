@@ -34,9 +34,6 @@ const GROUP_FIRST_ITEM_GAP = 6;
 const GROUP_GAP = 18;
 const ITEM_HEIGHT = 40;
 const ITEM_GAP = 12;
-// The shared scrollbar sits 8px inside its pane and owns a 6px leading
-// hit area. Reserve both outside the full-size tiles, in the frame gutter.
-const SCROLLBAR_GUTTER = 14;
 const GROUP_LABEL_SIZE = 9;
 const GROUP_RULE_GAP = 8;
 /** The compact rail gives each destination one centred icon tile. */
@@ -327,10 +324,9 @@ export function drawSidebar(
   const paneHeight = Math.max(0, layoutHeight - navigationTop - 4);
   ctx.sidebarScrollMax = Math.max(0, rowsBottom(rows) - navigationTop - paneHeight + 12);
   ctx.sidebarScrollY = Math.min(ctx.sidebarScrollY ?? 0, ctx.sidebarScrollMax);
-  const paneWidth = width + SCROLLBAR_GUTTER;
-  ctx.sidebarBounds = new Rectangle(0, navigationTop, paneWidth, paneHeight);
-  const pane = createScrollPane(ctx.root, { x: 0, y: navigationTop, width: paneWidth, height: paneHeight,
-    scrollY: ctx.sidebarScrollY, air: { top: 0, bottom: 0 }, bottomPadding: 12 });
+  ctx.sidebarBounds = new Rectangle(0, navigationTop, width, paneHeight);
+  const pane = createScrollPane(ctx.root, { x: 0, y: navigationTop, width, height: paneHeight,
+    scrollY: ctx.sidebarScrollY, air: { top: 0, bottom: 0 }, bottomPadding: 12, indicator: 'shadows' });
   pane.content.label = 'sidebar-scroll-content';
   const rail = ctx.animatedLayer(pane.content, 'sidebar-rail');
   for (const original of rows) {

@@ -16,8 +16,8 @@ import { CAST_SHADOW_MAX_THROW_PX } from './cast-shadow.js';
  * still advancing your layout cursor, then `extend(bottomY)` with the full
  * content bottom — the returned max scroll must reflect content that was
  * culled, or the wheel can never reach it. `finish()` also draws the shared
- * scrollbar thumb when the content overflows, so every pane advertises that
- * it scrolls without per-view code.
+ * scrollbar thumb when content overflows, or directional edge shadows when
+ * explicitly requested by navigation, without per-view clipping code.
  *
  * SHADOWS AND THE MASK. The mask exists to stop scrolled CONTENT leaking;
  * a surface's cast shadow legitimately reaches past that surface (up to
@@ -44,6 +44,8 @@ export interface ScrollPaneOptions {
   scrollY: number;
   /** Extra space kept below the last content row (default 12). */
   bottomPadding?: number;
+  /** Navigation can advertise hidden destinations with non-interactive edge shadows. */
+  indicator?: 'scrollbar' | 'shadows';
   /**
    * Free floor around the pane that cast shadows may land on — see above.
    * REQUIRED, so a new pane decides it; `{}` is a decision too (the pane is
@@ -152,6 +154,27 @@ export function drawScrollbarThumb(parent: Container, options: ScrollbarThumbOpt
   parent.addChild(scrollbar);
 }
 
+/** Decorative cues only on edges with more content; they never intercept input. */
+export function drawScrollShadows(parent: Container, options: ScrollbarThumbOptions): void {
+  const { x, y, width, height, scrollY, maxScroll } = options;
+  if (maxScroll <= 0 || height <= 0 || width <= 0) return;
+  const depth = Math.min(16, height / 2);
+  for (const edge of ['top', 'bottom'] as const) {
+    if (edge === 'top' ? scrollY <= 0.5 : scrollY >= maxScroll - 0.5) continue;
+    const shadow = new Graphics();
+    shadow.label = `scroll-shadow-${edge}`;
+    shadow.eventMode = 'none';
+    shadow.position.set(x, edge === 'top' ? y : y + height - depth);
+    // One-pixel strips avoid a new gradient texture on each scroll rebuild.
+    for (let step = 0; step < Math.ceil(depth); step++) {
+      const alpha = 0.72 * (1 - step / depth) ** 2;
+      shadow.rect(0, edge === 'top' ? step : depth - step - 1, width, 1)
+        .fill({ color: 0x01040a, alpha });
+    }
+    parent.addChild(shadow);
+  }
+}
+
 export function createScrollPane(parent: Container, options: ScrollPaneOptions): ScrollPane {
   const { x, y, scrollY } = options;
   const width = Math.max(0, options.width);
@@ -187,7 +210,8 @@ export function createScrollPane(parent: Container, options: ScrollPaneOptions):
       mask.eventMode = 'none';
       parent.addChild(mask);
       layer.mask = mask;
-      drawScrollbarThumb(parent, { x, y, width, height, scrollY, maxScroll });
+      const drawIndicator = options.indicator === 'shadows' ? drawScrollShadows : drawScrollbarThumb;
+      drawIndicator(parent, { x, y, width, height, scrollY, maxScroll });
       return maxScroll;
     },
   };

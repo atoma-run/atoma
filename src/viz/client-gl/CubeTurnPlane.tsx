@@ -218,8 +218,8 @@ export function CubeTurnPlane({
       return;
     }
 
-    // Keep the rail scrollbar in the stationary snapshot, including the
-    // gutter magnified by the focus camera. Stop before the content frame.
+    // Keep the rail edge in the stationary snapshot, including the gutter
+    // magnified by the focus camera. Stop before the content frame.
     const railGutter = (contentColumnLeft(plane, GPU_LAYOUT.gap) ?? columnLeft) - columnLeft;
     const plan = cubeTurnPlan(route.rowDistance, route.sameGroup, route.descending);
     const startedAt = performance.now();

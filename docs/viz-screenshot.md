@@ -15,6 +15,7 @@ npm run viz:shot -- --auth --assistant              # integrated conversation an
 npm run viz:shot -- --auth --assistant-reconnect    # missing connections and recovery controls (stubbed)
 npm run viz:shot -- --auth --assistant-empty        # compact empty conversation before model selection
 npm run viz:shot -- --auth --select-first --assistant-history --assistant-no-runs --camera overview # adaptive conversation height and speaker borders
+npm run viz:shot -- --auth --select-first --assistant-history --assistant-scroll-probe # native chat wheel endpoints
 npm run viz:shot -- --auth --assistant-model-probe  # remember an unsent model choice through a full reload
 npm run viz:shot -- --auth --assistant-empty --assistant-own-agent # external guide and return to a preserved draft
 npm run viz:shot -- --auth --select-first           # first project selected: conversation tab
