@@ -159,7 +159,8 @@ export function cubeTurnFrame(
   plan: CubeTurnPlan,
   viewportWidth: number,
   viewportHeight: number,
-  columnLeftPx: number
+  columnLeftPx: number,
+  railGutterPx = CUBE_RAIL_BLEED_PX
 ): CubeTurnFrame {
   const eased = sceneCameraEase(Math.max(0, Math.min(1, progress)));
   const width = Math.max(1, viewportWidth);
@@ -189,7 +190,7 @@ export function cubeTurnFrame(
     incomingTransform: face(angleDegrees + 90 * plan.direction),
     transformOrigin: `${(columnLeft + columnWidth / 2).toFixed(3)}px 50%`,
     columnClip: `inset(0 0 0 ${columnLeft.toFixed(3)}px)`,
-    railClip: `inset(0 ${Math.max(0, width - columnLeft - CUBE_RAIL_BLEED_PX).toFixed(3)}px 0 0)`,
+    railClip: `inset(0 ${Math.max(0, width - columnLeft - Math.max(0, railGutterPx)).toFixed(3)}px 0 0)`,
   };
 }
 

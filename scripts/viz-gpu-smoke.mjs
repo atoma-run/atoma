@@ -1408,6 +1408,26 @@ try {
     await page.setViewport({ width: 390, height: 320, deviceScaleFactor: 1 });
     await waitForSceneCamera(page, 'focus');
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    for (const camera of ['overview', 'focus']) {
+      await page.evaluate(() => {
+        const tab = [...document.querySelectorAll('[role="tab"]')]
+          .find(candidate => candidate.textContent === 'Runs');
+        if (!(tab instanceof HTMLButtonElement)) throw new Error('Missing Runs tab');
+        tab.click();
+      });
+      await waitForSceneCamera(page, camera);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await page.evaluate(() => {
+        const handle = globalThis.__ATOMA_GPU__;
+        const content = handle.app.stage.getChildByLabel('sidebar-scroll-content', true);
+        const bar = content.parent.parent.getChildByLabel('scrollbar-thumb');
+        if (!bar?.hitArea) throw new Error('Short rail has no scrollbar');
+        const left = bar.toGlobal({ x: bar.hitArea.x, y: 0 }).x;
+        const overlap = handle.hitTargets().filter(row => row.id.startsWith('nav.') &&
+          row.x + row.width > left + 0.01);
+        if (overlap.length) throw new Error(`Rail scrollbar overlaps navigation: ${JSON.stringify(overlap)}`);
+      });
+    }
     const railPoint = await page.evaluate(() => {
       const handle = globalThis.__ATOMA_GPU__;
       const row = handle.hitTargets().find(row => row.id === 'nav.projects');

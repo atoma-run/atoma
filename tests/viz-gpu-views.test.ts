@@ -1480,6 +1480,29 @@ describe('the nav rail', () => {
     expect(runs.y - (project.y + project.height)).toBe(12);
   });
 
+  it.each([56, 112, 208].flatMap(width =>
+    (['overview', 'focus'] as const).map(mode => ({ width, mode }))))(
+    'keeps the rail scrollbar and its hit area outside buttons ($width / $mode)',
+    ({ width, mode }) => {
+      const ctx = createRecordingCtx();
+      const auth = makeAuth({ platformAdmin: true });
+      drawSidebar(ctx, makeSnapshot({ view: 'runs', sceneCameraMode: mode }, { auth }),
+        600, width, 400, 80);
+      const scrollbar = scrollbarThumbs(ctx.root)[0]!;
+      expect(scrollbar).toBeDefined();
+      const hit = scrollbar.hitArea as Rectangle;
+      const hitLeft = scrollbar.toGlobal({ x: hit.x, y: 0 }).x;
+      const trackLeft = scrollbar.toGlobal({ x: 0, y: 0 }).x;
+      for (const button of ctx.buttons.filter(button => button.id.startsWith('nav.'))) {
+        const right = button.parent.toGlobal({ x: button.x + button.width, y: button.y }).x;
+        expect(hitLeft).toBeGreaterThanOrEqual(right);
+        expect(trackLeft - right).toBeGreaterThanOrEqual(6);
+      }
+      expect(trackLeft + 3).toBeLessThanOrEqual(width + GPU_LAYOUT.gap);
+      expect(ctx.sidebarBounds!.right).toBeGreaterThanOrEqual(hitLeft + hit.width);
+    }
+  );
+
   it('collapses focus to icon tiles with one translated tooltip per destination', () => {
     const ctx = createRecordingCtx();
     const chrome = focusRailChromeLayout(GPU_LAYOUT.sidebarWidth, 720, false);

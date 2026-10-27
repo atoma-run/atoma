@@ -141,6 +141,14 @@ describe('the cube turn', () => {
     }
   });
 
+  it.each([8, 10, 14])('keeps the %ipx projected scrollbar gutter stationary', (gutter) => {
+    const frame = cubeTurnFrame(0.5, { axis: 'y', direction: 1, durationMs: 600 },
+      1440, 900, 57, gutter);
+    const inset = Number(/inset\(0 ([\d.]+)px 0 0\)/.exec(frame.railClip)?.[1]);
+    expect(1440 - inset).toBe(57 + gutter);
+    expect(frame.columnClip).toBe('inset(0 0 0 57.000px)');
+  });
+
   it('hands the front of the box to whichever face is facing the reader', () => {
     const plan: CubeTurnPlan = { axis: 'y', direction: 1, durationMs: 600 };
     const order = SAMPLES.map(

@@ -18,7 +18,7 @@ import {
   sceneCameraViewport,
   type SceneCameraMode,
 } from './scene-camera.js';
-import { sidebarWidthForViewport } from './theme.js';
+import { GPU_LAYOUT, sidebarWidthForViewport } from './theme.js';
 
 /**
  * How often the rail's still is retaken while the box turns. Fast enough that
@@ -87,11 +87,11 @@ function cloneOverlays(plane: HTMLElement): HTMLElement {
  * to ask, and the caller then declines the turn rather than cutting the column
  * at a guess.
  */
-function contentColumnLeft(plane: Element): number | null {
+function contentColumnLeft(plane: Element, gutter = 0): number | null {
   const frame = sceneCameraViewport(plane);
   if (!frame) return null;
   const rail = sidebarWidthForViewport(frame.width);
-  return projectScenePointInFrame({ x: rail, y: 0 }, frame).x;
+  return projectScenePointInFrame({ x: rail + gutter, y: 0 }, frame).x;
 }
 
 interface GhostProps {
@@ -218,6 +218,9 @@ export function CubeTurnPlane({
       return;
     }
 
+    // Keep the rail scrollbar in the stationary snapshot, including the
+    // gutter magnified by the focus camera. Stop before the content frame.
+    const railGutter = (contentColumnLeft(plane, GPU_LAYOUT.gap) ?? columnLeft) - columnLeft;
     const plan = cubeTurnPlan(route.rowDistance, route.sameGroup, route.descending);
     const startedAt = performance.now();
     let frameRequest: number | null = null;
@@ -237,7 +240,8 @@ export function CubeTurnPlane({
         plan,
         cube.clientWidth,
         cube.clientHeight,
-        columnLeft
+        columnLeft,
+        railGutter
       );
       for (const layer of [leaving, arriving]) {
         layer.style.transformOrigin = frame.transformOrigin;
