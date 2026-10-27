@@ -19,15 +19,16 @@ export function initializeRunInitialStates(db: Database.Database): void {
 
 /** Reuses the sealed, streamed checkpoint boundary; no publication filtering or transaction over network input. */
 export async function retainInitialWorkspace(db: Database.Database, exporting: CheckpointExport, signal?: AbortSignal): Promise<{ id: string; digest: string }> {
-  const receiver = new CheckpointReceiver(db, exporting.header);
+  let receiver: CheckpointReceiver | undefined;
   try {
+    receiver = new CheckpointReceiver(db, exporting.header);
     for await (const frame of exporting.frames()) {
       signal?.throwIfAborted();
       if (frame.kind === 'entry') receiver.begin(frame.entry);
       else receiver.append(frame.offset, frame.bytes);
     }
     return receiver.finish();
-  } catch (error) { receiver.abort(); throw error; }
+  } catch (error) { receiver?.abort(); throw error; }
   finally { await exporting.close(); }
 }
 

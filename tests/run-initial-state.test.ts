@@ -102,6 +102,13 @@ describe('complete immutable initial states', () => {
     expect(f.db.prepare('SELECT count(*) AS n FROM run_checkpoint_files').get()).toEqual({ n: 0 });
     f.db.close();
   });
+  it('closes an execution-host export even when receiver construction refuses its header', async () => {
+    const f = fixture(); let closed = 0, read = false;
+    await expect(retainInitialWorkspace(f.db, { header: { digest: 'invalid', rootMode: 0o700 },
+      async *frames() { read = true; yield { kind: 'chunk' as const, offset: 0, bytes: Buffer.from('must not consume') }; }, close() { closed++; },
+    })).rejects.toThrow();
+    expect(closed).toBe(1); expect(read).toBe(false); f.db.close();
+  });
   it('removes read-only captured directories without following symlinks', () => {
     const f = fixture(); mkdirSync(join(f.source, 'locked')); writeFileSync(join(f.source, 'locked/file'), 'bytes');
     chmodSync(join(f.source, 'locked'), 0o555); removeInitialStateWorkspace(f.source);
