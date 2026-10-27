@@ -1,0 +1,129 @@
+{
+  "label": "before-a",
+  "dpr": 1,
+  "width": 1280,
+  "height": 800,
+  "unlock": true,
+  "query": "",
+  "startedAt": "2026-10-27T18:39:47.867Z",
+  "scenarios": {
+    "runs-idle": {
+      "interval": {
+        "n": 300,
+        "mean": 0.29,
+        "p50": 0.3,
+        "p95": 0.4,
+        "max": 1
+      },
+      "fps": 3448.3,
+      "over20Pct": 0,
+      "tickerMs": {
+        "n": 300,
+        "mean": 0.17,
+        "p50": 0.2,
+        "p95": 0.3,
+        "max": 0.3
+      },
+      "gpuMs": null,
+      "timestamps": "unavailable",
+      "perFrame": {
+        "createCommandEncoder": 2,
+        "createView": 1,
+        "createTexture": 0,
+        "beginRenderPass": 1,
+        "createBuffer": 0,
+        "submit": 2,
+        "end": 1,
+        "setVertexBuffer": 27.1,
+        "setIndexBuffer": 20.1,
+        "createRenderPipeline": 0,
+        "createBindGroup": 0,
+        "setBindGroup": 69.1,
+        "copyExternalImageToTexture": 0,
+        "setPipeline": 36.1,
+        "drawIndexed": 44.1,
+        "writeBuffer": 15,
+        "writeTexture": 0,
+        "draw": 0,
+        "copyTextureToTexture": 0,
+        "writeBufferKB": 94.7,
+        "createBufferKB": 0,
+        "buildInstructions": 1.01,
+        "updateRenderables": 10
+      },
+      "objects": 855,
+      "renderMs": 6.9,
+      "backend": "webgpu",
+      "lightEnabled": false
+    },
+    "runs-hover-timeline": {
+      "interval": {
+        "n": 300,
+        "mean": 0.48,
+        "p50": 0.5,
+        "p95": 0.7,
+        "max": 1.8
+      },
+      "fps": 2083.3,
+      "over20Pct": 0,
+      "tickerMs": {
+        "n": 300,
+        "mean": 0.34,
+        "p50": 0.3,
+        "p95": 0.5,
+        "max": 1.8
+      },
+      "gpuMs": null,
+      "timestamps": "unavailable",
+      "perFrame": {
+        "createCommandEncoder": 2.1,
+        "createView": 2,
+        "createTexture": 0,
+        "beginRenderPass": 3.1,
+        "createBuffer": 0,
+        "submit": 2.1,
+        "end": 3.1,
+        "setVertexBuffer": 28.2,
+        "setIndexBuffer": 21.1,
+        "createRenderPipeline": 0,
+        "createBindGroup": 0,
+        "setBindGroup": 71.3,
+        "copyExternalImageToTexture": 0,
+        "setPipeline": 37.1,
+        "drawIndexed": 45.1,
+        "writeBuffer": 19.1,
+        "writeTexture": 0,
+        "draw": 0,
+        "copyTextureToTexture": 1,
+        "writeBufferKB": 274.7,
+        "createBufferKB": 0,
+        "buildInstructions": 1.01,
+        "updateRenderables": 10.02
+      },
+      "objects": 855,
+      "renderMs": 6.9,
+      "backend": "webgpu",
+      "lightEnabled": true
+    },
+    "runs-scroll-rebuild": {
+      "renders": 32,
+      "retainedTicks": 24,
+      "missed": 0,
+      "p50": 0.7,
+      "p95": 5.7,
+      "max": 6.1
+    }
+  },
+  "env": {
+    "rasteriser": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+    "backend": "webgpu",
+    "dpr": 1,
+    "screen": [
+      1280,
+      800
+    ],
+    "resolution": 1,
+    "timestamps": "unavailable"
+  },
+  "diagnostics": []
+}

@@ -32,9 +32,9 @@ import { COMPUTE_VALIDATION, computeValidationStatusSchema } from '../../../../c
 
 const LIST_TOP = 8;
 /** Two lines: when, what and whom; then the facts the row carries. */
-const ROW_HEIGHT = 36;
+const ROW_HEIGHT = 48;
 /** Compact splits the first line in two. */
-const ROW_HEIGHT_COMPACT = 52;
+const ROW_HEIGHT_COMPACT = 72;
 /** Characters of a run, project or actor id shown before the bubble carries the rest. */
 const SHORT_ID = 8;
 
@@ -252,7 +252,7 @@ export function drawLedger(
   // Measured, not assumed: the hint wraps on a narrow column, and a fixed
   // advance would lay the list over its second line.
   const hint = ctx.text(pane.content, snapshot.t('admin.ledgerHint'), columnX, cursor, {
-    size: 10,
+    size: 14,
     color: GPU_COLORS.muted,
     width: innerWidth,
   });
@@ -292,8 +292,8 @@ export function drawLedger(
   const rowX = columnX + 8;
   const rowRight = columnX + innerWidth - 8;
   const stampWidth = Math.min(innerWidth * 0.3, Math.max(0, ...ledger.map(entry =>
-    ctx.measureText(ctx.relativeTime(entry.at, snapshot.t, snapshot.state.locale) || truncate(entry.at, 19), { size: 9 }))));
-  const kindWidth = Math.min(innerWidth * 0.3, Math.max(0, ...ledger.map(entry => ctx.measureText(ledgerKind(entry, snapshot.t), { size: 9, mono: true }))));
+    ctx.measureText(ctx.relativeTime(entry.at, snapshot.t, snapshot.state.locale) || truncate(entry.at, 19), { size: 13 }))));
+  const kindWidth = Math.min(innerWidth * 0.3, Math.max(0, ...ledger.map(entry => ctx.measureText(ledgerKind(entry, snapshot.t), { size: 13, mono: true }))));
   const kindX = rowX + stampWidth + 14;
   const subjectX = compact ? rowX : kindX + kindWidth + 10;
   const subjectWidth = Math.max(0, rowRight - subjectX);
@@ -306,22 +306,22 @@ export function drawLedger(
         ctx.relativeTime(entry.at, snapshot.t, snapshot.state.locale) || truncate(entry.at, 19),
         rowX,
         rowY,
-        { size: 9, color: GPU_COLORS.muted, width: stampWidth, singleLine: true }
+        { size: 13, color: GPU_COLORS.muted, width: stampWidth, singleLine: true }
       );
       const exactAt = timestampTooltip(entry.at, snapshot.state.locale);
       if (exactAt) {
         ctx.tooltip(pane.content, { x: rowX, y: rowY, width: stampWidth, height: 13, text: exactAt });
       }
       ctx.text(pane.content, ledgerKind(entry, snapshot.t), kindX, rowY, {
-        size: 9,
+        size: 13,
         color: KIND_COLORS[entry.kind] ?? GPU_COLORS.muted,
         mono: true,
         width: compact ? Math.max(0, rowRight - kindX) : kindWidth,
         singleLine: true,
       });
-      const subjectY = rowY + (compact ? 16 : 0);
+      const subjectY = rowY + (compact ? 20 : 0);
       ctx.text(pane.content, ledgerSubject(entry), subjectX, subjectY, {
-        size: 10,
+        size: 14,
         color: GPU_COLORS.text,
         width: subjectWidth,
         singleLine: true,
@@ -333,14 +333,14 @@ export function drawLedger(
         height: 14,
         text: ledgerBubble(entry),
       });
-      const explanationY = rowY + (compact ? 32 : 16);
+      const explanationY = rowY + (compact ? 40 : 20);
       lines.forEach((line, index) => ctx.text(pane.content, line, rowX, explanationY + index * 20, {
         size: 12, color: GPU_COLORS.text, width: innerWidth - 16, singleLine: true,
       }));
       const facts = ledgerFacts(entry, snapshot.t);
       if (facts.length > 0) {
         ctx.text(pane.content, facts.join(' · '), lines.length ? rowX : subjectX, explanationY + lines.length * 20, {
-          size: 9,
+          size: 13,
           color: GPU_COLORS.muted,
           width: lines.length ? innerWidth - 16 : subjectWidth,
           singleLine: true,

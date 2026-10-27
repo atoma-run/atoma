@@ -18,10 +18,10 @@ import { timestampTooltip } from '../relative-time.js';
  * server shows its raw label rather than hiding the rows around it.
  */
 
-export const JOURNAL_ROW_HEIGHT = 34;
-export const JOURNAL_ROW_HEIGHT_COMPACT = 58;
+export const JOURNAL_ROW_HEIGHT = 48;
+export const JOURNAL_ROW_HEIGHT_COMPACT = 72;
 /** With an `extra` line, a row needs one more text line's worth of space. */
-export const JOURNAL_ROW_EXTRA = 16;
+export const JOURNAL_ROW_EXTRA = 20;
 
 /**
  * Severity → colour, read through a lookup with a FALLBACK: the server's
@@ -87,10 +87,10 @@ export function drawJournalRow(
     : options.withDate
       ? clockDate(event.at)
       : clockTime(event.at);
-  const stampWidth = Math.min(innerWidth * 0.35, ctx.measureText(stamp, { size: 9, mono: !relative }));
-  const actorWidth = Math.min(innerWidth * 0.25, ctx.measureText(event.actorType, { size: 9, mono: true }));
+  const stampWidth = Math.min(innerWidth * 0.35, ctx.measureText(stamp, { size: 13, mono: !relative }));
+  const actorWidth = Math.min(innerWidth * 0.25, ctx.measureText(event.actorType, { size: 13, mono: true }));
   ctx.text(parent, stamp, x + 8, y, {
-    size: 9,
+    size: 13,
     color: GPU_COLORS.muted,
     mono: !relative,
     width: stampWidth,
@@ -106,14 +106,14 @@ export function drawJournalRow(
     }
   }
   ctx.text(parent, event.kind, x + stampWidth + 14, y, {
-    size: 10,
+    size: 14,
     color,
     mono: true,
     singleLine: true,
-    width: compact ? Math.max(0, innerWidth - stampWidth - 22) : Math.max(0, innerWidth - stampWidth - actorWidth - 30),
+    width: compact ? Math.max(0, innerWidth - stampWidth - 22) : Math.min(ctx.measureText(event.kind, { size: 14, mono: true }), Math.max(0, innerWidth - stampWidth - actorWidth - 30)),
   });
-  ctx.text(parent, event.summary, x + 8, y + (compact ? 32 : 15), {
-    size: 10,
+  ctx.text(parent, event.summary, x + 8, y + (compact ? 40 : 22), {
+    size: 14,
     color: GPU_COLORS.text,
     singleLine: true,
     width: Math.max(0, innerWidth - 16),
@@ -121,13 +121,13 @@ export function drawJournalRow(
   ctx.text(
     parent,
     event.actorType,
-    compact ? x + 8 : x + innerWidth - actorWidth - 8,
-    y + (compact ? 17 : 0),
-    { size: 9, color: GPU_COLORS.muted, mono: true, singleLine: true, width: compact ? Math.max(0, innerWidth - 16) : actorWidth }
+    compact ? x + 8 : Math.min(x + innerWidth - actorWidth - 8, x + stampWidth + 30 + ctx.measureText(event.kind, { size: 14, mono: true })),
+    y + (compact ? 20 : 0),
+    { size: 13, color: GPU_COLORS.muted, mono: true, singleLine: true, width: compact ? Math.max(0, innerWidth - 16) : actorWidth }
   );
   if (options.extra) {
-    ctx.text(parent, options.extra, x + 8, y + (compact ? 44 : 30), {
-      size: 9,
+    ctx.text(parent, options.extra, x + 8, y + (compact ? 60 : 42), {
+      size: 13,
       color: GPU_COLORS.muted,
       mono: true,
       singleLine: true,

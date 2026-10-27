@@ -324,10 +324,11 @@ describe('personal subscription settings', () => {
     await user.click(screen.getByRole('tab', { name: 'Atoma MCP' }));
     expect(child).toBeVisible();
     expect(screen.getByRole('tab', { name: 'Atoma MCP' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tablist')).toHaveAttribute('aria-orientation', 'vertical');
     // Arrow keys move the selection and wrap.
-    await user.keyboard('{ArrowRight}');
+    await user.keyboard('{ArrowDown}');
     expect(screen.getByRole('tab', { name: 'General' })).toHaveAttribute('aria-selected', 'true');
-    await user.keyboard('{ArrowLeft}');
+    await user.keyboard('{ArrowUp}');
     expect(screen.getByRole('tab', { name: 'Atoma MCP' })).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -350,12 +351,15 @@ describe('personal subscription settings', () => {
     await user.clear(limit);
     await user.type(limit, '12345');
     await user.click(screen.getByRole('tab', { name: 'Atoma MCP' }));
-    await user.keyboard('{ArrowRight}');
+    await user.keyboard('{ArrowDown}');
     expect(screen.getByRole('tab', { name: 'Run limits' })).toHaveFocus();
     expect(limit).toHaveValue(12345);
-    await user.keyboard('{ArrowRight}');
+    await user.keyboard('{ArrowDown}');
     expect(screen.getByRole('tab', { name: 'General' })).toHaveFocus();
     expect(limit).not.toBeVisible();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Settings sections' }), 'limits');
+    expect(limit).toBeVisible();
+    expect(limit).toHaveValue(12345);
   });
 
   it('lets an admin save zero for an unlimited ceiling while rejecting values below its positive minimum', async () => {
@@ -442,7 +446,7 @@ describe('personal subscription settings', () => {
     orgModelsForm('org:member');
 
     await user.click(await screen.findByRole('tab', { name: 'LLM models' }));
-    const selects = screen.getAllByRole('combobox');
+    const selects = within(screen.getByRole('tabpanel', { name: 'LLM models' })).getAllByRole('combobox');
     expect(selects.map((select) => select.id)).toEqual([
       'accountmodel-l1', 'accountmodel-l2', 'accountmodel-l3',
       'orgmodel-l1', 'orgmodel-l2', 'orgmodel-l3',
@@ -667,7 +671,7 @@ describe('personal subscription settings', () => {
     const user = userEvent.setup();
     orgModelsForm('org:member');
     await user.click(await screen.findByRole('tab', { name: 'LLM models' }));
-    const [l1, l2, l3] = screen.getAllByRole('combobox');
+    const [l1, l2, l3] = within(screen.getByRole('tabpanel', { name: 'LLM models' })).getAllByRole('combobox');
     expect(l1).toHaveAccessibleDescription('Paid by your own subscription · Claude');
     // An inherited tier describes the organisation default it will run on.
     expect(l2).toHaveAccessibleDescription('Billed to the organisation’s OpenAI key');

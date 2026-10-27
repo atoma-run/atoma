@@ -1,0 +1,20 @@
+{
+  "browser": "Google Chrome",
+  "zoom": 2,
+  "viewport": {
+    "width": 960,
+    "height": 468,
+    "dpr": 2
+  },
+  "scrollWidth": 960,
+  "clientWidth": 960,
+  "keyboard": {
+    "focus": "Restore the overview",
+    "paletteVisible": true,
+    "insideViewport": true
+  },
+  "restored": {
+    "width": 1920,
+    "dpr": 1
+  }
+}

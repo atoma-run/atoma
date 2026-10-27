@@ -1,4 +1,7 @@
 {
+  "layout.backList": "Back to list",
+  "runs.compact.summary": "Summary",
+  "runs.compact.filters": "Filters",
   "detail.readable.topology.deep": "The request is handled through smaller, delegated tasks.",
   "detail.readable.topology.short": "The request uses a shorter execution path.",
   "detail.readable.priorSuccesses_one": "{{count}} previous success",

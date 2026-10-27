@@ -1,3 +1,4 @@
+import { UI_LAYOUT } from '../../ui-layout.js';
 import { BUTTON_ICON_SPACE } from '../../button-icons.js';
 import { atomSearchText, matchesSearchQuery } from '../../../client/search.js';
 import { trustCountsLabel } from '../../../client/trust-counts.js';
@@ -16,7 +17,17 @@ export function drawRegistry(
   const payload = snapshot.data.registry;
   const x = GPU_LAYOUT.gap;
   const top = GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap;
-  const leftWidth = Math.min(560, width * 0.45);
+  const compact = width < UI_LAYOUT.splitBreakpoint;
+  const leftWidth = compact ? width - GPU_LAYOUT.gap * 2 : Math.min(560, width * 0.45);
+  if (compact && snapshot.state.compactDetailView === 'registry' && payload) {
+    ctx.panel(ctx.root, x, top, leftWidth, height - top - GPU_LAYOUT.gap,
+      GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
+    ctx.button(ctx.root, 'detail.backList', 'button', snapshot.t('layout.backList'),
+      x + 16, top + 12, leftWidth - 32, 40, false, snapshot.onActivate);
+    const atom = payload.types.find(item => item.name === snapshot.state.selectedRegistryAtom);
+    if (atom) drawAtomDetail(ctx, snapshot, atom, x, top + 60, leftWidth, Math.max(0, height - top - 70));
+    return;
+  }
   ctx.panel(
     ctx.root,
     x,
@@ -28,15 +39,15 @@ export function drawRegistry(
     GPU_LAYOUT.radius,
     2
   );
-  ctx.text(ctx.root, snapshot.t('nav.registry'), x + 16, top + 14, {
-    size: 16,
+  ctx.text(ctx.root, snapshot.t('nav.registry'), x + 16, top + 8, {
+    size: 24,
     weight: '700',
   });
   const registries = snapshot.data.registries;
   const sourceHeading = registries.length > 1
     ? snapshot.t('nav.selectRegistry')
     : snapshot.t('registry.storeSource');
-  ctx.text(ctx.root, sourceHeading.toUpperCase(), x + 16, top + 44, {
+  if (!compact) ctx.text(ctx.root, sourceHeading.toUpperCase(), x + 16, top + 44, {
     size: 9,
     weight: '700',
     color: GPU_COLORS.muted,
@@ -48,7 +59,7 @@ export function drawRegistry(
     // like an unexplained command and, when re-clicked, only resets the atom.
     const registry = registries[0]!;
     const label = registrySourceLabel(snapshot, registry);
-    ctx.text(ctx.root, label, x + 16, top + 64, {
+    ctx.text(ctx.root, label, x + 16, top + (compact ? 90 : 64), {
       size: 11,
       weight: '600',
       width: leftWidth - 32,
@@ -56,7 +67,7 @@ export function drawRegistry(
     });
     ctx.tooltip(ctx.root, {
       x: x + 16,
-      y: top + 62,
+      y: top + (compact ? 88 : 62),
       width: leftWidth - 32,
       height: 18,
       text: registry.path,
@@ -68,7 +79,7 @@ export function drawRegistry(
   // masked scroll pane as the tiers, so no number of long store names can
   // push the atom list to a negative height or leave a choice off-screen.
   // The pane starts below the native search input in that case.
-  const paneTop = top + (multipleRegistries ? 82 : 92);
+  const paneTop = top + (multipleRegistries ? 82 : compact ? 126 : 92);
   const pane = createScrollPane(ctx.root, {
     x,
     y: paneTop,
@@ -170,6 +181,7 @@ export function drawRegistry(
   }
   pane.extend(y);
   ctx.scrollMax.registry = pane.finish();
+  if (compact) return;
   const rightX = x + leftWidth + GPU_LAYOUT.gap;
   ctx.panel(
     ctx.root,

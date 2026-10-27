@@ -80,6 +80,7 @@ import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
+import { captureUiMatrix } from './viz-ui-matrix.mjs';
 import { assertLiveRuns } from './viz-live-runs-probe.mjs';
 import { assertMobileProjects } from './viz-mobile-probe.mjs';
 import { assertTimelineMinimap } from './viz-timeline-probe.mjs';
@@ -120,6 +121,9 @@ function arg(name, fallback = null) {
 const has = (name) => process.argv.includes(name);
 
 const view = arg('--view', 'Projects');
+if (has('--ui-matrix') && arg('--url') && !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(arg('--url')).hostname)) {
+  throw new Error('--ui-matrix requires a local source server');
+}
 const recordedEvidence = has('--recorded-run') ? JSON.parse(await readFile(resolve(arg('--recorded-run')), 'utf8')) : null;
 if (recordedEvidence && arg('--url') && !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(arg('--url')).hostname)) {
   throw new Error('--recorded-run only supports a local source-development server');
@@ -367,6 +371,22 @@ function gatedStubs() {
       organisations: [{ id: 'org-a', name: 'Analytical Engines', role: 'org:owner' }],
       providers: [{ id: 'github', label: 'GitHub' }],
     },
+    '/api/compute/onboarding': { hostedAllowed: platformAdmin, devices: [] },
+    [`/api/compute/projects/${projectId}`]: { projectId, target: { kind: 'hosted' }, hostedAllowed: platformAdmin, canEdit: true, devices: [] },
+    '/api/admin/organisations': [{ orgId: 'org-a', name: 'Analytical Engines', createdAt: '2026-08-01T10:00:00Z',
+      members: [{ principalId, displayName: 'Ada Lovelace', role: 'org:owner' },
+        { principalId: 'member-b', displayName: 'Charles Babbage', role: 'org:member' }] }],
+    '/api/admin/invitations': { token: 'local-ui-fixture-only', url: 'https://atoma.example.com/?invite=local-ui-fixture-only',
+      orgId: 'org-a', orgName: 'Analytical Engines', role: 'org:member', expiresAt: '2026-10-28T10:00:00Z' },
+    '/api/admin/events': { events: [
+      { seq: 3, at: '2026-10-20T10:00:00Z', kind: 'publication.failed', severity: 'error', actorType: 'principal', actorId: principalId, orgId: 'org-a', projectId, runId: 'run-fixture', summary: 'Publication failed: repository temporarily unavailable' },
+      { seq: 2, at: '2026-10-20T09:00:00Z', kind: 'run.completed', severity: 'info', actorType: 'system', actorId: null, orgId: 'org-a', projectId, runId: 'run-fixture', summary: 'Run delivered; awaiting review and acceptance' },
+      { seq: 1, at: '2026-10-19T09:00:00Z', kind: 'token.created', severity: 'security', actorType: 'principal', actorId: principalId, orgId: 'org-a', projectId: null, runId: null, summary: 'API access authorized for a personal MCP client' },
+    ], nextBefore: null },
+    '/api/admin/ledger': { events: [
+      { at: '2026-10-20T10:00:00Z', kind: 'type.created', entity: 'Water', entityId: 'water', detail: { tier: 1 } },
+      { at: '2026-10-20T09:00:00Z', kind: 'trust.success', entity: 'Water', entityId: 'water', detail: { successes: 4 } },
+    ] },
     '/api/admin/sentinel': {
       watch: { armed: true, reason: 'armed', source: 'viz-server', intervalMs: 20_000, startedAt: '2026-10-23T14:52:57Z', armedSince: '2026-10-23T14:52:57Z',
         lastTickAt: new Date().toISOString(), lastTickMs: 14, ticks: 170, runsScreenedLastTick: 2, skippedLastTick: 1, emittedSinceBoot: 1, consecutiveFailures: 0, lastError: null, incumbent: null },
@@ -1097,6 +1117,10 @@ try {
           let stub = stubs[path] ?? (/^\/api\/projects\/[^/]+\/runs\/[^/]+\/preview$/.test(path)
             ? stubs[`/api/projects/${path.split('/')[3]}/runs/run-fixture/preview`]
             : undefined);
+          if (path === '/api/admin/events') {
+            const params = new URL(request.url()).searchParams;
+            stub = { ...stub, events: stub.events.filter(event => (!params.get('severity') || event.severity === params.get('severity')) && (!params.get('family') || event.kind.startsWith(params.get('family') + '.'))) };
+          }
           if (path === '/api/admin/stats') stub = platformStatsFixture(Number(new URL(request.url()).searchParams.get('days') ?? 30));
           if (path === '/api/runs' && Array.isArray(stub)) stub = runIndexPageStub(stub, new URL(request.url()).searchParams);
           if (stub !== undefined) {
@@ -1301,14 +1325,19 @@ try {
         return {
           bodies: document.querySelectorAll('.gpu-org-models-form').length,
           panels: panels.length,
-          belowTabs: panel?.getBoundingClientRect().top >= tabs.getBoundingClientRect().bottom,
+          navigationClear: (() => {
+            const p = panel.getBoundingClientRect();
+            const nav = tabs.checkVisibility() ? tabs : body.querySelector('.gpu-settings-section-select');
+            const n = nav.getBoundingClientRect();
+            return p.left >= n.right || p.right <= n.left || p.top >= n.bottom;
+          })(),
           fieldsContained: [...panel.querySelectorAll('input')].every(input => {
             const rect = input.getBoundingClientRect();
             return rect.left >= bounds.left && rect.right <= bounds.right;
           }),
         };
       });
-      if (geometry.bodies !== 1 || geometry.panels !== 1 || !geometry.belowTabs || !geometry.fieldsContained) {
+      if (geometry.bodies !== 1 || geometry.panels !== 1 || !geometry.navigationClear || !geometry.fieldsContained) {
         throw new Error(`Settings layout overlaps: ${JSON.stringify(geometry)}`);
       }
       console.log(`viz settings layout ok: ${settingsTab}, ${width}x${height}`);
@@ -1347,7 +1376,7 @@ try {
         throw new Error('--scroll-end is for Settings (the org-models body form)');
       }
       await page.evaluate(() => {
-        const form = document.querySelector('.gpu-org-models-form');
+        const form = document.querySelector('.gpu-settings-panel:not([hidden])');
         if (form) form.scrollTop = form.scrollHeight;
       });
       await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 200)));
@@ -2223,6 +2252,7 @@ try {
         capturedAt: recordedEvidence.capturedAt, replay: true, events: manifest }, null, 2));
       console.log(`Recorded-run detail gallery: ${manifest.length} screenshots in ${directory}`);
     }
+    if (has('--ui-matrix')) await captureUiMatrix(page, resolve(arg('--ui-matrix')));
     await page.screenshot({ path: outPath });
     const capturedViewport = page.viewport();
     const capturedCameraMode = await page.evaluate(() => document.querySelector('.gpu-scene-camera')?.getAttribute('data-scene-camera-mode') ?? 'none');

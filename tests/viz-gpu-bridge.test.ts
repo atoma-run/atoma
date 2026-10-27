@@ -1019,3 +1019,37 @@ describe('full-GL recovery boundary', () => {
     consoleError.mockRestore();
   });
 });
+
+
+describe('journal native filters', () => {
+  it('keeps the server filter state and resets paging position when a family changes', () => {
+    useGpuStore.setState({ view: 'journal', journalFamily: 'all', journalSeverity: 'all' });
+    useGpuStore.getState().setScrollY('journal', 420);
+    renderBridge();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Area' }), { target: { value: 'publication' } });
+    expect(useGpuStore.getState().journalFamily).toBe('publication');
+    expect(useGpuStore.getState().scrollY.journal).toBe(0);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Severity' }), { target: { value: 'security' } });
+    expect(useGpuStore.getState().journalSeverity).toBe('security');
+  });
+});
+
+
+describe('compact navigation state', () => {
+  it('retains the docs index and article positions independently', () => {
+    useGpuStore.setState({ compactDetailView: null, selectedDocsTheme: 'quick', docsArticleScrollY: 320 });
+    useGpuStore.getState().setScrollY('docs', 96);
+    useGpuStore.getState().selectDocsTheme('quick');
+    expect(useGpuStore.getState().docsIndexScrollY).toBe(96);
+    expect(useGpuStore.getState().scrollY.docs).toBe(320);
+    useGpuStore.getState().selectDocsTheme('projects');
+    expect(useGpuStore.getState().scrollY.docs).toBe(0);
+  });
+
+  it('opens a different run with compact summary and filters closed', () => {
+    useGpuStore.setState({ compactRunSummaryOpen: true, compactRunFiltersOpen: true });
+    useGpuStore.getState().selectRun('another-run');
+    expect(useGpuStore.getState().compactRunSummaryOpen).toBe(false);
+    expect(useGpuStore.getState().compactRunFiltersOpen).toBe(false);
+  });
+});

@@ -1,3 +1,4 @@
+import { UI_LAYOUT, UI_SPACE, UI_TYPE } from '../ui-layout.js';
 import type { RendererCtx } from '../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../theme.js';
 
@@ -13,17 +14,17 @@ import { GPU_COLORS, GPU_LAYOUT } from '../theme.js';
  * being written down somewhere else.
  *
  * `.gpu-project-mcp` and `.gpu-org-models-form` are DOM overlays that sit
- * INSIDE a frame, so they restate these numbers in CSS; tests hold the two
- * sides together.
+ * INSIDE a frame. ui-layout.ts publishes the same geometry as CSS variables
+ * so a change to the frame also moves its native overlays.
  */
 
 /** Inset from the frame's own edge to its content. */
-export const VIEW_FRAME_PAD = 16;
+export const VIEW_FRAME_PAD = UI_SPACE.card;
 /** Title baseline, measured from the frame's top. */
-export const VIEW_FRAME_TITLE_Y = 14;
-export const VIEW_FRAME_TITLE_SIZE = 16;
+export const VIEW_FRAME_TITLE_Y = 8;
+export const VIEW_FRAME_TITLE_SIZE = UI_TYPE.page;
 /** Where content clears the title, measured from the frame's top. */
-export const VIEW_FRAME_CONTENT_TOP = 46;
+export const VIEW_FRAME_CONTENT_TOP = UI_LAYOUT.frameContentTop;
 /**
  * The free floor around a scroll pane spanning the frame below its title
  * (`ScrollPaneOptions.air`): the gap under the title row above, the frame's
@@ -150,7 +151,7 @@ export function drawViewFrame(
   });
   if (subtitle) {
     const subtitleY = frame.y + VIEW_FRAME_TITLE_Y + 5;
-    const subtitleStyle = { size: 11, color: GPU_COLORS.muted } as const;
+    const subtitleStyle = { size: UI_TYPE.meta, color: GPU_COLORS.muted } as const;
     // A narrow column (a phone) keeps the subtitle ON THE TITLE LINE, measured
     // from the title's own width and ellipsised to what is left. It used to
     // stack under the title, which put it exactly where

@@ -1,3 +1,4 @@
+import { UI_LAYOUT } from '../../ui-layout.js';
 import { Graphics, Rectangle } from 'pixi.js';
 import { matchesSearchQuery, skillSearchText } from '../../../client/search.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
@@ -11,8 +12,11 @@ export function drawSkills(
   width: number,
   height: number
 ): void {
-  const top = GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap;
-  const leftWidth = Math.min(560, width * 0.45);
+  let top = GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap;
+  const compact = width < UI_LAYOUT.splitBreakpoint;
+  const showDetail = compact && snapshot.state.compactDetailView === 'skills';
+  const leftWidth = compact ? width - GPU_LAYOUT.gap * 2 : Math.min(560, width * 0.45);
+  if (!showDetail) {
   ctx.panel(
     ctx.root,
     GPU_LAYOUT.gap,
@@ -24,7 +28,7 @@ export function drawSkills(
     GPU_LAYOUT.radius,
     2
   );
-  ctx.text(ctx.root, snapshot.t('nav.skills'), 26, top + 14, { size: 16, weight: '700' });
+  ctx.text(ctx.root, snapshot.t('nav.skills'), 26, top + 8, { size: 24, weight: '700' });
   const query = snapshot.state.search.skills;
   // Namespace lists scroll inside a masked pane below the fixed title.
   // Culled rows still advance the cursor so the reported max scroll covers
@@ -104,7 +108,14 @@ export function drawSkills(
   }
   pane.extend(y);
   ctx.scrollMax.skills = pane.finish();
-  const rightX = leftWidth + GPU_LAYOUT.gap * 2;
+  }
+  if (compact && !showDetail) return;
+  const rightX = compact ? GPU_LAYOUT.gap : leftWidth + GPU_LAYOUT.gap * 2;
+  if (compact) {
+    ctx.button(ctx.root, 'detail.backList', 'button', snapshot.t('layout.backList'),
+      rightX + 16, top + 12, leftWidth - 32, 40, false, snapshot.onActivate);
+    top += 60;
+  }
   const rightWidth = width - rightX - GPU_LAYOUT.gap;
   ctx.panel(
     ctx.root,
@@ -128,19 +139,19 @@ export function drawSkills(
     });
     return;
   }
-  ctx.text(ctx.root, skill.id, rightX + 18, top + 16, { size: 16, weight: '700' });
+  ctx.text(ctx.root, skill.id, rightX + 18, top + 16, { size: 18, weight: '700', width: rightWidth - 36, singleLine: true });
   ctx.text(ctx.root, `${skill.kind} · ✓${skill.successes}/✗${skill.failures}`, rightX + 18, top + 44, {
     size: 10,
     color: skill.kind === 'script' ? GPU_COLORS.warning : GPU_COLORS.primary,
   });
-  ctx.text(ctx.root, skill.description, rightX + 18, top + 70, {
+  const description = ctx.text(ctx.root, skill.description, rightX + 18, top + 70, {
     size: 11,
     width: rightWidth - 36,
   });
   // The shareability box and the body (up to 6000 chars) far exceed the
   // panel: they scroll inside a masked pane driven by the shared detail wheel
   // route, below the fixed id/kind/description headings.
-  const detailPaneTop = top + 118;
+  const detailPaneTop = top + 70 + description.height + 24;
   const detailPane = createScrollPane(ctx.root, {
     x: rightX,
     y: detailPaneTop,

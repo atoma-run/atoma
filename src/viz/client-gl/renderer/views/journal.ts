@@ -1,7 +1,6 @@
 import { PLATFORM_EVENT_FAMILIES } from '../../../../contracts/platformEvents.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
-import { gpuFilterButtonWidth } from '../chip-layout.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR } from '../view-frame.js';
 import { drawJournalRow, journalRowHeight } from './journal-row.js';
@@ -28,7 +27,6 @@ import { drawLoadingNotice } from '../loading-notice.js';
  */
 
 const LIST_TOP = 8;
-const FILTER_ROW_HEIGHT = 34;
 const FOOTER_HEIGHT = 44;
 
 export const JOURNAL_SEVERITIES: readonly string[] = [
@@ -56,7 +54,7 @@ export function drawJournal(
     snapshot.t('admin.journalSummary', { count: events.length })
   );
 
-  const contentTop = frame.contentTop;
+  const contentTop = frame.contentTop + 80;
   const pane = createScrollPane(ctx.root, {
     x: frame.x,
     y: contentTop,
@@ -74,62 +72,6 @@ export function drawJournal(
   const compact = innerWidth < 400;
 
   let cursor = LIST_TOP;
-
-  // Two filter rows, each a closed vocabulary. They scroll WITH the list
-  // rather than floating above it: this pane has one scroll position, and a
-  // sticky header inside a masked GL pane would need a second. Both rows'
-  // chips share one render group so their per-frame animation never
-  // re-uploads the rows below (`animatedLayer`).
-  const chips = ctx.animatedLayer(pane.content, 'journal-filter-chips');
-  const chipRow = (
-    label: string,
-    values: readonly string[],
-    active: string,
-    idFor: (value: string) => string
-  ): void => {
-    ctx.text(pane.content, label, columnX, cursor + 8, {
-      size: 9,
-      weight: '700',
-      color: GPU_COLORS.muted,
-      width: 70,
-    });
-    let chipX = columnX + 76;
-    let rowY = cursor;
-    for (const value of values) {
-      const text = value === 'all' ? snapshot.t('journal.filter.all') : value;
-      const buttonWidth = gpuFilterButtonWidth(text);
-      if (chipX + buttonWidth > columnX + innerWidth && chipX > columnX + 76) {
-        chipX = columnX + 76;
-        rowY += FILTER_ROW_HEIGHT;
-      }
-      ctx.filterButton(
-        chips,
-        idFor(value),
-        text,
-        chipX,
-        rowY,
-        buttonWidth,
-        28,
-        value === active,
-        snapshot.onActivate
-      );
-      chipX += buttonWidth + 6;
-    }
-    cursor = rowY + FILTER_ROW_HEIGHT + 4;
-  };
-
-  chipRow(
-    snapshot.t('journal.severity').toUpperCase(),
-    JOURNAL_SEVERITIES,
-    snapshot.state.journalSeverity,
-    (value) => `journal.severity.${value}`
-  );
-  chipRow(
-    snapshot.t('journal.family').toUpperCase(),
-    JOURNAL_FAMILIES,
-    snapshot.state.journalFamily,
-    (value) => `journal.family.${value}`
-  );
 
   const filtered =
     snapshot.state.journalSeverity !== 'all' || snapshot.state.journalFamily !== 'all';

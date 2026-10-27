@@ -1402,6 +1402,27 @@ try {
     }
     await waitForSceneCamera(page, 'focus');
 
+    // The rail retains full-size targets on short windows. Reach its last
+    // destination through native wheel input without selecting another view.
+    const railViewport = page.viewport();
+    await page.setViewport({ width: 390, height: 320, deviceScaleFactor: 1 });
+    await waitForSceneCamera(page, 'focus');
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const railPoint = await page.evaluate(() => {
+      const handle = globalThis.__ATOMA_GPU__;
+      const row = handle.hitTargets().find(row => row.id === 'nav.projects');
+      if (!row) throw new Error('Short rail has no first destination');
+      return handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
+    });
+    await page.mouse.move(railPoint.x, railPoint.y);
+    await page.mouse.wheel({ deltaY: 1000 });
+    await page.waitForFunction(() =>
+      globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('sidebar-scroll-content', true)?.y < -1 &&
+      globalThis.__ATOMA_GPU__.hitTargets().some(row => row.id === 'nav.burnin'));
+    await page.setViewport(railViewport);
+    await waitForSceneCamera(page, 'focus');
+    console.log('viz short rail: native wheel reaches the last destination with full-size targets');
+
     // A real long request must remain inside the summary and reach its last
     // line through the same native wheel/scrollbar path as ordinary panes.
     await page.waitForFunction(() => globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true));
@@ -2506,6 +2527,36 @@ try {
         timeout: READY_TIMEOUT_MS,
       });
       const clickAccountTarget = async (id) => {
+        // Admin destinations can be below the fold now that the rail keeps
+        // full-size targets. Reveal them with real wheel input before clicking.
+        if (id.startsWith('nav.')) {
+          for (let attempt = 0; attempt < 24; attempt++) {
+            const navigation = await accountPage.evaluate((targetId) => {
+              const handle = globalThis.__ATOMA_GPU__;
+              const content = handle.app.stage.getChildByLabel('sidebar-scroll-content', true);
+              const mask = content.parent.mask;
+              // Pixi masks are non-measurable: use local geometry, as the
+              // workspace-row probe does, rather than empty getBounds().
+              const bounds = mask.getLocalBounds();
+              const top = mask.toGlobal({ x: bounds.minX, y: bounds.minY }).y;
+              const bottom = mask.toGlobal({ x: bounds.maxX, y: bounds.maxY }).y;
+              // Scroll panes retain a culling margin; a recorded target can
+              // still be entirely behind the mask. Require the full tile.
+              const rows = handle.hitTargets().filter(row => row.id.startsWith('nav.') &&
+                row.y >= top && row.y + row.height <= bottom);
+              if (rows.some(row => row.id === targetId)) return { found: true };
+              const row = rows[Math.floor(rows.length / 2)];
+              if (!row) throw new Error('Scrollable rail has no visible destination');
+              return { found: false, point: handle.projectRendererPoint(
+                row.x + row.width / 2, row.y + row.height / 2) };
+            }, id);
+            if (navigation.found) break;
+            await accountPage.mouse.move(navigation.point.x, navigation.point.y);
+            await accountPage.mouse.wheel({ deltaY: attempt === 0 ? -5000 : 120 });
+            await accountPage.evaluate(() => new Promise(resolve =>
+              requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          }
+        }
         // Scene assembly publishes hit targets before Pixi paints them and
         // updates the world transforms used by its event boundary. In that
         // gap a menu-row click can hit the scrim and close the menu instead.
@@ -3328,7 +3379,9 @@ try {
       await accountPage.click('.gpu-preview-actions button');
       await waitForHitTarget(accountPage, 'run.preview.terminal', 'Result preview control lost after closing');
       await clickAccountTarget('project.section.files');
-      await waitForHitTarget(accountPage, 'workspace.path.README.md', 'workspace not restored after terminal');
+      // The first folder proves the workspace returned; README may be below
+      // the fold and is opened through native scrolling by the checks below.
+      await waitForHitTarget(accountPage, 'workspace.path.src', 'workspace not restored after terminal');
       console.log('CLI preview control ok: real canvas click from Latest delivered results opens terminal mode');
       // The workspace list scrolls inside its pane, and at this narrow width
       // the fixture folders push most files below its fold. A row partly
@@ -3765,34 +3818,36 @@ try {
       await accountPage.click('#settings-tab-limits');
       await accountPage.waitForSelector('#settings-tab-limits[aria-selected="true"]');
       // The Settings column follows the camera after the mobile-width probe.
-      // Measure only when that transition has placed the panel below the tabs.
+      // Measure only when that transition has placed the panel beside navigation.
       await accountPage.waitForFunction(() => {
         const panel = document.querySelector('#settings-panel-limits');
         const tabs = document.querySelector('.gpu-settings-tabs');
-        return panel?.getBoundingClientRect().top >= tabs?.getBoundingClientRect().bottom;
+        if (!panel || !tabs) return false;
+        const p = panel.getBoundingClientRect(), n = tabs.getBoundingClientRect();
+        return p.left >= n.right || p.right <= n.left || p.top >= n.bottom;
       }, { timeout: 20_000 }).catch(async (error) => {
         const geometry = await accountPage.evaluate(() => ({
           panelTop: document.querySelector('#settings-panel-limits')?.getBoundingClientRect().top,
           tabsBottom: document.querySelector('.gpu-settings-tabs')?.getBoundingClientRect().bottom,
           camera: document.querySelector('.gpu-scene-camera')?.getAttribute('data-scene-camera-motion'),
         }));
-        throw new Error(`Settings limits never cleared the tabs: ${JSON.stringify(geometry)}`, { cause: error });
+        throw new Error(`Settings limits never cleared navigation: ${JSON.stringify(geometry)}`, { cause: error });
       });
       const limitsLayout = await accountPage.evaluate(() => {
         const panel = document.querySelector('#settings-panel-limits');
         const tabs = document.querySelector('.gpu-settings-tabs');
-        const body = document.querySelector('.gpu-org-models-form');
+        const p = panel.getBoundingClientRect(), n = tabs.getBoundingClientRect();
         return {
           bodies: document.querySelectorAll('.gpu-org-models-form').length,
           panels: [...document.querySelectorAll('[role="tabpanel"]')].filter(p => p.checkVisibility()).length,
-          belowTabs: panel.getBoundingClientRect().top >= tabs.getBoundingClientRect().bottom,
+          navigationClear: p.left >= n.right || p.right <= n.left || p.top >= n.bottom,
           fields: [...panel.querySelectorAll('input')].every(input => input.checkVisibility()),
           panelTop: panel.getBoundingClientRect().top,
           tabsBottom: tabs.getBoundingClientRect().bottom,
-          scrollTop: body.scrollTop,
+          scrollTop: panel.scrollTop,
         };
       });
-      if (limitsLayout.bodies !== 1 || limitsLayout.panels !== 1 || !limitsLayout.belowTabs || !limitsLayout.fields) {
+      if (limitsLayout.bodies !== 1 || limitsLayout.panels !== 1 || !limitsLayout.navigationClear || !limitsLayout.fields) {
         throw new Error(`Settings limits overlap: ${JSON.stringify(limitsLayout)}`);
       }
       // MCP is a DOM settings tab. Native disclosures must actually hide the

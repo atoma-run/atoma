@@ -1,3 +1,4 @@
+import { UI_CSS_VARS } from './ui-layout.js';
 import { useProjectCompute } from './project-compute.js';
 import { hostedUpdateOffer, useProjectDeployment } from './project-deployment.js';
 import { WELCOME_LEGAL_LINKS } from './legal-links.js';
@@ -678,7 +679,7 @@ function GpuAppContent({
 
   useEffect(() => {
     const types = registryQuery.data?.types ?? [];
-    if (!state.selectedRegistryAtom && types[0]) state.selectRegistryAtom(types[0].name);
+    if (!state.selectedRegistryAtom && types[0]) useGpuStore.setState({ selectedRegistryAtom: types[0].name });
   }, [registryQuery.data, state]);
 
   useEffect(() => {
@@ -686,7 +687,7 @@ function GpuAppContent({
     const firstNamespace = namespaceNames[0];
     const firstSkill = firstNamespace ? skillLists.byNamespace[firstNamespace]?.[0] : undefined;
     if (firstNamespace && firstSkill) {
-      state.selectSkill({ l1Name: firstNamespace, id: firstSkill.id });
+      useGpuStore.setState({ selectedSkill: { l1Name: firstNamespace, id: firstSkill.id } });
     }
   }, [namespaceNames, skillLists.byNamespace, state]);
 
@@ -727,6 +728,11 @@ function GpuAppContent({
   // The renderer asks `workspaceSplit` with the same viewport width, so the
   // list narrows exactly when the reader docks; otherwise the modal opens.
   const viewportWidth = useSyncExternalStore(subscribeViewportWidth, viewportWidthSnapshot, () => 0);
+  useEffect(() => {
+    if (!state.projectOverviewManual && state.projectOverviewCollapsed !== (viewportWidth < 1200)) {
+      useGpuStore.setState({ projectOverviewCollapsed: viewportWidth < 1200 });
+    }
+  }, [viewportWidth, state.projectOverviewManual, state.projectOverviewCollapsed]);
   const dockedFileReader = workspacePreviewPath(state) !== null ? workspaceSplitForViewport(viewportWidth) : null;
   const requestedProjectPreview = useRef<string | null>(null);
   useEffect(() => {
@@ -975,6 +981,14 @@ function GpuAppContent({
       store.toggleEventTechnical();
       return;
     }
+    if (id === 'run.compact.summary') {
+      useGpuStore.setState({ compactRunSummaryOpen: !store.compactRunSummaryOpen });
+      return;
+    }
+    if (id === 'run.compact.filters') {
+      useGpuStore.setState({ compactRunFiltersOpen: !store.compactRunFiltersOpen });
+      return;
+    }
     if (id === 'run.summary.toggle') {
       store.toggleRunSummary();
       return;
@@ -1158,6 +1172,10 @@ function GpuAppContent({
     }
     if (id.startsWith('registry.select.')) {
       store.selectRegistry(id.slice('registry.select.'.length));
+      return;
+    }
+    if (id === 'detail.backList') {
+      useGpuStore.setState({ compactDetailView: null, ...(store.view === 'docs' ? { docsArticleScrollY: store.scrollY.docs, scrollY: { ...store.scrollY, docs: store.docsIndexScrollY } } : {}) });
       return;
     }
     if (id.startsWith('registry.atom.')) {
@@ -1525,7 +1543,7 @@ function GpuAppContent({
   );
 
   return (
-    <main className="gpu-app" style={CHEVRON_CSS_VARS as CSSProperties} data-entered={state.entered ? 'true' : 'false'} data-theme={state.appearanceTheme} data-theme-transition={appearanceTransition.phase}>
+    <main className="gpu-app" style={{ ...CHEVRON_CSS_VARS, ...UI_CSS_VARS } as CSSProperties} data-entered={state.entered ? 'true' : 'false'} data-theme={state.appearanceTheme} data-theme-transition={appearanceTransition.phase}>
       {/* The product tree goes INERT behind an open preview, not merely
           hidden: `inert` takes the whole subtree out of focus order, hit
           testing and the accessibility tree in one attribute, so a tab press

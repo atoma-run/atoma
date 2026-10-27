@@ -1,3 +1,4 @@
+import { PLATFORM_EVENT_FAMILIES } from '../../contracts/platformEvents.js';
 import type { AssayerViewData } from './assayer-presentation.js';
 import { SentinelAccessible } from './SentinelAccessible.js';
 import { PlatformStatsAccessible } from './PlatformStatsAccessible.js';
@@ -314,6 +315,9 @@ export function DomBridge({
   onActivate?: (id: string) => void;
 }) {
   const view = useGpuStore((state) => state.view);
+  const compactDetailView = useGpuStore((state) => state.compactDetailView);
+  const journalFamily = useGpuStore((state) => state.journalFamily);
+  const journalSeverity = useGpuStore((state) => state.journalSeverity);
   const resultRunId = useGpuStore((state) => state.resultRunId);
   const sceneCameraMode = useGpuStore((state) => state.sceneCameraMode);
   const entered = useGpuStore((state) => state.entered);
@@ -752,9 +756,21 @@ export function DomBridge({
           }}
         />
       ) : null}
+      {view === 'journal' ? (
+        <div className={`gpu-journal-filters${overlaysInert ? ' gpu-overlays-veiled' : ''}`} inert={overlaysInert}>
+          <label><span>{t('journal.severity')}</span><select className="gpu-dom-select" value={journalSeverity}
+            onChange={event => useGpuStore.getState().setJournalFilter('severity', event.target.value)}>
+            {['all', 'info', 'warning', 'error', 'security'].map(value => <option key={value} value={value}>{value === 'all' ? t('journal.filter.all') : value}</option>)}
+          </select></label>
+          <label><span>{t('journal.family')}</span><select className="gpu-dom-select" value={journalFamily}
+            onChange={event => useGpuStore.getState().setJournalFilter('family', event.target.value)}>
+            {['all', ...PLATFORM_EVENT_FAMILIES].map(value => <option key={value} value={value}>{value === 'all' ? t('journal.filter.all') : value}</option>)}
+          </select></label>
+        </div>
+      ) : null}
       {view === 'registry' ? (
         <input
-          className={`gpu-dom-input gpu-view-search${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
+          className={`gpu-dom-input gpu-view-search${compactDetailView === view ? ' gpu-view-search--detail' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           aria-label={t('nav.filterAtoms')}
           value={search.registry}
           placeholder={t('nav.filterAtoms')}
@@ -766,7 +782,7 @@ export function DomBridge({
       ) : null}
       {view === 'skills' ? (
         <input
-          className={`gpu-dom-input gpu-view-search${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
+          className={`gpu-dom-input gpu-view-search${compactDetailView === view ? ' gpu-view-search--detail' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           aria-label={t('nav.filterSkills')}
           value={search.skills}
           placeholder={t('nav.filterSkills')}

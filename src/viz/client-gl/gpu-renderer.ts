@@ -1,3 +1,4 @@
+import { readableTextColor } from './text-contrast.js';
 import { ScrollbarInteraction } from './renderer/scrollbar-interaction.js';
 import { buildTimelineLayout } from '../client/timeline-layout.js';
 import { coerceEventFilters } from '../client/run-utils.js';
@@ -381,7 +382,6 @@ export const TOUCH_SCROLL_SLOP_PX = 6;
  * with the same size/weight, so one rollover lit up all of them.
  */
 const BUTTON_LABEL_IDLE = 0xa9b5ca;
-const BUTTON_LABEL_IDLE_TINT = multiplyTint(GPU_COLORS.text, BUTTON_LABEL_IDLE);
 /**
  * The narrowest a single-line label may be compressed to fit its column.
  * `text()` fits the copy with an ellipsis first, so anything reaching this
@@ -818,6 +818,9 @@ export class GpuRenderer {
   runGoalScrollMax = 0;
   private runGoalKey: string | null = null;
   detailBounds: Rectangle | null = null;
+  sidebarScrollY = 0;
+  sidebarScrollMax = 0;
+  sidebarBounds: Rectangle | null = null;
   detailScrollY = 0;
   detailScrollMax = 0;
   private detailKey: string | null = null;
@@ -1063,6 +1066,17 @@ export class GpuRenderer {
         const next = Math.max(0, Math.min(this.runGoalScrollMax, this.runGoalScrollY + deltaY));
         if (next !== this.runGoalScrollY) {
           this.runGoalScrollY = next;
+          this.render(this.snapshot);
+        }
+        return;
+      }
+    }
+    if (this.sidebarBounds && !this.snapshot.state.accountMenuOpen && !this.snapshot.state.notificationsMenuOpen) {
+      const local = this.clientToRendererPosition(clientX, clientY);
+      if (this.sidebarBounds.contains(local.x, local.y)) {
+        const next = Math.max(0, Math.min(this.sidebarScrollMax, this.sidebarScrollY + deltaY));
+        if (next !== this.sidebarScrollY) {
+          this.sidebarScrollY = next;
           this.render(this.snapshot);
         }
         return;
@@ -2111,7 +2125,7 @@ export class GpuRenderer {
           ? `event:${snapshot.state.selectedEventId}:${snapshot.state.eventTechnicalOpen ? 'technical' : 'readable'}`
           : snapshot.state.selectedAtomName
             ? `agent:${snapshot.state.selectedAtomName}`
-            : null
+            : `compact-controls:${snapshot.state.compactRunSummaryOpen}:${snapshot.state.compactRunFiltersOpen}`
         : snapshot.state.view === 'registry'
           ? `registry:${snapshot.state.selectedRegistryAtom ?? ''}`
           : snapshot.state.view === 'skills'
@@ -3104,7 +3118,9 @@ export class GpuRenderer {
   private textStyle(options: TextOptions): { style: TextStyle; key: string } {
     const size = options.exactSize ? Math.max(EXACT_SIZE_FLOOR, options.size ?? 13) : gpuTextSize(options.size);
     const weight = options.weight ?? '400';
-    const color = options.color ?? GPU_COLORS.text;
+    const requestedColor = options.color ?? GPU_COLORS.text;
+    const color = this.snapshot?.state.entered
+      ? readableTextColor(requestedColor, this.snapshot.state.appearanceTheme) : requestedColor;
     const mono = options.mono ?? false;
     const key = `${size}|${weight}|${color}|${mono ? 'm' : 's'}|${options.width ?? ''}|${
       options.singleLine ? '1' : 'w'
@@ -3913,7 +3929,8 @@ export class GpuRenderer {
     let elapsed = wasVisible || prefersReducedMotion() ? performance.now() : -appearanceDelay;
     // The idle label carries a little of the family colour too, so a chip is
     // identifiable without being selected and without being loud.
-    const idleTint = multiplyTint(GPU_COLORS.text, mixColor(BUTTON_LABEL_IDLE, accent, 0.42));
+    const idleTint = multiplyTint(GPU_COLORS.text, readableTextColor(
+      mixColor(BUTTON_LABEL_IDLE, accent, 0.42), this.snapshot?.state.appearanceTheme ?? 'nocturne'));
     let currentLabelTint = active ? NO_TINT : idleTint;
     labelText.tint = currentLabelTint;
     container.alpha = wasVisible || prefersReducedMotion() ? 1 : 0;
@@ -4113,7 +4130,9 @@ export class GpuRenderer {
     let insetDepth = active ? 1 : 0;
     let elapsed = firstAppearance ? -Math.max(0, x - 112) * 0.35 : performance.now();
     container.alpha = firstAppearance ? 0 : 1;
-    let currentLabelTint = active ? NO_TINT : BUTTON_LABEL_IDLE_TINT;
+    const idleTint = multiplyTint(GPU_COLORS.text, readableTextColor(
+      BUTTON_LABEL_IDLE, this.snapshot?.state.appearanceTheme ?? 'nocturne'));
+    let currentLabelTint = active ? NO_TINT : idleTint;
     if (labelText) labelText.tint = currentLabelTint;
     let settled = false;
     let lastReduced = prefersReducedMotion();
@@ -4171,7 +4190,7 @@ export class GpuRenderer {
       insetShadow.alpha = insetDepth;
       insetShadow.visible = insetDepth > 0.02;
       if (dropShadow) dropShadow.alpha = 1 - insetDepth;
-      const nextLabelTint = pressed || hovered || active ? NO_TINT : BUTTON_LABEL_IDLE_TINT;
+      const nextLabelTint = pressed || hovered || active ? NO_TINT : idleTint;
       if (labelText && nextLabelTint !== currentLabelTint) {
         currentLabelTint = nextLabelTint;
         labelText.tint = nextLabelTint;
@@ -5734,6 +5753,9 @@ export type RendererCtx = Pick<
   | 'runGoalBounds'
   | 'runGoalScrollY'
   | 'runGoalScrollMax'
+  | 'sidebarScrollY'
+  | 'sidebarScrollMax'
+  | 'sidebarBounds'
   | 'detailScrollY'
   | 'detailScrollMax'
   | 'detailBounds'

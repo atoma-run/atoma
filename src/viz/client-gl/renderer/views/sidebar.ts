@@ -1,4 +1,5 @@
-import { Graphics } from 'pixi.js';
+import { createScrollPane } from '../scroll-pane.js';
+import { Rectangle, Graphics } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { SIDEBAR_GROUPS, visibleViews, type ViewName } from '../../store.js';
@@ -31,7 +32,7 @@ const SIDEBAR_PAD = 12;
 const GROUP_HEIGHT = 28;
 const GROUP_FIRST_ITEM_GAP = 6;
 const GROUP_GAP = 18;
-const ITEM_HEIGHT = 32;
+const ITEM_HEIGHT = 40;
 const ITEM_GAP = 12;
 const GROUP_LABEL_SIZE = 9;
 const GROUP_RULE_GAP = 8;
@@ -253,55 +254,22 @@ export function sidebarLayout(
   views: readonly ViewName[],
   viewportHeight = Number.POSITIVE_INFINITY,
   navigationTop: number = GPU_LAYOUT.headerHeight,
-  iconOnly = false
+  iconOnly = false,
+  itemHeight: number = ITEM_HEIGHT
 ): readonly SidebarRow[] {
+  void viewportHeight;
   const lead = iconOnly ? ITEM_GAP : 18;
   const normal = groupedLayout(views, {
     top: navigationTop + lead,
     groupHeight: GROUP_HEIGHT,
     groupFirstItemGap: GROUP_FIRST_ITEM_GAP,
     groupGap: GROUP_GAP,
-    itemHeight: ITEM_HEIGHT,
+    itemHeight,
     itemGap: ITEM_GAP,
     includeGroups: !iconOnly,
   });
-  if (rowsBottom(normal) <= viewportHeight - 4) return normal;
-
-  // Landscape windows first tighten whitespace while keeping group labels.
-  const compact = groupedLayout(views, {
-    top: navigationTop + (iconOnly ? ITEM_GAP : 8),
-    groupHeight: 20,
-    groupFirstItemGap: 4,
-    groupGap: 6,
-    itemHeight: 26,
-    itemGap: 10,
-    includeGroups: !iconOnly,
-  });
-  if (rowsBottom(compact) <= viewportHeight - 4) return compact;
-
-  // If labels themselves would hide a destination, destinations win. Flatten
-  // the known group order and distribute every hit target through the space
-  // below the header; even a short landscape canvas keeps its last tab.
-  const members: Array<
-    | { readonly kind: 'item'; readonly view: ViewName }
-    | { readonly kind: 'action'; readonly action: 'tuning' }
-  > = [];
-  for (const group of SIDEBAR_GROUPS) {
-    const groupViews = group.views.filter((view) => views.includes(view));
-    members.push(...groupViews.map((view) => ({ kind: 'item' as const, view })));
-    if (group.key === 'admin' && groupViews.length > 0) {
-      members.push({ kind: 'action', action: 'tuning' });
-    }
-  }
-  const top = navigationTop + (iconOnly ? ITEM_GAP : 4);
-  const gap = 2;
-  const available = Math.max(0, viewportHeight - top - 4 - gap * Math.max(0, members.length - 1));
-  const itemHeight = members.length > 0 ? Math.min(26, available / members.length) : 0;
-  return members.map((member, index) => ({
-    ...member,
-    y: top + index * (itemHeight + gap),
-    height: itemHeight,
-  }));
+  // Destinations retain their targets on short windows; the rail scrolls.
+  return normal;
 }
 
 /** Draw the rail: an overview wash, then a heading and a nav button per row. */
@@ -352,13 +320,18 @@ export function drawSidebar(
     : Math.max(0, width - buttonX - SIDEBAR_PAD);
   // Every nav button animates every frame (scanline, sparks, spin, pulse), so
   // the whole rail draws into ONE render group while headings stay in root.
-  const rail = ctx.animatedLayer(ctx.root, 'sidebar-rail');
-  for (const row of sidebarLayout(
-    visibleViews(snapshot.data.auth),
-    layoutHeight,
-    navigationTop,
-    iconOnly
-  )) {
+  const rows = sidebarLayout(visibleViews(snapshot.data.auth), layoutHeight, navigationTop, iconOnly, snapshot.state.handheld ? 48 : ITEM_HEIGHT);
+  const paneHeight = Math.max(0, layoutHeight - navigationTop - 4);
+  ctx.sidebarScrollMax = Math.max(0, rowsBottom(rows) - navigationTop - paneHeight + 12);
+  ctx.sidebarScrollY = Math.min(ctx.sidebarScrollY ?? 0, ctx.sidebarScrollMax);
+  ctx.sidebarBounds = new Rectangle(0, navigationTop, width, paneHeight);
+  const pane = createScrollPane(ctx.root, { x: 0, y: navigationTop, width, height: paneHeight,
+    scrollY: ctx.sidebarScrollY, air: { top: 0, bottom: 0 }, bottomPadding: 12 });
+  pane.content.label = 'sidebar-scroll-content';
+  const rail = ctx.animatedLayer(pane.content, 'sidebar-rail');
+  for (const original of rows) {
+    const row = { ...original, y: original.y - navigationTop };
+    if (!pane.visible(row.y, row.y + row.height)) continue;
     if (row.kind === 'group') {
       // Focus leaves only the icon buttons. Keeping the rows themselves
       // preserves each group's rhythm without repeating its heading.
@@ -393,10 +366,10 @@ export function drawSidebar(
         .lineTo(ruleRight, ruleY)
         .stroke({ color: GPU_COLORS.border, width: 1, alpha: 0.75 });
       rules.eventMode = 'none';
-      ctx.root.addChild(rules);
+      pane.content.addChild(rules);
 
       const labelText = ctx.text(
-        ctx.root,
+        pane.content,
         label,
         centreX,
         ruleY,
@@ -435,4 +408,6 @@ export function drawSidebar(
       iconOnly ? { iconOnly: true, tooltip: label } : undefined
     );
   }
+  pane.extend(rowsBottom(rows) - navigationTop);
+  ctx.sidebarScrollMax = pane.finish();
 }

@@ -195,7 +195,7 @@ describe('the global scene camera', () => {
     }
   });
 
-  it('keeps every compact rail button visibly inside focused viewports', () => {
+  it('keeps the visible portion of the scrollable rail inside focused viewports', () => {
     const allViews: readonly ViewName[] = [
       'projects', 'runs', 'docs', 'registry', 'skills', 'burnin', ...ADMIN_VIEWS,
     ];
@@ -220,8 +220,9 @@ describe('the global scene camera', () => {
         true
       )
         .filter((row) => row.kind !== 'group');
-      expect(rows.at(-1)!.y + rows.at(-1)!.height).toBeLessThan(chrome.profile!.y);
-      for (const row of rows) {
+      expect(chrome.navigationBottom).toBeLessThan(chrome.profile!.y);
+      expect(rows.every(row => row.height >= 40)).toBe(true);
+      for (const row of rows.filter(row => row.y + row.height <= chrome.navigationBottom)) {
         for (const point of [
           { x: rail - FOCUS_SIDEBAR_BUTTON_WIDTH, y: row.y },
           { x: rail, y: row.y },

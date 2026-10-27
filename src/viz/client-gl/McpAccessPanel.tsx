@@ -124,7 +124,7 @@ export function McpAccessPanel({
             <li key={token.tokenId} className="gpu-subscription-card">
               <div className="gpu-subscription-card-head">
                 <span className="gpu-subscription-name">{token.label}</span>
-                <button type="button" disabled={busy} onClick={() => void onRevoke(token.tokenId)}><ButtonIcon kind="trash" />
+                <button type="button" disabled={busy} className="gpu-action-danger" onClick={() => void onRevoke(token.tokenId)}><ButtonIcon kind="trash" />
                   {t('settings.mcpRevoke')}
                 </button>
               </div>

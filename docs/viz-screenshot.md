@@ -176,3 +176,15 @@ For layout work also capture a narrow viewport (`--width 528`) — the compact
 project rows and the stacked MCP guide have their own geometry.
 
 Project deployment settings: `npm run viz:shot -- --auth --select-first --project-settings`.
+
+
+### Responsive UI matrix
+
+`npm run viz:shot -- --auth --platform-admin --view Settings --ui-matrix /tmp/atoma-settings`
+captures the selected fixture state at 390, 528, 768, 1024, 1440 and 1920 pixels
+in both camera positions, plus the five themes and French, Arabic and German.
+The JSON manifest records dimensions, theme, language and overflow checks.
+It waits for the camera, palette and retained crystal to settle. This mode only
+supports a local source server; use `--url` to share one running dev stack.
+API mutations remain local fixtures. Screenshots are evidence of the recorded
+state, not proof of every possible content length or permission combination.

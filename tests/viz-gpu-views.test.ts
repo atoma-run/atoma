@@ -1,3 +1,4 @@
+import { UI_CSS_VARS } from '../src/viz/client-gl/ui-layout.js';
 import { RUN_SHUTDOWN_MESSAGE } from '../src/contracts/runShutdown.js';
 import { relativeTime } from '../src/viz/client-gl/renderer/relative-time.js';
 import { drawPlatform } from '../src/viz/client-gl/renderer/views/platform.js';
@@ -183,11 +184,10 @@ import {
 } from '../src/viz/client-gl/theme.js';
 import { buildAtomaMarkFrame } from '../src/viz/client-gl/brand-mark.js';
 import { drawAdmin } from '../src/viz/client-gl/renderer/views/admin.js';
-import { drawJournal, JOURNAL_SEVERITIES } from '../src/viz/client-gl/renderer/views/journal.js';
+import { drawJournal } from '../src/viz/client-gl/renderer/views/journal.js';
 import { drawLedger } from '../src/viz/client-gl/renderer/views/ledger.js';
 import { drawLiveRuns } from '../src/viz/client-gl/renderer/views/live-runs.js';
 import { drawSentinel } from '../src/viz/client-gl/renderer/views/sentinel.js';
-import { PLATFORM_EVENT_FAMILIES } from '../src/contracts/platformEvents.js';
 
 // ---------------------------------------------------------------------------
 // Recording context: implements RendererCtx without a GPU. Pixi Container /
@@ -316,6 +316,7 @@ function fitStub(value: string, maxWidth: number, options?: { size?: number }): 
 
 function createRecordingCtx(): RecordingCtx {
   const ctx: RecordingCtx = {
+    sidebarScrollY: 0, sidebarScrollMax: 0, sidebarBounds: null,
     relativeTime,
     // No renderer here, on purpose. The crystal's refraction pass needs one and
     // must SKIP itself without one — these tests are the standing proof that the
@@ -648,6 +649,7 @@ const t = (key: string, vars?: Record<string, unknown>): string =>
 function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
   const noop = () => {};
   return {
+    compactDetailView: null, docsArticleScrollY: 0, docsIndexScrollY: 0, compactRunSummaryOpen: false, compactRunFiltersOpen: false,
     view: 'runs',
     sceneCameraMode: 'overview',
     locale: 'en',
@@ -669,7 +671,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedProjectId: null,
     projectMcpCollapsed: false,
     sentinelSection: 'watch',
-    projectOverviewCollapsed: false, hostingConfirm: null,
+    projectOverviewCollapsed: false, projectOverviewManual: false, hostingConfirm: null,
     projectAssistantCompact: false,
     projectAssistantCompactHeight: null,
     workspaceRunId: null, workspacePath: '', filePreview: null, previewFile: () => {},
@@ -1352,7 +1354,7 @@ describe('drawDocs', () => {
     expect(compact.content.height).toBeGreaterThan(0);
   });
 
-  it('keeps every compact topic target visible even in a short viewport', () => {
+  it('keeps compact topics at full size and scrolls them in a short viewport', () => {
     const ctx = createRecordingCtx();
     drawDocs(ctx, makeSnapshot({ view: 'docs' }), 416, 480);
     const topicTargets = ctx.metrics.hitTargets.filter((target) =>
@@ -1368,7 +1370,8 @@ describe('drawDocs', () => {
       expect(target.x + target.width).toBeLessThanOrEqual(
         navigationPanel.x + navigationPanel.width
       );
-      expect(target.y + target.height).toBeLessThanOrEqual(
+      expect(target.height).toBeGreaterThanOrEqual(40);
+      expect(target.y + target.height - (ctx.scrollMax.docs ?? 0)).toBeLessThanOrEqual(
         navigationPanel.y + navigationPanel.height
       );
     }
@@ -1443,7 +1446,7 @@ describe('the nav rail', () => {
     const ctx = createRecordingCtx();
     drawSidebar(ctx, makeSnapshot({ view: 'projects' }), 720);
     const heading = ctx.texts.find((entry) => entry.value === 'WORKSPACE');
-    expect(heading?.y).toBe(rows[0]!.y + rows[0]!.height / 2);
+    expect(heading!.parent.toGlobal({ x: heading!.x, y: heading!.y }).y).toBe(rows[0]!.y + rows[0]!.height / 2);
     expect(heading?.node.anchor.x).toBe(0.5);
     expect(heading?.node.anchor.y).toBe(0.5);
   });
@@ -1501,15 +1504,16 @@ describe('the nav rail', () => {
       expect(button.x).toBe(GPU_LAYOUT.sidebarWidth - FOCUS_SIDEBAR_BUTTON_WIDTH);
       expect(button.width).toBe(FOCUS_SIDEBAR_BUTTON_WIDTH);
       expect(button.x + button.width).toBeLessThanOrEqual(GPU_LAYOUT.sidebarWidth);
-      const tooltip = ctx.tooltips.find((candidate) => candidate.y === button.y);
+      const point = button.parent.toGlobal({ x: button.x, y: button.y });
+      const tooltip = ctx.tooltips.find((candidate) => candidate.y === point.y);
       expect(tooltip).toMatchObject({
-        x: button.x,
-        y: button.y,
+        x: point.x,
+        y: point.y,
         width: button.width,
         height: button.height,
       });
     }
-    expect(nav[0]!.y - (chrome.crystal.y + chrome.crystal.height)).toBe(12);
+    expect(nav[0]!.parent.toGlobal({ x: nav[0]!.x, y: nav[0]!.y }).y - (chrome.crystal.y + chrome.crystal.height)).toBe(12);
   });
 
   it('reserves a top crystal and a profile-language-FPS dock in focus', () => {
@@ -1534,7 +1538,8 @@ describe('the nav rail', () => {
     expect(layout.navigationTop).toBe(116);
     expect(first.y - (layout.crystal.y + layout.crystal.height)).toBe(12);
     expect(layout.crystal.y + layout.crystal.height).toBeLessThan(first.y);
-    expect(last.y + last.height).toBeLessThan(layout.profile!.y);
+    expect(last.y + last.height).toBeGreaterThan(layout.navigationBottom);
+    expect(layout.navigationBottom).toBeLessThan(layout.profile!.y);
     expect(layout.profile!.y + layout.profile!.height).toBeLessThan(layout.locale.y);
     expect(layout.locale.y + layout.locale.height).toBeLessThan(layout.fps.y);
     expect(layout.fps.y + layout.fps.height).toBeLessThanOrEqual(visibleBottom);
@@ -1574,7 +1579,7 @@ describe('the nav rail', () => {
   it('puts the Scene Tuning toggle at the foot of ADMIN and reflects its state', () => {
     const auth = makeAuth({ platformAdmin: true });
     const ctx = createRecordingCtx();
-    drawSidebar(ctx, makeSnapshot({ tuningPanelOpen: true }, { auth }), 720);
+    drawSidebar(ctx, makeSnapshot({ tuningPanelOpen: true }, { auth }), 1200);
     const adminIds = ctx.buttons
       .map((button) => button.id)
       .filter((id) => id === 'tuning.toggle' || ADMIN_VIEWS.some((view) => id === `nav.${view}`));
@@ -1585,7 +1590,7 @@ describe('the nav rail', () => {
     drawSidebar(
       focused,
       makeSnapshot({ tuningPanelOpen: true, sceneCameraMode: 'focus' }, { auth }),
-      720,
+      1200,
       GPU_LAYOUT.sidebarWidth
     );
     const tuning = focused.buttons.find((button) => button.id === 'tuning.toggle');
@@ -1597,13 +1602,20 @@ describe('the nav rail', () => {
     expect(focused.tooltips.at(-1)?.text).toBe(I18N_CATALOGS.en['nav.sceneTuning']);
   });
 
-  it('keeps every admin destination inside a short landscape rail', () => {
+  it('keeps every admin target at 40px and scrolls a short landscape rail', () => {
     const height = 300;
     const views = visibleViews({ ...base, viewer: { ...viewer, platformAdmin: true } });
     const rows = sidebarLayout(views, height);
     expect(new Set(rows.filter((row) => row.kind === 'item').map((row) => row.view)))
       .toEqual(new Set(views));
-    expect(Math.max(...rows.map((row) => row.y + row.height))).toBeLessThanOrEqual(height);
+    expect(rows.filter(row => row.kind !== 'group').every(row => row.height >= 40)).toBe(true);
+    const ctx = createRecordingCtx();
+    drawSidebar(ctx, makeSnapshot({}, { auth: makeAuth({ platformAdmin: true }) }), height);
+    expect(ctx.sidebarScrollMax).toBeGreaterThan(0);
+    const end = createRecordingCtx();
+    end.sidebarScrollY = ctx.sidebarScrollMax;
+    drawSidebar(end, makeSnapshot({}, { auth: makeAuth({ platformAdmin: true }) }), height);
+    expect(end.buttons.some(button => button.id === 'tuning.toggle')).toBe(true);
   });
 
   it('shrinks the rail before it can push the content floor off-screen', () => {
@@ -1647,7 +1659,7 @@ describe('the nav rail', () => {
     }
     expect(crystal.crystal.y).toBe(28);
     expect(crystal.crystal.x + crystal.crystal.width).toBeLessThanOrEqual(width);
-    expect(nav[0]!.y).toBeGreaterThanOrEqual(crystal.navigationTop);
+    expect(nav[0]!.parent.toGlobal({ x: nav[0]!.x, y: nav[0]!.y }).y).toBeGreaterThanOrEqual(crystal.navigationTop);
   });
 
   it('keeps the CSS content offset equal to the rail it must clear', () => {
@@ -2427,25 +2439,12 @@ describe('drawJournal', () => {
     expect(values).toContain('not-an-instant');
   });
 
-  it('offers every severity and every kind family as a filter chip', () => {
-    // Derived vocabularies, both of them: a chip list written by hand would be
-    // a second definition to keep in step with the contract.
+  it('reserves a fixed band for native journal filters independently of vocabulary length', () => {
     const ctx = createRecordingCtx();
-    drawJournal(
-      ctx,
-      makeSnapshot({ view: 'journal', journalSeverity: 'security' }, { auth }),
-      1280,
-      720
-    );
-    const ids = ctx.filterButtons.map((button) => button.id);
-    for (const severity of JOURNAL_SEVERITIES) {
-      expect(ids).toContain(`journal.severity.${severity}`);
-    }
-    for (const family of PLATFORM_EVENT_FAMILIES) {
-      expect(ids).toContain(`journal.family.${family}`);
-    }
-    const active = ctx.filterButtons.filter((button) => button.active);
-    expect(active.map((button) => button.id)).toContain('journal.severity.security');
+    drawJournal(ctx, makeSnapshot({ view: 'journal' }, { auth, adminEvents: [journalEvent(9)] }), 390, 844);
+    expect(ctx.filterButtons).toHaveLength(0);
+    const summary = ctx.texts.find(text => text.value === journalEvent(9).summary)!;
+    expect(summary.parent.toGlobal({ x: summary.x, y: summary.y }).y).toBeGreaterThanOrEqual(viewFrame(390, 844).contentTop + 80);
   });
 
   it('offers the next page only while the server says there is one', () => {
@@ -3186,13 +3185,15 @@ describe('drawProjects', () => {
       css.indexOf('/* The GPU view draws the card')
     );
     expect(guide).toContain(
-      `--gpu-frame: calc(var(--gpu-content) - ${PROJECTS_COLUMN_INSET}px)`
+      '--gpu-frame: calc(var(--gpu-content) - var(--ui-frame-gap) * 2)'
     );
     expect(guide).toContain(
-      `left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + ${VIEW_FRAME_PAD}px)`
+      'left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + var(--ui-frame-pad))'
     );
-    expect(guide).toContain(`width: calc(var(--gpu-frame) - ${VIEW_FRAME_PAD * 2}px)`);
-    expect(guide).toContain(`top: ${PROJECTS_MCP_GUIDE_TOP}px`);
+    expect(guide).toContain('width: calc(var(--gpu-frame) - var(--ui-frame-pad) * 2)');
+    expect(UI_CSS_VARS['--ui-frame-pad']).toBe(`${VIEW_FRAME_PAD}px`);
+    expect(UI_CSS_VARS['--ui-frame-content-top']).toBe(`${PROJECTS_MCP_GUIDE_TOP}px`);
+    expect(guide).toContain('top: var(--ui-frame-content-top)');
     expect(guide).toContain(`height: ${PROJECTS_MCP_GUIDE_HEIGHT}px`);
     expect(projectsGpuContentTop(PROJECTS_NARROW_CONTENT_WIDTH - 1)).toBe(
       PROJECTS_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_NARROW_HEIGHT + 16
@@ -3551,12 +3552,12 @@ describe('drawProjects', () => {
     const runsTab = ctx.buttons.find(button => button.id === 'project.section.runs')!;
     const tabBottom = runsTab.parent.toGlobal({ x: runsTab.x, y: runsTab.y + runsTab.height }).y;
     expect(repositoryLink.parent).toBe(ctx.root);
-    expect(linkOrigin.y).toBeLessThan(tabBottom);
+    expect(linkOrigin.y).toBeGreaterThan(tabBottom);
     expect(linkOrigin.y + repositoryLink.height / 2).toBeGreaterThan(runsTab.y);
     const resultTab = ctx.buttons.find(button => button.id === 'project.section.result')!;
-    expect(lockOrigin.x).toBeGreaterThan(resultTab.x + resultTab.width);
-    expect(linkOrigin.y).toBeLessThan(PROJECTS_SELECTED_MCP_GUIDE_TOP);
-    expect(lockOrigin.x).toBeGreaterThanOrEqual(column.x + 18);
+    expect(linkOrigin.y).toBeGreaterThan(resultTab.y + resultTab.height);
+    expect(linkOrigin.y).toBeGreaterThan(PROJECTS_SELECTED_MCP_GUIDE_TOP - 12);
+    expect(lockOrigin.x).toBeGreaterThanOrEqual(column.x);
     expect(lockOrigin.x).toBeLessThan(linkOrigin.x);
     expect(linkOrigin.x + repositoryLink.width).toBeLessThanOrEqual(rightEdge);
     const verdict = ctx.texts.find((text) => String(text.value).startsWith('delivered'));
@@ -7676,7 +7677,7 @@ describe('render groups — per-frame animation stays off the root batch', () =>
     expect(reused.isRenderGroup).toBe(true);
   });
 
-  it('draws the whole nav rail into one band while its headings stay in root', () => {
+  it('draws one animated rail band inside a bounded pane with static headings', () => {
     for (const sceneCameraMode of ['overview', 'focus'] as const) {
       const ctx = createRecordingCtx();
       drawSidebar(ctx, makeSnapshot({ view: 'skills', sceneCameraMode }), 720);
@@ -7685,15 +7686,15 @@ describe('render groups — per-frame animation stays off the root batch', () =>
       const rail = nav[0]!.parent;
       expectBand(rail, 'sidebar-rail', ctx.root);
       for (const button of nav) expect(button.parent).toBe(rail);
-      expect(ctx.root.children.filter((child) => child.label === 'sidebar-rail')).toHaveLength(1);
+      expect(rail.parent!.children.filter((child) => child.label === 'sidebar-rail')).toHaveLength(1);
       for (const heading of ctx.texts.filter((text) => ['WORKSPACE', 'OPERATE'].includes(text.value))) {
-        expect(heading.parent).toBe(ctx.root);
+        expect(heading.parent).toBe(rail.parent);
       }
       // The band changed nothing about where a button is hit.
       const runs = nav.find((button) => button.id === 'nav.runs')!;
       const target = ctx.metrics.hitTargets.find((entry) => entry.id === 'nav.runs')!;
       expect(target.x).toBe(runs.x);
-      expect(target.y).toBe(runs.y);
+      expect(target.y).toBe(runs.parent.toGlobal({ x: runs.x, y: runs.y }).y);
     }
   });
 
@@ -7792,8 +7793,7 @@ describe('render groups — per-frame animation stays off the root batch', () =>
         1280,
         720
       );
-      expect(journal.filterButtons.length).toBeGreaterThan(0);
-      for (const chip of journal.filterButtons) expectBand(chip.parent, 'journal-filter-chips', journal.root);
+      expect(journal.filterButtons).toHaveLength(0);
     } finally {
       setReducedMotionOverrideForTests(null);
     }
@@ -9009,5 +9009,50 @@ describe('platform overview', () => {
       expect(button.width).toBeGreaterThan(0);
       expect(button.x + button.width).toBeLessThanOrEqual(width);
     }
+  });
+});
+
+
+describe('compact presentation panels', () => {
+  it.each([334, 390, 528])('opens Runs with the timeline visible at %ipx', width => {
+    const run = makeRun(Array.from({ length: 25 }, (_, index) => makeLlmEvent(`event-${index}`)));
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, makeSnapshot({}, { run }), width, 844);
+    expect(ctx.buttons.some(button => button.id === 'run.compact.summary')).toBe(true);
+    expect(ctx.statCards).toHaveLength(0);
+    expect(ctx.filterButtons).toHaveLength(0);
+    expect(ctx.metrics.timelineViewport!.height).toBeGreaterThan(300);
+  });
+
+  it.each(['compactRunSummaryOpen', 'compactRunFiltersOpen'] as const)('bounds %s above a usable timeline', field => {
+    const run = makeRun(Array.from({ length: 25 }, (_, index) => makeLlmEvent(`event-${index}`)));
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, makeSnapshot({ [field]: true }, { run }), 334, 844);
+    expect(ctx.detailBounds).not.toBeNull();
+    expect(ctx.detailBounds!.height).toBeLessThanOrEqual(240);
+    expect(ctx.metrics.timelineViewport!.height).toBeGreaterThan(200);
+    expect(ctx.detailBounds!.y + ctx.detailBounds!.height).toBeLessThan(ctx.metrics.timelineViewport!.top);
+  });
+
+  it('keeps a compact registry selection when returning to its list', () => {
+    const data = { registries: [REGISTRY_SUMMARY], registry: { registry: REGISTRY_SUMMARY, types: [makeRegistryType('Water')] } };
+    const list = createRecordingCtx();
+    drawRegistry(list, makeSnapshot({ view: 'registry', selectedRegistryAtom: 'Water' }, data), 334, 844);
+    expect(list.buttons.some(button => button.id === 'registry.atom.Water' && button.active)).toBe(true);
+    expect(list.buttons.some(button => button.id === 'detail.backList')).toBe(false);
+    const detail = createRecordingCtx();
+    drawRegistry(detail, makeSnapshot({ view: 'registry', selectedRegistryAtom: 'Water', compactDetailView: 'registry' }, data), 334, 844);
+    expect(detail.buttons.some(button => button.id === 'detail.backList')).toBe(true);
+    expect(detail.buttons.some(button => button.id === 'registry.atom.Water')).toBe(false);
+  });
+
+  it('shows a compact docs index or its article, never both squeezed together', () => {
+    const index = createRecordingCtx();
+    drawDocs(index, makeSnapshot({ view: 'docs' }), 334, 844);
+    expect(index.buttons.filter(button => button.id.startsWith('docs.theme.'))).toHaveLength(DOC_THEMES.length);
+    const article = createRecordingCtx();
+    drawDocs(article, makeSnapshot({ view: 'docs', compactDetailView: 'docs' }), 334, 844);
+    expect(article.buttons.some(button => button.id === 'detail.backList')).toBe(true);
+    expect(article.buttons.some(button => button.id.startsWith('docs.theme.'))).toBe(false);
   });
 });

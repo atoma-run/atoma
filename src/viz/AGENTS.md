@@ -657,8 +657,8 @@ fail closed as before. The web service's executor dependency is one-way only.
   boundaries. Member-facing MCP connection and briefing guidance belongs
   here; repository paths, shell commands, operator MCP internals, Registry,
   Skills, Burn-in and the admin plane belong in operator documentation.
-  Topic changes reset `scrollY.docs`, and the narrow layout stacks the complete
-  topic index above the article rather than squeezing or clipping either pane.
+  Topic changes reset `scrollY.docs`. Below 900 content pixels, show the index or article
+  with a back action; preserve selection and reading position when returning to the index.
 - `TraceRecorder.persist()` IS A WIRE CONTRACT for one reader outside this
   subsystem. It must keep emitting ONE top-level JSON object whose members are
   `VizRun`'s, because the projects control plane decides delivered-versus-failed

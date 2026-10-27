@@ -221,7 +221,7 @@ export function OrgModelsForm({
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
     const index = tabs.indexOf(selectedTab);
     const step =
-      event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+      event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
     let next: SettingsTab | null = null;
     if (step !== 0) {
       next = tabs[(index + step + tabs.length) % tabs.length]!;
@@ -293,7 +293,13 @@ export function OrgModelsForm({
       className={`gpu-panel-skin gpu-org-models-form${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
       inert={overlaysInert}
     >
-      <div className="gpu-settings-tabs" role="tablist" aria-label={t('settings.tabs')}>
+      <label className="gpu-settings-section-select">
+        <span>{t('settings.tabs')}</span>
+        <select value={selectedTab} onChange={(event) => selectTab(event.target.value as SettingsTab)}>
+          {tabs.map((tab) => <option key={tab} value={tab}>{t(`settings.tab.${tab}`)}</option>)}
+        </select>
+      </label>
+      <div className="gpu-settings-tabs" role="tablist" aria-orientation="vertical" aria-label={t('settings.tabs')}>
         {tabs.map((tab) => (
           <button
             key={tab}
@@ -908,7 +914,7 @@ export function PersonalSubscriptionsPanel({
           {canUse ? (
             <div className="gpu-subscription-actions">
               {disconnect ? (
-                <button type="button" disabled={busy} onClick={() => void onDisconnectCodex()}><ButtonIcon kind="logout" />
+                <button type="button" disabled={busy} className="gpu-action-danger" onClick={() => void onDisconnectCodex()}><ButtonIcon kind="logout" />
                   {t('settings.subscriptionDisconnect')}
                 </button>
               ) : !connecting && !codexUnavailable ? (

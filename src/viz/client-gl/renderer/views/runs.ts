@@ -1,3 +1,4 @@
+import { UI_LAYOUT } from '../../ui-layout.js';
 import { displayedRunError } from '../../../../contracts/runShutdown.js';
 import { taxonomyForTier } from '../../../../core/taxonomy.js';
 import { previewActions } from '../preview-control.js';
@@ -176,7 +177,6 @@ const EVENT_ACTOR_MIN_WIDTH = 64;
 /** Enough for `L1 CarbonDioxide`, the longest molecule name plus its tier. */
 const EVENT_ACTOR_MAX_WIDTH = 120;
 /** Mean advance of 11px bold in the UI face; only bounds the truncation. */
-const EVENT_TITLE_CHAR_PX = 6.4;
 /**
  * The card is ONE LINE. It had two — title and actor above, body and footer
  * below — which spent 64px of row on 37px of content and put about ten steps
@@ -567,6 +567,25 @@ export function drawRuns(
     ctx.scrollMax.runs = 0;
     return;
   }
+  const compact = width < UI_LAYOUT.runCompactBreakpoint;
+  if (compact && !snapshot.state.selectedEventId) {
+    const toggleWidth = (leftWidth - 36) / 2;
+    ctx.button(ctx.root, 'run.compact.summary', 'button', snapshot.t('runs.compact.summary'),
+      leftX + 14, filterTop, toggleWidth, UI_LAYOUT.controlHeight,
+      snapshot.state.compactRunSummaryOpen, snapshot.onActivate);
+    ctx.button(ctx.root, 'run.compact.filters', 'button', snapshot.t('runs.compact.filters'),
+      leftX + 22 + toggleWidth, filterTop, toggleWidth, UI_LAYOUT.controlHeight,
+      snapshot.state.compactRunFiltersOpen, snapshot.onActivate);
+    filterTop += UI_LAYOUT.controlHeight + 8;
+  }
+  const compactControlsTop = filterTop;
+  const compactControlsHeight = Math.min(240, Math.max(80, (height - filterTop - GPU_LAYOUT.gap) * 0.45));
+  const compactControls = compact && (snapshot.state.compactRunSummaryOpen || snapshot.state.compactRunFiltersOpen)
+    ? createScrollPane(ctx.root, { x: leftX, y: compactControlsTop, width: leftWidth,
+      height: compactControlsHeight, scrollY: ctx.detailScrollY, air: { top: 0, bottom: 0 } }) : null;
+  // The measured controls keep their absolute coordinates inside a bounded pane.
+  if (compactControls) compactControls.content.position.set(-leftX, -compactControlsTop - ctx.detailScrollY);
+  const controlsParent = compactControls?.content ?? ctx.root;
   if (!twoPane) {
     const selectedEvent = run.events.find(event => event.id === snapshot.state.selectedEventId);
     if (selectedEvent) {
@@ -577,12 +596,13 @@ export function drawRuns(
       ctx.scrollMax.runs = 0;
       return;
     }
+    if (!compact || snapshot.state.compactRunSummaryOpen) {
     filterTop +=
       drawRunStatGrid(
         ctx,
         snapshot,
         run,
-        ctx.root,
+        controlsParent,
         'runs.stat',
         leftX + 14,
         filterTop,
@@ -590,16 +610,18 @@ export function drawRuns(
       ) +
       FILTER_BLOCK_GAP;
     filterTop =
-      drawAtomLanes(ctx, snapshot, atoms, ctx.root, leftX + 14, filterTop, leftWidth - 28) +
+      drawAtomLanes(ctx, snapshot, atoms, controlsParent, leftX + 14, filterTop, leftWidth - 28) +
       FILTER_BLOCK_GAP;
+    }
   }
 
+  const showFilters = !compact || snapshot.state.compactRunFiltersOpen;
   const filterY = filterTop;
   const runFilters = coerceEventFilters(run.events, snapshot.state.runFilters);
   const kinds = visibleEventKindFilters(run.events);
-  const rolesVisible =
+  const rolesVisible = showFilters && (
     runFilters.kind === 'all' ||
-    runFilters.kind === 'llm';
+    runFilters.kind === 'llm');
   // LLM roles only: a Jev decision carries a role too, and `learn-skill` would
   // otherwise become a chip that the role filter (LLM-only) cannot match.
   const roleNames = rolesVisible
@@ -611,7 +633,7 @@ export function drawRuns(
     originX: leftX + 14,
     originY: filterY,
     maxWidth: leftWidth - 28,
-    kinds: kinds.map((kind) => ({
+    kinds: (showFilters ? kinds : []).map((kind) => ({
       id: `run.filter.kind.${kind}`,
       label:
         kind === 'tool'
@@ -634,12 +656,12 @@ export function drawRuns(
     // spaced pills — the row keeps its chips and colours in a third less width.
     segmented: true,
   });
-  ctx.filterBlockFrame(ctx.root, filterLayout.kinds);
-  if (filterLayout.roles) ctx.filterBlockFrame(ctx.root, filterLayout.roles);
+  if (showFilters) ctx.filterBlockFrame(controlsParent, filterLayout.kinds);
+  if (filterLayout.roles) ctx.filterBlockFrame(controlsParent, filterLayout.roles);
   // Both chip rows share ONE render group: an active chip pulses every frame,
   // and that must not re-upload the timeline behind it (`animatedLayer`).
   // The frames stay in root, drawn first, so they remain behind the chips.
-  const filterChips = ctx.animatedLayer(ctx.root, 'run-filter-chips');
+  const filterChips = ctx.animatedLayer(controlsParent, 'run-filter-chips');
   for (const chip of filterLayout.kinds.chips) {
     ctx.filterButton(
       filterChips,
@@ -680,7 +702,7 @@ export function drawRuns(
   }
 
   const controlsBottomWithoutRoles = filterLayout.kinds.y + filterLayout.kinds.height + FILTER_BLOCK_GAP;
-  let controlsBottom = filterLayout.bottom + FILTER_BLOCK_GAP;
+  let controlsBottom = showFilters ? filterLayout.bottom + FILTER_BLOCK_GAP : filterTop;
   const roleWasVisible = [...ctx.previousFilterBounds.keys()].some((id) =>
     id.startsWith('run.filter.role.')
   );
@@ -714,7 +736,7 @@ export function drawRuns(
     ctx.roleRowTransition = null;
   }
   const lowerControlsLayer = new Container();
-  ctx.root.addChild(lowerControlsLayer);
+  controlsParent.addChild(lowerControlsLayer);
   const roleRowTransition = ctx.roleRowTransition;
   if (roleRowTransition?.phase === 'exit') {
     ctx.drawExitingFilterButtons(
@@ -745,7 +767,7 @@ export function drawRuns(
   ) {
     shownBranchIds.push(runFilters.branchId);
   }
-  if (branchIds.length > 1) {
+  if (showFilters && branchIds.length > 1) {
     const branchBlock = layoutFilterChipBlock(
       leftX + 14,
       controlsBottom,
@@ -801,7 +823,7 @@ export function drawRuns(
   }
 
 
-  if (runFilters.branchId !== 'all') {
+  if (showFilters && runFilters.branchId !== 'all') {
     const selectedBranch = overviewById.get(runFilters.branchId);
     const heading = selectedBranch
       ? timelineBranchHeading(selectedBranch, snapshot.t)
@@ -871,21 +893,30 @@ export function drawRuns(
     controlsBottom += cursor + FILTER_BLOCK_GAP;
   }
 
+  let timelineControlsLayer = lowerControlsLayer;
+  if (compactControls) {
+    compactControls.extend(controlsBottom - compactControlsTop);
+    ctx.detailScrollMax = compactControls.finish();
+    ctx.detailBounds = new Rectangle(leftX, compactControlsTop, leftWidth, compactControlsHeight);
+    controlsBottom = compactControlsTop + compactControlsHeight + 8;
+    timelineControlsLayer = new Container();
+    ctx.root.addChild(timelineControlsLayer);
+  }
   const listY = controlsBottom + 7;
-  const listHeight = height - listY - GPU_LAYOUT.gap;
+  const listHeight = Math.max(0, height - listY - GPU_LAYOUT.gap);
   const listMask = new Graphics();
   // Timeline chrome and its shared material face hover-scale around centre.
   // Keep vertical clipping strict (no overlap with filters) but use the full
   // pane width so right-side glow/scale is not guillotined.
   listMask.rect(leftX + 1, listY, leftWidth - 2, listHeight).fill(0xffffff);
   listMask.eventMode = 'none';
-  lowerControlsLayer.addChild(listMask);
+  timelineControlsLayer.addChild(listMask);
   const listViewport = new Container();
   listViewport.eventMode = 'static';
   listViewport.interactiveChildren = true;
   listViewport.hitArea = new Rectangle(leftX + 1, listY, leftWidth - 2, listHeight);
   listViewport.mask = listMask;
-  lowerControlsLayer.addChild(listViewport);
+  timelineControlsLayer.addChild(listViewport);
   const listLayer = new Container();
   listLayer.label = 'timeline-scroll-content';
   listViewport.addChild(listLayer);
@@ -1136,7 +1167,7 @@ export function drawRuns(
     }
     const titleLabel = ctx.text(
       listLayer,
-      title,
+      ctx.fitText(title, Math.max(0, cardBaseWidth - EVENT_TITLE_X * 2), { size: EVENT_TITLE_SIZE, weight: '700' }),
       titleX,
       y + EVENT_TITLE_TOP,
       { size: EVENT_TITLE_SIZE, weight: '700', color: accent, singleLine: true }
@@ -1256,10 +1287,10 @@ export function drawRuns(
       ? ctx.measureText(copy.decision, { size: RUNS_FACTS_SIZE, weight: '700' })
       : 0;
     const decisionX = eventDecisionLeft(cardWidth, decisionWidth);
-    const titleBudget = Math.max(70, decisionX - EVENT_TITLE_X - EVENT_ACTOR_MIN_WIDTH - EVENT_COLUMN_GAP);
+    const titleBudget = Math.max(0, decisionX - EVENT_TITLE_X - EVENT_COLUMN_GAP - (cardWidth > 400 ? EVENT_ACTOR_MIN_WIDTH : 0));
     const titleLabel = ctx.text(
       cardContent,
-      truncate(copy.title, Math.max(8, Math.min(28, Math.floor(titleBudget / EVENT_TITLE_CHAR_PX)))),
+      ctx.fitText(copy.title, titleBudget, { size: EVENT_TITLE_SIZE, weight: '700' }),
       EVENT_TITLE_X,
       EVENT_TITLE_TOP,
       { size: EVENT_TITLE_SIZE, weight: '700', color: eventAccent(event), singleLine: true }
@@ -1351,7 +1382,7 @@ export function drawRuns(
   const timelineTargets = ctx.metrics.hitTargets.slice(firstTimelineTarget)
     .map((target) => ({ target, y: target.y }));
   const viewport = ctx.metrics.timelineViewport;
-  const moveMinimap = drawTimelineMinimap(ctx, lowerControlsLayer, snapshot, timeline, {
+  const moveMinimap = drawTimelineMinimap(ctx, timelineControlsLayer, snapshot, timeline, {
     start: snapshot.t('timeline.runStarted'),
     end: `${snapshot.t(runOver ? 'timeline.runEnded' : 'timeline.runUnfinished')} · ${statusLabel}`,
     endColor: statusColor,

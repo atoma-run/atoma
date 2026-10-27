@@ -531,14 +531,14 @@ html.atoma-cursor-active * {
    The DOM card and GPU project list share one column inside the view frame. */
 .gpu-project-mcp {
   --gpu-content: calc(100vw - var(--gpu-sidebar));
-  --gpu-frame: calc(var(--gpu-content) - 20px);
-  --gpu-overlay-top: 104px;
-  --gpu-overlay-left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + 16px);
+  --gpu-frame: calc(var(--gpu-content) - var(--ui-frame-gap) * 2);
+  --gpu-overlay-top: var(--ui-frame-content-top);
+  --gpu-overlay-left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + var(--ui-frame-pad));
   position: fixed;
   z-index: 4;
-  top: 104px;
-  left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + 16px);
-  width: calc(var(--gpu-frame) - 32px);
+  top: var(--ui-frame-content-top);
+  left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + var(--ui-frame-pad));
+  width: calc(var(--gpu-frame) - var(--ui-frame-pad) * 2);
   height: 180px;
   overflow-y: auto;
   display: flex;
@@ -887,7 +887,7 @@ html.atoma-cursor-active * {
 
 .gpu-scene-camera .gpu-announce-form,
 .gpu-scene-camera .gpu-org-models-form {
-  bottom: calc(100vh - var(--gpu-camera-bottom-left-y) + 26px);
+  bottom: calc(100vh - var(--gpu-camera-bottom-left-y) + var(--ui-frame-bottom));
 }
 
 .gpu-a11y-bridge:focus-within nav,
@@ -1066,7 +1066,7 @@ html.atoma-cursor-active * {
   grid-column: 1 / -1;
   margin: 0;
   font: 12px/1.3 ui-sans-serif, system-ui, sans-serif;
-  color: #9fb0c7;
+  color: #a8b4cc;
 }
 
 .gpu-settings-rename .gpu-dom-input {
@@ -1101,7 +1101,7 @@ html.atoma-cursor-active * {
    overflow so GPU never paints a second directory through this panel. */
 .gpu-org-models-form {
   --gpu-content: calc(100vw - var(--gpu-sidebar));
-  --gpu-frame: min(720px, calc(var(--gpu-content) - 20px));
+  --gpu-frame: min(var(--ui-settingsWidth), calc(var(--gpu-content) - 20px));
   --gpu-overlay-top: 172px;
   --gpu-overlay-left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + 16px);
   position: fixed;
@@ -1171,7 +1171,7 @@ html.atoma-cursor-active * {
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   background: transparent;
-  color: #9fb0c7;
+  color: #a8b4cc;
   padding: 6px 10px;
   font: 600 12px/1.2 ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
@@ -1230,7 +1230,7 @@ html.atoma-cursor-active * {
 
 .gpu-org-models-row label {
   font: 13px/1.45 ui-sans-serif, system-ui, sans-serif;
-  color: #9fb0c7;
+  color: #a8b4cc;
   min-width: 0;
 }
 
@@ -1241,7 +1241,7 @@ html.atoma-cursor-active * {
   grid-column: 2 / -1;
   margin: -4px 0 0;
   font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
-  color: #7f91ab;
+  color: #a8b4cc;
 }
 
 .gpu-org-models-origin[hidden] {
@@ -1319,13 +1319,13 @@ html.atoma-cursor-active * {
 
 .gpu-mcp-servers code {
   font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #9fb0c7;
+  color: #a8b4cc;
 }
 
 .gpu-mcp-servers summary {
   cursor: pointer;
   font: 12px/1.45 ui-sans-serif, system-ui, sans-serif;
-  color: #9fb0c7;
+  color: #a8b4cc;
 }
 
 .gpu-mcp-server-tools,
@@ -1348,7 +1348,7 @@ html.atoma-cursor-active * {
 .gpu-mcp-server-form legend {
   padding: 0;
   margin-bottom: 4px;
-  color: #9fb0c7;
+  color: #a8b4cc;
 }
 
 .gpu-mcp-server-form {
@@ -1361,7 +1361,7 @@ html.atoma-cursor-active * {
 .gpu-mcp-steps {
   margin: 8px 0 0;
   padding-left: 18px;
-  color: #9fb0c7;
+  color: #a8b4cc;
   font: 12px/1.5 ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -1386,7 +1386,7 @@ html.atoma-cursor-active * {
   gap: 4px;
   margin: 0;
   font: 12px/1.3 ui-sans-serif, system-ui, sans-serif;
-  color: #9fb0c7;
+  color: #a8b4cc;
 }
 
 .gpu-mcp-tokens {
@@ -1437,7 +1437,7 @@ html.atoma-cursor-active * {
 .gpu-subscription-card p,
 .gpu-subscription-message {
   margin: 7px 0 0;
-  color: #9fb0c7;
+  color: #a8b4cc;
   font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -1446,7 +1446,7 @@ html.atoma-cursor-active * {
   padding: 2px 7px;
   border: 1px solid rgba(138, 150, 174, .42);
   border-radius: 999px;
-  color: #9fb0c7;
+  color: #a8b4cc;
   font: 700 12px/1.35 ui-sans-serif, system-ui, sans-serif;
   letter-spacing: .02em;
 }
@@ -1534,7 +1534,7 @@ html.atoma-cursor-active * {
 }
 
 .gpu-subscription-token-label {
-  color: #9fb0c7;
+  color: #a8b4cc;
   font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -1558,7 +1558,7 @@ html.atoma-cursor-active * {
 .gpu-org-directory-facts dt {
   margin: 0;
   font: 700 8px/1.3 ui-sans-serif, system-ui, sans-serif;
-  color: #8a96ae;
+  color: #a8b4cc;
   letter-spacing: .04em;
   text-transform: uppercase;
 }
@@ -1589,7 +1589,7 @@ html.atoma-cursor-active * {
 
 .gpu-org-directory-meta {
   font: 12px/1.35 ui-sans-serif, system-ui, sans-serif;
-  color: #8a96ae;
+  color: #a8b4cc;
 }
 
 @media (max-width: 687px) {
@@ -1660,7 +1660,7 @@ html.atoma-cursor-active * {
 
 .gpu-plan-card p {
   margin: 7px 0 0;
-  color: #9fb0c7;
+  color: #a8b4cc;
   font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -1704,15 +1704,15 @@ html.atoma-cursor-active * {
    scrolls inside the box instead of pushing the send button past the frame. */
 .gpu-announce-form {
   --gpu-content: calc(100vw - var(--gpu-sidebar));
-  --gpu-frame: calc(var(--gpu-content) - 20px);
-  --gpu-overlay-top: 104px;
-  --gpu-overlay-left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + 16px);
+  --gpu-frame: min(var(--ui-formWidth), calc(var(--gpu-content) - var(--ui-frame-gap) * 2));
+  --gpu-overlay-top: var(--ui-frame-content-top);
+  --gpu-overlay-left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + var(--ui-frame-pad));
   position: fixed;
   z-index: 4;
-  top: 104px;
-  bottom: 26px;
-  left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + 16px);
-  width: calc(var(--gpu-frame) - 32px);
+  top: var(--ui-frame-content-top);
+  bottom: var(--ui-frame-bottom);
+  left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + var(--ui-frame-pad));
+  width: calc(var(--gpu-frame) - var(--ui-frame-pad) * 2);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1736,7 +1736,7 @@ html.atoma-cursor-active * {
 .gpu-announce-hint,
 .gpu-announce-languages p {
   margin: 0;
-  color: #9fb0c9;
+  color: #a8b4cc;
   font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -2215,3 +2215,103 @@ html.atoma-cursor-active * {
 .gpu-assistant-setup > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .gpu-assistant-setup > div span { flex: 1; min-width: 140px; font-size: 13px; }
 .gpu-assistant-setup > button { justify-self: start; }
+
+/* Shared presentation rhythm. Native overlays use the same tokens as Pixi. */
+.gpu-org-models-form {
+  display: grid;
+  grid-template-columns: var(--ui-settingsNavWidth) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  gap: var(--ui-space-section);
+  padding: var(--ui-space-card) 0;
+  overflow: hidden;
+  align-content: start;
+}
+.gpu-org-models-form::after { display: none; }
+.gpu-settings-tabs {
+  grid-column: 1; grid-row: 1 / 3;
+  flex-direction: column; flex-wrap: nowrap;
+  gap: var(--ui-space-sm); margin: 0;
+  border: 0; border-inline-end: 1px solid #6ea8ff38;
+  padding-inline-end: var(--ui-space-card);
+  overflow-y: auto; min-height: 0;
+}
+.gpu-settings-tab {
+  flex-shrink: 0; min-height: var(--ui-controlHeight);
+  padding: var(--ui-space-md) var(--ui-space-card);
+  text-align: start; font-size: var(--ui-type-dense); line-height: 1.4;
+  margin: 0; border: 1px solid transparent; border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.gpu-settings-tab[aria-selected='true'] { background: #6ea8ff20; border-color: #6ea8ff80; }
+.gpu-settings-panel {
+  grid-column: 2; grid-row: 2;
+  overflow-y: auto; overscroll-behavior: contain;
+  min-height: 0; padding: 0 var(--ui-space-sm) var(--ui-space-section) 0;
+  gap: var(--ui-space-card);
+}
+.gpu-org-models-status { grid-column: 2; grid-row: 1; }
+.gpu-settings-section-select { display: none; }
+.gpu-org-models-title { font-size: var(--ui-type-section); }
+.gpu-org-models-form :is(input, select, button):not(.gpu-settings-tab),
+.gpu-announce-form :is(input, select, button) {
+  min-height: var(--ui-controlHeight); height: auto; font-size: var(--ui-type-dense);
+}
+.gpu-org-models-form button:not(.gpu-settings-tab) {
+  color: #e6edf7; background: #223754; border: 1px solid #6ea8ff70;
+  border-radius: 8px; padding: 8px 12px; cursor: pointer;
+}
+.gpu-org-models-form :is(button, input, select):focus-visible,
+.gpu-announce-form :is(button, input, textarea, select):focus-visible {
+  outline: 2px solid #6ea8ff; outline-offset: 2px;
+}
+.gpu-org-models-form button:disabled { opacity: .55; cursor: default; }
+.gpu-org-models-row label, .gpu-org-models-hint,
+.gpu-announce-hint, .gpu-announce-languages p { font-size: var(--ui-type-dense); line-height: 1.5; }
+.gpu-org-models-origin { font-size: var(--ui-type-meta); color: #a8b4cc; }
+.gpu-settings-subtitle { margin-top: var(--ui-space-section); }
+.gpu-announce-form { gap: var(--ui-space-card); padding: var(--ui-space-card) 0; }
+.gpu-announce-form.gpu-panel-skin { background: transparent; border-color: transparent; box-shadow: none; }
+.gpu-announce-field { display: flex; flex-direction: column; gap: var(--ui-space-sm); }
+.gpu-announce-field > span, .gpu-announce-segment > span { font-size: var(--ui-type-dense); line-height: 1.5; }
+.gpu-announce-form textarea.gpu-dom-input { min-height: 160px; height: 160px; resize: vertical; flex-shrink: 0; font-size: var(--ui-type-body); line-height: 1.5; }
+.gpu-announce-actions { gap: var(--ui-space-sm); }
+.gpu-assistant-message { max-width: min(88%, 72ch); padding: 12px 16px; font-size: var(--ui-type-body); line-height: 1.5; }
+.gpu-assistant-log > * + * { margin-top: var(--ui-space-md); }
+.gpu-assistant-message-meta { font-size: var(--ui-type-meta); }
+@media (max-width: 1023px) {
+  .gpu-org-models-form { display: flex; flex-direction: column; gap: var(--ui-space-card); }
+  .gpu-settings-tabs { display: none; }
+  .gpu-settings-section-select { display: flex; flex-direction: column; gap: var(--ui-space-sm); flex-shrink: 0; font-size: var(--ui-type-dense); }
+  .gpu-settings-section-select select { width: 100%; min-width: 0; padding: 8px 12px; background: #223754; color: #e6edf7; border: 1px solid #6ea8ff80; border-radius: 8px; }
+  .gpu-settings-panel { flex: 1; }
+  .gpu-org-models-row, .gpu-org-models-row:has(.gpu-settings-actions) { grid-template-columns: minmax(0, 1fr); }
+}
+@media (pointer: coarse) {
+  .gpu-org-models-form :is(button, input, select), .gpu-announce-form :is(button, input, select) { min-height: var(--ui-touchHeight); }
+}
+.gpu-journal-filters {
+  --gpu-overlay-top: 104px;
+  --gpu-overlay-left: calc(var(--gpu-sidebar) + 26px);
+  position: fixed; z-index: 4;
+  top: var(--gpu-overlay-top); left: var(--gpu-overlay-left);
+  width: calc(100vw - var(--gpu-sidebar) - 52px);
+  display: flex; gap: 16px;
+}
+.gpu-journal-filters label { display: flex; flex-direction: column; gap: 4px; min-width: 0; width: min(240px, 50%); font-size: 13px; }
+.gpu-journal-filters select { width: 100%; min-width: 0; height: 40px; color: #e6edf7; background: #223754; border: 1px solid #6ea8ff70; border-radius: 8px; }
+@media (max-width: 1107px) {
+  .gpu-view-search { --gpu-left-pane: calc(100vw - var(--gpu-sidebar) - 20px); }
+  .gpu-view-search--detail { display: none; }
+}
+
+.gpu-org-models-form button.gpu-action-danger { color: #ffb4ab; border-color: #f8717180; background: #472b38; }
+.gpu-announce-actions button[type='submit'] { border-color: #6ea8ff; background: #294a78; font-weight: 600; }
+
+.gpu-org-directory-facts { gap: 16px 24px; margin: 16px 0; }
+.gpu-org-directory-facts dt { font-size: var(--ui-type-meta); color: #a8b4cc; letter-spacing: 0; }
+.gpu-org-directory-facts dd { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.gpu-org-directory-members li { font-size: var(--ui-type-dense); line-height: 1.5; }
+.gpu-org-directory-meta { font-size: var(--ui-type-meta); color: #a8b4cc; }
+.gpu-settings-panel p { line-height: 1.5; overflow-wrap: anywhere; }
+.gpu-settings-panel > * { min-width: 0; }
+.gpu-settings-panel code { white-space: normal; overflow-wrap: anywhere; }

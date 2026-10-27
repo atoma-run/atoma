@@ -1,3 +1,4 @@
+import { UI_LAYOUT } from '../../ui-layout.js';
 import { Container, Graphics } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import {
@@ -19,8 +20,8 @@ import { createScrollPane } from '../scroll-pane.js';
 const NAV_WIDTH = 264;
 const NAV_MIN_WIDTH = 208;
 const NAV_MAX_SHARE = 0.31;
-const NAV_ROW_HEIGHT = 38;
-const NAV_BUTTON_HEIGHT = 32;
+const NAV_ROW_HEIGHT = 48;
+const NAV_BUTTON_HEIGHT = 40;
 const NAV_STACKED_COLUMNS = 2;
 const STACKED_BREAKPOINT = 720;
 const CONTENT_MAX_WIDTH = 1_060;
@@ -122,27 +123,29 @@ function drawNavigationCopy(
   stacked: boolean,
   verticallyCondensed: boolean,
   originX: number,
-  originY: number
+  originY: number,
+  parent?: Container
 ): MeasuredNavigation {
   const layer = new Container();
   // Position BEFORE creating controls: recordHitTarget projects through the
   // live parent immediately and must never observe a later reparent/offset.
   layer.position.set(originX, originY);
+  parent?.addChild(layer);
   const innerWidth = Math.max(0, width - 32);
-  ctx.text(layer, snapshot.t('nav.docs'), 16, 14, { size: 16, weight: '700' });
+  ctx.text(layer, snapshot.t('nav.docs'), 16, 8, { size: 24, weight: '700' });
   const audience = verticallyCondensed
     ? null
-    : ctx.text(layer, snapshot.t('docs.user.audience'), 16, 41, {
-        size: 9,
+    : ctx.text(layer, snapshot.t('docs.user.audience'), 16, 48, {
+        size: 13,
         weight: '700',
         color: GPU_COLORS.primary,
         width: innerWidth,
       });
-  const introY = audience ? 41 + audience.height + 6 : 38;
+  const introY = audience ? 48 + audience.height + 6 : 38;
   const intro = verticallyCondensed
     ? null
     : ctx.text(layer, snapshot.t('docs.user.intro'), 16, introY, {
-        size: 10,
+        size: 14,
         color: GPU_COLORS.muted,
         width: innerWidth,
       });
@@ -220,7 +223,7 @@ function drawCardGrid(
       let textY = cursor + CARD_PAD;
       if (card.tagKey) {
         const tag = ctx.text(foreground, snapshot.t(card.tagKey), cardX + CARD_PAD, textY, {
-          size: 9,
+          size: 13,
           weight: '700',
           color: accent,
           width: Math.max(0, cardWidth - CARD_PAD * 2),
@@ -245,7 +248,7 @@ function drawCardGrid(
         cardX + CARD_PAD,
         textY,
         {
-          size: 11,
+          size: 16,
           color: GPU_COLORS.muted,
           width: Math.max(0, cardWidth - CARD_PAD * 2),
         }
@@ -322,7 +325,7 @@ function drawArticle(
   let cursor = 24;
 
   const eyebrow = ctx.text(pane.content, snapshot.t(page.eyebrowKey), x, cursor, {
-    size: 9,
+    size: 13,
     weight: '700',
     color: GPU_COLORS.primary,
     width: articleWidth,
@@ -335,7 +338,7 @@ function drawArticle(
   });
   cursor += title.height + 12;
   const lede = ctx.text(pane.content, snapshot.t(page.ledeKey), x, cursor, {
-    size: 12,
+    size: 16,
     color: GPU_COLORS.muted,
     width: articleWidth,
   });
@@ -351,14 +354,14 @@ function drawArticle(
 
   for (const section of page.sections) {
     const heading = ctx.text(pane.content, snapshot.t(section.titleKey), x, cursor, {
-      size: 14,
+      size: 18,
       weight: '700',
       width: articleWidth,
     });
     cursor += heading.height + 8;
     if (section.introKey) {
       const intro = ctx.text(pane.content, snapshot.t(section.introKey), x, cursor, {
-        size: 11,
+        size: 16,
         color: GPU_COLORS.muted,
         width: articleWidth,
       });
@@ -390,6 +393,25 @@ export function drawDocs(
   width: number,
   height: number
 ): void {
+  if (width < UI_LAYOUT.splitBreakpoint) {
+    const x = GPU_LAYOUT.gap;
+    const y = GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap;
+    const panelWidth = width - x * 2;
+    ctx.panel(ctx.root, x, y, panelWidth, height - y - x, GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
+    if (snapshot.state.compactDetailView === 'docs') {
+      ctx.button(ctx.root, 'detail.backList', 'button', snapshot.t('layout.backList'),
+        x + 16, y + 12, panelWidth - 32, 40, false, snapshot.onActivate);
+      drawArticle(ctx, snapshot, { x, y: y + 60, width: panelWidth, height: Math.max(0, height - y - 60 - x) }, snapshot.state.selectedDocsTheme);
+    } else {
+      const pane = createScrollPane(ctx.root, { x, y, width: panelWidth, height: height - y - x,
+        scrollY: snapshot.state.scrollY.docs, air: { top: 0, bottom: 16 } });
+      const navigation = drawNavigationCopy(ctx, snapshot, panelWidth, false, false, 0, 0, pane.content);
+      pane.content.addChild(navigation.layer);
+      pane.extend(navigation.requiredHeight);
+      ctx.scrollMax.docs = pane.finish();
+    }
+    return;
+  }
   const stacked = width < STACKED_BREAKPOINT;
   const availableWidth = Math.max(0, width - GPU_LAYOUT.gap * 2);
   const navigationWidth = stacked

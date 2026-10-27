@@ -1,3 +1,4 @@
+import { UI_LAYOUT, UI_SPACE } from '../../ui-layout.js';
 import { drawProjectSettings } from './project-settings.js';
 import { drawWorkspace } from './workspace.js';
 import { latestWorkspaceRun } from '../../workspace-browser.js';
@@ -102,7 +103,7 @@ export const PROJECTS_ROW_PAD = 14;
  */
 export const PROJECTS_MCP_GUIDE_TOP =
   GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap + VIEW_FRAME_CONTENT_TOP;
-const PROJECTS_SECTION_TABS_HEIGHT = 44;
+const PROJECTS_SECTION_TABS_HEIGHT = UI_LAYOUT.controlHeight + UI_SPACE.sm;
 /** Must match `.gpu-project-mcp--selected { top }` in styles.css. */
 export const PROJECTS_SELECTED_MCP_GUIDE_TOP = PROJECTS_MCP_GUIDE_TOP + PROJECTS_SECTION_TABS_HEIGHT;
 /** The guide has one shape regardless of project selection. */
@@ -415,19 +416,21 @@ export function projectSectionLayout(ctx: Pick<RendererCtx, 'measureText'>, snap
     { id: 'result', label: snapshot.t(narrow ? 'result.title' : 'result.latest') },
     { id: 'settings', label: snapshot.t('projects.settings') },
   ] as const;
+  const rowHeight = (snapshot.state.handheld ? UI_LAYOUT.touchHeight : UI_LAYOUT.controlHeight) + UI_SPACE.sm;
   const right = frame.innerX + frame.innerWidth;
   let x = frame.innerX;
   let y = frame.contentTop;
   const tabs = sections.map(section => {
     const tabWidth = Math.min(frame.innerWidth,
       Math.ceil(ctx.measureText(section.label, { size: 11, weight: '700' })) + 20 + BUTTON_ICON_SPACE);
-    if (x > frame.innerX && x + tabWidth > right) { x = frame.innerX; y += PROJECTS_SECTION_TABS_HEIGHT; }
+    if (x > frame.innerX && x + tabWidth > right) { x = frame.innerX; y += rowHeight; }
     const tab = { ...section, x, y, width: tabWidth };
-    x += tabWidth + 10;
+    x += tabWidth + UI_SPACE.sm;
     return tab;
   });
-  if (right - x < Math.min(240, frame.innerWidth)) { x = frame.innerX; y += PROJECTS_SECTION_TABS_HEIGHT; }
-  return { tabs, repository: { x, y, width: right - x }, contentTop: y + PROJECTS_SECTION_TABS_HEIGHT };
+  x = frame.innerX;
+  y += rowHeight;
+  return { tabs, repository: { x, y, width: right - x }, contentTop: y + rowHeight };
 }
 
 /** Shared metadata for the project header and project collection rows. */
@@ -653,7 +656,7 @@ export function drawProjects(
   if (selectedProject && sectionLayout) {
     for (const section of sectionLayout.tabs) {
       ctx.button(ctx.root, `project.section.${section.id}`, 'tab', section.label,
-        section.x, section.y, section.width, 32, snapshot.state.projectSection === section.id,
+        section.x, section.y, section.width, snapshot.state.handheld ? UI_LAYOUT.touchHeight : UI_LAYOUT.controlHeight, snapshot.state.projectSection === section.id,
         snapshot.onActivate);
     }
     // Project identity belongs to the shared header, before any section returns.

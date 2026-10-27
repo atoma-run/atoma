@@ -26,10 +26,9 @@ import { drawViewFrame, viewFrame, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR } from '.
 
 /** Admin reads as a full-bleed column, like Projects and Burn-in. */
 const LIST_TOP = 12;
-const ORG_HEADER_HEIGHT = 34;
-const MEMBER_ROW_HEIGHT = 20;
-const INVITE_ROW_HEIGHT = 40;
-const ORG_GAP = 18;
+const MEMBER_ROW_HEIGHT = 28;
+const INVITE_ROW_HEIGHT = 56;
+const ORG_GAP = 24;
 const INVITE_PANEL_HEIGHT = 84;
 
 export function drawAdmin(
@@ -141,53 +140,28 @@ export function drawAdmin(
   }
 
   for (const organisation of organisations) {
-    const orgHeaderHeight = compactColumns ? 54 : ORG_HEADER_HEIGHT;
-    const inviteRowHeight = compactColumns ? 72 : INVITE_ROW_HEIGHT;
-    const orgHeight =
-      orgHeaderHeight + organisation.members.length * MEMBER_ROW_HEIGHT + inviteRowHeight + 12;
-    ctx.panel(
-      pane.content,
-      x,
-      cursor,
-      panelWidth,
-      orgHeight,
-      GPU_COLORS.panel,
-      GPU_COLORS.border,
-      GPU_LAYOUT.radius,
-      2
-    );
-    ctx.text(
-      pane.content,
-      truncate(organisation.name, compactColumns ? 18 : 64),
-      columnX,
-      cursor + 10,
-      {
-        size: 13,
-        weight: '600',
-        width: compactColumns ? innerWidth : innerWidth - 220,
-      }
-    );
-    ctx.text(
-      pane.content,
-      organisation.orgId,
-      compactColumns ? columnX : columnX + innerWidth - 300,
-      cursor + (compactColumns ? 32 : 13),
-      {
-        size: 8,
-        color: GPU_COLORS.muted,
-        mono: true,
-        width: compactColumns ? innerWidth : 300,
-      }
-    );
+    const body = new Container();
+    pane.content.addChild(body);
+    const name = ctx.text(body, organisation.name, columnX, cursor + 16, {
+      size: 18, weight: '600', width: innerWidth,
+    });
+    const identifier = ctx.text(body, organisation.orgId, columnX, cursor + 24 + name.height, {
+      size: 13, color: GPU_COLORS.muted, mono: true, width: innerWidth, singleLine: true,
+    });
+    const orgHeaderHeight = 40 + name.height + identifier.height;
+    const inviteRowHeight = compactColumns ? 104 : INVITE_ROW_HEIGHT;
+    const orgHeight = orgHeaderHeight + organisation.members.length * MEMBER_ROW_HEIGHT + inviteRowHeight + 16;
+    ctx.panel(pane.content, x, cursor, panelWidth, orgHeight, GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
+    pane.content.addChild(body);
     let memberY = cursor + orgHeaderHeight;
     for (const member of organisation.members) {
       const roleWidth = Math.min(160, Math.max(60, innerWidth * 0.35));
       ctx.text(pane.content, truncate(member.displayName, 48), columnX + 12, memberY, {
-        size: 10,
+        size: 14,
         width: Math.max(20, innerWidth - roleWidth - 24),
       });
       ctx.text(pane.content, member.role, columnX + innerWidth - roleWidth, memberY, {
-        size: 9,
+        size: 13,
         color: GPU_COLORS.muted,
         mono: true,
         width: roleWidth,
@@ -205,7 +179,7 @@ export function drawAdmin(
       columnX + 12,
       memberY + 6,
       inviteWidth,
-      26,
+      40,
       false,
       snapshot.onActivate
     );
@@ -215,9 +189,9 @@ export function drawAdmin(
       'button',
       snapshot.t('admin.inviteOwner'),
       compactColumns ? columnX + 12 : columnX + 204,
-      memberY + (compactColumns ? 38 : 6),
+      memberY + (compactColumns ? 54 : 6),
       inviteWidth,
-      26,
+      40,
       false,
       snapshot.onActivate
     );

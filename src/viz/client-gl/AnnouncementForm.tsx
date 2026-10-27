@@ -138,6 +138,8 @@ export function AnnouncementForm({
       }}
     >
       <p className="gpu-announce-hint">{t('announce.hint')}</p>
+      <label className="gpu-announce-field">
+        <span>{t('announce.fieldTitle')}</span>
       <input
         className="gpu-dom-input"
         aria-label={`${t('announce.fieldTitle')} — ${LOCALE_NAMES[locale]}`}
@@ -146,6 +148,9 @@ export function AnnouncementForm({
         value={source.title}
         onChange={(event) => edit(locale, 'title', event.target.value)}
       />
+      </label>
+      <label className="gpu-announce-field">
+        <span>{t('announce.fieldBody')}</span>
       <textarea
         className="gpu-dom-input"
         aria-label={`${t('announce.fieldBody')} — ${LOCALE_NAMES[locale]}`}
@@ -154,12 +159,15 @@ export function AnnouncementForm({
         value={source.body}
         onChange={(event) => edit(locale, 'body', event.target.value)}
       />
+      </label>
       {phase !== 'compose' ? (
         <div className="gpu-announce-languages">
           <p>{untranslated ? t(`announce.${untranslated}`) : t('announce.review')}</p>
           {SUPPORTED_LOCALES.filter((entry) => entry !== locale).map((entry) => (
             <div key={entry} className="gpu-announce-language">
               <span>{LOCALE_NAMES[entry]}</span>
+              <label className="gpu-announce-field">
+                <span>{t('announce.fieldTitle')}</span>
               <input
                 className="gpu-dom-input"
                 aria-label={`${t('announce.fieldTitle')} — ${LOCALE_NAMES[entry]}`}
@@ -167,6 +175,9 @@ export function AnnouncementForm({
                 value={texts[entry]?.title ?? ''}
                 onChange={(event) => edit(entry, 'title', event.target.value)}
               />
+              </label>
+              <label className="gpu-announce-field">
+                <span>{t('announce.fieldBody')}</span>
               <textarea
                 className="gpu-dom-input"
                 aria-label={`${t('announce.fieldBody')} — ${LOCALE_NAMES[entry]}`}
@@ -174,6 +185,7 @@ export function AnnouncementForm({
                 value={texts[entry]?.body ?? ''}
                 onChange={(event) => edit(entry, 'body', event.target.value)}
               />
+              </label>
             </div>
           ))}
         </div>

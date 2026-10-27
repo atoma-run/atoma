@@ -1,3 +1,4 @@
+import { UI_LAYOUT } from '../../ui-layout.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP } from '../view-frame.js';
@@ -7,7 +8,7 @@ import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP } from '../view-frame.
  * deliberately absent from the nav tabs (`isRoutableView` in store.ts).
  *
  * The whole Settings body — profile and organisation, models, subscriptions,
- * keys, MCP — is real DOM (`.gpu-org-models-form`), laid out as TABS under
+ * keys, MCP — is real DOM (`.gpu-org-models-form`), laid out beside section navigation under
  * the account orb. GPU draws the column frame and the orb only: a second copy
  * of the directory in the scroll pane painted *through* the form (the
  * 2026-08-27 overlap). Membership is still changed by invitation, in the
@@ -15,13 +16,13 @@ import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP } from '../view-frame.
  */
 
 /** Settings reads as a centred column; Projects and Admin went full-bleed. */
-const SETTINGS_COLUMN_MAX_WIDTH = 720;
+const SETTINGS_COLUMN_MAX_WIDTH = UI_LAYOUT.settingsWidth;
 /**
  * Must match `.gpu-org-models-form { top }` in styles.css: the account orb is
  * the first thing inside the column frame, and the tabbed body sits under it.
  */
 export const SETTINGS_BODY_TOP =
-  GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap + VIEW_FRAME_CONTENT_TOP + 56 + 12;
+  GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap + VIEW_FRAME_CONTENT_TOP + UI_LAYOUT.settingsIntroHeight;
 const ORB_SIZE = 56;
 /** Height of one member row; exported so the layout test speaks the same unit. */
 export const MEMBER_ROW_HEIGHT = 30;

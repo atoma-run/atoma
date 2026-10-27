@@ -227,6 +227,9 @@ export interface GpuUiState {
   eventTechnicalOpen: boolean;
   selectedAtomName: string | null;
   selectedRegistryId: string | null;
+  compactDetailView: 'registry' | 'skills' | 'docs' | null;
+  docsArticleScrollY: number;
+  docsIndexScrollY: number;
   selectedRegistryAtom: string | null;
   selectedSkill: { l1Name: string; id: string } | null;
   selectedProjectId: string | null;
@@ -236,6 +239,7 @@ export interface GpuUiState {
   projectMcpCollapsed: boolean;
   /** The selected project's overview column folded to a strip; one setting for every project. */
   projectOverviewCollapsed: boolean;
+  projectOverviewManual: boolean;
   /**
    * The hosted application's update or put-back awaiting its explicit
    * Confirm: one signal for the canvas settings card, its DOM twin, the run's
@@ -254,6 +258,8 @@ export interface GpuUiState {
   runFilters: EventFilters;
   branchHeadingExpanded: boolean;
   runSummaryExpanded: boolean;
+  compactRunSummaryOpen: boolean;
+  compactRunFiltersOpen: boolean;
   runActivityOpen: boolean;
   runActivityFile: string | null;
   runActivityPage: number;
@@ -497,11 +503,15 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   resultDetailsOpen: false,
   selectedAtomName: null,
   selectedRegistryId: null,
+  compactDetailView: null,
+  docsArticleScrollY: 0,
+  docsIndexScrollY: 0,
   selectedRegistryAtom: null,
   selectedSkill: null,
   selectedProjectId: null,
   projectMcpCollapsed: false,
-  projectOverviewCollapsed: false,
+  projectOverviewCollapsed: typeof window !== 'undefined' && window.innerWidth < 1200,
+  projectOverviewManual: false,
   hostingConfirm: null,
   projectAssistantCompact: false,
   projectAssistantCompactHeight: null,
@@ -514,6 +524,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   filePreview: null,
   runFilters: { kind: 'all', role: 'all', branchId: 'all' },
   branchHeadingExpanded: true,
+  compactRunSummaryOpen: false,
+  compactRunFiltersOpen: false,
   runSummaryExpanded: true,
   search: {
     run: '',
@@ -700,6 +712,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectRun: (selectedRunId) =>
     set({
       selectedRunId,
+      compactRunSummaryOpen: false,
+      compactRunFiltersOpen: false,
       contextRawOpen: false,
       eventTechnicalOpen: false,
       runActivityOpen: false,
@@ -732,8 +746,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     }),
   selectRegistry: (selectedRegistryId) =>
     set({ selectedRegistryId, selectedRegistryAtom: null }),
-  selectRegistryAtom: (selectedRegistryAtom) => set({ selectedRegistryAtom }),
-  selectSkill: (selectedSkill) => set({ selectedSkill }),
+  selectRegistryAtom: (selectedRegistryAtom) => set({ selectedRegistryAtom, compactDetailView: selectedRegistryAtom ? 'registry' : null }),
+  selectSkill: (selectedSkill) => set({ selectedSkill, compactDetailView: selectedSkill ? 'skills' : null }),
   selectProject: (selectedProjectId) => set((state) => ({
     selectedProjectId,
     focusedProjectRunId: null,
@@ -765,7 +779,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     sentinelSection,
     scrollY: { ...state.scrollY, sentinel: 0 },
   })),
-  toggleProjectOverview: () => set(state => ({ projectOverviewCollapsed: !state.projectOverviewCollapsed })),
+  toggleProjectOverview: () => set(state => ({ projectOverviewCollapsed: !state.projectOverviewCollapsed, projectOverviewManual: true })),
   setHostingConfirm: (hostingConfirm) => set({ hostingConfirm }),
   openWorkspace: (workspaceRunId) => set(state => ({
     projectSection: workspaceRunId ? 'files' : 'runs', hostingConfirm: null,
@@ -837,7 +851,9 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectDocsTheme: (selectedDocsTheme) =>
     set((state) => ({
       selectedDocsTheme,
-      scrollY: { ...state.scrollY, docs: 0 },
+      compactDetailView: 'docs',
+      docsIndexScrollY: state.compactDetailView !== 'docs' ? state.scrollY.docs : state.docsIndexScrollY,
+      scrollY: { ...state.scrollY, docs: state.compactDetailView !== 'docs' && selectedDocsTheme === state.selectedDocsTheme ? state.docsArticleScrollY : 0 },
     })),
   setScrollY: (view, value) =>
     set((state) => {

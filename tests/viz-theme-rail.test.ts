@@ -14,9 +14,9 @@ describe('collapsed rail theme control', () => {
   it.each([600, 720, 900])('keeps the palette visible above the profile at %ipx', (bottom) => {
     const layout = focusRailChromeLayout(208, bottom, true);
     const rows = sidebarLayout(destinations, layout.navigationBottom, layout.navigationTop, true);
-    const last = rows.at(-1);
+    expect(rows.every(row => row.height >= 40)).toBe(true);
     expect(layout.theme).not.toBeNull();
-    expect(last!.y + last!.height).toBeLessThan(layout.theme!.y);
+    expect(layout.navigationBottom).toBeLessThan(layout.theme!.y);
     expect(layout.theme!.y + layout.theme!.height).toBeLessThan(layout.profile!.y);
     expect(layout.profile!.y + layout.profile!.height).toBeLessThan(layout.bell!.y);
   });

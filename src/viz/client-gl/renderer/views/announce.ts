@@ -1,3 +1,4 @@
+import { UI_LAYOUT } from '../../ui-layout.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_PAD } from '../view-frame.js';
 
@@ -30,6 +31,6 @@ export function drawAnnounce(
   width: number,
   height: number
 ): void {
-  const frame = viewFrame(width, height);
+  const frame = viewFrame(width, height, UI_LAYOUT.formWidth);
   drawViewFrame(ctx, frame, snapshot.t('nav.announce'), snapshot.t('announce.summary'));
 }
