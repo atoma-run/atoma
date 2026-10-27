@@ -181,7 +181,12 @@ by owner decision on 2026-09-26
   Decision reuses its existing decisive `task_changes_files` answer; model fallback
   supplies the same shared contract. Capability filtering waits for this answer
   before applying lexical intent, and direct dispatch uses the same resolved
-  Task. Declared output paths always win. Semantic intent never sets the host's
+  Task. For a matched, dispatchable script whose mutating task names files but
+  no output role is resolved, one tool-free cheapest-tier declaration reads
+  only the task and constraints. It may return only paths named by that task;
+  empty, invalid or invented paths keep the preflight closed. Read-only and
+  reasoning tasks, disabled dispatch and missing envelopes buy no declaration.
+  Capability, deliverable and result checks still apply. Declared output paths always win. Semantic intent never sets the host's
   `readOnly` restoration policy; uncertainty or omission keeps the old fallback.
 - Script stdout ends with exactly one JSON envelope containing non-null `output`
   and string `summary`. Malformed envelopes and `FAILED`/`ERROR` summary prefixes

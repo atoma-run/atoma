@@ -1122,6 +1122,45 @@ describe('deliverable gate — a script cannot report success for a file it neve
     expect(files['docs/README.md']).toBe('stale nested docs\n');
   });
 
+  it.each([true, false])('plans ambiguous output roles before dispatch, changed=%s', async changed => {
+    const files: Record<string, string> = {};
+    const { executor, calls } = fsExecutor(files, present => {
+      if (changed) present['compute-direct-validation.txt'] = 'CANARY\n';
+    });
+    const neuron = L2Atom.fromType(reg2.getByName('Tracheid')!, reg2, [], skills2);
+    const base = makeCtx();
+    const events: SkillEventInfo[] = [];
+    const ctx = { ...base, tools: executor, jev: approvingJev(), recordSkill: (e: SkillEventInfo) => events.push(e) };
+    const description = 'Create one new text file, compute-direct-validation.txt, with exactly CANARY followed by one newline. Read the file back and confirm those exact bytes. Preserve every pre-existing application file.';
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 'single file' }));
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'scaffold-config', confidence: 'high', fileEffect: 'mutating', reasoning: 'fits' }));
+    ctx.llm.enqueueText(jsonText({ outputs: ['compute-direct-validation.txt'] }));
+    if (!changed) {
+      ctx.llm.enqueueText(jsonText({ reasoning: 'repair', proposedAction: 'write file', expectedOutput: 'file' }));
+      enqueueExecutedResult(ctx, { output: 'fixed', summary: 'wrote file through the ordinary loop' });
+    }
+    await neuron.handleDirect({ description }, ctx);
+    expect(ctx.llm.calls[2]!.userContent).toContain('Resolve requested outputs');
+    expect(calls.some(c => c.name === 'run_shell')).toBe(true);
+    expect(events.some(e => e.op === 'direct')).toBe(changed);
+    expect(skills2.loadFor(nsOf(reg2, 'Water'))[0]!.directFailures ?? 0).toBe(0);
+  });
+
+  it.each([
+    '{}', '{"outputs":[]}', '{"outputs":["invented.txt"]}',
+    '{"outputs":["compute-direct-validation.txt","invented.txt"]}', 'unparseable',
+  ])('keeps the no-output preflight closed on an unusable declaration: %s', async reply => {
+    const { executor, calls } = fsExecutor({});
+    const neuron = L2Atom.fromType(reg2.getByName('Tracheid')!, reg2, [], skills2);
+    const ctx = { ...makeCtx(), tools: executor };
+    queuePrefilters(ctx);
+    ctx.llm.enqueueText(reply);
+    ctx.llm.enqueueText(jsonText({ reasoning: 'ordinary loop', proposedAction: 'write file', expectedOutput: 'file' }));
+    enqueueExecutedResult(ctx, { output: 'done', summary: 'ordinary execution' });
+    await neuron.handleDirect({ description: 'Create one new text file, compute-direct-validation.txt, containing CANARY.' }, ctx);
+    expect(calls.some(c => typeof c.args['path'] === 'string' && c.args['path'].startsWith('_skill_'))).toBe(false);
+  });
+
   it('falls back before dispatch when a mutating task names no output path', async () => {
     const { executor, calls } = fsExecutor({});
     const neuron = L2Atom.fromType(reg2.getByName('Tracheid')!, reg2, [], skills2);

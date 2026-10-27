@@ -20,7 +20,8 @@ import {
   shouldTrustSkill,
 } from '../atoms/cost.js';
 import { parseScriptEnvelope, scriptDeclaresEnvelope } from '../contracts/scriptEnvelope.js';
-import { extractJson } from '../atoms/json.js';
+import { extractJson, subtaskSpecSchema } from '../atoms/json.js';
+import { modelForTier } from '../core/models.js';
 import { buildCompileSkillPrompt, COMPILE_PROMPT_GENERATION, SKILL_AUTHOR_SYSTEM_PROMPT } from './compilePrompt.js';
 import {
   scriptInterpreter,
@@ -43,6 +44,14 @@ import { namesReadRunCopy, readRunCopyPath } from '../contracts/readRuns.js';
 // Historical export home — the generation machinery lives in generations.ts
 // (stats/curriculum need the predicate without importing this whole engine).
 export { REFUSAL_GENERATION, refusalStampIsCurrent } from './generations.js';
+
+const SCRIPT_OUTPUTS_PROMPT = [
+  'Identify only files this task explicitly requests to create or modify.',
+  'Return one JSON object: {"outputs": ["exact/path"]}. Return an empty array when uncertain.',
+  'Copy exact paths from the task; do not invent, expand or infer paths from a recipe.',
+  'Input files, quoted examples, files to preserve, and temporary scratch used only to execute a check are not requested outputs.',
+  'Respect negation and all constraints. This is a declaration of intended work, not permission or proof of execution.',
+].join('\n');
 
 /**
  * A recipe that names a read-run copy (`.atoma-runs/node_modules/<run id>`,
@@ -1633,9 +1642,44 @@ export class SkillLifecycle {
     if (!matched) return null;
     // Preserve declarations; only the otherwise lexical fallback receives the
     // semantic answer. Use this SAME task for capability and dispatch gates.
-    const task = subtaskOutputIntent(subTask).source === 'lexical' && outcome.fileEffect
+    let task = subtaskOutputIntent(subTask).source === 'lexical' && outcome.fileEffect
       ? { ...subTask, fileEffect: outcome.fileEffect }
       : subTask;
+    const intent = subtaskOutputIntent(task);
+    const namedPaths = subtaskNamedFilePaths(task.description);
+    // Resolve only an otherwise dispatchable script blocked by ambiguous output
+    // roles. Never grow the legacy grammar or infer outputs from script writes.
+    if (matched.skill.kind === 'script' && shouldTrustSkill(matched.skill) &&
+      ctx.tools && process.env['ATOMA_SKILL_DIRECT'] !== '0' &&
+      matched.skill.language && scriptDeclaresEnvelope(matched.skill.body) &&
+      task.executionMode !== 'reasoning' && !task.readOnly &&
+      intent.mutating && intent.targetPaths.length === 0 && namedPaths.length > 0) {
+      try {
+        const response = await ctx.llm.complete({
+          ...this.host.toLlmRequest('skill', {
+            systemPromptOverride: SCRIPT_OUTPUTS_PROMPT,
+            userContent: `Resolve requested outputs for this task:\n${task.description}\nConstraints:\n${(task.constraints ?? []).join('\n')}`,
+            params: { temperature: 0, maxTokens: 512 },
+            signal: ctx.signal,
+          }),
+          model: modelForTier(1),
+        });
+        const value = extractJson(response.text);
+        const parsed = subtaskSpecSchema.safeParse(
+          value && typeof value === 'object' && !Array.isArray(value)
+            ? { ...value, description: task.description } : value
+        );
+        const outputs = parsed.success ? parsed.data.outputs : undefined;
+        // A hallucinated or partial path rejects the whole declaration, not just
+        // that entry. Existing capability, deliverable and result gates still run.
+        if (outputs?.length && outputs.every(path => namedPaths.includes(path))) {
+          task = { ...task, outputs };
+        }
+      } catch (error) {
+        if (ctx.signal?.aborted) throw error;
+        ctx.logger.debug(`[${this.host.name}] script output declaration unavailable; retaining preflight gates`);
+      }
+    }
     if (matched.skill.kind === 'script' && shouldTrustSkill(matched.skill) &&
       !scriptCanServeSubtask(matched.skill.body, task.description, {
         ...task, ...(matched.skill.declaredWrites ? { declaredWrites: matched.skill.declaredWrites } : {}),

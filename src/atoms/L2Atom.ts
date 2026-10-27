@@ -527,6 +527,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
               {
                 description: task.description,
                 preferredChild: prefilter.target,
+                ...(task.outputs?.length ? { outputs: task.outputs } : {}),
                 ...(task.inputs ? { inputs: task.inputs } : {}),
               },
             ],

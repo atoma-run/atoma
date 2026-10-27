@@ -40,6 +40,19 @@ describe('prefilter decomposable hint', () => {
     expect(ctx.llm.calls).toHaveLength(1);
   });
 
+  it('preserves structured outputs on the single-subtask shortcut', async () => {
+    const reg = new AtomRegistry(openDb(':memory:'));
+    reg.create(2, seed);
+    reg.create(1, seed);
+    const l2 = L2Atom.fromType(reg.getByName('Tracheid')!, reg);
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 'fits' }));
+    const plan = await l2.plan({ description: 'Create the requested artifact.', outputs: ['nested/report.txt'] }, ctx);
+    expect(plan.subtasks?.[0]?.outputs).toEqual(['nested/report.txt']);
+    expect(plan.viaPrefilter).toBe(true);
+    expect(ctx.llm.calls).toHaveLength(1);
+  });
+
   it('L2.plan: decomposable=true → falls through to Sonnet plan WITH the hint in userContent', async () => {
     const reg = new AtomRegistry(openDb(':memory:'));
     reg.create(2, seed);
