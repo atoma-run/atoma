@@ -34,3 +34,4 @@ list.
 
 <!-- Add your entry below this line. -->
 - [Anthony Zboralski](https://github.com/zboralski)
+- [Electron](https://github.com/manelephant)
