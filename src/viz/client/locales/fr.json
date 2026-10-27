@@ -2840,5 +2840,17 @@
   "admin.ledgerWithheld.counters": "Compteurs inchangés.",
   "admin.ledgerWithheld.recipe": "Cet événement ne modifie ni la méthode enregistrée ni son historique de fiabilité partagé dans atoma.",
   "admin.ledgerWithheld.agent": "Cet événement ne modifie pas l’historique de fiabilité de l’agent partagé dans atoma.",
-  "admin.ledgerWithheld.compute": ""
+  "admin.ledgerWithheld.compute": "Le travail a été exécuté sur un ordinateur personnel avec Atoma Compute. Cette observation ne peut pas modifier l’apprentissage partagé. La vérification automatique est suivie séparément dans ce registre du catalogue.",
+  "admin.computeValidation.label": "Vérification automatique de Compute",
+  "admin.computeValidation.queued": "Vérification en attente. Atoma effectuera un contrôle indépendant lorsqu’aucun run utilisateur ne sera actif. Aucune approbation d’un opérateur n’est requise.",
+  "admin.computeValidation.budget-wait": "La vérification attend le renouvellement du quota quotidien. Aucune tentative supplémentaire n’est lancée tant que le quota est épuisé.",
+  "admin.computeValidation.running": "Une vérification indépendante est en cours sur les serveurs d’Atoma, avec les contrôles habituels d’exécution et de résultat.",
+  "admin.computeValidation.completed": "L’exécution indépendante est terminée. Ses propres observations sont enregistrées séparément ; l’observation Compute d’origine reste écartée.",
+  "admin.computeValidation.inconclusive": "La vérification n’a pas pu établir un résultat complet. Cela ne transforme pas l’observation Compute d’origine en échec de recette. Aucune nouvelle tentative automatique n’est prévue.",
+  "admin.computeValidation.blocked": "La vérification ne peut pas reproduire les conditions d’origine en toute sécurité ou n’y a plus accès. L’observation Compute reste écartée ; les compteurs sont inchangés.",
+  "admin.computeValidation.interrupted": "La vérification a été interrompue. Le travail déjà observé sur le serveur reste enregistré ; l’observation Compute reste écartée. Aucune nouvelle tentative automatique n’est prévue.",
+  "admin.computeValidation.newCounters": "De nouvelles observations vérifiées sur le serveur ont modifié les compteurs de fiabilité. L’observation Compute d’origine n’est pas comptabilisée une seconde fois.",
+  "admin.computeValidation.noCounters": "Aucune modification des compteurs n’a été enregistrée pour cette vérification.",
+  "admin.computeValidation.newRecipes": "Le processus habituel de récupération hébergée a modifié une recette partagée ; l’événement distinct correspondant dans le registre du catalogue identifie cette modification.",
+  "admin.computeValidation.budget": "Une tentative par run source, au maximum {{attempts}} tentatives sur 24 heures, de {{minutes}} minutes chacune, avec arrêt de la consommation à {{tokens}} tokens ou à un coût équivalent API de ${{cost}}. Les appels déjà en cours peuvent dépasser cette limite de consommation ; une dépense inconnue compte tout de même comme une tentative."
 }

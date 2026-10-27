@@ -2840,5 +2840,17 @@
   "admin.ledgerWithheld.counters": "Zähler unverändert.",
   "admin.ledgerWithheld.recipe": "Dieses Ereignis ändert weder die gespeicherte Methode noch ihren in atoma geteilten Zuverlässigkeitsdatensatz.",
   "admin.ledgerWithheld.agent": "Dieses Ereignis ändert nicht den in atoma geteilten Zuverlässigkeitsdatensatz des Agents.",
-  "admin.ledgerWithheld.compute": ""
+  "admin.ledgerWithheld.compute": "Die Arbeit wurde mit Atoma Compute auf einem PC ausgeführt. Diese Beobachtung kann das gemeinsame Lernen nicht verändern. Die automatische Verifizierung wird separat in diesem Protokoll erfasst.",
+  "admin.computeValidation.label": "Automatische Compute-Verifizierung",
+  "admin.computeValidation.queued": "Verifizierung in der Warteschlange. Atoma prüft unabhängig, sobald kein Benutzer-run aktiv ist. Es ist keine Freigabe durch einen Operator erforderlich.",
+  "admin.computeValidation.budget-wait": "Die Verifizierung wartet auf das Tageskontingent. Solange das Kontingent ausgeschöpft ist, wird kein weiterer Versuch gestartet.",
+  "admin.computeValidation.running": "Die unabhängige Verifizierung wird auf den Servern von Atoma mit den üblichen Ausführungs- und Ergebnisprüfungen durchgeführt.",
+  "admin.computeValidation.completed": "Die unabhängige Ausführung ist abgeschlossen. Ihre eigenen Beobachtungen werden separat erfasst; die ursprüngliche Compute-Beobachtung bleibt zurückgehalten.",
+  "admin.computeValidation.inconclusive": "Die Verifizierung konnte kein vollständiges Ergebnis ermitteln. Dadurch wird die ursprüngliche Compute-Beobachtung nicht zu einem Rezeptfehler. Es ist keine automatische Wiederholung geplant.",
+  "admin.computeValidation.blocked": "Die Verifizierung kann die ursprünglichen Bedingungen nicht sicher reproduzieren oder hat keinen Zugriff mehr. Die Compute-Beobachtung bleibt zurückgehalten; die Zähler bleiben unverändert.",
+  "admin.computeValidation.interrupted": "Die Verifizierung wurde unterbrochen. Bereits auf dem Server beobachtete Arbeit bleibt erfasst; die Compute-Beobachtung bleibt zurückgehalten. Es ist keine automatische Wiederholung geplant.",
+  "admin.computeValidation.newCounters": "Neue serververifizierte Beobachtungen haben die Zuverlässigkeitszähler geändert. Die ursprüngliche Compute-Beobachtung wird dadurch nicht doppelt angerechnet.",
+  "admin.computeValidation.noCounters": "Für diese Verifizierung wurden keine Zähleränderungen erfasst.",
+  "admin.computeValidation.newRecipes": "Der reguläre gehostete Wiederherstellungsprozess hat ein gemeinsames Rezept geändert; das zugehörige separate Protokollereignis weist die Änderung aus.",
+  "admin.computeValidation.budget": "Ein Versuch pro Quell-run, höchstens {{attempts}} Versuche innerhalb von 24 Stunden, jeweils {{minutes}} Minuten, mit einem Verbrauchsstopp bei {{tokens}} Tokens oder einem API-Äquivalent von ${{cost}}. Bereits laufende Aufrufe können den Verbrauchsstopp überschreiten; auch bei unbekannten Kosten wird ein Versuch angerechnet."
 }

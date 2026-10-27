@@ -2840,5 +2840,17 @@
   "admin.ledgerWithheld.counters": "计数器未更改。",
   "admin.ledgerWithheld.recipe": "此事件不会更改已保存的方法，也不会更改其在Atoma中共享的可靠性记录。",
   "admin.ledgerWithheld.agent": "此事件不会更改智能体在Atoma中共享的可靠性记录。",
-  "admin.ledgerWithheld.compute": ""
+  "admin.ledgerWithheld.compute": "此工作通过 Atoma Compute 在个人计算机上运行。该观测记录不能改变共享学习结果。自动验证将在此台账中单独跟踪。",
+  "admin.computeValidation.label": "Compute 自动验证",
+  "admin.computeValidation.queued": "验证已排队。没有用户 run 处于活动状态时，Atoma 将独立检查。无需操作员批准。",
+  "admin.computeValidation.budget-wait": "验证正在等待每日限额恢复。限额用尽期间不会发起额外尝试。",
+  "admin.computeValidation.running": "独立验证正在 Atoma 的服务器上运行，并接受常规执行和结果检查。",
+  "admin.computeValidation.completed": "独立执行已完成。其自身的观测记录将单独记录；原始 Compute 观测记录仍不予采纳。",
+  "admin.computeValidation.inconclusive": "验证未能得出完整结果。这不会使原始 Compute 观测记录变成配方失败。不会安排自动重试。",
+  "admin.computeValidation.blocked": "验证无法安全复现原始条件，或已无法访问所需资源。Compute 观测记录仍不予采纳；计数器保持不变。",
+  "admin.computeValidation.interrupted": "验证已中断。服务器上已观测到的工作仍会保留记录；Compute 观测记录仍不予采纳。不会安排自动重试。",
+  "admin.computeValidation.newCounters": "经服务器验证的新观测记录更改了可靠性计数器。这不会重复计入原始 Compute 观测记录。",
+  "admin.computeValidation.noCounters": "此次验证未记录任何计数器变更。",
+  "admin.computeValidation.newRecipes": "常规托管恢复流程更改了共享配方；其单独的台账事件会标明此项更改。",
+  "admin.computeValidation.budget": "每个源 run 可尝试一次，24 小时内最多尝试 {{attempts}} 次，每次 {{minutes}} 分钟；达到 {{tokens}} 个 token 或等值 ${{cost}} 的 API 用量时停止消耗。正在进行的调用可能超过消耗上限；支出未知时仍会占用一次尝试。"
 }

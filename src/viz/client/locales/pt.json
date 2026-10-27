@@ -2840,5 +2840,17 @@
   "admin.ledgerWithheld.counters": "Contadores inalterados.",
   "admin.ledgerWithheld.recipe": "Este evento não altera o método guardado nem o seu registo de fiabilidade partilhado em toda a Atoma.",
   "admin.ledgerWithheld.agent": "Este evento não altera o registo de fiabilidade do agente partilhado em toda a Atoma.",
-  "admin.ledgerWithheld.compute": ""
+  "admin.ledgerWithheld.compute": "O trabalho foi executado num computador pessoal com o Atoma Compute. Esta observação não pode alterar a aprendizagem coletiva. A verificação automática é acompanhada separadamente neste histórico.",
+  "admin.computeValidation.label": "Verificação automática do Compute",
+  "admin.computeValidation.queued": "Verificação em fila. A Atoma fará uma verificação independente quando nenhum run de utilizador estiver ativo. Não é necessária a aprovação de um operador.",
+  "admin.computeValidation.budget-wait": "A verificação aguarda a quota diária. Não é iniciada nenhuma tentativa adicional enquanto a quota estiver esgotada.",
+  "admin.computeValidation.running": "A verificação independente está em execução nos servidores da Atoma, sujeita às verificações normais de execução e de resultados.",
+  "admin.computeValidation.completed": "A execução independente terminou. As respetivas observações são documentadas separadamente; a observação original do Compute permanece retida.",
+  "admin.computeValidation.inconclusive": "A verificação não conseguiu determinar um resultado completo. Isto não transforma a observação original do Compute numa falha da receita. Não está agendada nenhuma nova tentativa automática.",
+  "admin.computeValidation.blocked": "A verificação não consegue reproduzir com segurança as condições originais ou já não tem acesso. A observação do Compute permanece retida; os contadores não foram alterados.",
+  "admin.computeValidation.interrupted": "A verificação foi interrompida. O trabalho já observado no servidor permanece documentado; a observação do Compute permanece retida. Não está agendada nenhuma nova tentativa automática.",
+  "admin.computeValidation.newCounters": "Novas observações verificadas no servidor alteraram os contadores de fiabilidade. Isto não contabiliza duas vezes a observação original do Compute.",
+  "admin.computeValidation.noCounters": "Esta verificação não produziu alterações nos contadores.",
+  "admin.computeValidation.newRecipes": "O processo normal de recuperação alojado alterou uma receita coletiva; o respetivo evento separado no histórico identifica a alteração.",
+  "admin.computeValidation.budget": "Uma tentativa por run de origem; máximo de tentativas em 24 horas: {{attempts}}; duração de cada tentativa, em minutos: {{minutes}}; com interrupção do consumo ao atingir tokens: {{tokens}} ou o equivalente em API: ${{cost}}. As chamadas já em curso podem ultrapassar o limite de consumo; mesmo sem se conhecer o consumo, a tentativa continua a ser contabilizada."
 }

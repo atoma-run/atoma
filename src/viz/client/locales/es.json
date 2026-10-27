@@ -2840,5 +2840,17 @@
   "admin.ledgerWithheld.counters": "Contadores sin cambios.",
   "admin.ledgerWithheld.recipe": "Este evento no cambia el método guardado ni su registro de fiabilidad compartido en Atoma.",
   "admin.ledgerWithheld.agent": "Este evento no cambia el registro de fiabilidad del agente compartido en Atoma.",
-  "admin.ledgerWithheld.compute": ""
+  "admin.ledgerWithheld.compute": "El trabajo se ejecutó en un equipo personal con Atoma Compute. Esta observación no puede cambiar el aprendizaje compartido. La verificación automática se registra por separado en este libro mayor.",
+  "admin.computeValidation.label": "Verificación automática de Compute",
+  "admin.computeValidation.queued": "Verificación en cola. Atoma la comprobará de forma independiente cuando no haya ningún run de usuario activo. No se requiere la aprobación de un operador.",
+  "admin.computeValidation.budget-wait": "La verificación está esperando la asignación diaria. No se inicia ningún intento adicional mientras la asignación esté agotada.",
+  "admin.computeValidation.running": "La verificación independiente se está ejecutando en los servidores de Atoma, con las comprobaciones normales de ejecución y resultados.",
+  "admin.computeValidation.completed": "La ejecución independiente ha finalizado. Sus propias observaciones se registran por separado; la observación original de Compute permanece retenida.",
+  "admin.computeValidation.inconclusive": "La verificación no pudo establecer un resultado completo. Esto no convierte la observación original de Compute en un fallo de la receta. No se ha programado ningún reintento automático.",
+  "admin.computeValidation.blocked": "La verificación no puede reproducir de forma segura las condiciones originales o ya no dispone de acceso. La observación de Compute permanece retenida; los contadores no cambian.",
+  "admin.computeValidation.interrupted": "La verificación se interrumpió. El trabajo ya observado en el servidor permanece registrado; la observación de Compute permanece retenida. No se ha programado ningún reintento automático.",
+  "admin.computeValidation.newCounters": "Las nuevas observaciones verificadas en el servidor cambiaron los contadores de fiabilidad. Esto no contabiliza dos veces la observación original de Compute.",
+  "admin.computeValidation.noCounters": "No se registraron cambios en los contadores para esta verificación.",
+  "admin.computeValidation.newRecipes": "El proceso ordinario de recuperación alojado modificó una receta compartida; su evento independiente en el libro mayor identifica el cambio.",
+  "admin.computeValidation.budget": "Un intento por run de origen, con un máximo de {{attempts}} intentos en 24 horas y {{minutes}} minutos por intento, y un límite de consumo de {{tokens}} tokens o el equivalente a ${{cost}} en la API. Las llamadas ya en curso pueden superar el límite de consumo; un gasto desconocido sigue contabilizando un intento."
 }

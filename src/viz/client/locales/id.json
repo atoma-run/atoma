@@ -2840,5 +2840,17 @@
   "admin.ledgerWithheld.counters": "Penghitung tidak berubah.",
   "admin.ledgerWithheld.recipe": "Peristiwa ini tidak mengubah metode tersimpan atau catatan keandalannya yang digunakan bersama di seluruh Atoma.",
   "admin.ledgerWithheld.agent": "Peristiwa ini tidak mengubah catatan keandalan agen yang digunakan bersama di seluruh Atoma.",
-  "admin.ledgerWithheld.compute": ""
+  "admin.ledgerWithheld.compute": "Pekerjaan dijalankan di komputer pribadi dengan Atoma Compute. Pengamatan ini tidak dapat mengubah pembelajaran bersama. Verifikasi otomatis dilacak secara terpisah dalam buku besar ini.",
+  "admin.computeValidation.label": "Verifikasi Compute otomatis",
+  "admin.computeValidation.queued": "Verifikasi masuk antrean. Atoma akan memeriksanya secara independen saat tidak ada run pengguna yang aktif. Persetujuan operator tidak diperlukan.",
+  "admin.computeValidation.budget-wait": "Verifikasi sedang menunggu jatah harian. Tidak ada percobaan tambahan yang dimulai selama jatah habis.",
+  "admin.computeValidation.running": "Verifikasi independen sedang berjalan di server Atoma, sesuai pemeriksaan eksekusi dan hasil normal.",
+  "admin.computeValidation.completed": "Eksekusi independen selesai. Pengamatannya sendiri dicatat secara terpisah; pengamatan Compute asli tetap ditahan.",
+  "admin.computeValidation.inconclusive": "Verifikasi tidak dapat memastikan hasil yang lengkap. Hal ini tidak menjadikan pengamatan Compute asli sebagai kegagalan resep. Tidak ada percobaan ulang otomatis yang dijadwalkan.",
+  "admin.computeValidation.blocked": "Verifikasi tidak dapat mereproduksi kondisi asli dengan aman atau tidak lagi memiliki akses. Pengamatan Compute tetap ditahan; penghitung tidak berubah.",
+  "admin.computeValidation.interrupted": "Verifikasi terhenti. Pekerjaan yang sudah diamati di server tetap dicatat; pengamatan Compute tetap ditahan. Tidak ada percobaan ulang otomatis yang dijadwalkan.",
+  "admin.computeValidation.newCounters": "Pengamatan baru yang diverifikasi server mengubah penghitung keandalan. Pengamatan Compute asli tidak dihitung dua kali.",
+  "admin.computeValidation.noCounters": "Tidak ada perubahan penghitung yang dicatat untuk verifikasi ini.",
+  "admin.computeValidation.newRecipes": "Proses pemulihan terkelola yang biasa mengubah resep bersama; peristiwa terpisah dalam buku besar mengidentifikasi perubahan tersebut.",
+  "admin.computeValidation.budget": "Satu percobaan per run sumber, maksimal {{attempts}} percobaan dalam 24 jam, masing-masing {{minutes}} menit, dengan penghentian konsumsi pada {{tokens}} token atau ekuivalen API sebesar ${{cost}}. Panggilan yang sudah berlangsung dapat melampaui batas konsumsi; pengeluaran yang tidak diketahui tetap menggunakan satu percobaan."
 }
