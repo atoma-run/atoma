@@ -20,8 +20,8 @@ def run(args):
 
 run([
     '-i', str(ROOT / 'screenshots/demo-film-v11/atoma-presentation-v11-master-4444.mov'),
-    '-loop', '1', '-framerate', '30', '-t', '2.2', '-i', str(OUT / 'cover.png'),
-    '-filter_complex', '[1:v]format=rgba,fade=t=out:st=1.8:d=0.4:alpha=1[cover];[0:v][cover]overlay=eof_action=pass:repeatlast=0:format=auto,format=yuv420p[v]',
+    '-framerate', '30', '-i', str(OUT / 'cover.png'),
+    '-filter_complex', "[0:v][1:v]overlay=enable='eq(n,0)':eof_action=pass:repeatlast=0:format=auto,format=yuv420p[v]",
     '-map', '[v]', '-map', '0:a', '-c:v', 'libx264', '-crf', '18', '-preset', 'slow',
     '-c:a', 'aac', '-b:a', '224k', '-movflags', '+faststart', str(OUT / 'atoma-presentation-v12.mp4'),
 ])

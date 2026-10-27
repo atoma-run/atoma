@@ -1,14 +1,11 @@
 import React from 'react';
-import {AbsoluteFill, CanvasImage, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, CanvasImage, staticFile} from 'remotion';
 
 /** Fully visible at frame zero so embedded video players have a useful poster. */
 export function Cover() {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
   return <AbsoluteFill style={{
     background: 'radial-gradient(ellipse at 85% 10%, #193a3d, #071018 65%)',
     color: '#f4f7f4', fontFamily: 'Arial, sans-serif', padding: '100px 120px',
-    opacity: interpolate(frame, [1.8 * fps, 2.2 * fps], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
   }}>
     <div style={{position: 'absolute', inset: 0, opacity: 0.09, backgroundImage: 'radial-gradient(#b4c8c6 1px, transparent 1px)', backgroundSize: '48px 48px'}}/>
     <div style={{display: 'flex', alignItems: 'center', gap: 24, fontSize: 66, fontWeight: 700, letterSpacing: -2}}>
