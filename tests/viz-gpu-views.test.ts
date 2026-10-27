@@ -3263,6 +3263,27 @@ describe('drawProjects', () => {
     expect(projectsGuideLayoutHeight(collapsed, width, height)).toBe(guideHeight);
   });
 
+  it.each([false, true])('centres project repository metadata with hosted links (selected=%s)', selected => {
+    const project = { ...guidanceProject(), hostedUrl: 'https://weather.app.atoma.run/' };
+    const ctx = createRecordingCtx();
+    drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: selected ? project.projectId : null },
+      { auth: makeAuth(), projects: [project] }), 1280, 720);
+    const repo = ctx.links.find(link => link.id === `project.repository.${project.projectId}`)!;
+    const hosted = ctx.links.find(link => link.id === `project.hosted.${project.projectId}`)!;
+    const centerY = repo.parent.toGlobal({ x: repo.x, y: repo.y + repo.height / 2 }).y;
+    const lock = ctx.privateRepositoryIcons[0]!;
+    expect(lock.parent.toGlobal({ x: lock.x, y: lock.y + lock.size / 2 }).y).toBe(centerY);
+    expect(hosted.parent.toGlobal({ x: hosted.x, y: hosted.y + hosted.height / 2 }).y).toBe(centerY);
+    const labels = ctx.texts.filter(text => text.value === project.repositoryUrl ||
+      text.value === '·' || text.value === '● weather.app.atoma.run');
+    expect(labels).toHaveLength(3);
+    for (const label of labels) {
+      expect(label.node.anchor.y).toBe(0.5);
+      expect(label.parent.toGlobal({ x: label.x, y: label.y }).y).toBe(centerY);
+    }
+    expect(ctx.texts.some(text => text.value === 'repo ready')).toBe(false);
+  });
+
   it('shows the private lock only for private repositories', () => {
     const projectId = '3c584a3c-933d-4488-ac44-4cdcc8e66f31';
     const project = {
@@ -3451,7 +3472,7 @@ describe('drawProjects', () => {
       String(text.value).startsWith('delivered') ||
       String(text.value).includes('401 API key is invalid')
     );
-    expect(boundedRowCopy.length).toBeGreaterThanOrEqual(4);
+    expect(boundedRowCopy.length).toBeGreaterThanOrEqual(3);
     for (const label of boundedRowCopy) {
       expect(label.options).toMatchObject({ singleLine: true });
     }
@@ -3476,9 +3497,9 @@ describe('drawProjects', () => {
 
     // Project metadata forms one sequence inside the framed row. In detail,
     // the name is already the page title, so the sequence starts at the
-    // frame's left inset: lock, repository status, then destination.
+    // frame's left inset: lock, then destination.
     const column = projectsColumn(1280);
-    // The status sits inside the panel border, while the label surface gives
+    // The repository sits inside the panel border, while the label surface gives
     // that right-hand column its own horizontal space.
     const rowRight = column.x + column.width - 18;
     const rightEdge = rowRight - PROJECTS_ROW_PAD;
@@ -3503,26 +3524,21 @@ describe('drawProjects', () => {
     });
     repositoryLink.onActivate(repositoryLink.id);
     expect(activated).toEqual(['project.all', `project.repository.${projectId}`]);
-    const status = ctx.texts.find((text) => text.value === 'repo ready')!;
-    const separator = ctx.texts.find((text) => text.value === '·')!;
+    expect(ctx.texts.some(text => text.value === 'repo ready')).toBe(false);
+    expect(ctx.texts.some(text => text.value === '·')).toBe(false);
     const lock = ctx.privateRepositoryIcons[0]!;
     const lockOrigin = lock.parent.toGlobal({ x: lock.x, y: lock.y });
-    const statusOrigin = status.parent.toGlobal({ x: status.x, y: status.y });
-    const separatorOrigin = separator.parent.toGlobal({ x: separator.x, y: separator.y });
     const runsTab = ctx.buttons.find(button => button.id === 'project.section.runs')!;
     const tabBottom = runsTab.parent.toGlobal({ x: runsTab.x, y: runsTab.y + runsTab.height }).y;
-    expect(status.parent).toBe(ctx.root);
-    expect(statusOrigin.y).toBeLessThan(tabBottom);
-    expect(statusOrigin.y).toBeGreaterThan(runsTab.y);
+    expect(repositoryLink.parent).toBe(ctx.root);
+    expect(linkOrigin.y).toBeLessThan(tabBottom);
+    expect(linkOrigin.y + repositoryLink.height / 2).toBeGreaterThan(runsTab.y);
     const resultTab = ctx.buttons.find(button => button.id === 'project.section.result')!;
     expect(lockOrigin.x).toBeGreaterThan(resultTab.x + resultTab.width);
-    expect(statusOrigin.y).toBeLessThan(PROJECTS_SELECTED_MCP_GUIDE_TOP);
+    expect(linkOrigin.y).toBeLessThan(PROJECTS_SELECTED_MCP_GUIDE_TOP);
     expect(lockOrigin.x).toBeGreaterThanOrEqual(column.x + 18);
-    expect(lockOrigin.x).toBeLessThan(statusOrigin.x);
-    expect(statusOrigin.x).toBeLessThan(separatorOrigin.x);
-    expect(separatorOrigin.x).toBeLessThan(linkOrigin.x);
+    expect(lockOrigin.x).toBeLessThan(linkOrigin.x);
     expect(linkOrigin.x + repositoryLink.width).toBeLessThanOrEqual(rightEdge);
-    expect(status.node.anchor.x).toBe(0);
     const verdict = ctx.texts.find((text) => String(text.value).startsWith('delivered'));
     expect(verdict!.parent.toGlobal({ x: verdict!.x, y: verdict!.y }).x).toBe(column.x + 34 + 16);
     expect(verdict!.node.anchor.x).toBe(0);
@@ -3535,7 +3551,7 @@ describe('drawProjects', () => {
       repositoryUrl!.x
     );
     expect(repositoryIcon.y + repositoryIcon.size / 2).toBe(
-      repositoryUrl!.y + 7
+      repositoryUrl!.y
     );
 
     // The run goal gives way before the status column on a narrow pane; no
@@ -3545,14 +3561,11 @@ describe('drawProjects', () => {
     drawProjects(narrow, snapshot, narrowWidth, 720);
     const narrowFrame = viewFrame(narrowWidth, 720);
     const narrowMetadataIcon = narrow.repositoryIcons[0]!;
-    const narrowStatus = narrow.texts.find((text) => text.value === 'repo ready')!;
-    expect(narrowStatus.parent.toGlobal({ x: narrowStatus.x, y: narrowStatus.y }).y)
-      .toBeLessThan(
-        narrowMetadataIcon.parent.toGlobal({
-          x: narrowMetadataIcon.x,
-          y: narrowMetadataIcon.y + narrowMetadataIcon.size / 2,
-        }).y
-      );
+    const narrowUrl = narrow.texts.find(text => text.value === repositoryLink.label)!;
+    expect(narrowUrl.parent.toGlobal({ x: narrowUrl.x, y: narrowUrl.y }).y)
+      .toBe(narrowMetadataIcon.parent.toGlobal({
+        x: narrowMetadataIcon.x, y: narrowMetadataIcon.y + narrowMetadataIcon.size / 2,
+      }).y);
     for (const button of narrow.buttons.filter((candidate) => candidate.id.startsWith('project.run.'))) {
       const origin = button.parent.toGlobal({ x: button.x, y: button.y });
       expect(button.width).toBeGreaterThanOrEqual(100);
@@ -3721,7 +3734,7 @@ describe('drawProjects', () => {
       expect(links[0]!.label).toBe(project.repositoryUrl);
       expect(links[0]!.parent).toBe(sectionCtx.root);
       expect(sectionCtx.privateRepositoryIcons).toHaveLength(1);
-      expect(sectionCtx.texts.filter(text => text.value === 'repo ready')).toHaveLength(1);
+      expect(sectionCtx.texts.filter(text => text.value === 'repo ready')).toHaveLength(0);
       const lastTab = sectionCtx.buttons.find(button => button.id === 'project.section.result')!;
       expect(links[0]!.y > lastTab.y + 32 || links[0]!.x > lastTab.x + lastTab.width).toBe(true);
       return { x: links[0]!.x, y: links[0]!.y, width: links[0]!.width };
@@ -6285,7 +6298,7 @@ describe('the Projects MCP guide and project history', () => {
     expect(withGuidance.buttons.some((button) => button.id.startsWith('projects.example.'))).toBe(false);
     expect(withGuidance.texts.some((text) => text.value === LAUNCH_GUIDANCE.help)).toBe(false);
     const rowY = (ctx: ReturnType<typeof createRecordingCtx>) =>
-      ctx.texts.find((text) => text.value === 'repo ready')?.y;
+      ctx.links.find(link => link.id.startsWith('project.repository.'))?.y;
     expect(rowY(withGuidance)).toBe(rowY(without));
   });
 });

@@ -78,7 +78,7 @@ const PROJECT_INFO_SEPARATOR = '·';
 const PROJECT_INFO_SEPARATOR_BEFORE_GAP = 6;
 /** Compensates for the repository mesh's transparent left inset. */
 const PROJECT_INFO_SEPARATOR_AFTER_GAP = 0;
-const PROJECT_INFO_TEXT_Y = 15;
+const PROJECT_INFO_CENTER_Y = 2 + REPOSITORY_ICON_SIZE / 2;
 const PROJECT_NAME_Y = 7;
 const PROJECT_METADATA_Y = 23;
 
@@ -432,18 +432,16 @@ export function projectSectionLayout(ctx: Pick<RendererCtx, 'measureText'>, snap
 
 /** Shared metadata for the project header and project collection rows. */
 function repositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: VizProject, infoMaxWidth: number) {
-  const repositoryStatusCopy = statusLabel(
-    snapshot.t,
-    project.repositoryStatus,
-    'projects.repoStatus'
-  );
+  const repositoryStatusCopy = project.repositoryStatus === 'ready' && project.repositoryUrl
+    ? null
+    : statusLabel(snapshot.t, project.repositoryStatus, 'projects.repoStatus');
   const privateIconSpace = project.repositoryTarget.visibility === 'private'
     ? PRIVATE_REPOSITORY_ICON_SIZE + PRIVATE_REPOSITORY_ICON_GAP
     : 0;
-  const statusWidth = ctx.measureText(repositoryStatusCopy, {
+  const statusWidth = repositoryStatusCopy ? ctx.measureText(repositoryStatusCopy, {
     size: STATUS_FONT_SIZE,
     mono: true,
-  });
+  }) : 0;
   const separatorWidth = ctx.measureText(PROJECT_INFO_SEPARATOR, {
     size: STATUS_FONT_SIZE,
     mono: true,
@@ -466,10 +464,7 @@ function repositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: 
   const fixedInfoWidth =
     hostedChrome + hostedWidth +
     privateIconSpace +
-    statusWidth +
-    PROJECT_INFO_SEPARATOR_BEFORE_GAP +
-    separatorWidth +
-    PROJECT_INFO_SEPARATOR_AFTER_GAP +
+    (repositoryStatusCopy ? statusWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP + separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP : 0) +
     destinationChromeWidth;
   const destinationTextWidth = Math.max(
     0,
@@ -483,44 +478,47 @@ function repositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: 
 function drawRepositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: VizProject,
   rowParent: Container, infoX: number, y: number, info: ReturnType<typeof repositoryInfo>): void {
   const { repositoryStatusCopy, privateIconSpace, statusWidth, separatorWidth, destinationText, destinationTextWidth, hostedText, hostedWidth } = info;
+  const centerY = y + PROJECT_INFO_CENTER_Y;
   let infoCursor = infoX;
   if (project.repositoryTarget.visibility === 'private') {
     ctx.privateRepositoryIcon(
       rowParent,
       infoCursor,
-      y + 16,
+      centerY - PRIVATE_REPOSITORY_ICON_SIZE / 2,
       PRIVATE_REPOSITORY_ICON_SIZE
     );
     infoCursor += privateIconSpace;
   }
-  ctx.text(
-    rowParent,
-    repositoryStatusCopy,
-    infoCursor,
-    y + PROJECT_INFO_TEXT_Y,
-    {
-      size: 10,
-      color: statusColor(project.repositoryStatus),
-      mono: true,
-      width: statusWidth,
-      singleLine: true,
-    }
-  );
-  infoCursor += statusWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP;
-  ctx.text(
-    rowParent,
-    PROJECT_INFO_SEPARATOR,
-    infoCursor,
-    y + PROJECT_INFO_TEXT_Y,
-    {
-      size: STATUS_FONT_SIZE,
-      color: GPU_COLORS.muted,
-      mono: true,
-      width: separatorWidth,
-      singleLine: true,
-    }
-  );
-  infoCursor += separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP;
+  if (repositoryStatusCopy) {
+    ctx.text(
+      rowParent,
+      repositoryStatusCopy,
+      infoCursor,
+      centerY,
+      {
+        size: 10,
+        color: statusColor(project.repositoryStatus),
+        mono: true,
+        width: statusWidth,
+        singleLine: true,
+      }
+    ).anchor.set(0, 0.5);
+    infoCursor += statusWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP;
+    ctx.text(
+      rowParent,
+      PROJECT_INFO_SEPARATOR,
+      infoCursor,
+      centerY,
+      {
+        size: STATUS_FONT_SIZE,
+        color: GPU_COLORS.muted,
+        mono: true,
+        width: separatorWidth,
+        singleLine: true,
+      }
+    ).anchor.set(0, 0.5);
+    infoCursor += separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP;
+  }
   if (project.repositoryUrl) {
     const repositoryGroupWidth =
       REPOSITORY_ICON_OFFSET_X +
@@ -547,38 +545,38 @@ function drawRepositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, proje
       repositoryLink,
       destinationText,
       REPOSITORY_ICON_OFFSET_X + REPOSITORY_ICON_SIZE + REPOSITORY_ICON_GAP,
-      14,
+      REPOSITORY_ICON_SIZE / 2,
       {
         size: 9,
         color: GPU_COLORS.primary,
         width: destinationTextWidth,
         singleLine: true,
       }
-    );
+    ).anchor.set(0, 0.5);
   } else {
     ctx.text(
       rowParent,
       destinationText,
       infoCursor,
-      y + PROJECT_INFO_TEXT_Y,
+      centerY,
       {
         size: 10,
         color: GPU_COLORS.muted,
         width: destinationTextWidth,
         singleLine: true,
       }
-    );
+    ).anchor.set(0, 0.5);
   }
   if (hostedText && hostedWidth > 0) {
     infoCursor += (project.repositoryUrl ? REPOSITORY_ICON_OFFSET_X + REPOSITORY_ICON_SIZE + REPOSITORY_ICON_GAP : 0)
       + destinationTextWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP;
-    ctx.text(rowParent, PROJECT_INFO_SEPARATOR, infoCursor, y + PROJECT_INFO_TEXT_Y,
-      { size: STATUS_FONT_SIZE, color: GPU_COLORS.muted, mono: true, width: separatorWidth, singleLine: true });
+    ctx.text(rowParent, PROJECT_INFO_SEPARATOR, infoCursor, centerY,
+      { size: STATUS_FONT_SIZE, color: GPU_COLORS.muted, mono: true, width: separatorWidth, singleLine: true }).anchor.set(0, 0.5);
     infoCursor += separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP;
     // A private application opens through a one-time claim, never a bare link: the activation asks for one.
     const hostedLink = ctx.linkRegion(rowParent, `project.hosted.${project.projectId}`, hostedText,
       infoCursor, y + 2, hostedWidth, REPOSITORY_ICON_SIZE, snapshot.onActivate);
-    ctx.text(hostedLink, hostedText, 0, 14, { size: 9, color: GPU_COLORS.success, width: hostedWidth, singleLine: true });
+    ctx.text(hostedLink, hostedText, 0, REPOSITORY_ICON_SIZE / 2, { size: 9, color: GPU_COLORS.success, width: hostedWidth, singleLine: true }).anchor.set(0, 0.5);
   }
 }
 
