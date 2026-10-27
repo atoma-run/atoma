@@ -165,9 +165,8 @@ export default tseslint.config(
     // Remotion is a separate browser project with its own pinned dependencies.
     // Its compositions do not belong to the server's TypeScript project.
     files: ['scripts/demo-film/remotion/src/**/*.tsx'],
-    ...tseslint.configs.disableTypeChecked,
+    extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
-      ...tseslint.configs.disableTypeChecked.languageOptions,
       globals: globals.browser,
     },
   },

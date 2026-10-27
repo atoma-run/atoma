@@ -2,11 +2,22 @@
 
 ## Unreleased
 
+## v0.5.0 — 2026-10-27
+
+Atoma Compute, project conversations and explicit application deployment,
 Decision routing and audits, inherited browser regression checks, live
 platform run limits, two MCP protocol generations, acceptance criteria approved
 before launch, incomplete runs kept and explained, and comparison reruns.
 
 ### Added
+
+- Atoma Compute runs project work on a connected desktop, with isolated worker,
+  workspace, retrieval and preview services, automatic result transfer, and
+  desktop update support.
+- Project conversations prepare run proposals and explain results, acceptance
+  and deployment state. Hosted application updates remain an explicit action.
+- Independent versioned run executors let compatible production releases
+  coexist with runs already in progress.
 
 - Platform MCP `atoma_suite_disputes` (read-only, the platform tier only) and
   `npm run projects -- disputes`: every counted suite dispute of every
@@ -251,8 +262,8 @@ before launch, incomplete runs kept and explained, and comparison reruns.
   to fail on double escaping.
 - Inputs a run writes only to test its deliverable are no longer published.
 - A validator is told when a file it sees read was rewritten afterwards.
-- A production deployment waits for the work already running on the instance
-  (a run, a mend, an analysis, a preview) instead of being refused behind it,
+- A legacy or incompatible production deployment waits for the work already
+  running on the instance (a run, a mend, an analysis, a preview),
   up to `ATOMA_DEPLOY_WAIT_SECONDS` (default 90 minutes, one project run at its default budget). Nothing new starts
   meanwhile and nothing running is interrupted; writes stay open until the
   activation itself and reopen as soon as the new version is healthy. A

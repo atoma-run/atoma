@@ -1,6 +1,6 @@
 {
   "name": "atoma",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Start, continue, follow and investigate Atoma runs: the hosted Atoma MCP, a skill that knows how to drive it, and a read-only trace reader.",
   "author": {
     "name": "Matthieu Foillard",
