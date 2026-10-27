@@ -27,3 +27,13 @@ Direct pushes to `main` from the owner's account (mgtf / mgf@iotanet.net) bypass
 **How to apply:** a deploy refused with "the run slot is occupied (… pid N)" may be a STALE row: check `ps -p N`. On 2026-09-27 the mender was SIGKILLed at 15:36 (probably OOM on the 4 GB host, reap script killed too) and its `mender:` row blocked deploys and background stages; nothing but a member run start ever recovers such a row. Fix used: confirm no `atoma.role=mender` containers survive, then `sudo -u atoma sqlite3 /home/atoma/state/mcp-run-lock.db "DELETE FROM mcp_run_lease WHERE owner_pid = N AND run_id = '<id>'"`. Never restart the mender by hand on old code (it resumes the backlog); let the deploy's refresh restart it. See [[supervisor-mender-state]].
 
 **Reading deploy runs (2026-10-17):** `gh run list` shows a Deploy production run under main's HEAD when the workflow_run fired, not the commit it deploys. On 2026-10-16 the deploy of green 6270cd45 was listed as red 7a94b880 and misread as a deploy of a red commit. The deployed commit is the job's `REVISION` (= the triggering CI run's head_sha), and since 2026-10-17 the run's name: "Deploy <sha> (CI <conclusion>)". Production cannot roll back by a race: main CI queues one run at a time in push order (cancel-in-progress is false on main), deploys queue the same way, and each deploys only its own green CI run's artifact. tests/deployment-pipeline.test.ts pins both.
+
+**Compatibility maintenance and root-only app config (2026-10-27):** complete
+Compute initial-state references require executor compatibility 2. The first
+maintenance activation exposed that `atoma.env` is root:root 0640: systemd can
+read it, the service user cannot. `run_as_service_with_app_env` must read literal
+bytes while privileged, then evaluate assignments only as the service user
+through a pipe. Do not loosen the config mode or source it as root. A real
+read-only probe confirmed UID 988 receives the required configuration. The
+root-owned activator must be installed from the verified CI release when this
+helper changes; retry the ordinary deployment after installation.

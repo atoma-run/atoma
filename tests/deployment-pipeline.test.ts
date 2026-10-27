@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -45,6 +45,37 @@ echo "mode=$ROLLING"`, 'test', old, next, executors], { encoding: 'utf8' });
       expect(ran.status, ran.stderr).toBe(0);
       expect(ran.stdout).toContain(`mode=${scenario.rolling}`);
     } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it('reads root-only application configuration before dropping privileges, but evaluates it as the service user', () => {
+    const root = mkdtempSync(join(tmpdir(), 'deploy-private-env-'));
+    const config = join(root, 'application.env');
+    try {
+      writeFileSync(config, 'ATOMA_DEPLOY_LOCK_PATH="/fixture/state/freeze"\nAPP_SOURCE_PHASE="${TEST_SERVICE_PHASE:-root}"\n', { mode: 0o600 });
+      const begin = hostDeploy.indexOf('run_as_service_with_app_env() {');
+      const end = hostDeploy.indexOf('\n# Existing installations', begin);
+      const ran = spawnSync('bash', ['-c', `set -Eeuo pipefail
+APP_ENV="$1"; SERVICE_USER=fixture; SERVICE_HOME="$2"
+runuser() {
+  shift 3
+  chmod 000 "$APP_ENV"
+  TEST_SERVICE_PHASE=service "$@"
+}
+${hostDeploy.slice(begin, end)}
+run_as_service_with_app_env "$SERVICE_HOME" bash -c 'printf "%s|%s" "$ATOMA_DEPLOY_LOCK_PATH" "$APP_SOURCE_PHASE"'
+`, 'test', config, root], { encoding: 'utf8' });
+      expect(ran.status, ran.stderr).toBe(0);
+      expect(ran.stdout).toBe('/fixture/state/freeze|service');
+      // A source error must stop before the maintenance command can run.
+      chmodSync(config, 0o600); writeFileSync(config, 'return 9\n');
+      const refused = spawnSync('bash', ['-c', `set -Eeuo pipefail
+APP_ENV="$1"; SERVICE_USER=fixture; SERVICE_HOME="$2"
+runuser() { shift 3; "$@"; }
+${hostDeploy.slice(begin, end)}
+run_as_service_with_app_env "$SERVICE_HOME" bash -c 'echo command-must-not-run'
+`, 'test', config, root], { encoding: 'utf8' });
+      expect(refused.status).toBe(9); expect(refused.stdout).not.toContain('command-must-not-run');
+    } finally { chmodSync(config, 0o600); rmSync(root, { recursive: true, force: true }); }
   });
 
   it('renders immutable executor paths and reboot wiring without expanding host path data', () => {

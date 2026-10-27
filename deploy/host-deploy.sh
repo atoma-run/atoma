@@ -256,9 +256,14 @@ run_as_service() {
 run_as_service_with_app_env() {
   local cwd="$1"
   shift
-  runuser -u "${SERVICE_USER}" -- env HOME="${SERVICE_HOME}" bash -c \
-    'set -a; source "$1"; set +a; cd "$2"; shift 2; exec "$@"' \
-    bash "${APP_ENV}" "${cwd}" "$@"
+  # systemd reads root-only EnvironmentFiles before dropping privileges. Read
+  # the bytes here too, but evaluate shell assignments only as the service user.
+  # Never loosen file permissions or execute application configuration as root.
+  local app_env_contents
+  app_env_contents="$(cat -- "${APP_ENV}")" || return
+  printf '%s\n' "${app_env_contents}" | runuser -u "${SERVICE_USER}" -- env HOME="${SERVICE_HOME}" bash -c \
+    'set -e; set -a; source <(cat); set +a; cd "$1"; shift; exec "$@"' \
+    bash "${cwd}" "$@"
 }
 
 # Existing installations have the dependencies needed by the drain command.
