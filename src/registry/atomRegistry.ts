@@ -1,6 +1,7 @@
 import { beforeDurableMutation } from '../core/recoveryEffects.js';
 import { registryIsPartitioned, type DB } from './db.js';
 import { appendLedger } from '../core/ledger.js';
+import type { WithheldKnowledge } from '../contracts/executionTarget.js';
 import type {
   AtomModifications,
   GenerationParams,
@@ -1145,6 +1146,11 @@ export class AtomRegistry {
         consecutive_successes = consecutive_successes + CASE WHEN ? OR version = ? THEN 1 ELSE 0 END
         WHERE name = ?`).run(expectedVersion === undefined ? 1 : 0, expectedVersion ?? null, name);
     }).immediate();
+  }
+
+  /** Observation only: historical counters and the current trust streak stay intact. */
+  recordWithheld(name: string, detail: WithheldKnowledge): void {
+    this.note({ kind: 'type-credit-withheld', entity: name, detail });
   }
 
   /**

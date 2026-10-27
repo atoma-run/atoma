@@ -1,4 +1,4 @@
-import { canCreditSharedKnowledge } from '../contracts/executionTarget.js';
+import { canCreditSharedKnowledge, withheldComputeKnowledge } from '../contracts/executionTarget.js';
 import { PARENT_TEST_PLANNING, PARALLEL_BRANCH_PLANNING } from '../contracts/parentTests.js';
 import { markParentTestsJudged, verifyParentTests, withParentTestConsequences } from '../core/parentTests.js';
 import { renderParentTestsBlock } from './parentTestsBlock.js';
@@ -1834,7 +1834,12 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
             `[${this.name}] skill ${activeSkillId} revision SKIPPED: validator observed the failing run did not follow the recipe — falling through to the registry-branch path`
           );
         }
-        if (activeSkillId && !skillWasIgnored && this.skillRegistry && diagnostic.length > 0 && childType) {
+        const mayRevise = canCreditSharedKnowledge(ctx.executionProvenance);
+        if (!mayRevise && activeSkillId && !skillWasIgnored && diagnostic.length > 0 && childType) {
+          this.skillRegistry?.recordWithheld(activeSkillNs, activeSkillId,
+            withheldComputeKnowledge('revision', this.name, child.name));
+        }
+        if (mayRevise && activeSkillId && !skillWasIgnored && this.skillRegistry && diagnostic.length > 0 && childType) {
           const skills = this.skillRegistry.loadFor(activeSkillNs);
           const oldSkill = skills.find((s) => s.id === activeSkillId);
           if (oldSkill) {
@@ -1954,6 +1959,12 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       },
       onApproved: async (child, result, verdict) => {
         if (!canCreditSharedKnowledge(ctx.executionProvenance)) {
+          this.registry.recordWithheld(child.name, withheldComputeKnowledge('success', this.name));
+          const skillId = child.activeSkillId();
+          if (skillId && verdict?.activeSkillFollowed !== false) {
+            this.skillRegistry?.recordWithheld(child.activeSkillOwner() ?? namespaceOf(child), skillId,
+              withheldComputeKnowledge('success', this.name, child.name));
+          }
           ctx.logger.info('Shared credit withheld: customer execution requires independent hosted validation');
           return;
         }
@@ -2145,6 +2156,15 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         }
       },
       onFailed: async (child, _reason, lastResultVerdict) => {
+        if (!canCreditSharedKnowledge(ctx.executionProvenance)) {
+          this.registry.recordWithheld(child.name, withheldComputeKnowledge('failure', this.name));
+          const skillId = child.activeSkillId();
+          if (skillId && lastResultVerdict?.activeSkillFollowed !== false) {
+            this.skillRegistry?.recordWithheld(child.activeSkillOwner() ?? namespaceOf(child), skillId,
+              withheldComputeKnowledge('failure', this.name, child.name));
+          }
+          return;
+        }
         this.registry.recordFailure(child.name, this.name);
         // USAGE-CONDITIONED BLAME (mirror of onApproved's credit gate, and
         // the more damaging direction): a failure recorded against a skill

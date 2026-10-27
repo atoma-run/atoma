@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import type { WithheldKnowledge } from '../contracts/executionTarget.js';
 import type Database from 'better-sqlite3';
 import {
   appendLedger as appendLifecycle,
@@ -235,6 +236,15 @@ export class SkillRegistry {
 
   private recordEventStrict(event: Parameters<typeof appendLifecycleStrict>[0], db: Database.Database) {
     appendLifecycleStrict({ entityId: event.entity, ...event }, db);
+  }
+
+  /** Keep an excluded observation visible without touching recipe metadata or bytes. */
+  recordWithheld(l1Name: string, skillId: string, detail: WithheldKnowledge): void {
+    try {
+      this.recordEvent({ kind: 'skill-credit-withheld', entity: `${l1Name}/${skillId}`, detail }, this.writeStore(false));
+    } catch (error) {
+      console.warn('[skills] withheld observation could not be journaled', error);
+    }
   }
 
   /** Return the full directory holding all skills for an L1 molecule. */
