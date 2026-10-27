@@ -265,6 +265,13 @@ Neighbours:
   bounded diagnostics; the PR summarizes the successful report. Diagnostic
   text never becomes instructions or another model session. Historical records
   without this optional evidence remain readable, never upgraded to JSON proof.
+- Before either model session, `menderContext.ts` adds bounded navigation hints
+  from the captured base's Git blobs: up to three cited source excerpts,
+  lexical relative-import and filename-test candidates, and ancestor contract
+  locators. Ten seconds and 14,000 characters bound retrieval. Missing context
+  falls back to normal reading; it never changes eligibility or verification.
+  No worktree code executes, symlinks are excluded, and source text remains
+  untrusted. This is partial navigation, not inferred types or a call graph.
 - WHAT MAY BE MENDED (`menderPolicy.ts#eligibleFindings`): a `defect` at or
   above the confidence floor (`high` by default) whose `proposedFix` cites the
   intentional choices it checked — and, since 2026-09-27 (owner decision), a

@@ -5,7 +5,8 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as contextReader from '../src/supervisor/menderContext.js';
 import type { PlatformEventKind } from '../src/contracts/platformEvents.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { PlatformEventLog } from '../src/platform/events.js';
@@ -285,6 +286,20 @@ describe('the mender, end to end against a real repository', () => {
     expect(result.records[0]).toMatchObject({ outcome: 'pr-opened', mendCostUsd: null, verification: { testFailedBefore: true, checkPassed: true } });
     expect(remoteBranches(f)).toHaveLength(1);
     expect(readFileSync(join(home, 'auth.json'), 'utf8')).toContain('rotated');
+    expect(readFileSync(join(f.root, 'codex.jsonl'), 'utf8')).toContain('Targeted source context v1');
+  }, TIMEOUT_MS);
+
+  it('continues normal verification when optional context retrieval fails', async () => {
+    const f = fixture();
+    const reader = vi.spyOn(contextReader, 'buildMenderContext').mockRejectedValueOnce(new Error('retrieval unavailable'));
+    try {
+      const result = await mendPending(f, f.options());
+      expect(result.failures).toBe(0);
+      expect(result.records[0]).toMatchObject({ outcome: 'pr-opened', verification: { testFailedBefore: true, checkPassed: true } });
+      const args = JSON.parse(readFileSync(f.claudeArgs, 'utf8')) as string[];
+      expect(args.at(-1)).not.toContain('Targeted source context v1');
+      expect(args.at(-1)).toContain('add() subtracts its operands');
+    } finally { reader.mockRestore(); }
   }, TIMEOUT_MS);
 
   it('turns a cited defect into a pushed branch, a pull request and a journal row, then cleans up', async () => {
@@ -333,6 +348,9 @@ describe('the mender, end to end against a real repository', () => {
     expect(args[args.indexOf('--allowedTools') + 1]).not.toMatch(/git (push|commit)|gh/);
     expect(args[args.indexOf('--max-budget-usd') + 1]).toBe('5');
     expect(args.at(-1)).toContain('add() subtracts its operands');
+    expect(args.at(-1)).toContain('Targeted source context v1');
+    expect(args.at(-1)).toContain('1: export const add = (a, b) => a - b;');
+    expect(args.at(-1)).toContain(`base ${rec.baseSha}`);
     expect(args.at(-1)).not.toContain('UNTRUSTED TRACE TEXT');
 
     // The journal: started, then opened — facts only.

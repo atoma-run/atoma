@@ -1,3 +1,4 @@
+import { buildMenderContext } from './menderContext.js';
 import { runIsolatedMenderCommand } from './menderIsolation.js';
 import { runCodexSupervisor } from './codexSession.js';
 import {
@@ -590,12 +591,23 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
       return record({ outcome: 'harness-failed', baseSha, worktree, reason: 'install failed', output: truncate(install.stderr || install.stdout, 4000) });
     }
 
+    const safeFinding = sanitiseFinding(finding);
+    let context: string | undefined;
+    const contextStarted = Date.now();
+    try {
+      context = await buildMenderContext(worktree, baseSha, safeFinding, options.signal);
+      options.log(`source context: ${context.length} chars in ${Date.now() - contextStarted} ms at ${baseSha}`);
+    } catch {
+      if (options.signal?.aborted) return interrupted('during context retrieval', { baseSha });
+      options.warn('source context unavailable; continuing with the finding and normal repository reading');
+    }
     const prompt = buildMenderPrompt({
       runId,
       runStatus: run.runStatus,
       runGrade: run.grade,
       findingIndex: index,
-      findingJson: JSON.stringify(sanitiseFinding(finding), null, 2),
+      findingJson: JSON.stringify(safeFinding, null, 2),
+      context,
     });
     const args = menderSessionArgs(prompt, provider, options.budgetUsd);
     if (options.dryRun) {
