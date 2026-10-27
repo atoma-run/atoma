@@ -36,9 +36,9 @@ are taken by [Decision](#decision-handles-bounded-decisions), TypeSafe's Jev mod
 Explore a two-run business scenario, three-tier coordination, MCP integration
 and model-cost optimization in this four-minute walkthrough.
 
-<video src="https://github.com/atoma-run/atoma/raw/refs/heads/main/screenshots/demo-film-v11/atoma-presentation-v11.mp4" controls preload="metadata"></video>
+https://github.com/user-attachments/assets/0bc33f77-a924-4020-bccb-f3cdd4735847
 
-[Watch or download the demo](screenshots/demo-film-v11/atoma-presentation-v11.mp4)
+[Download the high-quality video (44 MB)](https://github.com/atoma-run/atoma/raw/refs/heads/main/screenshots/demo-film-v11/atoma-presentation-v11.mp4)
 
 ## From a business need to a tool you can use
 
