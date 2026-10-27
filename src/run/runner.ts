@@ -1003,7 +1003,11 @@ async function startTaskInternal(
       if (savedCheckpoint.policy !== checkpointPolicy || (!checkpointAuthority && resumedPath !== savedCheckpoint.workspace)) {
         throw new Error('Resume requires the same workspace, models, acceptance criteria and execution policy');
       }
-      if (!savedCheckpoint.interrupted && (opts?.workspaceRuntime ? await workspace.checkpointDigest()
+      if (checkpointAuthority && savedCheckpoint.snapshotId) {
+        // A project continuation has a fresh allocation. Check its retained
+        // source, then let the restore receiver verify every byte before work.
+        void checkpointStore!.exportWorkspace(savedCheckpoint).close();
+      } else if (!savedCheckpoint.interrupted && (opts?.workspaceRuntime ? await workspace.checkpointDigest()
         : checkpointWorkspaceDigest(savedCheckpoint.workspace)) !== savedCheckpoint.workspaceDigest) {
         throw new Error('Workspace changed since the checkpoint; resume refused');
       }

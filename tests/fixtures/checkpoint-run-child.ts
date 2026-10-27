@@ -165,9 +165,9 @@ if (process.env['CHECKPOINT_TEST_CRASH'] === 'credit') {
     if (existsSync(join(root, 'effects.log')) && readFileSync(join(root, 'effects.log'), 'utf8').includes('phase-two')) process.kill(process.pid, 'SIGKILL');
   };
 }
-const { startTask } = await import('../../src/run/runner.js');
+const { startTask, parseRunnerArgs } = await import('../../src/run/runner.js');
 const workspaceService = process.env['CHECKPOINT_TEST_WORKSPACE_PROCESS'] === '1'
-  ? startWorkspaceProcess({ root: process.env['ATOMA_BUILD_WORKSPACE']! }) : undefined;
+  ? startWorkspaceProcess({ root: process.env['ATOMA_BUILD_WORKSPACE']!, seedRoot: parseRunnerArgs(process.argv.slice(2)).seed }) : undefined;
 try {
   const handle = await startTask(process.argv.slice(2), { workspaceRuntime: workspaceService?.runtime, seedCatalog(seed, canonical) {
     canonical(seed);

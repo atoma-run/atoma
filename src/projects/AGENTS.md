@@ -704,7 +704,7 @@ remain `partial`: no preview or publication before fresh final acceptance.
 Only the original requester, still an active member, can pause or resume through
 the same-origin service routes. `resumeOf` is immutable and part of request
 identity. Admission, queue dispatch and payer authorization are unchanged.
-A continuation gets a new run, trace and sealed workspace copy. It retains the
+A continuation gets a new run, trace and sealed workspace copy (Compute paths belong to its execution host, not the control plane). It retains the
 original repository sync BASE, goal, criteria, plan and cumulative budget; it
 never refreshes GitHub HEAD and calls that a continuation. No proof is inherited.
 Readers expose phase state and blocking client questions. Retention holds a paused boundary

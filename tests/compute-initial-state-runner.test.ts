@@ -16,7 +16,8 @@ import { cleanupCheckpointFixtures, fixture } from './helpers/checkpointFixture.
 afterEach(cleanupCheckpointFixtures);
 describe('Compute initial state through cold runner continuation and verification', () => {
   it.each([false, true])('retains the prepared seed and continuation prefix without touching source rows (client answer=%s)', async answered => {
-    const f = fixture(); const db = openLedgerHandle(f.db);
+    // The ordinary pause uses a new workspace service for every segment.
+    const f = fixture(!answered); const db = openLedgerHandle(f.db);
     const viewer = AuthStore.open(f.db).completeLogin({ provider: 'github', subject: 'initial-owner', displayName: 'Owner', email: null, emailVerified: false }, null)!.viewer;
     const projects = ProjectStore.open(f.db);
     const project = projects.createProject({ orgId: viewer.orgId, principalId: viewer.principalId,

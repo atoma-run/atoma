@@ -52,3 +52,20 @@ captures; shared GC also handles stores with no checkpoint table. Compatibility
 2 drains earlier executors before activation because their GC lacks these refs.
 Legacy seeded runs lacking a capture remain unavailable; external connector
 grants are never replayed. The independent hosted controller uses current models.
+
+### Production Compute continuation check — 2026-10-27
+
+Attica source b0dc0b41 retained all 249 accepted files (4,461,828 bytes), modes
+and directories; independently recalculated snapshot digest 3c2c3337468f0a90d0ede0bc6ac61081080350c7a47f96f179d6810057ebf086.
+Automatic verification f74435ac started without intervention, restored identical
+task inputs, then landed at the 60,000-token ceiling (162,966 consumed); its
+job is `inconclusive`, with no counter or recipe changes. Do not call this a pass.
+Attica 939f57b6 paused at 1/2 validated phases, snapshot ba2ef0e8-9495-478c-8cfa-ebdc95d0e087,
+digest 6f6f5de907860460a93b162d26a70f03914f00b3c83c650f2ff48c7f89d9c04a.
+Real admission exposed two guards tests had missed: a Compute checkpoint names
+`/workspace/current`, not its control-plane delivery path; and its next allocation
+is empty before restore. Check the sealed snapshot for authorized continuations,
+retain requester/scope/policy/budget checks and local in-place edit detection,
+and verify every byte through the normal restore receiver before execution.
+The regression must use the actual coordinator admission and a new workspace
+service process per segment, with its seed explicitly bound by the fixture.

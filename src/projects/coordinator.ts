@@ -2200,7 +2200,14 @@ export class ProjectRunCoordinator {
     try {
       const saved = this.checkpoints.read(sourceId);
       if (saved.scope?.orgId !== orgId || saved.scope.projectId !== projectId || saved.scope.principalId !== principalId ||
-          saved.scope.runId !== sourceId || saved.workspace !== canonicalCheckpointWorkspacePath(source.hostPaths.workspacePath)) throw new Error('Checkpoint scope mismatch');
+          saved.scope.runId !== sourceId) throw new Error('Checkpoint scope mismatch');
+      if (source.executionTarget.kind === 'customer-device') {
+        // The execution host owns its path. A continuation restores the sealed
+        // snapshot into a new allocation; the control-plane copy is a delivery.
+        void this.checkpoints.exportWorkspace(saved).close();
+      } else if (saved.workspace !== canonicalCheckpointWorkspacePath(source.hostPaths.workspacePath)) {
+        throw new Error('Checkpoint workspace mismatch');
+      }
       if (saved.remainingMs <= 0) throw new Error('The saved execution budget is exhausted');
     } catch { throw new ProjectStateConflict('Saved continuation is unavailable: its workspace, ownership or remaining budget could not be verified'); }
     return source;

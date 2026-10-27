@@ -736,6 +736,53 @@ describe('project run environment', () => {
 });
 
 describe('ProjectRunCoordinator', () => {
+  it.each(['device', 'missing-snapshot', 'wrong-digest', 'wrong-scope', 'hosted-path'] as const)(
+    'admits a remote checkpoint by its sealed snapshot, preserving scope and hosted path checks: %s', async mode => {
+      const f = fixture(), db = new Database(f.dbPath), checkpoints = new RunCheckpointStore(f.dbPath);
+      const target = { kind: 'customer-device', deviceId: randomUUID() };
+      if (mode !== 'hosted-path') db.prepare('UPDATE projects SET execution_target_json=? WHERE project_id=?')
+        .run(JSON.stringify(target), f.project.projectId);
+      const id = randomUUID(), paths = projectRunHostLayout(f.root, f.viewer.orgId, f.project.projectId, id);
+      const source = f.store.createProjectRun({ orgId: f.viewer.orgId, projectId: f.project.projectId,
+        principalId: f.viewer.principalId, projectRunId: id, request: { goal: 'Write two files', idempotencyKey: 'source' },
+        hostPaths: { workspacePath: paths.workspacePath, runsPath: paths.runsPath, logPath: paths.logPath, skillsPath: paths.skillsPath } })!.run;
+      mkdirSync(paths.workspacePath, { recursive: true });
+      writeFileSync(join(paths.workspacePath, 'first.txt'), 'completed phase');
+      const data: RunCheckpoint = { version: 1, id, goal: source.goal, workspace: realpathSync(paths.workspacePath), policy: '{}',
+        scope: { orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId, runId: id },
+        actor: { name: 'Meristem', atomId: 'actor', version: 1 }, checklist: [],
+        root: { plan: { subtasks: [{}, {}] }, strategy: {}, plannedPhases: 2 },
+        completed: [{ output: {}, summary: 'Saved first phase', producedBy: { tier: 2, name: 'Cell', viaFallback: false } }],
+        consumed: { tokens: 20, costUsd: 0.01 }, processes: [], remainingMs: 300000, lastRunId: id,
+        workspaceDigest: checkpointWorkspaceDigest(realpathSync(paths.workspacePath)) };
+      const owner = checkpoints.claim(data, true);
+      checkpoints.boundary(data, owner);
+      data.workspace = '/workspace/current'; // The actual Compute service path, never a control-plane directory.
+      if (mode === 'missing-snapshot') delete data.snapshotId;
+      if (mode === 'wrong-digest') data.workspaceDigest = '0'.repeat(64);
+      if (mode === 'wrong-scope') data.scope = { ...data.scope!, principalId: randomUUID() };
+      checkpoints.write(data, owner, 'ready', true);
+      f.store.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: id, from: 'queued', to: 'running' });
+      f.store.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: id, from: 'running', to: 'partial',
+        traceId: id, stats: { ...DELIVERED_STATS, outcome: 'partial' } });
+      const before = db.prepare('SELECT payload FROM run_checkpoints WHERE id=?').get(id);
+      const driver = vi.fn<ProjectRunDriver>(), acquireLease = vi.fn(async () => lease());
+      const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+        hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS }, driver, acquireLease });
+      try {
+        const start = () => coordinator.start({ orgId: f.viewer.orgId, projectId: f.project.projectId,
+          principalId: f.viewer.principalId, request: { goal: source.goal, resumeOf: id, idempotencyKey: 'resume' } });
+        if (mode === 'device') {
+          // Project selection changes do not change the immutable source target.
+          db.prepare('UPDATE projects SET execution_target_json=? WHERE project_id=?').run('{"kind":"hosted"}', f.project.projectId);
+          const next = await start();
+          expect(next).toMatchObject({ status: 'queued', resumeOf: id, executionTarget: target });
+        } else await expect(start()).rejects.toThrow('Saved continuation is unavailable');
+        expect(driver).not.toHaveBeenCalled(); expect(acquireLease).not.toHaveBeenCalled();
+        expect(db.prepare('SELECT payload FROM run_checkpoints WHERE id=?').get(id)).toEqual(before);
+      } finally { coordinator.stopQueue(); db.close(); }
+    });
+
   it.each(['pause', 'crash'] as const)('resumes a project after %s through admission once, retaining the original repository base', async mode => {
     const f = fixture();
     const checkpoints = new RunCheckpointStore(f.dbPath);
