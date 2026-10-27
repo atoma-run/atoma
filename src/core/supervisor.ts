@@ -1,5 +1,5 @@
 import { markParentTestsJudged, suiteDisputeWatch, verifyParentTests, withParentTestConsequences } from './parentTests.js';
-import { EscalationSignal, PlanParseError, ValidationError } from './errors.js';
+import { EscalationSignal, PlanParseError, ValidationError, EvidenceReviewError } from './errors.js';
 import type { Atom, Supervisor } from './atom.js';
 import type {
   NegativeVerdict,
@@ -341,7 +341,7 @@ export async function superviseLoop<C extends Atom>(
           // in the llm event; the parser's message is kept here. A refused
           // REPLY (PlanParseError) tells the next call why; any other
           // ValidationError (an L1's plan) is asked again as before.
-          if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
+          if ((!(error instanceof ValidationError) && !(error instanceof EvidenceReviewError)) || ctx.signal.aborted) throw error;
           ctx.logger.warn(`[${current.name}] plan reply unparseable; asking again (${error.message.slice(0, 200)})`);
           const cause = error instanceof PlanParseError ? error.kind : undefined;
           trace.push({ kind: 'plan-unparseable', ts: now(), atom: current.name,
@@ -441,7 +441,7 @@ export async function superviseLoop<C extends Atom>(
             try {
               return withParentTestConsequences(judged, await parent.validateResult(current, judged, task, ctx), ctx.logger);
             } catch (error) {
-              if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
+              if ((!(error instanceof ValidationError) && !(error instanceof EvidenceReviewError)) || ctx.signal.aborted) throw error;
               resultReviewFaults++;
               ctx.logger.warn(`[${current.name}] result review failed as the reviewer's (${resultReviewFaults}/${MAX_PLAN_REVIEW_FAULTS}) (${error.message.slice(0, 200)})`);
               trace.push({ kind: 'result-review-fault', ts: now(), atom: parent.name, payload: { error: error.message, faults: resultReviewFaults } });

@@ -1,11 +1,15 @@
 import { expect, it } from 'vitest';
 import { L1Atom } from '../src/atoms/L1Atom.js';
-import { llmVerdict, MAX_TOOL_EVIDENCE_CHARS, renderTransportEvidence } from '../src/atoms/verdict.js';
+import { llmVerdict, renderTransportEvidence as renderBudgetedEvidence } from '../src/atoms/verdict.js';
 import { attestingExecutor, createAttestationLog } from '../src/core/attestation.js';
 import type { LlmCompletionResponse, ToolExecutor } from '../src/core/types.js';
 import { jsonText, makeCtx } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
 import { parseExecutionObservation, renderObservations } from '../src/contracts/attestation.js';
+
+// Keep the selector's original saturation/negative controls at their measured allowance.
+const MAX_TOOL_EVIDENCE_CHARS = 48_000;
+const renderTransportEvidence = (evidence: Parameters<typeof renderBudgetedEvidence>[0]) => renderBudgetedEvidence(evidence, MAX_TOOL_EVIDENCE_CHARS);
 
 const response = (value: unknown): LlmCompletionResponse => ({
   text: jsonText(value), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 },
@@ -44,7 +48,7 @@ it('retains successful command receipts across sixty-six command identities in t
   const task = { description: 'Verify fresh and saved builds with the same matrix' };
   const result = await child.execute(task, makePlan({ proposedAction: 'Verify' }), ctx);
   ctx.llm.enqueue(response({ approved: false, reasoning: 'A separate failed invocation needs classification.' }));
-  await llmVerdict({ ctx, model: 'mock', supervisorName: 'Cell', supervisorTier: 2, child, task,
+  await llmVerdict({ ctx, model: 'sub:openai:gpt-5.6-luna', supervisorName: 'Cell', supervisorTier: 2, child, task,
     subject: 'RESULT', payload: { output: result.output, summary: result.summary }, evidence: result.evidence, groundTruthBlock: '',
   });
   const prompt = ctx.llm.calls.at(-1)!.userContent;

@@ -99,7 +99,10 @@ Neighbours:
 
 - Opt-in `--checkpoint` / `--pause-after-phase N` / `--resume ID` implement
   durable sequential continuation in `checkpoint.ts`. Same workspace for CLI,
-  original plan/checklist and carried budget; fresh trace and proof log. The
+  original plan/checklist and carried budget; fresh execution proof log. Complete
+  historical archives live in the product store's `run_checkpoint_evidence` rows,
+  outside the bounded plan payload, and remain readable by saved phase refs
+  without current execution or trust credit. The new trace retains their history. The
   root delegation approval rides `root` in the plan's own write, bound by digest;
   an older binary reads such a checkpoint as incomplete (one-way, 2026-10-16). Only
   complete approved boundaries are restored. An interrupted phase may restart

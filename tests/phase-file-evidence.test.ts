@@ -13,6 +13,9 @@ import { criteriaFilesBlock } from '../src/atoms/fileEvidence.js';
 import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
 import { fileReadsNeedingReadback, parseExecutionObservation } from '../src/contracts/attestation.js';
 
+// Host snapshot retention may append records, but must never change or add worker actions/proof.
+const workerRecords = (log: ReturnType<typeof createAttestationLog>) => JSON.stringify(log.forAttempt(1).filter(record => record.tool !== 'host_read_file'));
+
 // Run 8d819d66: read test.js, edit it, execute npm test. Its old read was
 // correctly retired, but phase judges could see only the current 400-char head.
 const child = new L1Atom({ name: 'Methane', ordinal: 1, systemPrompt: 'sys',
@@ -61,7 +64,7 @@ describe('phase current file evidence', () => {
     for (const path of Object.keys(files)) await branch.tools!.execute('read_file', { path });
     await branch.tools!.execute('run_shell', { cmd: 'node tests/export.test.js' });
     const evidence = executorEvidence({}, branch), count = calls.length;
-    const records = JSON.stringify(ctx.attestations.forAttempt(1));
+    const records = workerRecords(ctx.attestations);
     const verdict = { approved: false, scope: 'ephemeral', reasoning: 'fixture refuses unverified semantics',
       criteria: [{ id: 'c1', met: false, reason: 'fixture remains a model decision' }] };
     ctx.llm.enqueueText(jsonText(verdict)); ctx.llm.enqueueText(jsonText(verdict));
@@ -82,7 +85,7 @@ describe('phase current file evidence', () => {
     }
     expect(result.approved).toBe(false);
     expect(calls.slice(count).every(call => call.name === 'read_file')).toBe(true);
-    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(records);
+    expect(workerRecords(ctx.attestations)).toBe(records);
   });
 
   it('shows the resolver source and assertions after small proofs have been repaired and read again', async () => {
@@ -158,7 +161,7 @@ describe('phase current file evidence', () => {
     await branch.tools!.execute('run_shell', { command: 'npm', args: ['test'] });
     const evidence = executorEvidence({}, branch);
     expect(JSON.stringify(evidence)).not.toContain('assert.deepEqual(afterRestart');
-    const records = JSON.stringify(ctx.attestations.forAttempt(1)), count = calls.length;
+    const records = workerRecords(ctx.attestations), count = calls.length;
     const verdict = { approved: true, reasoning: 'fixture verdict', criteria: [{ id: 'c1', met: true, reason: 'fixture' }] };
     ctx.llm.enqueueText(jsonText(verdict));
     if (scope === 'root') {
@@ -171,7 +174,7 @@ describe('phase current file evidence', () => {
       subject: 'RESULT', child, task, payload: { output: 'done', summary: 'done' }, evidence });
     for (const request of ctx.llm.calls) expect(request.userContent).toContain(JSON.stringify(body));
     expect(calls.slice(count)).toEqual([{ name: 'read_file', path: 'test.js' }]);
-    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(records);
+    expect(workerRecords(ctx.attestations)).toBe(records);
   });
 
   it('keeps assertion bodies when a growing internal manifest would otherwise consume the source budget', async () => {
@@ -220,7 +223,7 @@ describe('phase current file evidence', () => {
     await change('test.js');
     await branch.tools!.execute('run_shell', { command: 'npm', args: ['test'] });
     const evidence = executorEvidence({}, branch);
-    const records = JSON.stringify(ctx.attestations.forAttempt(1));
+    const records = workerRecords(ctx.attestations);
     const count = calls.length;
     ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'fixture decision' }));
     await llmVerdict({ ctx: branch, model: 'test', supervisorName: 'Cell', supervisorTier: 2,
@@ -232,7 +235,7 @@ describe('phase current file evidence', () => {
     expect(prompt).toContain('assertions passed');
     expect(prompt).toContain('not executed checks');
     expect(calls.slice(count)).toEqual([{ name: 'read_file', path: 'test.js' }]);
-    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(records);
+    expect(workerRecords(ctx.attestations)).toBe(records);
   });
 
   it.each(['unavailable', 'still wrong', 'edited after execution'])('never grants approval from refreshed bytes: %s', async mode => {
@@ -357,7 +360,7 @@ describe('root acceptance reads the test files the attempt ran', () => {
     await branch.tools!.execute('record_probe', {
       cmd: 'node --test tests/attica-scheduler.test.js tests/attica-hosted-ui.test.js tests/xe-browser-hosting-integration.test.js' });
     const evidence = executorEvidence({}, branch), count = reads.length;
-    const records = JSON.stringify(ctx.attestations.forAttempt(1));
+    const records = workerRecords(ctx.attestations);
     const verdict = { approved: false, scope: 'ephemeral', reasoning: 'fixture remains the model decision',
       criteria: [{ id: 'c2', met: false, reason: 'fixture' }] };
     ctx.llm.enqueueText(jsonText(verdict)); ctx.llm.enqueueText(jsonText(verdict));
@@ -382,6 +385,6 @@ describe('root acceptance reads the test files the attempt ran', () => {
     expect(readBack).not.toContain('tests/decoy.test.js');
     // Evidence selection only: the verdict stays the model's, and no observation is added.
     expect(result.approved).toBe(false);
-    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(records);
+    expect(workerRecords(ctx.attestations)).toBe(records);
   });
 });

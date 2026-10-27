@@ -58,6 +58,12 @@ export const catalogModelSchema = z
     /** The vendor's own model id — the third selector segment. */
     id: z.string().min(1).max(160),
     label: z.string().min(1).max(120),
+    /** Verified usable context by transport; subscription limits can differ from the API. */
+    contextWindows: z.object({
+      api: z.number().int().positive().optional(),
+      subscription: z.number().int().positive().optional(),
+      source: z.string().min(1),
+    }).strict().optional(),
     /** Tiers this model may serve; absent means every tier. */
     tiers: z
       .array(z.union([z.literal(TIERS[0]), z.literal(TIERS[1]), z.literal(TIERS[2])]))

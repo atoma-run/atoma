@@ -1,3 +1,4 @@
+import { validateComputeNext } from '../supervisor/computeValidation.js';
 import { listAssays, showAssay } from '../supervisor/assayReaders.js';
 import { chmodSync, unlinkSync, lstatSync } from 'node:fs';
 import { recordComputeExecutor } from '../projects/computeExecutor.js';
@@ -1578,6 +1579,7 @@ const ASSAYER: ResidentAssayer | null = (() => {
     return null;
   }
   const journal = EVENTS;
+  const projects = PROJECTS_RUNTIME.store;
   const log = (line: string): void => console.error(`[assayer] ${line}`);
   const options: AssayerOptions = {
     repoRoot: process.cwd(),
@@ -1598,7 +1600,10 @@ const ASSAYER: ResidentAssayer | null = (() => {
     warn: log,
   };
   return startResidentAssayer({
-    assay: (signal, onProgress) => assayNext({ ...options, signal, onProgress }),
+    assay: async (signal, onProgress) => await validateComputeNext({ ...options, signal, onProgress, store: projects,
+      allowed: (principalId, orgId) => AUTH?.store?.listOrganisationsForPrincipal(principalId)
+        .some(membership => membership.orgId === orgId && membership.role !== 'org:viewer') ?? false,
+    }) ?? await assayNext({ ...options, signal, onProgress }),
     isActive: () => (EXECUTOR_MODE && !executorSelected(EXECUTOR_SOCKET!, EXECUTOR_OWN_SOCKET!)) || anyRunActive({ runsDir: RUNS_DIR, leasePath: mcpRunLockPath() }),
     logger: log,
   });
@@ -5572,7 +5577,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     // untouched.
     //
     if (after !== undefined) {
-      const run = safeParseJson<{ events?: unknown[] } | null>(body.toString('utf8'), null);
+      const run = safeParseJson<{ events?: unknown[]; attestations?: unknown } | null>(body.toString('utf8'), null);
       if (!run || !Array.isArray(run.events)) {
         // Unparseable or shapeless on disk (a torn partial write): fall
         // back to the full body rather than inventing a delta.
@@ -5584,7 +5589,8 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       // the client is diffing against (id reuse / rewritten trace) — send
       // everything and let the client resync from scratch.
       const from = after <= total ? after : 0;
-      await sendTraceResponse(req, res, JSON.stringify({ ...run, events: run.events.slice(from), eventsFrom: from, eventsTotal: total }));
+      const { attestations: _archives, ...delta } = run;
+      await sendTraceResponse(req, res, JSON.stringify({ ...delta, events: run.events.slice(from), eventsFrom: from, eventsTotal: total }));
       return;
     }
     await sendTraceResponse(req, res, body);

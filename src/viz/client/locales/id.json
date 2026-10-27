@@ -2840,5 +2840,5 @@
   "admin.ledgerWithheld.counters": "Penghitung tidak berubah.",
   "admin.ledgerWithheld.recipe": "Peristiwa ini tidak mengubah metode tersimpan atau catatan keandalannya yang digunakan bersama di seluruh Atoma.",
   "admin.ledgerWithheld.agent": "Peristiwa ini tidak mengubah catatan keandalan agen yang digunakan bersama di seluruh Atoma.",
-  "admin.ledgerWithheld.compute": "Pekerjaan dijalankan di komputer pribadi dengan Atoma Compute. Pemeriksaan independen di server Atoma diperlukan sebelum dapat memengaruhi pembelajaran bersama."
+  "admin.ledgerWithheld.compute": ""
 }

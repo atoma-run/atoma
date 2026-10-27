@@ -30,10 +30,11 @@ export type RootPlanCheckpoint = z.infer<typeof rootPlanCheckpointSchema>;
 export const checkpointProcessSchema = z.object({ pid: z.number().int().min(2), group: z.boolean() }).strict();
 export type CheckpointProcess = z.infer<typeof checkpointProcessSchema>;
 
-// Deliberately no attestations, trace, tool results or proof-coverage flags.
-// A saved phase is historical context, never an execution in the new process.
+// Archives live in checkpoint evidence rows, outside the bounded plan payload.
+// Historical references never restore execution credit or proof-coverage flags.
 export const completedPhaseSchema = z.object({
   output: z.unknown(), summary: z.string(),
+  historicalEvidenceIds: z.array(z.string()).optional(),
   producedBy: z.object({ tier: z.union([z.literal(1), z.literal(2), z.literal(3)]),
     name: z.string(), viaFallback: z.boolean() }).strict(),
 }).strict();

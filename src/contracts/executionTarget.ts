@@ -24,12 +24,13 @@ export const withheldKnowledgeSchema = z.object({
   reason: z.literal('Customer execution requires independent hosted validation'),
   by: z.string(),
   via: z.string().optional(),
+  automaticValidation: z.literal(true).optional(),
 });
 export type WithheldKnowledge = z.infer<typeof withheldKnowledgeSchema>;
 
 export function withheldComputeKnowledge(
   operation: WithheldKnowledge['operation'], by: string, via?: string
 ): WithheldKnowledge {
-  return { operation, by, ...(via ? { via } : {}), provenance: 'customer-device',
+  return { operation, by, ...(via ? { via } : {}), provenance: 'customer-device', automaticValidation: true,
     reason: 'Customer execution requires independent hosted validation' };
 }

@@ -2840,5 +2840,5 @@
   "admin.ledgerWithheld.counters": "Contadores inalterados.",
   "admin.ledgerWithheld.recipe": "Este evento não altera o método guardado nem o seu registo de fiabilidade partilhado em toda a Atoma.",
   "admin.ledgerWithheld.agent": "Este evento não altera o registo de fiabilidade do agente partilhado em toda a Atoma.",
-  "admin.ledgerWithheld.compute": "O trabalho foi executado num computador pessoal com o Atoma Compute. É necessária uma verificação independente nos servidores da Atoma antes que possa afetar a aprendizagem coletiva."
+  "admin.ledgerWithheld.compute": ""
 }

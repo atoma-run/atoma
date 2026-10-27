@@ -4,7 +4,9 @@ import { assessClientQuestion } from '../atoms/clientQuestion.js';
 import { withRecoveryEffects } from '../core/recoveryEffects.js';
 import { assertCheckpointWorkerAbsent } from '../launcher/checkpointRecovery.js';
 import { assertProjectRunAuthority } from '../projects/runAuthority.js';
-import { ledgerDbPath, setLedgerScope, type LedgerScope } from '../core/ledger.js';
+import { ledgerDbPath, openLedgerHandle, setLedgerScope, type LedgerScope } from '../core/ledger.js';
+import { assertComputeValidationClaim } from '../core/computeValidation.js';
+import { COMPUTE_VALIDATION, computeValidationLaunch } from '../contracts/computeValidation.js';
 import { dirname, resolve } from 'node:path';
 import { cpSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -827,6 +829,12 @@ async function startTaskInternal(
   // argument before mutating anything) is what requires the limits to be in
   // hand before the workspace is touched.
   const dbPath = process.env[RUN_ENV.dbPath] ?? RUN_DEFAULTS.dbPath;
+  const tenantRun = process.env['ATOMA_TENANT_RUN'] === '1';
+  const computeValidation = computeValidationLaunch(process.env);
+  if (computeValidation) {
+    if (tenantRun || !args.container || args.egress) throw new RunnerConfigError('Compute validation requires an isolated host run without network access');
+    assertComputeValidationClaim(openLedgerHandle(dbPath), computeValidation);
+  }
   // PLATFORM LIMITS — what a platform admin has re-stated for this instance.
   // Read from the product store, fail-open to the shipped constants: a
   // missing or torn settings table must never stop a run from launching.
@@ -843,7 +851,8 @@ async function startTaskInternal(
   const requestedTimeoutMs = timeoutRaw === undefined
     ? Math.min(defaultTimeoutMs, statedCeilingMs ?? defaultTimeoutMs)
     : Number(timeoutRaw);
-  const timeoutMs = savedCheckpoint ? Math.min(requestedTimeoutMs, savedCheckpoint.remainingMs, savedCheckpoint.recoveryDeadlineAt === undefined ? Infinity : savedCheckpoint.recoveryDeadlineAt - Date.now()) : requestedTimeoutMs;
+  const timeoutMs = Math.min(computeValidation ? COMPUTE_VALIDATION.timeoutMs : Infinity,
+    savedCheckpoint ? Math.min(requestedTimeoutMs, savedCheckpoint.remainingMs, savedCheckpoint.recoveryDeadlineAt === undefined ? Infinity : savedCheckpoint.recoveryDeadlineAt - Date.now()) : requestedTimeoutMs);
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new RunnerConfigError(
       `invalid ${RUN_ENV.timeoutMs}="${timeoutRaw}" (expected positive integer in ms)`
@@ -995,7 +1004,6 @@ async function startTaskInternal(
   }
 
   const runsDir = process.env['ATOMA_RUNS_DIR'] ?? './runs';
-  const tenantRun = process.env['ATOMA_TENANT_RUN'] === '1';
   const projectPaths = { dbPath, runId: requestedRunId ?? '', workspacePath: workspaceRoot,
     skillsPath: skillsDirPath(), runsPath: runsDir };
   // WHO THIS RUN IS, for the lifecycle ledger (T7). Every counter bump this
@@ -1005,6 +1013,8 @@ async function startTaskInternal(
   // used to discard; an operator run is the CLI on this machine. The run id
   // joins once `beginRun` has fixed it.
   let runScope: LedgerScope = { actorType: 'cli' };
+  if (computeValidation) runScope = { orgId: computeValidation.orgId, projectId: computeValidation.projectId,
+    actorType: 'system', actorId: `compute-validation:${computeValidation.sourceRunId}` };
   if (tenantRun) {
     // Container isolation is the one precondition of a tenant launch. The
     // lifecycle — learning, promotion, dispatch, the prefilter cache — is the
@@ -1112,8 +1122,8 @@ async function startTaskInternal(
   const budgetMeter = new RunBudgetMeter(
     metrics,
     {
-      tokens: ceilingOf(platformLimits, 'run.tokenMaxTotal'),
-      costUsd: ceilingOf(platformLimits, 'run.costMaxUsd'),
+      tokens: computeValidation ? Math.min(COMPUTE_VALIDATION.tokens, ceilingOf(platformLimits, 'run.tokenMaxTotal') ?? Infinity) : ceilingOf(platformLimits, 'run.tokenMaxTotal'),
+      costUsd: computeValidation ? Math.min(COMPUTE_VALIDATION.costUsd, ceilingOf(platformLimits, 'run.costMaxUsd') ?? Infinity) : ceilingOf(platformLimits, 'run.costMaxUsd'),
     },
     (error) => {
       console.error(`\n✗ ${error.message} — cancelling the run`);
@@ -1181,6 +1191,7 @@ async function startTaskInternal(
             if (checkpointWorkspaceDigest(workspaceRoot) !== savedCheckpoint.workspaceDigest) throw new Error('Workspace changed while copying');
           }
         } : undefined,
+        evidence: () => ctx.attestations,
         worker: () => backend.checkpointWorker?.(),
         processes: () => backend.checkpointProcesses?.() ?? null,
         // A graceful pause proves quiescence; cleanup alone only sends signals.
@@ -1382,9 +1393,12 @@ async function startTaskInternal(
   let learningEnqueued = false;
 
   const ctx: RunContext = {
+    modelContextEnv: Object.freeze({ ATOMA_MODEL_CONTEXT_WINDOWS: providerEnv['ATOMA_MODEL_CONTEXT_WINDOWS'],
+      OLLAMA_CONTEXT_LENGTH: providerEnv['OLLAMA_CONTEXT_LENGTH'] }),
     executionProvenance: backend.provenance ?? 'hosted',
     ...(checkpoint ? { rootCheckpoint: checkpoint } : {}),
-    ...(args.depth ? { attestations: createAttestationLog((record) => recorder.recordAttestation(record)) } : {}),
+    ...(args.depth ? { attestations: createAttestationLog((record) => recorder.recordAttestation(record),
+      checkpoint ? checkpointStore!.historicalEvidence(checkpoint.data) : []) } : {}),
     logger: consoleLogger,
     signal,
     deadlineAt,
@@ -1413,6 +1427,7 @@ async function startTaskInternal(
     // a Skills lane (match / inject / learn / update / counter bumps).
     recordSkill: (info) => recorder.recordSkillEvent(info),
     recordTiming: (info) => recorder.recordTiming(info),
+    recordEvidenceSnapshot: record => recorder.recordAttestation(record),
     recordRunStat: (signalName) => {
       runSignals[signalName] += 1;
     },

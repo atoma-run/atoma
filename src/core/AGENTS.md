@@ -174,6 +174,19 @@ Neighbours:
 
 ## Vendors, the model catalogue and prices
 
+- Review input capacity is model/transport data (`modelCatalog.json`'s
+  `contextWindows`), with exact-selector `ATOMA_MODEL_CONTEXT_WINDOWS` JSON
+  overrides and Ollama's configured request window. Unknown capacity is marked
+  unverified, never advertised as a provider guarantee. `contextBudget.ts`
+  reserves the requested output and 15% tokenizer/protocol headroom, then counts
+  visible text with local o200k_base BPE (js-tiktoken); other tokenizers may differ.
+  This estimate is not provider billing usage. Historical checkpoint archives
+  resolve by id only, excluded from active branch/attempt proof and credit.
+- `evidenceArchive.ts` captures complete tool request/results as gzip with a
+  length and digest. Attestation trace persistence keeps them after the run.
+  Reading verifies both before returning the original serialized text and
+  executes nothing. Compression saves stored/transferred bytes, not model tokens.
+
 - Eleven vendors, each its OWN transport (`<vendor>-api`, Ollama `ollama`):
   one key, one endpoint. Anthropic and Z.ai speak Messages
   (`AnthropicLlmClient`), OpenAI the Responses API, and Google, xAI, Meta,

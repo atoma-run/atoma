@@ -2840,5 +2840,5 @@
   "admin.ledgerWithheld.counters": "Zähler unverändert.",
   "admin.ledgerWithheld.recipe": "Dieses Ereignis ändert weder die gespeicherte Methode noch ihren in atoma geteilten Zuverlässigkeitsdatensatz.",
   "admin.ledgerWithheld.agent": "Dieses Ereignis ändert nicht den in atoma geteilten Zuverlässigkeitsdatensatz des Agents.",
-  "admin.ledgerWithheld.compute": "Die Arbeit wurde mit Atoma Compute auf einem privaten Computer ausgeführt. Eine unabhängige Prüfung auf den Servern von Atoma ist erforderlich, bevor sie das gemeinsame Lernen beeinflussen kann."
+  "admin.ledgerWithheld.compute": ""
 }

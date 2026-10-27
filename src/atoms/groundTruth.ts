@@ -1,6 +1,7 @@
 import { posix } from 'node:path';
 import type { RunContext } from '../core/types.js';
 import { baseExecutorOf } from '../core/attestation.js';
+import { archiveHostFileRead } from './evidenceReading.js';
 import { fileReadsNeedingReadback, type AttestationRecord } from '../contracts/attestation.js';
 import { pathHeldNoFile } from '../contracts/toolOutput.js';
 import { criteriaFilesBlock } from './fileEvidence.js';
@@ -968,6 +969,7 @@ async function probeFilesGroundTruth(args: {
     if (args.ctx.signal?.aborted) return empty;
     try {
       const raw = await tools.execute('read_file', { path });
+      archiveHostFileRead(args.ctx, path, raw);
       if (pathHeldNoFile(raw)) throw new Error(`${path} holds no file`);
       const content =
         raw && typeof raw === 'object' && typeof (raw as Record<string, unknown>)['content'] === 'string'
@@ -1022,6 +1024,7 @@ async function probeFilesGroundTruth(args: {
             : `\n    excerpt: ${JSON.stringify(excerpt)}${content.length > excerpt.length ? ' …(truncated)' : ''}`)
       );
     } catch (err) {
+      archiveHostFileRead(args.ctx, path, { error: 'Host read failed; current contents unknown' }, true);
       // A miss is only reportable for a STRUCTURED claim. A prose mention that
       // does not resolve is usually the child saying a file is absent — which
       // is often the DESIRED state — so reporting it would invent a

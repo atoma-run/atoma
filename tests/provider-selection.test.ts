@@ -95,8 +95,10 @@ describe('makeTransportClient — ONE construction switch per transport', () => 
 
   it('builds Ollama from the injected env (OLLAMA_BASE_URL / OLLAMA_MODEL)', async () => {
     const calls: string[] = [];
+    const contexts: number[] = [];
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = async (input: string | URL | Request) => {
+    globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
+      contexts.push((JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { options: { num_ctx: number } }).options.num_ctx);
       calls.push(input instanceof Request ? input.url : input.toString());
       return new Response(
         JSON.stringify({
@@ -111,11 +113,12 @@ describe('makeTransportClient — ONE construction switch per transport', () => 
     };
     try {
       const client = makeTransportClient('ollama', {
-        env: { OLLAMA_BASE_URL: 'http://ollama.test:11434/', OLLAMA_MODEL: 'stub' },
+        env: { OLLAMA_BASE_URL: 'http://ollama.test:11434/', OLLAMA_MODEL: 'stub', OLLAMA_CONTEXT_LENGTH: '8192' },
       });
       expect(client).toBeInstanceOf(OllamaLlmClient);
       await client.complete({ model: 'qwen3:8b', systemPrompt: 's', userContent: 'u' });
       expect(calls[0]).toMatch(/^http:\/\/ollama\.test:11434\/api\/chat/);
+      expect(contexts).toEqual([8192]);
     } finally {
       globalThis.fetch = originalFetch;
     }

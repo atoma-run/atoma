@@ -1,3 +1,4 @@
+import { isEvidenceReadingResponse } from '../../contracts/llmTrace.js';
 import type { VizEvent, VizRun } from '../client/types.js';
 import { inFlightLlmEvents, isRunLive } from '../client/run-utils.js';
 
@@ -125,7 +126,7 @@ export function buildRunActivity(run: VizRun) {
   const observed = new Set([...phases.values()].flatMap(phase => phase.stages));
   const touched = [...files.values()].filter(file => file.confirmed > 0).length;
   const workSteps = new Set(roots.values()).size;
-  const reviews = run.events.filter(event => event.kind === 'llm' && event.role === 'validate-result' && !event.error).length;
+  const reviews = run.events.filter(event => event.kind === 'llm' && event.role === 'validate-result' && !event.error && !isEvidenceReadingResponse(event.response)).length;
   const steps: ActivityStep[] = (['plan', 'execute', 'validate-result'] as const).map(id => {
     const matches = (stage: ActivityStage) => stage === id || (id === 'plan' && stage === 'validate-plan');
     const recorded = [...observed].some(matches);

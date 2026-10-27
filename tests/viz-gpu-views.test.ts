@@ -2527,11 +2527,30 @@ describe('drawLedger', () => {
     expect(text).toContain('Learning withheld');
     expect(text.replace(/\s+/g, ' ')).toContain('Counters unchanged.');
     expect(text.replace(/\s+/g, ' ')).toContain('does not change the saved method');
-    expect(text.replace(/\s+/g, ' ')).toContain('independent check');
+    expect(text.replace(/\s+/g, ' ')).toContain('Automatic verification is tracked separately');
     expect(text).toContain(`operation: ${operation}`);
     expect(ctx.tooltips.some(tooltip => tooltip.text.includes('skill-credit-withheld'))).toBe(true);
     expect(text).toContain('Customer execution requires independent hosted validation');
     expect(text).toContain('run-comp');
+  });
+
+  it.each(['queued','budget-wait','running','completed','inconclusive','blocked','interrupted'])('explains automatic validation state %s', status => {
+    const ctx = createRecordingCtx();
+    drawLedger(ctx, makeSnapshot({ view: 'ledger' }, { auth, adminLedger: [{
+      at: '2026-10-27T00:00:00.000Z', kind: 'compute-validation', entity: 'source-run',
+      detail: { status, countersChanged: status === 'completed', recipesChanged: status === 'completed' },
+    }] }), 528, 1800);
+    const text = ctx.texts.map(row => row.value).join(' ').replace(/\s+/g,' ');
+    expect(text).toContain('Automatic Compute verification');
+    expect(text).toContain('One attempt per source run');
+    expect(text).toContain('4 attempts in 24 hours');
+    expect(text).toContain('Calls already in progress may exceed');
+    if (status === 'completed') {
+      expect(text).toContain('original Compute observation remains withheld');
+      expect(text).toContain('changed reliability counters');
+      expect(text).toContain('changed a shared recipe');
+    }
+    if (status === 'blocked') expect(text).toContain('counters unchanged');
   });
 
   it('is its own screen, and says what it is not', () => {

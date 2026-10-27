@@ -1,4 +1,4 @@
-import type { AttestationLog, ProofObligation } from '../contracts/attestation.js';
+import type { AttestationLog, AttestationRecord, ProofObligation } from '../contracts/attestation.js';
 
 export type Tier = 1 | 2 | 3;
 
@@ -1034,6 +1034,8 @@ export interface RunContext {
    */
   readonly deadlineAt?: number;
   readonly llm: LlmClient;
+  /** Host-snapshot model capacities; no credentials or task-authored overrides. */
+  readonly modelContextEnv?: Partial<Pick<NodeJS.ProcessEnv, 'ATOMA_MODEL_CONTEXT_WINDOWS' | 'OLLAMA_CONTEXT_LENGTH'>>;
   readonly limits: Limits;
   /** Optional: tool executor used by molecules when the LLM emits tool_use blocks. */
   readonly tools?: ToolExecutor;
@@ -1045,10 +1047,13 @@ export interface RunContext {
    * narrow to "whatever this fork happened to see". `forkBranch` wraps
    * `tools` per branch to write into it.
    *
-   * Memory only. Nothing here outlives the run, which is why it is not a
-   * store and why cross-run proof reuse is out of scope.
+   * Active proof is memory-only. Complete archives also persist in the trace
+   * and checkpoint; restored records are lookup-only historical context, never
+   * members of a new process's proof/credit counters.
    */
   attestations?: AttestationLog;
+  /** Archive a host review presentation without entering active execution proof. */
+  readonly recordEvidenceSnapshot?: (record: AttestationRecord) => void;
   /**
    * Product-run integrity gate: when true, a production L1 Result that carries
    * an observed-action list but no successful action is mechanically rejected

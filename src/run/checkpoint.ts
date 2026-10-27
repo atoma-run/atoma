@@ -1,3 +1,5 @@
+import { attestationRecordSchema, type AttestationLog, type AttestationRecord } from '../contracts/attestation.js';
+import { transportWitnesses } from '../contracts/witness.js';
 import { initializeClientQuestions, readClientQuestion, recordClientQuestion, answerClientQuestion, applyClientAnswer } from './clientQuestions.js';
 import { clientAnswerHistoryHasRoom, type AnswerClientQuestion, type ClientQuestion } from '../contracts/clientQuestion.js';
 import type { Task, SubtaskSpec } from '../core/types.js';
@@ -133,6 +135,7 @@ export class RunCheckpointStore {
     this.db = openStoreHandle(path, DDL);
     initializeClientQuestions(this.db);
     this.db.exec('CREATE TABLE IF NOT EXISTS run_checkpoint_pauses (id TEXT PRIMARY KEY)');
+    this.db.exec('CREATE TABLE IF NOT EXISTS run_checkpoint_evidence (id TEXT NOT NULL, event_id TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY(id,event_id))');
     initializeCheckpointWorkspaces(this.db);
     this.db.exec(`CREATE TABLE IF NOT EXISTS run_checkpoint_recovery (
       id TEXT PRIMARY KEY, boundary_seq INTEGER NOT NULL, blocked TEXT, consumed TEXT NOT NULL, deadline REAL NOT NULL
@@ -197,6 +200,7 @@ export class RunCheckpointStore {
       if (encoded(this.read(source.id)) !== encoded(source)) throw new Error('Checkpoint changed before continuation');
       const { state: sourceState } = this.db.prepare('SELECT state FROM run_checkpoints WHERE id=?').get(source.id) as { state: string };
       this.db.prepare("UPDATE run_checkpoints SET state='finished' WHERE id=?").run(source.id);
+      this.db.prepare('INSERT INTO run_checkpoint_evidence SELECT ?, event_id, record FROM run_checkpoint_evidence WHERE id=?').run(next.id, source.id);
       return { owner: this.claim(next, true), sourceState };
     }).immediate();
   }
@@ -212,6 +216,23 @@ export class RunCheckpointStore {
       }
       this.db.prepare("UPDATE run_checkpoints SET state='finished' WHERE id=?").run(nextId);
     }).immediate();
+  }
+
+  /** Archive rows are independent of the bounded checkpoint plan payload. */
+  saveEvidence(id: string, owner: string, records: readonly AttestationRecord[]): void {
+    this.db.transaction(() => {
+      if (!this.db.prepare("SELECT 1 FROM run_checkpoints WHERE id=? AND owner=? AND state<>'finished'").get(id, owner)) throw new Error('Checkpoint ownership lost');
+      const insert = this.db.prepare('INSERT OR IGNORE INTO run_checkpoint_evidence(id,event_id,record) VALUES (?,?,?)');
+      for (const record of records) insert.run(id, record.eventId, JSON.stringify(attestationRecordSchema.parse(record)));
+    }).immediate();
+  }
+  historicalEvidence(data: RunCheckpoint): AttestationRecord[] {
+    const read = this.db.prepare('SELECT record FROM run_checkpoint_evidence WHERE id=? AND event_id=?');
+    return [...new Set(data.completed.flatMap(phase => phase.historicalEvidenceIds ?? []))].flatMap(eventId => {
+      const row = read.get(data.id, eventId) as { record: string } | undefined;
+      if (!row) return []; // Legacy or unavailable archive is unknown, never freshly observed.
+      return [{ ...attestationRecordSchema.parse(JSON.parse(row.record)), historical: true as const }];
+    });
   }
 
   read(id: string): RunCheckpoint {
@@ -403,6 +424,7 @@ export class RunCheckpointStore {
       this.db.prepare('DELETE FROM run_checkpoint_actions WHERE id=?').run(id);
       this.db.prepare('DELETE FROM run_checkpoint_recovery WHERE id=?').run(id);
       this.db.prepare('DELETE FROM run_checkpoint_pauses WHERE id=?').run(id);
+      this.db.prepare('DELETE FROM run_checkpoint_evidence WHERE id=?').run(id);
       this.pruneSnapshots();
     }).immediate();
   }
@@ -449,6 +471,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     /** Stop every run process and confirm its exit. A pausing boundary seals only after it. */
     drain?: () => Promise<void>;
     processes: () => RunCheckpoint['processes'];
+    evidence?: () => AttestationLog | undefined;
     worker?: () => RunCheckpoint['worker'];
     restoreWorkspace?: () => void | Promise<void>;
     workspace?: Pick<import('../contracts/workspaceRuntime.js').WorkspaceRuntime, 'checkpointDigest' | 'checkpointExport' | 'confirmCheckpoint'>;
@@ -466,7 +489,13 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     if (restored) this.ready = restored.then(completeRestore);
     else { completeRestore(); this.ready = Promise.resolve(); }
     setRecoveryEffectHandler(db => { if (this.active) store.blockMutation(data.id, this.owner, db); });
+    const historical = new Map(store.historicalEvidence(data).map(record => [record.eventId, record]));
     this.prior = data.completed.map(result => ({ ...result, trace: [],
+      evidence: (result.historicalEvidenceIds ?? []).flatMap(id => {
+        const record = historical.get(id);
+        return record ? [{ source: 'transport-observed' as const, eventId: id, tool: record.tool,
+          observed: `[RECORDED BEFORE RESTART; not current execution or current source] ${record.tool} event=${record.eventId}; full archive available by id` }] : [];
+      }),
       summary: `[COMPLETED BEFORE RESTART — historical context; recheck runtime endpoints and evidence] ${result.summary}` }));
   }
   get completed(): readonly Result[] { return this.active ? this.prior : []; }
@@ -605,7 +634,14 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     await this.options.settle(); // Account deferred audit calls before publishing a resumable boundary.
     const pausing = this.store.pauseRequested(this.data.id) || this.options.pauseAfter === index + 1 ||
       (index + 1 < this.phaseCount && outOfPhaseBudget(this.options.deadlineAt));
-    this.data.completed.push({ output: result.output, summary: result.summary, producedBy: result.producedBy });
+    const log = this.options.evidence?.();
+    const records = transportWitnesses(result.evidence).flatMap(witness => {
+      const record = log?.get(witness.eventId);
+      return record ? [record] : [];
+    });
+    this.store.saveEvidence(this.data.id, this.owner, records);
+    this.data.completed.push({ output: result.output, summary: result.summary, producedBy: result.producedBy,
+      ...(records.length ? { historicalEvidenceIds: records.map(record => record.eventId) } : {}) });
     let stopping = false;
     try {
       if (pausing) {

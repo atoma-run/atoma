@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { JEV_EXCLUSION_STAMPS, JEV_EXCLUSIONS, type JevExclusion } from '../contracts/llmTrace.js';
 import { runActorKey } from '../contracts/runActors.js';
+import { isEvidenceReadingResponse } from '../contracts/llmTrace.js';
 import {
   JEV_THRESHOLDS,
   NEW_RECIPE,
@@ -161,6 +162,11 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
       if (event.role === 'prefilter' && typeof event.actor?.name === 'string' && isDetails(event.details)) {
         detailsByActor.set(event.actor.name, event.details);
       }
+    }
+    if (event?.kind === 'llm' && typeof event.response === 'string') {
+      try {
+        if (isEvidenceReadingResponse(event.response)) continue;
+      } catch { /* Keep malformed responses in the recorded reviewer-fault corpus. */ }
     }
     if (event?.kind === 'llm' && event.role === 'jev-audit' && typeof event.id === 'string') {
       if (event.subject === 'PLAN' || event.subject === 'RESULT') {

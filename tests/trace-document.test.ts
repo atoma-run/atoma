@@ -95,3 +95,13 @@ it('bounds materialized selections independently of the complete file', () => {
   expect(projectTraceDocument(path, (_name, read) => read(), () => undefined))
     .toEqual({ run: { id: 'large', events: [] }, totalEvents: 1 });
 });
+
+it('retains full evidence in the canonical trace without retransmitting archives in live deltas', async () => {
+  const path = file();
+  const attestations = [{ eventId: 'proof', fullEvidence: { data: 'gzip-body'.repeat(100000) } }];
+  writeFileSync(path, JSON.stringify({ id: 'run', attestations, events: [{ id: 'a' }, { id: 'b' }] }));
+  expect(JSON.parse(await streamed(path)).attestations).toEqual(attestations);
+  const delta = JSON.parse(await streamed(path, 1));
+  expect(delta).not.toHaveProperty('attestations');
+  expect(delta.events).toEqual([{ id: 'b' }]);
+});

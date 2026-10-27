@@ -2840,5 +2840,5 @@
   "admin.ledgerWithheld.counters": "カウンターは変更されませんでした。",
   "admin.ledgerWithheld.recipe": "このイベントは、保存済みの手法やAtoma全体で共有されるその信頼性記録を変更しません。",
   "admin.ledgerWithheld.agent": "このイベントは、Atoma全体で共有されるagentの信頼性記録を変更しません。",
-  "admin.ledgerWithheld.compute": "この作業は、Atoma Computeを使用してパソコン上で実行されました。共有学習に反映するには、Atomaのサーバーによる独立した検証が必要です。"
+  "admin.ledgerWithheld.compute": ""
 }

@@ -6,6 +6,7 @@ import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR } from '../view-frame.js';
 import { timestampTooltip } from '../relative-time.js';
 import { wrapCopyLines } from '../compute-results-block.js';
+import { COMPUTE_VALIDATION, computeValidationStatusSchema } from '../../../../contracts/computeValidation.js';
 
 /**
  * THE CATALOGUE LEDGER's tail — a SEPARATE record from the platform journal,
@@ -69,7 +70,21 @@ function isWithheld(entry: VizLedgerEvent): boolean {
 }
 
 function ledgerKind(entry: VizLedgerEvent, t: Translate): string {
+  if (entry.kind === 'compute-validation') return t('admin.computeValidation.label');
   return isWithheld(entry) ? t('admin.ledgerWithheld.label') : entry.kind;
+}
+
+function validationExplanation(entry: VizLedgerEvent, t: Translate): string {
+  const parsed = computeValidationStatusSchema.safeParse(entry.detail?.['status']);
+  const status = parsed.success ? parsed.data : 'inconclusive';
+  const parts = [t(`admin.computeValidation.${status}`)];
+  if (status === 'completed' || status === 'inconclusive' || status === 'interrupted') {
+    parts.push(t(entry.detail?.['countersChanged'] === true ? 'admin.computeValidation.newCounters' : 'admin.computeValidation.noCounters'));
+    if (entry.detail?.['recipesChanged'] === true) parts.push(t('admin.computeValidation.newRecipes'));
+  }
+  parts.push(t('admin.computeValidation.budget', { attempts: COMPUTE_VALIDATION.attemptsPerDay,
+    minutes: COMPUTE_VALIDATION.timeoutMs / 60_000, tokens: COMPUTE_VALIDATION.tokens, cost: COMPUTE_VALIDATION.costUsd }));
+  return parts.join(' ');
 }
 
 function withheldExplanation(entry: VizLedgerEvent, t: Translate): string {
@@ -257,7 +272,9 @@ export function drawLedger(
   // Wrap the explanation before culling so all rows keep their real height,
   // including translated copy and rows outside the viewport.
   const rows = ledger.map(entry => {
-    const lines = isWithheld(entry) ? wrapCopyLines(ctx, withheldExplanation(entry, snapshot.t), innerWidth - 16) : [];
+    const explanation = isWithheld(entry) ? withheldExplanation(entry, snapshot.t) :
+      entry.kind === 'compute-validation' ? validationExplanation(entry, snapshot.t) : '';
+    const lines = explanation ? wrapCopyLines(ctx, explanation, innerWidth - 16) : [];
     return { entry, lines, height: rowHeight + lines.length * 20 + (lines.length ? 8 : 0) };
   });
   const listHeight = rows.reduce((sum, row) => sum + row.height, 0) + 12;

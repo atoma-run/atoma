@@ -56,6 +56,7 @@ import type { SkillRegistry } from '../skills/registry.js';
 import type { Skill } from '../skills/types.js';
 import { anyRunActive } from './activity.js';
 import { assayEvent, safeSink } from './journal.js';
+import type { DepthMode } from '../contracts/depthRouting.js';
 
 /** Credited tasks per assay; two arms each. */
 export const ASSAY_MAX_CASES = 2;
@@ -82,6 +83,9 @@ export interface AssayCase {
 
 /** What the arm launcher is handed; the default builds on `spawnRun`. */
 export interface ArmLaunch {
+  readonly onSpawn?: (pid: number) => void;
+  readonly seed?: string;
+  readonly depth?: DepthMode;
   readonly arm: AssayArm;
   readonly caseIndex: number;
   readonly goal: string;
@@ -100,7 +104,7 @@ export interface ArmLaunch {
  * must not do so on the deployment's own filesystem. `host` is the CLI's
  * default on a developer machine without Docker.
  */
-export type ArmIsolation = 'host' | 'container-egress';
+export type ArmIsolation = 'host' | 'container' | 'container-egress';
 
 /** Resolves to the run's log text; rejects on a spawn failure. */
 export type ArmLauncher = (launch: ArmLaunch) => Promise<string>;
@@ -127,7 +131,7 @@ export interface AssayerOptions {
   readonly warn: (line: string) => void;
 }
 
-export type AssayOutcome = 'assayed' | 'dry-run' | 'nothing-pending' | 'refused-active' | 'preempted' | 'failed';
+export type AssayOutcome = 'assayed' | 'dry-run' | 'nothing-pending' | 'refused-active' | 'preempted' | 'failed' | 'compute-validated';
 
 export interface AssayResult {
   readonly outcome: AssayOutcome;
@@ -445,7 +449,7 @@ export async function assayNext(options: AssayerOptions, pick: { readonly only?:
 }
 
 /** The production launcher: one ordinary operator run through the shared runner, in its own process group. */
-const defaultLauncher: ArmLauncher = async (launch) => {
+export const defaultLauncher: ArmLauncher = async (launch) => {
   const { spawnRun } = await import('../cli/burnin.js');
   const source = import.meta.url.endsWith('.ts');
   return spawnRun({
@@ -453,8 +457,10 @@ const defaultLauncher: ArmLauncher = async (launch) => {
     timeoutMs: launch.timeoutMs,
     logPath: launch.logPath,
     env: launch.env,
-    ...(launch.isolation === 'container-egress' ? { extraArgs: ['--container', '--egress'] } : {}),
+    extraArgs: [...(launch.isolation === 'container-egress' ? ['--container', '--egress'] : launch.isolation === 'container' ? ['--container'] : []),
+      ...(launch.seed ? ['--seed', launch.seed] : []), ...(launch.depth ? ['--depth', launch.depth] : [])],
     cwd: launch.cwd,
+    ...(launch.onSpawn ? { onSpawn: launch.onSpawn } : {}),
     npmScript: source ? 'run:build:dev' : 'run:build',
     // The arm's learning is off, so there is nothing to wait for; the flag keeps the runner's accounting inside the run.
     waitForLearning: true,

@@ -620,7 +620,8 @@ export async function* traceDocumentChunks(pathname: string, after?: number): As
     const from = after <= ranges.length ? after : 0;
     yield '{';
     for (const [name, range] of fields) {
-      if (name === 'events' || name === 'eventsFrom' || name === 'eventsTotal') continue;
+      // Full immutable evidence remains in the canonical trace, never repeated by live delta polls.
+      if (name === 'attestations' || name === 'events' || name === 'eventsFrom' || name === 'eventsTotal') continue;
       yield JSON.stringify(name) + ':';
       yield* chunks(range);
       yield ',';

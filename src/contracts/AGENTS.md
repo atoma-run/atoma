@@ -182,6 +182,13 @@ public setting or client capability, and introduces no stored runtime identity.
 - HTTP, shell, file-read and server-start observations are bounded historical
   evidence in the same attestation log. They do not establish DOM interaction
   or introduce automatic approval, and their scripts/content remain untrusted.
+  Those are PRESENTATION excerpts. New attestation records also carry the
+  complete JSON request/result in `fullEvidence`, whose gzip/Base64, byte
+  length and SHA-256 shape belongs to `evidenceReading.ts`. The runtime captures
+  it before excerpting and persists it with the existing run trace; no 24k/48k
+  retention cap or second product store. Legacy missing archives stay unknown.
+  Reading requests name only inventory event ids and character ranges; they
+  are distinct from Verdicts and never element invocations or execution credit.
   Shell observations retain an optional raw-result `exitCode` before excerpting; text never supplies it, and legacy absence stays unknown.
   File reads record host-computed `responseTruncated` as true or false;
   absent on older records means unknown. `fileReadsNeedingReadback` combines

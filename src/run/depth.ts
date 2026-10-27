@@ -1,3 +1,4 @@
+import { EvidenceReviewError } from '../core/errors.js';
 import { restorationDamaged } from '../contracts/readOnlyPhase.js';
 import { EARLIER_LISTED_INPUT, baselineEstablishedNothing } from '../contracts/inheritedChecks.js';
 import type { Atom } from '../core/atom.js';
@@ -609,6 +610,10 @@ export async function runDepthTask(args: {
               // Once the clock is involved — the window closed, or the run
               // deadline passed — the work in hand is kept, never delivered, and
               // no new pass is opened.
+              if (error instanceof EvidenceReviewError) {
+                ctx.logger.warn(`[root] acceptance review incomplete: ${error.message}`);
+                return markRefused(result, { reasoning: `Root evidence review incomplete (${error.message}); no implementation defect is established. Work is preserved without delivery or replay.` });
+              }
               const clock = acceptanceCtx.signal.aborted || abortedForLanding(ctx);
               if (!clock && !prior) throw error;
               if (prior) ctx.recordRunStat?.('unjudged-remediation');

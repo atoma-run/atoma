@@ -808,7 +808,7 @@ describe('file read-back probe (#F9)', () => {
     const base = makeCtx();
     const ctx = { ...base, tools: exec, signal: controller.signal };
     ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'ok' }));
-    await llmVerdict({
+    await expect(llmVerdict({
       ctx,
       model: 'claude-haiku-test',
       supervisorName: 'Ammonia',
@@ -817,7 +817,8 @@ describe('file read-back probe (#F9)', () => {
       child: fileChild(),
       task: { description: 'write files' },
       payload: { output: { path: 'README.md' } },
-    });
+    })).rejects.toBe(controller.signal.reason);
+    expect(ctx.llm.calls).toHaveLength(0);
     expect(exec.calls).toHaveLength(0);
   });
 });

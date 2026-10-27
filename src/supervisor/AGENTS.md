@@ -22,6 +22,30 @@ Neighbours:
 - [`src/viz`](../viz/AGENTS.md) — the gated server that hosts the resident analyst
 - [`src/projects`](../projects/AGENTS.md) — the tenant corpus the analyst reads
 
+## Automatic Compute verification
+
+The resident assayer first drains `computeValidation.ts`: new, explicitly eligible
+withheld device observations coalesce to one attempt per ended source run. The
+primary store owns the queue and atomic ledger admission. No historical backfill.
+The same idle/deployment gate, exclusive lease and preemption apply; the child
+process group is attached before it can outlive its owner. Interrupted attempts
+are not retried. Host policy bounds each attempt to 240 seconds, 60,000 tokens,
+$0.25 API-equivalent consumption, and four starts in a rolling 24 hours. In-flight
+calls may exceed consumption stops; unknown spend still reserves one attempt.
+
+An ordinary hosted run starts from the recorded empty seed and acceptance,
+never the device's output, with a separate trace/workspace, host model pins and
+network-disabled worker. Membership, project state, empty starting state and
+saved context are checked before spending; unavailable conditions are blocked.
+Seeded follow-ups (including inherited proof/configuration and prior results),
+read-run imports, crash recovery and repository-materialised seeds are not yet
+reproducible here: a publication inventory is not a complete launch snapshot. No
+publication or device credentials. Only this new run's own verified observations
+can affect the commons through ordinary hooks; the original receipt remains
+withheld. A failed/inconclusive rerun never retrospectively blames its recipe.
+Logs cannot establish completion: host trace metadata and index must agree.
+The ledger records status, cost and whether independent counters/recipes changed.
+
 ## Three risk profiles, one boundary between them
 
 - The SENTINEL watches live and holds no LLM. The ANALYST holds an LLM and no

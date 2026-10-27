@@ -2840,5 +2840,5 @@
   "admin.ledgerWithheld.counters": "شمارندے تبدیل نہیں ہوئے۔",
   "admin.ledgerWithheld.recipe": "یہ واقعہ محفوظ شدہ طریقے یا Atoma بھر میں مشترک اس کے قابلِ اعتمادیت کے ریکارڈ کو تبدیل نہیں کرتا۔",
   "admin.ledgerWithheld.agent": "یہ واقعہ Atoma بھر میں مشترک ایجنٹ کے قابلِ اعتمادیت کے ریکارڈ کو تبدیل نہیں کرتا۔",
-  "admin.ledgerWithheld.compute": "یہ کام ذاتی کمپیوٹر پر Atoma Compute کے ذریعے چلا۔ مشترکہ سیکھنے پر اثر انداز ہونے سے پہلے Atoma کے سرورز پر اس کی آزادانہ جانچ ضروری ہے۔"
+  "admin.ledgerWithheld.compute": ""
 }

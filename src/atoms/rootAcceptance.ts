@@ -1,3 +1,4 @@
+import { evidenceForReview } from './evidenceReading.js';
 import { timed } from '../core/runtimeTiming.js';
 import { createHash } from 'node:crypto';
 import { baseExecutorOf } from '../core/attestation.js';
@@ -11,7 +12,7 @@ import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contrac
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
 import { checkGroundTruth } from './groundTruth.js';
 import { commandTestScripts, criteriaFilesBlock, ROOT_CRITERIA_SOURCE_CHARS } from './fileEvidence.js';
-import { llmVerdict, renderTransportEvidence } from './verdict.js';
+import { llmVerdict, renderTransportEvidence, transportEvidenceBudget } from './verdict.js';
 import { reviewAcceptanceCriteria } from './criteriaReview.js';
 import { renderParentTestsBlock } from './parentTestsBlock.js';
 import { textReviewReference } from './textReview.js';
@@ -500,7 +501,7 @@ async function acceptRootResultInternal(args: {
   passEvidence.sort((left, right) =>
     (left.source === 'transport-observed' ? recordOrder.get(left.eventId) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER) -
     (right.source === 'transport-observed' ? recordOrder.get(right.eventId) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER));
-  const evidence = acceptedEvidence(passEvidence.length > 0 ? passEvidence : undefined, stale)?.map((witness) => {
+  const candidateEvidence = acceptedEvidence(passEvidence.length > 0 ? passEvidence : undefined, stale)?.map((witness) => {
     if (witness.source !== 'transport-observed') return witness;
     const rewritten = superseded.get(witness.eventId);
     const record = recordsById.get(witness.eventId);
@@ -508,6 +509,7 @@ async function acceptRootResultInternal(args: {
       ? { ...witness, observed: renderObservation(record, { rewrittenBy: rewritten.rewrittenBy }) }
       : witness;
   });
+  const evidence = evidenceForReview(ctx, candidateEvidence);
   const probe = await checkGroundTruth({ ctx, subject: 'RESULT', refreshSupersededReads: false,
     payload: { output: result.output, summary: result.summary }, child: actor,
     ...(evidence ? { evidence } : {}) });
@@ -558,7 +560,7 @@ async function acceptRootResultInternal(args: {
   // Named criteria files and incomplete reads share one bounded reader.
   // A criterion need not spell a filename for an incomplete read to refresh.
   const reviewing = review && !gates.rejection;
-  const transport = renderTransportEvidence(evidence);
+  const transport = renderTransportEvidence(evidence, Math.floor(transportEvidenceBudget(modelForTier(1), ctx.modelContextEnv) / 2));
   // Preserve the mutation inventory independently of read/command excerpt
   // selection. These are observed calls, not a claim that all state is known.
   const changes = args.previousEvidence ? renderTransportEvidence(evidence?.filter(witness =>
@@ -620,12 +622,12 @@ async function acceptRootResultInternal(args: {
     payload: { output: result.output, summary: result.summary, producedBy: result.producedBy },
     ...(evidence ? { evidence } : {}),
     groundTruthBlock: probe.block,
+    readableContextBlock: [namedFilesBlock, readRunsBlock].filter(Boolean).join('\n\n'),
     ...(parentTestsBlock ? { parentTestsBlock } : {}),
     mechanicalFindingsBlock: renderResultGateFindings(gates.reviewFindings),
     proofCoverageBlock: 'ROOT DELIVERY PROOF (no effect on phase credits):\n' + JSON.stringify(floorCoverage) +
       (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : '') + (inputsBlock ? `\n\n${inputsBlock}` : '') +
-      (namedFilesBlock ? `\n\n${namedFilesBlock}` : '') + (startingBlock ? `\n\n${startingBlock}` : '') +
-      (readRunsBlock ? `\n\n${readRunsBlock}` : '') +
+      (startingBlock ? `\n\n${startingBlock}` : '') +
       (remediationChanges ? `\n\n${remediationChanges}` : '') +
       (restorationsBlock ? `\n\n${restorationsBlock}` : '') + (inheritedBlock ? `\n\n${inheritedBlock}` : '') +
       (reconciliation ? `\n\n${reconciliation}` : ''),
@@ -648,7 +650,7 @@ async function acceptRootResultInternal(args: {
   // gaps on its first pass, not fresh requirements after its only repair.
   // Landed/text/mechanically rejected paths retain their separate protocols.
   const focused = reviewing && userCriteria && !landed && args.delivery !== 'text'
-    ? await reviewAcceptanceCriteria({ ctx, task, checklist,
+    ? await reviewAcceptanceCriteria({ ctx, task, checklist, witnesses: evidence,
       evidence: [probe.block, namedFilesBlock, checklistBlock, layoutsBlock, inputsBlock, startingBlock, readRunsBlock, restorationsBlock,
         inheritedBlock, parentTestsBlock, remediationChanges, renderResultGateFindings(gates.reviewFindings),
         [`Transport observations: ${transport.omitted} omitted; omissions establish no coverage.`, ...transport.lines]

@@ -2,7 +2,7 @@ import { assertServedHostChatGptModels } from '../contracts/runPayers.js';
 import Anthropic from '@anthropic-ai/sdk';
 import type { LlmClient } from '../core/types.js';
 import { AnthropicLlmClient } from '../core/llm.js';
-import { OllamaLlmClient } from '../core/llmOllama.js';
+import { OllamaLlmClient, ollamaContextLength } from '../core/llmOllama.js';
 import { OpenAiLlmClient } from '../core/llmOpenAi.js';
 import { ClaudeCliLlmClient } from '../core/llmClaudeCli.js';
 import { CodexCliLlmClient } from '../core/llmCodexCli.js';
@@ -83,6 +83,7 @@ export function makeTransportClient(
       return new OllamaLlmClient({
         baseUrl: env['OLLAMA_BASE_URL'],
         defaultModel: env['OLLAMA_MODEL'],
+        contextLength: ollamaContextLength(env['OLLAMA_CONTEXT_LENGTH'] ?? ''),
       });
     // Login location and model overrides belong to this credential snapshot.
     // The ordinary run still requires the parent's tier authorisation.

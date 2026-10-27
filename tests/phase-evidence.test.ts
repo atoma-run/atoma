@@ -4,13 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { dispatchWithAggregation } from '../src/atoms/dispatch.js';
 import { delegatedTaskContext, PREVIOUS_OBSERVATIONS_GUIDANCE } from '../src/atoms/taskContext.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
-import { llmVerdict, renderTransportEvidence, MAX_TOOL_EVIDENCE_CHARS } from '../src/atoms/verdict.js';
+import { llmVerdict, renderTransportEvidence } from '../src/atoms/verdict.js';
 import { STATEFUL_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
 import { attestingExecutor, createAttestationLog } from '../src/core/attestation.js';
 import type { LlmCompletionResponse, Result, Task } from '../src/core/types.js';
 import { jsonText, makeCtx } from './helpers.js';
 import { makePlan, makeTools } from './helpers/factories.js';
 
+const MAX_TOOL_EVIDENCE_CHARS = 48_000;
 const reply = (value: unknown): LlmCompletionResponse => ({ text: jsonText(value), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } });
 
 describe('sequential phase observations', () => {
@@ -132,7 +133,8 @@ describe('bounded contrasting command history', () => {
     const verdict = await llmVerdict({ ctx, model: 'test', supervisorName: 'Root', supervisorTier: 3,
       subject: 'RESULT', child, task, payload: result, evidence: result.evidence, groundTruthBlock: '' });
     const prompt = ctx.llm.calls.at(-1)!.userContent;
-    const evidence = prompt.slice(prompt.indexOf('== TRANSPORT-OBSERVED TOOL EVIDENCE =='));
+    const evidence = prompt.slice(prompt.indexOf('== TRANSPORT-OBSERVED TOOL EVIDENCE =='), prompt.indexOf('== RECORDED EVIDENCE READING =='));
+    expect(prompt.slice(prompt.indexOf('== RECORDED EVIDENCE READING =='))).toContain('baseline build');
     expect(evidence).toContain('mutated build');
     expect(evidence).not.toContain('baseline build');
     expect(evidence.indexOf('mutated build')).toBeLessThan(evidence.indexOf('node mutant.cjs'));

@@ -32,6 +32,7 @@
 - [Compute content releases](compute-content-releases-2026-10-21.md) — pushed 5398d558; CI + deploy green; content gate passes all OS; pre-existing Resources smoke blocks AC publication
 - [Attica three-hour loop](attica-loop-2026-10-21.md) — PAUSED by owner steering2026-10-21; no new runs until renewed authorization; second run interrupted before implementation/tests; first result independently rejected
 - [Independent run executors](independent-run-executors-2026-10-21.md) — version coexistence implemented/deployed; reverified production97bbb34a and31 focused tests; no global drain for compatible releases
+- [Complete evidence reading](complete-evidence-reading.md) — 2026-10-22: full gzip archives, validator page/search requests, model-sized active context, historical-only checkpoint restoration
 - [Explicit app and terminal previews](preview-app-terminal-2026-10-21.md) — fixes automatic shell fallback and strict executor classification; Attica device reconnection exposed second defect; CI/deploy and production retest pending
 - [Atoma Compute implementation](atoma-compute-state.md) — 2026-10-18: Electron companion in 13 languages built/tested on Mac ARM, Intel and Windows; code deployed (61ea0fc9), unsigned test installers ready
 - [Crystal caustic state](crystal-caustic-state.md) — 2026-10-17: facing + caustic fixes committed locally (50c15882, dfa4c921), not pushed; strokes invisible, 3 options to test

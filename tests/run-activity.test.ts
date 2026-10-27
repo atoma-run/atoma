@@ -10,6 +10,14 @@ const run = (events: VizEvent[], values: Partial<VizRun> = {}): VizRun => ({ id:
   startedAt: new Date().toISOString(), events, ...values });
 
 describe('recorded run progress', () => {
+  it('counts the final verdict once across complementary evidence-reading turns', () => {
+    const activity = buildRunActivity(run([
+      event('read', { kind: 'llm', role: 'validate-result', response: '{"readEvidence":[{"eventId":"proof"}]}' }),
+      event('list', { kind: 'llm', role: 'validate-result', response: '{"listEvidence":{"offset":10}}' }),
+      event('verdict', { kind: 'llm', role: 'validate-result', response: '{"approved":false}' }),
+    ]));
+    expect(activity.steps.find(step => step.id === 'validate-result')?.count).toBe(1);
+  });
   it('keeps unreported live usage pending and known costs provisional', () => {
     const live = run([event('start', { kind: 'llm-start', llmEventId: 'call', role: 'execute' })],
       { totals: { calls: 0, costUsd: 0 } });

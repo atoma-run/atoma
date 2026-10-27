@@ -19,7 +19,7 @@ import {
   type SupervisionHooks,
 } from '../src/core/supervisor.js';
 import { makeCtx } from './helpers.js';
-import { PlanParseError } from '../src/core/errors.js';
+import { PlanParseError, EvidenceReviewError } from '../src/core/errors.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
@@ -154,6 +154,29 @@ describe('superviseLoop', () => {
     expect(child.execCount).toBe(2);
     expect(child.planCount).toBe(3);
   });
+  it.each([false, true])('retries only the completed result review and never blames the child for a protocol fault (persistent=%s)', async persistent => {
+    const parent = new FakeParent();
+    const child = new FakeChild('review-fault');
+    const ctx = makeCtx();
+    parent.queuePlanVerdict({ approved: true, reasoning: 'ok' });
+    let reviews = 0;
+    vi.spyOn(parent, 'validateResult').mockImplementation(async () => {
+      if (++reviews === 1 || persistent) throw new EvidenceReviewError('Invalid evidence reading request');
+      return { approved: true, reasoning: 'Reviewed the same result' };
+    });
+    const onFailed = vi.fn();
+    const branchOnEscalation = vi.fn();
+    const applyByScope = vi.fn(async (c: FakeChild) => c);
+    const result = await superviseLoop(parent, child, { description: 'go' }, ctx,
+      makeHooks({ onFailed, branchOnEscalation, applyByScope }));
+    expect(child.planCount).toBe(1); expect(child.execCount).toBe(1);
+    expect(reviews).toBe(2);
+    expect(onFailed).not.toHaveBeenCalled(); expect(branchOnEscalation).not.toHaveBeenCalled();
+    expect(applyByScope).not.toHaveBeenCalled();
+    expect(result.trace.filter(entry => entry.kind === 'result-review-fault')).toHaveLength(persistent ? 2 : 1);
+    if (persistent) expect(result.trace.find(entry => entry.kind === 'escalated')?.payload).toMatchObject({ phase: 'review', blameless: true });
+  });
+
   it('completes when plan then result are approved', async () => {
     const parent = new FakeParent();
     const child = new FakeChild('A');

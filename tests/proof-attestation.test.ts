@@ -187,6 +187,7 @@ describe('attesting executor — the transport seam', () => {
       },
       forBranch: () => [],
       forAttempt: () => [],
+      get: () => undefined,
       size: 0,
     };
     const messages: string[] = [];

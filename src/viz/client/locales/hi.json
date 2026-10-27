@@ -2840,5 +2840,5 @@
   "admin.ledgerWithheld.counters": "काउंटर अपरिवर्तित रहे।",
   "admin.ledgerWithheld.recipe": "यह घटना सहेजी गई विधि या Atoma में साझा किए गए उसके विश्वसनीयता रिकॉर्ड को नहीं बदलती।",
   "admin.ledgerWithheld.agent": "यह घटना Atoma में साझा किए गए एजेंट के विश्वसनीयता रिकॉर्ड को नहीं बदलती।",
-  "admin.ledgerWithheld.compute": "यह काम Atoma Compute के साथ एक निजी कंप्यूटर पर चला। साझा सीखने को प्रभावित करने से पहले Atoma के सर्वरों पर इसकी स्वतंत्र जाँच आवश्यक है।"
+  "admin.ledgerWithheld.compute": ""
 }

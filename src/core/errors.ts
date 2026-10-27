@@ -93,3 +93,8 @@ export class RunnerConfigError extends Error {
     this.name = 'RunnerConfigError';
   }
 }
+
+/** Protocol/configuration failures are a reviewer's failure, never a child defect. */
+export class EvidenceReviewError extends Error {
+  constructor(message: string) { super(message); this.name = 'EvidenceReviewError'; }
+}

@@ -160,6 +160,8 @@ describe('project run environment', () => {
       ...BASE,
       hostEnv: {
         PATH: '/bin',
+        ATOMA_MODEL_CONTEXT_WINDOWS: '{"api:ollama:custom":65536}',
+        OLLAMA_CONTEXT_LENGTH: '65536',
         ...ANTHROPIC_PINS,
         ANTHROPIC_API_KEY: 'model-key',
         OPENAI_API_KEY: 'unreferenced-must-not-cross',
@@ -169,6 +171,8 @@ describe('project run environment', () => {
         ATOMA_WORKER_IMAGE: 'registry.example/worker@sha256:' + 'a'.repeat(64),
       },
     });
+    expect(env['ATOMA_MODEL_CONTEXT_WINDOWS']).toBe('{"api:ollama:custom":65536}');
+    expect(env['OLLAMA_CONTEXT_LENGTH']).toBe('65536');
     expect(env['ANTHROPIC_API_KEY']).toBe('model-key');
     expect(env['OPENAI_API_KEY']).toBeUndefined();
     expect(env['ATOMA_REQUIRE_ISOLATION']).toBe('1');

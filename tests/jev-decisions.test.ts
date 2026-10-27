@@ -1086,7 +1086,7 @@ describe('validation with Jev', () => {
     await branch.tools!.execute('read_file', { path: 'test.js' });
     files['test.js'] = '// setup\n' + ' '.repeat(6500) + '\nassert.equal(actual.status, 409);';
     await branch.tools!.execute('write_file', { path: 'test.js', content: files['test.js'] });
-    const before = JSON.stringify(ctx.attestations.forAttempt(1));
+    const before = JSON.stringify(ctx.attestations.forAttempt(1).filter(r => r.tool !== 'host_read_file'));
     const reads = calls.filter(name => name === 'read_file').length;
     ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'Test execution still missing.' }));
     const verdict = await l2.validateResult(l1,
@@ -1096,7 +1096,7 @@ describe('validation with Jev', () => {
     expect(ctx.llm.calls[0]!.userContent).toContain(approvals[0]!.groundTruth!);
     expect(ctx.llm.calls[0]!.userContent).not.toContain('OLD_TEST_BODY');
     expect(calls.filter(name => name === 'read_file').length - reads).toBe(1);
-    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(before);
+    expect(JSON.stringify(ctx.attestations.forAttempt(1).filter(r => r.tool !== 'host_read_file'))).toBe(before);
     expect(verdict.approved).toBe(false);
   });
 

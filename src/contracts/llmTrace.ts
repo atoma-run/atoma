@@ -121,3 +121,19 @@ export function citeContext(
     ...(block.skillId !== undefined ? { skillId: block.skillId } : {}),
   };
 }
+
+/** Reading envelopes (including invalid mixed requests) are never artifact verdicts. */
+export function isEvidenceReadingResponse(response: string | undefined): boolean {
+  if (!response) return false;
+  try {
+    const value: unknown = JSON.parse(response);
+    const pending = [value];
+    while (pending.length) {
+      const item = pending.pop();
+      if (!item || typeof item !== 'object') continue;
+      if ('readEvidence' in item || 'listEvidence' in item) return true;
+      pending.push(...Object.values(item));
+    }
+    return false;
+  } catch { return false; }
+}

@@ -1,3 +1,4 @@
+import { supersededFileReads } from '../contracts/attestation.js';
 import { z } from 'zod';
 import { taskContextLines } from './taskContext.js';
 import { fileEffectSchema } from '../contracts/fileEffect.js';
@@ -17,6 +18,7 @@ import { taxonomyForTier } from '../core/taxonomy.js';
 import { parseWith } from './json.js';
 import { prefilterCacheGet, prefilterCacheKey, prefilterCachePut } from './prefilterCache.js';
 import { renderTransportEvidence } from './verdict.js';
+import { transportWitnesses } from '../contracts/witness.js';
 
 /**
  * A child type is "trusted" when it has accumulated enough clean successes to
@@ -376,6 +378,13 @@ export async function jevApproval(args: {
   readonly audit?: () => Promise<unknown>;
 }): Promise<PositiveVerdict | null> {
   if (!args.ctx.jev) return null;
+  // Decision cannot ask to read archived bodies. Let the model decide when a compact receipt leaves bytes unseen.
+  const superseded = supersededFileReads(args.ctx.attestations?.forAttempt(args.ctx.attempt ?? 1) ?? []);
+  if (args.subject === 'RESULT' && transportWitnesses(args.evidence).some(witness => {
+    if (['write_file', 'edit_file'].includes(witness.tool) || superseded.has(witness.eventId)) return false;
+    const full = args.ctx.attestations?.get(witness.eventId)?.fullEvidence;
+    return full !== undefined && full.bytes > Buffer.byteLength(witness.observed, 'utf8');
+  })) return null;
   // The model validator's own evidence lines: transport-observed witnesses
   // only, budgeted the same way, so Jev never reads the child's declared
   // probes as observations.

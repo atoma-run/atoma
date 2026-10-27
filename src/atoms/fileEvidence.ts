@@ -7,6 +7,7 @@ import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_MAX_CHARS } from '../contracts/parentTests.js';
 import { FILE_OBSERVATION_ONLY_ARG } from '../contracts/toolOutput.js';
 import { insideReadRunCopies } from '../contracts/readRuns.js';
+import { archiveHostFileRead } from './evidenceReading.js';
 
 const NAMED_PATH = /(?<![\w./-])(\.?[\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
 const CRITERIA_FILES_MAX = 16;
@@ -237,10 +238,12 @@ export async function criteriaFilesBlock(
       const read: unknown = await tools.execute('read_file', { path, ...(options.observationOnly ? { [FILE_OBSERVATION_ONLY_ARG]: true } : {}) });
       const content = typeof read === 'string' ? read : read && typeof read === 'object' &&
         'content' in read && typeof read.content === 'string' ? read.content : undefined;
+      archiveHostFileRead(ctx, path, read);
       if (content === undefined) throw new Error('read returned no content');
       const label = /^[\w./-]+$/.test(path) ? path : JSON.stringify(path);
       files.push({ label, content, words, ...(commandNamed.includes(path) ? { ranByCommand: true } : {}) });
     } catch {
+      archiveHostFileRead(ctx, path, { error: 'Host read failed; current content unknown' }, true);
       // Silent, never refuting: "saves quote.txt" names a download, not a workspace file.
       if (refreshPaths.includes(path)) lines.push(`- ${JSON.stringify(path)}: current read unavailable; superseded contents remain omitted. This establishes no current content or absence.`);
     }
@@ -269,6 +272,7 @@ export async function criteriaFilesBlock(
           const read: unknown = await tools.execute('read_file', { path, ...(options.observationOnly ? { [FILE_OBSERVATION_ONLY_ARG]: true } : {}) });
           const content = typeof read === 'string' ? read : read && typeof read === 'object' &&
             'content' in read && typeof read.content === 'string' ? read.content : undefined;
+          archiveHostFileRead(ctx, path, read);
           if (content === undefined) continue;
           if (content.length <= REFERENCED_FILE_CHARS && referencedChars + content.length <= REFERENCED_TOTAL_CHARS) {
             files.push({ label: path, content, words: file.words, referencedBy: file.label });
@@ -276,7 +280,7 @@ export async function criteriaFilesBlock(
             referenced++;
           }
           break;
-        } catch { /* a path in a string is not always a workspace file */ }
+        } catch { archiveHostFileRead(ctx, path, { error: 'Host read failed; current content unknown' }, true); }
       }
     }
   }

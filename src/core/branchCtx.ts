@@ -122,12 +122,14 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
     signal: ctx.signal,
     ...(ctx.deadlineAt !== undefined ? { deadlineAt: ctx.deadlineAt } : {}),
     llm: wrappedLlm,
+    ...(ctx.modelContextEnv ? { modelContextEnv: ctx.modelContextEnv } : {}),
     limits: ctx.limits,
     dispatchedScriptSignatures,
     mechanicalPlanRejections,
     mechanicalResultRejections,
     ...(wrappedTools !== undefined ? { tools: wrappedTools } : {}),
     attestations,
+    ...(ctx.recordEvidenceSnapshot ? { recordEvidenceSnapshot: ctx.recordEvidenceSnapshot } : {}),
     // Field-enumeration hazard, measured: this rebuild once dropped
     // `requireObservedToolAction`, and because the flag is only SET on the
     // root ctx while L2.validateResult reads it through a double fork, the

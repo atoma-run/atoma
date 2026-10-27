@@ -1,3 +1,5 @@
+import { readArchivedToolEvidence } from '../src/core/evidenceArchive.js';
+import { createAttestationLog } from '../src/core/attestation.js';
 import { AuthStore } from '../src/auth/store.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { randomUUID } from 'node:crypto';
@@ -147,6 +149,39 @@ describe('durable sequential run continuation', () => {
     expect(f.counters().skills.n).toBe(2);
     expect(f.counters().atoms.n).toBe(credit.atoms.n * 2);
     expect(() => new RunCheckpointStore(f.db).read(before.checkpointId)).toThrow('not at a resumable');
+  }, 90000);
+
+  it('preserves complete archives across a cold continuation, readable without crediting historical execution', () => {
+    const f = fixture();
+    const first = f.run(['--pause-after-phase', '1', 'Write two files in sequence'], '', { CHECKPOINT_TEST_LARGE_EVIDENCE: '1' });
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const before = f.report();
+    const store = new RunCheckpointStore(f.db);
+    const checkpoint = store.read(before.checkpointId);
+    const archives = store.historicalEvidence(checkpoint);
+    expect(archives.length).toBeGreaterThan(0);
+    expect(readArchivedToolEvidence(archives[0]!.fullEvidence!)).toContain('CHECKPOINT_FULL_PROOF');
+    expect(archives[0]!.fullEvidence!.bytes).toBeGreaterThan(200000);
+    const log = createAttestationLog(undefined, archives);
+    expect(log.size).toBe(0);
+    expect(log.forAttempt(1)).toEqual([]);
+    expect(log.forBranch(archives[0]!.branchId)).toEqual([]);
+    expect(log.get(archives[0]!.eventId)?.historical).toBe(true);
+    const credit = f.counters();
+    const next = f.run(['--resume', before.checkpointId], '', { CHECKPOINT_TEST_READ_HISTORY: '1' });
+    expect(next.status, next.stdout + next.stderr).toBe(0);
+    expect(f.report()).toMatchObject({ outcome: 'delivered', historicalRead: true });
+    expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
+    expect(f.counters().atoms.n).toBe(credit.atoms.n * 2);
+  }, 90000);
+
+  it('keeps work partial without implementation replay when root evidence reading is invalid', () => {
+    const f = fixture();
+    const result = f.run(['Write two files in sequence'], '', { CHECKPOINT_TEST_ROOT_BAD_READ: '1' });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(f.report().outcome).toBe('partial');
+    expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
+    expect(result.stderr).toContain('acceptance review incomplete');
   }, 90000);
 
   it.each(['pause', 'crash'] as const)('continues a tenant after %s in a fresh scoped run and workspace without modifying its predecessor', mode => {

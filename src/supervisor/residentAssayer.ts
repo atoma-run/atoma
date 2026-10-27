@@ -102,6 +102,9 @@ export function startResidentAssayer(options: ResidentAssayerOptions): ResidentA
         assayed += 1;
         lastError = null;
         log(`assayed ${skill}: ${result.judgement?.verdict} → ${result.judgement?.decision}`);
+      } else if (result.outcome === 'compute-validated') {
+        lastError = null;
+        log(result.detail ?? 'Compute validation finished');
       } else if (result.outcome === 'preempted') {
         preempted += 1;
         log(`assay of ${skill} preempted by a product run; it stays pending`);

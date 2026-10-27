@@ -23,6 +23,7 @@ const calls: string[] = [];
 // The root delegation reviews (tier-3 actor reviewing its own plan), apart
 // from `calls`, so existing call assertions are untouched.
 let rootReviews = 0;
+let historicalRead = false;
 const PERSISTING_SERVER = "const s=require('http').createServer((q,r)=>r.end('ok')).listen(Number(process.env.PORT)||0,function(){console.log('LISTENING_ON_PORT='+this.address().port)});" +
   "process.on('SIGTERM',()=>{require('fs').writeFileSync('notes.json','[]');process.exit(0)});";
 const recipe = { id: 'checkpoint-write-file', description: 'Write the requested file',
@@ -51,6 +52,20 @@ const complete = async (req: LlmCompletionRequest) => {
       reply = { approved: true, reasoning: 'Fixture finds independent work', delegationReview: { ...proof.delegationReview, independentWork: true } };
     } else {
       reply = { approved: true, reasoning: 'Fixture approved', ...proof };
+    }
+  } else if (req.actor?.name === 'run-root' && process.env['CHECKPOINT_TEST_ROOT_BAD_READ'] === '1') {
+    reply = { readEvidence: [{ eventId: 'unknown' }], approved: true, reasoning: 'Invalid mixed reply' };
+  } else if (req.actor?.name === 'run-root' && process.env['CHECKPOINT_TEST_READ_HISTORY'] === '1' && req.userContent.includes('"recordedBeforeRestart":true')) {
+    if (req.userContent.includes('CHECKPOINT_FULL_PROOF')) {
+      historicalRead = true;
+      if (!req.userContent.includes('not current execution or current file contents')) throw new Error('Historical body lost its freshness warning');
+      reply = { approved: true, reasoning: 'Historical context read; current delivery judged separately.' };
+    } else {
+      const entries = req.userContent.split('\n').filter(line => line.startsWith('{"inventory":'))
+        .flatMap(line => (JSON.parse(line) as { inventory: Array<{ eventId: string; recordedBeforeRestart: boolean }> }).inventory);
+      const prior = entries.find(entry => entry.recordedBeforeRestart);
+      if (!prior) throw new Error('Checkpoint archive was not offered');
+      reply = { readEvidence: [{ eventId: prior.eventId, find: 'CHECKPOINT_FULL_PROOF', length: 200 }] };
     }
   } else if (req.role === 'validate-plan' || req.role === 'validate-result') {
     reply = { approved: true, reasoning: 'Fixture approved', activeSkillFollowed: true, ...mockOtherProofReview(req) };
@@ -86,7 +101,8 @@ const complete = async (req: LlmCompletionRequest) => {
     appendFileSync(join(root, 'effects.log'), `${path}\n`);
     if (process.env['CHECKPOINT_TEST_CRASH'] === 'phase' && path === 'phase-two.txt') process.kill(process.pid, 'SIGKILL');
     if (process.env['CHECKPOINT_TEST_CRASH'] === 'external' && path === 'phase-two.txt') await req.executor!.execute('run_shell', { cmd: 'printf external > effect.txt' });
-    const args = { path, content: path };
+    const args = { path, content: process.env['CHECKPOINT_TEST_LARGE_EVIDENCE'] === '1' && path === 'phase-one.txt'
+      ? path + 'a'.repeat(210000) + 'CHECKPOINT_FULL_PROOF' : path };
     const result = await req.executor!.execute('write_file', args);
     if (process.env['CHECKPOINT_TEST_SERVER'] === '1' && path === 'phase-one.txt') {
       // The phase leaves a real server that persists its state on SIGTERM (code review 2026-10-09, 1.1).
@@ -163,7 +179,7 @@ try {
   const outcome = await handle.settled;
   await handle.shutdown();
   await workspaceService?.close();
-  writeFileSync(join(root, 'report.json'), JSON.stringify({ ...outcome, checkpointId: handle.checkpointId, calls, rootReviews }));
+  writeFileSync(join(root, 'report.json'), JSON.stringify({ ...outcome, checkpointId: handle.checkpointId, calls, rootReviews, historicalRead }));
   process.exit(outcome.outcome === 'failed' ? 1 : 0);
 } catch (error) {
   await workspaceService?.close();

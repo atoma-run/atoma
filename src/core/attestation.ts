@@ -7,6 +7,7 @@ import {
   type AttestationRecord,
 } from '../contracts/attestation.js';
 import { HOST_REPLAY_ARG } from '../contracts/inheritedChecks.js';
+import { archiveToolEvidence } from './evidenceArchive.js';
 
 /**
  * THE ATTESTATION SEAM.
@@ -30,10 +31,19 @@ import { HOST_REPLAY_ARG } from '../contracts/inheritedChecks.js';
 
 class MemoryAttestationLog implements AttestationLog {
   private readonly records: AttestationRecord[] = [];
-  constructor(private readonly onAppend?: (record: AttestationRecord) => void) {}
+  private readonly byId = new Map<string, AttestationRecord>();
+  constructor(private readonly onAppend?: (record: AttestationRecord) => void, historical: readonly AttestationRecord[] = []) {
+    for (const record of historical) {
+      const archived: AttestationRecord = { ...record, historical: true };
+      this.byId.set(record.eventId, archived);
+      try { onAppend?.(archived); } catch { /* historical trace persistence is observability */ }
+    }
+  }
 
   append(record: AttestationRecord): void {
+    if (this.byId.has(record.eventId)) throw new Error('Duplicate attestation id');
     this.records.push(record);
+    this.byId.set(record.eventId, record);
     // Persistence is observability; failure must not alter the proof held here.
     try { this.onAppend?.(record); } catch { /* trace is fail-open */ }
   }
@@ -41,6 +51,8 @@ class MemoryAttestationLog implements AttestationLog {
   forBranch(branchId: string | undefined): readonly AttestationRecord[] {
     return this.records.filter((record) => record.branchId === branchId);
   }
+
+  get(eventId: string): AttestationRecord | undefined { return this.byId.get(eventId); }
 
   forAttempt(attempt: number): readonly AttestationRecord[] {
     return this.records.filter((record) => (record.attempt ?? 1) === attempt);
@@ -51,8 +63,8 @@ class MemoryAttestationLog implements AttestationLog {
   }
 }
 
-export function createAttestationLog(onAppend?: (record: AttestationRecord) => void): AttestationLog {
-  return new MemoryAttestationLog(onAppend);
+export function createAttestationLog(onAppend?: (record: AttestationRecord) => void, historical: readonly AttestationRecord[] = []): AttestationLog {
+  return new MemoryAttestationLog(onAppend, historical);
 }
 
 /** Marker so nested forks re-wrap the BASE executor instead of stacking. */
@@ -96,6 +108,7 @@ export function attestingExecutor(
             ...(branchId !== undefined ? { branchId } : {}),
             tool: name,
             observation,
+            fullEvidence: archiveToolEvidence(args, result),
           });
         }
       } catch (err) {

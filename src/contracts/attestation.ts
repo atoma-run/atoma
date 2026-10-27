@@ -1,3 +1,5 @@
+import { archivedToolEvidenceSchema } from './evidenceReading.js';
+import { executionProvenanceSchema } from './executionTarget.js';
 import { z } from 'zod';
 import { pathHeldNoFile } from './toolOutput.js';
 
@@ -227,24 +229,30 @@ export function parseExecutionObservation(tool: string, args: Record<string, unk
  * wrapper that saw the call, never from ambient "current actor" state, which
  * would race the moment two fan-out lanes run at once.
  */
-export interface AttestationRecord {
-  readonly provenance?: import('./executionTarget.js').ExecutionProvenance;
-  readonly eventId: string;
-  readonly attempt?: number;
-  readonly branchId?: string;
-  readonly tool: string;
-  readonly observation: ToolObservation;
-}
+export const attestationRecordSchema = z.object({
+  eventId: z.string().min(1), tool: z.string().min(1),
+  attempt: z.number().int().positive().optional(), branchId: z.string().optional(),
+  provenance: executionProvenanceSchema.optional(),
+  observation: z.union([executionObservationSchema, browserObservationSchema]),
+  fullEvidence: archivedToolEvidenceSchema.optional(),
+  /** Host read failed, never an observation of current source. */
+  unavailable: z.literal(true).optional(),
+  /** Lookup-only historical record; excluded from this process's proof counters. */
+  historical: z.literal(true).optional(),
+}).strict();
+export type AttestationRecord = Readonly<z.infer<typeof attestationRecordSchema>>;
 
 /**
- * Run-scoped, append-only, memory-only. NOT a new product store: nothing
- * here needs to outlive the run, and `src/core/stores.ts` stays the one
- * product store. Cross-run proof reuse is therefore out of scope HERE; the
- * one exception reads earlier runs' TRACES, never this log
+ * Run-scoped active proof log, not another product store. Complete archives
+ * persist in the trace/checkpoint. Restored records resolve by get() only:
+ * branch/attempt queries never turn them into current execution or credit.
+ * Standing HTTP proof reuse keeps its separate digest-bound trace contract
  * (`src/contracts/standingHttpEvidence.ts`).
  */
 export interface AttestationLog {
   append(record: AttestationRecord): void;
+  /** Resolve a host-owned witness, including an accepted phase from an earlier attempt. */
+  get(eventId: string): AttestationRecord | undefined;
   /** Records observed under one branch, in append order. */
   forBranch(branchId: string | undefined): readonly AttestationRecord[];
   /** Missing historical tags belong to the first attempt. */
@@ -384,7 +392,7 @@ export function supersededFileReads(records: readonly AttestationRecord[]): Read
   const writtenLater = new Map<string, string>();
   const superseded = new Map<string, { path: string; rewrittenBy: string }>();
   for (const record of [...records].reverse()) {
-    const path = requestedPath(record);
+    const path = attestedFilePath(record);
     if (path === undefined) continue;
     if (record.tool === 'write_file' || record.tool === 'edit_file') writtenLater.set(path, record.eventId);
     else if (record.tool === 'read_file' && writtenLater.has(path)) {
@@ -401,7 +409,7 @@ export function fileReadsNeedingReadback(
   const paths = new Map([...supersededFileReads(records)].map(([id, read]) => [id, read.path]));
   for (const record of records) {
     if (record.tool !== 'read_file' || record.observation.kind !== 'execution' || record.observation.responseTruncated !== true) continue;
-    const path = requestedPath(record);
+    const path = attestedFilePath(record);
     if (path !== undefined) paths.set(record.eventId, path);
   }
   // A complete read already visible to THIS judge can replace earlier
@@ -409,7 +417,7 @@ export function fileReadsNeedingReadback(
   // the caller's evidence budget or belongs to the child's witnessed scope.
   const latest = new Map<string, AttestationRecord>();
   for (const record of records) {
-    const path = requestedPath(record);
+    const path = attestedFilePath(record);
     if (path !== undefined && ['read_file', 'write_file', 'edit_file'].includes(record.tool)) latest.set(path, record);
   }
   for (const [id, path] of paths) {
@@ -421,7 +429,7 @@ export function fileReadsNeedingReadback(
 }
 
 /** The `path` an execution observation's request named, when it can be read back. */
-function requestedPath(record: AttestationRecord): string | undefined {
+export function attestedFilePath(record: AttestationRecord): string | undefined {
   if (record.observation.kind !== 'execution') return undefined;
   const normalize = (path: string): string => {
     const parts: string[] = [];

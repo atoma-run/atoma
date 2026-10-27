@@ -43,7 +43,7 @@ export function fixture(workspaceProcess = false) {
     ['--experimental-test-module-mocks', '--import', 'tsx', resolve('tests/fixtures/checkpoint-run-child.ts'), ...args],
     { env: { ...env, CHECKPOINT_TEST_CRASH: crash, ...overrides }, encoding: 'utf8', timeout: 45000, maxBuffer: 4 * 1024 * 1024 });
   const report = () => JSON.parse(readFileSync(join(root, 'report.json'), 'utf8')) as {
-    outcome: string; checkpointId: string; calls: string[]; rootReviews: number;
+    outcome: string; checkpointId: string; calls: string[]; rootReviews: number; historicalRead: boolean;
   };
   /** The calls of a run that exited 2 before writing its report. */
   const errorReport = () => JSON.parse(readFileSync(join(root, 'error-report.json'), 'utf8')) as { calls: string[]; rootReviews: number };

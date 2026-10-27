@@ -35,6 +35,8 @@ export function resolveRerunOrigin(input: {
   readonly rerunOf: string;
   /** A legacy origin's seed, from its retrieval receipt: `undefined` when there is none. */
   readonly recordedSourceRunId: (runId: string) => string | null | undefined;
+  /** Host-owned assayer replay also accepts a failed source, never a cancelled one. */
+  readonly purpose?: 'compute-validation';
 }): RerunOrigin {
   const origin = input.store.getProjectRun(input.orgId, input.rerunOf);
   if (!origin || origin.projectId !== input.project.projectId) throw new Error('project run not found');
@@ -46,7 +48,7 @@ export function resolveRerunOrigin(input: {
   if (origin.resumeOf && input.store.getProjectRun(origin.orgId, origin.resumeOf)?.status === 'failed') {
     throw new ProjectStateConflict('comparison reruns of crash recoveries are not available: the interrupted workspace is not their starting snapshot');
   }
-  if (origin.status !== 'delivered' && origin.status !== 'partial') {
+  if (origin.status !== 'delivered' && origin.status !== 'partial' && !(input.purpose === 'compute-validation' && origin.status === 'failed')) {
     throw new ProjectStateConflict('only a delivered or partial run can be rerun for comparison');
   }
   for (const runId of origin.readRunIds ?? []) {

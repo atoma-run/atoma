@@ -2840,5 +2840,5 @@
   "admin.ledgerWithheld.counters": "কাউন্টারগুলো অপরিবর্তিত রয়েছে।",
   "admin.ledgerWithheld.recipe": "এই ইভেন্টটি সংরক্ষিত পদ্ধতি বা Atoma জুড়ে শেয়ার করা এর নির্ভরযোগ্যতার রেকর্ড পরিবর্তন করে না।",
   "admin.ledgerWithheld.agent": "এই ইভেন্টটি Atoma জুড়ে শেয়ার করা এজেন্টটির নির্ভরযোগ্যতার রেকর্ড পরিবর্তন করে না।",
-  "admin.ledgerWithheld.compute": "কাজটি Atoma Compute ব্যবহার করে একটি ব্যক্তিগত কম্পিউটারে চালানো হয়েছে। এটি যৌথ শেখায় প্রভাব ফেলতে পারার আগে Atoma-এর সার্ভারে একটি স্বাধীন যাচাই আবশ্যক।"
+  "admin.ledgerWithheld.compute": ""
 }

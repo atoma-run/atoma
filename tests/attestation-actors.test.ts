@@ -6,7 +6,7 @@ import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
 import { KEYBOARD_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
-import { llmVerdict, MAX_TOOL_EVIDENCE_CHARS, renderTransportEvidence } from '../src/atoms/verdict.js';
+import { llmVerdict, renderTransportEvidence as renderBudgetedEvidence } from '../src/atoms/verdict.js';
 import { parseBrowserObservation, parseExecutionObservation, renderBrowserInputs, renderObservation, renderObservations } from '../src/contracts/attestation.js';
 import { attestingExecutor, createAttestationLog } from '../src/core/attestation.js';
 import type { LlmCompletionRequest, LlmCompletionResponse, ToolExecutor } from '../src/core/types.js';
@@ -15,6 +15,10 @@ import { openDb } from '../src/registry/db.js';
 import { SkillRegistry } from '../src/skills/registry.js';
 import { jsonText, makeCtx } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
+
+// Fixed fixture pressure keeps the historical selector regressions meaningful as production budgets adapt.
+const MAX_TOOL_EVIDENCE_CHARS = 48_000;
+const renderTransportEvidence = (evidence: Parameters<typeof renderBudgetedEvidence>[0], budget = MAX_TOOL_EVIDENCE_CHARS) => renderBudgetedEvidence(evidence, budget);
 
 /**
  * WHAT THE ATTESTATION LOG HOLDS: the WORKER's tool calls, with the facts a
@@ -478,6 +482,7 @@ describe('the result validator prompt', () => {
         : { path: args['path'], content: 'const x = 1; '.repeat(200) },
     };
     const ctx = { ...makeCtx(), attestations, currentBranchId: 'phase-1', attempt: 1,
+      modelContextEnv: { ATOMA_MODEL_CONTEXT_WINDOWS: JSON.stringify({ 'api:anthropic:claude-haiku-4-5-20251001': 32768 }) },
       tools: attestingExecutor(base, attestations, 'phase-1', undefined, 1)! };
     ctx.llm.enqueue(async (req: LlmCompletionRequest) => {
       await req.executor!.execute('validate_html', { url: 'http://127.0.0.1:4000/', smoke: '({ok:true})' });

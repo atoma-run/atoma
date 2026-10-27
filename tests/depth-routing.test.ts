@@ -317,7 +317,7 @@ describe('root delivery coverage', () => {
     const writer = scope === 'same phase' ? first : forkBranch(ctx, 'second');
     await writer.tools!.execute('edit_file', { path: 'README.md', new_string: current });
     const evidence = scope === 'same phase' ? executorEvidence({}, first) : earlyEvidence;
-    const logBefore = JSON.stringify(ctx.attestations.forAttempt(1));
+    const logBefore = JSON.stringify(ctx.attestations.forAttempt(1).filter(record => record.tool !== 'host_read_file'));
     const readsBefore = reads.length;
     for (let review = 0; review < 2; review++) ctx.llm.enqueue(req => {
       expect(req.userContent).not.toContain('OLD_README_SENTINEL');
@@ -336,7 +336,7 @@ describe('root delivery coverage', () => {
     expect(accepted.approved).toBe(true);
     expect(reads.slice(readsBefore)).toEqual(['README.md']);
     expect(ctx.llm.calls).toHaveLength(2);
-    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(logBefore);
+    expect(JSON.stringify(ctx.attestations.forAttempt(1).filter(record => record.tool !== 'host_read_file'))).toBe(logBefore);
     expect(logBefore).toContain('OLD_README_SENTINEL');
   });
 

@@ -2840,5 +2840,5 @@
   "admin.ledgerWithheld.counters": "Счётчики не изменены.",
   "admin.ledgerWithheld.recipe": "Это событие не изменяет сохранённый метод и общую для всей Atoma запись о его надёжности.",
   "admin.ledgerWithheld.agent": "Это событие не изменяет общую для всей Atoma запись о надёжности агента.",
-  "admin.ledgerWithheld.compute": "Работа выполнялась на персональном компьютере с помощью Atoma Compute. Чтобы она могла повлиять на общее обучение, требуется независимая проверка на серверах Atoma."
+  "admin.ledgerWithheld.compute": ""
 }

@@ -1,3 +1,4 @@
+import { isEvidenceReadingResponse } from '../contracts/llmTrace.js';
 import { extractJson } from '../atoms/json.js';
 import { createHash } from 'node:crypto';
 import type Database from 'better-sqlite3';
@@ -61,6 +62,7 @@ export function readProjectLearning(db: Database.Database, orgId: string, projec
             const event = eventSchema.safeParse(raw);
             if (!event.success) { trace.status = 'invalid'; continue; }
             const e = event.data;
+            if (e.kind === 'llm' && isEvidenceReadingResponse(e.response)) continue;
             const validation = e.kind === 'llm' && (e.role === 'validate-plan' || e.role === 'validate-result');
             if (!['registry', 'skill', 'acceptance'].includes(e.kind) && !validation) continue;
             let verdict: { approved?: boolean; reasoning?: string } = {};

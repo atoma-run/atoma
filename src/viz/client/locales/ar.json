@@ -2840,5 +2840,5 @@
   "admin.ledgerWithheld.counters": "لم تتغير العدّادات.",
   "admin.ledgerWithheld.recipe": "لا يغيّر هذا الحدث الأسلوب المحفوظ أو سجل موثوقيته المشترك عبر Atoma.",
   "admin.ledgerWithheld.agent": "لا يغيّر هذا الحدث سجل موثوقية الوكيل المشترك عبر Atoma.",
-  "admin.ledgerWithheld.compute": "نُفّذ العمل على حاسوب شخصي باستخدام Atoma Compute. يلزم إجراء تحقق مستقل على خوادم Atoma قبل أن يتمكن من التأثير في التعلّم المشترك."
+  "admin.ledgerWithheld.compute": ""
 }
