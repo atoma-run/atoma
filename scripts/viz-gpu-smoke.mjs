@@ -1019,6 +1019,41 @@ try {
         ? point
         : null;
     });
+    const assertNavHoverUnclipped = async (camera, ids = ['nav.projects', 'nav.runs']) => {
+      for (const id of ids) {
+        const point = await page.evaluate((id) => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === id);
+          if (!target) throw new Error(`Missing hover target ${id}`);
+          return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+        }, id);
+        await page.mouse.move(point.x, point.y);
+        // Require the actual native hover animation, not a resting tile whose
+        // bounds hide the defect. The recording renderer cannot prove this.
+        await page.waitForFunction((id) => {
+          const tile = globalThis.__ATOMA_GPU__.app.stage.getChildByLabel(`nav-button:${id}`, true);
+          return tile?.scale.x > 1.04;
+        }, { timeout: READY_TIMEOUT_MS }, id);
+        const bounds = await page.evaluate((id) => {
+          const stage = globalThis.__ATOMA_GPU__.app.stage;
+          const tile = stage.getChildByLabel(`nav-button:${id}`, true);
+          const glow = tile.getChildByLabel('nav-button-glow').getBounds();
+          const pane = stage.getChildByLabel('sidebar-scroll-content', true);
+          // A stencil mask is non-renderable: global bounds intentionally
+          // omit it. Project its real local geometry through the same scene.
+          const mask = pane.parent.mask;
+          const clip = mask.getLocalBounds();
+          const left = mask.toGlobal({ x: clip.left, y: clip.top });
+          const right = mask.toGlobal({ x: clip.right, y: clip.top });
+          return { glowLeft: glow.left, glowRight: glow.right, clipLeft: left.x, clipRight: right.x };
+        }, id);
+        assert.ok(bounds.glowLeft >= bounds.clipLeft && bounds.glowRight <= bounds.clipRight,
+          `${camera} hovered ${id} glow is clipped: ${JSON.stringify(bounds)}`);
+        await page.screenshot({ path: join(tmpdir(), `atoma-rail-hover-${camera}-${id}.png`) });
+      }
+      await page.mouse.move(640, 400);
+    };
+    await assertNavHoverUnclipped('overview');
     const overviewNavPoint = await projectNavPoint();
     if (!overviewNavPoint) throw new Error('overview camera could not project Projects menu');
     const focusFrameRecorder = beginMovingViewFrameRecorder(page);
@@ -1028,6 +1063,7 @@ try {
     const focusFrameTravel = await focusFrameRecorder.recording;
     assertMovingViewFrame(focusFrameTravel, 'zoom', softwareRastered);
     await waitForSceneCamera(page, 'focus');
+    await assertNavHoverUnclipped('focus');
     const focusCamera = await page.evaluate(() => {
       const plane = document.querySelector('.gpu-scene-camera');
       if (!(plane instanceof HTMLElement)) return null;
@@ -1435,6 +1471,7 @@ try {
         }, {}, { top, bottom });
       };
       await expectRailEdges(false, true);
+      await assertNavHoverUnclipped(`compact-${camera}`, ['nav.projects']);
       await page.screenshot({ path: `/tmp/atoma-rail-cues-${camera}-top.png` });
       await page.mouse.move(railPoint.x, railPoint.y);
       await page.mouse.wheel({ deltaY: 40 });

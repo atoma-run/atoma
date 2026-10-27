@@ -4030,6 +4030,7 @@ export class GpuRenderer {
     const firstAppearance = !prefersReducedMotion() && !this.seenAnimatedControls.has(id);
     this.seenAnimatedControls.add(id);
     const container = new Container();
+    container.label = `nav-button:${id}`;
     container.position.set(x, y);
     container.eventMode = 'static';
     container.cursor = 'pointer';
@@ -4041,6 +4042,7 @@ export class GpuRenderer {
     });
 
     const glow = new Graphics();
+    glow.label = 'nav-button-glow';
     glow.roundRect(-4, -3, width + 8, height + 6, 11);
     glow.stroke({ color: GPU_COLORS.primary, width: 2.5, alpha: 0.85 });
     glow.alpha = active ? 0.28 : 0;

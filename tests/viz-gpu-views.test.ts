@@ -1503,6 +1503,14 @@ describe('the nav rail', () => {
           if (shadow) expect(shadow.eventMode).toBe('none');
         }
         expect(ctx.sidebarBounds!.width).toBe(width);
+        const content = ctx.root.getChildByLabel('sidebar-scroll-content', true)!;
+        const mask = content.parent!.mask as Graphics;
+        const clip = mask.getLocalBounds();
+        // Hover scales the tile and its outer glow beyond the resting hit box.
+        // Keep horizontal air up to the content frame, with vertical clipping intact.
+        expect(clip.right).toBe(width + GPU_LAYOUT.gap);
+        expect(clip.y).toBe(ctx.sidebarBounds!.y);
+        expect(clip.height).toBe(ctx.sidebarBounds!.height);
       }
       const fitting = createRecordingCtx();
       drawSidebar(fitting, snapshot, 2000, width, 2000, 80);
@@ -1683,10 +1691,10 @@ describe('the nav rail', () => {
       'Projects', 'Runs', 'Registry', 'Skills', 'Docs', 'Burn-in',
     ]);
     for (const button of nav) {
-      // Centred in the strip and fully inside it: the compact overview rail
-      // is on screen edge to edge, unlike the camera-cropped focus rail.
+      // Preserve an 8px screen-edge inset for the scaled hover glow; the
+      // compact overview rail is on screen edge to edge.
       expect(button.width).toBe(GPU_LAYOUT.sidebarFocusButtonWidth);
-      expect(button.x).toBe((width - GPU_LAYOUT.sidebarFocusButtonWidth) / 2);
+      expect(button.x).toBe(8);
       expect(button.x + button.width).toBeLessThanOrEqual(width);
     }
     expect(crystal.crystal.y).toBe(28);

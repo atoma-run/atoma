@@ -309,11 +309,11 @@ export function drawSidebar(
 
   // Focus tiles hug the trailing edge because the camera crops the rail to
   // that edge; the overview compact rail is fully on screen, so its tiles
-  // sit centred in the strip instead.
+  // sit near the centre, with at least 8px for the hover glow at the screen edge.
   const buttonX = iconOnly
     ? focused
       ? Math.max(0, width - FOCUS_SIDEBAR_BUTTON_WIDTH)
-      : Math.max(0, (width - FOCUS_SIDEBAR_BUTTON_WIDTH) / 2)
+      : Math.max(8, (width - FOCUS_SIDEBAR_BUTTON_WIDTH) / 2)
     : SIDEBAR_PAD + NAV_ICON_RENDER_SIZE + NAV_ICON_OUTSIDE_GAP;
   const itemWidth = iconOnly
     ? Math.min(width, FOCUS_SIDEBAR_BUTTON_WIDTH)
@@ -325,8 +325,10 @@ export function drawSidebar(
   ctx.sidebarScrollMax = Math.max(0, rowsBottom(rows) - navigationTop - paneHeight + 12);
   ctx.sidebarScrollY = Math.min(ctx.sidebarScrollY ?? 0, ctx.sidebarScrollMax);
   ctx.sidebarBounds = new Rectangle(0, navigationTop, width, paneHeight);
+  // Focus tiles meet the rail edge; their hover scale and glow need the free
+  // gutter before the content frame. Keep the vertical scroll edges clipped.
   const pane = createScrollPane(ctx.root, { x: 0, y: navigationTop, width, height: paneHeight,
-    scrollY: ctx.sidebarScrollY, air: { top: 0, bottom: 0 }, bottomPadding: 12, indicator: 'shadows' });
+    scrollY: ctx.sidebarScrollY, air: { top: 0, right: GPU_LAYOUT.gap, bottom: 0 }, bottomPadding: 12, indicator: 'shadows' });
   pane.content.label = 'sidebar-scroll-content';
   const rail = ctx.animatedLayer(pane.content, 'sidebar-rail');
   for (const original of rows) {
