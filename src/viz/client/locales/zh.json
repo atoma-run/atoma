@@ -2852,5 +2852,8 @@
   "admin.computeValidation.newCounters": "经服务器验证的新观测记录更改了可靠性计数器。这不会重复计入原始 Compute 观测记录。",
   "admin.computeValidation.noCounters": "此次验证未记录任何计数器变更。",
   "admin.computeValidation.newRecipes": "常规托管恢复流程更改了共享配方；其单独的台账事件会标明此项更改。",
-  "admin.computeValidation.budget": "每个源 run 可尝试一次，24 小时内最多尝试 {{attempts}} 次，每次 {{minutes}} 分钟；达到 {{tokens}} 个 token 或等值 ${{cost}} 的 API 用量时停止消耗。正在进行的调用可能超过消耗上限；支出未知时仍会占用一次尝试。"
+  "admin.computeValidation.budget": "每个源 run 可尝试一次，24 小时内最多尝试 {{attempts}} 次，每次 {{minutes}} 分钟；达到 {{tokens}} 个 token 或等值 ${{cost}} 的 API 用量时停止消耗。正在进行的调用可能超过消耗上限；支出未知时仍会占用一次尝试。",
+  "layout.backList": "返回列表",
+  "runs.compact.summary": "摘要",
+  "runs.compact.filters": "筛选条件"
 }

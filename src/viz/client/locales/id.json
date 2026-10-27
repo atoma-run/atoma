@@ -2852,5 +2852,8 @@
   "admin.computeValidation.newCounters": "Pengamatan baru yang diverifikasi server mengubah penghitung keandalan. Pengamatan Compute asli tidak dihitung dua kali.",
   "admin.computeValidation.noCounters": "Tidak ada perubahan penghitung yang dicatat untuk verifikasi ini.",
   "admin.computeValidation.newRecipes": "Proses pemulihan terkelola yang biasa mengubah resep bersama; peristiwa terpisah dalam buku besar mengidentifikasi perubahan tersebut.",
-  "admin.computeValidation.budget": "Satu percobaan per run sumber, maksimal {{attempts}} percobaan dalam 24 jam, masing-masing {{minutes}} menit, dengan penghentian konsumsi pada {{tokens}} token atau ekuivalen API sebesar ${{cost}}. Panggilan yang sudah berlangsung dapat melampaui batas konsumsi; pengeluaran yang tidak diketahui tetap menggunakan satu percobaan."
+  "admin.computeValidation.budget": "Satu percobaan per run sumber, maksimal {{attempts}} percobaan dalam 24 jam, masing-masing {{minutes}} menit, dengan penghentian konsumsi pada {{tokens}} token atau ekuivalen API sebesar ${{cost}}. Panggilan yang sudah berlangsung dapat melampaui batas konsumsi; pengeluaran yang tidak diketahui tetap menggunakan satu percobaan.",
+  "layout.backList": "Kembali ke daftar",
+  "runs.compact.summary": "Ringkasan",
+  "runs.compact.filters": "Filter"
 }

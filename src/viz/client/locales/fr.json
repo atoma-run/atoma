@@ -2852,5 +2852,8 @@
   "admin.computeValidation.newCounters": "De nouvelles observations vérifiées sur le serveur ont modifié les compteurs de fiabilité. L’observation Compute d’origine n’est pas comptabilisée une seconde fois.",
   "admin.computeValidation.noCounters": "Aucune modification des compteurs n’a été enregistrée pour cette vérification.",
   "admin.computeValidation.newRecipes": "Le processus habituel de récupération hébergée a modifié une recette partagée ; l’événement distinct correspondant dans le registre du catalogue identifie cette modification.",
-  "admin.computeValidation.budget": "Une tentative par run source, au maximum {{attempts}} tentatives sur 24 heures, de {{minutes}} minutes chacune, avec arrêt de la consommation à {{tokens}} tokens ou à un coût équivalent API de ${{cost}}. Les appels déjà en cours peuvent dépasser cette limite de consommation ; une dépense inconnue compte tout de même comme une tentative."
+  "admin.computeValidation.budget": "Une tentative par run source, au maximum {{attempts}} tentatives sur 24 heures, de {{minutes}} minutes chacune, avec arrêt de la consommation à {{tokens}} tokens ou à un coût équivalent API de ${{cost}}. Les appels déjà en cours peuvent dépasser cette limite de consommation ; une dépense inconnue compte tout de même comme une tentative.",
+  "layout.backList": "Retour à la liste",
+  "runs.compact.summary": "Résumé",
+  "runs.compact.filters": "Filtres"
 }

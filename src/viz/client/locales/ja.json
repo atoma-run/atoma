@@ -2852,5 +2852,8 @@
   "admin.computeValidation.newCounters": "サーバーで新たに検証された観測結果により、信頼性カウンターが変更されました。元のCompute観測結果が二重に加算されることはありません。",
   "admin.computeValidation.noCounters": "この検証ではカウンターの変更は記録されませんでした。",
   "admin.computeValidation.newRecipes": "通常のホスト型復旧プロセスにより共有レシピが変更されました。変更内容は別の台帳イベントで確認できます。",
-  "admin.computeValidation.budget": "ソースrunごとに1回、24時間以内に最大{{attempts}}回、各{{minutes}}分まで試行できます。消費量が{{tokens}}トークンまたはAPI換算で${{cost}}に達すると停止します。進行中の呼び出しは消費上限を超える場合があります。消費額が不明な場合も1回の試行として数えられます。"
+  "admin.computeValidation.budget": "ソースrunごとに1回、24時間以内に最大{{attempts}}回、各{{minutes}}分まで試行できます。消費量が{{tokens}}トークンまたはAPI換算で${{cost}}に達すると停止します。進行中の呼び出しは消費上限を超える場合があります。消費額が不明な場合も1回の試行として数えられます。",
+  "layout.backList": "一覧に戻る",
+  "runs.compact.summary": "概要",
+  "runs.compact.filters": "フィルター"
 }

@@ -2852,5 +2852,8 @@
   "admin.computeValidation.newCounters": "Las nuevas observaciones verificadas en el servidor cambiaron los contadores de fiabilidad. Esto no contabiliza dos veces la observación original de Compute.",
   "admin.computeValidation.noCounters": "No se registraron cambios en los contadores para esta verificación.",
   "admin.computeValidation.newRecipes": "El proceso ordinario de recuperación alojado modificó una receta compartida; su evento independiente en el libro mayor identifica el cambio.",
-  "admin.computeValidation.budget": "Un intento por run de origen, con un máximo de {{attempts}} intentos en 24 horas y {{minutes}} minutos por intento, y un límite de consumo de {{tokens}} tokens o el equivalente a ${{cost}} en la API. Las llamadas ya en curso pueden superar el límite de consumo; un gasto desconocido sigue contabilizando un intento."
+  "admin.computeValidation.budget": "Un intento por run de origen, con un máximo de {{attempts}} intentos en 24 horas y {{minutes}} minutos por intento, y un límite de consumo de {{tokens}} tokens o el equivalente a ${{cost}} en la API. Las llamadas ya en curso pueden superar el límite de consumo; un gasto desconocido sigue contabilizando un intento.",
+  "layout.backList": "Volver a la lista",
+  "runs.compact.summary": "Resumen",
+  "runs.compact.filters": "Filtros"
 }

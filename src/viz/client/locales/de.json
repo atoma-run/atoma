@@ -2852,5 +2852,8 @@
   "admin.computeValidation.newCounters": "Neue serververifizierte Beobachtungen haben die Zuverlässigkeitszähler geändert. Die ursprüngliche Compute-Beobachtung wird dadurch nicht doppelt angerechnet.",
   "admin.computeValidation.noCounters": "Für diese Verifizierung wurden keine Zähleränderungen erfasst.",
   "admin.computeValidation.newRecipes": "Der reguläre gehostete Wiederherstellungsprozess hat ein gemeinsames Rezept geändert; das zugehörige separate Protokollereignis weist die Änderung aus.",
-  "admin.computeValidation.budget": "Ein Versuch pro Quell-run, höchstens {{attempts}} Versuche innerhalb von 24 Stunden, jeweils {{minutes}} Minuten, mit einem Verbrauchsstopp bei {{tokens}} Tokens oder einem API-Äquivalent von ${{cost}}. Bereits laufende Aufrufe können den Verbrauchsstopp überschreiten; auch bei unbekannten Kosten wird ein Versuch angerechnet."
+  "admin.computeValidation.budget": "Ein Versuch pro Quell-run, höchstens {{attempts}} Versuche innerhalb von 24 Stunden, jeweils {{minutes}} Minuten, mit einem Verbrauchsstopp bei {{tokens}} Tokens oder einem API-Äquivalent von ${{cost}}. Bereits laufende Aufrufe können den Verbrauchsstopp überschreiten; auch bei unbekannten Kosten wird ein Versuch angerechnet.",
+  "layout.backList": "Zurück zur Liste",
+  "runs.compact.summary": "Zusammenfassung",
+  "runs.compact.filters": "Filter"
 }
