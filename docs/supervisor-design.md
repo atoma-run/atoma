@@ -261,11 +261,18 @@ the design below, both settling an open decision:
   `git push` or `gh`; the harness does, AFTER verifying on its own: it
   stashes the source change and runs the new test files expecting a failure,
   restores them, runs `npm run check:changed` (the docs check and typecheck
-  of the whole tree, lint and tests of the change), and only then commits,
+  of the whole tree, lint of the change, modified tests and statically related
+  tests), and only then commits,
   pushes and opens the PR; CI runs the full `npm run check` on it, and the
-  ruleset requires it before a merge. The full check cannot run on the
-  production host: measured 2026-09-28, the whole-tree lint needs 3.5 GiB
-  against the container's 2 GiB. The model's word is recorded, never trusted.
+  ruleset requires it before a merge. Deletions and global test, TypeScript
+  or package configuration changes select the full suite. Related-test selection
+  cannot discover every computed import or subprocess dependency, so explicit
+  regression tests remain required. For machine-readable verification results,
+  use `npm run --silent check:changed -- --json <file>…`: schema version 1
+  reports each command's status, duration, exit code and bounded diagnostic
+  output, including truncation and steps skipped after failure. The default
+  invocation streams human-readable output. The model's word is recorded,
+  never trusted.
 - **What may be mended**: a `defect` or `mechanism_candidate` finding at or
   above the confidence floor (`high` by default) whose `proposedFix` cites
   the intentional choices it checked. A candidate's pull request proposes the

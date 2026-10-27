@@ -245,7 +245,8 @@ Neighbours:
   source change is stashed (untracked files included), the new test files run
   and must FAIL, the stash is restored, and `npm run check:changed` runs on
   the changed files and must PASS — the docs check and typecheck of the whole
-  tree, ESLint and the tests of the change. A test that passes on the unfixed
+  tree, ESLint of the change, modified tests and statically related tests
+  (the full suite for deletions or global configuration changes). A test that passes on the unfixed
   code means the mechanism is not established and the attempt is `refused`.
   The FULL `npm run check` runs in CI on the pushed branch and the pull
   request, and the ruleset on `main` requires it before a merge; the host
