@@ -110,6 +110,22 @@ describe('result-gate pipeline', () => {
     expect(exec.reads.filter((p) => p === '.atoma-probes.json')).toHaveLength(1);
   });
 
+  it('accepts a persisted expected-nonzero probe as an observed tool action', async () => {
+    const { gateEnv } = env({
+      description: 'Run the negative canary and confirm its expected stderr and exit code 42.',
+      requireObservedToolAction: true,
+      result: result({
+        // The command itself is nonzero, so the generic action bit is false;
+        // record_probe's structured persistence receipt is the successful action.
+        toolCallResults: [{ name: 'record_probe', ok: false }],
+        recordedCommandProbes: true,
+      }),
+    });
+
+    const outcome = await runResultGates(gateEnv, new Set());
+    expect(outcome.rejection?.gateId).not.toBe('observed-tool-action');
+  });
+
   it('reject-once: first offense rejects, the identical repeat becomes a review finding', async () => {
     const files = {
       '.atoma-probes.json': JSON.stringify({

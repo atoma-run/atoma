@@ -382,8 +382,13 @@ export {
 
 /** Internal action witness populated by L1's transport observer, not model text. */
 export function resultHasSuccessfulToolAction(
-  result: Pick<Result, 'toolCallResults'>
+  result: Pick<Result, 'toolCallResults' | 'recordedCommandProbes'>
 ): boolean {
+  // record_probe successfully persisting a receipt is itself a completed tool
+  // action. Its observed command may intentionally exit nonzero (negative
+  // canaries), so it has a separate transport witness from the generic
+  // exitCode === 0 success bit in toolCallResults.
+  if (result.recordedCommandProbes) return true;
   return (result.toolCallResults ?? []).some(
     (entry) =>
       entry !== null &&
