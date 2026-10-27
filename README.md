@@ -33,7 +33,12 @@ are taken by [Decision](#decision-handles-bounded-decisions), TypeSafe's Jev mod
 
 ## Watch the demo
 
-https://github.com/user-attachments/assets/9572ddb9-0767-45c8-aaf2-5435619c1cbd
+Explore a two-run business scenario, three-tier coordination, MCP integration
+and model-cost optimization in this four-minute walkthrough.
+
+<video src="https://github.com/atoma-run/atoma/raw/refs/heads/main/screenshots/demo-film-v11/atoma-presentation-v11.mp4" controls preload="metadata"></video>
+
+[Watch or download the demo](screenshots/demo-film-v11/atoma-presentation-v11.mp4)
 
 ## From a business need to a tool you can use
 
@@ -87,18 +92,6 @@ For example:
 Previews are review environments; deploying the generated application is a
 separate step. Project runs use the configured model accounts and consume model
 quota or incur API charges.
-
-<p align="center">
-  <img src="docs/atoma-run-audit.png" alt="atoma console showing a build run, its timeline, validation results and model cost estimates">
-</p>
-
-<p align="center"><em>See what ran, what was checked, and where model usage went.</em></p>
-
-<p align="center">
-  <img src="docs/atoma-run-llm-filter.png" width="640" alt="The same run timeline narrowed to LLM calls, each step showing its agent, model, tokens, cache use, duration and cost">
-</p>
-
-<p align="center"><em>Filter the timeline to LLM calls: the model, tokens and cost behind each step.</em></p>
 
 ## Features
 
