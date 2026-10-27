@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { canCreditSharedKnowledge, withheldComputeKnowledge } from '../contracts/executionTarget.js';
 import { basename } from 'node:path';
 import type { GenerationParams, LlmCompletionRequest, Result, RunContext, Task } from '../core/types.js';
 import type { L1Atom } from '../atoms/L1Atom.js';
@@ -1884,6 +1885,11 @@ export class SkillLifecycle {
     ctx: RunContext,
     executor?: { readonly atomId: string; readonly name: string }
   ): void {
+    if (!canCreditSharedKnowledge(ctx.executionProvenance)) {
+      this.noteUncreditedDirect(skill, l1Name, ctx,
+        'customer execution requires independent hosted validation', executor);
+      return;
+    }
     const via = skillEventExecutor(l1Name, executor);
     try {
       this.skills?.clearDirectFailures(l1Name, skill.id);
@@ -1942,6 +1948,10 @@ export class SkillLifecycle {
     reason: string,
     executor?: { readonly atomId: string; readonly name: string }
   ): void {
+    if (!canCreditSharedKnowledge(ctx.executionProvenance)) {
+      this.skills.recordWithheld(l1Name, skill.id,
+        withheldComputeKnowledge('success', this.host.name, executor?.name));
+    }
     try {
       ctx.recordSkill?.({
         op: 'direct',
@@ -2002,6 +2012,11 @@ export class SkillLifecycle {
     ctx: RunContext,
     executor?: { readonly atomId: string; readonly name: string }
   ): void {
+    if (!canCreditSharedKnowledge(ctx.executionProvenance)) {
+      this.skills.recordWithheld(l1Name, skill.id,
+        withheldComputeKnowledge('direct-failure', this.host.name, executor?.name));
+      return;
+    }
     const streak = this.skills.markDirectFailure(l1Name, skill.id);
     if (streak < demoteAfter()) return;
     const demoted = this.skills.demoteToLlm(

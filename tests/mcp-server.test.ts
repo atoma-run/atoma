@@ -809,6 +809,12 @@ describe('MCP readers — the ones the roadmap owed', () => {
     expect(filtered.events.map((e) => e.kind)).toEqual(['skill-save']);
     const byEntity = ledgerTail({ entity: 'mol-1' }) as { events: { entity: string }[] };
     expect(byEntity.events.every((e) => e.entity.startsWith('mol-1/'))).toBe(true);
+    reg.recordWithheld('mol-1', 's1', {
+      operation: 'success', by: 'Tracheid', via: 'Water', provenance: 'customer-device',
+      reason: 'Customer execution requires independent hosted validation',
+    });
+    const held = ledgerTail({ kind: 'skill-credit-withheld' }) as { events: { entityId: string; detail: unknown }[] };
+    expect(held.events).toMatchObject([{ entityId: 'mol-1/s1', detail: { operation: 'success', provenance: 'customer-device' } }]);
   });
 
   it('costs folds traces per model, tier and role and reads the trend from medians', () => {

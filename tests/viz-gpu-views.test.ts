@@ -2514,6 +2514,21 @@ describe('drawJournal', () => {
 describe('drawLedger', () => {
   const auth = makeAuth({ platformAdmin: true });
 
+  it('shows Compute withholding with its operation, reason and run, without a UI vocabulary update', () => {
+    const ctx = createRecordingCtx();
+    drawLedger(ctx, makeSnapshot({ view: 'ledger' }, { auth, adminLedger: [{
+      at: '2026-10-27T00:00:00.000Z', kind: 'skill-credit-withheld', entity: 'owner/the-recipe', owner: 'Water',
+      detail: { operation: 'success', provenance: 'customer-device', by: 'Tracheid',
+        reason: 'Customer execution requires independent hosted validation' },
+      scope: { runId: 'run-compute-123' },
+    }] }), 1280, 720);
+    const text = ctx.texts.map(row => row.value).join('\n');
+    expect(text).toContain('skill-credit-withheld');
+    expect(text).toContain('operation: success');
+    expect(text).toContain('Customer execution requires independent hosted validation');
+    expect(text).toContain('run-comp');
+  });
+
   it('is its own screen, and says what it is not', () => {
     const ctx = createRecordingCtx();
     drawLedger(

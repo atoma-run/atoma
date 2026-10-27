@@ -698,7 +698,7 @@ load-bearing.
   or salvaged, after both schemas accept; restore readers keep the schema's 32,000. Each suite is a
   self-contained file: never advise shared setup across suites.
 - Feedback uses `Atom.plan`'s third argument, never task constraints (prefilter-keyed and inherited). The root retains all refusals/requests, the latest parse message and bounded host facts.
-- Customer-device evidence cannot credit shared trust, learn recipes/prompts or promote types; L2/L3 and direct dispatch require independent hosted validation for credit.
+- Customer-device evidence cannot credit or penalize shared trust, revise/learn recipes/prompts or promote/demote recipes. L2/L3 and direct dispatch require independent hosted validation; withheld success, failure and recipe revision observations are journaled without changing counters or bodies. Matching and local recovery remain available.
 Large identical original/current input copies are rendered once; conflicting values and all acceptance constraints remain. Versioned executable corpora replace repeated prose examples, never criteria.
 ## Intentional choices and rejected shortcuts
 - L1 returns bounded prior same-request probe outputs, including customer-device replies: attempt-local reporting evidence, never replay input or coverage approval. Every requested invocation executes; latest failures remain failures. Do not repeat a mutant/restoration merely to create a separately named manifest entry.

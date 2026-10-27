@@ -226,6 +226,7 @@ Neighbours:
 
 ## Ledger
 
+- `type-credit-withheld` / `skill-credit-withheld` are observations, never counter deltas. They retain the proposed operation, provenance, reason, supervisor, recipe executor and ordinary run scope. They do not invalidate recovery checkpoints or backfill historical counters.
 - Ledger writes are fail-open for run execution but attributable and ordered.
   A ledger failure cannot take down the product; impossible counter directions
   must be surfaced by `ledger check`.

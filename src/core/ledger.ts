@@ -91,6 +91,8 @@ export interface LedgerScope {
 }
 
 export type LedgerEventKind =
+  | 'type-credit-withheld'
+  | 'skill-credit-withheld'
   | 'type-patch'
   | 'prompt-learning'
   | 'type-success'

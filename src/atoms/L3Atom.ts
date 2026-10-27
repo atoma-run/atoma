@@ -1,4 +1,4 @@
-import { canCreditSharedKnowledge } from '../contracts/executionTarget.js';
+import { canCreditSharedKnowledge, withheldComputeKnowledge } from '../contracts/executionTarget.js';
 import { PARENT_TEST_PLANNING, PARALLEL_BRANCH_PLANNING } from '../contracts/parentTests.js';
 import { verifyParentTests, parentTestFindings } from '../core/parentTests.js';
 import { renderParentTestsBlock } from './parentTestsBlock.js';
@@ -1564,6 +1564,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       },
       onApproved: async (child, result, verdict) => {
         if (!canCreditSharedKnowledge(ctx.executionProvenance)) {
+          this.registry.recordWithheld(child.name, withheldComputeKnowledge('success', this.name));
           ctx.logger.info('Shared credit withheld: customer execution requires independent hosted validation');
           return;
         }
@@ -1589,6 +1590,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         }
       },
       onFailed: async (child, _reason) => {
+        if (!canCreditSharedKnowledge(ctx.executionProvenance)) {
+          this.registry.recordWithheld(child.name, withheldComputeKnowledge('failure', this.name));
+          return;
+        }
         this.registry.recordFailure(child.name, this.name);
       },
     };

@@ -1,4 +1,5 @@
 import { SkillLifecycle } from '../src/skills/lifecycle.js';
+import { readLedger } from '../src/core/ledger.js';
 import { asStoredNamespace } from '../src/skills/namespace.js';
 import { subtaskMutatesFiles, subtaskMutationTargets } from '../src/skills/lifecycle.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -1448,6 +1449,23 @@ describe('a direct dispatch is validated, and a script set aside is not run agai
     expect(result.summary).toBe('script ran clean');
     expect(events.some(event => event.op === 'credit-withheld')).toBe(true);
     expect(skill()).toMatchObject({ successes: 0, failures: 0 });
+    expect(readLedger().some(event => event.kind === 'skill-credit-withheld' &&
+      event.entity === `${nsOf(reg, 'Water')}/${skill().id}` && event.detail?.['operation'] === 'success')).toBe(true);
+  });
+
+  it('recovers repeated Compute script failures without demoting the shared recipe', async () => {
+    const { executor } = makeExecutor({ exitCode: 1, stdout: '', stderr: 'contract failed' });
+    const ctx = { ...makeCtx(), executionProvenance: 'customer-device' as const, tools: executor };
+    for (let attempt = 0; attempt < 2; attempt++) {
+      queuePrefilters(ctx);
+      queueMoleculeLoop(ctx, 'recovered with the model');
+      expect((await neuron().handleDirect({ description: 'scaffold the config' }, ctx)).summary).toBe('recovered with the model');
+    }
+    expect(skill()).toMatchObject({ kind: 'script', successes: 0, failures: 0 });
+    expect(skill().directFailures ?? 0).toBe(0);
+    expect(reg.getByName('Water')!.consecutiveSuccesses).toBe(TRUST_THRESHOLD_SUCCESSES);
+    expect(readLedger().filter(event => event.kind === 'skill-credit-withheld' &&
+      event.entity === `${nsOf(reg, 'Water')}/${skill().id}` && event.detail?.['operation'] === 'direct-failure')).toHaveLength(2);
   });
 
   it('counts a deterministic phase below a tissue\'s read-only phase without crediting it (8738f263)', async () => {
