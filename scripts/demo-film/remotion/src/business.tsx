@@ -5,6 +5,7 @@ import timings from './timing-v11.json';
 import {ReviewPanel,reviewBackground} from './ReviewPanel';
 import {CostPanel} from './CostPanel';
 import {ProductionTimeline,ModelSettings} from './ProductionTimeline';
+import {Cover} from './Cover';
 const bg='#071018',ink='#f4f7f4',muted='#9eafb6',mint='#b4e6cd',gold='#e5bd7c',line='#2b424a';
 const clamp={extrapolateLeft:'clamp',extrapolateRight:'clamp'} as const;
 const ease={...clamp,easing:Easing.bezier(.16,1,.3,1)};
@@ -33,7 +34,7 @@ function Delivery(){return <Stage chapter="ATOMA / YOUR CODE. YOUR NEXT STEP."><
 function Closing(){return <Stage chapter=""><div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}><Reveal><div style={{fontSize:26,color:mint,letterSpacing:4,textAlign:'center'}}>START · BUILD · CONTINUE</div><h1 style={{fontSize:92,letterSpacing:-4,textAlign:'center',lineHeight:1.1,margin:'40px 0'}}>One project.<br/>Built step by step.</h1><div style={{fontSize:40,textAlign:'center',color:mint,marginTop:45}}>atoma.run ↗</div></Reveal></div></Stage>}
 function Spoken({id,children}:{id:string;children:React.ReactNode}){const {fps}=useVideoConfig();return <>{children}<Sequence from={Math.round(.45*fps)} name={'Narration · '+id}><Audio src={staticFile('voice-v11/'+id+'.wav')}/></Sequence></>}
 const t=(k:string)=>timings[k];
-function BusinessFilm(){return <AbsoluteFill style={{background:bg}}>
+function BusinessFilm(){const {fps}=useVideoConfig();return <AbsoluteFill style={{background:bg}}>
 <Sequence name="01 · Business progress" from={t('opening').start} durationInFrames={t('opening').frames}><Spoken id="opening"><Opening/></Spoken></Sequence>
 <Sequence name="02 · Northstar business challenge" from={t('brief').start} durationInFrames={t('brief').frames}><Spoken id="brief"><Brief/></Spoken></Sequence>
 <Sequence name="03 · Three-tier coordination" from={t('coordination').start} durationInFrames={t('coordination').frames}><Spoken id="coordination"><Coordination/></Spoken></Sequence>
@@ -50,5 +51,6 @@ function BusinessFilm(){return <AbsoluteFill style={{background:bg}}>
 <Sequence name="14 · Audit and comparison reruns" from={t('optimize').start} durationInFrames={t('optimize').frames}><Spoken id="optimize"><Optimize/></Spoken></Sequence>
 <Sequence name="14 · Delivery and integrations" from={t('delivery').start} durationInFrames={t('delivery').frames}><Spoken id="delivery"><Delivery/></Spoken></Sequence>
 <Sequence name="15 · Atoma" from={t('closing').start} durationInFrames={t('closing').frames}><Spoken id="closing"><Closing/></Spoken></Sequence>
+<Sequence name="Cover · visible before playback" durationInFrames={Math.ceil(2.2*fps)}><Cover/></Sequence>
 </AbsoluteFill>}
 export const BusinessRoot=()=> <Composition id="AtomaFilm" component={BusinessFilm} width={1920} height={1080} fps={30} durationInFrames={timings.closing.start+timings.closing.frames}/>;

@@ -1,0 +1,27 @@
+{
+  "revision": 12,
+  "baseRevision": 11,
+  "frames": 7192,
+  "durationSeconds": 239.73333333333332,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "change": "Cover visible from frame zero, held to 1.8s and faded out by 2.2s; original narration and scene timing preserved",
+  "source": "V11 ProRes 4444 master + cover.png rendered from the current Remotion composition",
+  "fullDecode": "passed for both exports",
+  "files": {
+    "atoma-presentation-v12.mp4": {
+      "bytes": 20226510,
+      "sha256": "78975716208762571b482672413b4ae08669215a29acbe7fa1eccb484841d798"
+    },
+    "atoma-presentation-v12-github.mp4": {
+      "bytes": 9477707,
+      "sha256": "a3191cf44d2a62d115bee5dc619620d1e8c8324983eeebd6ebfd2cdd228ecc08"
+    },
+    "cover.png": {
+      "bytes": 1109857,
+      "sha256": "779e76d4ee76f2080acd0974ec309bc60b1b91aafe251f9db9ac2759685bb3aa"
+    }
+  }
+}
