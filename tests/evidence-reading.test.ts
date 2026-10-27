@@ -1,3 +1,4 @@
+import { Tiktoken } from 'js-tiktoken/lite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -354,6 +355,18 @@ describe('model context budgets', () => {
     expect(estimateTextTokens('x'.repeat(20000))).toBeLessThan(20000);
     expect(estimateTextTokens('a'.repeat(511) + '😀'.repeat(1000))).toBeGreaterThan(1000);
     expect(estimateTextTokens('<|endoftext|>')).toBeGreaterThan(0);
+  });
+
+  it('counts repetitive proof without repeating identical BPE work or caching across calls', () => {
+    const chunk = ' '.repeat(512);
+    const unit = estimateTextTokens(chunk);
+    const encode = vi.spyOn(Tiktoken.prototype, 'encode');
+    try {
+      expect(estimateTextTokens(chunk.repeat(2000))).toBe(unit * 2000);
+      expect(encode).toHaveBeenCalledTimes(1);
+      expect(estimateTextTokens(chunk)).toBe(unit);
+      expect(encode).toHaveBeenCalledTimes(2);
+    } finally { encode.mockRestore(); }
   });
 
   it('refuses a context which cannot fit the review before calling the model', async () => {

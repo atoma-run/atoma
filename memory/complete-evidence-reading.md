@@ -34,3 +34,9 @@ Adversarial Bugbot review covered protocol faults, stale preview/page/write bodi
 checkpoint restoration, sibling model calls after errors, delta amplification and
 snapshot config forwarding. Regressions cross real runner processes with mocked
 providers, including a >200k archive read after cold continuation.
+
+Integration on 2026-10-27 retained main's chronological command history and
+remediation inventory. CI exposed repetitive BPE work on large padded sources:
+token counts now memoize at most 128 bounded chunks per call, preserving exact
+counts and retaining no evidence between calls. Native macOS ARM typechecking
+also needs a 4 GiB Node heap (fresh full-program check peaked near 2.9 GB).

@@ -11,12 +11,22 @@ export function estimateTextTokens(text: string): number {
   // Evidence may contain special-token spellings. Count them as ordinary text.
   // Bound BPE's quadratic work on long unbroken tool output. Independent chunks
   // give a local reference estimate; the context reserve covers tokenizer differences.
+  // Per-call, bounded memoization: repetitive logs/source padding must not repeat
+  // the same BPE work. No evidence strings survive this count or cross runs.
+  const chunks = new Map<string, number>();
   let tokens = 0;
   for (let start = 0; start < text.length;) {
     let end = Math.min(text.length, start + 512);
     const last = text.charCodeAt(end - 1);
     if (end < text.length && last >= 0xd800 && last <= 0xdbff) end--;
-    tokens += tokenizer.encode(text.slice(start, end), [], []).length;
+    const chunk = text.slice(start, end);
+    let cost = chunks.get(chunk);
+    if (cost === undefined) {
+      cost = tokenizer.encode(chunk, [], []).length;
+      if (chunks.size >= 128) chunks.delete(chunks.keys().next().value!);
+      chunks.set(chunk, cost);
+    }
+    tokens += cost;
     start = end;
   }
   return tokens;
