@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VerdictFinding } from '../src/contracts/supervisorVerdict.js';
+import { EXAMPLE_SUPERVISOR_CHECK_REPORT } from '../src/contracts/supervisorCheck.js';
 import {
   branchName,
   checkDiffPolicy,
@@ -13,12 +14,44 @@ import {
   PROTECTED_FILE_NAMES,
   PROTECTED_ROOTS,
   pullRequestBody,
+  readCheckResult,
   sanitiseFinding,
   WITHHELD_QUOTE,
 } from '../src/supervisor/menderPolicy.js';
 import { MENDER_HARDENING, buildMenderPrompt } from '../src/supervisor/menderPrompt.js';
-import { MENDER_DEFAULT_GIT_AUTHOR, menderGitAuthorFromEnv, wholeTreeCheckWarning } from '../src/supervisor/mender.js';
+import { DEFAULT_MENDER_COMMANDS, MENDER_DEFAULT_GIT_AUTHOR, menderGitAuthorFromEnv, wholeTreeCheckWarning } from '../src/supervisor/mender.js';
 import { menderProvider, providerChildEnv } from '../src/supervisor/session.js';
+
+describe('structured harness evidence', () => {
+  const report = EXAMPLE_SUPERVISOR_CHECK_REPORT;
+  const first = report.steps[0]!;
+  it('requires a complete, internally consistent report and matching process exit', () => {
+    expect(DEFAULT_MENDER_COMMANDS.check).toBe('npm run --silent check:changed -- --json');
+    expect(readCheckResult({ code: 0, stdout: JSON.stringify(report), stderr: '' })).toMatchObject({ passed: true, report });
+    expect(readCheckResult({ code: 0, stdout: JSON.stringify(report), stderr: '', stdoutTruncated: true }).passed).toBe(false);
+    expect(readCheckResult({ code: null, stdout: JSON.stringify(report), stderr: '' }).passed).toBe(false);
+  });
+  it.each([
+    { ...report, schemaVersion: 2 },
+    { ...report, steps: [] },
+    { ...report, steps: [{ command: 'npm', args: [], status: 'skipped', reason: 'previous-check-failed' }] },
+    { ...report, steps: [{ ...first, exitCode: 1 }] },
+    { ...report, steps: [{ ...first, signal: 'SIGTERM' }] },
+    { ...report, steps: [{ ...first, error: 'spawn failed' }] },
+    { ...report, status: 'failed', exitCode: 1 },
+    { ...report, steps: [{ ...first, stdout: 'x'.repeat(24_001) }] },
+  ])('refuses contradictory or unsupported reports (%#)', (invalid) => {
+    expect(readCheckResult({ code: 0, stdout: JSON.stringify(invalid), stderr: '' }).passed).toBe(false);
+  });
+  it('retains valid failed evidence and treats diagnostic truncation as distinct from JSON truncation', () => {
+    const failed = { ...report, status: 'failed', exitCode: 1, steps: [
+      { ...first, status: 'failed', exitCode: null, signal: 'SIGTERM', stderrTruncated: true },
+      { command: 'npm', args: ['run', 'typecheck'], status: 'skipped', reason: 'previous-check-failed' },
+    ] };
+    expect(readCheckResult({ code: 1, stdout: JSON.stringify(failed), stderr: '' })).toMatchObject({ passed: false, report: failed });
+    expect(readCheckResult({ code: 0, stdout: JSON.stringify({ ...report, steps: [{ ...first, stdoutTruncated: true }] }), stderr: '' }).passed).toBe(true);
+  });
+});
 
 /**
  * The mender's pure half. What these hold:

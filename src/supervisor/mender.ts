@@ -54,6 +54,7 @@ import {
   eligibleFindings,
   parseNumstat,
   pullRequestBody,
+  readCheckResult,
   sanitiseFinding,
   shortRunId,
   type EligibleFinding,
@@ -97,7 +98,7 @@ export const DEFAULT_MENDER_COMMANDS: MenderCommands = {
   install: 'npm ci',
   test: 'npx vitest run',
   // Handed the changed files; the full `npm run check` does not fit the host.
-  check: 'npm run check:changed --',
+  check: 'npm run --silent check:changed -- --json',
 };
 
 /**
@@ -475,6 +476,7 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
   const key = defectKey(finding);
   const branch = branchName(runId, index, finding);
   const base = { key, branch, finding: { title: finding.title, confidence: finding.confidence } };
+  let verification: MendVerification | undefined;
 
   const record = (fields: Omit<MendRecord, 'runId' | 'findingIndex' | 'recordedAt' | 'promptVersion' | 'key' | 'branch' | 'finding'>): MendRecord => {
     const full: MendRecord = {
@@ -483,6 +485,7 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
       recordedAt: new Date().toISOString(),
       promptVersion: MENDER_PROMPT_VERSION,
       ...base,
+      ...(verification ? { verification } : {}),
       ...fields,
     };
     mkdirSync(paths.menderDir, { recursive: true });
@@ -714,8 +717,14 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
     // production host (`scripts/check-changed.mjs`), and CI runs it on the
     // pull request before anything merges.
     options.log(`verifying (${options.commands.check} ${files.join(' ')})`);
-    const check = await executeUntrusted(options.commands.check, files, { cwd: worktree, timeoutMs: options.timeoutMs, onLog: options.warn, ...abortable });
-    const checkPassed = check.code === 0;
+    const check = await executeUntrusted(options.commands.check, files, { cwd: worktree, timeoutMs: options.timeoutMs, ...abortable });
+    const checked = readCheckResult(check);
+    const checkPassed = checked.passed;
+    verification = { testFailedBefore, checkPassed, testFiles: policy.testFiles,
+      checkCommand: options.commands.check, ...(checked.report ? { checkReport: checked.report } : {}) };
+    for (const step of checked.report?.steps ?? []) {
+      options.log(`check ${step.status}: ${JSON.stringify([step.command, ...step.args])}${'durationMs' in step ? ` (${step.durationMs} ms)` : ''}`);
+    }
     if (!checkPassed) {
       keepWorktree = true;
       return record({
@@ -725,11 +734,13 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
         worktree,
         report,
         files,
-        problems: ['the harness check is red after the fix'],
-        output: truncate(check.stdout + check.stderr, 6000),
+        verification,
+        problems: [checked.problem ?? 'the harness check is red after the fix'],
+        output: truncate(checked.report
+          ? checked.report.steps.filter((step) => step.status === 'failed').map((step) => 'stdout' in step ? step.stderr + '\n' + step.stdout : '').join('\n')
+          : check.stdout + check.stderr, 6000),
       });
     }
-    const verification: MendVerification = { testFailedBefore, checkPassed, testFiles: policy.testFiles, checkCommand: options.commands.check };
 
     // The last safe point: past it the publication runs to its end, because a
     // stop half-way would leave a pushed branch that no pull request names.

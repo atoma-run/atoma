@@ -273,6 +273,13 @@ the design below, both settling an open decision:
   output, including truncation and steps skipped after failure. The default
   invocation streams human-readable output. The model's word is recorded,
   never trusted.
+- The mender invokes the JSON mode automatically and validates its version,
+  step results and agreement with the process exit code before publication.
+  Every valid report is retained in `verification.checkReport`, including on
+  refusal; failures name the failed command and retain its diagnostics. The PR
+  summarizes successful step count and duration. A missing or inconsistent
+  report refuses the attempt; custom `ATOMA_MENDER_CMD_CHECK` commands must
+  emit the same JSON v1 contract. This adds no model retry or quota spend.
 - **What may be mended**: a `defect` or `mechanism_candidate` finding at or
   above the confidence floor (`high` by default) whose `proposedFix` cites
   the intentional choices it checked. A candidate's pull request proposes the

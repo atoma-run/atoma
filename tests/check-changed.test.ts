@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { changedCheckSteps } from '../scripts/check-changed.mjs';
+import { supervisorCheckReportSchema } from '../src/contracts/supervisorCheck.js';
+import { readCheckResult } from '../src/supervisor/menderPolicy.js';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -70,13 +72,13 @@ describe('structured check CLI', () => {
         cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${bin}${process.platform === 'win32' ? ';' : ':'}${process.env['PATH'] ?? ''}` },
       });
       expect(run.status).toBe(7);
-      const report = JSON.parse(run.stdout);
+      expect(readCheckResult({ code: run.status, stdout: run.stdout, stderr: run.stderr })).toMatchObject({ passed: false, report: { exitCode: 7 } });
+      const report = supervisorCheckReportSchema.parse(JSON.parse(run.stdout));
       expect(report).toMatchObject({ schemaVersion: 1, status: 'failed', exitCode: 7 });
       expect(report.steps.map((step: { status: string }) => step.status)).toEqual(['passed', 'failed', 'skipped', 'skipped']);
-      expect(report.steps[0].stdout).toContain('docs passed');
+      expect(report.steps[0]).toMatchObject({ stdout: expect.stringContaining('docs passed') });
       expect(report.steps[1]).toMatchObject({ exitCode: 7, stderrTruncated: true, stdoutTruncated: false });
-      expect(report.steps[1].stderr).toHaveLength(24000);
-      expect(report.steps[1].durationMs).toBeGreaterThanOrEqual(0);
+      expect(report.steps[1]).toMatchObject({ stderr: 'x'.repeat(24000), durationMs: expect.any(Number) });
       // A fresh process must emit only JSON on success too, without treating
       // --json as a changed file or leaking child logs into the JSON stream.
       writeFileSync(stub, 'console.log("check passed");');
@@ -84,18 +86,19 @@ describe('structured check CLI', () => {
         cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${bin}${process.platform === 'win32' ? ';' : ':'}${process.env['PATH'] ?? ''}` },
       });
       expect(success.status).toBe(0);
-      const passed = JSON.parse(success.stdout);
+      expect(readCheckResult({ code: success.status, stdout: success.stdout, stderr: success.stderr }).passed).toBe(true);
+      const passed = supervisorCheckReportSchema.parse(JSON.parse(success.stdout));
       expect(passed.status).toBe('passed');
       expect(passed.steps.map((step: { status: string }) => step.status)).toEqual(['passed', 'passed', 'passed', 'passed']);
-      expect(passed.steps[3].args).toEqual(['vitest', 'related', '--run', '--passWithNoTests', 'source.ts']);
+      expect(passed.steps[3]?.args).toEqual(['vitest', 'related', '--run', '--passWithNoTests', 'source.ts']);
       const missingCommand = spawnSync(process.execPath, [resolve('scripts/check-changed.mjs'), '--json'], {
         cwd: root, encoding: 'utf8', env: { ...process.env, PATH: root },
       });
       expect(missingCommand.status).not.toBe(0);
-      const missing = JSON.parse(missingCommand.stdout);
+      const missing = supervisorCheckReportSchema.parse(JSON.parse(missingCommand.stdout));
       expect(missing.status).toBe('failed');
-      expect(missing.steps[0].status).toBe('failed');
-      expect(missing.steps[1].status).toBe('skipped');
+      expect(missing.steps[0]?.status).toBe('failed');
+      expect(missing.steps[1]?.status).toBe('skipped');
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

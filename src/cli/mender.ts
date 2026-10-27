@@ -63,7 +63,8 @@ what it does:
   session that may edit src/, tests/ and records/incidents/ and run the checks,
   then VERIFY on its own — the new test must fail without the source change
   and \`npm run check:changed\` (docs, types, the changed files' lint and
-  tests) must pass with it — and only then commit, push and open the PR with
+  related tests) must pass with it, with a valid JSON report and matching exit
+  code — and only then commit, push and open the PR with
   gh. CI runs the full \`npm run check\` on the PR, and the ruleset requires it.
   A person merges; merge → CI → the existing production deployment.
 
@@ -89,7 +90,8 @@ execution host:
 commands (env, resolved inside the execution image):
   ATOMA_MENDER_CMD_CLAUDE (claude)   ATOMA_MENDER_CMD_GH (gh)
   ATOMA_MENDER_CMD_INSTALL (npm ci)  ATOMA_MENDER_CMD_TEST (npx vitest run)
-  ATOMA_MENDER_CMD_CHECK (npm run check:changed --, handed the changed files)
+  ATOMA_MENDER_CMD_CHECK (npm run --silent check:changed -- --json)
+  Check commands receive changed files and MUST emit check:changed JSON v1.
 
 authorship:
   ATOMA_MENDER_GIT_AUTHOR="Name <email>" names the person who answers for the

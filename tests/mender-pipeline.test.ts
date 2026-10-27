@@ -10,6 +10,7 @@ import type { PlatformEventKind } from '../src/contracts/platformEvents.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { PlatformEventLog } from '../src/platform/events.js';
 import { EXAMPLE_MEND_REQUEST } from '../src/contracts/supervisorMend.js';
+import { EXAMPLE_SUPERVISOR_CHECK_REPORT } from '../src/contracts/supervisorCheck.js';
 import { acquireRunLeaseWithoutRecovery, peekRunLease } from '../src/mcp/runLock.js';
 import {
   mendFinding,
@@ -164,7 +165,13 @@ process.exit(failed ? 1 : 0);
     `
 import { appendFileSync } from 'node:fs';
 if (process.env.STUB_CHECK_LOG) appendFileSync(process.env.STUB_CHECK_LOG, JSON.stringify(process.argv.slice(2)) + '\\n');
-process.exit(process.env.STUB_CHECK_FAIL === '1' ? 1 : 0);
+const report = ${JSON.stringify(EXAMPLE_SUPERVISOR_CHECK_REPORT)};
+if (process.env.STUB_CHECK_FAIL === '1') {
+  report.status = 'failed'; report.exitCode = 1;
+  Object.assign(report.steps[1], { status: 'failed', exitCode: 1, stderr: 'typecheck: incompatible assignment', stderrTruncated: true });
+}
+process.stdout.write(process.env.STUB_CHECK_REPORT ?? JSON.stringify(report));
+process.exitCode = process.env.STUB_CHECK_EXIT ? Number(process.env.STUB_CHECK_EXIT) : report.exitCode;
 `
   );
   writeFileSync(join(stubs, 'noop.mjs'), `process.exit(0);\n`);
@@ -191,6 +198,8 @@ process.exit(2);
     process.env['STUB_CHECK_LOG'] = join(root, 'check-args.jsonl');
     delete process.env['STUB_MODE'];
     delete process.env['STUB_CHECK_FAIL'];
+    delete process.env['STUB_CHECK_REPORT'];
+    delete process.env['STUB_CHECK_EXIT'];
     delete process.env['STUB_GH_LIST'];
     delete process.env['STUB_GH_OPEN_MENDS'];
     Object.assign(process.env, env);
@@ -286,6 +295,7 @@ describe('the mender, end to end against a real repository', () => {
     const rec = record(f)!;
     expect(rec).toMatchObject({ outcome: 'pr-opened', prUrl: 'https://github.com/example/atoma/pull/42', mendCostUsd: 0.42 });
     expect(rec.verification).toMatchObject({ testFailedBefore: true, checkPassed: true, testFiles: ['tests/adder.test.mjs'] });
+    expect(rec.verification?.checkReport).toEqual(EXAMPLE_SUPERVISOR_CHECK_REPORT);
     // The mechanism candidate at index 0 predates CANDIDATES_MENDABLE_SINCE and was never touched.
     expect(existsSync(mendRecordPath(join(f.supervisor, 'mender'), RUN_ID, 0))).toBe(false);
 
@@ -310,6 +320,7 @@ describe('the mender, end to end against a real repository', () => {
     expect(create[create.indexOf('--base') + 1]).toBe('main');
     expect(create[create.indexOf('--head') + 1]).toBe(branch);
     const body = readFileSync(create[create.indexOf('--body-file') + 1]!, 'utf8');
+    expect(body).toContain('structured verification: 2 steps passed in 20 ms');
     expect(body).toContain('Defect-Key:');
     expect(body).not.toContain('UNTRUSTED TRACE TEXT');
     expect(body).toContain('withheld from the mender by design');
@@ -397,7 +408,26 @@ describe('the mender, end to end against a real repository', () => {
     const f = fixture();
     await mendPending(f, f.options({}, { STUB_CHECK_FAIL: '1' }));
     expect(record(f)!.outcome).toBe('refused');
-    expect(record(f)!.problems?.join()).toMatch(/harness check is red/);
+    expect(record(f)!.problems?.join()).toContain('typecheck');
+    expect(record(f)!.output).toContain('incompatible assignment');
+    expect(record(f)!.verification).toMatchObject({ testFailedBefore: true, checkPassed: false,
+      checkReport: { status: 'failed', steps: [{ status: 'passed' }, { status: 'failed', stderrTruncated: true }] } });
+    expect(remoteBranches(f)).toEqual([]);
+  }, TIMEOUT_MS);
+
+  it.each(['', '{"schemaVersion":1', JSON.stringify({ ...EXAMPLE_SUPERVISOR_CHECK_REPORT, steps: [] })])(
+    'refuses invalid check JSON even when the process exits zero (%s)', async (output) => {
+      const f = fixture();
+      await mendPending(f, f.options({}, { STUB_CHECK_REPORT: output }));
+      expect(record(f)).toMatchObject({ outcome: 'refused', verification: { testFailedBefore: true, checkPassed: false } });
+      expect(record(f)!.problems?.join()).toContain('JSON');
+      expect(remoteBranches(f)).toEqual([]);
+    }, TIMEOUT_MS);
+
+  it('refuses a green JSON report when the process failed', async () => {
+    const f = fixture();
+    await mendPending(f, f.options({}, { STUB_CHECK_EXIT: '2' }));
+    expect(record(f)!.problems?.join()).toContain('disagrees');
     expect(remoteBranches(f)).toEqual([]);
   }, TIMEOUT_MS);
 
@@ -707,16 +737,17 @@ describe('the mender, end to end against a real repository', () => {
 describe('verification cannot change the proposed patch', () => {
   it('refuses a successful check that writes a forbidden file', async () => {
     const f = fixture();
-    writeFileSync(join(f.stubs, 'check.mjs'), "import { writeFileSync } from 'node:fs'; writeFileSync('package.json', '{}');\n");
+    writeFileSync(join(f.stubs, 'check.mjs'), readFileSync(join(f.stubs, 'check.mjs'), 'utf8') + "\nimport { writeFileSync } from 'node:fs'; writeFileSync('package.json', '{}');\n");
     await mendPending(f, f.options());
     expect(record(f)?.outcome).toBe('refused');
     expect(record(f)?.problems?.join()).toContain('package.json');
+    expect(record(f)?.verification?.checkReport?.status).toBe('passed');
     expect(remoteBranches(f)).toEqual([]);
   }, TIMEOUT_MS);
 
   it('refuses a successful check that silently rewrites an allowed source file', async () => {
     const f = fixture();
-    writeFileSync(join(f.stubs, 'check.mjs'), "import { writeFileSync } from 'node:fs'; writeFileSync('src/adder.mjs', 'export const add = () => 0;');\n");
+    writeFileSync(join(f.stubs, 'check.mjs'), readFileSync(join(f.stubs, 'check.mjs'), 'utf8') + "\nimport { writeFileSync } from 'node:fs'; writeFileSync('src/adder.mjs', 'export const add = () => 0;');\n");
     await mendPending(f, f.options());
     expect(record(f)?.outcome).toBe('refused');
     expect(remoteBranches(f)).toEqual([]);

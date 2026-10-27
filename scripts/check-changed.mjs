@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * `npm run check:changed -- <file>…` — `npm run check` scoped to one change.
  *
@@ -49,15 +50,18 @@ export function changedCheckSteps(files, exists = existsSync) {
   const related = present.filter((file) => !TEST_FILE.test(file));
   const fullSuite = files.some((file) => !exists(file)) || present.some((file) =>
     /^(package(?:-lock)?\.json|vitest\.config\.[^/]+|tsconfig[^/]*\.json)$/.test(file));
-  return [
+  /** @type {Array<[string, string[]]>} */
+  const steps = [
     ['npm', ['run', 'docs:check']],
     ['npm', ['run', 'typecheck']],
-    ...(lintable.length > 0 ? [['npx', ['eslint', ...lintable]]] : []),
-    ...(fullSuite ? [['npx', ['vitest', 'run']]] : [
-      ...(tests.length > 0 ? [['npx', ['vitest', 'run', ...tests]]] : []),
-      ...(related.length > 0 ? [['npx', ['vitest', 'related', '--run', '--passWithNoTests', ...related]]] : []),
-    ]),
   ];
+  if (lintable.length > 0) steps.push(['npx', ['eslint', ...lintable]]);
+  if (fullSuite) steps.push(['npx', ['vitest', 'run']]);
+  else {
+    if (tests.length > 0) steps.push(['npx', ['vitest', 'run', ...tests]]);
+    if (related.length > 0) steps.push(['npx', ['vitest', 'related', '--run', '--passWithNoTests', ...related]]);
+  }
+  return steps;
 }
 
 /** Bound captured diagnostics without terminating an otherwise valid check. */
@@ -67,6 +71,7 @@ const OUTPUT_LIMIT = 24_000;
  * @param {string} command
  * @param {string[]} args
  * @param {boolean} json
+ * @returns {Promise<Exclude<import('../src/contracts/supervisorCheck.js').SupervisorCheckStep, { status: 'skipped' }>>}
  */
 async function runStep(command, args, json) {
   const started = performance.now();
@@ -85,6 +90,7 @@ async function runStep(command, args, json) {
       stderrTruncated ||= stderr.length + chunk.length > OUTPUT_LIMIT;
       stderr = (stderr + chunk).slice(-OUTPUT_LIMIT);
     });
+    /** @type {string | null} */
     let error = null;
     child.on('error', (cause) => { error = cause.message; });
     child.on('close', (exitCode, signal) => resolve({
@@ -99,6 +105,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const json = process.argv.slice(2).includes('--json');
   const files = process.argv.slice(2).filter((arg) => arg !== '--json');
   const steps = changedCheckSteps(files);
+  /** @type {import('../src/contracts/supervisorCheck.js').SupervisorCheckReport['steps']} */
   const results = [];
   let exitCode = 0;
   for (const [command, args] of steps) {
@@ -110,8 +117,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const result = await runStep(command, args, json);
     results.push(result);
     if (!json && result.error) process.stderr.write(`${result.error}\n`);
-    if (result.status !== 'passed') exitCode = result.exitCode || 1;
+    if (result.status !== 'passed') exitCode = result.exitCode !== null && result.exitCode > 0 && result.exitCode <= 255 ? result.exitCode : 1;
   }
-  if (json) process.stdout.write(`${JSON.stringify({ schemaVersion: 1, status: exitCode === 0 ? 'passed' : 'failed', exitCode, steps: results })}\n`);
+  /** @type {import('../src/contracts/supervisorCheck.js').SupervisorCheckReport} */
+  const report = { schemaVersion: 1, status: exitCode === 0 ? 'passed' : 'failed', exitCode, steps: results };
+  if (json) process.stdout.write(`${JSON.stringify(report)}\n`);
   process.exitCode = exitCode;
 }

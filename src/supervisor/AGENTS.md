@@ -258,6 +258,13 @@ Neighbours:
   is bounded (`MENDER_COMMAND_BOUND_MS`, 120 s), so the prompt names the
   checks that fit. Prompt `m2` made a green full check its condition for
   `fixed`.
+- The harness consumes `check:changed --json` (`supervisorCheck.ts`): process
+  exit and validated step results must agree. Missing, truncated, malformed
+  or contradictory reports refuse publication, including from custom check
+  commands. Success and failure records retain per-step duration, status and
+  bounded diagnostics; the PR summarizes the successful report. Diagnostic
+  text never becomes instructions or another model session. Historical records
+  without this optional evidence remain readable, never upgraded to JSON proof.
 - WHAT MAY BE MENDED (`menderPolicy.ts#eligibleFindings`): a `defect` at or
   above the confidence floor (`high` by default) whose `proposedFix` cites the
   intentional choices it checked — and, since 2026-09-27 (owner decision), a

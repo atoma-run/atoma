@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { supervisorCheckReportSchema, type SupervisorCheckReport } from '../contracts/supervisorCheck.js';
+import type { CommandResult } from './session.js';
 import { WITHHELD_QUOTE, type SanitisedFinding, type SupervisorMendReport } from '../contracts/supervisorMend.js';
 import type {
   FindingConfidence,
@@ -252,6 +254,25 @@ export interface MendVerification {
   readonly checkPassed: boolean;
   readonly testFiles: readonly string[];
   readonly checkCommand: string;
+  /** Absent only on historical records or an invalid report. */
+  readonly checkReport?: SupervisorCheckReport;
+}
+
+/** A zero process exit alone must never upgrade missing JSON to a pass. */
+export function readCheckResult(result: CommandResult): { passed: boolean; report?: SupervisorCheckReport; problem?: string } {
+  if (result.stdoutTruncated) return { passed: false, problem: 'the harness check JSON was truncated' };
+  let value: unknown;
+  try { value = JSON.parse(result.stdout); }
+  catch { return { passed: false, problem: 'the harness check did not return valid JSON' }; }
+  const parsed = supervisorCheckReportSchema.safeParse(value);
+  if (!parsed.success) return { passed: false, problem: 'the harness check JSON has an invalid or inconsistent schema' };
+  const report = parsed.data;
+  if (result.code !== report.exitCode) return { passed: false, report, problem: 'the harness check JSON disagrees with the process exit code' };
+  const failed = report.steps.find((step) => step.status === 'failed');
+  return {
+    passed: result.code === 0 && report.status === 'passed', report,
+    ...(failed ? { problem: `the harness check failed: ${JSON.stringify([failed.command, ...failed.args])}` } : {}),
+  };
 }
 
 export function commitMessage(input: {
@@ -335,6 +356,7 @@ export function pullRequestBody(input: {
     '',
     `- regression test FAILS before the fix: ${verification.testFailedBefore ? '✅' : '❌'} (${verification.testFiles.join(', ')})`,
     `- \`${verification.checkCommand}\` after the fix: ${verification.checkPassed ? '✅ green' : '❌ red'}`,
+    ...(verification.checkReport ? [`- structured verification: ${verification.checkReport.steps.length} steps passed in ${verification.checkReport.steps.reduce((total, step) => total + ('durationMs' in step ? step.durationMs : 0), 0)} ms (diagnostics retained in the mend record)`] : []),
     '- the full `npm run check` runs in CI on this pull request; the ruleset requires it before a merge',
     `- files changed: ${input.diffStat.files} · lines: +${input.diffStat.added} −${input.diffStat.deleted}`,
     '',
