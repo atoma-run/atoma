@@ -1,0 +1,58 @@
+{
+  "opening": {
+    "start": 0,
+    "frames": 314
+  },
+  "brief": {
+    "start": 314,
+    "frames": 381
+  },
+  "coordination": {
+    "start": 695,
+    "frames": 361
+  },
+  "runone": {
+    "start": 1056,
+    "frames": 438
+  },
+  "visibility": {
+    "start": 1494,
+    "frames": 382
+  },
+  "continue": {
+    "start": 1876,
+    "frames": 422
+  },
+  "scenario": {
+    "start": 2298,
+    "frames": 420
+  },
+  "approval": {
+    "start": 2718,
+    "frames": 415
+  },
+  "evidence": {
+    "start": 3133,
+    "frames": 439
+  },
+  "models": {
+    "start": 3572,
+    "frames": 561
+  },
+  "mcp": {
+    "start": 4133,
+    "frames": 421
+  },
+  "costs": {
+    "start": 4554,
+    "frames": 483
+  },
+  "delivery": {
+    "start": 5037,
+    "frames": 418
+  },
+  "closing": {
+    "start": 5455,
+    "frames": 306
+  }
+}

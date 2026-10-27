@@ -1,0 +1,113 @@
+{
+  "revision": 11,
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "frames": 7192,
+  "durationSeconds": 239.73333333333332,
+  "productionRunId": "2f63b887-3894-4560-811b-670aec78bd8c",
+  "timeline": "Native editorial rendering of selected real production events, not a new screenshot",
+  "settings": "Native transcription of production model-defaults panel",
+  "mcp": "Rebuilt connection explainer",
+  "recapture": "Attempted DPR2; Chrome closed repeatedly; no usable new high-resolution screenshot",
+  "evidence": "105 trace events, nextOffset null; production status rechecked 2026-10-27",
+  "comparisonContract": "src/projects/AGENTS.md Comparison reruns; src/mcp/AGENTS.md",
+  "scenes": [
+    {
+      "start": 0,
+      "frames": 314,
+      "id": "opening",
+      "voiceSeconds": 8.935
+    },
+    {
+      "start": 314,
+      "frames": 381,
+      "id": "brief",
+      "voiceSeconds": 11.175
+    },
+    {
+      "start": 695,
+      "frames": 361,
+      "id": "coordination",
+      "voiceSeconds": 10.498
+    },
+    {
+      "start": 1056,
+      "frames": 438,
+      "id": "runone",
+      "voiceSeconds": 13.051
+    },
+    {
+      "start": 1494,
+      "frames": 382,
+      "id": "visibility",
+      "voiceSeconds": 11.195
+    },
+    {
+      "start": 1876,
+      "frames": 422,
+      "id": "continue",
+      "voiceSeconds": 12.526
+    },
+    {
+      "start": 2298,
+      "frames": 420,
+      "id": "scenario",
+      "voiceSeconds": 12.471
+    },
+    {
+      "start": 2718,
+      "frames": 415,
+      "id": "approval",
+      "voiceSeconds": 12.299
+    },
+    {
+      "start": 3133,
+      "frames": 439,
+      "id": "evidence",
+      "voiceSeconds": 13.113
+    },
+    {
+      "start": 3572,
+      "frames": 617,
+      "id": "production",
+      "voiceSeconds": 19.017
+    },
+    {
+      "start": 4189,
+      "frames": 456,
+      "id": "models",
+      "voiceSeconds": 13.665
+    },
+    {
+      "start": 4645,
+      "frames": 544,
+      "id": "mcp",
+      "voiceSeconds": 16.605
+    },
+    {
+      "start": 5189,
+      "frames": 620,
+      "id": "costs",
+      "voiceSeconds": 19.12
+    },
+    {
+      "start": 5809,
+      "frames": 659,
+      "id": "optimize",
+      "voiceSeconds": 20.45
+    },
+    {
+      "start": 6468,
+      "frames": 418,
+      "id": "delivery",
+      "voiceSeconds": 12.411
+    },
+    {
+      "start": 6886,
+      "frames": 306,
+      "id": "closing",
+      "voiceSeconds": 8.204
+    }
+  ]
+}

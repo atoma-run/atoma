@@ -1,0 +1,52 @@
+{
+  "voice": "en-US-AndrewNeural",
+  "rate": "+0%",
+  "sentencePause": 0.22,
+  "lines": {
+    "opening": {
+      "say": "Your business needs software that grows with the work. Atoma coordinates agents to plan, build, check, and improve a project, one run at a time."
+    },
+    "brief": {
+      "say": "Imagine a distributor with six warehouses and dozens of suppliers. Stock, sales, and lead times live in separate files. You need one place to spot shortages and decide what to buy."
+    },
+    "coordination": {
+      "say": "Three tiers share the work. Planners break down the goal. Supervisors delegate and review. Workers use tools. Decisions guide progress, and missing evidence triggers correction."
+    },
+    "runone": {
+      "say": "Your first run: reconcile the files, match products across warehouses, and build an inventory workspace. Define acceptance criteria: traceable numbers, reliable filters, and warnings when data is missing."
+    },
+    "visibility": {
+      "say": "Version one gives the team visibility. Filter critical products, then open a stock position. See the source, remaining cover, and supplier lead time. Understand why the item needs attention."
+    },
+    "continue": {
+      "say": "Continue the same project. Run two adds demand scenarios, purchase proposals, and finance approvals. Keep the inventory workspace that already works. Extend the product instead of restarting from a blank prompt."
+    },
+    "scenario": {
+      "say": "Test a thirty-five percent demand increase and a seven-day supplier delay. Compare the baseline, the stressed scenario, and the response. Which purchases protect availability within a sixty-thousand-euro budget?"
+    },
+    "approval": {
+      "say": "Review suppliers, order values, and lead times. Send proposals to finance, record approval, then export the plan. Your product now supports a controlled decision, with a clear activity trail."
+    },
+    "evidence": {
+      "say": "Each Atoma run has a goal, files, and recorded checks. Follow delegation and decisions. Inspect deliveries and incomplete work before continuing. Atoma\u2019s final review remains separate from your acceptance."
+    },
+    "production": {
+      "say": "Follow a real run from a single workspace. Scroll through the timeline to see how the work progressed. Open a card to inspect the action, its result, and the recorded review. Keep the explanation beside the timeline, so each conclusion stays connected to the work behind it. Read the evidence before deciding whether to accept the delivery."
+    },
+    "models": {
+      "say": "Choose a different model for each tier: a strong planner, a capable supervisor, and economical workers. Match capability and cost to the task. Use all major model providers, or run local models through Ollama."
+    },
+    "mcp": {
+      "say": "Keep your preferred agent environment. Through MCP, compatible clients such as Claude Code and Codex work with the same Atoma projects. Prepare goals, start approved work, inspect results, and continue."
+    },
+    "costs": {
+      "say": "This production project breaks down API-equivalent cost by tier and individual model. Compare workers, supervisors, and planners in one view. These are API-rate estimates, not a subscription invoice or a promised project price."
+    },
+    "delivery": {
+      "say": "Import a GitHub repository, inspect files and previews, and publish accepted work. Connect business tools through MCP and choose your hosting destination. Acceptance and deployment stay explicit choices."
+    },
+    "closing": {
+      "say": "Start with a business problem. Build a first version. Continue with the next improvement. Atoma: a project you can inspect, refine, and own."
+    }
+  }
+}

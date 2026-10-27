@@ -1,0 +1,32 @@
+<!doctype html><meta charset="utf-8"><title>Atoma · Production film</title>
+<style>body{margin:0;background:#081b22}canvas{display:block;width:100vw;height:auto}</style><canvas width="1920" height="1080"></canvas>
+<script>
+const canvas=document.querySelector('canvas'),c=canvas.getContext('2d');
+let film,imgs={};
+const ink='#f0f1e8',muted='#9fb7b7',accent='#94e0c3';
+async function setup(data,assets){film=data; await Promise.all(Object.entries(assets).map(async([k,src])=>{let im=new Image();im.src=src;await im.decode();imgs[k]=im}));}
+function txt(s,x,y,size=28,color=ink,weight=400){c.font=`${weight} ${size}px Arial`;c.fillStyle=color;c.textAlign='left';c.fillText(s,x,y)}
+function block(s,x,y,size=62,color=ink){s.split('\n').forEach((line,i)=>txt(line,x,y+i*size*1.12,size,color,600))}
+function round(x,y,w,h,r=22){c.beginPath();c.roundRect(x,y,w,h,r)}
+function photo(name,x,y,w,h,crop=null,zoom=1){let im=imgs[name];if(!im)return;let [sx,sy,sw,sh]=crop||[0,0,im.width,im.height];const ratio=Math.min(w/sw,h/sh);let dw=sw*ratio,dh=sh*ratio;let dx=x+(w-dw)/2,dy=y+(h-dh)/2;c.save();round(dx,dy,dw,dh,18);c.clip();c.drawImage(im,sx+(sw-sw/zoom)/2,sy+(sh-sh/zoom)/2,sw/zoom,sh/zoom,dx,dy,dw,dh);c.restore();c.strokeStyle='#47676a';c.lineWidth=1;round(dx,dy,dw,dh,18);c.stroke()}
+function waveform(x,y,w,h,t,active){let wave=film.scenes.find(s=>s.kind==='sound').waveform;for(let i=0;i<wave.length;i++){let bh=Math.min(h,6+wave[i]*h*1.3);let on=active&&i/wave.length<t/3.6;c.fillStyle=on?accent:'#426465';c.fillRect(x+i*w/wave.length,y-bh/2,Math.max(2,w/wave.length-3),bh)}}
+function bg(t){c.fillStyle='#091c22';c.fillRect(0,0,1920,1080);let g=c.createRadialGradient(1430,400,50,1430,400,1200);g.addColorStop(0,'#183b40');g.addColorStop(1,'#091c22');c.fillStyle=g;c.fillRect(0,0,1920,1080);c.strokeStyle='#315052';c.lineWidth=1;for(let i=0;i<8;i++){c.beginPath();c.arc(1650,190,190+i*95+t*2,.1,2.4);c.stroke()} }
+function caption(s,t){let a=t-.5;if(a<0||a>s.voiceDuration)return;let sentences=s.say.match(/[^.!?]+[.!?]+|[^.!?]+$/g)||[s.say];let total=sentences.reduce((n,v)=>n+v.trim().split(/\s+/).length,0),at=0,line='';for(const part of sentences){let len=part.trim().split(/\s+/).length/total*s.voiceDuration;if(a>=at&&a<at+len)line=part.trim();at+=len;}let lines=[''];c.font='400 30px Arial';for(const word of line.split(' ')){let n=lines.length-1;let trial=(lines[n]+' '+word).trim();if(c.measureText(trial).width>1430)lines.push(word);else lines[n]=trial;}let h=lines.length*40+28;c.fillStyle='rgba(5,16,21,.94)';round(200,1018-h,1520,h,15);c.fill();lines.forEach((l,i)=>{c.textAlign='center';c.fillStyle=ink;c.fillText(l,960,1018-h+42+i*40)});c.textAlign='left';}
+function draw(time){let s=film.scenes.find(s=>time>=s.start&&time<s.start+s.duration)||film.scenes.at(-1),t=time-s.start,u=Math.min(1,t/1.2);bg(time);c.save();c.globalAlpha=Math.min(1,t/.35,(s.duration-t)/.3);txt('atoma',80,83,34,ink,600);txt(s.label,430,80,20,accent,600);txt('PRODUCTION CAPTURE · OCT 2026',1455,80,16,muted,400);
+if(s.kind==='opening'){
+block(s.title,80,240,84);txt('Illustration. Sound. Software.',84,405,30,muted);
+photo('coastal_plate.svg',80,470,550,365,null,1+.025*t/s.duration);photo('attica-live.jpg',1290,470,550,365,[390,0,1100,865]);c.fillStyle='#15363b';round(660,470,600,365);c.fill();waveform(700,630,520,100,t%3.6,true);txt('AURALIS',700,790,23,accent,600);txt('PELAGIC ATLAS',100,880,20,muted);txt('ATTICA',1310,880,20,muted);
+}else if(s.kind==='art'){
+block(s.title,80,240,64);txt('Editable SVG + supporting icons',80,465,24,muted);photo('coastal_plate.svg',690,170,1150,730,null,1+.03*t/s.duration);txt('Actual delivered artwork',80,515,20,muted);
+}else if(s.kind==='sound'){
+block(s.title,80,225,74);txt('Original welcome cue · 3.6 seconds',80,300,28,muted);waveform(90,510,820,260,t-s.cueStart,t>=s.cueStart);txt(t>=s.cueStart?'NOW PLAYING / welcome.wav':'DELIVERED AUDIO / welcome.wav',90,720,23,accent,600);photo('auralis-result.jpg',990,260,850,570,[95,200,1060,255]);txt('Three WAV files + cue sheet + production notes',1000,810,21,muted);
+}else if(s.kind==='closing'){
+block(s.title,100,275,94);txt('atoma.run',105,720,64,accent,500);txt('Real projects. Recorded results.',108,810,28,muted);
+}else if(s.id==='inspect'){
+block(s.title.replace('\n',' '),80,188,58);photo(s.image,80,245,1760,650,[80,145,1820,660],1+.015*t/s.duration);
+}else{
+block(s.title,80,235,57);photo(s.image,610,170,1230,720,s.crop,1+.025*t/s.duration);txt(s.id==='app'?'Live hosted app · recorded 26 October 2026':s.id==='online'?'Accepted repair → GitHub → online':'Actual Atoma production interface',620,920,20,muted);
+}
+caption(s,t);c.restore();c.fillStyle='#375557';c.fillRect(80,1047,1760,2);c.fillStyle=accent;c.fillRect(80,1047,1760*time/film.duration,2);return canvas.toDataURL('image/jpeg',.93).split(',')[1];}
+window.setup=setup;window.draw=draw;
+</script>

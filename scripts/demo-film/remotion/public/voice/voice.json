@@ -1,0 +1,42 @@
+{
+  "intro": {
+    "key": "a437e817572a0c57",
+    "seconds": 5.246,
+    "file": "intro.wav"
+  },
+  "request": {
+    "key": "3d46a820ab33e0f0",
+    "seconds": 7.281,
+    "file": "request.wav"
+  },
+  "coordination": {
+    "key": "b323992e97110064",
+    "seconds": 9.053,
+    "file": "coordination.wav"
+  },
+  "reject": {
+    "key": "28647d6f1e47b5a0",
+    "seconds": 9.203,
+    "file": "reject.wav"
+  },
+  "approve": {
+    "key": "b17dc0782e40c1c1",
+    "seconds": 10.054,
+    "file": "approve.wav"
+  },
+  "app": {
+    "key": "98416689f5760106",
+    "seconds": 8.565,
+    "file": "app.wav"
+  },
+  "control": {
+    "key": "e58c328a9a7a94c4",
+    "seconds": 8.452,
+    "file": "control.wav"
+  },
+  "close": {
+    "key": "36877724e1168dfc",
+    "seconds": 2.288,
+    "file": "close.wav"
+  }
+}

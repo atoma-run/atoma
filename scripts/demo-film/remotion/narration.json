@@ -1,0 +1,13 @@
+{
+ "voice":"en-US-AndrewNeural","rate":"+0%","sentencePause":0.18,
+ "lines":{
+ "intro":{"say":"A useful AI workflow needs more than an answer. It needs coordination, and work you can check."},
+ "request":{"say":"Here is a real Atoma project: a personal reading log. Add books, filter by status, and keep your data when you return."},
+ "coordination":{"say":"Three tiers work together. A planner breaks down the goal. Supervisors delegate and review. Workers use tools. Missing evidence sends work back for correction."},
+ "reject":{"say":"In this production run, the first final review refused the delivery. Adding books worked, but filtering had not been demonstrated. Passing some tests was not enough."},
+ "approve":{"say":"Atoma continued the work. The next review confirmed all four criteria: responsive layout, working interactions, six passing tests, and clear documentation."},
+ "app":{"say":"These are the actual delivered files, opened locally. Select Reading: only the matching book remains. Reload, and both saved books are still there."},
+ "control":{"say":"Follow the decisions, inspect the files, and review the evidence. Atoma's checks are separate from your acceptance. You stay in control of what happens next."},
+ "close":{"say":"From a request to checked work. Atoma."}
+ }
+}

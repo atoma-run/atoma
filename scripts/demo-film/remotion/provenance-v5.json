@@ -1,0 +1,282 @@
+{
+  "revision": 5,
+  "size": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "duration_seconds": 192.033,
+  "source_notes": "Northstar is locally authored fictional demo data. Atoma UI captures are production snapshots dated 2026-10-26. No Northstar run was executed.",
+  "production_crop_rectangles": {
+    "costs": {
+      "x": 1460,
+      "y": 350,
+      "width": 420,
+      "height": 430
+    },
+    "models": {
+      "x": 620,
+      "y": 625,
+      "width": 740,
+      "height": 215
+    },
+    "mcp-setup": {
+      "x": 620,
+      "y": 287,
+      "width": 716,
+      "height": 480
+    }
+  },
+  "scenes": [
+    {
+      "scene": "opening",
+      "start_seconds": 0.0,
+      "duration_seconds": 10.467,
+      "speech_seconds": 8.935,
+      "tail_seconds": 1.065
+    },
+    {
+      "scene": "brief",
+      "start_seconds": 10.467,
+      "duration_seconds": 12.7,
+      "speech_seconds": 11.175,
+      "tail_seconds": 1.058
+    },
+    {
+      "scene": "coordination",
+      "start_seconds": 23.167,
+      "duration_seconds": 12.033,
+      "speech_seconds": 10.498,
+      "tail_seconds": 1.069
+    },
+    {
+      "scene": "runone",
+      "start_seconds": 35.2,
+      "duration_seconds": 14.6,
+      "speech_seconds": 13.051,
+      "tail_seconds": 1.082
+    },
+    {
+      "scene": "visibility",
+      "start_seconds": 49.8,
+      "duration_seconds": 12.733,
+      "speech_seconds": 11.195,
+      "tail_seconds": 1.072
+    },
+    {
+      "scene": "continue",
+      "start_seconds": 62.533,
+      "duration_seconds": 14.067,
+      "speech_seconds": 12.526,
+      "tail_seconds": 1.074
+    },
+    {
+      "scene": "scenario",
+      "start_seconds": 76.6,
+      "duration_seconds": 14.0,
+      "speech_seconds": 12.471,
+      "tail_seconds": 1.062
+    },
+    {
+      "scene": "approval",
+      "start_seconds": 90.6,
+      "duration_seconds": 13.833,
+      "speech_seconds": 12.299,
+      "tail_seconds": 1.068
+    },
+    {
+      "scene": "evidence",
+      "start_seconds": 104.433,
+      "duration_seconds": 14.633,
+      "speech_seconds": 13.113,
+      "tail_seconds": 1.054
+    },
+    {
+      "scene": "models",
+      "start_seconds": 119.067,
+      "duration_seconds": 18.7,
+      "speech_seconds": 17.155,
+      "tail_seconds": 1.078
+    },
+    {
+      "scene": "mcp",
+      "start_seconds": 137.767,
+      "duration_seconds": 14.033,
+      "speech_seconds": 12.514,
+      "tail_seconds": 1.053
+    },
+    {
+      "scene": "costs",
+      "start_seconds": 151.8,
+      "duration_seconds": 16.1,
+      "speech_seconds": 14.553,
+      "tail_seconds": 1.08
+    },
+    {
+      "scene": "delivery",
+      "start_seconds": 167.9,
+      "duration_seconds": 13.933,
+      "speech_seconds": 12.411,
+      "tail_seconds": 1.056
+    },
+    {
+      "scene": "closing",
+      "start_seconds": 181.833,
+      "duration_seconds": 10.2,
+      "speech_seconds": 8.204,
+      "tail_seconds": 1.529
+    }
+  ],
+  "assets": [
+    {
+      "file": "public/v5/approval-approved.mp4",
+      "sha256": "ccb85186bf71a391976f05120da5c9c17d4b7469bc0112c55a7a839b4f5b4dd0",
+      "bytes": 115980
+    },
+    {
+      "file": "public/v5/approval-draft.mp4",
+      "sha256": "dd4d192962c4d14d7797c4d47d3bbfdff75c330cc7dc8d558b022341151c04c0",
+      "bytes": 109081
+    },
+    {
+      "file": "public/v5/approval-review.mp4",
+      "sha256": "0269b4a26777e80a4350cf9b84fae3b42f3cc664353de65cca2642fdf715fb30",
+      "bytes": 114348
+    },
+    {
+      "file": "public/v5/audit.mp4",
+      "sha256": "bcab638e91c52ebb8109966d6f50ffbbbf02ada5306585f614824df6c15ca7c8",
+      "bytes": 60326
+    },
+    {
+      "file": "public/v5/inventory-detail.mp4",
+      "sha256": "06a2ba684e1ebbc1430837d7934242479271ed0b507f6368c04e31eb179f8a0d",
+      "bytes": 99051
+    },
+    {
+      "file": "public/v5/inventory-risk.mp4",
+      "sha256": "04ead6772cefe3889be62fbcd50451c572444c99ec72e9fd984670691080f271",
+      "bytes": 75961
+    },
+    {
+      "file": "public/v5/inventory.mp4",
+      "sha256": "e94078e04d81f62141f2c093bab18d5888e3ecc733e950608323a4d82cbda842",
+      "bytes": 84899
+    },
+    {
+      "file": "public/v5/overview.mp4",
+      "sha256": "5a7eb9bc8e92d23d7b56b1e54a1e448928613cfae7a427f10b676506a58cfb8f",
+      "bytes": 97926
+    },
+    {
+      "file": "public/v5/production-costs.png",
+      "sha256": "92760fc8c78dc05e98d57966a3aee7898938ffc3c70d3c59f8ba991cc5d7aec2",
+      "bytes": 133795
+    },
+    {
+      "file": "public/v5/production-mcp-setup.png",
+      "sha256": "45116529607cf916d93ed63a359302f2d2b72a74639387a000c3a72086e7b347",
+      "bytes": 177388
+    },
+    {
+      "file": "public/v5/production-models.png",
+      "sha256": "eee3b7246d170578498e95ee178aaeebba64220700ae8ca1c32a47fcf64488cb",
+      "bytes": 70059
+    },
+    {
+      "file": "public/v5/scenario-base.mp4",
+      "sha256": "685154865b8b9135f6ebede533c7482cd233b8ce99ae70114c1e518a0ad94cfb",
+      "bytes": 109267
+    },
+    {
+      "file": "public/v5/scenario-stress.mp4",
+      "sha256": "21d8c9cf6919d602dc113eaa1006b0ff3b35660641b48f2a1326139dc1fe6931",
+      "bytes": 118518
+    },
+    {
+      "file": "public/voice-v5/approval.wav",
+      "sha256": "082e165a8cc53f3e517aecd1084bb9eca17cff022d4e4efbb34e2923a7562021",
+      "bytes": 590408
+    },
+    {
+      "file": "public/voice-v5/brief.wav",
+      "sha256": "b0fefa298e33a1065af658217666609fcb6162892406f7931c5af2b0ca959a19",
+      "bytes": 536442
+    },
+    {
+      "file": "public/voice-v5/closing.wav",
+      "sha256": "9add8e7e398a8f66f0032eef70eef57939b2e3d44163aea872ceaa8f0f4e624e",
+      "bytes": 393824
+    },
+    {
+      "file": "public/voice-v5/continue.wav",
+      "sha256": "1c30e599a4bfe9094d8c3d945d01abcfcc2f8f250276fed85639748fd6dde551",
+      "bytes": 601274
+    },
+    {
+      "file": "public/voice-v5/coordination.wav",
+      "sha256": "0544447ffb933989e7ab4377f12f54cfb57a5ff9499c23399ad7405281506393",
+      "bytes": 503938
+    },
+    {
+      "file": "public/voice-v5/costs.wav",
+      "sha256": "3e0cc03850819b057e5a4bda5b7dbacd87221946a42def845daacdee3a5b9917",
+      "bytes": 698574
+    },
+    {
+      "file": "public/voice-v5/delivery.wav",
+      "sha256": "256888cb265745a3246e35624298bcdffec5e1d2327cdf295482e5e52b45a4a7",
+      "bytes": 595762
+    },
+    {
+      "file": "public/voice-v5/evidence.wav",
+      "sha256": "c7b36eddb30322e4489376f66d82e1a7d25560e9b95cfa9aad36d0e0253266eb",
+      "bytes": 629476
+    },
+    {
+      "file": "public/voice-v5/mcp.wav",
+      "sha256": "75a06b225849db6e16b795618e7cdf7a29b25ba77bd417f546bf6113a823bd95",
+      "bytes": 600722
+    },
+    {
+      "file": "public/voice-v5/models.wav",
+      "sha256": "4fc1507b63bc75591e351c60f08a033acd864793b10849f1ac7df2988f6246c8",
+      "bytes": 823500
+    },
+    {
+      "file": "public/voice-v5/opening.wav",
+      "sha256": "f5f431beccf49ac1cb36d08fadf14e83e46305277f50e221a8bbcec0570a475c",
+      "bytes": 428918
+    },
+    {
+      "file": "public/voice-v5/runone.wav",
+      "sha256": "0ad6c82c4e3691aa7178750e8507ad7f7f2cdfea5bbddf7834846ce7c11469c2",
+      "bytes": 626514
+    },
+    {
+      "file": "public/voice-v5/scenario.wav",
+      "sha256": "c38e09f48e16aa0097bc97e1d8215df4ff29938b3696c8dcaf81182820265ad1",
+      "bytes": 598668
+    },
+    {
+      "file": "public/voice-v5/visibility.wav",
+      "sha256": "785056b210e28980328a0e72015649fa20ff294cf17b5efe90be6255da6267ec",
+      "bytes": 537390
+    },
+    {
+      "file": "public/voice-v5/voice.json",
+      "sha256": "d98edd0fd4fdf91d02ac298d96c67c36c9f4e5cddd75f9e804c2104fc482be9d",
+      "bytes": 1406
+    },
+    {
+      "file": "public/media/coordination.mp4",
+      "sha256": "89dbf6fc19a92faffaeda2a0d1811eb5b99c9a619bcdd5e84e446cef2b594959",
+      "bytes": 1488709
+    },
+    {
+      "file": "public/media/atoma.svg",
+      "sha256": "e5043b5c8d2faaf9abfb432028ada56635a5dbec3f587ada112d6952f2baf24d",
+      "bytes": 654
+    }
+  ]
+}

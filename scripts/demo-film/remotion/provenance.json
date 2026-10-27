@@ -1,0 +1,61 @@
+{
+  "productionProject": "b986cbcb-5982-4a77-9fec-73ada171724c",
+  "productionRun": "fb84de15-8a46-474c-a72a-10afdb7fd8e5",
+  "traceEventsRead": 114,
+  "traceReadToEnd": true,
+  "rejectedReviewEvent": "97961cd6-5af1-405c-8e3d-2700b52ae98e",
+  "approvedReviewEvent": "d15f4bc8-9021-4610-bf5f-f6946276ef99",
+  "jitterEditableUrl": "https://jitter.video/file/?id=t6ngBQeHcUDHGu2isTfH0RMg",
+  "durationSeconds": 111,
+  "fps": 30,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "localDeliveryFiles": {
+    "index.html": "d611b7a6b7e9760dde57814df607e976811510ac6e13e49c17e963880801c46e",
+    "rules.js": "d545941d6a6ce655a59e3df3dfb4474f580188320854bf416ae198c83f5349c1",
+    "README.md": "1692aaf336bdfb969f967a6a88c1765546e60cf678931d2101064a7702926292",
+    "rules.test.js": "e07a50fdf08d79e28b711c45611b27560b7bcc3249a16b03732c5467cee6c136",
+    "app.js": "4839dd9cb0f7cef175e49c07d3bd1bc40a5ea6dbe0579e6d3886023fbf2f904c"
+  },
+  "media": {
+    "public/voice/control.wav": "d3089fe22cb1e8a3cacba9a5cdc7510487f6b3642af6381c3712ff4b604bebfd",
+    "public/voice/intro.wav": "c8b466535afea922354a64e13da051c0452473ad436fbbd096743093718d10b1",
+    "public/voice/approve.wav": "4d71f2a6a515fcce55359cd72f762c6a9839637d19d36d1a7c05f9d03bed6fec",
+    "public/voice/app.wav": "b02f07bc3568bb16f6c8c5a53d322ffe1daa86b4d172d9c8496cdaf980553dc4",
+    "public/voice/close.wav": "9464c43f9ad025e3054d535d123c39974119055c29dc43f850703203ef88b85a",
+    "public/voice/coordination.wav": "56d1a3f339bc5c366f4f7d87131029b8a607b6c678a412b63fbc06b240d915d7",
+    "public/voice/reject.wav": "dcba3ddabbf026e14cc171edc1476e110c2e51cafca3a5a626fc4fc2621fa02b",
+    "public/voice/request.wav": "c63e1f05736b5bdee05fb7717132c52fecab644381c4b323eccd8d955d436812",
+    "public/voice/voice.json": "893a8eef98aa88063e851f10f2721d4d76e0b9f0ed61c3fa3f20f1957b5c8245",
+    "public/voice-paced/control.wav": "8e8102f244bfea7768e10298bce176067f4c117a05d916c0865dcc522f20c48a",
+    "public/voice-paced/intro.wav": "0be39e31b6472431958a7c4703ba466b965821618bc1a5c5257782604036dee3",
+    "public/voice-paced/approve.wav": "9684a2c0b29e8158162cd2a4b7b181a82409530fa13bebcb4f9cf42f93ff24d5",
+    "public/voice-paced/app.wav": "05bc03979202b26a93feb5177bbd019d4edf1ecce495fa77ae741cfdc322e562",
+    "public/voice-paced/close.wav": "a5a7b75b8bcf86670cde621cf40cdda08280c9c8ea3c21cfe32d929d3656582c",
+    "public/voice-paced/coordination.wav": "00c0536fea1e97ba2582251b263f57e6d7bc8d301092c9833ddf39255102ef84",
+    "public/voice-paced/reject.wav": "3312c2cd950449e86190d30f339aba394caf11ad8e505750744b4afd1a74512e",
+    "public/voice-paced/request.wav": "beb7d874cc1084eaec9c6d30a9d71850df748f58d3c5f3507cd7c97ba8d02538",
+    "public/media/app-filter.mp4": "00ea2cb33a6b7d5232bce427a14ba8e9824f60a2bb4572ea0cf540917f645d62",
+    "public/media/acceptance-overview.mp4": "1bd3e37623df3c7352a014828319a3a56061f775feef626c34b48e4c8bd7e6f7",
+    "public/media/coordination.mp4": "89dbf6fc19a92faffaeda2a0d1811eb5b99c9a619bcdd5e84e446cef2b594959",
+    "public/media/app-reload.mp4": "4b881045cc295053d0645ef42fc417df4ee4099fd7b8a3277b777be8a4f66026",
+    "public/media/rejected.mp4": "735a14ab535792f78a16af0b52151a6963fe28e3182d5cef6430848c6c6e5521",
+    "public/media/runs-list.mp4": "b3147593335f0725dc95c3a3ba6d0baf433aacab18d8a6a9336b77981c683ad6",
+    "public/media/atoma.svg": "e5043b5c8d2faaf9abfb432028ada56635a5dbec3f587ada112d6952f2baf24d",
+    "public/media/app-all.mp4": "439dd216999388ebde25e80a4503b202e731d96a083e189d619b4fc62a139a11",
+    "public/media/approved.mp4": "7dc94022e7d179b6355f0af16bdf1724336b45e852e1ff27c0d66989c5d7ee82"
+  },
+  "visibleLanguage": "en",
+  "reviewCards": "English translations condensed from the recorded French production reviews; labeled as editorial translations.",
+  "pacing": {
+    "voiceSpeed": 0.92,
+    "voiceLeadInSeconds": 0.8,
+    "jitterSpeed": 0.75,
+    "reviewSeconds": [
+      22,
+      20
+    ]
+  }
+}

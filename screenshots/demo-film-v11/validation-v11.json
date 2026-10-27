@@ -1,0 +1,34 @@
+{
+  "frames": 7192,
+  "durationSeconds": 239.73333333333332,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "masterPixelFormat": "yuv444p12le",
+  "fullDecode": "passed",
+  "silencesOver2Seconds": 0,
+  "blackSegmentsOverHalfSecond": 0,
+  "zipCRC": "passed",
+  "visualChecks": [
+    "timeline start and end",
+    "models",
+    "MCP",
+    "optimization"
+  ],
+  "newBrowserRecaptures": false,
+  "files": {
+    "atoma-presentation-v11.mp4": {
+      "bytes": 45806874,
+      "sha256": "55c868b301517e2406000a186d65f5c4f68e5302054b4ed8631728e974ccaf06"
+    },
+    "atoma-presentation-v11-master-4444.mov": {
+      "bytes": 5126538922,
+      "sha256": "ac4eb30b2b5d605d998962f5de34f88e635110690e6e7e1fabbbb71b3535fd1b"
+    },
+    "atoma-film-editable-v11.zip": {
+      "bytes": 14056403,
+      "sha256": "3e925476965be779dca60cbed760bf7b6b4752541afcfaca27956adc83d695cf"
+    }
+  }
+}

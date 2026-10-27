@@ -1,0 +1,332 @@
+{
+  "revision": 9,
+  "size": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "duration_seconds": 209.1,
+  "production_run": {
+    "id": "2f63b887-3894-4560-811b-670aec78bd8c",
+    "project_id": "6d38a165-da3b-4b0a-8445-dfc6376d3567",
+    "project": "ForgeFlow",
+    "trace_events_read": 105,
+    "next_offset": null,
+    "review_event": "8952df6d-ddc1-4641-9388-5d57737b2aca",
+    "outcome": "delivered",
+    "review_approved": true
+  },
+  "capture_date": "2026-10-26",
+  "cost_source_project": "07864f7c-d8f2-4023-9fca-afd8a7a51e52",
+  "crop_rectangles": {
+    "costs": [
+      1469,
+      355,
+      400,
+      425
+    ],
+    "run_timeline": [
+      66,
+      105,
+      1244,
+      820
+    ],
+    "run_details": [
+      1366,
+      105,
+      544,
+      820
+    ],
+    "review_closeup": [
+      1376,
+      270,
+      518,
+      292
+    ]
+  },
+  "tts_scope": "Only generic interface and model-choice narration. Private run details stay in local image/video assets.",
+  "scenes": [
+    {
+      "scene": "opening",
+      "start": 0,
+      "frames": 314,
+      "voice_seconds": 8.935,
+      "tail_seconds": 1.065
+    },
+    {
+      "scene": "brief",
+      "start": 314,
+      "frames": 381,
+      "voice_seconds": 11.175,
+      "tail_seconds": 1.058
+    },
+    {
+      "scene": "coordination",
+      "start": 695,
+      "frames": 361,
+      "voice_seconds": 10.498,
+      "tail_seconds": 1.069
+    },
+    {
+      "scene": "runone",
+      "start": 1056,
+      "frames": 438,
+      "voice_seconds": 13.051,
+      "tail_seconds": 1.082
+    },
+    {
+      "scene": "visibility",
+      "start": 1494,
+      "frames": 382,
+      "voice_seconds": 11.195,
+      "tail_seconds": 1.072
+    },
+    {
+      "scene": "continue",
+      "start": 1876,
+      "frames": 422,
+      "voice_seconds": 12.526,
+      "tail_seconds": 1.074
+    },
+    {
+      "scene": "scenario",
+      "start": 2298,
+      "frames": 420,
+      "voice_seconds": 12.471,
+      "tail_seconds": 1.062
+    },
+    {
+      "scene": "approval",
+      "start": 2718,
+      "frames": 415,
+      "voice_seconds": 12.299,
+      "tail_seconds": 1.068
+    },
+    {
+      "scene": "evidence",
+      "start": 3133,
+      "frames": 439,
+      "voice_seconds": 13.113,
+      "tail_seconds": 1.054
+    },
+    {
+      "scene": "production",
+      "start": 3572,
+      "frames": 617,
+      "voice_seconds": 19.017,
+      "tail_seconds": 1.083
+    },
+    {
+      "scene": "models",
+      "start": 4189,
+      "frames": 456,
+      "voice_seconds": 13.665,
+      "tail_seconds": 1.068
+    },
+    {
+      "scene": "mcp",
+      "start": 4645,
+      "frames": 421,
+      "voice_seconds": 12.514,
+      "tail_seconds": 1.053
+    },
+    {
+      "scene": "costs",
+      "start": 5066,
+      "frames": 483,
+      "voice_seconds": 14.553,
+      "tail_seconds": 1.08
+    },
+    {
+      "scene": "delivery",
+      "start": 5549,
+      "frames": 418,
+      "voice_seconds": 12.411,
+      "tail_seconds": 1.056
+    },
+    {
+      "scene": "closing",
+      "start": 5967,
+      "frames": 306,
+      "voice_seconds": 8.204,
+      "tail_seconds": 1.529
+    }
+  ],
+  "assets": [
+    {
+      "file": "public/v5/approval-approved.mp4",
+      "sha256": "ccb85186bf71a391976f05120da5c9c17d4b7469bc0112c55a7a839b4f5b4dd0",
+      "bytes": 115980
+    },
+    {
+      "file": "public/v5/approval-draft.mp4",
+      "sha256": "dd4d192962c4d14d7797c4d47d3bbfdff75c330cc7dc8d558b022341151c04c0",
+      "bytes": 109081
+    },
+    {
+      "file": "public/v5/approval-review.mp4",
+      "sha256": "0269b4a26777e80a4350cf9b84fae3b42f3cc664353de65cca2642fdf715fb30",
+      "bytes": 114348
+    },
+    {
+      "file": "public/v5/audit.mp4",
+      "sha256": "bcab638e91c52ebb8109966d6f50ffbbbf02ada5306585f614824df6c15ca7c8",
+      "bytes": 60326
+    },
+    {
+      "file": "public/v5/inventory-detail.mp4",
+      "sha256": "06a2ba684e1ebbc1430837d7934242479271ed0b507f6368c04e31eb179f8a0d",
+      "bytes": 99051
+    },
+    {
+      "file": "public/v5/inventory-risk.mp4",
+      "sha256": "04ead6772cefe3889be62fbcd50451c572444c99ec72e9fd984670691080f271",
+      "bytes": 75961
+    },
+    {
+      "file": "public/v5/inventory.mp4",
+      "sha256": "e94078e04d81f62141f2c093bab18d5888e3ecc733e950608323a4d82cbda842",
+      "bytes": 84899
+    },
+    {
+      "file": "public/v5/overview.mp4",
+      "sha256": "5a7eb9bc8e92d23d7b56b1e54a1e448928613cfae7a427f10b676506a58cfb8f",
+      "bytes": 97926
+    },
+    {
+      "file": "public/v5/production-mcp-setup.png",
+      "sha256": "45116529607cf916d93ed63a359302f2d2b72a74639387a000c3a72086e7b347",
+      "bytes": 177388
+    },
+    {
+      "file": "public/v5/production-models.png",
+      "sha256": "eee3b7246d170578498e95ee178aaeebba64220700ae8ca1c32a47fcf64488cb",
+      "bytes": 70059
+    },
+    {
+      "file": "public/v5/scenario-base.mp4",
+      "sha256": "685154865b8b9135f6ebede533c7482cd233b8ce99ae70114c1e518a0ad94cfb",
+      "bytes": 109267
+    },
+    {
+      "file": "public/v5/scenario-stress.mp4",
+      "sha256": "21d8c9cf6919d602dc113eaa1006b0ff3b35660641b48f2a1326139dc1fe6931",
+      "bytes": 118518
+    },
+    {
+      "file": "public/v6/production-costs.png",
+      "sha256": "9070a751d1d4cffba6205ad52a05966621a10b3a6603df5c63e4ab88903453c3",
+      "bytes": 112760
+    },
+    {
+      "file": "public/v6/production-review.png",
+      "sha256": "ea4f7410c7481e7d0a91e3519f08c9e5a6c5ea04b2e778eccc84db700cbab82c",
+      "bytes": 102170
+    },
+    {
+      "file": "public/v9/production-run.mp4",
+      "sha256": "05d3b9f2fcfd9992272874159291de46f80fb322cafe0029ce048a1b27ba429e",
+      "bytes": 1351684
+    },
+    {
+      "file": "public/voice-v7/approval.wav",
+      "sha256": "082e165a8cc53f3e517aecd1084bb9eca17cff022d4e4efbb34e2923a7562021",
+      "bytes": 590408
+    },
+    {
+      "file": "public/voice-v7/brief.wav",
+      "sha256": "b0fefa298e33a1065af658217666609fcb6162892406f7931c5af2b0ca959a19",
+      "bytes": 536442
+    },
+    {
+      "file": "public/voice-v7/closing.wav",
+      "sha256": "9add8e7e398a8f66f0032eef70eef57939b2e3d44163aea872ceaa8f0f4e624e",
+      "bytes": 393824
+    },
+    {
+      "file": "public/voice-v7/continue.wav",
+      "sha256": "1c30e599a4bfe9094d8c3d945d01abcfcc2f8f250276fed85639748fd6dde551",
+      "bytes": 601274
+    },
+    {
+      "file": "public/voice-v7/coordination.wav",
+      "sha256": "0544447ffb933989e7ab4377f12f54cfb57a5ff9499c23399ad7405281506393",
+      "bytes": 503938
+    },
+    {
+      "file": "public/voice-v7/costs.wav",
+      "sha256": "3e0cc03850819b057e5a4bda5b7dbacd87221946a42def845daacdee3a5b9917",
+      "bytes": 698574
+    },
+    {
+      "file": "public/voice-v7/delivery.wav",
+      "sha256": "256888cb265745a3246e35624298bcdffec5e1d2327cdf295482e5e52b45a4a7",
+      "bytes": 595762
+    },
+    {
+      "file": "public/voice-v7/evidence.wav",
+      "sha256": "c7b36eddb30322e4489376f66d82e1a7d25560e9b95cfa9aad36d0e0253266eb",
+      "bytes": 629476
+    },
+    {
+      "file": "public/voice-v7/mcp.wav",
+      "sha256": "75a06b225849db6e16b795618e7cdf7a29b25ba77bd417f546bf6113a823bd95",
+      "bytes": 600722
+    },
+    {
+      "file": "public/voice-v7/models.wav",
+      "sha256": "30c93e0286f083a619ca0fbf6a68b309983be3f8222907a10c9c3d363c44dbeb",
+      "bytes": 655984
+    },
+    {
+      "file": "public/voice-v7/opening.wav",
+      "sha256": "f5f431beccf49ac1cb36d08fadf14e83e46305277f50e221a8bbcec0570a475c",
+      "bytes": 428918
+    },
+    {
+      "file": "public/voice-v7/production.wav",
+      "sha256": "81c27e484ed346ad9dcc63502f315b7ab0b33950ab810e164f74d76a3853ffcc",
+      "bytes": 912838
+    },
+    {
+      "file": "public/voice-v7/runone.wav",
+      "sha256": "0ad6c82c4e3691aa7178750e8507ad7f7f2cdfea5bbddf7834846ce7c11469c2",
+      "bytes": 626514
+    },
+    {
+      "file": "public/voice-v7/scenario.wav",
+      "sha256": "c38e09f48e16aa0097bc97e1d8215df4ff29938b3696c8dcaf81182820265ad1",
+      "bytes": 598668
+    },
+    {
+      "file": "public/voice-v7/visibility.wav",
+      "sha256": "785056b210e28980328a0e72015649fa20ff294cf17b5efe90be6255da6267ec",
+      "bytes": 537390
+    },
+    {
+      "file": "public/voice-v7/voice.json",
+      "sha256": "02f98e52b8d90a9569db624b6913f1a14299fd567e049dbd090b9d7e8a8fb51b",
+      "bytes": 1512
+    },
+    {
+      "file": "public/media/atoma.svg",
+      "sha256": "e5043b5c8d2faaf9abfb432028ada56635a5dbec3f587ada112d6952f2baf24d",
+      "bytes": 654
+    },
+    {
+      "file": "public/media/coordination.mp4",
+      "sha256": "89dbf6fc19a92faffaeda2a0d1811eb5b99c9a619bcdd5e84e446cef2b594959",
+      "bytes": 1488709
+    }
+  ],
+  "revision_changes": [
+    "Production run recaptured with All event types and All roles instead of Tools. Start, learning/intermediate review, and final validation views shown. Narration and timing unchanged."
+  ],
+  "cost_card_background": "#112834",
+  "run_capture_date": "2026-10-27",
+  "run_capture_filters": [
+    "All",
+    "All roles"
+  ],
+  "run_capture_frames": 317
+}

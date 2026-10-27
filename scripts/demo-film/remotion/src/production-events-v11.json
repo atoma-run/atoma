@@ -1,0 +1,210 @@
+[
+  {
+    "id": "f52164ed-bdd6-4755-a19b-380dd2cda581",
+    "type": "Depth",
+    "title": "Supervision depth",
+    "detail": "Attempt 1 \u00b7 A cell supervising molecules",
+    "actor": "Run",
+    "time": "01:38:20 UTC"
+  },
+  {
+    "id": "baeccc4f-61a8-4ea5-a17c-6816f72be0b4",
+    "type": "Routing",
+    "title": "Routing",
+    "detail": "Recorded model call \u00b7 4.08 seconds",
+    "actor": "L2 Idioblast",
+    "time": "01:38:20 UTC"
+  },
+  {
+    "id": "2b919196-422c-4383-863a-e505d800b907",
+    "type": "Branch",
+    "title": "Delegation",
+    "detail": "start",
+    "actor": "L2 Idioblast",
+    "time": "01:38:25 UTC"
+  },
+  {
+    "id": "7f43ed56-e130-4025-8e25-bdda407d27bb",
+    "type": "Planning",
+    "title": "Planning",
+    "detail": "Recorded model call \u00b7 6.51 seconds",
+    "actor": "L1 CarbonDioxide",
+    "time": "01:38:25 UTC"
+  },
+  {
+    "id": "eaded4dd-c8bd-4446-a23c-b6055d7e4b61",
+    "type": "Trust",
+    "title": "Trust",
+    "detail": "trust fast-path: CarbonDioxide has 6 consecutive successes (34 successes / 16 failures in history)",
+    "actor": "L2 Idioblast",
+    "time": "01:38:31 UTC"
+  },
+  {
+    "id": "f6139f60-e3ab-494b-bde6-6e5ba3b39187",
+    "type": "Execution",
+    "title": "Execution",
+    "detail": "Recorded model call \u00b7 40.74 seconds",
+    "actor": "L1 CarbonDioxide",
+    "time": "01:38:32 UTC"
+  },
+  {
+    "id": "62f7cb55-7966-4aa6-b892-7ea47a6b55d8",
+    "type": "Decision",
+    "title": "Decision \u00b7 Execution effort",
+    "detail": "default effort (spelled_out 0.11, open_problem 0.29)",
+    "actor": "L1 CarbonDioxide",
+    "time": "01:38:32 UTC"
+  },
+  {
+    "id": "b9321adc-ed2f-48e1-93d3-a2e4b37a055a",
+    "type": "Tool",
+    "title": "Run checks",
+    "detail": "run_shell \u00b7 observed execution \u00b7 158 ms",
+    "actor": "L1 CarbonDioxide",
+    "time": "01:38:48 UTC"
+  },
+  {
+    "id": "1dbc0769-ef21-4b6d-a54b-a1ea9efd8ed8",
+    "type": "Tool",
+    "title": "Browser verification",
+    "detail": "validate_html \u00b7 observed execution \u00b7 2555 ms",
+    "actor": "L1 CarbonDioxide",
+    "time": "01:38:55 UTC"
+  },
+  {
+    "id": "6fdb39e5-a65c-43c8-baeb-ff60f77204d4",
+    "type": "Tool",
+    "title": "Browser verification",
+    "detail": "validate_html \u00b7 observed execution \u00b7 1261 ms",
+    "actor": "L1 CarbonDioxide",
+    "time": "01:39:02 UTC"
+  },
+  {
+    "id": "aadc0e40-8a2d-4d44-a98a-38631de4bc9e",
+    "type": "Tool",
+    "title": "Browser verification",
+    "detail": "validate_html \u00b7 observed execution \u00b7 491 ms",
+    "actor": "L1 CarbonDioxide",
+    "time": "01:39:04 UTC"
+  },
+  {
+    "id": "904752e3-e0ab-4bf7-b573-e32efe09f1fd",
+    "type": "Trust",
+    "title": "Trust",
+    "detail": "trust fast-path: CarbonDioxide has 6 consecutive successes (34 successes / 16 failures in history)",
+    "actor": "L2 Idioblast",
+    "time": "01:39:12 UTC"
+  },
+  {
+    "id": "9d898748-4014-4c6c-be3d-56e89f294337",
+    "type": "Skill",
+    "title": "Skill lifecycle",
+    "detail": "Verify a responsive persistent operations dashboard, its calculations, API, and reset flow.",
+    "actor": "L2 Idioblast",
+    "time": "01:39:46 UTC"
+  },
+  {
+    "id": "fd9486eb-94ac-45f8-8400-81a8e4c16baf",
+    "type": "Branch",
+    "title": "Branch complete",
+    "detail": "end",
+    "actor": "L2 Idioblast",
+    "time": "01:39:47 UTC"
+  },
+  {
+    "id": "02096802-4173-4284-86e4-8b738401bdd0",
+    "type": "Review",
+    "title": "Final review \u00b7 Evidence missing",
+    "detail": "c3: Unverified intermediate states: validate_html actions click Next twice and final smoke asserts only completed (a9fad...); mobile asserts queued/in-progress are empty only after completion (10ab...). Source defines transitions, but no executed assertions observe queued then in-progress.; c4: Reset is evidenced by no orders and null storage (5608...). A later page check sees the order after loading (fa1cf...), but its assertion checks only issue/existence, not preservation of technician/priority edits, and does not explicitly establish an actual reload.",
+    "actor": "Run",
+    "time": "01:40:18 UTC"
+  },
+  {
+    "id": "c14707e6-91e9-4af2-a0fe-138fcad064fd",
+    "type": "Routing",
+    "title": "Routing",
+    "detail": "Recorded model call \u00b7 3.80 seconds",
+    "actor": "L2 Idioblast",
+    "time": "01:40:19 UTC"
+  },
+  {
+    "id": "95e592d0-bbed-45b6-aa28-5bbbbd72a3db",
+    "type": "Skill",
+    "title": "Skill lifecycle",
+    "detail": "jev picked verify-persistent-operations-dashboard (confidence 1.00)",
+    "actor": "L2 Idioblast",
+    "time": "01:40:23 UTC"
+  },
+  {
+    "id": "af5063e4-b787-4bea-b942-10aef9e6ca32",
+    "type": "Skill",
+    "title": "Skill lifecycle",
+    "detail": "kind=llm",
+    "actor": "L2 Idioblast",
+    "time": "01:40:23 UTC"
+  },
+  {
+    "id": "a0baa25a-f1b0-4ce3-8c42-2fa015a696ca",
+    "type": "Branch",
+    "title": "Delegation",
+    "detail": "start",
+    "actor": "L2 Idioblast",
+    "time": "01:40:23 UTC"
+  },
+  {
+    "id": "90ee5ae9-2cd7-4603-a1f8-738f890c6e23",
+    "type": "Planning",
+    "title": "Planning",
+    "detail": "Recorded model call \u00b7 5.41 seconds",
+    "actor": "L1 Ethanol",
+    "time": "01:40:23 UTC"
+  },
+  {
+    "id": "120e4d73-1050-4d2d-9e2e-a2b78ee61c64",
+    "type": "Decision",
+    "title": "Decision \u00b7 Plan validation",
+    "detail": "approved",
+    "actor": "L2 Idioblast",
+    "time": "01:40:29 UTC"
+  },
+  {
+    "id": "9be96572-b9fc-4443-b15c-1dca168208a6",
+    "type": "Execution",
+    "title": "Execution",
+    "detail": "Recorded model call \u00b7 110.13 seconds",
+    "actor": "L1 Ethanol",
+    "time": "01:40:29 UTC"
+  },
+  {
+    "id": "331f2180-4dc0-4e28-9a35-8576efc056ae",
+    "type": "Decision",
+    "title": "Decision \u00b7 Execution effort",
+    "detail": "default effort (spelled_out 0.12, open_problem 0.28)",
+    "actor": "L1 Ethanol",
+    "time": "01:40:29 UTC"
+  },
+  {
+    "id": "9f02fbf6-3555-4acf-bd16-f45384a6a0f4",
+    "type": "Skill",
+    "title": "Skill lifecycle",
+    "detail": "success",
+    "actor": "L2 Idioblast",
+    "time": "01:42:19 UTC"
+  },
+  {
+    "id": "dca0af70-ac32-48c0-9128-801858504712",
+    "type": "Branch",
+    "title": "Branch complete",
+    "detail": "end",
+    "actor": "L2 Idioblast",
+    "time": "01:42:20 UTC"
+  },
+  {
+    "id": "8952df6d-ddc1-4641-9388-5d57737b2aca",
+    "type": "Review",
+    "title": "Final review \u00b7 Approved",
+    "detail": "Current file read-back and observed executions support the requested restructuring, 13 passing domain assertions, HTTP behavior, OEE calculation, responsive order lifecycle, reload persistence, and Reset removal. A failed intermediate probe was superseded by successful corrected probes.",
+    "actor": "Run",
+    "time": "01:42:50 UTC"
+  }
+]

@@ -1,0 +1,5 @@
+# Render outputs stay local. The approved distribution MP4 is tracked separately.
+/*.mov
+/atoma-presentation*.mp4
+/*.zip
+node_modules/

@@ -1,0 +1,34 @@
+{
+  "intro": {
+    "start": 0,
+    "frames": 240
+  },
+  "request": {
+    "start": 240,
+    "frames": 330
+  },
+  "coordination": {
+    "start": 570,
+    "frames": 480
+  },
+  "reject": {
+    "start": 1050,
+    "frames": 660
+  },
+  "approve": {
+    "start": 1710,
+    "frames": 600
+  },
+  "app": {
+    "start": 2310,
+    "frames": 420
+  },
+  "control": {
+    "start": 2730,
+    "frames": 420
+  },
+  "close": {
+    "start": 3150,
+    "frames": 180
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "fileId": "t6ngBQeHcUDHGu2isTfH0RMg",
+  "url": "https://jitter.video/file/?id=t6ngBQeHcUDHGu2isTfH0RMg",
+  "name": "Atoma — Supervision loop · 12s concept",
+  "createdAt": "2026-10-26",
+  "status": "prototype-exported-and-reviewed",
+  "artboardId": "fe3a691e-0ccf-4ae6-97df-86ff3e002727",
+  "authoring": "Jitter integrated design assistant",
+  "mcpStatus": "Authenticated. File creation succeeded; searchConf and applyConf returned: The browser pool is at capacity.",
+  "localBuilderStatus": "Prepared but not applied; jitter-scene.mjs is not evidence of the cloud document contents.",
+  "disclosure": "An illustrative supervision loop, not a production run recording.",
+  "review": {
+    "visual": "Reviewed at 50% size; status and traveling-card labels enlarged to 24px, Tools/Files to 22px. Inspected the exported frames every 0.5s and full-size correction/review frames at 7.8s and 11.5s.",
+    "playback": "Exported motion sequence shows phase/task delegation, result return, evidence-missing status, a drawn correction path and checked phase return. A task card briefly crosses the executor title in transit.",
+    "export": "H.264 MP4, 1280x720, 30fps, 12.033s, silent, Jitter free-plan watermark. No subscription purchased."
+  },
+  "artifacts": {
+    "video": "screenshots/demo-film-v3/atoma-coordination-jitter-v1.mp4",
+    "editorProof": "screenshots/demo-film-v3/jitter-editor-proof.png",
+    "contactSheet": "screenshots/demo-film-v3/coordination-contact-sheet.jpg"
+  }
+}

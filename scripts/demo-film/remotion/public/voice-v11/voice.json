@@ -1,0 +1,82 @@
+{
+  "opening": {
+    "key": "96daf0e33f82e29d",
+    "seconds": 8.935,
+    "file": "opening.wav"
+  },
+  "brief": {
+    "key": "71a6629d97b93b81",
+    "seconds": 11.175,
+    "file": "brief.wav"
+  },
+  "coordination": {
+    "key": "e4a3d4ec2e1035a8",
+    "seconds": 10.498,
+    "file": "coordination.wav"
+  },
+  "runone": {
+    "key": "79f45c63d58a8283",
+    "seconds": 13.051,
+    "file": "runone.wav"
+  },
+  "visibility": {
+    "key": "440cdf669a44a4c9",
+    "seconds": 11.195,
+    "file": "visibility.wav"
+  },
+  "continue": {
+    "key": "24e4269ce1ce49d0",
+    "seconds": 12.526,
+    "file": "continue.wav"
+  },
+  "scenario": {
+    "key": "68f22991682756ad",
+    "seconds": 12.471,
+    "file": "scenario.wav"
+  },
+  "approval": {
+    "key": "89175fc55ff66faa",
+    "seconds": 12.299,
+    "file": "approval.wav"
+  },
+  "evidence": {
+    "key": "59476be33357418f",
+    "seconds": 13.113,
+    "file": "evidence.wav"
+  },
+  "production": {
+    "key": "1e4cfaa576517abc",
+    "seconds": 19.017,
+    "file": "production.wav"
+  },
+  "models": {
+    "key": "9c09a43f52b1f1f4",
+    "seconds": 13.665,
+    "file": "models.wav"
+  },
+  "mcp": {
+    "key": "499f584f985f349f",
+    "seconds": 16.605,
+    "file": "mcp.wav"
+  },
+  "costs": {
+    "key": "47bb5398b959b168",
+    "seconds": 19.12,
+    "file": "costs.wav"
+  },
+  "optimize": {
+    "key": "caeadb5a8c228c48",
+    "seconds": 20.45,
+    "file": "optimize.wav"
+  },
+  "delivery": {
+    "key": "de17c2bdc831d03a",
+    "seconds": 12.411,
+    "file": "delivery.wav"
+  },
+  "closing": {
+    "key": "036b454f40f0c067",
+    "seconds": 8.204,
+    "file": "closing.wav"
+  }
+}

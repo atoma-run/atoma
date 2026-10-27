@@ -1,0 +1,110 @@
+[
+  {
+    "id": "opening",
+    "kind": "opening",
+    "label": "ATOMA / IN PRODUCTION",
+    "title": "From a request\nto work you can use.",
+    "say": "An illustration. A sonic identity. A working application. These are real projects delivered with Atoma.",
+    "min": 8
+  },
+  {
+    "id": "art",
+    "kind": "art",
+    "label": "01 / PELAGIC ATLAS",
+    "title": "A brief becomes\na tangible result.",
+    "say": "Pelagic Atlas turns a coastal illustration brief into an editable vector plate, supporting icons, and production notes.",
+    "min": 9
+  },
+  {
+    "id": "sound",
+    "kind": "sound",
+    "label": "02 / AURALIS",
+    "title": "Work you can hear.",
+    "say": "Auralis delivers three sound cues for a fictional botanical garden. This is the actual welcome cue.",
+    "min": 12,
+    "sound": true
+  },
+  {
+    "id": "app",
+    "kind": "capture",
+    "image": "attica-live.jpg",
+    "crop": [
+      375,
+      0,
+      1130,
+      865
+    ],
+    "label": "03 / ATTICA",
+    "title": "An application,\nrunning online.",
+    "say": "Attica is a hosted application for collecting and reviewing property listings. Here it is, running with its real data.",
+    "min": 10
+  },
+  {
+    "id": "continue",
+    "kind": "capture",
+    "image": "attica-chat.jpg",
+    "crop": [
+      90,
+      180,
+      1335,
+      610
+    ],
+    "label": "CONTINUE THE PROJECT",
+    "title": "Keep building.\nKeep the context.",
+    "say": "Continue the same project as it evolves. The conversation keeps requested changes, completed work, acceptance, and publication together.",
+    "min": 10
+  },
+  {
+    "id": "inspect",
+    "kind": "capture",
+    "image": "auralis-trace.jpg",
+    "crop": [
+      0,
+      0,
+      1920,
+      936
+    ],
+    "label": "FOLLOW THE WORK",
+    "title": "Inspect the work\nbehind the result.",
+    "say": "Open a run to inspect its execution and recorded checks. Review what happened, including the work behind the delivered files.",
+    "min": 10
+  },
+  {
+    "id": "files",
+    "kind": "capture",
+    "image": "pelagic-result.jpg",
+    "crop": [
+      84,
+      100,
+      1325,
+      640
+    ],
+    "label": "OPEN THE DELIVERABLES",
+    "title": "Files you can\ninspect and keep.",
+    "say": "Open the delivered files, preview the result, and keep the source. The output remains available beyond the conversation.",
+    "min": 9
+  },
+  {
+    "id": "online",
+    "kind": "capture",
+    "image": "attica-chat.jpg",
+    "crop": [
+      96,
+      500,
+      1320,
+      285
+    ],
+    "label": "REVIEW / ACCEPT / PUBLISH",
+    "title": "From revision\nto publication.",
+    "say": "In Attica, the latest repair is accepted, sent to GitHub, and put online. Each step stays visible in the project.",
+    "min": 10
+  },
+  {
+    "id": "closing",
+    "kind": "closing",
+    "label": "ATOMA",
+    "title": "Describe the outcome.\nFollow the work.\nUse the result.",
+    "say": "Describe the outcome. Follow the work. Use the result. Atoma.",
+    "min": 7
+  }
+]

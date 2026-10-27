@@ -1,0 +1,100 @@
+{
+  "title": "Atoma — the supervision loop",
+  "status": "jitter-prototype-exported",
+  "purpose": "A 12-second motion-design test that makes delegation, evidence checking and correction understandable without technical knowledge.",
+  "format": { "width": 1920, "height": 1080, "fps": 30, "durationSeconds": 12 },
+  "language": "en",
+  "delivery": {
+    "source": "Editable native Jitter file",
+    "preview": "Jitter editor playback",
+    "export": "MP4 through the editor if MCP export is unavailable",
+    "destination": "Local review only"
+  },
+  "visualDirection": {
+    "background": "#050A16",
+    "text": "#F5FAFF",
+    "secondaryText": "#A8B8CD",
+    "planning": "#A78BFA",
+    "supervision": "#F6B84C",
+    "execution": "#38CDB5",
+    "correction": "#FF8A75",
+    "verified": "#7DDEAB",
+    "typography": "Inter, with short sentence-case labels and tabular timing labels only where useful",
+    "composition": "Three stable horizontal levels in one continuous shot; large readable nodes, restrained depth, fine connectors. Keep role names and positions stable throughout.",
+    "motion": "Task cards visibly move down; results and evidence visibly move up. Emphasize one active relationship at a time. Use a single coral return path for correction. Use purposeful easing and holds, with no camera orbit or decorative particle field.",
+    "brandReference": "Colors follow src/viz/client-gl/brand-mark.ts: tissue violet, cell amber, molecule teal, with lighter shades for contrast on the dark background."
+  },
+  "roles": [
+    { "rank": 3, "label": "Plan", "secondaryLabel": "L3 · Tissue", "responsibility": "Decompose the goal and review phase outcomes" },
+    { "rank": 2, "label": "Supervise", "secondaryLabel": "L2 · Cell", "responsibility": "Delegate work and validate plans and results" },
+    { "rank": 1, "label": "Execute", "secondaryLabel": "L1 · Molecule", "responsibility": "Use tools and produce deliverables and evidence" }
+  ],
+  "beats": [
+    {
+      "start": 0,
+      "end": 1.3,
+      "action": "Reveal the three stable levels and one objective card. Keep the objective generic: Build a deliverable. The L3 card sends a phase to L2.",
+      "emphasis": "The goal becomes coordinated work"
+    },
+    {
+      "start": 1.3,
+      "end": 3,
+      "action": "L2 selects one of three L1 workers. A small Route checkpoint lights on the handoff. The task card follows the connector to the selected worker; the other workers remain quiet.",
+      "emphasis": "Delegation",
+      "caption": "Delegate"
+    },
+    {
+      "start": 3,
+      "end": 4.7,
+      "action": "The selected L1 worker invokes a small tool row beneath it. A file card is produced and moves upward to L2.",
+      "emphasis": "Execution",
+      "caption": "Execute"
+    },
+    {
+      "start": 4.7,
+      "end": 6.6,
+      "action": "A check panel beside L2 reads Evidence missing. Hold the reason long enough to read. The upper-level phase stays pending. Send the same task card back down a coral return path, labelled Verify output.",
+      "emphasis": "A result needs evidence",
+      "caption": "Check"
+    },
+    {
+      "start": 6.6,
+      "end": 8.5,
+      "action": "The worker performs the requested verification. Attach a distinct evidence chip to the file card; do not merely recolor the original file. Return the file and evidence to L2.",
+      "emphasis": "A targeted correction",
+      "caption": "Improve"
+    },
+    {
+      "start": 8.5,
+      "end": 10.2,
+      "action": "L2 now shows Checks passed. The verified phase result moves upward to L3, whose status becomes Review deliverable. Do not imply that an intermediate approval is final acceptance or deployment.",
+      "emphasis": "Evidence accompanies the result"
+    },
+    {
+      "start": 10.2,
+      "end": 12,
+      "action": "Hold the complete three-level composition, with the correction loop still legible but subdued. Show the concluding line Supervision at every handoff.",
+      "emphasis": "A repeatable supervision protocol",
+      "caption": "Supervision at every handoff."
+    }
+  ],
+  "architectureConstraints": [
+    "There are three agent tiers. Tools are not a fourth agent tier.",
+    "Only L1 agents invoke tools.",
+    "Both supervisory levels use the plan, validate, execute, validate protocol. This short test focuses on one result-checking loop.",
+    "Decision checkpoints are bounded routing or intermediate approval decisions, not a fourth tier and not root delivery acceptance.",
+    "An uncertain decision defers to model review. A Decision refusal alone does not reject the child; model validation owns that judgment.",
+    "The example correction is explanatory, not a claim that a specific production run exhibited these exact events.",
+    "Do not display production metrics, invented trace events, project secrets, Attica application UI, xe.gr, or the underlying decision-provider name.",
+    "The full film will connect this conceptual sequence to verified production evidence from atoma.run."
+  ],
+  "qualityChecks": [
+    "At normal playback, a first-time viewer can identify who delegates, who executes, and who checks.",
+    "The correction has a readable cause and the subsequent evidence visibly resolves it.",
+    "All primary labels remain readable at a 960-by-540 playback size.",
+    "No clipped text, overlapping cards, unexplained parallel work or ambiguous connector direction.",
+    "Source elements and timing remain editable in Jitter."
+  ],
+  "voiceoverCandidate": "Atoma delegates the work, checks the evidence, and sends incomplete results back for correction. Every handoff has supervision.",
+  "architectureReferences": ["src/atoms/AGENTS.md", "docs/how-it-works.md", "docs/decisions/jev-policy-2026-10-01.md"]
+}

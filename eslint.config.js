@@ -55,6 +55,8 @@ export default tseslint.config(
       'records/**',
       // Replay templates whose placeholders a host script substitutes.
       'benchmark/**/*.template.mjs',
+      // Frozen film revisions are evidence; the active composition is linted below.
+      'scripts/demo-film/remotion/**/archive-*/**',
     ],
   },
   js.configs.recommended,
@@ -156,6 +158,16 @@ export default tseslint.config(
     // above active while declaring its browser runtime globals.
     files: ['src/viz/client/**/*.{ts,tsx}'],
     languageOptions: {
+      globals: globals.browser,
+    },
+  },
+  {
+    // Remotion is a separate browser project with its own pinned dependencies.
+    // Its compositions do not belong to the server's TypeScript project.
+    files: ['scripts/demo-film/remotion/src/**/*.tsx'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ...tseslint.configs.disableTypeChecked.languageOptions,
       globals: globals.browser,
     },
   },
