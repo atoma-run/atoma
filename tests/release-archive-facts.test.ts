@@ -1,7 +1,9 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { packageReleaseEvidence } from '../scripts/package-release-evidence.mjs';
 import { run as checkReadmeFacts } from '../scripts/readme-facts.mjs';
 
 /**
@@ -9,8 +11,8 @@ import { run as checkReadmeFacts } from '../scripts/readme-facts.mjs';
  * then runs `npm run docs:check` inside the extracted install. v0.2.0 failed
  * there: `.nvmrc` and `benchmark/` were read by the README facts generator
  * and were not in the list. This stages exactly what the workflow's
- * "Build release archive" step copies (symlinks stand in for copies) and
- * runs the same generator against the staged root.
+ * "Build release archive" step copies, crosses a real tar extraction boundary,
+ * and runs every docs:check command against the extracted root.
  */
 const repoRoot = resolve(import.meta.dirname, '..');
 const staged = mkdtempSync(join(tmpdir(), 'atoma-release-archive-'));
@@ -33,10 +35,7 @@ describe('release archive facts', () => {
     const { paths, benchmarkMarkdown } = archiveEntries();
     expect(paths.length).toBeGreaterThan(5);
     for (const entry of paths) {
-      // scripts/ is copied for real: Node resolves a symlinked module to its
-      // target, which would point the generator back at this checkout.
-      if (entry === 'scripts') cpSync(join(repoRoot, entry), join(staged, entry), { recursive: true });
-      else if (entry !== 'dist') symlinkSync(join(repoRoot, entry), join(staged, entry));
+      if (entry !== 'dist') cpSync(join(repoRoot, entry), join(staged, entry), { recursive: true });
     }
     if (benchmarkMarkdown) {
       mkdirSync(join(staged, 'benchmark'));
@@ -45,7 +44,22 @@ describe('release archive facts', () => {
         filter: (src) => src === join(repoRoot, 'benchmark') || src.endsWith('.md'),
       });
     }
-    const result = checkReadmeFacts(staged, { apply: false });
+    const workflow = readFileSync(join(repoRoot, '.github/workflows/release.yml'), 'utf8');
+    if (workflow.includes('node scripts/package-release-evidence.mjs "release/${root}"')) {
+      packageReleaseEvidence(repoRoot, staged);
+    }
+    const archive = join(staged, 'release.tar');
+    const extracted = join(staged, 'extracted');
+    const entries = [...paths.filter((p) => p !== 'dist'), 'benchmark', 'records', 'memory'];
+    execFileSync('tar', ['-cf', archive, '-C', staged, ...entries]);
+    mkdirSync(extracted);
+    execFileSync('tar', ['-xf', archive, '-C', extracted]);
+    for (const script of ['check-agent-docs.mjs', 'readme-facts.mjs', 'architecture-ir.mjs']) {
+      expect(() => execFileSync(process.execPath, [join(extracted, 'scripts', script)], {
+        cwd: extracted, encoding: 'utf8',
+      })).not.toThrow();
+    }
+    const result = checkReadmeFacts(extracted, { apply: false });
     expect(result.problems).toEqual([]);
     expect(result.facts.version).toBe(
       (JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as { version: string }).version

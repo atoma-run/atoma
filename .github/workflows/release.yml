@@ -49,6 +49,7 @@ jobs:
           mkdir -p "release/${root}/benchmark"
           cp benchmark/*.md "release/${root}/benchmark/"
           cp package.json package-lock.json LICENSE README.md AGENTS.md CLAUDE.md CHANGELOG.md SECURITY.md .env.example .nvmrc "release/${root}/"
+          node scripts/package-release-evidence.mjs "release/${root}"
           tar -C release -czf "release/${root}.tar.gz" "${root}"
           (cd release && sha256sum "${root}.tar.gz" > "${root}.tar.gz.sha256")
 

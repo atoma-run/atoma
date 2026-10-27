@@ -335,7 +335,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 
 | Read out of this checkout | |
 | --- | --- |
-| Version | `0.5.0` |
+| Version | `0.5.1` |
 | Node | 24.20+ (`.nvmrc` 24.20.0, `engines` >=24) |
 | Subsystems under their own contract | 19 |
 | MCP tools | 63 |

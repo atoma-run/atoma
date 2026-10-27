@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v0.5.1 — 2026-10-27
+
+### Fixed
+
+- The release archive includes the committed Markdown evidence directly linked
+  by its agent contracts, including the benchmark pre-registration. The v0.5.0
+  archive failed its extracted-install documentation check and was not published.
+- Archive regression coverage now creates and extracts a tar archive and runs
+  all three documentation checks from that isolated install.
+
 ## v0.5.0 — 2026-10-27
 
 Atoma Compute, project conversations and explicit application deployment,
