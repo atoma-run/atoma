@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "Загружено событий: {{count}}, новые первыми",
   "admin.journalEmpty": "Записей пока нет.",
   "admin.ledger": "Реестр каталога",
-  "admin.ledgerHint": "Что узнал каталог агентов: каждое изменение trust и жизненного цикла типа агента или рецепта skill — отдельная запись, не связанная с журналом платформы.",
+  "admin.ledgerHint": "Эта история показывает, как агенты и сохранённые методы (recipe) учатся на своей работе. Счётчики успехов и неудач влияют на общий trust. Неучтённые события записываются, не изменяя trust. Баллы за обучение здесь не являются оплатой. Эта запись ведётся отдельно от журнала платформы.",
   "admin.ledgerSummary_one": "Записей: {{count}}, новые первыми",
   "admin.ledgerSummary_other": "Записей: {{count}}, новые первыми",
   "admin.ledgerEmpty": "Каталог пока ничего не узнал.",
@@ -2830,5 +2830,15 @@
   "assistant.deployment.state.stopped": "Остановлено.",
   "assistant.outcome.deliveredAccepted": "Работа завершена и принята.",
   "assistant.outcome.deliveredSettled": "Работа завершена.",
-  "assistant.activity.superseded": "Не принято: заменено более поздней версией."
+  "assistant.activity.superseded": "Не принято: заменено более поздней версией.",
+  "admin.ledgerWithheld.label": "Не учтено в обучении",
+  "admin.ledgerWithheld.success": "Успех зарегистрирован.",
+  "admin.ledgerWithheld.failure": "Неудача зарегистрирована.",
+  "admin.ledgerWithheld.directFailure": "Автоматическое выполнение recipe завершилось с ошибкой.",
+  "admin.ledgerWithheld.revision": "Изменение recipe не учтено.",
+  "admin.ledgerWithheld.observation": "Наблюдение зарегистрировано.",
+  "admin.ledgerWithheld.counters": "Счётчики не изменены.",
+  "admin.ledgerWithheld.recipe": "Это событие не изменяет сохранённый метод или его общий trust.",
+  "admin.ledgerWithheld.agent": "Это событие не изменяет общий trust агента.",
+  "admin.ledgerWithheld.compute": "Работа выполнялась на персональном компьютере с помощью Atoma Compute. Чтобы она могла повлиять на общее обучение, требуется независимая проверка на серверах Atoma."
 }

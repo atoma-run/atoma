@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "{{count}}件のイベントを読み込みました（新しい順）",
   "admin.journalEmpty": "まだ何も記録されていません。",
   "admin.ledger": "カタログ台帳",
-  "admin.ledgerHint": "エージェントカタログが学習した内容：エージェントタイプまたはskillレシピに関するすべてのtrustおよびライフサイクルの変更。プラットフォームジャーナルとは別の記録です。",
+  "admin.ledgerHint": "この履歴には、エージェントと保存済みの手順（レシピ）が作業から学習する過程が表示されます。成功と失敗のカウンターは、共有trustの判断材料になります。保留されたイベントは、そのtrustを変更せずに記録されます。ここでの学習クレジットは支払いではありません。これはプラットフォームのジャーナルとは別の記録です。",
   "admin.ledgerSummary_one": "{{count}}件のエントリ（新しい順）",
   "admin.ledgerSummary_other": "{{count}}件のエントリ（新しい順）",
   "admin.ledgerEmpty": "カタログはまだ何も学習していません。",
@@ -2830,5 +2830,15 @@
   "assistant.deployment.state.stopped": "停止しました。",
   "assistant.outcome.deliveredAccepted": "作業が完了し、承認されました。",
   "assistant.outcome.deliveredSettled": "作業が完了しました。",
-  "assistant.activity.superseded": "採用されませんでした。後のバージョンに置き換えられました。"
+  "assistant.activity.superseded": "採用されませんでした。後のバージョンに置き換えられました。",
+  "admin.ledgerWithheld.label": "学習を保留",
+  "admin.ledgerWithheld.success": "成功を記録しました。",
+  "admin.ledgerWithheld.failure": "失敗を記録しました。",
+  "admin.ledgerWithheld.directFailure": "レシピの自動実行に失敗しました。",
+  "admin.ledgerWithheld.revision": "レシピの変更を保留しました。",
+  "admin.ledgerWithheld.observation": "観察結果を記録しました。",
+  "admin.ledgerWithheld.counters": "カウンターは変更されませんでした。",
+  "admin.ledgerWithheld.recipe": "このイベントでは、保存済みの手順やその共有trustは変更されません。",
+  "admin.ledgerWithheld.agent": "このイベントでは、エージェントの共有trustは変更されません。",
+  "admin.ledgerWithheld.compute": "この作業は、Atoma Computeを使用してパソコン上で実行されました。共有学習に反映するには、Atomaのサーバーによる独立した検証が必要です。"
 }

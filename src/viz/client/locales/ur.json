@@ -206,7 +206,7 @@
   "admin.journalSummary_other": "{{count}} واقعات لوڈ ہوئے، تازہ ترین پہلے",
   "admin.journalEmpty": "ابھی کچھ ریکارڈ نہیں ہوا۔",
   "admin.ledger": "کیٹلاگ لیجر",
-  "admin.ledgerHint": "ایجنٹ کیٹلاگ نے کیا سیکھا: ایجنٹ کی کسی قسم یا skill کے نسخے میں trust اور لائف سائیکل کی ہر تبدیلی — پلیٹ فارم جرنل سے الگ ایک ریکارڈ۔",
+  "admin.ledgerHint": "یہ تاریخ دکھاتی ہے کہ agents اور محفوظ شدہ طریقے (recipes) اپنے کام سے کیسے سیکھتے ہیں۔ کامیابی اور ناکامی کے شمارندے مشترکہ trust کے تعین میں مدد دیتے ہیں۔ روکے گئے واقعات اس trust کو تبدیل کیے بغیر درج کیے جاتے ہیں۔ یہاں learning credit کوئی ادائیگی نہیں ہے۔ یہ پلیٹ فارم کے روزنامچے سے الگ ریکارڈ ہے۔",
   "admin.ledgerSummary_one": "{{count}} اندراج، تازہ ترین پہلے",
   "admin.ledgerSummary_other": "{{count}} اندراجات، تازہ ترین پہلے",
   "admin.ledgerEmpty": "کیٹلاگ نے ابھی کچھ نہیں سیکھا۔",
@@ -2830,5 +2830,15 @@
   "assistant.deployment.state.stopped": "رک گیا۔",
   "assistant.outcome.deliveredAccepted": "کام مکمل اور منظور ہو گیا۔",
   "assistant.outcome.deliveredSettled": "کام مکمل ہو گیا۔",
-  "assistant.activity.superseded": "قبول نہیں کیا گیا؛ بعد کے ورژن نے اس کی جگہ لے لی۔"
+  "assistant.activity.superseded": "قبول نہیں کیا گیا؛ بعد کے ورژن نے اس کی جگہ لے لی۔",
+  "admin.ledgerWithheld.label": "سیکھنے کا عمل روک دیا گیا",
+  "admin.ledgerWithheld.success": "کامیابی درج کر لی گئی۔",
+  "admin.ledgerWithheld.failure": "ناکامی درج کر لی گئی۔",
+  "admin.ledgerWithheld.directFailure": "خودکار recipe پر عمل درآمد ناکام ہو گیا۔",
+  "admin.ledgerWithheld.revision": "recipe میں تبدیلی روک دی گئی۔",
+  "admin.ledgerWithheld.observation": "مشاہدہ درج کر لیا گیا۔",
+  "admin.ledgerWithheld.counters": "شمارندے تبدیل نہیں ہوئے۔",
+  "admin.ledgerWithheld.recipe": "یہ واقعہ محفوظ شدہ طریقے یا اس کے مشترکہ trust کو تبدیل نہیں کرتا۔",
+  "admin.ledgerWithheld.agent": "یہ واقعہ agent کے مشترکہ trust کو تبدیل نہیں کرتا۔",
+  "admin.ledgerWithheld.compute": "یہ کام ذاتی کمپیوٹر پر Atoma Compute کے ذریعے چلا۔ مشترکہ سیکھنے پر اثر انداز ہونے سے پہلے Atoma کے سرورز پر اس کی آزادانہ جانچ ضروری ہے۔"
 }

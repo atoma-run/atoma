@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "已加载 {{count}} 个事件，最新优先",
   "admin.journalEmpty": "暂无记录。",
   "admin.ledger": "目录账本",
-  "admin.ledgerHint": "智能体目录所掌握的信息：智能体类型或 skill 配方的每次 trust 与生命周期变更——独立于平台日志的单独记录。",
+  "admin.ledgerHint": "此历史记录展示智能体和已保存的方法（配方）如何从工作中学习。成功和失败计数会影响共享 trust。保留事件会被记录，但不会改变该 trust。此处的学习积分并非付款。本记录独立于平台日志。",
   "admin.ledgerSummary_one": "{{count}} 条记录，最新优先",
   "admin.ledgerSummary_other": "{{count}} 条记录，最新优先",
   "admin.ledgerEmpty": "目录尚未学到任何内容。",
@@ -2830,5 +2830,15 @@
   "assistant.deployment.state.stopped": "已停止。",
   "assistant.outcome.deliveredAccepted": "工作已完成并获接受。",
   "assistant.outcome.deliveredSettled": "工作已完成。",
-  "assistant.activity.superseded": "未接受；已被后续版本取代。"
+  "assistant.activity.superseded": "未接受；已被后续版本取代。",
+  "admin.ledgerWithheld.label": "暂不用于学习",
+  "admin.ledgerWithheld.success": "已记录成功。",
+  "admin.ledgerWithheld.failure": "已记录失败。",
+  "admin.ledgerWithheld.directFailure": "自动执行配方失败。",
+  "admin.ledgerWithheld.revision": "配方更改已保留。",
+  "admin.ledgerWithheld.observation": "已记录观察结果。",
+  "admin.ledgerWithheld.counters": "计数器未更改。",
+  "admin.ledgerWithheld.recipe": "此事件不会更改已保存的方法或其共享 trust。",
+  "admin.ledgerWithheld.agent": "此事件不会更改智能体的共享 trust。",
+  "admin.ledgerWithheld.compute": "此工作已通过 Atoma Compute 在个人计算机上运行。必须经 Atoma 服务器独立检查后，才能影响共享学习。"
 }

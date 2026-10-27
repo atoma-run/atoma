@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "{{count}} ईवेंट लोड हुए, नवीनतम पहले",
   "admin.journalEmpty": "अभी कुछ भी दर्ज नहीं है।",
   "admin.ledger": "कैटलॉग लेजर",
-  "admin.ledgerHint": "एजेंट कैटलॉग ने जो सीखा: किसी एजेंट प्रकार या skill रेसिपी के trust और जीवनचक्र में हुआ हर बदलाव—प्लेटफ़ॉर्म जर्नल से अलग रिकॉर्ड।",
+  "admin.ledgerHint": "यह इतिहास दिखाता है कि एजेंट और सहेजी गई विधियाँ (recipes) अपने काम से कैसे सीखती हैं। सफलता और विफलता के काउंटर साझा trust को दिशा देते हैं। रोके गए इवेंट उस trust को बदले बिना दर्ज किए जाते हैं। यहाँ सीखने का श्रेय कोई भुगतान नहीं है। यह प्लेटफ़ॉर्म जर्नल से अलग रिकॉर्ड है।",
   "admin.ledgerSummary_one": "{{count}} प्रविष्टि, नवीनतम पहले",
   "admin.ledgerSummary_other": "{{count}} प्रविष्टियाँ, नवीनतम पहले",
   "admin.ledgerEmpty": "कैटलॉग ने अभी कुछ नहीं सीखा है।",
@@ -2830,5 +2830,15 @@
   "assistant.deployment.state.stopped": "रोक दिया गया।",
   "assistant.outcome.deliveredAccepted": "काम पूरा हुआ और स्वीकार कर लिया गया।",
   "assistant.outcome.deliveredSettled": "काम पूरा हुआ।",
-  "assistant.activity.superseded": "स्वीकार नहीं किया गया; इसके स्थान पर बाद का संस्करण आ गया।"
+  "assistant.activity.superseded": "स्वीकार नहीं किया गया; इसके स्थान पर बाद का संस्करण आ गया।",
+  "admin.ledgerWithheld.label": "सीखना रोका गया",
+  "admin.ledgerWithheld.success": "सफलता दर्ज की गई।",
+  "admin.ledgerWithheld.failure": "विफलता दर्ज की गई।",
+  "admin.ledgerWithheld.directFailure": "recipe का स्वचालित निष्पादन विफल रहा।",
+  "admin.ledgerWithheld.revision": "recipe में बदलाव रोका गया।",
+  "admin.ledgerWithheld.observation": "अवलोकन दर्ज किया गया।",
+  "admin.ledgerWithheld.counters": "काउंटर अपरिवर्तित रहे।",
+  "admin.ledgerWithheld.recipe": "यह इवेंट सहेजी गई विधि या उसके साझा trust को नहीं बदलता।",
+  "admin.ledgerWithheld.agent": "यह इवेंट एजेंट के साझा trust को नहीं बदलता।",
+  "admin.ledgerWithheld.compute": "यह काम Atoma Compute के साथ एक निजी कंप्यूटर पर चला। साझा सीखने को प्रभावित करने से पहले Atoma के सर्वरों पर इसकी स्वतंत्र जाँच आवश्यक है।"
 }

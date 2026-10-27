@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "{{count}} Ereignisse geladen, neueste zuerst",
   "admin.journalEmpty": "Noch nichts aufgezeichnet.",
   "admin.ledger": "Kataloghauptbuch",
-  "admin.ledgerHint": "Was der Agentenkatalog gelernt hat: jede trust- und Lebenszyklusänderung eines Agententyps oder eines skill-Rezepts – als separater Eintrag neben dem Plattformjournal.",
+  "admin.ledgerHint": "Dieser Verlauf zeigt, wie Agenten und gespeicherte Methoden (Rezepte) aus ihrer Arbeit lernen. Erfolgs- und Fehlerzähler fließen in den gemeinsamen trust ein. Zurückgehaltene Ereignisse werden erfasst, ohne diesen trust zu ändern. Lerngutschriften sind hier keine Zahlungen. Dies ist ein vom Plattformjournal getrennter Datensatz.",
   "admin.ledgerSummary_one": "{{count}} Eintrag, neuester zuerst",
   "admin.ledgerSummary_other": "{{count}} Einträge, neueste zuerst",
   "admin.ledgerEmpty": "Der Katalog hat noch nichts gelernt.",
@@ -2830,5 +2830,15 @@
   "assistant.deployment.state.stopped": "Gestoppt.",
   "assistant.outcome.deliveredAccepted": "Arbeit abgeschlossen und akzeptiert.",
   "assistant.outcome.deliveredSettled": "Arbeit abgeschlossen.",
-  "assistant.activity.superseded": "Nicht akzeptiert; eine spätere Version hat sie ersetzt."
+  "assistant.activity.superseded": "Nicht akzeptiert; eine spätere Version hat sie ersetzt.",
+  "admin.ledgerWithheld.label": "Lernen zurückgehalten",
+  "admin.ledgerWithheld.success": "Erfolg erfasst.",
+  "admin.ledgerWithheld.failure": "Fehler erfasst.",
+  "admin.ledgerWithheld.directFailure": "Automatische Rezeptausführung fehlgeschlagen.",
+  "admin.ledgerWithheld.revision": "Rezeptänderung zurückgehalten.",
+  "admin.ledgerWithheld.observation": "Beobachtung erfasst.",
+  "admin.ledgerWithheld.counters": "Zähler unverändert.",
+  "admin.ledgerWithheld.recipe": "Dieses Ereignis ändert weder die gespeicherte Methode noch ihren gemeinsamen trust.",
+  "admin.ledgerWithheld.agent": "Dieses Ereignis ändert den gemeinsamen trust des Agenten nicht.",
+  "admin.ledgerWithheld.compute": "Die Arbeit wurde mit Atoma Compute auf einem privaten Computer ausgeführt. Eine unabhängige Prüfung auf den Servern von Atoma ist erforderlich, bevor sie das gemeinsame Lernen beeinflussen kann."
 }

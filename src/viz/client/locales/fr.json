@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "{{count}} événements chargés, du plus récent au plus ancien",
   "admin.journalEmpty": "Rien d’enregistré pour l’instant.",
   "admin.ledger": "Registre du catalogue",
-  "admin.ledgerHint": "Ce que le catalogue d’agents a appris : chaque changement de trust et de cycle de vie d’un type d’agent ou d’une recette de skill — dans un registre distinct du journal de la plateforme.",
+  "admin.ledgerHint": "Cet historique montre comment les agents et les méthodes enregistrées (recettes) apprennent de leur travail. Les compteurs de réussites et d’échecs servent à déterminer le trust partagé. Les événements non pris en compte sont enregistrés sans modifier ce trust. Le crédit d’apprentissage indiqué ici n’est pas un paiement. Ce registre est distinct du journal de la plateforme.",
   "admin.ledgerSummary_one": "{{count}} entrée, du plus récent au plus ancien",
   "admin.ledgerSummary_other": "{{count}} entrées, du plus récent au plus ancien",
   "admin.ledgerEmpty": "Le catalogue n’a encore rien appris.",
@@ -2830,5 +2830,15 @@
   "assistant.deployment.state.stopped": "Arrêtée.",
   "assistant.outcome.deliveredAccepted": "Travail terminé et accepté.",
   "assistant.outcome.deliveredSettled": "Travail terminé.",
-  "assistant.activity.superseded": "Non acceptée ; une version ultérieure l’a remplacée."
+  "assistant.activity.superseded": "Non acceptée ; une version ultérieure l’a remplacée.",
+  "admin.ledgerWithheld.label": "Apprentissage non comptabilisé",
+  "admin.ledgerWithheld.success": "Réussite enregistrée.",
+  "admin.ledgerWithheld.failure": "Échec enregistré.",
+  "admin.ledgerWithheld.directFailure": "L’exécution automatique de la recette a échoué.",
+  "admin.ledgerWithheld.revision": "Modification de la recette non comptabilisée.",
+  "admin.ledgerWithheld.observation": "Observation enregistrée.",
+  "admin.ledgerWithheld.counters": "Compteurs inchangés.",
+  "admin.ledgerWithheld.recipe": "Cet événement ne modifie ni la méthode enregistrée ni son trust partagé.",
+  "admin.ledgerWithheld.agent": "Cet événement ne modifie pas le trust partagé de l’agent.",
+  "admin.ledgerWithheld.compute": "Le travail a été exécuté sur un ordinateur personnel avec Atoma Compute. Une vérification indépendante sur les serveurs d’Atoma est requise avant qu’il puisse influer sur l’apprentissage partagé."
 }

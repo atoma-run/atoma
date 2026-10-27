@@ -181,7 +181,7 @@
   "admin.journalSummary_other": "عدد الأحداث المحمّلة: {{count}}، الأحدث أولًا",
   "admin.journalEmpty": "لم يُسجّل شيء بعد.",
   "admin.ledger": "دفتر سجل الفهرس",
-  "admin.ledgerHint": "ما تعلمه فهرس الوكلاء: كل تغيير في trust ودورة الحياة لنوع وكيل أو وصفة skill — وهو سجل منفصل عن يوميات المنصة.",
+  "admin.ledgerHint": "يوضّح هذا السجل كيف تتعلّم الوكلاء والأساليب المحفوظة (recipes) من عملها. تسهم عدّادات النجاح والفشل في تحديد trust المشتركة. تُسجَّل الأحداث المحجوبة من دون تغيير تلك trust. رصيد التعلّم هنا ليس دفعة مالية. وهذا سجل منفصل عن يومية المنصة.",
   "admin.ledgerSummary_other": "عدد الإدخالات: {{count}}، الأحدث أولًا",
   "admin.ledgerEmpty": "لم يتعلّم الفهرس شيئًا بعد.",
   "journal.severity": "الخطورة",
@@ -2830,5 +2830,15 @@
   "assistant.deployment.state.stopped": "تم الإيقاف.",
   "assistant.outcome.deliveredAccepted": "اكتمل العمل وتم قبوله.",
   "assistant.outcome.deliveredSettled": "اكتمل العمل.",
-  "assistant.activity.superseded": "لم يتم قبوله؛ حلّ إصدار أحدث محلّه."
+  "assistant.activity.superseded": "لم يتم قبوله؛ حلّ إصدار أحدث محلّه.",
+  "admin.ledgerWithheld.label": "حُجب التعلّم",
+  "admin.ledgerWithheld.success": "سُجّل النجاح.",
+  "admin.ledgerWithheld.failure": "سُجّل الفشل.",
+  "admin.ledgerWithheld.directFailure": "فشل التنفيذ التلقائي لـ recipe.",
+  "admin.ledgerWithheld.revision": "حُجب تغيير recipe.",
+  "admin.ledgerWithheld.observation": "سُجّلت الملاحظة.",
+  "admin.ledgerWithheld.counters": "لم تتغير العدّادات.",
+  "admin.ledgerWithheld.recipe": "لا يغيّر هذا الحدث الأسلوب المحفوظ ولا trust المشتركة الخاصة به.",
+  "admin.ledgerWithheld.agent": "لا يغيّر هذا الحدث trust المشتركة للوكيل.",
+  "admin.ledgerWithheld.compute": "نُفّذ العمل على حاسوب شخصي باستخدام Atoma Compute. يلزم إجراء تحقق مستقل على خوادم Atoma قبل أن يتمكن من التأثير في التعلّم المشترك."
 }

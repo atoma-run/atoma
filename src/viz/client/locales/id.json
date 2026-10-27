@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "{{count}} peristiwa dimuat, terbaru terlebih dahulu",
   "admin.journalEmpty": "Belum ada yang tercatat.",
   "admin.ledger": "Buku besar katalog",
-  "admin.ledgerHint": "Yang dipelajari katalog agen: setiap perubahan trust dan siklus hidup jenis agen atau resep skill — catatan terpisah dari jurnal platform.",
+  "admin.ledgerHint": "Riwayat ini menunjukkan cara agen dan metode tersimpan (resep) belajar dari pekerjaan mereka. Penghitung keberhasilan dan kegagalan menjadi dasar trust bersama. Peristiwa yang ditahan dicatat tanpa mengubah trust tersebut. Kredit pembelajaran di sini bukan pembayaran. Catatan ini terpisah dari jurnal platform.",
   "admin.ledgerSummary_one": "{{count}} entri, terbaru terlebih dahulu",
   "admin.ledgerSummary_other": "{{count}} entri, terbaru terlebih dahulu",
   "admin.ledgerEmpty": "Katalog belum mempelajari apa pun.",
@@ -2830,5 +2830,15 @@
   "assistant.deployment.state.stopped": "Dihentikan.",
   "assistant.outcome.deliveredAccepted": "Pekerjaan selesai dan diterima.",
   "assistant.outcome.deliveredSettled": "Pekerjaan selesai.",
-  "assistant.activity.superseded": "Tidak diterima; versi yang lebih baru menggantikannya."
+  "assistant.activity.superseded": "Tidak diterima; versi yang lebih baru menggantikannya.",
+  "admin.ledgerWithheld.label": "Pembelajaran ditahan",
+  "admin.ledgerWithheld.success": "Keberhasilan dicatat.",
+  "admin.ledgerWithheld.failure": "Kegagalan dicatat.",
+  "admin.ledgerWithheld.directFailure": "Eksekusi resep otomatis gagal.",
+  "admin.ledgerWithheld.revision": "Perubahan resep ditahan.",
+  "admin.ledgerWithheld.observation": "Pengamatan dicatat.",
+  "admin.ledgerWithheld.counters": "Penghitung tidak berubah.",
+  "admin.ledgerWithheld.recipe": "Peristiwa ini tidak mengubah metode tersimpan atau trust bersamanya.",
+  "admin.ledgerWithheld.agent": "Peristiwa ini tidak mengubah trust bersama agen.",
+  "admin.ledgerWithheld.compute": "Pekerjaan dijalankan di komputer pribadi dengan Atoma Compute. Pemeriksaan independen di server Atoma diperlukan sebelum dapat memengaruhi pembelajaran bersama."
 }

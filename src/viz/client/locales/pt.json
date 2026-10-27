@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "{{count}} eventos carregados, mais recentes primeiro",
   "admin.journalEmpty": "Ainda não há registos.",
   "admin.ledger": "Livro-razão do catálogo",
-  "admin.ledgerHint": "O que o catálogo de agentes aprendeu: todas as alterações de trust e de ciclo de vida de um tipo de agente ou de uma receita de skill — um registo separado do diário da plataforma.",
+  "admin.ledgerHint": "Este histórico mostra como os agentes e os métodos guardados (receitas) aprendem com o seu trabalho. Os contadores de sucessos e falhas contribuem para a confiança coletiva. Os eventos retidos são registados sem alterar essa confiança. O crédito de aprendizagem aqui não é um pagamento. Este registo é separado do diário da plataforma.",
   "admin.ledgerSummary_one": "{{count}} entrada, mais recente primeiro",
   "admin.ledgerSummary_other": "{{count}} entradas, mais recentes primeiro",
   "admin.ledgerEmpty": "O catálogo ainda não aprendeu nada.",
@@ -2830,5 +2830,15 @@
   "assistant.deployment.state.stopped": "Parado.",
   "assistant.outcome.deliveredAccepted": "Trabalho concluído e aprovado.",
   "assistant.outcome.deliveredSettled": "Trabalho concluído.",
-  "assistant.activity.superseded": "Não foi aceite; uma versão posterior substituiu-a."
+  "assistant.activity.superseded": "Não foi aceite; uma versão posterior substituiu-a.",
+  "admin.ledgerWithheld.label": "Aprendizagem retida",
+  "admin.ledgerWithheld.success": "Sucesso registado.",
+  "admin.ledgerWithheld.failure": "Falha registada.",
+  "admin.ledgerWithheld.directFailure": "A execução automática da receita falhou.",
+  "admin.ledgerWithheld.revision": "Alteração da receita retida.",
+  "admin.ledgerWithheld.observation": "Observação registada.",
+  "admin.ledgerWithheld.counters": "Contadores inalterados.",
+  "admin.ledgerWithheld.recipe": "Este evento não altera o método guardado nem a sua confiança coletiva.",
+  "admin.ledgerWithheld.agent": "Este evento não altera a confiança coletiva do agente.",
+  "admin.ledgerWithheld.compute": "O trabalho foi executado num computador pessoal com o Atoma Compute. É necessária uma verificação independente nos servidores da Atoma antes que possa afetar a aprendizagem coletiva."
 }
