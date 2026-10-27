@@ -5,6 +5,7 @@ import { truncate } from '../copy.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_PAD, VIEW_FRAME_PANE_AIR } from '../view-frame.js';
 import { timestampTooltip } from '../relative-time.js';
+import { wrapCopyLines } from '../compute-results-block.js';
 
 /**
  * THE CATALOGUE LEDGER's tail — a SEPARATE record from the platform journal,
@@ -19,7 +20,8 @@ import { timestampTooltip } from '../relative-time.js';
  * They used to share one tab, which read as one record with two headings.
  * Separate screens make the separation the interface states.
  *
- * A row is TWO LINES. It was one — stamp, kind, and the raw entity cut at 48
+ * Ordinary rows use TWO LINES; withheld events add a wrapped explanation.
+ * It was one — stamp, kind, and the raw entity cut at 48
  * characters — which for a skill spent the whole budget on the owner's atom
  * id and left the recipe name as an ellipsis, while the detail and scope the
  * payload already carried (who credited it, which version, why, which run)
@@ -60,6 +62,30 @@ const KIND_COLORS: Record<string, number> = {
   'skill-merge': GPU_COLORS.magenta,
   'type-merge': GPU_COLORS.magenta,
 };
+
+/** Withheld learning is an observation, never a trust increment or a charge. */
+function isWithheld(entry: VizLedgerEvent): boolean {
+  return entry.kind === 'skill-credit-withheld' || entry.kind === 'type-credit-withheld';
+}
+
+function ledgerKind(entry: VizLedgerEvent, t: Translate): string {
+  return isWithheld(entry) ? t('admin.ledgerWithheld.label') : entry.kind;
+}
+
+function withheldExplanation(entry: VizLedgerEvent, t: Translate): string {
+  const operation = entry.detail?.['operation'];
+  const outcomes: Record<string, string> = {
+    success: 'success', failure: 'failure', 'direct-failure': 'directFailure', revision: 'revision',
+  };
+  const outcome = typeof operation === 'string' ? outcomes[operation] : undefined;
+  const parts = [
+    t(`admin.ledgerWithheld.${outcome ?? 'observation'}`),
+    t('admin.ledgerWithheld.counters'),
+    t(entry.kind === 'skill-credit-withheld' ? 'admin.ledgerWithheld.recipe' : 'admin.ledgerWithheld.agent'),
+  ];
+  if (entry.detail?.['provenance'] === 'customer-device') parts.push(t('admin.ledgerWithheld.compute'));
+  return parts.join(' ');
+}
 
 /**
  * WHAT the row is about, readable. A skill's namespace is its owner's atom
@@ -164,7 +190,7 @@ export function ledgerFacts(entry: VizLedgerEvent, t: Translate): string[] {
 
 /** Everything the row abbreviates, in full, for the subject's hover bubble. */
 function ledgerBubble(entry: VizLedgerEvent): string {
-  const lines = [entry.entity];
+  const lines = [entry.kind, entry.entity, JSON.stringify(entry.detail ?? {}, null, 2)];
   if (entry.entityId && entry.entityId !== entry.entity) lines.push(entry.entityId);
   const scope = entry.scope;
   if (scope?.runId) lines.push(`run ${scope.runId}`);
@@ -228,7 +254,13 @@ export function drawLedger(
     return;
   }
 
-  const listHeight = ledger.length * rowHeight + 12;
+  // Wrap the explanation before culling so all rows keep their real height,
+  // including translated copy and rows outside the viewport.
+  const rows = ledger.map(entry => {
+    const lines = isWithheld(entry) ? wrapCopyLines(ctx, withheldExplanation(entry, snapshot.t), innerWidth - 16) : [];
+    return { entry, lines, height: rowHeight + lines.length * 20 + (lines.length ? 8 : 0) };
+  });
+  const listHeight = rows.reduce((sum, row) => sum + row.height, 0) + 12;
   ctx.panel(
     pane.content,
     x,
@@ -244,13 +276,13 @@ export function drawLedger(
   const rowRight = columnX + innerWidth - 8;
   const stampWidth = Math.min(innerWidth * 0.3, Math.max(0, ...ledger.map(entry =>
     ctx.measureText(ctx.relativeTime(entry.at, snapshot.t, snapshot.state.locale) || truncate(entry.at, 19), { size: 9 }))));
-  const kindWidth = Math.min(innerWidth * 0.3, Math.max(0, ...ledger.map(entry => ctx.measureText(entry.kind, { size: 9, mono: true }))));
+  const kindWidth = Math.min(innerWidth * 0.3, Math.max(0, ...ledger.map(entry => ctx.measureText(ledgerKind(entry, snapshot.t), { size: 9, mono: true }))));
   const kindX = rowX + stampWidth + 14;
   const subjectX = compact ? rowX : kindX + kindWidth + 10;
   const subjectWidth = Math.max(0, rowRight - subjectX);
   let rowY = cursor + 8;
-  for (const entry of ledger) {
-    if (pane.visible(rowY, rowY + rowHeight)) {
+  for (const { entry, lines, height: entryHeight } of rows) {
+    if (pane.visible(rowY, rowY + entryHeight)) {
       ctx.text(
         pane.content,
         // Same tolerance as a journal row: an unparseable stamp shows raw.
@@ -263,7 +295,7 @@ export function drawLedger(
       if (exactAt) {
         ctx.tooltip(pane.content, { x: rowX, y: rowY, width: stampWidth, height: 13, text: exactAt });
       }
-      ctx.text(pane.content, entry.kind, kindX, rowY, {
+      ctx.text(pane.content, ledgerKind(entry, snapshot.t), kindX, rowY, {
         size: 9,
         color: KIND_COLORS[entry.kind] ?? GPU_COLORS.muted,
         mono: true,
@@ -284,17 +316,21 @@ export function drawLedger(
         height: 14,
         text: ledgerBubble(entry),
       });
+      const explanationY = rowY + (compact ? 32 : 16);
+      lines.forEach((line, index) => ctx.text(pane.content, line, rowX, explanationY + index * 20, {
+        size: 12, color: GPU_COLORS.text, width: innerWidth - 16, singleLine: true,
+      }));
       const facts = ledgerFacts(entry, snapshot.t);
       if (facts.length > 0) {
-        ctx.text(pane.content, facts.join(' · '), subjectX, rowY + (compact ? 32 : 16), {
+        ctx.text(pane.content, facts.join(' · '), lines.length ? rowX : subjectX, explanationY + lines.length * 20, {
           size: 9,
           color: GPU_COLORS.muted,
-          width: subjectWidth,
+          width: lines.length ? innerWidth - 16 : subjectWidth,
           singleLine: true,
         });
       }
     }
-    rowY += rowHeight;
+    rowY += entryHeight;
   }
   cursor += listHeight + 12;
 

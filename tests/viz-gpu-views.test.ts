@@ -2514,17 +2514,22 @@ describe('drawJournal', () => {
 describe('drawLedger', () => {
   const auth = makeAuth({ platformAdmin: true });
 
-  it('shows Compute withholding with its operation, reason and run, without a UI vocabulary update', () => {
+  it.each(['success', 'failure', 'direct-failure', 'revision'].flatMap(operation =>
+    [1280, 528].map(width => [operation, width] as const)))('explains withheld %s at width %s without hiding the technical receipt', (operation, width) => {
     const ctx = createRecordingCtx();
     drawLedger(ctx, makeSnapshot({ view: 'ledger' }, { auth, adminLedger: [{
       at: '2026-10-27T00:00:00.000Z', kind: 'skill-credit-withheld', entity: 'owner/the-recipe', owner: 'Water',
-      detail: { operation: 'success', provenance: 'customer-device', by: 'Tracheid',
+      detail: { operation, provenance: 'customer-device', by: 'Tracheid',
         reason: 'Customer execution requires independent hosted validation' },
       scope: { runId: 'run-compute-123' },
-    }] }), 1280, 720);
+    }] }), width, 1400);
     const text = ctx.texts.map(row => row.value).join('\n');
-    expect(text).toContain('skill-credit-withheld');
-    expect(text).toContain('operation: success');
+    expect(text).toContain('Learning withheld');
+    expect(text.replace(/\s+/g, ' ')).toContain('Counters unchanged.');
+    expect(text.replace(/\s+/g, ' ')).toContain('does not change the saved method');
+    expect(text.replace(/\s+/g, ' ')).toContain('independent check');
+    expect(text).toContain(`operation: ${operation}`);
+    expect(ctx.tooltips.some(tooltip => tooltip.text.includes('skill-credit-withheld'))).toBe(true);
     expect(text).toContain('Customer execution requires independent hosted validation');
     expect(text).toContain('run-comp');
   });
