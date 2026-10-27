@@ -3275,8 +3275,9 @@ describe('drawProjects', () => {
     expect(lock.parent.toGlobal({ x: lock.x, y: lock.y + lock.size / 2 }).y).toBe(centerY);
     expect(hosted.parent.toGlobal({ x: hosted.x, y: hosted.y + hosted.height / 2 }).y).toBe(centerY);
     const labels = ctx.texts.filter(text => text.value === project.repositoryUrl ||
-      text.value === '·' || text.value === '● weather.app.atoma.run');
-    expect(labels).toHaveLength(3);
+      text.value === '● weather.app.atoma.run');
+    expect(labels).toHaveLength(2);
+    expect(ctx.texts.some(text => text.value === '·')).toBe(false);
     for (const label of labels) {
       expect(label.node.anchor.y).toBe(0.5);
       expect(label.parent.toGlobal({ x: label.x, y: label.y }).y).toBe(centerY);

@@ -570,8 +570,7 @@ function drawRepositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, proje
   if (hostedText && hostedWidth > 0) {
     infoCursor += (project.repositoryUrl ? REPOSITORY_ICON_OFFSET_X + REPOSITORY_ICON_SIZE + REPOSITORY_ICON_GAP : 0)
       + destinationTextWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP;
-    ctx.text(rowParent, PROJECT_INFO_SEPARATOR, infoCursor, centerY,
-      { size: STATUS_FONT_SIZE, color: GPU_COLORS.muted, mono: true, width: separatorWidth, singleLine: true }).anchor.set(0, 0.5);
+    // Keep the separator’s space without a second dot beside the online indicator.
     infoCursor += separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP;
     // A private application opens through a one-time claim, never a bare link: the activation asks for one.
     const hostedLink = ctx.linkRegion(rowParent, `project.hosted.${project.projectId}`, hostedText,
