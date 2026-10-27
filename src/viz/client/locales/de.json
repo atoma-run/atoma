@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "{{count}} Ereignisse geladen, neueste zuerst",
   "admin.journalEmpty": "Noch nichts aufgezeichnet.",
   "admin.ledger": "Kataloghauptbuch",
-  "admin.ledgerHint": "Dieser Verlauf zeigt, wie Agenten und gespeicherte Methoden (Rezepte) aus ihrer Arbeit lernen. Erfolgs- und Fehlerzähler fließen in den gemeinsamen trust ein. Zurückgehaltene Ereignisse werden erfasst, ohne diesen trust zu ändern. Lerngutschriften sind hier keine Zahlungen. Dies ist ein vom Plattformjournal getrennter Datensatz.",
+  "admin.ledgerHint": "Dieser Verlauf zeigt, wie Agents und gespeicherte Methoden (Rezepte) aus ihrer Arbeit lernen. Erfolgs- und Fehlerzähler erfassen ihre Zuverlässigkeit. Zurückgehaltene Ereignisse werden aufgezeichnet, ohne diese Zähler zu ändern. Die hier vergebene Lerngutschrift ist keine Zahlung. Dieser Datensatz ist vom Plattformjournal getrennt.",
   "admin.ledgerSummary_one": "{{count}} Eintrag, neuester zuerst",
   "admin.ledgerSummary_other": "{{count}} Einträge, neueste zuerst",
   "admin.ledgerEmpty": "Der Katalog hat noch nichts gelernt.",
@@ -2838,7 +2838,7 @@
   "admin.ledgerWithheld.revision": "Rezeptänderung zurückgehalten.",
   "admin.ledgerWithheld.observation": "Beobachtung erfasst.",
   "admin.ledgerWithheld.counters": "Zähler unverändert.",
-  "admin.ledgerWithheld.recipe": "Dieses Ereignis ändert weder die gespeicherte Methode noch ihren gemeinsamen trust.",
-  "admin.ledgerWithheld.agent": "Dieses Ereignis ändert den gemeinsamen trust des Agenten nicht.",
+  "admin.ledgerWithheld.recipe": "Dieses Ereignis ändert weder die gespeicherte Methode noch ihren in atoma geteilten Zuverlässigkeitsdatensatz.",
+  "admin.ledgerWithheld.agent": "Dieses Ereignis ändert nicht den in atoma geteilten Zuverlässigkeitsdatensatz des Agents.",
   "admin.ledgerWithheld.compute": "Die Arbeit wurde mit Atoma Compute auf einem privaten Computer ausgeführt. Eine unabhängige Prüfung auf den Servern von Atoma ist erforderlich, bevor sie das gemeinsame Lernen beeinflussen kann."
 }

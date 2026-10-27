@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "{{count}} eventos cargados, los más recientes primero",
   "admin.journalEmpty": "Aún no se ha registrado nada.",
   "admin.ledger": "Libro mayor del catálogo",
-  "admin.ledgerHint": "Este historial muestra cómo los agentes y los métodos guardados (recetas) aprenden de su trabajo. Los contadores de éxitos y fallos influyen en el trust compartido. Los eventos retenidos se registran sin modificar ese trust. El crédito de aprendizaje indicado aquí no es un pago. Este registro es independiente del diario de la plataforma.",
+  "admin.ledgerHint": "Este historial muestra cómo los agentes y los métodos guardados (recetas) aprenden de su trabajo. Los contadores de éxitos y fallos registran su fiabilidad. Los eventos retenidos se registran sin cambiar esos contadores. El crédito de aprendizaje aquí no es un pago. Este registro es independiente del diario de la plataforma.",
   "admin.ledgerSummary_one": "{{count}} entrada, la más reciente primero",
   "admin.ledgerSummary_other": "{{count}} entradas, las más recientes primero",
   "admin.ledgerEmpty": "El catálogo aún no ha aprendido nada.",
@@ -2838,7 +2838,7 @@
   "admin.ledgerWithheld.revision": "Cambio de receta retenido.",
   "admin.ledgerWithheld.observation": "Observación registrada.",
   "admin.ledgerWithheld.counters": "Contadores sin cambios.",
-  "admin.ledgerWithheld.recipe": "Este evento no modifica el método guardado ni su trust compartido.",
-  "admin.ledgerWithheld.agent": "Este evento no modifica el trust compartido del agente.",
+  "admin.ledgerWithheld.recipe": "Este evento no cambia el método guardado ni su registro de fiabilidad compartido en Atoma.",
+  "admin.ledgerWithheld.agent": "Este evento no cambia el registro de fiabilidad del agente compartido en Atoma.",
   "admin.ledgerWithheld.compute": "El trabajo se ejecutó en un ordenador personal con Atoma Compute. Se requiere una verificación independiente en los servidores de Atoma antes de que pueda influir en el aprendizaje compartido."
 }

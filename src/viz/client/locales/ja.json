@@ -184,7 +184,7 @@
   "admin.journalSummary_other": "{{count}}件のイベントを読み込みました（新しい順）",
   "admin.journalEmpty": "まだ何も記録されていません。",
   "admin.ledger": "カタログ台帳",
-  "admin.ledgerHint": "この履歴には、エージェントと保存済みの手順（レシピ）が作業から学習する過程が表示されます。成功と失敗のカウンターは、共有trustの判断材料になります。保留されたイベントは、そのtrustを変更せずに記録されます。ここでの学習クレジットは支払いではありません。これはプラットフォームのジャーナルとは別の記録です。",
+  "admin.ledgerHint": "この履歴には、agentと保存済みの手法（recipe）が作業からどのように学習したかが表示されます。成功と失敗のカウンターは信頼性を追跡します。保留されたイベントは、それらのカウンターを変更せずに記録されます。ここでの学習クレジットは支払いではありません。これはプラットフォームのジャーナルとは別の記録です。",
   "admin.ledgerSummary_one": "{{count}}件のエントリ（新しい順）",
   "admin.ledgerSummary_other": "{{count}}件のエントリ（新しい順）",
   "admin.ledgerEmpty": "カタログはまだ何も学習していません。",
@@ -2838,7 +2838,7 @@
   "admin.ledgerWithheld.revision": "レシピの変更を保留しました。",
   "admin.ledgerWithheld.observation": "観察結果を記録しました。",
   "admin.ledgerWithheld.counters": "カウンターは変更されませんでした。",
-  "admin.ledgerWithheld.recipe": "このイベントでは、保存済みの手順やその共有trustは変更されません。",
-  "admin.ledgerWithheld.agent": "このイベントでは、エージェントの共有trustは変更されません。",
+  "admin.ledgerWithheld.recipe": "このイベントは、保存済みの手法やAtoma全体で共有されるその信頼性記録を変更しません。",
+  "admin.ledgerWithheld.agent": "このイベントは、Atoma全体で共有されるagentの信頼性記録を変更しません。",
   "admin.ledgerWithheld.compute": "この作業は、Atoma Computeを使用してパソコン上で実行されました。共有学習に反映するには、Atomaのサーバーによる独立した検証が必要です。"
 }
