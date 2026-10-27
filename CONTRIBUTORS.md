@@ -33,5 +33,6 @@ list.
 ## Community
 
 <!-- Add your entry below this line. -->
+- [Matthieu Foillard](https://github.com/mgtf)
 - [Anthony Zboralski](https://github.com/zboralski)
 - [Electron](https://github.com/manelephant)
