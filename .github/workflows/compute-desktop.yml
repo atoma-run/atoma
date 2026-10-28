@@ -181,7 +181,7 @@ jobs:
         env:
           # The complete source/test program exceeds Node's 2 GiB default on macOS ARM.
           NODE_OPTIONS: --max-old-space-size=4096
-      - run: npx vitest run tests/node-gyp-headers.test.ts tests/compute-desktop.test.ts tests/compute-desktop-updates.test.ts tests/compute-desktop-main-updates.test.ts tests/compute-desktop-version.test.ts tests/compute-desktop-content.test.ts tests/compute-image-pull.test.ts tests/compute-image-cache.test.ts tests/compute-preparation.test.ts tests/compute-preparation-runtime.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
+      - run: npx vitest run tests/node-gyp-headers.test.ts tests/compute-macos-icon.test.ts tests/compute-desktop.test.ts tests/compute-desktop-updates.test.ts tests/compute-desktop-main-updates.test.ts tests/compute-desktop-version.test.ts tests/compute-desktop-content.test.ts tests/compute-image-pull.test.ts tests/compute-image-cache.test.ts tests/compute-preparation.test.ts tests/compute-preparation-runtime.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
       - run: npm run compute:desktop:build
       - uses: actions/download-artifact@v5
         with:

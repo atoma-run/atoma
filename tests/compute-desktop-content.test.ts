@@ -42,6 +42,7 @@ beforeAll(() => {
   write('src/launcher/desktopApp/style.css', 'body { color: red; }');
   write('src/launcher/desktopApp/index.html', '<body>Hello</body>');
   write('src/viz/public/icons/atoma-512.png', 'icon v1');
+  write('desktop/atoma.icns', 'native icon v1');
   bundle();
 });
 afterAll(() => { if (root) rmSync(root, { recursive: true, force: true }); });
@@ -70,7 +71,7 @@ it('includes shared imports and the actual bytes of bundled transitive dependenc
 
 it('includes CSS, HTML and the copied icon', async () => {
   let previous = await fingerprint();
-  for (const [path, bytes] of [['src/launcher/desktopApp/style.css', 'body { color: blue; }'], ['src/launcher/desktopApp/index.html', '<body>Changed</body>'], ['src/viz/public/icons/atoma-512.png', 'icon v2']]) {
+  for (const [path, bytes] of [['desktop/atoma.icns', 'native icon v2'], ['src/launcher/desktopApp/style.css', 'body { color: blue; }'], ['src/launcher/desktopApp/index.html', '<body>Changed</body>'], ['src/viz/public/icons/atoma-512.png', 'icon v2']]) {
     write(path!, bytes!); bundle();
     const current = await fingerprint(); expect(current).not.toBe(previous); previous = current;
   }

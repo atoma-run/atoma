@@ -72,9 +72,10 @@ export async function desktopContent(root, revision) {
   if (config.publish) config.publish = config.publish.map(feed => ({ ...feed,
     channel: typeof feed.channel === 'string' ? feed.channel.replace(/-(?:arm64|x64)$/, '-ARCH') : feed.channel }));
   const configuration = JSON.stringify(config, (_key, value) => typeof value === 'function' ? value.toString().replaceAll('\r\n', '\n') : value);
+  const macIcon = config.mac?.icon ? sha256(await readFile(resolve(root, config.mac.icon))) : null;
   const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
   const installerVersion = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')).version;
-  return { schema: 1, revision, installerVersion, sha256: sha256(JSON.stringify({ files: files.sort(([a], [b]) => a.localeCompare(b, 'en')), configuration, native: nativeDependencies(lock) })) };
+  return { schema: 1, revision, installerVersion, sha256: sha256(JSON.stringify({ files: files.sort(([a], [b]) => a.localeCompare(b, 'en')), configuration, macIcon, native: nativeDependencies(lock) })) };
 }
 
 export function readContent(value) {
