@@ -1,3 +1,5 @@
+import { computeValidationRetryInputSchema } from '../contracts/computeValidation.js';
+import { ComputeValidationRetryConflict } from '../core/computeValidation.js';
 import { deploymentSettingInputSchema, hostingAddressInputSchema } from '../contracts/projectDeployment.js';
 import { projectLearningInputSchema, projectLearningCursorSchema } from '../contracts/projectLearning.js';
 import { projectRetrievalRequestSchema } from '../contracts/projectRetrieval.js';
@@ -963,6 +965,19 @@ export class ProjectService {
       createdAt: run.createdAt, updatedAt: run.updatedAt, endedAt: run.endedAt ?? null,
       progress: projectRunProgress(run, { reuseWithinMs: POLLED_PROGRESS_REUSE_MS, ...this.computeProgressOptions(run, this.resultsWaiting(run)) }),
     };
+  }
+
+  retryComputeValidation(viewer: Viewer, raw: unknown) {
+    if (!viewer.platformAdmin || !roleAtLeast(viewer.role, 'org:member')) throw new ProjectHttpError(403, 'platform admin and org:member role or above are required');
+    const input = clientInput(computeValidationRetryInputSchema, raw);
+    // Writes never use readOrgFor: even platform operators stay in their active organisation.
+    const source = this.store.getProjectRun(viewer.orgId, input.runId);
+    if (!source || source.projectId !== input.projectId) throw new ProjectHttpError(404, 'project run not found');
+    try { return this.store.retryComputeValidation(viewer.principalId, viewer.orgId, input); }
+    catch (error) {
+      if (error instanceof ComputeValidationRetryConflict) throw new ProjectHttpError(409, error.message);
+      throw error;
+    }
   }
 
   projectRunStatus(viewer: Viewer, projectId: string, projectRunId: string): unknown {

@@ -11,6 +11,7 @@ import { AuthStore } from '../src/auth/store.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { appendLedgerStrict, openLedgerHandle, readLedger } from '../src/core/ledger.js';
+import { ComputeValidationQueue } from '../src/core/computeValidation.js';
 import { withheldComputeKnowledge } from '../src/contracts/executionTarget.js';
 import { COMPUTE_VALIDATION, COMPUTE_VALIDATION_ENV } from '../src/contracts/computeValidation.js';
 import { validateComputeNext, type ComputeValidationOptions } from '../src/supervisor/computeValidation.js';
@@ -58,7 +59,7 @@ function fixture(reason?: string) {
   const options: ComputeValidationOptions = { repoRoot: root, dbPath, store, skillsDir: join(root, 'skills'), runsDir: join(root, 'runs'),
     supervisorDir: join(root, 'supervisor'), leasePath: join(root, 'lease.db'), allowed: () => true, launch, hostEnv: {} };
   const events = () => readLedger(db).filter(e => e.kind === 'compute-validation');
-  return { db, store, source, options, launch, events, scope };
+  return { db, store, source, options, launch, events, scope, auth, viewer: login.viewer };
 }
 
 describe('resident Compute verification through the real queue, store and lease', () => {
@@ -160,6 +161,48 @@ fs.writeFileSync(process.env.LAUNCH_RECEIPT, JSON.stringify({
       environment: { ATOMA_PREVIOUS_RUN_RESULTS: '{"historyTruncated":false,"runs":[]}' } });
     return snapshot;
   }
+  it('retries from identical initial bytes while preserving every legacy and previous attempt file', async () => {
+    const f = fixture('seeded'); const snapshot = await savedInitial(f);
+    f.auth.grantPlatformAdmin(f.viewer.principalId);
+    await validateComputeNext(f.options);
+    const legacy = join(f.options.supervisorDir, 'compute-validation', f.source.projectRunId);
+    writeFileSync(join(legacy, 'run.log'), 'legacy complete log');
+    const legacyTrace = readFileSync(join(legacy, 'runs', `${f.launch.mock.calls[0]![0].env['ATOMA_RUN_ID']}.json`));
+    const input = { projectId: f.source.projectId, runId: f.source.projectRunId, idempotencyKey: 'explicit-one' };
+    const retry = () => f.store.retryComputeValidation(f.viewer.principalId, f.viewer.orgId, input);
+    const receipt = retry();
+    expect(receipt.initialSnapshot).toEqual(snapshot);
+    expect(retry()).toEqual(receipt);
+    await validateComputeNext(f.options);
+    const call = f.launch.mock.calls[1]![0];
+    expect(call.env['ATOMA_RUN_ID']).toBe(receipt.attemptId);
+    expect(JSON.parse(call.env[COMPUTE_VALIDATION_ENV]!)).toMatchObject({ attemptId: receipt.attemptId });
+    expect(call.logPath).toBe(join(legacy, 'attempts', receipt.attemptId, 'run.log'));
+    expect(readFileSync(join(legacy, 'run.log'), 'utf8')).toBe('legacy complete log');
+    expect(readFileSync(join(legacy, 'runs', `${f.launch.mock.calls[0]![0].env['ATOMA_RUN_ID']}.json`))).toEqual(legacyTrace);
+    expect(retry()).toMatchObject({ status: 'completed', result: { validationRunId: receipt.attemptId } });
+    const firstTracePath = join(legacy, 'attempts', receipt.attemptId, 'runs', `${receipt.attemptId}.json`);
+    const firstTrace = readFileSync(firstTracePath);
+    f.store.retryComputeValidation(f.viewer.principalId, f.viewer.orgId, { ...input, idempotencyKey: 'explicit-two' });
+    await validateComputeNext(f.options);
+    expect(readFileSync(firstTracePath)).toEqual(firstTrace);
+    expect(new RunInitialStateStore(f.db).read({ sourceRunId: f.source.projectRunId, ...f.scope })?.snapshot).toEqual(snapshot);
+    expect(f.launch).toHaveBeenCalledTimes(3);
+  });
+  it.each(['missing', 'expired', 'corrupt'] as const)('refuses or blocks a retry with %s starting state before any launch', async reason => {
+    const f = fixture('seeded'); const snapshot = await savedInitial(f);
+    f.auth.grantPlatformAdmin(f.viewer.principalId);
+    await validateComputeNext(f.options); f.launch.mockClear();
+    if (reason === 'missing') new RunInitialStateStore(f.db).expire(f.source.projectRunId);
+    if (reason === 'expired') f.db.prepare('UPDATE project_runs SET bytes_expired_at=?').run(new Date().toISOString());
+    if (reason === 'corrupt') f.db.prepare("UPDATE run_checkpoint_files SET content=? WHERE snapshot=? AND kind='file'").run(Buffer.from('corrupted'), snapshot.id);
+    const retry = () => f.store.retryComputeValidation(f.viewer.principalId, f.viewer.orgId,
+      { projectId: f.source.projectId, runId: f.source.projectRunId, idempotencyKey: 'explicit-one' });
+    if (reason === 'corrupt') { retry(); await validateComputeNext(f.options); expect(retry().status).toBe('blocked'); }
+    else expect(retry).toThrow();
+    expect(f.launch).not.toHaveBeenCalled();
+    expect(new ComputeValidationQueue(f.db).pending()).toBeNull();
+  });
   it('verifies a seeded run from its complete retained initial state', async () => {
     const f = fixture('seeded'); await savedInitial(f);
     await validateComputeNext(f.options);

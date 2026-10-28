@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { ComputeValidationQueue } from '../dist/core/computeValidation.js';
+import { ComputeValidationQueue, assertComputeValidationClaim } from '../dist/core/computeValidation.js';
 import { COMPUTE_VALIDATION_ENV } from '../dist/contracts/computeValidation.js';
 
 // Exercise the actual packaged CLI, stopping at a later quota-free config error.
@@ -57,6 +57,29 @@ try {
   if (!unclaimed.status || !unclaimed.text.includes('Compute validation has no active host claim')) {
     throw new Error(`Packaged Compute claim boundary failed: ${JSON.stringify(unclaimed)}`);
   }
+  // The packaged queue must retain explicit attempts and reject legacy/stale claims.
+  const queue = new ComputeValidationQueue(db);
+  db.prepare(`INSERT INTO compute_validation_jobs (source_run_id,org_id,project_id,status,created_at)
+    VALUES (?,?,?,'inconclusive',?)`).run(job.sourceRunId, job.orgId, job.projectId, new Date().toISOString());
+  const receipt = queue.retry(job, 'operator-smoke', 'retry-one', () => ({ id: randomUUID(), digest: 'a'.repeat(64) }));
+  const pending = queue.pending();
+  if (pending.attemptId !== receipt.attemptId || !queue.claim(pending)) throw new Error('Packaged retry did not acquire its own claim');
+  let fenced = false;
+  try { assertComputeValidationClaim(db, job); } catch { fenced = true; }
+  if (!fenced) throw new Error('Packaged retry accepted a stale automatic claim');
+  assertComputeValidationClaim(db, pending);
+  const retryAdmitted = run(['--container', '--egress'], { [COMPUTE_VALIDATION_ENV]: JSON.stringify({ ...job, attemptId: receipt.attemptId }) });
+  if (retryAdmitted.status !== 2 || !retryAdmitted.text.includes('expected positive integer in ms')) {
+    throw new Error(`Packaged retry did not pass actual runner claim admission: ${JSON.stringify(retryAdmitted)}`);
+  }
+  const stale = run(['--container', '--egress']);
+  if (!stale.status || !stale.text.includes('Compute validation has no active host claim')) throw new Error('Packaged runner accepted a stale attempt');
+  queue.finish(pending, 'completed', { validationRunId: receipt.attemptId, costUsd: 0 });
+  const repeated = queue.retry(job, 'operator-smoke', 'retry-one', () => { throw new Error('Duplicate retry re-ran preflight'); });
+  if (repeated.status !== 'completed' || queue.pending()) throw new Error('Packaged retry lost its terminal idempotency receipt');
+  const { MCP_TOOLS } = await import('../dist/mcp/tools.js');
+  const tool = MCP_TOOLS.find(spec => spec.name === 'atoma_compute_validation_retry');
+  if (tool?.tier !== 'platform' || !tool.needs.includes('projects') || !tool.needs.includes('auth')) throw new Error('Packaged Compute retry authority surface missing');
   if (existsSync(join(root, 'workspace')) || existsSync(join(root, 'runs'))) {
     throw new Error('Quota-free admission smoke unexpectedly created a run workspace or trace');
   }

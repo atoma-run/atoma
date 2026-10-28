@@ -29,10 +29,10 @@ withheld device observations coalesce to one attempt per ended source run. The
 primary store owns the queue and atomic ledger admission. No historical backfill.
 The same idle/deployment gate, exclusive lease and preemption apply; the child
 process group is attached before it can outlive its owner. Interrupted attempts
-are not retried. Host policy bounds each attempt to 15 minutes, 1,000,000 billable
+are not automatically retried. Host policy bounds each attempt to 15 minutes, 1,000,000 billable
 tokens and $0.25 API-equivalent consumption. In-flight calls may exceed consumption
 stops. The owner removed the rolling daily start ceiling on 2026-10-28; each
-eligible source still receives one attempt. Legacy never-started `budget-wait`
+eligible source still receives one automatic attempt. Legacy never-started `budget-wait`
 rows enter ordinary FIFO admission without operator exceptions; historical
 approvals remain audit data. The longer deadline lets execution and full result
 review complete, while cost, token, lease, preemption and platform stops remain.
@@ -61,8 +61,15 @@ Logs cannot establish completion: host trace metadata and index must agree.
 Snapshots share checkpoint GC and the run's retention; expiry invalidates captures
 containing expired read-run copies. Pending validations hold their source and
 references; cleanup handles read-only directories and always releases the lease.
-Executor compatibility 2 drains older generations whose GC lacks initial-state
-references before these new writers activate. The ledger retains status, cost
+Explicit platform retries use the existing queue, gate, lease, budgets and host
+runner. They require a complete retained capture, preserve the prior job metadata
+and ledger, and place new logs, traces and workspaces under
+`compute-validation/<source>/attempts/<attemptId>/`; legacy source directories are
+never rewritten. Durable principal-scoped keys return the same attempt receipt,
+including its terminal verdict after subsequent retries. Claim, runner authority
+and finish are fenced by attempt id. Compatibility 3 drains older executors
+before retry writers activate: those executors cannot fence attempts or preserve
+separate retry evidence. It also retains compatibility 2's initial-state GC refs. The ledger retains status, cost
 and independent counter/recipe changes.
 
 ## Three risk profiles, one boundary between them

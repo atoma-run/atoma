@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { idempotencyKeySchema, projectIdSchema, projectRunIdSchema } from './projects.js';
 
 /** Host policy, never supplied by a device, task, or model. */
 export const COMPUTE_VALIDATION = Object.freeze({
@@ -14,6 +15,7 @@ export const computeValidationStatusSchema = z.enum([
 export type ComputeValidationStatus = z.infer<typeof computeValidationStatusSchema>;
 export const computeValidationLaunchSchema = z.object({
   sourceRunId: z.string().uuid(), orgId: z.string().uuid(), projectId: z.string().uuid(),
+  attemptId: z.string().uuid().optional(),
 }).strict();
 export type ComputeValidationLaunch = z.infer<typeof computeValidationLaunchSchema>;
 
@@ -22,3 +24,19 @@ export function computeValidationLaunch(env: NodeJS.ProcessEnv): ComputeValidati
   const raw = env[COMPUTE_VALIDATION_ENV];
   return raw === undefined ? null : computeValidationLaunchSchema.parse(JSON.parse(raw));
 }
+
+/** Explicit operator retry; the source and its immutable initial state cannot be replaced. */
+export const computeValidationRetryInputSchema = z.object({
+  projectId: projectIdSchema, runId: projectRunIdSchema, idempotencyKey: idempotencyKeySchema,
+}).strict();
+export type ComputeValidationRetryInput = z.infer<typeof computeValidationRetryInputSchema>;
+export const computeValidationRetryReceiptSchema = z.object({
+  sourceRunId: projectRunIdSchema, projectId: projectIdSchema, attemptId: z.string().uuid(),
+  status: computeValidationStatusSchema, createdAt: z.string(), startedAt: z.string().nullable(), endedAt: z.string().nullable(),
+  initialSnapshot: z.object({ id: z.string().uuid(), digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+  result: z.object({
+    validationRunId: z.string().uuid().optional(), costUsd: z.number().nonnegative().nullable().optional(),
+    countersChanged: z.boolean().optional(), recipesChanged: z.boolean().optional(),
+  }).strict(),
+}).strict();
+export type ComputeValidationRetryReceipt = z.infer<typeof computeValidationRetryReceiptSchema>;

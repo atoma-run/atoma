@@ -1,3 +1,6 @@
+import { ComputeValidationQueue, ComputeValidationRetryConflict } from '../core/computeValidation.js';
+import type { ComputeValidationRetryInput, ComputeValidationRetryReceipt } from '../contracts/computeValidation.js';
+import { RunInitialStateStore } from '../run/initialState.js';
 import { deploymentSettingInputSchema, hostingAddressInputSchema, hostingSubdomainSchema, RESERVED_HOSTING_SUBDOMAINS } from '../contracts/projectDeployment.js';
 import { readProjectLearning } from './learningRead.js';
 import type { ProjectLearningInput, ProjectLearningCursor } from '../contracts/projectLearning.js';
@@ -864,6 +867,41 @@ export class ProjectStore {
       AND (EXISTS (SELECT 1 FROM auth_memberships m WHERE m.org_id = p.org_id AND m.org_id = ? AND m.principal_id = ?)
         OR EXISTS (SELECT 1 FROM auth_platform_admins a WHERE a.principal_id = ?))`)
       .get(orgId, projectId, activeOrgId, principalId, principalId);
+  }
+
+  /** Platform spending authority and active-org membership are re-read inside the write transaction. */
+  retryComputeValidation(principalId: string, orgId: string, input: ComputeValidationRetryInput): ComputeValidationRetryReceipt {
+    return this.db.transaction(() => {
+      if (!this.db.prepare(`SELECT 1 FROM auth_platform_admins a JOIN auth_memberships m ON m.principal_id=a.principal_id
+        WHERE a.principal_id=? AND m.org_id=? AND m.role IN ('org:member','org:admin','org:owner')`)
+        .get(principalId, orgId)) throw new ComputeValidationRetryConflict('Current platform authority and org:member membership are required');
+      const project = this.getProject(orgId, input.projectId);
+      const source = this.getProjectRun(orgId, input.runId);
+      if (!project || !source || source.projectId !== input.projectId) throw new ComputeValidationRetryConflict('Project run not found in the active organisation');
+      const scope = { sourceRunId: input.runId, projectId: input.projectId, orgId };
+      return new ComputeValidationQueue(this.db).retry(scope, principalId, input.idempotencyKey, () => {
+        if (project.status !== 'active' || source.bytesExpiredAt || source.executionTarget.kind !== 'customer-device' ||
+          !['delivered', 'partial', 'failed'].includes(source.status)) throw new ComputeValidationRetryConflict('Source must be a retained, ended Compute run in an active project');
+        if (!this.db.prepare(`SELECT 1 FROM auth_memberships WHERE principal_id=? AND org_id=? AND role IN ('org:member','org:admin','org:owner')`)
+          .get(source.requestedByPrincipalId, orgId)) throw new ComputeValidationRetryConflict('Source requester no longer has execution access');
+        let initial;
+        try { initial = new RunInitialStateStore(this.db).read(scope); }
+        catch { throw new ComputeValidationRetryConflict('The captured initial state is unreadable'); }
+        if (!initial || initial.externalConnectors || initial.principalId !== source.requestedByPrincipalId || initial.goal !== source.goal) {
+          throw new ComputeValidationRetryConflict('A complete, matching initial state without external connectors is required');
+        }
+        const snapshot = this.db.prepare('SELECT digest FROM run_checkpoint_snapshots WHERE id=?').get(initial.snapshot.id) as { digest: string } | undefined;
+        if (snapshot?.digest !== initial.snapshot.digest) throw new ComputeValidationRetryConflict('Initial workspace snapshot is unavailable');
+        for (const reference of initial.readRuns?.readRuns ?? []) {
+          const read = this.getProjectRun(orgId, reference.runId);
+          if (!read || read.projectId !== input.projectId || read.bytesExpiredAt || read.artifactManifestHash !== reference.manifestHash) {
+            throw new ComputeValidationRetryConflict('A referenced run is unavailable or expired');
+          }
+        }
+        // Full byte integrity is checked by the existing materializer before any host launch.
+        return initial.snapshot;
+      });
+    }).immediate();
   }
 
   private readonly db: Database.Database;

@@ -1,3 +1,8 @@
+import { Client as ModernClient, StreamableHTTPClientTransport as ModernTransport } from '@modelcontextprotocol/client';
+import { randomUUID } from 'node:crypto';
+import { ComputeValidationQueue } from '../src/core/computeValidation.js';
+import { RunInitialStateStore, retainInitialWorkspace } from '../src/run/initialState.js';
+import { captureCheckpointExport } from '../src/run/checkpointExport.js';
 import { emptyConversation } from '../src/projects/conversationStore.js';
 import { clientQuestionViewFixture } from './helpers/clientQuestion.js';
 import { runReviewFixture } from './helpers/projectRetrievalLaunch.js';
@@ -5,7 +10,7 @@ import { PlatformEventLog } from '../src/platform/events.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -13,7 +18,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthStore, sha256Hex, type Viewer } from '../src/auth/store.js';
 import { closeStoreHandles, DEFAULT_DB_PATH, skillsDirPath, storeDbPath } from '../src/core/stores.js';
-import { readLedger } from '../src/core/ledger.js';
+import { readLedger, openLedgerHandle } from '../src/core/ledger.js';
 import { SkillRegistry } from '../src/skills/registry.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
@@ -394,6 +399,69 @@ it('refuses atoma_project_showcase where no platform admin founded the organisat
     expect((await hide()).isError).not.toBe(true);
     expect(store.getProject(login.viewer.orgId, project.projectId)!.showcase).toBe('hidden');
   } finally { await client.close(); }
+});
+
+it.each(['legacy', 'modern'] as const)('queues explicit Compute retries through %s MCP, preserving idempotence and rechecking spending authority', async era => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-mcp-compute-retry-'))); dirs.push(root);
+  const dbPath = join(root, 'store.db');
+  const auth = AuthStore.open(dbPath);
+  const login = auth.completeLogin({ provider: 'github', subject: 'owner', displayName: 'Owner', email: null, emailVerified: false }, null)!;
+  auth.grantPlatformAdmin(login.viewer.principalId);
+  const current = { ...login.viewer, platformAdmin: true };
+  const store = ProjectStore.open(dbPath);
+  const project = store.createProject({ orgId: current.orgId, principalId: current.principalId,
+    project: { name: 'Clock', slug: 'clock', repositoryTarget: { installationId: '123', owner: 'owner', name: 'clock', visibility: 'private' } } });
+  const db = openLedgerHandle(dbPath);
+  db.prepare('UPDATE projects SET execution_target_json=? WHERE project_id=?')
+    .run(JSON.stringify({ kind: 'customer-device', deviceId: randomUUID() }), project.projectId);
+  const source = store.createProjectRun({ orgId: current.orgId, projectId: project.projectId, principalId: current.principalId,
+    request: { goal: 'Verify clock', idempotencyKey: 'source' }, hostPaths: { workspacePath: root, runsPath: root, logPath: join(root, 'run.log') } })!.run;
+  store.transitionProjectRun({ orgId: current.orgId, projectRunId: source.projectRunId, from: 'queued', to: 'running' });
+  store.transitionProjectRun({ orgId: current.orgId, projectRunId: source.projectRunId, from: 'running', to: 'failed', error: 'Device fixture ended' });
+  const initial = join(root, 'initial'); mkdirSync(initial); writeFileSync(join(initial, '.proof'), 'same initial bytes');
+  const snapshot = await retainInitialWorkspace(db, captureCheckpointExport(initial));
+  new RunInitialStateStore(db).publish({ version: 1, runId: source.projectRunId, orgId: current.orgId, projectId: project.projectId,
+    principalId: current.principalId, goal: source.goal, snapshot, externalConnectors: false, environment: {} });
+  const queue = new ComputeValidationQueue(db);
+  db.prepare(`INSERT INTO compute_validation_jobs (source_run_id,org_id,project_id,status,created_at,ended_at,detail)
+    VALUES (?,?,?,'inconclusive',?,?,'{"costUsd":0.01}')`)
+    .run(source.projectRunId, current.orgId, project.projectId, new Date().toISOString(), new Date().toISOString());
+  const service = new ProjectService({ store, coordinator: {} as never, github: null });
+  const { url } = await listen(req => ({ kind: 'principal', viewer: req.headers['authorization'] === 'Bearer member'
+    ? { ...current, platformAdmin: false } : current, tokenId: 'test' }), { ...NO_TENANT, auth, projects: { store, service } });
+  const connectRetry = async (bearer: string) => {
+    if (era === 'legacy') return connect(url, bearer);
+    const client = new ModernClient({ name: 'retry-test', version: '0' }, { versionNegotiation: { mode: { pin: '2026-07-28' } } });
+    await client.connect(new ModernTransport(new URL(url), { requestInit: { headers: { authorization: `Bearer ${bearer}` } } }));
+    return client;
+  };
+  const client = await connectRetry('platform');
+  const second = await connectRetry('platform');
+  const member = await connectRetry('member');
+  const args = { projectId: project.projectId, runId: source.projectRunId, idempotencyKey: 'retry-one' };
+  const call = (which = client, change = {}) => which.callTool({ name: 'atoma_compute_validation_retry', arguments: { ...args, ...change } });
+  try {
+    expect((await member.listTools()).tools.map(tool => tool.name)).not.toContain('atoma_compute_validation_retry');
+    await expect(member.callTool({ name: 'atoma_compute_validation_retry', arguments: args })).rejects.toThrow('not found');
+    expect((await call(client, { projectId: randomUUID() })).isError).toBe(true);
+    expect((await call(client, { goal: 'replace the initial state' })).isError).toBe(true);
+    const [first, duplicate] = await Promise.all([call(), call(second)]);
+    expect(first.isError).not.toBe(true);
+    expect(duplicate.structuredContent).toEqual(first.structuredContent);
+    expect(first.structuredContent).toMatchObject({ status: 'queued', initialSnapshot: snapshot });
+    expect(db.prepare('SELECT count(*) AS n FROM compute_validation_retries').get()).toEqual({ n: 1 });
+    expect((await call(second, { idempotencyKey: 'retry-two' })).isError).toBe(true);
+    const job = queue.pending()!; queue.claim(job); queue.finish(job, 'completed', { validationRunId: job.attemptId, costUsd: 0.01 });
+    expect((await call()).structuredContent).toMatchObject({ status: 'completed', result: { validationRunId: job.attemptId } });
+    expect(() => service.retryComputeValidation({ ...current, orgId: randomUUID() }, args)).toThrow('project run not found');
+    // Even a stale Viewer or an already registered session is not spending authority.
+    db.prepare('DELETE FROM auth_platform_admins WHERE principal_id=?').run(current.principalId);
+    expect((await call(client, { idempotencyKey: 'retry-two' })).isError).toBe(true);
+    auth.grantPlatformAdmin(current.principalId);
+    db.prepare("UPDATE auth_memberships SET role='org:viewer' WHERE principal_id=?").run(current.principalId);
+    expect((await call(client, { idempotencyKey: 'retry-two' })).isError).toBe(true);
+    expect(queue.pending()).toBeNull();
+  } finally { await Promise.all([client.close(), second.close(), member.close()]); }
 });
 
 it('tells a platform admin which protocol each client speaks, itself included', async () => {
@@ -876,6 +944,9 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
       ...TENANT_HOST,
       conversations: { read: page, update: page } as never,
       projects: { service: {
+        retryComputeValidation: () => ({ sourceRunId: '00000000-0000-4000-8000-000000000001', projectId: '00000000-0000-4000-8000-000000000001',
+          attemptId: '00000000-0000-4000-8000-000000000001', status: 'queued', createdAt: '2026-10-28T00:00:00Z', startedAt: null, endedAt: null,
+          initialSnapshot: { id: '00000000-0000-4000-8000-000000000001', digest: 'a'.repeat(64) }, result: {} }),
         projectLearning: () => ({ projectId: 'p', nextCursor: null, snapshot: { runCeiling: 0, ledgerCeiling: 0 }, coverage: { selectedRuns: 0, totalRuns: 0, note: 'No runs' }, runs: [] }),
         projectContext: () => ({ context: { projectId: '00000000-0000-4000-8000-000000000001', version: 0, brief: null, decisions: [], change: null }, history: [], nextBeforeVersion: null }),
         reviewRun: runReviewFixture,
@@ -896,11 +967,11 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
     try {
       const tools = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(tools.map((tool) => tool.name).sort()).toEqual([
-        'atoma_conversation', 'atoma_conversation_update', 'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_project_learning', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health', 'atoma_suite_disputes',
+        'atoma_compute_validation_retry', 'atoma_conversation', 'atoma_conversation_update', 'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_project_learning', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health', 'atoma_suite_disputes',
       ]);
       for (const tool of tools) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
-        const args = tool.name === 'atoma_conversation_update' ? { requestId: '00000000-0000-4000-8000-000000000001', expectedVersion: 0 } : (tool.name === 'atoma_project_context' || tool.name === 'atoma_project_learning') ? { projectId: 'p' } : tool.name === 'atoma_run_review' || tool.name === 'atoma_run_question' ? { projectId: 'p', runId: 'r' } : tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
+        const args = tool.name === 'atoma_compute_validation_retry' ? { projectId: '00000000-0000-4000-8000-000000000001', runId: '00000000-0000-4000-8000-000000000001', idempotencyKey: 'schema-check' } : tool.name === 'atoma_conversation_update' ? { requestId: '00000000-0000-4000-8000-000000000001', expectedVersion: 0 } : (tool.name === 'atoma_project_context' || tool.name === 'atoma_project_learning') ? { projectId: 'p' } : tool.name === 'atoma_run_review' || tool.name === 'atoma_run_question' ? { projectId: 'p', runId: 'r' } : tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
         const result = await client.callTool({ name: tool.name, arguments: args });
         expect(result.isError, tool.name).toBeFalsy();
         expect(result.structuredContent, tool.name).toBeDefined();

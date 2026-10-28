@@ -368,3 +368,34 @@ Initialcontextsha773f20daff47633f9d4f30ee1d234f88271e7b748b353055ee5d587954e44b5
 unchangedafterrun. No newCompute source, clientacceptance, publication or further
 replay. Next demonstrated Atoma defect is criterion response-shape handling;
 see the incident's final section, not an assumption of missing behavioral proof.
+
+### Explicit Compute validation retries — 2026-10-28
+
+`atoma_compute_validation_retry` is a platform MCP write in both protocol eras.
+Inputs are the active organisation's `projectId`, source `runId` and an opaque
+`idempotencyKey`. It queues an existing terminal automatic validation only,
+requires the complete retained initial capture, and accepts no replacement inputs.
+The shared ProjectService/store path rechecks current platform/member authority
+inside the admission transaction. Original requester access and byte integrity
+are checked again by the existing assayer before any model launch.
+
+Retry receipts and frozen prior job metadata live in `compute_validation_retries`
+in the primary product DB. A key is scoped to source/org/project/principal and
+returns that attempt's current or terminal receipt even after a subsequent retry.
+A different key is new spend; active attempts are refused. Claim, runner admission
+and completion are fenced by attempt id. Old automatic and manual evidence stays
+in place; new attempts use `compute-validation/<source>/attempts/<attemptId>/`.
+Compatibility 3 drains earlier executors before these writers activate, without
+cancelling their runs. Ordinary budgets, idle gate, exclusive lease and GC holds
+are unchanged. This implementation does not start another Attica validation.
+
+Adversarial checks cover stale worker claims/completion, scope forgery, revoked
+platform or member authority, concurrent MCP duplicates, later/restarted receipts,
+audit rollback, missing/expired/corrupt initial bytes, and unchanged legacy/prior
+trace bytes. Both SDK generations exercise the real HTTP/service/store path;
+the packaged CLI smoke also admits the new attempt id and refuses stale claims
+before any model/provider initialization.
+
+Local release verification for the retry implementation: `npm ci` and
+`npm run release:check` passed, including 8,534 tests (43 skipped), audit,
+both TypeScript configurations, lint, docs/build and compiled release smokes.

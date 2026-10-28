@@ -1,3 +1,4 @@
+import { computeValidationRetryInputSchema, computeValidationRetryReceiptSchema } from '../contracts/computeValidation.js';
 import { listAssays, showAssay } from '../supervisor/assayReaders.js';
 import { supervisorDirPath } from '../supervisor/paths.js';
 import type { ResidentAssayerHealth } from '../supervisor/residentAssayer.js';
@@ -1260,6 +1261,16 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       title: 'Recipe evaluation health', description: 'Assayer state of the live generation evaluating a recipe (including draining generations), otherwise the selected executor. Includes release, current work, pause, counters and last error. Null means unavailable, never disabled. Read-only; no quota.',
       annotations: READ_ONLY,
     }, () => jsonResult({ assayer: ctx.deps.assayer?.() ?? null })),
+  },
+  {
+    name: 'atoma_compute_validation_retry',
+    tier: 'platform', needs: ['projects', 'auth'],
+    register: (server, ctx) => server.registerTool('atoma_compute_validation_retry', {
+      title: 'Retry Compute validation',
+      description: 'Queue one explicit hosted validation of an ended Compute source in your active organisation, using its complete retained initial state. Can spend host model quota under the existing budgets and exclusive idle lease. Requires an existing terminal automatic validation; active attempts are refused. Previous attempts and evidence are preserved. Reuse the SAME idempotencyKey to recover this attempt and its current/final status, even after another retry. A new key requests new spend. Does not resume the customer run, accept a delivery or publish it.',
+      inputSchema: computeValidationRetryInputSchema, outputSchema: computeValidationRetryReceiptSchema.loose(),
+      annotations: { ...LOCAL_WRITE, idempotentHint: true },
+    }, args => guarded(() => tenant(ctx).service.retryComputeValidation(ctx.viewer(), args))),
   },
   {
     name: 'atoma_assays_list',

@@ -72,6 +72,50 @@ describe('durable Compute validation admission', () => {
     expect(readLedger(db).at(-1)?.detail).not.toHaveProperty('additionalAttempt');
     expect(restarted.claim({ ...job, status: 'budget-wait' })).toBe(false);
   });
+  it('retains retry receipts across restarts, later attempts and stale workers', () => {
+    observation(); queue.discover(); const original = queue.pending()!;
+    queue.claim(original); queue.finish(original, 'inconclusive', { costUsd: 0.01, validationRunId: randomUUID() });
+    const snapshot = { id: randomUUID(), digest: 'a'.repeat(64) };
+    const retry = () => queue.retry(job, 'owner', 'one', () => snapshot);
+    const first = retry();
+    expect(first).toMatchObject({ status: 'queued', initialSnapshot: snapshot });
+    expect(retry()).toEqual(first);
+    expect(() => queue.retry(job, 'owner', 'two', () => snapshot)).toThrow('already queued');
+    expect(() => queue.retry({ ...job, orgId: randomUUID() }, 'owner', 'one', () => snapshot)).toThrow('No automatic');
+    expect(queue.claim(original)).toBe(false);
+    queue.finish(original, 'blocked', { costUsd: 0 });
+    expect(queue.pending()?.attemptId).toBe(first.attemptId);
+    const firstJob = queue.pending()!;
+    expect(queue.claim(firstJob)).toBe(true);
+    expect(() => assertComputeValidationClaim(db, job)).toThrow('no active host claim');
+    expect(() => assertComputeValidationClaim(db, firstJob)).not.toThrow();
+    queue.finish({ ...firstJob, orgId: randomUUID() }, 'blocked', { costUsd: 0 });
+    expect(retry().status).toBe('running');
+    queue.finish(firstJob, 'completed', { validationRunId: first.attemptId, costUsd: 0.02, countersChanged: true });
+    const finished = retry();
+    expect(finished).toMatchObject({ status: 'completed', startedAt: expect.any(String), endedAt: expect.any(String),
+      result: { validationRunId: first.attemptId, costUsd: 0.02, countersChanged: true } });
+    const restarted = new ComputeValidationQueue(db);
+    const second = restarted.retry(job, 'owner', 'two', () => snapshot);
+    expect(second.attemptId).not.toBe(first.attemptId);
+    queue.finish(firstJob, 'interrupted', { costUsd: null });
+    expect(restarted.pending()?.attemptId).toBe(second.attemptId);
+    restarted.claim(restarted.pending()!); restarted.interruptAbandoned();
+    expect(restarted.retry(job, 'owner', 'two', () => snapshot).status).toBe('interrupted');
+    expect(retry()).toEqual(finished);
+    expect(db.prepare('SELECT count(*) AS n FROM compute_validation_retries').get()).toEqual({ n: 2 });
+    const previous = db.prepare('SELECT previous_job FROM compute_validation_retries WHERE attempt_id=?').pluck().get(first.attemptId) as string;
+    expect(JSON.parse(previous)).toMatchObject({ status: 'inconclusive', started_at: expect.any(String) });
+    expect(readLedger(db).find(event => event.detail?.reason === 'explicit-retry')).toMatchObject({ scope: { actorType: 'principal', actorId: 'owner' } });
+  });
+  it('rolls back a retry and its idempotency receipt when audit fails', () => {
+    observation(); queue.discover(); queue.finish(job, 'blocked', { costUsd: 0 });
+    db.exec(`CREATE TRIGGER deny_retry BEFORE INSERT ON lifecycle_events WHEN NEW.kind='compute-validation'
+      BEGIN SELECT RAISE(ABORT,'audit unavailable'); END`);
+    expect(() => queue.retry(job, 'owner', 'one', () => ({ id: randomUUID(), digest: 'a'.repeat(64) }))).toThrow('audit unavailable');
+    expect(queue.pending()).toBeNull();
+    expect(db.prepare('SELECT count(*) AS n FROM compute_validation_retries').get()).toEqual({ n: 0 });
+  });
   it('rolls back admission when the ledger cannot persist its audit', () => {
     observation(); queue.discover();
     db.exec(`CREATE TRIGGER deny_validation BEFORE INSERT ON lifecycle_events WHEN NEW.kind='compute-validation'

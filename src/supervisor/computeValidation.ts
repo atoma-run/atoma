@@ -56,8 +56,9 @@ export async function validateComputeNext(options: ComputeValidationOptions): Pr
     if (!job) return null;
     options.signal?.throwIfAborted();
     // Preflight is read-only and precedes admission: unavailable starting states spend nothing.
-    const validationRunId = randomUUID();
-    const directory = join(options.supervisorDir, 'compute-validation', job.sourceRunId);
+    const validationRunId = job.attemptId ?? randomUUID();
+    const sourceDirectory = join(options.supervisorDir, 'compute-validation', job.sourceRunId);
+    const directory = job.attemptId ? join(sourceDirectory, 'attempts', job.attemptId) : sourceDirectory;
     let prepared;
     try {
       const project = options.store.getProject(job.orgId, job.projectId);
@@ -114,7 +115,7 @@ export async function validateComputeNext(options: ComputeValidationOptions): Pr
       const value = (options.hostEnv ?? process.env)[key];
       if (value !== undefined) env[key] = value;
     }
-    env[COMPUTE_VALIDATION_ENV] = JSON.stringify({ sourceRunId: job.sourceRunId, orgId: job.orgId, projectId: job.projectId });
+    env[COMPUTE_VALIDATION_ENV] = JSON.stringify({ sourceRunId: job.sourceRunId, orgId: job.orgId, projectId: job.projectId, ...(job.attemptId ? { attemptId: job.attemptId } : {}) });
     env['ATOMA_RUN_ID'] = validationRunId;
     if (prepared.acceptance) {
       env[ACCEPTANCE_SPEC_ENV] = encodeAcceptanceSpec(prepared.acceptance.spec);

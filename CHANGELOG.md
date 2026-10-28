@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- Platform MCP `atoma_compute_validation_retry` queues an explicit retry of an
+  ended Compute validation from its retained initial state. Reuse the same
+  `projectId`, source `runId` and `idempotencyKey` to read that attempt's current
+  or final receipt without spending again. New keys request new attempts; active
+  validations are refused. Prior evidence and attempt receipts remain intact.
+  Available in both MCP protocol generations, within the caller's active org.
+
 ## v0.5.1 — 2026-10-27
 
 ### Fixed

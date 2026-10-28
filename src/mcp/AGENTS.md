@@ -564,6 +564,17 @@ They do not restart work or spend quota.
   the HTTP routes are body readers in front of the same checks. Never
   re-implement a role check in a tool.
 
+## Explicit Compute validation retry
+
+`atoma_compute_validation_retry` is platform-only and tenant-gated. Its shared
+`ProjectService` body checks active-org scope; the store rechecks current platform
+and member authority transactionally. It queues an existing terminal validation,
+never cancels an active one or manufactures a missing initial capture. The same
+source/principal/idempotency key returns its own durable status after restarts or
+later attempts. New keys authorize new host quota under ordinary assayer limits.
+It accepts no replacement goal, snapshot, models, paths or budgets. Details and
+attempt preservation live in [the supervisor contract](../supervisor/AGENTS.md#automatic-compute-verification).
+
 ## Shared conversations
 
 `atoma_conversation` and `atoma_conversation_update` expose the project-owned
