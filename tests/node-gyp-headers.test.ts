@@ -71,9 +71,13 @@ it('prepares verified local node-gyp inputs in a cold process without installed 
   expect(existsSync(join(f.root, 'node_modules'))).toBe(false);
   // Exercise the actual node-gyp option parser the npm lifecycle uses.
   const gypModule = resolve('node_modules/node-gyp/lib/node-gyp.js');
+  // Windows workers can expose an inherited key with different casing.
+  const parserEnv = Object.fromEntries(Object.entries(process.env)
+    .filter(([key]) => !/^(npm_package_config_node_gyp_|npm_config_)nodedir$/i.test(key)));
+  parserEnv.npm_package_config_node_gyp_nodedir = headers;
   const parsed = await run(process.execPath, ['-e', `const gyp=require(${JSON.stringify(gypModule)})();
     gyp.parseArgv(['node','node-gyp','configure']); console.log(gyp.opts.nodedir);`], {
-    cwd: f.root, env: { ...process.env, npm_package_config_node_gyp_nodedir: headers },
+    cwd: f.root, env: parserEnv,
   });
   expect(parsed.stdout.trim()).toBe(headers);
 });

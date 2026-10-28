@@ -7,7 +7,7 @@ import { CONTENT_ASSET, desktopContent, nativeDependencies, publicationDecision,
 
 const repository = resolve(import.meta.dirname, '..');
 const revision = 'a'.repeat(40);
-const receipt = { schema: 1, revision, sha256: 'b'.repeat(64) };
+const receipt = { schema: 1, revision, installerVersion: '0.5.200', sha256: 'b'.repeat(64) };
 let root: string;
 function write(name: string, value: string) { mkdirSync(resolve(root, name, '..'), { recursive: true }); writeFileSync(join(root, name), value); }
 function lock(runtime = '44.9.0', builderDependency = '1.0.0', unused = '1.0.0') {
@@ -54,6 +54,7 @@ it('crosses the production bundler and CLI: server changes and CI version increm
   write('package-lock.json', JSON.stringify(lock('44.9.0', '1.0.0', '2.0.0')));
   bundle('43');
   expect(await fingerprint()).toBe(before.sha256);
+  expect((await desktopContent(root, revision)).installerVersion).not.toBe(before.installerVersion);
   execFileSync(process.execPath, ['scripts/compute-desktop-content.mjs', 'record', 'after.json'], { cwd: root, env: { ...process.env, GITHUB_SHA: revision } });
   execFileSync(process.execPath, ['scripts/compute-desktop-content.mjs', 'compare-local', 'after.json', 'before.json'], { cwd: root, env: { ...process.env, GITHUB_OUTPUT: join(root, 'decision') } });
   expect(readFileSync(join(root, 'decision'), 'utf8')).toBe('changed=false\n');
@@ -137,6 +138,13 @@ it('rechecks concurrent publications, suppresses duplicates and never replaces a
   expect(publicationDecision(receipt, { ...receipt, sha256: 'd'.repeat(64) }, ancestor)).toBe(true);
   expect(publicationDecision(receipt, { ...receipt, revision: 'c'.repeat(40), sha256: 'd'.repeat(64) }, () => true)).toBe(true);
   expect(publicationDecision(receipt, null, () => false, { ...receipt, revision: 'c'.repeat(40) })).toBe(false);
+  expect(publicationDecision(receipt, receipt, ancestor, receipt, true)).toBe(true);
+  const newerBuild = { ...receipt, installerVersion: '0.5.201' };
+  expect(publicationDecision(receipt, newerBuild, ancestor, newerBuild, true)).toBe(false);
+  expect(publicationDecision(newerBuild, receipt, ancestor, receipt, true)).toBe(true);
+  expect(publicationDecision(receipt, null, ancestor, newerBuild, true)).toBe(false);
+  expect(publicationDecision({ ...receipt, installerVersion: undefined }, newerBuild, ancestor)).toBe(false);
+  expect(publicationDecision(receipt, receipt, ancestor, { ...receipt, revision: 'c'.repeat(40) }, true)).toBe(false);
 });
 
 it('uses real Git ancestry and the production publication CLI when later pushes arrive', () => {
@@ -146,12 +154,18 @@ it('uses real Git ancestry and the production publication CLI when later pushes 
   write('history.txt', 'new application'); git('commit', '-qam', 'second'); const newer = git('rev-parse', 'HEAD');
   write('history.txt', 'unrelated server push'); git('commit', '-qam', 'third'); git('update-ref', 'refs/remotes/origin/main', 'HEAD');
   write('fake-release-fetch.mjs', `import { readFileSync } from 'node:fs'; globalThis.fetch = async url => Response.json(url.includes('/releases/assets/') ? JSON.parse(readFileSync('published.json')) : { assets: [{ name: '${CONTENT_ASSET}', id: 123 }] });`);
-  function decision(current: object, published: object) {
+  function decision(current: object, published: object, republish = false) {
     write('candidate.json', JSON.stringify(current)); write('published.json', JSON.stringify(published)); write('publish-decision', '');
-    execFileSync(process.execPath, ['--import', './fake-release-fetch.mjs', 'scripts/compute-desktop-content.mjs', 'publish', 'candidate.json'], { cwd: root, env: { ...process.env, GITHUB_OUTPUT: join(root, 'publish-decision'), GITHUB_REPOSITORY: 'test/repo', COMPUTE_CHANNEL: 'current', GH_TOKEN: 'test' } });
+    execFileSync(process.execPath, ['--import', './fake-release-fetch.mjs', 'scripts/compute-desktop-content.mjs', 'publish', 'candidate.json'], { cwd: root, env: { ...process.env, GITHUB_OUTPUT: join(root, 'publish-decision'), GITHUB_REPOSITORY: 'test/repo', COMPUTE_CHANNEL: 'current', GH_TOKEN: 'test', COMPUTE_REPUBLISH: String(republish) } });
     return readFileSync(join(root, 'publish-decision'), 'utf8');
   }
   expect(decision({ ...receipt, revision: newer }, { ...receipt, revision: older, sha256: 'c'.repeat(64) })).toBe('publish=true\n');
   expect(decision({ ...receipt, revision: older }, { ...receipt, revision: newer, sha256: 'c'.repeat(64) })).toBe('publish=false\n');
   expect(decision({ ...receipt, revision: newer }, { ...receipt, revision: older })).toBe('publish=false\n');
+  expect(decision({ ...receipt, revision: newer }, { ...receipt, revision: older }, true)).toBe('publish=true\n');
+  expect(decision({ ...receipt, revision: newer }, { ...receipt, revision: newer, installerVersion: '0.5.201' }, true)).toBe('publish=false\n');
+  expect(decision({ ...receipt, revision: newer, installerVersion: '0.5.201' }, { ...receipt, revision: newer }, true)).toBe('publish=true\n');
+  expect(decision({ ...receipt, revision: older }, { ...receipt, revision: newer }, true)).toBe('publish=false\n');
+  write('history.txt', 'unreleased branch'); git('checkout', '-qb', 'unreleased'); git('commit', '-qam', 'unreleased');
+  expect(decision({ ...receipt, revision: git('rev-parse', 'HEAD') }, { ...receipt, revision: newer }, true)).toBe('publish=false\n');
 });

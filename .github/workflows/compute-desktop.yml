@@ -75,6 +75,7 @@ jobs:
       changed: ${{ steps.legacy.outputs.changed || steps.compare.outputs.changed }}
     env:
       ATOMA_COMPUTE_SIGNED: ${{ needs.signing.outputs.signed }}
+      ATOMA_COMPUTE_BUILD_NUMBER: ${{ github.run_number }}
       GH_TOKEN: ${{ github.token }}
       COMPUTE_CHANNEL: ${{ needs.signing.outputs.signed == '1' && 'compute-desktop-stable' || 'compute-desktop-current' }}
     steps:
@@ -190,7 +191,7 @@ jobs:
         shell: bash
         run: |
           node scripts/compute-desktop-content.mjs record native-content.json
-          node --input-type=module -e "import { readFileSync } from 'node:fs'; import assert from 'node:assert/strict'; assert.equal(JSON.parse(readFileSync('native-content.json')).sha256, JSON.parse(readFileSync('content-receipt/compute-desktop-content.json')).sha256);"
+          node --input-type=module -e "import { readFileSync } from 'node:fs'; import assert from 'node:assert/strict'; const native = JSON.parse(readFileSync('native-content.json')); const receipt = JSON.parse(readFileSync('content-receipt/compute-desktop-content.json')); assert.equal(native.sha256, receipt.sha256); assert.equal(native.installerVersion, receipt.installerVersion);"
       - run: node scripts/compute-desktop-smoke.mjs
       - name: Package native installer
         shell: bash
@@ -217,7 +218,7 @@ jobs:
             dist/compute-installers/*.sha256
           if-no-files-found: error
   release:
-    if: needs.content.outputs.changed == 'true' && (github.event_name == 'push' || inputs.publish || inputs.preview)
+    if: (needs.content.outputs.changed == 'true' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && (inputs.publish || inputs.preview))
     needs: [signing, content, desktop]
     concurrency:
       group: compute-desktop-publication
@@ -259,6 +260,7 @@ jobs:
       - name: Recheck the channel after waiting for CI and native builds
         id: publication
         env:
+          COMPUTE_REPUBLISH: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish || inputs.preview) }}
           GH_TOKEN: ${{ github.token }}
           COMPUTE_CHANNEL: ${{ needs.signing.outputs.signed == '1' && 'compute-desktop-stable' || 'compute-desktop-current' }}
         run: |

@@ -73,12 +73,14 @@ export async function desktopContent(root, revision) {
     channel: typeof feed.channel === 'string' ? feed.channel.replace(/-(?:arm64|x64)$/, '-ARCH') : feed.channel }));
   const configuration = JSON.stringify(config, (_key, value) => typeof value === 'function' ? value.toString().replaceAll('\r\n', '\n') : value);
   const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
-  return { schema: 1, revision, sha256: sha256(JSON.stringify({ files: files.sort(([a], [b]) => a.localeCompare(b, 'en')), configuration, native: nativeDependencies(lock) })) };
+  const installerVersion = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')).version;
+  return { schema: 1, revision, installerVersion, sha256: sha256(JSON.stringify({ files: files.sort(([a], [b]) => a.localeCompare(b, 'en')), configuration, native: nativeDependencies(lock) })) };
 }
 
 export function readContent(value) {
   const record = JSON.parse(value);
   if (record.schema !== 1 || !/^[a-f0-9]{40}$/.test(record.revision) || !/^[a-f0-9]{64}$/.test(record.sha256)) throw new Error('Invalid Compute content receipt');
+  if (record.installerVersion !== undefined && !/^\d+\.\d+\.\d+$/.test(record.installerVersion)) throw new Error('Invalid Compute installer version');
   return record;
 }
 
@@ -101,10 +103,21 @@ export async function publishedContent(repository, channel, token, request = fet
   return { schema: 1, revision, sha256: null };
 }
 
-export function publicationDecision(current, previous, isAncestor, latest = previous) {
-  if (current.sha256 === previous?.sha256) return false;
-  // Protect both feeds when a signed build also updates the public channel.
-  return [previous, latest].every(record => !record || current.revision === record.revision || isAncestor(record.revision, current.revision));
+export function publicationDecision(current, previous, isAncestor, latest = previous, republish = false) {
+  if (!republish && current.sha256 === previous?.sha256) return false;
+  if (republish && !current.installerVersion) return false;
+  // Protect both feeds, including same-revision builds finishing out of order.
+  return [previous, latest].every(record => {
+    if (!record) return true;
+    if (record.installerVersion) {
+      if (!current.installerVersion) return false;
+      const candidate = current.installerVersion.split('.').map(Number);
+      const published = record.installerVersion.split('.').map(Number);
+      const differing = candidate.findIndex((part, index) => part !== published[index]);
+      if (differing !== -1 && candidate[differing] < published[differing]) return false;
+    }
+    return current.revision === record.revision || isAncestor(record.revision, current.revision);
+  });
 }
 
 async function main() {
@@ -133,7 +146,7 @@ async function main() {
     const latest = process.env.COMPUTE_CHANNEL === 'compute-desktop-stable'
       ? await publishedContent(process.env.GITHUB_REPOSITORY, 'compute-desktop-current', process.env.GH_TOKEN)
       : previous;
-    const allowed = isAncestor(current.revision, 'origin/main') && publicationDecision(current, previous, isAncestor, latest);
+    const allowed = isAncestor(current.revision, 'origin/main') && publicationDecision(current, previous, isAncestor, latest, process.env.COMPUTE_REPUBLISH === 'true');
     await writeFile(process.env.GITHUB_OUTPUT, `publish=${allowed}\n`, { flag: 'a' });
   } else throw new Error('Unknown Compute content command');
 }

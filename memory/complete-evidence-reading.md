@@ -170,3 +170,12 @@ complete official headers + architecture-specific node.lib with bounded curl,
 verifies official SHA-256 and header version, extracts from disk, then supplies
 node-gyp's documented package-config nodedir. Ordinary install scripts remain
 enabled; a real native SQLite smoke follows installation.
+
+Explicit manual preview/publication now rebuilds and republishes identical app
+bytes when requested. Automatic pushes still deduplicate. Publication receipts
+carry the actual bundled installer version outside the content hash, with the
+same run number in the shared content and native jobs; every native runner
+checks both hash and version. Both channel ancestry and version monotonicity
+are checked under the existing publication serialization, including reversed
+completion of two builds of one revision. Legacy receipts without version stay
+readable; a receipt lacking version cannot replace a versioned channel.
