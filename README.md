@@ -51,6 +51,8 @@ AI execution, acceptance criteria, result previews, model choice and run history
 into one place. This repository contains the open-source engine and console for
 teams that want to inspect, extend or self-host them.
 
+<img width="1920" height="902" alt="image" src="https://github.com/user-attachments/assets/a3fc105c-46e6-4447-a169-cba9b351c370" />
+
 ## What could your team build?
 
 These are example project briefs, not prebuilt industry integrations or
