@@ -51,3 +51,39 @@ refused delivery after failing to finish root acceptance within its landing
 budget; installation never succeeded. The queued Compute run `5ff2e4df` started
 at 16:53:01Z after this lease was released. This is not production success for
 the corrected egress path; deployment and subsequent verification remain separate.
+
+## Cold runner admission gap found by the owner-requested retry
+
+The owner explicitly requested stopping the old-version verification and retrying
+the same Attica capture on the corrected release. The old shadow `a5cdee15`
+had already ended inconclusive at 17:13:09Z (five calls, $0.03135426). All
+42 events and 25 complete tool archives were retained and read. A private
+online store backup and copy of its complete attempt directory precede the
+attributed manual retry event. Snapshot `5f3c80fc-a2f8-4bec-be66-e73a06ea0be5`
+remains immutable, digest `c1edcd0dbd0908af446794b21d80aece7bf045d312bc72d9f59c2a67fa30dfa5`.
+
+Attempt `8b76bba0` on deployed release `1d120c7d` then stopped before any
+model call: `startTask` still rejected `args.egress` at two admission checks.
+The earlier launcher regression used a fixture npm script and therefore never
+crossed these checks. The earlier cold-runner continuation regression also
+silently omitted the launcher's egress flag. The previous correction was
+incomplete; neither passing test established real runner admission.
+
+The continuation regression now forwards controlled egress to the real runner
+in a fresh process, for both ordinary pause and answered-question continuations.
+Both variants failed before the runner correction and pass after it. The runner
+accepts host-controlled proxied egress while retaining its active claim,
+container, non-tenant and no-replacement-input requirements. A new release smoke
+also invokes the actual compiled CLI: a claimed egress launch must reach a later
+invalid-timeout error, while local, tenant, seed/resume replacement and unclaimed
+launches must fail their authority checks. It makes no model or Docker calls.
+The smoke failed against the previous compiled output and is part of the normal
+release check and the production activation preflight.
+
+`npm ci && npm run release:check` passes with the correction: 8,521 tests
+across 589 files, 43 tests/four files intentionally skipped, both TypeScript
+configurations, lint, audit, build and the compiled admission smoke included.
+Targeted runner, initial-state and queue verification passes 36 tests. The
+original private backup passes a read-only SQLite integrity check; it remains
+unchanged. Next retry must preserve `8b76bba0` as well and run the compiled
+admission smoke on the active production release before requeuing.

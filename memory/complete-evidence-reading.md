@@ -302,3 +302,40 @@ Full npmci+release:check passes8518tests/589files (43tests/4files skipped).
 Real compiled Docker smoke on existing immutable47705e7f6323 passes npm200
 and control-plane/raw-gateway denial; shared worker tag untouched. Incident:
 records/incidents/compute-validation-egress-2026-10-28.md. Deployment pending.
+
+2026-10-28T17:28Z: d34c80cf deployed with CI, desktop packaging and CodeQL
+green; main later advanced to1d120c7d plus locale5dcaf8e0. Run5ff2e4df
+delivered6/6 at16:57:19Z; onlyvitest.config.ts changed,250files unchanged.
+All47events/49fullarchives read and verified590,878bytes. Ordinary root-only
+copycheck passed121Vitest+89Node, focused Chromium5/5, scratch removed.
+No client acceptance/publication. Its old-version automatic shadowa5cdee15
+ended inconclusive17:13:09Z after900s,5calls/$0.03135426; all42events and
+25fullarchives read/verified12,395bytes, no independent credit changes.
+
+Owner explicitly requested stopping that old verification and retrying exactly
+the same checkpoint with the deployed correction. It was already terminal.
+Manual request owner-retry-egress-20261028-01 took the ordinary exclusive lease,
+online-backed-up store and copied all prior evidence before atomically auditing
+and requeuing ONLY source5ff2e4df. Backup sibling directory has that request
+suffix under production supervisor/compute-validation. Initial capture5f3c80fc
+digestc1edcd0dbd0908af446794b21d80aece7bf045d312bc72d9f59c2a67fa30dfa5 unchanged.
+
+Retry8b76bba0 stopped17:24:02Z before any model call: the runner still rejected
+egress at two guards, despite the launcher's corrected flags. The previous fix
+was incomplete. Cold-process regression now forwards --egress (previously it
+silently omitted it): both pause/question continuation cases failed then pass
+after the runner correction. Actual compiled CLI smoke also reproduces the old
+failure and guards claim/container/non-tenant/no-replacement authority. Fix and
+full release verification in progress; then resume the SAME capture, retaining
+8b76's log/ledger too. Local evidence directory: validation-egress-retry-05 under
+/tmp/attica-functional-next-20261028. Do not create another Compute source run.
+
+17:32Z: npmci+release:check passes8521tests/589files (43tests/4files skipped),
+including the compiled admission smoke and both cold continuation variants.
+The old backup passes readonlyquick_check; do not modify its archived evidence.
+Next authorized retry is prepared at validation-egress-retry-05/retry.mjs:
+stable request owner-retry-egress-20261028-02, expectedprior8b76bba0, verifies
+the active compiled CLI then archives current attempt/store and independently
+materializes/hashes the SAME initial capture before requeue. Execute only once
+the runner correction is actually deployed. It is idempotent by its ledger
+request marker and never changes a running attempt or creates another source.

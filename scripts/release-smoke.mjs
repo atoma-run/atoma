@@ -48,6 +48,7 @@ await import('./code-retrieval-smoke.mjs');
 await import('./learning-release-smoke.mjs');
 // Exercises the compiled executor, its real process boundary and shared store.
 await import('./executor-release-smoke.mjs');
+await import('./compute-validation-release-smoke.mjs');
 const smokeRoot = mkdtempSync(join(tmpdir(), 'atoma-release-smoke-'));
 
 const freePort = async () =>

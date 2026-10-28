@@ -429,6 +429,9 @@ Neighbours:
   proof and zero new spend/credit for the prefix, leaving the source untouched.
   Snapshots live in the primary product store, participate in shared GC and expire
   with run bytes; dependent read-run captures are invalidated on reference expiry.
+  The host's claimed verification may use its ordinary controlled egress proxy
+  inside the container. Runner admission still refuses tenant markers, local
+  execution, replacement seeds/resumes and launches without an active host claim.
 - WHO REINSTALLS: the executor, told the roots (2026-10-26). `packageRootsOf`
   reads the seed SOURCE on this host, Compute included (sorted entries, only
   package.json and lockfile names; no `node_modules`, dot-directory, omitted

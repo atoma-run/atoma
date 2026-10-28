@@ -694,8 +694,8 @@ async function startTaskInternal(
   const computeValidation = computeValidationLaunch(process.env);
   const initialStates = computeValidation ? new RunInitialStateStore(openLedgerHandle(process.env[RUN_ENV.dbPath] ?? RUN_DEFAULTS.dbPath)) : undefined;
   if (computeValidation) {
-    if (process.env['ATOMA_TENANT_RUN'] === '1' || !args.container || args.egress || args.seed || args.resume) {
-      throw new RunnerConfigError('Compute validation requires an isolated host run without network access or replacement inputs');
+    if (process.env['ATOMA_TENANT_RUN'] === '1' || !args.container || args.seed || args.resume) {
+      throw new RunnerConfigError('Compute validation requires an isolated host run without replacement inputs');
     }
     assertComputeValidationClaim(initialStates!.db, computeValidation);
   }
@@ -842,7 +842,7 @@ async function startTaskInternal(
   const dbPath = process.env[RUN_ENV.dbPath] ?? RUN_DEFAULTS.dbPath;
   const tenantRun = process.env['ATOMA_TENANT_RUN'] === '1';
   if (computeValidation) {
-    if (tenantRun || !args.container || args.egress) throw new RunnerConfigError('Compute validation requires an isolated host run without network access');
+    if (tenantRun || !args.container) throw new RunnerConfigError('Compute validation requires an isolated host run');
     assertComputeValidationClaim(openLedgerHandle(dbPath), computeValidation);
   }
   // PLATFORM LIMITS — what a platform admin has re-stated for this instance.
