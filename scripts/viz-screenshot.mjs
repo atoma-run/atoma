@@ -37,6 +37,7 @@
  *   --assistant-model-probe Change model and prove retention across reload.
  *   --assistant-links-probe Verify compact receipt buttons and their destinations
  *                        (with --auth --select-first --url <frontend URL>).
+ *   --project-run-numbers Numbered history with an older run currently hosted.
  *   --project-run-cards  Running and paused cards in the selected project Runs tab.
  *   --project-tabs-probe Switch between Conversation and Runs, preserving a draft
  *                        (with --auth --select-first --assistant-history).
@@ -1004,6 +1005,26 @@ try {
     });
 
     const stubs = authed ? gatedStubs() : {};
+    if (has('--project-run-numbers')) {
+      if (!authed || !selectFirst) throw new Error('--project-run-numbers requires --auth --select-first');
+      const project = stubs['/api/projects'][0];
+      const path = `/api/projects/${project.projectId}/runs`;
+      const seed = stubs[path][0];
+      const rows = Array.from({ length: 183 }, (_, index) => ({ ...seed,
+        projectRunId: `11111111-1111-4111-8111-${String(index + 1).padStart(12, '0')}`,
+        title: index === 0 ? 'Latest delivered improvements' : index === 1 ? 'Version currently serving visitors' : `Application iteration ${183 - index}`,
+        status: 'delivered', createdAt: new Date(Date.UTC(2026, 9, 28, 12) - index * 3600000).toISOString(),
+      }));
+      stubs[path] = rows;
+      const url = 'https://weather.app.atoma.run/';
+      Object.assign(project, { hostedUrl: url, runCount: rows.length, deploymentDestination: 'atoma' });
+      stubs[`/api/projects/${project.projectId}/hosting`] = {
+        available: true, state: 'ready', deploymentId: '22222222-2222-4222-8222-222222222222',
+        runId: rows[1].projectRunId, commitSha: 'a'.repeat(40), url, address: url, error: null,
+        version: { runId: rows[1].projectRunId, commitSha: 'a'.repeat(40), title: rows[1].title, acceptedAt: rows[1].createdAt },
+        candidate: null, previous: null, updateStops: true, failed: null,
+      };
+    }
     if (recordedEvidence) {
       if (!authed || view !== 'Runs') throw new Error('--recorded-run requires --auth --view Runs');
       const summary = recordedEvidence.summaries[0];

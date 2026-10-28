@@ -1034,6 +1034,7 @@
   "login.notice.providerFailure": "Login could not be completed. If you used an invitation, reopen its original link before trying again.",
   "login.notice.githubConnectExpired": "GitHub connect transaction expired or was replayed — start again.",
   "projects.runsHeading_one": "{{count}} run so far in this project",
+  "projects.hostedRun": "Run #{{number}} online",
   "projects.runsHeading_other": "{{count}} runs so far in this project",
   "projects.section.noFiles": "This project has no saved files yet.",
   "projects.section.noDeliveredResult": "This project has no delivered result yet.",

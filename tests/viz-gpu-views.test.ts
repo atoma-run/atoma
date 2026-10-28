@@ -3357,6 +3357,41 @@ describe('drawProjects', () => {
     expect(projectsGuideLayoutHeight(collapsed, width, height)).toBe(guideHeight);
   });
 
+  it.each([390, 528, 1280])('numbers every run and identifies the serving version, not the latest candidate, at width %s', width => {
+    const project = { ...guidanceProject(), hostedUrl: 'https://weather.app.atoma.run/' };
+    const rows: VizProjectRun[] = Array.from({ length: 183 }, (_, index) => ({
+      projectRunId: index === 0 ? HOSTED_RUN_B : index === 1 ? HOSTED_RUN_A : `run-${index}`,
+      projectId: project.projectId, goal: 'Build the application', status: 'delivered',
+      traceId: `trace-${index}`, costUsd: 0.1, durationS: 10, error: null, publication: null,
+      createdAt: '2026-10-26T10:00:00.000Z', endedAt: '2026-10-26T10:00:10.000Z',
+    }));
+    const draw = (state: 'ready' | 'failed', projectId = project.projectId) => {
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId, projectSection: 'runs' }, {
+        auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: rows },
+        deploymentSettings: { projectId, hosting: { ...hostedSummary(project.projectId), state },
+          saved: 'atoma', destination: 'atoma', canEdit: true, busy: false, status: 'idle' },
+      }), width, 1000);
+      return ctx;
+    };
+    const ctx = draw('ready');
+    const badges = ctx.texts.filter(text => /^\d+$/.test(text.value) && text.node.anchor.x === 0.5 && text.node.anchor.y === 0.5);
+    expect(badges.map(text => text.value)).toEqual(rows.map((_, index) => String(183 - index)));
+    for (const badge of badges) {
+      expect(badge.node.anchor.x).toBe(0.5);
+      expect(badge.node.anchor.y).toBe(0.5);
+      const card = ctx.buttons.find(button => button.id === `project.run.trace-${183 - Number(badge.value)}`)!;
+      expect(badge.x + badge.node.width / 2).toBeLessThan(card.x);
+    }
+    const deployed = ctx.texts.find(text => text.value === t('projects.hostedRun', { number: 182 }))!;
+    expect(deployed).toBeDefined();
+    const host = ctx.links.find(link => link.id === `project.hosted.${project.projectId}`)!;
+    expect(deployed.x).toBeGreaterThan(host.x);
+    expect(deployed.x + deployed.node.width).toBeLessThanOrEqual(host.x + host.width + 1);
+    expect(draw('failed').texts.some(text => text.value === deployed.value)).toBe(false);
+    expect(draw('ready', 'another-project').texts.some(text => text.value === deployed.value)).toBe(false);
+  });
+
   it.each([false, true])('centres project repository metadata with hosted links (selected=%s)', selected => {
     const project = { ...guidanceProject(), hostedUrl: 'https://weather.app.atoma.run/' };
     const ctx = createRecordingCtx();
@@ -3635,7 +3670,7 @@ describe('drawProjects', () => {
     expect(lockOrigin.x).toBeLessThan(linkOrigin.x);
     expect(linkOrigin.x + repositoryLink.width).toBeLessThanOrEqual(rightEdge);
     const verdict = ctx.texts.find((text) => String(text.value).startsWith('delivered'));
-    expect(verdict!.parent.toGlobal({ x: verdict!.x, y: verdict!.y }).x).toBe(column.x + 34 + 16);
+    expect(verdict!.parent.toGlobal({ x: verdict!.x, y: verdict!.y }).x).toBe(column.x + 52 + 16);
     expect(verdict!.node.anchor.x).toBe(0);
     expect(rightEdge).toBeGreaterThan(staleCap);
     expect(ctx.texts.some((text) => text.value === 'atoma-org/weather-lab')).toBe(false);
@@ -4032,7 +4067,7 @@ describe('drawProjects', () => {
     const cards = runs.map(run => ctx.buttons.find(button => button.id === `project.run.${run.traceId}`)!);
     cards.forEach((card, index) => {
       const action = ctx.buttons.find(button => button.id === `project.checkpoint.checkpoint-${index}`);
-      const copy = ctx.texts.filter(text => text.parent === card.parent && text.y >= card.y && text.y < card.y + card.height);
+      const copy = ctx.texts.filter(text => text.parent === card.parent && text.x >= card.x && text.y >= card.y && text.y < card.y + card.height);
       if (runs[index]!.checkpoint!.state === 'blocked') {
         expect(action).toBeUndefined();
         expect(copy.map(text => text.value).join(' ')).toContain(t('projects.checkpoint.blocked'));

@@ -430,7 +430,9 @@ export function projectSectionLayout(ctx: Pick<RendererCtx, 'measureText'>, snap
   });
   x = frame.innerX;
   y += rowHeight;
-  return { tabs, repository: { x, y, width: right - x }, contentTop: y + rowHeight };
+  const project = snapshot.data.projects?.find(project => project.projectId === snapshot.state.selectedProjectId);
+  const hostedRow = frame.innerWidth - BUTTON_LABEL_INSET * 2 < PROJECTS_NARROW_CONTENT_WIDTH && project?.hostedUrl ? rowHeight : 0;
+  return { tabs, repository: { x, y, width: right - x }, contentTop: y + rowHeight + hostedRow };
 }
 
 /** Shared metadata for the project header and project collection rows. */
@@ -461,11 +463,19 @@ function repositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: 
     : 0;
   // Where the application is online, after the repository: shown in full when
   // it fits, never taking more than half of the line from the repository.
+  const deployment = snapshot.data.deploymentSettings;
+  const hosting = deployment?.projectId === project.projectId ? deployment.hosting : null;
+  const runs = snapshot.data.projectRuns?.[project.projectId] ?? [];
+  const hostedIndex = hosting?.state === 'ready' ? runs.findIndex(run => run.projectRunId === hosting.runId) : -1;
+  const hostedRunText = hostedIndex >= 0 ? snapshot.t('projects.hostedRun', { number: runs.length - hostedIndex }) : null;
+  const hostedRunWidth = hostedRunText ? ctx.measureText(hostedRunText, { size: 9, weight: '600' }) : 0;
+  const hostedRunSpace = hostedRunText ? hostedRunWidth + UI_SPACE.sm : 0;
   const hostedText = project.hostedUrl ? `● ${new URL(project.hostedUrl).host}` : null;
-  const hostedChrome = hostedText ? PROJECT_INFO_SEPARATOR_BEFORE_GAP + separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP : 0;
-  const hostedWidth = hostedText ? Math.max(0, Math.min(ctx.measureText(hostedText, { size: 9 }), infoMaxWidth / 2 - hostedChrome)) : 0;
+  const stackedHosted = project.projectId === snapshot.state.selectedProjectId && infoMaxWidth < PROJECTS_NARROW_CONTENT_WIDTH;
+  const hostedChrome = hostedText && !stackedHosted ? PROJECT_INFO_SEPARATOR_BEFORE_GAP + separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP : 0;
+  const hostedWidth = hostedText ? Math.max(0, Math.min(ctx.measureText(hostedText, { size: 9 }) + hostedRunSpace, (stackedHosted ? infoMaxWidth : infoMaxWidth / 2) - hostedChrome)) : 0;
   const fixedInfoWidth =
-    hostedChrome + hostedWidth +
+    (stackedHosted ? 0 : hostedChrome + hostedWidth) +
     privateIconSpace +
     (repositoryStatusCopy ? statusWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP + separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP : 0) +
     destinationChromeWidth;
@@ -473,14 +483,14 @@ function repositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: 
     0,
     Math.min(destinationTextNaturalWidth, infoMaxWidth - fixedInfoWidth)
   );
-  const infoWidth = fixedInfoWidth + destinationTextWidth;
+  const infoWidth = Math.max(fixedInfoWidth + destinationTextWidth, stackedHosted ? hostedWidth : 0);
   return { repositoryStatusCopy, privateIconSpace, statusWidth, separatorWidth,
-    destinationText, destinationTextWidth, infoWidth, hostedText, hostedWidth };
+    destinationText, destinationTextWidth, infoWidth, hostedText, hostedWidth, hostedRunText, hostedRunWidth, hostedRunSpace, stackedHosted };
 }
 
 function drawRepositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: VizProject,
   rowParent: Container, infoX: number, y: number, info: ReturnType<typeof repositoryInfo>): void {
-  const { repositoryStatusCopy, privateIconSpace, statusWidth, separatorWidth, destinationText, destinationTextWidth, hostedText, hostedWidth } = info;
+  const { repositoryStatusCopy, privateIconSpace, statusWidth, separatorWidth, destinationText, destinationTextWidth, hostedText, hostedWidth, hostedRunText, hostedRunWidth, hostedRunSpace, stackedHosted } = info;
   const centerY = y + PROJECT_INFO_CENTER_Y;
   let infoCursor = infoX;
   if (project.repositoryTarget.visibility === 'private') {
@@ -575,10 +585,16 @@ function drawRepositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, proje
       + destinationTextWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP;
     // Keep the separator’s space without a second dot beside the online indicator.
     infoCursor += separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP;
+    const hostedY = y + (stackedHosted ? (snapshot.state.handheld ? UI_LAYOUT.touchHeight : UI_LAYOUT.controlHeight) + UI_SPACE.sm : 0);
+    if (stackedHosted) infoCursor = infoX;
     // A private application opens through a one-time claim, never a bare link: the activation asks for one.
     const hostedLink = ctx.linkRegion(rowParent, `project.hosted.${project.projectId}`, hostedText,
-      infoCursor, y + 2, hostedWidth, REPOSITORY_ICON_SIZE, snapshot.onActivate);
-    ctx.text(hostedLink, hostedText, 0, REPOSITORY_ICON_SIZE / 2, { size: 9, color: GPU_COLORS.success, width: hostedWidth, singleLine: true }).anchor.set(0, 0.5);
+      infoCursor, hostedY + 2, hostedWidth, REPOSITORY_ICON_SIZE, snapshot.onActivate);
+    ctx.text(hostedLink, hostedText, 0, REPOSITORY_ICON_SIZE / 2, { size: 9, color: GPU_COLORS.success, width: Math.max(0, hostedWidth - hostedRunSpace), singleLine: true }).anchor.set(0, 0.5);
+    if (hostedRunText) {
+      ctx.text(rowParent, hostedRunText, infoCursor + hostedWidth - hostedRunWidth, hostedY + PROJECT_INFO_CENTER_Y,
+        { size: 9, weight: '600', color: GPU_COLORS.text, width: hostedRunWidth, singleLine: true }).anchor.set(0, 0.5);
+    }
   }
 }
 
@@ -757,7 +773,10 @@ export function drawProjects(
     ? projects.findIndex((project) => project.projectId === selectedProject.projectId)
     : -1;
   const selectedRuns = selectedIndex >= 0 ? expandedRunList[selectedIndex] ?? [] : [];
-  const cardWidth = Math.max(1, (aside?.mainWidth ?? projectsColumn(width).width) - 52);
+  // The complete project list is newest first; the oldest run remains #1 as new runs arrive.
+  const runBadgeWidth = Math.max(22, Math.ceil(ctx.measureText(String(selectedRuns.length), { size: 10, weight: '700' })) + 12);
+  const runGutter = 18 + runBadgeWidth + UI_SPACE.md;
+  const cardWidth = Math.max(1, (aside?.mainWidth ?? projectsColumn(width).width) - runGutter - 18);
   const runLayouts = selectedRuns.map((run, index) => runCardLayout(ctx, snapshot, run, cardWidth, index === 0));
   const viewportLayout = projectLayout(width, projects.length, selectedIndex, runLayouts.map(run => run.height), aside?.mainWidth);
   // Narrow frames have no room for the column: the overview heads the Runs list.
@@ -786,7 +805,7 @@ export function drawProjects(
 
   const columnX = layout.x + 18;
   const innerWidth = layout.panelWidth - 36;
-  const runColumnX = layout.x + 34;
+  const runColumnX = layout.x + runGutter;
   const compactRunRows = layout.panelWidth < COMPACT_PROJECT_PANEL_WIDTH;
   let cursor = layout.listTop;
   projects.forEach((project, index) => {
@@ -901,13 +920,16 @@ export function drawProjects(
         const { textWidth, resultLabel, resultWidth, status, age, metrics, factRows, lineWidth } = card;
         const { access, live } = status;
         const rail = new Graphics();
-        const railX = runColumnX - 12;
+        const railX = layout.x + 18 + runBadgeWidth / 2;
         const dotY = cursor + RUN_TITLE_Y + 8;
         rail.moveTo(railX, newest ? dotY : cursor - RUN_ROW_GAP);
         rail.lineTo(railX, runIndex === runs.length - 1 ? dotY : cursor + rowHeight);
         rail.stroke({ color: GPU_COLORS.border, width: 2 });
-        rail.circle(railX, dotY, 4).fill(status.color);
+        rail.roundRect(railX - runBadgeWidth / 2, dotY - 11, runBadgeWidth, 22, 11)
+          .fill(GPU_COLORS.panelRaised).stroke({ color: status.color, width: 2 });
         pane.content.addChild(rail);
+        ctx.text(pane.content, String(runs.length - runIndex), railX, dotY,
+          { size: 10, weight: '700', color: GPU_COLORS.text }).anchor.set(0.5, 0.5);
         const runTitle = run.title ?? run.goal.replace(/\s+/g, ' ');
         // The run a link asked for (a results-waiting notification) stands out,
         // and the renderer brings it into view once per request.
