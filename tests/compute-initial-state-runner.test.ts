@@ -81,7 +81,8 @@ describe('Compute initial state through cold runner continuation and verificatio
       runsDir: join(f.root, 'operator-runs'), supervisorDir: join(f.root, 'supervisor'), leasePath: join(f.root, 'lease.db'), allowed: () => true,
       hostEnv: { ...OLLAMA_PINS, ATOMA_REQUIRE_ISOLATION: '0', ATOMA_SKILL_LEARN: '0', ATOMA_SKILL_PROMOTE: '0', ATOMA_SKILL_DIRECT: '0', ATOMA_JEV: '0' },
       launch: async input => {
-        const child = f.run(['--container', '--depth', 'deep', input.goal], '', { ...input.env, CHECKPOINT_TEST_TENANT: '1', CHECKPOINT_TEST_QUESTION_PHASE: answered ? '1' : undefined, CHECKPOINT_TEST_EXPECT_ANSWER: answered ? '1' : '0' });
+        expect(input.isolation).toBe('container-egress');
+        const child = f.run(['--container', '--egress', '--depth', 'deep', input.goal], '', { ...input.env, CHECKPOINT_TEST_TENANT: '1', CHECKPOINT_TEST_QUESTION_PHASE: answered ? '1' : undefined, CHECKPOINT_TEST_EXPECT_ANSWER: answered ? '1' : '0' });
         expect(child.status, child.stdout + child.stderr).toBe(0);
         return child.stdout;
       } });
