@@ -2857,5 +2857,6 @@
   "runs.compact.summary": "Сводка",
   "runs.compact.filters": "Фильтры",
   "admin.computeValidation.budgetPerAttempt": "Одна попытка на каждый исходный run длительностью {{minutes}} мин., с остановкой при расходе {{tokens}} токенов или эквивалента API в ${{cost}}. Уже выполняющиеся вызовы могут превысить этот лимит расхода; неизвестные расходы всё равно засчитываются как попытка.",
-  "projects.hostedRun": "Run #{{number}} онлайн"
+  "projects.hostedRun": "Run #{{number}} онлайн",
+  "runs.number": "Run №{{number}}"
 }

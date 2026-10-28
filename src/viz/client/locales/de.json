@@ -2857,5 +2857,6 @@
   "runs.compact.summary": "Zusammenfassung",
   "runs.compact.filters": "Filter",
   "admin.computeValidation.budgetPerAttempt": "Ein Versuch pro Quell-run mit jeweils {{minutes}} Minuten und einem Verbrauchsstopp bei {{tokens}} Tokens oder einem API-Äquivalent von ${{cost}}. Bereits laufende Aufrufe können den Verbrauchsstopp überschreiten; auch bei unbekannten Ausgaben wird ein Versuch verbraucht.",
-  "projects.hostedRun": "Run #{{number}} online"
+  "projects.hostedRun": "Run #{{number}} online",
+  "runs.number": "Run #{{number}}"
 }

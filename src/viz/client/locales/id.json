@@ -2857,5 +2857,6 @@
   "runs.compact.summary": "Ringkasan",
   "runs.compact.filters": "Filter",
   "admin.computeValidation.budgetPerAttempt": "Satu upaya per run sumber, masing-masing {{minutes}} menit, dengan penghentian konsumsi pada {{tokens}} token atau nilai setara API sebesar ${{cost}}. Panggilan yang sudah berlangsung dapat melampaui batas konsumsi; pengeluaran yang tidak diketahui tetap menggunakan satu upaya.",
-  "projects.hostedRun": "Run #{{number}} daring"
+  "projects.hostedRun": "Run #{{number}} daring",
+  "runs.number": "Run #{{number}}"
 }

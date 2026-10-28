@@ -2857,5 +2857,6 @@
   "runs.compact.summary": "摘要",
   "runs.compact.filters": "筛选条件",
   "admin.computeValidation.budgetPerAttempt": "每个源 run 仅尝试一次，每次 {{minutes}} 分钟；消耗达到 {{tokens}} 个 token 或等值 ${{cost}} 的 API 用量时停止。已在进行的调用可能会超出消耗上限；费用未知时仍会占用一次尝试。",
-  "projects.hostedRun": "run #{{number}} 在线"
+  "projects.hostedRun": "run #{{number}} 在线",
+  "runs.number": "run #{{number}}"
 }
