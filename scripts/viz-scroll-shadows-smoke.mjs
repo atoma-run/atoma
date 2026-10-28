@@ -151,3 +151,88 @@ export async function verifyPanelEdges(page, selector, name) {
   }
   console.log(`viz shipped ${name}: native scroll edges and hidden scrollbar verified (max ${max}px)`);
 }
+
+/** Platform-admin rail: the final control must fit its mask, not merely exist. */
+export async function verifyAdminRailEnd(page) {
+  const original = page.viewport();
+  try {
+    for (const [width,height] of [[390,320],[1280,320],[1280,800]]) {
+      await page.setViewport({width,height,deviceScaleFactor:1});
+      await page.waitForFunction(() => {
+        const scene=document.querySelector('.gpu-scene-camera');
+        return scene?.dataset.sceneCameraMode==='focus' && scene.dataset.sceneCameraMotion==='settled' &&
+          document.querySelector('.gpu-cube')?.dataset.cubeTurn==='idle';
+      });
+      await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      const points=await page.evaluate(()=>{
+        const h=globalThis.__ATOMA_GPU__;
+        const content=h.app.stage.getChildByLabel('sidebar-scroll-content',true);
+        const node=content.parent.mask, area=node.getLocalBounds();
+        const origin=node.toGlobal({x:area.x,y:area.y});
+        const end=node.toGlobal({x:area.x+area.width,y:area.y+area.height});
+        const mask={x:origin.x,y:origin.y,width:end.x-origin.x,height:end.y-origin.y};
+        const dock=h.hitTargets().find(t=>t.id==='appearance.dropdown.toggle');
+        if(!dock)throw new Error('Admin theme dock missing');
+        return {pane:h.projectRendererPoint(dock.x+dock.width/2,mask.y+mask.height/2),
+          dock:h.projectRendererPoint(dock.x+dock.width/2,dock.y+dock.height/2)};
+      });
+      await page.mouse.move(points.pane.x,points.pane.y);
+      await page.mouse.wheel({deltaY:-10000});
+      await page.waitForFunction(()=>Math.abs(globalThis.__ATOMA_GPU__.app.stage
+        .getChildByLabel('sidebar-scroll-content',true).y)<.5);
+      // A reader can keep wheeling while the pointer is over the fixed dock.
+      await page.mouse.move(points.dock.x,points.dock.y);
+      await page.mouse.wheel({deltaY:10000});
+      await page.waitForFunction(()=>{
+        const h=globalThis.__ATOMA_GPU__, content=h.app.stage.getChildByLabel('sidebar-scroll-content',true);
+        return content.y<0 && !content.parent.parent.getChildByLabel('scroll-shadow-bottom')?.visible &&
+          h.hitTargets().some(t=>t.id==='tuning.toggle');
+      });
+      const geometry=await page.evaluate(()=>{
+        const h=globalThis.__ATOMA_GPU__;
+        const content=h.app.stage.getChildByLabel('sidebar-scroll-content',true);
+        const node=content.parent.mask, area=node.getLocalBounds();
+        const origin=node.toGlobal({x:area.x,y:area.y});
+        const end=node.toGlobal({x:area.x+area.width,y:area.y+area.height});
+        const mask={x:origin.x,y:origin.y,width:end.x-origin.x,height:end.y-origin.y};
+        const last=h.hitTargets().find(t=>t.id==='tuning.toggle');
+        const dock=h.hitTargets().find(t=>t.id==='appearance.dropdown.toggle');
+        return {top:last.y,bottom:last.y+last.height,maskTop:mask.y,maskBottom:mask.y+mask.height,
+          dockTop:dock.y,point:h.projectRendererPoint(last.x+last.width/2,last.y+last.height/2)};
+      });
+      assert(geometry.top>=geometry.maskTop-.5,`Admin final tile clipped at top (${width}x${height}): ${JSON.stringify(geometry)}`);
+      assert(geometry.bottom<=geometry.maskBottom+.5,`Admin final tile clipped at bottom (${width}x${height}): ${JSON.stringify(geometry)}`);
+      assert(geometry.bottom<geometry.dockTop,'Admin final tile must clear the utility dock');
+      await page.screenshot({path:`/tmp/atoma-admin-rail-${width}x${height}-end.png`});
+      if(height===800){
+        await page.mouse.click(geometry.point.x,geometry.point.y);
+        await page.waitForSelector('.gpu-scene-tuning');
+        await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+        // This draggable window remembers its position through the responsive
+        // probes. Move it aside if its left edge now covers the rail control.
+        const covered=await page.evaluate(point=>!document.elementFromPoint(point.x,point.y)
+          ?.classList.contains('gpu-ui-canvas'),geometry.point);
+        if(covered){
+          const header=await page.$eval('.gpu-scene-tuning__header',el=>{
+            const r=el.getBoundingClientRect();return{x:r.x+30,y:r.y+12};
+          });
+          await page.mouse.move(header.x,header.y);
+          await page.mouse.down();
+          await page.mouse.move(header.x+400,header.y,{steps:5});
+          await page.mouse.up();
+        }
+        await page.mouse.click(geometry.point.x,geometry.point.y);
+        await page.waitForFunction(()=>!document.querySelector('.gpu-scene-tuning'));
+        // Leave the shared scenario at the first destinations after proving
+        // the last one; later view checks use their real canvas controls.
+        await page.mouse.move(points.dock.x,points.dock.y);
+        await page.mouse.wheel({deltaY:-10000});
+        await page.waitForFunction(()=>Math.abs(globalThis.__ATOMA_GPU__.app.stage
+          .getChildByLabel('sidebar-scroll-content',true).y)<.5);
+      }
+    }
+    console.log('viz admin rail: dock wheel reaches final tile at 390x320, 1280x320 and 1280x800; full bounds and real click verified');
+  } finally {
+    await page.setViewport(original);
+  }
+}

@@ -1611,6 +1611,27 @@ describe('the nav rail', () => {
     expect(signedOut.navigationBottom).toBeGreaterThan(layout.navigationBottom);
   });
 
+  it.each([320, 360, 384, 480, 800])('fully reveals the final admin tile above the dock at %ipx', height => {
+    const auth = makeAuth({ platformAdmin: true });
+    const chrome = focusRailChromeLayout(GPU_LAYOUT.sidebarWidth, height, true);
+    for (const handheld of [false, true]) {
+      const snapshot = makeSnapshot({ view: 'settings', sceneCameraMode: 'focus', handheld }, { auth });
+      const initial = createRecordingCtx();
+      drawSidebar(initial, snapshot, height, GPU_LAYOUT.sidebarWidth, chrome.navigationBottom, chrome.navigationTop);
+      const end = createRecordingCtx();
+      end.sidebarScrollY = initial.sidebarScrollMax;
+      drawSidebar(end, snapshot, height, GPU_LAYOUT.sidebarWidth, chrome.navigationBottom, chrome.navigationTop);
+      const last = end.buttons.find(button => button.id === 'tuning.toggle')!;
+      expect(last).toBeDefined();
+      const top = last.parent.toGlobal({ x: last.x, y: last.y }).y;
+      expect(top).toBeGreaterThanOrEqual(end.sidebarBounds!.y);
+      expect(top + last.height).toBeLessThanOrEqual(end.sidebarBounds!.bottom);
+      expect(end.sidebarBounds!.bottom).toBeLessThan(chrome.theme!.y);
+      expect(last.height).toBe(handheld ? 48 : 40);
+      expect(end.root.getChildByLabel('scroll-shadow-bottom')?.visible ?? false).toBe(false);
+    }
+  });
+
   it('cross-fades utility docks without popping at either camera endpoint', () => {
     expect(utilityDockOpacity('enter', 0)).toBe(0);
     expect(utilityDockOpacity('leave', 0)).toBe(1);

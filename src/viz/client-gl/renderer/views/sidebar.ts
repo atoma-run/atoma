@@ -138,7 +138,15 @@ export function focusRailChromeLayout(
   authenticated: boolean
 ): FocusRailChromeLayout {
   const buttonX = Math.max(0, sidebarWidth - FOCUS_SIDEBAR_BUTTON_WIDTH);
-  const bottom = Math.max(0, visibleBottom) - FOCUS_RAIL_BOTTOM_PAD;
+  // Preserve full destination tiles on short windows; compact only the air
+  // around the fixed utilities and brand, never their control dimensions.
+  const compact = visibleBottom < 384;
+  const bottomPad = compact ? UI_SPACE.xs : FOCUS_RAIL_BOTTOM_PAD;
+  const utilityGap = compact ? UI_SPACE.xs : FOCUS_RAIL_UTILITY_GAP;
+  const fpsGap = compact ? UI_SPACE.xs : FOCUS_RAIL_FPS_GAP;
+  const dockGap = compact ? UI_SPACE.xs : FOCUS_RAIL_DOCK_GAP;
+  const crystalTop = compact ? GPU_LAYOUT.focusTopInset + UI_SPACE.xs : FOCUS_RAIL_CRYSTAL_TOP;
+  const bottom = Math.max(0, visibleBottom) - bottomPad;
   const fps: FocusRailRect = {
     x: buttonX,
     y: bottom - FOCUS_RAIL_FPS_HEIGHT,
@@ -147,7 +155,7 @@ export function focusRailChromeLayout(
   };
   const locale: FocusRailRect = {
     x: buttonX,
-    y: fps.y - FOCUS_RAIL_FPS_GAP - FOCUS_RAIL_LOCALE_HEIGHT,
+    y: fps.y - fpsGap - FOCUS_RAIL_LOCALE_HEIGHT,
     width: Math.min(sidebarWidth, FOCUS_SIDEBAR_BUTTON_WIDTH),
     height: FOCUS_RAIL_LOCALE_HEIGHT,
   };
@@ -157,7 +165,7 @@ export function focusRailChromeLayout(
   const bell = authenticated
     ? {
         x: buttonX,
-        y: locale.y - FOCUS_RAIL_UTILITY_GAP - FOCUS_RAIL_BELL_HEIGHT,
+        y: locale.y - utilityGap - FOCUS_RAIL_BELL_HEIGHT,
         width: Math.min(sidebarWidth, FOCUS_SIDEBAR_BUTTON_WIDTH),
         height: FOCUS_RAIL_BELL_HEIGHT,
       }
@@ -165,7 +173,7 @@ export function focusRailChromeLayout(
   const profile = authenticated
     ? {
         x: buttonX + (FOCUS_SIDEBAR_BUTTON_WIDTH - FOCUS_RAIL_PROFILE_SIZE) / 2,
-        y: (bell?.y ?? locale.y) - FOCUS_RAIL_UTILITY_GAP - FOCUS_RAIL_PROFILE_SIZE,
+        y: (bell?.y ?? locale.y) - utilityGap - FOCUS_RAIL_PROFILE_SIZE,
         width: FOCUS_RAIL_PROFILE_SIZE,
         height: FOCUS_RAIL_PROFILE_SIZE,
       }
@@ -173,7 +181,7 @@ export function focusRailChromeLayout(
   const theme = profile
     ? {
         x: buttonX,
-        y: profile.y - FOCUS_RAIL_UTILITY_GAP - FOCUS_RAIL_BELL_HEIGHT,
+        y: profile.y - utilityGap - FOCUS_RAIL_BELL_HEIGHT,
         width: Math.min(sidebarWidth, FOCUS_SIDEBAR_BUTTON_WIDTH),
         height: FOCUS_RAIL_BELL_HEIGHT,
       }
@@ -182,7 +190,7 @@ export function focusRailChromeLayout(
   return {
     crystal: {
       x: buttonX,
-      y: FOCUS_RAIL_CRYSTAL_TOP,
+      y: crystalTop,
       width: Math.min(sidebarWidth, FOCUS_SIDEBAR_BUTTON_WIDTH),
       height: FOCUS_RAIL_CRYSTAL_HEIGHT,
     },
@@ -191,8 +199,8 @@ export function focusRailChromeLayout(
     bell,
     locale,
     fps,
-    navigationTop: FOCUS_RAIL_CRYSTAL_TOP + FOCUS_RAIL_CRYSTAL_HEIGHT,
-    navigationBottom: Math.max(0, dockTop - FOCUS_RAIL_DOCK_GAP),
+    navigationTop: crystalTop + FOCUS_RAIL_CRYSTAL_HEIGHT,
+    navigationBottom: Math.max(0, dockTop - dockGap),
   };
 }
 

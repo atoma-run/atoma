@@ -1,4 +1,4 @@
-import { verifyNativeScrollShadows, verifyPanelEdges } from './viz-scroll-shadows-smoke.mjs';
+import { verifyNativeScrollShadows, verifyPanelEdges, verifyAdminRailEnd } from './viz-scroll-shadows-smoke.mjs';
 /* global document, DOMMatrixReadOnly, DOMPoint, getComputedStyle, HTMLButtonElement, HTMLElement, HTMLInputElement, HTMLTextAreaElement, matchMedia, requestAnimationFrame, MutationObserver, WheelEvent, window, location, Worker */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -4003,6 +4003,7 @@ try {
         throw new Error(`Settings limits overlap: ${JSON.stringify(limitsLayout)}`);
       }
       await verifyPanelEdges(accountPage, '#settings-panel-limits', 'settings');
+      await verifyAdminRailEnd(accountPage);
       // MCP is a DOM settings tab. Native disclosures must actually hide the
       // manual-token form, while remaining usable when explicitly opened.
       await accountPage.click('#settings-tab-mcp');

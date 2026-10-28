@@ -1069,9 +1069,13 @@ export class GpuRenderer {
         return;
       }
     }
-    if (this.sidebarBounds && !this.snapshot.state.accountMenuOpen && !this.snapshot.state.notificationsMenuOpen) {
+    if (this.sidebarBounds && !this.snapshot.state.accountMenuOpen &&
+      !this.snapshot.state.notificationsMenuOpen && !this.snapshot.state.localeMenuOpen) {
       const local = this.clientToRendererPosition(clientX, clientY);
-      if (this.sidebarBounds.contains(local.x, local.y)) {
+      // Wheel/touch over the fixed dock still belongs to the rail. Requiring
+      // the narrow masked strip made the remaining rows appear unreachable.
+      if (local.x >= this.sidebarBounds.x && local.x < this.sidebarBounds.right &&
+        local.y >= this.sidebarBounds.y) {
         const next = Math.max(0, Math.min(this.sidebarScrollMax, this.sidebarScrollY + deltaY));
         if (next !== this.sidebarScrollY) {
           this.sidebarScrollY = next;
