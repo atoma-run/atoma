@@ -1,3 +1,4 @@
+import { verifyNativeScrollShadows, verifyPanelEdges } from './viz-scroll-shadows-smoke.mjs';
 /* global document, DOMMatrixReadOnly, DOMPoint, getComputedStyle, HTMLButtonElement, HTMLElement, HTMLInputElement, HTMLTextAreaElement, matchMedia, requestAnimationFrame, MutationObserver, WheelEvent, window, location, Worker */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -813,12 +814,13 @@ try {
 
   const browser = await puppeteer.launch({
     headless: true,
-    // Screenshots must include native scrollbars, as the product does.
+    // Do not let Chrome conceal a scrollbar that the product forgot to remove.
     ignoreDefaultArgs: ['--hide-scrollbars'],
     args: ['--no-sandbox', '--enable-unsafe-swiftshader'],
     protocolTimeout: PROTOCOL_TIMEOUT_MS,
   });
   try {
+    await verifyNativeScrollShadows(browser);
     const page = await newWebGpuPage(browser);
     await page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 2 });
     const diagnostics = [];
@@ -1396,46 +1398,22 @@ try {
       if (label === 'Docs') {
         await waitForSceneCamera(page, 'focus');
         await page.waitForFunction(() => globalThis.__ATOMA_GPU__.hitTargets().some(target => target.id.startsWith('docs.theme.')));
-        const scrollbarPoint = async (fraction) => {
-          // React can publish new scene objects before Pixi has painted their
-          // transforms. Native input must target a painted frame.
-          await page.evaluate(() => new Promise(resolve =>
-            requestAnimationFrame(() => requestAnimationFrame(resolve))));
-          return await page.evaluate((part) => {
-            const handle = globalThis.__ATOMA_GPU__;
-            const bar = handle.app.stage.getChildByLabel('scrollbar-thumb', true);
-            if (!bar?.hitArea) throw new Error('Docs scrollbar did not arm');
-            const area = bar.hitArea;
-            const point = bar.toGlobal({ x: area.x + area.width / 2, y: area.y + area.height * part });
-            return handle.projectRendererPoint(point.x, point.y);
-          }, fraction);
-        };
-        const scrollOffset = () => page.evaluate(() => {
-          const content = globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('scroll-pane-content', true);
-          if (!content) throw new Error('Docs scroll content did not arm');
-          return content.y;
+        const point = await page.evaluate(() => {
+          const h = globalThis.__ATOMA_GPU__;
+          const content = h.app.stage.getChildByLabel('scroll-pane-content', true);
+          const p = content.parent.toGlobal({ x: 80, y: 60 });
+          return h.projectRendererPoint(p.x, p.y);
         });
-        const thumb = await scrollbarPoint(0.01);
-        await page.mouse.move(thumb.x, thumb.y);
-        await page.mouse.down();
-        await page.mouse.move(thumb.x - 40, thumb.y + 50, { steps: 5 });
+        await page.mouse.move(point.x, point.y);
+        await page.mouse.wheel({ deltaY: 10000 });
+        await page.waitForFunction(() => {
+          const root = globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('scroll-pane-content', true).parent.parent;
+          return root.getChildByLabel('scroll-shadow-top')?.visible && !root.getChildByLabel('scroll-shadow-bottom')?.visible;
+        });
+        await page.mouse.wheel({ deltaY: -10000 });
         await page.waitForFunction(() =>
-          globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('scroll-pane-content', true)?.y < -1
-        );
-        await page.mouse.up();
-        const dragged = await scrollOffset();
-        const track = await scrollbarPoint(0.85);
-        await page.mouse.click(track.x, track.y);
-        await page.waitForFunction((before) =>
-          globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('scroll-pane-content', true)?.y < before,
-        {}, dragged);
-        const top = await scrollbarPoint(0.05);
-        await page.mouse.click(top.x, top.y);
-        await page.waitForFunction(() =>
-          Math.abs(globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('scroll-pane-content', true)?.y ?? Infinity) < 0.5
-        );
-        await page.mouse.move(640, 400);
-        console.log('viz scrollbar: thumb drag outside track, track click and return to top passed');
+          Math.abs(globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('scroll-pane-content', true)?.y ?? Infinity) < 0.5);
+        console.log('viz Docs: native wheel reaches both ends, paired shadows, no scrollbar');
       }
     }
     await waitForSceneCamera(page, 'focus');
@@ -1466,8 +1444,8 @@ try {
           const content = globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('sidebar-scroll-content', true);
           const root = content.parent.parent;
           return !root.getChildByLabel('scrollbar-thumb') &&
-            !!root.getChildByLabel('scroll-shadow-top') === top &&
-            !!root.getChildByLabel('scroll-shadow-bottom') === bottom;
+            !!root.getChildByLabel('scroll-shadow-top')?.visible === top &&
+            !!root.getChildByLabel('scroll-shadow-bottom')?.visible === bottom;
         }, {}, { top, bottom });
       };
       await expectRailEdges(false, true);
@@ -1490,18 +1468,18 @@ try {
     console.log('viz short rail: native wheel, both camera modes, top/middle/end shadows, no scrollbar');
 
     // A real long request must remain inside the summary and reach its last
-    // line through the same native wheel/scrollbar path as ordinary panes.
+    // line through the same native wheel path as ordinary panes.
     await page.waitForFunction(() => globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true));
-    const goalPoint = async (fraction, bar = false) => {
+    const goalPoint = async (fraction) => {
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      return await page.evaluate(({ fraction, bar }) => {
-        const handle = globalThis.__ATOMA_GPU__;
-        const content = handle.app.stage.getChildByLabel('run-goal-content', true);
-        const scrollbar = content.parent.parent.getChildByLabel('scrollbar-thumb');
-        if (!scrollbar) throw new Error('Long request has no scrollbar');
-        const p = scrollbar.toGlobal({ x: bar ? 1 : -100, y: scrollbar.hitArea.height * fraction });
-        return handle.projectRendererPoint(p.x, p.y);
-      }, { fraction, bar });
+      return await page.evaluate((fraction) => {
+        const h = globalThis.__ATOMA_GPU__;
+        const content = h.app.stage.getChildByLabel('run-goal-content', true);
+        const bottom = content.parent.parent.getChildByLabel('scroll-shadow-bottom');
+        if (!bottom) throw new Error('Long request has no edge cues');
+        const p = content.parent.toGlobal({ x: 80, y: (bottom.y - content.parent.y) * fraction });
+        return h.projectRendererPoint(p.x, p.y);
+      }, fraction);
     };
     const goalOffset = () => page.evaluate(() =>
       globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true).y);
@@ -1512,26 +1490,17 @@ try {
     const goalEnd = await goalOffset();
     const endVisible = await page.evaluate(() => {
       const content = globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true);
-      const bar = content.parent.parent.getChildByLabel('scrollbar-thumb');
+      const bar = content.parent.parent.getChildByLabel('scroll-shadow-bottom');
       const text = content.children[0].children[0];
-      return text.text.endsWith('END OF REQUEST.') && Math.abs(content.y + text.height - bar.hitArea.height) < 1;
+      return text.text.endsWith('END OF REQUEST.') && Math.abs(content.y + text.height - (bar.y - content.parent.y)) < 1;
     });
     assert(endVisible, 'The final request line must be reachable inside its viewport');
     await page.screenshot({ path: join(tmpdir(), 'atoma-run-goal-scrolled.png') });
     await page.mouse.wheel({ deltaY: -100_000 });
     await page.waitForFunction(() => Math.abs(globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true).y) < 0.5);
-    const goalThumb = await goalPoint(0.01, true);
-    await page.mouse.move(goalThumb.x, goalThumb.y);
-    await page.mouse.down();
-    await page.mouse.move(goalThumb.x - 30, goalThumb.y + 90, { steps: 5 });
-    await page.mouse.up();
-    assert(await goalOffset() < -1, 'Dragging the request thumb must scroll without collapsing the card');
-    const goalTop = await goalPoint(0, true);
-    await page.mouse.click(goalTop.x, goalTop.y);
-    await page.waitForFunction(() => Math.abs(globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('run-goal-content', true).y) < 0.5);
     await page.screenshot({ path: join(tmpdir(), 'atoma-run-goal-top.png') });
     await page.mouse.move(640, 400);
-    console.log(`viz long run request: wheel reached ${goalEnd}px; final line, thumb drag and track return verified`);
+    console.log(`viz long run request: wheel reached ${goalEnd}px; final line and both edge cues verified`);
 
     // The camera crops the source plane to remove the old header. The view
     // must reflow to the inverse-projected viewport foot too: retaining raw
@@ -4029,6 +3998,7 @@ try {
       if (limitsLayout.bodies !== 1 || limitsLayout.panels !== 1 || !limitsLayout.navigationClear || !limitsLayout.fields) {
         throw new Error(`Settings limits overlap: ${JSON.stringify(limitsLayout)}`);
       }
+      await verifyPanelEdges(accountPage, '#settings-panel-limits', 'settings');
       // MCP is a DOM settings tab. Native disclosures must actually hide the
       // manual-token form, while remaining usable when explicitly opened.
       await accountPage.click('#settings-tab-mcp');
@@ -4103,6 +4073,7 @@ try {
       await accountPage.waitForSelector('.gpu-announce-form input[aria-label="Title — English"]', {
         timeout: READY_TIMEOUT_MS,
       });
+      await verifyPanelEdges(accountPage, '.gpu-announce-form', 'announcements');
       await accountPage.type(
         '.gpu-announce-form input[aria-label="Title — English"]',
         'Smoke announcement'
@@ -4463,7 +4434,7 @@ try {
 
   const fallbackBrowser = await puppeteer.launch({
     headless: true,
-    // Screenshots must include native scrollbars, as the product does.
+    // Do not let Chrome conceal a scrollbar that the product forgot to remove.
     ignoreDefaultArgs: ['--hide-scrollbars'],
     args: ['--no-sandbox', '--enable-unsafe-swiftshader'],
     protocolTimeout: PROTOCOL_TIMEOUT_MS,

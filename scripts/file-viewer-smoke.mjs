@@ -45,7 +45,7 @@ try {
     await build(config);
     server = await preview({ ...config, preview: { host: '127.0.0.1', port: 0, strictPort: false } });
   }
-  browser = await puppeteer.launch({ headless: true });
+  browser = await puppeteer.launch({ headless: true, ignoreDefaultArgs: ['--hide-scrollbars'] });
   const page = await browser.newPage();
   // Headless Chrome has no physical mouse; exercise the desktop cursor mode.
   await page.evaluateOnNewDocument(() => {
@@ -60,7 +60,7 @@ try {
   });
   const fixtures = await fileViewerFixtures();
   Object.assign(fixtures, {
-    'app.js': { bytes: 'export const greeting = "hello";', selector: '.ofv-code-container', text: 'export const greeting' },
+    'app.js': { bytes: 'export const greeting = "hello";\n' + '// A line in a long source file.\n'.repeat(100), selector: '.ofv-code-container', text: 'export const greeting' },
     'sample.csv': { bytes: 'name,value\nAtoma,42', selector: 'td', text: 'Atoma' },
     'sample.md': { bytes: '# Rendered Markdown', selector: 'h1', text: 'Rendered Markdown' },
     'sample.svg': { bytes: '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="red"/></svg>', selector: 'img', text: '' },
@@ -90,6 +90,11 @@ try {
       const doc = document.querySelector('iframe')?.contentDocument;
       return [...(doc?.querySelectorAll(selector) ?? [])].some(el => el.textContent.includes(text));
     }, {}, { selector: fixture.selector, text: fixture.text });
+    await page.waitForFunction(() => {
+      const doc=document.querySelector('iframe')?.contentDocument;
+      const panels=[...(doc?.querySelectorAll('.atoma-shadow-scrollport') ?? [])];
+      return panels.length>0 && panels.every(el=>doc.defaultView.getComputedStyle(el).scrollbarWidth==='none');
+    });
     const png = await page.screenshot({ path: `/tmp/atoma-reader-${path.replaceAll(/[/.]/g, '-')}.png`, encoding: 'base64' });
     if (fixture.selector === '.ofv-model-stage canvas') {
       // Read the composited screenshot, not the WebGL buffer: sandbox flags
@@ -113,6 +118,28 @@ try {
     }
     console.log(`File preview rendered: ${path}`);
     if (path === 'app.js') {
+      const point=await page.evaluate(()=>{
+        const frame=document.querySelector('iframe'), panel=frame.contentDocument.querySelector('.ofv-code-body');
+        const f=frame.getBoundingClientRect(), p=panel.getBoundingClientRect();
+        return {x:f.x+p.x+80,y:f.y+p.y+80};
+      });
+      const expectEdges=async (top,bottom)=>page.waitForFunction(({top,bottom})=>{
+        const doc=document.querySelector('iframe').contentDocument;
+        const panel=doc.querySelector('.ofv-code-body');
+        const overlay=[...panel.parentElement.children].find(el=>el.classList.contains('atoma-scroll-shadows') &&
+          el.style.top===`${panel.offsetTop+panel.clientTop}px`);
+        return panel.scrollHeight>panel.clientHeight && overlay &&
+          !overlay.querySelector('[data-edge=top]').hidden===top &&
+          !overlay.querySelector('[data-edge=bottom]').hidden===bottom;
+      },{}, {top,bottom});
+      await expectEdges(false,true);
+      await page.mouse.move(point.x,point.y);
+      await page.mouse.wheel({deltaY:10000});
+      await expectEdges(true,false);
+      await page.screenshot({path:'/tmp/atoma-reader-shadows-bottom.png'});
+      await page.mouse.wheel({deltaY:-10000});
+      await expectEdges(false,true);
+      console.log('Reader scroll shadows: native wheel reaches both ends with matching cues and no scrollbar');
       const bounds = await page.$eval('iframe', frame => {
         const rect = frame.getBoundingClientRect();
         return { x: rect.left + 250, y: rect.top + 120 };

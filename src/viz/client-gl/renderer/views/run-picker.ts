@@ -5,7 +5,7 @@ import { sidebarWidthForViewport, GPU_COLORS, GPU_LAYOUT } from '../../theme.js'
 import { buildRunPicker, runsInPickerScope, runPickerTotalsLabel, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT, RUN_PICKER_GROUP_HEIGHT, RUN_PICKER_HEADER_HEIGHT } from '../../run-picker.js';
 import { RUN_STATUS_GLYPH, runIndexStatus } from '../../../client/run-utils.js';
 import { fmtTokenCount } from '../copy.js';
-import { drawScrollbarThumb } from '../scroll-pane.js';
+import { drawScrollShadows } from '../scroll-pane.js';
 import { runsPaneLayout, runsPickerControlLayout, RUN_STATUS_COLOR } from './runs.js';
 import { runAwaitingResults } from '../compute-results-block.js';
 import { COMPUTE_RESULTS_WAITING_GLYPH } from '../../compute-results.js';
@@ -158,7 +158,7 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
   // ONE scrollbar-thumb definition (renderer/scroll-pane.ts) — the popup
   // keeps its 4px-inset track but shares geometry/styling with every other
   // scrollable region. No-ops when runPickerScrollMax is 0.
-  drawScrollbarThumb(ctx.root, {
+  drawScrollShadows(ctx.root, {
     x,
     y: listY + 4,
     width: popupWidth,

@@ -1,5 +1,4 @@
-import { Container, Graphics, Rectangle } from 'pixi.js';
-import { GPU_COLORS } from '../theme.js';
+import { BufferImageSource, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { UI_SCROLL_SHADOW } from '../ui-layout.js';
 import { CAST_SHADOW_MAX_THROW_PX } from './cast-shadow.js';
 
@@ -17,8 +16,7 @@ import { CAST_SHADOW_MAX_THROW_PX } from './cast-shadow.js';
  * still advancing your layout cursor, then `extend(bottomY)` with the full
  * content bottom — the returned max scroll must reflect content that was
  * culled, or the wheel can never reach it. `finish()` also draws the shared
- * scrollbar thumb when content overflows, or directional edge shadows when
- * explicitly requested by navigation, without per-view clipping code.
+ * directional edge shadows when content overflows, without per-view clipping code.
  *
  * SHADOWS AND THE MASK. The mask exists to stop scrolled CONTENT leaking;
  * a surface's cast shadow legitimately reaches past that surface (up to
@@ -45,8 +43,8 @@ export interface ScrollPaneOptions {
   scrollY: number;
   /** Extra space kept below the last content row (default 12). */
   bottomPadding?: number;
-  /** Navigation can advertise hidden destinations with non-interactive edge shadows. */
-  indicator?: 'scrollbar' | 'shadows';
+  /** Panes advertise hidden content with non-interactive edge shadows. */
+  indicator?: 'shadows';
   /** Pane-local horizontal span of edge shadows, including free space around tiles. */
   shadowSpan?: { x: number; width: number };
   /**
@@ -107,19 +105,8 @@ export interface ScrollPane {
 
 const CULL_MARGIN = 48;
 
-/**
- * THE scrollbar-thumb definition, shared by every scrollable region: scroll
- * panes (drawn automatically by `finish()`), the runs event-detail layer and
- * the run-picker popup. `x`/`width` describe the region the bar belongs to —
- * the 3px track hugs its right edge, 8px in, spanning `y` to `y + height`.
- * The thumb length is the region's visible share of the content and its ride
- * follows `scrollY / maxScroll` (clamped: state-owned offsets may overshoot
- * for one frame). No-ops when nothing scrolls, so callers invoke it
- * unconditionally. Geometry/styling are the runs view's original thumb
- * (2026-08-15 review residual: one definition, and Registry/Skills/detail
- * panes had none).
- */
-export interface ScrollbarThumbOptions {
+/** Viewport geometry and state-owned scroll offset for decorative edge cues. */
+export interface ScrollShadowOptions {
   x: number;
   y: number;
   width: number;
@@ -128,61 +115,52 @@ export interface ScrollbarThumbOptions {
   maxScroll: number;
 }
 
-export function scrollbarGeometry(options: ScrollbarThumbOptions) {
-  const thumbHeight = Math.min(options.height, Math.max(28,
-    options.height * options.height / (options.height + options.maxScroll)));
-  const travel = options.height - thumbHeight;
-  const ratio = Math.min(1, Math.max(0, options.scrollY / options.maxScroll));
-  return { thumbHeight, travel, thumbY: options.y + travel * ratio };
+let shadowTexture: Texture | undefined;
+
+/** One tiny immutable texture shared by all panes, including retained timelines. */
+function scrollShadowTexture(): Texture {
+  if (shadowTexture) return shadowTexture;
+  const width = 96;
+  const height = UI_SCROLL_SHADOW.depth;
+  const pixels = new Uint8Array(width * height * 4);
+  for (let row = 0; row < height; row++) {
+    for (let column = 0; column < width; column++) {
+      const offset = (row * width + column) * 4;
+      pixels[offset] = UI_SCROLL_SHADOW.color >> 16;
+      pixels[offset + 1] = (UI_SCROLL_SHADOW.color >> 8) & 255;
+      pixels[offset + 2] = UI_SCROLL_SHADOW.color & 255;
+      pixels[offset + 3] = Math.round(255 * UI_SCROLL_SHADOW.opacity *
+        (1 - row / (height - 1)) ** 2 * Math.sin(Math.PI * column / (width - 1)) ** 2);
+    }
+  }
+  shadowTexture = new Texture({ source: new BufferImageSource({
+    resource: pixels, width, height, alphaMode: 'no-premultiply-alpha', scaleMode: 'linear',
+  }) });
+  return shadowTexture;
 }
 
-/** Metadata remains weak: a view rebuild must not retain old display objects. */
-export const scrollbarOptions = new WeakMap<Container, ScrollbarThumbOptions>();
-
-export function drawScrollbarThumb(parent: Container, options: ScrollbarThumbOptions): void {
-  const { x, y, width, height, maxScroll } = options;
-  if (maxScroll <= 0 || height <= 0) return;
-  const { thumbHeight, thumbY } = scrollbarGeometry(options);
-  const scrollbar = new Graphics();
-  scrollbar.position.set(x + width - 8, y);
-  scrollbar.roundRect(0, 0, 3, height, 2);
-  scrollbar.fill({ color: GPU_COLORS.border, alpha: 0.55 });
-  scrollbar.roundRect(0, thumbY - y, 3, thumbHeight, 2);
-  scrollbar.fill({ color: GPU_COLORS.primary, alpha: 0.9 });
-  scrollbar.label = 'scrollbar-thumb';
-  scrollbar.eventMode = 'static';
-  scrollbar.cursor = 'ns-resize';
-  scrollbar.hitArea = new Rectangle(-6, 0, 14, height);
-  scrollbarOptions.set(scrollbar, options);
-  parent.addChild(scrollbar);
-}
-
-/** Decorative cues only on edges with more content; they never intercept input. */
-export function drawScrollShadows(parent: Container, options: ScrollbarThumbOptions): void {
+/** Decorative cues never intercept input. The updater allocates nothing on scroll. */
+export function drawScrollShadows(parent: Container, options: ScrollShadowOptions): (offset: number) => void {
   const { x, y, width, height, scrollY, maxScroll } = options;
-  if (maxScroll <= 0 || height <= 0 || width <= 0) return;
+  if (maxScroll <= 0 || height <= 0 || width <= 0) return () => {};
   const depth = Math.min(UI_SCROLL_SHADOW.depth, height / 2);
-  const columns = Math.max(3, Math.min(96, Math.ceil(width)));
-  const columnWidth = width / columns;
-  for (const edge of ['top', 'bottom'] as const) {
-    if (edge === 'top' ? scrollY <= 0.5 : scrollY >= maxScroll - 0.5) continue;
-    const shadow = new Graphics();
+  const sprites = (['top', 'bottom'] as const).map(edge => {
+    const shadow = new Sprite(scrollShadowTexture());
     shadow.label = `scroll-shadow-${edge}`;
     shadow.eventMode = 'none';
-    shadow.position.set(x, edge === 'top' ? y : y + height - depth);
-    // Bounded static geometry avoids allocating a gradient texture on scroll.
-    // The horizontal bell is symmetric around the visible icon column, with
-    // transparent sides; the vertical fade still points toward hidden rows.
-    for (let step = 0; step < Math.ceil(depth); step++) {
-      const verticalAlpha = UI_SCROLL_SHADOW.opacity * (1 - step / depth) ** 2;
-      for (let column = 0; column < columns; column++) {
-        const horizontalAlpha = Math.sin(Math.PI * column / (columns - 1)) ** 2;
-        shadow.rect(column * columnWidth, edge === 'top' ? step : depth - step - 1, columnWidth, 1)
-          .fill({ color: UI_SCROLL_SHADOW.color, alpha: verticalAlpha * horizontalAlpha });
-      }
-    }
+    shadow.width = width;
+    shadow.height = depth;
+    shadow.position.set(x, edge === 'top' ? y : y + height);
+    if (edge === 'bottom') shadow.scale.y *= -1;
     parent.addChild(shadow);
-  }
+    return shadow;
+  });
+  const update = (offset: number) => {
+    sprites[0]!.visible = offset > 0.5;
+    sprites[1]!.visible = offset < maxScroll - 0.5;
+  };
+  update(scrollY);
+  return update;
 }
 
 export function createScrollPane(parent: Container, options: ScrollPaneOptions): ScrollPane {
@@ -220,9 +198,8 @@ export function createScrollPane(parent: Container, options: ScrollPaneOptions):
       mask.eventMode = 'none';
       parent.addChild(mask);
       layer.mask = mask;
-      const drawIndicator = options.indicator === 'shadows' ? drawScrollShadows : drawScrollbarThumb;
-      const span = options.indicator === 'shadows' ? options.shadowSpan : undefined;
-      drawIndicator(parent, { x: x + (span?.x ?? 0), y, width: span?.width ?? width, height, scrollY, maxScroll });
+      const span = options.shadowSpan;
+      drawScrollShadows(parent, { x: x + (span?.x ?? 0), y, width: span?.width ?? width, height, scrollY, maxScroll });
       return maxScroll;
     },
   };

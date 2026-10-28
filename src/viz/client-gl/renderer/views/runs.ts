@@ -79,7 +79,7 @@ import {
   truncate,
 } from '../copy.js';
 import { LLM_FAMILY_COLOR, eventKindColor, llmRoleColor } from '../event-palette.js';
-import { createScrollPane, drawScrollbarThumb } from '../scroll-pane.js';
+import { createScrollPane, drawScrollShadows } from '../scroll-pane.js';
 import { prefersReducedMotion } from '../motion.js';
 import { attachLiveAtomaMark } from '../atoma-mark.js';
 import { timelineConnectorGeometry } from '../timeline-rails.js';
@@ -1387,7 +1387,12 @@ export function drawRuns(
     end: `${snapshot.t(runOver ? 'timeline.runEnded' : 'timeline.runUnfinished')} · ${statusLabel}`,
     endColor: statusColor,
   });
+  const moveShadows = drawScrollShadows(timelineControlsLayer, {
+    x: leftX, y: listY, width: leftWidth, height: listHeight,
+    scrollY, maxScroll: ctx.scrollMax.runs,
+  });
   const applyScroll = (offset: number) => {
+    moveShadows(offset);
     const delta = scrollY - offset;
     listLayer.y = delta;
     viewport.scrollY = offset;
@@ -1898,7 +1903,7 @@ function drawEventDetail(
   ctx.detailScrollMax = Math.max(0, contentBottom - detailBottom + 8);
   ctx.detailScrollY = Math.min(ctx.detailScrollY, ctx.detailScrollMax);
   layer.position.y = -ctx.detailScrollY;
-  drawScrollbarThumb(ctx.root, { x, y: detailTop, width, height: detailHeight,
+  drawScrollShadows(ctx.root, { x, y: detailTop, width, height: detailHeight,
     scrollY: ctx.detailScrollY, maxScroll: ctx.detailScrollMax });
 }
 
@@ -1988,7 +1993,7 @@ function drawTechnicalEventDetail(
     ctx.detailScrollMax = Math.max(0, contentBottom - detailBottom + 8);
     ctx.detailScrollY = Math.min(ctx.detailScrollY, ctx.detailScrollMax);
     detailLayer.position.y = -ctx.detailScrollY;
-    drawScrollbarThumb(ctx.root, {
+    drawScrollShadows(ctx.root, {
       x,
       y: detailTop,
       width,
@@ -2043,7 +2048,7 @@ function drawTechnicalEventDetail(
     ctx.detailScrollMax = Math.max(0, contentBottom - detailBottom + 8);
     ctx.detailScrollY = Math.min(ctx.detailScrollY, ctx.detailScrollMax);
     startLayer.position.y = -ctx.detailScrollY;
-    drawScrollbarThumb(ctx.root, {
+    drawScrollShadows(ctx.root, {
       x,
       y: detailTop,
       width,
@@ -2137,7 +2142,7 @@ function drawTechnicalEventDetail(
     ctx.detailScrollMax = Math.max(0, cursor - contextBottom + 8);
     ctx.detailScrollY = Math.min(ctx.detailScrollY, ctx.detailScrollMax);
     contextLayer.position.y = -ctx.detailScrollY;
-    drawScrollbarThumb(ctx.root, {
+    drawScrollShadows(ctx.root, {
       x,
       y: contextTop,
       width,
@@ -2221,7 +2226,7 @@ function drawTechnicalEventDetail(
   ctx.detailScrollMax = Math.max(0, contentBottom - detailBottom + 8);
   ctx.detailScrollY = Math.min(ctx.detailScrollY, ctx.detailScrollMax);
   detailLayer.position.y = -ctx.detailScrollY;
-  drawScrollbarThumb(ctx.root, {
+  drawScrollShadows(ctx.root, {
     x,
     y: detailTop,
     width,

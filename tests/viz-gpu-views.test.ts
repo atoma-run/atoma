@@ -966,11 +966,12 @@ function containersWithMask(root: Container): Container[] {
   return found;
 }
 
-/** The shared thumb (scroll-pane.ts) labels its Graphics; count them. */
-function scrollbarThumbs(root: Container): Container[] {
+/** Each overflowing pane owns one pair of non-interactive directional cues. */
+function overflowPanes(root: Container): Container[] {
   const found: Container[] = [];
   const walk = (node: Container) => {
-    if (node.label === 'scrollbar-thumb') found.push(node);
+    expect(node.label).not.toBe('scrollbar-thumb');
+    if (node.label === 'scroll-shadow-bottom') found.push(node);
     for (const child of node.children) {
       if (child instanceof Container) walk(child);
     }
@@ -1496,11 +1497,11 @@ describe('the nav rail', () => {
         const ctx = createRecordingCtx();
         ctx.sidebarScrollY = offset;
         drawSidebar(ctx, snapshot, 600, width, 400, 80);
-        expect(scrollbarThumbs(ctx.root)).toHaveLength(0);
+        expect(overflowPanes(ctx.root)).toHaveLength(1);
         for (const [edge, visible] of [['top', top], ['bottom', bottom]] as const) {
           const shadow = ctx.root.getChildByLabel(`scroll-shadow-${edge}`);
-          expect(!!shadow).toBe(visible);
-          if (shadow) {
+          expect(shadow?.visible ?? false).toBe(visible);
+          if (shadow?.visible) {
             expect(shadow.eventMode).toBe('none');
             const bounds = shadow.getBounds();
             if (mode === 'focus' || width < GPU_LAYOUT.sidebarMinWidth) {
@@ -3707,7 +3708,7 @@ describe('drawProjects', () => {
       const lane = (tip as { lane?: { x: number; width: number } }).lane;
       return lane?.x === aside.asideX && lane.width === aside.asideWidth;
     })).toBe(true);
-    // Content keeps clear of the pane's scrollbar (drawn 8px inside its right edge).
+    // Content keeps clear of the pane's right edge.
     const columnTexts = compact.texts.filter(text => text.parent !== compact.root &&
       text.parent.toGlobal({ x: text.x, y: 0 }).x >= aside.asideX);
     for (const text of columnTexts) {
@@ -5172,7 +5173,7 @@ describe('drawRegistry scrolling honesty', () => {
     expect(containersWithMask(ctx.root).length).toBeGreaterThan(0);
   });
 
-  it('draws the shared scrollbar thumb only when a pane overflows', () => {
+  it('draws paired edge cues only when a pane overflows', () => {
     const overflowing = createRecordingCtx();
     drawRegistry(overflowing, makeSnapshot({ view: 'registry' }, data), WIDTH, HEIGHT);
     // BOTH panes overflow at this height: the tier list, and the detail pane —
@@ -5180,7 +5181,7 @@ describe('drawRegistry scrolling honesty', () => {
     // not the prompt alone.
     expect(overflowing.scrollMax.registry).toBeGreaterThan(0);
     expect(overflowing.detailScrollMax).toBeGreaterThan(0);
-    expect(scrollbarThumbs(overflowing.root).length).toBe(2);
+    expect(overflowPanes(overflowing.root).length).toBe(2);
 
     const fitting = createRecordingCtx();
     drawRegistry(
@@ -5196,7 +5197,7 @@ describe('drawRegistry scrolling honesty', () => {
       900
     );
     expect(fitting.scrollMax.registry).toBe(0);
-    expect(scrollbarThumbs(fitting.root).length).toBe(0);
+    expect(overflowPanes(fitting.root).length).toBe(0);
   });
 
   it('names every section of the agent detail, not just its prompt', () => {
@@ -5309,8 +5310,8 @@ describe('drawRegistry scrolling honesty', () => {
     expect(ctx.texts.map((text) => text.value)).toContain(
       'Preview limited to 5000 of 5001 characters.'
     );
-    // One atom fits the list, so the only thumb is the detail pane's.
-    expect(scrollbarThumbs(ctx.root).length).toBe(1);
+    // One atom fits the list, so the only edge-cue pair is the detail pane's.
+    expect(overflowPanes(ctx.root).length).toBe(1);
   });
 
   it('shows the ordinary single store as named information, not an action', () => {
@@ -5431,8 +5432,8 @@ describe('drawSkills scrolling honesty and search', () => {
     drawSkills(ctx, makeSnapshot({ view: 'skills' }, data), WIDTH, HEIGHT);
     expect(ctx.scrollMax.skills).toBeGreaterThan(0);
     expect(containersWithMask(ctx.root).length).toBeGreaterThan(0);
-    // The overflowing namespace list advertises itself with the shared thumb.
-    expect(scrollbarThumbs(ctx.root).length).toBe(1);
+    // The overflowing namespace list advertises itself with the shared edge cues.
+    expect(overflowPanes(ctx.root).length).toBe(1);
   });
 
   it('scrolls a long skill body inside the masked detail pane', () => {
@@ -5452,8 +5453,8 @@ describe('drawSkills scrolling honesty and search', () => {
     expect(ctx.detailBounds).not.toBeNull();
     expect(ctx.detailBounds!.x).toBe(rightX);
     expect(ctx.detailBounds!.width).toBe(WIDTH - rightX - 10);
-    // Both the overflowing list and the long body get the shared thumb.
-    expect(scrollbarThumbs(ctx.root).length).toBe(2);
+    // Both the overflowing list and the long body get the shared edge cues.
+    expect(overflowPanes(ctx.root).length).toBe(2);
   });
 
   it('says a selected recipe could not be read, instead of "select a skill"', () => {
@@ -5624,7 +5625,7 @@ describe('drawBurnin scroll, pagination and lifecycle columns', () => {
     const content = masked[0]!.children[0] as Container;
     expect(content.position.y).toBe(-SCROLL);
     expect(ctx.scrollMax.burnin).toBeGreaterThan(0);
-    expect(scrollbarThumbs(ctx.root).length).toBe(1);
+    expect(overflowPanes(ctx.root).length).toBe(1);
     // The pager never scrolls: viewport coordinates regardless of the wheel.
     const next = ctx.buttons.find((button) => button.id === 'burnin.page.next');
     expect(next).toBeDefined();
@@ -5632,10 +5633,10 @@ describe('drawBurnin scroll, pagination and lifecycle columns', () => {
     const pageLabel = ctx.texts.find((text) => /^\d+\/\d+$/.test(text.value));
     expect(pageLabel).toBeDefined();
     expect(pageLabel!.y).toBe(HEIGHT - 26);
-    // A tall window has nothing to scroll and therefore no thumb.
+    // A tall window has nothing to scroll and therefore no edge cues.
     const tall = createRecordingCtx();
     drawBurnin(tall, makeSnapshot({ view: 'burnin' }, data), WIDTH, 1400);
-    expect(scrollbarThumbs(tall.root).length).toBe(0);
+    expect(overflowPanes(tall.root).length).toBe(0);
   });
 
   it('draws the same widgets under reduced motion', () => {
@@ -7234,8 +7235,8 @@ describe('drawRuns behavior', () => {
     expect(ctx.detailScrollMax).toBeGreaterThan(0);
     expect(ctx.detailBounds).not.toBeNull();
     expect(ctx.detailBounds!.x).toBeGreaterThan(WIDTH / 2);
-    // The overflowing detail draws the shared scrollbar thumb.
-    expect(scrollbarThumbs(ctx.root).length).toBe(1);
+    // The overflowing detail draws the shared edge cues.
+    expect(overflowPanes(ctx.root).length).toBe(1);
   });
 
   it('hands vanished role filters to the exit transition', () => {
@@ -7538,7 +7539,7 @@ describe('drawRuns — run status and timeline bookends', () => {
     expect(start.runGoalBounds!.height).toBeLessThanOrEqual(240);
     expect(start.runGoalBounds!.y + start.runGoalBounds!.height).toBeLessThan(HEIGHT);
     expect(start.texts.filter(entry => entry.value === description)).toHaveLength(1);
-    expect(scrollbarThumbs(start.root).length).toBeGreaterThan(0);
+    expect(overflowPanes(start.root).length).toBeGreaterThan(0);
     expect(findByLabel(start.root, 'run-goal-content')!.parent!.mask).toBeTruthy();
     expect(start.detailBounds!.y).toBeGreaterThan(start.runGoalBounds!.y + start.runGoalBounds!.height);
     expect(start.detailBounds!.height).toBeGreaterThan(0);
@@ -8590,7 +8591,7 @@ describe('drawRuns — paired detail fields', () => {
     );
     expect(ctx.detailBounds).not.toBeNull();
     expect(ctx.detailScrollMax).toBeGreaterThan(0);
-    expect(scrollbarThumbs(ctx.root).length).toBe(1);
+    expect(overflowPanes(ctx.root).length).toBe(1);
     // ONE rectangle over the whole pane viewport, never one per column.
     expect(ctx.detailBounds!.width).toBeGreaterThan(detailColumnWidth(ctx.detailBounds!.width) * 2 - 1);
   });

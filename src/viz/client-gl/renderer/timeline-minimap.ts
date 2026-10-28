@@ -4,7 +4,7 @@ import type { GpuRenderSnapshot, RendererCtx, GpuHitTarget } from '../gpu-render
 import { timelineItemHolds, type TimelineLayout } from '../../client/timeline-layout.js';
 import { GPU_COLORS } from '../theme.js';
 import { eventAccent, timelineItemCardCopy } from './copy.js';
-import { createScrollPane } from './scroll-pane.js';
+import { createScrollPane, drawScrollShadows } from './scroll-pane.js';
 import { prefersReducedMotion } from './motion.js';
 import type { TooltipRegion } from './tooltip.js';
 
@@ -112,6 +112,10 @@ export function drawTimelineMinimap(
     });
     return { hit, target, tooltip, color: GPU_COLORS.primary, row: -1 };
   });
+  const moveShadows = drawScrollShadows(layer, {
+    x: 0, y: 0, width: TIMELINE_MINIMAP_WIDTH, height,
+    scrollY: railOffset, maxScroll: maxFirst * PITCH,
+  });
   function redraw() {
     position.position = railOffset / PITCH;
     ink.clear();
@@ -153,12 +157,7 @@ export function drawTimelineMinimap(
         .stroke({ color: slot.color, width: selected || distance === 0 ? 2 : 1.5,
           alpha: (visible || distance < 3 || selected ? 0.95 : 0.45) * fade });
     });
-    // Position within the complete index, including rows outside this window.
-    if (maxFirst > 0) {
-      const thumbHeight = Math.max(8, height * tickCount / totalRows);
-      ink.roundRect(33, railOffset / PITCH / maxFirst * (height - thumbHeight), 2, thumbHeight, 1)
-        .fill({ color: GPU_COLORS.muted, alpha: 0.5 });
-    }
+    moveShadows(railOffset);
   }
   pane.extend(height);
   pane.finish();

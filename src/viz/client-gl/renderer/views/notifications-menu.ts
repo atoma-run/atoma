@@ -3,7 +3,7 @@ import type { VizNotification } from '../../../client/types.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { truncate } from '../copy.js';
-import { drawScrollbarThumb } from '../scroll-pane.js';
+import { drawScrollShadows } from '../scroll-pane.js';
 import { SEVERITY_COLORS } from './journal-row.js';
 import { timestampTooltip } from '../relative-time.js';
 import { anchoredMenuPosition, type LocaleMenuAnchor } from './locale-menu.js';
@@ -311,7 +311,7 @@ export function drawNotificationsMenu(
       }
       drawNotificationRow(ctx, listLayer, snapshot, notification, row, viewer, innerX, rowY, innerWidth);
     }
-    drawScrollbarThumb(ctx.root, {
+    drawScrollShadows(ctx.root, {
       x: layout.x,
       y: layout.list.y + 4,
       width: layout.width,

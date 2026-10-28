@@ -1,3 +1,4 @@
+import { installScrollShadows } from './scroll-shadows.js';
 import { UI_CSS_VARS } from './ui-layout.js';
 import { useProjectCompute } from './project-compute.js';
 import { hostedUpdateOffer, useProjectDeployment } from './project-deployment.js';
@@ -159,6 +160,7 @@ function GpuAppContent({
 }: {
   t: (key: string, vars?: Record<string, unknown>) => string;
 }) {
+  useEffect(() => installScrollShadows(document), []);
   const state = useGpuStore();
   const queryClient = useQueryClient();
   const {

@@ -1,5 +1,4 @@
 import { readableTextColor } from './text-contrast.js';
-import { ScrollbarInteraction } from './renderer/scrollbar-interaction.js';
 import { buildTimelineLayout } from '../client/timeline-layout.js';
 import { coerceEventFilters } from '../client/run-utils.js';
 import { anchoredTimelineScroll } from './renderer/timeline-scroll.js';
@@ -927,7 +926,6 @@ export class GpuRenderer {
     };
   }
 
-  private scrollbarInteraction: ScrollbarInteraction | null = null;
 
   private readonly wheel = (event: WheelEvent) => {
     if (!this.snapshot) return;
@@ -1608,11 +1606,6 @@ export class GpuRenderer {
     };
     // eslint-disable-next-line @typescript-eslint/unbound-method -- The ticker supplies the Application context.
     this.app.ticker.add(this.app.render, this.app, UPDATE_PRIORITY.LOW);
-    this.scrollbarInteraction = new ScrollbarInteraction(
-      this.stage, window,
-      (x, y) => this.clientToRendererPosition(x, y),
-      (x, y, delta) => this.scrollAt(x, y, delta, false)
-    );
     this.app.canvas.addEventListener('wheel', this.wheel, { passive: false });
     // Touch scrolling reads the browser's pan; it never cancels it (passive).
     this.app.canvas.addEventListener('touchstart', this.touchStart, { passive: true });
@@ -1715,8 +1708,6 @@ export class GpuRenderer {
     this.relativeTimes.stop();
     this.relativeTimes.clear();
     this.snapshot = null;
-    this.scrollbarInteraction?.destroy();
-    this.scrollbarInteraction = null;
     this.pendingSnapshot = null;
     this.dropDeferredRefresh();
     this.onDeferredRender = null;

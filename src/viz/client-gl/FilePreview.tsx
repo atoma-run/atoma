@@ -1,3 +1,4 @@
+import { installScrollShadows } from './scroll-shadows.js';
 import type { FilePreviewTarget } from './workspace-browser.js';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { FileViewer } from '@open-file-viewer/core';
@@ -70,6 +71,7 @@ export function FilePreview({ target, t, locale, onClose, docked }: {
     if (!documentReady) return;
     const controller = new AbortController();
     let viewer: FileViewer | undefined;
+    let removeShadows: (() => void) | undefined;
     let viewerStyle: HTMLStyleElement | undefined;
     let url: string | undefined;
     let failureStatus = 'workspace.unavailable';
@@ -95,6 +97,7 @@ export function FilePreview({ target, t, locale, onClose, docked }: {
       viewerStyle = style;
       style.textContent = `${styles}\n${mapStyles}`;
       doc.head.append(style);
+      removeShadows = installScrollShadows(doc, '[class^="ofv-"], [class*=" ofv-"]');
       const translations = filePreviewTranslations(t);
       viewer = library.createViewer({ container, file: bytes, fileName: target.path, height: '100%',
         theme: 'dark', locale: locale === 'zh' ? 'zh-CN' : 'en-US',
@@ -117,7 +120,7 @@ export function FilePreview({ target, t, locale, onClose, docked }: {
         setStatus(failureStatus);
       }
     });
-    return () => { controller.abort(); viewer?.destroy(); viewerStyle?.remove(); if (url) URL.revokeObjectURL(url); };
+    return () => { controller.abort(); removeShadows?.(); viewer?.destroy(); viewerStyle?.remove(); if (url) URL.revokeObjectURL(url); };
   }, [target, t, locale, documentReady]);
   const plane = <section className="gpu-preview-plane" role={docked ? 'region' : 'dialog'} aria-modal={docked ? undefined : true}
     aria-label={t('workspace.preview')} onKeyDown={docked ? event => { if (event.key === 'Escape') onClose(); } : undefined}>

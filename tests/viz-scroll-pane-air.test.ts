@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
 import {
   createScrollPane,
@@ -50,18 +50,16 @@ describe('scroll edge shadow fade', () => {
     const parent = new Container();
     drawScrollShadows(parent, { x: 10, y: 20, width: 5, height: 40, scrollY: 10, maxScroll: 20 });
     for (const edge of ['top', 'bottom']) {
-      const shadow = parent.getChildByLabel(`scroll-shadow-${edge}`) as Graphics;
-      const alphas = shadow.context.instructions.flatMap(instruction => {
-        const style = instruction.data.style;
-        return instruction.action === 'fill' && typeof style === 'object' ? [style.alpha ?? 0] : [];
-      });
-      const alpha = alphas.slice(0, 5);
-      expect(alpha[0]).toBe(0);
-      expect(alpha[4]).toBeCloseTo(0);
-      expect(alpha[1]).toBeCloseTo(alpha[3]!);
-      expect(alpha[2]).toBeGreaterThan(alpha[1]!);
-      expect(alpha[2]).toBeCloseTo(0.72);
-      expect(alphas.at(-3)).toBeLessThan(alpha[2]!);
+      const shadow = parent.getChildByLabel(`scroll-shadow-${edge}`) as Sprite;
+      const pixels = shadow.texture.source.resource as Uint8Array;
+      const width = shadow.texture.width;
+      const alpha = (x: number, y = 0) => pixels[(y * width + x) * 4 + 3]!;
+      expect(alpha(0)).toBe(0);
+      expect(alpha(width - 1)).toBe(0);
+      expect(alpha(20)).toBe(alpha(width - 21));
+      expect(alpha(48)).toBeGreaterThan(alpha(20));
+      expect(alpha(48)).toBeCloseTo(255 * 0.72, 0);
+      expect(alpha(48, shadow.texture.height - 1)).toBe(0);
       expect(shadow.eventMode).toBe('none');
       expect(shadow.getBounds().width).toBe(5);
     }
@@ -75,9 +73,29 @@ describe('scroll edge shadow fade', () => {
     });
     pane.extend(300);
     pane.finish();
-    const shadow = parent.getChildByLabel('scroll-shadow-bottom') as Graphics;
+    const shadow = parent.getChildByLabel('scroll-shadow-bottom') as Sprite;
     expect(shadow.x).toBe(256);
-    expect(shadow.getLocalBounds().width).toBe(60);
+    expect(shadow.width).toBe(60);
     expect((pane.content.parent!.mask as Graphics).getLocalBounds().width).toBe(218);
   });
+  it('updates retained edges without allocating and keeps the texture alive across scene rebuilds', () => {
+    const root = new Container();
+    const update = drawScrollShadows(root, { ...rect, maxScroll: 500, scrollY: 0 });
+    const [top, bottom] = root.children as Sprite[];
+    expect([top!.visible, bottom!.visible]).toEqual([false, true]);
+    update(250);
+    expect([top!.visible, bottom!.visible]).toEqual([true, true]);
+    update(600);
+    expect([top!.visible, bottom!.visible]).toEqual([true, false]);
+    const texture = top!.texture;
+    root.destroy({ children: true, context: true });
+    const next = new Container();
+    drawScrollShadows(next, { ...rect, maxScroll: 500, scrollY: 0 });
+    expect((next.children[0] as Sprite).texture).toBe(texture);
+    expect(texture.destroyed).toBe(false);
+    const fitting = new Container();
+    drawScrollShadows(fitting, { ...rect, maxScroll: 0, scrollY: 0 });
+    expect(fitting.children).toHaveLength(0);
+  });
+
 });
