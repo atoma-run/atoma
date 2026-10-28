@@ -40,9 +40,22 @@ Do not click the native OAuth Connect action again to repair this connection.
 An expired or uncertain helper grant instead requires the helper's own `login`.
 Never print `headers` output to diagnose either case.
 
+Codex currently terminates an HTTP-header helper after ten seconds, independently
+of the server's startup timeout. The helper therefore runs its single renewal
+owner in a detached process, with client stdin/stdout/stderr closed and a private
+pipe back to the waiting caller. Killing the caller or its process group does
+not interrupt a token exchange or its Keychain persistence. A later connection
+reads the persisted winner. The worker has a 75-second overall deadline and
+Keychain operations have five-second limits. A genuinely lost response or dead
+worker still requires a reconnect; it is never repaired by replaying a token.
+An explicit HTTP 503 `temporarily_unavailable` from `/oauth/token` is the one
+retryable exception: Atoma's deployment gate refuses it before token consumption,
+so the helper retains the unused refresh token for the next connection. A
+malformed response, arbitrary 5xx or network timeout cannot take this path.
+
 The helper takes an OS file lock and **rereads Keychain state after acquiring
 it**. Only an expiring access token triggers a refresh. It persists a renewing
-marker before the request: after a crash, timeout, rejected grant, malformed
+marker before the request: after a renewal-worker crash, timeout, rejected grant, malformed
 response or failed persistence, it fails closed and requires a new login rather
 than replaying a potentially consumed credential. It neither retries a token
 exchange nor follows a redirect at a credential endpoint. It never silently
@@ -52,7 +65,10 @@ a deliberate reconnect.
 Verify the helper with `python3 tests/test_atoma_codex_auth.py` (also invoked by
 the Vitest suite when Python and POSIX locks are available). Tests use fake
 credentials only and exercise concurrent processes, process death, uncertain
-responses, expired/revoked grants, private locking and endpoint redirects.
+responses, expired/revoked grants, private locking and endpoint redirects. The client-death regression kills an actual process
+group after a local token endpoint receives the request, lets the detached
+owner persist its response, then checks ordinary CLI headers and that no second
+refresh occurs.
 A native-client integration check must additionally prove that the installed
 Codex version reruns the helper after a 401 and discovers the tools with the
 updated header. Do not assume configuration parsing proves this behavior.

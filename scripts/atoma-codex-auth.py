@@ -10,10 +10,12 @@ import json
 import os
 from pathlib import Path
 import secrets
+import signal
 import stat
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -25,6 +27,10 @@ STATE_DIR = Path.home() / '.atoma' / 'codex-auth'
 
 
 class AuthError(Exception):
+    pass
+
+
+class TemporarilyUnavailable(AuthError):
     pass
 
 
@@ -44,6 +50,18 @@ def post(path, data, registration=False):
             if len(raw) > 65536:
                 raise AuthError('OAuth response exceeds limit')
             return json.loads(raw)
+    except urllib.error.HTTPError as error:
+        # The deployment gate rejects this request before the token handler runs.
+        # Other HTTP failures may follow consumption and remain uncertain.
+        if path == '/oauth/token' and error.code == 503:
+            try:
+                raw = error.read(65537)
+                value = json.loads(raw) if len(raw) <= 65536 else None
+            except Exception:
+                value = None
+            if isinstance(value, dict) and value.get('error') == 'temporarily_unavailable':
+                raise TemporarilyUnavailable('Atoma is temporarily unavailable; retry shortly') from None
+        raise AuthError('OAuth request failed; reconnect if renewal state is uncertain') from None
     except Exception:
         # Never echo a request, response, code, or token through diagnostics.
         raise AuthError('OAuth request failed; reconnect if renewal state is uncertain') from None
@@ -52,7 +70,7 @@ def post(path, data, registration=False):
 class Keychain:
     def load(self):
         result = subprocess.run(['/usr/bin/security', 'find-generic-password', '-s', SERVICE,
-                                 '-a', ACCOUNT, '-w'], capture_output=True)
+                                 '-a', ACCOUNT, '-w'], capture_output=True, timeout=5)
         if result.returncode:
             raise AuthError('OAuth credentials unavailable in macOS Keychain; run login')
         try:
@@ -64,7 +82,7 @@ class Keychain:
         encoded = base64.b64encode(json.dumps(value).encode()).decode()
         # Feed the password on stdin, never in process arguments or shell history.
         command = 'add-generic-password -U -s ' + SERVICE + ' -a ' + ACCOUNT + ' -w ' + encoded + '\n'
-        result = subprocess.run(['/usr/bin/security', '-i'], input=command.encode(), capture_output=True)
+        result = subprocess.run(['/usr/bin/security', '-i'], input=command.encode(), capture_output=True, timeout=5)
         if result.returncode:
             raise AuthError('Unable to persist OAuth state in macOS Keychain')
         if self.load() != value:
@@ -118,12 +136,71 @@ def headers(store, directory=STATE_DIR, exchange=post, now=time.time):
         if state['expires_at'] <= now() + 30:
             # Crash/lost response cannot lead another process to replay the old refresh token.
             store.save({**state, 'phase': 'renewing'})
-            tokens = exchange('/oauth/token', {'grant_type': 'refresh_token',
-                'client_id': state['client_id'], 'resource': RESOURCE,
-                'refresh_token': state['refresh_token']})
+            try:
+                tokens = exchange('/oauth/token', {'grant_type': 'refresh_token',
+                    'client_id': state['client_id'], 'resource': RESOURCE,
+                    'refresh_token': state['refresh_token']})
+            except TemporarilyUnavailable:
+                store.save(state)  # Explicit pre-consumption refusal; the refresh remains unused.
+                raise
             state = token_state(state['client_id'], tokens, now())
             store.save(state)
         return {'Authorization': 'Bearer ' + state['access_token']}
+
+
+def managed_headers(store, directory=STATE_DIR, exchange=post, deadline_seconds=75):
+    """Keep the locked refresh owner alive beyond Codex's ten-second helper deadline."""
+    read_fd, write_fd = os.pipe()
+    try:
+        pid = os.fork()
+    except BaseException:
+        os.close(read_fd)
+        os.close(write_fd)
+        raise
+    if pid == 0:
+        # Detach before locking or touching credentials. No inherited client pipe
+        # remains open; a killed client cannot kill or wait on the renewal owner.
+        try:
+            os.close(read_fd)
+            os.setsid()
+            null = os.open(os.devnull, os.O_RDWR)
+            for descriptor in (0, 1, 2):
+                os.dup2(null, descriptor)
+            if null > 2:
+                os.close(null)
+            def deadline(_signal, _frame):
+                raise AuthError('OAuth renewal deadline exceeded')
+            signal.signal(signal.SIGALRM, deadline)
+            signal.alarm(deadline_seconds)  # Includes lock wait, network and bounded Keychain operations.
+            result = headers(store, directory, exchange)
+            payload = json.dumps(result).encode()
+            if len(payload) > 4096:
+                raise AuthError('OAuth helper response exceeds limit')
+            try:
+                os.write(write_fd, payload)
+            except BrokenPipeError:
+                pass  # Persistence succeeded; the client can read it on its next connection.
+            code = 0
+        except TemporarilyUnavailable:
+            code = 75
+        except BaseException:
+            code = 1
+        finally:
+            os.close(write_fd)
+        os._exit(code)
+    os.close(write_fd)
+    try:
+        _pid, status = os.waitpid(pid, 0)
+        if os.WIFEXITED(status) and os.WEXITSTATUS(status) == 75:
+            raise TemporarilyUnavailable('Atoma is temporarily unavailable; OAuth credentials retained; retry shortly')
+        if not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
+            raise AuthError('OAuth renewal failed; inspect helper status before reconnecting')
+        result = json.loads(os.read(read_fd, 4097))
+        if not isinstance(result, dict) or set(result) != {'Authorization'} or not isinstance(result['Authorization'], str):
+            raise AuthError('Invalid OAuth helper response')
+        return result
+    finally:
+        os.close(read_fd)
 
 
 def login(store):
@@ -186,7 +263,7 @@ def main():
     store = Keychain()
     try:
         if args.action == 'headers':
-            print(json.dumps(headers(store)))
+            print(json.dumps(managed_headers(store)))
         elif args.action == 'login':
             login(store)
         else:

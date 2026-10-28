@@ -350,3 +350,46 @@ check skips unreachable launcher. Owner did both actions the classifier refused 
 restarted 06:25:57 UTC on e762e3c1; deployment 19ce1bb6 of b26c9bed (commit 18d34c6) READY
 06:31 UTC, addresses pinned (app .2, proxy .3, relay .4 of 10.210.1.0/24), relay upstream =
 app, HTTP 200. Old 7d52d539 stopped. Chrome "JS from Apple Events" left OFF. Next: product run.
+
+
+## Codex helper deadline correction — 2026-10-28
+
+The owner reports repeated Codex reconnects while Claude Code works. The desktop
+log at 05:23:07.078Z explicitly kills the HTTP header helper after ten seconds;
+nginx records its /oauth/token request as 499 at that instant. The helper's
+network timeout was 15 seconds. Read-only comparison of the local refresh hash
+with the primary production store proves it was consumed, its access replaced,
+and server access expiry became 06:23:11.715Z: rotation completed about 4.6 s
+AFTER client cancellation, leaving the new credentials irretrievably unsaved.
+The old grant is not revoked, but must not be refreshed with the consumed token.
+No token/hash was printed. Native Codex grants were also recreated after the
+helper installation and repeatedly revoked for reuse, an independent competing
+credential source; no active connection or native credential was removed here.
+
+The CLI helper now forks a detached renewal owner before locking, redirects all
+client stdio, and sends only persisted headers over a private bounded pipe.
+Client/group death cannot interrupt refresh persistence. Overall deadline75s
+raises through subprocess cleanup; Keychain subprocesses have5s limits, so a
+late writer cannot outlive the lock. Only the existing pre-consumption503
+`temporarily_unavailable` from /oauth/token restores the unused ready state;
+lost/unknown responses and worker death still fail closed. Server policy is
+unchanged: rotation, replay revocation, one-hour access and30-day grant expiry.
+
+Fifteen fake-credential regressions pass:12 concurrent managed clients/one
+exchange, actual HTTP plus group kill, ordinary output, worker death, explicit
+503 classification and delayed Keychain write under the worker deadline.
+Native Codex0.156.1 app-server integration (all real MCP/plugin connections
+turned off ONLY in that temporary process) uses a11.5s token fixture: initial
+connection reports the actual10s helper timeout; detached owner persists; the
+next native connection discovers fixture_read in0.08s with exactly one refresh.
+No model request or real OAuth credential was used. Temporary proof runner:
+/tmp/atoma-codex-deadline-integration.py; results under
+/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-codex-deadline-mw3rsjrh.
+The second native fixture also expires access before tools/list and returns401:
+Codex reruns the helper, obtains changed headers, and discovers the tools, with
+two sequential (not replayed) refreshes. Full release:check passed8,517 tests.
+The private installed helper was atomically replaced after checking it matched
+the old tracked source; a code-only0700 backup was retained. CLI atoma reports
+unknown auth status (helper), so no competing native credential was removed.
+One helper login was started because the old refresh was proven consumed;
+final browser consent and live discovery are still pending at this writing.
