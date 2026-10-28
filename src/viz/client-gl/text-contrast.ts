@@ -44,17 +44,20 @@ export function textContrast(foreground: number, background: number, theme: Appe
 const cache = new Map<string, number>();
 /** Text alone yields towards white before the filter (towards dark in Snow).
  * The original semantic hue, surfaces, crystal and materials remain intact.
- * Cache per color/theme: this runs on style creation, never on a GPU frame.
+ * A supplied badge fill chooses the readable dark or light endpoint instead.
+ * Cache per color/theme/background: style creation only, never a GPU frame.
  */
-export function readableTextColor(color: number, theme: AppearanceTheme): number {
-  const key = `${theme}:${color}`;
+export function readableTextColor(color: number, theme: AppearanceTheme, background?: number): number {
+  const key = `${theme}:${color}:${background ?? 'panels'}`;
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
-  const backgrounds = [GPU_COLORS.panel, GPU_COLORS.panelRaised, GPU_COLORS.panelHover];
+  const backgrounds = background === undefined ? [GPU_COLORS.panel, GPU_COLORS.panelRaised, GPU_COLORS.panelHover] : [background];
+  const target = background === undefined || textContrast(0xffffff, background, theme) >= textContrast(0x000000, background, theme)
+    ? 1 : 0;
   let adjusted = color;
   for (let step = 0; step <= 20; step++) {
     const amount = step / 20;
-    const channels = rgb(color).map(channel => Math.round((channel + (1 - channel) * amount) * 255));
+    const channels = rgb(color).map(channel => Math.round((channel + (target - channel) * amount) * 255));
     adjusted = (channels[0]! << 16) | (channels[1]! << 8) | channels[2]!;
     if (backgrounds.every(background => textContrast(adjusted, background, theme) >= 5)) break;
   }

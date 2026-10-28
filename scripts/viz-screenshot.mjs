@@ -37,6 +37,7 @@
  *   --assistant-model-probe Change model and prove retention across reload.
  *   --assistant-links-probe Verify compact receipt buttons and their destinations
  *                        (with --auth --select-first --url <frontend URL>).
+ *   --project-hosted-run-probe Click the hosted run, reveal it and check its pulse/reduced motion.
  *   --project-run-numbers Numbered history with an older run currently hosted.
  *   --project-run-cards  Running and paused cards in the selected project Runs tab.
  *   --project-tabs-probe Switch between Conversation and Runs, preserving a draft
@@ -1012,16 +1013,16 @@ try {
       const seed = stubs[path][0];
       const rows = Array.from({ length: 183 }, (_, index) => ({ ...seed,
         projectRunId: `11111111-1111-4111-8111-${String(index + 1).padStart(12, '0')}`,
-        title: index === 0 ? 'Latest delivered improvements' : index === 1 ? 'Version currently serving visitors' : `Application iteration ${183 - index}`,
-        status: 'delivered', createdAt: new Date(Date.UTC(2026, 9, 28, 12) - index * 3600000).toISOString(),
+        title: index === 0 ? 'Latest delivered improvements' : index === 25 ? 'Version currently serving visitors' : `Application iteration ${183 - index}`,
+        traceId: `numbered-run-${index}`, status: 'delivered', createdAt: new Date(Date.UTC(2026, 9, 28, 12) - index * 3600000).toISOString(),
       }));
       stubs[path] = rows;
       const url = 'https://weather.app.atoma.run/';
       Object.assign(project, { hostedUrl: url, runCount: rows.length, deploymentDestination: 'atoma' });
       stubs[`/api/projects/${project.projectId}/hosting`] = {
         available: true, state: 'ready', deploymentId: '22222222-2222-4222-8222-222222222222',
-        runId: rows[1].projectRunId, commitSha: 'a'.repeat(40), url, address: url, error: null,
-        version: { runId: rows[1].projectRunId, commitSha: 'a'.repeat(40), title: rows[1].title, acceptedAt: rows[1].createdAt },
+        runId: rows[25].projectRunId, commitSha: 'a'.repeat(40), url, address: url, error: null,
+        version: { runId: rows[25].projectRunId, commitSha: 'a'.repeat(40), title: rows[25].title, acceptedAt: rows[25].createdAt },
         candidate: null, previous: null, updateStops: true, failed: null,
       };
     }
@@ -2159,6 +2160,42 @@ try {
         await page.mouse.click(point.x, point.y);
         await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 400)));
       }
+    }
+    if (has('--project-hosted-run-probe')) {
+      if (!has('--project-run-numbers')) throw new Error('--project-hosted-run-probe needs --project-run-numbers');
+      const project = stubs['/api/projects'][0];
+      const id = `project.hostedRun.${project.projectId}`;
+      await page.waitForFunction(id => globalThis.__ATOMA_GPU__?.hitTargets().some(target => target.id === id), {}, id);
+      const point = await page.evaluate(id => {
+        const handle = globalThis.__ATOMA_GPU__;
+        const target = handle.hitTargets().find(target => target.id === id);
+        return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+      }, id);
+      await page.mouse.click(point.x, point.y);
+      await page.waitForFunction(() => {
+        const handle = globalThis.__ATOMA_GPU__;
+        const row = handle.hitTargets().find(target => target.id === 'project.run.numbered-run-25');
+        if (!row) return false;
+        const top = handle.projectRendererPoint(row.x, row.y);
+        const bottom = handle.projectRendererPoint(row.x + row.width, row.y + row.height);
+        return top.y > 0 && bottom.y < innerHeight;
+      }, { timeout: READY_TIMEOUT_MS });
+      const sample = () => page.evaluate(() => {
+        const find = node => node.label === 'hosted-run-badge' ? node : node.children?.map(find).find(Boolean);
+        const badge = find(globalThis.__ATOMA_GPU__.app.stage);
+        if (!badge) throw new Error('The hosted badge is absent');
+        return { scale: badge.scale.x, alpha: badge.children.find(child => child.label === 'hosted-run-halo').alpha };
+      });
+      const moving = await sample();
+      await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 350)));
+      const moved = await sample();
+      if (Math.abs(moving.scale - moved.scale) < 0.00001) throw new Error('The hosted badge is not animated');
+      await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const still = await sample();
+      if (still.scale !== 1 || still.alpha !== 0.18) throw new Error('The hosted badge ignores reduced motion');
+      await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
+      console.log('Hosted run: canvas link revealed the older run; solid badge pulse and reduced motion verified');
     }
     if (has('--platform-stats-probe')) {
       if (!authed || !platformAdmin || view !== 'Platform') throw new Error('--platform-stats-probe requires --auth --platform-admin --view "Platform"');

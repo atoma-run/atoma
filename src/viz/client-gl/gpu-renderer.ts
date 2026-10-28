@@ -291,6 +291,8 @@ export interface GpuRenderSnapshot {
 }
 
 interface TextOptions {
+  /** The actual fill behind this text when it is drawn on a semantic badge. */
+  backgroundColor?: number;
   size?: number;
   color?: number;
   weight?: '400' | '500' | '600' | '700';
@@ -3115,7 +3117,7 @@ export class GpuRenderer {
     const weight = options.weight ?? '400';
     const requestedColor = options.color ?? GPU_COLORS.text;
     const color = this.snapshot?.state.entered
-      ? readableTextColor(requestedColor, this.snapshot.state.appearanceTheme) : requestedColor;
+      ? readableTextColor(requestedColor, this.snapshot.state.appearanceTheme, options.backgroundColor) : requestedColor;
     const mono = options.mono ?? false;
     const key = `${size}|${weight}|${color}|${mono ? 'm' : 's'}|${options.width ?? ''}|${
       options.singleLine ? '1' : 'w'

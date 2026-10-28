@@ -23,7 +23,7 @@ npm run viz:shot -- --auth --select-first --assistant-read-runs # a start propos
 npm run viz:shot -- --auth --select-first --assistant-history --project-tabs-probe # chat/run tabs, preserved draft
 npm run viz:shot -- --url http://127.0.0.1:5187 --auth --select-first --assistant-links-probe # compact receipt buttons and their destinations on an isolated frontend
 npm run viz:shot -- --auth --select-first --project-run-cards --readable-metrics # long run with millions of tokens
-npm run viz:shot -- --auth --select-first --project-run-numbers --activate project.section.runs # numbered runs and the currently hosted version
+npm run viz:shot -- --auth --select-first --project-run-numbers --activate project.section.runs --project-hosted-run-probe # reveal the hosted run, filled badge and reduced motion
 npm run viz:shot -- --auth --select-first --project-run-cards # running/paused cards, also at --width 528
 npm run viz:shot -- --auth --select-first --github-access # saved request awaiting GitHub authorization
 npm run viz:shot -- --auth --select-first --github-access --github-access-probe # scroll and continue through the real canvas (stubbed response)

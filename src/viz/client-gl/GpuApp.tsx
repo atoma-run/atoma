@@ -1061,6 +1061,15 @@ function GpuAppContent({
       store.selectProject(projectSelectionAfterActivate(store.selectedProjectId, projectId));
       return;
     }
+    if (id.startsWith('project.hostedRun.')) {
+      const projectId = id.slice('project.hostedRun.'.length);
+      const hosting = deployment.view.projectId === projectId ? deployment.view.hosting : null;
+      if (hosting?.state === 'ready' && hosting.runId &&
+        projectRunsQuery.data?.some(run => run.projectRunId === hosting.runId)) {
+        store.openProjectRuns(projectId, hosting.runId);
+      }
+      return;
+    }
     if (id.startsWith('project.hosted.')) {
       // A private application: ask for a one-time claim, then open it. The tab
       // opens now, inside the click, or the browser blocks it as a popup.

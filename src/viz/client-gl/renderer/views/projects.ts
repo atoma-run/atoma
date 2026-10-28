@@ -2,7 +2,8 @@ import { UI_LAYOUT, UI_SPACE } from '../../ui-layout.js';
 import { drawProjectSettings } from './project-settings.js';
 import { drawWorkspace } from './workspace.js';
 import { latestWorkspaceRun } from '../../workspace-browser.js';
-import { Graphics, type Container } from 'pixi.js';
+import { Graphics, Container } from 'pixi.js';
+import { prefersReducedMotion } from '../motion.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
 import type { VizProject, VizProjectRun } from '../../../client/types.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
@@ -589,11 +590,15 @@ function drawRepositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, proje
     if (stackedHosted) infoCursor = infoX;
     // A private application opens through a one-time claim, never a bare link: the activation asks for one.
     const hostedLink = ctx.linkRegion(rowParent, `project.hosted.${project.projectId}`, hostedText,
-      infoCursor, hostedY + 2, hostedWidth, REPOSITORY_ICON_SIZE, snapshot.onActivate);
+      infoCursor, hostedY + 2, Math.max(0, hostedWidth - hostedRunSpace), REPOSITORY_ICON_SIZE, snapshot.onActivate);
     ctx.text(hostedLink, hostedText, 0, REPOSITORY_ICON_SIZE / 2, { size: 9, color: GPU_COLORS.success, width: Math.max(0, hostedWidth - hostedRunSpace), singleLine: true }).anchor.set(0, 0.5);
     if (hostedRunText) {
-      ctx.text(rowParent, hostedRunText, infoCursor + hostedWidth - hostedRunWidth, hostedY + PROJECT_INFO_CENTER_Y,
-        { size: 9, weight: '600', color: GPU_COLORS.text, width: hostedRunWidth, singleLine: true }).anchor.set(0, 0.5);
+      const hitHeight = snapshot.state.handheld ? UI_LAYOUT.touchHeight : UI_LAYOUT.controlHeight;
+      const runLink = ctx.linkRegion(rowParent, `project.hostedRun.${project.projectId}`, hostedRunText,
+        infoCursor + hostedWidth - hostedRunWidth, hostedY + PROJECT_INFO_CENTER_Y - hitHeight / 2,
+        hostedRunWidth, hitHeight, snapshot.onActivate);
+      ctx.text(runLink, hostedRunText, 0, hitHeight / 2,
+        { size: 9, weight: '600', color: GPU_COLORS.primary, width: hostedRunWidth, singleLine: true }).anchor.set(0, 0.5);
     }
   }
 }
@@ -910,6 +915,9 @@ export function drawProjects(
       cursor += RUNS_HEADING_HEIGHT;
       // One animated band for every live crystal in this list.
       let liveLayer: Container | null = null;
+      const deployment = snapshot.data.deploymentSettings;
+      const hostedRunId = deployment?.projectId === project.projectId && deployment.hosting?.state === 'ready'
+        ? deployment.hosting.runId : null;
       runs.forEach((run, runIndex) => {
         const newest = runIndex === 0;
         const card = runLayouts[runIndex]!;
@@ -925,11 +933,31 @@ export function drawProjects(
         rail.moveTo(railX, newest ? dotY : cursor - RUN_ROW_GAP);
         rail.lineTo(railX, runIndex === runs.length - 1 ? dotY : cursor + rowHeight);
         rail.stroke({ color: GPU_COLORS.border, width: 2 });
-        rail.roundRect(railX - runBadgeWidth / 2, dotY - 11, runBadgeWidth, 22, 11)
-          .fill(GPU_COLORS.panelRaised).stroke({ color: status.color, width: 2 });
         pane.content.addChild(rail);
-        ctx.text(pane.content, String(runs.length - runIndex), railX, dotY,
-          { size: 10, weight: '700', color: GPU_COLORS.text }).anchor.set(0.5, 0.5);
+        const hosted = run.projectRunId === hostedRunId;
+        const badgeParent = hosted ? ctx.animatedLayer(pane.content, 'project-hosted-run-badge') : pane.content;
+        const badge = new Container();
+        badge.label = hosted ? 'hosted-run-badge' : 'project-run-badge';
+        badge.eventMode = 'none';
+        badge.position.set(railX, dotY);
+        badgeParent.addChild(badge);
+        if (hosted) {
+          const halo = new Graphics().roundRect(-runBadgeWidth / 2 - 4, -15, runBadgeWidth + 8, 30, 15).fill(status.color);
+          halo.label = 'hosted-run-halo';
+          halo.alpha = 0.18;
+          badge.addChild(halo);
+          let elapsed = 0;
+          ctx.addTicker(ticker => {
+            const reduced = prefersReducedMotion();
+            if (!reduced) elapsed += ticker.deltaMS;
+            const pulse = reduced ? 0 : (1 - Math.cos(elapsed * Math.PI * 2 / 2200)) / 2;
+            badge.scale.set(1 + pulse * 0.035);
+            halo.alpha = 0.18 + pulse * 0.18;
+          });
+        }
+        badge.addChild(new Graphics().roundRect(-runBadgeWidth / 2, -11, runBadgeWidth, 22, 11).fill(status.color));
+        ctx.text(badge, String(runs.length - runIndex), 0, 0,
+          { size: 10, weight: '700', color: GPU_COLORS.panel, backgroundColor: status.color }).anchor.set(0.5, 0.5);
         const runTitle = run.title ?? run.goal.replace(/\s+/g, ' ');
         // The run a link asked for (a results-waiting notification) stands out,
         // and the renderer brings it into view once per request.
