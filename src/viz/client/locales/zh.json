@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "此工作通过 Atoma Compute 在个人计算机上运行。该观测记录不能改变共享学习结果。自动验证将在此台账中单独跟踪。",
   "admin.computeValidation.label": "Compute 自动验证",
   "admin.computeValidation.queued": "验证已排队。没有用户 run 处于活动状态时，Atoma 将独立检查。无需操作员批准。",
-  "admin.computeValidation.budget-wait": "验证正在等待每日限额恢复。限额用尽期间不会发起额外尝试。",
+  "admin.computeValidation.budget-wait": "",
   "admin.computeValidation.running": "独立验证正在 Atoma 的服务器上运行，并接受常规执行和结果检查。",
   "admin.computeValidation.completed": "独立执行已完成。其自身的观测记录将单独记录；原始 Compute 观测记录仍不予采纳。",
   "admin.computeValidation.inconclusive": "验证未能得出完整结果。这不会使原始 Compute 观测记录变成配方失败。不会安排自动重试。",

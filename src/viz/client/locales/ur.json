@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "یہ کام Atoma Compute کے ذریعے ذاتی کمپیوٹر پر چلایا گیا۔ یہ مشاہدہ مشترکہ سیکھنے کو تبدیل نہیں کر سکتا۔ اس لیجر میں خودکار توثیق کا حساب الگ رکھا جاتا ہے۔",
   "admin.computeValidation.label": "خودکار Compute توثیق",
   "admin.computeValidation.queued": "توثیق قطار میں ہے۔ جب کوئی صارف run فعال نہیں ہوگا تو Atoma آزادانہ طور پر جانچ کرے گا۔ آپریٹر کی منظوری درکار نہیں ہے۔",
-  "admin.computeValidation.budget-wait": "توثیق یومیہ کوٹے کا انتظار کر رہی ہے۔ کوٹا ختم ہونے کے دوران کوئی اضافی کوشش شروع نہیں کی جاتی۔",
+  "admin.computeValidation.budget-wait": "",
   "admin.computeValidation.running": "Atoma کے سرورز پر معمول کی نفاذ اور نتائج کی جانچوں کے تحت آزادانہ توثیق جاری ہے۔",
   "admin.computeValidation.completed": "آزادانہ نفاذ مکمل ہو گیا۔ اس کے اپنے مشاہدات الگ ریکارڈ کیے گئے ہیں؛ اصل Compute مشاہدہ بدستور روکا ہوا ہے۔",
   "admin.computeValidation.inconclusive": "توثیق مکمل نتیجہ قائم نہیں کر سکی۔ اس سے اصل Compute مشاہدہ کسی نسخے کی ناکامی نہیں بنتا۔ کوئی خودکار دوبارہ کوشش طے نہیں ہے۔",

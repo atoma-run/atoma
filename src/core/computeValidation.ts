@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { COMPUTE_VALIDATION, computeValidationExtraAttemptSchema, type ComputeValidationLaunch, type ComputeValidationStatus } from '../contracts/computeValidation.js';
+import { COMPUTE_VALIDATION, type ComputeValidationLaunch, type ComputeValidationStatus } from '../contracts/computeValidation.js';
 import { appendLedgerStrict, ensureLedgerSchema } from './ledger.js';
 
 const DDL = `CREATE TABLE IF NOT EXISTS compute_validation_jobs (
@@ -43,48 +43,11 @@ export class ComputeValidationQueue {
     }).immediate();
   }
 
-  private allowanceExhausted(now: Date): boolean {
-    const used = this.db.prepare(`SELECT count(*) AS n FROM compute_validation_jobs WHERE started_at >= ?`)
-      .get(new Date(now.getTime() - 86_400_000).toISOString()) as { n: number };
-    return used.n >= COMPUTE_VALIDATION.attemptsPerDay;
-  }
-
-  pending(now = new Date()): ComputeValidationJob | null {
-    const first = this.db.prepare(`SELECT source_run_id AS sourceRunId, org_id AS orgId, project_id AS projectId, status
-      FROM compute_validation_jobs WHERE status IN ('queued','budget-wait') ORDER BY created_at LIMIT 1`)
-      .get() as ComputeValidationJob | undefined ?? null;
-    if (!first || !this.allowanceExhausted(now)) return first;
-    // An older unapproved job must not hide a later, explicitly authorized one.
-    const authorized = this.db.prepare(`SELECT source_run_id AS sourceRunId, org_id AS orgId, project_id AS projectId, status, detail
+  pending(): ComputeValidationJob | null {
+    // budget-wait is a legacy persisted state; removing the daily ceiling releases it normally.
+    return this.db.prepare(`SELECT source_run_id AS sourceRunId, org_id AS orgId, project_id AS projectId, status
       FROM compute_validation_jobs WHERE status IN ('queued','budget-wait') AND started_at IS NULL
-      AND json_type(detail,'$.extraAttempt')='object' ORDER BY created_at`).all() as (ComputeValidationJob & { detail: string })[];
-    for (const row of authorized) {
-      const detail = JSON.parse(row.detail) as Record<string, unknown>;
-      if (detail['extraAttemptUsed'] !== true && computeValidationExtraAttemptSchema.safeParse(detail['extraAttempt']).success) {
-        const { detail: _detail, ...job } = row;
-        return job;
-      }
-    }
-    return first;
-  }
-
-  /** Trusted operator seam after explicit approval. No public/device/model caller. Never renews a started attempt. */
-  authorizeAdditionalAttempt(job: ComputeValidationLaunch, principalId: string, reason: string): boolean {
-    const extraAttempt = computeValidationExtraAttemptSchema.parse({ authorizedBy: principalId, reason, authorizedAt: new Date().toISOString() });
-    return this.db.transaction(() => {
-      const row = this.db.prepare(`SELECT status,detail FROM compute_validation_jobs WHERE source_run_id=? AND org_id=?
-        AND project_id=? AND status IN ('queued','budget-wait') AND started_at IS NULL`)
-        .get(job.sourceRunId, job.orgId, job.projectId) as { status: ComputeValidationStatus; detail: string } | undefined;
-      if (!row) return false;
-      const detail = JSON.parse(row.detail) as Record<string, unknown>;
-      if (detail['extraAttempt'] !== undefined) return false;
-      this.db.prepare('UPDATE compute_validation_jobs SET detail=? WHERE source_run_id=?')
-        .run(JSON.stringify({ ...detail, extraAttempt }), job.sourceRunId);
-      appendLedgerStrict({ kind: 'compute-validation', entity: job.sourceRunId,
-        scope: { runId: job.sourceRunId, orgId: job.orgId, projectId: job.projectId, actorType: 'principal', actorId: principalId },
-        detail: { status: row.status, operation: 'authorize-additional-attempt', extraAttempt, budget: COMPUTE_VALIDATION } }, this.db);
-      return true;
-    }).immediate();
+      ORDER BY created_at LIMIT 1`).get() as ComputeValidationJob | undefined ?? null;
   }
 
   /** Call only while holding the exclusive background lease: no old child can still be executing. */
@@ -100,19 +63,11 @@ export class ComputeValidationQueue {
         AND project_id=? AND status IN ('queued','budget-wait') AND started_at IS NULL`)
         .get(job.sourceRunId, job.orgId, job.projectId) as { detail: string } | undefined;
       if (!row) return false;
-      const detail = JSON.parse(row.detail) as Record<string, unknown>;
-      const approval = computeValidationExtraAttemptSchema.safeParse(detail['extraAttempt']);
-      const extra = this.allowanceExhausted(now);
-      if (extra && (!approval.success || detail['extraAttemptUsed'] === true)) {
-        if (this.db.prepare(`UPDATE compute_validation_jobs SET status='budget-wait' WHERE source_run_id=? AND status='queued'`)
-          .run(job.sourceRunId).changes) this.event(job, 'budget-wait');
-        return false;
-      }
       if (!this.db.prepare(`UPDATE compute_validation_jobs SET status='running',started_at=?,detail=?
         WHERE source_run_id=? AND org_id=? AND project_id=? AND status IN ('queued','budget-wait') AND started_at IS NULL`)
-        .run(now.toISOString(), JSON.stringify({ ...detail, ...(extra ? { extraAttemptUsed: true } : {}) }),
+        .run(now.toISOString(), row.detail,
           job.sourceRunId, job.orgId, job.projectId).changes) return false;
-      this.event(job, 'running', extra ? { additionalAttempt: true, authorization: approval.success ? approval.data : undefined } : {});
+      this.event(job, 'running');
       return true;
     }).immediate();
   }

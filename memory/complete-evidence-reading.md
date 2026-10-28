@@ -120,3 +120,21 @@ on the host. A stored optional capability is no current authority. Continuation
 may narrow only the established HOST_TOOL_NAMES set, with unchanged ordered
 survivors and a fresh review of the suffix; worker removals, additions or changed
 declarations still refuse. Initial bytes/history and prefix credits are untouched.
+
+## Owner policy update — 2026-10-28
+
+The owner explicitly removed the four-starts-per-day ceiling and requested a
+validation deadline long enough to finish. Compute verification now has a
+15-minute deadline; the 1,000,000-token and $0.25 equivalent cost stops remain.
+There is no daily admission count or exceptional authorization path. Legacy
+never-started budget-wait rows are ordinary FIFO jobs. Each source is still
+claimed once, with atomic audit; uncertain completed attempts are not retried.
+
+The previous continuation ee825326 and its automatic replay ff106d92 ended
+with the latter inconclusive (deadline during child RESULT review, $0.21107116,
+no counter/recipe change). All 40 events and 26 full archives were read/verified.
+The source initial snapshot 1dd655b6 retained 250 files, 4,468,648 bytes and 44
+historical archives; the replay changed only README by one 48-byte insertion.
+The historical guide has a real omission: its test:browser command block lacks
+tests/xe-chromium.test.ts. Preserve that evidence; repair in a new iteration
+from the retained phase-boundary source 69775aee, not by rewriting old bytes.

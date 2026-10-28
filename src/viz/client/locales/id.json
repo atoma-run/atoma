@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "Pekerjaan dijalankan di komputer pribadi dengan Atoma Compute. Pengamatan ini tidak dapat mengubah pembelajaran bersama. Verifikasi otomatis dilacak secara terpisah dalam buku besar ini.",
   "admin.computeValidation.label": "Verifikasi Compute otomatis",
   "admin.computeValidation.queued": "Verifikasi masuk antrean. Atoma akan memeriksanya secara independen saat tidak ada run pengguna yang aktif. Persetujuan operator tidak diperlukan.",
-  "admin.computeValidation.budget-wait": "Verifikasi sedang menunggu jatah harian. Tidak ada percobaan tambahan yang dimulai selama jatah habis.",
+  "admin.computeValidation.budget-wait": "",
   "admin.computeValidation.running": "Verifikasi independen sedang berjalan di server Atoma, sesuai pemeriksaan eksekusi dan hasil normal.",
   "admin.computeValidation.completed": "Eksekusi independen selesai. Pengamatannya sendiri dicatat secara terpisah; pengamatan Compute asli tetap ditahan.",
   "admin.computeValidation.inconclusive": "Verifikasi tidak dapat memastikan hasil yang lengkap. Hal ini tidak menjadikan pengamatan Compute asli sebagai kegagalan resep. Tidak ada percobaan ulang otomatis yang dijadwalkan.",

@@ -3,7 +3,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { ComputeValidationQueue, assertComputeValidationClaim } from '../src/core/computeValidation.js';
 import { appendLedgerStrict, readLedger } from '../src/core/ledger.js';
-import { COMPUTE_VALIDATION, type ComputeValidationLaunch } from '../src/contracts/computeValidation.js';
+import { type ComputeValidationLaunch } from '../src/contracts/computeValidation.js';
 import { withheldComputeKnowledge } from '../src/contracts/executionTarget.js';
 
 describe('durable Compute validation admission', () => {
@@ -49,17 +49,28 @@ describe('durable Compute validation admission', () => {
     expect(() => assertComputeValidationClaim(db,job)).toThrow();
     expect(readLedger(db).at(-1)?.detail).toMatchObject({ status: 'interrupted', costUsd: null });
   });
-  it('reserves the rolling daily allowance before launching, including failures', () => {
+  it('admits more than four sources in one day, including after inconclusive outcomes', () => {
     const now = new Date();
-    for (let i=0;i<COMPUTE_VALIDATION.attemptsPerDay;i++) {
+    for (let i = 0; i < 8; i++) {
       const next = source(); observation(next); queue.discover();
-      expect(queue.claim(queue.pending()!,now)).toBe(true);
-      queue.finish(next,'inconclusive',{costUsd:null});
+      expect(queue.claim(queue.pending()!, now)).toBe(true);
+      queue.finish(next, 'inconclusive', { costUsd: null });
     }
+    expect(queue.pending()).toBeNull();
+    expect(readLedger(db).filter(e => e.kind === 'compute-validation' && e.detail?.status === 'running')).toHaveLength(8);
+  });
+  it('releases legacy budget-wait jobs without an extra authorization and preserves their audit', () => {
     observation(); queue.discover();
-    expect(queue.claim(queue.pending()!,now)).toBe(false);
-    expect(queue.pending()?.status).toBe('budget-wait');
-    expect(queue.claim(queue.pending()!,new Date(now.getTime()+86_400_001))).toBe(true);
+    const oldDetail = JSON.stringify({ extraAttempt: { authorizedBy: randomUUID(), reason: 'Historical approval' } });
+    db.prepare("UPDATE compute_validation_jobs SET status='budget-wait', detail=? WHERE source_run_id=?").run(oldDetail, job.sourceRunId);
+    const restarted = new ComputeValidationQueue(db);
+    expect(restarted.pending()).toEqual({ ...job, status: 'budget-wait' });
+    expect(restarted.claim({ ...job, orgId: randomUUID(), status: 'budget-wait' })).toBe(false);
+    expect(restarted.claim(restarted.pending()!)).toBe(true);
+    expect(db.prepare('SELECT detail FROM compute_validation_jobs WHERE source_run_id=?').get(job.sourceRunId)).toEqual({ detail: oldDetail });
+    expect(readLedger(db).at(-1)?.detail).toMatchObject({ status: 'running' });
+    expect(readLedger(db).at(-1)?.detail).not.toHaveProperty('additionalAttempt');
+    expect(restarted.claim({ ...job, status: 'budget-wait' })).toBe(false);
   });
   it('rolls back admission when the ledger cannot persist its audit', () => {
     observation(); queue.discover();
@@ -67,71 +78,5 @@ describe('durable Compute validation admission', () => {
       BEGIN SELECT RAISE(ABORT,'audit unavailable'); END`);
     expect(() => queue.claim(queue.pending()!)).toThrow('audit unavailable');
     expect(queue.pending()?.status).toBe('queued');
-  });
-  function exhaustAllowance(): void {
-    for (let i = 0; i < COMPUTE_VALIDATION.attemptsPerDay; i++) {
-      const next = source(); observation(next); queue.discover();
-      expect(queue.claim(queue.pending()!)).toBe(true);
-      queue.finish(next, 'inconclusive', { costUsd: null });
-    }
-    observation(); queue.discover();
-    expect(queue.claim(queue.pending()!)).toBe(false);
-  }
-  it('consumes one source-scoped authorization across restarts without raising other jobs limits', () => {
-    exhaustAllowance();
-    const principal = randomUUID();
-    expect(queue.authorizeAdditionalAttempt({ ...job, orgId: randomUUID() }, principal, 'Owner approval')).toBe(false);
-    expect(queue.authorizeAdditionalAttempt(job, principal, 'Owner approved one additional attempt')).toBe(true);
-    expect(queue.authorizeAdditionalAttempt(job, principal, 'Repeated approval')).toBe(false);
-    expect(new ComputeValidationQueue(db).claim(queue.pending()!)).toBe(true);
-    expect(queue.claim({ ...job, status: 'queued' })).toBe(false);
-    const audit = readLedger(db).filter(e => e.kind === 'compute-validation');
-    expect(audit.at(-2)).toMatchObject({ scope: { actorType: 'principal', actorId: principal },
-      detail: { operation: 'authorize-additional-attempt', extraAttempt: { authorizedBy: principal } } });
-    expect(audit.at(-1)?.detail).toMatchObject({ status: 'running', additionalAttempt: true, authorization: { authorizedBy: principal } });
-    queue.finish(job, 'inconclusive', { costUsd: 0.1 });
-    expect(queue.authorizeAdditionalAttempt(job, principal, 'Not a retry grant')).toBe(false);
-    const other = source(); observation(other); queue.discover();
-    expect(queue.claim(queue.pending()!)).toBe(false);
-  });
-  it('rolls back grant and consumption independently when their audit cannot persist', () => {
-    exhaustAllowance();
-    const deny = `CREATE TRIGGER deny_extra BEFORE INSERT ON lifecycle_events WHEN NEW.kind='compute-validation'
-      BEGIN SELECT RAISE(ABORT,'audit unavailable'); END`;
-    db.exec(deny);
-    expect(() => queue.authorizeAdditionalAttempt(job, randomUUID(), 'Explicit owner approval')).toThrow('audit unavailable');
-    const read = () => db.prepare('SELECT status,started_at,detail FROM compute_validation_jobs WHERE source_run_id=?').get(job.sourceRunId) as { status: string; started_at: string | null; detail: string };
-    expect(JSON.parse(read().detail)).toEqual({});
-    db.exec('DROP TRIGGER deny_extra');
-    queue.authorizeAdditionalAttempt(job, randomUUID(), 'Explicit owner approval');
-    db.exec(deny);
-    expect(() => queue.claim(queue.pending()!)).toThrow('audit unavailable');
-    expect(read()).toMatchObject({ status: 'budget-wait', started_at: null });
-    expect(JSON.parse(read().detail)).not.toHaveProperty('extraAttemptUsed');
-    db.exec('DROP TRIGGER deny_extra');
-    expect(queue.claim(queue.pending()!)).toBe(true);
-  });
-  it('cannot transfer an authorization or reuse one after normal admission', () => {
-    observation(); queue.discover();
-    const principal = randomUUID();
-    expect(() => queue.authorizeAdditionalAttempt(job, principal, ' ')).toThrow();
-    queue.authorizeAdditionalAttempt(job, principal, 'Explicit owner approval');
-    expect(queue.claim({ ...job, projectId: randomUUID(), status: 'queued' })).toBe(false);
-    expect(queue.claim(queue.pending()!)).toBe(true);
-    expect(readLedger(db).at(-1)?.detail).not.toHaveProperty('additionalAttempt');
-    queue.finish(job, 'completed', { costUsd: 0.1 });
-    expect(queue.authorizeAdditionalAttempt(job, principal, 'Repeated approval')).toBe(false);
-    expect(queue.claim({ ...job, status: 'queued' })).toBe(false);
-  });
-  it('finds an authorized later job past an older job waiting for the ordinary allowance', () => {
-    exhaustAllowance();
-    const authorized = source(); observation(authorized); queue.discover();
-    expect(queue.pending()?.sourceRunId).toBe(job.sourceRunId);
-    queue.authorizeAdditionalAttempt(authorized, randomUUID(), 'One additional targeted attempt');
-    expect(queue.pending()?.sourceRunId).toBe(authorized.sourceRunId);
-    expect(queue.claim(queue.pending()!)).toBe(true);
-    queue.finish(authorized, 'completed', { costUsd: 0.1 });
-    expect(queue.pending()?.sourceRunId).toBe(job.sourceRunId);
-    expect(queue.claim(queue.pending()!)).toBe(false);
   });
 });

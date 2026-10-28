@@ -4,7 +4,8 @@ import { z } from 'zod';
 export const COMPUTE_VALIDATION = Object.freeze({
   // Full proof contexts are read repeatedly, including billed cache reads.
   // 60k stopped Attica at 162,966 tokens for $0.0137 before acceptance.
-  timeoutMs: 240_000, tokens: 1_000_000, costUsd: 0.25, attemptsPerDay: 4,
+  // Attica continuation spent 177s executing before its result review; four minutes cut that review.
+  timeoutMs: 15 * 60_000, tokens: 1_000_000, costUsd: 0.25,
 });
 export const COMPUTE_VALIDATION_ENV = 'ATOMA_ASSAYER_COMPUTE_VALIDATION';
 export const computeValidationStatusSchema = z.enum([
@@ -15,11 +16,6 @@ export const computeValidationLaunchSchema = z.object({
   sourceRunId: z.string().uuid(), orgId: z.string().uuid(), projectId: z.string().uuid(),
 }).strict();
 export type ComputeValidationLaunch = z.infer<typeof computeValidationLaunchSchema>;
-
-/** An operator's explicit, source-scoped authorization; never a run/device input. */
-export const computeValidationExtraAttemptSchema = z.object({
-  authorizedBy: z.string().uuid(), reason: z.string().trim().min(1).max(1000), authorizedAt: z.string().datetime(),
-}).strict();
 
 /** Does not grant authority or inherit attestations; only narrows the ordinary runner's budgets. */
 export function computeValidationLaunch(env: NodeJS.ProcessEnv): ComputeValidationLaunch | null {

@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "कार्य Atoma Compute के साथ एक निजी कंप्यूटर पर चला। यह अवलोकन साझा सीख में बदलाव नहीं कर सकता। स्वचालित सत्यापन को इस लेजर में अलग से ट्रैक किया जाता है।",
   "admin.computeValidation.label": "स्वचालित Compute सत्यापन",
   "admin.computeValidation.queued": "सत्यापन कतार में है। जब कोई उपयोगकर्ता run सक्रिय नहीं होगा, तब Atoma स्वतंत्र रूप से जाँच करेगा। ऑपरेटर की स्वीकृति आवश्यक नहीं है।",
-  "admin.computeValidation.budget-wait": "सत्यापन दैनिक आवंटन की प्रतीक्षा कर रहा है। आवंटन समाप्त रहने के दौरान कोई अतिरिक्त प्रयास शुरू नहीं किया जाता।",
+  "admin.computeValidation.budget-wait": "",
   "admin.computeValidation.running": "सामान्य निष्पादन और परिणाम जाँच के तहत Atoma के सर्वर पर स्वतंत्र सत्यापन चल रहा है।",
   "admin.computeValidation.completed": "स्वतंत्र निष्पादन पूरा हुआ। इसके अपने अवलोकन अलग से दर्ज किए गए हैं; मूल Compute अवलोकन अब भी रोककर रखा गया है।",
   "admin.computeValidation.inconclusive": "सत्यापन पूर्ण परिणाम स्थापित नहीं कर सका। इससे मूल Compute अवलोकन रेसिपी की विफलता नहीं बन जाता। कोई स्वचालित पुनः प्रयास निर्धारित नहीं है।",

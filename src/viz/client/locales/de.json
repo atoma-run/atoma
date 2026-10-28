@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "Die Arbeit wurde mit Atoma Compute auf einem PC ausgeführt. Diese Beobachtung kann das gemeinsame Lernen nicht verändern. Die automatische Verifizierung wird separat in diesem Protokoll erfasst.",
   "admin.computeValidation.label": "Automatische Compute-Verifizierung",
   "admin.computeValidation.queued": "Verifizierung in der Warteschlange. Atoma prüft unabhängig, sobald kein Benutzer-run aktiv ist. Es ist keine Freigabe durch einen Operator erforderlich.",
-  "admin.computeValidation.budget-wait": "Die Verifizierung wartet auf das Tageskontingent. Solange das Kontingent ausgeschöpft ist, wird kein weiterer Versuch gestartet.",
+  "admin.computeValidation.budget-wait": "",
   "admin.computeValidation.running": "Die unabhängige Verifizierung wird auf den Servern von Atoma mit den üblichen Ausführungs- und Ergebnisprüfungen durchgeführt.",
   "admin.computeValidation.completed": "Die unabhängige Ausführung ist abgeschlossen. Ihre eigenen Beobachtungen werden separat erfasst; die ursprüngliche Compute-Beobachtung bleibt zurückgehalten.",
   "admin.computeValidation.inconclusive": "Die Verifizierung konnte kein vollständiges Ergebnis ermitteln. Dadurch wird die ursprüngliche Compute-Beobachtung nicht zu einem Rezeptfehler. Es ist keine automatische Wiederholung geplant.",

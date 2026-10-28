@@ -2846,7 +2846,7 @@
   "admin.ledgerWithheld.compute": "The work ran on a personal computer with Atoma Compute. This observation cannot change shared learning. Automatic verification is tracked separately in this ledger.",
   "admin.computeValidation.label": "Automatic Compute verification",
   "admin.computeValidation.queued": "Verification queued. Atoma will check independently when no user run is active. No operator approval is required.",
-  "admin.computeValidation.budget-wait": "Verification is waiting for the daily allowance. No extra attempt is started while the allowance is exhausted.",
+  "admin.computeValidation.budget-wait": "This historical verification waited for the former daily allowance. Pending jobs now use ordinary admission.",
   "admin.computeValidation.running": "Independent verification is running on Atoma’s servers, under the normal execution and result checks.",
   "admin.computeValidation.completed": "Independent execution finished. Its own observations are recorded separately; the original Compute observation remains withheld.",
   "admin.computeValidation.inconclusive": "Verification could not establish a complete result. This does not turn the original Compute observation into a recipe failure. No automatic retry is scheduled.",
@@ -2855,5 +2855,6 @@
   "admin.computeValidation.newCounters": "New server-verified observations changed reliability counters. This does not credit the original Compute observation twice.",
   "admin.computeValidation.noCounters": "No counter changes were recorded for this verification.",
   "admin.computeValidation.newRecipes": "The ordinary hosted recovery process changed a shared recipe; its separate ledger event identifies the change.",
-  "admin.computeValidation.budget": "One attempt per source run, at most {{attempts}} attempts in 24 hours, {{minutes}} minutes each, with a consumption stop at {{tokens}} tokens or ${{cost}} API-equivalent. Calls already in progress may exceed the consumption stop; unknown spend still uses an attempt."
+  "admin.computeValidation.budget": "One attempt per source run, at most {{attempts}} attempts in 24 hours, {{minutes}} minutes each, with a consumption stop at {{tokens}} tokens or ${{cost}} API-equivalent. Calls already in progress may exceed the consumption stop; unknown spend still uses an attempt.",
+  "admin.computeValidation.budgetPerAttempt": "One attempt per source run, {{minutes}} minutes each, with a consumption stop at {{tokens}} tokens or ${{cost}} API-equivalent. Calls already in progress may exceed the consumption stop; unknown spend still uses an attempt."
 }

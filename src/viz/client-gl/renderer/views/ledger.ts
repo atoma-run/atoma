@@ -82,8 +82,7 @@ function validationExplanation(entry: VizLedgerEvent, t: Translate): string {
     parts.push(t(entry.detail?.['countersChanged'] === true ? 'admin.computeValidation.newCounters' : 'admin.computeValidation.noCounters'));
     if (entry.detail?.['recipesChanged'] === true) parts.push(t('admin.computeValidation.newRecipes'));
   }
-  parts.push(t('admin.computeValidation.budget', { attempts: COMPUTE_VALIDATION.attemptsPerDay,
-    minutes: COMPUTE_VALIDATION.timeoutMs / 60_000, tokens: COMPUTE_VALIDATION.tokens, cost: COMPUTE_VALIDATION.costUsd }));
+  parts.push(t('admin.computeValidation.budgetPerAttempt', { minutes: COMPUTE_VALIDATION.timeoutMs / 60_000, tokens: COMPUTE_VALIDATION.tokens, cost: COMPUTE_VALIDATION.costUsd }));
   return parts.join(' ');
 }
 

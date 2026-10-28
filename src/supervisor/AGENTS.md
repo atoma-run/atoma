@@ -29,15 +29,13 @@ withheld device observations coalesce to one attempt per ended source run. The
 primary store owns the queue and atomic ledger admission. No historical backfill.
 The same idle/deployment gate, exclusive lease and preemption apply; the child
 process group is attached before it can outlive its owner. Interrupted attempts
-are not retried. Host policy bounds each attempt to 240 seconds, 1,000,000 billable tokens,
-$0.25 API-equivalent consumption, and four starts in a rolling 24 hours. In-flight
-calls may exceed consumption stops; unknown spend still reserves one attempt.
-The volume bound permits repeated full proof/cache reads; cost accounting,
-platform ceilings, time and daily limits remain independent stops.
-An operator may explicitly authorize one additional attempt for one pending,
-never-started source/org/project. Authorization and consumption are journaled
-atomically in the existing queue/ledger, survive restarts, cannot renew or
-transfer, and change no per-attempt budget. Devices/models cannot supply it.
+are not retried. Host policy bounds each attempt to 15 minutes, 1,000,000 billable
+tokens and $0.25 API-equivalent consumption. In-flight calls may exceed consumption
+stops. The owner removed the rolling daily start ceiling on 2026-10-28; each
+eligible source still receives one attempt. Legacy never-started `budget-wait`
+rows enter ordinary FIFO admission without operator exceptions; historical
+approvals remain audit data. The longer deadline lets execution and full result
+review complete, while cost, token, lease, preemption and platform stops remain.
 
 An ordinary hosted run starts from the complete initial state captured by
 `run/initialState.ts`, never the device's finished output. Capture streams the

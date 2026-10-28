@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "作業はAtoma Computeを使用して個人のコンピューターで実行されました。この観測結果によって共有学習が変更されることはありません。自動検証はこの台帳で別途追跡されます。",
   "admin.computeValidation.label": "Computeの自動検証",
   "admin.computeValidation.queued": "検証はキューに追加されました。ユーザーのrunが実行されていないときに、Atomaが独立して確認します。オペレーターの承認は不要です。",
-  "admin.computeValidation.budget-wait": "検証は日次上限の回復を待っています。上限に達している間は、追加の試行は開始されません。",
+  "admin.computeValidation.budget-wait": "",
   "admin.computeValidation.running": "Atomaのサーバー上で、通常の実行チェックと結果チェックに従って独立検証を実行しています。",
   "admin.computeValidation.completed": "独立実行が完了しました。その観測結果は別途記録され、元のCompute観測結果は引き続き保留されます。",
   "admin.computeValidation.inconclusive": "検証では完全な結果を確認できませんでした。これによって元のCompute観測結果がレシピの失敗として扱われることはありません。自動再試行は予定されていません。",

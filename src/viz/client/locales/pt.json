@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "O trabalho foi executado num computador pessoal com o Atoma Compute. Esta observação não pode alterar a aprendizagem coletiva. A verificação automática é acompanhada separadamente neste histórico.",
   "admin.computeValidation.label": "Verificação automática do Compute",
   "admin.computeValidation.queued": "Verificação em fila. A Atoma fará uma verificação independente quando nenhum run de utilizador estiver ativo. Não é necessária a aprovação de um operador.",
-  "admin.computeValidation.budget-wait": "A verificação aguarda a quota diária. Não é iniciada nenhuma tentativa adicional enquanto a quota estiver esgotada.",
+  "admin.computeValidation.budget-wait": "",
   "admin.computeValidation.running": "A verificação independente está em execução nos servidores da Atoma, sujeita às verificações normais de execução e de resultados.",
   "admin.computeValidation.completed": "A execução independente terminou. As respetivas observações são documentadas separadamente; a observação original do Compute permanece retida.",
   "admin.computeValidation.inconclusive": "A verificação não conseguiu determinar um resultado completo. Isto não transforma a observação original do Compute numa falha da receita. Não está agendada nenhuma nova tentativa automática.",

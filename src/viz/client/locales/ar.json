@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "نُفِّذ العمل على حاسوب شخصي باستخدام Atoma Compute. لا يمكن لهذه الملاحظة تغيير التعلّم المشترك. يُتتبَّع التحقق التلقائي بصورة منفصلة في هذا السجل.",
   "admin.computeValidation.label": "التحقق التلقائي من Compute",
   "admin.computeValidation.queued": "أُدرج التحقق في قائمة الانتظار. ستتحقق Atoma بصورة مستقلة عند عدم وجود run نشط للمستخدم. لا تلزم موافقة المشغّل.",
-  "admin.computeValidation.budget-wait": "ينتظر التحقق توفر الحصة اليومية. لن تبدأ محاولة إضافية ما دامت الحصة مستنفدة.",
+  "admin.computeValidation.budget-wait": "",
   "admin.computeValidation.running": "يجري التحقق المستقل على خوادم Atoma، وفق فحوص التنفيذ والنتائج المعتادة.",
   "admin.computeValidation.completed": "اكتمل التنفيذ المستقل. سُجِّلت ملاحظاته بصورة منفصلة، وتظل ملاحظة Compute الأصلية محجوبة.",
   "admin.computeValidation.inconclusive": "تعذر على التحقق إثبات نتيجة مكتملة. ولا يجعل ذلك ملاحظة Compute الأصلية فشلًا في الوصفة. لم تُجدول إعادة محاولة تلقائية.",

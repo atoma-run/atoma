@@ -91,7 +91,7 @@ describe('resident Compute verification through the real queue, store and lease'
     expect((await validateComputeNext(f.options))?.outcome).toBe('compute-validated');
     expect(f.launch).toHaveBeenCalledTimes(1);
     const call = f.launch.mock.calls[0]![0];
-    expect(call).toMatchObject({ isolation: 'container', timeoutMs: COMPUTE_VALIDATION.timeoutMs, goal: f.source.goal });
+    expect(call).toMatchObject({ isolation: 'container', timeoutMs: 900_000, goal: f.source.goal });
     expect(call.seed).toBeUndefined();
     expect(JSON.parse(call.env[COMPUTE_VALIDATION_ENV]!)).toMatchObject({ sourceRunId: f.source.projectRunId });
     expect(call.env['ATOMA_RUN_ID']).not.toBe(f.source.projectRunId);
