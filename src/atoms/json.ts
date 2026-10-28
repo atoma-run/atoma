@@ -8,6 +8,15 @@ import { jsonParseExcerpt } from '../core/jsonExcerpt.js';
 import { isProofObligation } from '../contracts/attestation.js';
 import { routedFromSchema, type RoutedFrom } from '../contracts/routedFrom.js';
 import type { Plan } from '../core/types.js';
+import { evidenceReadRequestSchema } from '../contracts/evidenceReading.js';
+
+/** Diagnose a sole valid reading envelope wrapped in prose; never execute the extracted value. */
+export function hasWrappedEvidenceReadRequest(text: string): boolean {
+  const candidates = findAllJsonObjects(text);
+  if (candidates.length !== 1) return false;
+  try { return evidenceReadRequestSchema.safeParse(JSON.parse(candidates[0]!)).success; }
+  catch { return false; }
+}
 
 /**
  * Strip stray `}` / `]` tokens that close the OUTER aggregate too early,

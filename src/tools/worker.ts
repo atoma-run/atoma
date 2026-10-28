@@ -27,7 +27,8 @@ function serve(root: string, input: Readable, output: Writable, socket?: Socket)
     warn: (m, v) => log(':warn', m, v), error: (m, v) => log(':error', m, v),
   };
   const registry = new InMemoryToolRegistry();
-  registry.registerAll(defaultBuiltinTools({ sandbox, logger }));
+  registry.registerAll(defaultBuiltinTools({ sandbox, logger,
+    ...(process.env['ATOMA_WORKER_COMMAND_LOGS'] === '1' ? { commandLogDirectory: '/tmp' } : {}) }));
   write({ ready: true, tools: registry.declarations(), root: sandbox.root });
   // Bound a partial line before readline can retain it indefinitely.
   let bytes = 0;

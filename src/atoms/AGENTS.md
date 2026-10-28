@@ -688,7 +688,7 @@ load-bearing.
 - All model-output JSON parsing lives in `src/atoms/json.ts`. Preserve raw text
   on parse failure; never guess a structure. After tool work, one tool-free
   formatting turn may repair it (24,000 chars, 60s, with 60s run time left).
-  Preserve witnesses, validation, raw failures and fence-aware tests; never replay tools for formatting.
+  Preserve witnesses, validation, raw failures and fence-aware tests; never replay tools for formatting. A sole schema-valid evidence read wrapped in prose gets one tool-free `verdict-repair` re-emission per review against unchanged inventory/pages; the wrapped request executes nothing. The correction must be an exact completed reading request. Mixed, nested, invalid, repeated or cut requests stay reviewer faults, never approval.
 - An unparseable L1 plan or L2/L3 plan pair (a truncation repair counts for pairs) is asked
   again within the plan budget, then escalates (`plan-unparseable`, 12bdcf19); the root spends an
   attempt. Pairs salvage raw control chars only; L1 keeps parseWith's repair. Never blames trust:

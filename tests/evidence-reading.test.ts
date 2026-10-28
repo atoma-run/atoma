@@ -62,6 +62,58 @@ describe('complete evidence retained at the production executor seam', () => {
 });
 
 describe('validator reading protocol', () => {
+  it('continues the same criterion review after one prose-wrapped read, without salvaging or executing it', async () => {
+    const ctx = { ...makeCtx(), attestations: createAttestationLog() };
+    archiveHostFileRead(ctx, 'tests/search.ts', { content: 'PREFIX\nEXACT_ASSERTION_AFTER_CONTINUATION' });
+    const id = ctx.attestations.forBranch('host-review:root:1')[0]!.eventId;
+    ctx.llm.enqueue(reply({ readEvidence: [{ eventId: id, offset: 0, length: 10 }] }));
+    const request = { readEvidence: [{ eventId: id, offset: 10, length: 100 }] };
+    ctx.llm.enqueue({ ...reply(null), text: "I need more of the truncated search proof. I'll request the recorded continuation. " + JSON.stringify(request) });
+    ctx.llm.enqueue(call => {
+      expect(call.role).toBe('verdict-repair');
+      expect(call.tools).toBeUndefined(); expect(call.executor).toBeUndefined();
+      expect(call.userContent).toContain('It was not executed');
+      expect(call.userContent).not.toContain('EXACT_ASSERTION_AFTER_CONTINUATION');
+      return reply(request);
+    });
+    ctx.llm.enqueue(call => {
+      expect(call.userContent).toContain('EXACT_ASSERTION_AFTER_CONTINUATION');
+      return reply({ approved: true, reasoning: 'Both supplied requirements are asserted.',
+        criteria: ['c1', 'c2'].map(id => ({ id, met: true, reason: 'Captured continuation shows the required assertion.' })) });
+    });
+    const result = await reviewAcceptanceCriteria({ ctx, task: { description: 'Review the saved search assertions.' }, evidence: '',
+      checklist: ['c1', 'c2'].map(id => ({ id, behaviour: 'The captured assertion exists.', check: { kind: 'review' as const } })) });
+    expect(result).toMatchObject({ approved: true });
+    expect(ctx.llm.calls).toHaveLength(4);
+    expect(ctx.attestations.size).toBe(1);
+  });
+
+  it.each(['wrapped-again', 'verdict', 'unfinished'])('keeps a failed protocol correction unjudged (%s)', async kind => {
+    const ctx = makeCtx();
+    const text = 'Please read: ' + JSON.stringify({ listEvidence: { offset: 0 } });
+    ctx.llm.enqueue({ ...reply(null), text });
+    ctx.llm.enqueue(kind === 'verdict' ? reply({ approved: true, reasoning: 'No reading needed' })
+      : kind === 'unfinished' ? { ...reply({ listEvidence: { offset: 0 } }), stopReason: 'max_tokens' }
+      : { ...reply(null), text });
+    await expect(review(ctx, [])).rejects.toThrow('protocol correction');
+    expect(ctx.llm.calls).toHaveLength(2);
+  });
+
+  it('permits only one protocol correction across all reading rounds and propagates cancellation', async () => {
+    const text = 'Read this: {"listEvidence":{"offset":0}}';
+    const ctx = makeCtx();
+    ctx.llm.enqueue({ ...reply(null), text });
+    ctx.llm.enqueue(reply({ listEvidence: { offset: 0 } }));
+    ctx.llm.enqueue({ ...reply(null), text });
+    await expect(review(ctx, [])).rejects.toThrow('exact, unrepaired JSON');
+    expect(ctx.llm.calls).toHaveLength(3);
+    const abort = new AbortController();
+    const cancelled = { ...makeCtx(), signal: abort.signal };
+    cancelled.llm.enqueue(() => { abort.abort(new Error('cancelled')); return { ...reply(null), text }; });
+    await expect(review(cancelled, [])).rejects.toThrow('cancelled');
+    expect(cancelled.llm.calls).toHaveLength(1);
+  });
+
   it('requests a middle assertion absent from both 24k and 48k excerpts, without replaying any element', async () => {
     vi.stubEnv('ATOMA_MODEL_CONTEXT_WINDOWS', JSON.stringify({ mock: 150000 }));
     const ctx = { ...makeCtx(), currentBranchId: 'left', attempt: 1, attestations: createAttestationLog() };

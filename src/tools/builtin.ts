@@ -58,6 +58,7 @@ export { FALSE_FIELD_DEPTH, FALSE_FIELD_LIMIT, falseBooleanFields, MAX_HOLD_MS, 
 import puppeteer from 'puppeteer';
 import { processHoldsListeningPort } from './listeningPorts.js';
 import { SharedToolBrowser } from './toolBrowser.js';
+import { commandLogSnapshot, captureCommandLogs } from './commandLogs.js';
 
 /**
  * Which server THIS tool set bound on which loopback port.
@@ -240,6 +241,8 @@ export interface BuiltinToolOptions {
   shellAllowlist?: string[];
   /** Hard timeout for shell commands in ms. Defaults to 120 s (`SHELL_TIMEOUT_MS`). */
   shellTimeoutMs?: number;
+  /** Worker-only private temp directory; never enable on the host's shared /tmp. */
+  commandLogDirectory?: string;
   /**
    * Shared by both server tools, `fetch_url` and `validate_html`;
    * `defaultBuiltinTools` supplies one per tool set.
@@ -1027,6 +1030,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
       name: 'run_shell',
       description: [
         'Run an allowlisted shell command inside the workspace and return stdout/stderr.',
+        ...(opts.commandLogDirectory ? ['Keep proof output on stdout/stderr. If redirecting it, use a top-level /tmp/*.log file: changed regular UTF-8 logs are archived with this command before worker removal (8 MiB raw / 4 MiB encoded / 32 files per call, 256 listed paths; omissions are explicit). Archives are file snapshots, not independent proof of a command exit.'] : []),
         `Allowed executables: ${[...allowlist].join(', ')}.`,
         'Built-in utility: command:"atoma-scaffold", args:["web"|"node"|"fullstack", "empty-directory"] creates the versioned TypeScript/ESLint/Vitest skeleton (Vite for browser apps). Use it directly, not inside bash or a compound command. It refuses nonempty directories; use .atoma-skeleton as a reference when adapting an existing app.',
         'Do NOT use this for long-running processes (start_static_server or start_node_server own those).',
@@ -1127,7 +1131,8 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
       // the following Tuesday, one of them on port 8000). execFile's own
       // timeout has the same blind spot: it signals the child only, never
       // the grandchildren.
-      return await new Promise((resolvePromise) => {
+      const logsBefore = opts.commandLogDirectory ? commandLogSnapshot(opts.commandLogDirectory) : undefined;
+      const result = await new Promise<Record<string, unknown>>((resolvePromise) => {
         const child = spawn(command, argv, {
           cwd: opts.sandbox.root,
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -1201,6 +1206,9 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
           }
         });
       });
+      return { ...result, ...(opts.commandLogDirectory && logsBefore ? {
+        capturedCommandLogs: captureCommandLogs(opts.commandLogDirectory, logsBefore),
+      } : {}) };
     },
   };
 }

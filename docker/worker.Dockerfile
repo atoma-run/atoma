@@ -53,7 +53,7 @@ COPY dist/contracts ./dist/contracts
 RUN useradd -m -u 10001 atoma && mkdir -p /workspace && chown atoma /workspace
 USER atoma
 
-ENV ATOMA_WORKER_ROOT=/workspace
+ENV ATOMA_WORKER_ROOT=/workspace ATOMA_WORKER_COMMAND_LOGS=1
 # ABSOLUTE path: the caller sets `-w /workspace` (so a stray relative tool
 # path lands in the sandbox, not in /app), which would make a relative CMD
 # resolve to /workspace/dist/... and fail with MODULE_NOT_FOUND.

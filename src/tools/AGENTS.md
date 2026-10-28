@@ -129,6 +129,11 @@ Neighbours:
 - Every finished `run_shell`/`record_probe` command also kills ESCAPED process groups (`reapEscapedProcessGroups`): orphans reparented to the container's init whose group no live process of the worker shares. A browser a test launched in its own group survived its runner's timeout, and seven such leaks exhausted run 9e134e49's 256-task Compute worker. Only inside a worker started with `--init`: on a host, ppid 1 is the machine's orphans.
 - Cleanup is mandatory on success, failure, timeout, signal, and hard-exit paths.
   Network teardown races need bounded retry.
+- Before returning a shell/probe reply, the worker archives changed top-level
+  regular UTF-8 `/tmp/*.log` files (8 MiB raw / 4 MiB encoded / 32 files per call, 256 listed paths). Links, removed,
+  unreadable and over-bound files are explicit omissions. No host `/tmp` scan,
+  recursive dependency crawl or cleanup delay. Reviewers page these snapshots
+  alongside their parent receipt; file text cannot invent an exit or freshness.
 - `ToolSandbox.drain()` is the stronger local contract before workspace
   replacement: await cleanup, kill surviving owned children/groups and confirm
   their exit; a surviving process prevents replacement.
