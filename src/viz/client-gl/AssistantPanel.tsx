@@ -1,3 +1,6 @@
+import { projectRunNumber } from './project-run-number.js';
+import { RunNumber } from './RunNumber.js';
+import type { VizProjectRun } from '../client/types.js';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AssistantRequest, AssistantRun, AssistantView } from '../../contracts/assistant.js';
@@ -12,6 +15,8 @@ import { activityLines, activitySettled, activityWhat, activityWho, deploymentLi
 
 interface Props {
   scopeKey: string; projectId: string | null; locale: string;
+  /** Complete project history, shared with the Runs list; activity is only a recent page. */
+  projectRunRows?: readonly VizProjectRun[];
   externalAgentGuide?: ReactNode; onboarding?: ReactNode;
   heading?: ReactNode;
   collapsed?: boolean;
@@ -58,12 +63,12 @@ function interleave<M extends { at: string }>(messages: readonly M[],
 const resultCardId = (runId: string) => `assistant-result-${runId}`;
 
 /** One deployment of the project, told by Atoma: which accepted version went online and where it stands. */
-function DeploymentLineView({ line, projectId, locale, t, onRun }: { line: DeploymentLine; projectId: string; locale: string;
+function DeploymentLineView({ line, projectId, locale, t, onRun, number }: { line: DeploymentLine; projectId: string; locale: string; number: number | null;
   t: (key: string, vars?: Record<string, unknown>) => string; onRun: (run: AssistantRun, traceId: string | null) => void }) {
   const { what, state } = deploymentWhat(line, t);
   return <article className="gpu-assistant-message gpu-assistant-message--activity gpu-assistant-message--receipt">
     <div className="gpu-assistant-message-meta"><strong>{t('assistant.receipt')}</strong>
-      <RelativeTime at={line.at} locale={locale} t={t} /></div>
+      <RunNumber number={number} t={t} /><RelativeTime at={line.at} locale={locale} t={t} /></div>
     <p>{what}</p>
     <p>{state}</p>
     <div className="gpu-assistant-message-actions">
@@ -73,14 +78,14 @@ function DeploymentLineView({ line, projectId, locale, t, onRun }: { line: Deplo
 }
 
 /** One narrated run: who asked and from where, or how it ended; never a model's words. */
-function ActivityLineView({ line, locale, t, onRun }: { line: ActivityLine; locale: string;
+function ActivityLineView({ line, locale, t, onRun, number }: { line: ActivityLine; locale: string; number: number | null;
   t: (key: string, vars?: Record<string, unknown>) => string; onRun: (run: AssistantRun, traceId: string | null) => void }) {
   const { run } = line;
   const settled = line.kind === 'ended' ? activitySettled(line, t) : null;
   // A request is an input, on the right like the person's messages; an ending is Atoma's output, on the left like its receipts.
   return <article className={`gpu-assistant-message gpu-assistant-message--activity gpu-assistant-message--${line.kind === 'started' ? 'user' : 'receipt'}`}>
     <div className="gpu-assistant-message-meta"><strong>{line.kind === 'started' ? activityWho(run, t) : t('assistant.receipt')}</strong>
-      <RelativeTime at={line.at} locale={locale} t={t} /></div>
+      <RunNumber number={number} t={t} /><RelativeTime at={line.at} locale={locale} t={t} /></div>
     <p>{activityWhat(line, t)}{line.kind === 'ended' && run.costUsd !== null ? ` · $${run.costUsd.toFixed(2)}` : ''}</p>
     {settled ? <p>{settled}</p> : null}
     {line.kind === 'ended' ? <div className="gpu-assistant-message-actions">
@@ -110,7 +115,7 @@ export function assistantFailureCopy(failure: unknown, t: (key: string) => strin
   return failure instanceof Error ? failure.message : t('assistant.failed');
 }
 
-export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide, onboarding, heading, collapsed = false, t, onSettings, onScopeChange, onProject, onRun, hosting = null }: Props) {
+export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide, onboarding, heading, collapsed = false, t, onSettings, onScopeChange, onProject, onRun, hosting = null, projectRunRows = [] }: Props) {
   const client = useQueryClient();
   const queryKey = ['viz', 'assistant', scopeKey, projectId];
   const conversationId = useRef<string | undefined>(undefined);
@@ -192,6 +197,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   // Their titles come from the run list the open project already polls: the same cache entry, no polling of its own.
   const projectRuns = useQuery({ queryKey: ['viz', 'project', readRunsProjectId, 'runs'],
     queryFn: () => api.projectRuns(readRunsProjectId!), enabled: readRunIds.length > 0 && readRunsProjectId !== null, staleTime: 5_000 });
+  const numberFor = (target: AssistantRun) => target.projectId === projectId
+    ? projectRunNumber(projectRunRows, target.runId) : null;
   const shownRun = query.data?.run ?? null;
   const runInProgress = shownRun?.status === 'queued' || shownRun?.status === 'running';
   // The delivery the server says awaits the client's acceptance: a live run must not hide it.
@@ -376,13 +383,14 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       {timeline.map(entry => {
         if (entry.kind === 'result') return <AssistantRunResult key={`${scopeKey}:${entry.run.runId}`} scopeKey={scopeKey}
           id={resultCardId(entry.run.runId)} target={{ projectId: entry.run.projectId, runId: entry.run.runId }} run={entry.run}
-          locale={locale} t={t} onRun={onRun} hosting={hosting} />;
-        if (entry.kind === 'line') return <ActivityLineView key={entry.line.key} line={entry.line} locale={locale} t={t} onRun={onRun} />;
+          locale={locale} t={t} onRun={onRun} hosting={hosting} number={numberFor(entry.run)} />;
+        if (entry.kind === 'line') return <ActivityLineView key={entry.line.key} line={entry.line} locale={locale} t={t} onRun={onRun} number={numberFor(entry.line.run)} />;
         if (entry.kind === 'deployment') return <DeploymentLineView key={entry.line.key} line={entry.line} projectId={projectId!} locale={locale} t={t}
-          onRun={onRun} />;
+          onRun={onRun} number={numberFor({ projectId: projectId!, runId: entry.line.deployment.runId })} />;
         const { message } = entry;
         return <article key={message.id ?? `${message.at}:${entry.index}`} className={`gpu-assistant-message gpu-assistant-message--${message.role}`}>
         <div className="gpu-assistant-message-meta"><strong>{t(message.role === 'user' ? 'assistant.you' : message.role === 'receipt' ? 'assistant.receipt' : 'assistant.title')}</strong>
+          {message.run ? <RunNumber number={numberFor(message.run)} t={t} /> : null}
           {message.origin === 'mcp' ? <span>{t('assistant.sharedFrom', { client: message.clientLabel ?? 'MCP' })}</span> : null}
           <RelativeTime at={message.at} locale={locale} t={t} /></div>
         {message.role === 'assistant' ? <AssistantMarkdown text={message.text} />
@@ -409,8 +417,9 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
             <ul>{readRunIds.map(runId => {
               const run = projectRuns.data?.find(row => row.projectRunId === runId);
               const at = run ? run.endedAt ?? run.createdAt : null;
+              const number = projectRunNumber(projectRuns.data ?? [], runId);
               // An id the cached list does not hold shows alone; a title is model text, never markup.
-              return <li key={runId}>{run?.title ? <>{run.title} · </> : null}<code>{runId.slice(0, 8)}</code>
+              return <li key={runId}>{number !== null ? <><RunNumber number={number} t={t} />{' '}</> : null}{run?.title ? <>{run.title} · </> : null}<code>{runId.slice(0, 8)}</code>
                 {run ? <> · {t(`projects.runStatus.${run.status}`)}</> : null}
                 {at ? <> · <RelativeTime at={at} locale={locale} t={t} /></> : null}</li>;
             })}</ul>
@@ -434,7 +443,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
         {t('assistant.banner.seeResult')}</button>
     </div> : null}
     {shownRun && !finishedRun ? <div className="gpu-assistant-run" role="status">
-      <span>{shownRun.resultsWaiting || !liveEntry
+      <RunNumber number={numberFor(shownRun)} t={t} /><span>{shownRun.resultsWaiting || !liveEntry
         ? t('assistant.runStatus', { status: t(shownRun.resultsWaiting ? 'projects.resultsWaiting.status' : `projects.runStatus.${shownRun.status}`) })
         : <>{t(shownRun.status === 'queued' ? 'assistant.banner.queued' : 'assistant.banner.running', { title: liveEntry.title ?? liveEntry.goalExcerpt })}
           {' · '}<RelativeTime at={liveEntry.createdAt} locale={locale} t={t} /></>}

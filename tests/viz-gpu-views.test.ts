@@ -6529,6 +6529,25 @@ describe('drawRuns behavior', () => {
     expect(runsPickerControlLayout(WIDTH).y).toBe(pane.top + VIEW_FRAME_CONTENT_TOP);
   });
 
+  it.each([390, 1280])('shows the full project-history number in run detail, including older trace-only identities, at width %s', width => {
+    const run = makeRun([makeLlmEvent('one', { role: 'execute' })]);
+    const rows: VizProjectRun[] = Array.from({ length: 183 }, (_, index) => ({
+      projectRunId: `project-run-${index}`, projectId: 'project-a', traceId: index === 25 ? run.id : `trace-${index}`,
+      goal: 'Build the app', status: 'delivered', costUsd: null, durationS: 10, error: null, publication: null,
+      createdAt: '2026-10-26T08:00:00.000Z', endedAt: '2026-10-26T09:00:00.000Z',
+    }));
+    for (const identity of [{}, { projectRunId: rows[25]!.projectRunId }]) {
+      const ctx = createRecordingCtx();
+      drawRuns(ctx, makeSnapshot({}, { run,
+        runs: [{ id: run.id, label: run.label, startedAt: run.startedAt, projectId: 'project-a', projectName: 'App', ...identity }],
+        projectRuns: { 'project-a': rows },
+      }), width, HEIGHT);
+      const number = ctx.texts.find(text => text.value === 'Run #158');
+      expect(number).toBeDefined();
+      expect(number!.x + number!.node.width).toBeLessThanOrEqual(runsPaneLayout(width).leftX + runsPaneLayout(width).leftWidth);
+    }
+  });
+
   it('says so when a run belongs to no project at all', () => {
     // The operator's own corpus, and the ungated developer path, have no
     // project. The row is still reserved — its height is shared with the

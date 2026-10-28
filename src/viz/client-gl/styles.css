@@ -2170,6 +2170,7 @@ html.atoma-cursor-active * {
 .gpu-assistant-error-details { margin-top: 4px; }
 .gpu-assistant-error-details summary { cursor: pointer; color: #b5c5dc; }
 .gpu-assistant-error-details p { color: #b5c5dc; }
+.gpu-run-number { white-space: nowrap; }
 .gpu-assistant-message-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; }
 /*
  * Where the conversation is wide, Atoma's receipts take the room instead of the

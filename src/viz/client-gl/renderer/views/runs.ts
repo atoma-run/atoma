@@ -1,3 +1,4 @@
+import { projectRunNumber } from '../../project-run-number.js';
 import { UI_LAYOUT } from '../../ui-layout.js';
 import { displayedRunError } from '../../../../contracts/runShutdown.js';
 import { taxonomyForTier } from '../../../../core/taxonomy.js';
@@ -366,8 +367,10 @@ function drawRunsBreadcrumb(
   const titleStyle = { size: RUNS_PROJECT_TITLE_SIZE, weight: '700' } as const;
   const projectId = entry?.projectId;
   const projectName = entry?.projectName;
+  const number = projectId && entry ? projectRunNumber(snapshot.data.projectRuns?.[projectId] ?? [], entry.projectRunId ?? entry.id) : null;
+  const numberLabel = number === null ? null : snapshot.t('runs.number', { number });
   if (!projectId || !projectName) {
-    ctx.text(ctx.root, ctx.fitText(projectName ?? snapshot.t('runs.project.operator'), width, titleStyle),
+    ctx.text(ctx.root, ctx.fitText([numberLabel, projectName ?? snapshot.t('runs.project.operator')].filter(Boolean).join(' · '), width, titleStyle),
       x, y, { ...titleStyle, color: projectName ? GPU_COLORS.text : GPU_COLORS.muted, singleLine: true });
     return;
   }
@@ -387,6 +390,11 @@ function drawRunsBreadcrumb(
     drawChevron(ctx.root, cursor + (separatorWidth - CHEVRON_SIZE) / 2,
       y + (linkText.height - CHEVRON_SIZE) / 2, GPU_COLORS.muted, 'right');
     cursor += separatorWidth;
+  }
+  if (numberLabel) {
+    const label = ctx.fitText(numberLabel, Math.max(0, x + width - cursor), titleStyle);
+    ctx.text(ctx.root, label, cursor, y, { ...titleStyle, singleLine: true });
+    cursor += ctx.measureText(label, titleStyle) + 8;
   }
   const runTitle = snapshot.state.runActivityOpen
     ? snapshot.t('activity.title') : (entry.title ?? entry.goal ?? entry.label).replace(/\s+/g, ' ');

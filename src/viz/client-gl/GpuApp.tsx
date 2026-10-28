@@ -1612,7 +1612,7 @@ function GpuAppContent({
           assistant={state.view === 'projects' && authSnapshot && activeOrgId && authSnapshot.viewer.role !== 'org:viewer' ? (externalAgentGuide, heading) => <AssistantPanel
             key={`${authSnapshot.viewer.principalId}:${activeOrgId}:${state.selectedProjectId ?? 'new'}`}
             scopeKey={`${authSnapshot.viewer.principalId}:${activeOrgId}`}
-            projectId={state.selectedProjectId} locale={state.locale} t={t} externalAgentGuide={externalAgentGuide}
+            projectId={state.selectedProjectId} projectRunRows={projectRunsQuery.data ?? []} locale={state.locale} t={t} externalAgentGuide={externalAgentGuide}
             onboarding={<ComputeOnboarding scopeKey={`${authSnapshot.viewer.principalId}:${activeOrgId}`}
               projectId={state.selectedProjectId} locale={state.locale} t={t} />}
             heading={heading} collapsed={!state.selectedProjectId && state.projectMcpCollapsed}

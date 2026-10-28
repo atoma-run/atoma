@@ -1,3 +1,4 @@
+import { RunNumber } from './RunNumber.js';
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AssistantRun, AssistantView } from '../../contracts/assistant.js';
@@ -22,7 +23,8 @@ export function outcomeKey(status: string, review: { clientAcceptance?: unknown;
 }
 
 /** Current host receipts, not a generated reply or a rewrite of the conversation journal. */
-export function AssistantRunResult({ scopeKey, id, target, run, locale, t, onRun, hosting }: {
+export function AssistantRunResult({ scopeKey, id, target, run, locale, t, onRun, hosting, number = null }: {
+  number?: number | null;
   scopeKey: string; target: AssistantRun; run: NonNullable<AssistantView['run']>;
   /** The card's element id, which the conversation's "see the result" control scrolls to. */
   id?: string;
@@ -71,7 +73,7 @@ export function AssistantRunResult({ scopeKey, id, target, run, locale, t, onRun
 
   return <article id={id} className="gpu-assistant-message gpu-assistant-message--receipt gpu-assistant-result" aria-label={t('assistant.runResult')}>
     <div className="gpu-assistant-message-meta"><strong>{t('assistant.receipt')}</strong>
-      {run.endedAt ? <RelativeTime at={run.endedAt} locale={locale} t={t} /> : null}</div>
+      <RunNumber number={number} t={t} />{run.endedAt ? <RelativeTime at={run.endedAt} locale={locale} t={t} /> : null}</div>
     {/* Named as its deployment and activity lines name it, so "accepted" and "put online" read as one version (2026-10-26). */}
     {run.title ? <p><strong>{run.title}</strong></p> : null}
     <p>{run.title ? t(outcomeKey(run.status, review, canAccept)) : <strong>{t(outcomeKey(run.status, review, canAccept))}</strong>}

@@ -1,3 +1,4 @@
+import type { VizProjectRun } from '../src/viz/client/types.js';
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -41,13 +42,13 @@ function deliveredView() {
   return data;
 }
 function panel(data: AssistantView = view(), scopeKey = 'alice:org-a', boundProjectId: string | null = null,
-  hosting: { view: DeploymentSettingsView; onActivate: (id: string) => void } | null = null) {
+  hosting: { view: DeploymentSettingsView; onActivate: (id: string) => void } | null = null, projectRunRows: readonly VizProjectRun[] = []) {
   vi.spyOn(api, 'assistant').mockResolvedValue(data);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }); clients.push(client);
   const props = { scopeKey, projectId: boundProjectId, locale: 'en', inert: false,
     externalAgentGuide: createElement('button', { type: 'button' }, 'Connect your agent'),
     t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
-    onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn(), hosting };
+    onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn(), hosting, projectRunRows };
   const { unmount } = render(createElement(QueryClientProvider, { client }, createElement(AssistantPanel, props)));
   return { client, props, unmount };
 }
@@ -923,4 +924,41 @@ it('updates conversation edge shadows on native scroll, viewport resize and cont
   resize(); edges(false, false);
   unmount();
   expect(disconnect).toHaveBeenCalledOnce();
+});
+
+function numberedHistory(): VizProjectRun[] {
+  return Array.from({ length: 183 }, (_, index) => ({
+    projectId, projectRunId: `run-${183 - index}`, traceId: `trace-${183 - index}`, goal: 'Build the app',
+    status: 'delivered', costUsd: 0.1, durationS: 10, error: null, publication: null,
+    createdAt: '2026-10-26T08:00:00.000Z', endedAt: '2026-10-26T09:00:00.000Z',
+  }));
+}
+
+it('uses the complete history number in chat results, activity, saved receipts and deployment lines', async () => {
+  vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
+  const data = view();
+  data.conversation.projectId = projectId;
+  data.conversation.messages = [{ role: 'receipt', text: 'assistant.started', at: '2026-10-26T10:00:00.000Z', run: { projectId, runId: 'run-156' } }];
+  data.run = { projectId, runId: 'run-158', title: 'Current delivery', status: 'delivered', traceId: 'trace-158', costUsd: 0.1, error: null, endedAt: '2026-10-26T12:00:00.000Z' };
+  data.activity = [activity({ runId: 'run-157', title: 'Earlier request', status: 'failed', endedAt: '2026-10-26T11:00:00.000Z' })];
+  panel(data, 'alice:org-a', projectId, deployed([deployment({ runId: 'run-155' })]), numberedHistory());
+  const log = await screen.findByRole('log');
+  await waitFor(() => expect(within(log).getByText('Run #158')).toBeVisible());
+  expect(within(log).getAllByText('Run #157')).toHaveLength(2);
+  expect(within(log).getByText('Run #156')).toBeVisible();
+  expect(within(log).getByText('Run #155')).toBeVisible();
+  expect(within(log).queryByText('Run #1')).not.toBeInTheDocument();
+});
+
+it('numbers a live run from the full history and omits unknown numbers', async () => {
+  const data = view();
+  data.conversation.projectId = projectId;
+  data.run = { projectId, runId: 'run-183', status: 'running', traceId: 'trace-183', costUsd: null, error: null, endedAt: null };
+  const first = panel(data, 'alice:org-a', projectId, null, numberedHistory());
+  expect(await screen.findByText('Run #183')).toBeVisible();
+  first.unmount();
+  data.run.runId = 'unknown-run';
+  panel(data, 'alice:org-b', projectId, null, numberedHistory());
+  expect(await screen.findByRole('button', { name: translate('en', 'assistant.followRun') })).toBeVisible();
+  expect(screen.queryByText(/^Run #/)).not.toBeInTheDocument();
 });

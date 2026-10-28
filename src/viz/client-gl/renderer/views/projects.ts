@@ -1,3 +1,4 @@
+import { projectRunNumber } from '../../project-run-number.js';
 import { UI_LAYOUT, UI_SPACE } from '../../ui-layout.js';
 import { drawProjectSettings } from './project-settings.js';
 import { drawWorkspace } from './workspace.js';
@@ -467,8 +468,8 @@ function repositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: 
   const deployment = snapshot.data.deploymentSettings;
   const hosting = deployment?.projectId === project.projectId ? deployment.hosting : null;
   const runs = snapshot.data.projectRuns?.[project.projectId] ?? [];
-  const hostedIndex = hosting?.state === 'ready' ? runs.findIndex(run => run.projectRunId === hosting.runId) : -1;
-  const hostedRunText = hostedIndex >= 0 ? snapshot.t('projects.hostedRun', { number: runs.length - hostedIndex }) : null;
+  const hostedNumber = hosting?.state === 'ready' && hosting.runId ? projectRunNumber(runs, hosting.runId) : null;
+  const hostedRunText = hostedNumber !== null ? snapshot.t('projects.hostedRun', { number: hostedNumber }) : null;
   const hostedRunWidth = hostedRunText ? ctx.measureText(hostedRunText, { size: 9, weight: '600' }) : 0;
   const hostedRunSpace = hostedRunText ? hostedRunWidth + UI_SPACE.sm : 0;
   const hostedText = project.hostedUrl ? `● ${new URL(project.hostedUrl).host}` : null;
@@ -956,7 +957,7 @@ export function drawProjects(
           });
         }
         badge.addChild(new Graphics().roundRect(-runBadgeWidth / 2, -11, runBadgeWidth, 22, 11).fill(status.color));
-        ctx.text(badge, String(runs.length - runIndex), 0, 0,
+        ctx.text(badge, String(projectRunNumber(runs, run.projectRunId)), 0, 0,
           { size: 10, weight: '700', color: GPU_COLORS.panel, backgroundColor: status.color }).anchor.set(0.5, 0.5);
         const runTitle = run.title ?? run.goal.replace(/\s+/g, ' ');
         // The run a link asked for (a results-waiting notification) stands out,

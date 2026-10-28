@@ -37,6 +37,7 @@
  *   --assistant-model-probe Change model and prove retention across reload.
  *   --assistant-links-probe Verify compact receipt buttons and their destinations
  *                        (with --auth --select-first --url <frontend URL>).
+ *   --run-number-context-probe With --project-run-numbers --assistant-history, check chat and run-detail references.
  *   --project-hosted-run-probe Click the hosted run, reveal it and check its pulse/reduced motion.
  *   --project-run-numbers Numbered history with an older run currently hosted.
  *   --project-run-cards  Running and paused cards in the selected project Runs tab.
@@ -88,6 +89,8 @@ import { assertLiveRuns } from './viz-live-runs-probe.mjs';
 import { assertMobileProjects } from './viz-mobile-probe.mjs';
 import { assertTimelineMinimap } from './viz-timeline-probe.mjs';
 import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../src/contracts/platformSettings.ts';
+
+const enCatalog = JSON.parse(await readFile(new URL('../src/viz/client/locales/en.json', import.meta.url), 'utf8'));
 
 /** Deterministic operational data for reviewing the platform overview. */
 function platformStatsFixture(days = 30) {
@@ -1017,6 +1020,16 @@ try {
         traceId: `numbered-run-${index}`, status: 'delivered', createdAt: new Date(Date.UTC(2026, 9, 28, 12) - index * 3600000).toISOString(),
       }));
       stubs[path] = rows;
+      if (has('--run-number-context-probe')) {
+        const run = rows[25];
+        const reference = { projectId: project.projectId, runId: run.projectRunId };
+        assistantFixture.run = { ...reference, status: 'partial', costUsd: run.costUsd, traceId: run.traceId,
+          title: run.title, error: null, endedAt: run.endedAt };
+        assistantFixture.conversation.messages.push({ role: 'receipt', text: 'assistant.runStarted', run: reference, at: new Date().toISOString() });
+        const entry = { ...stubs['/api/runs'][0], id: run.traceId, projectRunId: run.projectRunId, title: run.title };
+        stubs['/api/runs'] = [entry];
+        stubs[`/api/runs/${run.traceId}`] = { ...stubs['/api/runs/run-fixture'], id: run.traceId };
+      }
       const url = 'https://weather.app.atoma.run/';
       Object.assign(project, { hostedUrl: url, runCount: rows.length, deploymentDestination: 'atoma' });
       stubs[`/api/projects/${project.projectId}/hosting`] = {
@@ -1700,7 +1713,7 @@ try {
         }
         console.log('Assistant layout: shared heading, distinct speaker borders, available height used');
         const markdown = await page.evaluate(() => {
-          const prose = document.querySelector('.gpu-assistant-message--assistant:last-child .gpu-assistant-markdown');
+          const prose = [...document.querySelectorAll('.gpu-assistant-message--assistant .gpu-assistant-markdown')].at(-1);
           const log = document.querySelector('.gpu-assistant-log');
           return { heading: prose?.querySelector('h2')?.textContent,
             strong: prose?.querySelector('strong')?.textContent, items: prose?.querySelectorAll('li').length,
@@ -2160,6 +2173,27 @@ try {
         await page.mouse.click(point.x, point.y);
         await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 400)));
       }
+    }
+    if (has('--run-number-context-probe')) {
+      if (!has('--project-run-numbers') || !assistantHistory) throw new Error('--run-number-context-probe needs --project-run-numbers --assistant-history');
+      await page.waitForFunction(() => [...document.querySelectorAll('.gpu-assistant-message--receipt .gpu-run-number')]
+        .some(node => node.textContent === 'Run #158'), { timeout: READY_TIMEOUT_MS });
+      await page.screenshot({ path: outPath.replace(/\.png$/, '-chat.png') });
+      const point = await page.evaluate(label => {
+        const article = [...document.querySelectorAll('.gpu-assistant-message--receipt')]
+          .filter(node => node.querySelector('.gpu-run-number')?.textContent === 'Run #158').at(-1);
+        const button = [...article.querySelectorAll('button')].find(node => node.textContent.trim() === label);
+        const rect = button.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      }, enCatalog['assistant.openRun']);
+      await page.mouse.click(point.x, point.y);
+      await page.waitForFunction(() => {
+        const walk = node => node.text === 'Run #158' || node.children?.some(walk);
+        return walk(globalThis.__ATOMA_GPU__.app.stage);
+      }, { timeout: READY_TIMEOUT_MS });
+      await page.waitForFunction(() => document.querySelector('.gpu-cube')?.getAttribute('data-cube-turn') !== 'turning' &&
+        document.querySelector('.gpu-scene-camera')?.dataset.sceneCameraMotion === 'settled', { timeout: READY_TIMEOUT_MS });
+      console.log('Run number: chat receipt and opened run detail both show #158 from the complete project history');
     }
     if (has('--project-hosted-run-probe')) {
       if (!has('--project-run-numbers')) throw new Error('--project-hosted-run-probe needs --project-run-numbers');

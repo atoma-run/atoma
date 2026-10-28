@@ -3074,7 +3074,7 @@ try {
           inGuide: logBox.top >= guideBox.top - 1 && logBox.bottom <= guideBox.bottom + 1,
           reachable: buttonBox.top >= logBox.top - 1 && buttonBox.bottom <= logBox.bottom + 1 };
       });
-      if (readRunsCard.items.length !== 2 || !/^Deliver the smoke app · eeeeeeee · delivered · /.test(readRunsCard.items[0])
+      if (readRunsCard.items.length !== 2 || !/^Run #1 Deliver the smoke app · eeeeeeee · delivered · /.test(readRunsCard.items[0])
         || readRunsCard.items[1] !== 'ffffffff') throw new Error(`Read-runs card lists ${JSON.stringify(readRunsCard.items)}`);
       if (!readRunsCard.fits || !readRunsCard.inGuide || !readRunsCard.reachable) {
         await accountPage.screenshot({ path: '/tmp/atoma-assistant-read-runs-failure.png' });
