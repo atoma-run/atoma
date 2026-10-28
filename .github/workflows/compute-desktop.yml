@@ -169,13 +169,18 @@ jobs:
           umask 077
           printf '%s' "$APPLE_API_KEY_CONTENT" > "$key"
           echo "APPLE_API_KEY=$key" >> "$GITHUB_ENV"
+      - name: Prepare verified local Node headers for Windows native modules
+        if: matrix.platform == 'win'
+        run: node scripts/prepare-node-gyp-headers.mjs
       - run: npm ci
+      - name: Verify the installed native SQLite binding
+        run: node --input-type=module -e "import Database from 'better-sqlite3'; const db = new Database(':memory:'); db.exec('CREATE TABLE proof (value INTEGER); INSERT INTO proof VALUES (42)'); if (db.prepare('SELECT value FROM proof').get().value !== 42) throw new Error('Native SQLite smoke failed'); db.close();"
       - run: node node_modules/electron/install.js
       - run: npm run typecheck
         env:
           # The complete source/test program exceeds Node's 2 GiB default on macOS ARM.
           NODE_OPTIONS: --max-old-space-size=4096
-      - run: npx vitest run tests/compute-desktop.test.ts tests/compute-desktop-updates.test.ts tests/compute-desktop-main-updates.test.ts tests/compute-desktop-version.test.ts tests/compute-desktop-content.test.ts tests/compute-image-pull.test.ts tests/compute-image-cache.test.ts tests/compute-preparation.test.ts tests/compute-preparation-runtime.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
+      - run: npx vitest run tests/node-gyp-headers.test.ts tests/compute-desktop.test.ts tests/compute-desktop-updates.test.ts tests/compute-desktop-main-updates.test.ts tests/compute-desktop-version.test.ts tests/compute-desktop-content.test.ts tests/compute-image-pull.test.ts tests/compute-image-cache.test.ts tests/compute-preparation.test.ts tests/compute-preparation-runtime.test.ts tests/compute-application.test.ts tests/compute-cli.test.ts tests/compute-credential.test.ts tests/compute-inventory.test.ts
       - run: npm run compute:desktop:build
       - uses: actions/download-artifact@v5
         with:

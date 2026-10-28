@@ -138,3 +138,35 @@ historical archives; the replay changed only README by one 48-byte insertion.
 The historical guide has a real omission: its test:browser command block lacks
 tests/xe-chromium.test.ts. Preserve that evidence; repair in a new iteration
 from the retained phase-boundary source 69775aee, not by rewriting old bytes.
+
+## Production confirmation — 2026-10-28
+
+Policy b2cde385 deployed; CI, CodeQL, native installers and real-browser smoke
+passed. The retained 69775aee boundary was already consumed, so the owner-approved
+repair started c749d7b7 from its identical 250-file snapshot (digest 5119c980…).
+Only the guide changed, adding the missing 26-byte Chromium operand. Pause after
+phase 1, then actual continuation ce495110 delivered 2/2; only README changed
+by 62 bytes. Its sealed initial snapshot 31a0999c/e65f073b… is byte/mode identical
+to all 275 source-boundary entries; actor/plan/checklist/completed prefix and
+all 17 historical archives match. All 249 unrelated files/modes remain unchanged.
+
+Automatic validations adcc475a (364 s, $0.27690602 with post-acceptance learning
+stopped on cost) and fd0a03a0 (210 s, $0.239939) both completed. Both criteria
+passed; only freshly hosted observations changed counters, no recipes changed,
+and device observations stayed withheld. Seven automatic starts in 24 h
+demonstrated removal of daily admission. All 300 events and 260 full archives
+were read, decoded and integrity-checked; intermediate quoting, bad regex and
+report/baseline errors are retained. Reports sometimes rebased after their own
+edit; independent sealed-byte/mode comparisons establish actual preservation.
+Private downloaded evidence: /tmp/attica-no-cap-20261028; canonical traces and
+initial snapshots remain in the production store/supervisor directories.
+Attica was neither client-accepted nor published.
+
+The owner then requested fixing Windows packaging. f7ac788a's Windows npm ci
+failed inside node-gyp 12.4.0 after HTTP 200 for Node 24.20.0 headers, before
+configure (Completion callback never invoked). Local same-version install
+succeeded; no Python/compiler failure was established. Windows CI now prepares
+complete official headers + architecture-specific node.lib with bounded curl,
+verifies official SHA-256 and header version, extracts from disk, then supplies
+node-gyp's documented package-config nodedir. Ordinary install scripts remain
+enabled; a real native SQLite smoke follows installation.
