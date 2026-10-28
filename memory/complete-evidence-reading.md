@@ -437,3 +437,42 @@ Original production evidence and a39-payload private local archive retained;
 extra upload rejected by automatic review, not bypassed. Existing owner's
 sourceacceptance/publication unchanged. See
 [full incident](../records/incidents/compute-validation-mcp-attica-2026-10-28.md).
+
+### Review recovery and retained raw logs verified — 2026-10-28
+
+Owner-requested fixes shipped in 172e3a565604cb2771d707ee98a9af2a307eb57a:
+one tool-free exact re-emission for an isolated schema-valid read envelope wrapped
+in prose (never execute extracted JSON), and private-worker top-level `/tmp/*.log`
+capture before reply/removal. Each review has one correction total; real reading
+rounds remain bounded. Captures preserve full UTF-8 bytes/SHA in existing trace
+archives with explicit omissions and raw/encoded/count bounds. Host tools opt out.
+Final release: 8,551 tests passed / 44 skipped. Real full-Dockerfile worker proof
+19/19 passed, including engine-confirmed drain; CI, CodeQL, deploy40762924563 and
+three-OS Compute packaging green. Preview0.5.213 published.
+
+MCP retry key attica-compute-validation-mcp-20261028-02, source5ff2e4df, attempt
+293f7277-cdcd-4c34-8892-9d48bd59281f completed20:34:06.387Z, 7m07 after claim,
+$0.12402084 / 13 calls. All c1–c6 met; acceptance14ec8a3b. Exact JSON reads worked
+without a verdict-repair call; local regression proves the malformed-case fix.
+Snapshot5f3c80fc digestc1edcd0d and initialcontext773f20da recomputed unchanged,
+including materialized start (276entries/251files/4,496,267bytes). Onlyconfig
+459→516;250otherfiles/modes unchanged. Clean-rootcheck121Vitest+89Node; fresh
+build then29browser tests pass, including bothfocusedfiles/all5cases.
+
+Read54events/13responses/allprompts/31attestations,29unique verified archives,
+all8rawlog versions (43,868bytes) and20,977bytehostlog. Failed/successful overwritten
+check logs both survive production trace after worker removal (engine read20:46Z).
+Do not turn model's stale-dist explanation of the first recovery-ui:373 failure
+into fact: status is fetched before waiting, race plausible; final pass after
+build establishes success but not cause. Also preserve missing browser-source
+copy/typecheck failure and successful installs followed by failing tail (shell1).
+One type-success plus reviewed Sucrosev5→6/trustreset; recipesChanged includes
+type-patch, no new recipe saved. Source acceptance/publication unchanged.
+
+Private97-payload archive in this chat artifacts: attica-validation-293f7277.tar.gz,
+sha df1e9c234da606b52f1bc39ed3f69cf22636ca63c15f7c24c8a54578587ccf4d, mode0600,
+internalSHA256SUMS verified; includes prior byte-identical reference bodies.
+Private supervisor trace still unavailable through public MCP trace reader;
+exact no-trace reply recorded before readonlySSH fallback. No extra upload,
+customer run, publication or replay. See
+[full follow-up](../records/incidents/compute-review-raw-logs-2026-10-28.md).
