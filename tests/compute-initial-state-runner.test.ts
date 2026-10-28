@@ -38,7 +38,9 @@ describe('Compute initial state through cold runner continuation and verificatio
     writeFileSync(join(seed, '.atoma-probes.json'), '{"version":1,"entries":[{"cmd":"node verify.cjs","exitCode":0}]}');
     writeFileSync(join(seed, '.env.local'), 'private fixture seed');
     writeFileSync(join(seed, 'original.txt'), 'original bytes');
-    const paused = f.run(['--container', '--checkpoint', '--seed', seed, 'Write two files in sequence'], '', { ...first.env, CHECKPOINT_TEST_REQUEST_PAUSE: answered ? '0' : '1', CHECKPOINT_TEST_QUESTION_PHASE: answered ? '1' : undefined });
+    const paused = f.run(['--container', '--checkpoint', '--seed', seed, 'Write two files in sequence'], '', { ...first.env,
+      CHECKPOINT_TEST_HOST_TOOL: answered ? undefined : '1',
+      CHECKPOINT_TEST_REQUEST_PAUSE: answered ? '0' : '1', CHECKPOINT_TEST_QUESTION_PHASE: answered ? '1' : undefined });
     expect(paused.status, paused.stdout + paused.stderr).toBe(0);
     const states = new RunInitialStateStore(db);
     const initial = states.read({ sourceRunId: first.id, orgId: viewer.orgId, projectId: project.projectId });

@@ -16,6 +16,11 @@ export const computeValidationLaunchSchema = z.object({
 }).strict();
 export type ComputeValidationLaunch = z.infer<typeof computeValidationLaunchSchema>;
 
+/** An operator's explicit, source-scoped authorization; never a run/device input. */
+export const computeValidationExtraAttemptSchema = z.object({
+  authorizedBy: z.string().uuid(), reason: z.string().trim().min(1).max(1000), authorizedAt: z.string().datetime(),
+}).strict();
+
 /** Does not grant authority or inherit attestations; only narrows the ordinary runner's budgets. */
 export function computeValidationLaunch(env: NodeJS.ProcessEnv): ComputeValidationLaunch | null {
   const raw = env[COMPUTE_VALIDATION_ENV];

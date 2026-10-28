@@ -34,6 +34,10 @@ $0.25 API-equivalent consumption, and four starts in a rolling 24 hours. In-flig
 calls may exceed consumption stops; unknown spend still reserves one attempt.
 The volume bound permits repeated full proof/cache reads; cost accounting,
 platform ceilings, time and daily limits remain independent stops.
+An operator may explicitly authorize one additional attempt for one pending,
+never-started source/org/project. Authorization and consumption are journaled
+atomically in the existing queue/ledger, survive restarts, cannot renew or
+transfer, and change no per-attempt budget. Devices/models cannot supply it.
 
 An ordinary hosted run starts from the complete initial state captured by
 `run/initialState.ts`, never the device's finished output. Capture streams the

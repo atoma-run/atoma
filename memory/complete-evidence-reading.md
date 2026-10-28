@@ -104,3 +104,19 @@ workspace-wide with no branch attribution. Capped/unreadable paths stay unknown;
 neither digest-format differences nor host unchanged counts approve behavior.
 Runtime fingerprint guidance preserves exact serialization and literal paths;
 there is no Unicode normalization, baseline replacement or command replay.
+
+The four-per-24h automatic admission limit originated in implementation commit
+45ec6771, not an owner request. On 2026-10-28 the owner explicitly questioned
+that unrequested limit and authorized ONE additional attempt for now. Do not
+describe four/day as an owner decision or infer unlimited extra starts. The
+operator-only source-scoped authorization in the existing queue detail/ledger
+admits one never-started job past the ordinary ceiling, atomically and once;
+normal per-attempt cost, token, time, provenance and lease rules still apply.
+
+Before granting the extra attempt for ee825326, read-only production preflight
+found Meristem v14 versus v15: identical identity/prompt/params and common tool
+declarations, with only search_project_docs/list_mcp_tools/call_mcp_tool absent
+on the host. A stored optional capability is no current authority. Continuation
+may narrow only the established HOST_TOOL_NAMES set, with unchanged ordered
+survivors and a fresh review of the suffix; worker removals, additions or changed
+declarations still refuse. Initial bytes/history and prefix credits are untouched.

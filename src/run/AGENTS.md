@@ -117,8 +117,10 @@ Neighbours:
   the host binds continuation to the requester/org/project and a new run receipt,
   copies the complete sealed workspace and atomically consumes the source claim.
   A saved root actor whose identity or behavior changed is refused after that claim.
-  A newer version is allowed only when its prompt, ordered complete tool declarations
-  and parameters exactly match the archived saved version; missing/corrupt history
+  A newer version requires the same archived prompt/parameters and ordered tool
+  declarations; only absent opt-in `HOST_TOOL_NAMES` capabilities may be removed.
+  No worker-tool removal, addition, declaration change or reordering is allowed.
+  Missing/corrupt history
   refuses. It uses the current version and re-reviews the remaining plan's old approval,
   never restoring trust or credit from the completed prefix. A genuine change is refused,
   so the refusal hands the untouched source back and finishes the successor in

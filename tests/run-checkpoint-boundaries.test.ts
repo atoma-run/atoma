@@ -265,7 +265,7 @@ describe('durable sequential run continuation', () => {
   // successor claimed the continuation, and the successor's own catalog
   // seeding can move Meristem's version. The refusal consumed the source for
   // good and left the successor `running`, blocked by its own seeding.
-  it.each(['changed', 'identical', 'missing-history', 'corrupt-history', 'identity'] as const)('checks the complete saved root definition before continuing: %s', async mode => {
+  it.each(['changed', 'host-tools-removed', 'identical', 'missing-history', 'corrupt-history', 'identity', 'added', 'tool-edited', 'reordered', 'prompt', 'params'] as const)('checks the complete saved root definition before continuing: %s', async mode => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-checkpoint-actor-'))); checkpointRoots.push(root);
     const dbPath = join(root, 'atoma.db');
     const registry = new AtomRegistry(openDb(dbPath));
@@ -304,18 +304,28 @@ describe('durable sequential run continuation', () => {
         fresh: false, source: saved, automatic: true, account: () => saved.consumed, deadlineAt: Date.now() + 600_000,
         settle: async () => {}, processes: () => [], restoreWorkspace: () => store.materialize(saved, nextWorkspace, false) });
       // The runner's order: the successor seeds its catalog, then selects the saved actor.
-      if (mode !== 'changed') seed([...base, docs]);
+      if (mode === 'changed') registry.patch(paused.name, { removeTools: ['read_file'] }, 'fixture');
+      else if (mode === 'host-tools-removed') seed(base);
+      else if (mode === 'added') seed([...base, docs, { ...docs, name: 'write_file' }]);
+      else if (mode === 'tool-edited') seed([{ ...base[0]!, description: 'Changed wire declaration' }, docs]);
+      else if (mode === 'reordered') {
+        seed([...base, docs]);
+        registry.patch(paused.name, { removeTools: base.map(t => t.name), addTools: base }, 'fixture');
+      }
+      else seed([...base, docs]);
+      if (mode === 'prompt') registry.patch(paused.name, { systemPromptAppend: 'Changed behavior' }, 'fixture');
+      if (mode === 'params') registry.patch(paused.name, { params: { temperature: 0.2 } }, 'fixture');
       if (mode === 'missing-history' || mode === 'corrupt-history') {
         const raw = new Database(dbPath);
         if (mode === 'missing-history') raw.prepare('DELETE FROM atom_type_versions WHERE tier=3 AND ordinal=? AND version=?').run(paused.ordinal, paused.version);
         else raw.prepare('UPDATE atom_type_versions SET tools_json=? WHERE tier=3 AND ordinal=? AND version=?').run('broken', paused.ordinal, paused.version);
         raw.close();
       }
-      if (mode === 'identical') {
+      if (mode === 'identical' || mode === 'host-tools-removed') {
         const current = savedRootActor(registry, saved.actor!, successor);
         expect(current.version).toBeGreaterThan(saved.actor!.version);
         expect(current.systemPrompt).toBe(paused.systemPrompt);
-        expect(current.tools).toEqual(paused.tools);
+        expect(current.tools).toEqual(mode === 'identical' ? paused.tools : base);
         successor.refuseContinuation(); // Test cleanup must leave the original boundary untouched.
       } else expect(() => savedRootActor(registry, mode === 'identity' ? { ...saved.actor!, atomId: randomUUID() } : saved.actor!, successor))
         .toThrow('Saved root actor has changed; resume refused');

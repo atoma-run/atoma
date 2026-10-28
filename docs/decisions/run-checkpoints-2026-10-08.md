@@ -111,9 +111,14 @@ restoring its snapshot into the new run. The saved root actor is compared after
 that claim, because the successor's own catalog seeding can move its version; a
 changed identity or behavior hands the untouched source back and finishes the successor in one
 transaction, so the source stays as resumable as it was (code review 2026-10-09, 1.4).
-A newer version with exactly the archived saved prompt, ordered complete tool
-definitions and parameters may continue as the current version, forcing a fresh
-remaining-plan review. Missing or corrupt history refuses; no registry rollback
+A newer version with the archived saved prompt and parameters, and unchanged
+ordered tool declarations, may continue as the current version. Only opt-in
+host capabilities (`HOST_TOOL_NAMES`) absent from the current run may be removed;
+worker tools, additions, changed declarations and reordered survivors still refuse.
+This forces a fresh remaining-plan review against the current capabilities; a
+required unavailable capability cannot execute through its old approval. Retrieval
+availability is independent of connector grants, which are never restored.
+Missing or corrupt history refuses; no registry rollback
 or historical credit is granted (production Attica, 2026-10-28).
 Legacy graceful checkpoints keep the
 verified workspace copy path. Previous artifacts

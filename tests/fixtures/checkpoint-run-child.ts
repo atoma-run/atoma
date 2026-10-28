@@ -121,9 +121,16 @@ mock.module(new URL('../../src/run/providers.ts', import.meta.url).href, {
 });
 if (process.env['CHECKPOINT_TEST_TENANT'] === '1') {
   mock.module(new URL('../../src/run/toolBackend.ts', import.meta.url).href, {
-    namedExports: { ...backends, containerToolBackend: async (opts: { workspaceRoot: string }) =>
-      ({ ...backends.localToolBackend({ workspaceRoot: opts.workspaceRoot, logger: nullLogger }),
-        ...(process.env['CHECKPOINT_TEST_CAPTURE_COMPUTE'] === '1' ? { provenance: 'customer-device' as const } : {}) }) },
+    namedExports: { ...backends, containerToolBackend: async (opts: { workspaceRoot: string }) => {
+      const base = backends.localToolBackend({ workspaceRoot: opts.workspaceRoot, logger: nullLogger });
+      const optional = process.env['CHECKPOINT_TEST_HOST_TOOL'] === '1';
+      return { ...base,
+        ...(optional ? { toolDecls: [...base.toolDecls, { name: 'search_project_docs', description: 'Fixture optional project retrieval',
+          inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }],
+          executor: { ...base.executor, has: (name: string) => name === 'search_project_docs' || base.executor.has(name),
+            execute: (name: string, args: Record<string, unknown>) => name === 'search_project_docs' ? Promise.resolve({ matches: [] }) : base.executor.execute(name, args) } } : {}),
+        ...(process.env['CHECKPOINT_TEST_CAPTURE_COMPUTE'] === '1' ? { provenance: 'customer-device' as const } : {}) };
+    } },
   });
 }
 if (process.env['CHECKPOINT_TEST_REQUEST_PAUSE'] === '1') {

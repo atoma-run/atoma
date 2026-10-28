@@ -31,6 +31,34 @@ describe('durable sequential run continuation', () => {
       expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
     }, 90000);
 
+    it.each([false, true])('reviews the suffix after a run-local host capability disappears (review refuses=%s)', refuses => {
+      const f = fixture(true);
+      const first = f.run(['--container', '--pause-after-phase', '1', 'Write two files in sequence'], '', { CHECKPOINT_TEST_HOST_TOOL: '1', CHECKPOINT_TEST_TENANT: '1' });
+      expect(first.status, first.stdout + first.stderr).toBe(0);
+      const id = f.report().checkpointId;
+      const saved = new RunCheckpointStore(f.db).read(id);
+      const registry = new Database(f.db, { readonly: true });
+      try {
+        const actor = registry.prepare('SELECT tools_json FROM atom_types WHERE name=?').get('Meristem') as { tools_json: string };
+        expect(JSON.parse(actor.tools_json).some((tool: { name: string }) => tool.name === 'search_project_docs')).toBe(true);
+      } finally { registry.close(); }
+      const next = f.run(['--container', '--resume', id], '', { CHECKPOINT_TEST_TENANT: '1', ...(refuses ? { CHECKPOINT_TEST_REFUSE_ROOT_REVIEW: 'always' } : {}) });
+      if (refuses) {
+        expect(next.status).not.toBe(0);
+        expect(next.stdout + next.stderr).toContain('Saved delegation plan requires a new run');
+        expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\n');
+      } else {
+        expect(next.status, next.stdout + next.stderr).toBe(0);
+        expect(f.report().rootReviews).toBe(1);
+        expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
+      }
+      const stored = new Database(f.db, { readonly: true });
+      try {
+        const row = stored.prepare('SELECT payload FROM run_checkpoints WHERE id=?').get(id) as { payload: string };
+        expect((JSON.parse(row.payload) as { completed: unknown[] }).completed[0]).toEqual(saved.completed[0]);
+      } finally { stored.close(); }
+    }, 90000);
+
     it.each([
       ['a saved subtask description', "json_set(payload, '$.root.plan.subtasks[1].description', 'Write phase-two.txt with care')"],
       ['the saved inputs', "json_set(payload, '$.root.inputs', json('{\"note\":\"changed\"}'))"],

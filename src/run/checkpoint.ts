@@ -25,6 +25,7 @@ import { storedCheckpointExport } from './checkpointExport.js';
 export { canonicalCheckpointWorkspacePath, checkpointWorkspaceDigest } from './checkpointWorkspace.js';
 import { PhaseBoundaryPause, runCheckpointSchema, type RootDelegationApproval, type RootPhaseCheckpoint, type RunCheckpoint, type ProjectCheckpointStatus } from '../contracts/runCheckpoint.js';
 import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
+import { HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
 
 const DDL = `CREATE TABLE IF NOT EXISTS run_checkpoints (
   id TEXT PRIMARY KEY, state TEXT NOT NULL, owner TEXT NOT NULL,
@@ -735,8 +736,8 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
   }
 }
 
-/** The same saved behavior, or a refusal that hands the claimed source back.
- * Catalogue refreshes can return to byte-identical behavior at a newer version.
+/** Same saved behavior, possibly without opt-in host capabilities unavailable here.
+ * Catalogue refreshes can also return to byte-identical behavior at a newer version.
  * Return the current version: the saved plan approval must be reviewed again. */
 export function savedRootActor(registry: Pick<AtomRegistry, 'getByName' | 'listVersions'>, actor: NonNullable<RunCheckpoint['actor']>,
   checkpoint?: SequentialCheckpoint): AtomType {
@@ -745,8 +746,12 @@ export function savedRootActor(registry: Pick<AtomRegistry, 'getByName' | 'listV
     if (stored && stored.atomId === actor.atomId) {
       if (stored.version === actor.version) return stored;
       const saved = registry.listVersions(actor.name).find(row => row.version === actor.version);
+      const currentNames = new Set(stored.tools.map(tool => tool.name));
+      const removed = saved?.tools.filter(tool => !currentNames.has(tool.name)) ?? [];
+      const toolsMatch = saved && removed.every(tool => HOST_TOOL_NAMES.some(name => name === tool.name)) &&
+        JSON.stringify(saved.tools.filter(tool => currentNames.has(tool.name))) === JSON.stringify(stored.tools);
       if (saved && saved.systemPrompt === stored.systemPrompt &&
-          JSON.stringify(saved.tools) === JSON.stringify(stored.tools) &&
+          toolsMatch &&
           JSON.stringify(saved.params) === JSON.stringify(stored.params)) return stored;
     }
   } catch { /* Unreadable history proves no equivalence; release the successor too. */ }
