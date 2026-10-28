@@ -59,3 +59,31 @@ Follow-up local release verification passed `npm run release:check`: 8,542 tests
 43 skipped, both TypeScript configurations, lint, audit, docs/build and compiled
 release smokes. The dependencies came from the same lockfile's successful
 `npm ci`; no dependency or model quota changed.
+
+## Verified production follow-up
+
+Revision `9b53b99e333222573a5c9a22ec670470f193d0af` passed
+[CI 40748979599](https://github.com/atoma-run/atoma/actions/runs/40748979599)
+and [CodeQL 40748978503](https://github.com/atoma-run/atoma/actions/runs/40748978503).
+[Deployment 40749941116](https://github.com/atoma-run/atoma/actions/runs/40749941116)
+completed successfully. The authenticated Atoma MCP reported that exact selected
+executor release with no in-flight assay or last error.
+
+A fresh 2025 SDK client authenticated through the configured Atoma headers helper,
+discovered the public catalogue (64 tools), and confirmed the retry input names
+and idempotent write annotation. Its unknown-source call then returned the actual
+structured `not_found` refusal with `isError: true` and a readable 404 message,
+after cached output-schema validation. It created no validation or paid run.
+
+The root-owned activator was installed atomically under `/home/atoma/.deployment.lock`
+from that immutable release, after checking both source and copied bytes against
+SHA-256 `34255eb10598352cd319c216ea86ee76d8a3ee9636b9c19e262c83b61ce36b44`.
+Its previous hash exactly matched the old published source, so no local customization
+was replaced. The previous bytes remain at
+`/var/backups/atoma-deploy/atoma-deploy-f819882f4c819ec1afb2531b5423a1dc8b88c46d6a61aff2d07b0cfb9bfab50c`.
+Ownership/mode are root:root 0755; no service was manually restarted for installation.
+
+The [Compute desktop workflow 40748979652](https://github.com/atoma-run/atoma/actions/runs/40748979652)
+also passed all three native jobs (Windows x64, macOS Intel and ARM), verified
+every installer/update asset and published
+[compute-desktop-preview-9b53b99e3332](https://github.com/atoma-run/atoma/releases/tag/compute-desktop-preview-9b53b99e3332).

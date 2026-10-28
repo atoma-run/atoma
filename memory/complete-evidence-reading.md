@@ -408,3 +408,11 @@ activator fix preserves and skips only proven gone owners. The 2025 SDK also
 validates structured error replies after discovery, so the new tool's output
 schema must include the existing typed service problem alongside successful
 receipts. Both-era tests must discover the platform tool before testing refusals.
+
+Retry follow-up `9b53b99e` passed full local release verification (8,542 tests),
+CI and all CodeQL analyses, then deployed successfully (40749941116). A fresh
+authenticated 2025 SDK client discovered 64 production tools and read the new
+tool's typed 404 refusal after discovery without a schema error or model spend.
+The selected executor reported 9b53b99e, idle and healthy. The root-owned activator
+was atomically updated from that immutable release under the deployment lock,
+with its previous exact published bytes backed up. No Attica retry was started.
