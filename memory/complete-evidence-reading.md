@@ -476,3 +476,37 @@ Private supervisor trace still unavailable through public MCP trace reader;
 exact no-trace reply recorded before readonlySSH fallback. No extra upload,
 customer run, publication or replay. See
 [full follow-up](../records/incidents/compute-review-raw-logs-2026-10-28.md).
+
+
+### Attica schedule/browser race and strict replay — 2026-10-28
+
+Browser defect repaired and published in Attica main6e45aa300737e8264f918bbcd19cb0e93521a2b7,
+only recovery-ui test. Fresh-build controlled repro proves duplicate tick returns
+due:false while interval-owned job runs; a second UI schedule poll race leaves
+lastRun="—" after listing counters update. Poll fresh backend completion/history,
+then corresponding UI; preserve all original assertions. Manual/timer/delayed
+schedule cases; root121Vitest+89Node, real macOS browser31/31 and isolated
+network-none Linux Chromium8/8 pass. Both negative controls fail original asserts.
+No application bytes/deps changed, no runtime restart needed; primary dirty
+checkout/active agents untouched. Existing root4advisories not fixed.
+
+Strict MCP key03/source5ff2/snapshot5f3c ->7415bf16, terminal INCONCLUSIVE
+21:52:13.618Z,10m56/$0.1351742/20GLM calls. Historical snapshot still contains
+old test and forbids test edits: do not claim production execution of6e45.
+First browser28/29 twice; third29/29, without test changes/main rebuild between.
+Missing reasoning in c5/c6 response58dd3075 causes first refusal; final c1/c2
+8d2d7dea uses reason instead of reasoning, acceptance d6bc9f87 refused with
+c1/c2 unjudged,c3–c6positive. Never reinterpret as6/6approval. No parser repair,
+new retry or model replay performed for this newly observed format failure.
+Initial digestc1edcd0d/context773f20da unchanged; onlyconfig459→516,
+250otherinitialfiles/modes intact. Two type-success credits,no recipes/patches.
+Source acceptance/publication unchanged; terminated worker absent.
+
+Read81events/20responses/allprompts/54attestations/37unique verifiedarchives,
+7rawlogs48153bytes and25430charhostlog; preserved early wrong-copy/npm failure,
+2browserfailures,thirdpass and both malformed verdicts. Inverse verification
+reconstructs all reading-view execution objects exactly. Trace56671963 (2957857B).
+Private170-file archive attica-validation-7415bf16.tar.gz in chat artifacts,
+sha374eca2e33b433b13d5bd77c1edc665212d475e0f93f1933046097043e6bcbca,
+mode0600/internal sums verified, prior referenced bodies included. No extra upload.
+See [incident](../records/incidents/attica-schedule-browser-race-2026-10-28.md).
