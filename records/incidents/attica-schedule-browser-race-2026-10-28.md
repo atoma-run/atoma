@@ -136,8 +136,8 @@ The full chronology matters:
 
 Fallible model annotations are not promoted to facts. Two earlier failures do
 not prove the test always fails. The script `test:browser:ui` does not build the
-application first. The three extra Vitest offline-runtime tests do not replace
-the 89 Node tests. The second molecule's claim that no pre-existing failure
+application first. The three cancellation Vitest tests launched by a Node wrapper do not replace
+the 89 Node test results. The second molecule's claim that no pre-existing failure
 was exposed only describes its own phase; two browser failures remain in the
 same run. The independently controlled reproduction establishes the races.
 
