@@ -3357,6 +3357,25 @@ describe('drawProjects', () => {
     expect(projectsGuideLayoutHeight(collapsed, width, height)).toBe(guideHeight);
   });
 
+  it.each([390, 528, 768])('bounds an empty selected conversation and its GPU frame at width %s', width => {
+    const project = guidanceProject();
+    const height = 720;
+    const frame = viewFrame(width, height);
+    const snapshot = makeSnapshot({ view: 'projects', selectedProjectId: project.projectId,
+      projectSection: 'conversation', projectAssistantCompact: true, projectAssistantCompactHeight: 1000 },
+      { auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: [] } });
+    const ctx = createRecordingCtx();
+    const guideTop = projectSectionLayout(ctx, snapshot, width).contentTop;
+    const guideHeight = projectsGuideLayoutHeight(snapshot, width, height, guideTop);
+    expect(guideHeight).toBeLessThan(1000);
+    expect(guideTop + guideHeight + VIEW_FRAME_PAD).toBe(frame.bottom);
+    drawProjects(ctx, snapshot, width, height);
+    expect(ctx.panels).toContainEqual({ parent: ctx.root, x: frame.innerX, y: guideTop,
+      width: frame.innerWidth, height: guideHeight });
+    const short = { ...snapshot, state: { ...snapshot.state, projectAssistantCompactHeight: 120 } };
+    expect(projectsGuideLayoutHeight(short, width, height, guideTop)).toBe(120);
+  });
+
   it.each([390, 528, 1280])('numbers every run and identifies the serving version, not the latest candidate, at width %s', width => {
     const project = { ...guidanceProject(), hostedUrl: 'https://weather.app.atoma.run/' };
     const rows: VizProjectRun[] = Array.from({ length: 183 }, (_, index) => ({

@@ -23,6 +23,8 @@ npm run viz:shot -- --auth --select-first --assistant-read-runs # a start propos
 npm run viz:shot -- --auth --select-first --assistant-history --project-tabs-probe # chat/run tabs, preserved draft
 npm run viz:shot -- --url http://127.0.0.1:5187 --auth --select-first --assistant-links-probe # compact receipt buttons and their destinations on an isolated frontend
 npm run viz:shot -- --auth --select-first --project-run-cards --readable-metrics # long run with millions of tokens
+npm run viz:shot -- --auth --platform-admin --select-first --assistant-history --conversation-chrome-probe # toolbar, composer, paired offline computer and draft preservation
+npm run viz:shot -- --auth --platform-admin --select-first --assistant-empty --assistant-no-runs --width 528 --height 800 --empty-conversation-probe # native wheel reaches the controls in a bounded empty conversation
 npm run viz:shot -- --auth --select-first --project-run-numbers --assistant-history --run-number-context-probe # same number in chat and opened detail
 npm run viz:shot -- --auth --select-first --project-run-numbers --activate project.section.runs --project-hosted-run-probe # reveal the hosted run, filled badge and reduced motion
 npm run viz:shot -- --auth --select-first --project-run-cards # running/paused cards, also at --width 528

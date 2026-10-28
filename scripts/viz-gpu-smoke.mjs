@@ -2696,15 +2696,36 @@ try {
         if (await accountPage.$('.gpu-project-mcp-toggle[aria-expanded="true"]')) return;
         // A view change paints a departing cube snapshot over the page for a
         // moment: click only once the toggle itself is under the pointer.
-        const spot = await (await accountPage.waitForFunction(() => {
+        await accountPage.waitForFunction(() => {
           const node = document.querySelector('.gpu-project-mcp-toggle'); const box = node?.getBoundingClientRect();
           if (!node || !box?.width) return null;
           const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
           const top = document.elementFromPoint(point.x, point.y);
           return top === node || node.contains(top) ? point : null;
-        }, { timeout: READY_TIMEOUT_MS })).jsonValue();
-        await accountPage.mouse.click(spot.x, spot.y);
+        }, { timeout: READY_TIMEOUT_MS });
+        await accountPage.locator('.gpu-project-mcp-toggle').click();
         await accountPage.waitForSelector('.gpu-project-mcp-toggle[aria-expanded="true"]');
+      };
+      const clickExternalAgent = async () => {
+        await waitForSceneCamera(accountPage, 'focus');
+        await accountPage.waitForSelector('.gpu-project-mcp-own-agent > summary', { visible: true });
+        const point = await accountPage.evaluate(() => {
+          const panel = document.querySelector('.gpu-project-mcp');
+          const box = panel.getBoundingClientRect();
+          const summary = panel.querySelector('.gpu-project-mcp-own-agent > summary').getBoundingClientRect();
+          return summary.bottom <= box.bottom && summary.top >= box.top ? null
+            : { x: box.x + box.width / 2, y: box.bottom - 24 };
+        });
+        if (point) {
+          await accountPage.mouse.move(point.x, point.y);
+          await accountPage.mouse.wheel({ deltaY: 10000 });
+          await accountPage.waitForFunction(() => {
+            const panel = document.querySelector('.gpu-project-mcp').getBoundingClientRect();
+            const summary = document.querySelector('.gpu-project-mcp-own-agent > summary').getBoundingClientRect();
+            return summary.top >= panel.top && summary.bottom <= panel.bottom;
+          });
+        }
+        await accountPage.locator('.gpu-project-mcp-own-agent > summary').click();
       };
       // An owner starts in the conversation. The external-agent disclosure
       // opens the MCP connection panel, then the reader can return to the list.
@@ -2805,6 +2826,10 @@ try {
       await accountPage.reload({ waitUntil: 'load' });
       await passArrivalGate(accountPage);
       await openConnectedGuide();
+      // Return to the project list with the creation form folded. The form
+      // keeps its natural height and can occupy the narrow viewport by itself.
+      await accountPage.locator('.gpu-project-mcp-toggle').click();
+      await accountPage.waitForSelector('.gpu-project-mcp-toggle[aria-expanded="false"]');
       accountStage = 'project-selection';
 
       // Real Pixi metrics, at the width that exposed the regression: a
@@ -3372,8 +3397,24 @@ try {
       stubs[`/api/compute/projects/${projectId}`].hostedAllowed = true;
       await reopenProjectByDeepLink('Restored administrator');
       await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
-      await accountPage.waitForSelector('.gpu-project-mcp-own-agent > summary', { visible: true });
-      await accountPage.click('.gpu-project-mcp-own-agent > summary');
+      await waitForSceneCamera(accountPage, 'focus');
+      await accountPage.waitForFunction(() => {
+        const panel = document.querySelector('.gpu-project-mcp');
+        const box = panel.getBoundingClientRect();
+        return box.bottom <= window.innerHeight + 1 && panel.scrollHeight > panel.clientHeight;
+      });
+      const emptyPanelPoint = await accountPage.$eval('.gpu-project-mcp', panel => {
+        const box = panel.getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.bottom - 24 };
+      });
+      await accountPage.mouse.move(emptyPanelPoint.x, emptyPanelPoint.y);
+      await accountPage.mouse.wheel({ deltaY: 10000 });
+      await accountPage.waitForFunction(() => {
+        const panel = document.querySelector('.gpu-project-mcp');
+        const summary = panel.querySelector('.gpu-project-mcp-own-agent > summary').getBoundingClientRect();
+        return panel.scrollTop > 0 && summary.bottom <= window.innerHeight;
+      });
+      console.log('Empty conversation: bounded GPU/DOM frame, native wheel reaches composer and external-agent action');
+      await clickExternalAgent();
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       console.log('Compute onboarding ok: ordinary owner sees disabled hosted beta option and contact path');
 
@@ -3389,7 +3430,7 @@ try {
       await accountPage.click('.gpu-project-mcp-actions input[type="checkbox"]');
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
       await reopenProjectByDeepLink('fork project missing after reload');
-      await accountPage.click('.gpu-project-mcp-own-agent > summary');
+      await clickExternalAgent();
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
       console.log('Fork upstream setting ok: saved toggle survives reload');
@@ -4194,6 +4235,14 @@ try {
         throw new Error(`canvas account switch did not log out before selecting: ${JSON.stringify(accountSwitchRequests)}`);
       }
       console.log('viz account switch ok: canvas action logs out then requests account selection');
+    } catch (error) {
+      await accountPage.screenshot({ path: join(tmpdir(), 'atoma-account-smoke-failure.png') });
+      console.error('Account smoke failure geometry:', await accountPage.evaluate(() =>
+        [...document.querySelectorAll('.gpu-project-mcp, .gpu-assistant-header, .gpu-project-mcp-toggle, .gpu-project-mcp-own-agent > summary')]
+          .map(node => ({ element: node.className || node.tagName, box: node.getBoundingClientRect().toJSON(),
+            hidden: node.closest('[hidden]') !== null, expanded: node.getAttribute('aria-expanded'),
+            scrollTop: node.scrollTop, scrollHeight: node.scrollHeight, clientHeight: node.clientHeight }))));
+      throw error;
     } finally {
       await accountPage.close();
     }

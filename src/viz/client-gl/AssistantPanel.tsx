@@ -338,11 +338,11 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
 
   return <section ref={panel} className={`gpu-assistant${fitContents ? ' gpu-assistant--fit' : ''}`} aria-label={t('assistant.title')}>
     <header className="gpu-assistant-header">
-    {heading}
+    {heading ?? <h2>{t(externalAgentOpen ? 'projects.mcpOwnAgent' : 'assistant.conversation')}</h2>}
     {query.data && !collapsed && !externalAgentOpen ? <div className="gpu-assistant-connection">
       {selected && !editingModel ? <>
-        <span className="gpu-assistant-model-label">{t('assistant.model')}</span>
-        <span className="gpu-assistant-model-value" title={modelLabel}>{modelLabel}</span>
+        <div className="gpu-assistant-model-summary"><span className="gpu-assistant-model-label">{t('assistant.model')}</span>
+        <span className="gpu-assistant-model-value" title={modelLabel}>{modelLabel}</span></div>
         <button type="button" className="gpu-assistant-model-change" disabled={waiting} onClick={() => setEditingModel(true)}><ButtonIcon kind="settings" />{t('assistant.changeModel')}</button>
       </> : <>
       <label htmlFor="assistant-model">{t('assistant.model')}</label>
@@ -451,7 +451,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       <button type="button" onClick={() => onRun({ projectId: shownRun.projectId, runId: shownRun.runId }, shownRun.traceId)}><ButtonIcon kind="play" />{t('assistant.followRun')}</button>
     </div> : null}
     {error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
-    {runInProgress ? <p role="status">{t(shownRun?.resultsStalled ? 'assistant.resultsStalled' : shownRun?.resultsWaiting ? 'assistant.resultsWaiting' : 'assistant.runInProgress')}</p> : <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>
+    {runInProgress ? <p role="status">{t(shownRun?.resultsStalled ? 'assistant.resultsStalled' : shownRun?.resultsWaiting ? 'assistant.resultsWaiting' : 'assistant.runInProgress')}</p> : <form className="gpu-assistant-composer" aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>
       <label htmlFor="assistant-message" className={newProjectPrompt ? 'gpu-assistant-empty' : undefined}>{t(newProjectPrompt ? 'assistant.newHint' : 'assistant.message')}</label>
       <textarea id="assistant-message" ref={composer} value={draft} maxLength={4000} rows={2} enterKeyHint="send"
         placeholder={waiting ? '' : t(projectId ? 'assistant.placeholder' : 'assistant.placeholderNew')} disabled={waiting || !canSend}
@@ -461,7 +461,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
           if (!event.repeat) event.currentTarget.form?.requestSubmit();
         }}
         onChange={event => { setDraft(event.target.value); pending.current = null; }} />
-      <div className="gpu-assistant-footer">{hasUsage ? <small title={t('assistant.cost', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}>{t('assistant.cost', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}</small> : null}
+      <div className="gpu-assistant-footer">{hasUsage ? <small title={t('assistant.cost', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}
+        aria-label={t('assistant.cost', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}>{t('assistant.costShort', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}</small> : null}
         <button type="submit" className="gpu-assistant-primary" disabled={waiting || !draft.trim() || !canSend}>
           <ButtonIcon kind={waiting ? 'clock' : 'send'} />{t(waiting ? 'assistant.working' : 'assistant.send')}</button></div>
     </form>}
@@ -469,7 +470,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     {externalAgentOpen && error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
     <details className="gpu-project-mcp-own-agent" open={externalAgentOpen}
       onToggle={event => setExternalAgentOpen(event.currentTarget.open)}>
-      <summary>{t(externalAgentOpen ? 'assistant.backToConversation' : 'projects.mcpOwnAgent')}</summary>
+      <summary aria-label={t(externalAgentOpen ? 'assistant.backToConversation' : 'projects.mcpOwnAgent')}>{t(externalAgentOpen ? 'assistant.backToConversation' : 'assistant.ownAgent')}</summary>
       <div className="gpu-project-mcp-own-agent-body">
         {conversation?.id ? <div className="gpu-assistant-handoff"><button type="button" onClick={() => void copyContinuation()}>
           {t(copied ? 'assistant.continuationCopied' : 'assistant.continueElsewhere')}</button><small>{t('assistant.continuityHint')}</small></div> : null}

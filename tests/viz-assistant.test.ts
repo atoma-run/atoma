@@ -394,7 +394,10 @@ it('shows run status, opens the existing run view and separates conversation cos
   data.conversation.outputTokens = 240;
   const { props } = panel(data);
   expect(await screen.findByRole('article', { name: 'Result of the work' })).toHaveTextContent('$0.52');
-  expect(screen.getByText(/Conversation:/)).toHaveTextContent('$0.0012');
+  const usage = screen.getByText(/Usage estimate:/);
+  expect(usage).toHaveTextContent('$0.0012');
+  expect(usage).toHaveAttribute('title', translate('en', 'assistant.cost', { cost: '0.0012' }));
+  expect(usage).toHaveAttribute('aria-label', translate('en', 'assistant.cost', { cost: '0.0012' }));
   await userEvent.click(screen.getByRole('button', { name: 'See the details' }));
   expect(props.onRun).toHaveBeenCalledWith(data.conversation.lastRun, 'trace-1');
 });
@@ -496,10 +499,11 @@ it('disables inference on an unconfigured host and fills its host card without a
   await screen.findByText(/Connect your personal subscription/);
   expect(screen.getByRole('textbox')).toBeDisabled();
   expect(screen.getByRole('combobox', { name: 'Assistant model' })).toBeDisabled();
-  // Hosted by the project guide (2026-10-09): no title, toggle or close of its own.
+  // Hosted by the project guide: one contextual heading, without competing navigation or a second card.
   expect(screen.getByRole('region', { name: 'Atoma assistant' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Back to projects' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Conversation' })).toBeVisible();
+  expect(screen.getAllByRole('heading')).toHaveLength(1);
 });
 
 it('explains missing connections and opens the relevant Settings tab directly', async () => {
@@ -524,10 +528,10 @@ it('copies a usable continuation prompt for the stable conversation, without cop
   data.conversation.messages = [{ role: 'assistant', text: 'A private saved detail', at: '2026-10-08T10:00:00.000Z' }];
   panel(data);
   const continuation = await screen.findByRole('button', { name: 'Continue in Claude or another agent' });
-  const disclosure = screen.getByText('Prefer your own agent? Connect it through MCP').closest('details')!;
+  const disclosure = screen.getByText('Use your own agent').closest('details')!;
   expect(continuation).not.toBeVisible();
   expect(within(disclosure).getByRole('button', { name: 'Connect your agent' })).not.toBeVisible();
-  await user.click(within(disclosure).getByText('Prefer your own agent? Connect it through MCP'));
+  await user.click(within(disclosure).getByText('Use your own agent'));
   expect(continuation).toBeVisible();
   expect(useGpuStore.getState().projectAssistantCompact).toBe(true);
   expect(within(disclosure).getByRole('button', { name: 'Connect your agent' })).toBeVisible();
@@ -545,7 +549,7 @@ it('gives the external guide the card and restores the compact empty conversatio
   await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
   expect(useGpuStore.getState().projectAssistantCompact).toBe(true);
   await userEvent.type(screen.getByRole('textbox'), 'Keep this idea');
-  await userEvent.click(screen.getByText('Prefer your own agent? Connect it through MCP'));
+  await userEvent.click(screen.getByText('Use your own agent'));
   expect(await screen.findByText('Back to conversation')).toBeVisible();
   expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Connect your agent' })).toBeVisible();

@@ -552,7 +552,7 @@ describe('full-GL minimal DOM bridge', () => {
     expect(within(ownAgent).getByRole('button', { name: 'Copy request' })).toBeInTheDocument();
     expect(within(ownAgent).getByText('Atoma MCP connected for this organisation. Your agent is ready to work.')).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByText('Prefer your own agent? Connect it through MCP'));
+    await user.click(screen.getByLabelText('Prefer your own agent? Connect it through MCP'));
     expect(ownAgent.open).toBe(true);
     // The guide still collapses as a whole, conversation included.
     await user.click(screen.getByRole('button', { name: 'Create a new project with Atoma' }));

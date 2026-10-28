@@ -1613,7 +1613,7 @@ function GpuAppContent({
             key={`${authSnapshot.viewer.principalId}:${activeOrgId}:${state.selectedProjectId ?? 'new'}`}
             scopeKey={`${authSnapshot.viewer.principalId}:${activeOrgId}`}
             projectId={state.selectedProjectId} projectRunRows={projectRunsQuery.data ?? []} locale={state.locale} t={t} externalAgentGuide={externalAgentGuide}
-            onboarding={<ComputeOnboarding scopeKey={`${authSnapshot.viewer.principalId}:${activeOrgId}`}
+            onboarding={<ComputeOnboarding hostedAllowed={isPlatformAdmin} scopeKey={`${authSnapshot.viewer.principalId}:${activeOrgId}`}
               projectId={state.selectedProjectId} locale={state.locale} t={t} />}
             heading={heading} collapsed={!state.selectedProjectId && state.projectMcpCollapsed}
             onSettings={tab => state.openSettings(tab)}

@@ -392,12 +392,15 @@ export function projectsGuideLayoutHeight(snapshot: GpuRenderSnapshot, width: nu
   const assistant = Boolean(snapshot.data.auth?.viewer.activeOrganisation) && snapshot.data.auth?.viewer.role !== 'org:viewer';
   const collapsed = !selected && snapshot.state.projectMcpCollapsed;
   const base = projectsGuideHeight(frame.innerWidth, collapsed, assistant, snapshot.state.projectAssistantCompact);
+  const available = Math.max(0, frame.bottom - VIEW_FRAME_PAD - guideTop);
   if (assistant && !collapsed && snapshot.state.projectAssistantCompact &&
     snapshot.state.projectAssistantCompactHeight !== null) {
-    return Math.max(PROJECTS_MCP_GUIDE_COLLAPSED_HEIGHT, snapshot.state.projectAssistantCompactHeight);
+    const natural = Math.max(PROJECTS_MCP_GUIDE_COLLAPSED_HEIGHT, snapshot.state.projectAssistantCompactHeight);
+    // Empty conversations keep their natural height, but their native panel
+    // must scroll when wrapped controls would put actions below the viewport.
+    return selected ? Math.min(natural, available) : natural;
   }
-  if (!assistant || collapsed || snapshot.state.projectAssistantCompact) return base;
-  const available = Math.max(0, frame.bottom - VIEW_FRAME_PAD - guideTop);
+  if (!assistant || collapsed || snapshot.state.projectAssistantCompact) return selected && assistant ? Math.min(base, available) : base;
   if (selected) return available;
   const listHeight = projectLayout(width, projects.length, selectedIndex, []).contentBottom + PROJECTS_LIST_BOTTOM_PADDING;
   // Short lists keep only the space they use. Longer lists retain a visible

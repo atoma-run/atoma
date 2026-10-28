@@ -37,6 +37,8 @@
  *   --assistant-model-probe Change model and prove retention across reload.
  *   --assistant-links-probe Verify compact receipt buttons and their destinations
  *                        (with --auth --select-first --url <frontend URL>).
+ *   --conversation-chrome-probe With --platform-admin --assistant-history, verify paired setup and the surrounding controls.
+ *   --empty-conversation-probe With --assistant-empty --assistant-no-runs, verify bounded native scrolling to actions.
  *   --run-number-context-probe With --project-run-numbers --assistant-history, check chat and run-detail references.
  *   --project-hosted-run-probe Click the hosted run, reveal it and check its pulse/reduced motion.
  *   --project-run-numbers Numbered history with an older run currently hosted.
@@ -202,6 +204,7 @@ if (assistantEmpty) {
   assistantFixture.conversation = { ...assistantFixture.conversation, id: null, modelChoice: undefined,
     messages: [], proposal: null, costUsd: 0, inputTokens: 0, outputTokens: 0 };
 }
+if (has('--empty-conversation-probe')) assistantFixture.conversation.modelChoice = assistantFixture.choices[0].id;
 if (assistantReconnect) {
   assistantFixture.choices = [];
   assistantFixture.available = false;
@@ -1009,6 +1012,11 @@ try {
     });
 
     const stubs = authed ? gatedStubs() : {};
+    if (has('--conversation-chrome-probe')) {
+      if (!platformAdmin || !assistantHistory || !selectFirst) throw new Error('--conversation-chrome-probe needs --auth --platform-admin --select-first --assistant-history');
+      stubs['/api/compute/onboarding'].devices = [{ deviceId: 'bbbbbbbb-1111-4111-8111-cccccccccccc', name: 'Paired workstation', connected: false }];
+    }
+
     if (has('--project-run-numbers')) {
       if (!authed || !selectFirst) throw new Error('--project-run-numbers requires --auth --select-first');
       const project = stubs['/api/projects'][0];
@@ -1224,9 +1232,11 @@ try {
     if (handheld) {
       // Exercise the real mobile entry control.
       await captureHandheldGate(page);
-      await browser.close();
-      stack.stop();
-      process.exit(0);
+      if (!has('--conversation-chrome-probe')) {
+        await browser.close();
+        stack.stop();
+        process.exit(0);
+      }
     }
 
     // Pass the arrival gate through the a11y bridge, then wait for the nav.
@@ -1658,6 +1668,19 @@ try {
       await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 500)));
     }
 
+    const scrollConversationPanel = async direction => {
+      await page.waitForFunction(() => document.querySelector('.gpu-scene-camera')?.dataset.sceneCameraMotion === 'settled');
+      const point = await page.$eval('.gpu-project-mcp', panel => {
+        const box = panel.getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.bottom - 24 };
+      });
+      await page.mouse.move(point.x, point.y);
+      await page.mouse.wheel({ deltaY: direction * 10000 });
+      await page.waitForFunction(direction => {
+        const panel = document.querySelector('.gpu-project-mcp');
+        return direction < 0 ? panel.scrollTop <= 1 : Math.abs(panel.scrollHeight - panel.clientHeight - panel.scrollTop) < 1;
+      }, {}, direction);
+    };
+
     if (showAssistant) {
       if (!authed || view !== 'Projects') throw new Error('--assistant requires --auth and Projects');
       // The conversation lives inside the project guide card (2026-10-09).
@@ -1675,7 +1698,7 @@ try {
         if (log) log.scrollTop = log.scrollHeight;
       });
       // The composer stays inside the guide card that hosts it, on screen.
-      const composerVisible = await page.evaluate(() => {
+      const composerIsVisible = () => page.evaluate(() => {
         const button = document.querySelector('.gpu-assistant button[type="submit"]');
         const box = button?.getBoundingClientRect();
         const guide = document.querySelector('.gpu-project-mcp--assistant')?.getBoundingClientRect();
@@ -1683,10 +1706,15 @@ try {
           box.top >= guide.top && box.bottom <= guide.bottom + 1 && box.left >= guide.left && box.right <= guide.right + 1 &&
           box.bottom <= globalThis.innerHeight;
       });
+      let composerVisible = await composerIsVisible();
+      if (!composerVisible) {
+        await scrollConversationPanel(1);
+        composerVisible = await composerIsVisible();
+      }
       if (!composerVisible) {
         const diagnostic = await page.evaluate(() => {
           const rect = (selector) => { const box = document.querySelector(selector)?.getBoundingClientRect(); return box ? { top: Math.round(box.top), bottom: Math.round(box.bottom), left: Math.round(box.left), right: Math.round(box.right), height: Math.round(box.height) } : null; };
-          return { submit: rect('.gpu-assistant button[type="submit"]'), guide: rect('.gpu-project-mcp--assistant'), viewport: { width: globalThis.innerWidth, height: globalThis.innerHeight } };
+          return { submit: rect('.gpu-assistant button[type="submit"]'), guide: rect('.gpu-project-mcp--assistant'), log: rect('.gpu-assistant-log-frame'), conversation: rect('.gpu-assistant-conversation'), viewport: { width: globalThis.innerWidth, height: globalThis.innerHeight } };
         });
         await page.screenshot({ path: '/tmp/atoma-assistant-failure.png' });
         throw new Error(`The assistant composer is outside its host card: ${JSON.stringify(diagnostic)}`);
@@ -1754,7 +1782,7 @@ try {
         }
 
       }
-      if (assistantEmpty) {
+      if (assistantEmpty && !has('--empty-conversation-probe')) {
         const spacing = await page.evaluate(() => {
           const hintNode = document.querySelector('.gpu-assistant-empty');
           const hint = hintNode.getBoundingClientRect();
@@ -1762,7 +1790,7 @@ try {
           const guideNode = document.querySelector('.gpu-project-mcp--assistant');
           const guide = guideNode.getBoundingClientRect();
           const summary = document.querySelector('.gpu-project-mcp-own-agent > summary').getBoundingClientRect();
-          return { gap: composer.top - hint.bottom, guideBottom: guide.bottom, summaryBottom: summary.bottom,
+          return { gap: (composer.top - hint.bottom) / (guide.height / guideNode.offsetHeight), guideBottom: guide.bottom, summaryBottom: summary.bottom,
             bottomGap: (guide.bottom - summary.bottom) / (guide.height / guideNode.offsetHeight) };
         });
         if (spacing.gap > 16 || spacing.gap < 0 || spacing.summaryBottom > spacing.guideBottom || spacing.bottomGap > 20) {
@@ -2173,6 +2201,77 @@ try {
         await page.mouse.click(point.x, point.y);
         await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 400)));
       }
+    }
+    if (has('--empty-conversation-probe')) {
+      if (!platformAdmin || !selectFirst || !assistantEmpty || !assistantNoRuns) throw new Error('--empty-conversation-probe needs --auth --platform-admin --select-first --assistant-empty --assistant-no-runs');
+      await page.waitForFunction(() => {
+        const plane = document.querySelector('.gpu-scene-camera');
+        const panel = document.querySelector('.gpu-project-mcp');
+        return plane?.dataset.sceneCameraMotion === 'settled' && panel?.scrollHeight > panel?.clientHeight;
+      });
+      const point = await page.$eval('.gpu-project-mcp', panel => {
+        const box = panel.getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.bottom - 24 };
+      });
+      await page.mouse.move(point.x, point.y);
+      await page.mouse.wheel({ deltaY: 10000 });
+      await page.waitForFunction(() => {
+        const panel = document.querySelector('.gpu-project-mcp');
+        const box = panel.getBoundingClientRect();
+        const composer = panel.querySelector('.gpu-assistant-composer').getBoundingClientRect();
+        const send = panel.querySelector('button[type="submit"]').getBoundingClientRect();
+        const summary = panel.querySelector('.gpu-project-mcp-own-agent > summary').getBoundingClientRect();
+        return box.bottom <= globalThis.innerHeight + 1 && panel.scrollTop > 0 &&
+          send.top >= box.top && send.bottom <= box.bottom && summary.top >= composer.bottom &&
+          summary.bottom <= box.bottom && panel.scrollWidth - panel.clientWidth <= 1;
+      });
+      console.log('Empty conversation: bounded GPU/DOM frame; native wheel reaches Send and the external-agent action without overlap');
+    }
+    if (has('--conversation-chrome-probe')) {
+      await scrollConversationPanel(1);
+      const layout = await page.evaluate(() => {
+        const frame = document.querySelector('.gpu-project-mcp');
+        const header = frame.querySelector('.gpu-assistant-header');
+        const composer = frame.querySelector('.gpu-assistant-composer');
+        const textarea = composer.querySelector('textarea');
+        const send = composer.querySelector('button[type="submit"]');
+        const log = frame.querySelector('.gpu-assistant-log-frame');
+        const external = frame.querySelector('.gpu-project-mcp-own-agent > summary').getBoundingClientRect();
+        const [frameBox, headerBox, composerBox, inputBox, sendBox, logBox] = [frame, header, composer, textarea, send, log].map(node => node.getBoundingClientRect());
+        const fits = box => box.left >= frameBox.left - 1 && box.right <= frameBox.right + 1 && box.top >= frameBox.top - 1 && box.bottom <= frameBox.bottom + 1;
+        return { setup: Boolean(frame.querySelector('.gpu-assistant-setup, .gpu-compute-onboarding-summary, a[href^="/compute/setup"]')),
+          title: header.querySelector('h2')?.textContent,
+          bounded: [composerBox, inputBox, sendBox, external].every(fits),
+          separated: headerBox.bottom <= logBox.top && logBox.bottom <= composerBox.top && composerBox.bottom <= external.top,
+          overflow: frame.scrollWidth - frame.clientWidth,
+          modelHeight: frame.querySelector('.gpu-assistant-model-summary').getBoundingClientRect().height,
+          targets: [send, frame.querySelector('.gpu-project-mcp-own-agent > summary'), frame.querySelector('.gpu-assistant-model-change')].every(node => node.offsetHeight >= (matchMedia('(pointer: coarse)').matches ? 48 : 40)),
+        };
+      });
+      if (layout.setup || layout.title !== 'Conversation' || !layout.bounded || !layout.separated || !layout.targets || layout.overflow > 1 || layout.modelHeight > 100) {
+        throw new Error(`Conversation chrome layout failed: ${JSON.stringify(layout)}`);
+      }
+      await page.type('#assistant-message', 'Keep this draft while changing the model');
+      await scrollConversationPanel(-1);
+      const modelVisible = await page.evaluate(() => {
+        const panel = document.querySelector('.gpu-project-mcp').getBoundingClientRect();
+        return ['.gpu-assistant-header', '.gpu-assistant-model-change'].every(selector => {
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return box.top >= panel.top && box.bottom <= panel.bottom && box.right <= panel.right;
+        });
+      });
+      if (!modelVisible) throw new Error('Model controls are clipped at the top of the conversation');
+      await page.click('.gpu-assistant-model-change');
+      await page.waitForSelector('#assistant-model');
+      if (!await page.$eval('#assistant-model', node => node === document.activeElement)) throw new Error('Model editing did not receive keyboard focus');
+      const keep = await page.evaluate(label => {
+        const node = [...document.querySelectorAll('.gpu-assistant-connection button')].find(button => button.textContent.trim() === label);
+        const box = node.getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      }, enCatalog['assistant.keepModel']);
+      await page.mouse.click(keep.x, keep.y);
+      if (await page.$eval('#assistant-message', node => node.value) !== 'Keep this draft while changing the model') throw new Error('Model editing lost the draft');
+      await scrollConversationPanel(1);
+      await page.mouse.move(5, height - 5);
+      console.log('Conversation chrome: paired administrator has no setup prompt; toolbar and composer fit; model editing preserves the draft');
     }
     if (has('--run-number-context-probe')) {
       if (!has('--project-run-numbers') || !assistantHistory) throw new Error('--run-number-context-probe needs --project-run-numbers --assistant-history');

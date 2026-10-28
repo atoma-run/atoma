@@ -2238,6 +2238,8 @@
   "assistant.message": "Your message",
   "assistant.placeholder": "Describe the next change…",
   "assistant.placeholderNew": "Describe your idea…",
+  "assistant.ownAgent": "Use your own agent",
+  "assistant.costShort": "Usage estimate: ${{cost}}",
   "assistant.cost": "Conversation: ${{cost}} API-equivalent estimate · run usage separate",
   "assistant.send": "Send",
   "assistant.actionApproved": "Proposal approved.",
