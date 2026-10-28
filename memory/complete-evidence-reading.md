@@ -209,3 +209,12 @@ backup atoma.env.before-compute-0.5.200-20261028-105722. No run was recreated.
 24 existing configuration/admission tests and docs check pass. The companion
 release record and documentation cover preview approval too; activation through
 normal CI deployment and the queued run's subsequent execution remain to verify.
+
+OWNER PAUSE — 2026-10-28T11:00Z: the user explicitly said not to relaunch the
+run for now. Run641c34d6-7ee7-4215-b5d4-09c6496864e7 was still queued with
+startedAt=null; cancelled through the MCP and re-read as cancelled at
+2026-10-28T11:00:06.884Z, with no trace/model execution. Do not start, resume,
+rerun or replace it until the owner explicitly asks to continue. The local task
+watch was stopped. The exact app-version policy fix is already recorded/pushed
+in74d53451 and its normal CI activation may finish, but must not trigger a new
+run. The former accepted reference ce495110 remains unchanged.
