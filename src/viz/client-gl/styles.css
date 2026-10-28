@@ -102,7 +102,9 @@ button, input, textarea, select { font: inherit; }
 .gpu-cube {
   position: fixed;
   inset: 0;
-  overflow: hidden;
+  /* A camera crop is not a scroll container: focusing a native panel must
+     not pan the whole 3D scene to reveal its projected overflow. */
+  overflow: clip;
 }
 .gpu-cube__face {
   position: absolute;

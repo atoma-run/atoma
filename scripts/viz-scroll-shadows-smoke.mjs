@@ -1,4 +1,4 @@
-/* global document, getComputedStyle, ScrollShadows, stopShadows */
+/* global document, getComputedStyle, requestAnimationFrame, ScrollShadows, stopShadows */
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 
@@ -38,6 +38,7 @@ export async function verifyNativeScrollShadows(browser) {
         return Object.entries(expected).every(([edge, visible]) =>
           !overlay.querySelector(`[data-edge="${edge}"]`).hidden === visible);
       }, {}, { id, expected });
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     };
     await edges('panel', { top:false, bottom:true, left:false, right:false });
     assert.deepEqual(await page.$eval('#panel', el => [el.offsetWidth, el.offsetHeight, el.scrollHeight, el.getBoundingClientRect().x]), original, 'Decoration must not change layout or scroll extent');
@@ -123,6 +124,7 @@ export async function verifyPanelEdges(page, selector, name) {
       });
       throw new Error(`${name} edge check ${JSON.stringify(expected)} failed: ${JSON.stringify(detail)}`,{cause:error});
     });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   };
   await page.$eval(selector,el=>{el.scrollTop=0;});
   const max=await page.$eval(selector,el=>Math.max(0,el.scrollHeight-el.clientHeight));
@@ -136,6 +138,16 @@ export async function verifyPanelEdges(page, selector, name) {
     await page.mouse.wheel({deltaY:-100000});
     await check({top:false,bottom:true});
     await page.screenshot({path:`/tmp/atoma-${name}-shadows-top.png`});
+    // Focus and End used to scroll the hidden-overflow camera crop by 50px,
+    // cutting off the title even though the native panel reached its own end.
+    await page.focus(selector);
+    await page.keyboard.press('End');
+    await check({top:true,bottom:false});
+    const cameraScroll=await page.$eval('.gpu-cube',el=>({x:el.scrollLeft,y:el.scrollTop}));
+    assert.deepEqual(cameraScroll,{x:0,y:0},'Keyboard focus must not scroll the camera crop');
+    await page.keyboard.press('Home');
+    await check({top:false,bottom:true});
+    assert.deepEqual(await page.$eval('.gpu-cube',el=>({x:el.scrollLeft,y:el.scrollTop})),{x:0,y:0});
   }
   console.log(`viz shipped ${name}: native scroll edges and hidden scrollbar verified (max ${max}px)`);
 }

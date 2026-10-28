@@ -2963,6 +2963,10 @@ try {
           await accountPage.screenshot({ path: '/tmp/atoma-chat-edge-failure.png' });
           throw new Error(`Conversation edge cues expected ${top}/${bottom}: ${JSON.stringify(state)}`, { cause: error });
         });
+        // Chrome can report the endpoint before its native key-scroll
+        // animation has finished. Paint it before sending the opposite key.
+        await accountPage.evaluate(() => new Promise(resolve =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve))));
       };
       const maximum = await accountPage.$eval('.gpu-assistant-log', log => log.scrollHeight - log.clientHeight);
       for (const [deltaY, top, bottom, state] of [
