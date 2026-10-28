@@ -1500,7 +1500,18 @@ describe('the nav rail', () => {
         for (const [edge, visible] of [['top', top], ['bottom', bottom]] as const) {
           const shadow = ctx.root.getChildByLabel(`scroll-shadow-${edge}`);
           expect(!!shadow).toBe(visible);
-          if (shadow) expect(shadow.eventMode).toBe('none');
+          if (shadow) {
+            expect(shadow.eventMode).toBe('none');
+            const bounds = shadow.getBounds();
+            if (mode === 'focus' || width < GPU_LAYOUT.sidebarMinWidth) {
+              const tileWidth = GPU_LAYOUT.sidebarFocusButtonWidth;
+              const tileX = mode === 'focus' ? width - tileWidth : Math.max(8, (width - tileWidth) / 2);
+              expect(bounds.width).toBeCloseTo(60);
+              expect(bounds.x + bounds.width / 2).toBeCloseTo(tileX + tileWidth / 2);
+            } else {
+              expect(bounds.width).toBeCloseTo(width);
+            }
+          }
         }
         expect(ctx.sidebarBounds!.width).toBe(width);
         const content = ctx.root.getChildByLabel('sidebar-scroll-content', true)!;

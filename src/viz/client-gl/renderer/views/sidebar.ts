@@ -2,6 +2,7 @@ import { createScrollPane } from '../scroll-pane.js';
 import { Rectangle, Graphics } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
+import { UI_SPACE } from '../../ui-layout.js';
 import { SIDEBAR_GROUPS, visibleViews, type ViewName } from '../../store.js';
 import { NAV_ICON_OUTSIDE_GAP, NAV_ICON_RENDER_SIZE } from '../nav-icons.js';
 import {
@@ -313,7 +314,7 @@ export function drawSidebar(
   const buttonX = iconOnly
     ? focused
       ? Math.max(0, width - FOCUS_SIDEBAR_BUTTON_WIDTH)
-      : Math.max(8, (width - FOCUS_SIDEBAR_BUTTON_WIDTH) / 2)
+      : Math.max(UI_SPACE.sm, (width - FOCUS_SIDEBAR_BUTTON_WIDTH) / 2)
     : SIDEBAR_PAD + NAV_ICON_RENDER_SIZE + NAV_ICON_OUTSIDE_GAP;
   const itemWidth = iconOnly
     ? Math.min(width, FOCUS_SIDEBAR_BUTTON_WIDTH)
@@ -328,7 +329,8 @@ export function drawSidebar(
   // Focus tiles meet the rail edge; their hover scale and glow need the free
   // gutter before the content frame. Keep the vertical scroll edges clipped.
   const pane = createScrollPane(ctx.root, { x: 0, y: navigationTop, width, height: paneHeight,
-    scrollY: ctx.sidebarScrollY, air: { top: 0, right: GPU_LAYOUT.gap, bottom: 0 }, bottomPadding: 12, indicator: 'shadows' });
+    scrollY: ctx.sidebarScrollY, air: { top: 0, right: GPU_LAYOUT.gap, bottom: 0 }, bottomPadding: 12, indicator: 'shadows',
+    shadowSpan: iconOnly ? { x: buttonX - UI_SPACE.sm, width: itemWidth + UI_SPACE.card } : undefined });
   pane.content.label = 'sidebar-scroll-content';
   const rail = ctx.animatedLayer(pane.content, 'sidebar-rail');
   for (const original of rows) {

@@ -46,6 +46,8 @@ export interface ScrollPaneOptions {
   bottomPadding?: number;
   /** Navigation can advertise hidden destinations with non-interactive edge shadows. */
   indicator?: 'scrollbar' | 'shadows';
+  /** Pane-local horizontal span of edge shadows, including free space around tiles. */
+  shadowSpan?: { x: number; width: number };
   /**
    * Free floor around the pane that cast shadows may land on — see above.
    * REQUIRED, so a new pane decides it; `{}` is a decision too (the pane is
@@ -159,17 +161,24 @@ export function drawScrollShadows(parent: Container, options: ScrollbarThumbOpti
   const { x, y, width, height, scrollY, maxScroll } = options;
   if (maxScroll <= 0 || height <= 0 || width <= 0) return;
   const depth = Math.min(16, height / 2);
+  const columns = Math.max(3, Math.min(96, Math.ceil(width)));
+  const columnWidth = width / columns;
   for (const edge of ['top', 'bottom'] as const) {
     if (edge === 'top' ? scrollY <= 0.5 : scrollY >= maxScroll - 0.5) continue;
     const shadow = new Graphics();
     shadow.label = `scroll-shadow-${edge}`;
     shadow.eventMode = 'none';
     shadow.position.set(x, edge === 'top' ? y : y + height - depth);
-    // One-pixel strips avoid a new gradient texture on each scroll rebuild.
+    // Bounded static geometry avoids allocating a gradient texture on scroll.
+    // The horizontal bell is symmetric around the visible icon column, with
+    // transparent sides; the vertical fade still points toward hidden rows.
     for (let step = 0; step < Math.ceil(depth); step++) {
-      const alpha = 0.72 * (1 - step / depth) ** 2;
-      shadow.rect(0, edge === 'top' ? step : depth - step - 1, width, 1)
-        .fill({ color: 0x01040a, alpha });
+      const verticalAlpha = 0.72 * (1 - step / depth) ** 2;
+      for (let column = 0; column < columns; column++) {
+        const horizontalAlpha = Math.sin(Math.PI * column / (columns - 1)) ** 2;
+        shadow.rect(column * columnWidth, edge === 'top' ? step : depth - step - 1, columnWidth, 1)
+          .fill({ color: 0x01040a, alpha: verticalAlpha * horizontalAlpha });
+      }
     }
     parent.addChild(shadow);
   }
@@ -211,7 +220,8 @@ export function createScrollPane(parent: Container, options: ScrollPaneOptions):
       parent.addChild(mask);
       layer.mask = mask;
       const drawIndicator = options.indicator === 'shadows' ? drawScrollShadows : drawScrollbarThumb;
-      drawIndicator(parent, { x, y, width, height, scrollY, maxScroll });
+      const span = options.indicator === 'shadows' ? options.shadowSpan : undefined;
+      drawIndicator(parent, { x: x + (span?.x ?? 0), y, width: span?.width ?? width, height, scrollY, maxScroll });
       return maxScroll;
     },
   };
