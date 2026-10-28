@@ -103,7 +103,7 @@ export async function validateComputeNext(options: ComputeValidationOptions): Pr
       queue.finish(job, 'blocked', { reason: (error as Error).message, countersChanged: false, costUsd: 0 });
       return result('compute-validated', 'Compute verification blocked before spending');
     }
-    if (!queue.claim(job)) return null; // Daily allowance does not starve ordinary recipe assays.
+    if (!queue.claim(job)) return null;
     const runsDir = join(directory, 'runs');
     const workspace = join(directory, 'workspace');
     const logPath = join(directory, 'run.log');
@@ -139,7 +139,8 @@ export async function validateComputeNext(options: ComputeValidationOptions): Pr
       options.signal?.throwIfAborted();
       await (options.launch ?? defaultLauncher)({ arm: 'with', caseIndex: 0, goal: prepared.origin.goal,
         env, cwd: options.repoRoot, timeoutMs: COMPUTE_VALIDATION.timeoutMs, logPath,
-        isolation: 'container', onSpawn: pid => lease.attachChild(pid), ...(prepared.origin.depth ? { depth: prepared.origin.depth } : {}),
+        // Use the ordinary hosted proxy policy so clean dependency installs can run; device networking is never inherited.
+        isolation: 'container-egress', onSpawn: pid => lease.attachChild(pid), ...(prepared.origin.depth ? { depth: prepared.origin.depth } : {}),
         ...(options.signal ? { signal: options.signal } : {}) });
     } catch (error) { failure = (error as Error).message; }
     // Logs can echo a model-authored epilogue. Only host trace metadata establishes completion and cost.

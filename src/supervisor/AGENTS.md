@@ -48,8 +48,12 @@ process identities and connector grants are never replayed. External connector
 launches remain blocked. Scope, membership, project state, byte integrity and
 read-run retention are checked before admission. Legacy seeded runs lacking a
 complete capture stay blocked; historical missing bytes are never invented.
-Validation restores the same bytes at launch and deepening with a network-disabled
-worker and current host models/controller. Continuations use a fresh checkpoint
+Validation restores the same bytes at launch and deepening with a container worker,
+the ordinary host-controlled egress proxy and current host models/controller.
+The host allowlist and private-address denial remain authoritative; device network
+settings and credentials are never inherited. Network-disabled validation was
+removed after it prevented clean dependency installation on Attica (2026-10-28).
+Continuations use a fresh checkpoint
 with the captured plan/prefix and historical-only archives: no source claim,
 spend, process, counter or execution credit is restored. The original receipt
 remains withheld. Only newly observed hosted work can affect the commons.

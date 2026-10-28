@@ -218,3 +218,87 @@ rerun or replace it until the owner explicitly asks to continue. The local task
 watch was stopped. The exact app-version policy fix is already recorded/pushed
 in74d53451 and its normal CI activation may finish, but must not trigger a new
 run. The former accepted reference ce495110 remains unchanged.
+
+OWNER RESUMPTION — 2026-10-28T15:35Z: explicit "Ok tu peux continuer"
+revokes the pause above. Leave641c34d6 cancelled. New authorized functional
+run6277e0e0-eb15-425d-b577-37c44876638c uses key
+attica-listings-local-search-20261028-02 and the same accepted ce495110 base,
+local Annonces search scope and five offline-browser criteria. Both production
+web and executor74d53451 now load approved app0.5.200. Compute reconnected
+through its normal Connect action; run started15:36:54Z on Mac9baf. Follow this
+run, never duplicate its start. No client acceptance/publication is authorized.
+Arguments, task receipt and paged evidence are under
+/tmp/attica-functional-next-20261028/resumed-02/.
+
+2026-10-28T16:29Z continuation: run6277e0e0 ended partial3/5 after40m16s,
+96 calls, $3.4028 subscription-equivalent. Search was implemented and narrowed
+back to identifier/location/description after unrelated fields had crept in.
+Final check passed121 Vitest+89 Node tests; focused real Chromium passed3/3;
+two parent suites passed2/2 each. Final c3/c4 reviews refused on omitted
+excerpts despite readable complete snapshots; no client acceptance/publication.
+All705 events and691 gzip archives were downloaded, decoded and SHA/size
+verified (8,028,583 decoded bytes). Initial snapshot4593f3a8 retains275 entries,
+250 files/4,468,736 bytes, digest1fdcd0a035b6ff46ba0683be06aeb6c50ddf7768ca473901e8427d6fe72b1d93.
+Manifest comparison:4 authored files changed plus5 generated bundle changes;
+242 other files unchanged. The new guide names a label inaccurately.
+
+Automatic hosted validation b0c5b174 ended inconclusive at16:23:58Z after
+219s/13 calls/$0.31548366: its $0.25 spend policy stopped it after discovery,
+before implementation. Four independently reviewed inspection successes changed
+host counters; no recipe changed. All76 events/89 full archives were read and
+integrity-checked. This is not a successful independent feature verification.
+
+Owner explicitly authorized replaying the recorded criterion review through
+local Codex/gpt-5.6-luna after automatic approval review requested consent for
+transmitting the captured code/evidence. The proposed stronger reading prompt
+still refused without a read; the original prompt requested pages then approved.
+One pair is exploratory, not a general quality measurement. Do not ship the
+unproven prompt change. Replay artifacts remain under resumed-02/evidence/replay.
+
+Full test inspection also found real coverage gaps: exports are checked after
+clearing rather than while filtered; refreshed cards are counted without
+asserting the exact new ID, and key uniqueness is checked after clearing.
+Continue through Atoma, not direct collector edits. Short proof-repair run
+38bfe415-018e-406f-8609-326779646429 started16:29:51Z, base6277e0e0,
+key attica-listings-proof-repair-20261028-01. It must preserve control.ts/html
+bytes and all existing assertions, add a small explicit proof suite + browser
+include, and fix only the guide's search label. Same five behaviors, stronger
+exact-ID/export/request assertions, local fixtures only. Follow to terminal;
+never duplicate start. Arguments/task watcher: proof-repair-03 under the same
+temporary directory. Acceptance and publication still belong to the owner.
+
+Run38bfe415 DELIVERED5/5 at16:36:55Z (251s,8 calls,$0.17930188). The new
+proof actually compares all four fixture IDs and complete valid export bytes
+while filtering, records requests before navigation, proves zero collection
+requests/navigation, and checks the exact added ID/query/focus/unique keys
+while the filter remains active. Existing3+new2 Chromium tests passed. Guide
+label corrected. Comparison: one new test, README label and browser include
+only;248 unchanged files. All69 events/83 archives decoded and verified
+(1,223,565 bytes). Automatic independent validation started16:37:12Z.
+
+Independent review then caught default-suite leakage: root vitest.config.ts
+glob includes the new proof but its explicit browser exclusions omit it.
+Root check ran123 instead of121 Vitest tests and now requires optional browser
+dependencies. Do not accept this configuration yet. Short run
+5ff2e4df-32fc-4ab5-8096-2e985bc77640, base38bfe415, key
+attica-browser-proof-isolation-20261028-01, created16:38:05Z, may edit ONLY
+vitest.config.ts to add the exclusion. Requires an actual clean temporary-copy
+root-only npm ci/check with browser/node_modules absent, followed by both
+focused Chromium files (5 tests) on final assets. Six criteria retain the five
+behaviors and add root-only isolation. Arguments/watcher: browser-isolation-04.
+
+2026-10-28T16:54Z: owner asked who occupied the slot. It was our hosted
+automatic validation of38bfe415, shadowfc4a9b26, since16:37:12Z. Its worker
+used network-none, repeatedly failing registry.npmjs.org installation with
+EAI_AGAIN. It ended inconclusive16:53:00Z,37events/30archives fully decoded
+and integrity-checked190,087bytes,4calls/$0.03197732, no counter/recipe changes.
+Run5ff2e4df began16:53:01Z; follow it rather than duplicate its start.
+
+Targeted Atoma correction selects existing container-egress for automatic
+Compute verification, preserving host allowlist/proxy/private-address policy
+and initial-state authority filtering. Regression failed before on three
+launcher assertions including an actual npm process, then92targeted tests pass.
+Full npmci+release:check passes8518tests/589files (43tests/4files skipped).
+Real compiled Docker smoke on existing immutable47705e7f6323 passes npm200
+and control-plane/raw-gateway denial; shared worker tag untouched. Incident:
+records/incidents/compute-validation-egress-2026-10-28.md. Deployment pending.

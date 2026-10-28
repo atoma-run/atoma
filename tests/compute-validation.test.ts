@@ -4,7 +4,7 @@ import { captureCheckpointExport } from '../src/run/checkpointExport.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AuthStore } from '../src/auth/store.js';
@@ -18,6 +18,7 @@ import { defaultLauncher, type ArmLaunch } from '../src/supervisor/assayer.js';
 import * as burnin from '../src/cli/burnin.js';
 import { TraceRecorder } from '../src/viz/trace.js';
 import { acquireRunLeaseWithoutRecovery } from '../src/mcp/runLock.js';
+import { resolveToolBackendMode } from '../src/run/backendMode.js';
 
 const roots: string[] = [];
 afterEach(() => { vi.restoreAllMocks(); closeStoreHandles(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -91,7 +92,7 @@ describe('resident Compute verification through the real queue, store and lease'
     expect((await validateComputeNext(f.options))?.outcome).toBe('compute-validated');
     expect(f.launch).toHaveBeenCalledTimes(1);
     const call = f.launch.mock.calls[0]![0];
-    expect(call).toMatchObject({ isolation: 'container', timeoutMs: 900_000, goal: f.source.goal });
+    expect(call).toMatchObject({ isolation: 'container-egress', timeoutMs: 900_000, goal: f.source.goal });
     expect(call.seed).toBeUndefined();
     expect(JSON.parse(call.env[COMPUTE_VALIDATION_ENV]!)).toMatchObject({ sourceRunId: f.source.projectRunId });
     expect(call.env['ATOMA_RUN_ID']).not.toBe(f.source.projectRunId);
@@ -126,8 +127,28 @@ describe('resident Compute verification through the real queue, store and lease'
     expect(spawn).toHaveBeenCalledOnce();
     const call = spawn.mock.calls[0]![0];
     expect(call.extraArgs).toContain('--container');
-    expect(call.extraArgs).not.toContain('--egress');
+    expect(call.extraArgs).toContain('--egress');
     expect(call.onSpawn).toBeTypeOf('function');
+  });
+  it.skipIf(process.platform === 'win32')('passes controlled egress and the host allowlist through the real runner process', async () => {
+    const f = fixture();
+    const receipt = join(f.options.repoRoot, 'launch.json');
+    writeFileSync(join(f.options.repoRoot, 'package.json'), JSON.stringify({ scripts: {
+      'run:build:dev': 'node capture-launch.cjs', 'run:build': 'node capture-launch.cjs',
+    } }));
+    writeFileSync(join(f.options.repoRoot, 'capture-launch.cjs'), `
+const fs = require('node:fs');
+fs.writeFileSync(process.env.LAUNCH_RECEIPT, JSON.stringify({
+  argv: process.argv.slice(2), allowlist: process.env.ATOMA_EGRESS_ALLOWLIST,
+}));
+`);
+    await validateComputeNext({ ...f.options, launch: defaultLauncher, hostEnv: {
+      PATH: process.env.PATH, LAUNCH_RECEIPT: receipt, ATOMA_EGRESS_ALLOWLIST: 'registry.npmjs.org',
+    } });
+    const observed = JSON.parse(readFileSync(receipt, 'utf8')) as { argv: string[]; allowlist: string };
+    expect(resolveToolBackendMode(observed.argv, {})).toEqual({ container: true, egress: true });
+    expect(observed.allowlist).toBe('registry.npmjs.org');
+    expect(observed.argv).toContain(f.source.goal);
   });
   async function savedInitial(f: ReturnType<typeof fixture>) {
     const workspace = f.source.hostPaths.workspacePath;
