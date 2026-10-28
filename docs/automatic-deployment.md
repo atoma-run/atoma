@@ -65,6 +65,11 @@ pending row, lets running work finish, then takes the global lease and freezes
 writes for activation. `ATOMA_DEPLOY_WAIT_SECONDS` defaults to 5400. A deadline or
 unverifiable surviving work refuses with exit 75. This maintenance path remains
 necessary for incompatible writers, rather than being imposed on every release.
+A stale executor socket is not evidence of a live writer. If its health cannot be
+read, maintenance checks the receipt's process birth identity using the existing
+lease policy. A proven gone owner is skipped with its receipt preserved; a live,
+unreadable or malformed identity still waits or refuses at the deadline. Skipping
+a gone owner never stops a service from that stale receipt.
 
 ### Enable independent executors on an existing host
 

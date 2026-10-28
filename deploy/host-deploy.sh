@@ -480,14 +480,33 @@ if [[ "${ROLLING}" -eq 0 && -n "${OLD_EXECUTOR}" ]]; then
     [[ -f "${receipt}" ]] || continue
     generation="$(basename "${receipt}" .sock.json)"
     [[ "${generation}" =~ ^[0-9a-f]{40}$ ]] || fail "invalid executor receipt"
+    owner_gone=0
     while [[ -f "${receipt}" ]]; do
       idle_status=0
       run_as_service "${OLD_RELEASE}" timeout 5 node dist/cli/executor.js --idle "${EXECUTOR_ROOT}/${generation}.sock" >/dev/null 2>&1 || idle_status=$?
       [[ "${idle_status}" -eq 0 ]] && break
+      # A crashed/retired generation can leave its socket and receipt behind.
+      # Reuse the lease birth-identity policy: unreadable identities stay live.
+      # Preserve the receipt, and never stop a unit based on stale metadata.
+      if run_as_service "${TARGET_RELEASE}" node --input-type=module - "${receipt}" <<'JS'
+import { readFileSync } from 'node:fs';
+import { recordedProcessLive } from './dist/mcp/runLock.js';
+try {
+  const owner = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  if (Number.isInteger(owner.pid) && owner.pid > 0 && typeof owner.fingerprint === 'string' && owner.fingerprint &&
+      !recordedProcessLive(owner.pid, owner.fingerprint)) process.exit(0);
+} catch { /* Unreadable or malformed receipts cannot establish absence. */ }
+process.exit(1);
+JS
+      then
+        echo "drain: executor ${generation} owner is gone; preserving its receipt"
+        owner_gone=1
+        break
+      fi
       (( SECONDS < EXECUTOR_DRAIN_DEADLINE )) || refuse "executor ${generation} did not become verifiably idle before maintenance"
       sleep 1
     done
-    systemctl stop "atoma-executor@${generation}.service"
+    if [[ "${owner_gone}" -eq 0 ]]; then systemctl stop "atoma-executor@${generation}.service"; fi
   done
 fi
 systemctl stop "${SERVICE_NAME}"

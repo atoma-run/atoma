@@ -399,3 +399,12 @@ before any model/provider initialization.
 Local release verification for the retry implementation: `npm ci` and
 `npm run release:check` passed, including 8,534 tests (43 skipped), audit,
 both TypeScript configurations, lint, docs/build and compiled release smokes.
+
+Production verification exposed two additional defects; see
+[the retry incident](../records/incidents/compute-validation-retry-2026-10-28.md).
+A dead executor receipt stalled compatibility maintenance; exact receipts/sockets
+were archived after proving only the deployment lease remained. The permanent
+activator fix preserves and skips only proven gone owners. The 2025 SDK also
+validates structured error replies after discovery, so the new tool's output
+schema must include the existing typed service problem alongside successful
+receipts. Both-era tests must discover the platform tool before testing refusals.

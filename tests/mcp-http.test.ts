@@ -441,6 +441,8 @@ it.each(['legacy', 'modern'] as const)('queues explicit Compute retries through 
   const args = { projectId: project.projectId, runId: source.projectRunId, idempotencyKey: 'retry-one' };
   const call = (which = client, change = {}) => which.callTool({ name: 'atoma_compute_validation_retry', arguments: { ...args, ...change } });
   try {
+    // Discovery arms SDK output validation, including structured tool errors.
+    await Promise.all([client.listTools(), second.listTools()]);
     expect((await member.listTools()).tools.map(tool => tool.name)).not.toContain('atoma_compute_validation_retry');
     await expect(member.callTool({ name: 'atoma_compute_validation_retry', arguments: args })).rejects.toThrow('not found');
     expect((await call(client, { projectId: randomUUID() })).isError).toBe(true);

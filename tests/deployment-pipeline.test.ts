@@ -122,8 +122,8 @@ run_as_service_with_app_env "$SERVICE_HOME" bash -c 'echo command-must-not-run'
       const begin = hostDeploy.indexOf('if [[ "${ROLLING}" -eq 0 && -n "${OLD_EXECUTOR}" ]]; then');
       const end = hostDeploy.indexOf('\nsystemctl stop "${SERVICE_NAME}"', begin);
       const ran = spawnSync('bash', ['-c', `set -Eeuo pipefail
-ROLLING="$1"; EXECUTOR_ROOT="$2"; OLD_EXECUTOR=present; OLD_RELEASE=old; EXECUTOR_DRAIN_DEADLINE=$((SECONDS + 5)); calls=0
-run_as_service() { calls=$((calls + 1)); echo "check $calls" >> "$EXECUTOR_ROOT/calls"; (( calls > 1 )); }
+ROLLING="$1"; EXECUTOR_ROOT="$2"; OLD_EXECUTOR=present; OLD_RELEASE=old; TARGET_RELEASE=next; EXECUTOR_DRAIN_DEADLINE=$((SECONDS + 5)); calls=0
+run_as_service() { [[ "$2" == node ]] && return 1; calls=$((calls + 1)); echo "check $calls" >> "$EXECUTOR_ROOT/calls"; (( calls > 1 )); }
 systemctl() { echo "$*" >> "$EXECUTOR_ROOT/calls"; }
 sleep() { :; }
 fail() { exit 1; }; refuse() { exit 75; }
@@ -131,6 +131,35 @@ ${hostDeploy.slice(begin, end)}`, 'test', String(rolling), root], { encoding: 'u
       expect(ran.status, ran.stderr).toBe(0);
       if (rolling) expect(() => readFileSync(log)).toThrow();
       else expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual(['check 1', 'check 2', `stop atoma-executor@${generation}.service`]);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it.each(['gone', 'live', 'unverifiable', 'malformed'] as const)('maintenance preserves a %s receipt and never stops a writer without idle proof', state => {
+    const root = mkdtempSync(join(tmpdir(), 'executor-stale-drain-'));
+    try {
+      const generation = 'c'.repeat(40), receipt = join(root, `${generation}.sock.json`);
+      const departed = spawnSync(process.execPath, ['-e', ''], { encoding: 'utf8' }).pid;
+      const raw = state === 'malformed' ? '{' : JSON.stringify({ pid: state === 'live' ? process.pid : departed, fingerprint: state });
+      writeFileSync(receipt, raw);
+      mkdirSync(join(root, 'dist/mcp'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), '{"type":"module"}');
+      // The birth-identity policy is already tested in run-lock; exercise its deployment seam through a real Node process.
+      writeFileSync(join(root, 'dist/mcp/runLock.js'), `export function recordedProcessLive(pid, fingerprint) {
+        if (fingerprint === 'unverifiable') return true;
+        try { process.kill(pid, 0); return true; } catch (error) { return error.code !== 'ESRCH'; }
+      }`);
+      const begin = hostDeploy.indexOf('if [[ "${ROLLING}" -eq 0 && -n "${OLD_EXECUTOR}" ]]; then');
+      const end = hostDeploy.indexOf('\nsystemctl stop "${SERVICE_NAME}"', begin);
+      const ran = spawnSync('bash', ['-c', `set -Eeuo pipefail
+ROLLING=0; EXECUTOR_ROOT="$1"; OLD_EXECUTOR=present; OLD_RELEASE="$1"; TARGET_RELEASE="$1"; EXECUTOR_DRAIN_DEADLINE=$SECONDS
+run_as_service() { local cwd="$1"; shift; [[ "$1" == timeout ]] && return 1; (cd "$cwd" && "$@"); }
+systemctl() { echo "UNEXPECTED STOP $*"; exit 99; }
+refuse() { exit 75; }
+${hostDeploy.slice(begin, end)}`, 'test', root], { encoding: 'utf8' });
+      expect(ran.status, ran.stderr).toBe(state === 'gone' ? 0 : 75);
+      expect(ran.stdout).not.toContain('UNEXPECTED STOP');
+      if (state === 'gone') expect(ran.stdout).toContain('owner is gone; preserving its receipt');
+      expect(readFileSync(receipt, 'utf8')).toBe(raw);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 

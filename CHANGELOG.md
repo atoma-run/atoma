@@ -11,6 +11,13 @@
   validations are refused. Prior evidence and attempt receipts remain intact.
   Available in both MCP protocol generations, within the caller's active org.
 
+### Fixed
+
+- Compute retry refusals remain readable after MCP discovery in clients that
+  validate structured error replies against the advertised output schema.
+- Compatibility maintenance preserves and skips executor receipts with a proven
+  gone owner. Live or unverifiable owners still require idle proof before any stop.
+
 ## v0.5.1 — 2026-10-27
 
 ### Fixed

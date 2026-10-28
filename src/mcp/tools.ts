@@ -20,7 +20,7 @@ import {
 } from '../auth/subscriptionDelegates.js';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
 import { McpServer, type ServerContext, type CallToolResult } from '@modelcontextprotocol/server';
-import { serviceProblem, artifactPageInputSchema, artifactPageResultSchema, artifactFileResultSchema, artifactReadInputSchema, projectPageInputSchema, runPageInputSchema, runComparisonInputSchema, runComparisonResultSchema, runReviewSchema } from '../contracts/clientExperience.js';
+import { serviceProblem, serviceProblemSchema, artifactPageInputSchema, artifactPageResultSchema, artifactFileResultSchema, artifactReadInputSchema, projectPageInputSchema, runPageInputSchema, runComparisonInputSchema, runComparisonResultSchema, runReviewSchema } from '../contracts/clientExperience.js';
 import { artifactMime } from '../projects/artifactMedia.js';
 import { errorResult } from './results.js';
 import { RUN_APP_META, registerRunApp } from './apps.js';
@@ -1268,7 +1268,8 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     register: (server, ctx) => server.registerTool('atoma_compute_validation_retry', {
       title: 'Retry Compute validation',
       description: 'Queue one explicit hosted validation of an ended Compute source in your active organisation, using its complete retained initial state. Can spend host model quota under the existing budgets and exclusive idle lease. Requires an existing terminal automatic validation; active attempts are refused. Previous attempts and evidence are preserved. Reuse the SAME idempotencyKey to recover this attempt and its current/final status, even after another retry. A new key requests new spend. Does not resume the customer run, accept a delivery or publish it.',
-      inputSchema: computeValidationRetryInputSchema, outputSchema: computeValidationRetryReceiptSchema.loose(),
+      inputSchema: computeValidationRetryInputSchema, // Both alternatives are objects; SDK clients also validate structured isError replies.
+      outputSchema: z.union([computeValidationRetryReceiptSchema.loose(), z.looseObject({ error: serviceProblemSchema })]).meta({ type: 'object' }),
       annotations: { ...LOCAL_WRITE, idempotentHint: true },
     }, args => guarded(() => tenant(ctx).service.retryComputeValidation(ctx.viewer(), args))),
   },
