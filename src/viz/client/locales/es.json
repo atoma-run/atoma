@@ -2856,5 +2856,6 @@
   "layout.backList": "Volver a la lista",
   "runs.compact.summary": "Resumen",
   "runs.compact.filters": "Filtros",
-  "admin.computeValidation.budgetPerAttempt": "Un intento por run de origen, de {{minutes}} minutos cada uno, con un límite de consumo de {{tokens}} tokens o ${{cost}} en equivalente de API. Las llamadas ya en curso pueden superar el límite de consumo; el gasto desconocido también consume un intento."
+  "admin.computeValidation.budgetPerAttempt": "Un intento por run de origen, de {{minutes}} minutos cada uno, con un límite de consumo de {{tokens}} tokens o ${{cost}} en equivalente de API. Las llamadas ya en curso pueden superar el límite de consumo; el gasto desconocido también consume un intento.",
+  "projects.hostedRun": "Run #{{number}} en línea"
 }
