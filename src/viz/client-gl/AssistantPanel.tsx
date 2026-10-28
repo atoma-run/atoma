@@ -135,6 +135,34 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   const mounted = useRef(true);
   const panel = useRef<HTMLElement>(null);
   const log = useRef<HTMLDivElement>(null);
+  const logContent = useRef<HTMLDivElement>(null);
+  const [scrollEdges, setScrollEdges] = useState({ top: false, bottom: false });
+  useLayoutEffect(() => {
+    const viewport = log.current;
+    const content = logContent.current;
+    if (!viewport || !content) return;
+    const update = () => {
+      const maximum = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      const offset = Math.max(0, Math.min(viewport.scrollTop, maximum));
+      const overflowing = viewport.clientHeight > 0 && maximum > 1;
+      const top = overflowing && offset > 1;
+      const bottom = overflowing && offset < maximum - 1;
+      setScrollEdges(previous => previous.top === top && previous.bottom === bottom ? previous : { top, bottom });
+    };
+    // Native scrolling owns the position. Observe the viewport AND its content
+    // so reflow, expanded results and newly loaded messages refresh the cues.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(viewport);
+    observer?.observe(content);
+    viewport.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    update();
+    return () => {
+      observer?.disconnect();
+      viewport.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
   const composer = useRef<HTMLTextAreaElement>(null);
   // No focus on mount: the card is on screen whenever Projects is, and a
   // textarea stealing focus from the canvas on every visit would be a defect.
@@ -339,7 +367,10 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       </div>)}
       <button type="button" onClick={() => onSettings('keys')}>{t('assistant.apiKeys')}</button>
     </div> : null}
-    <div className={`gpu-assistant-log${empty ? ' gpu-assistant-log--empty' : ''}${revealClass(reveal)}`} hidden={newProjectPrompt} ref={log} role="log" aria-label={t('assistant.conversation')} aria-live="polite" aria-relevant="additions">
+    <div className={`gpu-assistant-log-frame${empty ? ' gpu-assistant-log-frame--empty' : ''}${revealClass(reveal)}`} hidden={newProjectPrompt}
+      data-scroll-top={scrollEdges.top || undefined} data-scroll-bottom={scrollEdges.bottom || undefined}>
+    <div className={`gpu-assistant-log${empty ? ' gpu-assistant-log--empty' : ''}`} ref={log} role="log" tabIndex={0} aria-label={t('assistant.conversation')} aria-live="polite" aria-relevant="additions">
+    <div className="gpu-assistant-log-content" ref={logContent}>
       {before ? <button type="button" disabled={loadingHistory} onClick={() => void loadOlder()}>{t('assistant.olderMessages')}</button> : null}
       {empty && conversation && projectId ? <p className="gpu-assistant-empty">{t('assistant.existingHint')}</p> : null}
       {timeline.map(entry => {
@@ -393,6 +424,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       {waiting ? <div className="gpu-assistant-message gpu-assistant-message--assistant gpu-assistant-typing" role="status" aria-label={t('assistant.working')}>
         <span className="gpu-assistant-typing-dots" aria-hidden="true"><span /><span /><span /></span>
       </div> : null}
+    </div>
+    </div>
     </div>
     {/* What is asked of the person first, then what is happening: the log is where it is told, this is where one acts. */}
     {awaitingRun ? <div className="gpu-assistant-run gpu-assistant-run--review" role="status">

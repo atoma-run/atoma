@@ -1,5 +1,6 @@
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { GPU_COLORS } from '../theme.js';
+import { UI_SCROLL_SHADOW } from '../ui-layout.js';
 import { CAST_SHADOW_MAX_THROW_PX } from './cast-shadow.js';
 
 /**
@@ -160,7 +161,7 @@ export function drawScrollbarThumb(parent: Container, options: ScrollbarThumbOpt
 export function drawScrollShadows(parent: Container, options: ScrollbarThumbOptions): void {
   const { x, y, width, height, scrollY, maxScroll } = options;
   if (maxScroll <= 0 || height <= 0 || width <= 0) return;
-  const depth = Math.min(16, height / 2);
+  const depth = Math.min(UI_SCROLL_SHADOW.depth, height / 2);
   const columns = Math.max(3, Math.min(96, Math.ceil(width)));
   const columnWidth = width / columns;
   for (const edge of ['top', 'bottom'] as const) {
@@ -173,11 +174,11 @@ export function drawScrollShadows(parent: Container, options: ScrollbarThumbOpti
     // The horizontal bell is symmetric around the visible icon column, with
     // transparent sides; the vertical fade still points toward hidden rows.
     for (let step = 0; step < Math.ceil(depth); step++) {
-      const verticalAlpha = 0.72 * (1 - step / depth) ** 2;
+      const verticalAlpha = UI_SCROLL_SHADOW.opacity * (1 - step / depth) ** 2;
       for (let column = 0; column < columns; column++) {
         const horizontalAlpha = Math.sin(Math.PI * column / (columns - 1)) ** 2;
         shadow.rect(column * columnWidth, edge === 'top' ? step : depth - step - 1, columnWidth, 1)
-          .fill({ color: 0x01040a, alpha: verticalAlpha * horizontalAlpha });
+          .fill({ color: UI_SCROLL_SHADOW.color, alpha: verticalAlpha * horizontalAlpha });
       }
     }
     parent.addChild(shadow);

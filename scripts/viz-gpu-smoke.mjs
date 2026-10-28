@@ -2967,18 +2967,38 @@ try {
           .map(node => ({ text: node.textContent.slice(0,60), size: getComputedStyle(node).fontSize,
             lineHeight: getComputedStyle(node).lineHeight }));
         const log = document.querySelector('.gpu-assistant-log');
-        const thumb = getComputedStyle(log, '::-webkit-scrollbar-thumb');
+        const frame = log.closest('.gpu-assistant-log-frame');
+        const shadow = getComputedStyle(frame, '::before');
         const bar = getComputedStyle(log, '::-webkit-scrollbar');
-        return { sizes, thumbColor: thumb.backgroundColor, width: bar.width,
-          dragWidth: parseFloat(bar.width), paintedWidth: parseFloat(bar.width) -
-            parseFloat(thumb.borderLeftWidth) - parseFloat(thumb.borderRightWidth),
+        return { sizes, scrollbar: getComputedStyle(log).scrollbarWidth, barDisplay: bar.display,
+          gradient: shadow.backgroundImage, shadowEvents: shadow.pointerEvents,
           overflowing: log.scrollHeight > log.clientHeight };
       });
       if (!chatStyles.sizes.length || chatStyles.sizes.some(row => row.size !== '16px' || row.lineHeight !== '24px') ||
-          chatStyles.dragWidth !== 14 || chatStyles.paintedWidth !== 3 || !chatStyles.overflowing) {
-        throw new Error(`Inconsistent conversation typography or scrollbar: ${JSON.stringify(chatStyles)}`);
+          chatStyles.scrollbar !== 'none' || chatStyles.barDisplay !== 'none' ||
+          !chatStyles.gradient.startsWith('radial-gradient(') || chatStyles.shadowEvents !== 'none' || !chatStyles.overflowing) {
+        throw new Error(`Inconsistent conversation typography or scroll cues: ${JSON.stringify(chatStyles)}`);
       }
-      for (const deltaY of [-10000, 10000]) {
+      const expectChatEdges = async (top, bottom) => {
+        await accountPage.waitForFunction(({ top, bottom }) => {
+          const frame = document.querySelector('.gpu-assistant-log-frame');
+          return getComputedStyle(frame, '::before').opacity === (top ? '1' : '0') &&
+            getComputedStyle(frame, '::after').opacity === (bottom ? '1' : '0');
+        }, {}, { top, bottom }).catch(async error => {
+          const state = await accountPage.evaluate(() => {
+            const log = document.querySelector('.gpu-assistant-log');
+            const frame = log.closest('.gpu-assistant-log-frame');
+            return { top: log.scrollTop, height: log.clientHeight, total: log.scrollHeight,
+              cueTop: getComputedStyle(frame, '::before').opacity, cueBottom: getComputedStyle(frame, '::after').opacity };
+          });
+          await accountPage.screenshot({ path: '/tmp/atoma-chat-edge-failure.png' });
+          throw new Error(`Conversation edge cues expected ${top}/${bottom}: ${JSON.stringify(state)}`, { cause: error });
+        });
+      };
+      const maximum = await accountPage.$eval('.gpu-assistant-log', log => log.scrollHeight - log.clientHeight);
+      for (const [deltaY, top, bottom, state] of [
+        [-10000, false, true, 'top'], [maximum / 2, true, true, 'middle'], [10000, true, false, 'bottom'],
+      ]) {
         await accountPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const chatPoint = await accountPage.$eval('.gpu-assistant-log', log => {
           const rect = log.getBoundingClientRect();
@@ -2989,7 +3009,9 @@ try {
         await accountPage.mouse.wheel({ deltaY });
         await accountPage.waitForFunction(direction => {
           const log = document.querySelector('.gpu-assistant-log');
-          return direction < 0 ? log.scrollTop === 0 : Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop) < 1;
+          return direction < 0 ? log.scrollTop <= 1 : direction >= 10000
+            ? Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop) < 1
+            : log.scrollTop > 1 && log.scrollTop < log.scrollHeight - log.clientHeight - 1;
         }, {}, deltaY).catch(async error => {
           await accountPage.screenshot({ path: '/tmp/atoma-chat-scroll-failure.png' });
           const state = await accountPage.evaluate(point => {
@@ -2999,9 +3021,36 @@ try {
           }, chatPoint);
           throw new Error(`Chat native scroll failed: ${JSON.stringify(state)}`, { cause: error });
         });
+        await expectChatEdges(top, bottom);
+        await accountPage.screenshot({ path: `/tmp/atoma-chat-shadows-${state}.png` });
       }
-      await accountPage.screenshot({ path: '/tmp/atoma-chat-typography-scrollbar.png' });
-      console.log('Assistant typography and scrollbar: 16px/24px message bodies, 3px track, native scroll to both ends');
+      await accountPage.focus('.gpu-assistant-log');
+      await accountPage.keyboard.press('Home');
+      await expectChatEdges(false, true);
+      await accountPage.keyboard.press('End');
+      await expectChatEdges(true, false);
+      // Resize the real layout until this conversation fits. ResizeObserver
+      // must remove both cues without a wheel event, then restore them.
+      const chatViewport = accountPage.viewport();
+      await accountPage.setViewport({ width: 1280, height: 2000, deviceScaleFactor: 1 });
+      await waitForSceneCamera(accountPage, 'focus');
+      await accountPage.waitForFunction(() => {
+        const log = document.querySelector('.gpu-assistant-log');
+        return log.clientHeight > 0 && log.scrollHeight - log.clientHeight <= 1;
+      });
+      await expectChatEdges(false, false);
+      await accountPage.screenshot({ path: '/tmp/atoma-chat-shadows-fitting.png' });
+      await accountPage.setViewport(chatViewport);
+      await waitForSceneCamera(accountPage, 'focus');
+      await accountPage.waitForFunction(() => {
+        const log = document.querySelector('.gpu-assistant-log');
+        return log.clientHeight > 0 && log.scrollHeight - log.clientHeight > 1;
+      });
+      await accountPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await accountPage.focus('.gpu-assistant-log');
+      await accountPage.keyboard.press('End');
+      await expectChatEdges(true, false);
+      console.log('Assistant scroll cues: hidden scrollbar; native wheel and keyboard; top/middle/bottom shadows; none when content fits');
       const narration = await accountPage.$$eval('.gpu-assistant-message--activity', nodes => nodes.map(node => node.textContent));
       if (!narration.some(text => text.includes('Sam Rivera, from Claude Code')) || !narration.some(text => text.includes('The work did not complete'))) {
         throw new Error(`Project runs are not narrated in the conversation: ${JSON.stringify(narration)}`);
@@ -3112,8 +3161,26 @@ try {
       await waitForHitTarget(accountPage, 'result.details', 'Latest result scene did not replace the preview');
       await assertProjectRepository('Latest delivered results');
       await clickAccountTarget('project.section.conversation');
+      // The departing cube face contains an inert copy of the guide. Wait
+      // until it is removed before querying and clicking native controls.
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-cube')?.dataset.cubeTurn === 'idle');
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent > summary', { visible: true });
-      await accountPage.click('.gpu-project-mcp-own-agent > summary');
+      await accountPage.click('.gpu-project-mcp-own-agent > summary').catch(async error => {
+        const state = await accountPage.evaluate(() => {
+          const box = node => {
+            if (!node) return null;
+            const rect = node.getBoundingClientRect();
+            return { x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+              hidden: node.hidden, display: getComputedStyle(node).display };
+          };
+          return { viewport: [window.innerWidth, window.innerHeight], cube: document.querySelector('.gpu-cube')?.dataset.cubeTurn,
+            summaries: [...document.querySelectorAll('.gpu-project-mcp-own-agent > summary')].map(box),
+            guide: box(document.querySelector('.gpu-project-mcp')), assistant: box(document.querySelector('.gpu-assistant')),
+            log: box(document.querySelector('.gpu-assistant-log')), frame: box(document.querySelector('.gpu-assistant-log-frame')) };
+        });
+        await accountPage.screenshot({ path: '/tmp/atoma-chat-guide-click-failure.png' });
+        throw new Error(`Conversation guide unreachable: ${JSON.stringify(state)}`, { cause: error });
+      });
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       console.log('Project repository ok: real canvas link remains clickable in all five tabs');
       await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });

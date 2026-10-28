@@ -147,8 +147,9 @@ it('shows the sent message before typing starts and replaces it with the saved c
   await userEvent.click(screen.getByRole('button', { name: 'Send' }));
   const log = screen.getByRole('log');
   expect(within(log).getAllByText('Why did the run fail?')).toHaveLength(1);
-  expect(log.firstElementChild).toHaveTextContent('Why did the run fail?');
-  expect(log.lastElementChild).toHaveClass('gpu-assistant-typing');
+  const entries = log.querySelector('.gpu-assistant-log-content')!;
+  expect(entries.firstElementChild).toHaveTextContent('Why did the run fail?');
+  expect(entries.lastElementChild).toHaveClass('gpu-assistant-typing');
   const requestId = request.mock.calls[0]![0].requestId;
   const saved: AssistantView = { ...data, busy: true, conversation: { ...data.conversation, version: 1, lastRequestId: requestId,
     messages: [{ id: crypto.randomUUID(), role: 'user', origin: 'atoma', text: 'Why did the run fail?', at: new Date().toISOString() }] } };
@@ -873,4 +874,53 @@ it('tells no deployment older than the loaded messages, nor another project\'s',
   panel(other, 'alice:org-a', projectId, deployed([deployment({})], 'b770bb5f-5c86-4a59-a565-55ac88d17e0e'));
   await within(await screen.findByRole('log')).findByText('Question');
   expect(screen.queryByText(/Online application switched to/)).not.toBeInTheDocument();
+});
+
+
+it('updates conversation edge shadows on native scroll, viewport resize and content growth', async () => {
+  const updates: (() => void)[] = [];
+  const observed: Element[] = [];
+  const disconnect = vi.fn();
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(update: () => void) { updates.push(update); }
+    observe(element: Element) { observed.push(element); }
+    disconnect = disconnect;
+  });
+  onTestFinished(() => { vi.unstubAllGlobals(); });
+  const data = view();
+  data.conversation.messages = [{ role: 'assistant', text: 'Saved answer', at: '2026-10-28T06:00:00Z' }];
+  const { unmount } = panel(data, 'alice:org-a', projectId);
+  await screen.findByText('Saved answer');
+  const log = screen.getByRole('log');
+  const frame = log.parentElement!;
+  let height = 200;
+  let contentHeight = 200;
+  Object.defineProperties(log, {
+    clientHeight: { configurable: true, get: () => height },
+    scrollHeight: { configurable: true, get: () => contentHeight },
+  });
+  const resize = () => act(() => { updates.forEach(update => update()); });
+  const edges = (top: boolean, bottom: boolean) => {
+    expect(frame.hasAttribute('data-scroll-top')).toBe(top);
+    expect(frame.hasAttribute('data-scroll-bottom')).toBe(bottom);
+  };
+  expect(log).toHaveAttribute('tabindex', '0');
+  expect(observed).toContain(log);
+  expect(observed).toContain(log.firstElementChild);
+  resize(); edges(false, false);
+  contentHeight = 500;
+  resize(); edges(false, true);
+  fireEvent.scroll(log, { target: { scrollTop: 120 } }); edges(true, true);
+  fireEvent.scroll(log, { target: { scrollTop: 299.7 } }); edges(true, false);
+  height = 600;
+  resize(); edges(false, false);
+  contentHeight = 1000;
+  resize(); edges(true, true);
+  contentHeight = 100;
+  resize(); edges(false, false);
+  height = 0;
+  contentHeight = 1000;
+  resize(); edges(false, false);
+  unmount();
+  expect(disconnect).toHaveBeenCalledOnce();
 });

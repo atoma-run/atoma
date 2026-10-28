@@ -2082,40 +2082,51 @@ html.atoma-cursor-active * {
 .gpu-assistant h2 { font-size: 18px; }
 .gpu-assistant h3 { font-size: 15px; }
 .gpu-assistant header p, .gpu-assistant small, .gpu-assistant-message-meta { color: #b5c5dc; font-size: 12px; }
-.gpu-assistant-log { flex: 1; min-height: 96px; overflow-y: auto; overscroll-behavior: contain; user-select: text; }
-.gpu-assistant-log:not(.gpu-assistant-log--empty) {
-  box-sizing: border-box; padding: 8px; border-radius: 8px; background: #07142724;
-  box-shadow: 0 2px 6px #01040a40, inset 0 8px 10px -8px #01040aa6, inset 0 -8px 10px -8px #01040aa6;
+.gpu-assistant-log-frame { position: relative; flex: 1; min-height: 96px; min-width: 0; overflow: hidden; border-radius: 8px; }
+.gpu-assistant-log-frame:not([hidden]) { display: flex; flex-direction: column; }
+.gpu-assistant-log-frame:not(.gpu-assistant-log-frame--empty) {
+  background: #07142724; box-shadow: 0 2px 6px #01040a40;
 }
-/* Native chat scrolling keeps the canvas track's colour and 3px visual width,
-   with a 14px native drag target. No second scroll position or event router. */
-.gpu-assistant :is(.gpu-assistant-log, pre, table, textarea) {
+.gpu-assistant-log { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; user-select: text; scrollbar-width: none; }
+.gpu-assistant-log:not(.gpu-assistant-log--empty) { box-sizing: border-box; padding: 8px; }
+.gpu-assistant-log:focus-visible { outline: 2px solid #a8d7ff; outline-offset: -2px; }
+.gpu-assistant-log::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.gpu-assistant-log-frame::before, .gpu-assistant-log-frame::after {
+  content: ''; position: absolute; z-index: 1; left: 0; right: 0; height: var(--ui-space-card);
+  pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse 50% 100% at 50% 0, var(--ui-scroll-shadow), transparent);
+}
+.gpu-assistant-log-frame::before { top: 0; }
+.gpu-assistant-log-frame::after { bottom: 0; transform: scaleY(-1); }
+.gpu-assistant-log-frame[data-scroll-top]::before, .gpu-assistant-log-frame[data-scroll-bottom]::after { opacity: 1; }
+.gpu-assistant-log-frame--empty { flex: 0 0 auto; min-height: 0; overflow: visible; }
+/* Nested code, tables and the composer retain native drag targets. */
+.gpu-assistant :is(pre, table, textarea) {
   scrollbar-width: thin;
   scrollbar-color: var(--ui-scroll-thumb) var(--ui-scroll-track);
 }
-.gpu-assistant-log { scrollbar-gutter: stable; }
 @supports selector(::-webkit-scrollbar) {
-  .gpu-assistant :is(.gpu-assistant-log, pre, table, textarea) { scrollbar-width: auto; scrollbar-color: auto; }
-  .gpu-assistant :is(.gpu-assistant-log, pre, table, textarea)::-webkit-scrollbar { width: 14px; height: 14px; }
-  .gpu-assistant :is(.gpu-assistant-log, pre, table, textarea)::-webkit-scrollbar-track {
+  .gpu-assistant :is(pre, table, textarea) { scrollbar-width: auto; scrollbar-color: auto; }
+  .gpu-assistant :is(pre, table, textarea)::-webkit-scrollbar { width: 14px; height: 14px; }
+  .gpu-assistant :is(pre, table, textarea)::-webkit-scrollbar-track {
     background: linear-gradient(to right, transparent 6px, var(--ui-scroll-track) 6px,
       var(--ui-scroll-track) 9px, transparent 9px);
   }
-  .gpu-assistant :is(.gpu-assistant-log, pre, table, textarea)::-webkit-scrollbar-thumb {
+  .gpu-assistant :is(pre, table, textarea)::-webkit-scrollbar-thumb {
     min-height: 28px; border: solid transparent; border-width: 0 5px 0 6px;
     border-radius: 8px; background: var(--ui-scroll-thumb); background-clip: padding-box;
   }
-  .gpu-assistant :is(.gpu-assistant-log, pre, table, textarea)::-webkit-scrollbar-track:horizontal {
+  .gpu-assistant :is(pre, table, textarea)::-webkit-scrollbar-track:horizontal {
     background: linear-gradient(to bottom, transparent 6px, var(--ui-scroll-track) 6px,
       var(--ui-scroll-track) 9px, transparent 9px);
   }
-  .gpu-assistant :is(.gpu-assistant-log, pre, table, textarea)::-webkit-scrollbar-thumb:horizontal {
+  .gpu-assistant :is(pre, table, textarea)::-webkit-scrollbar-thumb:horizontal {
     min-width: 28px; border-width: 6px 0 5px;
   }
-  .gpu-assistant :is(.gpu-assistant-log, pre, table, textarea)::-webkit-scrollbar-corner { background: transparent; }
+  .gpu-assistant :is(pre, table, textarea)::-webkit-scrollbar-corner { background: transparent; }
 }
 .gpu-assistant-log--empty { flex: 0 0 auto; min-height: 0; overflow: visible; }
-.gpu-assistant-log > * + * { margin-top: 6px; }
+.gpu-assistant-log-content > * + * { margin-top: 6px; }
 .gpu-assistant-message, .gpu-assistant-proposal { overflow-wrap: anywhere; }
 .gpu-assistant-message { box-sizing: border-box; width: fit-content; max-width: min(88%, 72ch); padding: 12px 16px; border: 1px solid #ffffff26; border-left: 2px solid #81adce; border-radius: 8px; font-size: var(--ui-type-body); line-height: 1.5; }
 .gpu-assistant-message p { white-space: pre-wrap; margin: 2px 0 0; font: inherit; }
@@ -2302,7 +2313,7 @@ html.atoma-cursor-active * {
 .gpu-announce-field > span, .gpu-announce-segment > span { font-size: var(--ui-type-dense); line-height: 1.5; }
 .gpu-announce-form textarea.gpu-dom-input { min-height: 160px; height: 160px; resize: vertical; flex-shrink: 0; font-size: var(--ui-type-body); line-height: 1.5; }
 .gpu-announce-actions { gap: var(--ui-space-sm); }
-.gpu-assistant-log > * + * { margin-top: var(--ui-space-md); }
+.gpu-assistant-log-content > * + * { margin-top: var(--ui-space-md); }
 .gpu-assistant-message-meta { font-size: var(--ui-type-meta); }
 @media (max-width: 1023px) {
   .gpu-org-models-form { display: flex; flex-direction: column; gap: var(--ui-space-card); }
