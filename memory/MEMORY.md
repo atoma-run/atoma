@@ -14,6 +14,7 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Attica same-checkpoint repair](attica-same-checkpoint-repair-2026-10-29.md) — source failed on Compute transport loss; automatic replay inconclusive at token ceiling, all proofs read, no accepted delivery
 - [Attica run 51c4e71d](attica-run-51c4e71d-2026-10-26.md) — 2026-10-26: analysis validated; seven fixes pushed d63cbdc6; Codex login-copy parallelism withdrawn (login-loss risk); Compute worker rollout + follow-up run pending
 - [Attica run 40c20c5d analysis](attica-run-40c20c5d-analysis.md) — 2026-10-25: four defects fixed and deployed (6827f98e), Compute 0.4.128 installed; run finalized (partial) by the owner
 - [Hosted update stays explicit](hosted-update-explicit.md) — 2026-10-25: no auto-deploy on acceptance; one-click update with prepare-before-stop and visitor hold shipped (be1790c0)
