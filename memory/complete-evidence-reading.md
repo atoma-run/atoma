@@ -416,3 +416,24 @@ tool's typed 404 refusal after discovery without a schema error or model spend.
 The selected executor reported 9b53b99e, idle and healthy. The root-owned activator
 was atomically updated from that immutable release under the deployment lock,
 with its previous exact published bytes backed up. No Attica retry was started.
+
+### First explicit MCP retry on Attica — 2026-10-28
+
+Owner-authorized retry of source5ff2 on snapshot5f3c, key
+attica-compute-validation-mcp-20261028-01, created hosted attempt623f69d8.
+Production9b53, terminal INCONCLUSIVE after4m38/$0.0427288/11GLM calls;
+no deadline/cost/token exhaustion. Initial digestc1edcd0d and contextsha773f20da
+recomputed unchanged, including materialized initial workspace. Onlyconfig
+changed;250otherfiles/modes unchanged. Root-onlycheck exit0 and all29browser
+tests pass (bothfocusedfiles/5tests). One type-success, no recipes.
+
+Root c1/c2 reviewer e470b588 emitted prose before readEvidence JSON; strict
+read-request parser refused it. Other criterion batches positive do not make
+this a successful validation. Read all39events/11exchanges,21size+hash-verified
+archives(14unique),completehostlog,allpromptpages/testassertions. Raw worker/tmp
+install/check/browser logs were redirected and then lost with the container;
+only complete returned extracts are retained. No model replay/secondretry.
+Original production evidence and a39-payload private local archive retained;
+extra upload rejected by automatic review, not bypassed. Existing owner's
+sourceacceptance/publication unchanged. See
+[full incident](../records/incidents/compute-validation-mcp-attica-2026-10-28.md).
