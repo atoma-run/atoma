@@ -116,8 +116,11 @@ Neighbours:
   not two (2.9). Deep project runs enable it automatically;
   the host binds continuation to the requester/org/project and a new run receipt,
   copies the complete sealed workspace and atomically consumes the source claim.
-  A saved root actor that changed (its version moves with a deploy, another
-  run's tool set or the successor's own seeding) is refused after that claim,
+  A saved root actor whose identity or behavior changed is refused after that claim.
+  A newer version is allowed only when its prompt, ordered complete tool declarations
+  and parameters exactly match the archived saved version; missing/corrupt history
+  refuses. It uses the current version and re-reviews the remaining plan's old approval,
+  never restoring trust or credit from the completed prefix. A genuine change is refused,
   so the refusal hands the untouched source back and finishes the successor in
   one transaction (code review 2026-10-09, 1.4).
   Short/parallel/comparison runs keep their ordinary lifecycle. Contract and tests:

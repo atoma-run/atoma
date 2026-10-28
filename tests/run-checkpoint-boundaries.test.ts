@@ -265,7 +265,7 @@ describe('durable sequential run continuation', () => {
   // successor claimed the continuation, and the successor's own catalog
   // seeding can move Meristem's version. The refusal consumed the source for
   // good and left the successor `running`, blocked by its own seeding.
-  it('hands a project continuation back when its saved root actor has changed', async () => {
+  it.each(['changed', 'identical', 'missing-history', 'corrupt-history', 'identity'] as const)('checks the complete saved root definition before continuing: %s', async mode => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-checkpoint-actor-'))); checkpointRoots.push(root);
     const dbPath = join(root, 'atoma.db');
     const registry = new AtomRegistry(openDb(dbPath));
@@ -304,8 +304,21 @@ describe('durable sequential run continuation', () => {
         fresh: false, source: saved, automatic: true, account: () => saved.consumed, deadlineAt: Date.now() + 600_000,
         settle: async () => {}, processes: () => [], restoreWorkspace: () => store.materialize(saved, nextWorkspace, false) });
       // The runner's order: the successor seeds its catalog, then selects the saved actor.
-      seed([...base, docs]);
-      expect(() => savedRootActor(registry, saved.actor!, successor)).toThrow('Saved root actor has changed; resume refused');
+      if (mode !== 'changed') seed([...base, docs]);
+      if (mode === 'missing-history' || mode === 'corrupt-history') {
+        const raw = new Database(dbPath);
+        if (mode === 'missing-history') raw.prepare('DELETE FROM atom_type_versions WHERE tier=3 AND ordinal=? AND version=?').run(paused.ordinal, paused.version);
+        else raw.prepare('UPDATE atom_type_versions SET tools_json=? WHERE tier=3 AND ordinal=? AND version=?').run('broken', paused.ordinal, paused.version);
+        raw.close();
+      }
+      if (mode === 'identical') {
+        const current = savedRootActor(registry, saved.actor!, successor);
+        expect(current.version).toBeGreaterThan(saved.actor!.version);
+        expect(current.systemPrompt).toBe(paused.systemPrompt);
+        expect(current.tools).toEqual(paused.tools);
+        successor.refuseContinuation(); // Test cleanup must leave the original boundary untouched.
+      } else expect(() => savedRootActor(registry, mode === 'identity' ? { ...saved.actor!, atomId: randomUUID() } : saved.actor!, successor))
+        .toThrow('Saved root actor has changed; resume refused');
     });
     expect(store.projectStatus(sourceId, 'org')?.state).toBe('paused');
     expect(store.projectStatus(nextId, 'org')?.state).toBe('unavailable');

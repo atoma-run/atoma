@@ -29,9 +29,11 @@ withheld device observations coalesce to one attempt per ended source run. The
 primary store owns the queue and atomic ledger admission. No historical backfill.
 The same idle/deployment gate, exclusive lease and preemption apply; the child
 process group is attached before it can outlive its owner. Interrupted attempts
-are not retried. Host policy bounds each attempt to 240 seconds, 60,000 tokens,
+are not retried. Host policy bounds each attempt to 240 seconds, 1,000,000 billable tokens,
 $0.25 API-equivalent consumption, and four starts in a rolling 24 hours. In-flight
 calls may exceed consumption stops; unknown spend still reserves one attempt.
+The volume bound permits repeated full proof/cache reads; cost accounting,
+platform ceilings, time and daily limits remain independent stops.
 
 An ordinary hosted run starts from the complete initial state captured by
 `run/initialState.ts`, never the device's finished output. Capture streams the

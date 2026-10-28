@@ -109,8 +109,12 @@ The runner binds the checkpoint to the stored requester/org/project/source run,
 consumes the source and claims the successor in one SQLite transaction BEFORE
 restoring its snapshot into the new run. The saved root actor is compared after
 that claim, because the successor's own catalog seeding can move its version; a
-changed actor hands the untouched source back and finishes the successor in one
+changed identity or behavior hands the untouched source back and finishes the successor in one
 transaction, so the source stays as resumable as it was (code review 2026-10-09, 1.4).
+A newer version with exactly the archived saved prompt, ordered complete tool
+definitions and parameters may continue as the current version, forcing a fresh
+remaining-plan review. Missing or corrupt history refuses; no registry rollback
+or historical credit is granted (production Attica, 2026-10-28).
 Legacy graceful checkpoints keep the
 verified workspace copy path. Previous artifacts
 and traces remain immutable. Repository BASE is copied rather than refreshed from

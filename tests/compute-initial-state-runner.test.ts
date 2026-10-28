@@ -1,3 +1,5 @@
+import { AtomRegistry } from '../src/registry/atomRegistry.js';
+import { openDb } from '../src/registry/db.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -49,9 +51,16 @@ describe('Compute initial state through cold runner continuation and verificatio
       checkpoints.answerClientQuestion(viewer.orgId, first.id, viewer.principalId,
         { questionId: question.questionId, idempotencyKey: randomUUID(), answer: { optionId: 'keep_both' } });
     }
+    if (!answered) {
+      const registry = new AtomRegistry(openDb(f.db));
+      const actor = registry.getByName('Meristem')!;
+      registry.patch(actor.name, { systemPromptReplace: actor.systemPrompt + '\nTemporary catalogue change' }, 'fixture');
+      registry.patch(actor.name, { systemPromptReplace: actor.systemPrompt }, 'fixture');
+    }
     const next = reserve(first.id);
     const resumed = f.run(['--container', '--resume', first.id], '', { ...next.env, CHECKPOINT_TEST_QUESTION_PHASE: answered ? '1' : undefined, CHECKPOINT_TEST_EXPECT_ANSWER: answered ? '1' : '0' });
     expect(resumed.status, resumed.stdout + resumed.stderr).toBe(0);
+    if (!answered) expect(f.report().rootReviews).toBe(1); // A new version cannot reuse the old approval.
     const source = states.read({ sourceRunId: next.id, orgId: viewer.orgId, projectId: project.projectId })!;
     expect(source.continuation?.completed).toHaveLength(1);
     expect(source.continuation?.replanAfterAnswer).toBe(answered);

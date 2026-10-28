@@ -69,3 +69,21 @@ retain requester/scope/policy/budget checks and local in-place edit detection,
 and verify every byte through the normal restore receiver before execution.
 The regression must use the actual coordinator admission and a new workspace
 service process per segment, with its seed explicitly bound by the fixture.
+
+### Equivalent root versions and bounded proof volume — 2026-10-28
+
+The same Attica checkpoint stayed ready after dd260d83 refused Meristem v10
+against v12: archived v10 and live v12 had exactly identical prompt, ordered
+complete tool declarations and params. Catalogue refresh without project search
+and a later project bootstrap caused the intervening versions. `savedRootActor`
+now admits only that exact archived equivalence under the same immutable atomId,
+returns the CURRENT version, and therefore re-reviews the remaining plan instead
+of reusing the old version's approval. Real changes, absent/corrupt history and
+identity changes still hand the source back. No rollback or old phase credit.
+Compute verification's fixed volume bound is 1,000,000 billable tokens: the old
+60,000 stopped complete cached proof reads at 162,966 for $0.0137. Every cache
+read still counts; $0.25 equivalent spend, 240 seconds, rolling four attempts and
+ordinary platform ceilings still independently stop the attempt. Cold-process
+regression restores identical behavior at a new version, resumes into a new
+workspace process, checks one fresh root review, and verifies only the suffix
+executes again in independent validation.

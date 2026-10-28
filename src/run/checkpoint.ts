@@ -735,13 +735,21 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
   }
 }
 
-/** The saved root actor, unchanged, or a refusal. The refusal comes after the
- * successor's claim — its own catalog seeding can move the version — so it
- * hands a claimed project continuation back (code review 2026-10-09, 1.4). */
-export function savedRootActor(registry: Pick<AtomRegistry, 'getByName'>, actor: NonNullable<RunCheckpoint['actor']>,
+/** The same saved behavior, or a refusal that hands the claimed source back.
+ * Catalogue refreshes can return to byte-identical behavior at a newer version.
+ * Return the current version: the saved plan approval must be reviewed again. */
+export function savedRootActor(registry: Pick<AtomRegistry, 'getByName' | 'listVersions'>, actor: NonNullable<RunCheckpoint['actor']>,
   checkpoint?: SequentialCheckpoint): AtomType {
-  const stored = registry.getByName(actor.name);
-  if (stored && stored.atomId === actor.atomId && stored.version === actor.version) return stored;
+  try {
+    const stored = registry.getByName(actor.name);
+    if (stored && stored.atomId === actor.atomId) {
+      if (stored.version === actor.version) return stored;
+      const saved = registry.listVersions(actor.name).find(row => row.version === actor.version);
+      if (saved && saved.systemPrompt === stored.systemPrompt &&
+          JSON.stringify(saved.tools) === JSON.stringify(stored.tools) &&
+          JSON.stringify(saved.params) === JSON.stringify(stored.params)) return stored;
+    }
+  } catch { /* Unreadable history proves no equivalence; release the successor too. */ }
   checkpoint?.refuseContinuation();
   throw new Error('Saved root actor has changed; resume refused');
 }

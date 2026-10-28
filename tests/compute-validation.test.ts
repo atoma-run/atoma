@@ -1,3 +1,4 @@
+import { BudgetGateLlmClient, RunBudgetMeter } from '../src/core/runBudget.js';
 import { RunInitialStateStore, retainInitialWorkspace } from '../src/run/initialState.js';
 import { captureCheckpointExport } from '../src/run/checkpointExport.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -60,6 +61,31 @@ function fixture(reason?: string) {
 }
 
 describe('resident Compute verification through the real queue, store and lease', () => {
+  it('allows the observed cached proof volume while still stopping cost and token overruns', async () => {
+    const call = { model: 'fixture', inputTokens: 19071, outputTokens: 7303, cacheReadInputTokens: 136592,
+      cacheCreationInputTokens: 0, durationMs: 1, stopReason: 'end_turn' };
+    const prices = [{ match: /^fixture$/, prices: { input: 0.2, output: 10, cachedInput: 0.02 } }];
+    const transport = vi.fn(async () => ({ text: 'verified', stopReason: 'end_turn' as const,
+      usage: { inputTokens: 0, outputTokens: 0 } }));
+    const meter = new RunBudgetMeter({ record: () => {} }, COMPUTE_VALIDATION, () => {}, prices);
+    meter.record(call); // 162,966 billable tokens: the original production failure, cache included.
+    expect(meter.consumed().tokens).toBe(162966);
+    expect(meter.exceeded()).toBeNull();
+    const gate = new BudgetGateLlmClient({ complete: transport }, meter);
+    const request = { model: 'fixture', systemPrompt: '', userContent: '' };
+    await gate.complete(request);
+    expect(transport).toHaveBeenCalledOnce();
+    meter.record({ ...call, inputTokens: 0, outputTokens: 0, cacheReadInputTokens: COMPUTE_VALIDATION.tokens });
+    expect(meter.exceeded()?.kind).toBe('tokens');
+    await expect(gate.complete(request)).rejects.toThrow('token ceiling');
+    expect(transport).toHaveBeenCalledOnce();
+    const cost = new RunBudgetMeter({ record: () => {} }, COMPUTE_VALIDATION, () => {}, prices);
+    cost.record({ ...call, inputTokens: 0, cacheReadInputTokens: 0, outputTokens: 30000 });
+    expect(cost.exceeded()?.kind).toBe('cost');
+    await expect(new BudgetGateLlmClient({ complete: transport }, cost).complete(request)).rejects.toThrow('cost ceiling');
+    expect(transport).toHaveBeenCalledOnce();
+  });
+
   it('coalesces success, failure and revision, launches once and never credits the device receipts', async () => {
     const f = fixture();
     expect((await validateComputeNext(f.options))?.outcome).toBe('compute-validated');

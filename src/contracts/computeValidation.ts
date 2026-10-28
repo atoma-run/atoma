@@ -2,7 +2,9 @@ import { z } from 'zod';
 
 /** Host policy, never supplied by a device, task, or model. */
 export const COMPUTE_VALIDATION = Object.freeze({
-  timeoutMs: 240_000, tokens: 60_000, costUsd: 0.25, attemptsPerDay: 4,
+  // Full proof contexts are read repeatedly, including billed cache reads.
+  // 60k stopped Attica at 162,966 tokens for $0.0137 before acceptance.
+  timeoutMs: 240_000, tokens: 1_000_000, costUsd: 0.25, attemptsPerDay: 4,
 });
 export const COMPUTE_VALIDATION_ENV = 'ATOMA_ASSAYER_COMPUTE_VALIDATION';
 export const computeValidationStatusSchema = z.enum([
