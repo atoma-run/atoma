@@ -339,3 +339,32 @@ the active compiled CLI then archives current attempt/store and independently
 materializes/hashes the SAME initial capture before requeue. Execute only once
 the runner correction is actually deployed. It is idempotent by its ledger
 request marker and never changes a running attempt or creates another source.
+
+2026-10-28T18:04Z closure of owner-requested retry: b1d30368 runner correction
+deployed after CI shard3 retried one unrelated showcase400 (54isolatedtests pass;
+no assertions changed). CI, CodeQL and3desktopOS packages green. 50ff44fd from
+the parallel UI agent later deployed compatibly; its files were not edited here.
+
+Manual request owner-retry-egress-20261028-02 archived8b76 plus store, verified
+the actual compiled CLI and restored all276entries/251files/4,496,267bytes from
+unchanged5f3c80fc/c1edcd0d. New hosted shadow00594723-7c9b-408a-8328-d255f16b3f0c
+ran17:49:00..17:56:45UTC onb1d30368: terminal INCONCLUSIVE/partial because both
+root passes saw a malformed positive criterion verdict (required reasoning
+missing: exactevents1d5b3b2a andd703b110). OfflineparseVerdict confirms both;
+no approval salvage/model replay.17calls/$0.10599298/670554billabletokens, no
+cost/token/deadline stop. Network/npm setup works; rootcheck121Vitest+89Node,
+focused2files5Chromium tests pass. Broadbrowser29tests fails one schedule
+#lastRun placeholder assertion at recovery-ui:383, reproduced on6-test retry;
+not repaired or hidden. All250otherinitialfiles/modes unchanged, onlyconfig
+459→516 plushostprobe manifest;2independenttype-success events, norecipes.
+
+Read all68events/63fullarchives, size/SHAverified935119decodedbytes. Additional
+complete install/check/failedbrowser logs harvested read-only before worker
+removal; focusedraw/tmp log was already gone, its complete observed filtered
+transport receipt remains.100payload-file reading archive+SHA256SUMS retained
+privately at production supervisor/compute-validation/5ff2e4df-32fc-4ab5-8096-2e985bc77640/reading-00594723
+and locally at validation-egress-retry-05 under /tmp/attica-functional-next-20261028.
+Initialcontextsha773f20daff47633f9d4f30ee1d234f88271e7b748b353055ee5d587954e44b5d
+unchangedafterrun. No newCompute source, clientacceptance, publication or further
+replay. Next demonstrated Atoma defect is criterion response-shape handling;
+see the incident's final section, not an assumption of missing behavioral proof.

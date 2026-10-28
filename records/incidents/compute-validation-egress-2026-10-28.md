@@ -87,3 +87,57 @@ Targeted runner, initial-state and queue verification passes 36 tests. The
 original private backup passes a read-only SQLite integrity check; it remains
 unchanged. Next retry must preserve `8b76bba0` as well and run the compiled
 admission smoke on the active production release before requeuing.
+
+## Final production replay: inconclusive review, successful requested checks
+
+Runner correction `b1d30368` passed full CI after one unrelated showcase HTTP
+test failed once; that suite passed all 54 tests in isolation and the failed
+CI shard passed on its retry, without assertion changes. CodeQL and all three
+desktop packages passed. Deployment succeeded; the active executor and its
+compiled CLI were verified before the next manual retry.
+
+Request `owner-retry-egress-20261028-02` retained the unsuccessful preflight
+attempt too, then restored and hashed all 276 entries/251 files/4,496,267 bytes.
+The snapshot digest and initial-context payload stayed unchanged. It requeued
+only source `5ff2e4df`; no new Compute source run was created.
+
+Hosted validation `00594723-7c9b-408a-8328-d255f16b3f0c` ran on `b1d30368`
+from 17:49:00Z to 17:56:45Z. The durable verdict is **inconclusive**, with a
+partial/landed trace, not delivery. It used 17 model calls, $0.10599298 API
+equivalent and 670,554 billable tokens including cache reads. No budget or
+deadline ceiling ended it.
+
+Executed evidence establishes the networking and runner-admission correction:
+fresh `npm ci` succeeds; the clean root-only copy passes typecheck, lint,
+121 Vitest tests, 89 Node tests and build while browser dependencies remain
+absent. Both focused Chromium files execute and all five tests pass with inner
+`EXIT=0`. Only `vitest.config.ts` differs among the initial files (459 to 516
+bytes, expected hash `b13afa283f989c1489199d8f1c1fbfa0766712d08ceb60915864df44fe9eeff2`);
+250 files and their modes remain unchanged. A host probe manifest was added.
+Two independent type-success events occurred; no recipe changed.
+
+The root refused both passes because criterion verdicts failed the response
+schema. Event `1d5b3b2a-f9c5-4c50-ada7-3da60b6c6ecf` uses top-level `reason`
+instead of `reasoning`; event `d703b110-0efc-42c7-9ef7-ae0790107c47` omits
+`reasoning`. Offline parsing of these exact recorded replies reproduces the
+missing-string error with no paid replay. Their positive per-criterion prose
+does not constitute a valid accepted review. Do not relabel this result approved
+or infer that the implementation failed its requested behavioral checks.
+
+An extra expanded browser run also exposes a separate failed assertion:
+`tests/attica-control-recovery-ui.vitest.test.ts:383`, schedule recovery leaves
+`#lastRun` as an em dash. It fails in the 29-test run and again in the isolated
+six-test recovery suite. Those full failure logs are preserved. Its underlying
+cause is not established by these two observations, and no application or test
+bytes were changed to hide it.
+
+All 68 events and 63 full archives were read, decoded and size/SHA-256 verified
+(935,119 decoded bytes; 29 distinct archive bodies). A private reading package,
+100 payload files/4,238,675 bytes with `SHA256SUMS`, is appended under the source
+validation directory as `reading-00594723`. It includes both historical and new
+traces, decoded archives, raw recovered install/check/browser-failure logs,
+snapshot/queue receipts and the parser diagnosis. The model redirected its
+focused browser log to ephemeral container `/tmp`; that unfiltered file was no
+longer available after cleanup. Its full recorded transport response, inner
+exit status and five-test selection remain retained; no missing raw file was
+reconstructed. The source capture and earlier attempts remain preserved.
