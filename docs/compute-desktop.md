@@ -132,9 +132,13 @@ CI adds its workflow run number to the package patch version for the native
 installer (for example, `0.4.0` with run 42 becomes `0.4.42`). All architectures
 share that version; metadata-only version suffixes cannot establish update order.
 Local builds retain the package version unless `ATOMA_COMPUTE_BUILD_NUMBER` is
-set. Before publishing a signed release, approve its exact installer version in
-the server's `ATOMA_COMPUTE_APP_VERSIONS` allowlist. Retain earlier supported
+set. Before publishing any installer, including an unsigned preview, approve its
+exact installer version in the server's `ATOMA_COMPUTE_APP_VERSIONS` allowlist. Retain earlier supported
 versions during rollout; installing a new version never bypasses server admission.
+Publishing to GitHub does not update that operator-owned configuration. Activate
+the approved configuration through the normal deployment path, then verify the
+loaded version policy in both the web process and selected executor. A connected
+computer alone does not establish that its installer version can execute runs.
 
 ```sh
 node scripts/compute-desktop-smoke.mjs

@@ -191,3 +191,21 @@ The real local bundle's icon bytes match, and NSWorkspace/AppKit renders the
 correct icon at Finder sizes. release:check passed 8,512 tests on 2fec89b2 plus
 this fix. An Electron smoke timed out under concurrent suite load; the isolated
 rerun passed. The installed app was only read, never patched or restarted.
+
+2026-10-28 continuation: the owner asked to continue Attica. Fresh official MCP
+SDK connection via the repaired helper works; this chat's existing tool bridge
+still failed to answer reads, so it was not used for an uncertain start. Exact
+next request is retained at /tmp/attica-functional-next-20261028/start-args.json,
+key attica-listings-local-search-20261028-01, base accepted/published ce495110.
+Run641c34d6-7ee7-4215-b5d4-09c6496864e7 adds local identifier/location/description
+search in Annonces, counts/no matches/clear and query preservation on refresh,
+proved through offline Chromium. No live site traffic or auto acceptance.
+
+The run stayed queued with no trace/model call: Mac9baf was connected, accepting,
+idle, app0.5.200, but BOTH web/executor loaded exact app versions only through
+0.4.150. Its image24f58a was already allowed. Operational correction appends only
+verified0.5.200, retaining10 prior versions/all images/ownership/mode, with private
+backup atoma.env.before-compute-0.5.200-20261028-105722. No run was recreated.
+24 existing configuration/admission tests and docs check pass. The companion
+release record and documentation cover preview approval too; activation through
+normal CI deployment and the queued run's subsequent execution remain to verify.
