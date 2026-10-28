@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "此工作通过 Atoma Compute 在个人计算机上运行。该观测记录不能改变共享学习结果。自动验证将在此台账中单独跟踪。",
   "admin.computeValidation.label": "Compute 自动验证",
   "admin.computeValidation.queued": "验证已排队。没有用户 run 处于活动状态时，Atoma 将独立检查。无需操作员批准。",
-  "admin.computeValidation.budget-wait": "",
+  "admin.computeValidation.budget-wait": "这项历史验证曾等待原先的每日额度。待处理作业现在采用常规准入机制。",
   "admin.computeValidation.running": "独立验证正在 Atoma 的服务器上运行，并接受常规执行和结果检查。",
   "admin.computeValidation.completed": "独立执行已完成。其自身的观测记录将单独记录；原始 Compute 观测记录仍不予采纳。",
   "admin.computeValidation.inconclusive": "验证未能得出完整结果。这不会使原始 Compute 观测记录变成配方失败。不会安排自动重试。",
@@ -2855,5 +2855,6 @@
   "admin.computeValidation.budget": "每个源 run 可尝试一次，24 小时内最多尝试 {{attempts}} 次，每次 {{minutes}} 分钟；达到 {{tokens}} 个 token 或等值 ${{cost}} 的 API 用量时停止消耗。正在进行的调用可能超过消耗上限；支出未知时仍会占用一次尝试。",
   "layout.backList": "返回列表",
   "runs.compact.summary": "摘要",
-  "runs.compact.filters": "筛选条件"
+  "runs.compact.filters": "筛选条件",
+  "admin.computeValidation.budgetPerAttempt": "每个源 run 仅尝试一次，每次 {{minutes}} 分钟；消耗达到 {{tokens}} 个 token 或等值 ${{cost}} 的 API 用量时停止。已在进行的调用可能会超出消耗上限；费用未知时仍会占用一次尝试。"
 }

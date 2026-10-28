@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "El trabajo se ejecutó en un equipo personal con Atoma Compute. Esta observación no puede cambiar el aprendizaje compartido. La verificación automática se registra por separado en este libro mayor.",
   "admin.computeValidation.label": "Verificación automática de Compute",
   "admin.computeValidation.queued": "Verificación en cola. Atoma la comprobará de forma independiente cuando no haya ningún run de usuario activo. No se requiere la aprobación de un operador.",
-  "admin.computeValidation.budget-wait": "",
+  "admin.computeValidation.budget-wait": "Esta verificación histórica esperó la antigua cuota diaria. Los trabajos pendientes ahora usan la admisión normal.",
   "admin.computeValidation.running": "La verificación independiente se está ejecutando en los servidores de Atoma, con las comprobaciones normales de ejecución y resultados.",
   "admin.computeValidation.completed": "La ejecución independiente ha finalizado. Sus propias observaciones se registran por separado; la observación original de Compute permanece retenida.",
   "admin.computeValidation.inconclusive": "La verificación no pudo establecer un resultado completo. Esto no convierte la observación original de Compute en un fallo de la receta. No se ha programado ningún reintento automático.",
@@ -2855,5 +2855,6 @@
   "admin.computeValidation.budget": "Un intento por run de origen, con un máximo de {{attempts}} intentos en 24 horas y {{minutes}} minutos por intento, y un límite de consumo de {{tokens}} tokens o el equivalente a ${{cost}} en la API. Las llamadas ya en curso pueden superar el límite de consumo; un gasto desconocido sigue contabilizando un intento.",
   "layout.backList": "Volver a la lista",
   "runs.compact.summary": "Resumen",
-  "runs.compact.filters": "Filtros"
+  "runs.compact.filters": "Filtros",
+  "admin.computeValidation.budgetPerAttempt": "Un intento por run de origen, de {{minutes}} minutos cada uno, con un límite de consumo de {{tokens}} tokens o ${{cost}} en equivalente de API. Las llamadas ya en curso pueden superar el límite de consumo; el gasto desconocido también consume un intento."
 }

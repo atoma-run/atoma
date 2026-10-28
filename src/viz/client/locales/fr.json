@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "Le travail a été exécuté sur un ordinateur personnel avec Atoma Compute. Cette observation ne peut pas modifier l’apprentissage partagé. La vérification automatique est suivie séparément dans ce registre du catalogue.",
   "admin.computeValidation.label": "Vérification automatique de Compute",
   "admin.computeValidation.queued": "Vérification en attente. Atoma effectuera un contrôle indépendant lorsqu’aucun run utilisateur ne sera actif. Aucune approbation d’un opérateur n’est requise.",
-  "admin.computeValidation.budget-wait": "",
+  "admin.computeValidation.budget-wait": "Cette vérification historique attendait l’ancienne allocation quotidienne. Les tâches en attente utilisent désormais l’admission ordinaire.",
   "admin.computeValidation.running": "Une vérification indépendante est en cours sur les serveurs d’Atoma, avec les contrôles habituels d’exécution et de résultat.",
   "admin.computeValidation.completed": "L’exécution indépendante est terminée. Ses propres observations sont enregistrées séparément ; l’observation Compute d’origine reste écartée.",
   "admin.computeValidation.inconclusive": "La vérification n’a pas pu établir un résultat complet. Cela ne transforme pas l’observation Compute d’origine en échec de recette. Aucune nouvelle tentative automatique n’est prévue.",
@@ -2855,5 +2855,6 @@
   "admin.computeValidation.budget": "Une tentative par run source, au maximum {{attempts}} tentatives sur 24 heures, de {{minutes}} minutes chacune, avec arrêt de la consommation à {{tokens}} tokens ou à un coût équivalent API de ${{cost}}. Les appels déjà en cours peuvent dépasser cette limite de consommation ; une dépense inconnue compte tout de même comme une tentative.",
   "layout.backList": "Retour à la liste",
   "runs.compact.summary": "Résumé",
-  "runs.compact.filters": "Filtres"
+  "runs.compact.filters": "Filtres",
+  "admin.computeValidation.budgetPerAttempt": "Une tentative par run source, de {{minutes}} minutes chacune, avec un arrêt de la consommation à {{tokens}} tokens ou ${{cost}} en équivalent API. Les appels déjà en cours peuvent dépasser cette limite ; les dépenses inconnues consomment tout de même une tentative."
 }

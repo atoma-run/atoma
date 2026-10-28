@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "作業はAtoma Computeを使用して個人のコンピューターで実行されました。この観測結果によって共有学習が変更されることはありません。自動検証はこの台帳で別途追跡されます。",
   "admin.computeValidation.label": "Computeの自動検証",
   "admin.computeValidation.queued": "検証はキューに追加されました。ユーザーのrunが実行されていないときに、Atomaが独立して確認します。オペレーターの承認は不要です。",
-  "admin.computeValidation.budget-wait": "",
+  "admin.computeValidation.budget-wait": "この過去の検証では、以前の日次割当を待機しました。保留中のジョブには現在、通常の受付処理が適用されます。",
   "admin.computeValidation.running": "Atomaのサーバー上で、通常の実行チェックと結果チェックに従って独立検証を実行しています。",
   "admin.computeValidation.completed": "独立実行が完了しました。その観測結果は別途記録され、元のCompute観測結果は引き続き保留されます。",
   "admin.computeValidation.inconclusive": "検証では完全な結果を確認できませんでした。これによって元のCompute観測結果がレシピの失敗として扱われることはありません。自動再試行は予定されていません。",
@@ -2855,5 +2855,6 @@
   "admin.computeValidation.budget": "ソースrunごとに1回、24時間以内に最大{{attempts}}回、各{{minutes}}分まで試行できます。消費量が{{tokens}}トークンまたはAPI換算で${{cost}}に達すると停止します。進行中の呼び出しは消費上限を超える場合があります。消費額が不明な場合も1回の試行として数えられます。",
   "layout.backList": "一覧に戻る",
   "runs.compact.summary": "概要",
-  "runs.compact.filters": "フィルター"
+  "runs.compact.filters": "フィルター",
+  "admin.computeValidation.budgetPerAttempt": "ソースrunごとに1回、各{{minutes}}分試行し、{{tokens}}トークンまたはAPI換算で${{cost}}に達すると消費を停止します。進行中の呼び出しは消費上限を超える場合があります。消費額が不明でも1回の試行として扱われます。"
 }

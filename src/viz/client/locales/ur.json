@@ -2843,7 +2843,7 @@
   "admin.ledgerWithheld.compute": "یہ کام Atoma Compute کے ذریعے ذاتی کمپیوٹر پر چلایا گیا۔ یہ مشاہدہ مشترکہ سیکھنے کو تبدیل نہیں کر سکتا۔ اس لیجر میں خودکار توثیق کا حساب الگ رکھا جاتا ہے۔",
   "admin.computeValidation.label": "خودکار Compute توثیق",
   "admin.computeValidation.queued": "توثیق قطار میں ہے۔ جب کوئی صارف run فعال نہیں ہوگا تو Atoma آزادانہ طور پر جانچ کرے گا۔ آپریٹر کی منظوری درکار نہیں ہے۔",
-  "admin.computeValidation.budget-wait": "",
+  "admin.computeValidation.budget-wait": "اس سابقہ توثیق نے پچھلے یومیہ الاؤنس کا انتظار کیا تھا۔ زیرِ التوا کام اب معمول کے طریقۂ قبولیت سے گزرتے ہیں۔",
   "admin.computeValidation.running": "Atoma کے سرورز پر معمول کی نفاذ اور نتائج کی جانچوں کے تحت آزادانہ توثیق جاری ہے۔",
   "admin.computeValidation.completed": "آزادانہ نفاذ مکمل ہو گیا۔ اس کے اپنے مشاہدات الگ ریکارڈ کیے گئے ہیں؛ اصل Compute مشاہدہ بدستور روکا ہوا ہے۔",
   "admin.computeValidation.inconclusive": "توثیق مکمل نتیجہ قائم نہیں کر سکی۔ اس سے اصل Compute مشاہدہ کسی نسخے کی ناکامی نہیں بنتا۔ کوئی خودکار دوبارہ کوشش طے نہیں ہے۔",
@@ -2855,5 +2855,6 @@
   "admin.computeValidation.budget": "ہر ماخذ run کے لیے ایک کوشش، 24 گھنٹوں میں زیادہ سے زیادہ {{attempts}} کوششیں، ہر کوشش {{minutes}} منٹ کی، اور {{tokens}} ٹوکنز یا API کے مساوی ${{cost}} خرچ ہونے پر استعمال روک دیا جائے گا۔ پہلے سے جاری کالز استعمال کی حد سے تجاوز کر سکتی ہیں؛ نامعلوم خرچ کی صورت میں بھی ایک کوشش شمار ہوگی۔",
   "layout.backList": "فہرست پر واپس جائیں",
   "runs.compact.summary": "خلاصہ",
-  "runs.compact.filters": "فلٹرز"
+  "runs.compact.filters": "فلٹرز",
+  "admin.computeValidation.budgetPerAttempt": "ہر ماخذ run کے لیے ایک کوشش، ہر کوشش {{minutes}} منٹ کی، اور {{tokens}} ٹوکن یا ${{cost}} کے API مساوی پر کھپت روک دی جاتی ہے۔ پہلے سے جاری کالز کھپت کی حد سے تجاوز کر سکتی ہیں؛ نامعلوم خرچ کی صورت میں بھی ایک کوشش استعمال ہوتی ہے۔"
 }
