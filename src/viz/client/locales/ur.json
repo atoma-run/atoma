@@ -2858,5 +2858,7 @@
   "runs.compact.filters": "فلٹرز",
   "admin.computeValidation.budgetPerAttempt": "ہر ماخذ run کے لیے ایک کوشش، ہر کوشش {{minutes}} منٹ کی، اور {{tokens}} ٹوکن یا ${{cost}} کے API مساوی پر کھپت روک دی جاتی ہے۔ پہلے سے جاری کالز کھپت کی حد سے تجاوز کر سکتی ہیں؛ نامعلوم خرچ کی صورت میں بھی ایک کوشش استعمال ہوتی ہے۔",
   "projects.hostedRun": "Run #{{number}} آن لائن",
-  "runs.number": "run #{{number}}"
+  "runs.number": "run #{{number}}",
+  "assistant.ownAgent": "اپنا ایجنٹ استعمال کریں",
+  "assistant.costShort": "استعمال کا تخمینہ: ${{cost}}"
 }

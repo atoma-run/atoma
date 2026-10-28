@@ -2858,5 +2858,7 @@
   "runs.compact.filters": "Filtres",
   "admin.computeValidation.budgetPerAttempt": "Une tentative par run source, de {{minutes}} minutes chacune, avec un arrêt de la consommation à {{tokens}} tokens ou ${{cost}} en équivalent API. Les appels déjà en cours peuvent dépasser cette limite ; les dépenses inconnues consomment tout de même une tentative.",
   "projects.hostedRun": "Run #{{number}} en ligne",
-  "runs.number": "Run n° {{number}}"
+  "runs.number": "Run n° {{number}}",
+  "assistant.ownAgent": "Utilise ton propre agent",
+  "assistant.costShort": "Estimation d’utilisation : {{cost}} $"
 }

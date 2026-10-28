@@ -2858,5 +2858,7 @@
   "runs.compact.filters": "फ़िल्टर",
   "admin.computeValidation.budgetPerAttempt": "प्रत्येक स्रोत run के लिए एक प्रयास, हर प्रयास के लिए {{minutes}} मिनट, और {{tokens}} टोकन या ${{cost}} API-समतुल्य पर खपत रोक दी जाती है। पहले से जारी कॉल खपत सीमा पार कर सकती हैं; अज्ञात खर्च पर भी एक प्रयास गिना जाता है।",
   "projects.hostedRun": "run #{{number}} ऑनलाइन",
-  "runs.number": "run #{{number}}"
+  "runs.number": "run #{{number}}",
+  "assistant.ownAgent": "अपने agent का उपयोग करें",
+  "assistant.costShort": "उपयोग का अनुमान: ${{cost}}"
 }

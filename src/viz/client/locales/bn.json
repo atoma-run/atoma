@@ -2858,5 +2858,7 @@
   "runs.compact.filters": "ফিল্টার",
   "admin.computeValidation.budgetPerAttempt": "প্রতি উৎস run-এর জন্য একটি প্রচেষ্টা—প্রতিটি {{minutes}} মিনিটের; {{tokens}} টোকেন বা ${{cost}} API-সমতুল্য খরচে ব্যবহার বন্ধ হবে। ইতিমধ্যে চলমান কলগুলো ব্যবহার বন্ধের সীমা ছাড়িয়ে যেতে পারে; ব্যয় অজানা হলেও একটি প্রচেষ্টা ব্যবহৃত হবে।",
   "projects.hostedRun": "Run #{{number}} অনলাইনে",
-  "runs.number": "run #{{number}}"
+  "runs.number": "run #{{number}}",
+  "assistant.ownAgent": "আপনার নিজস্ব এজেন্ট ব্যবহার করুন",
+  "assistant.costShort": "ব্যবহারের আনুমানিক খরচ: ${{cost}}"
 }

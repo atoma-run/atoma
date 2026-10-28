@@ -2858,5 +2858,7 @@
   "runs.compact.filters": "عوامل التصفية",
   "admin.computeValidation.budgetPerAttempt": "محاولة واحدة لكل run من المصدر، مدة كل منها {{minutes}} دقيقة، مع إيقاف الاستهلاك عند {{tokens}} رمزًا أو ما يعادل ${{cost}} من استخدام API. قد تتجاوز الاستدعاءات الجارية بالفعل حد إيقاف الاستهلاك؛ ويظل الإنفاق غير المعروف محتسبًا كمحاولة.",
   "projects.hostedRun": "run #{{number}} عبر الإنترنت",
-  "runs.number": "run رقم {{number}}"
+  "runs.number": "run رقم {{number}}",
+  "assistant.ownAgent": "استخدم وكيلك الخاص",
+  "assistant.costShort": "التكلفة التقديرية للاستخدام: ${{cost}}"
 }

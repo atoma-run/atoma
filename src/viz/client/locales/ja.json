@@ -2858,5 +2858,7 @@
   "runs.compact.filters": "フィルター",
   "admin.computeValidation.budgetPerAttempt": "ソースrunごとに1回、各{{minutes}}分試行し、{{tokens}}トークンまたはAPI換算で${{cost}}に達すると消費を停止します。進行中の呼び出しは消費上限を超える場合があります。消費額が不明でも1回の試行として扱われます。",
   "projects.hostedRun": "run #{{number}}をオンラインで実行",
-  "runs.number": "Run #{{number}}"
+  "runs.number": "Run #{{number}}",
+  "assistant.ownAgent": "ご自身のエージェントを使用",
+  "assistant.costShort": "利用料金の見積もり：${{cost}}"
 }
