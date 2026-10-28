@@ -123,6 +123,7 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
     ...(ctx.deadlineAt !== undefined ? { deadlineAt: ctx.deadlineAt } : {}),
     llm: wrappedLlm,
     ...(ctx.modelContextEnv ? { modelContextEnv: ctx.modelContextEnv } : {}),
+    ...(ctx.startingWorkspace ? { startingWorkspace: ctx.startingWorkspace } : {}),
     limits: ctx.limits,
     dispatchedScriptSignatures,
     mechanicalPlanRejections,

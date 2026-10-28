@@ -622,12 +622,12 @@ async function acceptRootResultInternal(args: {
     payload: { output: result.output, summary: result.summary, producedBy: result.producedBy },
     ...(evidence ? { evidence } : {}),
     groundTruthBlock: probe.block,
+    startingWorkspaceBlock: startingBlock,
     readableContextBlock: [namedFilesBlock, readRunsBlock].filter(Boolean).join('\n\n'),
     ...(parentTestsBlock ? { parentTestsBlock } : {}),
     mechanicalFindingsBlock: renderResultGateFindings(gates.reviewFindings),
     proofCoverageBlock: 'ROOT DELIVERY PROOF (no effect on phase credits):\n' + JSON.stringify(floorCoverage) +
       (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : '') + (inputsBlock ? `\n\n${inputsBlock}` : '') +
-      (startingBlock ? `\n\n${startingBlock}` : '') +
       (remediationChanges ? `\n\n${remediationChanges}` : '') +
       (restorationsBlock ? `\n\n${restorationsBlock}` : '') + (inheritedBlock ? `\n\n${inheritedBlock}` : '') +
       (reconciliation ? `\n\n${reconciliation}` : ''),

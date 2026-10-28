@@ -87,3 +87,20 @@ ordinary platform ceilings still independently stop the attempt. Cold-process
 regression restores identical behavior at a new version, resumes into a new
 workspace process, checks one fresh root review, and verifies only the suffix
 executes again in independent validation.
+
+### Intermediate reviews and Unicode fingerprints — 2026-10-28
+
+Automatic Attica verification 95f0c58f completed, but its two child review
+faults came from missing GLM-4.5-Air API capacity metadata: the 32,768 fallback
+could not hold mandatory instructions and evidence protocol. The provider's
+documented API window is 128k (https://docs.z.ai/guides/llm/glm-4.5); output
+and 15% headroom remain reserved, with per-selector overrides taking precedence.
+Its fallback then changed Python json.dumps from ensure_ascii=False to the
+default True: the RÉSUMÉ-CORRECTIONS.md path changed the serialized digest
+from 1b5a71d3 to edc30bc8, with all 248 excluded-tree files byte-identical.
+Forward the existing host run-start snapshot reader through nested forks and
+show its bounded raw-file comparison at child RESULT review too, explicitly
+workspace-wide with no branch attribution. Capped/unreadable paths stay unknown;
+neither digest-format differences nor host unchanged counts approve behavior.
+Runtime fingerprint guidance preserves exact serialization and literal paths;
+there is no Unicode normalization, baseline replacement or command replay.

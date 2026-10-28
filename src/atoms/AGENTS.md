@@ -131,6 +131,7 @@ Neighbours:
   Counts never grant coverage or reject. Shell tests remain separate evidence;
   no keyboard requirement is invented. Bounded replay evidence and countercases:
   `benchmark/keyboard-evidence-2026-10-05/` (small exploratory sample).
+- Child RESULT reviewers read the host's run-start file comparison through forks: workspace-wide facts, never child attribution. Unknown/capped paths stay unknown. Aggregate digests require identical serialization (Unicode escaping included); compare raw per-file bytes, never silently replace a baseline.
 - Two more host-read facts sit beside the delivery, neither a verdict. A
   SEEDED run's acceptor reads what happened to the files it started from
   (`startingWorkspace`: removed; rewritten when under half of its starting
@@ -710,7 +711,6 @@ Large identical original/current input copies are rendered once; conflicting val
 - Approved method hooks collect version-bound prompt lessons for all three ranks; root refusal discards them. Fixed author/reviewer prompts, bounded evidence and preservation rules: [prompt consolidation](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 
 Read the archived sections before changing something that merely looks odd.
-
 - Plan size (G4, 2026-10-16): the suite bound is per suite, never a plan total;
   a soft 8,000-character target in prompts and review, with a 12,000 hard
   refusal 50% above it so a reviewer's request does not become a parser

@@ -7,7 +7,7 @@ import { ValidationError } from '../core/errors.js';
 import { transportWitnesses } from '../contracts/witness.js';
 import { probeGroundTruth } from './groundTruth.js';
 import { BUILTIN_TOOL_NAMES, HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
-import { TASK_CONTEXT_HEADER, taskContextLines } from './taskContext.js';
+import { TASK_CONTEXT_HEADER, taskContextLines, FILE_FINGERPRINT_GUIDANCE } from './taskContext.js';
 import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 import { TEXT_VERIFICATION_GUIDANCE } from '../contracts/taskExecution.js';
 import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS } from '../contracts/parentTests.js';
@@ -17,6 +17,7 @@ import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GU
 import { completeEvidenceReview } from './evidenceReading.js';
 import { reviewContextBudget } from '../core/contextBudget.js';
 import { modelForTier } from '../core/models.js';
+import { compareStartingWorkspace, renderStartingWorkspace } from '../contracts/startingWorkspace.js';
 
 /**
  * VERDICT ENGINE — extracted from L2Atom (structural slice 2b).
@@ -1071,6 +1072,8 @@ export async function llmVerdict(args: {
   groundTruthBlock?: string;
   /** Large host evidence presentations, archived and token-budgeted separately from requirements. */
   readableContextBlock?: string;
+  /** Root acceptance already computed this run-wide comparison; never a child-attributed change list. */
+  startingWorkspaceBlock?: string;
   /**
    * Rendered `== MECHANICAL GATE FINDINGS ==` block from the result-gate
    * pipeline (resultGates.ts). Distinct from `groundTruthBlock` on purpose:
@@ -1176,7 +1179,21 @@ export async function llmVerdict(args: {
       child: args.child,
     }));
 
-  const hostContext = [groundTruthBlock, args.parentTestsBlock, args.readableContextBlock].filter(Boolean).join('\n');
+  let startingBlock = args.startingWorkspaceBlock ?? '';
+  if (args.subject === 'RESULT' && args.startingWorkspaceBlock === undefined && args.ctx.startingWorkspace) {
+    try {
+      const seeded = args.ctx.startingWorkspace;
+      startingBlock = [
+        'RUN-WIDE FILE COMPARISON: baseline is the start of the whole run, not this phase. Changes may belong to earlier phases or concurrent siblings; this assigns no authorship, phase failure or execution credit.',
+        'Compared snapshot paths only: excluded paths (such as .git, node_modules and .atoma*), permissions/metadata and runtime state remain unverified. This is not whole-tree equality or proof of behavior.',
+        renderStartingWorkspace(compareStartingWorkspace(seeded.start, await seeded.now())),
+        'File identities and hashes above compare literal paths and raw file bytes. ' + FILE_FINGERPRINT_GUIDANCE,
+      ].join('\n');
+    } catch {
+      startingBlock = 'RUN-WIDE FILE COMPARISON unavailable: starting-file preservation is unknown. No changes are attributed to this child.';
+    }
+  }
+  const hostContext = [groundTruthBlock, args.parentTestsBlock, args.readableContextBlock, startingBlock].filter(Boolean).join('\n');
   const userContent = (toolEvidence: string, context = hostContext) => [
     `Supervisor: "${args.supervisorName}" (tier ${args.supervisorTier})`,
     `Child: "${args.child.name}" (tier ${args.child.tier})`,

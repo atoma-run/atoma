@@ -180,6 +180,8 @@ Neighbours:
   unverified, never advertised as a provider guarantee. `contextBudget.ts`
   reserves the requested output and 15% tokenizer/protocol headroom, then counts
   visible text with local o200k_base BPE (js-tiktoken); other tokenizers may differ.
+  Z.ai GLM-4.5-Air API has its documented 128k window; subscription modes
+  never inherit API capacity, and explicit selector overrides still take precedence.
   This estimate is not provider billing usage. Historical checkpoint archives
   resolve by id only, excluded from active branch/attempt proof and credit.
 - `evidenceArchive.ts` captures complete tool request/results as gzip with a

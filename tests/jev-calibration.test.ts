@@ -8,7 +8,7 @@ import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { resetPrefilterCacheForTests } from '../src/atoms/prefilterCache.js';
 import { llmVerdict, renderTransportEvidence } from '../src/atoms/verdict.js';
-import { APPLICATION_TYPESCRIPT_GUIDANCE, TASK_CONTEXT_HEADER, DELEGATED_SCOPE_GUIDANCE, VERIFICATION_REUSE_GUIDANCE, delegatedTaskContext } from '../src/atoms/taskContext.js';
+import { APPLICATION_TYPESCRIPT_GUIDANCE, TASK_CONTEXT_HEADER, DELEGATED_SCOPE_GUIDANCE, VERIFICATION_REUSE_GUIDANCE, FILE_FINGERPRINT_GUIDANCE, delegatedTaskContext } from '../src/atoms/taskContext.js';
 import {
   calibrate,
   calibrationDetails,
@@ -169,6 +169,7 @@ describe('reading the model validation prompt back', () => {
       // Before the explicit boundary and TypeScript policy were introduced.
       prompt = prompt.replace(`${TASK_CONTEXT_HEADER}\n${APPLICATION_TYPESCRIPT_GUIDANCE}\n`, '')
         .replace(`${VERIFICATION_REUSE_GUIDANCE}\n`, '')
+        .replace(`${FILE_FINGERPRINT_GUIDANCE}\n`, '')
         .replace(`${TASK_CONTEXT_HEADER}\n`, '');
     }
     const parsed = parseValidationPrompt(decision('validate-result', prompt));

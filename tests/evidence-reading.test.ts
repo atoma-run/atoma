@@ -1,6 +1,7 @@
 import { Tiktoken } from 'js-tiktoken/lite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { attestingExecutor, createAttestationLog } from '../src/core/attestation.js';
@@ -21,6 +22,7 @@ import { TraceRecorder } from '../src/viz/trace.js';
 import { jsonText, makeCtx } from './helpers.js';
 import type { AttestationRecord } from '../src/contracts/attestation.js';
 import type { LlmCompletionResponse, RunContext } from '../src/core/types.js';
+import { snapshotStartingWorkspace, snapshotDeliveredWorkspace } from '../src/run/workspace.js';
 
 afterEach(() => vi.unstubAllEnvs());
 const reply = (value: unknown): LlmCompletionResponse => ({ text: jsonText(value), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } });
@@ -272,6 +274,78 @@ describe('validator reading protocol', () => {
 });
 
 describe('model context budgets', () => {
+  it('fits an Attica-sized mandatory review on the documented Z.ai API window, preserving output and headroom', async () => {
+    const model = 'api:zai:glm-4.5-air';
+    expect(modelContextWindow(model, {})).toMatchObject({ tokens: 128000, verified: true });
+    expect(modelContextWindow('sub:zai:glm-4.5-air', {}).verified).toBe(false);
+    const ctx = { ...makeCtx(), modelContextEnv: {}, attestations: createAttestationLog() };
+    const task = { description: 'Preserve Attica files and verify the README link.', inputs: {
+      startingRepository: Array.from({ length: 1100 }, (_, i) => createHash('sha256').update(String(i)).digest('hex')).join('\n'),
+    } };
+    const run = (context: RunContext) => llmVerdict({ ctx: context, model, supervisorName: 'Cell', supervisorTier: 2,
+      child: child(), subject: 'RESULT', task, payload: { output: 'README.md', summary: 'Link added.' }, evidence: [], groundTruthBlock: '' });
+    await expect(run({ ...ctx, modelContextEnv: { ATOMA_MODEL_CONTEXT_WINDOWS: JSON.stringify({ [model]: 32768 }) } })).rejects.toThrow('cannot fit');
+    expect(ctx.llm.calls).toHaveLength(0);
+    ctx.llm.enqueue(request => {
+      expect(request.userContent.includes(JSON.stringify(task.inputs.startingRepository))).toBe(true);
+      const budget = reviewContextBudget(model, request.systemPrompt, '', request.params?.maxTokens ?? 2048, {});
+      expect(estimateTextTokens(request.userContent) + estimateTextTokens(request.systemPrompt)).toBeLessThanOrEqual(budget.inputTokens);
+      return reply({ approved: true, reasoning: 'The complete required context fits.' });
+    });
+    expect(await run(ctx)).toMatchObject({ approved: true });
+    expect(ctx.llm.calls).toHaveLength(1);
+  });
+
+  it('compares Unicode file bytes through nested production forks without trusting aggregate digest spelling', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-unicode-comparison-'));
+    try {
+      writeFileSync(join(dir, 'RÉSUMÉ-CORRECTIONS.md'), 'Preserved original bytes.\n');
+      writeFileSync(join(dir, 'README.md'), 'Original README.\n');
+      const start = snapshotStartingWorkspace(dir);
+      writeFileSync(join(dir, 'README.md'), 'Original README.\n[Guide](guide.md)\n');
+      const ctx = { ...makeCtx(), startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(dir, start) } };
+      const branch = forkBranch(forkBranch(ctx, 'phase'), 'leaf');
+      expect(branch.startingWorkspace).toBe(ctx.startingWorkspace);
+      ctx.llm.enqueue(request => {
+        expect(request.userContent).toContain('RUN-WIDE FILE COMPARISON');
+        expect(request.userContent).toContain('not this phase');
+        expect(request.userContent).toContain('assigns no authorship');
+        expect(request.userContent).toContain('not whole-tree equality');
+        expect(request.userContent).toContain('permissions/metadata and runtime state remain unverified');
+        expect(request.userContent).toContain('Unchanged starting files: 1');
+        expect(request.userContent).not.toContain('RÉSUMÉ-CORRECTIONS.md: changed');
+        expect(request.userContent).toContain('ensure_ascii=True');
+        expect(request.userContent).toContain('ensure_ascii=False');
+        return reply({ approved: true, reasoning: 'Raw file comparison resolves the inconsistent aggregate serialization.' });
+      });
+      expect(await review(branch, [])).toMatchObject({ approved: true });
+      writeFileSync(join(dir, 'RÉSUMÉ-CORRECTIONS.md'), 'Actual corrupted bytes.\n');
+      ctx.llm.enqueue(request => {
+        expect(request.userContent).toContain('RÉSUMÉ-CORRECTIONS.md: changed');
+        expect(request.userContent).toContain('Unchanged starting files: 0');
+        return reply({ approved: false, reasoning: 'A real non-README file changed.' });
+      });
+      expect(await review(branch, [])).toMatchObject({ approved: false });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it('keeps incomplete and unreadable run-wide comparisons unknown in child reviews', async () => {
+    const ctx = { ...makeCtx(), startingWorkspace: { start: { files: [{ path: '秘密.md', bytes: 2, sha256: 'before' }], truncated: true },
+      now: () => ({ files: [], added: [], addedTruncated: true, unreadable: ['秘密.md'] }) } };
+    ctx.llm.enqueue(request => {
+      expect(request.userContent).toContain('covers 1 files only');
+      expect(request.userContent).toContain('NOT COMPARED');
+      return reply({ approved: false, reasoning: 'Unseen bytes establish no preservation.' });
+    });
+    expect(await review(forkBranch(ctx, 'leaf'), [])).toMatchObject({ approved: false });
+    const unavailable = { ...ctx, startingWorkspace: { ...ctx.startingWorkspace, now: () => { throw new Error('unreadable'); } } };
+    ctx.llm.enqueue(request => {
+      expect(request.userContent).toContain('preservation is unknown');
+      return reply({ approved: false, reasoning: 'Comparison unavailable.' });
+    });
+    expect(await review(forkBranch(unavailable, 'leaf'), [])).toMatchObject({ approved: false });
+  });
+
   it('uses transport-specific verified capabilities and reserves prompt, response and headroom', () => {
     expect(modelContextWindow('own:openai:gpt-5.6-luna')).toMatchObject({ tokens: 272000, verified: true });
     expect(modelContextWindow('api:openai:gpt-5.6-luna').verified).toBe(false);

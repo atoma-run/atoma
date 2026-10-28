@@ -1097,8 +1097,9 @@ export interface RunContext {
   ) => void;
   /**
    * The files a SEEDED run started from, read by the host before any model
-   * work, and a reader of the workspace as it stands now. Root acceptance
-   * compares the two (`src/contracts/startingWorkspace.ts`); absent for a run
+   * work, and a reader of the workspace as it stands now. Result reviewers
+   * compare the two (`src/contracts/startingWorkspace.ts`); forwarded through
+   * forks as run-wide facts, never child-attributed edits. Absent for a run
    * that started from an empty workspace.
    */
   readonly startingWorkspace?: {
