@@ -1391,7 +1391,9 @@ export function coerceVerdictDefaults(raw: unknown): unknown {
   const needsCriteriaCoercion = obj['criteria'] !== undefined && obj['criteria'] !== null;
   const needsInheritedCoercion = obj['inherited'] !== undefined && obj['inherited'] !== null;
   const needsUnsatisfiableCoercion = obj['unsatisfiableSuites'] !== undefined && obj['unsatisfiableSuites'] !== null;
-  const out: Record<string, unknown> = needsAsfCoercion || needsCriteriaCoercion || needsInheritedCoercion || needsUnsatisfiableCoercion || obj['approved'] === false ? { ...obj } : obj;
+  const needsReasoningCoercion = obj['reasoning'] === undefined && typeof obj['approved'] === 'boolean' &&
+    !('readEvidence' in obj) && !('listEvidence' in obj);
+  const out: Record<string, unknown> = needsAsfCoercion || needsCriteriaCoercion || needsInheritedCoercion || needsUnsatisfiableCoercion || needsReasoningCoercion || obj['approved'] === false ? { ...obj } : obj;
   if (needsUnsatisfiableCoercion) {
     const unsatisfiable = coerceUnsatisfiableSuites(obj['unsatisfiableSuites']);
     if (unsatisfiable === undefined) delete out['unsatisfiableSuites'];
@@ -1406,6 +1408,19 @@ export function coerceVerdictDefaults(raw: unknown): unknown {
     const inherited = coerceInherited(obj['inherited']);
     if (inherited === undefined) delete out['inherited'];
     else out['inherited'] = inherited;
+  }
+  // Attica 7415bf16: complete criterion decisions were discarded solely for
+  // missing global reasoning or emitting it as `reason`. Copy only supplied
+  // text; never invent a decision, criterion, reason, or missing review.
+  if (needsReasoningCoercion) {
+    if (typeof obj['reason'] === 'string' && obj['reason'].trim()) out['reasoning'] = obj['reason'];
+    else if (obj['reason'] === undefined && Array.isArray(obj['criteria'])) {
+      const parsed = criterionJudgementsSchema.safeParse(out['criteria']);
+      if (parsed.success && parsed.data.length > 0 && parsed.data.length === obj['criteria'].length &&
+          new Set(parsed.data.map(item => item.id)).size === parsed.data.length && parsed.data.every(item => item.reason?.trim())) {
+        out['reasoning'] = parsed.data.map(item => `${item.id}: ${item.reason}`).join('\n');
+      }
+    }
   }
   if (needsAsfCoercion) {
     if (asf === 'true') out['activeSkillFollowed'] = true;

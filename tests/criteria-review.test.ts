@@ -31,6 +31,47 @@ const result: Result = { output: { files: ['tests/spec.test.js'] }, summary: 'MO
 const actor = new L1Atom({ name: 'Methane', ordinal: 1, systemPrompt: '', tools: [], params: {} });
 
 describe('focused criterion review', () => {
+  it.each(['missing', 'reason'] as const)('retains complete criterion judgments with %s global reasoning without another call', async form => {
+    const ctx = makeCtx();
+    const text = jsonText({ approved: true, criteria: met, ...(form === 'reason' ? { reason: 'Both recorded assertions establish these criteria.' } : {}) });
+    ctx.llm.enqueue({ ...reply(met), text });
+    const reviewed = await reviewAcceptanceCriteria({ ctx, task, checklist, evidence: 'host evidence' });
+    expect(reviewed).toMatchObject({ approved: true, criteria: met });
+    expect(ctx.llm.calls).toHaveLength(1);
+    expect(ctx.llm.calls[0]?.tools).toBeUndefined();
+  });
+
+  it.each(['missing', 'reason'] as const)('preserves a negative criterion and refusal with %s global reasoning', async form => {
+    const ctx = makeCtx();
+    const text = jsonText({ approved: false, criteria: missing, ...(form === 'reason' ? { reason: 'Recorded assertions fail.' } : {}) });
+    ctx.llm.enqueue({ ...reply(missing, false), text });
+    const reviewed = await reviewAcceptanceCriteria({ ctx, task, checklist, evidence: 'host evidence' });
+    expect(reviewed).toMatchObject({ approved: false, criteria: missing });
+    expect(ctx.llm.calls).toHaveLength(1);
+  });
+
+  it('does not turn a missing global reason into coverage for missing or unexplained criteria', async () => {
+    for (const criteria of [[], [met[0]!], [met[0]!, met[0]!], met.map(({ id, met }) => ({ id, met }))]) {
+      const ctx = makeCtx();
+      ctx.llm.enqueue({ ...reply(met), text: jsonText({ approved: true, criteria }) });
+      expect((await reviewAcceptanceCriteria({ ctx, task, checklist, evidence: 'host evidence' })).approved).toBe(false);
+      expect(ctx.llm.calls).toHaveLength(1);
+    }
+  });
+
+  it.each(['missing', 'reason'] as const)('keeps a failed focused criterion binding at root with %s global reasoning', async form => {
+    const ctx = makeCtx();
+    const judged = [met[0]!, missing[1]!];
+    ctx.llm.enqueue(reply(met));
+    ctx.llm.enqueue({ ...reply(judged), text: jsonText({ approved: true, criteria: judged,
+      ...(form === 'reason' ? { reason: 'A global approval cannot erase the failed criterion.' } : {}) }) });
+    const accepted = await acceptRootResult({ actor, task, result: { ...result, output: {} }, ctx,
+      floor: [], phaseCoverage: [], checklist, checklistOrigin: { source: 'user' } });
+    expect(accepted.approved).toBe(false);
+    expect(accepted.checklist?.map(item => item.judgement)).toEqual(judged.map(({ met, reason }) => ({ met, reason })));
+    expect(ctx.llm.calls).toHaveLength(2);
+  });
+
   it('carries the shared evidence policy to each bounded review and retains all compound gaps', async () => {
     const ctx = makeCtx();
     const required = [

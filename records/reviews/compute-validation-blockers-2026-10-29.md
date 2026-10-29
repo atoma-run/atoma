@@ -50,3 +50,20 @@ lint, audit, builds and compiled release/auth/executor smokes. The compiled
 precheck also refuses the exact recorded fd66eb06 suite before delegation.
 The file-scribe prompt digests remain unchanged. A separate real worker build
 uses an isolated tag; deployment's fresh-worker CI remains a required gate.
+
+The earlier strict replay also exposed two complete criterion verdicts with
+missing global `reasoning` (58dd3075) or `reason` in its place (8d2d7dea).
+The parser now copies the unambiguous supplied global reason, or joins the
+existing explained criterion reasons when no entry was discarded or duplicated.
+It never supplies `approved`, `met`, a criterion id or missing evidence, changes
+no criterion, makes no model call, and leaves present canonical reasoning alone.
+Reading envelopes are ineligible. A missing/duplicate/unexplained judgment still
+fails the ordinary focused review; a negative criterion still binds root even
+beside a global approval. This is format normalization, not an independent review
+or a retroactive approval of either historical run. Raw responses remain intact.
+
+Final format verification: the compiled parser reads both exact private recorded
+responses and preserves their decisions and criterion values relative to the same
+responses with an explicit canonical field. No provider calls. The full release
+passes 8,572 tests (44 gated skips); the seven additional regressions cover both
+formats, negative judgments, missing/duplicate reasons and binding root refusal.
