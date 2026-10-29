@@ -1,4 +1,4 @@
-# Attica autonomous session — 2026-10-29 ACTIVE
+# Attica autonomous session — 2026-10-29
 
 Owner requests4–5hours of autonomous Atoma runs and demonstrated fixes.
 Window02:27:09Z–06:57:09Z (08:57Athens),4h30; no new chantier after06:27Z.
@@ -976,3 +976,27 @@ selfassertion "detail arrives before250ms" failed underload; subsequent root88/8
 failed unrelated concurrentstart409vs202; configuredbrowser31/32 failure unrelated
 cancel-lift readcount4vs2. No deliveredcheckpoint; do NOTcreditfullsuiteorusefailed
 workspace asbase. Its narrower prior1260prefix staysfullyread/eligible.
+
+## 06:52 UTC — closing preservation checks
+
+Final native production MCP reads confirm source683802d8 delivered, 251files,
+4506183B, no client acceptance/publication; readiness active0/problems[], saved
+acceptedReference5ff2e4df unchanged. Main and this branch both exactlyb7769af4;
+working tree clean and diff check passed. No new chantier/start since cutoff.
+Prior failed a6 complete proofbook is now durably archived as
+attica-a6b98fd5-final-proofbook-20261029.tar.gz,174975752B,
+SHAbef21d17e3c92afc92520883f8c6b60a0fc850b8a9d72cde5a6c127ba0f63709;
+every archived member compared to original bytes. Full failed trace and all
+archive bodies remain preserved. Additional response-only audit115responses,
+233376characters, retained as attica-a6b98fd5-final-llm-responses.jsonl. Read
+contiguously only0..20000; the attempted20000..65000 view was truncated, so it
+does not advance the verified cursor. Prior failed run final semantic prompts,
+events and attestations remain incompletely read; no completion credit or seed.
+This limitation does not apply to the two delivered narrow runs and their
+automatic validations, whose recorded complete readings are detailed above.
+Response-only audit also read200000..233376 to its end (not the intervening
+20000..200000). Its final clean-root88/89 and configuredChromium31/32 failures
+remain unapproved; later plans did not establish success before interruption.
+Read-only production closeout at06:53 confirms active releasee34b72d346cba41b7701c237970496aa1f5a7bc4,
+HTTP200. The latest main commitb7769af4 contains only our evidence memory and
+intentionally skipped CI; there is no unshipped product-code change.
