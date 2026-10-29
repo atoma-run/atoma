@@ -3,6 +3,8 @@ import { openStoreHandle } from '../core/stores.js';
 import { z } from 'zod';
 import { hostedDeploymentSchema, type HostedDeployment } from '../contracts/projectHosting.js';
 import { ProjectStateConflict } from './store.js';
+import { previewGrantSchema, type PreviewGrant } from '../contracts/previewClaim.js';
+import type { PreviewGrantStore } from '../preview/claims.js';
 
 export const HOSTING_DDL = `CREATE TABLE IF NOT EXISTS project_hosted_deployments (
  deployment_id TEXT PRIMARY KEY, org_id TEXT NOT NULL, project_id TEXT NOT NULL,
@@ -10,7 +12,31 @@ export const HOSTING_DDL = `CREATE TABLE IF NOT EXISTS project_hosted_deployment
  record TEXT NOT NULL CHECK(json_valid(record)), created_at TEXT NOT NULL,
  FOREIGN KEY(project_id, org_id) REFERENCES projects(project_id, org_id)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS hosted_one_start ON project_hosted_deployments(project_id) WHERE state='starting';`;
+CREATE UNIQUE INDEX IF NOT EXISTS hosted_one_start ON project_hosted_deployments(project_id) WHERE state='starting';
+CREATE TABLE IF NOT EXISTS project_hosting_grants (
+ hash TEXT PRIMARY KEY CHECK(length(hash)=64), record TEXT NOT NULL CHECK(json_valid(record))
+);`;
+
+/** Opaque token hashes only. The shared registry retains all authorisation,
+ * expiry and revocation semantics for HTTP and desktop tunnels. */
+class HostedGrantStore implements PreviewGrantStore {
+  constructor(private readonly db: Database.Database) {}
+  atomic<T>(operation: () => T): T { return this.db.transaction(operation).immediate(); }
+  get(key: string): PreviewGrant | undefined {
+    const row = this.db.prepare('SELECT record FROM project_hosting_grants WHERE hash=?').get(key) as { record: string } | undefined;
+    return row ? previewGrantSchema.parse(JSON.parse(row.record)) : undefined;
+  }
+  set(key: string, grant: PreviewGrant): void {
+    this.db.prepare('INSERT INTO project_hosting_grants VALUES (?,?) ON CONFLICT(hash) DO UPDATE SET record=excluded.record')
+      .run(key, JSON.stringify(previewGrantSchema.parse(grant)));
+  }
+  delete(key: string): boolean { return this.db.prepare('DELETE FROM project_hosting_grants WHERE hash=?').run(key).changes > 0; }
+  *[Symbol.iterator](): IterableIterator<[string, PreviewGrant]> {
+    const rows = this.db.prepare('SELECT hash,record FROM project_hosting_grants').all() as { hash: string; record: string }[];
+    for (const row of rows) yield [row.hash, previewGrantSchema.parse(JSON.parse(row.record))];
+  }
+  get size(): number { return (this.db.prepare('SELECT COUNT(*) AS n FROM project_hosting_grants').get() as { n: number }).n; }
+}
 /**
  * A row whose runtime may still write the project's data: a ready Node
  * application, or one whose state is unknown. Replacing any of them needs a
@@ -27,7 +53,8 @@ export function holdsApplicationData(row: HostedDeployment): boolean {
  */
 const storedDeploymentSchema = z.object(hostedDeploymentSchema.shape);
 export class HostingStore {
-  constructor(private readonly db: Database.Database) { db.exec(HOSTING_DDL); }
+  readonly grants: PreviewGrantStore;
+  constructor(private readonly db: Database.Database) { db.exec(HOSTING_DDL); this.grants = new HostedGrantStore(db); }
   static open(file: string): HostingStore { return new HostingStore(openStoreHandle(file, HOSTING_DDL)); }
   list(orgId?: string, projectId?: string): HostedDeployment[] {
     const rows = orgId && projectId

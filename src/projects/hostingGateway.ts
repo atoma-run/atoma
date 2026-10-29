@@ -27,7 +27,7 @@ type HoldOutcome = 'settled' | 'timeout' | 'left' | 'full';
 export function createHostingGateway(service: HostingService, controlOrigin: string, member: (org: string, principal: string) => boolean,
   /** The organisation's plan carries the Atoma mark; asked per navigation. */
   attribution: (org: string) => boolean = () => true, hold: typeof HOSTING_HOLD = HOSTING_HOLD) {
-  const claims = new PreviewClaimRegistry();
+  const claims = new PreviewClaimRegistry(Date.now, randomBytes, service.deps.store.grants);
   const waiting = new Map<string, number>(); let waitingTotal = 0;
   /** Waits, bounded in time and number, for a project's swap to settle; never past the visitor leaving. */
   function holdFor(swap: { projectId: string; settled: Promise<void> }, peer: { once(event: 'close', listener: () => void): unknown; off(event: 'close', listener: () => void): unknown }): Promise<HoldOutcome> {

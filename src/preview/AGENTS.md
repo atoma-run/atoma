@@ -37,6 +37,12 @@ proved only where a real gVisor runtime exists
 - A preview is NOT a deployment. It is ephemeral review evidence, and the
   member guide says so.
 
+`PreviewClaimRegistry` keeps ephemeral preview grants in memory. Persistent
+hosting supplies a primary-store grant collection, reusing the same binding,
+expiry and revocation logic; its operations are atomic across web processes.
+The shared persisted shapes live in `contracts/previewClaim.ts`. Opening
+claims remain memory-only in both modes; preview restart still revokes access.
+
 ## Two sources: a deliverable, and a moment
 
 - A **delivered** preview shows what a finished run produced, described once by

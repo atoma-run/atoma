@@ -108,7 +108,7 @@ candidate created unstarted, then every `holdsApplicationData` row stopped and
 the candidate reserved, visitors held (`swapping`); failure offers `restore`. After Stop, `restore` can restart the last served version (`readyAt` required), even beside a newer unpublished acceptance; the same acceptance, retained-source, authority and CAS checks apply. `status().history` (2026-10-26) tells the conversation each row's outcome from row facts only (`readyAt`, `replacedRunId`; `hostingHistory`).
 Health (2026-10-26): `HOSTING_HEALTH.failures` consecutive failed checks, or a
 gone container, fail a ready row; one slow answer journals nothing. A GRANTED
-visitor of an offline project gets 503, anyone else the unknown-address 404.
+visitor of an offline project gets 503, anyone else the unknown-address 404. Hosted grant hashes persist in the primary store across releases; expiry, membership and logout rules stay unchanged ([docs](../../docs/project-hosting.md)).
 
 ## The organisation's MCP servers
 

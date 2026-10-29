@@ -1,4 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import type { PreviewClaimBinding, PreviewGrant } from '../contracts/previewClaim.js';
+export type { PreviewClaimBinding, PreviewGrant } from '../contracts/previewClaim.js';
 
 /**
  * WHO MAY OPEN THIS PREVIEW, AND FOR HOW LONG.
@@ -38,26 +40,6 @@ export const PREVIEW_CLAIM_TTL_MS = 30_000;
 /** How long one exchanged grant lasts before the parent must renew it. */
 export const PREVIEW_GRANT_TTL_MS = 300_000;
 
-export interface PreviewClaimBinding {
-  readonly principalId: string;
-  /**
-   * The session a claim was minted for, WHERE THE TRANSPORT KNOWS IT.
-   *
-   * Null today from the HTTP path: `Viewer` carries no session id, and
-   * inventing one from the principal would be a field lying about what it
-   * binds. What the session dimension would add is narrow — a claim lives
-   * thirty seconds and is one-time, and logout already revokes every grant a
-   * principal holds through `revokePrincipal` — so the gap is recorded rather
-   * than papered over, and the field is here for the day the gate exposes it.
-   */
-  readonly sessionId: string | null;
-  readonly orgId: string;
-  readonly projectRunId: string;
-  readonly generation: number;
-  /** The exact host this claim may be presented to. */
-  readonly host: string;
-}
-
 export interface MintedPreviewClaim {
   /** Handed to the browser in a fragment. Never stored, never logged. */
   readonly secret: string;
@@ -73,9 +55,15 @@ export type PreviewClaimRefusal =
   | 'wrong-generation'
   | 'wrong-principal';
 
-export interface PreviewGrant {
-  readonly binding: PreviewClaimBinding;
-  readonly expiresAt: number;
+/** Grant semantics belong to the registry. Persistent hosting can supply its
+ * primary-store collection; ephemeral previews keep the in-memory default. */
+export interface PreviewGrantStore extends Iterable<[string, PreviewGrant]> {
+  /** Persistent collections serialize a whole registry operation across processes. */
+  atomic?<T>(operation: () => T): T;
+  get(key: string): PreviewGrant | undefined;
+  set(key: string, grant: PreviewGrant): void;
+  delete(key: string): boolean;
+  readonly size: number;
 }
 
 /**
@@ -138,20 +126,22 @@ interface StoredClaim {
 /**
  * The claims and grants a gateway is currently honouring.
  *
- * IN MEMORY ON PURPOSE. A claim lives thirty seconds and a grant five
- * minutes; both are shorter than any restart, and both MUST NOT survive one —
+ * IN MEMORY BY DEFAULT. Ephemeral preview grants MUST NOT survive restart —
  * "on gateway/launcher restart all grants and hosts fail closed, users reopen
  * explicitly" (design §10). Persisting them would be persisting the one thing
- * the design wants forgotten.
+ * the design wants forgotten. Persistent hosting supplies a hashed grant
+ * store: a platform release does not restart the independent application.
  */
 export class PreviewClaimRegistry {
   private readonly claims = new Map<string, StoredClaim>();
-  private readonly grants = new Map<string, PreviewGrant>();
 
   constructor(
     private readonly now: () => number = Date.now,
-    private readonly randomness: (bytes: number) => Buffer = randomBytes
+    private readonly randomness: (bytes: number) => Buffer = randomBytes,
+    private readonly grants: PreviewGrantStore = new Map<string, PreviewGrant>()
   ) {}
+
+  private atomic<T>(operation: () => T): T { return this.grants.atomic ? this.grants.atomic(operation) : operation(); }
 
   /** Record a minted claim so the gateway can recognise it once. */
   register(claim: MintedPreviewClaim): void {
@@ -176,22 +166,24 @@ export class PreviewClaimRegistry {
   ):
     | ({ readonly ok: true } & RedeemedPreviewClaim)
     | { readonly ok: false; readonly reason: PreviewClaimRefusal } {
-    const hash = previewClaimHash(secret);
-    const found = this.claims.get(hash);
-    this.claims.delete(hash);
-    if (!found || !claimHashesMatch(found.hash, hash)) return { ok: false, reason: 'unknown' };
-    const at = this.now();
-    if (at > found.expiresAt) return { ok: false, reason: 'expired' };
-    // The host is part of the binding, so a claim minted for one generation's
-    // origin cannot be replayed against another's.
-    if (found.binding.host !== presentedHost) return { ok: false, reason: 'wrong-host' };
-    const token = this.randomness(PREVIEW_CLAIM_BYTES).toString('base64url');
-    const grant: PreviewGrant = {
-      binding: found.binding,
-      expiresAt: at + PREVIEW_GRANT_TTL_MS,
-    };
-    this.grants.set(previewClaimHash(token), grant);
-    return { ok: true, grant, token };
+    return this.atomic(() => {
+      const hash = previewClaimHash(secret);
+      const found = this.claims.get(hash);
+      this.claims.delete(hash);
+      if (!found || !claimHashesMatch(found.hash, hash)) return { ok: false, reason: 'unknown' };
+      const at = this.now();
+      if (at > found.expiresAt) return { ok: false, reason: 'expired' };
+      // The host is part of the binding, so a claim minted for one generation's
+      // origin cannot be replayed against another's.
+      if (found.binding.host !== presentedHost) return { ok: false, reason: 'wrong-host' };
+      const token = this.randomness(PREVIEW_CLAIM_BYTES).toString('base64url');
+      const grant: PreviewGrant = {
+        binding: found.binding,
+        expiresAt: at + PREVIEW_GRANT_TTL_MS,
+      };
+      this.grants.set(previewClaimHash(token), grant);
+      return { ok: true, grant, token };
+    });
   }
 
   /**
@@ -208,22 +200,24 @@ export class PreviewClaimRegistry {
     token: string,
     binding: Pick<PreviewClaimBinding, 'orgId' | 'projectRunId' | 'generation' | 'host'>
   ): PreviewGrant | null {
-    const key = previewClaimHash(token);
-    const grant = this.grants.get(key);
-    if (!grant) return null;
-    if (this.now() > grant.expiresAt) {
-      this.grants.delete(key);
-      return null;
-    }
-    if (
-      grant.binding.host !== binding.host ||
-      grant.binding.orgId !== binding.orgId ||
-      grant.binding.projectRunId !== binding.projectRunId ||
-      grant.binding.generation !== binding.generation
-    ) {
-      return null;
-    }
-    return grant;
+    return this.atomic(() => {
+      const key = previewClaimHash(token);
+      const grant = this.grants.get(key);
+      if (!grant) return null;
+      if (this.now() > grant.expiresAt) {
+        this.grants.delete(key);
+        return null;
+      }
+      if (
+        grant.binding.host !== binding.host ||
+        grant.binding.orgId !== binding.orgId ||
+        grant.binding.projectRunId !== binding.projectRunId ||
+        grant.binding.generation !== binding.generation
+      ) {
+        return null;
+      }
+      return grant;
+    });
   }
 
   /**
@@ -251,25 +245,27 @@ export class PreviewClaimRegistry {
   renewRun(
     binding: Pick<PreviewClaimBinding, 'principalId' | 'orgId' | 'projectRunId' | 'generation'>
   ): number {
-    const at = this.now();
-    let renewed = 0;
-    for (const [key, grant] of this.grants) {
-      if (at > grant.expiresAt) {
-        this.grants.delete(key);
-        continue;
+    return this.atomic(() => {
+      const at = this.now();
+      let renewed = 0;
+      for (const [key, grant] of this.grants) {
+        if (at > grant.expiresAt) {
+          this.grants.delete(key);
+          continue;
+        }
+        if (
+          grant.binding.principalId !== binding.principalId ||
+          grant.binding.orgId !== binding.orgId ||
+          grant.binding.projectRunId !== binding.projectRunId ||
+          grant.binding.generation !== binding.generation
+        ) {
+          continue;
+        }
+        this.grants.set(key, { binding: grant.binding, expiresAt: at + PREVIEW_GRANT_TTL_MS });
+        renewed += 1;
       }
-      if (
-        grant.binding.principalId !== binding.principalId ||
-        grant.binding.orgId !== binding.orgId ||
-        grant.binding.projectRunId !== binding.projectRunId ||
-        grant.binding.generation !== binding.generation
-      ) {
-        continue;
-      }
-      this.grants.set(key, { binding: grant.binding, expiresAt: at + PREVIEW_GRANT_TTL_MS });
-      renewed += 1;
-    }
-    return renewed;
+      return renewed;
+    });
   }
 
   /** The authenticated parent's heartbeat is the ONLY thing that extends one. */
@@ -277,14 +273,16 @@ export class PreviewClaimRegistry {
     token: string,
     binding: Pick<PreviewClaimBinding, 'orgId' | 'projectRunId' | 'generation' | 'host'>
   ): PreviewGrant | null {
-    const grant = this.authorise(token, binding);
-    if (!grant) return null;
-    const renewed: PreviewGrant = {
-      binding: grant.binding,
-      expiresAt: this.now() + PREVIEW_GRANT_TTL_MS,
-    };
-    this.grants.set(previewClaimHash(token), renewed);
-    return renewed;
+    return this.atomic(() => {
+      const grant = this.authorise(token, binding);
+      if (!grant) return null;
+      const renewed: PreviewGrant = {
+        binding: grant.binding,
+        expiresAt: this.now() + PREVIEW_GRANT_TTL_MS,
+      };
+      this.grants.set(previewClaimHash(token), renewed);
+      return renewed;
+    });
   }
 
   /**
@@ -295,59 +293,65 @@ export class PreviewClaimRegistry {
    * chances to forget one.
    */
   revokeRun(orgId: string, projectRunId: string, generation?: number): number {
-    let revoked = 0;
-    for (const [key, grant] of this.grants) {
-      if (grant.binding.orgId === orgId && grant.binding.projectRunId === projectRunId &&
-        (generation === undefined || grant.binding.generation === generation)) {
-        this.grants.delete(key);
-        revoked += 1;
+    return this.atomic(() => {
+      let revoked = 0;
+      for (const [key, grant] of this.grants) {
+        if (grant.binding.orgId === orgId && grant.binding.projectRunId === projectRunId &&
+          (generation === undefined || grant.binding.generation === generation)) {
+          this.grants.delete(key);
+          revoked += 1;
+        }
       }
-    }
-    for (const [key, claim] of this.claims) {
-      if (claim.binding.orgId === orgId && claim.binding.projectRunId === projectRunId &&
-        (generation === undefined || claim.binding.generation === generation)) {
-        this.claims.delete(key);
-        revoked += 1;
+      for (const [key, claim] of this.claims) {
+        if (claim.binding.orgId === orgId && claim.binding.projectRunId === projectRunId &&
+          (generation === undefined || claim.binding.generation === generation)) {
+          this.claims.delete(key);
+          revoked += 1;
+        }
       }
-    }
-    return revoked;
+      return revoked;
+    });
   }
 
   /** Revoke everything one principal holds, for logout. */
   revokePrincipal(principalId: string): number {
-    let revoked = 0;
-    for (const [key, grant] of this.grants) {
-      if (grant.binding.principalId === principalId) {
-        this.grants.delete(key);
-        revoked += 1;
+    return this.atomic(() => {
+      let revoked = 0;
+      for (const [key, grant] of this.grants) {
+        if (grant.binding.principalId === principalId) {
+          this.grants.delete(key);
+          revoked += 1;
+        }
       }
-    }
-    for (const [key, claim] of this.claims) {
-      if (claim.binding.principalId === principalId) {
-        this.claims.delete(key);
-        revoked += 1;
+      for (const [key, claim] of this.claims) {
+        if (claim.binding.principalId === principalId) {
+          this.claims.delete(key);
+          revoked += 1;
+        }
       }
-    }
-    return revoked;
+      return revoked;
+    });
   }
 
   /** Drop what has aged out. Cheap, and keeps a long-lived gateway bounded. */
   sweep(): number {
-    const at = this.now();
-    let dropped = 0;
-    for (const [key, claim] of this.claims) {
-      if (at > claim.expiresAt) {
-        this.claims.delete(key);
-        dropped += 1;
+    return this.atomic(() => {
+      const at = this.now();
+      let dropped = 0;
+      for (const [key, claim] of this.claims) {
+        if (at > claim.expiresAt) {
+          this.claims.delete(key);
+          dropped += 1;
+        }
       }
-    }
-    for (const [key, grant] of this.grants) {
-      if (at > grant.expiresAt) {
-        this.grants.delete(key);
-        dropped += 1;
+      for (const [key, grant] of this.grants) {
+        if (at > grant.expiresAt) {
+          this.grants.delete(key);
+          dropped += 1;
+        }
       }
-    }
-    return dropped;
+      return dropped;
+    });
   }
 
   get size(): { readonly claims: number; readonly grants: number } {

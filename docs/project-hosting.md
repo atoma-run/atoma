@@ -35,12 +35,20 @@ Hosting is private to the organisation, including for a public repository.
 Opening mints a one-time, thirty-second fragment claim. A host-only HttpOnly
 Secure cookie lasts five idle minutes and is renewed by authorised traffic.
 It opens the project's application, not one deployment of it, so an update
-does not sign visitors out.
+does not sign visitors out. Grant hashes also survive Atoma platform releases;
+the same idle expiry and revocation rules continue to apply after a restart.
+Each grant operation is atomic across web processes, so renewal cannot undo a
+concurrent revocation. One-time opening links remain memory-only.
 Membership is checked on every request, and platform logout revokes grants.
 Platform credentials and app-provided cookies never cross the gateway; service
 workers and document-domain relaxation are disabled. Applications cannot set
 headers that weaken this policy. A stable project address does not carry a
 reusable access credential. Reopen through Atoma after an idle session expires.
+
+Before rolling back the platform to a release without persistent hosted grants,
+invalidate the remaining `project_hosting_grants` rows in the primary store.
+That older release cannot revoke persisted grants on logout; invalidating them
+prevents a later upgrade from restoring access that should have ended.
 
 Atoma checks each online application every 15 seconds with a request to `/`
 that may take 10 seconds. An application busy with its own work, such as a
