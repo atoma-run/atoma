@@ -663,6 +663,39 @@ describe('two delivered runs of one project both reach the repository', () => {
     expect(await publisher.publish({ project: first.project, run: first.run, workspaceRoot: first.workspace, manifestHash: first.hash })).toEqual(result);
   });
 
+  it.each(['queued', 'running'] as const)('keeps a reviewed delivery publishable while an unaccepted successor is %s', async status => {
+    const owner = actor('Alice');
+    const first = await deliveredRun(owner, 'User', 'alice');
+    const successor = store.createProjectRun({
+      orgId: owner.orgId, projectId: first.project.projectId, principalId: owner.principalId,
+      request: { idempotencyKey: `successor-${status}`, goal: 'Improve the next version.' },
+      hostPaths: { workspacePath: join(root, `successor-${status}`), runsPath: join(root, 'next-runs'), logPath: join(root, 'next.log') },
+    })!.run;
+    if (status === 'running') store.transitionProjectRun({ orgId: owner.orgId, projectRunId: successor.projectRunId, from: 'queued', to: 'running' });
+    const fake = new FakeGitHub();
+    const publisher = new GitHubPublisher({ client: realClient(fake), github, store, resolveUserAccessToken: async () => 'ghu_user-token' });
+
+    const result = await publisher.publish({ project: first.project, run: first.run, workspaceRoot: first.workspace, manifestHash: first.hash });
+
+    expect(result?.status).toBe('published');
+    expect(fake.filesOn('alice', 'weather-lab', 'main').get('index.html')?.text).toBe('<h1>ok</h1>\n');
+    expect(store.getProjectRun(owner.orgId, successor.projectRunId)?.status).toBe(status);
+    expect(store.getDeliveryAcceptance(owner.orgId, successor.projectRunId)).toBeNull();
+    expect(fake.forcedUpdates).toBe(0);
+  });
+
+  it('refuses an older delivery once a newer delivery is accepted, before any GitHub write', async () => {
+    const owner = actor('Alice');
+    const first = await deliveredRun(owner, 'User', 'alice');
+    await nextDeliveredRun(owner, first.project.projectId, 'accepted-successor', { 'index.html': '<h1>Reviewed successor</h1>' });
+    const fake = new FakeGitHub();
+    const publisher = new GitHubPublisher({ client: realClient(fake), github, store, resolveUserAccessToken: async () => 'ghu_user-token' });
+
+    await expect(publisher.publish({ project: first.project, run: first.run, workspaceRoot: first.workspace, manifestHash: first.hash })).rejects.toThrow(/later lineage/);
+    expect(fake.filesOn('alice', 'weather-lab', 'main').size).toBe(0);
+    expect(fake.forcedUpdates).toBe(0);
+  });
+
   it('refuses a changed branch after recording an initial seed', async () => {
     const fake = new FakeGitHub({ existing: ['alice/weather-lab'] });
     const client = realClient(fake);

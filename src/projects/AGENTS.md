@@ -461,8 +461,8 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   last-published column on the projects row: "is the branch where we left it"
   is answerable only by GitHub, and a stored head is a cache of state GitHub
   owns — a stale one is how a wrong divergence verdict gets manufactured.
-- Publication retries take the run lease. A queued/running run or newer accepted lineage run refuses
-  an older publication (`PublicationSupersededError`); PR mode is independent. An older run published
+- Publication retries take the run lease. Only a newer accepted/published lineage run supersedes
+  an older publication (`PublicationSupersededError`); unaccepted work and PR mode are independent. An older run published
   after a later one synced is Atoma's write: it advances that run's base, never a conflict (review 1.3).
 - STALENESS IS A QUERY, NOT A COLUMN. How far behind a repository is = delivered
   runs of the project newer than the last published one, which `projects list`

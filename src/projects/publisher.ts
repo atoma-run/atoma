@@ -734,9 +734,8 @@ export class GitHubPublisher {
 
       const line = (this.store.listProjectRuns(project.orgId, project.projectId) ?? []).filter(r => !r.rerunOf);
       if (project.repositoryTarget.source?.mode !== 'pull-request' && line.some(r => r.projectRunId !== run.projectRunId &&
-        (r.status === 'queued' || r.status === 'running' ||
-         (r.status === 'delivered' && this.store.getDeliveryAcceptance(r.orgId, r.projectRunId) &&
-          (r.createdAt > run.createdAt || (r.createdAt === run.createdAt && r.projectRunId > run.projectRunId)))))) {
+        r.status === 'delivered' && this.store.getDeliveryAcceptance(r.orgId, r.projectRunId) &&
+        (r.createdAt > run.createdAt || (r.createdAt === run.createdAt && r.projectRunId > run.projectRunId)))) {
         throw new PublicationSupersededError('A later lineage run already carries this publication; publish the current run');
       }
       const selectFiles = async (head: string) => {
