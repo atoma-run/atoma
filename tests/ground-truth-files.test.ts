@@ -106,6 +106,119 @@ function ctxWith(executor: ToolExecutor): RunContext & { llm: ReturnType<typeof 
 }
 
 describe('shell manifest evidence at result validation', () => {
+  it('reads every real manifest page before judging health and late command outcomes', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-paged-manifest-'));
+    const sandbox = new ToolSandbox(root);
+    try {
+      writeFileSync(join(root, '.atoma-probes.json'), JSON.stringify({ version: 1, entries: [
+        { cmd: 'npm run build', exitCode: 0, stdout: 'Greek Ελληνικά and emoji 🧪 '.repeat(5000) },
+        { cmd: 'node mutant.cjs', exitCode: 1, stderr: 'late boundary assertion failed' },
+        { cmd: 'npm test', exitCode: 0 },
+      ] }));
+      const reader = readFileTool({ sandbox });
+      const calls: Record<string, unknown>[] = [];
+      const executor: ToolExecutor = {
+        has: name => name === 'read_file',
+        execute: async (_name, args) => {
+          calls.push(args);
+          return reader.execute(args);
+        },
+      };
+      const ctx = ctxWith(executor);
+      const content = await runVerdict(ctx, fileChild(), {
+        output: { files: ['.atoma-probes.json'], probes: [{ cmd: 'npm test', exitCode: 0 }] },
+      });
+      expect(content).not.toContain('MALFORMED');
+      expect(content).toContain('Stored shell probe index: 3/3');
+      expect(content).toContain('PRESENT in .atoma-probes.json: {"cmd":"node mutant.cjs","exitCode":1}');
+      expect(content).toContain('shell entries shown in the structured index above');
+      expect(calls.some(args => Number(args['offset']) >= 60000)).toBe(true);
+      const snapshots = ctx.attestations?.forAttempt(1) ?? [];
+      expect(snapshots).toHaveLength(3);
+      expect(snapshots.every(record => record.tool === 'host_read_file')).toBe(true);
+      expect(snapshots.map(record => {
+        if (record.observation.kind !== 'execution') return null;
+        return (JSON.parse(record.observation.request) as { offset?: number }).offset ?? 0;
+      })).toEqual([0, 60000, 120000]);
+      expect(ctx.llm.calls).toHaveLength(1);
+    } finally {
+      await sandbox.cleanup();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+  it('reads a long web manifest through the same paginated production reader', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-paged-web-manifest-'));
+    const sandbox = new ToolSandbox(root);
+    try {
+      writeFileSync(join(root, '.atoma-probes.json'), JSON.stringify({ version: 1, entries: [
+        { cmd: 'node check.cjs', exitCode: 0, stdout: 'x'.repeat(120000) },
+        { probe: 'web', file: 'index.html', smoke: '({ok:true})', expected: '{"ok":true}' },
+      ] }));
+      const reader = readFileTool({ sandbox });
+      const ctx = ctxWith({ has: name => ['read_file', 'validate_html'].includes(name),
+        execute: async (name, args) => name === 'read_file' ? reader.execute(args) : { ok: true } });
+      const checked = await checkGroundTruth({ ctx, subject: 'RESULT', child: webChild(),
+        payload: { output: { url: 'http://localhost:1234/', probes: [{ probe: 'web' }] } } });
+      expect(checked.block).toContain('well-formed web probe record present');
+      expect(checked.block).not.toContain('MALFORMED');
+    } finally {
+      await sandbox.cleanup();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each(['syntax', 'entry'])('still reports a real %s defect beyond the first page', async kind => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-malformed-manifest-'));
+    const sandbox = new ToolSandbox(root);
+    try {
+      const raw = JSON.stringify({ version: 1, entries: [
+        { cmd: 'npm test', exitCode: 0, stdout: 'x'.repeat(120000) },
+        ...(kind === 'entry' ? [{ cmd: 'node broken.cjs' }] : []),
+      ] });
+      writeFileSync(join(root, '.atoma-probes.json'), kind === 'syntax' ? raw.slice(0, -1) : raw);
+      const reader = readFileTool({ sandbox });
+      const ctx = ctxWith({ has: name => name === 'read_file', execute: (_name, args) => reader.execute(args) });
+      const checked = await checkGroundTruth({ ctx, subject: 'RESULT', child: fileChild(),
+        payload: { output: { probes: [{ cmd: 'npm test', exitCode: 0 }] } } });
+      expect(checked.requiresReview).toBe(true);
+      expect(checked.contradiction).toBe(false);
+      expect(checked.block).toContain('MALFORMED');
+      expect(checked.block).not.toContain('INCOMPLETE READ');
+    } finally {
+      await sandbox.cleanup();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each(['stalled', 'changed', 'unavailable'])(
+    'keeps a %s continuation unknown and requires review without a false malformed verdict', async mode => {
+      const root = mkdtempSync(join(tmpdir(), 'atoma-incomplete-manifest-'));
+      const sandbox = new ToolSandbox(root);
+      try {
+        writeFileSync(join(root, '.atoma-probes.json'), JSON.stringify({ version: 1, entries: [
+          { cmd: 'npm test', exitCode: 0, stdout: 'x'.repeat(120000) },
+        ] }));
+        const reader = readFileTool({ sandbox });
+        const ctx = ctxWith({ has: name => name === 'read_file', execute: async (_name, args) => {
+          const page = await reader.execute(args);
+          if (!args['offset']) return page;
+          if (mode === 'unavailable') throw new Error('Read failed');
+          return { ...(page as Record<string, unknown>), ...(mode === 'changed' ? { totalChars: 1 } : { offset: 0, nextOffset: 60000 }) };
+        } });
+        const checked = await checkGroundTruth({ ctx, subject: 'RESULT', child: fileChild(),
+          payload: { output: { probes: [{ cmd: 'npm test', exitCode: 0 }] } } });
+        expect(checked.requiresReview).toBe(true);
+        expect(checked.contradiction).toBe(false);
+        expect(checked.block).toContain('INCOMPLETE READ');
+        expect(checked.block).not.toContain('MALFORMED');
+        expect(checked.block).not.toContain('PRESENT');
+      } finally {
+        await sandbox.cleanup();
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   it('keeps the real mutant beyond long output visible to the verdict after restoring production', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-mutant-proof-'));
     const sandbox = new ToolSandbox(root);

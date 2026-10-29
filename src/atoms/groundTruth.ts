@@ -1,5 +1,5 @@
 import { posix } from 'node:path';
-import type { RunContext } from '../core/types.js';
+import type { RunContext, ToolExecutor } from '../core/types.js';
 import { baseExecutorOf } from '../core/attestation.js';
 import { archiveHostFileRead } from './evidenceReading.js';
 import { fileReadsNeedingReadback, type AttestationRecord } from '../contracts/attestation.js';
@@ -33,6 +33,50 @@ import {
  * Behaviour-preserving move; the history lives in the engineering record
  * linked from AGENTS.md (#F9, #9, manifest health, and probe selection).
  */
+
+class IncompleteManifestReadError extends Error {}
+
+/** Parse manifests only after all read_file pages have been observed. */
+async function readProbeManifest(
+  tools: ToolExecutor,
+  signal?: AbortSignal,
+  observe?: (raw: unknown, range?: { offset: number }) => void,
+): Promise<string> {
+  let raw = await tools.execute('read_file', { path: PROBE_MANIFEST_FILENAME });
+  observe?.(raw);
+  const textOf = (value: unknown): string => typeof value === 'string' ? value
+    : value && typeof value === 'object' && typeof (value as Record<string, unknown>)['content'] === 'string'
+      ? (value as Record<string, unknown>)['content'] as string : '';
+  let text = textOf(raw);
+  if (!raw || typeof raw !== 'object' || !('nextOffset' in raw)) return text;
+  const first = raw as Record<string, unknown>;
+  const total = first['totalChars'];
+  let next = first['nextOffset'];
+  if (!Number.isSafeInteger(total) || typeof total !== 'number' || total < text.length || first['offset'] !== 0) {
+    throw new IncompleteManifestReadError('Invalid manifest page metadata');
+  }
+  while (next !== null) {
+    signal?.throwIfAborted();
+    if (next !== text.length || text.length >= total) throw new IncompleteManifestReadError('Manifest page did not advance');
+    const offset = text.length;
+    try {
+      raw = await tools.execute('read_file', { path: PROBE_MANIFEST_FILENAME, offset });
+    } catch {
+      signal?.throwIfAborted();
+      throw new IncompleteManifestReadError('Manifest continuation is unavailable');
+    }
+    observe?.(raw, { offset });
+    const page = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+    const content = textOf(raw);
+    if (page['offset'] !== offset || page['totalChars'] !== total || !content.length || offset + content.length > total) {
+      throw new IncompleteManifestReadError('Manifest changed or a page is unavailable');
+    }
+    text += content;
+    next = page['nextOffset'];
+  }
+  if (text.length !== total) throw new IncompleteManifestReadError('Manifest reading stopped before the end');
+  return text;
+}
 
 /**
  * Ground-truth probe result. `contradiction` is set ONLY on hard, unambiguous
@@ -120,6 +164,8 @@ export interface GroundTruthFacts {
   selfReportedMismatch: boolean;
   /** The machine-readable probe manifest exists but violates its contract. */
   manifestMalformed: boolean;
+  /** A paged manifest could not be read completely; its validity is unknown. */
+  manifestReadIncomplete: boolean;
   /** Durable HTTP docs contain a numeric loopback port from this run. */
   durablePortLiteralFiles: string[];
   /**
@@ -136,6 +182,7 @@ export function emptyGroundTruthFacts(): GroundTruthFacts {
     probeToolFailure: false,
     selfReportedMismatch: false,
     manifestMalformed: false,
+    manifestReadIncomplete: false,
     durablePortLiteralFiles: [],
     quotedSpanNotFound: [],
   };
@@ -179,6 +226,7 @@ export async function checkGroundTruth(args: {
     requiresReview:
       contradiction ||
       facts.manifestMalformed ||
+      facts.manifestReadIncomplete ||
       facts.durablePortLiteralFiles.length > 0,
   };
 }
@@ -468,18 +516,7 @@ async function probeGroundTruthBase(args: Parameters<typeof probeGroundTruthEx>[
     );
   if (reportedWebProbes && tools.has('read_file')) {
     try {
-      const rawManifest = await tools.execute('read_file', {
-        path: PROBE_MANIFEST_FILENAME,
-      });
-      if (pathHeldNoFile(rawManifest)) throw new Error(`${PROBE_MANIFEST_FILENAME} holds no file`);
-      const text =
-        rawManifest &&
-        typeof rawManifest === 'object' &&
-        typeof (rawManifest as Record<string, unknown>)['content'] === 'string'
-          ? ((rawManifest as Record<string, unknown>)['content'] as string)
-          : typeof rawManifest === 'string'
-            ? rawManifest
-            : '';
+      const text = await readProbeManifest(tools, args.ctx.signal);
       const problems = text.trim()
         ? validateProbeManifest(text)
         : [`${PROBE_MANIFEST_FILENAME}: missing or empty`];
@@ -492,11 +529,16 @@ async function probeGroundTruthBase(args: Parameters<typeof probeGroundTruthEx>[
       manifestLines.push(...shellProbeManifestEvidence(text).lines,
         ...supersededProbeRowLines(text, args.ctx.attestations?.forAttempt(args.ctx.attempt ?? 1) ?? [],
           ownedByReview(args.ctx.currentBranchId, args.evidence)));
-    } catch {
-      webFacts.manifestMalformed = true;
-      manifestLines.push(
-        `${PROBE_MANIFEST_FILENAME}: MALFORMED — result reports a web probe but the manifest is missing`
-      );
+    } catch (error) {
+      if (error instanceof IncompleteManifestReadError) {
+        webFacts.manifestReadIncomplete = true;
+        manifestLines.push(`${PROBE_MANIFEST_FILENAME}: INCOMPLETE READ — validity and omitted entries are unknown`);
+      } else {
+        webFacts.manifestMalformed = true;
+        manifestLines.push(
+          `${PROBE_MANIFEST_FILENAME}: MALFORMED — result reports a web probe but the manifest is missing`
+        );
+      }
     }
   }
 
@@ -931,13 +973,7 @@ async function probeFilesGroundTruth(args: {
     args.child.toolNames().includes(t)
   );
   if (recorded.lines.length > 0 || httpChild) try {
-    const rawManifest = await tools.execute('read_file', { path: PROBE_MANIFEST_FILENAME });
-    const text =
-      rawManifest && typeof rawManifest === 'object' && typeof (rawManifest as Record<string, unknown>)['content'] === 'string'
-        ? ((rawManifest as Record<string, unknown>)['content'] as string)
-        : typeof rawManifest === 'string'
-          ? rawManifest
-          : '';
+    const text = await readProbeManifest(tools, args.ctx.signal);
     if (text.trim().length > 0) {
       const problems = validateProbeManifest(text);
       facts.manifestMalformed = problems.length > 0;
@@ -952,7 +988,11 @@ async function probeFilesGroundTruth(args: {
           ownedByReview(args.ctx.currentBranchId, args.evidence)));
       if (problems.length === 0 && index.shellOnly) indexedShellManifest = text;
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof IncompleteManifestReadError) {
+      facts.manifestReadIncomplete = true;
+      lines.push(`${PROBE_MANIFEST_FILENAME}: INCOMPLETE READ — validity and omitted entries are unknown`);
+    }
     // Absent manifest is normal for non-runnable deliverables — say nothing.
   }
   // Full contents, kept for the QUOTED SPAN pass below. The excerpt rendered
@@ -968,8 +1008,12 @@ async function probeFilesGroundTruth(args: {
   ]) {
     if (args.ctx.signal?.aborted) return empty;
     try {
-      const raw = await tools.execute('read_file', { path });
-      archiveHostFileRead(args.ctx, path, raw);
+      const isManifest = posix.normalize(path.replace(/\\/g, '/')) === PROBE_MANIFEST_FILENAME;
+      const raw = isManifest
+        ? { path, content: await readProbeManifest(tools, args.ctx.signal,
+          (page, range) => archiveHostFileRead(args.ctx, path, page, false, range)) }
+        : await tools.execute('read_file', { path });
+      if (!isManifest) archiveHostFileRead(args.ctx, path, raw);
       if (pathHeldNoFile(raw)) throw new Error(`${path} holds no file`);
       const content =
         raw && typeof raw === 'object' && typeof (raw as Record<string, unknown>)['content'] === 'string'

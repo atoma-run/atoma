@@ -747,3 +747,58 @@ New final527 archive leaf display prepared as independent supplementary view,
 new-archive-leaf-human.txt1749301chars, ACTUALLYREAD0..56000. Not yet eligible seed,
 recipe inverse not yet checked, no final all-proofs-read claim. Main complete
 reference renderer session54863 resumed and still in progress.
+
+## 05:53 UTC — Compute packages published; manifest paging fix fully verified
+
+995591a52c7d0abae0b678774aef63ed88bb9414 pushed to main and this branch.
+CI40824766584 SUCCESS (all shards/static/fresh-worker/hermetic), desktop40824766516
+SUCCESS on Mac ARM64, Mac Intel and Windows including native SQLite and packaging.
+Official preview compute-desktop-preview-995591a52c7d, version0.5.219, all installers
+and checksums present. Production deploy40825295862 SUCCESS; SSH active995591a5,
+HTTP200. Added ONLY new app0.5.219 and the two new worker references to production
+allowlists, preserving every prior identity. Backup
+/home/atoma/config/atoma.env.bak-20261029T054336Z-utf8. No manual service restart;
+normal authorized CI deployment activated them. Verified actual atoma.service PID
+541847 environment: all three membership booleans true, no secrets printed.
+
+Compute UI confirmed No active workload. Clicked Stop accepting new runs during
+update; UI confirms drained, no new runs, no workload stopped. Official ARM64 DMG
+and checksum download RUNNING session18526 into /tmp/attica-autonomy-20261029/compute-0.5.219/;
+expected size130707379B. A premature hash/mount while download still running failed
+on the partial file (not a published-asset integrity failure). Wait for session
+completion BEFORE hash, verify checksum, mount readonly. Old app still running and
+not yet quit/replaced; do not leave it drained after update. Native CUA computeApp
+object existing; documentation reloaded. Desired update/install official app,
+preserve old bundle, prepare via UI, verify worker pin and actual admission.
+
+Manifest pagination fixed in own dirty src/atoms/groundTruth.ts and evidenceReading.ts,
+with7 regressions added to tests/ground-truth-files.test.ts. Both web/file manifest
+health and claimed-manifest reads share one complete paginated reader. Checks
+consistent totals/offset/progress; incomplete/changed/unavailable continuation is
+UNKNOWN and forces semantic review without a malformed label or contradiction.
+True syntax/schema defects beyond first page stay MALFORMED. Claimed read archives
+all3 actual pages at offsets0/60000/120000 in host-only branch, never child credit.
+No gate rejection, model call, extra recorder or executable replay added.
+Adversarial review: valid long manifest, late failing row, real malformed syntax/
+entry, changed/stalled/unavailable continuation, old incomplete excerpts, real
+web path, exact Unicode page boundaries, unchanged semantic refusal, history and
+host-only page association. No invalid manifest or incomplete read gains approval.
+
+Actual original production-path reproducer after fix:140145chars, offsets
+[0,60000,120000,0,60000,120000], lateFailureIndexed=true, no malformed diagnostic.
+Before false malformed at60000 and offsets[0,0]. Original failure log preserved.
+Focused126 tests passed before final2 negative cases; full release definition
+NOW EXIT0 session50324: release:check:static ALLpassed then entire unfiltered
+npm test -- --maxWorkers=4,590files pass/4skip,8595tests pass/31skip,297.79s.
+Raw logs manifest-paging-release-static.log and manifest-paging-full-suite.log.
+Need commit/push after fresh main check, watch CI/deploy and verify active revision.
+No source/test changes after this successful full check.
+
+Final2364 lossless reference view COMPLETE and inverse VERIFIED:1141archives,
+2364events,2220attestations all reconstructed exactly to trace SHA0fdd58ef...;
+53451 actual-text aliases (never seeded alias maps), uniqueDecodedBytes10366468.
+Human4456024chars. Separate archive-human1012878chars and exact-line dedup
+archive-unique-human743047chars with dictionary/recipe inverse verified. READ
+archive-unique-human0..56000; NEXT56000. Supplementary new-archive-leaf-human
+1749301chars also READ0..56000 but no complete-body credit beyond boundaries.
+Final event/attestation tail still unread; no completed a6 proof or delivery claim.

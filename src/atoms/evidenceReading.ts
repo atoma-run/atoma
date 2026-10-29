@@ -15,9 +15,9 @@ export const MAX_EVIDENCE_READ_ROUNDS = 8;
 const hostBranch = (ctx: RunContext) => `host-review:${ctx.currentBranchId ?? 'root'}:${ctx.attempt ?? 1}`;
 
 /** Supervisor snapshots earn no child execution credit and never enter its branch. */
-export function archiveHostFileRead(ctx: RunContext, path: string, result: unknown, unavailable = false): void {
+export function archiveHostFileRead(ctx: RunContext, path: string, result: unknown, unavailable = false, range?: { offset: number }): void {
   const log = (ctx.attestations ??= createAttestationLog());
-  const request = { path };
+  const request = { path, ...range };
   const parsed = parseExecutionObservation('read_file', request, result);
   const observation = parsed ?? { kind: 'execution' as const, filePath: path, request: JSON.stringify(request), response: 'Host read unavailable; current contents unknown' };
   unavailable ||= parsed === null;
