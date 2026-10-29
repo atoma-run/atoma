@@ -304,3 +304,54 @@ Localvolume9.9GiBfree beforetar; evidence root416MB, no cleanup authorized/neede
 No new run or retry, no client acceptance/publication/hosting, no Atoma source fix
 or production deployment this heartbeat. Only our memory and private evidence
 changed. Continue autonomy until06:57:09Z; no new chantier after06:27Z.
+
+
+## 03:39 UTC — first automatic replay fully read; second repair started
+
+bb0181d3 final73 book now FULLY READ 0..284863 chars, all72unique archives,
+71attestations, every prompt/review/metadata/skill call. Full run.log28039bytes
+read through sandbox shutdown.19unique nested command logs21817bytes verified
+against both byte lengths and SHA256. Final read receipt updated with hashes.
+Root approval b0377e57-763c-46dd-aa67-669af47a6986 and separate criterion review
+a52d318e-8c81-450d-aa77-8b73d412447e approve c1(1/1), explicitly caveating the
+two pre-existing recovery UI races. This is valid approval for the narrow search
+fix, not evidence that all browser tests pass: raw fullbrowser remains30pass2fail.
+Both proposed generalized prompt amendments independently rejected, recipes unchanged.
+Hosted stronger search test exercises real held refresh after fresh recovery,
+unlike original Compute's vacuous stall. All evidence retained, not published.
+
+Second repair initial call03:38:48Z was REJECTED before execution: goal>4000chars.
+Condensed to3771chars preserving all demonstrated scope, same key, resent03:39:32Z
+via native MCP, pending cell2034. No run was created by the rejected call.
+Idempotency key attica-autonomy-20261029-proof-boundaries-02; NEVER duplicate with
+a new key. Base explicitly3ca69f12. Request archived in
+/tmp/attica-autonomy-20261029/second-run-request-PREPARED-NOT-SENT.json
+(filename predates actual send; contents now sent). Depthdeep, fourcriteria
+length148/138/157/150. Three existingtestfile repairs: real independent stalled
+search observation; bounded durable CAPTCHA synchronization retaining exact
+navigations/no-writes; fresh browser history wait across ALL3interleavings.
+No productioncollector/scheduler change for test timing. Fullconfiguredbrowser
+includingrecovery8 and rootnpmruncheck separateclean/nooptionalbrowserdeps.
+Full raw logs and source/build/file-mode comparison required. User autonomy
+authorizes goal/run. No client acceptance/publication/hosting.
+Next obtain actual runid from production, preserve initialsnapshot/context in
+full and compare selected3ca69f12 final251files/4505645bytes. Follow same run.
+
+Actual second run a6b98fd5-afc2-4963-bb16-7b452ee168d8 created03:39:44.111Z,
+running03:39:45.324Z on samecustomer-device9bafcb10. MCP status confirms
+base3ca69f12, same models/timeout/context8, no acceptance/publication. Initial
+state not yet uploaded to production DB at03:40:50Z (read-only export refused
+Missing initial state), MCPtrace says no trace yet at03:41Z. Do not confuse
+empty second-initial-state.json.gz with a valid snapshot. Retry scoped readonly
+export-second-initial.mjs later; retain full startingseed3ca now already saved.
+Native startcell2034 still pending; timeout reconnect MUST use same exact request
+and same idempotency key. Do not launch another run. Current request file3771char
+goal is the actual sent request (prior overlong refused call spent no run).
+
+Durable complete first-cycle evidence backup created and gzip-integrity checked:
+/Users/mgtf/.codex/visualizations/2026/10/27/01a17e33-a1fb-7a62-bd3f-0b05141ffc62/attica-autonomy-first-cycle-20261029-0339.tar.gz
+151952686bytes,SHA04d20d88a5f5925963f35da0234c5e356eb7b900518c10f3e819d559177a4ae1.
+Contains all firstsource/hosted finaltraces, decodedarchives, complete reading
+books/receipts, rawlogs, initial/finalstates, fullprivatehostworkspace and causal
+CAPTCHA probes. No evidence removed. Currentnewrun evidence remains /tmp until
+next backup. No Atoma source edited or deployment this heartbeat.
