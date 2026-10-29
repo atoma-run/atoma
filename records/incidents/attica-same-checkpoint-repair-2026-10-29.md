@@ -260,3 +260,108 @@ The complete before-retry evidence is retained in this [private archive](/Users/
 SHA256: `71201849da3ce0ebde11c7e02dceee0d38ba9c7d5b9ba173623b8acf7f202224`.
 All 487 files were hash-verified inside the archive; it has mode 0600. This is a
 frozen receipt of the inconclusive attempt, not a passing hosted verdict.
+
+
+### Capacity restored and explicit MCP retry — 2026-10-29 01:57 UTC
+
+The owner explicitly approved the replacement unused-cache cleanup retaining 4GB,
+including recent cache. Executed once, it reclaimed 5.423GB; the separate 49GB
+containerd volume now has 3.0GB available. The same deployed worker as UID988 can
+create/remove its own diagnostic temporary directory. No image, volume, project,
+run evidence or other agent checkout was removed. Earlier pending-approval notes
+above describe historical state and are superseded by this receipt.
+
+375294a14a43fffc0656bb3c19e07b94c2b3285e is now deployed. Main CI40802488861,
+CodeQL40802488996, desktop40802488753 and deployment40803018501 all succeeded.
+Production REVISION, selected assayer executor and compiled policy independently
+confirm this revision and 8M billable tokens / 30min / $1. The earlier same-SHA
+branch CI failed one showcase fixture; its isolated rerun and the main CI passed
+without source changes. Raw failure and all deployment receipts are preserved.
+
+MCP atoma_compute_validation_retry was invoked once for delivered SOURCE36e940ba,
+key attica-validation-completion-20261029-01. Attempt/private run
+83a3662a-561e-4d47-acc9-169f1c9c25e9 queued01:57:03.575Z, started01:57:28.846Z.
+No new customer-device source run was started. Its materialized initial workspace
+has exactly276 entries/251 files/4,496,267 bytes, no extras or mode/byte mismatch,
+root755. Snapshotd183cf1a digestc1edcd0d and full context SHA7dba4804 are unchanged.
+The first hosted shell commands now execute, unlike the prior ENOSPC attempt.
+Final hosted verdict and complete new proof reading are still pending.
+
+
+## Final production verdict — 2026-10-29 02:13 UTC
+
+Explicit MCP retry83a3662a-561e-4d47-acc9-169f1c9c25e9 completed02:13:54.950Z;
+runner01:57:33.456Z–02:13:50.879Z (16m17.423s), release375294a14a43fffc0656bb3c19e07b94c2b3285e.
+Twelve calls, $0.22270348 equivalent, 1,722,981 billable tokens including cache.
+The actual root acceptance3b87069e-c99b-4fe3-8f20-822799754810 is approved with
+c1–c5 met, followed by the ordinary method-learning finalization. All three
+focused criterion reviews approve their assigned complete sets. The c1/c2 review
+uses top-level reason; c5 supplies only explained criteria. Their original
+responses survive unchanged and the deployed normalizer handles both without
+inventing a decision or another model call. No review-schema failure occurred.
+The MCP lifecycle ledger independently records completed with this attempt id,
+$1/8M/30min budget and countersChanged/recipesChanged=true. This conclusion is
+based on the actual acceptance and raw evidence, not a generic health label.
+
+Observed positive controls: recovery8/8, restored fresh-build recovery8/8,
+full fresh-build browser31/31 across6files (both listing/search suites included),
+additional browser10/10, clean root-only check121Vitest+89Node plus type/lint/build.
+Browser dependencies remain absent in the clean copy before/after root install
+and after check. Both mutants exit1 at the original assertions: stale status
+active:true versus expectedfalse, and lastRun placeholder. Each targeted mutant
+selects one test and skips the other seven intentionally; the report's broad
+"no skipped tests in any run" sentence is imprecise. The complete positive suites
+have no skips. Mutants were restored before the fresh positive controls.
+The self-reported probe presentation flags a mismatch for the intended failures;
+this requires review, not automatic acceptance. Review and actual logs distinguish
+these deliberate negative controls from an application or setup failure.
+
+Complete terminal trace:71events,59attestations,53unique gzip archives,
+456,452unique decoded bytes. Every prompt/event/metadata field, all archive bodies,
+and the full host log were read to the end. The lossless reading view
+(222,855characters, contiguous ranges) reconstructs the original exactly.
+All11 captured /tmp command logs (32,468bytes) independently match their recorded
+lengths and SHA256s. Although the model still used tail in several presentation
+commands, the worker retained the complete logs separately: no raw output is lost.
+Final traceSHA256:7e15bda7ec9b3d31c27a75f4a99392c355f8fbce1bbd5f61a01b6b8dc8a7f996.
+
+Independent final tar comparison verifies all276 original entries, every mode,
+249unchangedfiles and exactly the two permitted changes. Recovery test31688bytes,
+SHA348eb5aecf1ed56e792dd31281874bf506b6d6501ebbf842ccba87eed380fe67;
+config516bytes, SHAb13afa283f989c1489199d8f1c1fbfa0766712d08ceb60915864df44fe9eeff2.
+The exact inventory records
+4,649installed dependency entries, no other extra source path. The entire host
+attempt is preserved (4,932entries, including14symlinks and1hardlink), not merely
+the two changed files. Its archiveSHA256 is
+9d4334f8b16f41f70f737e150928e5c91c591bf1033d508ba8f296333d6da893.
+A diagnostic checkpoint export refused the installed dependency hardlink, as its
+strict contract requires; no guard was weakened. A faithful tar preserving links
+supplies the full final copy. The workspace.interrupted-* directory is an empty
+pre-launch archive, not the initial snapshot. Initial fidelity is established by
+the earlier live materialized comparison and the immutable full DB/export context.
+
+A local reading-view implementation recursively re-escaped aliases, temporarily
+filling the Mac disk. All generated alias files were compressed losslessly,
+SHA-verified before replacement; no raw proof was deleted. The final reader seeds
+only actual previously read traces/archives, avoiding recursive derived aliases.
+The final verified view is compact and complete. This local analysis fault did
+not alter or interrupt the production validation. Oversized intermediate alias
+indexes are derivative caches, excluded from the final raw-evidence archive;
+all original traces, decoded bodies and the final reconstructible view are included.
+
+SOURCE36e940ba remains delivered with clientAcceptance=null and publication=null;
+acceptedReferenceRunId remains5ff2e4df-32fc-4ab5-8096-2e985bc77640. No new device run,
+Attica acceptance/publication, agent checkout mutation or deliberately local edit.
+
+
+### Verified final private archive
+
+[Complete source and hosted evidence](/Users/mgtf/.codex/visualizations/2026/10/27/01a17e33-a1fb-7a62-bd3f-0b05141ffc62/attica-36e940ba-validation-83a3662a-completed-20261029.tar.gz)
+SHA256 `1fd2c9a5f073bd3a6a01e747485dc7920935df8f0f5256b03f436d8bc5ef8652`;120,457,374bytes;683files individually
+hash-verified inside the archive;mode0600. Eight oversized intermediate derived
+alias indexes are explicitly excluded; every raw trace, initial/source/final
+snapshot, full command log, decoded proof and final inverse-verified reading view
+is included. The earlier before-retry archive remains untouched.
+A fresh post-validation source export is object-equal to the delivered source
+export (digestafd26cdc); client acceptance/publication and accepted reference are
+unchanged. This completes the authorized production-validation investigation.

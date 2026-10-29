@@ -99,3 +99,21 @@ Follow-up verification: npm ci and the entire official release definition pass
 full-suite failures under the default 12 workers concerned only the Docker
 fixture's readiness/removal timing; the isolated test and final complete suite
 passed without source changes or weaker assertions. Both failures are retained.
+
+
+## Production confirmation, completed
+
+The owner approved the replacement cache cleanup retaining4GB; it reclaimed5.423GB
+and the deployed worker became writable. Release375294a14a43fffc0656bb3c19e07b94c2b3285e
+passed main CI40802488861 and deploy40803018501; runtime/policy confirmed independently.
+MCP retry83a3662a of SOURCE36e940ba completed with actual root acceptance3b87069e
+and allc1–c5 approved:12calls,$0.22270348,1,722,981tokens,16m17.423s.
+Fresh browser31+10, recovery8, cleanroot121Vitest+89Node and both causal mutant
+failures/restored controls are supported by complete raw logs. Eleven captured
+command logs verify exact SHA/length. Both newly observed review formats (reason
+alias and explained criteria without global prose) normalized successfully in
+production with raw responses unchanged. All71events/59attestations/53archives
+and every prompt/fullhostlog were read to the end and inverse-verified.
+See the linked [incident](../incidents/attica-same-checkpoint-repair-2026-10-29.md)
+for immutable initial-state comparison, final independent scope check and the
+private raw-evidence archive. No remaining blocker was observed on this replay.
