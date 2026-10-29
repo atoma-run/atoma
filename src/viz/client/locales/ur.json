@@ -2860,5 +2860,9 @@
   "projects.hostedRun": "Run #{{number}} آن لائن",
   "runs.number": "run #{{number}}",
   "assistant.ownAgent": "اپنا ایجنٹ استعمال کریں",
-  "assistant.costShort": "استعمال کا تخمینہ: ${{cost}}"
+  "assistant.costShort": "استعمال کا تخمینہ: ${{cost}}",
+  "hosting.restart": "ایپلیکیشن دوبارہ شروع کریں",
+  "hosting.restart.ready": "آخری بار چلنے والا ورژن دوبارہ شروع کریں۔ اس کا ڈیٹا محفوظ رکھا جائے گا۔",
+  "hosting.version.restart": "دوبارہ شروع کریں: {{version}}",
+  "hosting.confirm.restart": "آپ کی ایپلیکیشن آخری بار چلنے والے ورژن کے ساتھ دوبارہ شروع ہوگی۔ جو کچھ بھی ابھی چل رہا ہے، اسے پہلے روک دیا جائے گا۔ اس کا ڈیٹا محفوظ رکھا جائے گا۔"
 }

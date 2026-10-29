@@ -2860,5 +2860,9 @@
   "projects.hostedRun": "Run #{{number}} online",
   "runs.number": "Run #{{number}}",
   "assistant.ownAgent": "Use o seu próprio agente",
-  "assistant.costShort": "Estimativa de utilização: ${{cost}}"
+  "assistant.costShort": "Estimativa de utilização: ${{cost}}",
+  "hosting.restart": "Reiniciar a aplicação",
+  "hosting.restart.ready": "Reinicie a última versão executada. Os respetivos dados são mantidos.",
+  "hosting.version.restart": "Reiniciar: {{version}}",
+  "hosting.confirm.restart": "A sua aplicação será reiniciada com a última versão executada. Tudo o que ainda estiver em execução será interrompido primeiro. Os respetivos dados são mantidos."
 }

@@ -2860,5 +2860,9 @@
   "projects.hostedRun": "Run #{{number}} online",
   "runs.number": "Run #{{number}}",
   "assistant.ownAgent": "Eigenen Agenten verwenden",
-  "assistant.costShort": "Geschätzte Nutzungskosten: ${{cost}}"
+  "assistant.costShort": "Geschätzte Nutzungskosten: ${{cost}}",
+  "hosting.restart": "Anwendung neu starten",
+  "hosting.restart.ready": "Die zuletzt ausgeführte Version neu starten. Ihre Daten bleiben erhalten.",
+  "hosting.version.restart": "Neu starten: {{version}}",
+  "hosting.confirm.restart": "Ihre Anwendung wird mit der zuletzt ausgeführten Version neu gestartet. Alle noch laufenden Prozesse werden zuvor beendet. Die Daten bleiben erhalten."
 }

@@ -2860,5 +2860,9 @@
   "projects.hostedRun": "Run #{{number}} অনলাইনে",
   "runs.number": "run #{{number}}",
   "assistant.ownAgent": "আপনার নিজস্ব এজেন্ট ব্যবহার করুন",
-  "assistant.costShort": "ব্যবহারের আনুমানিক খরচ: ${{cost}}"
+  "assistant.costShort": "ব্যবহারের আনুমানিক খরচ: ${{cost}}",
+  "hosting.restart": "অ্যাপ্লিকেশন পুনরায় চালু করুন",
+  "hosting.restart.ready": "সর্বশেষ যে সংস্করণটি চলেছিল, সেটি পুনরায় চালু করুন। এর ডেটা সংরক্ষিত থাকবে।",
+  "hosting.version.restart": "পুনরায় চালু করুন: {{version}}",
+  "hosting.confirm.restart": "আপনার অ্যাপ্লিকেশনটি সর্বশেষ চলা সংস্করণ দিয়ে পুনরায় চালু হবে। এখনও চলমান সবকিছু প্রথমে বন্ধ করা হবে। এর ডেটা সংরক্ষিত থাকবে।"
 }

@@ -2860,5 +2860,9 @@
   "projects.hostedRun": "Run #{{number}} онлайн",
   "runs.number": "Run №{{number}}",
   "assistant.ownAgent": "Использовать своего агента",
-  "assistant.costShort": "Оценка расходов: ${{cost}}"
+  "assistant.costShort": "Оценка расходов: ${{cost}}",
+  "hosting.restart": "Перезапустить приложение",
+  "hosting.restart.ready": "Перезапустить последнюю запускавшуюся версию. Её данные сохранятся.",
+  "hosting.version.restart": "Перезапустить: {{version}}",
+  "hosting.confirm.restart": "Приложение будет перезапущено с последней запускавшейся версией. Сначала будут остановлены все выполняющиеся процессы. Данные приложения сохранятся."
 }

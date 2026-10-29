@@ -2860,5 +2860,9 @@
   "projects.hostedRun": "Run #{{number}} daring",
   "runs.number": "Run #{{number}}",
   "assistant.ownAgent": "Gunakan agen Anda sendiri",
-  "assistant.costShort": "Perkiraan penggunaan: ${{cost}}"
+  "assistant.costShort": "Perkiraan penggunaan: ${{cost}}",
+  "hosting.restart": "Mulai ulang aplikasi",
+  "hosting.restart.ready": "Mulai ulang versi terakhir yang dijalankan. Datanya tetap disimpan.",
+  "hosting.version.restart": "Mulai ulang: {{version}}",
+  "hosting.confirm.restart": "Aplikasi Anda akan dimulai ulang dengan versi terakhir yang dijalankan. Semua yang masih berjalan akan dihentikan terlebih dahulu. Datanya tetap disimpan."
 }

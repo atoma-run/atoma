@@ -2860,5 +2860,9 @@
   "projects.hostedRun": "run #{{number}} ऑनलाइन",
   "runs.number": "run #{{number}}",
   "assistant.ownAgent": "अपने agent का उपयोग करें",
-  "assistant.costShort": "उपयोग का अनुमान: ${{cost}}"
+  "assistant.costShort": "उपयोग का अनुमान: ${{cost}}",
+  "hosting.restart": "एप्लिकेशन को फिर से शुरू करें",
+  "hosting.restart.ready": "पिछली बार चले संस्करण को फिर से शुरू करें। उसका डेटा सुरक्षित रखा गया है।",
+  "hosting.version.restart": "फिर से शुरू करें: {{version}}",
+  "hosting.confirm.restart": "आपका एप्लिकेशन पिछली बार चले संस्करण के साथ फिर से शुरू होगा। पहले चल रही सभी प्रक्रियाएँ रोक दी जाएँगी। उसका डेटा सुरक्षित रखा गया है।"
 }

@@ -2860,5 +2860,9 @@
   "projects.hostedRun": "run #{{number}} 在线",
   "runs.number": "run #{{number}}",
   "assistant.ownAgent": "使用您自己的代理",
-  "assistant.costShort": "用量估算：${{cost}}"
+  "assistant.costShort": "用量估算：${{cost}}",
+  "hosting.restart": "重启应用",
+  "hosting.restart.ready": "重启上次运行的版本。其数据将保留。",
+  "hosting.version.restart": "重启：{{version}}",
+  "hosting.confirm.restart": "您的应用将使用上次运行的版本重启。所有仍在运行的内容都会先停止。其数据将保留。"
 }

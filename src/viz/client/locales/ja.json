@@ -2860,5 +2860,9 @@
   "projects.hostedRun": "run #{{number}}をオンラインで実行",
   "runs.number": "Run #{{number}}",
   "assistant.ownAgent": "ご自身のエージェントを使用",
-  "assistant.costShort": "利用料金の見積もり：${{cost}}"
+  "assistant.costShort": "利用料金の見積もり：${{cost}}",
+  "hosting.restart": "アプリケーションを再起動",
+  "hosting.restart.ready": "最後に実行したバージョンを再起動します。データは保持されます。",
+  "hosting.version.restart": "再起動：{{version}}",
+  "hosting.confirm.restart": "アプリケーションを最後に実行したバージョンで再起動します。実行中のものは先に停止します。データは保持されます。"
 }

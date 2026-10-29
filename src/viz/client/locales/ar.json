@@ -2860,5 +2860,9 @@
   "projects.hostedRun": "run #{{number}} عبر الإنترنت",
   "runs.number": "run رقم {{number}}",
   "assistant.ownAgent": "استخدم وكيلك الخاص",
-  "assistant.costShort": "التكلفة التقديرية للاستخدام: ${{cost}}"
+  "assistant.costShort": "التكلفة التقديرية للاستخدام: ${{cost}}",
+  "hosting.restart": "إعادة تشغيل التطبيق",
+  "hosting.restart.ready": "أعِد تشغيل آخر إصدار تم تشغيله. سيُحتفظ ببياناته.",
+  "hosting.version.restart": "إعادة التشغيل: {{version}}",
+  "hosting.confirm.restart": "سيُعاد تشغيل تطبيقك باستخدام آخر إصدار تم تشغيله. سيُوقَف أولًا أي شيء لا يزال قيد التشغيل. سيُحتفظ ببياناته."
 }
