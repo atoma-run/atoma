@@ -67,3 +67,24 @@ The pre-release receipt records exact data hashes and modes, the active revision
 and a double-hashed grant fingerprint, never a raw browser credential. The
 following release's outcome must be observed before claiming production
 continuity; this entry records preparation and the verified first activation.
+
+The record-only follow-up 5ba0d539 did not deploy: both fresh-worker jobs failed
+while all hermetic checks passed. The complete first-attempt logs are retained.
+One repeated the engine-confirmed-removal refusal in a terminal preview; the
+other interrupted the low-disk fixture's setup. The latter used a call-count
+mock: after its first capacity answer, every check returned zero, including the
+periodic check while cold Docker was still preparing and writing the fixture.
+Its fault is now explicitly enabled only after the proof-file write completes.
+The unchanged assertions still require actual workload exit, retained volumes
+and an indeterminate server assignment until reconciliation.
+
+The worker job now runs its nine test files sequentially on their shared Docker
+daemon. Explicit concurrent-browser, transport and thread-headroom tests within
+each file remain unchanged, as do all cleanup and isolation assertions. This
+removes unrelated Docker lifecycles competing beside bounded cleanup probes;
+it does not change production cleanup timing or assert absence on a timeout.
+The corrected low-disk case passed locally through real TLS and Docker in
+10.7 seconds using existing immutable images and a test-owned random machine.
+No shared image was rebuilt. The complete release check also passed again:
+8,608 tests, 45 existing skips. The next CI must establish the full real-image
+result; these local results do not substitute for it.

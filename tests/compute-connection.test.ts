@@ -1080,13 +1080,17 @@ it.skipIf(!process.env['ATOMA_TEST_WORKSPACE_IMAGE'] || !process.env['ATOMA_TEST
       workspaceImage: docker(['image', 'inspect', '--format', '{{.Id}}', process.env['ATOMA_TEST_WORKSPACE_IMAGE']!]),
       workerImage: docker(['image', 'inspect', '--format', '{{.Id}}', process.env['ATOMA_TEST_WORKER_IMAGE']!]) });
     const filter = `label=dev.atoma.compute=${machine.machineId()}`;
-    const disk = vi.spyOn(DesktopCompute.prototype, 'freeDiskBytes').mockResolvedValueOnce(8 * 1024 ** 3).mockResolvedValue(0);
+    let lowDisk = false;
+    const disk = vi.spyOn(DesktopCompute.prototype, 'freeDiskBytes').mockImplementation(async () => lowDisk ? 0 : 8 * 1024 ** 3);
     try {
       const client = await machine.connect({ url, credential: paired.credential, capabilities, ca: readFileSync(join(root, 'cert'), 'utf8') });
       const execution = { runId, generation: devices.assign(owner, client.session, runId, resources).generation };
       const peer = peers.at(-1)!; await peer.bind(execution);
       await peer.request(execution, { method: 'prepare', clean: false });
       await peer.requestTool(execution, { method: 'invoke', name: 'write_file', args: { path: 'proof.txt', content: 'retained under disk pressure' } });
+      // Trigger the fault after fixture preparation, even when a cold Docker
+      // start takes longer than the machine's periodic disk check.
+      lowDisk = true;
       expect(await client.finished).toBe(true);
       expect(machine.diskStatus().freeBytes).toBe(0);
       expect(machine.allocations()).toMatchObject([{ execution, state: 'stopped' }]);
