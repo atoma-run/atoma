@@ -14,6 +14,7 @@ import { DesktopCompute } from './desktopCompute.js';
 import { computeClientSettingsSchema, computeImageSchema, computeLocalJournalSchema, resolveComputeBudget, type ComputeResourceBudget, type ComputeClientSettings } from '../contracts/computeLocal.js';
 import { computeCapabilitiesSchema } from '../contracts/computeDevice.js';
 import { COMPUTE_IMAGES } from '../contracts/computeImages.js';
+import { ComputeConnectionUnavailableError } from './computeClient.js';
 
 /** The services this installation offers. `preview-classification` means its
  * copier takes the host's delivery classification, which only the workspace
@@ -180,7 +181,25 @@ export async function computeMain(argv: string[], hooks: ComputeApplicationHooks
       memoryBytes: budget.memoryGiB * 1024 ** 3, diskBytes: diagnostic.diskBytes });
     const connectionOptions = { onDisconnect: () => hooks.connection?.(false), url: config.origin.replace(/^https:/, 'wss:') + '/compute/v1',
       credential: await new ComputeCredential(root, config.origin, config.deviceId).read(), capabilities };
-    let connected = await machine.connect(connectionOptions);
+    const connect = async (currentCapabilities: typeof capabilities) => {
+      let retryMs = 1000;
+      for (;;) {
+        exiting.signal.throwIfAborted();
+        try { return await machine.connect({ ...connectionOptions, capabilities: currentCapabilities }); }
+        catch (error) {
+          if (!(error instanceof ComputeConnectionUnavailableError) || hooks.reconnect?.() === false) throw error;
+          hooks.connection?.(false);
+          console.log(`Compute network unavailable; workloads stopped. Retrying in ${retryMs / 1000} seconds.`);
+          await delay(retryMs, undefined, { signal: exiting.signal });
+          retryMs = Math.min(30_000, retryMs * 2);
+          const refreshed = await DesktopCompute.diagnoseClient(config);
+          const refreshedBudget = resolveComputeBudget(refreshed, computeSettings(root).resourceBudget);
+          currentCapabilities = { ...capabilities, cpus: refreshedBudget.cpus,
+            memoryBytes: refreshedBudget.memoryGiB * 1024 ** 3, diskBytes: refreshed.diskBytes };
+        }
+      }
+    };
+    let connected = await connect(capabilities);
     hooks.connection?.(true);
     const control = async (action: 'accept' | 'drain' | 'pause' | 'stop') => {
       if (action === 'accept' || action === 'drain') await connected.requestControl('accepting', action === 'accept');
@@ -210,12 +229,12 @@ export async function computeMain(argv: string[], hooks: ComputeApplicationHooks
         console.log('Connection ended; workloads stopped. Reconnecting to reconcile. Interrupted runs require explicit recovery in Atoma.');
         await delay(1000, undefined, { signal: exiting.signal }).catch(() => {});
         if (exiting.signal.aborted) break;
-        // A failed reconnect is actionable and exits; commands with uncertain
-        // effects are never retried. A fresh successful session accepts new work.
+        // Retry only confirmed pre-session network failures. No command is
+        // replayed; authentication, resources and teardown failures still exit.
         const refreshed = await DesktopCompute.diagnoseClient(config);
         const refreshedBudget = resolveComputeBudget(refreshed, computeSettings(root).resourceBudget);
-        connected = await machine.connect({ ...connectionOptions, capabilities: { ...capabilities,
-          cpus: refreshedBudget.cpus, memoryBytes: refreshedBudget.memoryGiB * 1024 ** 3, diskBytes: refreshed.diskBytes } });
+        connected = await connect({ ...capabilities,
+          cpus: refreshedBudget.cpus, memoryBytes: refreshedBudget.memoryGiB * 1024 ** 3, diskBytes: refreshed.diskBytes });
         hooks.connection?.(true);
         console.log('Connected; accepting only fresh authorized assignments.');
       }

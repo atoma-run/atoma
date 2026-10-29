@@ -104,6 +104,11 @@ The headless CLI keeps credentials in macOS Keychain or Windows DPAPI
 CurrentUser, never plaintext config, argv or environment. Pairing, image pulling
 and Docker resource changes are explicit; diagnostic probes do not alter Docker
 settings. A closed guard cannot be revived by a late response or reused after reconnect.
+Before a new session, transient DNS/socket failures retry with a one-second
+backoff capped at thirty seconds, only after engine-confirmed teardown. The
+inventory owner stays locked and each retry reconciles and rechecks capacity.
+TLS, identity, protocol and unconfirmed-cleanup failures remain terminal; no
+command or interrupted run is replayed by this reconnect loop.
 
 Explicit desktop preparation refreshes all four pins from the bundled verified
 `computeImages.ts` release before pulling. It requires local inventory ownership

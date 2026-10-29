@@ -206,7 +206,7 @@ it('stops renewing a workload lease after its project grant is withdrawn', async
   expect(devices.inspect(f.owner, f.paired.deviceId).connected).toBe(false);
 });
 
-import { connectComputeWorkspace } from '../src/launcher/computeClient.js';
+import { connectComputeWorkspace, ComputeConnectionUnavailableError } from '../src/launcher/computeClient.js';
 import { workspaceCommandHandler, remoteWorkspaceRuntime } from '../src/run/workspaceRpc.js';
 import { localWorkspaceRuntime } from '../src/run/workspaceRuntime.js';
 
@@ -304,6 +304,58 @@ it('refuses plaintext endpoints before constructing a connection', async () => {
   await expect(connectComputeWorkspace({ url: url.replace('wss:', 'ws:'), credential: '', machineId: randomUUID(), capabilities,
     execution: { runId: randomUUID(), generation: 1 }, execute: async () => { throw new Error('Unreachable'); },
     stopWorkloads: async () => {} })).rejects.toThrow('WSS');
+});
+
+async function refusedEndpoint() {
+  const listener = createServer(); listener.listen(0, '127.0.0.1'); await once(listener, 'listening');
+  const address = listener.address();
+  if (!address || typeof address === 'string') throw new Error('Missing listener');
+  await new Promise<void>(resolve => listener.close(() => resolve()));
+  return `wss://127.0.0.1:${address.port}/compute/v1`;
+}
+
+it.each([true, false])('classifies a real refused connection only after confirmed teardown (%s)', async confirmed => {
+  let release!: () => void; const stopped = new Promise<void>(resolve => { release = resolve; });
+  const stopWorkloads = vi.fn(async () => { await stopped; if (!confirmed) throw new Error('Engine unavailable'); });
+  let settled = false;
+  const result = connectComputeWorkspace({ url: await refusedEndpoint(), machineId: randomUUID(),
+    credential: 'a'.repeat(43), capabilities, assign: async () => { throw new Error('Must not assign'); }, stopWorkloads })
+    .catch((error: unknown) => { settled = true; return error; });
+  try {
+    await vi.waitFor(() => expect(stopWorkloads).toHaveBeenCalledOnce());
+    expect(settled).toBe(false);
+  } finally { release(); }
+  const error = await result;
+  expect(error instanceof ComputeConnectionUnavailableError).toBe(confirmed);
+  if (!confirmed) expect(String(error)).toContain('unconfirmed');
+});
+
+it('retains inventory ownership and reconnects the same real machine after a refused initial socket', async () => {
+  const { ComputeMachine } = await import('../src/launcher/computeMachine.js');
+  const reconcile = vi.spyOn(DesktopCompute, 'reconcile').mockResolvedValue(undefined);
+  const config = { stateRoot: realpathSync(mkdtempSync(join(root, 'network-retry-'))),
+    workerImage: `sha256:${'a'.repeat(64)}`, workspaceImage: `sha256:${'a'.repeat(64)}` };
+  const machine = new ComputeMachine(config), owner = actor(), paired = pairing(owner);
+  const options = { credential: paired.credential, capabilities, ca: readFileSync(join(root, 'cert'), 'utf8') };
+  try {
+    await expect(machine.connect({ ...options, url: await refusedEndpoint() })).rejects.toBeInstanceOf(ComputeConnectionUnavailableError);
+    expect(() => new ComputeMachine(config)).toThrow(/locked/i);
+    const connection = await machine.connect({ ...options, url });
+    expect(connection.session.deviceId).toBe(paired.deviceId);
+    expect(machine.allocations()).toEqual([]);
+    expect(reconcile).toHaveBeenCalledTimes(2);
+  } finally { await machine.close(); reconcile.mockRestore(); }
+});
+
+it.each(['certificate', 'credential'] as const)('keeps a real %s refusal terminal rather than marking it retryable', async defect => {
+  const owner = actor(), paired = pairing(owner);
+  const error = await connectComputeWorkspace({ url, machineId: paired.deviceId,
+    credential: defect === 'credential' ? 'z'.repeat(43) : paired.credential, capabilities,
+    ...(defect === 'credential' ? { ca: readFileSync(join(root, 'cert'), 'utf8') } : {}),
+    assign: async () => { throw new Error('Must not assign'); }, stopWorkloads: async () => {} })
+    .catch((error: unknown) => error);
+  expect(error).toBeInstanceOf(Error);
+  expect(error).not.toBeInstanceOf(ComputeConnectionUnavailableError);
 });
 
 it('closes the socket and rejects unknown effects even when persisting disconnection fails', async () => {

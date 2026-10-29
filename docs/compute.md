@@ -113,6 +113,13 @@ does not extend that connection lease. Only engine-confirmed teardown permits a
 fresh connection to reconcile an interrupted execution. Without an eligible
 confirmed checkpoint, that new connection cannot resume its work.
 
+If a fresh connection encounters a temporary DNS or socket failure, Compute
+keeps trying after confirmed workload teardown, with delays from one second
+up to thirty seconds. Each attempt reconciles the local inventory and checks
+Docker capacity again. Disconnect cancels this wait. Authentication, certificate,
+protocol and unconfirmed-cleanup failures still require attention; retries
+never replay a command or restart an interrupted run.
+
 This transport extension requires updated Compute and server versions. Older
 peers retain the previous fail-closed behavior. It is not a run-restart feature.
 

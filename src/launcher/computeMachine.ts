@@ -95,7 +95,7 @@ export class ComputeMachine {
       if (this.closed) { await this.connection.close(); throw new Error('Compute connection cancelled'); }
       this.diskTimer = setInterval(() => { void this.checkDisk(); }, 10_000); this.diskTimer.unref();
       return this.connection;
-    } catch (error) { this.connecting = false; throw error; }
+    } catch (error) { this.connecting = false; this.connectionAttempt = undefined; throw error; }
   }
   private async previewCommand(identity: ComputePreviewIdentity, command: ComputePreviewCommand) {
     if (this.closed || !this.options.previewImage) throw new Error('Compute preview unavailable');

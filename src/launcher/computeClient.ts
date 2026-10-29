@@ -14,6 +14,12 @@ import { COMPUTE_FRAME_BYTES, computeExecutionSchema, computeHelloSchema, comput
 import type { ComputeCapabilities, ComputeSession } from '../contracts/computeDevice.js';
 import { WorkspaceExportRefusedError, workspaceReplySchema, type WorkspaceCommand, type WorkspaceReply } from '../contracts/workspaceProtocol.js';
 
+/** A pre-session network failure whose workload teardown has been confirmed.
+ * Authentication, TLS and protocol refusals must remain actionable failures. */
+export class ComputeConnectionUnavailableError extends Error {
+  constructor() { super('Compute network connection unavailable; workloads stopped'); }
+}
+
 /** Outbound, one-generation workspace channel. The trusted launcher binds the
  * execution and private handler before connecting; the wire cannot choose a
  * filesystem root or engine profile. A live lease may migrate its transport. */
@@ -81,7 +87,14 @@ export async function connectComputeWorkspace(options: {
       closed = true; diagnostic(reason, extra); transferAbort.abort(); clearInterval(heartbeat); clearInterval(networkWatch); clearTimeout(deadline);
       if (control) { clearTimeout(control.timer); control.reject(new Error('Compute control indeterminate')); control = undefined; }
       try { options.onDisconnect?.(); } catch { /* UI observers cannot prevent teardown. */ }
-      socket.terminate(); rejectReady(new Error('Compute connection lost; reconciliation required'));
+      socket.terminate();
+      // Reject only after teardown: callers may establish another session, but
+      // must never overlap an uncertain allocation from this attempt.
+      const retryable = !session && reason === 'socket-error' &&
+        ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN'].includes(extra.errorCode ?? '');
+      void lease.stop().then(confirmed => rejectReady(confirmed && retryable
+        ? new ComputeConnectionUnavailableError()
+        : new Error(confirmed ? 'Compute connection lost; reconciliation required' : 'Compute workload stop remains unconfirmed')));
     }
     return lease.stop().then(confirmed => {
       if (!stopLogged) { stopLogged = true; diagnostic(confirmed ? 'stop-confirmed' : 'stop-unconfirmed'); }

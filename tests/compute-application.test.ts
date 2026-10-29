@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { computeMain, saveComputeBudget, type ComputeApplicationHooks } from '../src/launcher/computeApplication.js';
-const m = vi.hoisted(() => ({ home: '', connect: vi.fn(), close: vi.fn(), read: vi.fn(), diagnose: vi.fn(), control: vi.fn(), construct: vi.fn() }));
+import { ComputeConnectionUnavailableError } from '../src/launcher/computeClient.js';
+const m = vi.hoisted(() => ({ home: '', connect: vi.fn(), close: vi.fn(), read: vi.fn(), diagnose: vi.fn(), control: vi.fn(), construct: vi.fn(), delay: vi.fn() }));
+vi.mock('node:timers/promises', () => ({ setTimeout: m.delay }));
 vi.mock('node:os', async original => ({ ...await original<typeof import('node:os')>(), homedir: () => m.home }));
 vi.mock('../src/launcher/computeCredential.js', () => ({ ComputeCredential: class { read = m.read; } }));
 vi.mock('../src/launcher/desktopCompute.js', () => ({ DesktopCompute: { diagnoseClient: m.diagnose, diagnose: m.diagnose } }));
@@ -19,6 +21,7 @@ beforeEach(() => {
   writeFileSync(join(root, 'settings.json'), JSON.stringify({ version: 1, origin: 'https://atoma.run', deviceId: randomUUID(), orgId: randomUUID(), workspaceImage: image, workerImage: image, retrievalImage: image, previewImage: image, egress: true }));
   m.diagnose.mockResolvedValue({ cpus: 8, memoryBytes: 8 * 1024 ** 3, diskBytes: 20 * 1024 ** 3 });
   m.read.mockResolvedValue('credential-only-in-runtime'); m.close.mockResolvedValue(undefined); m.control.mockResolvedValue(undefined);
+  m.delay.mockResolvedValue(undefined);
 });
 afterEach(() => { Object.defineProperty(process, 'platform', originalPlatform); vi.restoreAllMocks(); rmSync(m.home, { recursive: true, force: true }); });
 it('holds shutdown until the actual shared machine confirms engine cleanup', async () => {
@@ -43,6 +46,55 @@ it('uses the existing control protocol and refuses to reconnect a drained deskto
   await computeMain(['start'], { appVersion: '0.4.0', controls: value => { control = value; }, reconnect: () => false });
   await control!('drain'); await control!('pause');
   expect(m.control.mock.calls).toEqual([['accepting', false], ['pause']]); expect(m.connect).toHaveBeenCalledOnce();
+});
+
+it('keeps retrying a confirmed network outage with capped backoff and rechecks resources before reconnecting', async () => {
+  m.connect.mockRejectedValue(new ComputeConnectionUnavailableError());
+  m.connect.mockRejectedValueOnce(new ComputeConnectionUnavailableError());
+  const abort = new AbortController();
+  m.delay.mockImplementation(async () => {
+    if (m.delay.mock.calls.length === 8) {
+      m.diagnose.mockResolvedValue({ cpus: 6, memoryBytes: 6 * 1024 ** 3, diskBytes: 21 * 1024 ** 3 });
+      m.connect.mockResolvedValue({ requestControl: m.control, finished: Promise.resolve(true) });
+    }
+  });
+  const connected = vi.fn();
+  await computeMain(['start'], { appVersion: '0.4.0', signal: abort.signal,
+    controls: () => abort.abort(), connection: connected });
+  expect(m.delay.mock.calls.map(call => call[0])).toEqual([1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000]);
+  expect(m.connect).toHaveBeenCalledTimes(9);
+  expect(m.connect.mock.calls.at(-1)![0].capabilities).toMatchObject({ cpus: 5, diskBytes: 21 * 1024 ** 3 });
+  expect(connected).toHaveBeenCalledWith(true);
+  expect(m.construct).toHaveBeenCalledOnce();
+});
+
+it('recovers a transient failed reconnect after a stopped session without replaying controls or assignments', async () => {
+  const abort = new AbortController(); let connections = 0;
+  m.connect.mockResolvedValue({ requestControl: m.control, finished: Promise.resolve(true) })
+    .mockResolvedValueOnce({ requestControl: m.control, finished: Promise.resolve(true) })
+    .mockRejectedValueOnce(new ComputeConnectionUnavailableError());
+  await computeMain(['start'], { appVersion: '0.4.0', signal: abort.signal, controls: () => {},
+    connection: connected => { if (connected && ++connections === 2) abort.abort(); } });
+  expect(m.connect).toHaveBeenCalledTimes(3);
+  expect(m.control).not.toHaveBeenCalled();
+  expect(m.construct).toHaveBeenCalledOnce();
+});
+
+it.each(['Compute connection lost; reconciliation required', 'Compute workload stop remains unconfirmed', 'certificate expired', 'Docker unavailable'])(
+  'does not retry a terminal refusal: %s', async message => {
+    m.connect.mockRejectedValue(new Error(message));
+    await expect(computeMain(['start'], { appVersion: '0.4.0' })).rejects.toThrow(message);
+    expect(m.connect).toHaveBeenCalledOnce(); expect(m.delay).not.toHaveBeenCalled();
+  });
+
+it('cancels network backoff promptly and does not reconnect after the user stops', async () => {
+  const abort = new AbortController();
+  m.connect.mockRejectedValue(new ComputeConnectionUnavailableError());
+  m.delay.mockImplementation(async (_ms, _value, options: { signal: AbortSignal }) => {
+    abort.abort(); options.signal.throwIfAborted();
+  });
+  await expect(computeMain(['start'], { appVersion: '0.4.0', signal: abort.signal })).rejects.toThrow();
+  expect(m.connect).toHaveBeenCalledOnce(); expect(m.close).toHaveBeenCalled();
 });
 
 it('reads the saved budget for each new assignment and advertises the initial selected capacity', async () => {
