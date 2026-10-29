@@ -1,5 +1,5 @@
 import { observeTiming } from './runtimeTiming.js';
-import { withPartialUsage } from './metrics.js';
+import { partialUsageOf, withPartialUsage } from './metrics.js';
 import { CODEX_MODEL_CAPABILITIES_ENV, codexModelSchema } from '../contracts/codexModels.js';
 import { completeCodexToolLoop, isCodexToolAction } from './codexToolLoop.js';
 import {
@@ -264,9 +264,9 @@ export function mapCodexUsage(u: {
 }
 
 /**
- * True when a Codex error is worth one retry: upstream 5xx, or a 429 rate
- * limit (a subscription throttles under a burn-in batch, which is
- * transient by definition). A 4xx that is not 429 is a real request error
+ * True when a Codex error is worth bounded recovery: upstream 5xx, or a 429 rate
+ * limit (a subscription can throttle between otherwise successful calls).
+ * Permanent throttles still exhaust the bounded recovery. Other 4xx errors
  * the caller must see — mirrors `isCliTransportErrorText`'s 5xx-only rule,
  * widened for the subscription throttle this transport can actually hit.
  */
@@ -313,6 +313,28 @@ function isRetryableCodexFailure(code: CodexFailureCode): boolean {
   return RETRYABLE_CODEX_FAILURES.has(code);
 }
 
+// Attica's text calls failed after the former 3 s retry while exact replays
+// answered later (2026-10-29). Retrying the same read-only completion preserves
+// completed host work. Never replay an app-server session's host tools here.
+const CODEX_RATE_LIMIT_RETRY_DELAYS_MS = [10_000, 20_000, 40_000, 80_000] as const;
+
+function waitForCodexRetry(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      const reason: unknown = signal?.reason;
+      reject(reason instanceof Error ? reason : new Error(typeof reason === 'string' ? reason : 'aborted'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+  });
+}
+
 /**
  * Reduce provider-owned prose immediately. The raw string is used only to
  * decide retry/auth/status semantics and is never attached as an Error cause,
@@ -347,12 +369,15 @@ export function classifyCodexDiagnostic(
 export class CodexTransportError extends Error {
   readonly code: CodexFailureCode;
   readonly retried: boolean;
+  readonly retryCount: number;
 
-  constructor(code: CodexFailureCode, retried = false) {
-    super(`codex call failed [${code}]${retried ? ' after 1 retry' : ''}`);
+  constructor(code: CodexFailureCode, retried: boolean | number = false) {
+    const count = typeof retried === 'number' ? retried : retried ? 1 : 0;
+    super(`codex call failed [${code}]${count ? ` after ${count} ${count === 1 ? 'retry' : 'retries'}` : ''}`);
     this.name = 'CodexTransportError';
     this.code = code;
-    this.retried = retried;
+    this.retried = count > 0;
+    this.retryCount = count;
   }
 }
 
@@ -708,24 +733,37 @@ export class CodexCliLlmClient implements LlmClient {
       // pin billed `codex:claude-opus-5` at the /opus/i row for gpt-5.6-sol
       // tokens (review 2026-08-14 §1.13).
       const served = resolveCodexModel(req.model, this.modelEnv);
-      const first = await this.completeOnce(req, outputSchema);
-      if (first.error === undefined) return toResponse(first, served);
-      if (!isRetryableCodexFailure(first.error)) throw Object.assign(new CodexTransportError(first.error), { partialUsage: first.usage });
-      process.stderr.write(`[atoma] Codex text call recovery: ${first.error}; one retry, same model.\n`);
-      // Transient (5xx / subscription throttle): one retry, then surface it
-      // as a real transport error so metrics record an error call instead of
-      // a parser crash far from the cause. Only the stable classification
-      // crosses this boundary; provider prose was discarded by completeOnce.
-      await new Promise((r) => setTimeout(r, 3000));
-      const second = await this.completeOnce(req, outputSchema);
-      const usage = {
-        inputTokens: first.usage.inputTokens + second.usage.inputTokens,
-        outputTokens: first.usage.outputTokens + second.usage.outputTokens,
-        cacheReadInputTokens: (first.usage.cacheReadInputTokens ?? 0) + (second.usage.cacheReadInputTokens ?? 0),
-        cacheCreationInputTokens: (first.usage.cacheCreationInputTokens ?? 0) + (second.usage.cacheCreationInputTokens ?? 0),
-      };
-      if (second.error === undefined) return toResponse({ ...second, usage }, served);
-      throw Object.assign(new CodexTransportError(second.error, true), { partialUsage: usage });
+      let outcome = await this.completeOnce(req, outputSchema);
+      if (outcome.error === undefined) return toResponse(outcome, served);
+      const delays = outcome.error === 'rate-limited' ? CODEX_RATE_LIMIT_RETRY_DELAYS_MS : [3000];
+      const usage = { ...outcome.usage };
+      let retries = 0;
+      for (;;) {
+        if (outcome.error === undefined) return toResponse({ ...outcome, usage }, served);
+        const failure = outcome.error;
+        const delay = delays[retries];
+        if (!isRetryableCodexFailure(failure) || delay === undefined) {
+          throw withPartialUsage(new CodexTransportError(failure, retries), usage);
+        }
+        process.stderr.write(`[atoma] Codex text call recovery: ${outcome.error}; retry ${retries + 1}/${delays.length} in ${delay}ms, same model.\n`);
+        try {
+          await waitForCodexRetry(delay, req.signal);
+          outcome = await this.completeOnce(req, outputSchema);
+        } catch (error) {
+          const partial = partialUsageOf(error);
+          throw withPartialUsage(error, {
+            inputTokens: usage.inputTokens + (partial?.inputTokens ?? 0),
+            outputTokens: usage.outputTokens + (partial?.outputTokens ?? 0),
+            cacheReadInputTokens: (usage.cacheReadInputTokens ?? 0) + (partial?.cacheReadInputTokens ?? 0),
+            cacheCreationInputTokens: (usage.cacheCreationInputTokens ?? 0) + (partial?.cacheCreationInputTokens ?? 0),
+          });
+        }
+        retries++;
+        usage.inputTokens += outcome.usage.inputTokens;
+        usage.outputTokens += outcome.usage.outputTokens;
+        usage.cacheReadInputTokens = (usage.cacheReadInputTokens ?? 0) + (outcome.usage.cacheReadInputTokens ?? 0);
+        usage.cacheCreationInputTokens = (usage.cacheCreationInputTokens ?? 0) + (outcome.usage.cacheCreationInputTokens ?? 0);
+      }
     } finally {
       releaseProfile?.();
     }

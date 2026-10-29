@@ -111,6 +111,12 @@ Neighbours:
   The bounded continuation is logged with its safe category; a second failure
   cannot fall back to exec. The text path recognises Codex's status-less
   "Selected model is at capacity" refusal as service-unavailable too.
+- A text completion initially refused with `rate-limited` has at most four
+  retries on the same model and request, spaced by 10, 20, 40 and 80 seconds.
+  The outer run signal cancels the wait immediately; all attempts retain paid
+  usage. Other transient text failures keep one 3-second retry, and a later
+  non-transient refusal stops recovery. Logs expose only safe codes and counts.
+  This never replays an app-server tool session or switches model or payer.
 - AGENTS.md DISCOVERY IS OFF on both Codex paths (`project_doc_max_bytes=0`,
   2026-10-09). The cwd is an empty jail and the instructions travel by file, so
   discovery could only find nothing; and under the `:root=deny` profile it runs
