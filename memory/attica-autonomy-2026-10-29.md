@@ -802,3 +802,177 @@ archive-unique-human743047chars with dictionary/recipe inverse verified. READ
 archive-unique-human0..56000; NEXT56000. Supplementary new-archive-leaf-human
 1749301chars also READ0..56000 but no complete-body credit beyond boundaries.
 Final event/attestation tail still unread; no completed a6 proof or delivery claim.
+
+## 06:08 UTC — paging fix deployed; Compute client updated, image pull continues
+
+e34b72d346cba41b7701c237970496aa1f5a7bc4 pushed to main and own branch, clean/equal.
+Main CI40826089356 SUCCESS; branch CI40826095050 SUCCESS; CodeQL40826089214
+SUCCESS. Compute desktop40826089391 SUCCESS, unchanged client content skipped.
+Production deploy40826554546 SUCCESS; SSH activeexacte34b72d3 and HTTP200.
+No new worker publication needed for this server-only atoms fix.
+
+Official0.5.219 ARM64 DMG download finished130707379B, SHA
+be76e0145a7a8c2d71416d58aa83dc080400eb91bc5693bc58e2945c83f1649b matched
+published checksum. Readonly hdiutil mount verified every CRC, codesign --verify
+--deep --strict passed. Verified CFBundle version0.5.219/IDrun.atoma.compute.
+Old UI had No active workload; drained; menu Quit then Stop and quit confirmed,
+normal shutdown. Installed verified official bundle atomically via ditto/staging,
+preserving entire old bundle at durable attica-compute-app-before-0.5.219.app.
+No credential/system security change or Gatekeeper bypass. New app opened normally.
+Clicked Prepare and connect. Settings workerImage now exact62e2aa1f... verified.
+UI still downloading tools,7of8 new layers ready,1of4 components; native docker
+pull PID15921 normal ongoing. Do NOT stop or duplicate it. Readonly manifest
+inspect shows13total layers424834910 compressed bytes, biggest284187271B.
+Old images/volumes/logs/cache all retained. Need Ready/actual server device caps
+0.5.219+newworker before live run; restore admission if not automatically enabled.
+Device9bafcb10-327f-477d-ac4a-82ec1fade218. Latest readiness active0, no problems.
+
+Next narrow SHORT run proposal saved /tmp/attica-autonomy-20261029/third-run-proposal.json,
+key attica-autonomy-20261029-captcha-durable-pause-03 NOT USED YET. Base actually
+verified3ca69f12. Goal only CAPTCHA slow-detail durability test with six cases,
+controlled200ms detail response, bounded persisted-pause wait, preserve all other
+bytes/modes/data/assets and use existing paused checkpoint/empty-body resume API.
+One135char criterion. Owner autonomy authorizes drafting/start. Do not start
+until Compute ready; before06:27 only. No large unchanged multi-file retry.
+Can follow this while reading remaining failed a6 evidence, never seed its code.
+
+Final2364 archive-unique-human743047chars ACTUALLYREAD0..280000, NEXT280000.
+Every28k call stayed below outer token limit, no truncation gaps. Main lossless
+inverse already verified all1141archives/2364events/2220atts. Supplementary leaf
+view0..56000 unchanged; archive-remaining-novel-text-112000.txt is OPTIONAL unused
+marker-removal view565262chars, NOT READ/NOT seed; prefer current exact archive-
+unique-human cursor. Final event/attestation semantic tail still unread.
+New findings: repeated fakeMALFORMED at60000 alongside independently valid JSON
+manifests174881→228653B; actual old-boundary CAPTCHA mutants fail null vs captcha,
+restored6/6 positive. Search mutants mostly changed expected assertions or setup,
+so do not credit them as regression of production guard. Further clean-copy
+recursivecp created duplicated fixtures/fixtures and helpers/helpers, recovered;
+final search3/3/root121+89 passes later, but no final root delivery. Recovered
+errors and overwritten latest-only manifest outcomes remain in raw transport.
+
+## 06:23 UTC — third run active on corrected Compute, initial state verified
+
+Compute Ready. Server first showed accepting=false despite UI claiming accepting
+(after our drain/restart); synchronized ONLY through UI Stop accepting then Accept
+new runs. Server readonly confirmed acceptingtrue,connectedtrue,idle, app0.5.219,
+worker62e2aa1f... before start. Potential UI admission-state sync defect to follow
+up, not patched; no SQL writes. Do not run local heavy tests beside active Compute.
+
+Started through native MCP at06:14:02.407Z, run683802d8-1c3f-47af-a857-4a8af56c12d6,
+key attica-autonomy-20261029-captcha-durable-pause-03 NOWUSED. Source3ca69f12,
+SHORT/singlecriterion, same retained251files. functions exec cell2456 eventually
+returned exact MCP tools/call timeout300s; run CONTINUES. Do not duplicate start.
+Same request saved third-run-proposal.json and functionsstore third-run-request.
+Latest status06:20: running, planning,6LLMcalls,$.05300228equivalent, no question.
+First post-edit criterion review refuses missing explicit200ms delay setup despite
+6/6 cases, so remediation is warranted (no approval credited). Trace id nowrunid.
+User informed initial verified + first actual missing-proof finding. Follow first.
+
+Complete initial export became available after setup06:20 (earlier missing-initial
+export was a premature read, not lost state). Snapshot0dccd6b9-5d4b-486b-bee5-ea79917dee6b,
+digest71da9f69f830b09149e0809febb850ecd498608bec30c72269f8b1665950028f,
+root493=0755,276entries/251files4505645B, EXACTsame paths/kinds/modes/bytes as a6's
+verified3ca seed: differences[]. PayloadSHA
+f7febae42ed38652fc497252367bc42cda51b799258430fbd78d0f8aafcaf720.
+Goal equals saved proposal. Initial metadata differs from a6 ONLY goal, checklist
+4→1/spec, runId and snapshotId; same environment/context8/inputs preserved.
+Full gzip, verification and request copied durably as attica-683802d8-*20261029.*.
+Metadata differences also saved third-initial-metadata-differences.json.
+Initial target source reread first140lines: still original fixedsleep250, checkpoint
+paused seeded, resume{}, two navigations/zero rows; review’s boundedpoll was NEW
+model edit, not the initial source. No ambiguity about demonstrated timing defect.
+
+Own control container atoma-compute-dca636b7-dc92-4e43-ac2a-7e50e21ec0e8-control,
+retrieval suffix-retrieval. Raw docker logs include base64 checkpoint bytes, so a
+premature --tail40 display was truncated; never claim all read. Started durable
+full logs --follow --timestamps BEFORE cleanup: sessions83165(control),18062(retrieval),
+files attica-683802d8-{control,retrieval}-raw.log in durable evidencefolder. These
+are read-only observers; preserve them until stop, then read/verify to end.
+Full project runner log initial2090chars read via MCP snapshot3339cd99... and
+saved /tmp/attica-autonomy-20261029/683802d8-log-start.json (JSONencodedlog).
+Setup observed checkpoint-next1076/capture-read-runs/inherited-state and retrieval
+prepare; no runtime fault established.
+
+Prior failed a6 final2364 archive-unique-human ACTUALLYREAD0..392000/743047,
+NEXT392000, no truncated28k calls. Final event/attestation semantic tail still
+unread. Preserve full prior trace/gzip/books, all inverse checks. Current run must
+finish/verdict/proofs/compare independently; no clientacceptance/publication/hosting.
+
+## 06:47 UTC — final narrow run delivered; hosted validation approved
+
+No new chantier/start after06:27. Source683802d8 delivered06:24:04.780Z on
+Compute0.5.219/newworker62e2aa1f and servere34b72d3. Native MCP start timed out
+300s, never duplicated. Complete initial276entries/251files4505645B preserved.
+Full final export276entries/251files4506183B compared to sealed initial: ONLY
+`tests/attica-control-captcha.test.js` content changed9581→10119B; all other250
+files, directories, kinds and modes identical. TargetSHA38fa6d22db51a001399931a34130f21bf1631f8bf1717fd2e9e36bbdef78ce60.
+Source adds detail-only200ms content wrapper and bounded200x10ms persisted pause
+poll, existing paused checkpoint, resume{},202,2navigations,0rows,6cases intact.
+Initial review refused missing explicit200ms setup, remediated. Source negative
+control is150ms (not exact old250ms); no claim of exact250reproduction there.
+Source final focused6/6 and clean root check121Vitest+89Node pass, build/lint/typecheck
+pass. Earlier clean-copy post-build exclusion check wrongly expected dist absent;
+failed1, corrected check retains no git/probes and same targetbytes/modes. Source
+has one recovered tool "Compute transport unavailable"184ms; no causal diagnosis.
+StrictTypeScript limitation: new polling/wrapper stayed in original CommonJS JS,
+project strict TS checks passed but changed JS is excluded by allowJs=false. Do
+not claim new maintained timing implementation was itself typechecked. No further
+repair chantier authorized after cutoff.
+
+Automatic hosted validation27634053-6e3e-41ff-8a91-fd1f973173ca started06:24:51.076Z,
+ended06:33:27.800Z, queuecompleted06:33:31.613Z,countersChanged=true,recipesChanged=true,
+$.17707684equivalent,11calls (4terra,7GLM4.5air). Rootbf56e392 AND criteriondabe91b5
+approved1/1. Actual validation replay starts9581B originalsealedsource and makes
+its OWN independent correction10469B, SHA76ec4d47462566f0719ad8bf927af3b6409a07cc6f1279df718ebc2484fb6b09. This is an independent rerun of the initial task,
+NOT byte-verification of the customer's delivered patch. It uses200ms contenthold,
+bounded100x10ms explicitassert, exact old250ms mutantFAIL,false!==true, restored6/6,
+clean-copy6/6 and ordinaryroot121Vitest+89Node pass. Initial clean Node call before
+build failed MODULE_NOT_FOUND; build recovered. BOTH failed1542B and successful695B
+versions of same logpath retained and verified, plus691Binstall/385Bbuild/18609Bcheck.
+No true MALFORMED/incomplete-manifest false verdict in current rerun. Parent tool
+budgetexhausted forcedfullreview thenapproved on recordedproof, notsummaryalone.
+Registry method amendment supportedboundedpersistedwait; another proposalnull;
+existing recheck-recorded-command-probes reused, no newsemantic twin. Sourceand
+validation root1/1 criterion is narrow, no claim of all browser checks passing.
+
+Read native productionMCP first. Privatevalidationtrace nativeMCP not_found (not a
+projectrun), then exact scoped readonlySSHfallback. Fullsource94events92atts49unique
+archives and hosted60events50atts41unique archives integrity+inverseverified; all
+unique humanviews read toend247730/199259chars, including prompts/verdicts/recovered
+failures, bothcomplete runnerlogs13845serializedchars/20424B readtoend. Source final
+bookeligible proofseed, hostedbookeligible; receipts explicitlyliteralFullRawRead=false
+(exactreferences/embeddedJSON decoding/line reconstruction preserveeveryfield).
+Hosted readerinverse initially tripped clipped base64 string inside a MODEL PROMPT;
+fixed diagnosticdecoder skips invalid embedded presentation only; actual60archive
+envelopes already independentlygunzip/SHA/lengthverified by read-evidence. Full
+inverse verified41archives60events50atts1metadata afterward. No productcodechange.
+
+Checkpoint exporter correctly refused hostedworkspace hardlinks/specialfiles after
+npmci. Readonlyfulltar instead:20797440B,4925members,SHA42a97cafe45c0d3c514a879a872fb29e9480645ebab27217f9126d572e958958. Every276initialentry compared mode/bytes:
+ONLYsame namedtest changed, initialdata/archives/config/assets preserved. Fulltar
+includesdependencies/runtime scratch, no deletes. Source rawDockercontrol14MB and
+retrieval32KB retained. `docker logs --timestamps` inserts timestamps everypartial
+chunk inside JSON/base64: apparentinvalidJSON NOTlostbytes. RemovedexactDocker
+presentationprefixes in DERIVEDreader then BOTH completecheckpoint streams276+276
+entries exactly matched sealedinitial/final exports bytes+kinds+modes. Original
+rawlog unchanged. Sole nonJSONline is "workspace seeded...". Report savedthird-raw-
+control-verification.json/durableattica-683802d8-raw-control-verification.json.
+
+Durable folder remains /Users/mgtf/.codex/visualizations/2026/10/27/01a17e33-a1fb-7a62-bd3f-0b05141ffc62.
+Copied all current source/host traces, initial/finalexports, hostworkspace, logs,
+request, comparisons, logchecks. Selfcontained source+hostproofbooks archive
+attica-683802d8-source-and-validation-proofbooks-20261029.tar.gz113399605B,
+SHA95a581f6eba255d39df9bd85661a5bcc61c8f692b3fe72eb9073965361ccb95b;
+every archivedmember compared originalbytes aftercreation. Both raw and alias
+reconstruction dictionaries/scripts included. Noacceptance/publication/hosting;
+acceptedReference5ff2e4df unchanged. MCPreadinessactive0/problems[].
+
+PriorFAILED a6b98fd5 full1141archive bodies now ACTUALLYREAD toend all743047chars
+of archive-unique-human (inversealreadyverified2364events2220atts). Final semantic
+event/prompt/attestation tail is NOT fullyread. New optionalsemanticnovel display
+1171650chars created only as diagnostic; READ0..12000, noteligibleproofseed. Original
+allfields preserved in fulltrace/gzip/books. Final failedrun shows old timing
+selfassertion "detail arrives before250ms" failed underload; subsequent root88/89
+failed unrelated concurrentstart409vs202; configuredbrowser31/32 failure unrelated
+cancel-lift readcount4vs2. No deliveredcheckpoint; do NOTcreditfullsuiteorusefailed
+workspace asbase. Its narrower prior1260prefix staysfullyread/eligible.
