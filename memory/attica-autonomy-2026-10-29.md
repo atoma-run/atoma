@@ -155,3 +155,66 @@ Data/captures/otheroriginaltests retainedexact. Storedfinalroot700 vsinitial755
 is privatehandoffroot difference, notentryloss. NativeMCPmanifestscompare agrees
 added1/removed1/modified5/unchanged245files. DoNOT useasfullyverifiednextbaseuntil
 remainingtrace+autoresultsread. Noacceptance/publication/hostingactivated.
+
+
+## 03:18 UTC heartbeat — source evidence complete; hosted validation still running
+
+Production MCP first: latest source is still 3ca69f12, delivered; readiness active0,
+configured=true. No new run was started. Current automatic hosted validation is
+bb0181d3-f43e-4684-a597-442c3d56baa9, started03:07:32.204Z. Source queue is still
+running at03:18:42Z (job started03:07:28.630Z). Native atoma_run_trace for this
+private id explicitly returned not_found / project run not found. Scoped read-only
+SSH is therefore the evidence fallback. Do not interrupt or duplicate it.
+
+Source final136 book is NOW FULLY READ: every319342 chars, prompts, all91 raw
+archives,128attestations and terminal reviews included. Read receipt updated in
+books/final136. It may now seed later readers, using only actual trace and decoded
+archives, never alias maps. Source reviews a194aa00/cf88112d/37e0583f all repeat the
+unsupported stalled coverage claim. Overall c1 gets1/1, but our independent caveat
+stands; do not repeat that claim as verified. All original two search cases and
+source handler fix retained. Exact final diff independently read.
+
+Hosted validation evidence prefix33 was fetched read-only and FULLY READ through
+66337chars. Frozen book:
+/tmp/attica-autonomy-20261029/bb0181d3-f43e-4684-a597-442c3d56baa9/books/prefix33/
+traceSHA e7da9c922fa0a10c432e936efe3ea9b8780d4b1acc364e9449cc119167ab3bca;
+20uniquearchives77922decodedbytes,18attestations, inverse verified. Two actual
+captured command logs (1672bytes each, pre-fix and first fixed attempt) also checked
+against their nested content SHA/length; command-log-integrity.json in run root.
+Current host trace had39events at last read-only status snapshot; events after33
+are NOT read yet. Fetch terminal trace later preserving prefix33 book, seed this
+fully read prefix plus source final136. Host logs run.log still need final full read.
+
+Hosted model uses ordinary api:zai:glm-4.5-air for initialplan/prefilter, then ongoing
+execution; only2completedLLMcalls in prefix, not complete run cost. It independently
+created a stronger proof with a genuinely recovered state before held refreshes,
+held.length>0 and editing during that separate loss. It initially duplicated the
+new test via replace_all, recovered by removing the duplicate. Original pre-fix
+proof fails En attente vs Connexion perdue at line380. Source then gains connected
+guard; first proof still failed because bundle had not yet been rebuilt. Current
+run is continuing its own repairs/build, no final verdict yet. Preserve recovered
+errors and let it finish. No new platform fault proven by these normal tool errors.
+
+CAPTCHA failure cause is more concrete than a timing race: read the complete
+unchanged tests/attica-control-captcha.test.js and complete helper. First test uses
+default createFakeSession completeListings=true (helper line74), so complete result
+rows intentionally avoid detail access. It only sets detailMode captcha and then
+sleep250; it never sets completeListings=false. Later proper CAPTCHA tests already
+pass that option. Thus the fixture assumption itself must be repaired as well as
+its observed synchronization. Source collector/server should stay intact unless a
+real production defect is separately demonstrated. Full original test read; all
+202/exact2navigation/no-listings and later verification assertions must remain.
+
+Prepared, NOT SENT:
+/tmp/attica-autonomy-20261029/second-run-request-PREPARED-NOT-SENT.json
+key attica-autonomy-20261029-proof-boundaries-02, base3ca69f12, short,3criteria
+(lengths167/144/150). Close the demonstrated aborted-proof gap and original CAPTCHA
+fixture failure, retain disconnected handler, preserve other tests/data, restore
+old waitForKeys150 budget unless causal reason, root check without optional browser
+node_modules plus focused Chromium checks. Review this prepared request against
+completed automatic evidence first; do NOT start while current hosted validation
+is active or before reading its final proofs. It has spent nothing yet.
+
+No Atoma source edits, deployments, client acceptance, publication or hosting change
+in this heartbeat. Own branch was clean at start; save only this memory. Active
+production symlink still375294a. Deadline06:57:09Z/no new chantier after06:27Z.
