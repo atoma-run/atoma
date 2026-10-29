@@ -1,5 +1,5 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -7,6 +7,11 @@ import { closeStoreHandles } from '../src/core/stores.js';
 import { GitHubAppClient } from '../src/github/client.js';
 import { GitHubStore } from '../src/github/store.js';
 import { GitHubPublisher } from '../src/projects/publisher.js';
+import { HostingService } from '../src/projects/hostingService.js';
+import { HostingStore } from '../src/projects/hostingStore.js';
+import { PreviewStore } from '../src/preview/store.js';
+import { recordDeliveredPreview } from '../src/preview/service.js';
+import type { HostingIdentity } from '../src/contracts/projectHosting.js';
 import { ProjectRunCoordinator, type ProjectRunDriver } from '../src/projects/coordinator.js';
 import { ProjectService } from '../src/projects/service.js';
 import { ARTIFACT_MANIFEST_PATH_ENV } from '../src/run/runner.js';
@@ -100,6 +105,52 @@ it('syncs remote edits and additions before model work and protects concurrent e
   expect(third.status).toBe('delivered');
   expect(f.fake.filesOn('owner', 'docs', 'main').get('app.js')?.text).toBe('new work');
 });
+it.each(['static', 'node-browser'] as const)('hosts the exact published %s tree including client-kept fixes, rather than the older run or newer branch head', async kind => {
+  const f = fixture();
+  await f.start(w => {
+    writeFileSync(join(w, 'app.js'), 'initial');
+    writeFileSync(join(w, 'index.html'), '<h1>Initial</h1>');
+    writeFileSync(join(w, 'run.sh'), '#!/bin/sh\necho ready\n', { mode: 0o755 });
+    if (kind === 'node-browser') writeFileSync(join(w, 'atoma.hosting.json'), JSON.stringify({ version: 1, runtime: 'node-browser', entry: 'app.js' }));
+  });
+  f.fake.commitOutside('owner', 'docs', 'main', 'index.html', '<h1>First client fix</h1>');
+  const second = await f.start(w => {
+    expect(readFileSync(join(w, 'index.html'), 'utf8')).toBe('<h1>First client fix</h1>');
+    writeFileSync(join(w, 'app.js'), 'new work');
+    f.fake.commitOutside('owner', 'docs', 'main', 'index.html', '<h1>Published client fix</h1>');
+  });
+  const publication = f.projects.getPublicationForRun(f.viewer.orgId, second.projectRunId)!;
+  expect(publication.status).toBe('published');
+  f.fake.commitOutside('owner', 'docs', 'main', 'index.html', '<h1>Unpublished later edit</h1>');
+  f.projects.setDeploymentDestination(f.viewer.orgId, f.project.projectId, { destination: 'atoma', expectedDestination: 'none' });
+  const previews = PreviewStore.open(f.dbPath);
+  recordDeliveredPreview(previews, { orgId: f.viewer.orgId, projectId: f.project.projectId,
+    projectRunId: second.projectRunId, workspaceRoot: second.hostPaths.workspacePath });
+  const copied = mkdtempSync(join(tmpdir(), 'atoma-published-hosting-')); roots.push(copied);
+  const snapshot = mkdtempSync(join(tmpdir(), 'atoma-published-snapshot-')); roots.push(snapshot);
+  await f.publisher.materializePublishedSource({ orgId: f.viewer.orgId, projectId: f.project.projectId,
+    runId: second.projectRunId, manifestHash: second.artifactManifestHash!, commitSha: publication.commitSha! }, snapshot);
+  expect(readFileSync(join(snapshot, 'index.html'), 'utf8')).toBe('<h1>Published client fix</h1>');
+  const launcher = { prepareHosting: async (id: HostingIdentity) => join(copied, id.deploymentId),
+    createHosting: async () => {}, startHosting: async () => ({ hostPort: 12345, image: 'runtime@sha256:abc' }),
+    inspectHosting: async () => null, listHosting: async () => [], stopHosting: async () => {} };
+  const hosting = new HostingService({ store: HostingStore.open(f.dbPath), projects: f.projects, previews, launcher,
+    domain: 'app.atoma.run', maxDeployments: 4, probe: async () => true,
+    materializePublishedSource: (row, destinationRoot) => f.publisher.materializePublishedSource(row, destinationRoot) });
+  try {
+    await hosting.deploy(f.viewer, f.project.projectId, { runId: second.projectRunId,
+      manifestHash: second.artifactManifestHash!, expectedDeploymentId: null });
+    await hosting.idle();
+    const status = hosting.status(f.viewer, f.project.projectId);
+    expect(status).toMatchObject({ state: 'ready', commitSha: publication.commitSha });
+    expect(readFileSync(join(copied, status.deploymentId!, 'index.html'), 'utf8')).toBe('<h1>Published client fix</h1>');
+    expect(statSync(join(copied, status.deploymentId!, 'run.sh')).mode & 0o777).toBe(0o700);
+    expect(readFileSync(join(second.hostPaths.workspacePath, 'index.html'), 'utf8')).toBe('<h1>First client fix</h1>');
+    expect(f.projects.getProjectRun(f.viewer.orgId, second.projectRunId)?.artifactManifestHash).toBe(second.artifactManifestHash);
+    expect(f.fake.forcedUpdates).toBe(0);
+  } finally { await hosting.idle(); }
+}, 30_000);
+
 it('carries failed publication work forward and refuses an older retry under the lease', async () => {
   const f = fixture();
   const first = await f.start(w => writeFileSync(join(w, 'app.js'), 'initial'));

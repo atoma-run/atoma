@@ -203,3 +203,39 @@ passed unchanged, then the full test half with4workers passed8584/8584.
 All failure logs retained in `/tmp/attica-client-cycle-*`; no timeout weakened.
 No new source fix has been deployed yet; complete published-source hosting
 regression before exposing an Update that could roll back the emergencyfix.
+
+## 11:03 UTC — published-source repair verified, preparing release
+
+Hosting regression reproduced with the real coordinator, publisher and GitHub
+client/stateful Git server: publication preserves a concurrent client fix, but
+hosting previously copied the older run tree while claiming the publication
+commit. Fixed production wiring reads the receipt's immutable Git commit,
+verifies accepted provenance, bounded blob integrity, application entry and
+copied source before stopping anything. Later branch edits are ignored;
+immutable run evidence/acceptance are unchanged. Source read/capability failure
+leaves the online application untouched. Static and node-browser regressions
+and two failure cases pass; focused86/86.
+
+After npmci, final release static half passed and full test half passed:
+590files,8588tests,45skipped (4workers). Real Chrome OAuth, Compute and complete
+GPU viz smokes all passed, including shipped settings and update flow. Logs:
+/tmp/attica-client-cycle-hosting-{release-static,release-tests,oauth-browser,
+compute-browser,viz-gpu}.log. Source release not deployed yet.
+
+Independent Attica polish now passes124Vitest+89Node+build and33/33realChrome
+tests, with1010synthetic listings and7KBraw fields. Old5c7 fails the honest
+unavailable-state test; af68 passes it. A separate history assertion fails af68
+and passes the added polish. History/date/progress and all five mutation
+controls now represent unavailable honestly; saved schedule recovers. No real
+collection. Review checkout/tmp/attica-reviewed-run-af68-20261029; retain old
+hashed assets for in-flight clients and explicitly track the new built bundle
+before publication. No client acceptance ofaf68 has been recorded.
+
+Hosted validation097347c6 completed10:38:55, cost$0.32021402,20calls. NativeMCP
+ledger establishes completion; this session's catalogue lacks validation
+reader/retry, and run_status cannot read validation-only IDs. Following a
+native read attempt, fetched proof-only trace/log via authorized SSH, no
+workspace/data export. Full raw traceSHA7b3ec2296e872665746e486dd6ac81c8b48ea678a7eaffbf2d2fe148ec901b7a;
+112unique archives,137events,129attestations reconstructed exactly against
+originals. Actual human reading of this validation is still pending; do not
+claim approval from its completed state alone.

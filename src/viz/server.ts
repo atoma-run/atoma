@@ -876,6 +876,7 @@ if (EVENTS && PUSH_RUNTIME && AUTH?.store) {
  */
 interface ProjectsRuntime {
   readonly store: ProjectStore;
+  readonly publisher: GitHubPublisher | null;
   readonly projects: ProjectService;
   readonly coordinator: ProjectRunCoordinator;
   readonly githubStore: GitHubStore;
@@ -1134,6 +1135,7 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
   });
   return {
     store: projectStore,
+    publisher: publisher ?? null,
     projects,
     coordinator,
     githubStore,
@@ -1321,7 +1323,12 @@ async function startHostingRuntime() {
   if (!socket) throw new Error('Hosting requires the separate launcher service');
   const launcher = await SocketLauncher.connect(socket);
   const ownership = launcher.previewOwnership(); launcher.close();
+  const publisher = PROJECTS_RUNTIME.publisher;
   const service = new HostingService({ store: HostingStore.open(DBS[0]!.path), projects: PROJECTS_RUNTIME.store,
+    materializePublishedSource: async (row, destinationRoot) => {
+      if (!publisher) throw new Error('GitHub publication reader is unavailable');
+      await publisher.materializePublishedSource(row, destinationRoot);
+    },
     previews: PreviewStore.open(DBS[0]!.path), launcher: new HostingClient(socket), domain: config.domain, maxDeployments: config.maxDeployments,
     events: emit, namer: HOSTING_NAMER, copyOwnership: ownership, probe: probeHostedApplication,
     healthProbe: port => probeHostedApplication(port, HOSTING_HEALTH.timeoutMs) });

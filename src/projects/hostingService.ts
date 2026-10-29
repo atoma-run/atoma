@@ -4,13 +4,16 @@ import { request } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { Viewer } from '../auth/store.js';
 import { existsSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { HOSTING_HISTORY_MAX, hostingDeployInputSchema, type HostedDeployment, type HostingHandle, type HostingHistoryEntry, type HostingIdentity, type HostingLauncher, type HostingSummary, type HostingVersion } from '../contracts/projectHosting.js';
 import type { ProjectRun } from '../contracts/projects.js';
 import { ProjectHttpError, roleAtLeast } from './service.js';
 import { ProjectStateConflict, type ProjectStore } from './store.js';
 import type { PreviewStore } from '../preview/store.js';
 import { materializePreviewWorkspace } from '../preview/policy.js';
-import { revalidateArtifactManifest } from './artifacts.js';
+import { buildWorkspaceArtifactManifest, revalidateArtifactManifest } from './artifacts.js';
 import { holdsApplicationData, HostingStore } from './hostingStore.js';
 import { ensureHostingSubdomain, type HostingSubdomainNamer } from './hostingSubdomain.js';
 
@@ -44,6 +47,8 @@ export class HostingService {
     events?: PlatformEventSink;
     /** Proposes the project's address label; absent, the label is derived from its slug and name. */
     namer?: HostingSubdomainNamer;
+    /** Production reads the receipt's immutable Git commit, never a mutable branch or the pre-publication workspace. */
+    materializePublishedSource?(row: HostedDeployment, destinationRoot: string): Promise<void>;
     copyOwnership?: { uid: number; gid: number } | null }) {}
   private event(row: HostedDeployment, principalId?: string, operation?: 'update' | 'restore'): void {
     this.deps.events?.({ kind: row.state === 'failed' ? 'project.hosting_failed' : 'project.hosting_changed',
@@ -280,14 +285,31 @@ export class HostingService {
    */
   private async prepare(row: HostedDeployment, run: ProjectRun, engine = true): Promise<void> {
     const destination = await this.deps.launcher.prepareHosting(identity(row));
+    let publishedRoot: string | undefined;
     try {
-      materializePreviewWorkspace({ sourceRoot: run.hostPaths.workspacePath, destinationRoot: destination, preserveExecutable: true,
+      revalidateArtifactManifest({ workspaceRoot: run.hostPaths.workspacePath, manifest: run.artifactManifest!, expectedHash: row.manifestHash });
+      let sourceRoot = run.hostPaths.workspacePath;
+      let manifest = run.artifactManifest!;
+      let hash = row.manifestHash;
+      if (this.deps.materializePublishedSource) {
+        publishedRoot = await mkdtemp(join(tmpdir(), 'atoma-hosting-source-'));
+        await this.deps.materializePublishedSource(row, publishedRoot);
+        const built = buildWorkspaceArtifactManifest({ workspaceRoot: publishedRoot });
+        const browser = readHostingManifest(publishedRoot, built.manifest);
+        const requiredEntry = row.kind === 'static' ? 'index.html' : row.entry;
+        if (!!browser !== !!row.browser || (browser && browser.entry !== row.entry) ||
+          !built.manifest.files.some(file => file.path === requiredEntry)) {
+          throw new Error('Published application entry differs from the accepted hosting capability');
+        }
+        sourceRoot = publishedRoot; manifest = built.manifest; hash = built.hash;
+      }
+      materializePreviewWorkspace({ sourceRoot, destinationRoot: destination, preserveExecutable: true,
         ...(this.deps.copyOwnership ? { ownership: this.deps.copyOwnership } : {}) });
-      revalidateArtifactManifest({ workspaceRoot: destination, manifest: run.artifactManifest!, expectedHash: row.manifestHash });
+      revalidateArtifactManifest({ workspaceRoot: destination, manifest, expectedHash: hash });
     } catch (error) {
       if (!engine) throw error;
-      throw new ProjectHttpError(409, 'The accepted version no longer matches its retained bytes; nothing was stopped');
-    }
+      throw new ProjectHttpError(409, 'The accepted publication could not be prepared and verified; nothing was stopped');
+    } finally { if (publishedRoot) await rm(publishedRoot, { recursive: true, force: true }); }
     if (!engine) return;
     try { await this.deps.launcher.createHosting(this.launchSpec(row)); }
     catch (error) { if (!(error instanceof Error && error.message === 'Launcher invalid-request')) throw error; }

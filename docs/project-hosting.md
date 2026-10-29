@@ -9,9 +9,13 @@ as online. Open application admits current organisation members only.
 ## Supported runtime
 
 The initial hosted runtime supports delivered static sites and Node applications
-whose delivery descriptor resolves an entry. It copies retained delivery bytes,
-revalidates the accepted manifest and mounts the source read-only. Dependencies
-must already be present in the delivery; no install command runs on deployment.
+whose delivery descriptor resolves an entry. It revalidates the accepted delivery,
+then copies and verifies the exact Git commit recorded by its publication receipt,
+including client files preserved during publication. Later branch edits are not
+deployed. The accepted runtime capability and entry must still match; a source
+read or verification failure leaves the running application untouched. Original
+run bytes and acceptance manifests remain unchanged. Source is mounted read-only. Dependencies
+must already be present in the published source; no install command runs on deployment.
 Node applications listen on `HOST`/`PORT` and keep persistent state beneath
 `ATOMA_DATA_DIR` (`/data`). Writing beside source files fails deliberately.
 
@@ -78,8 +82,8 @@ still online beside it.
 One request (`POST …/hosting/update`, same-origin, same authority as deploy)
 does what Stop then Deploy did. It checks the deployment the person saw and
 that the candidate is still the newest accepted version. It then prepares the
-new version while the online one keeps serving: retained bytes copied and
-revalidated against the accepted manifest, networks and containers created but
+new version while the online one keeps serving: the exact published source copied and
+verified after revalidating the retained delivery, networks and containers created but
 not started. A preparation failure stops nothing. Only then does it stop every
 runtime that may hold the data and reserve the new version; the store refuses
 a start beside such a runtime, so two versions never write the data. A stop

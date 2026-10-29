@@ -542,6 +542,23 @@ it('stops nothing when the new version cannot be prepared: the online version ke
   expect(launcher.startHosting).toHaveBeenCalledTimes(1);
 });
 
+it.each(['unreadable', 'changed-capability'] as const)('keeps the online application when the published source is %s', async failure => {
+  asNodeApplication();
+  const { first, second, online } = await onlineWithNewerVersion();
+  launcher.stopHosting.mockClear();
+  service = new HostingService({ ...service.deps, materializePublishedSource: async (_row, destinationRoot) => {
+    if (failure === 'unreadable') throw new Error('GitHub snapshot unavailable');
+    writeFileSync(join(destinationRoot, 'index.js'), 'console.log("accepted entry")');
+    writeFileSync(join(destinationRoot, 'browser.js'), 'console.log("different capability")');
+    writeFileSync(join(destinationRoot, 'atoma.hosting.json'), JSON.stringify({ version: 1, runtime: 'node-browser', entry: 'browser.js' }));
+  } });
+  await expect(service.update(viewer, projectId, { ...ref(second), expectedDeploymentId: online.deploymentId }))
+    .rejects.toMatchObject({ status: 409, message: expect.stringMatching(/nothing was stopped/) });
+  expect(service.status(viewer, projectId)).toMatchObject({ state: 'ready', runId: first.runId });
+  expect(launcher.stopHosting.mock.calls.map(([id]) => id.deploymentId)).not.toContain(online.deploymentId);
+  expect(launcher.startHosting).toHaveBeenCalledTimes(1);
+});
+
 it('still updates through a launcher from before createHosting: its start creates the objects', async () => {
   asNodeApplication();
   const { second, online } = await onlineWithNewerVersion();

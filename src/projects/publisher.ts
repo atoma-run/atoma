@@ -15,6 +15,7 @@ import {
   readManifestArtifact,
 } from './artifacts.js';
 import type { RepositoryTarget, Project, ProjectRun, Publication, GitHubAccessRequired } from '../contracts/projects.js';
+import type { HostedDeployment } from '../contracts/projectHosting.js';
 import { eventLabel, type PlatformEventSink } from '../contracts/platformEvents.js';
 
 /**
@@ -544,6 +545,38 @@ export class GitHubPublisher {
       debtResolved: true, materialised: true, seedPath, taken: fileCount, conflicts: 0, paths: [],
     });
     return seedPath;
+  }
+
+  /** Materialize the immutable published commit, including files retained from the client. */
+  async materializePublishedSource(
+    row: Pick<HostedDeployment, 'orgId' | 'projectId' | 'runId' | 'manifestHash' | 'commitSha'>,
+    destinationRoot: string,
+  ): Promise<void> {
+    const project = this.store.getProject(row.orgId, row.projectId);
+    const run = this.store.getProjectRun(row.orgId, row.runId);
+    const publication = this.store.getPublicationForRun(row.orgId, row.runId);
+    const acceptance = this.store.getDeliveryAcceptance(row.orgId, row.runId);
+    if (!project || !run || run.projectId !== project.projectId || run.status !== 'delivered' ||
+      run.artifactManifestHash !== row.manifestHash || acceptance?.manifestHash !== row.manifestHash ||
+      publication?.status !== 'published' || publication.manifestHash !== row.manifestHash ||
+      publication.commitSha !== row.commitSha || !publication.repositoryId || publication.repositoryId !== project.repositoryId ||
+      !publication.repositoryFullName || publication.repositoryFullName !== project.repositoryFullName) {
+      throw new ProjectStateConflict('Hosting must use the exact accepted publication');
+    }
+    const signal = AbortSignal.timeout(60_000);
+    const resolved = await this.projectInstallationToken(project, false, true, signal);
+    await this.assertInstallationCoversRepository({ token: resolved.token,
+      installationId: resolved.installation.installationId, targetType: resolved.installation.targetType,
+      owner: project.repositoryTarget.owner, repositoryId: publication.repositoryId, fullName: publication.repositoryFullName,
+      retry: 'publication', signal });
+    await this.client.readRepositoryFiles({ token: resolved.token.token,
+      owner: project.repositoryTarget.owner, name: project.repositoryTarget.name, commitSha: row.commitSha, signal,
+      onFile: async file => {
+        signal.throwIfAborted();
+        const destination = path.join(destinationRoot, file.path);
+        await mkdir(path.dirname(destination), { recursive: true });
+        await writeFile(destination, file.content, { flag: 'wx', mode: file.mode === '100755' ? 0o755 : 0o644 });
+      } });
   }
 
   /**
