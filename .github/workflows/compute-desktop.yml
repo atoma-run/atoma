@@ -293,31 +293,31 @@ jobs:
           cd installers
           if [[ "$SIGNED" == 1 ]]; then
             revision_tag="compute-desktop-signed-${REVISION:0:12}"
-            title='Atoma Compute — signed release'
-            notes="Signed and notarized installers from ${REVISION}. Docker Desktop is required."
             assets=(./*)
             kind=()
           else
             revision_tag="compute-desktop-preview-${REVISION:0:12}"
-            title='Atoma Compute — preview'
-            notes="Unsigned preview from ${REVISION}. macOS and Windows may block installation. Docker Desktop is required. No automatic updates."
             assets=(./*.dmg ./*.exe ./*.dmg.sha256 ./*.exe.sha256 ./compute-desktop-content.json)
             kind=(--prerelease)
           fi
+          title="$(node ../scripts/compute-desktop-release-notes.mjs compute-desktop-content.json "$revision_tag" "$SIGNED" "$GH_REPO" ../compute-revision-notes.md)"
           if ! gh release view "$revision_tag" >/dev/null 2>&1; then
-            gh release create "$revision_tag" --target "$REVISION" --latest=false "${kind[@]}" --title "$title" --notes "$notes" "${assets[@]}"
+            gh release create "$revision_tag" --target "$REVISION" --latest=false "${kind[@]}" --title "$title" --notes-file ../compute-revision-notes.md "${assets[@]}"
           else
             gh release upload "$revision_tag" "${assets[@]}" --clobber
+            gh release edit "$revision_tag" --title "$title" --notes-file ../compute-revision-notes.md
           fi
           # Publication is serialized and rechecked against the channel receipt.
           # Later unrelated pushes do not invalidate this application's build.
           update_channel() {
             local channel_tag="$1"
+            local channel_title
+            channel_title="$(node ../scripts/compute-desktop-release-notes.mjs compute-desktop-content.json "$channel_tag" "$SIGNED" "$GH_REPO" ../compute-channel-notes.md)"
             if gh release view "$channel_tag" >/dev/null 2>&1; then
               gh release upload "$channel_tag" "${assets[@]}" --clobber
-              gh release edit "$channel_tag" --notes "$notes"
+              gh release edit "$channel_tag" --title "$channel_title" --notes-file ../compute-channel-notes.md
             else
-              gh release create "$channel_tag" --target "$REVISION" --latest=false "${kind[@]}" --title "$title" --notes "$notes" "${assets[@]}"
+              gh release create "$channel_tag" --target "$REVISION" --latest=false "${kind[@]}" --title "$channel_title" --notes-file ../compute-channel-notes.md "${assets[@]}"
             fi
           }
           if [[ "$SIGNED" == 1 ]]; then update_channel compute-desktop-stable; fi

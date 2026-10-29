@@ -106,6 +106,12 @@ publication; versioned files remain available for release history. Without publi
 credentials the channel contains unsigned preview installers; native Docker/run
 acceptance remains separate and requires Docker Desktop on the target machine.
 
+Release titles show the installer version. Each release starts with direct links
+for Mac Apple Silicon, Mac Intel and Windows x64, plus installation instructions.
+Use the [current downloads](https://github.com/atoma-run/atoma/releases/tag/compute-desktop-current)
+for the latest published version; historical releases retain their exact versioned
+links. Checksums and GitHub source archives are not application installers.
+
 Stable builds require Developer ID signing/notarization on macOS and a Windows
 code-signing certificate. Configure `ATOMA_MAC_CSC_LINK`,
 `ATOMA_MAC_CSC_PASSWORD`, `ATOMA_WINDOWS_CSC_LINK`,
