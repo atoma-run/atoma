@@ -1509,7 +1509,7 @@ describe('ProjectRunCoordinator', () => {
     expect(tenantBusyMessage({ runId: 'project:abc' }, 'wedged')).toMatch(/an operator has to release it/);
   });
 
-  it('preempts the post-run analysis for a member run, and never the mender (owner decision 2026-09-27)', async () => {
+  it('preempts the post-run analysis and the assayer for a member run, and never the mender (owner decision 2026-09-27)', async () => {
     // Three member starts were refused 409 in one production session while
     // the analyst held the slot after the previous run (2026-09-26).
     const busy = (runId: string) => new RunLockBusyError('another MCP server owns the run slot',
@@ -1538,6 +1538,16 @@ describe('ProjectRunCoordinator', () => {
     // The analysis would not let go: the member is refused, as before.
     const stubborn = coordinatorWith('analyst:cc922a60', false);
     await expect(stubborn.start()).rejects.toBeInstanceOf(ProjectRunBusy);
+    // The assayer too, as src/supervisor/AGENTS.md promised: a recipe
+    // evaluation or an automatic Compute verification held the slot for
+    // 117 minutes of Attica queueing, 2026-10-23..29.
+    for (const holder of ['assayer:compute-validation', 'assayer:clear-stale-persistence-errors']) {
+      const assayer = coordinatorWith(holder, true);
+      expect((await assayer.start()).projectRunId).toBeTruthy();
+      expect(assayer.yieldBackground).toHaveBeenCalledTimes(1);
+      expect(assayer.calls()).toBe(2);
+      await assayer.coordinator.waitForIdle();
+    }
     // The mender is never preempted.
     const mender = coordinatorWith('mender:cc922a60', true);
     await expect(mender.start()).rejects.toBeInstanceOf(ProjectRunBusy);

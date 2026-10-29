@@ -394,6 +394,8 @@ type ComputeControl = Pick<ComputeDispatcher, 'readiness' | 'drive' | 'recover' 
 
 /** How long a member's start waits for the analysis it preempts to let go of the slot. */
 export const PREEMPT_ANALYST_WAIT_MS = 20_000;
+/** Lease holders a product run may preempt: the same set the executor's `yield-background` names (src/viz/server.ts). */
+const PREEMPTIBLE_BACKGROUND = /^(analyst|assayer):/;
 
 /**
  * Automatic Compute finalization pacing, counted in consecutive failed
@@ -2016,24 +2018,30 @@ export class ProjectRunCoordinator {
   }
 
   /**
-   * The run slot, preempting this host's post-run analysis when that is what
-   * holds it: the analysis is aborted (its run keeps its attempt), the lease
-   * released, and the acquisition tried ONCE more. Any other holder — another
-   * run, the mender, a deployment — refuses as before.
+   * The run slot, preempting this host's background work when that is what
+   * holds it: the post-run analysis or the assayer (a recipe evaluation or an
+   * automatic Compute verification) is aborted, the lease released, and the
+   * acquisition tried ONCE more. Any other holder — another run, the mender,
+   * a deployment — refuses as before. Until 2026-10-30 only the analysis was
+   * preempted here, although src/supervisor/AGENTS.md promised the assayer's
+   * preemption too: between 2026-10-23 and 2026-10-29 nine Attica runs queued
+   * 117 minutes behind an assay or a verification (3e07ee61 22 min, ae0a0f20
+   * 25 min, ef5d6722 21 min). The executor's own yield already named both.
    */
   private async acquireLeasePreempting(runId: string, orgId?: string): Promise<RunLease> {
     try {
       return await this.acquireLease(runId, orgId ? { orgId, maxConcurrent: () => this.platformLimits()['run.concurrentMax'] } : undefined);
     } catch (error) {
+      const holder = error instanceof RunLockBusyError ? error.owner?.runId : undefined;
       if (!(error instanceof RunLockBusyError) || error.condition !== 'held' ||
-        !error.owner?.runId.startsWith('analyst:') || !this.yieldBackground) throw error;
+        !holder || !PREEMPTIBLE_BACKGROUND.test(holder) || !this.yieldBackground) throw error;
       let timer: NodeJS.Timeout | undefined;
       const yielded = await Promise.race([
         this.yieldBackground().catch(() => false),
         new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), PREEMPT_ANALYST_WAIT_MS); timer.unref(); }),
       ]).finally(() => clearTimeout(timer));
       if (!yielded) throw error;
-      process.stderr.write(`[atoma projects] preempted the post-run analysis ${error.owner.runId} for ${runId}\n`);
+      process.stderr.write(`[atoma projects] preempted the background work ${holder} for ${runId}\n`);
       return this.acquireLease(runId, orgId ? { orgId, maxConcurrent: () => this.platformLimits()['run.concurrentMax'] } : undefined);
     }
   }
