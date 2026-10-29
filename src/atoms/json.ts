@@ -1,6 +1,6 @@
 import { inheritedJudgementSchema } from '../contracts/inheritedChecks.js';
 import { z } from 'zod';
-import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS, parentTestSuiteSchema, unsatisfiableSuiteSchema, type PlanDeltaKind, type UnsatisfiableSuite } from '../contracts/parentTests.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS, REVIEW_REFUSAL_KINDS, parentTestSuiteSchema, unsatisfiableSuiteSchema, type PlanDeltaKind, type UnsatisfiableSuite } from '../contracts/parentTests.js';
 import { deliveryKindSchema, executionModeSchema } from '../contracts/taskExecution.js';
 import { jsonrepair, JSONRepairError } from 'jsonrepair';
 import { PlanParseError, type PlanParseCause, ValidationError } from '../core/errors.js';
@@ -1345,6 +1345,16 @@ const deltaCriteria = z.array(z.string().trim().min(1)).max(40);
  * `suite.replace` is PLANNER-authored only: its `source` is the whole new
  * suite file, copied byte for byte; nothing here composes or edits one.
  */
+// The four kinds that carry no suite, shared by the planner's and the reviewer's unions.
+const dependsOnSetDelta = z.object({ kind: z.literal('dependsOn.set' satisfies PlanDeltaKind), target: deltaIndex, dependsOn: z.array(deltaIndex) });
+const aggregationSetDelta = z.object({ kind: z.literal('aggregation.set' satisfies PlanDeltaKind), aggregation: aggregationSpecSchema });
+const criteriaAssignDelta = z.object({ kind: z.literal('criteria.assign' satisfies PlanDeltaKind), target: deltaIndex, criteria: deltaCriteria });
+const obligationAddDelta = z.object({
+  kind: z.literal('obligation.add' satisfies PlanDeltaKind),
+  target: deltaIndex,
+  obligation: z.enum(PROOF_OBLIGATIONS),
+});
+
 export const planDeltaSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('suite.replace' satisfies PlanDeltaKind),
@@ -1362,16 +1372,42 @@ export const planDeltaSchema = z.discriminatedUnion('kind', [
       dependsOn: z.array(deltaIndex).optional(),
     })).min(2).max(PLAN_DELTAS_MAX),
   }),
-  z.object({ kind: z.literal('dependsOn.set' satisfies PlanDeltaKind), target: deltaIndex, dependsOn: z.array(deltaIndex) }),
-  z.object({ kind: z.literal('aggregation.set' satisfies PlanDeltaKind), aggregation: aggregationSpecSchema }),
-  z.object({ kind: z.literal('criteria.assign' satisfies PlanDeltaKind), target: deltaIndex, criteria: deltaCriteria }),
-  z.object({
-    kind: z.literal('obligation.add' satisfies PlanDeltaKind),
-    target: deltaIndex,
-    obligation: z.enum(PROOF_OBLIGATIONS),
-  }),
+  dependsOnSetDelta,
+  aggregationSetDelta,
+  criteriaAssignDelta,
+  obligationAddDelta,
 ]);
 export type PlanDelta = z.infer<typeof planDeltaSchema>;
+
+/**
+ * A ROOT delegation reviewer's repair of the plan it approves (stage A of
+ * design M4, behind ATOMA_REVIEW_REPAIR), read by its own schema after
+ * `parseVerdict`, as `delegationReview` is. It writes no suite: there is no
+ * `suite.replace`, and a split part names the plan's existing suite it runs
+ * (`suiteFrom`, a subtask index or "plan"), whose bytes the host copies
+ * (`reviewedPlanRepair`). Strict parts, so a part carrying its own source is
+ * a schema error rather than dropped.
+ */
+export const reviewerPlanDeltaSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('suite.split' satisfies PlanDeltaKind),
+    target: deltaIndex,
+    into: z.array(z.object({
+      description: z.string().trim().min(1),
+      suiteFrom: z.union([deltaIndex, z.literal('plan')]),
+      criteria: deltaCriteria.optional(),
+      dependsOn: z.array(deltaIndex).optional(),
+    }).strict()).min(2).max(PLAN_DELTAS_MAX),
+  }).strict(),
+  dependsOnSetDelta.strict(),
+  aggregationSetDelta.strict(),
+  criteriaAssignDelta.strict(),
+  obligationAddDelta.strict(),
+]);
+export type ReviewerPlanDelta = z.infer<typeof reviewerPlanDeltaSchema>;
+export const planRepairEnvelopeSchema = z.object({
+  planRepair: z.object({ deltas: z.array(reviewerPlanDeltaSchema).min(1).max(PLAN_DELTAS_MAX) }).nullish(),
+});
 
 const planDeltaListSchema = z.array(planDeltaSchema).min(1).max(PLAN_DELTAS_MAX).superRefine((deltas, ctx) => {
   const suites = deltas.filter((delta) => delta.kind === 'suite.replace' || delta.kind === 'suite.split').length;
@@ -1747,6 +1783,9 @@ export const verdictSchema = z
       inherited: inheritedJudgementsSchema.nullish(),
       // A delegation review's refusal only (PARENT_TEST_UNSATISFIABLE); `llmVerdict` keeps it there alone.
       unsatisfiableSuites: z.array(unsatisfiableSuiteSchema).nullish(),
+      // A root delegation review's refusal only, behind ATOMA_REVIEW_REPAIR; `llmVerdict` keeps it there alone.
+      // An unknown kind reads as none: a refusal without one is the plan's, never a reviewer fault.
+      refusalKind: z.enum(REVIEW_REFUSAL_KINDS).nullish().catch(undefined),
     }),
   ])
   // A rejected verdict targeting the canonical type (`patch` or `branch`)

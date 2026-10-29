@@ -1,6 +1,6 @@
 import { EvidenceReviewError } from '../core/errors.js';
 import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
-import { DELEGATION_REVIEW_REQUEST, citedUnsatisfiableSuites, delegationRefusal, enforceParsedDelegationReview, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, previousRefusalsNote, routingIndexNote } from './delegationReview.js';
+import { citedUnsatisfiableSuites, delegationRefusal, delegationReviewRequest, enforceRepairedDelegationReview, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, previousRefusalsNote, reviewedPlanRepair, routingIndexNote } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { ValidationError } from '../core/errors.js';
@@ -1031,7 +1031,11 @@ async function reformatVerdict(args: {
 
 export async function llmVerdict(args: {
   /** Mandatory scope classification and executable-test check, never a trust shortcut. */
-  delegationContract?: { plan: Plan; allowDiscovery: boolean; previousRefusals?: readonly string[]; hostFacts?: readonly string[] };
+  delegationContract?: {
+    plan: Plan; allowDiscovery: boolean; previousRefusals?: readonly string[]; hostFacts?: readonly string[];
+    /** The root review behind ATOMA_REVIEW_REPAIR: the repair rule, `planRepair` and `refusalKind` (design M4, stage A). */
+    repairs?: boolean;
+  };
   /** Defaults to VALIDATION_PARAMS; only the root delegation review passes its own (src/core/AGENTS.md). */
   params?: GenerationParams;
   ctx: RunContext;
@@ -1230,7 +1234,7 @@ export async function llmVerdict(args: {
       ? renderActiveSkillBlock(args.activeSkill)
       : '',
     args.independentTextReference !== undefined ? ROOT_TEXT_REVIEW_REQUEST : '',
-    args.delegationContract ? DELEGATION_REVIEW_REQUEST : '',
+    args.delegationContract ? delegationReviewRequest(args.delegationContract.repairs === true) : '',
     args.delegationContract ? `Discovery allowed here: ${args.delegationContract.allowDiscovery}` : '',
     args.delegationContract ? inheritedObligationsNote(args.task) : '',
     args.delegationContract ? previousRefusalsNote(args.delegationContract.previousRefusals ?? []) : '',
@@ -1291,12 +1295,17 @@ export async function llmVerdict(args: {
     return delegationRefusal(`Delegation review misread its contract: delegationReview belongs to the approval verdict, and a plan is never refused for lacking it. (${raw.reasoning.slice(0, 200)})`, 'reviewer');
   }
   let delegationReview;
+  let planRepair;
   if (raw.approved && args.delegationContract) {
     const review = parseDelegationReview(resp.text);
     if ('approved' in review) return review;
-    const refusal = enforceParsedDelegationReview(args.delegationContract.plan, review, args.delegationContract.allowDiscovery);
+    // Read only where the caller applies it: a repair the loop ignored would execute the unrepaired plan.
+    const repair = args.delegationContract.repairs ? reviewedPlanRepair(args.delegationContract.plan, resp.text) : undefined;
+    if (repair && 'approved' in repair) return repair;
+    const refusal = enforceRepairedDelegationReview(args.delegationContract.plan, repair, review, args.delegationContract.allowDiscovery);
     if (refusal) return refusal;
     delegationReview = review;
+    planRepair = repair;
   }
   // Normalise `null` (an LLM emission quirk nullish() tolerates) to
   // `undefined` at the parse boundary — same treatment as branchName —
@@ -1304,11 +1313,16 @@ export async function llmVerdict(args: {
   const activeSkillFollowed = raw.activeSkillFollowed ?? undefined;
   const criteria = raw.criteria ?? undefined;
   const inherited = raw.inherited ?? undefined;
-  if (raw.approved) return { ...raw, activeSkillFollowed, criteria, inherited, ...(delegationReview ? { delegationReview } : {}) };
+  if (raw.approved) {
+    return { ...raw, activeSkillFollowed, criteria, inherited, ...(delegationReview ? { delegationReview } : {}), ...(planRepair ? { planRepair } : {}) };
+  }
   // Kept on a delegation review's refusal alone, and only the citations of
   // suites the reviewed plan carries; any other verdict drops the field.
-  const { unsatisfiableSuites: cited, ...refusal } = raw;
+  const { unsatisfiableSuites: cited, refusalKind, ...refusal } = raw;
   const unsatisfiableSuites = args.delegationContract ? citedUnsatisfiableSuites(args.delegationContract.plan, cited) : [];
+  // A repairing review's refusal is the plan's, its kind named or not: never a reviewer fault.
+  const repairs = args.delegationContract?.repairs === true;
   return { ...refusal, branchName: raw.branchName ?? undefined, activeSkillFollowed, criteria, inherited,
-    ...(unsatisfiableSuites.length > 0 ? { unsatisfiableSuites } : {}) };
+    ...(unsatisfiableSuites.length > 0 ? { unsatisfiableSuites } : {}),
+    ...(repairs ? { delegationRefusal: 'plan' as const, ...(refusalKind ? { refusalKind } : {}) } : {}) };
 }

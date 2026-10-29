@@ -17,6 +17,7 @@ import type {
   Task,
   Tier,
   Tool,
+  TraceEntry,
   Verdict,
 } from '../core/types.js';
 import {
@@ -30,7 +31,7 @@ import { modelForTier } from '../core/models.js';
 import { capToolIterations } from '../core/limits.js';
 import { dispatchWithAggregation, keptWithoutSynthesis, markLanded, synthesizeOrKeep, withinReadOnlyPhase, type DispatchOutcome } from './dispatch.js';
 import { restorationDamaged } from '../contracts/readOnlyPhase.js';
-import { acceptL3RootPlan } from './l3RootPlan.js';
+import { acceptL3RootPlan, parallelDeclaredOutputCollision } from './l3RootPlan.js';
 import { L2Atom } from './L2Atom.js';
 import { buildResultGateEnv, renderResultGateFindings, runResultGates, withOwnFallbackLoopFacts, withoutExecutorLoopFacts } from './resultGates.js';
 import {
@@ -60,9 +61,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, withPlannedDelivery, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, planFeedbackLines, previousPlanLines } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { PlanParseError, RegistryNotFoundError, ValidationError } from '../core/errors.js';
-import { approvalDigest, delegationRefusal, enforceParsedDelegationReview, planSuites, routingIndexNote, refusalWithRequests } from './delegationReview.js';
+import { approvalDigest, delegationRefusal, enforceParsedDelegationReview, planSuites, repairNote, routingIndexNote, refusalWithRequests } from './delegationReview.js';
 import { planSuitePrecheck } from './parentSuiteCheck.js';
-import { planSuiteFactsBlock } from './parentSuiteFacts.js';
+import { planSuiteFactsBlock, unresolvedSuiteImports } from './parentSuiteFacts.js';
 import { VALIDATION_PARAMS, renderTransportEvidence } from './verdict.js';
 import type { RootDelegationApproval, RootPhaseCheckpoint, RootPlanCheckpoint } from '../contracts/runCheckpoint.js';
 import type { DelegationReview } from '../contracts/parentTests.js';
@@ -407,6 +408,14 @@ export function discoveryInputs(plan: Plan, discovery: Result): Record<string, u
  */
 export const ROOT_PLAN_ATTEMPTS = 5;
 
+/** An enforced root approval, and the trace of the repair it made, if any (ATOMA_REVIEW_REPAIR). */
+type ReviewedRootPlan = { plan: Plan; review: DelegationReview; model: string; trace: readonly TraceEntry[] };
+
+/** The root result with the review's repairs ahead of its own trace: they happened before any phase. */
+function withRepairTrace(result: Result, repairs: readonly TraceEntry[]): Result {
+  return repairs.length ? { ...result, trace: [...repairs, ...result.trace] } : result;
+}
+
 export class L3Atom extends Atom implements Supervisor<L2Atom> {
   readonly tier: Tier = 3;
   readonly model: string;
@@ -529,6 +538,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     if (checkpoint && saved) return this.resumeSavedPlan(task, saved, checkpoint, ctx);
     let currentTask = task;
     let approved = await this.prepareRootDelegation(currentTask, ctx, true);
+    // The review's repairs, as the host applied them (ATOMA_REVIEW_REPAIR): ahead of the root result's own trace.
+    const repairs: TraceEntry[] = [...approved.trace];
     if (approved.plan.replanAfter) {
       // Discovery has no resumable implementation prefix. Do not register it as
       // a completed phase of the subsequent plan or skip that plan's first task.
@@ -547,15 +558,16 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       const discovery = await withinReadOnlyPhase(ctx, discoveryTask, () => this.execute(
         discoveryTask, inspection, { ...ctx, rootCheckpoint: undefined, readOnlyPhases: undefined }
       ));
-      if (discovery.refusal || discovery.unfinishedPhases?.length || parentTestFindings(discovery).reject.length > 0) return discovery;
+      if (discovery.refusal || discovery.unfinishedPhases?.length || parentTestFindings(discovery).reject.length > 0) return withRepairTrace(discovery, repairs);
       currentTask = { ...task, inputs: { ...task.inputs, repositoryDiscovery: discoveryInputs(inspection, discovery) } };
       approved = await this.prepareRootDelegation(currentTask, ctx, false);
+      repairs.push(...approved.trace);
     }
     const plan = approved.plan;
     ctx.recordRootPlan?.(plan);
     checkpoint?.planned(currentTask, plan, this.pendingStrategy, this.pendingPlannedPhases ?? plan.subtasks.length,
       this.rootApproval(plan, 0, currentTask, approved));
-    return this.execute(withPlannedDelivery(currentTask, plan), plan, ctx);
+    return withRepairTrace(await this.execute(withPlannedDelivery(currentTask, plan), plan, ctx), repairs);
   }
 
   /**
@@ -575,6 +587,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     const savedTask: Task = { ...task, inputs: saved.inputs };
     const completed = checkpoint.completed.length;
     let plan = savedPlan;
+    let repairs: readonly TraceEntry[] = [];
     let approval = checkpoint.replanAfterAnswer ? undefined : this.recordedRootApproval(savedPlan, savedTask, saved.approval, completed);
     if (!approval && (checkpoint.replanAfterAnswer || savedPlan.subtasks.length > completed)) {
       const prefix = savedPlan.subtasks.slice(0, completed);
@@ -612,11 +625,12 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         from: completed, allowDiscovery: false, continuation: true,
       }, ctx);
       plan = reviewed.plan;
+      repairs = reviewed.trace;
       approval = this.rootApproval(plan, completed, savedTask, reviewed);
     }
     checkpoint.planned(savedTask, plan, this.pendingStrategy, this.pendingPlannedPhases ?? plan.subtasks.length, approval);
     ctx.recordRootPlan?.(plan);
-    return this.execute(withPlannedDelivery(savedTask, plan), plan, ctx);
+    return withRepairTrace(await this.execute(withPlannedDelivery(savedTask, plan), plan, ctx), repairs);
   }
 
   /** The root review's model: tier 2, resolved when used so constructing an L3 never needs ATOMA_MODEL_L2. */
@@ -649,7 +663,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     try {
       return await llmVerdict({ ctx, model, params, supervisorName: this.name, supervisorTier: 3,
         subject: 'PLAN', child: this, task, payload: plan, targetContext: buildTargetContext(plan, this.registry),
-        delegationContract: { plan, allowDiscovery, previousRefusals, hostFacts } });
+        delegationContract: { plan, allowDiscovery, previousRefusals, hostFacts, ...(reviewRepairEnabled() ? { repairs: true } : {}) } });
     } catch (error) {
       // An unparseable verdict is the reviewer's failure, not the plan's.
       if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
@@ -657,7 +671,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     }
   }
 
-  private prepareRootDelegation(task: Task, ctx: RunContext, allowDiscovery: boolean): Promise<{ plan: Plan; review: DelegationReview; model: string }> {
+  private prepareRootDelegation(task: Task, ctx: RunContext, allowDiscovery: boolean): Promise<ReviewedRootPlan> {
     // Feedback travels on the planner channel, never in `task.constraints`:
     // the prefilter (and its cache key) and the review see the task as asked.
     // The collision coaching inside `acceptL3RootPlan` stays a constraint; it
@@ -685,6 +699,12 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * its own earlier refusals, so a later round judges whether they were fixed:
    * runs 7a7af324, aaa6b442 and 63feeb3c (2026-10-16) spent all three rounds
    * each, two of them refusing for requests the planner had never received.
+   *
+   * Behind ATOMA_REVIEW_REPAIR an approval may carry the reviewer's own
+   * non-authoring repair (`planRepair`, design M4 stage A): the plan it makes
+   * passes the host's mechanical half again (`repairedRootPlan`) and is
+   * returned, traced, without spending an attempt; one the host refuses
+   * takes the ordinary refusal path, its message naming the deltas.
    */
   private async reviewedRootPlan(args: {
     propose: (feedback: readonly string[], context?: PlanContext) => Promise<Plan>;
@@ -693,7 +713,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     from: number;
     allowDiscovery: boolean;
     continuation: boolean;
-  }, ctx: RunContext): Promise<{ plan: Plan; review: DelegationReview; model: string }> {
+  }, ctx: RunContext): Promise<ReviewedRootPlan> {
     const exhausted = args.continuation ? 'Saved delegation plan requires a new run: ' : '';
     const refusals: string[] = [];
     const reviewRefusals: string[] = [];
@@ -758,7 +778,28 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         reviewerFault ? VALIDATION_PARAMS : ROOT_DELEGATION_REVIEW_PARAMS, reviewRefusals, pendingFacts);
       if (verdict.approved) {
         if (!verdict.delegationReview) throw new Error('Delegation contract review approved without an enforced classification');
-        return { plan: pending, review: verdict.delegationReview, model };
+        if (!verdict.planRepair) return { plan: pending, review: verdict.delegationReview, model, trace: [] };
+        const repaired = await this.repairedRootPlan(pending, verdict.planRepair.plan, verdict.delegationReview, args, ctx);
+        if (typeof repaired !== 'string') {
+          const { deltas } = verdict.planRepair;
+          ctx.logger.info(`[l3] delegation review repaired the plan with ${deltas.length} delta(s) from phase ${args.from}`);
+          const ts = new Date().toISOString();
+          return { plan: repaired, review: verdict.delegationReview, model, trace: [
+            { kind: 'plan-repaired', ts, atom: this.name, payload: { deltas, from: args.from } },
+            { kind: 'plan', ts, atom: this.name, payload: { repaired: true, plan: repaired } },
+          ] };
+        }
+        // The host's half refused what the reviewer approved: the planner hears why, with the deltas.
+        const stated = `The host refused the review's planRepair: ${repaired} ${repairNote(verdict.planRepair.deltas)}`;
+        failure = stated;
+        ctx.recordRunStat?.('plan-refusal');
+        refusals.push(`Delegation contract rejected before execution: ${stated}`);
+        reviewRefusals.push(stated);
+        retry = '';
+        ctx.logger.warn(`[l3] ${stated}`);
+        retain(pending);
+        pending = undefined;
+        continue;
       }
       failure = verdict.reasoning;
       ctx.recordRunStat?.('plan-refusal');
@@ -785,6 +826,37 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       pending = undefined;
     }
     throw new ValidationError(`${exhausted}${failure}`);
+  }
+
+  /**
+   * The whole plan a root review's repair makes (design M4 stage A), or why
+   * the host refuses it. The reviewed tail, amended, behind the untouched
+   * completed prefix; then the mechanical half no model re-reads: the
+   * caller's own precheck, a parallel output collision the repair introduced
+   * (never `acceptL3RootPlan`'s coached replan), the zero-token suite
+   * precheck, any suite import that does not resolve, and the classification
+   * enforced on the amended remaining plan. A split adds phases.
+   */
+  private async repairedRootPlan(pending: Plan, amendedTail: Plan, review: DelegationReview,
+    args: { precheck?: (plan: Plan) => string | undefined; reviewTask: Task; from: number; allowDiscovery: boolean },
+    ctx: RunContext): Promise<Plan | string> {
+    const tail = preservePlanLiteralContracts(amendedTail, args.reviewTask.description);
+    const amended: Plan = { ...pending, aggregation: tail.aggregation, subtasks: [...pending.subtasks.slice(0, args.from), ...tail.subtasks] };
+    const remaining: Plan = { ...amended, subtasks: tail.subtasks };
+    const own = args.precheck?.(amended);
+    if (own) return own;
+    const before = new Set(parallelDeclaredOutputCollision(pending)?.paths ?? []);
+    const collided = (parallelDeclaredOutputCollision(amended)?.paths ?? []).filter(path => !before.has(path));
+    if (collided.length) return `the repaired plan runs parallel phases that declare the same outputs: ${collided.join(', ')}.`;
+    const suites = planSuitePrecheck(planSuites(amended, args.from), ctx.mechanicalPlanRejections ??= new Set(), `root:${this.name}`);
+    if (suites.refusal) return suites.refusal;
+    const unresolved = await unresolvedSuiteImports(remaining, ctx);
+    if (unresolved.length) return `a suite import of the repaired plan does not resolve: ${unresolved.join('; ')}.`;
+    const refusal = enforceParsedDelegationReview(remaining, review, args.allowDiscovery);
+    if (refusal) return refusal.reasoning;
+    const added = tail.subtasks.length - (pending.subtasks.length - args.from);
+    if (added !== 0 && this.pendingPlannedPhases !== null) this.pendingPlannedPhases += added;
+    return amended;
   }
 
   async plan(task: Task, ctx: RunContext, feedback?: readonly string[], context?: PlanContext): Promise<Plan> {

@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { DISCOVERY_REPORT_CHARS, L3Atom, ROOT_PLAN_ATTEMPTS, discoveryInputs, routeCrossBucketVerification } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
-import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, misreadDelegationReview, previousRefusalsNote, refusalWithRequests, routingIndexNote } from '../src/atoms/delegationReview.js';
-import type { RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
-import { parseVerdict, planSchema } from '../src/atoms/json.js';
+import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewRequest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, misreadDelegationReview, previousRefusalsNote, refusalWithRequests, reviewedPlanRepair, routingIndexNote } from '../src/atoms/delegationReview.js';
+import type { RootDelegationApproval, RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
+import { parseVerdict, planSchema, reviewerPlanDeltaSchema } from '../src/atoms/json.js';
 import { superviseLoop, type SupervisionHooks } from '../src/core/supervisor.js';
 import type { BranchEventInfo, LlmCompletionRequest, LlmCompletionResponse, Plan, Result, RunContext, Task, Tool, ToolExecutor } from '../src/core/types.js';
 import { RUN_STATS_PREFIX, parseRunStatsEpilogue, type RunStatSignal } from '../src/contracts/runStats.js';
@@ -2089,5 +2089,232 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
     expect(refusalWithRequests({ reasoning: 'R', modifications: { additionalContext: 'R' } })).toBe('R');
     expect(refusalWithRequests({ reasoning: 'R', modifications: { additionalContext: ' A ' } })).toBe('R Requested: A');
     expect(refusalWithRequests({ reasoning: 'R' })).toBe('R');
+  });
+});
+
+// Design M4 stage A (records/designs/replan-loop-2026-10-23.md): behind
+// ATOMA_REVIEW_REPAIR the ROOT review repairs what it can state without writing
+// a suite, in the approval itself, instead of refusing for a top-tier replan
+// (run b920faf6's post-approval fan-out cycles, about 3.1 minutes each).
+describe('repair-not-refuse at the root review (ATOMA_REVIEW_REPAIR)', () => {
+  const savedFlag = process.env['ATOMA_REVIEW_REPAIR'];
+  beforeEach(() => { process.env['ATOMA_REVIEW_REPAIR'] = '1'; });
+  afterEach(() => {
+    if (savedFlag === undefined) delete process.env['ATOMA_REVIEW_REPAIR'];
+    else process.env['ATOMA_REVIEW_REPAIR'] = savedFlag;
+    vi.restoreAllMocks();
+  });
+
+  const ADD = "import { test, expect } from 'vitest';\nimport { add } from './add.ts';\ntest('adds', () => {\n  expect(add(2, 3)).toBe(5);\n  expect(add(-2, 1)).toBe(-1);\n});";
+  const SUB = "import { test, expect } from 'vitest';\nimport { sub } from './sub.ts';\ntest('subtracts', () => {\n  expect(sub(5, 3)).toBe(2);\n  expect(sub(1, 2)).toBe(-1);\n});";
+  const addSuite = { requirement: 'signed addition', cwd: '.', source: ADD };
+  const subSuite = { requirement: 'signed subtraction', cwd: '.', source: SUB };
+
+  const strategy = (target: string) => ({ strategy: 'reuse', target, reasoning: 'Existing module author' });
+  /** Two independent modules the planner wrongly chained, in parallel mode or in sequence. */
+  const twoModules = (child: string, mode: 'concat' | 'sequential' = 'concat') => ({
+    reasoning: 'Two modules',
+    delivery: 'files',
+    subtasks: [
+      { description: 'Implement signed addition', preferredChild: child, outputs: ['add.ts'], acceptanceTests: addSuite },
+      { description: 'Implement signed subtraction', preferredChild: child, outputs: ['sub.ts'], acceptanceTests: subSuite, dependsOn: [0] },
+    ],
+    aggregation: { mode },
+    expectedOutput: 'add.ts and sub.ts',
+  });
+  const reply = (target: string, plan: unknown): string => JSON.stringify([strategy(target), plan]);
+  const classified = (count: number, independentWork: boolean) => ({
+    subtasks: Array.from({ length: count }, (_, index) => ({ index, kind: 'vitest' as const, reason: 'actual assigned scope' })),
+    integration: { kind: 'other' as const, reason: 'no interacting modules' },
+    independentWork,
+    parallelReason: 'addition and subtraction share nothing',
+  });
+  const approve = (count: number, independentWork: boolean, deltas?: unknown[]) => JSON.stringify({
+    approved: true, reasoning: 'scope reviewed', delegationReview: classified(count, independentWork), ...(deltas ? { planRepair: { deltas } } : {}),
+  });
+  const respond = (text: string): LlmCompletionResponse => ({ text, stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } });
+
+  function routed(plans: string[], reviews: string[]): MockLlmClient {
+    const llm = new MockLlmClient();
+    const route = (req: LlmCompletionRequest): LlmCompletionResponse => {
+      if (req.role === 'prefilter') return respond(JSON.stringify({ kind: 'escalate', reasoning: 'plan it' }));
+      const next = req.role === 'plan' ? plans.shift() : req.role === 'validate-plan' ? reviews.shift() : undefined;
+      if (next === undefined) throw new Error(`Unexpected ${req.role} call`);
+      return respond(next);
+    };
+    for (let i = 0; i < 40; i++) llm.enqueue(route);
+    return llm;
+  }
+
+  function cellActors() {
+    const db = openDb(':memory:');
+    databases.push(db);
+    const registry = new AtomRegistry(db);
+    const seed = { description: 'module author', systemPrompt: 'delegate', tools: [], params: {}, createdBy: 'test' };
+    const tissue = registry.create(3, seed);
+    const cell = registry.create(2, seed);
+    return { tissue: L3Atom.buildWithModel(tissue, registry, 'mock'), cellName: cell.name };
+  }
+
+  /** A workspace listing that holds nothing yet: every import resolves only through a declared output. */
+  const emptyWorkspace: ToolExecutor = {
+    has: (name) => name === 'list_files',
+    execute: async (name) => name === 'list_files' ? { entries: [] } : {},
+  };
+
+  it('(a) executes the plan an approving review repaired, traced, after one plan call and one review', async () => {
+    const { tissue, cellName } = cellActors();
+    const unchain = [{ kind: 'dependsOn.set', target: 1, dependsOn: [] }];
+    const ctx = { ...makeCtx({ llm: routed([reply(cellName, twoModules(cellName))], [approve(2, true, unchain)]) }), tools: emptyWorkspace };
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    const delivered = await tissue.handle({ description: 'Implement signed addition and subtraction' }, ctx);
+
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(1);
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]?.userContent).toContain('"planRepair"');
+    expect(reviews[0]?.userContent).toContain('"refusalKind"');
+    const executed = execute.mock.calls[0]?.[1] as Plan;
+    expect(executed.subtasks[1]?.dependsOn).toBeUndefined();
+    // Suite bytes are the planner's own; without the repair the fan-out would have refused.
+    expect(executed.subtasks.map(subtask => subtask.acceptanceTests?.source)).toEqual([ADD, SUB]);
+    expect(enforceDelegationReview(planSchema.parse(twoModules(cellName)), approve(2, true), false)).toMatchObject({ delegationRefusal: 'fan-out' });
+    expect(delivered.trace.slice(0, 2).map(entry => entry.kind)).toEqual(['plan-repaired', 'plan']);
+    expect(delivered.trace[0]?.payload).toEqual({ deltas: unchain, from: 0 });
+    expect(delivered.trace[1]?.payload).toEqual({ repaired: true, plan: executed });
+  });
+
+  it('(b) refuses a repair whose split part runs a suite importing what nothing before it writes, and the planner hears both', async () => {
+    const { tissue, cellName } = cellActors();
+    // The second part runs the subtraction suite, but sub.ts is written only by a later phase.
+    const split = [{ kind: 'suite.split', target: 0, into: [
+      { description: 'Implement addition', suiteFrom: 0 },
+      { description: 'Check subtraction early', suiteFrom: 1 },
+    ] }];
+    const sequential = { ...twoModules(cellName, 'sequential'), subtasks: twoModules(cellName).subtasks.map(({ dependsOn: _d, ...subtask }) => subtask) };
+    const ctx = { ...makeCtx({ llm: routed([reply(cellName, sequential), reply(cellName, sequential)],
+      [approve(3, false, split), approve(2, false)]) }), tools: emptyWorkspace };
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    await tissue.handle({ description: 'Implement signed addition and subtraction' }, ctx);
+
+    const plans = ctx.llm.calls.filter(call => call.role === 'plan');
+    expect(plans).toHaveLength(2);
+    expect(plans[1]?.userContent).toContain("The host refused the review's planRepair: a suite import of the repaired plan does not resolve");
+    expect(plans[1]?.userContent).toContain('./sub.ts: declared only by a subtask this suite does not wait for');
+    expect(plans[1]?.userContent).toContain('"kind":"suite.split"');
+    // The next review reads the host's refusal of the previous repair.
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews).toHaveLength(2);
+    expect(reviews[1]?.userContent).toContain("The host refused the review's planRepair");
+    expect((execute.mock.calls[0]?.[1] as Plan).subtasks).toHaveLength(2);
+  });
+
+  it('(c) reads a refusal without its refusalKind as the plan\'s, never as a reviewer fault', async () => {
+    const { tissue, cellName } = cellActors();
+    const refusal = JSON.stringify({ approved: false, reasoning: 'GAP: no negative case for subtraction.', scope: 'ephemeral',
+      modifications: { additionalContext: 'Assert sub(1, 2) is -1.' } });
+    const unchained = { ...twoModules(cellName), subtasks: twoModules(cellName).subtasks.map(({ dependsOn: _d, ...subtask }) => subtask) };
+    const ctx = makeCtx({ llm: routed([reply(cellName, unchained), reply(cellName, unchained)], [refusal, approve(2, true)]) });
+    vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    await tissue.handle({ description: 'Implement signed addition and subtraction' }, ctx);
+
+    // A replan, then a review on the root's own model and parameters: no re-review of the same plan on the validation model.
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(2);
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews.map(call => [call.model, call.params])).toEqual([[modelForTier(2), ROOT_DELEGATION_REVIEW_PARAMS], [modelForTier(2), ROOT_DELEGATION_REVIEW_PARAMS]]);
+    const plan = planSchema.parse(unchained);
+    expect(enforceDelegationReview(plan, refusal, false)).toMatchObject({ approved: false, delegationRefusal: 'plan' });
+    expect(enforceDelegationReview(plan, JSON.stringify({ ...JSON.parse(refusal), refusalKind: 'coverage' }), false))
+      .toMatchObject({ delegationRefusal: 'plan', refusalKind: 'coverage' });
+    // An unknown kind reads as none, never as an unparseable verdict.
+    const unknownKind = parseVerdict(JSON.stringify({ ...JSON.parse(refusal), refusalKind: 'fan-out' }));
+    expect(unknownKind.approved === false ? unknownKind.refusalKind : 'approved').toBeUndefined();
+    delete process.env['ATOMA_REVIEW_REPAIR'];
+    expect(enforceDelegationReview(plan, refusal, false)).toMatchObject({ delegationRefusal: 'reviewer' });
+  });
+
+  it('(d) amends only the remaining phases of a resumed plan, and its recorded approval binds the amended plan alone', async () => {
+    const { tissue } = actors();
+    const task: Task = { description: 'Implement signed addition', inputs: { a: 1 } };
+    const saved = planSchema.parse({ ...makePlan({ subtasks: [
+      { description: 'Write the shared types', outputs: ['types.ts'] },
+      { description: 'Write the fixtures', outputs: ['fixtures.ts'], criteria: ['fixtures exist'] },
+      { description: 'Implement signed addition', outputs: ['add.ts'], acceptanceTests: addSuite },
+    ] }), aggregation: { mode: 'sequential' } });
+    const done: Result = { ...result, summary: 'phase done' };
+    const resuming = (plan: Plan, approval: RootDelegationApproval | undefined) => {
+      const planned = vi.fn<RootPhaseCheckpoint['planned']>();
+      const ctx = { ...makeCtx(), rootCheckpoint: {
+        restore: () => ({ plan: JSON.parse(JSON.stringify(plan)), strategy: { strategy: 'reuse', target: 'cell', reasoning: 'r' }, plannedPhases: 3, inputs: task.inputs, approval }),
+        completed: [done, done], planned, beforePhase: vi.fn(), afterPhase: vi.fn(async () => {}), finalizing: vi.fn(),
+      } };
+      return { ctx, planned };
+    };
+    // Recorded under another model: the remaining phase is reviewed again, and repaired.
+    const stale = { digest: 'f'.repeat(64), from: 2, review: classified(1, false) };
+    const first = resuming(saved, stale);
+    first.ctx.llm.enqueueText(approve(1, false, [{ kind: 'criteria.assign', target: 0, criteria: ['signed sums are correct'] }]));
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+    await tissue.handle(task, first.ctx);
+
+    const amended = execute.mock.calls[0]?.[1] as Plan;
+    expect(JSON.stringify(amended.subtasks.slice(0, 2))).toBe(JSON.stringify(saved.subtasks.slice(0, 2)));
+    expect(amended.subtasks[2]).toEqual({ ...saved.subtasks[2], criteria: ['signed sums are correct'] });
+    const recorded = first.planned.mock.calls[0]?.[4];
+    expect(recorded?.from).toBe(2);
+    expect(first.planned.mock.calls[0]?.[1]).toEqual(amended);
+
+    // Resumed again: the amended plan runs on its recorded approval without a model; the unamended one is reviewed.
+    const again = resuming(amended, recorded);
+    await tissue.handle(task, again.ctx);
+    expect(again.ctx.llm.calls).toHaveLength(0);
+    const unamended = resuming(saved, recorded);
+    unamended.ctx.llm.enqueueText(approve(1, false));
+    await tissue.handle(task, unamended.ctx);
+    expect(unamended.ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
+  });
+
+  it('(e) reads a reviewer suite.replace as a schema error: the same plan is reviewed again, never amended', async () => {
+    const { tissue, cellName } = cellActors();
+    const unchained = { ...twoModules(cellName), subtasks: twoModules(cellName).subtasks.map(({ dependsOn: _d, ...subtask }) => subtask) };
+    const replace = [{ kind: 'suite.replace', target: 1, source: `${SUB}\n// one more case` }];
+    expect(reviewerPlanDeltaSchema.safeParse(replace[0]).success).toBe(false);
+    // A split part carrying its own source is refused too: the reviewer writes no suite.
+    expect(reviewerPlanDeltaSchema.safeParse({ kind: 'suite.split', target: 0, into: [
+      { description: 'a', suiteFrom: 0 }, { description: 'b', suiteFrom: 0, acceptanceTests: addSuite },
+    ] }).success).toBe(false);
+    expect(reviewedPlanRepair(planSchema.parse(unchained), approve(2, true, replace))).toMatchObject({ delegationRefusal: 'reviewer' });
+
+    const ctx = makeCtx({ llm: routed([reply(cellName, unchained)], [approve(2, true, replace), approve(2, true)]) });
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+    const delivered = await tissue.handle({ description: 'Implement signed addition and subtraction' }, ctx);
+
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(1);
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews).toHaveLength(2);
+    expect(reviews[1]?.params).toEqual(VALIDATION_PARAMS);
+    expect((execute.mock.calls[0]?.[1] as Plan).subtasks[1]?.acceptanceTests?.source).toBe(SUB);
+    expect(delivered.trace.some(entry => entry.kind === 'plan-repaired')).toBe(false);
+  });
+
+  it('leaves the request, an approval\'s repair and the digest exactly as today with the flag off', async () => {
+    delete process.env['ATOMA_REVIEW_REPAIR'];
+    expect(delegationReviewRequest(false)).toBe(DELEGATION_REVIEW_REQUEST);
+    expect(delegationReviewRequest(true)).not.toBe(DELEGATION_REVIEW_REQUEST);
+    expect(delegationReviewRequest(true)).toContain('You never write or edit suite source or an expect( line');
+    const { tissue, cellName } = cellActors();
+    const unchain = [{ kind: 'dependsOn.set', target: 1, dependsOn: [] }];
+    const ctx = makeCtx({ llm: routed([reply(cellName, twoModules(cellName, 'sequential'))], [approve(2, false, unchain)]) });
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+    const delivered = await tissue.handle({ description: 'Implement signed addition and subtraction' }, ctx);
+    const review = ctx.llm.calls.find(call => call.role === 'validate-plan');
+    expect(review?.userContent).toContain(DELEGATION_REVIEW_REQUEST);
+    expect(review?.userContent).not.toContain('planRepair');
+    // Ignored: the plan executes as the planner wrote it.
+    expect((execute.mock.calls[0]?.[1] as Plan).subtasks[1]?.dependsOn).toEqual([0]);
+    expect(delivered.trace).toEqual([]);
   });
 });

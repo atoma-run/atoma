@@ -195,6 +195,15 @@ export const PLAN_DELTA_KINDS = ['suite.replace', 'suite.split', 'dependsOn.set'
 export type PlanDeltaKind = typeof PLAN_DELTA_KINDS[number];
 
 /**
+ * Why a root delegation review refused, named by the reviewer behind
+ * ATOMA_REVIEW_REPAIR: the defects it cannot repair in `planRepair` (stage A
+ * writes no suite bytes). Vocabulary only; a refusal without one is an
+ * ordinary plan refusal, never the reviewer's fault.
+ */
+export const REVIEW_REFUSAL_KINDS = ['replan-after', 'unexecutable-proof', 'missing-interface', 'coverage', 'empty'] as const;
+export type ReviewRefusalKind = typeof REVIEW_REFUSAL_KINDS[number];
+
+/**
  * A suite a delegation REFUSAL names as one no correct implementation can pass
  * (`PARENT_TEST_UNSATISFIABLE`), by the reviewed plan's own index: a subtask's
  * zero-based index, or "plan" for the plan-level integration suite. Typed,

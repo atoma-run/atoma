@@ -136,40 +136,8 @@ export async function planSuiteFactsBlock(plan: Plan, ctx: RunContext): Promise<
   if (!ctx.tools?.has('list_files')) return '';
   const tools: ToolExecutor = baseExecutorOf(ctx.tools);
   try {
-    // Every directory a fact may need, listed once: where each import candidate would live.
-    const directories = new Set<string>();
-    for (const suite of [...plan.subtasks.map(subtask => subtask.acceptanceTests), plan.acceptanceTests]) {
-      if (!suite) continue;
-      for (const specifier of relativeSpecifiers(suite.source)) {
-        const target = suiteImportTarget(path.posix.normalize(suite.cwd || '.'), withoutQuery(specifier));
-        if (target === undefined) continue;
-        directories.add(path.posix.dirname(target));
-        for (const candidate of resolutionCandidates(target)) directories.add(path.posix.dirname(candidate));
-      }
-    }
-    if (directories.size > MAX_DIRECTORIES) return '';
-    const files = new Map<string, Set<string>>();
-    const folders = new Map<string, Set<string>>();
-    for (const directory of directories) {
-      if (ctx.signal?.aborted) return '';
-      let listing: Listing = null;
-      try {
-        listing = await tools.execute('list_files', { path: directory }) as Listing;
-      } catch (error) {
-        // A file where a directory was asked (an import of a stylesheet) holds
-        // nothing to list. Any other fault, an entry vanishing while a sibling
-        // branch builds for one, would turn into a false "not present": no block
-        // (second review 2026-10-17).
-        if (!String(error).includes('ENOTDIR')) return '';
-      }
-      const entries = listing?.entries ?? [];
-      files.set(directory, new Set(entries.filter(entry => entry.kind === 'file' || entry.kind === 'symlink').map(entry => entry.name ?? '')));
-      folders.set(directory, new Set(entries.filter(entry => entry.kind === 'dir').map(entry => entry.name ?? '')));
-    }
-    const workspace: Workspace = {
-      file: file => files.get(path.posix.dirname(file))?.has(path.posix.basename(file)) ?? false,
-      directory: directory => folders.get(path.posix.dirname(directory))?.has(path.posix.basename(directory)) ?? false,
-    };
+    const workspace = await suiteWorkspace(plan, tools, ctx);
+    if (!workspace) return '';
     const facts = suiteImportFacts(plan, workspace);
     const imported = await suiteSourceFiles(facts, tools, ctx.signal);
     // Like root acceptance, a refusal here costs a whole top-tier replan.
@@ -184,6 +152,71 @@ export async function planSuiteFactsBlock(plan: Plan, ctx: RunContext): Promise<
   } catch (error) {
     ctx.logger.warn(`[l3] suite facts unavailable: ${String(error).slice(0, 200)}`);
     return '';
+  }
+}
+
+/**
+ * What exists where a plan's suites import from, listed once per directory
+ * (each import candidate's), or undefined (more directories than the bound,
+ * an abort, any listing fault but ENOTDIR).
+ */
+async function suiteWorkspace(plan: Plan, tools: ToolExecutor, ctx: RunContext): Promise<Workspace | undefined> {
+  const directories = new Set<string>();
+  for (const suite of [...plan.subtasks.map(subtask => subtask.acceptanceTests), plan.acceptanceTests]) {
+    if (!suite) continue;
+    for (const specifier of relativeSpecifiers(suite.source)) {
+      const target = suiteImportTarget(path.posix.normalize(suite.cwd || '.'), withoutQuery(specifier));
+      if (target === undefined) continue;
+      directories.add(path.posix.dirname(target));
+      for (const candidate of resolutionCandidates(target)) directories.add(path.posix.dirname(candidate));
+    }
+  }
+  if (directories.size > MAX_DIRECTORIES) return undefined;
+  const files = new Map<string, Set<string>>();
+  const folders = new Map<string, Set<string>>();
+  for (const directory of directories) {
+    if (ctx.signal?.aborted) return undefined;
+    let listing: Listing = null;
+    try {
+      listing = await tools.execute('list_files', { path: directory }) as Listing;
+    } catch (error) {
+      // A file where a directory was asked (an import of a stylesheet) holds
+      // nothing to list. Any other fault, an entry vanishing while a sibling
+      // branch builds for one, would turn into a false "not present": no block
+      // (second review 2026-10-17).
+      if (!String(error).includes('ENOTDIR')) return undefined;
+    }
+    const entries = listing?.entries ?? [];
+    files.set(directory, new Set(entries.filter(entry => entry.kind === 'file' || entry.kind === 'symlink').map(entry => entry.name ?? '')));
+    folders.set(directory, new Set(entries.filter(entry => entry.kind === 'dir').map(entry => entry.name ?? '')));
+  }
+  return {
+    file: file => files.get(path.posix.dirname(file))?.has(path.posix.basename(file)) ?? false,
+    directory: directory => folders.get(path.posix.dirname(directory))?.has(path.posix.basename(directory)) ?? false,
+  };
+}
+
+/** The statuses under which an import does not resolve when its suite runs ('package' is unchecked, not unresolved). */
+const UNRESOLVED: ReadonlySet<SuiteImportStatus> = new Set(['empty-directory', 'written-concurrently', 'outside', 'absent']);
+
+/**
+ * Every suite import of a REPAIRED plan that does not resolve, as a host line
+ * each (design M4: such an import refuses the reviewer's repair, since no
+ * model reviewed that plan's facts). Empty when the workspace cannot be
+ * listed: unknown existence refuses nothing, as in the facts block.
+ */
+export async function unresolvedSuiteImports(plan: Plan, ctx: RunContext): Promise<string[]> {
+  if (!plan.acceptanceTests && !plan.subtasks.some(subtask => subtask.acceptanceTests)) return [];
+  if (!ctx.tools?.has('list_files')) return [];
+  try {
+    const workspace = await suiteWorkspace(plan, baseExecutorOf(ctx.tools), ctx);
+    if (!workspace) return [];
+    return suiteImportFacts(plan, workspace).flatMap(({ label, imports }) => imports
+      .filter(({ status }) => UNRESOLVED.has(status))
+      .map(({ specifier, status }) => `${label} imports ${shown(specifier)}: ${STATUS_TEXT[status]}`));
+  } catch (error) {
+    ctx.logger.warn(`[l3] suite facts unavailable: ${String(error).slice(0, 200)}`);
+    return [];
   }
 }
 
