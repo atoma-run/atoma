@@ -515,3 +515,52 @@ defect or justification for changing gates. Wrong mutating documentation recipe
 injected into readonly configuration inspection was not followed and its result
 accurately records activeSkillFollowed=false while approving inspection.
 No Atoma source edited/deployed, client acceptance/publication/hosting untouched.
+
+
+## 04:46 UTC — first frozen proof bodies read; incremental book verified
+
+Same a6b98fd5 run still running/executing on MCP at04:37,227LLMcalls,
+$7.37604948 equivalent, no question/error/terminal verdict. No new start/retry.
+Production-first readiness/latest check was already completed04:34. New coherent
+read-only host trace snapshot0438 preserves2022events1861attestations,232calls,
+$7.47288372 equivalent, last recorded tool04:38:42.666Z. No endedAt. All1260
+previous closed events structurally identical. These later proofs are NOTREAD.
+Raw60349031bytes,SHA c174eb97f1c5d6f394bd5699c75daa13d53f93b78c15d47d28af54b745e80121.
+Durable gzip attica-a6b98fd5-prefix-0438-20261029.json.gz in the existing
+visualization evidence directory:18054996bytes,SHA
+c54f3b3e08b7d865e8c28ae4c39b89acb92e03c8214c14930ecd3749201f27a7,
+decompressed byte equality verified. This capture does not replace frozen books.
+
+505 proof reading is now complete by a precise combined method: original human
+book read0..1656000; all261archive bodies/all505event bodies/trace metadata had
+already been read there. Remaining attestation107..453 read through the entire
+68387-character remaining-attestations-semantic.jsonl projection. It omits only
+UUID/hash/linkage fields and already-read exact references, all preserved in
+original bytes and already checked by full inverse reconstruction. Original
+human book1656000..1861297 is NOT claimed literally read. Receipt records that
+ distinction (fullyRead=false, proofBodiesFullyRead=true, semanticAttestationsFullyRead=true,
+eligibleProofSeed=true). It is safe to reference those actual read proof bodies;
+no alias map or unread later snapshot was seeded.
+
+Created books/prefix1260 with the0418 raw snapshot and prior actual read505 and
+older traces/decoded archives as exact-reference seeds. Full inverse verification
+passes614archives1260events1metadata1165attestations,5149740unique decoded bytes.
+Helper verification initially missed a JSON string embedded inside another
+non-JSON text body; collector was extended to recurse the same parsed quoted
+literals the renderer uses, then all reconstructed objects compared exactly.
+This was a local evidence-reader issue, not a product/source change.
+
+Frozen1260 human-reading.txt has3177291chars, SHA recorded in its read-receipt.
+ACTUALLYREAD contiguous0..160000; NEXT160000. A Greek-heavy32k output truncated;
+the entire128000..160000 range was reread as two16k chunks without truncation.
+So no readinggap. So far newly read bodies are historical manifests/403 HTML,
+old offline recipe and retained historical export/browser tests, then a broad
+source inventory grep containing old saved listings. These are not new network
+traffic or passing current proof executions. All later current edits/probes,
+review outcomes and command logs remain to be read; no repair acceptance claim.
+Use16k chunks through Greek-heavy content,32k otherwise, single tool output.
+Do not rerender this book or seed1260 until proof bodies are actually read.
+
+No Atoma source edit/deploy, clientacceptance/publication/hosting. Deadline stays
+06:57:09Z; do not start a new chantier after06:27. Continue same run and proof
+reading from books/prefix1260 cursor160000 before drawing conclusions.
