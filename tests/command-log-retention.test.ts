@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { createHash, randomBytes } from 'node:crypto';
 import { capturedCommandLogsSchema } from '../src/contracts/evidenceReading.js';
 import { captureCommandLogs, commandLogSnapshot, COMMAND_LOG_MAX_BYTES } from '../src/tools/commandLogs.js';
-import { runShellTool } from '../src/tools/builtin.js';
+import { recordProbeTool, runShellTool } from '../src/tools/builtin.js';
 import { ToolSandbox } from '../src/tools/sandbox.js';
 import { archiveToolEvidence, readArchivedToolEvidence } from '../src/core/evidenceArchive.js';
 import { attestingExecutor, createAttestationLog } from '../src/core/attestation.js';
@@ -15,7 +15,50 @@ import { completeEvidenceReview } from '../src/atoms/evidenceReading.js';
 import { ContainerToolExecutor } from '../src/tools/containerExecutor.js';
 import { makeCtx } from './helpers.js';
 
+const unicodeStdout = 'Αθήνα € 🏠\n' + 'tail\n'.repeat(30_000);
+const unicodeStderr = 'σφάλμα 日本語 🧪\n';
+const splitUtf8Command = `
+const { setTimeout: pause } = require('node:timers/promises');
+async function split(stream, text) {
+  for (const byte of Buffer.from(text)) {
+    await new Promise(resolve => stream.write(Buffer.from([byte]), resolve));
+    await pause(15);
+  }
+}
+(async () => {
+  await split(process.stdout, ${JSON.stringify('Αθήνα € 🏠\n')});
+  await split(process.stderr, ${JSON.stringify(unicodeStderr)});
+  process.stdout.write(${JSON.stringify('tail\n'.repeat(30_000))}, () => process.exit(7));
+})();
+`;
+
 describe('redirected command logs', () => {
+  it.each(['run_shell', 'record_probe'] as const)('preserves split UTF-8 stdout/stderr through %s and persisted evidence', async name => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-command-utf8-'));
+    const sandbox = new ToolSandbox(join(root, 'workspace'));
+    const stdout = unicodeStdout;
+    const stderr = unicodeStderr;
+    const recorder = new TraceRecorder(join(root, 'traces'));
+    const run = recorder.beginRun({ description: 'Split UTF-8 command evidence' });
+    const attestations = createAttestationLog(r => recorder.recordAttestation(r));
+    try {
+      writeFileSync(join(sandbox.root, 'split.cjs'), splitUtf8Command);
+      const tool = name === 'run_shell' ? runShellTool({ sandbox }) : recordProbeTool({ sandbox });
+      const tools = attestingExecutor({ has: () => true, execute: (_name, args) => tool.execute(args) }, attestations, 'unicode', undefined, 1)!;
+      const result = await tools.execute(name, { command: 'node', args: ['split.cjs'] });
+      expect(result).toMatchObject({ exitCode: 7, stdout, stderr });
+      if (name === 'record_probe') {
+        const manifest = JSON.parse(readFileSync(join(sandbox.root, '.atoma-probes.json'), 'utf8')) as { entries: unknown[] };
+        expect(manifest.entries[0]).toMatchObject({ exitCode: 7, stdout, stderr });
+      }
+      recorder.endRun({});
+      await sandbox.cleanup();
+      rmSync(sandbox.root, { recursive: true, force: true });
+      const saved = JSON.parse(readFileSync(join(root, 'traces', run.id + '.json'), 'utf8')) as { attestations: Array<{ fullEvidence: ReturnType<typeof archiveToolEvidence> }> };
+      expect(JSON.parse(readArchivedToolEvidence(saved.attestations[0]!.fullEvidence))).toMatchObject({ result: { exitCode: 7, stdout, stderr } });
+    } finally { await sandbox.cleanup(); rmSync(root, { recursive: true, force: true }); }
+  });
+
   it('retains the unfiltered failure and actual exit through the documented redirect pattern', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-command-log-'));
     const sandbox = new ToolSandbox(root);
@@ -119,6 +162,20 @@ describe('redirected command logs', () => {
 
 const image = process.env['ATOMA_TEST_WORKER_IMAGE'];
 describe.skipIf(!image)('compiled worker log retention across container removal', () => {
+  it('retains split UTF-8 command output and the final pipe tail across the compiled worker boundary', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-worker-utf8-'));
+    const worker = new ContainerToolExecutor({ workspaceHostPath: root, image });
+    try {
+      writeFileSync(join(root, 'split.cjs'), splitUtf8Command);
+      await worker.start();
+      const result = await worker.execute('record_probe', { command: 'node', args: ['split.cjs'] });
+      expect(result).toMatchObject({ exitCode: 7, stdout: unicodeStdout, stderr: unicodeStderr });
+      const archived = archiveToolEvidence({ command: 'node', args: ['split.cjs'] }, result);
+      await worker.drain();
+      expect(JSON.parse(readArchivedToolEvidence(archived))).toMatchObject({ result: { exitCode: 7, stdout: unicodeStdout, stderr: unicodeStderr } });
+    } finally { await worker.drain(); rmSync(root, { recursive: true, force: true }); }
+  }, 60_000);
+
   it('keeps a redirected /tmp log in the persisted transport evidence after drain', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-worker-log-'));
     const worker = new ContainerToolExecutor({ workspaceHostPath: root, image });

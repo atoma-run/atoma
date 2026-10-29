@@ -1150,11 +1150,13 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
         let stdout = '';
         let stderr = '';
         let timedOut = false;
-        child.stdout?.on('data', (c: Buffer) => {
-          if (stdout.length < MAX_BUFFER) stdout += c.toString();
+        // Pipe chunks can split a UTF-8 code point. Decode each stream across
+        // chunks so the returned/archived proof retains the command's text.
+        child.stdout?.setEncoding('utf8').on('data', (text: string) => {
+          if (stdout.length < MAX_BUFFER) stdout += text;
         });
-        child.stderr?.on('data', (c: Buffer) => {
-          if (stderr.length < MAX_BUFFER) stderr += c.toString();
+        child.stderr?.setEncoding('utf8').on('data', (text: string) => {
+          if (stderr.length < MAX_BUFFER) stderr += text;
         });
 
         const killGroup = (): void => {
@@ -1179,7 +1181,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
           killGroup();
           resolvePromise({ exitCode: 1, stdout, stderr: stderr || err.message, error: err.message });
         });
-        child.once('exit', (code, signal) => {
+        child.once('exit', () => {
           clearTimeout(timer);
           // The command itself is done — reap any grandchildren it left
           // behind (`&`-backgrounded servers and the like). By contract
@@ -1189,6 +1191,10 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
           // launched detached) escaped that kill and is now an orphan.
           const escaped = reapEscapedProcessGroups();
           if (escaped.length) opts.logger?.warn(`[tool:run_shell] killed ${escaped.length} process group(s) a finished command left behind: ${escaped.join(', ')}`);
+        });
+        // exit can precede the last pipe data/end events. Reap descendants
+        // immediately above, but settle only after both decoders have drained.
+        child.once('close', (code, signal) => {
           if (timedOut) {
             resolvePromise({
               exitCode: 1,

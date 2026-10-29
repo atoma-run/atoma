@@ -564,3 +564,120 @@ Do not rerender this book or seed1260 until proof bodies are actually read.
 No Atoma source edit/deploy, clientacceptance/publication/hosting. Deadline stays
 06:57:09Z; do not start a new chantier after06:27. Continue same run and proof
 reading from books/prefix1260 cursor160000 before drawing conclusions.
+
+
+## 04:55 UTC — new demonstrated platform defect: split UTF-8 command output
+
+MCP first04:45:49 confirms same a6b98fd5 active1/running. No new run/retry.
+1260 frozen book reading ACTUALLYREAD contiguous0..368000; NEXT368000,
+including historical reports, broad source/proof inventories and review contexts.
+No later repair result credited. Old report assertions remain historical claims.
+
+New defect discovered while reading archive789034d6e23a69f75cfdfa367394e04cc82912b4abb97fcd81f62b9c3a2f73e2:
+raw run_shell grep stdout196066chars contains four replacement characters in
+TWO lines, although saved initial checkpoint source bytes are valid/intact.
+Compared ALL274 returned grep lines against exact original initial-state file
+bytes:272identical, precisely2different,0unknown. raw-listings.jsonl77 has
+Νοικιασμ��νο instead of Νοικιασμένο; collection-state.json352 has ��αι instead
+of και. Source SHA values and original/observed spans retained in
+/tmp/attica-autonomy-20261029/utf8-stdout-candidate.json and durable evidence
+copy attica-utf8-stdout-candidate.json. Original corrupt observations preserved,
+never rewritten or represented as repaired historical bytes.
+
+Root cause in src/tools/builtin.ts: run_shell decodes each independent Buffer
+with toString(), splitting multibyte code points; record_probe composes that
+same path. Main fetched/checked, origin/main stillab44f25c; this worktree's tool
+and test source identical to main before change. Only our twelve memory commits
+were ahead. Other active/dirty checkouts and existing containers untouched.
+Read tools AGENTS including intentional choices (initial long output truncated,
+missing middle reread). Reused our own checkout; no additional worktree needed.
+
+Added real-process regression emitting Greek/euro/emoji/Japanese one byte per
+write on both stdout/stderr, then150000-character final tail and exit7. Both
+run_shell and record_probe fail before fix with replacement glyphs. After fix,
+118targeted tests pass,1container-only skip. Test checks exact returned text,
+probe manifest, persisted attestation gzip archive after workspace deletion.
+Additional compiled-worker boundary regression is in the conditional image suite.
+
+Fix applied only to builtin.ts and command-log-retention.test.ts: stream UTF-8
+setEncoding (one decoder per stdout/stderr) and settle on close after streams
+end, retaining immediate process-group reaping on exit and existing timeout/
+cleanup rules. No new gate, LLM call, output cap or source file. npm ci completed
+0vulnerabilities. Full required npm run release:check RUNNING session95504,
+rawlog utf8-release-check.log (read contiguous0..56000 so far, remaining unread).
+Static checks/types/lint/audit/build/skeleton/MCP/auth/help smokes passed; full
+suite not yet complete. Do not claim release/deployed until it actually passes,
+then build UNIQUE image atoma-worker:utf8-evidence-20261029-0453 from packaged
+dist, run real worker/isolation suites incl new split-UTF8 test, commit our
+changes, recheck main, push approved production revision and follow CI/images/
+deploy/revision. Never overwrite shared atoma-worker:latest while Attica runs.
+No source commit/push/deploy yet. First before/after/npm-ci logs fullyread and
+copied to durable evidence directory. No clientacceptance/publication/hosting.
+
+
+## 04:59 UTC — worker UTF-8 regression passes; full-suite capacity retry
+
+Full release:check session95504 ended exit1: static half ALLpassed; full suite
+589files passed/1failed/4skipped;8573tests passed/1failed/45skipped. Only failure:
+worker-thread-headroom production4-browser case all4pending at30s. This test
+uses the preexisting shared atoma-worker:latest image, hence not our new decoder.
+No threshold/test edited. Separate --maxWorkers=1 rerun passes production4trees
+and former256-bound negative control, plus ALL9 command-log tests including the
+new actual compiled worker test:11pass1sized-onlyskip,48.6s. Cause consistent with
+resource contention during broad suite, not yet claimed broader platform defect.
+
+Unique worker image built from packaged dist without touching latest or active
+containers: atoma-worker:utf8-evidence-20261029-0453; image manifest list
+sha256:e2220309af38c796bc33152120351b071b0a1021d57a580c0001a569887291e6.
+Full build log and targeted worker log read to the end and copied durably.
+Full failed release log preserved; ACTUALLYREAD contiguous0..152000, remaining
+unread (total now >290066chars).88k..120k combined output truncated, wholly reread
+as two16k calls, no gap. No passing release claim from that failed command.
+
+To complete the SAME release definition (static half passed then npm test), a
+FULL unfiltered npm test -- --maxWorkers=4 is running, matching CI concurrency
+and naming our unique image in ATOMA_WORKER_IMAGE, ATOMA_TEST_WORKER_IMAGE and
+ATOMA_TEST_ACCEPTANCE_IMAGE. No tests removed/skipped/selected around failure;
+additional opt-in acceptance-image cases are enabled. Log utf8-full-suite-retry.log.
+Need actual exit0, then production push/CI/active revision verification.
+
+MCP status04:57: a6b98fd5 still statusrunning, computeProgressstop-confirmation-pending,
+275calls/$8.96302364 equivalent, no endedAt/question/error. Its tools worker and
+proxy have gone; retrieval/control remain. This is NOT a final result. Do not
+restart/cancel/reconcile manually or duplicate start. Continue reading final
+source/hosted validation once production records settle. Frozen1260 cursor
+ACTUALLYREAD0..400000, NEXT400000. Recent bodies still inspection/report archives,
+not current repair execution/verdict evidence. Do not seed1260 yet.
+
+## 05:10 UTC — UTF-8 release verification complete; Attica interrupted
+
+Unfiltered full-suite retry completed exit0:590files passed/4skipped,
+8588tests passed/31skipped,349.15s, --maxWorkers=4 with all three image env vars
+pointing at the unique packaged-dist worker. Static release half had passed
+before this full test half; together these complete the release definition.
+Compiled release:container-smoke also exit0: external200, control-plane blocked,
+raw gateway denied. Its complete log read. Full suite raw log368283B retained
+and copied durably, but not yet literally read end-to-end; failed first release
+log reading cursor remains152000. No claim of literal complete test-log reading.
+Regression before/after and compiled worker logs were fully read as recorded.
+
+a6 final trace downloaded read-only and parsed coherently:2364events2220atts,
+ended04:54:27.714Z, cancelledtrue, error "run interrupted before completion
+(shutdown requested)",275calls/$8.96302364 equivalent. Production run still
+running/stop-confirmation-pending, active1. No successful result credited.
+Original73482076B SHA0fdd58ef7f23f1ec945faca33427384d15fef8765601f4acfe4e8a9982c5baba;
+durablegzip attica-a6b98fd5-final-interrupted-0502-20261029.json.gz21773476B,
+decompression byte equality verified. Previous prefix2022 structural identity
+and all later bodies still to read. Frozen1260 cursor400000 unchanged.
+
+Local diagnostic confirms client local-close04:54:27.632Z with one pending tool,
+last heartbeat306ms old, then stop-unconfirmed04:54:44.321Z. This is not evidence
+of a network timeout. Desktop process still alive; actual UI Activity says
+workload stop unconfirmed, restore Docker and Connect to reconcile. Inventory
+allocationf39101be generation96 unconfirmed; own retrieval/control remain.
+Read-only host journal returned0B; service has not restarted since01:53:28Z.
+Exact initiating cause remains unknown (disk monitor closes on any disk-probe
+error; full tests/build overlapped, but causality not established). No arbitrary
+kill/service restart/DB update/duplicate run. Normal Connect reconciliation
+retains workspace/snapshot volumes, then recovery must be explicit via Atoma.
+No new run, client acceptance, publication or hosting.
