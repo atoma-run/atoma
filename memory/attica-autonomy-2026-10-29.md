@@ -427,11 +427,11 @@ Continue same run, no newstart/retry/clientacceptance/publication/hosting.
 No Atoma source edited, no productiondeploy thisheartbeat.
 
 
-## 04:07 UTC — continuing same run; contiguous proof reading
+## 04:06 UTC — continuing same run; contiguous proof reading
 
 MCP readiness/runs first confirms samea6b98fd5 running, organisationactive1.
 No new start, retry, edits or productiondeploy. Frozenprefix505 book ACTUALLYREAD
-contiguous0..568000 of1861297chars, NEXT568000. Receiptupdated. StillNOTFULLYREAD.
+contiguous0..664000 of1861297chars, NEXT664000. Receiptupdated. StillNOTFULLYREAD.
 This interval finishes many discovery toolresults: existing CAPTCHA fixtures,
 collector/session/control contracts, preserved historical reports, oldembedded
 sourcebundle, lockfile excerpt and source-based command/proof inventories.
