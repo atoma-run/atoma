@@ -77,11 +77,18 @@ describe('resident Compute verification through the real queue, store and lease'
     for (const usage of [
       { inputTokens: 87156, outputTokens: 16529, cacheReadInputTokens: 1397312 }, // d79d05f0 before result review.
       { inputTokens: 346111, outputTokens: 32990, cacheReadInputTokens: 3863808 }, // Observed source volume, priced as the hosted replay.
+      { inputTokens: 540321, outputTokens: 28279, cacheReadInputTokens: 2028160 }, // 03f5cf43 before independent acceptance.
     ]) {
       const observed = new RunBudgetMeter({ record: () => {} }, COMPUTE_VALIDATION, () => {}, replayPrices);
       observed.record({ ...call, ...usage });
       expect(observed.exceeded()).toBeNull();
     }
+    const observedCost = new RunBudgetMeter({ record: () => {} }, COMPUTE_VALIDATION, () => {}, prices);
+    // The actual mixed-provider bill crossed the former $0.25 fence while
+    // below the token ceiling; leave room for the final independent verdict.
+    observedCost.record({ ...call, inputTokens: 0, cacheReadInputTokens: 0, outputTokens: 25272 });
+    expect(observedCost.consumed().costUsd).toBeCloseTo(0.25272);
+    expect(observedCost.exceeded()).toBeNull();
     const gate = new BudgetGateLlmClient({ complete: transport }, meter);
     const request = { model: 'fixture', systemPrompt: '', userContent: '' };
     await gate.complete(request);
@@ -91,7 +98,8 @@ describe('resident Compute verification through the real queue, store and lease'
     await expect(gate.complete(request)).rejects.toThrow('token ceiling');
     expect(transport).toHaveBeenCalledOnce();
     const cost = new RunBudgetMeter({ record: () => {} }, COMPUTE_VALIDATION, () => {}, prices);
-    cost.record({ ...call, inputTokens: 0, cacheReadInputTokens: 0, outputTokens: 30000 });
+    cost.record({ ...call, inputTokens: 0, cacheReadInputTokens: 0,
+      outputTokens: Math.ceil((COMPUTE_VALIDATION.costUsd + 0.01) * 1_000_000 / 10) });
     expect(cost.exceeded()?.kind).toBe('cost');
     await expect(new BudgetGateLlmClient({ complete: transport }, cost).complete(request)).rejects.toThrow('cost ceiling');
     expect(transport).toHaveBeenCalledOnce();

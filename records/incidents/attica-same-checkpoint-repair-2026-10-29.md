@@ -165,3 +165,87 @@ contains 800 checksum-verified evidence files (40,838,035 compressed bytes),
 SHA-256 `15c9904dfeb94cfe4b8b49cdc1681aadddb50aa00b96358f710b18036f640759`.
 It is retained locally with mode 0600; no project bytes or credentials were
 published with this incident record.
+
+## Deployed fixes and delivered repair 36e940ba
+
+Runtime 10dd6021 and then 36d647b8 deployed successfully. Full supported release
+verification passed 8,572 tests / 44 gated skips; the packaged isolated worker passed
+49 real isolation/retention tests. The parent suite now rejects native Vite/Vitest
+configuration imports before delegation, teaches additive exclusions and complete
+shell output, and reads existing explained criterion decisions when a verdict
+omits global reasoning. The two exact historical malformed review responses were
+normalized offline without changing decisions or making paid calls.
+
+New source 36e940ba-18df-436f-9ff9-65fd7a45b97a delivered 2026-10-29T00:51:53.611Z
+from the owner-approved repair goal and original 38bfe415 checkpoint. Initial
+snapshot d183cf1a has the same c1edcd0d digest:276 entries, 251 files, 4,496,267 bytes.
+Full base64 export, saved context, every mode and the hosted initial materialization
+match. The initial and hosted workspace root modes are 755. The private host copy
+of the delivered source has root 700; every entry mode remains preserved.
+Independent comparison and all 251 manifest hashes confirm exactly the two allowed
+files changed; 249 files and every other entry are identical. No client acceptance
+or publication occurred; 5ff2e4df remains the accepted reference.
+
+The final focused suite passes 8 tests including the three interleavings; the
+stale-status mutant fails two original assertions and the missing-history-wait
+mutant fails the original #lastRun assertion. Restored positive control passes 8.
+An isolated fresh build and the full browser configuration pass 31 tests / 6 files;
+the clean root-only copy passes 121 Vitest + 89 Node tests with browser/node_modules
+absent before and after. Recovered typecheck errors and the /tmp noexec esbuild
+installation failure remain in the evidence. An early shell exit means the later
+lines of that composite command did not execute; separate later calls establish
+the actual install/build/browser results. Git is unavailable in the worker;
+whole-workspace hashes, not a successful trailing shell command, establish scope.
+
+## Hosted replay 03f5cf43: capacity refusal before all shell execution
+
+The automatic job queued 00:52:34.217Z and ended INCONCLUSIVE 01:07:46.083Z.
+Private run 03f5cf43-d2ca-4796-a745-e40c9c641e6c uses runtime 36d647b8 and the exact
+immutable initial state. It consumed 21 calls / $0.2527196 / 2,596,760 tokens including
+cache in 15m03s; the $0.25 fence stopped further acceptance, while 8M / 30min remained.
+Every shell call failed before process creation:50 ENOSPC scratch-HOME errors plus
+two allowlist refusals; two server starts also failedENOSPC. There is no hosted
+browser or clean-copy verification to claim. A registry failure and a skill
+revision did occur, honestly recorded as countersChanged/recipesChanged=true.
+No final root acceptance ran. The final private workspace is separately archived:
+276entries,only the same two files changed,249 files unchanged,all entry modes preserved.
+
+A model-free disposable container of the deployed worker, without any project or
+host mount, reproduces mkdtempENOSPC and zero unprivileged available blocks.
+The product-state and root volumes have free space; containerd's configured root
+is on /mnt/HC_Volume_104738584, a distinct 49GB volume at 100%. Read-only diagnostics
+retain daemon identity, filesystem capacity, inode state and cache inventory.
+Docker reports 21.66GB of build cache, 9.3GB reclaimable. Removing unused build cache
+older than 24h while retaining 8GB was proposed; automatic approval review rejected
+shared production cache deletion without explicit owner approval. The owner then authorized that exact operation; it reclaimed 493.9MB, but the
+worker still reproduces ENOSPC. The detailed cache inventory showed that retaining
+8GB could not free enough space. A replacement operation retaining 4GB of unused
+cache, including recent entries, awaits explicit approval. No image, run evidence, application data,
+worktree, active agent or intentionally local change has been removed or changed.
+
+The follow-up source raises the finite validation cost fence to $1 while retaining
+8M billable tokens / 30min and every acceptance requirement. The regression admits
+the observed cost and still rejects both cost/token overruns before another
+transport call.18focused tests pass; npmci/audit green, full release check pending.
+Deployment and MCP retry of SOURCE 36e940ba must follow successful verification
+and recovered worker capacity, preserving the same snapshot/context. Do not start
+another customer-device repair for this already delivered source.
+
+## Complete preserved reading
+
+Both exact original traces and host logs, all prompt/event fields, final source
+and private workspaces, initial export/context and hash comparisons are retained
+under /tmp/attica-validation-finish-20261029 pending the final private archive.
+Source: 84 events, 83 attestations, 62 unique gzip archives, 615,983 decoded bytes.
+Hosted: 140 events, 88 attestations, 30 unique gzip archives, 450,511 decoded bytes.
+Every gzip SHA256/length and each lossless reading view is inverse-verified;
+all bodies and both full run.log files were read to the end. Exact prior bodies
+are referenced only after prior complete reading; the view's alias table retains
+them with their hashes. Source book 223,643 chars and hosted book 308,927 chars were
+read in contiguous 32k ranges, including initial type metadata and final verdicts.
+Hosted original trace SHA256:
+2b754dbc72a81d34b3dbfff033075fbca7837c5eb52f37defd057d52fc5f52a0.
+Source MCP reconstruction is object-equal to its original host trace. The source
+worker does not provide separate temporary-log snapshots; complete transport
+output archives are present. Failed commands that never spawned have no stdout
+or exit code to recover; the raw tool exceptions are preserved instead.

@@ -67,3 +67,35 @@ responses and preserves their decisions and criterion values relative to the sam
 responses with an explicit canonical field. No provider calls. The full release
 passes 8,572 tests (44 gated skips); the seven additional regressions cover both
 formats, negative judgments, missing/duplicate reasons and binding root refusal.
+
+## Follow-up: independent replay 03f5cf43
+
+Source 36e940ba delivered on the same immutable initial snapshot (276 entries,
+251 files, 4,496,267 bytes); an independent whole-workspace comparison found only
+the two permitted files changed. Its focused recovery suite passed 8 tests,
+causal mutants failed original assertions, final full-browser suite passed 31,
+and the clean root-only check passed with browser dependencies absent.
+
+The hosted replay ended inconclusive at $0.2527196, below 8M tokens and 30 minutes.
+Its first shell command already failed creating the scratch HOME with ENOSPC;
+all 52 shell calls failed, so none establishes verification. A disposable worker
+without any project mount reproduces this. Containerd actually stores its layers
+on /mnt/HC_Volume_104738584 (49 GiB, zero available), independently of the free
+product-state volume. No run evidence or application image has been removed.
+
+Raise only the Compute validation cost fence from $0.25 to $1, retaining 8M
+billable tokens including cache reads and the 30-minute wall. Regression feeds
+the observed pre-acceptance cost through RunBudgetMeter/BudgetGateLlmClient,
+and still proves both independent ceilings refuse further transport calls.
+This is bounded review headroom, not a bypass of acceptance or token accounting.
+Automatic review initially rejected shared cache cleanup. The owner then approved
+the exact older-than-24h operation retaining 8GB; it reclaimed 493.9MB, and the
+unprivileged worker still reproduces ENOSPC. Keeping 4GB of unused cache, including
+recent entries, is the pending replacement authorization. Images and run evidence
+remain intact.
+
+Follow-up verification: npm ci and the entire official release definition pass
+(static half plus all 8,572 tests / 44 gated skips at four workers). Two preceding
+full-suite failures under the default 12 workers concerned only the Docker
+fixture's readiness/removal timing; the isolated test and final complete suite
+passed without source changes or weaker assertions. Both failures are retained.

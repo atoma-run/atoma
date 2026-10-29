@@ -7,7 +7,9 @@ export const COMPUTE_VALIDATION = Object.freeze({
   // Attica d79d05f0 stopped at 1,500,997 tokens / $0.0775 after four calls,
   // before result review; its source consumed 4,242,909. Leave room for both
   // execution and independent review without changing token accounting.
-  timeoutMs: 30 * 60_000, tokens: 8_000_000, costUsd: 0.25,
+  // 03f5cf43 also reached $0.2527 before final review. Keep a finite cost
+  // fence with room for execution and independent acceptance, not just tokens.
+  timeoutMs: 30 * 60_000, tokens: 8_000_000, costUsd: 1,
 });
 export const COMPUTE_VALIDATION_ENV = 'ATOMA_ASSAYER_COMPUTE_VALIDATION';
 export const computeValidationStatusSchema = z.enum([
