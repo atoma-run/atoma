@@ -103,8 +103,8 @@ export const hostingSummarySchema = z.object({
   /** The version `runId`/`commitSha` name, in words; null when nothing was ever deployed. */
   version: hostingVersionSchema.nullable(),
   /**
-   * The version an update stopped, offered back while the update's new version
-   * failed to start and nothing is online. Only when its bytes are retained
+   * The last served version after Stop, or the version a failed update stopped,
+   * offered back while nothing is online. Only when its bytes are retained
    * and it is still accepted and published.
    */
   previous: hostingVersionSchema.extend({ manifestHash: z.string() }).nullable(),

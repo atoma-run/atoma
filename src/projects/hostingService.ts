@@ -149,16 +149,18 @@ export class HostingService {
     return { run, commitSha: publication.commitSha, browserConfig, descriptor };
   }
   /**
-   * The version to put back: the one an update stopped, while that update's
-   * new version failed to start and nothing is online. Offered only while it
+   * The version to put back: the last served version after an explicit Stop,
+   * or the one a failed update stopped, while nothing is online. Offered only while it
    * is still deployable and its retained bytes are on disk (retention holds
    * them: src/projects/retention.ts).
    */
   private restorable(orgId: string, projectId: string, rows: HostedDeployment[]): { runId: string; manifestHash: string; commitSha: string } | null {
     const latest = rows[0];
-    if (!latest?.previousRunId || latest.state !== 'failed' || latest.error === 'runtime-unavailable' ||
-      rows.some(r => r.state === 'ready' || r.state === 'starting')) return null;
-    const run = this.deps.projects.getProjectRun(orgId, latest.previousRunId);
+    if (!latest || rows.some(r => r.state === 'ready' || r.state === 'starting')) return null;
+    const runId = latest.state === 'stopped' && latest.readyAt ? latest.runId
+      : latest.state === 'failed' && latest.error !== 'runtime-unavailable' ? latest.previousRunId : undefined;
+    if (!runId) return null;
+    const run = this.deps.projects.getProjectRun(orgId, runId);
     if (!run?.artifactManifestHash || !existsSync(run.hostPaths.workspacePath)) return null;
     try {
       const release = this.release(orgId, projectId, run.projectRunId, run.artifactManifestHash);
@@ -211,7 +213,7 @@ export class HostingService {
   async update(viewer: Viewer, projectId: string, raw: unknown): Promise<HostingSummary> {
     return this.replace(viewer, projectId, raw, 'update');
   }
-  /** Puts back the version a failed update stopped: the same sequence, its target chosen by the host. */
+  /** Restarts the last served version or puts back a failed update's predecessor; the host chooses the target. */
   async restore(viewer: Viewer, projectId: string, raw: unknown): Promise<HostingSummary> {
     return this.replace(viewer, projectId, raw, 'restore');
   }
@@ -245,7 +247,7 @@ export class HostingService {
       expectedRows(rows);
       const online = rows.find(r => r.state === 'ready') ?? rows.find(holdsApplicationData);
       row = this.newRow(viewer.orgId, projectId, input, release, rows.find(r => r.state === 'ready')?.runId ?? null,
-        operation === 'update' ? online?.runId : undefined);
+        operation === 'update' ? online?.runId : input.runId);
       // Everything that does not touch the online version happens before it
       // stops: bytes copied and revalidated, engine objects created. A failure
       // here stops nothing; the online version keeps serving.

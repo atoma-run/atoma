@@ -259,23 +259,26 @@ export function hostingCopy(view: DeploymentSettingsView) {
   // A confirmation holds only while the status still offers what it named.
   const confirming = view.confirming && view.canEdit && hosting && confirmationHolds(hosting, view.confirming)
     ? view.confirming.action : null;
-  const previous = !online && state === 'failed' ? hosting?.previous ?? null : null;
+  const previous = !online && (state === 'failed' || state === 'stopped') ? hosting?.previous ?? null : null;
+  const restarting = state === 'stopped' && !!previous;
   // Off line with a version to put online: a runtime that may still hold the
   // data (its state unknown) is stopped first, so it takes the update path.
   const startNew = !online && !!candidate && state !== 'starting' ? (hosting?.updateStops ? 'update' : 'deploy') : null;
   const next = online ? (newer ? 'update' : null) : previous ? 'restore' : startNew;
   const update = candidateFailed && online ? 'hosting.outcome.failedOnline'
     : next === 'update' && online ? 'hosting.update.available'
+    : next === 'restore' && restarting ? 'hosting.restart.ready'
     : next === 'restore' || candidateFailed ? 'hosting.outcome.failed'
     : next ? 'hosting.update.startable'
     : !candidate && !online ? 'hosting.update.none' : null;
   const primary: HostingControl | null = !next || !view.canEdit || confirming ? null
-    : { id: `hosting.${next}`, ...(candidateFailed && next !== 'restore' ? { label: 'hosting.retry' } : {}), disabled: busy };
+    : { id: `hosting.${next}`, ...(next === 'restore' && restarting ? { label: 'hosting.restart' }
+      : candidateFailed && next !== 'restore' ? { label: 'hosting.retry' } : {}), disabled: busy };
   // A failed update keeps its own retry beside the put-back.
-  const retry: HostingControl | null = next === 'restore' && startNew && view.canEdit && !confirming
-    ? { id: `hosting.${startNew}`, label: 'hosting.retry', disabled: busy } : null;
+  const retry: HostingControl | null = next === 'restore' && startNew && (!restarting || newer) && view.canEdit && !confirming
+    ? { id: `hosting.${startNew}`, label: restarting ? 'hosting.update' : 'hosting.retry', disabled: busy } : null;
   const confirm = confirming && hosting ? {
-    message: confirming === 'restore' ? 'hosting.confirm.restore' : !online ? 'hosting.confirm.start'
+    message: confirming === 'restore' ? (restarting ? 'hosting.confirm.restart' : 'hosting.confirm.restore') : !online ? 'hosting.confirm.start'
       : hosting.updateStops ? 'hosting.confirm.update' : 'hosting.confirm.updateLive',
     actions: [{ id: 'hosting.confirm', disabled: busy }, { id: 'hosting.cancel' }] as HostingControl[],
   } : null;
@@ -301,7 +304,7 @@ export function hostingCopy(view: DeploymentSettingsView) {
       : state === 'stopped' ? line('hosting.version.last', hosting?.version) : null,
     update,
     /** The version the next step puts online, in words. */
-    target: next === 'restore' ? line('hosting.version.previous', previous)
+    target: next === 'restore' ? line(restarting ? 'hosting.version.restart' : 'hosting.version.previous', previous)
       : next ? line(online ? 'hosting.version.candidate' : 'hosting.version.ready', candidate) : null,
     primary, retry, confirm, progress,
     askAdmin: next && !view.canEdit ? (next === 'deploy' ? 'hosting.offer.askAdminDeploy' : 'hosting.offer.askAdmin') : null,

@@ -79,6 +79,12 @@ withdraws it too. A version that did not start stays explained on its run's
 card and result page after a reload, including while the earlier version is
 still online beside it.
 
+After **Stop application and keep data**, Project settings offers **Restart the
+application** for the last version that served visitors. A newer accepted
+version whose GitHub publication failed does not prevent this restart. The
+version must still be accepted, published and retained; the restart uses its
+verified published source and existing data, after explicit confirmation.
+
 One request (`POST …/hosting/update`, same-origin, same authority as deploy)
 does what Stop then Deploy did. It checks the deployment the person saw and
 that the candidate is still the newest accepted version. It then prepares the

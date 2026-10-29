@@ -143,6 +143,16 @@ it('asks a plain confirmation before an update, worded by whether the site goes 
   expect(hostingCopy(settings(summary({ runId: RUN_B, commitSha: b }), { hostingAction: 'update' }))!.progress).toBe('hosting.outcome.updated');
 });
 
+it('offers a stopped application a clear restart even without a published new candidate', () => {
+  const stopped = summary({ state: 'stopped', url: null, candidate: null, updateStops: false,
+    previous: { ...summary().version!, manifestHash: 'e'.repeat(64) } });
+  expect(hostingCopy(settings(stopped))).toMatchObject({ update: 'hosting.restart.ready',
+    primary: { id: 'hosting.restore', label: 'hosting.restart', disabled: false }, retry: null,
+    target: { key: 'hosting.version.restart', words: { title: 'First control page' } } });
+  expect(hostingCopy(settings(stopped, { confirming: { action: 'restore', runId: RUN_A, deploymentId: DEPLOYMENT } }))!.confirm!.message).toBe('hosting.confirm.restart');
+  expect(hostingCopy(settings(stopped, { canEdit: false }))).toMatchObject({ primary: null, askAdmin: 'hosting.offer.askAdmin' });
+});
+
 it('says plainly when the new version did not start and offers the previous one back', () => {
   const failed = summary({ state: 'failed', url: null, runId: RUN_B, commitSha: b, error: 'startup-failed', updateStops: false,
     failed: { runId: RUN_B }, version: summary().candidate, previous: { ...summary().version!, manifestHash: 'e'.repeat(64) } });

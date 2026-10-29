@@ -239,3 +239,135 @@ workspace/data export. Full raw traceSHA7b3ec2296e872665746e486dd6ac81c8b48ea678
 112unique archives,137events,129attestations reconstructed exactly against
 originals. Actual human reading of this validation is still pending; do not
 claim approval from its completed state alone.
+
+## 11:08 UTC — both source and automatic replay fully read
+
+Actually read all500111characters of validation097347c6's lossless human view,
+then all37759characters of its runnerlog. All112unique archive bodies,137events,
+129attestations, prompts, raw failures/recoveries, learning and final delivery
+were read; inverse reconstruction checked exactly. One outer tool response
+truncated the72000..96000page, which was reread alone in full before advancing.
+Final root and criterion verdict approve c1,1/1; model approval only. Validation
+recovered TypeScript locator errors, a flaky old concurrency timing assertion,
+hidden-parent assertions and an outage-browser check whose expected503console
+errors made its outer status false despite correct DOM. It subsequently passed
+8Chrome recovery tests and full124Vitest+89Node checks. No raw failure erased.
+Replay did not cover representative volume or all5mutations; independent
+8dc8e82 does. Repeated plan demand for already performed checks cost additional
+work; preserve evidence rather than infer a new broad validator rule.
+
+Initialstate proof-only SSH read recomputes complete snapshot digestf500f50f...
+over283entries/258files/4564714bytes INCLUDING modes, in the capture algorithm's
+directory-traversal order. A first diagnostic incorrectly used SQL full-path
+sort and failed; corrected reader now matches both stored digests. No product
+snapshot defect. GoalSHA matches the hosted replay; all4control source hashes
+match originalGit5c7a948. Rootmode493, environment/context/startingSnapshot
+retained. Aggregate receipt/tmp/attica-client-cycle-af68-initial-integrity.json.
+No production data copied or materialized for this check.
+
+Both proofbooks durably saved, all archived members compared with originals:
+/Users/mgtf/.codex/visualizations/2026/10/27/01a17e33-a1fb-7a62-bd3f-0b05141ffc62/attica-client-cycle-20261029/af68-source-and-097347-validation-proofbooks.tar.gz
+27909616bytes,SHA90490bd223de9d2cc8080642ffa0b443ccb21d124d32162782a39312abb5491c.
+Human-reading-complete and inverse receipts included, aliases selfcontained.
+
+Atoma f3e3b2f1 (with73127a70) pushed to main+ourbranch after freshmain control,
+clean exactHEAD=origin/main=origin/ourbranch. MainCI40862195139 entirelygreen;
+Compute40862195167 green, content unchanged so packaging/release correctly
+skipped. Deployment still needs active revision proof. Attica8dc8e828 pushed to
+productionmain+codex/attica-usable-recovery-20261029; clean exactremote match.
+Do not markaf68accepted. Next: after activeplatformfix, retry the owner's REAL
+accepted6838publication through MCP; compare its Git tree with8dc8, then normal
+hosting update, verifying retained1013records/hash/API/Chrome. Existing runtime
+remains online until that prepare-before-stop update.
+
+## 11:14 UTC — normal publication/update restored; second run starting
+
+Production activef3e3b2f1, mainCI+branchCI+bothtriggereddeployworkflows green,
+atoma.service/executor/hostinglauncher running. Native MCPpublication_retry
+6838 SUCCEEDED11:09:42: publishedcommit887e0bb86d7b4d0b467cafeaac19541b20b60d5c,
+base8dc8e82. ActualGittree matches our verified8dc8 implementation exactly;
+only one historical hashed assetBKy9RVBX added. Realowneracceptance10:04:14
+unchanged; af68notaccepted. SettingsnowoffersUpdate. Used actual UIUpdate+
+Confirm, normalprepare-before-stop. Newdeployment28e43674-b3e7-4cbb-b7a2-987a2ed76163
+ready11:12:24.596,commit887e0bb,port32777. Allsixselectedsource/bundlehashes
+matchpublishedGit; runtime600modes percopycontract.1015savedannouncements
+(owner's own collection advanced since1013); beforeAPIactivefalse/complete.
+AfterAPI200/381773B/1015rows/activefalse. Listings,checkpoint,schedule,raw+CSV
+exports byte-identical acrossupdate. Statefilehashchangedonstartup; don't
+claimtimestamp-only without a fullbeforestate comparison. Receipts savedunder
+durableattica-client-cycle-20261029/hosting-{before,after}-normal-update.json.
+
+RealChrome settingsshowsApplicationonline/Doneonlinewithnewversion.
+DirectfreshhostURLappropriately403untilOpenapplicationfromproject; ordinary
+privateOpenflow succeeded innewtab305384250. UICollecteterminee20pages1015,
+nextschedule30Oct09:00. Annonces1015cards,searchnonmatch0/1015thenreset1015/1015.
+No collection/mutation action clicked. Don'treload user'soldappdrafttabs.
+
+Nextone-defectrunrequestprepared/tmp/attica-client-cycle-20261029-second-request.json,
+keyattica-client-cycle-20261029-095723-concurrency-02. NEWkey; markUSEDandrecordID
+as soon as startcalled. Automaticreconciliation(currentGit887e),shortdepth,
+sixHTTPconcurrencyscenarios/controlleddelayedboundaryregression/strictTSwhile
+legacyNodeentryremainsusable. Provenoldfixed200msobservationflakedin097347c6.
+NativeMCPcontextversion8/readinessactive0/problems[]checked11:14. Owner's
+standingautonomousgoal/criteriondelegationapplies; no newapprovalrequired.
+
+SecondstartCALLED11:15UTC: concurrency-02 key is now USED. Never duplicate with
+a newkey if this call expires. Followprojectrecords toidentify it.
+
+SecondrunIDeb1f323e-b425-4fda-a674-b49fe5dbd1d6,created11:15:17.969,
+started11:15:18.896. Computeexecuting/tracebuilding11:19. Originalstartwait
+functions cell2836; ifexpireditcontinues, don'tduplicate.
+
+## 11:20 UTC — restart-after-Stop repair under full verification
+
+DemonstratedtheexactadditionalclientdeadendwithrealHostingService:
+onlinefirstversion -> neweracceptedpublicationfails -> Stop -> nocandidate,
+norestartoffered.3newregressionsfailedbefore. Implementedviaexistingrestore
+sequence (no newendpoint): hostofferlastservedstoppedversiononlywithreadyAt,
+stillaccepted/published/retained,nothingonline; sameadmin/CAS/sourceverifyand
+dataholderstopcontracts. Failedrestartretainsitsrestorabletargetforanexplicit
+retry. UIlabelsRestartwithspecificConfirm; newerreadyversionoptionalbesideit.
+Noauto-startorimplicitacceptance.4newtestsandall68focusedservice/client/HTTP
+testspass. One newtestfixturemistakenlyusedunscopedstore.list(whichreturns
+activeonly); fixedtesttoscopeorg/project. No productguardweakened.
+
+AddedrealPixicanvassmokeRestart->Confirm->onlinewithnocandidate. Source/tests
+anddocsdirtyareALLours inthisworktree; don'ttouchsharedmain. NewENkeysonly,
+nottargetcatalogs. Releasehalvesrunning: exec74207static,72926tests(4workers),
+logs/tmp/attica-client-cycle-restart-release-{static,tests}.log. Afterbothpass,
+runrealOAuth/Compute/GPUbrowsersmokesonexactbuildincludingnewrestartarm,
+thenfreshfetchmain/commit/push/deploy/activechecks. No newrestartcodepushedyet.
+
+11:26 UTC: static release half passed; full test half passed 590 files,
+8592 tests (45 skipped). Real Chrome OAuth and Compute passed. New GPU arm
+also reports stopped/no-candidate Restart -> Confirm -> online; waiting for
+the remainder of the same full GPU smoke before commit. Fresh fetch confirms
+no new origin/main commit beyond our f3e3b2f1. Second run still executing;
+root correctly rejected its first repair because it widened /resume statuses
+to 400 or 409, and is remediating. Do not trust its passing test banner alone.
+
+11:28 UTC: first full GPU smoke passed the new restart arm, then failed the
+existing member-result-page arm because our inserted arm left the route on
+Settings. Fixed only smoke navigation: return via real Result canvas control
+before member reload, retaining its original assertions. Full GPU rerun
+exec61411, log /tmp/attica-client-cycle-restart-viz-gpu-final.log. Preserve the
+first failure log. No production source changed after passing release halves.
+
+Readonly production UI observation on our fresh tab305384250: Configuration
+panel visible/start+saveSchedule enabled, but aria-selected says Suivi true
+and Configuration false. Confirmed DOM roles/panels, no form edits or mutation.
+Potential next small Attica run after concurrency run is reviewed: keep tab
+selection/keyboard state aligned through polling; do not launch it yet.
+
+11:31 UTC: corrected FULL GPU smoke passed, including stopped/no-candidate
+Restart/Confirm, existing member permissions and the subsequent project arms.
+ESLint for changed smoke and diff-check passed. Source release halves remain
+the exact verified source. Ready to commit/deploy restart repair.
+
+Local legacy OAuth helper is again phase renewing (readonly status, no secret
+printed); direct helper fetch failed. Native connected MCP remains usable.
+Used native paged MCP to archive all 172 second-run events and 40 metadata
+pages with snapshot receipts, no credential reset/reconnect or run duplicate.
+Run trace ended11:28:18, root+c1 approved; coordinator still finalizing11:30.
+Complete15551-character raw runner log read; full archives still need decoding
+and reading. Proof root /tmp/attica-client-cycle-20261029-095723/eb1f323e-b425-4fda-a674-b49fe5dbd1d6.

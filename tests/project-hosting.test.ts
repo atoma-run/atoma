@@ -315,7 +315,7 @@ it('deploys a declared hosted browser application without requiring a static pre
 // ---------------------------------------------------------------------------
 let clock = 0;
 /** A further accepted, published delivery of the project, in the canonical run layout retention reads. */
-function deliver(key: string, sha: string, title: string | null = null) {
+function deliver(key: string, sha: string, title: string | null = null, published = true) {
   const id = randomUUID();
   const runRoot = join(realpathSync(root), 'orgs', viewer.orgId, 'projects', projectId, 'runs', id);
   const workspace = join(runRoot, 'workspace'); mkdirSync(workspace, { recursive: true });
@@ -334,8 +334,9 @@ function deliver(key: string, sha: string, title: string | null = null) {
   projects.acceptDelivery(viewer.orgId, id, viewer.principalId, { manifestHash: manifest.hash, review: `Accepted ${key}.` });
   const pub = projects.reservePublication({ orgId: viewer.orgId, projectRunId: id, idempotencyKey: `publish-${key}` })!.publication;
   projects.transitionPublication({ orgId: viewer.orgId, publicationId: pub.publicationId, from: 'pending', to: 'publishing' });
-  projects.transitionPublication({ orgId: viewer.orgId, publicationId: pub.publicationId, from: 'publishing', to: 'published',
+  if (published) projects.transitionPublication({ orgId: viewer.orgId, publicationId: pub.publicationId, from: 'publishing', to: 'published',
     receipt: { repositoryId: '1', fullName: 'acme/site', url: 'https://github.com/acme/site', defaultBranch: 'main', commitSha: sha, baseSha: null } });
+  else projects.transitionPublication({ orgId: viewer.orgId, publicationId: pub.publicationId, from: 'publishing', to: 'failed', error: 'GitHub unavailable' });
   // The newest accepted run is the candidate: creation order must be strict.
   db.prepare('UPDATE project_runs SET created_at = ? WHERE project_run_id = ?').run(new Date(Date.now() + ++clock * 60_000).toISOString(), id);
   return { runId: id, manifestHash: manifest.hash, workspace };
@@ -355,6 +356,53 @@ async function onlineWithNewerVersion() {
   const second = deliver('two', 'd'.repeat(40), 'Finish Attica control page repair');
   return { first, second, online: service.status(viewer, projectId) };
 }
+
+it('restarts the last served version after Stop even when a newer accepted publication failed', async () => {
+  asNodeApplication();
+  const first = deliver('one', 'c'.repeat(40), 'Working application');
+  await service.deploy(viewer, projectId, { ...ref(first), expectedDeploymentId: null }); await service.idle();
+  const online = service.status(viewer, projectId);
+  const next = deliver('two', 'd'.repeat(40), 'Unpublished update', false);
+  await service.stop(viewer, projectId, online.deploymentId);
+  const stopped = service.status(viewer, projectId);
+  expect(stopped).toMatchObject({ state: 'stopped', candidate: null, previous: { ...ref(first), commitSha: 'c'.repeat(40) } });
+  await expect(service.restore({ ...viewer, role: 'org:member' }, projectId, { ...ref(first), expectedDeploymentId: stopped.deploymentId })).rejects.toMatchObject({ status: 403 });
+  await expect(service.restore(viewer, projectId, { ...ref(next), expectedDeploymentId: stopped.deploymentId })).rejects.toMatchObject({ status: 409 });
+  await expect(service.restore(viewer, projectId, { ...ref(first), expectedDeploymentId: randomUUID() })).rejects.toMatchObject({ status: 409 });
+  await service.restore(viewer, projectId, { ...ref(first), expectedDeploymentId: stopped.deploymentId }); await service.idle();
+  expect(service.status(viewer, projectId)).toMatchObject({ state: 'ready', runId: first.runId, candidate: null, previous: null });
+  expect(launcher.startHosting).toHaveBeenCalledTimes(2);
+  expect(readFileSync(join(root, service.status(viewer, projectId).deploymentId!, 'index.html'), 'utf8')).toBe('<h1>one</h1>');
+});
+
+it('keeps the same accepted version available when a requested restart fails to start', async () => {
+  const first = deliver('one', 'c'.repeat(40));
+  await service.deploy(viewer, projectId, { ...ref(first), expectedDeploymentId: null }); await service.idle();
+  const online = service.status(viewer, projectId);
+  deliver('two', 'd'.repeat(40), 'Unpublished update', false);
+  await service.stop(viewer, projectId, online.deploymentId);
+  launcher.startHosting.mockRejectedValueOnce(new Error('Runtime unavailable'));
+  await service.restore(viewer, projectId, { ...ref(first), expectedDeploymentId: online.deploymentId }); await service.idle();
+  const failed = service.status(viewer, projectId);
+  expect(failed).toMatchObject({ state: 'failed', candidate: null, previous: { runId: first.runId } });
+  await service.restore(viewer, projectId, { ...ref(first), expectedDeploymentId: failed.deploymentId }); await service.idle();
+  expect(service.status(viewer, projectId)).toMatchObject({ state: 'ready', runId: first.runId });
+});
+
+it('does not offer a stopped version that never served visitors or lost its retained bytes', async () => {
+  const first = deliver('one', 'c'.repeat(40));
+  await service.deploy(viewer, projectId, { ...ref(first), expectedDeploymentId: null }); await service.idle();
+  const online = service.status(viewer, projectId);
+  await service.stop(viewer, projectId, online.deploymentId);
+  expect(service.status(viewer, projectId).previous?.runId).toBe(first.runId);
+  const row = service.deps.store.list(viewer.orgId, projectId)[0]!;
+  service.deps.store.update({ ...row, readyAt: undefined }, 'stopped');
+  expect(service.status(viewer, projectId).previous).toBeNull();
+  service.deps.store.update(row, 'stopped');
+  rmSync(first.workspace, { recursive: true });
+  expect(service.status(viewer, projectId).previous).toBeNull();
+  await expect(service.restore(viewer, projectId, { ...ref(first), expectedDeploymentId: online.deploymentId })).rejects.toMatchObject({ status: 409 });
+});
 
 it('updates a stateful application in one request: the online version stops before the accepted one starts', async () => {
   asNodeApplication();

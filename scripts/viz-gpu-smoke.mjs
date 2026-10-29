@@ -3297,6 +3297,32 @@ try {
       await bodyHas('hosting.offer.outdated', resultRegion);
       await updateThroughCanvas('Result page', resultRegion);
       console.log('Hosted update ok: accepted run result page canvas Update -> Confirm -> prepared, starting, updated');
+      // A stopped application remains restartable when the newer accepted
+      // delivery has no published candidate (the production Attica incident).
+      hostingPosts.length = 0;
+      hostingSummary = { ...olderOnline(), state: 'stopped', url: null, candidate: null, updateStops: false,
+        previous: { ...onlineVersion, manifestHash: 'e'.repeat(64) } };
+      await clickAccountTarget('project.section.settings');
+      await waitForHitTarget(accountPage, 'hosting.restore', 'hosting restart: no restart for the retained stopped version');
+      await bodyHas('hosting.restart', settingsRegion);
+      await clickAccountTarget('hosting.restore');
+      await bodyHas('hosting.confirm.restart', settingsRegion);
+      if (hostingPosts.length) throw new Error('hosting restart: requested before confirmation');
+      await clickAccountTarget('hosting.confirm');
+      await bodyHas('hosting.progress.starting', settingsRegion);
+      const restartPost = hostingPosts[0];
+      if (hostingPosts.length !== 1 || restartPost.action !== 'restore' || restartPost.body.runId !== onlineRun ||
+        restartPost.body.manifestHash !== 'e'.repeat(64) || restartPost.body.expectedDeploymentId !== onlineDeployment) {
+        throw new Error(`hosting restart: unexpected request ${JSON.stringify(hostingPosts)}`);
+      }
+      hostingSummary = { ...hostingSummary, state: 'starting', deploymentId: updatedDeployment, previous: null };
+      releaseHostingPost();
+      await bodyHas('hosting.progress.starting', settingsRegion);
+      hostingSummary = { ...hostingSummary, state: 'ready', url: 'https://smoke.app.atoma.run/' };
+      await bodyHas('hosting.outcome.restored', settingsRegion);
+      console.log('Hosted restart ok: stopped version, no candidate, real canvas Restart -> Confirm -> online');
+      await clickAccountTarget('project.section.result');
+      await waitForHitTarget(accountPage, 'result.details', 'hosting restart: result page did not reopen');
       // A member reads the same offer and is told whom to ask, with no button.
       hostingSummary = olderOnline();
       const hostingOwnerAuth = stubs['/auth/whoami'];
