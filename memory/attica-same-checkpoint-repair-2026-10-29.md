@@ -152,3 +152,16 @@ request validation-retry-request.json: source36e940ba, project07864f7c, key
 attica-validation-completion-20261029-01. KEY NOT USED: do NOT run until newbudget
 deployed and worker capacity healthy. Latest pending cache approval is keep4GB,
 not superseded keep8GB proposal. Source/validation evidence fullyread; preserveall.
+
+Follow-up375294a14a43fffc0656bb3c19e07b94c2b3285e COMMITTED and PUSHED to ownbranch
+codex/compute-validation-evidence; cleanHEAD==originbranch. Notmain/notdeployed.
+Permanent private archive (487files verified,mode0600,63,414,135bytes):
+/Users/mgtf/.codex/visualizations/2026/10/27/01a17e33-a1fb-7a62-bd3f-0b05141ffc62/attica-36e940ba-validation-03f5cf43-before-retry-20261029.tar.gz
+SHA71201849da3ce0ebde11c7e02dceee0d38ba9c7d5b9ba173623b8acf7f202224.
+Latest keep4GBcache approval STILLpending; firstolder24hkeep8GBapproval fulfilled,
+493.9MBonly,workerENOSPCpersists. Do not execute superseded8GBrequest again.
+FreshMCP SDK catalog confirmedretryavailable, requestkey NOTused. Mustdeploy375294a1
+(or descendant)thenretry SAME36e940ba once workerhealthy; preserveimmutableinitial.
+Push banner12Dependabot alerts inspectedreadonly:10filelock+certifi frozen
+benchmark/haystack/requirements-observed.txt,1zod optionaldemo-film. Rootnpmci/audit0;
+no dependency code changed for these unrelated recorded/tooling manifests.

@@ -249,3 +249,14 @@ Source MCP reconstruction is object-equal to its original host trace. The source
 worker does not provide separate temporary-log snapshots; complete transport
 output archives are present. Failed commands that never spawned have no stdout
 or exit code to recover; the raw tool exceptions are preserved instead.
+
+### Private archive and verified follow-up commit
+
+Budget follow-up commit `375294a14a43fffc0656bb3c19e07b94c2b3285e` is verified and
+pushed to `codex/compute-validation-evidence`. Main and the deployed runtime remain
+`36d647b8cf52138f655129a4d6ed66b754707492` while storage recovery is pending.
+
+The complete before-retry evidence is retained in this [private archive](/Users/mgtf/.codex/visualizations/2026/10/27/01a17e33-a1fb-7a62-bd3f-0b05141ffc62/attica-36e940ba-validation-03f5cf43-before-retry-20261029.tar.gz).
+SHA256: `71201849da3ce0ebde11c7e02dceee0d38ba9c7d5b9ba173623b8acf7f202224`.
+All 487 files were hash-verified inside the archive; it has mode 0600. This is a
+frozen receipt of the inconclusive attempt, not a passing hosted verdict.
