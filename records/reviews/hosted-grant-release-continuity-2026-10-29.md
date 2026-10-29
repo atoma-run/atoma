@@ -3,8 +3,9 @@
 Attica's application server remained ready with 1,015 stored listings after the
 platform release, but an existing browser tab showed an expired-access message
 and disabled its controls. Reopening through its Atoma project restored the same
-application and data without starting a collection. A fresh tab reopened at 13:39 showed the 1,015 listings; after the 13:48
-platform deployment, the same unreloaded tab showed expired access at 13:49.
+application and data without starting a collection. A fresh tab observed between
+13:39:37 and 13:41:08 UTC showed the 1,015 listings; after the 13:48 platform
+deployment, the same unreloaded tab showed expired access at 13:49.
 The readonly 13:49:43 server receipt confirmed all six data hashes and hosted
 code were unchanged. Independently, the gateway
 code establishes a deterministic release failure: its accepted browser grants
@@ -50,3 +51,19 @@ same cookie on the second without reopening, verifies membership loss and
 logout, then verifies the token remains refused in the third process. Other
 focused regressions cover exact expiry and the memory-only preview default.
 The cycle memory records the actual verification and deployment outcomes.
+
+Release verification completed: 8,608 tests passed, with 45 existing skipped
+cases; the full static release checks, both TypeScript configurations, lint,
+audit, build and compiled smokes passed. Main CI succeeded; the branch's worker
+job alone hit a Docker removal refusal, with its complete first-attempt log
+preserved and one unchanged-source replay subsequently passing. No cleanup
+assertion or isolation rule was weakened.
+
+Production activated af7906b4. Renewing access through Atoma restored the existing
+Attica tab without reloading it, with 1,015 listings and enabled configuration
+commands. A private, unsubmitted 14:45 schedule draft now exercises continuity
+through the next platform release. No collection or schedule write was issued.
+The pre-release receipt records exact data hashes and modes, the active revision
+and a double-hashed grant fingerprint, never a raw browser credential. The
+following release's outcome must be observed before claiming production
+continuity; this entry records preparation and the verified first activation.
