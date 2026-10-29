@@ -195,15 +195,10 @@ guard; first proof still failed because bundle had not yet been rebuilt. Current
 run is continuing its own repairs/build, no final verdict yet. Preserve recovered
 errors and let it finish. No new platform fault proven by these normal tool errors.
 
-CAPTCHA failure cause is more concrete than a timing race: read the complete
-unchanged tests/attica-control-captcha.test.js and complete helper. First test uses
-default createFakeSession completeListings=true (helper line74), so complete result
-rows intentionally avoid detail access. It only sets detailMode captcha and then
-sleep250; it never sets completeListings=false. Later proper CAPTCHA tests already
-pass that option. Thus the fixture assumption itself must be repaired as well as
-its observed synchronization. Source collector/server should stay intact unless a
-real production defect is separately demonstrated. Full original test read; all
-202/exact2navigation/no-listings and later verification assertions must remain.
+CAPTCHA diagnosis in this heartbeat was provisional and is SUPERSEDED by the
+03:28 controlled probe below. Do not assume completeListings=true suppresses all
+detail navigation: the actual normalizer/collector path still visits the detail.
+The recorded root-check failure remains real; determine its timing causally.
 
 Prepared, NOT SENT:
 /tmp/attica-autonomy-20261029/second-run-request-PREPARED-NOT-SENT.json
@@ -218,3 +213,94 @@ is active or before reading its final proofs. It has spent nothing yet.
 No Atoma source edits, deployments, client acceptance, publication or hosting change
 in this heartbeat. Own branch was clean at start; save only this memory. Active
 production symlink still375294a. Deadline06:57:09Z/no new chantier after06:27Z.
+
+
+## 03:28 UTC — causal correction before any next run
+
+The unchanged original first CAPTCHA test PASSES independently in a private
+materialized copy (Node24.20, no npm install required, all original compiled files).
+Raw /tmp/attica-autonomy-20261029/captcha-original-causal.log:1pass,360.758ms.
+Therefore the hypothesis that completeListings=true prevents detail CAPTCHA is
+FALSE on this actual path. No delivery was edited based on that hypothesis.
+A second independent probe wraps ONLY the fake session instance's detail goto
+with200ms extra response latency, keeping its original default fixtures and exact
+production createServer/collector. At250ms pauseType=null; after bounded observed
+completion captcha is durable, exactly2navigations,0savedlistings,487ms total.
+Raw captcha-delayed-causal.log plus captcha-delay-probe.cjs in private
+/tmp/attica-autonomy-20261029/offline-captcha-causal-probe. This establishes the
+fixed sleep250 race without changing collector/server. Probe cleanup awaited real
+completion, no active source/run touched, no real property-site traffic.
+
+Prepared second request corrected in place (STILL NOT SENT): now asks controlled
+slow-fixture failure then bounded durable-pause synchronization, explicitly forbids
+changing fixture based on its misleading comment. Criteria lengths167/138/150.
+No permanent CAPTCHA functional defect established. Existing failed root command
+and the independent positive/slow-response evidence must all be retained.
+
+Latest auto status03:23:49: running,50events, execution finished and parent review
+started; no final verdict. Read-only trace copy caught55events, SHA769d4582...
+71uniquegziparchives492302decodedbytes/70attestations, inverseverified; this55
+prefix is NOT FULLY READ. Frozen prefix33 remains FULLY READ; current roottrace55
+may be overwritten by finalfetch while preserving snapshots+prefix33. Fetch final
+once ended and read only a lossless view seeded from actualreadprefix33/source136.
+A local reader improvement now decodes canonical embedded JSON string literals
+before exact-reference deduplication; its inverse must reserialize/hash-check every
+literal and reconstruct every original archive/event/metadata/attestation. This
+is local diagnostic tooling only, no product source gate or model call changed.
+
+
+## 03:33 UTC — automatic replay ended; final proof reading pending
+
+Read-only private queue now COMPLETED03:26:15.279Z. Actual trace bb0181d3 ends
+03:26:09.810Z,73events,13calls,$.20898244equivalent,491126input+18806output,
+1,401,728cache read.11GLM calls and2host-subscription gpt-5.6-terra skill calls.
+Counters changed, recipesChanged=false. This is queue completion ONLY; final
+review verdict still must be read before any claim of approval or next start.
+Final raw trace and fullrun.log copied via scoped read-only SSH. Final traceSHA
+c5b8bdc17146485bf1b064c671a70223dfee0762abe00c8fa0640d1f43e2c2b2,
+72uniquegziparchives636520unique decodedbytes;109archiveoccurrences;71attestations.
+All raw integrity and local lossless-view inverse checks pass.
+
+FROZEN final73 book /tmp/attica-autonomy-20261029/bb0181d3-f43e-4684-a597-442c3d56baa9/books/final73/
+ACTUALLY READ only0..16000 of284863chars. NEXT16000. Do not rerender/overwrite.
+Book read receipt records exacttrace+humanhash. Prefix33 remainsfullyread. Use new
+local human-view.py because canonical embedded JSON literals now rendered decoded;
+its inverse reserializes+hash-checks exactoriginalbytes. No model/product changes.
+Need still read16000..end plus complete run.log, final reviews, metadata, skill
+calls, nested raw command logs and all integrity checks before advancing.
+
+New IMPORTANT raw findings from first16k: focused held-refresh search3pass after
+rebuild. Typecheck initially failed TS18048 page possiblyundefined, then repaired.
+Full browser32 had2recovery failures (#lastRun still —) in manual/interval cases;
+recovery-only rerun still manual failure. Baseline rebuild/recovery producesSAME
+2failures. Final full browser rerun30pass2fail. Final isolated clean commandselected
+ONLY5files24tests and excluded recovery8, all24pass. Do not call fullbrowsergreen.
+No acceptance verdict read yet; this may still have been explicitly caveated.
+The earlier baseline fullbrowser31passing once did not prove these races absent.
+
+Independent current source test excerpt428-461 inspected: server scheduled
+completion + page/listing counters wait is common, but #lastRun/#history wait
+exists ONLY inside delayed-history scenario conditional435. Manual+interval paths
+assert history immediately460-461. This is a demonstrated browser-refresh timing
+gap, like the fixed250ms Node CAPTCHA assertion. Next prepared repair was expanded
+accordingly toTHREEexistingtestfiles/fourcriteria (STILLNOTSENT), retaining every
+admission/exclusion/export/progress/history/stale-before-release assertion and all
+originaltests. All configured browserproofs must pass including recovery8; do not
+select around known red tests. Do not change productioncollector/scheduler merely
+for test timing. Revise goal after reading final reviews if necessary.
+
+Strict packaged capture of host finalworkspace refused npm dependency links as
+expected (Checkpoint workspace contains a link or special file). Did not weaken
+that guard or touchworkspace. Retained insteadFULLtar including dependencies and
+hardlinks: /tmp/attica-autonomy-20261029/first-validation-workspace-full.tar.gz,
+20,797,440bytes,SHA b316f33f65a4bb48c0f236dad1527b75942db175f42747f614b12f399b320edc.
+Archive4925members; compared all276initialentries WITHOUT extracting links:
+270unchanged, noentrymodechanges; control.ts/searchproof/control.js+map/html modified,
+oldhashedbundle replaced bycontrol-BZWgoOGS.js. No othernondependency/runtimeextra.
+Comparison first-validation-final-verification.json. Source runtime/data untouched.
+Empty failed first-validation-final-state.json.gz is NOT a valid export; use tar.
+Localvolume9.9GiBfree beforetar; evidence root416MB, no cleanup authorized/needed.
+
+No new run or retry, no client acceptance/publication/hosting, no Atoma source fix
+or production deployment this heartbeat. Only our memory and private evidence
+changed. Continue autonomy until06:57:09Z; no new chantier after06:27Z.
