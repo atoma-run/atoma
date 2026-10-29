@@ -39,8 +39,8 @@ An inspection or reproduction subtask must ask for observed state and defects, n
 An approval without this complete classification is not executable. ${REJECTION_SENTENCE} A refusal lists EVERY blocking defect and every request in this one verdict, not the first one found: the planner answers all of them in one revision. A later round refuses only for a listed defect that still stands or one the revision introduced; a defect that was present and went unlisted goes in your reasoning and does not refuse the plan.`;
 
 /**
- * The ROOT review's repair rule (stage A of design M4, behind
- * ATOMA_REVIEW_REPAIR), in place of the rejection sentence. Runs b920faf6 and
+ * The review's repair rule (stage A of design M4 at the root, M5 at the
+ * cell, behind ATOMA_REVIEW_REPAIR), in place of the rejection sentence. Runs b920faf6 and
  * 1622e44b refused root plans for defects the reviewer could state exactly
  * (a fan-out, a dependency, a binding), each refusal a top-tier replan and a
  * second review. The reviewer repairs those in its approval and writes no
@@ -53,7 +53,7 @@ const REPAIR_RULE = 'Repair, do not refuse, a structural defect you can state ex
 
 /**
  * The review contract as a reviewer reads it: today's text, or with
- * `repairs` (the root, behind ATOMA_REVIEW_REPAIR) the repair rule in place
+ * `repairs` (behind ATOMA_REVIEW_REPAIR) the repair rule in place
  * of the rejection sentence. Off, byte-identical to DELEGATION_REVIEW_REQUEST.
  */
 export function delegationReviewRequest(repairs: boolean): string {

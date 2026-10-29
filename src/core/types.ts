@@ -419,12 +419,18 @@ export type PositiveVerdict = {
    */
   delegationReview?: import('../contracts/parentTests.js').DelegationReview;
   /**
-   * Set by the host on an approved ROOT delegation review behind
+   * Set by the host on an approved delegation review behind
    * ATOMA_REVIEW_REPAIR: the reviewer's own non-authoring deltas, parsed by
    * their separate schema after the verdict, and the reviewed plan they make
    * (`reviewedPlanRepair`), which `delegationReview` classifies.
    */
   planRepair?: { readonly deltas: readonly unknown[]; readonly plan: Plan };
+  /**
+   * Set by the host on an approved CELL review whose `planRepair` passed the
+   * mechanical half again (`L3Atom.validatePlan`, design M5): the plan
+   * `superviseLoop` executes in place of the one the child proposed.
+   */
+  amendedPlan?: Plan;
 };
 /**
  * Why a delegation-contract review refused, typed by the host: `reviewer` is
@@ -461,7 +467,7 @@ export type NegativeVerdict = {
    * approval (`L3Atom.MAX_CELL_PLAN_REFUSALS`, run 40c20c5d).
    */
   unsatisfiableSuites?: readonly import('../contracts/parentTests.js').UnsatisfiableSuite[];
-  /** A root delegation review's refusal behind ATOMA_REVIEW_REPAIR: the kind the reviewer named, when it named one. */
+  /** A delegation review's refusal behind ATOMA_REVIEW_REPAIR: the kind the reviewer named, when it named one. */
   refusalKind?: import('../contracts/parentTests.js').ReviewRefusalKind;
 };
 export type Verdict = PositiveVerdict | NegativeVerdict;

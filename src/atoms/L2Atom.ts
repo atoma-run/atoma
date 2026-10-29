@@ -781,6 +781,14 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     const strategy = this.pendingStrategy;
     this.pendingStrategy = null;
     if (!strategy) {
+      // Every plan this cell proposes outside fallback commits its strategy,
+      // and behind ATOMA_REVIEW_REPAIR the plan that executes may be the
+      // review's repair of it (design M5): a silent self-execution would drop
+      // that reviewed plan. Off, an execute with no plan before it (a direct
+      // caller) still self-executes, as it always has.
+      if (reviewRepairEnabled()) {
+        throw new Error(`[${this.name}] execute without a planned strategy: the reviewed plan names subtasks no strategy dispatches`);
+      }
       return this.selfExecute(task, plan, ctx);
     }
 

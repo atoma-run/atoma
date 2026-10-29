@@ -11,6 +11,7 @@ import { Atom, planBase, type PlanBase, type PlanContext, type Supervisor } from
 import type {
   GenerationParams,
   Plan,
+  PositiveVerdict,
   Result,
   RunContext,
   SubtaskSpec,
@@ -2023,7 +2024,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // Inject the downstream-target description so Haiku can judge the
         // routing on facts, not on name-based guesses.
         targetContext: buildTargetContext(plan, this.registry),
-        ...(reviewsTests ? { delegationContract: { plan, allowDiscovery: false, hostFacts, previousRefusals: this.cellReviewRefusals.get(planner) ?? [] } } : {}),
+        ...(reviewsTests ? { delegationContract: { plan, allowDiscovery: false, hostFacts, previousRefusals: this.cellReviewRefusals.get(planner) ?? [],
+          ...(reviewRepairEnabled() ? { repairs: true } : {}) } } : {}),
         ...(audit ? { audit: true } : {}),
       });
     // Jev fast path — see L2Atom.validatePlan. Approve or defer, never refuse.
@@ -2040,7 +2042,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         })
       : null;
     if (jevApproved) return jevApproved;
-    const verdict = reviewsTests ? await this.reviewChildDelegation(child, modelVerdict, ctx) : await modelVerdict(false);
+    const reviewedVerdict = reviewsTests ? await this.reviewChildDelegation(child, modelVerdict, ctx) : await modelVerdict(false);
+    const verdict = reviewedVerdict.approved && reviewedVerdict.planRepair
+      ? await this.repairedCellPlan(reviewedVerdict, reviewedVerdict.planRepair, task, planner, ctx) : reviewedVerdict;
+    // Memoised under the PROPOSED plan's bytes: the same plan proposed again gets the same repair, without a call.
     if (reviewKey && verdict.approved) this.reviewedTestPlans.set(reviewKey, verdict);
     // A model refusal carries no delegationRefusal stamp; only the host's own
     // 'reviewer' fault and the fan-out mechanical refusal are excluded.
@@ -2048,6 +2053,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       const list = this.cellReviewRefusals.get(planner) ?? [];
       list.push(refusalWithRequests(verdict));
       this.cellReviewRefusals.set(planner, list);
+      // The host refused the review's own repair: no model refused this plan, so it is never bounded into execution.
+      if (reviewedVerdict.approved) return verdict;
       const unsatisfiable = verdict.unsatisfiableSuites ?? [];
       if (list.length > L3Atom.MAX_CELL_PLAN_REFUSALS && unsatisfiable.length > 0) {
         const named = unsatisfiable.map(entry => entry.suite === 'plan' ? 'the plan-level suite' : `subtask ${entry.suite}'s suite`).join(', ');
@@ -2065,6 +2072,36 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       }
     }
     return verdict;
+  }
+
+  /**
+   * A cell review's approval with the reviewer's repair (design M5, behind
+   * ATOMA_REVIEW_REPAIR), once the host's mechanical half passed on the plan
+   * it makes: the zero-token suite precheck, any suite import that does not
+   * resolve, and the classification enforced again. It carries that plan as
+   * `amendedPlan`, which `superviseLoop` executes; the child's strategy is
+   * unchanged, since it names no subtask. A repair the host refuses is a
+   * refusal of the plan naming the deltas, as at the root: the planner and
+   * the next review hear both. No model reviewed the amended plan's host
+   * facts, hence the import check the root's repair runs too.
+   */
+  private async repairedCellPlan(verdict: PositiveVerdict, repair: NonNullable<PositiveVerdict['planRepair']>,
+    task: Task, planner: string, ctx: RunContext): Promise<Verdict> {
+    if (!verdict.delegationReview) throw new Error('Delegation contract review approved without an enforced classification');
+    const amended = preservePlanLiteralContracts(repair.plan, task.description);
+    const refused = (why: string): Verdict => {
+      const stated = `The host refused the review's planRepair: ${why} ${repairNote(repair.deltas)}`;
+      ctx.logger.warn(`[l3] ${stated.slice(0, 400)}`);
+      return delegationRefusal(stated, 'plan');
+    };
+    const suites = planSuitePrecheck(planSuites(amended), ctx.mechanicalPlanRejections ??= new Set(), planner);
+    if (suites.refusal) return refused(suites.refusal);
+    const unresolved = await unresolvedSuiteImports(amended, ctx);
+    if (unresolved.length) return refused(`a suite import of the repaired plan does not resolve: ${unresolved.join('; ')}.`);
+    const enforced = enforceParsedDelegationReview(amended, verdict.delegationReview, false);
+    if (enforced) return refused(enforced.reasoning);
+    ctx.logger.info(`[l3] delegation review repaired a plan of ${planner} with ${repair.deltas.length} delta(s)`);
+    return { ...verdict, amendedPlan: amended };
   }
 
   /**

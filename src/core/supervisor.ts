@@ -433,6 +433,14 @@ export async function superviseLoop<C extends Atom>(
         planRepeat.reset();
         planMarker.reset();
         refusedPlan = undefined;
+        // The review repaired the plan it approved, and the host checked the
+        // repair again (design M5, behind ATOMA_REVIEW_REPAIR): that plan
+        // executes. The child's strategy stands; it carries no subtask.
+        if (v1.amendedPlan) {
+          trace.push({ kind: 'plan-repaired', ts: now(), atom: parent.name, payload: { deltas: v1.planRepair?.deltas ?? [] } });
+          plan = v1.amendedPlan;
+          trace.push({ kind: 'plan', ts: now(), atom: current.name, payload: { repaired: true, plan } });
+        }
 
         if (execIter >= ctx.limits.maxExecIterations) {
           throw new EscalationSignal('exec');

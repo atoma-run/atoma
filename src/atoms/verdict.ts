@@ -1033,7 +1033,7 @@ export async function llmVerdict(args: {
   /** Mandatory scope classification and executable-test check, never a trust shortcut. */
   delegationContract?: {
     plan: Plan; allowDiscovery: boolean; previousRefusals?: readonly string[]; hostFacts?: readonly string[];
-    /** The root review behind ATOMA_REVIEW_REPAIR: the repair rule, `planRepair` and `refusalKind` (design M4, stage A). */
+    /** A review behind ATOMA_REVIEW_REPAIR: the repair rule, `planRepair` and `refusalKind` (design M4 stage A, M5 at the cell). */
     repairs?: boolean;
   };
   /** Defaults to VALIDATION_PARAMS; only the root delegation review passes its own (src/core/AGENTS.md). */
