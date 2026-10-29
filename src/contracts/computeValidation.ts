@@ -4,9 +4,10 @@ import { idempotencyKeySchema, projectIdSchema, projectRunIdSchema } from './pro
 /** Host policy, never supplied by a device, task, or model. */
 export const COMPUTE_VALIDATION = Object.freeze({
   // Full proof contexts are read repeatedly, including billed cache reads.
-  // 60k stopped Attica at 162,966 tokens for $0.0137 before acceptance.
-  // Attica continuation spent 177s executing before its result review; four minutes cut that review.
-  timeoutMs: 15 * 60_000, tokens: 1_000_000, costUsd: 0.25,
+  // Attica d79d05f0 stopped at 1,500,997 tokens / $0.0775 after four calls,
+  // before result review; its source consumed 4,242,909. Leave room for both
+  // execution and independent review without changing token accounting.
+  timeoutMs: 30 * 60_000, tokens: 8_000_000, costUsd: 0.25,
 });
 export const COMPUTE_VALIDATION_ENV = 'ATOMA_ASSAYER_COMPUTE_VALIDATION';
 export const computeValidationStatusSchema = z.enum([

@@ -2615,7 +2615,7 @@ describe('drawLedger', () => {
     const text = ctx.texts.map(row => row.value).join(' ').replace(/\s+/g,' ');
     expect(text).toContain('Automatic Compute verification');
     expect(text).toContain('One attempt per source run');
-    expect(text).toContain('15 minutes each');
+    expect(text).toContain('30 minutes each');
       expect(text).not.toContain('attempts in 24 hours');
     expect(text).toContain('Calls already in progress may exceed');
     if (status === 'completed') {

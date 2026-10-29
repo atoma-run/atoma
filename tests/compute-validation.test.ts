@@ -73,6 +73,15 @@ describe('resident Compute verification through the real queue, store and lease'
     meter.record(call); // 162,966 billable tokens: the original production failure, cache included.
     expect(meter.consumed().tokens).toBe(162966);
     expect(meter.exceeded()).toBeNull();
+    const replayPrices = [{ match: /^fixture$/, prices: { input: 0.2, output: 1.1, cachedInput: 0.03 } }];
+    for (const usage of [
+      { inputTokens: 87156, outputTokens: 16529, cacheReadInputTokens: 1397312 }, // d79d05f0 before result review.
+      { inputTokens: 346111, outputTokens: 32990, cacheReadInputTokens: 3863808 }, // Observed source volume, priced as the hosted replay.
+    ]) {
+      const observed = new RunBudgetMeter({ record: () => {} }, COMPUTE_VALIDATION, () => {}, replayPrices);
+      observed.record({ ...call, ...usage });
+      expect(observed.exceeded()).toBeNull();
+    }
     const gate = new BudgetGateLlmClient({ complete: transport }, meter);
     const request = { model: 'fixture', systemPrompt: '', userContent: '' };
     await gate.complete(request);
@@ -93,7 +102,7 @@ describe('resident Compute verification through the real queue, store and lease'
     expect((await validateComputeNext(f.options))?.outcome).toBe('compute-validated');
     expect(f.launch).toHaveBeenCalledTimes(1);
     const call = f.launch.mock.calls[0]![0];
-    expect(call).toMatchObject({ isolation: 'container-egress', timeoutMs: 900_000, goal: f.source.goal });
+    expect(call).toMatchObject({ isolation: 'container-egress', timeoutMs: 1_800_000, goal: f.source.goal });
     expect(call.seed).toBeUndefined();
     expect(JSON.parse(call.env[COMPUTE_VALIDATION_ENV]!)).toMatchObject({ sourceRunId: f.source.projectRunId });
     expect(call.env['ATOMA_RUN_ID']).not.toBe(f.source.projectRunId);

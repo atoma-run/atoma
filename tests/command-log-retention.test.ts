@@ -16,6 +16,26 @@ import { ContainerToolExecutor } from '../src/tools/containerExecutor.js';
 import { makeCtx } from './helpers.js';
 
 describe('redirected command logs', () => {
+  it('retains the unfiltered failure and actual exit through the documented redirect pattern', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-command-log-'));
+    const sandbox = new ToolSandbox(root);
+    const logPath = join(root, 'verification.log');
+    try {
+      const raw = 'first\nASSERTION_FAILED_é\n' + 'raw proof\n'.repeat(6000) + 'last\n';
+      writeFileSync(join(root, 'check.cjs'), `process.stdout.write(${JSON.stringify(raw)},()=>process.exit(7));`);
+      const tool = runShellTool({ sandbox, commandLogDirectory: root });
+      const result = await tool.execute({ cmd: `node check.cjs > ${JSON.stringify(logPath)} 2>&1; status=$?; cat ${JSON.stringify(logPath)}; exit "$status"` }) as { exitCode: number; stdout: string; capturedCommandLogs: unknown };
+      expect(result.exitCode).toBe(7);
+      expect(result.stdout).toBe(raw);
+      const archive = archiveToolEvidence({ cmd: 'verification' }, result);
+      await sandbox.cleanup();
+      rmSync(root, { recursive: true, force: true });
+      const saved = JSON.parse(readArchivedToolEvidence(archive)) as { result: { capturedCommandLogs: unknown } };
+      const logs = capturedCommandLogsSchema.parse(saved.result.capturedCommandLogs);
+      expect(logs.omitted).toEqual([]);
+      expect(JSON.parse(readArchivedToolEvidence(logs.files[0]!.evidence))).toMatchObject({ result: { content: raw } });
+    } finally { await sandbox.cleanup(); rmSync(root, { recursive: true, force: true }); }
+  });
   it('retains the full raw redirected log through worker-result archival, deletion and paged review', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-command-log-'));
     const sandbox = new ToolSandbox(join(root, 'workspace'));
@@ -104,9 +124,10 @@ describe.skipIf(!image)('compiled worker log retention across container removal'
     const worker = new ContainerToolExecutor({ workspaceHostPath: root, image });
     try {
       await worker.start();
-      const result = await worker.execute('run_shell', { cmd: "printf 'start\\nASSERTION_RAW_é\\nend\\n' >/tmp/check.log; tail -1 /tmp/check.log" }) as { capturedCommandLogs: unknown; stdout: string };
+      const result = await worker.execute('run_shell', { cmd: "node -e 'process.stdout.write(\"start\\nASSERTION_RAW_é\\nend\\n\",()=>process.exit(7))' >/tmp/check.log 2>&1; status=$?; cat /tmp/check.log; exit \"$status\"" }) as { capturedCommandLogs: unknown; stdout: string; exitCode: number };
       const archived = archiveToolEvidence({ cmd: 'redirected log' }, result);
-      expect(result.stdout).toBe('end\n');
+      expect(result.stdout).toBe('start\nASSERTION_RAW_é\nend\n');
+      expect(result.exitCode).toBe(7);
       await worker.drain();
       const saved = JSON.parse(readArchivedToolEvidence(archived)) as { result: { capturedCommandLogs: unknown } };
       const logs = capturedCommandLogsSchema.parse(saved.result.capturedCommandLogs);

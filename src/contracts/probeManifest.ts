@@ -949,7 +949,11 @@ export function manifestWriterLines(kind: 'shell' | 'http' | 'web'): string[] {
  * nothing writes the manifest by hand (`write_file`/`edit_file` refuse it),
  * so the only honest account of its shell evidence is the host's receipt.
  */
+export const COMMAND_OUTPUT_GUIDANCE = 'Keep the complete output and actual exit code of each verification, including failures and negative controls. Do not pipe a proof command through tail/grep/head: discarded output cannot be archived and a pipeline may return the filter\'s success after a failing test. A negative control must fail the intended assertion, not a syntax/setup error; restore the fixed source and rerun its positive control before delivery.';
+export const SHELL_OUTPUT_GUIDANCE = COMMAND_OUTPUT_GUIDANCE + ' Run the command directly, or redirect stdout/stderr to /tmp/verification.log, save its exit code immediately, display the whole log and exit with the saved code: <command> > /tmp/verification.log 2>&1; status=$?; cat /tmp/verification.log; exit "$status".';
+
 export const SHELL_RECEIPT_LINES: readonly string[] = [
+  SHELL_OUTPUT_GUIDANCE,
   `SHELL RESULTS ARE HOST RECEIPTS: the host observes the exit code and output`,
   `of every command you run, and the reviewers read those receipts. Quote each`,
   `evidence command with its observed exit code verbatim in GROUND TRUTH and in`,

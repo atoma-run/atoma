@@ -14,6 +14,8 @@ import {
   PORT_BEARING_STDOUT_RE,
   PROBE_MANIFEST_FILENAME,
   PROBE_HISTORY_GUIDANCE,
+  COMMAND_OUTPUT_GUIDANCE,
+  SHELL_OUTPUT_GUIDANCE,
   appendHttpProbe,
   appendWebProbe,
   WEB_PROBE_DISCRIMINANT,
@@ -1030,6 +1032,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
       name: 'run_shell',
       description: [
         'Run an allowlisted shell command inside the workspace and return stdout/stderr.',
+        SHELL_OUTPUT_GUIDANCE,
         ...(opts.commandLogDirectory ? ['Keep proof output on stdout/stderr. If redirecting it, use a top-level /tmp/*.log file: changed regular UTF-8 logs are archived with this command before worker removal (8 MiB raw / 4 MiB encoded / 32 files per call, 256 listed paths; omissions are explicit). Archives are file snapshots, not independent proof of a command exit.'] : []),
         `Allowed executables: ${[...allowlist].join(', ')}.`,
         'Built-in utility: command:"atoma-scaffold", args:["web"|"node"|"fullstack", "empty-directory"] creates the versioned TypeScript/ESLint/Vitest skeleton (Vite for browser apps). Use it directly, not inside bash or a compound command. It refuses nonempty directories; use .atoma-skeleton as a reference when adapting an existing app.',
@@ -1041,7 +1044,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
           cmd: {
             type: 'string',
             description:
-              'The whole command line, as you would type it: "node cli.js data.csv --format json". Pipes and redirects are fine — they run through bash.',
+              'The whole command line, as you would type it: "node cli.js data.csv --format json". Shell syntax runs through bash; preserve full verification output and its actual exit code (see tool guidance).',
           },
           command: {
             type: 'string',
@@ -3872,6 +3875,7 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
         'after the replacement command has run. FINITE CLI/script commands only: never start a',
         'server here and never use curl/wget, which are refused: HTTP evidence is not a command probe.',
         PROBE_HISTORY_GUIDANCE,
+        COMMAND_OUTPUT_GUIDANCE,
       ].join(' '),
       inputSchema: {
         type: 'object',

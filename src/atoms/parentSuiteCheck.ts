@@ -21,6 +21,29 @@ const UNAVAILABLE = new Set([
 ]);
 const BUILTIN = new Set(VITEST_BUILTIN_MATCHERS);
 
+// These entrypoints belong to the coordinator/build process, never the
+// restricted test thread. Match actual runtime module specifiers, not text
+// mentioning configuration, type imports, or application modules in general.
+function configurationEntrypoint(specifier: string): boolean {
+  return specifier === 'vite' || specifier === 'vitest/config' ||
+    /(?:^|\/)vite(?:st)?\.config\.(?:[cm]?[jt]s)$/.test(specifier);
+}
+
+function runtimeModuleSpecifier(node: ts.Node): ts.Expression | undefined {
+  if (ts.isImportDeclaration(node)) {
+    const clause = node.importClause;
+    if (clause?.isTypeOnly || clause && !clause.name && clause.namedBindings && ts.isNamedImports(clause.namedBindings) &&
+        clause.namedBindings.elements.length > 0 && clause.namedBindings.elements.every(each => each.isTypeOnly)) return undefined;
+    return node.moduleSpecifier;
+  }
+  if (ts.isExportDeclaration(node)) {
+    if (node.isTypeOnly || node.exportClause && ts.isNamedExports(node.exportClause) &&
+        node.exportClause.elements.length > 0 && node.exportClause.elements.every(each => each.isTypeOnly)) return undefined;
+    return node.moduleSpecifier;
+  }
+  return undefined;
+}
+
 /** A key written as a literal: `'is'`, `` `is` ``. An identifier argument is a variable, not a name. */
 const literalOf = (expression: ts.Expression): string | undefined =>
   ts.isStringLiteralLike(expression) || ts.isNumericLiteral(expression) ? expression.text : undefined;
@@ -54,6 +77,16 @@ export function parentSuiteUnsupported(source: string): string[] {
   const found = new Set<string>();
   const extended = new Set<string>();
   const visit = (node: ts.Node): void => {
+    const module = runtimeModuleSpecifier(node);
+    if (module && ts.isStringLiteralLike(module) && configurationEntrypoint(module.text)) {
+      found.add(`configuration import ${JSON.stringify(module.text)}`);
+    }
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      const specifier = node.arguments[0];
+      if (specifier && ts.isStringLiteralLike(specifier) && configurationEntrypoint(specifier.text)) {
+        found.add(`configuration import ${JSON.stringify(specifier.text)}`);
+      }
+    }
     if (ts.isPropertyAccessExpression(node) && UNAVAILABLE.has(node.name.text)) found.add(node.name.text);
     if (ts.isElementAccessExpression(node)) {
       const name = literalOf(node.argumentExpression);
@@ -103,7 +136,8 @@ export function parentSuiteRefusal(label: string, source: string): string | unde
   return `Acceptance suite ${label}: ${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} unavailable in the parent-owned runner. ` +
     'Use Vitest\'s built-in matchers; expect.extend may only add new names, once; custom equality testers, snapshot serializers, ' +
     'hand-made asymmetricMatch objects and file snapshots are unavailable (inline snapshots work); never spy on the built-ins ' +
-    'equality reads (Object.is, Object.keys, Array.prototype methods and the like). Revise the suite.';
+    'equality reads (Object.is, Object.keys, Array.prototype methods and the like). ' +
+    'Read project Vite/Vitest configuration as data with node:fs, never import/evaluate its build-tool entrypoint in the restricted test thread. Revise the suite.';
 }
 
 /** One syntax error of a suite source: where TypeScript's parser stopped and why. */

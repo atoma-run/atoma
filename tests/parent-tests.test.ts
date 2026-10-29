@@ -73,6 +73,30 @@ it('runs real TypeScript through the fixed runner, detects a wrong implementatio
   expect(() => readFileSync(path.join(root, 'atoma.acceptance.test.ts'))).toThrow();
 }, 60_000);
 
+it('inspects project configuration as data without loading its native build-tool entrypoint', async () => {
+  const { root, box } = fixture();
+  const config = path.join(root, 'vitest.config.ts');
+  writeFileSync(config, "import {defineConfig} from 'vitest/config'; export default defineConfig({test:{exclude:['existing-browser.test.ts','added-browser.test.ts']}});");
+  const importing = await runParentTests(box, [JSON.stringify(suite([
+    "import {test,expect} from 'vitest'; import config from './vitest.config.ts';",
+    "test('retains exclusions',()=>expect(config.test.exclude).toContain('existing-browser.test.ts'));",
+  ].join('\n')))], 60_000);
+  expect(importing).toMatchObject({ status: 'failed', passed: 0, failed: 0 });
+  expect(importing.details).toContain('suite module did not load');
+  expect(importing.details).toContain('Cannot find native binding');
+  const inspecting = suite([
+    "import {test,expect} from 'vitest'; import {readFileSync} from 'node:fs';",
+    "test('retains exclusions and adds the requested entry',()=>{",
+    "const config=readFileSync('./vitest.config.ts','utf8');",
+    "expect(config).toContain(\"'existing-browser.test.ts'\");",
+    "expect(config).toContain(\"'added-browser.test.ts'\");",
+    "expect(config).not.toContain(\"'unrequested.test.ts'\"); });",
+  ].join('\n'));
+  expect(await runParentTests(box, [JSON.stringify(inspecting)], 60_000)).toMatchObject({ status: 'passed', passed: 1 });
+  writeFileSync(config, "import {defineConfig} from 'vitest/config'; export default defineConfig({test:{exclude:['added-browser.test.ts']}});");
+  expect(await runParentTests(box, [JSON.stringify(inspecting)], 60_000)).toMatchObject({ status: 'failed', failed: 1 });
+}, 60_000);
+
 // PARENT_TEST_RUNNER_SCOPE tells planners and the delegation review what a suite
 // can run (run 7a7af324). The refusals it states (processes, workers, the live
 // workspace) are pinned below; this pins what it says a suite CAN do, so the

@@ -24,6 +24,30 @@ const HEAD = "import { test, expect, vi } from 'vitest';\nimport { add } from '.
 
 describe('parentSuiteUnsupported', () => {
   it.each([
+    "import config from './vitest.config.ts';",
+    "export {default} from './vite.config.mts';",
+    "const config = await import('./vitest.config.cts');",
+    "const {defineConfig} = await import('vitest/config');",
+    "import {defineConfig} from 'vite';",
+  ])('refuses a runtime configuration entrypoint before delegation: %s', source => {
+    expect(parentSuiteUnsupported(source)).toEqual([expect.stringContaining('configuration import')]);
+    expect(parentSuiteRefusal('on subtask 0', source)).toContain('Read project Vite/Vitest configuration as data');
+  });
+
+  it('admits type imports, configuration data reads and ordinary application modules', () => {
+    expect(parentSuiteUnsupported([
+      "import type {UserConfig} from 'vitest/config';",
+      "import {type UserConfig as Config} from 'vite';",
+      "export {type UserConfig as Exported} from 'vitest/config';",
+      "import {readFileSync} from 'node:fs';",
+      "import {config} from './application-config.ts';",
+      "const text=readFileSync('./vitest.config.ts','utf8');",
+      "const example=\"import config from './vitest.config.ts'\";",
+      "function require(name:string) { return name; } require('vite');",
+    ].join('\n'))).toEqual([]);
+  });
+
+  it.each([
     ['a custom equality tester', 'expect.addEqualityTesters([() => true]);', 'addEqualityTesters'],
     ['a snapshot serializer', 'expect.addSnapshotSerializer({ test: () => true, serialize: () => "" });', 'addSnapshotSerializer'],
     ['a file snapshot', "test('s', () => {\n  expect(add(1, 2)).toMatchSnapshot();\n});", 'toMatchSnapshot'],
@@ -144,7 +168,10 @@ describe('a root plan whose suite the runner would refuse', () => {
     for (const db of databases.splice(0)) db.close();
   });
 
-  it('is replanned before any child runs, even when the reviewer approves it', async () => {
+  it.each([
+    ['snapshot', "test('adds', () => { expect(add(2, 3)).toMatchSnapshot(); });", 'toMatchSnapshot is unavailable'],
+    ['configuration', "import config from './vitest.config.ts'; test('config',()=>expect(config.test.exclude).toContain('kept'));", 'configuration import'],
+  ])('replans a %s suite before any child runs, even when the reviewer approves it', async (_name, source, refusal) => {
     const db = openDb(':memory:');
     databases.push(db);
     const registry = new AtomRegistry(db);
@@ -152,9 +179,7 @@ describe('a root plan whose suite the runner would refuse', () => {
     const ctx = makeCtx();
     const snapshotPlan = makePlan({ subtasks: [{ description: 'Implement add', outputs: ['add.ts'], acceptanceTests: suite(lines(
       HEAD,
-      "test('adds', () => {",
-      '  expect(add(2, 3)).toMatchSnapshot();',
-      '});',
+      source,
     )) }] });
     const plan = vi.spyOn(tissue, 'plan').mockResolvedValue(snapshotPlan);
     const result: Result = { output: {}, summary: 'never', trace: [], producedBy: { name: 'cell', tier: 2, viaFallback: false } };
@@ -162,7 +187,7 @@ describe('a root plan whose suite the runner would refuse', () => {
     const approval = { approved: true, reasoning: 'looks fine', delegationReview: review(1) };
     for (let attempt = 0; attempt < ROOT_PLAN_ATTEMPTS; attempt++) ctx.llm.enqueueText(JSON.stringify(approval));
 
-    await expect(tissue.handle({ description: 'Implement signed addition' }, ctx)).rejects.toThrow('toMatchSnapshot is unavailable');
+    await expect(tissue.handle({ description: 'Implement signed addition' }, ctx)).rejects.toThrow(refusal);
 
     expect(plan).toHaveBeenCalledTimes(ROOT_PLAN_ATTEMPTS);
     expect(execute).not.toHaveBeenCalled();
