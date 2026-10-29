@@ -3,7 +3,8 @@ import { BoundedFixedWindowRateLimiter, loginClientAddress, isSecureRequest, typ
 import type { ComputeSession } from '../contracts/computeDevice.js';
 import { WebSocketServer } from 'ws';
 import { ComputeChannel } from '../launcher/computeChannel.js';
-import { COMPUTE_RESUME_PROTOCOL, COMPUTE_TRANSPORT_BYTES, computeResumeSchema } from '../contracts/computeTransport.js';
+import { COMPUTE_RESUME_PROTOCOL, COMPUTE_TRANSPORT_BYTES, computeResumeSchema, type ComputeResume } from '../contracts/computeTransport.js';
+import { relayComputeResume } from './computeResumeRelay.js';
 import { computeHelloSchema } from '../contracts/computeProtocol.js';
 import { ComputeConnection, type ComputeRunControl } from './computeConnection.js';
 import type { ComputeDeviceStore } from './computeDevices.js';
@@ -13,12 +14,14 @@ import type { ComputeDeviceStore } from './computeDevices.js';
 export function attachComputeGateway(server: Server, devices: ComputeDeviceStore,
   admitted: (connection: ComputeConnection) => void,
   proxies: TrustedProxySnapshot = { addresses: [] }, accepting: () => boolean = () => true, control?: ComputeRunControl,
-  executor?: { connected(session: ComputeSession): void; trustedUnixProxy: boolean }) {
+  executor?: { connected(session: ComputeSession): void; trustedUnixProxy: boolean;
+    resumeSocket?: (request: ComputeResume) => string | undefined }) {
   const rate = new BoundedFixedWindowRateLimiter(30, 60_000, 1024);
   const peers = new Set<ComputeConnection>();
   // Keep the 32 logical-peer cap; allow a replacement handshake alongside
   // each stale physical socket until authentication fences its predecessor.
   const resumable = new Map<string, { peer: ComputeConnection; channel: ComputeChannel }>();
+  const relays = new Map<import('ws').WebSocket, () => void>();
   const sockets = new WebSocketServer({ noServer: true, maxPayload: COMPUTE_TRANSPORT_BYTES, perMessageDeflate: false });
   // A typed named listener lets disposal leave other upgrade consumers intact.
   const listener = (request: import('node:http').IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) => {
@@ -27,7 +30,8 @@ export function attachComputeGateway(server: Server, devices: ComputeDeviceStore
       return;
     }
     const secure = isSecureRequest(request, proxies) || (executor?.trustedUnixProxy && request.socket.remoteAddress === undefined && request.headers['x-forwarded-proto'] === 'https');
-    if (!accepting() || !secure || request.headers.origin || request.headers.cookie || sockets.clients.size >= 64 ||
+    const canResume = request.headers['sec-websocket-protocol']?.split(',').map(value => value.trim()).includes(COMPUTE_RESUME_PROTOCOL);
+    if ((!accepting() && !canResume) || !secure || request.headers.origin || request.headers.cookie || sockets.clients.size >= 64 ||
         !rate.attempt(loginClientAddress(request, proxies)).accepted) {
       socket.destroy(); return;
     }
@@ -45,7 +49,7 @@ export function attachComputeGateway(server: Server, devices: ComputeDeviceStore
         try { admitted(peer); } catch { peer.close(); }
         return peer;
       };
-      if (ws.protocol !== COMPUTE_RESUME_PROTOCOL) { admit(ws); return; }
+      if (ws.protocol !== COMPUTE_RESUME_PROTOCOL) { if (accepting()) admit(ws); else ws.terminate(); return; }
       const deadline = setTimeout(() => ws.terminate(), 5000); deadline.unref();
       ws.on('error', () => { /* An unauthenticated handshake owns no work. */ });
       ws.once('close', () => clearTimeout(deadline));
@@ -58,10 +62,20 @@ export function attachComputeGateway(server: Server, devices: ComputeDeviceStore
           const resume = computeResumeSchema.safeParse(value);
           if (resume.success) {
             const existing = resumable.get(resume.data.token);
-            if (!existing) throw new Error('Compute resume unavailable');
-            existing.peer.authorizeResume(resume.data);
-            existing.channel.resume(ws, resume.data);
+            if (existing) {
+              existing.peer.authorizeResume(resume.data);
+              existing.channel.resume(ws, resume.data);
+            } else {
+              // Admission can move while this session's original executor is
+              // still running. Authenticate before using its host-owned route.
+              devices.validateResume(resume.data.credential, resume.data.session, resume.data.machineId);
+              const target = request.headers['x-atoma-compute-relay'] === '1' ? undefined : executor?.resumeSocket?.(resume.data);
+              if (!target) throw new Error('Compute resume unavailable');
+              relays.set(ws, relayComputeResume(ws, target, bytes));
+              ws.once('close', () => relays.delete(ws));
+            }
           } else {
+            if (!accepting()) throw new Error('Compute admission moved');
             computeHelloSchema.parse(value);
             const channel = new ComputeChannel(ws, 'server');
             if (admit(channel)) channel.emit('message', bytes, false);
@@ -85,6 +99,8 @@ export function attachComputeGateway(server: Server, devices: ComputeDeviceStore
     server.off('upgrade', listener);
     for (const peer of peers) peer.close('gateway-shutdown');
     peers.clear(); resumable.clear();
+    for (const close of relays.values()) close();
+    relays.clear();
     for (const socket of sockets.clients) if (socket.readyState !== 2) socket.terminate();
     sockets.close();
   } };

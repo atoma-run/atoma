@@ -2,8 +2,7 @@
 
 `src/projects/` owns organisation-scoped projects, run corpora, artifacts, publication and [private conversation continuity](../../docs/integrated-assistant.md) and [structured Haystack code retrieval](../../docs/code-retrieval.md).
 
-Read [`AGENTS.md`](../../AGENTS.md) first: it holds the cross-cutting rules.
-Everything below is stated once, here, and is not repeated at the root.
+Read [`AGENTS.md`](../../AGENTS.md) first: it holds the cross-cutting rules. Everything below is stated once, here, and is not repeated at the root.
 
 Neighbours:
 - [`src/auth`](../auth/AGENTS.md) — the identities projects belong to
@@ -35,6 +34,7 @@ connection requires an exact launcher stop report before admission. A negotiated
 transport reattachment instead retains the same live session and in-memory
 command state: credential, machine, lease, execution and authority are rechecked
 before replacing the socket; sequence acknowledgements fence retransmission.
+After a compatible deployment, an authenticated resume reaches its original live owner (`computeExecutor`) through one relay over a host-derived Unix socket. Draining gateways permit their own resumes, never fresh handshakes. Existing frame/queue bounds and leases remain; no tokens or bodies persist. Missing, dead or unauthorized owners fail closed, without recreating a session or execution.
 It never allocates or renews the lease, and a newer attachment fences old sockets. Membership downgrade
 and project archival fence assignments in the same database transaction, so
 restoring access cannot resurrect old work. The opt-in `computeGateway`/`computeConnection` adapter requires verified TLS

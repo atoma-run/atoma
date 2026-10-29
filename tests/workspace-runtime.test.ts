@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, realpathSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, realpathSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { startWorkspaceProcess } from '../src/run/workspaceProcess.js';
 import { localWorkspaceRuntime } from '../src/run/workspaceRuntime.js';
 import { remoteWorkspaceRuntime, workspaceCommandHandler } from '../src/run/workspaceRpc.js';
 import { snapshotStartingWorkspace } from '../src/run/workspace.js';
+import { compareStartingWorkspace, renderStartingWorkspace } from '../src/contracts/startingWorkspace.js';
 import { withinReadOnlyPhase } from '../src/atoms/dispatch.js';
 import { randomUUID } from 'node:crypto';
 import { RunCheckpointStore, SequentialCheckpoint } from '../src/run/checkpoint.js';
@@ -28,6 +29,21 @@ function fixture() {
 }
 
 describe('private workspace runtime', () => {
+  it('retains permission-only evidence across the real workspace process protocol', async () => {
+    const { root, remote } = fixture();
+    chmodSync(join(root, 'README.md'), 0o644);
+    const start = snapshotStartingWorkspace(root);
+    chmodSync(join(root, 'README.md'), 0o755);
+    writeFileSync(join(root, 'new.sh'), '#!/bin/sh\necho new\n');
+    chmodSync(join(root, 'new.sh'), 0o750);
+    const delivered = await remote.deliveredSnapshot(start);
+    expect(delivered.files[0]?.mode).toBe(0o755);
+    expect(delivered.added[0]?.mode).toBe(0o750);
+    const comparison = compareStartingWorkspace(start, delivered);
+    expect(comparison).toMatchObject({ unchanged: 0, modeCompared: 1, modeUnknown: 0 });
+    expect(renderStartingWorkspace(comparison)).toContain('permissions 0644 → 0755; content unchanged');
+  });
+
   it.each([false, true])('preserves drained state across a real workspace process (changed=%s)', async changed => {
     const { root, remote } = fixture();
     const ctx = makeCtx();

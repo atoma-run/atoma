@@ -461,6 +461,14 @@ public setting or client capability, and introduces no stored runtime identity.
 
 ## Executor coexistence
 
+`startingWorkspace.ts` records POSIX permission and special bits beside file
+bytes. The mechanical comparison reports permission-only changes; snapshots
+retained before this field leave permissions explicitly unknown. It never
+infers an old mode from the delivered tree. These extra fields need executor
+compatibility 4 because older checkpoint and workspace readers are strict.
+Compute workers still using the older schema supply byte evidence only; their
+permission coverage remains unknown until the workspace image is upgraded.
+
 `executor.ts` owns the host-private command shapes, including the remote preview
 start input shared with preview's runtime. `executorVersion.ts` owns the numeric
 compatibility boundary. Increment it before an incompatible writer, storage,

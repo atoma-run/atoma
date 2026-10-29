@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Atom } from '../src/core/atom.js';
 import type { Plan, Result, RunContext, Task, ToolExecutor, Verdict } from '../src/core/types.js';
 import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
 import { ASSERTION_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
-import { compareStartingWorkspace, renderStartingWorkspace } from '../src/contracts/startingWorkspace.js';
+import { compareStartingWorkspace, renderStartingWorkspace, startingSnapshotSchema } from '../src/contracts/startingWorkspace.js';
 import { snapshotDeliveredWorkspace, snapshotStartingWorkspace } from '../src/run/workspace.js';
 import { jsonText, makeCtx } from './helpers.js';
 import { makePlan, makeTools } from './helpers/factories.js';
@@ -37,6 +37,31 @@ const compare = (seed: string, now: string) => {
 const CONFIGURATOR = Array.from({ length: 40 }, (_, i) => `const step${i} = computeStep(${i});`).join('\n');
 
 describe('the starting workspace', () => {
+  it.each([[0o644, 0o755], [0o4755, 0o644]])('reports permission-only changes through real filesystem snapshots (%o → %o)', (before, after) => {
+    const root = dir({ 'launch.sh': '#!/bin/sh\necho usable\n' });
+    chmodSync(join(root, 'launch.sh'), before);
+    const start = snapshotStartingWorkspace(root);
+    expect(start.files[0]?.mode).toBe(before);
+    chmodSync(join(root, 'launch.sh'), after);
+    const comparison = compareStartingWorkspace(start, snapshotDeliveredWorkspace(root, start));
+    expect(comparison).toMatchObject({ unchanged: 0, modeCompared: 1, modeUnknown: 0,
+      changes: [{ path: 'launch.sh', status: 'changed', contentChanged: false, beforeMode: before, afterMode: after }] });
+    expect(renderStartingWorkspace(comparison)).toContain(`permissions ${before.toString(8).padStart(4, '0')} → ${after.toString(8).padStart(4, '0')}; content unchanged`);
+  });
+
+  it.each(['start', 'delivered'])('keeps missing legacy %s permissions unknown', (side) => {
+    const root = dir({ 'launch.sh': '#!/bin/sh\necho usable\n' });
+    chmodSync(join(root, 'launch.sh'), 0o644);
+    const start = snapshotStartingWorkspace(root);
+    chmodSync(join(root, 'launch.sh'), 0o755);
+    const now = snapshotDeliveredWorkspace(root, start);
+    const legacyFiles = start.files.map(file => ({ path: file.path, bytes: file.bytes, sha256: file.sha256 }));
+    const comparison = compareStartingWorkspace(side === 'start' ? startingSnapshotSchema.parse({ files: legacyFiles, truncated: false }) : start,
+      side === 'delivered' ? { ...now, files: legacyFiles } : now);
+    expect(comparison).toMatchObject({ unchanged: 1, changes: [], modeCompared: 0, modeUnknown: 1 });
+    expect(renderStartingWorkspace(comparison)).toContain('unchanged bytes do not establish unchanged permissions');
+  });
+
   it('reads deliverable files only, without links, installed trees, caches or .atoma paths in any case', () => {
     const root = dir({ 'index.html': '<p>hi</p>\n', 'docs/ERRORS.md': '# Errors\n', 'node_modules/x.js': 'x',
       '.atoma-scratch/probe.csv': 'a', '.atoma-probes.json': '{}', '.ATOMA/x': 'y', '.next/cache.js': 'z',

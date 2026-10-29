@@ -51,6 +51,11 @@ reconnect and read the same run; they never need to start it again. Ephemeral
 preview grants still fail closed on web restart and members reopen the preview.
 Atoma Compute device connections go directly from nginx to the independent
 executor gateway, so a web restart does not disconnect executing devices.
+If TCP reconnects after admission moved, the selected gateway authenticates the
+existing session and relays its resume to the original live executor over its
+host-private Unix gateway. That draining executor permits the reattachment,
+without admitting a new session or renewing the lease. This requires both
+generations to include resume routing; older generations must drain first.
 
 ### Compatibility and exceptional maintenance
 

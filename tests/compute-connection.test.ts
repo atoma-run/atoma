@@ -1221,19 +1221,23 @@ it.each(['json', 'schema'] as const)('logs rejected %s frames without their cont
 // Real TLS on both sides of a controllable network link. Only synthetic frames
 // are inspected; the production gateway, lease, store and client remain intact.
 import { WebSocketServer } from 'ws';
+import { createServer as createHttpServer } from 'node:http';
 import { COMPUTE_RESUME_PROTOCOL, computeTransportFrameSchema } from '../src/contracts/computeTransport.js';
 import type { WorkspaceCommand, WorkspaceReply } from '../src/contracts/workspaceProtocol.js';
-async function networkLink() {
+async function networkLink(initialSocket?: string) {
   const front = createServer({ key: readFileSync(join(root, 'key')), cert: readFileSync(join(root, 'cert')) });
   const wss = new WebSocketServer({ server: front });
   const links: { incoming: WebSocket; outgoing: WebSocket }[] = [];
   let filter: (direction: 'up' | 'down', text: string, connection: number) => boolean = () => true;
   let offline = false, refused = 0;
+  let targetSocket = initialSocket;
   wss.on('connection', incoming => {
     // A proxy that is down refuses the upgrade outright: the client sees a
     // failed candidate and keeps retrying under its unchanged lease.
     if (offline) { refused++; incoming.terminate(); return; }
-    const outgoing = new WebSocket(url, incoming.protocol || undefined, { ca: readFileSync(join(root, 'cert'), 'utf8') });
+    const outgoing = targetSocket
+      ? new WebSocket(`ws+unix:${targetSocket}:/compute/v1`, incoming.protocol || undefined, { headers: { 'x-forwarded-proto': 'https' } })
+      : new WebSocket(url, incoming.protocol || undefined, { ca: readFileSync(join(root, 'cert'), 'utf8') });
     const link = { incoming, outgoing }, number = links.push(link);
     const queued: string[] = [];
     incoming.on('error', () => {}); outgoing.on('error', () => incoming.terminate());
@@ -1253,6 +1257,7 @@ async function networkLink() {
   const address = front.address();
   if (!address || typeof address === 'string') throw new Error('Missing proxy');
   return { url: `wss://127.0.0.1:${address.port}/compute/v1`, links,
+    target(socketPath: string) { targetSocket = socketPath; },
     filter(value: typeof filter) { filter = value; },
     cut() { for (const { incoming, outgoing } of links) { incoming.terminate(); outgoing.terminate(); } },
     /** Both legs close at once (code 1006 on both peers) and no upgrade is served until the proxy is back. */
@@ -1284,6 +1289,107 @@ function bodyKind(text: string): string | undefined {
   if (parsed.success && (parsed.data.kind === 'channel-data' || parsed.data.kind === 'channel-open')) return String(parsed.data.body.kind);
   return undefined;
 }
+it('reattaches to the original executor after compatible deployment moves the public gateway', async () => {
+  const { build } = await import('esbuild');
+  const { spawn } = await import('node:child_process');
+  const { recordComputeExecutor } = await import('../src/projects/computeExecutor.js');
+  const dbPath = join(root, 'cutover.db');
+  await db.backup(dbPath); db.close(); db = new Database(dbPath);
+  projects = new ProjectStore(db); devices = new ComputeDeviceStore(db, policy, () => now);
+  const oldServer = createHttpServer();
+  const socketRoot = mkdtempSync('/tmp/atoma-cutover-');
+  const oldSha = 'a'.repeat(40), nextSha = 'b'.repeat(40);
+  const oldPath = join(socketRoot, `${oldSha}.sock`), nextPath = join(socketRoot, `${nextSha}.sock`);
+  const ownSocket = join(socketRoot, 'executors', `${oldSha}.sock`);
+  let oldAccepting = true;
+  const oldGateway = attachComputeGateway(oldServer, devices, peer => peers.push(peer), { addresses: [] }, () => oldAccepting,
+    undefined, { trustedUnixProxy: true, connected: session => recordComputeExecutor(dbPath, session, ownSocket) });
+  oldServer.listen(oldPath); await once(oldServer, 'listening');
+  const compiled = join(process.cwd(), 'node_modules/.cache', `cutover-${randomUUID()}.mjs`);
+  await build({ stdin: { resolveDir: process.cwd(), contents: `
+    import Database from 'better-sqlite3';
+    import { createServer } from 'node:http';
+    import { attachComputeGateway } from './src/projects/computeGateway.ts';
+    import { ComputeDeviceStore } from './src/projects/computeDevices.ts';
+    import { computeResumeSocket } from './src/projects/computeExecutor.ts';
+    const db = new Database(${JSON.stringify(dbPath)});
+    const devices = new ComputeDeviceStore(db, {appVersions:new Set(['test-1']),imageDigests:new Set([${JSON.stringify(imageDigest)}])},()=>${now});
+    const server=createServer();
+    const gateway=attachComputeGateway(server,devices,()=>{throw Error('No replacement session');},{addresses:[]},()=>true,undefined,{
+      trustedUnixProxy:true,connected:()=>{},resumeSocket:request=>{
+        process.send({kind:'route'});
+        return computeResumeSocket(${JSON.stringify(dbPath)},request.session,${JSON.stringify(join(socketRoot, 'executors', nextSha + '.sock'))},${JSON.stringify(nextPath)});
+      }
+    });
+    server.listen(${JSON.stringify(nextPath)},()=>process.send({kind:'ready'}));
+    process.on('message',()=>{gateway.close();server.close(()=>process.exit(0));});
+  ` }, bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile: compiled, logLevel: 'silent' });
+  const child = spawn(process.execPath, [compiled], { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+  const messages: { kind: string }[] = []; let errors = '';
+  child.on('message', value => messages.push(value as typeof messages[number]));
+  child.stderr!.on('data', value => { errors += String(value); });
+  const exited = once(child, 'exit');
+  let link: Awaited<ReturnType<typeof networkLink>> | undefined;
+  let f: Awaited<ReturnType<typeof migratingClient>> | undefined;
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const execute = vi.fn(async (): Promise<WorkspaceReply> => { await gate; return { method: 'prepare', value: null }; });
+  try {
+    await vi.waitFor(() => expect(messages.some(value => value.kind === 'ready'), errors).toBe(true), { timeout: 5000 });
+    link = await networkLink(oldPath);
+    f = await migratingClient(link.url, execute);
+    const active = f;
+    const pending = f.peer.request(f.execution, { method: 'prepare', clean: false });
+    void pending.catch(() => {});
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    oldAccepting = false;
+    for (const protocols of [[COMPUTE_RESUME_PROTOCOL], ['legacy', COMPUTE_RESUME_PROTOCOL]]) {
+      const fresh = new WebSocket(`ws+unix:${oldPath}:/compute/v1`, protocols, { headers: { 'x-forwarded-proto': 'https' } });
+      await once(fresh, 'open');
+      const refused = once(fresh, 'close');
+      fresh.send(JSON.stringify({ kind: 'hello', version: 1, credential: f.paired.credential, machineId: f.paired.deviceId, capabilities }));
+      await refused; expect(peers).toHaveLength(1);
+    }
+    link.target(nextPath); link.cut();
+    await vi.waitFor(() => expect(active.lines.some(line => line.includes('transport-resumed'))).toBe(true), { timeout: 6000 });
+    release(); await expect(pending).resolves.toEqual({ method: 'prepare', value: null });
+    expect(messages.filter(value => value.kind === 'route')).toHaveLength(1);
+    expect(execute).toHaveBeenCalledOnce(); expect(f.stop).not.toHaveBeenCalled();
+    expect(oldGateway.connectionFor(f.client.session)).toBe(f.peer);
+    devices.validateSession(f.client.session);
+    expect(devices.inspect(f.owner, f.paired.deviceId).assignment?.generation).toBe(f.execution.generation);
+    expect(f.lines.join('')).not.toContain(f.paired.credential);
+  } finally {
+    release(); await f?.client.close(); await link?.close(); oldGateway.close();
+    await new Promise<void>(resolve => oldServer.close(() => resolve()));
+    if (child.exitCode === null) child.send('close'); await exited;
+    closeStoreHandles(); rmSync(compiled, { force: true }); rmSync(socketRoot, { recursive: true, force: true });
+  }
+});
+
+it.each(['credential', 'membership', 'machine', 'session', 'missing-route'] as const)('refuses cross-generation resume before relay on %s', async defect => {
+  const owner = actor(), paired = pairing(owner);
+  devices.bindMachine(paired.credential, paired.deviceId);
+  const session = devices.connect(paired.credential, capabilities).session;
+  const target = createHttpServer(), path = join(root, 'refuse.sock');
+  const route = vi.fn(() => undefined);
+  const proxy = attachComputeGateway(target, devices, () => { throw new Error('Resume must not admit'); }, { addresses: [] }, () => true,
+    undefined, { trustedUnixProxy: true, connected: () => {}, resumeSocket: route });
+  target.listen(path); await once(target, 'listening');
+  const socket = new WebSocket(`ws+unix:${path}:/compute/v1`, COMPUTE_RESUME_PROTOCOL, { headers: { 'x-forwarded-proto': 'https' } });
+  try {
+    await once(socket, 'open');
+    if (defect === 'membership') db.prepare('DELETE FROM auth_memberships WHERE principal_id=?').run(owner.principalId);
+    const closed = once(socket, 'close');
+    socket.send(JSON.stringify({ kind: 'channel-resume', token: randomBytes(32).toString('base64url'), epoch: 1, received: 1,
+      credential: defect === 'credential' ? randomBytes(32).toString('base64url') : paired.credential,
+      machineId: defect === 'machine' ? randomUUID() : paired.deviceId,
+      session: defect === 'session' ? { ...session, generation: session.generation + 1 } : session }));
+    await closed;
+    expect(route).toHaveBeenCalledTimes(defect === 'missing-route' ? 1 : 0);
+  } finally { socket.terminate(); proxy.close(); await new Promise<void>(resolve => target.close(() => resolve())); }
+});
+
 it.each(['pending-command', 'lost-command', 'lost-result', 'lost-result-ack'] as const)(
   'keeps the same live execution across Wi-Fi loss without duplicate effects: %s', async scenario => {
     const link = await networkLink();

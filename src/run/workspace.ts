@@ -430,7 +430,7 @@ function snapshotFile(root: string, rel: string, budget: { bytes: number }): Wor
   const text = stat.size <= SNAPSHOT_MAX_LINE_BYTES && !bytes.includes(0) ? bytes.toString('utf8') : undefined;
   const lineHashes = text === undefined ? undefined : [...new Set(text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))]
     .map((line) => createHash('sha1').update(line).digest('hex').slice(0, 16));
-  return { path: rel, bytes: stat.size, sha256: createHash('sha256').update(bytes).digest('hex'),
+  return { path: rel, bytes: stat.size, sha256: createHash('sha256').update(bytes).digest('hex'), mode: stat.mode & 0o7777,
     ...(lineHashes && text !== undefined ? { lineHashes, head: text.slice(0, 240) } : {}) };
 }
 

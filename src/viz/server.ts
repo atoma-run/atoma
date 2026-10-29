@@ -1,7 +1,7 @@
 import { validateComputeNext } from '../supervisor/computeValidation.js';
 import { listAssays, showAssay } from '../supervisor/assayReaders.js';
 import { chmodSync, unlinkSync, lstatSync } from 'node:fs';
-import { recordComputeExecutor } from '../projects/computeExecutor.js';
+import { recordComputeExecutor, computeResumeSocket } from '../projects/computeExecutor.js';
 import { ExecutorComputePreview } from '../preview/executorCompute.js';
 import { executorSocket, executorSelected } from '../projects/executorTransport.js';
 import { callExecutor } from '../projects/executorTransport.js';
@@ -2761,6 +2761,7 @@ COMPUTE_GATEWAY = COMPUTE ? attachComputeGateway(target, COMPUTE.devices, () => 
     else PROJECTS_RUNTIME!.coordinator.cancel(orgId, run.projectRunId);
   }, privateUnix ? { trustedUnixProxy: true,
     connected: session => recordComputeExecutor(DBS[0]!.path, session, EXECUTOR_OWN_SOCKET!),
+    resumeSocket: request => computeResumeSocket(DBS[0]!.path, request.session, EXECUTOR_OWN_SOCKET!, process.env['ATOMA_EXECUTOR_COMPUTE_SOCKET']),
   } : undefined) : null;
 computeDispatcher.current = COMPUTE && COMPUTE_GATEWAY ? new ComputeDispatcher({
   devices: COMPUTE.devices, journal: ComputeDispatchStore.open(DBS[0]!.path),

@@ -19,6 +19,8 @@ import { z } from 'zod';
  */
 export const workspaceFileSnapshotSchema = z.object({
   path: z.string(), bytes: z.number().nonnegative(), sha256: z.string(),
+  /** POSIX permission and special bits; absent in snapshots recorded before this field. */
+  mode: z.number().int().min(0).max(0o7777).optional(),
   lineHashes: z.array(z.string()).readonly().optional(),
   /** The opening text of the original file, for the final acceptor. */
   head: z.string().optional(),
@@ -48,6 +50,9 @@ export interface StartingFileChange {
   readonly status: 'unreadable' | 'removed' | 'rewritten' | 'moved' | 'changed';
   readonly before: number;
   readonly after?: number;
+  readonly contentChanged?: boolean;
+  readonly beforeMode?: number;
+  readonly afterMode?: number;
   readonly startedAs?: string;
   /** Share of its starting lines still in this file, when both sides are text. */
   readonly keptHere?: number;
@@ -62,6 +67,8 @@ export interface StartingWorkspaceComparison {
   readonly startTruncated: boolean;
   readonly addedTruncated: boolean;
   readonly startFiles: number;
+  readonly modeCompared: number;
+  readonly modeUnknown: number;
 }
 
 /** Below this share of its starting lines found anywhere, a changed file is reported as rewritten. */
@@ -88,13 +95,19 @@ export function compareStartingWorkspace(start: StartingSnapshot, now: Delivered
   for (const file of [...now.files, ...now.added]) for (const line of file.lineHashes ?? []) everywhere.add(line);
   const changes: StartingFileChange[] = [];
   let unchanged = 0;
+  let modeCompared = 0;
+  let modeUnknown = 0;
   for (const file of start.files) {
     const after = current.get(file.path);
     if (!after) {
       changes.push({ path: file.path, status: now.unreadable?.includes(file.path) ? 'unreadable' : 'removed', before: file.bytes, ...(file.head ? { startedAs: file.head } : {}) });
       continue;
     }
-    if (after.sha256 === file.sha256) {
+    const contentChanged = after.sha256 !== file.sha256;
+    const modesKnown = file.mode !== undefined && after.mode !== undefined;
+    if (modesKnown) modeCompared += 1; else modeUnknown += 1;
+    const modeChanged = modesKnown && file.mode !== after.mode;
+    if (!contentChanged && !modeChanged) {
       unchanged += 1;
       continue;
     }
@@ -105,6 +118,9 @@ export function compareStartingWorkspace(start: StartingSnapshot, now: Delivered
       : keptHere !== undefined && keptHere < REWRITTEN_BELOW ? 'moved' : 'changed';
     changes.push({
       path: file.path, status, before: file.bytes, after: after.bytes,
+      contentChanged,
+      ...(file.mode !== undefined ? { beforeMode: file.mode } : {}),
+      ...(after.mode !== undefined ? { afterMode: after.mode } : {}),
       ...(status === 'rewritten' && file.head ? { startedAs: file.head } : {}),
       ...(keptHere !== undefined ? { keptHere } : {}),
       ...(keptAnywhere !== undefined ? { keptAnywhere } : {}),
@@ -113,7 +129,7 @@ export function compareStartingWorkspace(start: StartingSnapshot, now: Delivered
   // What matters first: a removal or a rewrite must never hide behind a cap.
   changes.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.path.localeCompare(b.path));
   return { changes, unchanged, added: now.added.map((file) => file.path), startTruncated: start.truncated,
-    addedTruncated: now.addedTruncated, startFiles: start.files.length };
+    addedTruncated: now.addedTruncated, startFiles: start.files.length, modeCompared, modeUnknown };
 }
 
 const MAX_LISTED = 20;
@@ -123,14 +139,18 @@ function describe(change: StartingFileChange): string {
   const was = change.startedAs ? `; it started as ${JSON.stringify(change.startedAs)}` : '';
   if (change.status === 'unreadable') return `- ${change.path}: NOT COMPARED (read unavailable or snapshot cap exceeded); removal and preservation are unverified`;
   if (change.status === 'removed') return `- ${change.path}: REMOVED (${change.before} bytes at the start)${was}`;
+  const permissions = change.beforeMode !== undefined && change.afterMode !== undefined && change.beforeMode !== change.afterMode
+    ? `permissions ${change.beforeMode.toString(8).padStart(4, '0')} → ${change.afterMode.toString(8).padStart(4, '0')}` : '';
+  if (change.contentChanged === false && permissions) return `- ${change.path}: ${permissions}; content unchanged (${change.before} bytes)`;
+  const modeChange = permissions ? `; ${permissions}` : '';
   const size = `${change.before} → ${change.after} bytes`;
   if (change.status === 'rewritten') {
-    return `- ${change.path}: REWRITTEN ${size}; ${pct(change.keptAnywhere!)} of its starting lines remain anywhere in the delivery${was}`;
+    return `- ${change.path}: REWRITTEN ${size}; ${pct(change.keptAnywhere!)} of its starting lines remain anywhere in the delivery${was}${modeChange}`;
   }
   if (change.status === 'moved') {
-    return `- ${change.path}: moved ${size}; keeps ${pct(change.keptHere!)} of its starting lines here, ${pct(change.keptAnywhere!)} across the delivered files`;
+    return `- ${change.path}: moved ${size}; keeps ${pct(change.keptHere!)} of its starting lines here, ${pct(change.keptAnywhere!)} across the delivered files${modeChange}`;
   }
-  return `- ${change.path}: changed ${size}${change.keptHere !== undefined ? `, keeps ${pct(change.keptHere)} of its starting lines` : ''}`;
+  return `- ${change.path}: changed ${size}${change.keptHere !== undefined ? `, keeps ${pct(change.keptHere)} of its starting lines` : ''}${modeChange}`;
 }
 
 /** The block the root acceptor reads; '' when the run did not start from a seeded workspace. */
@@ -148,6 +168,8 @@ export function renderStartingWorkspace(comparison: StartingWorkspaceComparison 
     ...(lines.length > 0 ? lines : ['- no compared starting file was removed or changed']),
     ...more,
     `Unchanged starting files: ${comparison.unchanged}.`,
+    `Permissions compared for ${comparison.modeCompared} retained starting files.`,
+    ...(comparison.modeUnknown > 0 ? [`Permissions were not recorded on both sides for ${comparison.modeUnknown} retained starting files; unchanged bytes do not establish unchanged permissions.`] : []),
     ...added,
     'A task that asks to keep, extend or leave something unchanged is judged against this: behaviour whose',
     'code the run removed or rewrote is not kept unless the evidence shows it working again. A moved file\'s',
