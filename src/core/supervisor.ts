@@ -1,7 +1,7 @@
 import { executionHistoryIds } from './executionHistory.js';
 import { markParentTestsJudged, suiteDisputeWatch, verifyParentTests, withParentTestConsequences } from './parentTests.js';
 import { EscalationSignal, PlanParseError, ValidationError, EvidenceReviewError } from './errors.js';
-import type { Atom, Supervisor } from './atom.js';
+import { planBase, type Atom, type PlanBase, type Supervisor } from './atom.js';
 import type {
   NegativeVerdict,
   Result,
@@ -322,6 +322,12 @@ export async function superviseLoop<C extends Atom>(
     // channel (`Atom.plan`): never in `task.constraints`, so the prefilter,
     // its cache key, review and execution all keep the request as asked.
     let planFeedback: string[] = [];
+    // The plan the reviewer last REFUSED, on the same channel: kept through an
+    // unparseable reply (the planner may still build on it), dropped once a
+    // plan is approved. Captured where the refusal is judged, never at the
+    // reset after a parsed plan; the planner reads it only behind
+    // ATOMA_REVIEW_REPAIR (src/atoms).
+    let refusedPlan: PlanBase | undefined;
 
     try {
       while (true) {
@@ -337,7 +343,9 @@ export async function superviseLoop<C extends Atom>(
 
         let plan;
         try {
-          plan = await current.plan(task, ctx, planFeedback);
+          plan = refusedPlan
+            ? await current.plan(task, ctx, planFeedback, { base: refusedPlan })
+            : await current.plan(task, ctx, planFeedback);
         } catch (error) {
           // An unparseable plan reply is asked again within the plan budget,
           // which escalates when it runs out: with no other judgement in the
@@ -410,6 +418,7 @@ export async function superviseLoop<C extends Atom>(
             });
             throw new EscalationSignal('repeat');
           }
+          refusedPlan = planBase(plan);
           current = await hooks.applyByScope(current, v1);
           trace.push({
             kind: 'applied-modifications',
@@ -423,6 +432,7 @@ export async function superviseLoop<C extends Atom>(
         // should not inherit old identical-reasoning history.
         planRepeat.reset();
         planMarker.reset();
+        refusedPlan = undefined;
 
         if (execIter >= ctx.limits.maxExecIterations) {
           throw new EscalationSignal('exec');

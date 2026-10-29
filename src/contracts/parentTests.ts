@@ -186,6 +186,15 @@ export type DelegationReview = z.infer<typeof delegationReviewSchema>;
 export const delegationReviewEnvelopeSchema = z.object({ delegationReview: delegationReviewSchema });
 
 /**
+ * The typed edits a planner may reply with on its retained refused plan
+ * (`planDeltaSchema` in src/atoms/json.ts holds their shapes, `applyPlanDeltas`
+ * their meaning). Vocabulary only, behind ATOMA_REVIEW_REPAIR; none of them
+ * writes suite bytes on the planner's behalf.
+ */
+export const PLAN_DELTA_KINDS = ['suite.replace', 'suite.split', 'dependsOn.set', 'aggregation.set', 'criteria.assign', 'obligation.add'] as const;
+export type PlanDeltaKind = typeof PLAN_DELTA_KINDS[number];
+
+/**
  * A suite a delegation REFUSAL names as one no correct implementation can pass
  * (`PARENT_TEST_UNSATISFIABLE`), by the reviewed plan's own index: a subtask's
  * zero-based index, or "plan" for the plan-level integration suite. Typed,

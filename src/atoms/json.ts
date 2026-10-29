@@ -1,13 +1,14 @@
 import { inheritedJudgementSchema } from '../contracts/inheritedChecks.js';
 import { z } from 'zod';
-import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS, parentTestSuiteSchema, unsatisfiableSuiteSchema, type UnsatisfiableSuite } from '../contracts/parentTests.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS, parentTestSuiteSchema, unsatisfiableSuiteSchema, type PlanDeltaKind, type UnsatisfiableSuite } from '../contracts/parentTests.js';
 import { deliveryKindSchema, executionModeSchema } from '../contracts/taskExecution.js';
 import { jsonrepair, JSONRepairError } from 'jsonrepair';
 import { PlanParseError, type PlanParseCause, ValidationError } from '../core/errors.js';
 import { jsonParseExcerpt } from '../core/jsonExcerpt.js';
-import { isProofObligation } from '../contracts/attestation.js';
+import { PROOF_OBLIGATIONS, isProofObligation } from '../contracts/attestation.js';
 import { routedFromSchema, type RoutedFrom } from '../contracts/routedFrom.js';
-import type { Plan } from '../core/types.js';
+import type { Plan, SubtaskSpec } from '../core/types.js';
+import type { PlanBase } from '../core/atom.js';
 import { evidenceReadRequestSchema } from '../contracts/evidenceReading.js';
 
 /** Diagnose a sole valid reading envelope wrapped in prose; never execute the extracted value. */
@@ -603,7 +604,7 @@ function authoredSuiteOverrun(plan: z.infer<typeof planSchema>): string | undefi
 }
 
 /** The parsed pair, or a `suite-size` refusal: the one check after both schemas accept. */
-function withinAuthoredBounds<T extends { plan: z.infer<typeof planSchema> }>(parsed: T): T {
+export function withinAuthoredBounds<T extends { plan: z.infer<typeof planSchema> }>(parsed: T): T {
   const overrun = authoredSuiteOverrun(parsed.plan);
   if (overrun) throw planParseError('suite-size', overrun);
   return parsed;
@@ -631,14 +632,30 @@ function withinAuthoredBounds<T extends { plan: z.infer<typeof planSchema> }>(pa
  * it is over the AUTHORED bound: a suite written now must stay whole in a
  * phase block, while the schema keeps the stored bound for saved plans
  * (group G4). Each refusal is typed, so its feedback fits its cause.
+ *
+ * With `context.base` (ATOMA_REVIEW_REPAIR, the caller's retained refused
+ * plan) the second object may instead be `{"planDeltas": {base, deltas}}`:
+ * read against that base by `applyPlanDeltas` into a whole plan, held to the
+ * same schema and bound, and returned as `rawPlan` too. A base other than the
+ * retained one is a `schema` refusal; without a base, deltas are no plan.
  */
 export function parsePlanPair<S extends z.ZodTypeAny>(
   text: string,
   strategySchema: S,
   stopReason?: string | null,
+  context?: { readonly base?: PlanBase },
 ): { rawStrategy: unknown; rawPlan: unknown; strategy: z.infer<S>; plan: z.infer<typeof planSchema>; salvaged: boolean } {
+  const base = context?.base;
+  const deltas = (raw: unknown): boolean => base !== undefined && isPlanDeltasReply(raw);
   const schemas = (pair: [unknown, unknown]) => {
     const strategy = strategySchema.safeParse(pair[0]);
+    if (deltas(pair[1])) {
+      try {
+        return strategy.success ? { strategy: strategy.data, plan: planFromDeltas(pair[1], base!) } : null;
+      } catch {
+        return null;
+      }
+    }
     const plan = planSchema.safeParse(pair[1]);
     return strategy.success && plan.success ? { strategy: strategy.data, plan: plan.data } : null;
   };
@@ -652,6 +669,10 @@ export function parsePlanPair<S extends z.ZodTypeAny>(
   if (first && !first.repaired) {
     const strategy = strategySchema.safeParse(first.pair[0]);
     if (!strategy.success) throw planParseError('schema', `strategy does not match its schema: ${strategy.error.message}`);
+    if (deltas(first.pair[1])) {
+      const applied = planFromDeltas(first.pair[1], base!);
+      return { rawStrategy: first.pair[0], rawPlan: applied, strategy: strategy.data, plan: applied, salvaged: false };
+    }
     const plan = planSchema.safeParse(first.pair[1]);
     if (!plan.success) throw planParseError('schema', `plan does not match its schema: ${plan.error.message}`);
     return withinAuthoredBounds({ rawStrategy: first.pair[0], rawPlan: first.pair[1], strategy: strategy.data, plan: plan.data, salvaged: false });
@@ -673,7 +694,9 @@ export function parsePlanPair<S extends z.ZodTypeAny>(
         /* report the reply as written, below */
       }
       // Outside the try: a salvaged pair is held to the same suite bound.
-      if (parsed && salvage) return withinAuthoredBounds({ rawStrategy: salvage.pair[0], rawPlan: salvage.pair[1], ...parsed, salvaged: true });
+      if (parsed && salvage) {
+        return withinAuthoredBounds({ rawStrategy: salvage.pair[0], rawPlan: deltas(salvage.pair[1]) ? parsed.plan : salvage.pair[1], ...parsed, salvaged: true });
+      }
     }
   }
   // A cut reply is reported as cut whether a repair could read it or not:
@@ -1295,6 +1318,174 @@ export function restoreRoutingMarks(plan: Plan, raw: unknown): Plan {
       return routedFrom ? { ...subtask, routedFrom } : subtask;
     }),
   };
+}
+
+/**
+ * ATOMA_REVIEW_REPAIR, read at call time: unset or anything but `1` leaves
+ * every prompt and parse as it was. The one reader of the flag.
+ */
+export function reviewRepairEnabled(): boolean {
+  return process.env['ATOMA_REVIEW_REPAIR'] === '1';
+}
+
+/** At most this many deltas in one reply, and this many carrying a suite. */
+export const PLAN_DELTAS_MAX = 6;
+export const PLAN_DELTAS_SUITE_MAX = 2;
+
+const deltaIndex = z.number().int().nonnegative();
+// A suite a delta carries is written now, in a reply asked to stay short: it is
+// held to the soft target the planning text names, not to the authored bound.
+const deltaSource = z.string().min(1).max(PARENT_TEST_SOURCE_TARGET_CHARS);
+const deltaSuiteSchema = parentTestSuiteSchema.extend({ source: deltaSource });
+const deltaCriteria = z.array(z.string().trim().min(1)).max(40);
+
+/**
+ * One typed edit of a retained refused plan (`PLAN_DELTA_KINDS`). Indices name
+ * subtasks of the plan as the earlier deltas of the same reply left it.
+ * `suite.replace` is PLANNER-authored only: its `source` is the whole new
+ * suite file, copied byte for byte; nothing here composes or edits one.
+ */
+export const planDeltaSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('suite.replace' satisfies PlanDeltaKind),
+    target: z.union([deltaIndex, z.literal('plan')]),
+    requirement: parentTestSuiteSchema.shape.requirement.optional(),
+    source: deltaSource,
+  }),
+  z.object({
+    kind: z.literal('suite.split' satisfies PlanDeltaKind),
+    target: deltaIndex,
+    into: z.array(z.object({
+      description: z.string().trim().min(1),
+      acceptanceTests: deltaSuiteSchema,
+      criteria: deltaCriteria.optional(),
+      dependsOn: z.array(deltaIndex).optional(),
+    })).min(2).max(PLAN_DELTAS_MAX),
+  }),
+  z.object({ kind: z.literal('dependsOn.set' satisfies PlanDeltaKind), target: deltaIndex, dependsOn: z.array(deltaIndex) }),
+  z.object({ kind: z.literal('aggregation.set' satisfies PlanDeltaKind), aggregation: aggregationSpecSchema }),
+  z.object({ kind: z.literal('criteria.assign' satisfies PlanDeltaKind), target: deltaIndex, criteria: deltaCriteria }),
+  z.object({
+    kind: z.literal('obligation.add' satisfies PlanDeltaKind),
+    target: deltaIndex,
+    obligation: z.enum(PROOF_OBLIGATIONS),
+  }),
+]);
+export type PlanDelta = z.infer<typeof planDeltaSchema>;
+
+const planDeltaListSchema = z.array(planDeltaSchema).min(1).max(PLAN_DELTAS_MAX).superRefine((deltas, ctx) => {
+  const suites = deltas.filter((delta) => delta.kind === 'suite.replace' || delta.kind === 'suite.split').length;
+  if (suites > PLAN_DELTAS_SUITE_MAX) ctx.addIssue({ code: 'custom', message: `At most ${PLAN_DELTAS_SUITE_MAX} deltas may carry a suite; reply with a whole plan instead` });
+});
+
+/** The second object of a delta reply: `{"planDeltas": {"base": <digest>, "deltas": [...]}}`. */
+export const planDeltasReplySchema = z.object({
+  planDeltas: z.object({ base: z.string().trim().min(1), deltas: planDeltaListSchema }),
+});
+
+/** A plan reply's second object that answers with deltas rather than a whole plan. */
+function isPlanDeltasReply(raw: unknown): boolean {
+  return !!raw && typeof raw === 'object' && !Array.isArray(raw) && 'planDeltas' in raw && !('subtasks' in raw);
+}
+
+/**
+ * The base plan with `deltas` applied in order, re-read through `planSchema`
+ * and the authored suite bound, exactly as a whole-plan reply is: the result
+ * is a full Plan before any precheck, host fact or review reads it. Pure. It
+ * never alters or synthesises a suite `source`: a replacement copies the
+ * delta's bytes, every other suite is the base's own string, and the parts of
+ * a split inherit the target's routing, mode, outputs, inputs, obligations
+ * and (unless given) criteria. An index out of range, a part depending on a
+ * later subtask, or a plan the schema refuses throws `PlanParseError('schema')`.
+ */
+export function applyPlanDeltas(base: Plan, deltas: readonly PlanDelta[]): z.infer<typeof planSchema> {
+  const refuse = (index: number, message: string): never => {
+    throw planParseError('schema', `planDeltas[${index}] ${message}`);
+  };
+  let subtasks: SubtaskSpec[] = base.subtasks.map((subtask) => ({ ...subtask }));
+  let acceptanceTests = base.acceptanceTests;
+  let aggregation = base.aggregation;
+  const at = (index: number, target: number): SubtaskSpec =>
+    subtasks[target] ?? refuse(index, `names subtask ${target}; the plan has ${subtasks.length} (zero-based)`);
+  deltas.forEach((delta, index) => {
+    switch (delta.kind) {
+      case 'suite.replace': {
+        const current = delta.target === 'plan' ? acceptanceTests : at(index, delta.target).acceptanceTests;
+        const requirement = delta.requirement ?? current?.requirement ?? refuse(index, 'adds a suite without its requirement');
+        const suite = { requirement, cwd: current?.cwd ?? '.', source: delta.source };
+        if (delta.target === 'plan') acceptanceTests = suite;
+        else subtasks[delta.target] = { ...at(index, delta.target), acceptanceTests: suite };
+        return;
+      }
+      case 'suite.split': {
+        const target = at(index, delta.target);
+        const width = delta.into.length;
+        const parts = delta.into.map((part): SubtaskSpec => {
+          if (part.dependsOn?.some((dependency) => dependency >= delta.target)) refuse(index, `gives a part a dependency that is not an earlier subtask than ${delta.target}`);
+          const dependsOn = [...new Set([...(target.dependsOn ?? []), ...(part.dependsOn ?? [])])].sort((a, b) => a - b);
+          const criteria = part.criteria ?? target.criteria;
+          return {
+            description: part.description,
+            acceptanceTests: part.acceptanceTests,
+            ...(target.preferredChild !== undefined ? { preferredChild: target.preferredChild } : {}),
+            ...(target.executionMode !== undefined ? { executionMode: target.executionMode } : {}),
+            ...(target.outputs !== undefined ? { outputs: target.outputs } : {}),
+            ...(target.inputs !== undefined ? { inputs: target.inputs } : {}),
+            ...(target.proofObligations !== undefined ? { proofObligations: target.proofObligations } : {}),
+            ...(criteria !== undefined && criteria.length > 0 ? { criteria } : {}),
+            ...(dependsOn.length > 0 ? { dependsOn } : {}),
+          };
+        });
+        // A dependent of the split subtask waits for every part.
+        const remap = (dependency: number): number[] => dependency < delta.target ? [dependency]
+          : dependency === delta.target ? Array.from({ length: width }, (_, offset) => delta.target + offset)
+            : [dependency + width - 1];
+        subtasks = [
+          ...subtasks.slice(0, delta.target),
+          ...parts,
+          ...subtasks.slice(delta.target + 1).map((subtask) => subtask.dependsOn
+            ? { ...subtask, dependsOn: [...new Set(subtask.dependsOn.flatMap(remap))] }
+            : subtask),
+        ];
+        return;
+      }
+      case 'dependsOn.set': {
+        const { dependsOn: _previous, ...rest } = at(index, delta.target);
+        const dependsOn = [...new Set(delta.dependsOn)].sort((a, b) => a - b);
+        subtasks[delta.target] = dependsOn.length > 0 ? { ...rest, dependsOn } : rest;
+        return;
+      }
+      case 'aggregation.set':
+        aggregation = delta.aggregation;
+        return;
+      case 'criteria.assign': {
+        const { criteria: _previous, ...rest } = at(index, delta.target);
+        const criteria = [...new Set(delta.criteria)];
+        subtasks[delta.target] = criteria.length > 0 ? { ...rest, criteria } : rest;
+        return;
+      }
+      case 'obligation.add': {
+        const target = at(index, delta.target);
+        subtasks[delta.target] = { ...target, proofObligations: [...new Set([...(target.proofObligations ?? []), delta.obligation])] };
+        return;
+      }
+    }
+  });
+  const candidate = { ...base, subtasks, aggregation, ...(acceptanceTests ? { acceptanceTests } : {}) };
+  const parsed = planSchema.safeParse(candidate);
+  if (!parsed.success) throw planParseError('schema', `plan after planDeltas does not match its schema: ${parsed.error.message}`);
+  return withinAuthoredBounds({ plan: parsed.data }).plan;
+}
+
+/** A delta reply read against the base its caller retained, or a `schema` refusal. */
+function planFromDeltas(raw: unknown, base: PlanBase): z.infer<typeof planSchema> {
+  const reply = planDeltasReplySchema.safeParse(raw);
+  if (!reply.success) throw planParseError('schema', `planDeltas do not match their schema: ${reply.error.message}`);
+  if (reply.data.planDeltas.base !== base.digest) {
+    throw planParseError('schema', `planDeltas name base ${reply.data.planDeltas.base.slice(0, 64)}, but the previous plan is ${base.digest}; ` +
+      'reply with a whole plan, or with deltas on that base');
+  }
+  return applyPlanDeltas(base.plan, reply.data.planDeltas.deltas);
 }
 
 export const resultPayloadSchema = z.object({

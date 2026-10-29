@@ -7,6 +7,11 @@ import { PROBE_REVIEW_GUIDANCE } from '../contracts/probeManifest.js';
 import { workspacePreparationSchema, type PackageRoot } from '../contracts/workspacePreparation.js';
 import { SHELL_TIMEOUT_MAX_MS } from '../contracts/commandTimeouts.js';
 import { stripLiteralContractBlock } from './prompts.js';
+import { createHash } from 'node:crypto';
+import type { PlanBase } from '../core/atom.js';
+import { PARENT_TEST_SOURCE_TARGET_CHARS } from '../contracts/parentTests.js';
+import { PROOF_OBLIGATIONS } from '../contracts/attestation.js';
+import { PLAN_DELTAS_MAX, PLAN_DELTAS_SUITE_MAX } from './json.js';
 
 /** Stable trace boundary between a task's multiline description and runtime guidance. */
 export const TASK_CONTEXT_HEADER = '== TASK CONTEXT ==';
@@ -170,6 +175,44 @@ export function planFeedbackLines(feedback: readonly string[] | undefined): stri
   const entries = (feedback ?? []).filter(entry => entry.trim());
   if (entries.length === 0) return [];
   return ['', 'PREVIOUS PLAN ATTEMPT:', ...entries.map(entry => `- ${entry}`)];
+}
+
+/** The rendered previous plan's bound: suites are shown by digest, so this is prose and routing. */
+export const PREVIOUS_PLAN_MAX_CHARS = 6_000;
+
+/**
+ * The retained refused plan on the planner-feedback channel (`Atom.plan`'s
+ * `context.base`, ATOMA_REVIEW_REPAIR only), and the delta reply it admits.
+ * Each suite is shown as its sha256, first line and size, never its bytes: a
+ * planner keeps a suite by not naming it and replaces one whole
+ * (`applyPlanDeltas`). Nothing when there is no base.
+ */
+export function previousPlanLines(base: PlanBase | undefined): string[] {
+  if (!base) return [];
+  const rendered = JSON.stringify(base.plan, (key, value: unknown) => {
+    if (key !== 'source' || typeof value !== 'string') return value;
+    const firstLine = (value.split('\n', 1)[0] ?? '').trimEnd().slice(0, 120);
+    return `[suite sha256 ${createHash('sha256').update(value).digest('hex')}; first line ${JSON.stringify(firstLine)}; ${value.length.toLocaleString('en-US')} characters]`;
+  });
+  const shown = rendered.length > PREVIOUS_PLAN_MAX_CHARS
+    ? `${rendered.slice(0, PREVIOUS_PLAN_MAX_CHARS)} [cut at ${PREVIOUS_PLAN_MAX_CHARS.toLocaleString('en-US')} characters; the host holds the whole plan]`
+    : rendered;
+  return [
+    '',
+    `PREVIOUS PLAN (digest ${base.digest}; suites shown as sha256 + first line + size):`,
+    shown,
+    `Reply with a whole plan OR planDeltas on base ${base.digest}: the same two-object array, its second object either a whole plan or`,
+    `{"planDeltas": {"base": "${base.digest}", "deltas": [...]}}, which the host applies to the previous plan in order (each index names a subtask`,
+    `of the plan as the earlier deltas left it) and reviews as a whole plan. At most ${PLAN_DELTAS_MAX} deltas, at most ${PLAN_DELTAS_SUITE_MAX} of them carrying a suite,`,
+    `each suite source a whole file under ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters; a suite no delta names is kept byte for byte. Deltas:`,
+    `  {"kind": "suite.replace", "target": <index>|"plan", "requirement": "..."?, "source": "<the whole new suite>"}`,
+    `  {"kind": "suite.split", "target": <index>, "into": [{"description": "...", "acceptanceTests": {"requirement": "...", "cwd": ".", "source": "..."}, "criteria": ["<id>"]?, "dependsOn": [<earlier index>]?}, ...]}`,
+    `    (each part keeps the target's preferredChild, executionMode, outputs, inputs, proof obligations and, unless given, criteria; dependents of the target wait for every part)`,
+    `  {"kind": "dependsOn.set", "target": <index>, "dependsOn": [<earlier index>, ...]}`,
+    `  {"kind": "aggregation.set", "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}}`,
+    `  {"kind": "criteria.assign", "target": <index>, "criteria": ["<id>", ...]}`,
+    `  {"kind": "obligation.add", "target": <index>, "obligation": ${PROOF_OBLIGATIONS.map(obligation => JSON.stringify(obligation)).join('|')}}`,
+  ];
 }
 
 const SHELL_SAFE_PATH = /^[A-Za-z0-9._/@+-]+$/;

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { ContextBlock, ContextBlockInput, LlmCallRole } from '../contracts/llmTrace.js';
 import { foldContextBlocks } from '../contracts/llmTrace.js';
 import type {
@@ -16,6 +16,26 @@ import type {
 } from './types.js';
 import { newAtomId } from './atomId.js';
 import type { AtomType } from '../registry/atomRegistry.js';
+
+/**
+ * A refused plan its planner may build on, bound by digest: the planner's
+ * delta reply names `digest`, and one naming another is refused as unparseable
+ * (ATOMA_REVIEW_REPAIR, src/atoms/json.ts `applyPlanDeltas`).
+ */
+export interface PlanBase {
+  readonly digest: string;
+  readonly plan: Plan;
+}
+
+/** The fourth argument of `Atom.plan`: what the previous reply of the same request left to build on. */
+export interface PlanContext {
+  readonly base?: PlanBase;
+}
+
+/** One digest per plan object, over its serialization: never a workspace or event identity. */
+export function planBase(plan: Plan): PlanBase {
+  return { digest: createHash('sha256').update(JSON.stringify(plan)).digest('hex'), plan };
+}
 
 export abstract class Atom {
   abstract readonly tier: Tier;
@@ -68,8 +88,12 @@ export abstract class Atom {
    * root review refusal). It reaches the strategy prompt ONLY; the prefilter,
    * its cache key, tried-children bookkeeping and the task handed to review and
    * execution keep `task` unchanged, so a retry is the same request.
+   *
+   * `context.base` is the refused plan of that request, on the same channel
+   * and kept off the same keys; a planner reads it only behind
+   * ATOMA_REVIEW_REPAIR, and a molecule never does.
    */
-  abstract plan(task: Task, ctx: RunContext, feedback?: readonly string[]): Promise<Plan>;
+  abstract plan(task: Task, ctx: RunContext, feedback?: readonly string[], context?: PlanContext): Promise<Plan>;
   abstract execute(task: Task, plan: Plan, ctx: RunContext): Promise<Result>;
 
   /** Tool-free report repair; unsupported atoms cannot silently re-execute for it. */

@@ -3,7 +3,7 @@ import { PARENT_TEST_PLANNING, PARALLEL_BRANCH_PLANNING } from '../contracts/par
 import { markParentTestsJudged, verifyParentTests, withParentTestConsequences } from '../core/parentTests.js';
 import { renderParentTestsBlock } from './parentTestsBlock.js';
 import { deferPromptLearning } from './promptLearning.js';
-import { Atom, type Peerable, type Supervisor } from '../core/atom.js';
+import { Atom, type Peerable, type PlanContext, type Supervisor } from '../core/atom.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { branchRecordCount, executorEvidence } from './executorEvidence.js';
 import { synthesisContextLines } from './synthesisContext.js';
@@ -37,6 +37,7 @@ import {
   parsePlanWithFallback,
   NON_JSON_PAYLOAD_SUMMARY_PREFIX,
   REMEDIATION_FEEDBACK_MAX_CHARS,
+  reviewRepairEnabled,
 } from './json.js';
 import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
@@ -47,7 +48,7 @@ import {
   renderProofCoverage,
 } from './proofCoverage.js';
 import { createHash, randomUUID } from 'node:crypto';
-import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, planFeedbackLines } from './taskContext.js';
+import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, planFeedbackLines, previousPlanLines } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { scopeTools, withLiveDeclarations } from './toolMerge.js';
@@ -443,10 +444,12 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     if (!this.peers.includes(p)) this.peers.push(p);
   }
 
-  async plan(task: Task, ctx: RunContext, feedback?: readonly string[]): Promise<Plan> {
+  async plan(task: Task, ctx: RunContext, feedback?: readonly string[], context?: PlanContext): Promise<Plan> {
     if (this.isFallbackMode()) {
       return this.selfPlan(task, ctx);
     }
+    // The refused plan superviseLoop retained, read only behind the flag.
+    const base = reviewRepairEnabled() ? context?.base : undefined;
 
     this.triedChildren.beginTask(task.description);
     const catalog = this.registry.listCapabilities(1, this.triedChildren.excluded());
@@ -710,6 +713,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       `Task: ${task.description}`,
       ...taskContextLines(task, { includeAcceptanceChecklist: !task.originalTask && !task.inputs?.['originalTask'] }),
       ...planFeedbackLines(feedback),
+      ...previousPlanLines(base),
       ``,
       `CRITICAL OUTPUT FORMAT: your entire response MUST be exactly one JSON array`,
       `of TWO objects, with no prose before or after, no markdown fences, no tool calls.`,
@@ -740,7 +744,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // asks again within the plan budget. The strategy is committed only once
     // its plan parsed, as at L3: a failed reply must not leave its strategy
     // behind for the next plan's execute().
-    const { rawStrategy, strategy, plan, salvaged } = parsePlanPair(resp.text, l2StrategySchema, resp.stopReason);
+    const { rawStrategy, strategy, plan, salvaged } = parsePlanPair(resp.text, l2StrategySchema, resp.stopReason, base ? { base } : undefined);
     if (salvaged) ctx.logger.warn(`[${this.name}] plan reply carried raw control characters in strings; escaped`);
     this.pendingStrategy = strategy;
     this.warnOnUngrantableSeedTools(rawStrategy, ctx);
