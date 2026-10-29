@@ -355,3 +355,43 @@ Contains all firstsource/hosted finaltraces, decodedarchives, complete reading
 books/receipts, rawlogs, initial/finalstates, fullprivatehostworkspace and causal
 CAPTCHA probes. No evidence removed. Currentnewrun evidence remains /tmp until
 next backup. No Atoma source edited or deployment this heartbeat.
+
+
+## 03:49 UTC — second run initial state proved; live prefix retained
+
+MCP readiness/runs first: same a6b98fd5 running, active1, no replacement. Native
+startcell2034 ended with300s tools/call timeout; no duplicate start made. Actual
+trace started03:41:38.861Z on deployed375294a14; normal initial preparation delay.
+Initial state now successfully exported in full(second-initial-state.json.gz):
+snapshotb18bcd99-b346-4b10-adf0-ead97385fa1e, digest
+71da9f69f830b09149e0809febb850ecd498608bec30c72269f8b1665950028f, root755.
+276entries251files4505645bytes exactly equal verified selected3ca final, all
+paths/kinds/modes/bytes match. All251startingSnapshot bytehashes independently
+match actual storedfiles, truncated=false. Context8/environment/checklist4
+retained; dependencyroots complete/root+browser lockfiles, dependencies excluded.
+InitialpayloadSHA53d82795e30599d1aa99f2a272b5e86b4903a9a9f79a25ac249a73658cda28bd.
+Do not claim the earlier empty export as evidence; current export is valid.
+
+MCP trace208closed eventdetails fetched; metadata pagination changed on all4
+snapshot attempts while run rapidly advanced (exactpages retained). Therefore
+used scopedreadonlySSH to read a coherent rawtrace via its DB-recordedruns_path;
+initial guessed globalruns path absent, no mutations. All208MCPcached events
+compare identical to host snapshot. Snapshot505events/454attestations/261unique
+gziparchives, raw11698783bytes, SHA
+debf5f043f76400d1fdd2be3853ae667e4561fd818704de1f6695b8b70153792.
+All archive bytes/hashes verified.45calls,$.88229696eq at that prefix, not final.
+Run is still active, NO terminal verdict yet. Do not infer correctness from
+summary/cost. Local inverse-reader building prefix505 from FULLYREAD prior
+sourcefinal136/hostfinal73 only; execsession40622 running at03:49Z, has not yet
+produced book. Newprefix NOTREAD. Nextfinish reader/verify/freezebook then read
+all novel prompts/archives/logs/events/atts/metadata, preserving contiguouscursor.
+Readerroot /tmp/attica-autonomy-20261029/a6b98fd5-afc2-4963-bb16-7b452ee168d8.
+NativeMCP fetchscript exit on changingmetadata, did not fabricate/joinpages.
+
+Durable prefix505gzip and fullinitial saved in same visualizations directory:
+attica-a6b98fd5-prefix505-20261029.json.gz and
+attica-a6b98fd5-initial-state-20261029.json.gz. Raw initialpayload huge linehash
+metadata caused one truncated console view; NOT claimed fully read. Contenthashes
+allverified and fullpayload retained; compact setup/context actually read.
+Only our memory/evidence changed, no Atoma source or production deployment.
+Continue until06:57:09Z/no new workafter06:27.
