@@ -8,6 +8,14 @@ connect a computer and explicitly select it for each project before starting run
 Legacy hosted targets remain readable but cannot launch work for ordinary members.
 Permanent application hosting is a separate service.
 
+Eligible Compute runs receive a separate hosted verification from their retained
+initial state. `atoma_run_status` exposes its current `computeValidation` status
+and `result.validationRunId` when recorded. Pass that id to `atoma_run_trace`
+to page the complete trace, individual events or runner log. The same project
+permissions apply, and earlier attempts remain readable after an explicit retry.
+Reading spends no model quota. A completed verification is not client acceptance
+or publication; inspect its final verdict and evidence separately.
+
 ## Headless client
 
 Start with **Connect a computer** in the Atoma welcome conversation or project

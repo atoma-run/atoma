@@ -29,8 +29,8 @@ withheld device observations coalesce to one attempt per ended source run. The
 primary store owns the queue and atomic ledger admission. No historical backfill.
 The same idle/deployment gate, exclusive lease and preemption apply; the child
 process group is attached before it can outlive its owner. Interrupted attempts
-are not automatically retried. Host policy bounds each attempt to 15 minutes, 1,000,000 billable
-tokens and $0.25 API-equivalent consumption. In-flight calls may exceed consumption
+are not automatically retried. Host policy bounds each attempt to 30 minutes, 8,000,000 billable
+tokens and $1 API-equivalent consumption. In-flight calls may exceed consumption
 stops. The owner removed the rolling daily start ceiling on 2026-10-28; each
 eligible source still receives one automatic attempt. Legacy never-started `budget-wait`
 rows enter ordinary FIFO admission without operator exceptions; historical
@@ -71,6 +71,12 @@ and finish are fenced by attempt id. Compatibility 3 drains older executors
 before retry writers activate: those executors cannot fence attempts or preserve
 separate retry evidence. It also retains compatibility 2's initial-state GC refs. The ledger retains status, cost
 and independent counter/recipe changes.
+
+The source run's status exposes the current validation status and its trace id;
+the queue records that identity before launch. `atoma_run_trace` reads that id
+through the ordinary bounded trace/log readers after authorising the source
+project. Historical retry receipts retain the lookup after later attempts;
+readers never create queue tables or accept a caller-supplied evidence path.
 
 ## Three risk profiles, one boundary between them
 

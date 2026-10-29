@@ -43,3 +43,9 @@ export const computeValidationRetryReceiptSchema = z.object({
   }).strict(),
 }).strict();
 export type ComputeValidationRetryReceipt = z.infer<typeof computeValidationRetryReceiptSchema>;
+
+/** Read-only current attempt, attached to its authorised source run status. */
+export const computeValidationReadSchema = computeValidationRetryReceiptSchema.omit({ initialSnapshot: true }).extend({
+  attemptId: z.string().uuid().optional(),
+});
+export type ComputeValidationRead = z.infer<typeof computeValidationReadSchema>;

@@ -1,4 +1,4 @@
-import { ComputeValidationQueue, ComputeValidationRetryConflict } from '../core/computeValidation.js';
+import { ComputeValidationQueue, ComputeValidationRetryConflict, computeValidationSourceForTrace, readComputeValidation } from '../core/computeValidation.js';
 import type { ComputeValidationRetryInput, ComputeValidationRetryReceipt } from '../contracts/computeValidation.js';
 import { RunInitialStateStore } from '../run/initialState.js';
 import { deploymentSettingInputSchema, hostingAddressInputSchema, hostingSubdomainSchema, RESERVED_HOSTING_SUBDOMAINS } from '../contracts/projectDeployment.js';
@@ -867,6 +867,15 @@ export class ProjectStore {
       AND (EXISTS (SELECT 1 FROM auth_memberships m WHERE m.org_id = p.org_id AND m.org_id = ? AND m.principal_id = ?)
         OR EXISTS (SELECT 1 FROM auth_platform_admins a WHERE a.principal_id = ?))`)
       .get(orgId, projectId, activeOrgId, principalId, principalId);
+  }
+
+  /** Saved validation provenance only; callers must authorise its source before opening evidence. */
+  computeValidationSourceForTrace(validationRunId: string, orgId?: string) {
+    return computeValidationSourceForTrace(this.db, validationRunId, orgId);
+  }
+
+  readComputeValidation(sourceRunId: string, orgId: string) {
+    return readComputeValidation(this.db, sourceRunId, orgId);
   }
 
   /** Platform spending authority and active-org membership are re-read inside the write transaction. */

@@ -10,7 +10,7 @@ import { PlatformEventLog } from '../src/platform/events.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -1974,6 +1974,98 @@ it('reads complete diagnostics over HTTP with lossless pages and organisation is
       expect((await call({ file: 'any.json', section, eventId: verdict.id })).isError).toBe(true);
     }
   } finally { await client.close(); }
+});
+
+it('reads retained automatic and retried Compute proofs through the ordinary trace reader, scoped to their source', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-compute-proof-'));
+  dirs.push(root);
+  const supervisor = join(root, 'supervisor');
+  vi.stubEnv('ATOMA_SUPERVISOR_DIR', supervisor);
+  const a = projectRetrievalFixture(root, { subject: 'reader', slug: 'reader' });
+  const b = projectRetrievalFixture(root, { subject: 'other', slug: 'other' });
+  const own = a.makeRun();
+  const foreign = b.makeRun();
+  const db = openLedgerHandle(a.dbPath);
+  const queue = new ComputeValidationQueue(db);
+  const legacyId = randomUUID();
+  const foreignId = randomUUID();
+  const seed = (run: typeof own.run, id: string) => {
+    db.prepare(`INSERT INTO compute_validation_jobs
+      (source_run_id,org_id,project_id,status,created_at,ended_at,detail) VALUES (?,?,?,'completed',?,?,?)`)
+      .run(run.projectRunId, run.orgId, run.projectId, '2026-10-29T12:00:00Z', '2026-10-29T12:01:00Z', JSON.stringify({ validationRunId: id }));
+  };
+  seed(own.run, legacyId); seed(foreign.run, foreignId);
+  const scope = { sourceRunId: own.run.projectRunId, orgId: own.run.orgId, projectId: own.run.projectId };
+  const snapshot = { id: randomUUID(), digest: 'a'.repeat(64) };
+  const retry = queue.retry(scope, a.viewer.principalId, 'first', () => snapshot);
+  queue.claim(queue.pending()!);
+  queue.finish({ ...scope, attemptId: retry.attemptId }, 'completed', { validationRunId: retry.attemptId });
+  // A later retry must not hide the first automatic attempt or its retry.
+  queue.retry(scope, a.viewer.principalId, 'second', () => snapshot);
+  const event = { id: 'raw-proof', kind: 'tool', ts: 1, result: { archive: 'é🧪'.repeat(20_000) } };
+  const proof = (sourceId: string, id: string, attemptId?: string) => {
+    const directory = join(supervisor, 'compute-validation', sourceId, ...(attemptId ? ['attempts', attemptId] : []));
+    mkdirSync(join(directory, 'runs'), { recursive: true });
+    writeFileSync(join(directory, 'runs', `${id}.json`), JSON.stringify({ id, result: { approved: true }, events: [event] }));
+    writeFileSync(join(directory, 'run.log'), `proof at ${directory}/workspace\n` + 'x'.repeat(30_000));
+    return directory;
+  };
+  const legacyDirectory = proof(own.run.projectRunId, legacyId);
+  const retryDirectory = proof(own.run.projectRunId, retry.attemptId, retry.attemptId);
+  proof(foreign.run.projectRunId, foreignId);
+  const service = new ProjectService({ store: a.projects, github: null,
+    coordinator: { checkpointStatus: () => undefined, clientQuestion: () => null, computeProgress: () => null } as unknown as ProjectRunCoordinator });
+  const { url } = await listen(() => ({ kind: 'principal', viewer: a.viewer, tokenId: 'reader' }),
+    { ...NO_TENANT, auth: a.auth, projects: { store: a.projects, service } });
+  const client = await connect(url);
+  const call = (runId: string, args: Record<string, unknown> = {}) => client.callTool({ name: 'atoma_run_trace', arguments: { runId, ...args } });
+  try {
+    const status = await client.callTool({ name: 'atoma_run_status', arguments: { projectId: a.project.projectId, runId: own.run.projectRunId } });
+    expect(status.structuredContent, JSON.stringify(status)).toMatchObject({ computeValidation: { sourceRunId: own.run.projectRunId, status: 'queued' } });
+    for (const id of [legacyId, retry.attemptId]) {
+      expect((await call(id)).structuredContent).toMatchObject({ id, eventCount: 1 });
+      const metadata = await call(id, { section: 'metadata' });
+      expect(JSON.parse((metadata.structuredContent as { text: string }).text)).toEqual({ id, result: { approved: true } });
+      let text = ''; let textOffset = 0; let snapshot: string | undefined;
+      for (;;) {
+        const result = await call(id, { section: 'event', eventId: event.id, textOffset, textLimit: 24_000, ...(snapshot ? { snapshot } : {}) });
+        expect(result.isError).not.toBe(true);
+        const page = result.structuredContent as { text: string; snapshot: string; nextTextOffset: number | null };
+        text += page.text; snapshot = page.snapshot;
+        if (page.nextTextOffset === null) break;
+        textOffset = page.nextTextOffset;
+      }
+      expect(JSON.parse(text)).toEqual(event);
+      const log = (await call(id, { section: 'log' })).structuredContent as { text: string; nextTextOffset: number | null };
+      expect(log.text).toContain('<compute-validation>/workspace');
+      expect(log.text).not.toContain(root);
+      expect(log.nextTextOffset).not.toBeNull();
+      expect(JSON.parse(((await call(id, { section: 'result' })).structuredContent as { text: string }).text)).toEqual({ result: { approved: true }, error: null });
+    }
+    for (const section of ['summary', 'metadata', 'event', 'log', 'result']) {
+      expect((await call(foreignId, { section, eventId: event.id })).isError).toBe(true);
+      expect((await call('../../escape', { section, eventId: event.id })).isError).toBe(true);
+    }
+    // A valid DB relationship never authorises a symlink into another proof corpus.
+    rmSync(join(legacyDirectory, 'runs'), { recursive: true });
+    writeFileSync(join(retryDirectory, 'runs', `${legacyId}.json`), JSON.stringify({ id: legacyId, result: { secret: 'wrong corpus' }, events: [] }));
+    symlinkSync(join(retryDirectory, 'runs'), join(legacyDirectory, 'runs'), 'dir');
+    expect((await call(legacyId)).isError).toBe(true);
+    rmSync(join(legacyDirectory, 'run.log'));
+    symlinkSync(join(retryDirectory, 'run.log'), join(legacyDirectory, 'run.log'));
+    expect((await call(legacyId, { section: 'log' })).isError).toBe(true);
+    const platformHost = await listen(() => ({ kind: 'principal', viewer: { ...a.viewer, platformAdmin: true }, tokenId: 'platform' }),
+      { ...NO_TENANT, auth: a.auth, projects: { store: a.projects, service } });
+    const platform = await connect(platformHost.url);
+    try {
+      const refused = await platform.callTool({ name: 'atoma_run_trace', arguments: { runId: foreignId } });
+      expect(refused.isError).toBe(true);
+      expect(JSON.stringify(refused.content)).toContain('cross-organisation audit unavailable');
+      expect(refused.structuredContent).toEqual({ error: { code: 'unavailable', retryable: true,
+        nextAction: 'Retry shortly. If this persists, ask the instance administrator to check availability.',
+        message: 'cross-organisation audit unavailable' } });
+    } finally { await platform.close(); }
+  } finally { await client.close(); vi.unstubAllEnvs(); }
 });
 
 it('serves a tenant the runner log without the host layout (2026-09-25 review, 2.2)', async () => {

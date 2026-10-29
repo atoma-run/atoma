@@ -987,6 +987,7 @@ export class ProjectService {
     // A superset of the run's entry in the project's run list, which MCP readers compare.
     const presented = this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId), { costBreakdown: true });
     return { ...presented,
+      computeValidation: this.store.readComputeValidation(run.projectRunId, orgId),
       requestedByName: this.store.principalDisplayNames([run.requestedByPrincipalId]).get(run.requestedByPrincipalId) ?? null,
       progress: projectRunProgress(run, this.computeProgressOptions(run, presented.resultsWaiting, presented.computeProgress)),
       actions: { canCancel: orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member') && (run.status === 'queued' || run.status === 'running') } };

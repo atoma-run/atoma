@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
-import { COMPUTE_VALIDATION, type ComputeValidationLaunch, type ComputeValidationStatus, computeValidationRetryReceiptSchema, type ComputeValidationRetryReceipt } from '../contracts/computeValidation.js';
+import { COMPUTE_VALIDATION, computeValidationLaunchSchema, computeValidationReadSchema, type ComputeValidationRead, type ComputeValidationLaunch, type ComputeValidationStatus, computeValidationRetryReceiptSchema, type ComputeValidationRetryReceipt } from '../contracts/computeValidation.js';
 import { appendLedgerStrict, ensureLedgerSchema } from './ledger.js';
 
 const DDL = `CREATE TABLE IF NOT EXISTS compute_validation_jobs (
@@ -19,6 +19,58 @@ export interface ComputeValidationJob extends ComputeValidationLaunch {
 }
 
 export class ComputeValidationRetryConflict extends Error {}
+
+/** The scheduling row is the source of status; never manufacture a receipt on read. */
+export function readComputeValidation(db: Database.Database, sourceRunId: string, orgId: string): ComputeValidationRead | null {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='compute_validation_jobs'").get()) return null;
+  const row = db.prepare(`SELECT source_run_id AS sourceRunId, project_id AS projectId, status,
+    created_at AS createdAt, started_at AS startedAt, ended_at AS endedAt, detail
+    FROM compute_validation_jobs WHERE source_run_id=? AND org_id=?`).get(sourceRunId, orgId) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  try {
+    const { detail: serialized, ...fields } = row;
+    const detail = JSON.parse(serialized as string) as Record<string, unknown>;
+    return computeValidationReadSchema.parse({ ...fields, attemptId: detail['attemptId'],
+      result: computeValidationRetryReceiptSchema.shape.result.parse(Object.fromEntries(
+        ['validationRunId', 'costUsd', 'countersChanged', 'recipesChanged'].filter(key => key in detail).map(key => [key, detail[key]]))) });
+  } catch { return null; }
+}
+
+/** Read-only provenance lookup. Old stores stay old; reading never creates queue tables. */
+export function computeValidationSourceForTrace(db: Database.Database, validationRunId: string, orgId?: string): ComputeValidationLaunch | null {
+  if (!computeValidationLaunchSchema.shape.sourceRunId.safeParse(validationRunId).success) return null;
+  const has = (name: string) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
+  const scoped = orgId === undefined ? '' : ' AND org_id=@orgId';
+  const params = { id: validationRunId, ...(orgId === undefined ? {} : { orgId }) };
+  type Row = { sourceRunId: string; orgId: string; projectId: string; detail: string };
+  let row = has('compute_validation_jobs') ? db.prepare(`SELECT source_run_id AS sourceRunId,
+    org_id AS orgId, project_id AS projectId, detail FROM compute_validation_jobs
+    WHERE json_valid(detail) AND json_extract(detail,'$.validationRunId')=@id${scoped} LIMIT 1`).get(params) as Row | undefined : undefined;
+  if (!row && has('compute_validation_retries')) {
+    const retry = db.prepare(`SELECT source_run_id AS sourceRunId, org_id AS orgId, project_id AS projectId,
+      attempt_id AS attemptId, receipt, previous_job AS previousJob FROM compute_validation_retries
+      WHERE (attempt_id=@id OR (json_valid(receipt) AND json_extract(receipt,'$.result.validationRunId')=@id)
+        OR (json_valid(previous_job) AND json_valid(json_extract(previous_job,'$.detail'))
+          AND json_extract(json_extract(previous_job,'$.detail'),'$.validationRunId')=@id))${scoped} LIMIT 1`)
+      .get(params) as { sourceRunId: string; orgId: string; projectId: string; attemptId: string; receipt: string; previousJob: string } | undefined;
+    if (retry) {
+      try {
+        const receipt = JSON.parse(retry.receipt) as { result?: { validationRunId?: string } };
+        const detail = retry.attemptId === validationRunId || receipt.result?.validationRunId === validationRunId
+          ? JSON.stringify({ attemptId: retry.attemptId })
+          : (JSON.parse(retry.previousJob) as { detail: string }).detail;
+        row = { sourceRunId: retry.sourceRunId, orgId: retry.orgId, projectId: retry.projectId, detail };
+      } catch { return null; }
+    }
+  }
+  if (!row) return null;
+  try {
+    const detail = JSON.parse(row.detail) as { attemptId?: unknown };
+    const parsed = computeValidationLaunchSchema.safeParse({ sourceRunId: row.sourceRunId, orgId: row.orgId,
+      projectId: row.projectId, ...(detail.attemptId === undefined ? {} : { attemptId: detail.attemptId }) });
+    return parsed.success ? parsed.data : null;
+  } catch { return null; }
+}
 
 /** An explicit attempt fences stale workers without changing legacy automatic jobs. */
 function attempt(detail: string): string | undefined {
@@ -120,7 +172,8 @@ export class ComputeValidationQueue {
       'interrupted', { reason: 'restart', costUsd: null });
   }
 
-  claim(job: ComputeValidationJob, now = new Date()): boolean {
+  claim(job: ComputeValidationJob, now = new Date(), validationRunId?: string): boolean {
+    if (validationRunId !== undefined) computeValidationLaunchSchema.shape.sourceRunId.parse(validationRunId);
     return this.db.transaction(() => {
       const row = this.db.prepare(`SELECT detail FROM compute_validation_jobs WHERE source_run_id=? AND org_id=?
         AND project_id=? AND status IN ('queued','budget-wait') AND started_at IS NULL`)
@@ -128,10 +181,10 @@ export class ComputeValidationQueue {
       if (!row || attempt(row.detail) !== job.attemptId) return false;
       if (!this.db.prepare(`UPDATE compute_validation_jobs SET status='running',started_at=?,detail=?
         WHERE source_run_id=? AND org_id=? AND project_id=? AND status IN ('queued','budget-wait') AND started_at IS NULL`)
-        .run(now.toISOString(), row.detail,
+        .run(now.toISOString(), validationRunId ? JSON.stringify({ ...JSON.parse(row.detail) as Record<string, unknown>, validationRunId }) : row.detail,
           job.sourceRunId, job.orgId, job.projectId).changes) return false;
       this.updateReceipt(job, 'running', now.toISOString());
-      this.event(job, 'running', job.attemptId ? { attemptId: job.attemptId } : {});
+      this.event(job, 'running', { ...(job.attemptId ? { attemptId: job.attemptId } : {}), ...(validationRunId ? { validationRunId } : {}) });
       return true;
     }).immediate();
   }

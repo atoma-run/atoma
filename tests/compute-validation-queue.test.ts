@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { ComputeValidationQueue, assertComputeValidationClaim } from '../src/core/computeValidation.js';
+import { ComputeValidationQueue, assertComputeValidationClaim, computeValidationSourceForTrace, readComputeValidation } from '../src/core/computeValidation.js';
 import { appendLedgerStrict, readLedger } from '../src/core/ledger.js';
 import { type ComputeValidationLaunch } from '../src/contracts/computeValidation.js';
 import { withheldComputeKnowledge } from '../src/contracts/executionTarget.js';
@@ -41,6 +41,26 @@ describe('durable Compute validation admission', () => {
     observation({ ...job, orgId: randomUUID() });
     queue.discover(); expect(queue.pending()).toBeNull();
     expect(() => assertComputeValidationClaim(db,job)).toThrow();
+  });
+  it('reads status and trace provenance without granting another organisation access or migrating an older store', () => {
+    const legacy = new Database(':memory:');
+    try {
+      expect(readComputeValidation(legacy, job.sourceRunId, job.orgId)).toBeNull();
+      expect(computeValidationSourceForTrace(legacy, randomUUID(), job.orgId)).toBeNull();
+      expect(legacy.prepare('SELECT name FROM sqlite_master').all()).toEqual([]);
+    } finally { legacy.close(); }
+    observation(); queue.discover(); queue.claim(queue.pending()!);
+    const validationRunId = randomUUID();
+    queue.finish(job, 'inconclusive', { validationRunId, costUsd: 0.1, reason: 'root refused', countersChanged: false });
+    expect(readComputeValidation(db, job.sourceRunId, job.orgId)).toMatchObject({ sourceRunId: job.sourceRunId,
+      projectId: job.projectId, status: 'inconclusive', result: { validationRunId, costUsd: 0.1, countersChanged: false } });
+    expect(computeValidationSourceForTrace(db, validationRunId, job.orgId)).toEqual(job);
+    expect(computeValidationSourceForTrace(db, validationRunId, randomUUID())).toBeNull();
+    expect(readComputeValidation(db, job.sourceRunId, randomUUID())).toBeNull();
+    const bad = JSON.stringify({ validationRunId, attemptId: '../../escape' });
+    db.prepare('UPDATE compute_validation_jobs SET detail=?').run(bad);
+    expect(computeValidationSourceForTrace(db, validationRunId, job.orgId)).toBeNull();
+    expect(readComputeValidation(db, job.sourceRunId, job.orgId)).toBeNull();
   });
   it('keeps interrupted spend reserved and never retries an uncertain attempt', () => {
     observation(); queue.discover(); queue.claim(queue.pending()!);

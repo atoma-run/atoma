@@ -1,5 +1,52 @@
 # Attica client cycle — 2026-10-29 ACTIVE
 
+Latest12:43UTC: window still ends14:57:23Z. Atoma MCP proof-reader fix is
+implemented, verified, NOT YET committed/pushed/deployed. Currentsourcework
+in this checkout is ALL OURS (contracts/core/projects/MCP/supervisor plus
+three regression tests/docs). main fast-forwarded2606f411 (i18n-only child
+of459ec); shared primary checkout intentionally local10dd remains untouched.
+Native MCP still404 for automatic validation226c88b9; source6687 hosted
+validation completed12:36:03.402, traceended12:35:57.855, no verdict claim
+until FINAL proof reading completes. Fourthrunef5d6722 started12:36:03.980
+onCompute, follows exact6687, no duplicate start. Follow it via MCP.
+
+Newreader: source status exposes computeValidation scheduling record, and
+atoma_run_trace resolves an automatic/retry UUID via primary queue provenance,
+authorises its source project, audits cross-org reads before payload, then
+uses existing lossless paged trace/log readers. Retried legacy evidence lookup
+preserved through previous_job/receipts, directory layout shared withrunner,
+UUID and all-descendant symlink guards. No second store/catalogue/tool.
+Queue records validationUUID atomically at claim before launch for live reads.
+Source/tenant/status read creates no schema. No budget/policy changes; corrected
+stale supervisorAGENTS prose to actual30min/8M/$1. Regressions88focused,
+fullsuite590files8594testsPASS45skips; finalstaticreleasePASS, npmciPASS,
+finaldocsPASS; finaltypecheckstarted16707 (check its completion). Initialfull
+release had only our incomplete testfixture(clientQuestion/computeProgress)
+and wrong expected503structuredshape failing; fixed fixture, finalfullsuite
+passed. All failure logs retained under/tmp/attica-mcp-compute-reader-*.
+
+226c88b9 proofroot/tmp/attica-client-cycle-20261029-095723/226c88b9-3792-401e-908e-ebc153ad8aeb.
+PREFIX124events trace24ed4f07187c394db9e2420b3bf359a309b773201d8f455ccfbab157e2dcca58
+fullyread355680humanchars/323354compactchars,96unique decodedarchives,
+104attestations, exact reconstructionPASS. Preserved books/prefix124,
+human-reading-complete terminal=false. First two leaf attempts honestly
+incomplete/refused; third actualroot124+89 andcopychecks pass. All4342
+initialcopyfiles/modes mv comparison matched. Several CJS/TS/lint failures
+recovered; no reason to change deadline just from pending state.
+FINAL trace a55007aafd3a17a5d4695cd46a7d5218a89c03fc7de6fa0043c4d48dde4da570
+172events160envelopes120unique745671decodedbytes150attestations,
+22calls$0.41458852 (16glm+6terra), allfinalbytes fetched viaSSHonlyproof
+after nativeMCP404, prefixpreserved. Finalhumanview/verification first ran
+before generationfinished and mismatched; that failed output is NOT proof
+reading. Correct finalreconstructionPASS recorded. Current enhancedlocal
+reading-view.py adds lossless canonicalJSONblock decoding and shortscalar
+references to already-read actualprefix/priortraces; generationRUNNING
+session37214, log/tmp/attica-third-hosted-final-blocks-generation.log.
+WAIT for it before human-view.py+verify-reading.py (redirectverificationlog
+toavoidlarge failure dumps). Then read ALL remainingfinalview+rawrun.log,
+markcomplete and preserve durable proofbook. Finalrawlog fetched butNOTYET
+fullyread. Do not repeat af68/eb1f/6687source/7878 proofalreadyfullyread.
+
 Owner explicitly delegates a five-hour cycle of Atoma runs, detailed evidence
 reading, demonstrated repairs, verification and production publication/deploy.
 Current authority is the owner's latest request, superseding the prior expired
@@ -371,3 +418,210 @@ pages with snapshot receipts, no credential reset/reconnect or run duplicate.
 Run trace ended11:28:18, root+c1 approved; coordinator still finalizing11:30.
 Complete15551-character raw runner log read; full archives still need decoding
 and reading. Proof root /tmp/attica-client-cycle-20261029-095723/eb1f323e-b425-4fda-a674-b49fe5dbd1d6.
+
+## 11:35 UTC — restart repair pushed; second run delivered, proof reading underway
+
+Restart repair commit459ec5eb38fafe344b442d5878b7fa8bb1192090 pushed to main
+and own branch after fresh fetch/mine-only log/diff check. Clean exact remote
+match verified. main CI40866123006, branch CI40866121653,
+Compute40866122881, CodeQL40866120363 still pending at last check.
+Full source release590files/8592tests+45skips; full real GPU final pass incl
+restart and member arms; OAuth+Compute Chrome pass. Earlier smoke failure
+retained: only inserted test route fixed, production source unchanged.
+
+Second run eb1f323e delivered11:33:04.934, trace ended11:28:18.210,
+cost$0.2707/18calls, root+c1approved. Manifestd2bbe837232ac7e9592cf05aa4bd7163235b353f1c375ff2df94dd4fdf0abdeb.
+Native MCP fetched all172events,40metadata pages+complete runner log.
+TraceSHAde72fcf3e5e77ac7c6b5fb472da11c28ba7c1f4040b046caed57584162569e46.
+141archiveenvelopes/98unique/966081unique decoded bytes verified. Lossless
+reading reconstruction passed all98archives/172events/141attestations.
+human-reading.txt603982chars: ACTUALLY READ0..264000 so far, no output
+truncation in these chunks; continue264000 onward. Rawlog15551chars readall.
+No human-reading-complete marker yet. Do not seed a future proofbook with
+this trace until remaining text has actually been read.
+
+Recovered errors seen: multiple old/neu edit args refused (correct tool
+contract), ambiguity refusal, navigation and completion-vs-lock races,
+tmp noexec EACCES, outsideworkspace readonly, nested clean-copy TS duplicate
+variables. All raw failures retained. Root rejected first result because it
+allowed400or409; remediation changed to exact409. Delayed350ms harness mutant
+fails5/6 with0!=1; corrected delayed all6 pass; ordinary6pass; clean full
+check124Vitest+89Node pass. Still need independent final-source review,
+files/modes/initial-state verification and hosted automatic validation proof.
+Only JS test+probe named in delivery; strict TypeScript maintained-source
+requirement may not have been fulfilled: inspect before claiming complete.
+
+## 11:46 UTC — source proof fully read; real delivered workspace fails check
+
+ACTUALLY read ALL603982chars of secondrun human-reading.txt +15551rawlog,
+all141attestations/98unique archives. human-reading-complete.json nowtrue.
+Only reference display markers abbreviated after360000; no novel text omitted.
+MCP finalstatus/artifactmanifest512files savedstatus.json.255newfiles are an
+unremoved attica-clean copy from first Ammonia pass. Urea removed only its own
+atoma-scratch clean-final. No clientacceptance/publication performed.
+
+Independent reconstruction /tmp/attica-reviewed-run-eb1f-20261029 has512/512
+exact filebytes+executable modes verifiedagainstmanifest. Sources: already
+verifiedGit887e + nativeMCP finaltest/oldhashedbundle + archived intermediate
+test usedin attica-clean. local-reconstruction.json saved. Earlier local
+textpatch import had an extra terminal newline; hashguard rejected it. Reused
+nativeMCP JSON text to preserveexactbytes; don'tclaim firstattemptmatched.
+npmci both lockfileroots then actual complete npmruncheck EXIT2,
+TS2451duplicate loadModule/legacyCases fromattica-clean/tests/legacy-typescript.ts
+androot counterpart. Logs /tmp/attica-second-independent-{ci,delivery-check-final}.log.
+This contradicts usability of whole delivery despite narrow run approval.
+DO NOT publish whole run512files or silently accept it. StrictTS maintenance
+ofchangedtest also omitted (stillJS). Need repair/review before nextproductwork.
+
+Hosted validation of eb1f source RUNNING: nativeMCP ledgerqueued/started11:33:56.
+Catalogue stillhasno validationreader; readonlySSHfallback status proved ID
+7878cbf4-e1b1-4cf3-8514-281b0e22fa94,started11:34:01.106.
+Proofroot /home/atoma/state/supervisor/compute-validation/eb1f323e-b425-4fda-a674-b49fe5dbd1d6,
+runs/<validationID>.json,run.log. No replayduplicate. SSHfirstconnectionclosed,
+nextworked; localOAuthhelperstillrenewing, nativeMCPunaffected.
+
+Initialstaterecomputed257files/282entries/4557843bytes,rootmode493,
+snapshot5c6f0552-95da-4a28-a6fc-6d025ded66b1,
+digest02014a8a92444a3ec1b4ead6e05a7ecae4d21be4946dd8c897ef6e3a7fb8792e,
+contextSHA2a885ee23379acc588781e1a18bd86d61a9918d03c102c033885fd0a6d56163c,
+goalSHA4b362c72e9c44fbff1a73f6545aa8cbfb8e94a29b848db8ce3914a277e941952,
+Git887e; allsnapshotentriesverifiedwithactualcaptureordering. Receipt
+/tmp/attica-client-cycle-eb1f-initial-integrity.json. No envvalues/dataexport.
+
+Restart platform CI main40866123006/branch40866121653/Compute40866122881/
+CodeQL allGREEN. i18ncommit2606f411 auto-generated onmain afterward, don't
+overwriteit. Deploy40866809378green, duplicate40866854846skipped. IMPORTANT:
+workflowhead2606f411 is triggerhead; actualartifact/runtimeREVISION verified
+459ec5eb38fafe344b442d5878b7fa8bb1192090, whichcontainsourrestartfix. Not2606.
+
+11:50 UTC: sourceproof durable eb1f-source-proofbook.tar.gz24442804B,
+SHA3c27e8c518d0369df67a0af95d793bb21fa4bcda455a978ac6a2d5644d749a15,
+299membersverified. Actualdecodedrawlog15193chars (15551wasMCPserialized
+JSONlength); fullyread. Independentfocused sixNodecases pass, whole512root
+checkfails asabove. ProductionSettingsreload showsApplicationonline, ordinary
+Open/Stop/actionsavailable. No actualStop/collection clicked.
+
+Automaticvalidation7878completed11:45:53.267,traceended11:45:49.173,
+58events10calls/$0.12286928. Rawtrace+log proof-only fetchedviaSSH after native
+MCP404. Full reading PENDING: don'tclaimapprovalyet. Summary reports passed
+but describes retaining409||400 and anotherdifferentrepair; examine allproof.
+
+Third targeted request /tmp/attica-client-cycle-20261029-third-request.json,
+functionsstoreattica-cycle-third-request, baseEXACTeb1f knownbroken complete
+workspace. One deliveryintegrity repair: preserve/movegeneratedattica-clean
+underexisting.atoma-scratch, strictTSmaintainedconcurrencytest+legacyJSentry,
+no broadenedexclusions; finalROOTnpmcheckandexact202/409sixcases. Initial
+checkpoint/rawproof mustremain. Contextv8unchanged/readinessactive0/problems[]
+checked11:49; ownerstandingautonomousgoal/criteriaauthorizationapplies.
+Keyattica-client-cycle-20261029-095723-delivery-integrity-03 NOW USED; start
+called11:50. If its wait expires, do not duplicate: same request/key only.
+
+Third runID6687faf4-3442-4363-a663-8ed24dfe7688,created11:50:22.245,
+started11:50:23.025. FOLLOWTHISRUN; startwaitingfunctionscell2942 mayexpire
+at300s, reuseexactrequestkeyonly. Baseeb1f meansinitialcomplete512files
+preservedbeforetargetedrepair, notaf68orold6838.
+Prior validation7878 proofgeneration exec43594; traceSHAf5c109dea1fef167dfb057e86583eca6cb4b4fb3eb71c82a05a88dd3fbff2cae,
+58events57envelopes41uniquearchives. Generatehumanview/reconstructverify,
+thenACTUALLYreadall+run.log beforeclaimverdict. Usefullyreadsourceeb1f as
+dictionary (safe now); no newsubagents. Currentwindowends14:57:23Zunchanged.
+
+11:56 UTC: ALL189006chars of hosted replay7878 human-reading +complete
+21240B run.log ACTUALLY READ. Reconstruction verifies41archives/58events/
+39attestations. Root+c1approved1/1, but replay independently repairs initial
+257files; it does NOT validate the original512file delivery. It retains the
+old409||400 resume allowance and JS maintained test; thirdrun criterion is
+now unequivocally exact409 +strictTS +realfinalroot check. Failure/success
+logs preserved, not replaced by their summaries. human-reading-complete.json
+true; safe dictionary seed now. Durable eb1f-7878-hosted-validation-proofbook
+archive/receipt alongside prior source archives, every member byte verified.
+Third6687 stillrunning/readinessbusy at11:55, no duplicate start. Current
+production remains accepted6838/Git887e with1015listings.
+
+12:00 UTC: Third initial state recomputed in readonly productionDB:
+563entries/512files/9082747bytes/rootmode493, snapshot
+b3fd3a9b-39c6-4795-881f-22880e3b1522 digest
+408ff118726b531f3fcbc217ec0ba10ebae31b1d04374bb598a16f0cfbbdc54a.
+Full initialcontext SHA7fa36078ea7db9ac37b548b07241212d4d9160f044da1169b974e4845a08b785,
+goalSHA355d026d2ff595f9c595a05e4bfdbf8013fc5b04a7937c567367fb53a999f20e,
+Git887e; hasStartingSnapshottrue. Receipt/tmp/attica-client-cycle-6687-initial-integrity.json.
+MCPstartwait2942 timedout300s; knownrun6687continues, no duplicate.
+
+Prepared separate client-visible tabfix in OUR clean clone
+/tmp/attica-reviewed-run-af68-20261029, not Compute source or otheragents:
+browser/control.ts +tests/control-button-ui.vitest.test.ts. ClickingConfiguration
+neverupdatedaria-selected, leavingSuivi highlighted. Addedsharedpanel/ARIA/
+rovingtabindex transition andArrow/Home/End keyboard selection. NewrealChrome
+regression REDbefore(expectedSuivifalse,actualtrue), GREENafter; formdraftretained
+acrossobservedpoll/topnavroundtrip. Fullnpmcheck124Vitest+89NodePASS; fullreal
+browserregression53732stillrunning, log/tmp/attica-client-cycle-tabs-browser.log.
+AllhistoricalhashedassetsrestoredexactlyafterVitebuildclearedthem, preserveoncommit.
+NOT yet committed/published/deployed. Currenthostingstill6838/Git887e.
+Maclocked at12:00 preventsCUA; no needinterruptownerwhileMCP/shell/headlessproofwork.
+
+12:08 UTC: Third6687 DELIVERED12:05:05.442,traceended12:03:16.034,
+119events/10calls/$0.174,manifestf5e486d5a352ed92861d65ff54c08a9bdec66db296855540ecd9a2a06dca3474,
+256files. Auto validationqueued/running12:05:18 (follow, don'tduplicate).
+AllnativeMCPmetadata36pages+119events+rawlog fetchedlosslessly; traceSHA
+7ed2d32f991fea9aca85b3683258cc1c710aa33b11cc8720e97002c3fcf7b1f9.
+143archiveenvelopes/80unique/694715unique decodedbytes; reconstruction
+all80archives119events143attestationsPASS. human-reading497484chars:
+ACTUALLYREAD0..210000, continue210000onward; rawrun.logNOTread yet.
+Do NOT claim fullproofread/seedthisdictionary yet.
+
+Independentexact256filecopy /tmp/attica-reviewed-run-6687-20261029 madefrom
+Git887e+3nativeMCPchanged/newfiletexts, allSHA/modes+noextraFilesverified.
+Firstextra-inventorycheckcaught7historicalGitbundlesabsentfromrun; removed
+ONLYinourexacttestclone, Gitcopiesretainedelsewhere. 8historicalGitassets
+includingBKy omittedfromrundelivery;sourcevsparenteb1falsoremovessHA.
+DO NOT remove these from actualpublication branch. Preservealloldbundles.
+Currentrootnpmci6113passed; browsernpmcisessionpending; then runactualroot
+check in this exactcopy. No productiondataexport.
+
+Tabfixall34realChrome/browsertestsPASS, full124Vitest+89NodePASS.
+OURclonefastforwardedGit887e thencommitted4eed1d1, pushedONLY dedicatedbranch
+codex/attica-usable-recovery-20261029 toproductionremote; clean. Includes
+source/realbrowserregression/newcompiledassetD9RZH86S +HTML/JS/map, allprior
+hashedassetsbytepreserved. Not mergedmain/notserved/notclientaccepted.
+
+12:14 UTC: ALL497484chars of6687 sourceproof ACTUALLYREAD (first300000
+verbatim, tail through lossless remaining-reading153153chars referencing
+only already-readprefix; exact197484char tail reconstructionverified).
+ALL16054Brawrun.logreadtoo. human-reading-complete true, safe dictionaryseed.
+AllrecoveredTS/lint/CJS/old_stringerrorsretained; finalroot+cleancopycheckpass,
+exact409sconfirmed. Independent256filefinalrootcheck ALSO PASS124Vitest+
+89Node, npmci bothroots. NoextraFiles initially/correct SHA/modesbeforecheck.
+Durable6687-source-proofbook.tar.gz30968662B,
+SHA54f8dd312ac98c813b72494a4645f4b78ac8829802e16ec1412d58ee731702e1,
+110membersbyteverified. Auto hostedvalidationstarted12:05:18STILLFOLLOW.
+
+FourthrunSTARTCALLED12:14UTC, key
+attica-client-cycle-20261029-095723-collection-tabs-04 NOW USED.
+Request/tmp/attica-client-cycle-20261029-fourth-request.json,
+functionsstoreattica-cycle-fourth-request. BaseEXACT6687, one realcustomerUI
+bug: selectedSuiviARIA/highlightwrongafterConfigurationclick, fixmouse+
+Left/Right/Home/End/rovingtabindex, retainsection+unsavedscheduledraftacross
+poll/APIoutage/recovery, proveactualbuiltpageinrealinstalledChromiumoffline.
+No duplicate start; waitcell3021 expires300s butruncontinues. Readinessactive0/
+problems[],contextv8unchanged, staleMCPconversationreadbutnotfollowed.
+DoNOTloseprevioussourcefixes orhistoricalassets; no acceptance/deployinrun.
+FourthIDef5d6722-6f9d-4c56-8cc3-da4651318547 queued12:14:44.039,
+startcell3021stillpending; followMCP. Hostedvalidationofthirdsource is
+226c88b9-3792-401e-908e-ebc153ad8aeb,started12:05:22.697,runningat12:15.
+Proofroot/home/atoma/state/supervisor/compute-validation/6687faf4-3442-4363-a663-8ed24dfe7688.
+Onlyreadonlystatusread; fulltrace/logreadingstillpendingwhenitends.
+
+Integrated ONLY3exactreviewed6687testfilesintoOURtabfixcloneAF68(branch4eed):
+newtestTS,legacyJSbridge,harnessdts. Noactualapp/historicalasset/datachange.
+Combinednpmcheckstartedlog/tmp/attica-client-cycle-integrated-tabs-concurrency-check.log.
+Pendingcommitandpushdedicatedbranchafterpass; no needrerun34browsercases
+asexecutedUIbundle/harnessJSunchanged, but checkcompositiontypes/runtime.
+
+12:18 UTC: Independentintegrationof6687testfileswithourtabfixpassescomplete
+npmcheck124Vitest+89Node; UIbundleD9RZH86S unchangedfrom34passedChromeproof.
+Retainedall9historicalassetsafterVitebuild. Committede6c24a0 (3test/declaration
+files ONLY), pusheddedicatedAtticabranch; statusclean. StillNOTmain/deployed/
+clientaccepted. NewAtomarunef5queued, no duplicate.
+Readonlyproductionhealth12:17:30: deployment28e43674stateREADY/Git887e/run6838,
+API200/381773B/1015rows/activefalse/statuscomplete. ALL6persistedfiles
+(listings,state,schedule,checkpoint,rawexport,CSV) BYTE-IDENTICAL to11:12
+normal-updateafterreceipt. /tmp/attica-client-cycle-hosting-1217.json.

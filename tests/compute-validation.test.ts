@@ -11,7 +11,7 @@ import { AuthStore } from '../src/auth/store.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { appendLedgerStrict, openLedgerHandle, readLedger } from '../src/core/ledger.js';
-import { ComputeValidationQueue } from '../src/core/computeValidation.js';
+import { ComputeValidationQueue, computeValidationSourceForTrace, readComputeValidation } from '../src/core/computeValidation.js';
 import { withheldComputeKnowledge } from '../src/contracts/executionTarget.js';
 import { COMPUTE_VALIDATION, COMPUTE_VALIDATION_ENV } from '../src/contracts/computeValidation.js';
 import { validateComputeNext, type ComputeValidationOptions } from '../src/supervisor/computeValidation.js';
@@ -107,7 +107,14 @@ describe('resident Compute verification through the real queue, store and lease'
 
   it('coalesces success, failure and revision, launches once and never credits the device receipts', async () => {
     const f = fixture();
-    expect((await validateComputeNext(f.options))?.outcome).toBe('compute-validated');
+    expect((await validateComputeNext({ ...f.options, launch: async input => {
+      const validationRunId = input.env['ATOMA_RUN_ID']!;
+      expect(readComputeValidation(f.db, f.source.projectRunId, f.source.orgId)).toMatchObject({ status: 'running', result: { validationRunId } });
+      expect(computeValidationSourceForTrace(f.db, validationRunId, f.source.orgId)).toEqual({
+        sourceRunId: f.source.projectRunId, orgId: f.source.orgId, projectId: f.source.projectId,
+      });
+      return f.launch(input);
+    } }))?.outcome).toBe('compute-validated');
     expect(f.launch).toHaveBeenCalledTimes(1);
     const call = f.launch.mock.calls[0]![0];
     expect(call).toMatchObject({ isolation: 'container-egress', timeoutMs: 1_800_000, goal: f.source.goal });

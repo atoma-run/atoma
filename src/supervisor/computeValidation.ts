@@ -3,6 +3,7 @@ import { READ_RUNS_ENV, readRunCopyPath, encodeReadRunsIndex } from '../contract
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { computeValidationDirPath } from './paths.js';
 import { COMPUTE_VALIDATION, COMPUTE_VALIDATION_ENV } from '../contracts/computeValidation.js';
 import { ACCEPTANCE_SOURCE_ENV, ACCEPTANCE_SPEC_ENV } from '../contracts/acceptanceChecklist.js';
 import { PROJECT_CONTEXT_ENV, encodeProjectContext } from '../contracts/projectContext.js';
@@ -57,8 +58,7 @@ export async function validateComputeNext(options: ComputeValidationOptions): Pr
     options.signal?.throwIfAborted();
     // Preflight is read-only and precedes admission: unavailable starting states spend nothing.
     const validationRunId = job.attemptId ?? randomUUID();
-    const sourceDirectory = join(options.supervisorDir, 'compute-validation', job.sourceRunId);
-    const directory = job.attemptId ? join(sourceDirectory, 'attempts', job.attemptId) : sourceDirectory;
+    const directory = computeValidationDirPath(options.supervisorDir, job);
     let prepared;
     try {
       const project = options.store.getProject(job.orgId, job.projectId);
@@ -104,7 +104,7 @@ export async function validateComputeNext(options: ComputeValidationOptions): Pr
       queue.finish(job, 'blocked', { reason: (error as Error).message, countersChanged: false, costUsd: 0 });
       return result('compute-validated', 'Compute verification blocked before spending');
     }
-    if (!queue.claim(job)) return null;
+    if (!queue.claim(job, new Date(), validationRunId)) return null;
     const runsDir = join(directory, 'runs');
     const workspace = join(directory, 'workspace');
     const logPath = join(directory, 'run.log');
