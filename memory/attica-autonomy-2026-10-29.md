@@ -681,3 +681,69 @@ error; full tests/build overlapped, but causality not established). No arbitrary
 kill/service restart/DB update/duplicate run. Normal Connect reconciliation
 retains workspace/snapshot volumes, then recovery must be explicit via Atoma.
 No new run, client acceptance, publication or hosting.
+
+## 05:32 UTC — server UTF-8 fix deployed; native image adoption under verification
+
+344f81f59cc5e0486b518c8d005414251abf0fbd pushed to main and this branch.
+Main CI40821824961, CodeQL40821824738, branch/tag CI all green;
+production deployment40822374862 green. SSH verified active exact344f81f5 and
+supported health URL http://127.0.0.1:4111/ HTTP200 (healthz404 was unsupported).
+Compute desktop40821824823 skipped unchanged package content as expected.
+
+Published tag compute-images-344f81f59cc5 at this revision. Native image workflow
+40822366207 SUCCESS, both architectures' packaged isolation/retrieval/transfer/
+preview checks green. Receipts downloaded/checksums verified and copied to durable
+attica-compute-images-344f81f5/. Worker references (not config contentDigest):
+arm64 sha256:62e2aa1f08c334ac938ba31d480e2f912420c743b11c9ef5fa6b59a4fe3b9a93;
+amd64 sha256:f87bfdcde83c0022a74c74d0a58df89cad4ea5ca103e6e705599db5de995dba7.
+Only those two pins changed in src/contracts/computeImages.ts; unchanged workspace,
+retrieval and preview remain pinned. npm ci then full release:check running in
+session78769, logs compute-pins-{npm-ci,release-check}.log. All unique worker env
+vars retained. Must finish checks before commit/push; then watch CI, desktop
+publication/deploy and admit new exact app version + worker digests with backed-up
+production env. No arbitrary service restart: normal authorized deployment only.
+Current installed Compute still old images; no claim of actual client rollout.
+
+Normal UI Connect reconciliation confirmed a6 workload stop at05:10:00.299Z;
+MCP status failed, checkpoint unavailable(0/0), capacity active0. No cancellation
+requested, no successor or duplicate start. Retained own workspace/snapshot volumes.
+Failure initiating local-close remains unexplained; do not blame network or disk
+without evidence. New work must base last verified3ca69f12, not failed a6.
+
+Prefix1260 all614 archive bodies now actually read via lossless exact references,
+plus all semantic event/prompt/attestation projections. Literal human cursor424000
+of3177291 remains literal (not falsely raised). remaining unique lines0..256000;
+semantic-events0..96000; semantic-remaining0..192000; semantic-final0..293787 DONE.
+Final61787 reread four<=16k calls after combined output truncated. Original UUID/
+SHA and mechanical selector inventories retained; semantic display omits only
+identities/repeat lines/previously verified references. read-receipt now marks
+eligibleProofSeed true, fullyRead false (literal). final2364 reference view being
+generated, session54863, based on actual fully read prefix1260 trace+decoded,
+NEVER on alias maps. Final527 new unique archive bodies still unread.
+Potential separate defect: groundTruth parses default read_file manifest head as
+complete, while read_file pages at60000 chars. Historical MALFORMED at60000 may be
+this defect; source confirms no paging at both manifest health call sites. Need
+actual regression on production reader before changing code; no fix credited yet.
+
+05:40 follow-up: pin release static half passed completely; default-concurrency
+full test half failed two resource-sensitive Docker cases (egress cleanup3500ms,
+four Chromium launches). No thresholds changed. Paused only our own Python
+reading-view converter PID54932 for a complete unfiltered npm test -- --maxWorkers=4
+with the same unique image in all three env vars. Exit0,590files passed/4skipped,
+8588tests passed/31skipped,345.09s. Both prior failures passed. Resumed PID54932.
+This completes the same static-plus-test release definition. Raw logs retained.
+All four image receipt files now tracked under records/releases/compute-utf8-2026-10-29/.
+
+Actual production-path paging reproduction (mock LLM, real readFileTool + llmVerdict):
+valid manifest140145chars, threeentries, late failure; reader offsets[0,0],
+false MALFORMED Unterminated string at60000 and lateFailureIndexed=false.
+/tmp/attica-autonomy-20261029/manifest-paging-repro{.mts,-before.log}; first attempt
+lacked tier model env (no call occurred), second uses mocked Ollama pins and proves
+bug. Regression snippet prepared in /tmp/attica-autonomy-20261029/manifest-paging-regression-snippet.txt,
+not yet added to tests/source. Read atoms AGENT fully (all792lines); no model-call
+or heuristic changes needed. Follow read_file nextOffset through complete manifest
+before parsing; do not weaken true malformed-input checks or invent missing evidence.
+New final527 archive leaf display prepared as independent supplementary view,
+new-archive-leaf-human.txt1749301chars, ACTUALLYREAD0..56000. Not yet eligible seed,
+recipe inverse not yet checked, no final all-proofs-read claim. Main complete
+reference renderer session54863 resumed and still in progress.
