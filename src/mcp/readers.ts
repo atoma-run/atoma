@@ -55,6 +55,7 @@ import type { FrictionEvent } from '../viz/friction.js';
 import type { VizRun, VizTierModels } from '../viz/trace.js';
 import { taxonomyForTier } from '../core/taxonomy.js';
 import { elementForTool } from '../contracts/toolTaxonomy.js';
+import { wallClockAttribution, type TimingEvent } from './traceTiming.js';
 
 /** Default number of newest traces a scan considers, mirroring `npm run friction`. */
 const DEFAULT_TRACE_WINDOW = 20;
@@ -573,6 +574,7 @@ export function runTraceFile(
   if (!read.ok && read.reason !== 'overCeiling') return { note: `trace unavailable: ${read.reason}` };
   let run: VizRun;
   let projectedTotal: number | undefined;
+  const timingEvents: TimingEvent[] = [];
   const offset = typeof opts.offset === 'number' && Number.isInteger(opts.offset) && opts.offset > 0 ? opts.offset : 0;
   const limit = typeof opts.limit === 'number' && Number.isInteger(opts.limit) && opts.limit >= 1
     ? Math.min(opts.limit, TRACE_EVENTS_MAX_LIMIT) : TRACE_EVENTS_DEFAULT_LIMIT;
@@ -588,10 +590,15 @@ export function runTraceFile(
         return readValue();
       }, (readValue, index) => {
         if (opts.section === 'metadata' || opts.section === 'result') return undefined;
-        if (opts.section !== 'event' && (index < offset || index >= offset + limit)) return undefined;
+        const inPage = index >= offset && index < offset + limit;
         const value = readValue();
         if (!value || typeof value !== 'object') return undefined;
         const e = value as Record<string, unknown>;
+        if (opts.section !== 'event') {
+          const actor = e['actor'] as { tier?: unknown } | undefined;
+          timingEvents.push({ id: e['id'], ts: e['ts'], kind: e['kind'], role: e['role'], durationMs: e['durationMs'], actor: actor ? { tier: actor.tier } : null });
+          if (!inPage) return undefined;
+        }
         if (opts.section === 'event') return e['id'] === opts.eventId ? value : undefined;
         return Object.fromEntries([
           'id', 'kind', 'ts', 'actor', 'role', 'model', 'name', 'op', 'durationMs',
@@ -630,6 +637,7 @@ export function runTraceFile(
     provenance: run.provenance ?? null,
     tierModels: run.tierModels ?? null,
     totals: run.totals,
+    wallClock: wallClockAttribution(run.startedAt, run.endedAt, projectedTotal === undefined ? allEvents : timingEvents),
     eventCount: totalEvents,
     totalEvents,
     eventsFrom: offset,

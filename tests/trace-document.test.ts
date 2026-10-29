@@ -81,6 +81,10 @@ it('reads terminal state, list costs and MCP pages past 32 MiB without erasing e
     totalEvents: 35, eventsFrom: 32, nextOffset: 34, events: [{ id: 'e32' }, { id: 'llm' }],
   });
   expect(runTraceFile(path, { offset: 34 })).toMatchObject({ nextOffset: null, events: [{ id: 'jev' }] });
+  // The attribution covers every event, not the requested page.
+  expect(runTraceFile(path, { offset: 34 })).toMatchObject({
+    wallClock: { toolMs: { calls: 33 }, llmMsByTierRole: { 'L1:unknown': { calls: 1 } } },
+  });
   expect(runTraceFile(path, { section: 'metadata' })).toMatchObject({ text: expect.stringContaining('incomplete') });
   expect(runTraceFile(path, { section: 'event', eventId: 'e32', textLimit: 100 })).toMatchObject({
     text: expect.stringContaining('e32'), nextTextOffset: 100,
