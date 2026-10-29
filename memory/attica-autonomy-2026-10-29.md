@@ -439,3 +439,42 @@ Historical success claims are not treated as new test execution; no current
 repair or acceptance conclusion from this prefix. No demonstrated new platform
 defect established yet. Stillreadthrough505 then subsequenttrace/verdicts/logs.
 Allnewrawtrace505/fullinitial alreadydurablybackedup. Keep deadline06:57:09Z.
+
+
+## 04:19 UTC — same run progressing; larger raw snapshot preserved
+
+MCP readiness/runs first still same a6b98fd5, active1. Status04:16 running,
+157LLMcalls/$5.2205164 equivalent at that moment, no error/client question.
+Its detailed progress projection temporarily reports unknown/unavailable; this
+is not a terminal verdict. Coherent raw snapshot subsequently confirms activity
+through04:17:31.049Z. No duplicate start or validation retry.
+
+Frozenprefix505 ACTUALLYREAD contiguous0..1080000 of1861297chars, NEXT1080000;
+receipt updated. Still NOTFULLYREAD and must not seed later reader yet. This
+interval reads remaining lockfile excerpt, historical retained network refusal
+records (not new traffic), discovery plans, delegation reviews, prefilter/skill
+decisions, tool observations and beginning of search inspection-result review.
+Search inspector proposes keeping300attempts despite root request to restore150
+or justify causally; later review/implementation must be checked before credit.
+Source-only findings are not passing browser proof. Historical source/replay raw
+traces are unavailable inside run workspace; child reports that explicitly.
+One combined status+reading tool output truncated; entire affected696000..728000
+range was re-read alone without truncation, so cursor has no gap.
+
+Fetched a NEW coherent raw snapshot to trace-host-snapshot-0418.json without
+overwriting frozenprefix505. SSH read-only fallback remains justified by the
+four prior changing MCP metadata snapshots.1260events42324849bytes, SHA
+2ea399f0a27129627093e7d45320cfb05dbc806ff0fee82f69e09330cd560291.
+All closed old-prefix events compare byte-structure identical; no changed old
+event. Tools so far506read_file95list_files82run_shell49edit_file61record_probe.
+These later edits/probes have NOT been read yet and prove no accepted repair.
+An attempted JSON parse before SSH transfer finished failed on partial local
+bytes; final complete transfer parses correctly. No production mutation.
+Durable gzip copy, decompressed byte-equality verified:
+/Users/mgtf/.codex/visualizations/2026/10/27/01a17e33-a1fb-7a62-bd3f-0b05141ffc62/attica-a6b98fd5-prefix-0418-20261029.json.gz
+12644373bytes,SHA02ac16ffb1751956aa818a1fda5b9b78df91825abbaa1ed28d770c6fee79345b.
+Do not replace trace.json or render a new book until frozen505 reading finishes.
+Then process latest consistent raw snapshot with fullyread505 as seed, verify
+all inverse references and read remaining evidence/logs through terminal status.
+Only memory/evidence changed here; no Atoma source edit/deploy, clientacceptance,
+publication or hosting. Deadline remains06:57:09Z/no new chantier after06:27.
