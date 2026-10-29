@@ -395,3 +395,33 @@ metadata caused one truncated console view; NOT claimed fully read. Contenthashe
 allverified and fullpayload retained; compact setup/context actually read.
 Only our memory/evidence changed, no Atoma source or production deployment.
 Continue until06:57:09Z/no new workafter06:27.
+
+
+## 03:59 UTC — prefix505 frozen and reading advanced
+
+MCP still same a6b98fd5 running/executing/checking03:58:26.695Z, noerror/question.
+Reader finished. Fixed local inversechecker only: recursively collect parsed
+JSON strings before rawSha lookup, then fullinverse verified ALL261archives,
+505events,454attestations and metadata. Actualunique decodedbytes2498352;
+454archive occurrences4541152bytes. No product/parser/gate change.
+Human renderer takes a directory argument; first missingarg failed, corrected.
+
+FROZEN book /tmp/attica-autonomy-20261029/a6b98fd5-afc2-4963-bb16-7b452ee168d8/books/prefix505/
+human-reading.txt1861297chars. ACTUALLYREAD contiguous0..408000, NEXT408000.
+Receipt updated. DO NOTSEED as fullyread. Additional read field only: rootplan
+event0abcc2e8.response. Fullmetadata/events after505 NOTyetfetched/read.
+Allprior fullyread sourcefinal136/hostfinal73 were actualtrace+decoded seeds;
+noaliases seeded. Currentprefix contains many newlyread existingfixtures, old
+reports/configs and read-onlydiscovery evidence, notnewexecutionproofs.
+Old reports' success claims remain historical/untrusted; no current credit.
+Two oversized combinedtoolresponses truncated, their affected intervals were
+fullyre-read in boundedchunks; next408000 has no readinggap. Prefer <=32kchars
+singlecommand/max10000tokens or two16kchunks combined max10000 to avoidoutercap.
+
+Rootplan actually read: explicitly inspection-only round withreplanAfter=true,
+fourparallel discoverybranches c1-c4, noedits/execution untilcontractreview.
+Prefix505 contains268read_file27run_shell and0edit_file/0write_file; this is
+expected for that discovery phase, not evidence repairs finished. L3astra1,
+L2terra3,L1luna41calls inprefix; detailedreviews notyetfullyread.
+Continue same run, no newstart/retry/clientacceptance/publication/hosting.
+No Atoma source edited, no productiondeploy thisheartbeat.
