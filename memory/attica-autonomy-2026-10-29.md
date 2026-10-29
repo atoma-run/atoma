@@ -478,3 +478,40 @@ Then process latest consistent raw snapshot with fullyread505 as seed, verify
 all inverse references and read remaining evidence/logs through terminal status.
 Only memory/evidence changed here; no Atoma source edit/deploy, clientacceptance,
 publication or hosting. Deadline remains06:57:09Z/no new chantier after06:27.
+
+
+## 04:28 UTC — discovery evidence read; attestation reading remains
+
+MCP readiness/latest runs first04:24:49Z: samea6b98fd5 running, organisation
+active1, no replacement. Status04:28 still running/executing,189LLMcalls,
+$5.96854436 equivalent, no terminal error/question; detailed progress remains
+unavailable, so no conclusion from that projection. No new start/retry.
+
+Frozenprefix505 ACTUALLYREAD contiguous0..1624000 of1861297chars,
+NEXT1624000. Receipt updated. All archive bodies and505event bodies in this
+frozenbook now read, plus metadata and attestations0..54/part55. Remaining
+237297chars are mostly attestation linkage/hash/request metadata, not yet
+claimed fullyread. Do NOTseed505 until reaching exact end. Existing fullinverse
+verification of261archives/505events/454attestations remains valid and preserved.
+All1260later snapshot edits/probes still NOTREAD; no repair acceptance claimed.
+
+Observed recovered inspection issues retained: search reviewer requests several
+already-returned source/context ranges repeatedly; one malformed event id gets
+Not in this review inventory. Search inspection still under review atprefix505.
+Recovery eight-case inventory and historical-evidence-limits inspections are
+approved as inspections only. Source-level gap is confirmed: two interleavings
+do not observe browser history freshness; delayedcase has its stale assertion
+and release. CAPTCHA inspector traces actualcompleteListings=true fixture
+detail access correctly and preserves202/exact2navigations/zero-write contract;
+historical raw timing receipt is unavailable inside itsworkspace, no new test
+execution in thisprefix. Later implementation must independently prove it.
+
+Two Guard findings inventory/procedure reports initially refused for incomplete
+receipt inventory/exact later-copy commands. The latter refusal also says it
+proposes installs despite current no-execution scope, although child explicitly
+labels them Proposed exact future order and states nothing executed. Preserve
+this review inconsistency for later audit; not yet classified as a platform
+defect or justification for changing gates. Wrong mutating documentation recipe
+injected into readonly configuration inspection was not followed and its result
+accurately records activeSkillFollowed=false while approving inspection.
+No Atoma source edited/deployed, client acceptance/publication/hosting untouched.
