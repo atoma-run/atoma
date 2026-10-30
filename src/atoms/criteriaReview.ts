@@ -29,7 +29,7 @@ export const CRITERIA_REVIEW_PROMPT = [
  * checklist judgments. No tools, new proof credit, or shared mutable state.
  */
 export async function reviewAcceptanceCriteria(args: {
-  ctx: RunContext; task: Task; checklist: AcceptanceChecklist; evidence: string; witnesses?: Result['evidence'];
+  ctx: RunContext; task: Task; checklist: AcceptanceChecklist; evidence: string; witnesses?: Result['evidence']; historicalEvidenceIds?: Result['historicalEvidenceIds'];
 }): Promise<{ approved: boolean; reasoning: string; criteria: CriterionJudgement[] }> {
   const inputs = { ...args.task.inputs };
   // REMEDIATION_INPUTS is the shared list of what an earlier pass's verdict
@@ -46,7 +46,7 @@ export async function reviewAcceptanceCriteria(args: {
   const settled = await Promise.allSettled(batches.map(async (batch) => {
     const criteria: CriterionJudgement[] = [];
     const refusals: string[] = [];
-    const response = await completeEvidenceReview({ ctx: args.ctx, evidence: args.witnesses,
+    const response = await completeEvidenceReview({ ctx: args.ctx, evidence: args.witnesses, historicalEvidenceIds: args.historicalEvidenceIds,
       preview: () => '', contextEvidence: args.evidence,
       makeUserContent: (block, context = '') => [`Original task: ${args.task.description}`, ...taskContextLines({ ...args.task, inputs }),
         `Review ONLY these criteria: ${JSON.stringify(batch)}`,

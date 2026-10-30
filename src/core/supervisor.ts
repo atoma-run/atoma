@@ -1,3 +1,4 @@
+import { executionHistoryIds } from './executionHistory.js';
 import { markParentTestsJudged, suiteDisputeWatch, verifyParentTests, withParentTestConsequences } from './parentTests.js';
 import { EscalationSignal, PlanParseError, ValidationError, EvidenceReviewError } from './errors.js';
 import type { Atom, Supervisor } from './atom.js';
@@ -259,6 +260,12 @@ export async function superviseLoop<C extends Atom>(
   hooks: SupervisionHooks<C>
 ): Promise<Result> {
   const trace: TraceEntry[] = [];
+  const history = new Set<string>();
+  const withHistory = (result: Result): Result => ({ ...result,
+    ...((history.size || result.historicalEvidenceIds?.length) ? {
+      historicalEvidenceIds: [...new Set([...history, ...(result.historicalEvidenceIds ?? [])])],
+    } : {}),
+  });
   let current: C = child;
   // Measurement only: a suite failing the same way on several versions of the
   // workspace is counted, logged and recorded for the trace; no model reads it
@@ -425,7 +432,7 @@ export async function superviseLoop<C extends Atom>(
         if (ctx.signal.aborted) throw ctx.signal.reason ?? new Error('aborted');
 
         plansWithoutExecution = 0;
-        let result = await run(() => current.execute(task, plan, ctx));
+        let result = withHistory(await run(() => current.execute(task, plan, ctx)));
         trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: result });
 
         // A real L2/L3 applies the parent-test mapping in its result gates,
@@ -471,7 +478,7 @@ export async function superviseLoop<C extends Atom>(
             break;
           }
           corrections++;
-          result = { ...corrected, reportCorrected: true };
+          result = withHistory({ ...corrected, reportCorrected: true });
           trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: { ...result, reportCorrection: true } });
           // No execution wrapper or suite replay: only the report changed. All
           // original host witnesses and suite outcomes still constrain this verdict.
@@ -504,6 +511,7 @@ export async function superviseLoop<C extends Atom>(
           return { ...markParentTestsJudged(result), trace };
         }
 
+        for (const id of executionHistoryIds(ctx, result)) history.add(id);
         judgements++;
         const handedUp = hooks.handUpRefused?.(current, result, v2);
         if (handedUp) return { ...handedUp, trace };
@@ -601,7 +609,7 @@ export async function superviseLoop<C extends Atom>(
         const plan = await parent.plan(task, ctx);
         trace.push({ kind: 'plan', ts: now(), atom: parent.name, payload: plan });
 
-        const result = await run(() => parent.execute(task, plan, ctx));
+        const result = withHistory(await run(() => parent.execute(task, plan, ctx)));
         trace.push({
           kind: 'execute',
           ts: now(),

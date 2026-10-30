@@ -147,6 +147,16 @@ if (process.env['CHECKPOINT_TEST_CRASH'] === 'replanned') {
     process.kill(process.pid, 'SIGKILL');
   };
 }
+// Simulate a completed supervisor result whose first receipt belongs only to
+// a refused execution. Persistence must retain it across a cold process resume.
+if (process.env['CHECKPOINT_TEST_HISTORY_ONLY'] === '1') {
+  const after = SequentialCheckpoint.prototype.afterPhase;
+  SequentialCheckpoint.prototype.afterPhase = async function(index, result) {
+    const [prior, ...evidence] = result.evidence ?? [];
+    const historicalEvidenceIds = prior?.source === 'transport-observed' ? [prior.eventId] : [];
+    return after.call(this, index, { ...result, evidence, historicalEvidenceIds });
+  };
+}
 if (process.env['CHECKPOINT_TEST_CRASH'] === 'boundary') {
   const after = SequentialCheckpoint.prototype.afterPhase;
   SequentialCheckpoint.prototype.afterPhase = async function(index, result) {

@@ -2260,8 +2260,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       return withoutExecutorLoopFacts(subResults[0]!);
     }
     const evidence = subResults.flatMap((result) => result.evidence ?? []);
+    const historicalEvidenceIds = [...new Set(subResults.flatMap(result => result.historicalEvidenceIds ?? []))];
     const parentTests = subResults.flatMap(result => result.parentTests ?? []);
     const evidenceField = { ...(evidence.length > 0 ? { evidence } : {}),
+      ...(historicalEvidenceIds.length ? { historicalEvidenceIds } : {}),
       ...(parentTests.length > 0 ? { parentTests } : {}),
     };
     // Carried up like `evidence`; see L3Atom.aggregate for why.
@@ -2811,6 +2813,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         task,
         payload: { output: result.output, summary: result.summary },
         ...(result.evidence ? { evidence: result.evidence } : {}),
+        historicalEvidenceIds: result.historicalEvidenceIds,
         ...(parentSuite ? { jevExcluded: 'parent-suite' as const } : {}),
         ...(audit ? { audit: true } : {}),
       });

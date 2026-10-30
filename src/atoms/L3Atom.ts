@@ -1621,8 +1621,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       return withoutExecutorLoopFacts(subResults[0]!);
     }
     const evidence = subResults.flatMap((result) => result.evidence ?? []);
+    const historicalEvidenceIds = [...new Set(subResults.flatMap(result => result.historicalEvidenceIds ?? []))];
     const parentTests = subResults.flatMap(result => result.parentTests ?? []);
     const evidenceField = { ...(evidence.length > 0 ? { evidence } : {}),
+      ...(historicalEvidenceIds.length ? { historicalEvidenceIds } : {}),
       ...(parentTests.length > 0 ? { parentTests } : {}),
     };
     // Carried up like `evidence`, and for the same reason: a phase that itself
@@ -2100,6 +2102,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         task,
         payload,
         ...(result.evidence ? { evidence: result.evidence } : {}),
+        historicalEvidenceIds: result.historicalEvidenceIds,
         // The payload above drops `producedBy`. The cell's OWN fallback is
         // DIRECT; a peer's result, mutualized, still carries the peer's name.
         ...(result.producedBy && isOwnFallback(result, child.name) ? { viaFallback: true } : {}),

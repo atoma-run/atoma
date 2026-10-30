@@ -151,9 +151,9 @@ describe('durable sequential run continuation', () => {
     expect(() => new RunCheckpointStore(f.db).read(before.checkpointId)).toThrow('not at a resumable');
   }, 90000);
 
-  it('preserves complete archives across a cold continuation, readable without crediting historical execution', () => {
+  it.each([false, true])('preserves complete archives across a cold continuation without crediting historical execution (history-only=%s)', historyOnly => {
     const f = fixture();
-    const first = f.run(['--pause-after-phase', '1', 'Write two files in sequence'], '', { CHECKPOINT_TEST_LARGE_EVIDENCE: '1' });
+    const first = f.run(['--pause-after-phase', '1', 'Write two files in sequence'], '', { CHECKPOINT_TEST_LARGE_EVIDENCE: '1', CHECKPOINT_TEST_HISTORY_ONLY: historyOnly ? '1' : '0' });
     expect(first.status, first.stdout + first.stderr).toBe(0);
     const before = f.report();
     const store = new RunCheckpointStore(f.db);

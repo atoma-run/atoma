@@ -36,3 +36,8 @@ Attica's two reviewed files were committed/pushed independently as
 `72602c80870ac83abb6f05f667cdef580f8903f9` on its main branch. They preserve
 the production current-document guard and expose `url()` in the fake page.
 The user authorized a five-hour Attica run/fix loop after this engine repair.
+
+
+## Ordinary supervision retries (2026-10-30)
+
+The same missing-history boundary also occurs inside `superviseLoop`, before root remediation. `Result.historicalEvidenceIds` retains host-attested execution references from refused iterations separately from current evidence. Aggregates, synthesis landings, review inventories and existing checkpoint evidence rows carry them. They grant no fresh proof or execution credit; source reads, browser observations and other-attempt references are excluded from this new history path. See [the Attica incident and regression](../records/incidents/attica-retry-review-history-2026-10-30.md).

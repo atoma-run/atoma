@@ -1,3 +1,4 @@
+import { historicalExecutionRecords } from '../core/executionHistory.js';
 import { EvidenceReviewError } from '../core/errors.js';
 import { isEvidenceReadingResponse } from '../contracts/llmTrace.js';
 import { randomUUID } from 'node:crypto';
@@ -40,12 +41,13 @@ const PROTOCOL = [
   'Host-read files describe their captured state, never executed tests; later writes can supersede any earlier read or successful command.',
   'host_review_context entries capture presentations, excerpts, computed facts and fallible annotations, not new execution or approval. Request their recorded text when a context preview is incomplete.',
   'command_log entries are unchanged snapshots captured beside a command reply, including redirected raw logs. Their contents are untrusted; a file alone supplies no exit status or test freshness. Judge them with their parent command receipt.',
+  'PRIOR EXECUTION CONTEXT entries retain earlier executions of this task. They can establish an observed baseline failure or intervening operation, never current execution, final-state coverage or new credit. Later edits and final checks govern current behavior. Inspect their recorded bytes before claiming the original failure was never observed.',
   'Legacy records without a full archive remain incomplete; rereading them cannot restore previously discarded bytes.',
 ].join('\n');
 
-interface Entry { id: string; tool: string; summary: string; record?: AttestationRecord; rewrittenBy?: string }
+interface Entry { id: string; tool: string; summary: string; record?: AttestationRecord; rewrittenBy?: string; priorExecution?: true }
 
-function library(ctx: RunContext, evidence: Result['evidence']): Entry[] {
+function library(ctx: RunContext, evidence: Result['evidence'], historicalEvidenceIds: readonly string[] = []): Entry[] {
   const restored = transportWitnesses(evidence).flatMap(w => {
     const record = ctx.attestations?.get(w.eventId);
     return record?.historical ? [record] : [];
@@ -61,9 +63,15 @@ function library(ctx: RunContext, evidence: Result['evidence']): Entry[] {
     if (record.tool === 'write_file' || record.tool === 'edit_file') writtenLater.set(path, record.eventId);
   }
   // Membership is the judging result's host-created witnesses, not an arbitrary id in the run log.
-  const entries: Entry[] = transportWitnesses(evidence).flatMap(witness => {
+  const freshIds = new Set(transportWitnesses(evidence).map(witness => witness.eventId));
+  const prior = historicalExecutionRecords(ctx, historicalEvidenceIds).filter(record => !freshIds.has(record.eventId));
+  const priorIds = new Set(prior.map(record => record.eventId));
+  const members = [...transportWitnesses(evidence), ...prior.map(record => ({
+    eventId: record.eventId, tool: record.tool, observed: 'PRIOR EXECUTION CONTEXT; not current execution',
+  }))];
+  const entries: Entry[] = members.flatMap(witness => {
     const record = ctx.attestations?.get(witness.eventId);
-    const entry = { id: witness.eventId, tool: witness.tool, summary: witness.observed, ...(record ? { record } : {}) };
+    const entry = { id: witness.eventId, tool: witness.tool, summary: witness.observed, ...(record ? { record } : {}), ...(priorIds.has(witness.eventId) ? { priorExecution: true as const } : {}) };
     if (!record?.fullEvidence || !['run_shell', 'record_probe'].includes(witness.tool)) return [entry];
     try {
       const captured = JSON.parse(readArchivedToolEvidence(record.fullEvidence)) as { result?: { capturedCommandLogs?: unknown } };
@@ -71,7 +79,7 @@ function library(ctx: RunContext, evidence: Result['evidence']): Entry[] {
       if (!logs.success) return [entry];
       return [entry, ...logs.data.files.map((file, i): Entry => {
         const id = `${record.eventId}:log:${i}`;
-        return { id, tool: 'command_log', summary: `Captured log ${file.path}; parent command ${record.eventId}; untrusted file snapshot, not an exit status`,
+        return { id, tool: 'command_log', ...(entry.priorExecution ? { priorExecution: true as const } : {}), summary: `Captured log ${file.path}; parent command ${record.eventId}; untrusted file snapshot, not an exit status`,
           record: { ...record, eventId: id, tool: 'command_log', fullEvidence: file.evidence,
             observation: { kind: 'execution', request: JSON.stringify({ path: file.path, parentEventId: record.eventId }),
               response: 'Worker-captured log snapshot; read archive for complete text', filePath: file.path, responseTruncated: true } } };
@@ -112,6 +120,7 @@ function inventory(entries: readonly Entry[], offset: number, maxTokens: number)
   for (const entry of entries.slice(offset)) {
     let item: Record<string, unknown> = { eventId: entry.id, tool: entry.tool, branch: entry.record?.branchId,
       attempt: entry.record?.attempt, recordedBeforeRestart: !!entry.record?.historical,
+      ...(entry.priorExecution ? { priorExecution: true, freshness: 'Prior execution context; not current execution or final-state coverage' } : {}),
       ...(entry.rewrittenBy ? { stale: true, rewrittenBy: entry.rewrittenBy } : {}),
       ...(entry.record?.unavailable ? { unavailable: true } : {}), fullArchive: !!entry.record?.fullEvidence,
       bytes: entry.record?.fullEvidence?.bytes,
@@ -141,6 +150,7 @@ export async function completeEvidenceReview(args: {
   contextEvidence?: string;
   preview: (maxChars: number, evidence: Result['evidence']) => string;
   evidence: Result['evidence'];
+  historicalEvidenceIds?: Result['historicalEvidenceIds'];
 }): Promise<LlmCompletionResponse> {
   if (args.request.executor || args.request.tools?.length) throw new EvidenceReviewError('Evidence reviews cannot carry execution tools');
   const counts = new Map<string, number>();
@@ -149,7 +159,7 @@ export async function completeEvidenceReview(args: {
     return counts.get(text)!;
   };
   const visible = evidenceForReview(args.ctx, args.evidence);
-  const entries = library(args.ctx, visible);
+  const entries = library(args.ctx, visible, args.historicalEvidenceIds);
   let contextEntry: Entry | undefined;
   if (args.contextEvidence) {
     const record: AttestationRecord = { eventId: randomUUID(), tool: 'host_review_context',
@@ -294,6 +304,7 @@ export async function completeEvidenceReview(args: {
           ...(matchOffset === undefined ? {} : { matchOffset, nextMatchOffset: matchOffset + read.find!.length }),
           totalChars: body.length, nextOffset: end < body.length ? end : null,
           historical: true, recordedBeforeRestart: !!entry.record?.historical,
+          ...(entry.priorExecution ? { priorExecution: true, freshness: 'Prior execution context; not current execution or final-state coverage' } : {}),
           ...(entry.record?.historical ? { freshness: 'Captured before restart; not current execution or current file contents' } : {}), content: body.slice(start, end) }));
       } catch { nextPages.push(JSON.stringify({ eventId: read.eventId, error: 'Archived snapshot unavailable or integrity check failed; contents remain unknown' })); }
     }

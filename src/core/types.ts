@@ -193,6 +193,8 @@ export interface Plan {
 }
 
 export interface Result {
+  /** Host-only references to earlier executions of this task. Diagnostic history, never current proof. */
+  readonly historicalEvidenceIds?: readonly string[];
   /** Host-only: a report correction must receive a fresh model verdict, never a trust/Decision shortcut. */
   readonly reportCorrected?: true;
   /**

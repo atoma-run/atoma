@@ -1044,6 +1044,7 @@ export async function llmVerdict(args: {
   payload: unknown;
   /** Typed child evidence; payload parsing remains the fallback. */
   evidence?: Result['evidence'];
+  historicalEvidenceIds?: Result['historicalEvidenceIds'];
   /**
    * The RESULT is the child's own fallback: it executed the work itself. A
    * caller that hands the validator only `output` and `summary` says so here,
@@ -1257,7 +1258,7 @@ export async function llmVerdict(args: {
   };
   const resp = args.subject === 'RESULT'
     ? await completeEvidenceReview({ ctx: args.ctx, request, makeUserContent: userContent, contextEvidence: hostContext,
-      preview: (maxChars, evidence) => renderTransportEvidenceBlock(evidence, maxChars), evidence: args.evidence })
+      preview: (maxChars, evidence) => renderTransportEvidenceBlock(evidence, maxChars), evidence: args.evidence, historicalEvidenceIds: args.historicalEvidenceIds })
     : await args.ctx.llm.complete({ ...request, userContent: userContent('') });
 
   if (args.subject === 'RESULT' && resp.stopReason !== 'end_turn') throw new EvidenceReviewError('Result review did not finish');

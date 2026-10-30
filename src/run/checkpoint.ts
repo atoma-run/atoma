@@ -634,8 +634,9 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     const pausing = this.store.pauseRequested(this.data.id) || this.options.pauseAfter === index + 1 ||
       (index + 1 < this.phaseCount && outOfPhaseBudget(this.options.deadlineAt));
     const log = this.options.evidence?.();
-    const records = transportWitnesses(result.evidence).flatMap(witness => {
-      const record = log?.get(witness.eventId);
+    const records = [...new Set([...transportWitnesses(result.evidence).map(witness => witness.eventId),
+      ...(result.historicalEvidenceIds ?? [])])].flatMap(eventId => {
+      const record = log?.get(eventId);
       return record ? [record] : [];
     });
     this.store.saveEvidence(this.data.id, this.owner, records);

@@ -576,6 +576,7 @@ export function keptWithoutSynthesis(
   why: string
 ): Result {
   const evidence = subResults.flatMap((result) => result.evidence ?? []);
+  const historicalEvidenceIds = [...new Set(subResults.flatMap(result => result.historicalEvidenceIds ?? []))];
   return {
     output: subResults.map((result) => result.output),
     ...(subResults.some(result => result.parentTests?.length)
@@ -585,6 +586,7 @@ export function keptWithoutSynthesis(
     trace: [],
     producedBy,
     ...(evidence.length > 0 ? { evidence } : {}),
+    ...(historicalEvidenceIds.length ? { historicalEvidenceIds } : {}),
     ...(subResults.some((result) => result.proofCoverage?.length)
       ? { proofCoverage: subResults.flatMap((result) => result.proofCoverage ?? []) }
       : {}),

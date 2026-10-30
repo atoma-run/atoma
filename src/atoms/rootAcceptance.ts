@@ -621,6 +621,7 @@ async function acceptRootResultInternal(args: {
     requireComplete: reconciliation !== '',
     payload: { output: result.output, summary: result.summary, producedBy: result.producedBy },
     ...(evidence ? { evidence } : {}),
+    historicalEvidenceIds: result.historicalEvidenceIds,
     groundTruthBlock: probe.block,
     startingWorkspaceBlock: startingBlock,
     readableContextBlock: [namedFilesBlock, readRunsBlock].filter(Boolean).join('\n\n'),
@@ -650,7 +651,7 @@ async function acceptRootResultInternal(args: {
   // gaps on its first pass, not fresh requirements after its only repair.
   // Landed/text/mechanically rejected paths retain their separate protocols.
   const focused = reviewing && userCriteria && !landed && args.delivery !== 'text'
-    ? await reviewAcceptanceCriteria({ ctx, task, checklist, witnesses: evidence,
+    ? await reviewAcceptanceCriteria({ ctx, task, checklist, witnesses: evidence, historicalEvidenceIds: result.historicalEvidenceIds,
       evidence: [probe.block, namedFilesBlock, checklistBlock, layoutsBlock, inputsBlock, startingBlock, readRunsBlock, restorationsBlock,
         inheritedBlock, parentTestsBlock, remediationChanges, renderResultGateFindings(gates.reviewFindings),
         [`Transport observations: ${transport.omitted} omitted; omissions establish no coverage.`, ...transport.lines]
