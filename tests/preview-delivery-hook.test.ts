@@ -605,11 +605,73 @@ describe('the hook wired to the real preview writer', () => {
     const third = await runOnce(f, coordinator, 'seed-node-3', 'Replace the server with a README.');
 
     expect(preview.getDescriptor(f.viewer.orgId, first.started.projectRunId)).toMatchObject({ availability: 'available', kind: 'node', entry: 'server.js' });
-    expect(subjects[1]?.seedRunId).toBe(first.started.projectRunId);
+    expect(subjects[1]?.seedRunIds).toEqual([first.started.projectRunId]);
     expect(preview.getDescriptor(f.viewer.orgId, second.started.projectRunId)).toMatchObject({
       availability: 'available', kind: 'node', entry: 'server.js', unavailableReason: null });
-    expect(subjects[2]?.seedRunId).toBe(second.started.projectRunId);
+    expect(subjects[2]?.seedRunIds).toEqual([second.started.projectRunId]);
     expect(preview.getDescriptor(f.viewer.orgId, third.started.projectRunId)).toMatchObject({
+      availability: 'unavailable', kind: null, unavailableReason: 'unsupported-deliverable' });
+  });
+
+  /**
+   * Attica bdbd6e7f (2026-10-30): delivered with no observation of its own,
+   * seeded from partial 0c35ed5a. A landed run never gets a descriptor, so a
+   * one-hop inheritance found nothing and the preview read
+   * `unsupported-deliverable`. Run 2 lands here; run 3 must reach run 1's entry
+   * through it, and a described static run in between must stop the search.
+   */
+  it('inherits through landed seeds up to the nearest described run, and no further', async () => {
+    const f = fixture();
+    const preview = PreviewStore.open(f.dbPath);
+    const subjects: DeliveredPreviewSubject[] = [];
+    let step = 0;
+    const driver = vi.fn(async (options: SpawnRunOptions) => {
+      const env = options.env ?? {};
+      const workspace = env['ATOMA_BUILD_WORKSPACE']!, runs = env['ATOMA_RUNS_DIR']!, runId = env['ATOMA_RUN_ID']!;
+      mkdirSync(workspace, { recursive: true }); mkdirSync(runs, { recursive: true });
+      mkdirSync(join(env['ATOMA_ARTIFACT_MANIFEST_PATH']!, '..'), { recursive: true });
+      step++;
+      rmSync(join(workspace, '.atoma-probes.json'), { force: true });
+      if (step === 1) {
+        writeFileSync(join(workspace, '.atoma-probes.json'), JSON.stringify({
+          version: 1, entries: [{ probe: 'http', path: '/health', status: 200, entry: 'server.js' }] }));
+      }
+      if (step === 4) {
+        writeFileSync(join(workspace, '.atoma-probes.json'), JSON.stringify({
+          version: 1, entries: [{ probe: 'web', path: 'index.html' }] }));
+        writeFileSync(join(workspace, 'index.html'), '<!doctype html><title>static</title>');
+      } else rmSync(join(workspace, 'index.html'), { force: true });
+      writeFileSync(join(workspace, 'server.js'), `console.log("app ${step}")`);
+      writeFileSync(join(workspace, 'README.md'), `step ${step}`);
+      writeFileSync(env['ATOMA_ARTIFACT_MANIFEST_PATH']!, JSON.stringify({
+        version: 1, runId, generatedAt: new Date().toISOString(),
+        outputs: step === 4 ? ['server.js', 'README.md', 'index.html'] : ['server.js', 'README.md'] }));
+      writeFileSync(join(runs, `${runId}.json`), JSON.stringify({ id: runId, endedAt: new Date().toISOString(), result: { summary: 'verified' } }));
+      return formatRunStatsEpilogue(step === 2 ? { ...DELIVERED_STATS, outcome: 'partial' } : DELIVERED_STATS);
+    });
+    const coordinator = coordinatorFor(f, driver, {
+      describeDeliveredPreview: (subject) => { subjects.push(subject); recordDeliveredPreview(preview, subject); },
+    });
+
+    const first = await runOnce(f, coordinator, 'lineage-1', 'Build the control server.');
+    const second = await runOnce(f, coordinator, 'lineage-2', 'Repair the listings display.');
+    const third = await runOnce(f, coordinator, 'lineage-3', 'Fix the asset test.');
+
+    expect(second.row.status).toBe('partial');
+    expect(preview.getDescriptor(f.viewer.orgId, second.started.projectRunId)).toBeNull();
+    expect(third.row.status).toBe('delivered');
+    expect(subjects.at(-1)?.seedRunIds).toEqual([second.started.projectRunId, first.started.projectRunId]);
+    expect(preview.getDescriptor(f.viewer.orgId, third.started.projectRunId)).toMatchObject({
+      availability: 'available', kind: 'node', entry: 'server.js', unavailableReason: null });
+
+    // A described static run is the nearest description of the lineage: a
+    // later run that observed nothing is not handed the older Node entry,
+    // although its workspace still holds `server.js`.
+    const fourth = await runOnce(f, coordinator, 'lineage-4', 'Replace the server with a page.');
+    expect(preview.getDescriptor(f.viewer.orgId, fourth.started.projectRunId)).toMatchObject({ kind: 'static' });
+    const fifth = await runOnce(f, coordinator, 'lineage-5', 'Edit the README.');
+    expect(subjects.at(-1)?.seedRunIds).toEqual([fourth.started.projectRunId]);
+    expect(preview.getDescriptor(f.viewer.orgId, fifth.started.projectRunId)).toMatchObject({
       availability: 'unavailable', kind: null, unavailableReason: 'unsupported-deliverable' });
   });
 });

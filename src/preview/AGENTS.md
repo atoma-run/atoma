@@ -150,7 +150,9 @@ very directory EMPTY before copying from it.
   file in its delivered workspace (`recordDeliveredPreview`). A Compute export
   carries only publishable files, so the manifest never reaches the next seed:
   Attica runs that did not restart their server were unpreviewable (2026-10-22).
-  Only the host-written seed descriptor and a host file check are read.
+  The lineage passes over landed seeds, which never get a descriptor, and the
+  nearest DESCRIBED run decides alone (bdbd6e7f, seeded from partial 0c35ed5a,
+  2026-10-30). Only host-written descriptors and a host file check are read.
 - The answer is TOTAL: every delivered run gets a descriptor, available with a
   kind or unavailable with a bounded reason. A control that fails after the
   click is worse than a stated absence.

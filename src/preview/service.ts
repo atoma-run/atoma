@@ -63,11 +63,16 @@ export function recordDeliveredPreview(
  * usable file in THIS delivered workspace, checked by the host; nothing a model
  * wrote is read. A static seed needs no inheritance: its `index.html` already
  * classifies from the files.
+ *
+ * The NEAREST described run of the lineage decides, and only it: a landed
+ * seed has no descriptor and is passed over (Attica bdbd6e7f, seeded from
+ * partial 0c35ed5a, 2026-10-30), while a described run that is not a Node
+ * application ends the search rather than reaching past it to an older entry.
  */
 function inheritSeedDescriptor(store: PreviewStore, subject: DeliveredPreviewSubject,
   observed: PreviewDescriptor): PreviewDescriptor | null {
-  if (!subject.seedRunId || observed.availability !== 'unavailable' || observed.unavailableReason !== 'unsupported-deliverable') return null;
-  const seed = store.getDescriptor(subject.orgId, subject.seedRunId);
+  if (!subject.seedRunIds?.length || observed.availability !== 'unavailable' || observed.unavailableReason !== 'unsupported-deliverable') return null;
+  const seed = subject.seedRunIds.map(runId => store.getDescriptor(subject.orgId, runId)).find(descriptor => descriptor);
   if (seed?.projectId !== subject.projectId || seed.availability !== 'available' || seed.kind !== 'node' || !seed.entry) return null;
   const entry = usableNodeEntry(subject.workspaceRoot, seed.entry);
   return entry ? { ...observed, availability: 'available', kind: 'node', entry, unavailableReason: null } : null;

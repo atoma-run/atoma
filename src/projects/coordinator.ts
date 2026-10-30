@@ -362,12 +362,35 @@ export interface DeliveredPreviewSubject {
   readonly projectRunId: string;
   readonly workspaceRoot: string;
   /**
-   * The delivered run this workspace was seeded from, when it was one. Its
-   * host-written descriptor is evidence a run with no observation of its own
-   * may inherit (`recordDeliveredPreview`): a Compute export carries only
-   * publishable files, so the probe manifest never reaches the next seed.
+   * The runs this workspace descends from, nearest first: its seed, then
+   * through every landed seed up to the nearest run that is not one. Their
+   * host-written descriptors are evidence a run with no observation of its
+   * own may inherit (`recordDeliveredPreview`): a Compute export carries only
+   * publishable files, so the probe manifest never reaches the next seed. A
+   * landed run never gets a descriptor, so stopping at the first seed lost
+   * the entry whenever the seed was partial (Attica bdbd6e7f, 2026-10-30).
    */
-  readonly seedRunId?: string;
+  readonly seedRunIds?: readonly string[];
+}
+
+/** How far `seedLineage` walks back through landed seeds. */
+const SEED_LINEAGE_LIMIT = 32;
+
+/**
+ * The seed lineage `DeliveredPreviewSubject.seedRunIds` names. It walks
+ * stored seed receipts only, stops after the first run that is not
+ * `partial`, and is bounded and cycle-safe.
+ */
+function seedLineage(store: ProjectStore, orgId: string, seed: ProjectRun['seed'] | undefined): string[] {
+  const lineage: string[] = [];
+  let next = seed?.kind === 'run' ? seed.runId : null;
+  while (next && lineage.length < SEED_LINEAGE_LIMIT && !lineage.includes(next)) {
+    lineage.push(next);
+    const run = store.getProjectRun(orgId, next);
+    if (run?.status !== 'partial') break;
+    next = run.seed?.kind === 'run' ? run.seed.runId : null;
+  }
+  return lineage;
 }
 
 /** One run allowed through the subscription-transport door. */
@@ -2949,8 +2972,9 @@ export class ProjectRunCoordinator {
         try {
           // Read fresh: the seed is recorded after reservation, once resolved.
           const seed = this.store.getProjectRun(reservedRun.orgId, reservedRun.projectRunId)?.seed;
+          const seedRunIds = seedLineage(this.store, reservedRun.orgId, seed);
           this.describeDeliveredPreview({
-            ...(seed?.kind === 'run' ? { seedRunId: seed.runId } : {}),
+            ...(seedRunIds.length > 0 ? { seedRunIds } : {}),
             orgId: reservedRun.orgId,
             projectId: reservedRun.projectId,
             projectRunId: reservedRun.projectRunId,
