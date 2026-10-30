@@ -184,6 +184,11 @@ describe('parsePlanPair with a retained base', () => {
     expect(kind(deltaReply(replaceSuite))).toBe('schema');
   });
 
+  it('reads an empty delta list as the base plan unchanged (run 6fe2d326, a4645ab9)', () => {
+    expect(parsePlanPair(deltaReply([]), l2StrategySchema, 'end_turn', { base }).plan).toEqual(base.plan);
+    expect(kind(deltaReply([], 'f'.repeat(64)), { base })).toBe('schema');
+  });
+
   it('refuses a 12,001-character suite, in a delta reply and in a whole plan', () => {
     const long = `${NEGATIVE}\n//${'x'.repeat(12_001 - NEGATIVE.length - 3)}`;
     expect(long).toHaveLength(12_001);
@@ -278,6 +283,33 @@ describe('the cell loop under ATOMA_REVIEW_REPAIR', () => {
     expect(executed).toEqual(applyPlanDeltas(first, split));
     expect(executed.subtasks.map(subtask => subtask.preferredChild)).toEqual(['Urea', 'Urea']);
     expect(executed.subtasks.map(subtask => subtask.acceptanceTests?.source)).toEqual([SOURCE, NEGATIVE]);
+  });
+});
+
+describe('an empty delta reply in the cell loop', () => {
+  const hooks: SupervisionHooks<L2Atom> = { applyByScope: child => Promise.resolve(child), branchOnEscalation: () => Promise.resolve() };
+
+  // Run 6fe2d326 (a4645ab9, 3bca4be9): with the refused plan shown, the cell
+  // planner disputed the refusal with `"deltas": []`, which the parser refused
+  // as no plan, spending a plan iteration for a 148-second reply.
+  it('resubmits the refused plan, which the review judges again and which then executes', async () => {
+    const { tissue, cell } = actors();
+    const empty = (prompt: string) => reply('Urea', { planDeltas: { base: digestIn(prompt), deltas: [] } });
+    const ctx = makeCtx({ llm: routedLlm([reply('Urea', rawPlan('Urea')), empty], [refusal, approval(1)]) });
+    const plan = vi.spyOn(cell, 'plan');
+    const execute = vi.spyOn(cell, 'execute').mockResolvedValue(delivered);
+    vi.spyOn(tissue, 'validateResult').mockResolvedValue({ approved: true, reasoning: 'the phase holds' });
+
+    const result = await superviseLoop(tissue, cell, { description: 'Implement signed addition' }, ctx, hooks);
+
+    expect(result.trace.some(entry => entry.kind === 'plan-unparseable')).toBe(false);
+    expect(plan).toHaveBeenCalledTimes(2);
+    const prompts = ctx.llm.calls.filter(call => call.role === 'plan').map(call => call.userContent);
+    expect(prompts[1]).toContain('an empty list resubmits that plan unchanged');
+    const first = await plan.mock.results[0]!.value as Plan;
+    expect(await plan.mock.results[1]!.value as Plan).toEqual(first);
+    expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(2);
+    expect(execute.mock.calls[0]?.[1]).toEqual(first);
   });
 });
 

@@ -203,7 +203,7 @@ export function previousPlanLines(base: PlanBase | undefined): string[] {
     shown,
     `Reply with a whole plan OR planDeltas on base ${base.digest}: the same two-object array, its second object either a whole plan or`,
     `{"planDeltas": {"base": "${base.digest}", "deltas": [...]}}, which the host applies to the previous plan in order (each index names a subtask`,
-    `of the plan as the earlier deltas left it) and reviews as a whole plan. At most ${PLAN_DELTAS_MAX} deltas, at most ${PLAN_DELTAS_SUITE_MAX} of them carrying a suite,`,
+    `of the plan as the earlier deltas left it) and reviews as a whole plan; an empty list resubmits that plan unchanged. At most ${PLAN_DELTAS_MAX} deltas, at most ${PLAN_DELTAS_SUITE_MAX} of them carrying a suite,`,
     `each suite source a whole file under ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters; a suite no delta names is kept byte for byte. Deltas:`,
     `  {"kind": "suite.replace", "target": <index>|"plan", "requirement": "..."?, "source": "<the whole new suite>"}`,
     `  {"kind": "suite.split", "target": <index>, "into": [{"description": "...", "acceptanceTests": {"requirement": "...", "cwd": ".", "source": "..."}, "criteria": ["<id>"]?, "dependsOn": [<earlier index>]?}, ...]}`,

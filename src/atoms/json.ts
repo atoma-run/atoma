@@ -1405,7 +1405,10 @@ export const reviewerPlanRepairSchema = z.object({ deltas: z.array(reviewerPlanD
  */
 export const repairingReviewEnvelopeSchema = delegationReviewEnvelopeSchema.extend({ planRepair: z.unknown().optional() });
 
-const planDeltaListSchema = z.array(planDeltaSchema).min(1).max(PLAN_DELTAS_MAX).superRefine((deltas, ctx) => {
+// An empty list is the base plan unchanged, re-read and reviewed like any delta
+// reply: run 6fe2d326's planners answered a refusal they disputed with
+// `"deltas": []` (a4645ab9, 3bca4be9), each refused as no plan, an attempt spent.
+const planDeltaListSchema = z.array(planDeltaSchema).max(PLAN_DELTAS_MAX).superRefine((deltas, ctx) => {
   const suites = deltas.filter((delta) => delta.kind === 'suite.replace' || delta.kind === 'suite.split').length;
   if (suites > PLAN_DELTAS_SUITE_MAX) ctx.addIssue({ code: 'custom', message: `At most ${PLAN_DELTAS_SUITE_MAX} deltas may carry a suite; reply with a whole plan instead` });
 });
@@ -1427,8 +1430,9 @@ function isPlanDeltasReply(raw: unknown): boolean {
  * never alters or synthesises a suite `source`: a replacement copies the
  * delta's bytes, every other suite is the base's own string, and the parts of
  * a split inherit the target's routing, mode, outputs, inputs, obligations
- * and (unless given) criteria. An index out of range, a part depending on a
- * later subtask, or a plan the schema refuses throws `PlanParseError('schema')`.
+ * and (unless given) criteria. No delta is the base itself, re-read the same
+ * way. An index out of range, a part depending on a later subtask, or a plan
+ * the schema refuses throws `PlanParseError('schema')`.
  */
 export function applyPlanDeltas(base: Plan, deltas: readonly PlanDelta[]): z.infer<typeof planSchema> {
   const refuse = (index: number, message: string): never => {
