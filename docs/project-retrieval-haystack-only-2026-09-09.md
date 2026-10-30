@@ -134,11 +134,20 @@ npm run --silent haystack:config:dev -- \
   --python /absolute/venv/bin/python \
   --embedding /absolute/models/embedding \
   --reranker /absolute/models/reranker \
-  --query-prefix 'Represent this sentence for searching relevant passages: '
+  --query-prefix 'query: ' --document-prefix 'passage: '
 ```
 
-The prefix above belongs to the tested BGE English model; supply the prefix
-required by your chosen model, including an explicit empty string when needed.
+The prefixes above belong to the multilingual E5-small embedding model that
+production uses on the server and on Compute devices, with the mMARCO
+MiniLMv2 reranker. Together they cover all 13 Atoma locales, including a
+query in one language against documents in another. Copy the two model
+directories out of the published Compute retrieval image (`/models/embedding`
+and `/models/reranker`) so the server pins the same bytes as the devices; its
+`/models/models.json` lists the expected revisions and prefixes. The English
+BGE model used until 2026-10-30 failed 10 of the 12 cross-language queries
+in that check ([record](../records/releases/server-multilingual-haystack-2026-10-30/README.md)).
+For another model, supply the prefixes it requires, including an explicit
+empty string when needed.
 Omit all three model options for BM25. The command prints JSON only, computes
 content pins with the production reader, and checks runtime imports offline.
 It never downloads models or rewrites `.env`. Paste its JSON into the quoted
