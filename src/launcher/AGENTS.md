@@ -80,6 +80,9 @@ Queues are bounded to 128 frames / 8 MiB; overflow fails closed. A new process,
 expired lease or explicit stop cannot resume this in-memory channel. Legacy peers
 use the original transport. Reattachment never renews the lease.
 Checkpoint open/digest operation failures return an explicit refusal without closing the live channel: automatic continuation can be disabled while the run proceeds. Snapshot restrictions remain unchanged. An `artifact-open` the publication inventory refuses answers `export-refused` with its typed code and bounded message, also keeping the channel: the server ends the run with that reason. Lease expiry, malformed replies and failures of other workspace operations still fail closed.
+Oversized tool replies use the complete bounded evidence archive when it fits the
+application frame; an untransferable result names its size refusal, never a lost
+connection. This additive reply also requires server-first, then client rollout.
 Those reply shapes (`export-refused`, an export's `omitted` list) are not
 negotiated, so rollout order is the gate: server first (a push to `main`),
 then the workspace image adopted in `computeImages.ts` together with the

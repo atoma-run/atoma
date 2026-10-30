@@ -53,6 +53,8 @@ import WebSocket from 'ws';
 import { attachComputeGateway } from '../src/projects/computeGateway.js';
 import { ComputeConnection, ComputeIndeterminateError } from '../src/projects/computeConnection.js';
 import { COMPUTE_FRAME_BYTES, computeServerFrameSchema } from '../src/contracts/computeProtocol.js';
+import { archiveToolEvidence } from '../src/core/evidenceArchive.js';
+import { WORKER_FRAME_BYTES } from '../src/contracts/workerProtocol.js';
 
 let root: string, server: Server, gateway: ReturnType<typeof attachComputeGateway>;
 let url: string, peers: ComputeConnection[], clients: WebSocket[];
@@ -404,6 +406,48 @@ it('executes real tools through their separate WSS channel and exports the works
     expect(readFileSync(join(workspace, 'remote.txt'), 'utf8')).toBe('written remotely');
   } finally { await client.close(); await handler.close(); }
 });
+
+it('transfers complete oversized tool evidence over WSS without losing command failure, Unicode or the log tail', async () => {
+  const owner = actor(), paired = pairing(owner), p = project(owner);
+  devices.grantProject(owner, paired.deviceId, p.projectId, true);
+  devices.setProjectTarget(owner, p.projectId, { target: { kind: 'customer-device', deviceId: paired.deviceId }, expected: { kind: 'hosted' } });
+  const runId = run(owner, p.projectId), execution = { runId, generation: 1 };
+  const output = 'AssertionError: Αθήνα café 🏠\n'.repeat(60000) + 'END OF ORIGINAL FAILURE\n';
+  const expected = { exitCode: 1, stdout: output, stderr: 'original error',
+    capturedCommandLogs: { files: [{ path: '/tmp/full-check.log', evidence: archiveToolEvidence({}, output) }] } };
+  const execute = vi.fn(async (name: string) => name === 'large' ? expected : { exitCode: 0, stdout: 'next command succeeds' });
+  const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId, capabilities, execution,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), execute: async () => ({ method: 'prepare', value: null }), stopWorkloads: async () => {},
+    tools: { has: () => true, execute, drain: async () => {} } });
+  try {
+    devices.assign(owner, client.session, runId, resources);
+    const peer = peers.at(-1)!;
+    expect(await peer.requestTool(execution, { method: 'invoke', name: 'large', args: {} })).toEqual(expected);
+    expect(await peer.requestTool(execution, { method: 'invoke', name: 'small', args: {} })).toEqual({ exitCode: 0, stdout: 'next command succeeds' });
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(client.state()).toBe('active');
+  } finally { await client.close(); }
+});
+
+it.each(['hash', 'length', 'inflate', 'budget', 'generation', 'request-id', 'revocation'] as const)(
+  'fences pending tool effects on invalid archived result: %s', async failure => {
+    const f = await connected(), command = message(f.ws);
+    const pending = f.peer.requestTool(f.execution, { method: 'invoke', name: 'run_shell', args: {} });
+    const rejected = expect(pending).rejects.toBeInstanceOf(ComputeIndeterminateError);
+    const frame = await command;
+    if (frame.kind !== 'tool-command') throw new Error('Expected tool command');
+    const archive = archiveToolEvidence({}, { exitCode: 1, stdout: 'failure'.repeat(200000) });
+    if (failure === 'hash') archive.sha256 = '0'.repeat(64);
+    if (failure === 'length') archive.bytes++;
+    if (failure === 'inflate') archive.bytes = 1;
+    if (failure === 'budget') archive.bytes = WORKER_FRAME_BYTES + 1;
+    if (failure === 'revocation') devices.grantProject(f.owner, f.paired.deviceId, f.p.projectId, false);
+    const closed = once(f.ws, 'close');
+    f.ws.send(JSON.stringify({ kind: 'tool-result', execution: { ...f.execution, generation: f.execution.generation + Number(failure === 'generation') },
+      response: { id: frame.id + Number(failure === 'request-id'), ok: true, resultArchive: archive } }));
+    await rejected; await closed;
+    expect(devices.inspect(f.owner, f.paired.deviceId).assignment?.state).toBe('indeterminate');
+  });
 
 import { TraceRecorder } from '../src/viz/trace.js';
 
