@@ -1,6 +1,6 @@
 import { EvidenceReviewError } from '../core/errors.js';
 import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
-import { citedUnsatisfiableSuites, delegationRefusal, delegationReviewRequest, enforceParsedDelegationReview, enforceRepairedDelegationReview, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, parseRepairingReview, previousRefusalsNote, repairFaultsNote, routingIndexNote } from './delegationReview.js';
+import { citedUnsatisfiableSuites, delegationRefusal, delegationReviewRequest, enforceParsedDelegationReview, enforceRepairedDelegationReview, fanOutChallenge, fanOutChallengeNote, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, parseRepairingReview, previousRefusalsNote, repairFaultsNote, routingIndexNote } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { ValidationError } from '../core/errors.js';
@@ -1037,6 +1037,14 @@ export async function llmVerdict(args: {
     repairs?: boolean;
     /** Why the host could not apply this reviewer's earlier repair of the SAME plan (`repairFaultsNote`). */
     repairFaults?: readonly string[];
+    /**
+     * With `repairs`: a fan-out the host finds on this approval goes back to
+     * the reviewer as a `fanOutChallenge` fault instead of refusing the plan.
+     * Set on a plan's first review only, never on a resumed root's checkpoints.
+     */
+    challengeFanOut?: boolean;
+    /** The host's fan-out finding on this reviewer's approval of the SAME plan, which this re-review answers (`fanOutChallengeNote`). */
+    fanOutChallenged?: string;
   };
   /** Defaults to VALIDATION_PARAMS; only the root delegation review passes its own (src/core/AGENTS.md). */
   params?: GenerationParams;
@@ -1241,6 +1249,7 @@ export async function llmVerdict(args: {
     args.delegationContract ? inheritedObligationsNote(args.task) : '',
     args.delegationContract ? previousRefusalsNote(args.delegationContract.previousRefusals ?? []) : '',
     args.delegationContract ? repairFaultsNote(args.delegationContract.repairFaults ?? []) : '',
+    args.delegationContract ? fanOutChallengeNote(args.delegationContract.fanOutChallenged) : '',
     args.delegationContract ? routingIndexNote(args.delegationContract.plan) : '',
     // Host-computed facts about this plan's suites (`suiteRegexPrecheck`), never a verdict.
     args.delegationContract ? (args.delegationContract.hostFacts ?? []).join('\n') : '',
@@ -1304,6 +1313,8 @@ export async function llmVerdict(args: {
     const read = parseRepairingReview(args.delegationContract.plan, resp.text, (args.task.criteria ?? []).map(item => item.id));
     if ('approved' in read) return read;
     const refusal = enforceRepairedDelegationReview(args.delegationContract.plan, read.repair, read.review, args.delegationContract.allowDiscovery);
+    // The approval contradicts itself on fan-out: the reviewer hears it once before the plan is refused.
+    if (refusal?.delegationRefusal === 'fan-out' && args.delegationContract.challengeFanOut) return fanOutChallenge(refusal);
     if (refusal) return refusal;
     delegationReview = read.review;
     planRepair = read.repair;

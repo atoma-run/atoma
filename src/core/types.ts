@@ -478,6 +478,14 @@ export type NegativeVerdict = {
    * execution, `L3Atom.MAX_CELL_PLAN_REFUSALS`).
    */
   refusedRepair?: 'unreadable' | 'host';
+  /**
+   * Set by the host behind ATOMA_REVIEW_REPAIR on a `reviewer` fault: the
+   * review APPROVED, classified independent work, and the plan it approved
+   * (repaired or not) has no parallel branches. Its own contradiction, sent
+   * back to it once for the same plan (`fanOutChallengeNote`); a fan-out it
+   * confirms there refuses the plan.
+   */
+  fanOutChallenge?: true;
 };
 export type Verdict = PositiveVerdict | NegativeVerdict;
 

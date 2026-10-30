@@ -411,6 +411,8 @@ export const ROOT_PLAN_ATTEMPTS = 5;
 
 /** An enforced root approval, and the trace of the repair it made, if any (ATOMA_REVIEW_REPAIR). */
 type ReviewedRootPlan = { plan: Plan; review: DelegationReview; model: string; trace: readonly TraceEntry[] };
+/** What a cell review of the same plan hears, or may send back, behind ATOMA_REVIEW_REPAIR (`reviewChildDelegation`). */
+type CellRereview = { repairFaults?: readonly string[]; challengeFanOut?: boolean; fanOutChallenged?: string };
 
 /** The root result with the review's repairs ahead of its own trace: they happened before any phase. */
 function withRepairTrace(result: Result, repairs: readonly TraceEntry[]): Result {
@@ -661,12 +663,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
 
   private async reviewRootDelegation(plan: Plan, task: Task, ctx: RunContext, allowDiscovery: boolean,
     model: string, params: GenerationParams, previousRefusals: readonly string[], hostFacts: readonly string[],
-    repairFaults: readonly string[]): Promise<Verdict> {
+    repairFaults: readonly string[], fanOut: { challenge: boolean; challenged?: string }): Promise<Verdict> {
     try {
       return await llmVerdict({ ctx, model, params, supervisorName: this.name, supervisorTier: 3,
         subject: 'PLAN', child: this, task, payload: plan, targetContext: buildTargetContext(plan, this.registry),
         delegationContract: { plan, allowDiscovery, previousRefusals, hostFacts,
-          ...(reviewRepairEnabled() ? { repairs: true, ...(repairFaults.length ? { repairFaults } : {}) } : {}) } });
+          ...(reviewRepairEnabled() ? { repairs: true, ...(repairFaults.length ? { repairFaults } : {}),
+            ...(fanOut.challenge ? { challengeFanOut: true } : {}), ...(fanOut.challenged ? { fanOutChallenged: fanOut.challenged } : {}) } : {}) } });
     } catch (error) {
       // An unparseable verdict is the reviewer's failure, not the plan's.
       if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
@@ -712,6 +715,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * like any other, but its re-review of the same plan reads why: blind, a
    * deterministic mistake would be repeated until the attempts ran out, and
    * the planner, charged a top-tier replan, could not fix the reviewer's deltas.
+   * Likewise an approval classifying independent work for a plan without
+   * parallel branches (`fanOutChallenge`): the same plan is reviewed again
+   * with the host's finding, once per plan's bytes, and a fan-out that review
+   * confirms refuses the plan. A resumed root's checkpoints are sequential,
+   * so its fan-out finding still ends the plan at once.
    */
   private async reviewedRootPlan(args: {
     propose: (feedback: readonly string[], context?: PlanContext) => Promise<Plan>;
@@ -731,6 +739,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     let reviewerFault = false;
     // Why the host could not apply the reviewer's own repair of the pending plan (ATOMA_REVIEW_REPAIR).
     let repairFaults: string[] = [];
+    // The host's fan-out finding on an approval of the pending plan, and every plan already challenged so (ATOMA_REVIEW_REPAIR).
+    let fanOutChallenged: string | undefined;
+    const challengedPlans = new Set<string>();
     // The last refused plan as its planner wrote it (ATOMA_REVIEW_REPAIR): kept
     // through an unparseable reply, so the next one may still answer in deltas.
     let refused: PlanBase | undefined;
@@ -755,6 +766,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         }
         reviewerFault = false;
         repairFaults = [];
+        fanOutChallenged = undefined;
         // Zero tokens, before the review: every host finding on the suites in one refusal (runs 2e6bdcfc, 760fef4c).
         // Only once the caller's own precheck passed: a finding is remembered as told only when it is sent.
         const own = args.precheck?.(pending);
@@ -784,8 +796,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       }
       const model = reviewerFault ? this.validationModel : this.rootReviewModel();
       const reviewed = args.from ? { ...pending, subtasks: pending.subtasks.slice(args.from) } : pending;
+      const reviewedBytes = JSON.stringify(reviewed);
       const verdict = await this.reviewRootDelegation(reviewed, args.reviewTask, ctx, args.allowDiscovery, model,
-        reviewerFault ? VALIDATION_PARAMS : ROOT_DELEGATION_REVIEW_PARAMS, reviewRefusals, pendingFacts, repairFaults);
+        reviewerFault ? VALIDATION_PARAMS : ROOT_DELEGATION_REVIEW_PARAMS, reviewRefusals, pendingFacts, repairFaults,
+        { challenge: !args.continuation && !challengedPlans.has(reviewedBytes), ...(fanOutChallenged ? { challenged: fanOutChallenged } : {}) });
       if (verdict.approved) {
         if (!verdict.delegationReview) throw new Error('Delegation contract review approved without an enforced classification');
         if (!verdict.planRepair) return { plan: pending, review: verdict.delegationReview, model, trace: [] };
@@ -818,6 +832,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       if (verdict.delegationRefusal === 'reviewer') {
         reviewerFault = true;
         if (verdict.refusedRepair === 'unreadable') repairFaults.push(verdict.reasoning);
+        if (verdict.fanOutChallenge) {
+          challengedPlans.add(reviewedBytes);
+          fanOutChallenged = verdict.reasoning;
+        }
         ctx.logger.warn(`[l3] delegation reviewer failed (${verdict.reasoning.slice(0, 200)}); reviewing the same plan on ${this.validationModel}`);
         continue;
       }
@@ -1318,6 +1336,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * refusals of the plan and are never listed.
    */
   private readonly cellReviewRefusals = new Map<string, string[]>();
+  /** Cell plans (`validatePlan`'s `reviewKey`) whose approval was already sent back once for its fan-out (`reviewChildDelegation`). */
+  private readonly fanOutChallengedPlans = new Set<string>();
   /**
    * How many times the delegation review may refuse one cell planner's plans
    * on their merits before the next plan that passes every mechanical check
@@ -2022,7 +2042,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     const block = reviewsTests ? await planSuiteFactsBlock(plan, ctx) : '';
     const hostFacts = [...suites.facts, ...(block ? [block] : [])];
     // ONE model verdict, whether it decides or audits a Jev approval.
-    const modelVerdict = (audit: boolean, review?: { model: string; params: GenerationParams }, repairFaults?: readonly string[]) =>
+    const modelVerdict = (audit: boolean, review?: { model: string; params: GenerationParams }, rereview?: CellRereview) =>
       llmVerdict({
         ctx,
         model: review?.model ?? this.validationModel,
@@ -2037,7 +2057,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // routing on facts, not on name-based guesses.
         targetContext: buildTargetContext(plan, this.registry),
         ...(reviewsTests ? { delegationContract: { plan, allowDiscovery: false, hostFacts, previousRefusals: this.cellReviewRefusals.get(planner) ?? [],
-          ...(reviewRepairEnabled() ? { repairs: true, ...(repairFaults?.length ? { repairFaults } : {}) } : {}) } } : {}),
+          ...(reviewRepairEnabled() ? { repairs: true, ...(rereview?.repairFaults?.length ? { repairFaults: rereview.repairFaults } : {}),
+            ...(rereview?.challengeFanOut ? { challengeFanOut: true } : {}),
+            ...(rereview?.fanOutChallenged ? { fanOutChallenged: rereview.fanOutChallenged } : {}) } : {}) } } : {}),
         ...(audit ? { audit: true } : {}),
       });
     // Jev fast path — see L2Atom.validatePlan. Approve or defer, never refuse.
@@ -2054,7 +2076,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         })
       : null;
     if (jevApproved) return jevApproved;
-    const reviewedVerdict = reviewsTests ? await this.reviewChildDelegation(child, modelVerdict, ctx) : await modelVerdict(false);
+    const reviewedVerdict = reviewsTests ? await this.reviewChildDelegation(child, modelVerdict, ctx, reviewKey) : await modelVerdict(false);
     const verdict = reviewedVerdict.approved && reviewedVerdict.planRepair
       ? await this.repairedCellPlan(reviewedVerdict, reviewedVerdict.planRepair, plan, task, planner, ctx) : reviewedVerdict;
     // Memoised under the PROPOSED plan's bytes: the same plan proposed again gets the same repair, without a call.
@@ -2135,27 +2157,38 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * flaky reviewer; coached, then counted on the plan budget, it escalated and
    * branched the child's type (second review, follow-up and third review,
    * 2026-10-16). No unreviewed plan executes.
+   *
+   * Behind ATOMA_REVIEW_REPAIR an approval classifying independent work for a
+   * plan without parallel branches (`fanOutChallenge`) is such a fault too,
+   * once per plan's bytes (`reviewKey`): the re-review hears the host's
+   * finding, and a fan-out it confirms is the plan's `fan-out` refusal. It
+   * spends no plan iteration and never counts toward `MAX_CELL_PLAN_REFUSALS`.
    */
   private async reviewChildDelegation(
     child: L2Atom,
-    modelVerdict: (audit: boolean, review?: { model: string; params: GenerationParams }, repairFaults?: readonly string[]) => Promise<Verdict>,
+    modelVerdict: (audit: boolean, review?: { model: string; params: GenerationParams }, rereview?: CellRereview) => Promise<Verdict>,
     ctx: RunContext,
+    reviewKey: string | undefined,
   ): Promise<Verdict> {
-    const attempt = async (review?: { model: string; params: GenerationParams }, repairFaults?: readonly string[]): Promise<Verdict> => {
+    const attempt = async (review?: { model: string; params: GenerationParams }, rereview?: CellRereview): Promise<Verdict> => {
       try {
-        return await modelVerdict(false, review, repairFaults);
+        return await modelVerdict(false, review, rereview);
       } catch (error) {
         if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
         return delegationRefusal(`Delegation contract review was unparseable: ${error.message.slice(0, 300)}`, 'reviewer');
       }
     };
-    const first = await attempt();
+    const challenge = reviewKey !== undefined && !this.fanOutChallengedPlans.has(reviewKey);
+    const first = await attempt(undefined, challenge ? { challengeFanOut: true } : undefined);
     if (first.approved || first.delegationRefusal !== 'reviewer') return first;
+    if (first.fanOutChallenge && reviewKey) this.fanOutChallengedPlans.add(reviewKey);
     const model = this.rootReviewModel();
     ctx.logger.warn(`[l3] delegation reviewer failed on ${child.name}'s plan (${first.reasoning.slice(0, 200)}); reviewing the same plan on ${model}`);
-    // A repair the host could not apply is named to the re-review (ATOMA_REVIEW_REPAIR), never repeated blind.
+    // A repair the host could not apply, or a fan-out the approval contradicted, is named to the
+    // re-review (ATOMA_REVIEW_REPAIR), never repeated blind.
     const second = await attempt({ model, params: ROOT_DELEGATION_REVIEW_PARAMS },
-      first.refusedRepair === 'unreadable' ? [first.reasoning] : undefined);
+      first.refusedRepair === 'unreadable' ? { repairFaults: [first.reasoning] }
+        : first.fanOutChallenge ? { fanOutChallenged: first.reasoning } : undefined);
     return second;
   }
 

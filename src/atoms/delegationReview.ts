@@ -279,6 +279,32 @@ export function repairFaultsNote(faults: readonly string[]): string {
 }
 
 /**
+ * An approving review's own fan-out finding, sent back to it (ATOMA_REVIEW_REPAIR):
+ * it classified independent work while the plan it approved has no parallel
+ * branches. Run 6fe2d326 (3b42a7fe): a cell review approved a single-subtask
+ * plan with independentWork true and a parallelReason calling that branch
+ * deliberately single; the host refused the plan, and the planner paid a
+ * 148-second replan to resubmit it unchanged. The reviewer wrote both fields,
+ * so it is the one to reclassify or confirm. Read from the typed refusal,
+ * never from its prose.
+ */
+export function fanOutChallenge(refusal: NegativeVerdict): NegativeVerdict {
+  return { ...delegationRefusal(refusal.reasoning, 'reviewer'), fanOutChallenge: true };
+}
+
+/**
+ * The host's fan-out finding on this reviewer's approval of the SAME plan, for
+ * its one re-review (`fanOutChallenge`). Empty when there is none.
+ */
+export function fanOutChallengeNote(finding: string | undefined): string {
+  if (!finding) return '';
+  const shown = finding.length > 1200 ? `${finding.slice(0, 1200)} [truncated]` : finding;
+  return `YOUR EARLIER APPROVAL OF THIS SAME PLAN SET independentWork true, BUT THE PLAN HAS NO PARALLEL BRANCHES; the host found: ${shown}\n` +
+    'Review the same plan again. When its work is coupled and one sequential branch is right, approve with independentWork false and that reason in parallelReason. ' +
+    'When independent work exists, repair the plan so it fans out, or refuse it. An approval that keeps independentWork true for a plan without parallel branches refuses the plan.';
+}
+
+/**
  * The mechanical half of the review, at zero tokens: the host checks that every
  * classified requirement has executable bytes, that no suite uses an API the
  * runner's integrity guard refuses (`parentSuiteCheck.ts`), and that

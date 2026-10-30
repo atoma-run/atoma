@@ -239,6 +239,47 @@ describe('the cell review repairs the plan it approves (ATOMA_REVIEW_REPAIR, des
     expect(dispatched.map(subtask => subtask.criteria)).toEqual([undefined, undefined]);
   });
 
+  // Run 6fe2d326 (3b42a7fe): a cell review approved a single-subtask plan with
+  // independentWork true while its parallelReason called the branch deliberately
+  // single; the host's fan-out refusal cost the planner a replan (a4645ab9).
+  const single = { ...cellPlan, subtasks: [cellPlan.subtasks[0]!], aggregation: { mode: 'sequential' }, expectedOutput: 'add.ts' };
+  const singleReply = JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'Existing module author' }, single]);
+  const contradicting = JSON.stringify({ ...JSON.parse(approve(1)), delegationReview: { ...JSON.parse(approve(1)).delegationReview,
+    independentWork: true, parallelReason: 'the branch is deliberately single: one module, one suite' } });
+  const CHALLENGE = 'YOUR EARLIER APPROVAL OF THIS SAME PLAN SET independentWork true, BUT THE PLAN HAS NO PARALLEL BRANCHES';
+
+  it('sends an approval\'s own fan-out contradiction back to the reviewer, and dispatches the plan it reclassifies without a replan', async () => {
+    const { tissue, cell, dispatched } = actors();
+    const ctx = { ...makeCtx({ llm: routed([singleReply], [contradicting, approve(1)]) }), tools: emptyWorkspace };
+
+    const result = await superviseLoop(tissue, cell, task, ctx, hooks);
+
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(1);
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews).toHaveLength(2);
+    expect(reviews[0]?.userContent).not.toContain(CHALLENGE);
+    expect(reviews[1]?.userContent).toContain(`${CHALLENGE}; the host found: Independent work must have parallel child branches with real dependencies: the branch is deliberately single`);
+    expect(dispatched.map(subtask => subtask.description)).toEqual(['Implement signed addition']);
+    // Neither a plan refusal nor a review fault reached the loop.
+    expect(result.trace.map(entry => entry.kind).slice(0, 3)).toEqual(['plan', 'verdict-plan', 'execute']);
+  });
+
+  it('refuses a fan-out the re-review confirms as the plan\'s, and refuses the same plan again without a second challenge', async () => {
+    const { tissue, cell, dispatched } = actors();
+    const ctx = { ...makeCtx({ llm: routed([singleReply, singleReply, singleReply], [contradicting, contradicting, contradicting, approve(1)]) }),
+      tools: emptyWorkspace };
+    const coached = vi.fn<SupervisionHooks<L2Atom>['applyByScope']>(child => Promise.resolve(child));
+
+    await superviseLoop(tissue, cell, task, ctx, { ...hooks, applyByScope: coached });
+
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(3);
+    expect(coached).toHaveBeenCalledTimes(2);
+    for (const [, verdict] of coached.mock.calls) expect(verdict).toMatchObject({ approved: false, delegationRefusal: 'fan-out' });
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews.map(call => call.userContent.includes(CHALLENGE))).toEqual([false, true, false, false]);
+    expect(dispatched.map(subtask => subtask.description)).toEqual(['Implement signed addition']);
+  });
+
   it('self-executes a plan with no planned strategy, as before the flag: a shared peer may have consumed it', async () => {
     const { cell } = actors();
     const selfExecute = vi.spyOn(cell as unknown as { selfExecute: L2Atom['execute'] }, 'selfExecute')

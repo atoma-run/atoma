@@ -2458,6 +2458,64 @@ describe('repair-not-refuse at the root review (ATOMA_REVIEW_REPAIR)', () => {
     expect(execute).toHaveBeenCalledOnce();
   });
 
+  /** One tested module: nothing to fan out, as run 6fe2d326's Protoplast plan (3b42a7fe). */
+  const oneModule = (child: string) => ({
+    reasoning: 'One module', delivery: 'files',
+    subtasks: [{ description: 'Implement signed addition', preferredChild: child, outputs: ['add.ts'], acceptanceTests: addSuite }],
+    aggregation: { mode: 'sequential' }, expectedOutput: 'add.ts',
+  });
+  const CHALLENGE = 'YOUR EARLIER APPROVAL OF THIS SAME PLAN SET independentWork true, BUT THE PLAN HAS NO PARALLEL BRANCHES';
+
+  it('sends an approval\'s own fan-out contradiction back to the reviewer, and executes the plan it reclassifies (run 6fe2d326, 3b42a7fe)', async () => {
+    const { tissue, cellName } = cellActors();
+    const ctx = makeCtx({ llm: routed([reply(cellName, oneModule(cellName))], [approve(1, true), approve(1, false)]) });
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    await tissue.handle({ description: 'Implement signed addition' }, ctx);
+
+    // No replan: the same plan reviewed again, on the reviewer-fault path, hearing the host's finding.
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(1);
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews).toHaveLength(2);
+    expect(reviews[0]?.userContent).not.toContain(CHALLENGE);
+    expect(reviews[1]?.userContent).toContain(`${CHALLENGE}; the host found: Independent work must have parallel child branches with real dependencies: addition and subtraction share nothing`);
+    expect(reviews[1]?.params).toEqual(VALIDATION_PARAMS);
+    expect(execute.mock.calls[0]?.[1]).toEqual(planSchema.parse(oneModule(cellName)));
+  });
+
+  it('refuses a fan-out the re-review confirms, and refuses the same plan again at once, without a second challenge', async () => {
+    const { tissue, cellName } = cellActors();
+    const plan = reply(cellName, oneModule(cellName));
+    const ctx = makeCtx({ llm: routed([plan, plan, plan], [approve(1, true), approve(1, true), approve(1, true), approve(1, false)]) });
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    await tissue.handle({ description: 'Implement signed addition' }, ctx);
+
+    const plans = ctx.llm.calls.filter(call => call.role === 'plan');
+    expect(plans).toHaveLength(3);
+    expect(plans[1]?.userContent).toContain('Delegation contract rejected before execution: Independent work must have parallel child branches');
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews).toHaveLength(4);
+    expect(reviews.map(call => call.userContent.includes(CHALLENGE))).toEqual([false, true, false, false]);
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it('ends a resumed root\'s fan-out at once, as before: its checkpoints are sequential', async () => {
+    const { tissue } = actors();
+    const saved = planSchema.parse({ ...makePlan({ subtasks: [
+      { description: 'Write the shared types', outputs: ['types.ts'] },
+      { description: 'Implement signed addition', outputs: ['add.ts'], acceptanceTests: addSuite },
+    ] }), aggregation: { mode: 'sequential' } });
+    const ctx = { ...makeCtx(), rootCheckpoint: {
+      restore: () => ({ plan: JSON.parse(JSON.stringify(saved)), strategy: { strategy: 'reuse', target: 'cell', reasoning: 'r' }, plannedPhases: 2, inputs: undefined, approval: undefined }),
+      completed: [{ ...result, summary: 'phase done' }], planned: vi.fn(), beforePhase: vi.fn(), afterPhase: vi.fn(async () => {}), finalizing: vi.fn(),
+    } };
+    ctx.llm.enqueueText(approve(1, true));
+
+    await expect(tissue.handle({ description: 'Implement signed addition' }, ctx)).rejects.toThrow('remaining work must fan out');
+    expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
+  });
+
   it('leaves the request, an approval\'s repair and the digest exactly as today with the flag off', async () => {
     delete process.env['ATOMA_REVIEW_REPAIR'];
     expect(delegationReviewRequest(false)).toBe(DELEGATION_REVIEW_REQUEST);
