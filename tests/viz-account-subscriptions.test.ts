@@ -229,6 +229,8 @@ describe('personal subscription settings', () => {
       onDisconnectClaude: disconnect,
     });
     expect(screen.queryByLabelText('Claude Code token')).not.toBeInTheDocument();
+    // Both disconnects drop stored credentials: one style for one consequence.
+    expect(screen.getByRole('button', { name: 'Disconnect' })).toHaveClass('gpu-action-danger');
     await user.click(screen.getByRole('button', { name: 'Disconnect' }));
     expect(disconnect).toHaveBeenCalledOnce();
     unmount();
@@ -494,6 +496,7 @@ describe('personal subscription settings', () => {
       });
 
       expect(screen.queryByRole('button', { name: 'Reconnect ChatGPT' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Disconnect' })).toHaveClass('gpu-action-danger');
       await user.click(screen.getByRole('button', { name: 'Disconnect' }));
       expect(disconnect).toHaveBeenCalledOnce();
     }

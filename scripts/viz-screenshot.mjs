@@ -25,6 +25,7 @@
  *                        them. Without it: the ungated developer rendering.
  *   --platform-admin     With --auth, include platform administrator controls.
  *   --settings-tab <id>   Settings panel to capture (default general).
+ *   --hover <id>         Rest the pointer on a canvas hit target before capture.
  *   --project-settings   With --auth --select-first, open project deployment settings.
  *   --select-first       Click the first project row after arrival (the run
  *                        list and selected-project MCP guide).
@@ -2201,6 +2202,22 @@ try {
         await page.mouse.click(point.x, point.y);
         await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 400)));
       }
+    }
+    if (has('--hover')) {
+      // Rest the real pointer on one canvas hit target, then shoot: its hover
+      // bubble is on screen, beside whatever DOM overlays the view mounts.
+      const id = String(arg('--hover') ?? '');
+      await page.waitForFunction(targetId => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === targetId),
+        { timeout: READY_TIMEOUT_MS }, id);
+      const point = await page.evaluate(targetId => {
+        const handle = globalThis.__ATOMA_GPU__;
+        const target = handle.hitTargets().find(entry => entry.id === targetId);
+        return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+      }, id);
+      await page.mouse.move(point.x, point.y);
+      await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 500)));
+      const shown = await page.evaluate(() => globalThis.__ATOMA_GPU__.tooltip());
+      console.log(`Hover ${id}: ${shown.visible ? `bubble "${shown.text}"` : 'no bubble'}`);
     }
     if (has('--empty-conversation-probe')) {
       if (!platformAdmin || !selectFirst || !assistantEmpty || !assistantNoRuns) throw new Error('--empty-conversation-probe needs --auth --platform-admin --select-first --assistant-empty --assistant-no-runs');

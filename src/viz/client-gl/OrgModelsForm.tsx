@@ -851,7 +851,7 @@ export function PersonalSubscriptionsPanel({
 
           {canUse && claudeDisconnect ? (
             <div className="gpu-subscription-actions">
-              <button type="button" disabled={busy} onClick={() => void onDisconnectClaude()}><ButtonIcon kind="logout" />
+              <button type="button" disabled={busy} className="gpu-action-danger" onClick={() => void onDisconnectClaude()}><ButtonIcon kind="logout" />
                 {t('settings.subscriptionDisconnect')}
               </button>
             </div>
