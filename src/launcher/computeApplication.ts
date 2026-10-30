@@ -161,7 +161,14 @@ export async function computeMain(argv: string[], hooks: ComputeApplicationHooks
     finally { inventory.close(); }
     return;
   }
-  if (command === 'pull') { await DesktopCompute.pullImages(config, hooks.download, hooks.signal, hooks.imageProgress); console.log('Pinned images downloaded.'); return; }
+  if (command === 'pull') {
+    await DesktopCompute.pullImages(config, hooks.download, hooks.signal, hooks.imageProgress);
+    console.log('Pinned images downloaded.');
+    // Reclaiming space never fails a preparation that has its images.
+    const removed = await DesktopCompute.removeSupersededImages(config).catch(() => 0);
+    if (removed) console.log(`Removed ${removed} superseded Compute image${removed === 1 ? '' : 's'}.`);
+    return;
+  }
   const diagnostic = await DesktopCompute.diagnoseClient(config);
   hooks.diagnostic?.(diagnostic);
   hooks.signal?.throwIfAborted();

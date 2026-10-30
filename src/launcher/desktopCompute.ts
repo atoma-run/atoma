@@ -99,6 +99,35 @@ export class DesktopCompute {
       progress?.(++completed, images.length);
     }
   }
+  /** After `pullImages`: removes earlier releases of the pinned repositories.
+   * Each release pins new digests and nothing removed the old ones (2026-10-30:
+   * ~10 GB of superseded images filled a Mac). Only repositories named by a
+   * digest pin qualify, the pins themselves stay, and removal is never forced,
+   * so the engine keeps any image a container, running or not, still uses.
+   * Recovery and preview start from the current pins, never an older one.
+   * Returns how many images the engine removed; failures leave them in place. */
+  static async removeSupersededImages(config: Pick<ComputeClientSettings, 'workspaceImage' | 'workerImage' | 'retrievalImage' | 'previewImage'>): Promise<number> {
+    const pinned = [config.workspaceImage, config.workerImage, config.retrievalImage, config.previewImage]
+      .filter((value): value is string => typeof value === 'string').map(value => image.parse(value)).filter(value => value.includes('@'));
+    const repositories = new Set(pinned.map(value => value.slice(0, value.indexOf('@'))));
+    if (!repositories.size) return 0;
+    const imageId = z.string().regex(/^sha256:[a-f0-9]{64}$/);
+    const keep = new Set<string>();
+    for (const reference of pinned) keep.add(imageId.parse(await docker(['image', 'inspect', '--format', '{{.Id}}', reference])));
+    const rows = (await docker(['image', 'ls', '--no-trunc', '--format', '{{.Repository}}\t{{.ID}}'])).split('\n').filter(Boolean);
+    const superseded = new Set<string>();
+    for (const row of rows) {
+      const [repository, id] = row.split('\t');
+      if (!repository || !repositories.has(repository)) continue;
+      const parsed = imageId.safeParse(id);
+      if (parsed.success && !keep.has(parsed.data)) superseded.add(parsed.data);
+    }
+    let removed = 0;
+    for (const id of superseded) {
+      try { await docker(['image', 'rm', id]); removed += 1; } catch { /* in use or shared: the engine keeps it */ }
+    }
+    return removed;
+  }
   static async diagnoseClient(config: Pick<ComputeClientSettings, 'workspaceImage' | 'workerImage' | 'retrievalImage' | 'previewImage'>) {
     const diagnostic = await this.diagnose();
     if (!/Docker Desktop/i.test(diagnostic.system)) throw new Error('Docker Desktop is required; install or start Docker Desktop');

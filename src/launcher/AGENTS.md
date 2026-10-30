@@ -114,6 +114,8 @@ Explicit desktop preparation refreshes all four pins from the bundled verified
 `computeImages.ts` release before pulling. It requires local inventory ownership
 and confirmed teardown of earlier workloads. Opening, diagnostics and headless
 `pull` retain the configured pins; pairing, budgets and credentials survive upgrades.
+`pull` then removes earlier releases of the digest-pinned repositories, never
+forced, so an image a container still uses stays (2026-10-30: ~10 GB on a Mac).
 Worker fixes are not deployed to Compute by a server release: the installed
 immutable worker must contain the fix too. Publish and test the affected image,
 adopt its verified digest, prepare the idle device and check the configured

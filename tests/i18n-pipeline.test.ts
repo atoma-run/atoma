@@ -151,9 +151,13 @@ function readCatalog(locale: string): Record<string, string> {
   return JSON.parse(readFileSync(join(workdir, LOCALE_DIR, `${locale}.json`), 'utf8'));
 }
 
+// A developer's ignored tooling under scripts/ (1.2 GB for a Remotion film)
+// must not be copied into each fixture (2026-10-30: it timed this suite out).
+const withoutNodeModules = (source: string) => !source.split(/[\\/]/).includes('node_modules');
+
 beforeAll(() => {
   workdir = mkdtempSync(join(tmpdir(), 'atoma-i18n-pipeline-'));
-  cpSync(join(REPO_ROOT, 'scripts'), join(workdir, 'scripts'), { recursive: true });
+  cpSync(join(REPO_ROOT, 'scripts'), join(workdir, 'scripts'), { recursive: true, filter: withoutNodeModules });
   cpSync(join(REPO_ROOT, 'src', 'viz', 'client', 'locales'), join(workdir, LOCALE_DIR), { recursive: true });
   binDir = join(workdir, 'bin');
   mkdirSync(binDir);
@@ -327,7 +331,7 @@ describe('semantic drift is invalidated by a push, not only by a commit', () => 
    */
   function gitRepo(): string {
     const dir = mkdtempSync(join(tmpdir(), 'atoma-i18n-range-'));
-    cpSync(join(REPO_ROOT, 'scripts'), join(dir, 'scripts'), { recursive: true });
+    cpSync(join(REPO_ROOT, 'scripts'), join(dir, 'scripts'), { recursive: true, filter: withoutNodeModules });
     mkdirSync(join(dir, LOCALE_DIR), { recursive: true });
     const git = (args: string) =>
       execFileSync('git', args.split(' '), { cwd: dir, encoding: 'utf8', stdio: 'pipe' });

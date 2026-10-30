@@ -58,7 +58,11 @@ function repoWithHook(): string {
   // ci`. The fixture lives under /tmp on CI, so relying on ancestor lookup
   // makes `npx` download eslint and turns this behavioural test into a network
   // timeout. The empty config keeps eslint focused on the hook's index logic.
-  cpSync(join(REPO_ROOT, 'scripts'), join(dir, 'scripts'), { recursive: true });
+  // Never a nested node_modules: a developer's ignored tooling under scripts/
+  // (1.2 GB for a Remotion film) was copied once per case and filled a Mac's
+  // disk mid-suite (2026-10-30).
+  cpSync(join(REPO_ROOT, 'scripts'), join(dir, 'scripts'), { recursive: true,
+    filter: source => !source.split(/[\\/]/).includes('node_modules') });
   mkdirSync(join(dir, 'node_modules', '.bin'), { recursive: true });
   symlinkSync(join(REPO_ROOT, 'node_modules', 'eslint'), join(dir, 'node_modules', 'eslint'), 'dir');
   symlinkSync(
