@@ -1,4 +1,5 @@
 import type { ComputeSocket } from '../launcher/computeChannel.js';
+import { readComputeToolResult } from '../launcher/computeToolResult.js';
 import type { ComputeResume } from '../contracts/computeTransport.js';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
@@ -196,9 +197,10 @@ export class ComputeConnection {
           throw new Error('Unexpected tool result');
         }
         this.devices.authorizeOperation(this.session, pending.execution.runId, pending.execution.generation);
+        const result = frame.response.ok ? readComputeToolResult(frame.response) : undefined;
         clearTimeout(pending.timer); this.tools.delete(frame.response.id);
         if (pending.method === 'drain') this.drainingTools = false;
-        if (frame.response.ok) pending.resolve(frame.response.result);
+        if (frame.response.ok) pending.resolve(result);
         else pending.reject(new Error(frame.response.error));
         return;
       }

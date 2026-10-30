@@ -35,6 +35,9 @@ MCP App bundled earlier keeps reading a newer server.
 `computeProtocol.ts` wraps private workspace commands in run/generation/request
 identities on the authenticated WSS channel. Its 1 MiB application-frame budget
 includes that envelope; transfer chunks stay bounded by `checkpointTransfer.ts`.
+Large tool results may reuse the complete gzip evidence envelope, with decoded
+bytes bounded by `WORKER_FRAME_BYTES`; identity/authority precede decoding and
+length/hash/UTF-8 checks precede resolution. The outer 1 MiB limit stays unchanged.
 `computeTransport.ts` owns the opt-in transport envelope (1 MiB + 1 KiB), sequence
 acknowledgements and authenticated resume shape. No application command, storage
 schema or lease changes; legacy peers remain compatible. Transport state and

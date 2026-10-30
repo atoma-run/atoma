@@ -8,6 +8,7 @@ import type { ToolExecutor } from '../core/types.js';
 import WebSocket from 'ws';
 import { ComputeLease } from './computeLease.js';
 import { ComputeChannel } from './computeChannel.js';
+import { computeToolResultFrame } from './computeToolResult.js';
 import { COMPUTE_STALE_HEARTBEAT_MS } from '../contracts/computeTransport.js';
 import { COMPUTE_FRAME_BYTES, computeExecutionSchema, computeHelloSchema, computeServerFrameSchema,
   type ComputeExecution, type ComputeControl } from '../contracts/computeProtocol.js';
@@ -237,7 +238,7 @@ export async function connectComputeWorkspace(options: {
               result = await tools.execute(command.name, command.args);
             }
             lease.assertActive();
-            send({ kind: 'tool-result', execution, response: { id: frame.id, ok: true, result } });
+            send(computeToolResultFrame(frame.execution, frame.id, result));
           } catch (error) {
             if (frame.command.method === 'drain') { void close('tool-failed'); return; }
             try {
