@@ -62,12 +62,12 @@ const approve = (count: number, deltas?: unknown[]): string => JSON.stringify({
 const respond = (text: string): LlmCompletionResponse => ({ text, stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } });
 
 /** The cell's plan calls and the tissue's reviews, by role. */
-function routed(plans: string[], reviews: string[]): MockLlmClient {
+function routed(plans: (string | ((prompt: string) => string))[], reviews: string[]): MockLlmClient {
   const llm = new MockLlmClient();
   const route = (req: LlmCompletionRequest): LlmCompletionResponse => {
     const next = req.role === 'plan' ? plans.shift() : req.role === 'validate-plan' ? reviews.shift() : undefined;
     if (next === undefined) throw new Error(`Unexpected ${req.role} call`);
-    return respond(next);
+    return respond(typeof next === 'string' ? next : next(req.userContent));
   };
   for (let i = 0; i < 20; i++) llm.enqueue(route);
   return llm;
@@ -99,6 +99,14 @@ function actors() {
   vi.spyOn(tissue, 'validateResult').mockResolvedValue({ approved: true, reasoning: 'the phase holds' });
   return { tissue, cell, dispatched };
 }
+
+/** Subtraction built on addition, in sequence: two implementation subtasks interacting, so the plan needs an integration suite. */
+const chained = { ...cellPlan, aggregation: { mode: 'sequential' }, subtasks: [cellPlan.subtasks[0]!, { ...cellPlan.subtasks[1]!, dependsOn: [0],
+  acceptanceTests: { ...cellPlan.subtasks[1]!.acceptanceTests, source: SUB_ON_ADD } }] };
+const chainedReply = JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'Existing module author' }, chained]);
+const JOIN = "import { test, expect } from 'vitest';\nimport { add } from './add.ts';\nimport { sub } from './sub.ts';\ntest('joins', () => {\n  expect(sub(add(2, 3), 3)).toBe(2);\n  expect(add(sub(1, 2), 1)).toBe(0);\n});";
+const integrating = JSON.stringify({ ...JSON.parse(approve(2)),
+  delegationReview: { ...JSON.parse(approve(2)).delegationReview, integration: { kind: 'vitest', reason: 'subtraction calls addition' } } });
 
 describe('the cell review repairs the plan it approves (ATOMA_REVIEW_REPAIR, design M5)', () => {
   it('dispatches the amended dependsOn after plan-repaired, and a memo hit on the proposed bytes returns the repair without a call', async () => {
@@ -280,6 +288,27 @@ describe('the cell review repairs the plan it approves (ATOMA_REVIEW_REPAIR, des
     expect(dispatched.map(subtask => subtask.description)).toEqual(['Implement signed addition']);
   });
 
+  it('names the plan\'s own suite field and the delta when the host refuses an approval for its integration suite (run 6fe2d326, 33167417)', async () => {
+    const { tissue, cell, dispatched } = actors();
+    const delta = (prompt: string) => JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'Existing module author' }, { planDeltas: {
+      base: /PREVIOUS PLAN \(digest ([0-9a-f]{64});/.exec(prompt)?.[1], deltas: [{ kind: 'suite.replace', target: 'plan', requirement: 'joined', source: JOIN }] } }]);
+    const ctx = { ...makeCtx({ llm: routed([chainedReply, delta], [integrating, integrating]) }), tools: emptyWorkspace };
+    const coached = vi.fn<SupervisionHooks<L2Atom>['applyByScope']>(child => Promise.resolve(child));
+    const plan = vi.spyOn(cell, 'plan');
+
+    await superviseLoop(tissue, cell, task, ctx, { ...hooks, applyByScope: coached });
+
+    const refusal = coached.mock.calls[0]?.[1];
+    expect(refusal).toMatchObject({ approved: false, delegationRefusal: 'plan' });
+    expect(refusal?.reasoning).toContain('Missing parent-owned acceptanceTests on plan integration (the plan\'s own top-level "acceptanceTests" field, ' +
+      'beside "subtasks", not a subtask\'s: the last subtask\'s suite is no join, with fewer than two implementation subtasks before it; ' +
+      'with planDeltas, {"kind": "suite.replace", "target": "plan", "requirement": "...", "source": "<the whole suite>"} adds it)');
+    // The delta it names is one the host applies: the plan's suite, the subtasks' own kept.
+    expect((await plan.mock.results[1]!.value as Plan).acceptanceTests).toEqual({ requirement: 'joined', cwd: '.', source: JOIN });
+    expect(dispatched.map(subtask => subtask.acceptanceTests?.source)).toEqual([ADD, SUB_ON_ADD]);
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(2);
+  });
+
   it('self-executes a plan with no planned strategy, as before the flag: a shared peer may have consumed it', async () => {
     const { cell } = actors();
     const selfExecute = vi.spyOn(cell as unknown as { selfExecute: L2Atom['execute'] }, 'selfExecute')
@@ -304,5 +333,17 @@ describe('the cell review with ATOMA_REVIEW_REPAIR off', () => {
     expect(reviews[0]?.userContent).not.toContain('planRepair');
     expect(dispatched.map(subtask => subtask.dependsOn)).toEqual([undefined, undefined]);
     expect(result.trace.map(entry => entry.kind).slice(0, 3)).toEqual(['plan', 'verdict-plan', 'execute']);
+  });
+
+  it('names the plan\'s own suite field, without a delta, when the host refuses an approval for its integration suite', async () => {
+    const { tissue, cell } = actors();
+    const ctx = { ...makeCtx({ llm: routed([chainedReply, JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'Existing module author' },
+      { ...chained, acceptanceTests: { requirement: 'joined', cwd: '.', source: JOIN } }])], [integrating, integrating]) }), tools: emptyWorkspace };
+    const coached = vi.fn<SupervisionHooks<L2Atom>['applyByScope']>(child => Promise.resolve(child));
+
+    await superviseLoop(tissue, cell, task, ctx, { ...hooks, applyByScope: coached });
+
+    expect(coached.mock.calls[0]?.[1].reasoning).toContain('Missing parent-owned acceptanceTests on plan integration (the plan\'s own top-level "acceptanceTests" field, ' +
+      'beside "subtasks", not a subtask\'s: the last subtask\'s suite is no join, with fewer than two implementation subtasks before it). ');
   });
 });

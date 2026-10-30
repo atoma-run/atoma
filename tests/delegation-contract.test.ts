@@ -1120,7 +1120,7 @@ describe('root delegation review robustness', () => {
       await tissue.handle(task, readOnlyJoin.ctx);
       expect(readOnlyJoin.ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(2);
       expect(replan).toHaveBeenCalledOnce();
-      expect(replan.mock.calls[0]?.[2]?.at(-1)).toContain('plan integration (plan-level, or on a join subtask');
+      expect(replan.mock.calls[0]?.[2]?.at(-1)).toContain('plan integration (the plan\'s own top-level "acceptanceTests" field, beside "subtasks", or that of a join subtask');
       expect(execute).toHaveBeenCalledTimes(2);
       expect(execute.mock.calls[1]?.[1].subtasks[2]?.outputs).toEqual(['app.ts']);
     });
@@ -2027,7 +2027,7 @@ describe('the runner boundary and the browser proof route (run 7a7af324)', () =>
     ])('still refuses %s', (_, shape) => {
       const refusal = refusalOf(shape(incidentPlan('Cell')), [...KINDS, 'other']);
       expect(refusal).toMatchObject({ delegationRefusal: 'plan' });
-      expect(refusal?.reasoning).toContain('Missing parent-owned acceptanceTests on plan integration (plan-level, or on a join subtask');
+      expect(refusal?.reasoning).toContain('Missing parent-owned acceptanceTests on plan integration (the plan\'s own top-level "acceptanceTests" field, beside "subtasks", or that of a join subtask');
     });
 
     it('orders a sequential plan by index, and the join must come last there too', () => {

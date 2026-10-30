@@ -336,7 +336,7 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
   if (missing.length || integration) {
     findings.push(`Missing parent-owned acceptanceTests on ${[
       ...missing.map(s => `subtask ${s.index} (${s.reason})`),
-      ...(integration ? ['plan integration (plan-level, or on a join subtask that is the plan\'s last, declares outputs and comes after every other subtask)'] : []),
+      ...(integration ? [`plan integration (${integrationPlace(plan, tested)})`] : []),
     ].join('; ')}. Supply executable suites before implementation, or request a genuine inspection-only discovery plan at L3.`);
   }
   // A source that does not parse, APIs the runner's integrity guard refuses, and
@@ -359,6 +359,25 @@ export function enforceParsedDelegationReview(plan: Plan, review: DelegationRevi
     return delegationRefusal(`Independent work must have parallel child branches with real dependencies: ${review.parallelReason}`, 'fan-out');
   }
   return undefined;
+}
+
+/**
+ * Where a missing integration suite goes, by the plan's own field name. Run
+ * 6fe2d326 (33167417 approved, the host refused, f3fa540e coached): told
+ * "plan-level, or on a join subtask", the planner replaced its last subtask's
+ * suite (3387e4a1), which no join could be with one implementation subtask
+ * before it. The join is offered only when the plan has two before its last;
+ * behind ATOMA_REVIEW_REPAIR the delta that adds the plan's suite is named.
+ */
+function integrationPlace(plan: Plan, tested: readonly number[]): string {
+  const last = plan.subtasks.length - 1;
+  const field = 'the plan\'s own top-level "acceptanceTests" field, beside "subtasks"';
+  const place = tested.filter(i => i !== last).length >= 2
+    ? `${field}, or that of a join subtask that is the plan's last, declares outputs and comes after every other subtask`
+    : `${field}, not a subtask's: the last subtask's suite is no join, with fewer than two implementation subtasks before it`;
+  return reviewRepairEnabled()
+    ? `${place}; with planDeltas, {"kind": "suite.replace", "target": "plan", "requirement": "...", "source": "<the whole suite>"} adds it`
+    : place;
 }
 
 /**
