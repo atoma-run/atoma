@@ -39,7 +39,7 @@ const withoutQuery = (specifier: string): string => specifier.replace(/[?#].*$/,
 
 export type SuiteImportStatus = 'exists' | 'package' | 'empty-directory' | 'written-before' | 'written-concurrently' | 'outside' | 'absent';
 export interface SuiteImportFact { readonly specifier: string; readonly target?: string; readonly status: SuiteImportStatus }
-export interface SuiteFacts { readonly label: string; readonly cwd: string; readonly imports: readonly SuiteImportFact[] }
+export interface SuiteFacts { readonly label: string; readonly cwd: string; readonly source: string; readonly imports: readonly SuiteImportFact[] }
 export interface Workspace { readonly file: (path: string) => boolean; readonly directory: (path: string) => boolean }
 
 /** A directory's entry file, as the runner loads one: an index file, or a package.json whose entry this check does not read. */
@@ -99,7 +99,7 @@ export function suiteImportFacts(plan: Plan, workspace: Workspace): SuiteFacts[]
       }
       return { specifier, status: 'absent' };
     });
-    return [{ label, cwd, imports }];
+    return [{ label, cwd, source: suite.source, imports }];
   });
 }
 
@@ -136,7 +136,7 @@ export async function planSuiteFactsBlock(plan: Plan, ctx: RunContext): Promise<
   if (!ctx.tools?.has('list_files')) return '';
   const tools: ToolExecutor = baseExecutorOf(ctx.tools);
   try {
-    const workspace = await suiteWorkspace(plan, tools, ctx);
+    const workspace = await suiteWorkspace([plan], tools, ctx);
     if (!workspace) return '';
     const facts = suiteImportFacts(plan, workspace);
     const imported = await suiteSourceFiles(facts, tools, ctx.signal);
@@ -156,13 +156,13 @@ export async function planSuiteFactsBlock(plan: Plan, ctx: RunContext): Promise<
 }
 
 /**
- * What exists where a plan's suites import from, listed once per directory
+ * What exists where the plans' suites import from, listed once per directory
  * (each import candidate's), or undefined (more directories than the bound,
  * an abort, any listing fault but ENOTDIR).
  */
-async function suiteWorkspace(plan: Plan, tools: ToolExecutor, ctx: RunContext): Promise<Workspace | undefined> {
+async function suiteWorkspace(plans: readonly Plan[], tools: ToolExecutor, ctx: RunContext): Promise<Workspace | undefined> {
   const directories = new Set<string>();
-  for (const suite of [...plan.subtasks.map(subtask => subtask.acceptanceTests), plan.acceptanceTests]) {
+  for (const suite of plans.flatMap(plan => [...plan.subtasks.map(subtask => subtask.acceptanceTests), plan.acceptanceTests])) {
     if (!suite) continue;
     for (const specifier of relativeSpecifiers(suite.source)) {
       const target = suiteImportTarget(path.posix.normalize(suite.cwd || '.'), withoutQuery(specifier));
@@ -202,18 +202,23 @@ const UNRESOLVED: ReadonlySet<SuiteImportStatus> = new Set(['empty-directory', '
 /**
  * Every suite import of a REPAIRED plan that does not resolve, as a host line
  * each (design M4: such an import refuses the reviewer's repair, since no
- * model reviewed that plan's facts). Empty when the workspace cannot be
- * listed: unknown existence refuses nothing, as in the facts block.
+ * model reviewed that plan's facts). With the `proposed` plan the review did
+ * read, only what the repair introduced: an unresolved import of the same
+ * suite bytes and specifier there was in its facts already. Empty when the
+ * workspace cannot be listed: unknown existence refuses nothing, as in the
+ * facts block.
  */
-export async function unresolvedSuiteImports(plan: Plan, ctx: RunContext): Promise<string[]> {
+export async function unresolvedSuiteImports(plan: Plan, ctx: RunContext, proposed?: Plan): Promise<string[]> {
   if (!plan.acceptanceTests && !plan.subtasks.some(subtask => subtask.acceptanceTests)) return [];
   if (!ctx.tools?.has('list_files')) return [];
   try {
-    const workspace = await suiteWorkspace(plan, baseExecutorOf(ctx.tools), ctx);
+    const workspace = await suiteWorkspace(proposed ? [plan, proposed] : [plan], baseExecutorOf(ctx.tools), ctx);
     if (!workspace) return [];
-    return suiteImportFacts(plan, workspace).flatMap(({ label, imports }) => imports
+    const unresolved = (of: Plan) => suiteImportFacts(of, workspace).flatMap(({ label, source, imports }) => imports
       .filter(({ status }) => UNRESOLVED.has(status))
-      .map(({ specifier, status }) => `${label} imports ${shown(specifier)}: ${STATUS_TEXT[status]}`));
+      .map(({ specifier, status }) => ({ key: JSON.stringify([source, specifier]), line: `${label} imports ${shown(specifier)}: ${STATUS_TEXT[status]}` })));
+    const known = new Set(proposed ? unresolved(proposed).map(({ key }) => key) : []);
+    return unresolved(plan).filter(({ key }) => !known.has(key)).map(({ line }) => line);
   } catch (error) {
     ctx.logger.warn(`[l3] suite facts unavailable: ${String(error).slice(0, 200)}`);
     return [];

@@ -281,6 +281,49 @@ describe('the cell loop under ATOMA_REVIEW_REPAIR', () => {
   });
 });
 
+describe('the base superviseLoop retains', () => {
+  const hooks: SupervisionHooks<L2Atom> = { applyByScope: child => Promise.resolve(child), branchOnEscalation: () => Promise.resolve() };
+  const task: Task = { description: 'Implement signed addition' };
+  const resultRefusal = { approved: false as const, reasoning: 'the negative case was never run', scope: 'ephemeral' as const,
+    modifications: { additionalContext: 'Run the negative case.' } };
+
+  function cellLoop(plans: (string | ((prompt: string) => string))[], reviews: string[]) {
+    const { tissue, cell } = actors();
+    const ctx = makeCtx({ llm: routedLlm(plans, reviews) });
+    const plan = vi.spyOn(cell, 'plan');
+    vi.spyOn(cell, 'execute').mockResolvedValue(delivered);
+    return { tissue, cell, ctx, plan };
+  }
+
+  it('is dropped once a plan is approved: the replan after a refused result builds on nothing', async () => {
+    const { tissue, cell, ctx, plan } = cellLoop([reply('Urea', rawPlan('Urea')), reply('Urea', rawPlan('Urea')), reply('Urea', rawPlan('Urea'))],
+      [refusal, approval(1)]);
+    vi.spyOn(tissue, 'validateResult').mockResolvedValueOnce(resultRefusal).mockResolvedValueOnce({ approved: true, reasoning: 'the phase holds' });
+
+    await superviseLoop(tissue, cell, task, ctx, hooks);
+
+    expect(plan).toHaveBeenCalledTimes(3);
+    const first = await plan.mock.results[0]!.value as Plan;
+    expect(plan.mock.calls[1]?.[3]).toEqual({ base: planBase(first) });
+    expect(plan.mock.calls[2]).toHaveLength(3);
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')[2]?.userContent).not.toContain('PREVIOUS PLAN (');
+  });
+
+  it('is kept through an unparseable reply: the next one may still answer in deltas on it', async () => {
+    const deltas = (prompt: string) => reply('Urea', { planDeltas: { base: digestIn(prompt), deltas: replaceSuite } });
+    const { tissue, cell, ctx, plan } = cellLoop([reply('Urea', rawPlan('Urea')), 'not a plan', deltas], [refusal, approval(1)]);
+    vi.spyOn(tissue, 'validateResult').mockResolvedValue({ approved: true, reasoning: 'the phase holds' });
+
+    await superviseLoop(tissue, cell, task, ctx, hooks);
+
+    expect(plan).toHaveBeenCalledTimes(3);
+    const first = await plan.mock.results[0]!.value as Plan;
+    expect(plan.mock.calls[1]?.[3]).toEqual({ base: planBase(first) });
+    expect(plan.mock.calls[2]?.[3]).toEqual({ base: planBase(first) });
+    expect((vi.mocked(cell.execute).mock.calls[0]?.[1] as Plan).subtasks[0]?.acceptanceTests?.source).toBe(NEGATIVE);
+  });
+});
+
 describe('with ATOMA_REVIEW_REPAIR off', () => {
   beforeEach(() => {
     delete process.env['ATOMA_REVIEW_REPAIR'];

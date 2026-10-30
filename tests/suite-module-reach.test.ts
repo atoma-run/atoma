@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -192,6 +192,9 @@ describe('in the reviews', () => {
   const covered = `${HEAD}const { start } = require('./tests/helpers/h.js');\ntest('t', () => { expect(start()).toBe(1); });`;
 
   it('reaches the root review and a cell plan review as the last suite bullet, with no other prompt change', async () => {
+    // The review contract as production reads it today: ATOMA_REVIEW_REPAIR off.
+    vi.stubEnv('ATOMA_REVIEW_REPAIR', '0');
+    onTestFinished(() => { vi.unstubAllEnvs(); });
     const { tissue, cell } = actors();
     const { ctx } = workspace(BASE);
     vi.spyOn(tissue, 'plan').mockResolvedValue(planOf(['src/server.js'], gap));

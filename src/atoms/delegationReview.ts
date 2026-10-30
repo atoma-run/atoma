@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { DelegationRefusalKind, NegativeVerdict, Plan, SubtaskSpec, Task } from '../core/types.js';
 import { PlanParseError } from '../core/errors.js';
 import { PARENT_TEST_BLOCKING_DEFECTS, PARENT_TEST_EXECUTION, PARENT_TEST_INTEGRATION_PLACEMENT, PARENT_TEST_RUNNER_SCOPE, PARENT_TEST_SUFFICIENCY, PARENT_TEST_UNSATISFIABLE, delegationReviewEnvelopeSchema, type DelegationReview, type UnsatisfiableSuite } from '../contracts/parentTests.js';
-import { applyPlanDeltas, extractJson, parseWith, parseVerdict, planRepairEnvelopeSchema, planSchema, reviewRepairEnabled, type PlanDelta, type ReviewerPlanDelta } from './json.js';
+import { applyPlanDeltas, parseWith, planSchema, repairingReviewEnvelopeSchema, reviewRepairEnabled, reviewerPlanRepairSchema, type ReviewerPlanDelta } from './json.js';
 import { parentSuiteParseRefusal, parentSuiteRefusal, readRunCopiesRefusal } from './parentSuiteCheck.js';
 import { VALIDATION_SYSTEM_PROMPT } from './verdict.js';
 
@@ -46,9 +46,9 @@ An approval without this complete classification is not executable. ${REJECTION_
  * second review. The reviewer repairs those in its approval and writes no
  * suite: what needs suite bytes stays a refusal the planner answers.
  */
-const REPAIR_RULE = 'Repair, do not refuse, a structural defect you can state exactly without writing a suite: independent work grouped or serialized (fan-out), a wrong or missing dependsOn, an oversized subtask to split, acceptance criteria bound to the wrong subtask, a missing proof obligation. Approve with "planRepair": {"deltas": [...]} beside delegationReview, which then classifies the plan AFTER your deltas, by its indices. Deltas, each applied to the plan the earlier ones left, at most 6: ' +
-  '{"kind":"dependsOn.set","target":i,"dependsOn":[earlier indices]}; {"kind":"aggregation.set","aggregation":{"mode":"sequential|concat|llm-synthesize"}}; {"kind":"criteria.assign","target":i,"criteria":["criterion text"]}; {"kind":"obligation.add","target":i,"obligation":"dom-interaction"}; ' +
-  '{"kind":"suite.split","target":i,"into":[{"description":"...","suiteFrom":j or "plan","criteria":[...],"dependsOn":[earlier indices]}, ...]} (2 to 6 parts, each running a suite this plan already carries, copied by the host byte for byte). You never write or edit suite source or an expect( line: a suite that is missing, insufficient or unsatisfiable is a refusal. The host applies your deltas and re-runs its mechanical checks; a repair it cannot accept becomes a refusal the planner hears with your deltas. ' +
+const REPAIR_RULE = 'Repair, do not refuse, a structural defect you can state exactly without writing a suite: independent work grouped or serialized (fan-out), a wrong or missing dependsOn, acceptance criteria bound to the wrong subtask, a missing proof obligation. Approve with "planRepair": {"deltas": [...]} beside delegationReview in the same approval object; delegationReview then classifies the plan AFTER your deltas. Deltas, each applied to the plan the earlier ones left, by this plan\'s indices, at most 6: ' +
+  '{"kind":"dependsOn.set","target":i,"dependsOn":[earlier indices]}; {"kind":"aggregation.set","aggregation":{"mode":"sequential|concat|llm-synthesize"}}; {"kind":"criteria.assign","target":i,"criteria":["<id>"]} (ids of this task\'s acceptance criteria); {"kind":"obligation.add","target":i,"obligation":"dom-interaction"}. ' +
+  'You never write, edit or split a suite, nor write an expect( line: a suite that is missing, insufficient or unsatisfiable, and a subtask too large for one child, are refusals. The host applies your deltas and re-runs its mechanical checks; a repair it cannot accept becomes a refusal the planner hears with your deltas. ' +
   'For rejection use the ordinary negative Verdict with actionable reasoning, "unsatisfiableSuites" as defined above ([] when none) and "refusalKind", one of: "replan-after" (a discovery plan that is not read-only discovery), "unexecutable-proof" (a suite or proof the runtime cannot execute), "missing-interface" (a suite or subtask relying on an interface nothing provides), "coverage" (a missing or insufficient suite, case or browser route), "empty" (no executable work); no delegationReview classification is required.';
 
 /**
@@ -175,42 +175,31 @@ export function delegationRefusal(reason: string, kind: DelegationRefusalKind): 
   return { approved: false, reasoning: reason, scope: 'ephemeral', modifications: { additionalContext: reason }, delegationRefusal: kind };
 }
 
+const INCOMPLETE_REVIEW = 'Delegation review is incomplete: classify every subtask, integration and parallelism before execution.';
+
 /** The classification an approval carries, or a `reviewer` refusal when it carries none. */
 export function parseDelegationReview(response: string): DelegationReview | NegativeVerdict {
   try { return parseWith(delegationReviewEnvelopeSchema, response).delegationReview; }
-  catch { return delegationRefusal('Delegation review is incomplete: classify every subtask, integration and parallelism before execution.', 'reviewer'); }
+  catch { return delegationRefusal(INCOMPLETE_REVIEW, 'reviewer'); }
 }
 
-/**
- * Semantic classification is fallible; missing bytes/indices cannot be waived by approved:true.
- * Behind ATOMA_REVIEW_REPAIR a refusal is the plan's, with or without its `refusalKind`, and an
- * approval's `planRepair` is enforced on the plan it makes.
- */
+/** Semantic classification is fallible; missing bytes/indices cannot be waived by approved:true. */
 export function enforceDelegationReview(plan: Plan, response: string, allowDiscovery: boolean): NegativeVerdict | undefined {
-  if (reviewRepairEnabled()) {
-    let verdict: ReturnType<typeof parseVerdict> | undefined;
-    try { verdict = parseVerdict(response); } catch { verdict = undefined; }
-    if (verdict && !verdict.approved) {
-      return { ...delegationRefusal(verdict.reasoning, 'plan'), ...(verdict.refusalKind ? { refusalKind: verdict.refusalKind } : {}) };
-    }
-  }
   const review = parseDelegationReview(response);
-  if ('approved' in review) return review;
-  const repair = reviewRepairEnabled() ? reviewedPlanRepair(plan, response) : undefined;
-  if (repair && 'approved' in repair) return repair;
-  return enforceRepairedDelegationReview(plan, repair, review, allowDiscovery);
+  return 'approved' in review ? review : enforceParsedDelegationReview(plan, review, allowDiscovery);
 }
 
 /**
  * The mechanical half over the plan a repair made, when there is one: a
  * fan-out or dependency the reviewer repaired does not refuse. A refusal of
- * the repaired plan names the deltas, since the planner never saw that plan.
+ * the repaired plan names the deltas, since the planner never saw that plan,
+ * and is marked as the host's refusal of a repair (`refusedRepair`).
  */
 export function enforceRepairedDelegationReview(plan: Plan, repair: { deltas: readonly unknown[]; plan: Plan } | undefined,
   review: DelegationReview, allowDiscovery: boolean): NegativeVerdict | undefined {
   const refusal = enforceParsedDelegationReview(repair?.plan ?? plan, review, allowDiscovery);
   if (!refusal || !repair || refusal.delegationRefusal === 'reviewer') return refusal;
-  return delegationRefusal(`${refusal.reasoning} ${repairNote(repair.deltas)}`, refusal.delegationRefusal ?? 'plan');
+  return { ...delegationRefusal(`${refusal.reasoning} ${repairNote(repair.deltas)}`, refusal.delegationRefusal ?? 'plan'), refusedRepair: 'host' };
 }
 
 /** The reviewer's deltas as a refusal of the plan they made quotes them, bounded. */
@@ -219,63 +208,74 @@ export function repairNote(deltas: readonly unknown[]): string {
   return `(Found on the plan after the review's planRepair ${text.length > 1200 ? `${text.slice(0, 1200)} [truncated]` : text}.)`;
 }
 
-function safeExtract(response: string): unknown {
-  try { return extractJson(response); } catch { return undefined; }
-}
+/** A `planRepair` key written as JSON (not quoted inside a string), with a value other than null. */
+const PLAN_REPAIR_KEY_RE = /"planRepair"\s*:\s*(?!null\b)/;
 
 /**
- * The reviewer's stage-A repair of the plan it approves (design M4, behind
- * ATOMA_REVIEW_REPAIR): `undefined` when the approval carries none; else the
- * deltas and the reviewed plan they make, through `applyPlanDeltas` (a whole
- * plan by `planSchema` and the authored bound). A split part runs the suite
- * it names by `suiteFrom`, copied byte for byte: the reviewer writes none.
- * Host routing marks stay on the subtasks they marked. A repair that does
- * not parse (a `suite.replace` among them), names a suite the plan does not
- * carry, splits a host-routed part or does not apply is the REVIEWER's fault,
- * like an approval without its classification: the same plan is reviewed again.
+ * A repairing review's approval (design M4 stage A, M5 at the cell, behind
+ * ATOMA_REVIEW_REPAIR), read ONCE: the classification and the `planRepair`
+ * of the same object, through the one `parseWith` path, then the repair by
+ * its own schema. `repair` is absent when the approval carries none; else
+ * it holds the deltas and the reviewed plan they make through
+ * `applyPlanDeltas` (a whole plan by `planSchema` and the authored bound),
+ * the host routing marks kept on the subtasks they marked (no reviewer
+ * delta moves a subtask). The reviewer writes no suite and splits none.
+ *
+ * A repair the host cannot read or apply (a kind outside the reviewer's
+ * four, an index or criterion id the plan or task does not have, a
+ * `planRepair` the reply carries outside the classified object) is never
+ * dropped: the unrepaired plan would execute on an approval that asked
+ * for a change. It is the REVIEWER's fault, marked `unreadable`, and the
+ * caller's re-review of the same plan reads why (`repairFaultsNote`).
  */
-export function reviewedPlanRepair(plan: Plan, response: string): { deltas: ReviewerPlanDelta[]; plan: Plan } | NegativeVerdict | undefined {
-  const raw = safeExtract(response);
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !('planRepair' in raw)) return undefined;
-  const parsed = planRepairEnvelopeSchema.safeParse(raw);
-  const invalid = (why: string): NegativeVerdict =>
-    delegationRefusal(`Delegation review's planRepair is not a repair the host can apply: ${why.slice(0, 400)}`, 'reviewer');
-  if (!parsed.success) return invalid(parsed.error.message);
-  const deltas = parsed.data.planRepair?.deltas;
-  if (!deltas) return undefined;
-  const suiteOf = (from: number | 'plan') => from === 'plan' ? plan.acceptanceTests : plan.subtasks[from]?.acceptanceTests;
-  // Where each subtask of the plan being amended came from, delta after delta; a split part comes from none.
-  let origin: (number | undefined)[] = plan.subtasks.map((_, index) => index);
-  const planned: PlanDelta[] = [];
-  for (const delta of deltas) {
-    if (delta.kind !== 'suite.split') {
-      planned.push(delta);
-      continue;
+export function parseRepairingReview(plan: Plan, response: string, criteriaIds: readonly string[]):
+  { review: DelegationReview; repair?: { deltas: ReviewerPlanDelta[]; plan: Plan } } | NegativeVerdict {
+  let envelope;
+  try { envelope = parseWith(repairingReviewEnvelopeSchema, response); }
+  catch { return delegationRefusal(INCOMPLETE_REVIEW, 'reviewer'); }
+  const review = envelope.delegationReview;
+  const unreadable = (why: string): NegativeVerdict => ({
+    ...delegationRefusal(`Delegation review's planRepair is not a repair the host can apply: ${why.slice(0, 400)}`, 'reviewer'),
+    refusedRepair: 'unreadable',
+  });
+  if (envelope.planRepair === undefined || envelope.planRepair === null) {
+    if (envelope.planRepair === undefined && PLAN_REPAIR_KEY_RE.test(response)) {
+      return unreadable('the reply carries a planRepair outside the approval object that holds delegationReview; put it beside delegationReview.');
     }
-    const at = origin[delta.target];
-    if (at !== undefined && plan.subtasks[at]?.routedFrom) return invalid(`subtask ${delta.target} is a host-routed verification part; it cannot be split`);
-    const into = [];
-    for (const { suiteFrom, ...part } of delta.into) {
-      const suite = suiteOf(suiteFrom);
-      if (!suite) return invalid(`a part of subtask ${delta.target}'s split names suite ${String(suiteFrom)}, which this plan does not carry`);
-      into.push({ ...part, acceptanceTests: suite });
-    }
-    planned.push({ kind: 'suite.split', target: delta.target, into });
-    origin = [...origin.slice(0, delta.target), ...delta.into.map(() => undefined), ...origin.slice(delta.target + 1)];
+    return { review };
+  }
+  const parsed = reviewerPlanRepairSchema.safeParse(envelope.planRepair);
+  if (!parsed.success) return unreadable(parsed.error.issues.map(issue => `${['planRepair', ...issue.path].join('.')}: ${issue.message}`).join('; '));
+  const { deltas } = parsed.data;
+  const known = new Set(criteriaIds);
+  const unknown = deltas.flatMap(delta => delta.kind === 'criteria.assign' ? delta.criteria.filter(id => !known.has(id)) : []);
+  if (unknown.length) {
+    return unreadable(`criteria.assign names ${[...new Set(unknown)].map(id => JSON.stringify(id)).join(', ')}, not an id of this task's acceptance criteria (${criteriaIds.join(', ') || 'none'}).`);
   }
   let amended: Plan;
   try {
-    amended = applyPlanDeltas(plan, planned);
+    amended = applyPlanDeltas(plan, deltas);
   } catch (error) {
     if (!(error instanceof PlanParseError)) throw error;
-    return invalid(error.message);
+    return unreadable(error.message);
   }
   const subtasks = amended.subtasks.map((subtask, index): SubtaskSpec => {
-    const at = origin[index];
-    const routedFrom = at === undefined ? undefined : plan.subtasks[at]?.routedFrom;
+    const routedFrom = plan.subtasks[index]?.routedFrom;
     return routedFrom ? { ...subtask, routedFrom } : subtask;
   });
-  return { deltas, plan: { ...plan, ...amended, subtasks } };
+  return { review, repair: { deltas, plan: { ...plan, ...amended, subtasks } } };
+}
+
+/**
+ * Why the host could not apply this reviewer's own repair of the SAME plan,
+ * for its re-review (ATOMA_REVIEW_REPAIR): a deterministic mistake heard
+ * once, never repeated blind. Empty when there is none.
+ */
+export function repairFaultsNote(faults: readonly string[]): string {
+  if (faults.length === 0) return '';
+  const listed = faults.map((text, index) => `${index + 1}. ${text.length > 1200 ? `${text.slice(0, 1200)} [truncated]` : text}`).join('\n');
+  return `YOUR EARLIER planRepair OF THIS SAME PLAN COULD NOT BE APPLIED; the plan was not changed and is reviewed again:\n${listed}\n` +
+    'Use only the four repair kinds, this plan\'s indices and this task\'s criterion ids, with planRepair beside delegationReview; approve without planRepair when no repair is needed, or refuse.';
 }
 
 /**

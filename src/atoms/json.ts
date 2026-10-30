@@ -1,6 +1,6 @@
 import { inheritedJudgementSchema } from '../contracts/inheritedChecks.js';
 import { z } from 'zod';
-import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS, REVIEW_REFUSAL_KINDS, parentTestSuiteSchema, unsatisfiableSuiteSchema, type PlanDeltaKind, type UnsatisfiableSuite } from '../contracts/parentTests.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS, REVIEW_REFUSAL_KINDS, delegationReviewEnvelopeSchema, parentTestSuiteSchema, unsatisfiableSuiteSchema, type PlanDeltaKind, type UnsatisfiableSuite } from '../contracts/parentTests.js';
 import { deliveryKindSchema, executionModeSchema } from '../contracts/taskExecution.js';
 import { jsonrepair, JSONRepairError } from 'jsonrepair';
 import { PlanParseError, type PlanParseCause, ValidationError } from '../core/errors.js';
@@ -1380,34 +1380,30 @@ export const planDeltaSchema = z.discriminatedUnion('kind', [
 export type PlanDelta = z.infer<typeof planDeltaSchema>;
 
 /**
- * A ROOT delegation reviewer's repair of the plan it approves (stage A of
- * design M4, behind ATOMA_REVIEW_REPAIR), read by its own schema after
- * `parseVerdict`, as `delegationReview` is. It writes no suite: there is no
- * `suite.replace`, and a split part names the plan's existing suite it runs
- * (`suiteFrom`, a subtask index or "plan"), whose bytes the host copies
- * (`reviewedPlanRepair`). Strict parts, so a part carrying its own source is
- * a schema error rather than dropped.
+ * A delegation reviewer's repair of the plan it approves (stage A of design
+ * M4 at the root, M5 at the cell, behind ATOMA_REVIEW_REPAIR): the four kinds
+ * that carry no suite. There is no `suite.replace` and no `suite.split`: a
+ * split part must run a whole existing suite, so a part implementing a slice
+ * fails its sibling's cases, and parts inherit their target's outputs and run
+ * concurrently. An oversized subtask stays a refusal the planner answers with
+ * its own split. Strict, so an unknown field is a schema error rather than dropped.
  */
 export const reviewerPlanDeltaSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('suite.split' satisfies PlanDeltaKind),
-    target: deltaIndex,
-    into: z.array(z.object({
-      description: z.string().trim().min(1),
-      suiteFrom: z.union([deltaIndex, z.literal('plan')]),
-      criteria: deltaCriteria.optional(),
-      dependsOn: z.array(deltaIndex).optional(),
-    }).strict()).min(2).max(PLAN_DELTAS_MAX),
-  }).strict(),
   dependsOnSetDelta.strict(),
   aggregationSetDelta.strict(),
   criteriaAssignDelta.strict(),
   obligationAddDelta.strict(),
 ]);
 export type ReviewerPlanDelta = z.infer<typeof reviewerPlanDeltaSchema>;
-export const planRepairEnvelopeSchema = z.object({
-  planRepair: z.object({ deltas: z.array(reviewerPlanDeltaSchema).min(1).max(PLAN_DELTAS_MAX) }).nullish(),
-});
+export const reviewerPlanRepairSchema = z.object({ deltas: z.array(reviewerPlanDeltaSchema).min(1).max(PLAN_DELTAS_MAX) });
+
+/**
+ * A repairing review's approval, read ONCE: its classification and whatever
+ * it carries as `planRepair`, from the same object (`parseRepairingReview`).
+ * The repair is read by its own schema after, so a malformed one is named,
+ * never mistaken for an approval without a classification.
+ */
+export const repairingReviewEnvelopeSchema = delegationReviewEnvelopeSchema.extend({ planRepair: z.unknown().optional() });
 
 const planDeltaListSchema = z.array(planDeltaSchema).min(1).max(PLAN_DELTAS_MAX).superRefine((deltas, ctx) => {
   const suites = deltas.filter((delta) => delta.kind === 'suite.replace' || delta.kind === 'suite.split').length;

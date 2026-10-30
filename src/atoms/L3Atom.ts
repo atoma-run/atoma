@@ -660,11 +660,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
   }
 
   private async reviewRootDelegation(plan: Plan, task: Task, ctx: RunContext, allowDiscovery: boolean,
-    model: string, params: GenerationParams, previousRefusals: readonly string[], hostFacts: readonly string[]): Promise<Verdict> {
+    model: string, params: GenerationParams, previousRefusals: readonly string[], hostFacts: readonly string[],
+    repairFaults: readonly string[]): Promise<Verdict> {
     try {
       return await llmVerdict({ ctx, model, params, supervisorName: this.name, supervisorTier: 3,
         subject: 'PLAN', child: this, task, payload: plan, targetContext: buildTargetContext(plan, this.registry),
-        delegationContract: { plan, allowDiscovery, previousRefusals, hostFacts, ...(reviewRepairEnabled() ? { repairs: true } : {}) } });
+        delegationContract: { plan, allowDiscovery, previousRefusals, hostFacts,
+          ...(reviewRepairEnabled() ? { repairs: true, ...(repairFaults.length ? { repairFaults } : {}) } : {}) } });
     } catch (error) {
       // An unparseable verdict is the reviewer's failure, not the plan's.
       if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
@@ -705,7 +707,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * non-authoring repair (`planRepair`, design M4 stage A): the plan it makes
    * passes the host's mechanical half again (`repairedRootPlan`) and is
    * returned, traced, without spending an attempt; one the host refuses
-   * takes the ordinary refusal path, its message naming the deltas.
+   * takes the ordinary refusal path, its message naming the deltas and the
+   * routing note. A repair the host cannot read or apply is a reviewer fault
+   * like any other, but its re-review of the same plan reads why: blind, a
+   * deterministic mistake would be repeated until the attempts ran out, and
+   * the planner, charged a top-tier replan, could not fix the reviewer's deltas.
    */
   private async reviewedRootPlan(args: {
     propose: (feedback: readonly string[], context?: PlanContext) => Promise<Plan>;
@@ -723,6 +729,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     let pending: Plan | undefined;
     let pendingFacts: readonly string[] = [];
     let reviewerFault = false;
+    // Why the host could not apply the reviewer's own repair of the pending plan (ATOMA_REVIEW_REPAIR).
+    let repairFaults: string[] = [];
     // The last refused plan as its planner wrote it (ATOMA_REVIEW_REPAIR): kept
     // through an unparseable reply, so the next one may still answer in deltas.
     let refused: PlanBase | undefined;
@@ -746,6 +754,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
           continue;
         }
         reviewerFault = false;
+        repairFaults = [];
         // Zero tokens, before the review: every host finding on the suites in one refusal (runs 2e6bdcfc, 760fef4c).
         // Only once the caller's own precheck passed: a finding is remembered as told only when it is sent.
         const own = args.precheck?.(pending);
@@ -776,7 +785,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       const model = reviewerFault ? this.validationModel : this.rootReviewModel();
       const reviewed = args.from ? { ...pending, subtasks: pending.subtasks.slice(args.from) } : pending;
       const verdict = await this.reviewRootDelegation(reviewed, args.reviewTask, ctx, args.allowDiscovery, model,
-        reviewerFault ? VALIDATION_PARAMS : ROOT_DELEGATION_REVIEW_PARAMS, reviewRefusals, pendingFacts);
+        reviewerFault ? VALIDATION_PARAMS : ROOT_DELEGATION_REVIEW_PARAMS, reviewRefusals, pendingFacts, repairFaults);
       if (verdict.approved) {
         if (!verdict.delegationReview) throw new Error('Delegation contract review approved without an enforced classification');
         if (!verdict.planRepair) return { plan: pending, review: verdict.delegationReview, model, trace: [] };
@@ -790,11 +799,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
             { kind: 'plan', ts, atom: this.name, payload: { repaired: true, plan: repaired } },
           ] };
         }
-        // The host's half refused what the reviewer approved: the planner hears why, with the deltas.
+        // The host's half refused what the reviewer approved: the planner hears why, with the deltas,
+        // whose indices are the reviewed (routed) plan's: the note maps them back to the planner's own.
         const stated = `The host refused the review's planRepair: ${repaired} ${repairNote(verdict.planRepair.deltas)}`;
+        const note = routingIndexNote(reviewed);
         failure = stated;
         ctx.recordRunStat?.('plan-refusal');
-        refusals.push(`Delegation contract rejected before execution: ${stated}`);
+        refusals.push(`Delegation contract rejected before execution: ${stated}${note ? ` ${note}` : ''}`);
         reviewRefusals.push(stated);
         retry = '';
         ctx.logger.warn(`[l3] ${stated}`);
@@ -806,6 +817,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       ctx.recordRunStat?.('plan-refusal');
       if (verdict.delegationRefusal === 'reviewer') {
         reviewerFault = true;
+        if (verdict.refusedRepair === 'unreadable') repairFaults.push(verdict.reasoning);
         ctx.logger.warn(`[l3] delegation reviewer failed (${verdict.reasoning.slice(0, 200)}); reviewing the same plan on ${this.validationModel}`);
         continue;
       }
@@ -835,8 +847,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * completed prefix; then the mechanical half no model re-reads: the
    * caller's own precheck, a parallel output collision the repair introduced
    * (never `acceptL3RootPlan`'s coached replan), the zero-token suite
-   * precheck, any suite import that does not resolve, and the classification
-   * enforced on the amended remaining plan. A split adds phases.
+   * precheck, a suite import the repair left unresolved, and the
+   * classification enforced on the amended remaining plan. Only what the
+   * repair INTRODUCED refuses it: the review already read the proposed plan's
+   * collisions and import facts. No reviewer delta adds or moves a phase.
    */
   private async repairedRootPlan(pending: Plan, amendedTail: Plan, review: DelegationReview,
     args: { precheck?: (plan: Plan) => string | undefined; reviewTask: Task; from: number; allowDiscovery: boolean },
@@ -851,12 +865,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     if (collided.length) return `the repaired plan runs parallel phases that declare the same outputs: ${collided.join(', ')}.`;
     const suites = planSuitePrecheck(planSuites(amended, args.from), ctx.mechanicalPlanRejections ??= new Set(), `root:${this.name}`);
     if (suites.refusal) return suites.refusal;
-    const unresolved = await unresolvedSuiteImports(remaining, ctx);
+    const unresolved = await unresolvedSuiteImports(remaining, ctx, { ...pending, subtasks: pending.subtasks.slice(args.from) });
     if (unresolved.length) return `a suite import of the repaired plan does not resolve: ${unresolved.join('; ')}.`;
     const refusal = enforceParsedDelegationReview(remaining, review, args.allowDiscovery);
     if (refusal) return refusal.reasoning;
-    const added = tail.subtasks.length - (pending.subtasks.length - args.from);
-    if (added !== 0 && this.pendingPlannedPhases !== null) this.pendingPlannedPhases += added;
     return amended;
   }
 
@@ -2010,7 +2022,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     const block = reviewsTests ? await planSuiteFactsBlock(plan, ctx) : '';
     const hostFacts = [...suites.facts, ...(block ? [block] : [])];
     // ONE model verdict, whether it decides or audits a Jev approval.
-    const modelVerdict = (audit: boolean, review?: { model: string; params: GenerationParams }) =>
+    const modelVerdict = (audit: boolean, review?: { model: string; params: GenerationParams }, repairFaults?: readonly string[]) =>
       llmVerdict({
         ctx,
         model: review?.model ?? this.validationModel,
@@ -2025,7 +2037,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // routing on facts, not on name-based guesses.
         targetContext: buildTargetContext(plan, this.registry),
         ...(reviewsTests ? { delegationContract: { plan, allowDiscovery: false, hostFacts, previousRefusals: this.cellReviewRefusals.get(planner) ?? [],
-          ...(reviewRepairEnabled() ? { repairs: true } : {}) } } : {}),
+          ...(reviewRepairEnabled() ? { repairs: true, ...(repairFaults?.length ? { repairFaults } : {}) } : {}) } } : {}),
         ...(audit ? { audit: true } : {}),
       });
     // Jev fast path — see L2Atom.validatePlan. Approve or defer, never refuse.
@@ -2044,7 +2056,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     if (jevApproved) return jevApproved;
     const reviewedVerdict = reviewsTests ? await this.reviewChildDelegation(child, modelVerdict, ctx) : await modelVerdict(false);
     const verdict = reviewedVerdict.approved && reviewedVerdict.planRepair
-      ? await this.repairedCellPlan(reviewedVerdict, reviewedVerdict.planRepair, task, planner, ctx) : reviewedVerdict;
+      ? await this.repairedCellPlan(reviewedVerdict, reviewedVerdict.planRepair, plan, task, planner, ctx) : reviewedVerdict;
     // Memoised under the PROPOSED plan's bytes: the same plan proposed again gets the same repair, without a call.
     if (reviewKey && verdict.approved) this.reviewedTestPlans.set(reviewKey, verdict);
     // A model refusal carries no delegationRefusal stamp; only the host's own
@@ -2053,8 +2065,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       const list = this.cellReviewRefusals.get(planner) ?? [];
       list.push(refusalWithRequests(verdict));
       this.cellReviewRefusals.set(planner, list);
-      // The host refused the review's own repair: no model refused this plan, so it is never bounded into execution.
-      if (reviewedVerdict.approved) return verdict;
+      // The host refused the review's own repair, here or inside the review: no model refused this
+      // plan, so it is never bounded into execution.
+      if (verdict.refusedRepair === 'host') return verdict;
       const unsatisfiable = verdict.unsatisfiableSuites ?? [];
       if (list.length > L3Atom.MAX_CELL_PLAN_REFUSALS && unsatisfiable.length > 0) {
         const named = unsatisfiable.map(entry => entry.suite === 'plan' ? 'the plan-level suite' : `subtask ${entry.suite}'s suite`).join(', ');
@@ -2078,25 +2091,31 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    * A cell review's approval with the reviewer's repair (design M5, behind
    * ATOMA_REVIEW_REPAIR), once the host's mechanical half passed on the plan
    * it makes: the zero-token suite precheck, any suite import that does not
-   * resolve, and the classification enforced again. It carries that plan as
+   * resolve, a parallel output collision, and the classification enforced
+   * again; an import or collision refuses only when the repair introduced it
+   * (the review read the proposed plan's). It carries that plan as
    * `amendedPlan`, which `superviseLoop` executes; the child's strategy is
    * unchanged, since it names no subtask. A repair the host refuses is a
    * refusal of the plan naming the deltas, as at the root: the planner and
-   * the next review hear both. No model reviewed the amended plan's host
-   * facts, hence the import check the root's repair runs too.
+   * the next review hear both, and it is never bounded into execution
+   * (`refusedRepair`). No model reviewed the amended plan's host facts,
+   * hence the import check the root's repair runs too.
    */
   private async repairedCellPlan(verdict: PositiveVerdict, repair: NonNullable<PositiveVerdict['planRepair']>,
-    task: Task, planner: string, ctx: RunContext): Promise<Verdict> {
+    proposed: Plan, task: Task, planner: string, ctx: RunContext): Promise<Verdict> {
     if (!verdict.delegationReview) throw new Error('Delegation contract review approved without an enforced classification');
     const amended = preservePlanLiteralContracts(repair.plan, task.description);
     const refused = (why: string): Verdict => {
       const stated = `The host refused the review's planRepair: ${why} ${repairNote(repair.deltas)}`;
       ctx.logger.warn(`[l3] ${stated.slice(0, 400)}`);
-      return delegationRefusal(stated, 'plan');
+      return { ...delegationRefusal(stated, 'plan'), refusedRepair: 'host' };
     };
+    const before = new Set(parallelDeclaredOutputCollision(proposed)?.paths ?? []);
+    const collided = (parallelDeclaredOutputCollision(amended)?.paths ?? []).filter(path => !before.has(path));
+    if (collided.length) return refused(`the repaired plan runs parallel subtasks that declare the same outputs: ${collided.join(', ')}.`);
     const suites = planSuitePrecheck(planSuites(amended), ctx.mechanicalPlanRejections ??= new Set(), planner);
     if (suites.refusal) return refused(suites.refusal);
-    const unresolved = await unresolvedSuiteImports(amended, ctx);
+    const unresolved = await unresolvedSuiteImports(amended, ctx, proposed);
     if (unresolved.length) return refused(`a suite import of the repaired plan does not resolve: ${unresolved.join('; ')}.`);
     const enforced = enforceParsedDelegationReview(amended, verdict.delegationReview, false);
     if (enforced) return refused(enforced.reasoning);
@@ -2119,12 +2138,12 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
    */
   private async reviewChildDelegation(
     child: L2Atom,
-    modelVerdict: (audit: boolean, review?: { model: string; params: GenerationParams }) => Promise<Verdict>,
+    modelVerdict: (audit: boolean, review?: { model: string; params: GenerationParams }, repairFaults?: readonly string[]) => Promise<Verdict>,
     ctx: RunContext,
   ): Promise<Verdict> {
-    const attempt = async (review?: { model: string; params: GenerationParams }): Promise<Verdict> => {
+    const attempt = async (review?: { model: string; params: GenerationParams }, repairFaults?: readonly string[]): Promise<Verdict> => {
       try {
-        return await modelVerdict(false, review);
+        return await modelVerdict(false, review, repairFaults);
       } catch (error) {
         if (!(error instanceof ValidationError) || ctx.signal.aborted) throw error;
         return delegationRefusal(`Delegation contract review was unparseable: ${error.message.slice(0, 300)}`, 'reviewer');
@@ -2134,7 +2153,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     if (first.approved || first.delegationRefusal !== 'reviewer') return first;
     const model = this.rootReviewModel();
     ctx.logger.warn(`[l3] delegation reviewer failed on ${child.name}'s plan (${first.reasoning.slice(0, 200)}); reviewing the same plan on ${model}`);
-    const second = await attempt({ model, params: ROOT_DELEGATION_REVIEW_PARAMS });
+    // A repair the host could not apply is named to the re-review (ATOMA_REVIEW_REPAIR), never repeated blind.
+    const second = await attempt({ model, params: ROOT_DELEGATION_REVIEW_PARAMS },
+      first.refusedRepair === 'unreadable' ? [first.reasoning] : undefined);
     return second;
   }
 

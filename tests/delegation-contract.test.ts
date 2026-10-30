@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { DISCOVERY_REPORT_CHARS, L3Atom, ROOT_PLAN_ATTEMPTS, discoveryInputs, routeCrossBucketVerification } from '../src/atoms/L3Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
-import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewRequest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, misreadDelegationReview, previousRefusalsNote, refusalWithRequests, reviewedPlanRepair, routingIndexNote } from '../src/atoms/delegationReview.js';
+import { DELEGATION_REVIEW_HEADER, DELEGATION_REVIEW_REQUEST, approvalDigest, delegationReviewRequest, delegationReviewTaskKey, enforceDelegationReview, inheritedObligationsNote, misreadDelegationReview, previousRefusalsNote, parseRepairingReview, refusalWithRequests, routingIndexNote } from '../src/atoms/delegationReview.js';
 import type { RootDelegationApproval, RootPhaseCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { parseVerdict, planSchema, reviewerPlanDeltaSchema } from '../src/atoms/json.js';
 import { superviseLoop, type SupervisionHooks } from '../src/core/supervisor.js';
@@ -17,7 +17,7 @@ import { MockLlmClient } from '../src/core/llm.js';
 import { modelForTier } from '../src/core/models.js';
 import { ValidationError } from '../src/core/errors.js';
 import { ROOT_DELEGATION_REVIEW_PARAMS } from '../src/atoms/cost.js';
-import { VALIDATION_PARAMS, VALIDATION_SYSTEM_PROMPT } from '../src/atoms/verdict.js';
+import { VALIDATION_PARAMS, VALIDATION_SYSTEM_PROMPT, llmVerdict } from '../src/atoms/verdict.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -1016,6 +1016,9 @@ describe('root delegation review robustness', () => {
     ]));
 
     it('binds the recorded approval exactly as this replica computes it', () => {
+      // The contract as production reads it today: ATOMA_REVIEW_REPAIR off.
+      vi.stubEnv('ATOMA_REVIEW_REPAIR', '0');
+      onTestFinished(() => { vi.unstubAllEnvs(); });
       const { tissue } = actors();
       const task: Task = { description: 'Implement signed addition', inputs: { a: 1 } };
       const actor = { name: tissue.name, atomId: tissue.atomId, version: tissue.registryVersion() };
@@ -1637,6 +1640,79 @@ describe('capability routing under the root review', () => {
       }
     });
   });
+  // Design M3/M4 behind ATOMA_REVIEW_REPAIR: the host's routing marks and a
+  // refused plan's retained base, on a plan the host routed before review.
+  describe('under ATOMA_REVIEW_REPAIR', () => {
+    beforeEach(() => { vi.stubEnv('ATOMA_REVIEW_REPAIR', '1'); });
+    afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+
+    it('keeps the host routing marks on the parts of a plan a criteria.assign repair amended', async () => {
+      const actors = routingRegistry();
+      const deltas = [{ kind: 'criteria.assign', target: 1, criteria: ['c3'] }];
+      const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [dagPlan(actors)],
+        review: (plan) => ({ ...classify(plan), planRepair: { deltas } }) });
+      const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites() };
+      const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+      const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+      const delivered = await tissue.handle({ description: 'Build the application',
+        criteria: [{ id: 'c3', behaviour: 'module A renders the page', source: 'user' }] }, ctx);
+
+      expect(delivered.trace[0]?.kind).toBe('plan-repaired');
+      const executed = execute.mock.calls[0]![1];
+      expect(executed.subtasks[1]?.criteria).toEqual(['c3']);
+      const marks = routeCrossBucketVerification(planSchema.parse(dagPlan(actors)), actors.registry).subtasks.map((subtask) => subtask.routedFrom);
+      expect(marks.filter(Boolean)).toHaveLength(2);
+      expect(executed.subtasks.map((subtask) => subtask.routedFrom)).toEqual(marks);
+    });
+
+    it('maps the indices of a repair the host refused back to the planner\'s own, with the routing note', async () => {
+      const actors = routingRegistry();
+      // b.ts and the README both write the notes; only the checkpoint between them orders them.
+      const notes = (plan: ReturnType<typeof dagPlan>) => ({ ...plan, subtasks: plan.subtasks.map((subtask, index) =>
+        index === 2 || index === 4 ? { ...subtask, outputs: [...(subtask.outputs ?? []), 'NOTES.md'] } : subtask) });
+      // Routed indices: the README is subtask 5, after the checkpoint's two host parts.
+      const deltas = [{ kind: 'dependsOn.set', target: 5, dependsOn: [0] }];
+      let reviews = 0;
+      const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [notes(dagPlan(actors)), notes(dagPlan(actors))],
+        review: (plan) => reviews++ === 0 ? { ...classify(plan), planRepair: { deltas } } : classify(plan) });
+      const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites() };
+      const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+      vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+      await tissue.handle({ description: 'Build the application' }, ctx);
+
+      const rootPlans = model.requests.filter((req) => req.role === 'plan' && req.actor?.tier === 3);
+      expect(rootPlans).toHaveLength(2);
+      const feedback = rootPlans[1]!.userContent;
+      expect(feedback).toContain("The host refused the review's planRepair: the repaired plan runs parallel phases that declare the same outputs: NOTES.md.");
+      expect(feedback).toContain(`${JSON.stringify(deltas)}.) HOST CAPABILITY ROUTING: subtasks 3 and 4 are the host's browser then exact-shell verification of planner subtask 3`);
+    });
+
+    it('retains a refused routed plan as its planner wrote it: the next plan prompt shows no host part', async () => {
+      const actors = routingRegistry();
+      const refusal = { approved: false, reasoning: 'GAP: b.ts has no suite.', scope: 'ephemeral', modifications: { additionalContext: 'Add a suite for b.ts.' } };
+      let reviews = 0;
+      const model = routingModel({ cell: actors.shell, molecule: actors.molecule, rootPlans: [dagPlan(actors), dagPlan(actors)],
+        review: (plan) => reviews++ === 0 ? refusal : classify(plan) });
+      const ctx: RunContext = { ...makeCtx(), llm: model.llm, tools: passingSuites() };
+      const tissue = L3Atom.buildWithModel(actors.tissue, actors.registry, 'mock');
+      vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+      await tissue.handle({ description: 'Build the application' }, ctx);
+
+      // The review read the routed plan: six subtasks, two of them host parts.
+      expect(model.reviewedPlans[0]?.subtasks).toHaveLength(6);
+      const rootPlans = model.requests.filter((req) => req.role === 'plan' && req.actor?.tier === 3);
+      expect(rootPlans).toHaveLength(2);
+      const lines = rootPlans[1]!.userContent.split('\n');
+      const header = lines.findIndex((line) => line.startsWith('PREVIOUS PLAN (digest '));
+      expect(header).toBeGreaterThan(-1);
+      const shown = JSON.parse(lines[header + 1]!) as Plan;
+      expect(shown.subtasks.map((subtask) => subtask.description)).toEqual(dagPlan(actors).subtasks.map((subtask) => subtask.description));
+      expect(shown.subtasks.some((subtask) => 'routedFrom' in subtask)).toBe(false);
+    });
+  });
 });
 
 // Run 7a7af324 (2026-10-16): the root review refused the third plan because its
@@ -2185,16 +2261,16 @@ describe('repair-not-refuse at the root review (ATOMA_REVIEW_REPAIR)', () => {
     expect(delivered.trace[1]?.payload).toEqual({ repaired: true, plan: executed });
   });
 
-  it('(b) refuses a repair whose split part runs a suite importing what nothing before it writes, and the planner hears both', async () => {
+  /** Subtraction built on addition: its suite imports both modules, so it must wait for the addition. */
+  const SUB_ON_ADD = "import { test, expect } from 'vitest';\nimport { add } from './add.ts';\nimport { sub } from './sub.ts';\ntest('subtracts', () => {\n  expect(sub(5, 3)).toBe(2);\n  expect(sub(add(1, 1), 2)).toBe(0);\n});";
+
+  it('(b) refuses a repair that leaves a suite import unresolved, and the planner hears it on its retained plan', async () => {
     const { tissue, cellName } = cellActors();
-    // The second part runs the subtraction suite, but sub.ts is written only by a later phase.
-    const split = [{ kind: 'suite.split', target: 0, into: [
-      { description: 'Implement addition', suiteFrom: 0 },
-      { description: 'Check subtraction early', suiteFrom: 1 },
-    ] }];
-    const sequential = { ...twoModules(cellName, 'sequential'), subtasks: twoModules(cellName).subtasks.map(({ dependsOn: _d, ...subtask }) => subtask) };
-    const ctx = { ...makeCtx({ llm: routed([reply(cellName, sequential), reply(cellName, sequential)],
-      [approve(3, false, split), approve(2, false)]) }), tools: emptyWorkspace };
+    // The review drops the dependency the subtraction suite needs: add.ts is then written concurrently.
+    const unchain = [{ kind: 'dependsOn.set', target: 1, dependsOn: [] }];
+    const chained = { ...twoModules(cellName), subtasks: [twoModules(cellName).subtasks[0], { ...twoModules(cellName).subtasks[1], acceptanceTests: { ...subSuite, source: SUB_ON_ADD } }] };
+    const ctx = { ...makeCtx({ llm: routed([reply(cellName, chained), reply(cellName, chained)],
+      [approve(2, false, unchain), approve(2, false)]) }), tools: emptyWorkspace };
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
 
     await tissue.handle({ description: 'Implement signed addition and subtraction' }, ctx);
@@ -2202,16 +2278,56 @@ describe('repair-not-refuse at the root review (ATOMA_REVIEW_REPAIR)', () => {
     const plans = ctx.llm.calls.filter(call => call.role === 'plan');
     expect(plans).toHaveLength(2);
     expect(plans[1]?.userContent).toContain("The host refused the review's planRepair: a suite import of the repaired plan does not resolve");
-    expect(plans[1]?.userContent).toContain('./sub.ts: declared only by a subtask this suite does not wait for');
-    expect(plans[1]?.userContent).toContain('"kind":"suite.split"');
+    expect(plans[1]?.userContent).toContain('./add.ts: declared only by a subtask this suite does not wait for');
+    expect(plans[1]?.userContent).toContain('"kind":"dependsOn.set"');
+    // The refused plan is retained for the planner's deltas.
+    expect(plans[1]?.userContent).toContain('PREVIOUS PLAN (digest ');
     // The next review reads the host's refusal of the previous repair.
     const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
     expect(reviews).toHaveLength(2);
     expect(reviews[1]?.userContent).toContain("The host refused the review's planRepair");
-    expect((execute.mock.calls[0]?.[1] as Plan).subtasks).toHaveLength(2);
+    expect((execute.mock.calls[0]?.[1] as Plan).subtasks[1]?.dependsOn).toEqual([0]);
   });
 
-  it('(c) reads a refusal without its refusalKind as the plan\'s, never as a reviewer fault', async () => {
+  it('accepts a repair on a plan whose untouched suite imports what is absent: the review already read that fact', async () => {
+    const { tissue, cellName } = cellActors();
+    const ABSENT = ADD.replace("import { add } from './add.ts';", "import { add } from './add.ts';\nimport { fixture } from './fixtures/absent.ts';");
+    const unchain = [{ kind: 'dependsOn.set', target: 1, dependsOn: [] }];
+    const absent = { ...twoModules(cellName), subtasks: [{ ...twoModules(cellName).subtasks[0], acceptanceTests: { ...addSuite, source: ABSENT } }, twoModules(cellName).subtasks[1]] };
+    const ctx = { ...makeCtx({ llm: routed([reply(cellName, absent)], [approve(2, true, unchain)]) }), tools: emptyWorkspace };
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    await tissue.handle({ description: 'Implement signed addition and subtraction' }, ctx);
+
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews[0]?.userContent).toContain('./fixtures/absent.ts → not present now, and no subtask declares it');
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(1);
+    expect((execute.mock.calls[0]?.[1] as Plan).subtasks[1]?.dependsOn).toBeUndefined();
+  });
+
+  it.each([
+    ['dependsOn.set', 'concat', [0], [{ kind: 'dependsOn.set', target: 1, dependsOn: [] }]],
+    ['aggregation.set', 'sequential', undefined, [{ kind: 'aggregation.set', aggregation: { mode: 'concat' } }]],
+  ] as const)('refuses a %s repair that introduces a parallel output collision, quoting the deltas', async (_kind, mode, dependsOn, deltas) => {
+    const { tissue, cellName } = cellActors();
+    const shared = (plan: ReturnType<typeof twoModules>) => ({ ...plan, subtasks: plan.subtasks.map(({ dependsOn: _d, ...subtask }, index) => ({
+      ...subtask, outputs: [...subtask.outputs, 'index.ts'], ...(index === 1 && dependsOn ? { dependsOn } : {}),
+    })) });
+    const proposed = shared(twoModules(cellName, mode));
+    const ctx = { ...makeCtx({ llm: routed([reply(cellName, proposed), reply(cellName, proposed)],
+      [approve(2, false, [...deltas]), approve(2, false)]) }), tools: emptyWorkspace };
+    const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+
+    await tissue.handle({ description: 'Implement signed addition and subtraction' }, ctx);
+
+    const plans = ctx.llm.calls.filter(call => call.role === 'plan');
+    expect(plans).toHaveLength(2);
+    expect(plans[1]?.userContent).toContain("The host refused the review's planRepair: the repaired plan runs parallel phases that declare the same outputs: index.ts.");
+    expect(plans[1]?.userContent).toContain(JSON.stringify(deltas));
+    expect((execute.mock.calls[0]?.[1] as Plan).aggregation.mode).toBe(mode);
+  });
+
+  it('(c) reads a refusal without its refusalKind as the plan\'s, never as a reviewer fault, and the verdict says so', async () => {
     const { tissue, cellName } = cellActors();
     const refusal = JSON.stringify({ approved: false, reasoning: 'GAP: no negative case for subtraction.', scope: 'ephemeral',
       modifications: { additionalContext: 'Assert sub(1, 2) is -1.' } });
@@ -2225,23 +2341,34 @@ describe('repair-not-refuse at the root review (ATOMA_REVIEW_REPAIR)', () => {
     expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(2);
     const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
     expect(reviews.map(call => [call.model, call.params])).toEqual([[modelForTier(2), ROOT_DELEGATION_REVIEW_PARAMS], [modelForTier(2), ROOT_DELEGATION_REVIEW_PARAMS]]);
+    // The production verdict: stamped the plan's, its named kind kept; without `repairs`, neither.
     const plan = planSchema.parse(unchained);
-    expect(enforceDelegationReview(plan, refusal, false)).toMatchObject({ approved: false, delegationRefusal: 'plan' });
-    expect(enforceDelegationReview(plan, JSON.stringify({ ...JSON.parse(refusal), refusalKind: 'coverage' }), false))
-      .toMatchObject({ delegationRefusal: 'plan', refusalKind: 'coverage' });
+    const verdictOf = async (text: string, repairs: boolean) => {
+      const review = makeCtx();
+      review.llm.enqueueText(text);
+      return llmVerdict({ ctx: review, model: 'mock', supervisorName: tissue.name, supervisorTier: 3, subject: 'PLAN', child: tissue,
+        task: { description: 'Implement signed addition and subtraction' }, payload: plan,
+        delegationContract: { plan, allowDiscovery: false, ...(repairs ? { repairs: true } : {}) } });
+    };
+    const plain = await verdictOf(refusal, true);
+    expect(plain).toMatchObject({ approved: false, delegationRefusal: 'plan' });
+    expect(plain.approved === false && 'refusalKind' in plain).toBe(false);
+    expect(await verdictOf(JSON.stringify({ ...JSON.parse(refusal), refusalKind: 'coverage' }), true))
+      .toMatchObject({ approved: false, delegationRefusal: 'plan', refusalKind: 'coverage' });
     // An unknown kind reads as none, never as an unparseable verdict.
     const unknownKind = parseVerdict(JSON.stringify({ ...JSON.parse(refusal), refusalKind: 'fan-out' }));
     expect(unknownKind.approved === false ? unknownKind.refusalKind : 'approved').toBeUndefined();
-    delete process.env['ATOMA_REVIEW_REPAIR'];
-    expect(enforceDelegationReview(plan, refusal, false)).toMatchObject({ delegationRefusal: 'reviewer' });
+    const ordinary = await verdictOf(JSON.stringify({ ...JSON.parse(refusal), refusalKind: 'coverage' }), false);
+    expect(ordinary.approved === false ? [ordinary.delegationRefusal, ordinary.refusalKind] : 'approved').toEqual([undefined, undefined]);
   });
 
   it('(d) amends only the remaining phases of a resumed plan, and its recorded approval binds the amended plan alone', async () => {
     const { tissue } = actors();
-    const task: Task = { description: 'Implement signed addition', inputs: { a: 1 } };
+    const task: Task = { description: 'Implement signed addition', inputs: { a: 1 },
+      criteria: [{ id: 'c1', behaviour: 'signed sums are correct', source: 'user' }] };
     const saved = planSchema.parse({ ...makePlan({ subtasks: [
       { description: 'Write the shared types', outputs: ['types.ts'] },
-      { description: 'Write the fixtures', outputs: ['fixtures.ts'], criteria: ['fixtures exist'] },
+      { description: 'Write the fixtures', outputs: ['fixtures.ts'] },
       { description: 'Implement signed addition', outputs: ['add.ts'], acceptanceTests: addSuite },
     ] }), aggregation: { mode: 'sequential' } });
     const done: Result = { ...result, summary: 'phase done' };
@@ -2256,13 +2383,13 @@ describe('repair-not-refuse at the root review (ATOMA_REVIEW_REPAIR)', () => {
     // Recorded under another model: the remaining phase is reviewed again, and repaired.
     const stale = { digest: 'f'.repeat(64), from: 2, review: classified(1, false) };
     const first = resuming(saved, stale);
-    first.ctx.llm.enqueueText(approve(1, false, [{ kind: 'criteria.assign', target: 0, criteria: ['signed sums are correct'] }]));
+    first.ctx.llm.enqueueText(approve(1, false, [{ kind: 'criteria.assign', target: 0, criteria: ['c1'] }]));
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
     await tissue.handle(task, first.ctx);
 
     const amended = execute.mock.calls[0]?.[1] as Plan;
     expect(JSON.stringify(amended.subtasks.slice(0, 2))).toBe(JSON.stringify(saved.subtasks.slice(0, 2)));
-    expect(amended.subtasks[2]).toEqual({ ...saved.subtasks[2], criteria: ['signed sums are correct'] });
+    expect(amended.subtasks[2]).toEqual({ ...saved.subtasks[2], criteria: ['c1'] });
     const recorded = first.planned.mock.calls[0]?.[4];
     expect(recorded?.from).toBe(2);
     expect(first.planned.mock.calls[0]?.[1]).toEqual(amended);
@@ -2277,34 +2404,65 @@ describe('repair-not-refuse at the root review (ATOMA_REVIEW_REPAIR)', () => {
     expect(unamended.ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
   });
 
-  it('(e) reads a reviewer suite.replace as a schema error: the same plan is reviewed again, never amended', async () => {
-    const { tissue, cellName } = cellActors();
-    const unchained = { ...twoModules(cellName), subtasks: twoModules(cellName).subtasks.map(({ dependsOn: _d, ...subtask }) => subtask) };
+  it('(e) reads a reviewer suite.replace, a split, or criteria named by text as a reviewer fault whose re-review hears why, never amended', async () => {
+    const unchained = { ...twoModules('Urea'), subtasks: twoModules('Urea').subtasks.map(({ dependsOn: _d, ...subtask }) => subtask) };
     const replace = [{ kind: 'suite.replace', target: 1, source: `${SUB}\n// one more case` }];
     expect(reviewerPlanDeltaSchema.safeParse(replace[0]).success).toBe(false);
-    // A split part carrying its own source is refused too: the reviewer writes no suite.
+    // A split is the planner's, never the reviewer's: its parts would run whole sibling suites and share outputs.
     expect(reviewerPlanDeltaSchema.safeParse({ kind: 'suite.split', target: 0, into: [
-      { description: 'a', suiteFrom: 0 }, { description: 'b', suiteFrom: 0, acceptanceTests: addSuite },
+      { description: 'a', suiteFrom: 0 }, { description: 'b', suiteFrom: 0 },
     ] }).success).toBe(false);
-    expect(reviewedPlanRepair(planSchema.parse(unchained), approve(2, true, replace))).toMatchObject({ delegationRefusal: 'reviewer' });
+    const plan = planSchema.parse(unchained);
+    expect(parseRepairingReview(plan, approve(2, true, replace), [])).toMatchObject({ delegationRefusal: 'reviewer', refusedRepair: 'unreadable' });
+    // Criteria are named by id, and only by an id of the reviewed task.
+    const byText = [{ kind: 'criteria.assign', target: 0, criteria: ['signed sums are correct'] }];
+    expect(parseRepairingReview(plan, approve(2, true, byText), ['c1'])).toMatchObject({ delegationRefusal: 'reviewer', refusedRepair: 'unreadable' });
+    expect(parseRepairingReview(plan, approve(2, true, [{ ...byText[0], criteria: ['c1'] }]), ['c1'])).toMatchObject({ repair: { deltas: [{ criteria: ['c1'] }] } });
 
-    const ctx = makeCtx({ llm: routed([reply(cellName, unchained)], [approve(2, true, replace), approve(2, true)]) });
+    for (const deltas of [replace, byText]) {
+      const { tissue, cellName } = cellActors();
+      const proposed = { ...unchained, subtasks: unchained.subtasks.map(subtask => ({ ...subtask, preferredChild: cellName })) };
+      const ctx = makeCtx({ llm: routed([reply(cellName, proposed)], [approve(2, true, deltas), approve(2, true)]) });
+      const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+      const delivered = await tissue.handle({ description: 'Implement signed addition and subtraction',
+        criteria: [{ id: 'c1', behaviour: 'signed sums are correct', source: 'user' }] }, ctx);
+
+      expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(1);
+      const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+      expect(reviews).toHaveLength(2);
+      expect(reviews[1]?.params).toEqual(VALIDATION_PARAMS);
+      expect(reviews[0]?.userContent).not.toContain('YOUR EARLIER planRepair');
+      expect(reviews[1]?.userContent).toContain('YOUR EARLIER planRepair OF THIS SAME PLAN COULD NOT BE APPLIED');
+      expect(reviews[1]?.userContent).toContain(deltas === byText ? 'not an id of this task\'s acceptance criteria (c1)' : 'planRepair.deltas.0.kind: Invalid discriminator value');
+      expect((execute.mock.calls[0]?.[1] as Plan).subtasks[1]?.acceptanceTests?.source).toBe(SUB);
+      expect((execute.mock.calls[0]?.[1] as Plan).subtasks[0]?.criteria).toBeUndefined();
+      expect(delivered.trace.some(entry => entry.kind === 'plan-repaired')).toBe(false);
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('never drops a planRepair the reply carries outside the classified object: the same plan is reviewed again', async () => {
+    const { tissue, cellName } = cellActors();
+    const unchained = { ...twoModules(cellName), subtasks: twoModules(cellName).subtasks.map(({ dependsOn: _d, ...subtask }) => subtask) };
+    // Nested in the classification, the schema would strip it and the approval would run the unrepaired plan.
+    const misplaced = JSON.stringify({ approved: true, reasoning: 'scope reviewed',
+      delegationReview: { ...classified(2, true), planRepair: { deltas: [{ kind: 'obligation.add', target: 0, obligation: 'dom-interaction' }] } } });
+    const ctx = makeCtx({ llm: routed([reply(cellName, unchained)], [misplaced, approve(2, true)]) });
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
-    const delivered = await tissue.handle({ description: 'Implement signed addition and subtraction' }, ctx);
 
-    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(1);
+    await tissue.handle({ description: 'Implement signed addition and subtraction' }, ctx);
+
     const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
     expect(reviews).toHaveLength(2);
-    expect(reviews[1]?.params).toEqual(VALIDATION_PARAMS);
-    expect((execute.mock.calls[0]?.[1] as Plan).subtasks[1]?.acceptanceTests?.source).toBe(SUB);
-    expect(delivered.trace.some(entry => entry.kind === 'plan-repaired')).toBe(false);
+    expect(reviews[1]?.userContent).toContain('a planRepair outside the approval object that holds delegationReview');
+    expect(execute).toHaveBeenCalledOnce();
   });
 
   it('leaves the request, an approval\'s repair and the digest exactly as today with the flag off', async () => {
     delete process.env['ATOMA_REVIEW_REPAIR'];
     expect(delegationReviewRequest(false)).toBe(DELEGATION_REVIEW_REQUEST);
     expect(delegationReviewRequest(true)).not.toBe(DELEGATION_REVIEW_REQUEST);
-    expect(delegationReviewRequest(true)).toContain('You never write or edit suite source or an expect( line');
+    expect(delegationReviewRequest(true)).toContain('You never write, edit or split a suite, nor write an expect( line');
     const { tissue, cellName } = cellActors();
     const unchain = [{ kind: 'dependsOn.set', target: 1, dependsOn: [] }];
     const ctx = makeCtx({ llm: routed([reply(cellName, twoModules(cellName, 'sequential'))], [approve(2, false, unchain)]) });

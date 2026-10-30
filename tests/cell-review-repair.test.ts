@@ -32,6 +32,8 @@ afterEach(() => {
 
 const ADD = "import { test, expect } from 'vitest';\nimport { add } from './add.ts';\ntest('adds', () => {\n  expect(add(2, 3)).toBe(5);\n  expect(add(-2, 1)).toBe(-1);\n});";
 const SUB = "import { test, expect } from 'vitest';\nimport { sub } from './sub.ts';\ntest('subtracts', () => {\n  expect(sub(5, 3)).toBe(2);\n  expect(sub(1, 2)).toBe(-1);\n});";
+/** Subtraction built on addition: its suite imports both modules, so it must wait for the addition. */
+const SUB_ON_ADD = "import { test, expect } from 'vitest';\nimport { add } from './add.ts';\nimport { sub } from './sub.ts';\ntest('subtracts', () => {\n  expect(sub(5, 3)).toBe(2);\n  expect(sub(add(1, 1), 2)).toBe(0);\n});";
 
 /** Two modules the planner fanned out; the review finds the second must wait for the first. */
 const cellPlan = {
@@ -131,14 +133,14 @@ describe('the cell review repairs the plan it approves (ATOMA_REVIEW_REPAIR, des
     expect(again.approved && again.amendedPlan).toEqual(repaired.plan);
   });
 
-  it('refuses a repair whose split part runs a suite importing what nothing before it writes: the cell replans, hearing why', async () => {
+  it('refuses a repair that leaves a suite import unresolved: the cell replans, hearing why', async () => {
     const { tissue, cell, dispatched } = actors();
-    // The second part runs the subtraction suite, but sub.ts is written by a parallel subtask.
-    const split = [{ kind: 'suite.split', target: 0, into: [
-      { description: 'Implement addition', suiteFrom: 0 },
-      { description: 'Check subtraction early', suiteFrom: 1 },
-    ] }];
-    const ctx = { ...makeCtx({ llm: routed([reply, reply], [approve(3, split), approve(2)]) }), tools: emptyWorkspace };
+    // The subtraction suite imports add.ts too; the review drops the dependency that orders it.
+    const chained = { ...cellPlan, subtasks: [cellPlan.subtasks[0], { ...cellPlan.subtasks[1], dependsOn: [0],
+      acceptanceTests: { ...cellPlan.subtasks[1]!.acceptanceTests, source: SUB_ON_ADD } }] };
+    const proposed = JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'Existing module author' }, chained]);
+    const unchain = [{ kind: 'dependsOn.set', target: 1, dependsOn: [] }];
+    const ctx = { ...makeCtx({ llm: routed([proposed, proposed], [approve(2, unchain), approve(2)]) }), tools: emptyWorkspace };
     // The refusal reaches the cell planner as coaching, through the parent's hooks.
     const coached = vi.fn<SupervisionHooks<L2Atom>['applyByScope']>(child => Promise.resolve(child));
 
@@ -146,20 +148,103 @@ describe('the cell review repairs the plan it approves (ATOMA_REVIEW_REPAIR, des
 
     expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(2);
     const refusal = coached.mock.calls[0]?.[1];
-    expect(refusal).toMatchObject({ approved: false, delegationRefusal: 'plan' });
+    expect(refusal).toMatchObject({ approved: false, delegationRefusal: 'plan', refusedRepair: 'host' });
     expect(refusal?.reasoning).toContain("The host refused the review's planRepair: a suite import of the repaired plan does not resolve");
-    expect(refusal?.reasoning).toContain('"kind":"suite.split"');
+    expect(refusal?.reasoning).toContain('./add.ts: declared only by a subtask this suite does not wait for');
+    expect(refusal?.reasoning).toContain('"kind":"dependsOn.set"');
     const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
     expect(reviews).toHaveLength(2);
     expect(reviews[1]?.userContent).toContain("The host refused the review's planRepair");
     // The second plan was approved as proposed and runs unrepaired.
-    expect(dispatched.map(subtask => subtask.description)).toEqual(cellPlan.subtasks.map(subtask => subtask.description));
+    expect(dispatched.map(subtask => subtask.dependsOn)).toEqual([undefined, [0]]);
     expect(result.trace.map(entry => entry.kind)).not.toContain('plan-repaired');
   });
 
-  it('throws on an execute with no planned strategy, where the reviewed plan would be dropped', async () => {
+  it('accepts a repair on a plan whose untouched suite imports what is absent: the review already read that fact', async () => {
+    const { tissue, cell, dispatched } = actors();
+    const ABSENT = ADD.replace("import { add } from './add.ts';", "import { add } from './add.ts';\nimport { fixture } from './fixtures/absent.ts';");
+    const absent = { ...cellPlan, subtasks: [{ ...cellPlan.subtasks[0]!, acceptanceTests: { ...cellPlan.subtasks[0]!.acceptanceTests, source: ABSENT } }, cellPlan.subtasks[1]] };
+    const proposed = JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'Existing module author' }, absent]);
+    const ctx = { ...makeCtx({ llm: routed([proposed], [approve(2, chain)]) }), tools: emptyWorkspace };
+
+    await superviseLoop(tissue, cell, task, ctx, hooks);
+
+    expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')[0]?.userContent).toContain('./fixtures/absent.ts → not present now');
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(1);
+    expect(dispatched.map(subtask => subtask.dependsOn)).toEqual([undefined, [0]]);
+  });
+
+  it('refuses a repair that introduces a parallel output collision, quoting the deltas', async () => {
+    const { tissue, cell, dispatched } = actors();
+    const shared = { ...cellPlan, subtasks: cellPlan.subtasks.map((subtask, index) => ({
+      ...subtask, outputs: [...subtask.outputs, 'index.ts'], ...(index === 1 ? { dependsOn: [0] } : {}),
+    })) };
+    const proposed = JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'Existing module author' }, shared]);
+    const unchain = [{ kind: 'dependsOn.set', target: 1, dependsOn: [] }];
+    const ctx = { ...makeCtx({ llm: routed([proposed, proposed], [approve(2, unchain), approve(2)]) }), tools: emptyWorkspace };
+    const coached = vi.fn<SupervisionHooks<L2Atom>['applyByScope']>(child => Promise.resolve(child));
+
+    await superviseLoop(tissue, cell, task, ctx, { ...hooks, applyByScope: coached });
+
+    const refusal = coached.mock.calls[0]?.[1];
+    expect(refusal).toMatchObject({ approved: false, delegationRefusal: 'plan', refusedRepair: 'host' });
+    expect(refusal?.reasoning).toContain("The host refused the review's planRepair: the repaired plan runs parallel subtasks that declare the same outputs: index.ts.");
+    expect(refusal?.reasoning).toContain(JSON.stringify(unchain));
+    expect(dispatched.map(subtask => subtask.dependsOn)).toEqual([undefined, [0]]);
+  });
+
+  it('never bounds into execution a repair the host refused inside the review, after MAX_CELL_PLAN_REFUSALS model refusals', async () => {
+    const { tissue, cell, dispatched } = actors();
+    const JOIN = "import { test, expect } from 'vitest';\nimport { add } from './add.ts';\nimport { sub } from './sub.ts';\ntest('joins', () => {\n  expect(sub(add(2, 3), 3)).toBe(2);\n  expect(add(sub(1, 2), 1)).toBe(0);\n});";
+    // The join carries the integration suite only while it comes after both modules.
+    const joined = { ...cellPlan, subtasks: [...cellPlan.subtasks,
+      { description: 'Join both modules', preferredChild: 'Urea', outputs: ['index.ts'], dependsOn: [0, 1], acceptanceTests: { requirement: 'joined', cwd: '.', source: JOIN } }] };
+    const proposed = JSON.stringify([{ strategy: 'reuse', target: 'Urea', reasoning: 'Existing module author' }, joined]);
+    const refuse = (gap: string) => JSON.stringify({ approved: false, reasoning: `GAP: ${gap}`, scope: 'ephemeral', modifications: { additionalContext: gap } });
+    const integrated = JSON.stringify({ ...JSON.parse(approve(3, [{ kind: 'dependsOn.set', target: 2, dependsOn: [0] }])),
+      delegationReview: { ...JSON.parse(approve(3)).delegationReview, integration: { kind: 'vitest', reason: 'the join is the integration' } } });
+    expect(L3Atom.MAX_CELL_PLAN_REFUSALS).toBe(2);
+    const ctx = { ...makeCtx({ llm: routed([proposed, proposed, proposed], [refuse('no negative addition case'), refuse('no zero subtraction case'), integrated]) }),
+      tools: emptyWorkspace };
+    const stats: string[] = [];
+    ctx.recordRunStat = (signal) => { stats.push(signal); };
+    const coached = vi.fn<SupervisionHooks<L2Atom>['applyByScope']>(child => Promise.resolve(child));
+
+    // The plan budget runs out on the third refusal: the escalation is observed, nothing runs after it.
+    await expect(superviseLoop(tissue, cell, task, ctx, { ...hooks, applyByScope: coached,
+      onFailed: () => Promise.reject(new Error('escalated')) })).rejects.toThrow('escalated');
+
+    expect(coached).toHaveBeenCalledTimes(3);
+    const third = coached.mock.calls[2]?.[1];
+    expect(third).toMatchObject({ approved: false, delegationRefusal: 'plan', refusedRepair: 'host' });
+    expect(third?.reasoning).toContain('plan integration');
+    expect(stats).not.toContain('cell-bound-applied');
+    expect(dispatched).toEqual([]);
+  });
+
+  it('reviews the same plan again, naming why, when the host cannot apply the review\'s repair', async () => {
+    const { tissue, cell, dispatched } = actors();
+    // The cell's task carries no criteria: an id the review assigns cannot be one of them.
+    const byText = [{ kind: 'criteria.assign', target: 0, criteria: ['signed sums are correct'] }];
+    const ctx = { ...makeCtx({ llm: routed([reply], [approve(2, byText), approve(2)]) }), tools: emptyWorkspace };
+
+    await superviseLoop(tissue, cell, task, ctx, hooks);
+
+    expect(ctx.llm.calls.filter(call => call.role === 'plan')).toHaveLength(1);
+    const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
+    expect(reviews).toHaveLength(2);
+    expect(reviews[0]?.userContent).not.toContain('YOUR EARLIER planRepair');
+    expect(reviews[1]?.userContent).toContain('YOUR EARLIER planRepair OF THIS SAME PLAN COULD NOT BE APPLIED');
+    expect(reviews[1]?.userContent).toContain('"signed sums are correct", not an id of this task\'s acceptance criteria (none)');
+    expect(dispatched.map(subtask => subtask.criteria)).toEqual([undefined, undefined]);
+  });
+
+  it('self-executes a plan with no planned strategy, as before the flag: a shared peer may have consumed it', async () => {
     const { cell } = actors();
-    await expect(cell.execute(task, { ...cellPlan, subtasks: [] } as unknown as Plan, makeCtx())).rejects.toThrow('execute without a planned strategy');
+    const selfExecute = vi.spyOn(cell as unknown as { selfExecute: L2Atom['execute'] }, 'selfExecute')
+      .mockResolvedValue({ output: {}, summary: 'self', trace: [], producedBy: { name: cell.name, tier: 2, viaFallback: false } });
+    await expect(cell.execute(task, { ...cellPlan, subtasks: [] } as unknown as Plan, makeCtx())).resolves.toMatchObject({ summary: 'self' });
+    expect(selfExecute).toHaveBeenCalledOnce();
   });
 });
 

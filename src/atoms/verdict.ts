@@ -1,6 +1,6 @@
 import { EvidenceReviewError } from '../core/errors.js';
 import type { GenerationParams, Plan, Result, RunContext, Task, Tier, Verdict } from '../core/types.js';
-import { citedUnsatisfiableSuites, delegationRefusal, delegationReviewRequest, enforceRepairedDelegationReview, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, previousRefusalsNote, reviewedPlanRepair, routingIndexNote } from './delegationReview.js';
+import { citedUnsatisfiableSuites, delegationRefusal, delegationReviewRequest, enforceParsedDelegationReview, enforceRepairedDelegationReview, inheritedObligationsNote, misreadDelegationReview, parseDelegationReview, parseRepairingReview, previousRefusalsNote, repairFaultsNote, routingIndexNote } from './delegationReview.js';
 import type { Atom } from '../core/atom.js';
 import { parseVerdict } from './json.js';
 import { ValidationError } from '../core/errors.js';
@@ -1035,6 +1035,8 @@ export async function llmVerdict(args: {
     plan: Plan; allowDiscovery: boolean; previousRefusals?: readonly string[]; hostFacts?: readonly string[];
     /** A review behind ATOMA_REVIEW_REPAIR: the repair rule, `planRepair` and `refusalKind` (design M4 stage A, M5 at the cell). */
     repairs?: boolean;
+    /** Why the host could not apply this reviewer's earlier repair of the SAME plan (`repairFaultsNote`). */
+    repairFaults?: readonly string[];
   };
   /** Defaults to VALIDATION_PARAMS; only the root delegation review passes its own (src/core/AGENTS.md). */
   params?: GenerationParams;
@@ -1238,6 +1240,7 @@ export async function llmVerdict(args: {
     args.delegationContract ? `Discovery allowed here: ${args.delegationContract.allowDiscovery}` : '',
     args.delegationContract ? inheritedObligationsNote(args.task) : '',
     args.delegationContract ? previousRefusalsNote(args.delegationContract.previousRefusals ?? []) : '',
+    args.delegationContract ? repairFaultsNote(args.delegationContract.repairFaults ?? []) : '',
     args.delegationContract ? routingIndexNote(args.delegationContract.plan) : '',
     // Host-computed facts about this plan's suites (`suiteRegexPrecheck`), never a verdict.
     args.delegationContract ? (args.delegationContract.hostFacts ?? []).join('\n') : '',
@@ -1296,16 +1299,20 @@ export async function llmVerdict(args: {
   }
   let delegationReview;
   let planRepair;
-  if (raw.approved && args.delegationContract) {
+  if (raw.approved && args.delegationContract?.repairs) {
+    // Read only where the caller applies it: a repair the loop ignored would execute the unrepaired plan.
+    const read = parseRepairingReview(args.delegationContract.plan, resp.text, (args.task.criteria ?? []).map(item => item.id));
+    if ('approved' in read) return read;
+    const refusal = enforceRepairedDelegationReview(args.delegationContract.plan, read.repair, read.review, args.delegationContract.allowDiscovery);
+    if (refusal) return refusal;
+    delegationReview = read.review;
+    planRepair = read.repair;
+  } else if (raw.approved && args.delegationContract) {
     const review = parseDelegationReview(resp.text);
     if ('approved' in review) return review;
-    // Read only where the caller applies it: a repair the loop ignored would execute the unrepaired plan.
-    const repair = args.delegationContract.repairs ? reviewedPlanRepair(args.delegationContract.plan, resp.text) : undefined;
-    if (repair && 'approved' in repair) return repair;
-    const refusal = enforceRepairedDelegationReview(args.delegationContract.plan, repair, review, args.delegationContract.allowDiscovery);
+    const refusal = enforceParsedDelegationReview(args.delegationContract.plan, review, args.delegationContract.allowDiscovery);
     if (refusal) return refusal;
     delegationReview = review;
-    planRepair = repair;
   }
   // Normalise `null` (an LLM emission quirk nullish() tolerates) to
   // `undefined` at the parse boundary — same treatment as branchName —

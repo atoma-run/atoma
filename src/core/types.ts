@@ -420,9 +420,10 @@ export type PositiveVerdict = {
   delegationReview?: import('../contracts/parentTests.js').DelegationReview;
   /**
    * Set by the host on an approved delegation review behind
-   * ATOMA_REVIEW_REPAIR: the reviewer's own non-authoring deltas, parsed by
-   * their separate schema after the verdict, and the reviewed plan they make
-   * (`reviewedPlanRepair`), which `delegationReview` classifies.
+   * ATOMA_REVIEW_REPAIR: the reviewer's own non-authoring deltas, read from
+   * the object that carries `delegationReview` and parsed by their own schema,
+   * and the reviewed plan they make (`parseRepairingReview`), which
+   * `delegationReview` classifies.
    */
   planRepair?: { readonly deltas: readonly unknown[]; readonly plan: Plan };
   /**
@@ -469,6 +470,14 @@ export type NegativeVerdict = {
   unsatisfiableSuites?: readonly import('../contracts/parentTests.js').UnsatisfiableSuite[];
   /** A delegation review's refusal behind ATOMA_REVIEW_REPAIR: the kind the reviewer named, when it named one. */
   refusalKind?: import('../contracts/parentTests.js').ReviewRefusalKind;
+  /**
+   * Set by the host when an approval's `planRepair` is what refused, behind
+   * ATOMA_REVIEW_REPAIR: `unreadable`, a repair it could not read or apply
+   * (a `reviewer` fault whose reason the re-review of the same plan reads);
+   * `host`, a repaired plan its mechanical half refused (never bounded into
+   * execution, `L3Atom.MAX_CELL_PLAN_REFUSALS`).
+   */
+  refusedRepair?: 'unreadable' | 'host';
 };
 export type Verdict = PositiveVerdict | NegativeVerdict;
 
