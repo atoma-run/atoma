@@ -169,8 +169,10 @@ describe('project run environment', () => {
         ATOMA_AUTH_GITHUB_CLIENT_SECRET: 'must-not-cross-either',
         ATOMA_LAUNCHER_SOCKET: '/run/atoma/launcher.sock',
         ATOMA_WORKER_IMAGE: 'registry.example/worker@sha256:' + 'a'.repeat(64),
+        ATOMA_REVIEW_REPAIR: '1',
       },
     });
+    expect(env['ATOMA_REVIEW_REPAIR']).toBe('1');
     expect(env['ATOMA_MODEL_CONTEXT_WINDOWS']).toBe('{"api:ollama:custom":65536}');
     expect(env['OLLAMA_CONTEXT_LENGTH']).toBe('65536');
     expect(env['ANTHROPIC_API_KEY']).toBe('model-key');

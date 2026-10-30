@@ -612,6 +612,9 @@ const FORWARDED_HOST_ENV = [
   'ATOMA_EGRESS_ALLOWLIST',
   'ATOMA_MODEL_CONTEXT_WINDOWS', 'OLLAMA_CONTEXT_LENGTH',
   'ATOMA_LAUNCHER_SOCKET', 'ATOMA_LAUNCHER_WORKSPACE_ID', 'ATOMA_WORKER_IMAGE',
+  // The review-repair switch (src/atoms/json.ts#reviewRepairEnabled) is read in
+  // the run child: without it here the host could not turn it on (2026-10-30).
+  'ATOMA_REVIEW_REPAIR',
   'HTTPS_PROXY',
   'HTTP_PROXY',
   'NO_PROXY',
