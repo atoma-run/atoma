@@ -247,7 +247,7 @@ interface RecordingCtx extends RendererCtx {
   buttons: RecordedButton[];
   filterButtons: RecordedButton[];
   /** Hover bubbles the view declared, in renderer space. */
-  tooltips: { x: number; y: number; width: number; height: number; text: string }[];
+  tooltips: { x: number; y: number; width: number; height: number; text: string; lane?: { x: number; width: number } }[];
   /** Panel frames, with the layer each was drawn into. */
   panels: { parent: Container; x: number; y: number; width: number; height: number }[];
   /** Account orbs the view asked the renderer to retain, in draw order. */
