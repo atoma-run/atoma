@@ -125,18 +125,29 @@ export const assertPreviewServablePath: WorkspacePathPolicy = (canonicalPath) =>
 };
 
 /**
- * Reads the classifier makes are SMALL by contract and the cap says so.
+ * The classifier's other inputs (`package.json`) are small by contract, and
+ * 256 KiB (design §6) says so.
  *
- * 256 KiB, from design §6, and it is a real bound rather than a formality: the
- * manifest is machine-written, one entry per probe, and a document larger than
- * this is not a record the classifier should be parsing whole. The trace's
- * lesson applies in reverse here — bound a file whose size is bounded by
- * contract, never one whose size grows with the work.
+ * The PROBE MANIFEST is not one of them. Its recording tools merge every
+ * passing check into it, with the bodies they observed, so its size grows
+ * with the work, which is the trace's lesson exactly. It is read under
+ * `DEFAULT_ARTIFACT_LIMITS`, the bound the seeding replay
+ * (`src/run/inheritedChecks.ts`) already reads it under: one manifest, one
+ * bound. Attica 075f5700 (2026-10-30) recorded 283,579 bytes, and the 256 KiB
+ * cap turned a Node delivery into `workspace-unreadable`.
  */
 export const PREVIEW_CLASSIFIER_LIMITS: ArtifactLimits = {
   ...DEFAULT_ARTIFACT_LIMITS,
   maxFileBytes: 256 * 1024,
 };
+
+function classifierLimits(relativePath: string): ArtifactLimits {
+  try {
+    return normalizeArtifactPath(relativePath) === PROBE_MANIFEST_FILENAME ? DEFAULT_ARTIFACT_LIMITS : PREVIEW_CLASSIFIER_LIMITS;
+  } catch {
+    return PREVIEW_CLASSIFIER_LIMITS;
+  }
+}
 
 /**
  * Read one classifier input, or `null` when it simply is not there.
@@ -155,7 +166,7 @@ export function readPreviewClassifierFile(
     const read = secureReadWorkspaceFile(
       workspaceRoot,
       relativePath,
-      PREVIEW_CLASSIFIER_LIMITS,
+      classifierLimits(relativePath),
       assertPreviewClassifiablePath
     );
     return read.bytes.toString('utf8');

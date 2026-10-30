@@ -120,6 +120,10 @@ very directory EMPTY before copying from it.
   Verification is read-only, and a classifier trusting a model's claim about
   its own deliverable is the supervisor replaying a child's command wearing a
   different hat.
+- The manifest is read under `DEFAULT_ARTIFACT_LIMITS`, the seeding replay's
+  bound, never the 256 KiB cap of `package.json`: its tools merge every
+  passing check, so it grows with the work (Attica 075f5700, 283,579 bytes,
+  read `workspace-unreadable`, 2026-10-30).
 - An `http` probe entry means `node` unless its host-observed `serverKind`
   is `static` and it carries no conflicting `entry` stamp. Static HTTP probes
   do not choose a Node entry; any other HTTP evidence keeps its precedence.

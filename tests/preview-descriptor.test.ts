@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { previewDescriptorSchema } from '../src/contracts/preview.js';
+import { DEFAULT_ARTIFACT_LIMITS } from '../src/projects/artifacts.js';
 import {
   PROBE_MANIFEST_FILENAME,
   validateProbeManifest,
@@ -530,13 +531,23 @@ describe('a workspace the host declines to describe', () => {
     expect(classifyDeliveredWorkspace(root).unavailableReason).toBe('workspace-unreadable');
   });
 
-  it('reports workspace-unreadable rather than parsing a manifest past the read cap', () => {
-    // The classifier's read cap is 256 KiB and belongs to the READ policy, so
-    // the refusal surfaces as the workspace being undescribable rather than as
-    // a verdict about the manifest's contents — nothing parsed it.
+  it('classifies a manifest past 256 KiB, as the seeding replay reads it', () => {
+    // Attica 075f5700 (2026-10-30): the recording tools merge every passing
+    // check, bodies included, so the manifest grows with the work. 283,579
+    // bytes under a 256 KiB classifier cap made a Node delivery
+    // `workspace-unreadable`. The manifest shares the seeding replay's bound.
+    const grown = manifest(...Array.from({ length: 30 }, () => httpEntry({ entry: 'server.js', body: 'x'.repeat(10 * 1024) })));
+    expect(grown.length).toBeGreaterThan(256 * 1024);
+    const root = workspace({ [PROBE_MANIFEST_FILENAME]: grown, 'server.js': '// entry\n' });
+    expect(classifyDeliveredWorkspace(root)).toMatchObject({ availability: 'available', kind: 'node', entry: 'server.js' });
+  });
+
+  it('reports workspace-unreadable rather than parsing a manifest past the shared artifact bound', () => {
+    // Past `DEFAULT_ARTIFACT_LIMITS`, the refusal belongs to the READ policy:
+    // the workspace is undescribable, never a verdict about the contents.
     const oversize = JSON.stringify({
       version: 1,
-      entries: [httpEntry({ body: 'x'.repeat(300 * 1024) })],
+      entries: [httpEntry({ body: 'x'.repeat(DEFAULT_ARTIFACT_LIMITS.maxFileBytes) })],
     });
     const root = workspace({
       [PROBE_MANIFEST_FILENAME]: oversize,

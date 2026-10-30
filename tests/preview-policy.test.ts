@@ -173,6 +173,17 @@ describe('preview classifier reads', () => {
     ).toContain('over-cap.json');
   });
 
+  it('reads the probe manifest under the shared artifact bound, not the 256 KiB one', () => {
+    // Its recording tools merge every passing check, so it grows with the work
+    // (Attica 075f5700, 283,579 bytes); package.json keeps the small cap.
+    const grown = 'x'.repeat(256 * 1024 + 1);
+    writeFileSync(join(root, PROBE_MANIFEST_FILENAME), grown);
+    writeFileSync(join(root, 'package.json'), grown);
+    expect(readPreviewClassifierFile(root, PROBE_MANIFEST_FILENAME)?.length).toBe(grown.length);
+    expect(readPreviewClassifierFile(root, `./${PROBE_MANIFEST_FILENAME}`)?.length).toBe(grown.length);
+    expectArtifactError(() => readPreviewClassifierFile(root, 'package.json'), 'limit');
+  });
+
   onPosix('propagates a symlinked classifier input rather than reading through it', () => {
     writeFileSync(join(root, 'real.json'), '{"main":"server.js"}');
     symlinkSync(join(root, 'real.json'), join(root, 'package.json'));
