@@ -4021,7 +4021,7 @@ export class GpuRenderer {
     height: number,
     active: boolean,
     onActivate: (id: string) => void,
-    options: { readonly iconOnly?: boolean; readonly tooltip?: string } = {}
+    options: { readonly iconOnly?: boolean; readonly tooltip?: string; readonly tooltipLane?: TooltipRegion['lane'] } = {}
   ) {
     const iconOnly = options.iconOnly === true;
     const firstAppearance = !prefersReducedMotion() && !this.seenAnimatedControls.has(id);
@@ -4237,6 +4237,7 @@ export class GpuRenderer {
         width: hitTarget.width,
         height: hitTarget.height,
         text: options.tooltip,
+        ...(options.tooltipLane ? { lane: options.tooltipLane } : {}),
       });
     }
     return container;

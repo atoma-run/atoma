@@ -1,4 +1,4 @@
-import { UI_CSS_VARS } from '../src/viz/client-gl/ui-layout.js';
+import { UI_CSS_VARS, UI_SPACE } from '../src/viz/client-gl/ui-layout.js';
 import { RUN_SHUTDOWN_MESSAGE } from '../src/contracts/runShutdown.js';
 import { relativeTime } from '../src/viz/client-gl/renderer/relative-time.js';
 import { drawPlatform } from '../src/viz/client-gl/renderer/views/platform.js';
@@ -569,7 +569,8 @@ function createRecordingCtx(): RecordingCtx {
       ctx.buttons.push({ parent, id, label, x, y, width, height, active, onActivate });
       ctx.recordHitTarget(parent, { id, role: 'tab', label, x, y, width, height });
       if (options?.tooltip) {
-        ctx.tooltip(parent, { x, y, width, height, text: options.tooltip });
+        ctx.tooltip(parent, { x, y, width, height, text: options.tooltip,
+          ...(options.tooltipLane ? { lane: options.tooltipLane } : {}) });
       }
       const container = new Container();
       parent.addChild(container);
@@ -1450,6 +1451,26 @@ describe('the nav rail', () => {
     expect(heading!.parent.toGlobal({ x: heading!.x, y: heading!.y }).y).toBe(rows[0]!.y + rows[0]!.height / 2);
     expect(heading?.node.anchor.x).toBe(0.5);
     expect(heading?.node.anchor.y).toBe(0.5);
+  });
+
+  // A tile's name opened beside the pointer, past a narrow rail, where the
+  // view's DOM fields begin and paint over the canvas (2026-10-30: "Burn-in"
+  // cut by the project chat). Its bubble stays on the canvas left of them.
+  it('keeps a rail tile\'s hover bubble left of the view\'s DOM fields', () => {
+    const railWidth = GPU_LAYOUT.sidebarMinWidth;
+    const domLeft = railWidth + GPU_LAYOUT.gap + UI_SPACE.card;
+    const ctx = createRecordingCtx();
+    drawSidebar(ctx, makeSnapshot({ view: 'projects', sceneCameraMode: 'focus' }), 720, railWidth, 720, 80);
+    const regions = ctx.tooltips.filter(region => ['Projects', 'Runs', 'Burn-in'].includes(region.text));
+    expect(regions.map(region => region.text)).toEqual(['Projects', 'Runs', 'Burn-in']);
+    // The layer keeps a bubble inside its lane (tests/viz-tooltip.test.ts).
+    for (const region of regions) {
+      expect(region.lane).toBeDefined();
+      expect(region.lane!.x).toBeGreaterThanOrEqual(0);
+      expect(region.lane!.x + region.lane!.width).toBeLessThanOrEqual(domLeft);
+      // Wide enough for the longest rail name on one line, at the layer's 7px advance.
+      expect(region.lane!.width).toBeGreaterThanOrEqual('Announcements'.length * 7.3 + 18);
+    }
   });
 
   it('draws one nav button per view, marking the current one', () => {

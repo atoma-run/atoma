@@ -341,6 +341,11 @@ export function drawSidebar(
     shadowSpan: iconOnly ? { x: buttonX - UI_SPACE.sm, width: itemWidth + UI_SPACE.card } : undefined });
   pane.content.label = 'sidebar-scroll-content';
   const rail = ctx.animatedLayer(pane.content, 'sidebar-rail');
+  // A tile's name opens beside the pointer, which on a narrow rail is past the
+  // rail's edge, where the view's DOM fields begin and paint over the canvas
+  // (2026-10-30: "Burn-in" cut by the project chat). Its lane is the canvas
+  // left of them: the rail plus the frame's gutter and inner pad.
+  const tooltipLane = { x: 0, width: width + GPU_LAYOUT.gap + UI_SPACE.card - 4 };
   for (const original of rows) {
     const row = { ...original, y: original.y - navigationTop };
     if (!pane.visible(row.y, row.y + row.height)) continue;
@@ -402,7 +407,7 @@ export function drawSidebar(
         row.height,
         snapshot.state.tuningPanelOpen,
         snapshot.onActivate,
-        iconOnly ? { iconOnly: true, tooltip: label } : undefined
+        iconOnly ? { iconOnly: true, tooltip: label, tooltipLane } : undefined
       );
       continue;
     }
@@ -417,7 +422,7 @@ export function drawSidebar(
       row.height,
       snapshot.state.view === row.view,
       snapshot.onActivate,
-      iconOnly ? { iconOnly: true, tooltip: label } : undefined
+      iconOnly ? { iconOnly: true, tooltip: label, tooltipLane } : undefined
     );
   }
   pane.extend(rowsBottom(rows) - navigationTop);
