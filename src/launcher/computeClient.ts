@@ -91,8 +91,8 @@ export async function connectComputeWorkspace(options: {
       socket.terminate();
       // Reject only after teardown: callers may establish another session, but
       // must never overlap an uncertain allocation from this attempt.
-      const retryable = !session && reason === 'socket-error' &&
-        ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN'].includes(extra.errorCode ?? '');
+      const retryable = !session && (reason === 'handshake-timeout' || (reason === 'socket-error' &&
+        ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN'].includes(extra.errorCode ?? '')));
       void lease.stop().then(confirmed => rejectReady(confirmed && retryable
         ? new ComputeConnectionUnavailableError()
         : new Error(confirmed ? 'Compute connection lost; reconciliation required' : 'Compute workload stop remains unconfirmed')));

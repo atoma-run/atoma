@@ -38,8 +38,10 @@ export class ComputeChannel extends EventEmitter<Events> {
     this.bind(socket);
   }
   static connect(options: NonNullable<ComputeChannel['client']>): ComputeChannel {
+    // computeClient owns the initial handshake deadline, including TLS/upgrade.
+    // A competing ws timer emits an untyped error before that retryable timeout.
     const socket = new WebSocket(options.url, COMPUTE_RESUME_PROTOCOL, { ca: options.ca,
-      maxPayload: COMPUTE_TRANSPORT_BYTES, perMessageDeflate: false, followRedirects: false, handshakeTimeout: 5000 });
+      maxPayload: COMPUTE_TRANSPORT_BYTES, perMessageDeflate: false, followRedirects: false });
     const channel = new ComputeChannel(socket, 'client');
     channel.client = options;
     return channel;

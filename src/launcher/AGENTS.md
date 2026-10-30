@@ -110,6 +110,8 @@ settings. A closed guard cannot be revived by a late response or reused after re
 Before a new session, transient DNS/socket failures retry with a one-second
 backoff capped at thirty seconds, only after engine-confirmed teardown. The
 inventory owner stays locked and each retry reconciles and rechecks capacity.
+The client owns the initial five-second handshake deadline, including TLS and
+upgrade; expiry before authenticated `ready` follows that same retry path.
 TLS, identity, protocol and unconfirmed-cleanup failures remain terminal; no
 command or interrupted run is replayed by this reconnect loop.
 

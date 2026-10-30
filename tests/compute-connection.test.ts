@@ -349,6 +349,46 @@ it('retains inventory ownership and reconnects the same real machine after a ref
   } finally { await machine.close(); reconcile.mockRestore(); }
 });
 
+it.each([
+  { phase: 'upgrade', confirmed: true }, { phase: 'upgrade', confirmed: false },
+  { phase: 'ready', confirmed: true }, { phase: 'ready', confirmed: false },
+] as const)('classifies a stalled $phase handshake only after confirmed teardown ($confirmed)', async ({ phase, confirmed }) => {
+  const front = createServer({ key: readFileSync(join(root, 'key')), cert: readFileSync(join(root, 'cert')) });
+  const wss = new WebSocketServer({ noServer: true });
+  const sockets = new Set<import('node:stream').Duplex>();
+  front.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
+  front.on('upgrade', (request, socket, head) => {
+    if (phase === 'ready') wss.handleUpgrade(request, socket, head, ws => {
+      ws.on('error', () => {}); // Accept TLS/WSS, but never return an authenticated ready.
+    });
+  });
+  front.listen(0, '127.0.0.1'); await once(front, 'listening');
+  const address = front.address();
+  if (!address || typeof address === 'string') throw new Error('Missing listener');
+  let release!: () => void;
+  const stopped = new Promise<void>(resolve => { release = resolve; });
+  const stopWorkloads = vi.fn(async () => { await stopped; if (!confirmed) throw new Error('Engine unavailable'); });
+  const assign = vi.fn(async () => { throw new Error('Must not assign before authentication'); });
+  let settled = false;
+  const result = connectComputeWorkspace({ url: `wss://127.0.0.1:${address.port}/compute/v1`,
+    ca: readFileSync(join(root, 'cert'), 'utf8'), machineId: randomUUID(), credential: 'a'.repeat(43),
+    capabilities, assign, stopWorkloads }).catch((error: unknown) => { settled = true; return error; });
+  try {
+    await vi.waitFor(() => expect(stopWorkloads).toHaveBeenCalledOnce(), { timeout: 7000 });
+    expect(settled).toBe(false);
+    expect(assign).not.toHaveBeenCalled();
+    release();
+    const error = await result;
+    expect(error).toBeInstanceOf(Error);
+    expect(error instanceof ComputeConnectionUnavailableError).toBe(confirmed);
+    if (!confirmed) expect(String(error)).toContain('unconfirmed');
+  } finally {
+    release(); await result;
+    for (const socket of sockets) socket.destroy();
+    wss.close(); await new Promise<void>(resolve => front.close(() => resolve()));
+  }
+}, 10000);
+
 it.each(['certificate', 'credential'] as const)('keeps a real %s refusal terminal rather than marking it retryable', async defect => {
   const owner = actor(), paired = pairing(owner);
   const error = await connectComputeWorkspace({ url, machineId: paired.deviceId,
@@ -359,6 +399,25 @@ it.each(['certificate', 'credential'] as const)('keeps a real %s refusal termina
   expect(error).toBeInstanceOf(Error);
   expect(error).not.toBeInstanceOf(ComputeConnectionUnavailableError);
 });
+
+it('does not classify a timed-out authenticated session as a pre-session retry', async () => {
+  const owner = actor(), paired = pairing(owner), link = await networkLink();
+  link.filter((direction, text) => {
+    const frame = JSON.parse(text) as { kind?: string; body?: { kind?: string } };
+    return direction !== 'down' || (frame.kind !== 'heartbeat' && frame.body?.kind !== 'heartbeat');
+  });
+  const stopWorkloads = vi.fn(async () => {});
+  try {
+    const error = await connectComputeWorkspace({ url: link.url, machineId: paired.deviceId,
+      credential: paired.credential, capabilities, ca: readFileSync(join(root, 'cert'), 'utf8'),
+      assign: async () => { throw new Error('Must not assign'); }, stopWorkloads })
+      .catch((error: unknown) => error);
+    expect(peers).toHaveLength(1); // The real gateway accepted identity and returned ready.
+    expect(stopWorkloads).toHaveBeenCalledOnce();
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(ComputeConnectionUnavailableError);
+  } finally { await link.close(); }
+}, 10000);
 
 it('closes the socket and rejects unknown effects even when persisting disconnection fails', async () => {
   const f = await connected(), command = message(f.ws), closed = once(f.ws, 'close');
