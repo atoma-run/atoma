@@ -206,6 +206,26 @@ candidate consumes a slot while its predecessor is still running. Hosting does
 not consume an LLM run slot. Disabled or unavailable hosting leaves the saved
 project preference intact and reports its unavailability.
 
+Install the hosting ingress from `deploy/hosting.nginx.conf`. It negotiates
+gzip for HTML and JSON responses, including private `no-store` JSON behind a
+forwarding proxy, and sends `Vary: Accept-Encoding`. Small JSON, event streams,
+partial responses and bodies already encoded by the application are left alone.
+This avoids resending a large uncompressed control snapshot on every poll;
+the application bytes and the gateway's access rules stay the same.
+
+Before installing a changed ingress, run the real nginx transport regression
+from the source checkout (nginx must be installed):
+
+```bash
+node tests/hosting-ingress-smoke.mjs deploy/hosting.nginx.conf /usr/sbin/nginx
+```
+
+It creates its own loopback-only nginx and synthetic HTTP fixture, verifies
+identity and compressed bodies, and exercises a three-second read deadline at
+96 KiB/s. It stops only its own child processes and retains its temporary logs.
+Then back up the installed configuration, check it with `nginx -t`, and reload
+nginx gracefully. No hosted application or container needs to restart.
+
 ## DNS and HTTPS
 
 One wildcard A record `*.app.atoma.run` points at the hosting ingress. No DNS
