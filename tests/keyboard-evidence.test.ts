@@ -25,7 +25,7 @@ it('keeps natural keyboard navigation, forced focus and a failed activation dist
     };
     const keys = [{ type: 'keypress', key: 'Tab' }, { type: 'keypress', key: 'Enter' }];
     const natural = await observe(page, keys);
-    expect(natural.observation.ok).toBe(true);
+    expect(natural.observation.ok, JSON.stringify(natural.observation)).toBe(true);
     expect(natural.line).toContain('keypress Tab');
     expect(natural.line).not.toContain(' on #borrow');
     expect(natural.line).toContain('"borrowed":true');

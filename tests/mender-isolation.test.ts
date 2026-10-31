@@ -29,6 +29,20 @@ describe.skipIf(process.env['ATOMA_MENDER_CONTAINER_TESTS'] !== '1')('mender con
     execFileSync('git', ['-C', repo, 'worktree', 'add', '--detach', work, 'HEAD'], { stdio: 'pipe' });
     const install = await runIsolatedMenderCommand('npm ci', [], { cwd: work, timeoutMs: 300_000 });
     expect(install.code, install.stdout + install.stderr).toBe(0);
+    // The image must supply the matching Node headers to native npm lifecycles.
+    // Rebuild with no network in a fresh container: a warm /tmp header cache
+    // from installation cannot hide a missing image-level build input.
+    const native = await runIsolatedMenderCommand('npm rebuild', ['better-sqlite3', '--build-from-source'], {
+      cwd: work, timeoutMs: 180_000, network: 'none',
+    });
+    expect(native.code, native.stdout + native.stderr).toBe(0);
+    const loaded = await runIsolatedMenderCommand('node', ['-e', `
+      const Database = require('better-sqlite3');
+      const db = new Database(':memory:');
+      if (db.prepare('select 42 as answer').get().answer !== 42) process.exit(1);
+      db.close();
+    `], { cwd: work, timeoutMs: 30_000, network: 'none' });
+    expect(loaded.code, loaded.stdout + loaded.stderr).toBe(0);
     // A fresh typecheck is the production failure: do not reuse an incremental cache.
     const typed = await runIsolatedMenderCommand('npm run typecheck', [], {
       cwd: work, timeoutMs: 300_000, network: 'none',

@@ -142,9 +142,19 @@
     },
     "@electron/get": {
       "global-agent": "4.1.3"
+    },
+    "minimatch": "11.0.3",
+    "@electron/asar": {
+      ".": "4.3.1",
+      "glob": "14.0.3"
+    },
+    "@electron/universal": "3.0.6",
+    "rimraf": {
+      "glob@<9": "$@atoma/legacy-glob"
     }
   },
   "devDependencies": {
+    "@atoma/legacy-glob": "file:scripts/compat/atoma-legacy-glob-1.0.0.tgz",
     "@eslint/js": "^10.0.1",
     "@headlessui/react": "^2.2.10",
     "@mlightcad/libredwg-web": "0.7.4",

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
@@ -17,6 +17,12 @@ import { openDb } from '../src/registry/db.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { projectRunHostLayout } from '../src/projects/coordinator.js';
 import { verdictsDirPath } from '../src/supervisor/paths.js';
+
+const accountHome = vi.hoisted(() => ({ value: undefined as string | undefined }));
+vi.mock('node:os', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  return { ...actual, homedir: () => accountHome.value ?? actual.homedir() };
+});
 
 /**
  * The earned state (trust counters, skill bodies, traces) is what one disk
@@ -232,7 +238,7 @@ describe('state backup CLI', () => {
     ).rejects.toThrow(/inside the repository/);
   });
 
-  it('resolves the archive tier against the real home, not an empty HOME', async () => {
+  it.each([false, true])('resolves the archive tier against the account home, not an empty HOME (archive present: %s)', async present => {
     // `join(process.env['HOME'] ?? '', '.atoma', 'archive')` resolved to the
     // RELATIVE `.atoma/archive` wherever HOME is unset — always on Windows —
     // so `existsSync` was false and the tier was skipped under a line reading
@@ -240,18 +246,29 @@ describe('state backup CLI', () => {
     // `homedir()` still answers an absolute path (passwd entry on POSIX,
     // USERPROFILE on win32), an empty-string join never can.
     const saved = process.env['HOME'];
+    accountHome.value = join(root, 'account-home');
+    const expected = join(accountHome.value, '.atoma', 'archive');
+    if (present) {
+      mkdirSync(expected, { recursive: true });
+      writeFileSync(join(expected, 'proof.txt'), 'fixture archive');
+    }
     delete process.env['HOME'];
     try {
       const res = await runBackup({ ...opts(), archiveDir: undefined });
-      const archive = res.skipped.find((entry) => entry.startsWith('archive'));
-      // Nothing here has an ~/.atoma/archive, so a skip is the right outcome;
-      // WHICH path it skipped is the assertion.
-      expect(archive).toBeDefined();
-      const named = /archive \((.*) missing\)/.exec(archive!)?.[1] ?? '';
-      expect(named, archive).not.toBe('');
-      expect(isAbsolute(named), `archive tier resolved to a relative path: ${named}`).toBe(true);
-      expect(named).toContain('.atoma');
+      if (present) {
+        expect(res.captured).toContain('archive.tar.gz');
+        expect((readManifest(res.snapshotDir)['archive'] as DirectoryTierManifest).source).toBe(expected);
+        expect(spawnSync('tar', ['-xOf', join(res.snapshotDir, 'archive.tar.gz'), 'archive/proof.txt'],
+          { encoding: 'utf8' }).stdout).toBe('fixture archive');
+      } else {
+        const archive = res.skipped.find((entry) => entry.startsWith('archive'));
+        expect(archive).toBeDefined();
+        const named = /archive \((.*) missing\)/.exec(archive!)?.[1] ?? '';
+        expect(isAbsolute(named), `archive tier resolved to a relative path: ${named}`).toBe(true);
+        expect(named).toBe(expected);
+      }
     } finally {
+      accountHome.value = undefined;
       if (saved === undefined) delete process.env['HOME'];
       else process.env['HOME'] = saved;
     }

@@ -1,0 +1,13 @@
+{
+  "name": "@atoma/legacy-glob",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Callback adapter for the glob API used by temp's legacy rimraf dependency",
+  "main": "index.cjs",
+  "dependencies": {
+    "glob-modern": "npm:glob@14.0.3"
+  },
+  "files": [
+    "index.cjs"
+  ]
+}

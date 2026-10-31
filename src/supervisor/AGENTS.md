@@ -159,6 +159,8 @@ readers never create queue tables or accept a caller-supplied evidence path.
   GitHub publisher token. Never give containers product state or credentials.
 - Chromium and its libraries live in the mender image, with Puppeteer downloads
   disabled. Each fresh command can run browser tests without an install cache.
+  Matching Node build headers also come from the pinned image, not a duplicated
+  download into the bounded tmpfs. Native rebuilds must work without networking.
   Synthetic read-only passwd/group files describe only the executing UID/GID;
   Node gets a 3072 MiB heap within the 4 GiB container limit. The 8 GiB
   production host retains the other half for the control plane and host services.
