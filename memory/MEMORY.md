@@ -14,6 +14,7 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Attica connection stability](attica-ingress-disconnections-2026-10-31.md) — 2026-10-31: nginx compression deployed, old failure reproduced, live five-minute check healthy; 1,059 listings and six file hashes/modes preserved
 - [Attica hosted control restored](attica-hosted-control-oom-2026-10-29.md) — 2026-10-29: OOM loop fixed directly; 1,010 listings retained; emergency runtime override recorded; no run or collection
 - [Attica same-checkpoint repair](attica-same-checkpoint-repair-2026-10-29.md) — source failed on Compute transport loss; automatic replay inconclusive at token ceiling, all proofs read, no accepted delivery
 - [Attica run 51c4e71d](attica-run-51c4e71d-2026-10-26.md) — 2026-10-26: analysis validated; seven fixes pushed d63cbdc6; Codex login-copy parallelism withdrawn (login-loss risk); Compute worker rollout + follow-up run pending
