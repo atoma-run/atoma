@@ -151,7 +151,8 @@
     "@electron/universal": "3.0.6",
     "rimraf": {
       "glob@<9": "$@atoma/legacy-glob"
-    }
+    },
+    "filelist": "2.0.2"
   },
   "devDependencies": {
     "@atoma/legacy-glob": "file:scripts/compat/atoma-legacy-glob-1.0.0.tgz",

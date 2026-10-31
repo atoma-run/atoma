@@ -32,3 +32,14 @@ invalid npm ls metadata despite installing. New compatibility test runs on
 all three native CI targets. Backup HOME fixture now covers absent/present
 archives without touching the real home. Keyboard assertion retains diagnostics;
 its one intermittent failure and unchanged successful reruns are preserved.
+
+First pushed repair756e9ac3: original static/audit, Linux mender and worker
+checks succeeded. New native Windows test caught FileList1.0.6 path.normalize
+backslashes against slash-normalized names under minimatch11. Pin upstream
+FileList2.0.2, whose globSync uses POSIX pattern normalization; retain the test
+and Windows failure. Follow the next exact revision through every workflow.
+
+Whole Attica data inventory before activation:7009 entries/6859 files,
+627836015 bytes; SHA256 378e9eb6409538d44a126ca27dbc26a207b9b1aceae04022ce545d50c1a0ba92.
+Helper data-inventory.mjs never follows links and retains full modes/ownership.
+Durable evidence: /Users/mgtf/.codex/visualizations/2026/10/27/01a17e33-a1fb-7a62-bd3f-0b05141ffc62/attica-ci-repair-20261031.

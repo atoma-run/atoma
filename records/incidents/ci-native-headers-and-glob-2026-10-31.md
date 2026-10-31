@@ -93,3 +93,15 @@ A separate full-suite keyboard observation failed once without diagnostics,
 then passed targeted and full verification without changing its assertion.
 The assertion now includes its saved observation on failure; the original
 failure and successful reruns are retained.
+
+## Windows follow-up caught by the native matrix
+
+Revision `756e9ac3` passed the original static/audit, fresh mender native-build
+and worker-isolation checks. The new Windows dependency regression found a
+second legacy consumer issue: FileList 1.0.6 normalizes a glob with the native
+Windows path separator, but matches it against slash-normalized file names.
+Under minimatch 11 this returns an empty list. Upstream FileList 2.0.2 keeps
+the same public API and normalizes the pattern with `path.posix.normalize`
+after converting separators. Pin that maintained release rather than adapting
+its matcher or weakening the native assertion. The original Windows failure
+is retained; the same test runs again on all three native targets.
