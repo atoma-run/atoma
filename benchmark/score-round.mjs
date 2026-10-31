@@ -5,7 +5,7 @@
  *   node benchmark/score-round.mjs --csv benchmark/results-round9.csv \
  *     --first-archive 197 [--workspaces ~/.atoma/workspaces] [--base build] \
  *     [--out benchmark/results-round9-scores.json] \
- *     [--scorer verify-tabstat.mjs --marker tabstat.js]
+ *     [--scorer verify-tabstat.mjs --marker tabstat.js] [--last-archive N]
  *
  * `--scorer` names the instrument beside this file (default `verify-maint.mjs`,
  * the wclite family) and `--marker` the file a mapped workspace must hold to
@@ -58,6 +58,13 @@ const workspaces = resolve(arg('workspaces', join(homedir(), '.atoma', 'workspac
 const base = arg('base', 'build');
 const outPath = arg('out');
 const scorer = arg('scorer', 'verify-maint.mjs');
+// When ANOTHER round ran after this one, the last run's workspace is no longer
+// live in `<base>/`: the next round's first run archived it, to the first free
+// suffix, which is `--last-archive`. Round 13 was scored once without it and
+// read round 14's live control workspace as its own held-out atoma run (7/9
+// for a workspace that scores 9/9), which is exactly the class of error the
+// mapping exists to prevent.
+const lastArchive = arg('last-archive') ? Number(arg('last-archive')) : null;
 const marker = arg('marker', 'wclite.js');
 
 if (!csvPath || !Number.isInteger(firstArchive) || firstArchive < 1) {
@@ -97,7 +104,7 @@ let previousMtime = 0;
 rows.forEach((row, k) => {
   const isLast = k === rows.length - 1;
   const dir = isLast
-    ? join(workspaces, base)
+    ? join(workspaces, lastArchive === null ? base : `${base}.prev${lastArchive}`)
     : join(workspaces, `${base}.prev${firstArchive + k + 1}`);
 
   const problems = [];
@@ -166,6 +173,6 @@ for (const arm of ['baseline', 'atoma']) {
 }
 
 if (outPath) {
-  writeFileSync(resolve(outPath), JSON.stringify({ csv: resolve(csvPath), firstArchive, workspaces, base, results }, null, 2));
+  writeFileSync(resolve(outPath), JSON.stringify({ csv: resolve(csvPath), firstArchive, lastArchive, workspaces, base, results }, null, 2));
   console.log(`\nwritten: ${outPath}`);
 }

@@ -1,0 +1,15 @@
+timestamp,arm,task_id,run_index,outcome,cost_usd,duration_s,llm_calls,opus_calls,sonnet_calls,haiku_calls,deterministic_phases,escalations,learned_skills,promotions,refusals,demotions,dispatch_fallbacks,trace
+2026-10-31T00:52:12.589Z,baseline,tabstat-maint,1,delivered,0.1315,73,1,0,0,0,0,0,0,0,0,0,0,2026-10-31T00-52-14-183-2f87372d.json
+2026-10-31T00:53:27.086Z,baseline,tabstat-maint,2,delivered,0.131,29,1,0,0,0,0,0,0,0,0,0,0,2026-10-31T00-53-28-279-15ee0399.json
+2026-10-31T00:53:57.189Z,baseline,tabstat-maint,3,delivered,0.1242,64,1,0,0,0,0,0,0,0,0,0,0,2026-10-31T00-53-58-316-c63f4d99.json
+2026-10-31T00:55:02.474Z,baseline,tabstat-maint,4,delivered,0.1086,62,1,0,0,0,0,0,0,0,0,0,0,2026-10-31T00-55-03-635-4f7acd00.json
+2026-10-31T00:56:05.806Z,baseline,tabstat-maint,5,delivered,0.1934,85,1,0,0,0,0,0,0,0,0,0,0,2026-10-31T00-56-07-014-616775c3.json
+2026-10-31T00:57:32.280Z,baseline,tabstat-maint,6,delivered,0.1453,67,1,0,0,0,0,0,0,0,0,0,0,2026-10-31T00-57-33-460-f888ae3a.json
+2026-10-31T00:58:40.117Z,atoma,tabstat-maint,1,delivered,1.4152,1327,127,0,0,0,0,1,2,0,2,0,0,2026-10-31T00-58-41-335-ad0cc449.json
+2026-10-31T01:20:48.266Z,atoma,tabstat-maint,2,delivered,0.9851,471,39,0,0,0,0,2,0,0,0,0,0,2026-10-31T01-20-49-686-b7b9c4bc.json
+2026-10-31T01:28:40.794Z,atoma,tabstat-maint,3,delivered,1.5327,935,64,0,0,0,0,0,0,0,0,0,0,2026-10-31T01-28-42-557-55bdd806.json
+2026-10-31T01:44:17.577Z,atoma,tabstat-maint,4,delivered,2.3868,1626,111,0,0,0,0,3,1,1,1,0,0,2026-10-31T01-44-18-818-3171cc21.json
+2026-10-31T02:11:24.925Z,atoma,tabstat-maint,5,delivered,1.177,1071,92,0,0,0,0,1,1,1,1,0,0,2026-10-31T02-11-26-273-0f780ce3.json
+2026-10-31T02:29:17.842Z,atoma,tabstat-maint,6,delivered,1.2014,891,72,0,0,0,0,1,1,0,2,0,1,2026-10-31T02-29-19-232-ed3934ad.json
+2026-10-31T02:44:10.317Z,baseline,tabstat-maint-2,1,delivered,0.1557,89,1,0,0,0,0,0,0,0,0,0,0,2026-10-31T02-44-11-669-fd4b2946.json
+2026-10-31T02:45:41.062Z,atoma,tabstat-maint-2,1,delivered,1.1604,1001,62,0,0,0,0,2,0,0,0,0,0,2026-10-31T02-45-42-325-c3e39b12.json

@@ -1,0 +1,50 @@
+
+> atoma@0.5.1 benchmark
+> tsx src/cli/benchmark.ts --config benchmark/experiment-round14.json --out benchmark/results-round14.csv --result benchmark/ROUND14.md
+
+== atoma cost-amortisation benchmark ==
+
+control arm  : sub:openai:gpt-5.6-sol
+treatment arm: L1=sub:openai:gpt-5.6-luna L2=sub:openai:gpt-5.6-terra L3=sub:openai:gpt-5.6-sol
+treatment protocol: current (the product as shipped: routed tissue, default depth, root acceptance, inline learning)
+primary task : tabstat-maint
+held-out task: tabstat-maint-2
+workspace seed : benchmark/seeds/tabstat
+plan         : 6 baseline + 0 atoma on the primary, then 1 + 0 on the held-out = 7 runs
+budget/run   : 1800s
+output       : /Users/mgtf/dev/atoma-bench/benchmark/results-round14.csv
+
+report       : /Users/mgtf/dev/atoma-bench/benchmark/ROUND14.md
+
+
+── A. control arm — frontier direct, primary task ──
+▶ baseline-tabstat-maint-01 … ✓ delivered  $0.1529  28s  llm=1  det=0  learned=0
+▶ baseline-tabstat-maint-02 … ✓ delivered  $0.2112  40s  llm=1  det=0  learned=0
+▶ baseline-tabstat-maint-03 … ✓ delivered  $0.1707  31s  llm=1  det=0  learned=0
+▶ baseline-tabstat-maint-04 … ✓ delivered  $0.2012  45s  llm=1  det=0  learned=0
+▶ baseline-tabstat-maint-05 … ✓ delivered  $0.2270  32s  llm=1  det=0  learned=0
+▶ baseline-tabstat-maint-06 … ✓ delivered  $0.1647  35s  llm=1  det=0  learned=0
+
+── C. control arm — held-out task ──
+▶ baseline-tabstat-maint-2-01 … ✓ delivered  $0.1969  37s  llm=1  det=0  learned=0
+
+== PRE-REGISTERED RESULT ==
+
+control  : one sub:openai:gpt-5.6-sol agent, plain tool loop, self-certifying
+treatment: atoma, L1=sub:openai:gpt-5.6-luna L2=sub:openai:gpt-5.6-terra L3=sub:openai:gpt-5.6-sol
+
+baseline (frontier direct) n=6: mean $0.1879, median $0.1860
+  runs: 0.153, 0.211, 0.171, 0.201, 0.227, 0.165
+atoma n=0: mean —, mean excluding run 1 —
+
+H1 NOT SUPPORTED within the runs performed: cumulative atoma cost never fell below the baseline.
+cumulative delta after 0 runs: — (positive = atoma cheaper in total)
+trend across the atoma series: first half — → second half —
+
+-- held-out task (novel, same family): memorisation control --
+  baseline n=1: mean $0.1969
+  atoma    n=0: mean —
+  If atoma is cheap here too, the learning generalised to the family.
+  If it is back at baseline cost, it had memorised the primary task.
+
+rows written to /Users/mgtf/dev/atoma-bench/benchmark/results-round14.csv

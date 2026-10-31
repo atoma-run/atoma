@@ -335,7 +335,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 | Subsystems under their own contract | 19 |
 | MCP tools | 64 |
 | Curated agent names | 118 molecules · 40 cells · 20 tissues |
-| Controlled benchmark rounds | 12 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
+| Controlled benchmark rounds | 14 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
 | Interface locales | 13 catalogs — 1 source, 12 translated |
 
 <!-- atoma:facts:end -->
@@ -362,13 +362,18 @@ Browse the [documentation index](docs/README.md) for current guides and the
 
 ## Historical measurements
 
-**Twelve controlled rounds** explored build and maintenance tasks against a
-single agent — a frontier model, and in later rounds cheaper Sonnet and Haiku
-agents. Results were mixed: some comparisons favoured atoma, while cheaper
-direct models matched or outperformed it on the tested maintenance tasks. They
-predate the 2026-08-18 state reset, so they do not establish savings or
-correctness for the current release. Read the [protocol](benchmark/PROTOCOL.md) and the
-[results](benchmark/RESULT.md) for context.
+**Fourteen controlled rounds** compared atoma with a single agent on build and
+maintenance tasks. Rounds 1–12 (August 2026) predate the 2026-08-18 state
+reset and are historical narrative. Rounds 13 and 14 (2026-10-31) measured
+the current release as it ships, on a three-file CLI maintenance task, against
+one `gpt-5.6-terra` agent and one `gpt-5.6-sol` agent: both controls were
+correct in every run, and atoma delivered the same correctness or less at
+roughly ten times the cost and sixteen times the wall clock. **On this family
+of work, supervision buys no correctness on the current release**, the third
+such result after rounds 10 and 12, and under the registered consequence no
+new gate, validator or heuristic is added until a task is found on which it
+measurably does. Read the [protocol](benchmark/PROTOCOL.md),
+[round 13](benchmark/ROUND13.md) and [round 14](benchmark/ROUND14.md).
 
 ## License
 
