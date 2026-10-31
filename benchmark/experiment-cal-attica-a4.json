@@ -1,0 +1,19 @@
+{
+  "_comment": "CALIBRATION 2026-10-31 (see PROTOCOL.md): control arm only, N=3, on the private Attica corpus task attica-a4; the seed is off-tree and its digest is in the protocol. atomaRuns is 0 on purpose.",
+  "primary": {
+    "id": "attica-a4",
+    "seed": "/Users/mgtf/.atoma/benchmark-seeds/attica-a4",
+    "goal": "Fix one review finding in the inherited error-report repair: run() catch sets state.persistenceError on secondary write failure, but it is never cleared; snapshot begins {...state,...durable}, so limiting a later assignment to error status does NOT prevent the stale field appearing during successful recovery or subsequent unrelated errors. Make persistenceError reflect only the current failure, preserving original reason and secondary failure visibility when it really happens. Prevent stale persistenceError being copied into durable state on a successful run. Preserve the existing process-survival repair. Add focused regression (or extend the newly added error-report-merge test from the immediately prior run) using real compiled server and offline fixture: inject both failures, observe both errors; restore writes, recover on SAME server and verify persistenceError absent while running and after completion, including persisted state; induce a later ordinary collection error whose reporting succeeds and ensure no stale secondary error. Keep original pre-existing tests, helpers, collector, dependencies and historical data unchanged; only the immediately prior new focused test may be extended. Show failing-before/passing-after against rebuilt code and root npm ci/check in a fresh filtered copy. Bounded strict child processes with cleanup, no swallowing unhandled errors. Report all modified paths including generated dist JS/map. No unrelated lifecycle changes or UI. Offline only; npm allowed; no live xe.gr/Spitogatos, personal profiles/production data or hosting changes."
+  },
+  "heldOut": {
+    "id": "attica-a4",
+    "seed": "/Users/mgtf/.atoma/benchmark-seeds/attica-a4",
+    "goal": "Fix one review finding in the inherited error-report repair: run() catch sets state.persistenceError on secondary write failure, but it is never cleared; snapshot begins {...state,...durable}, so limiting a later assignment to error status does NOT prevent the stale field appearing during successful recovery or subsequent unrelated errors. Make persistenceError reflect only the current failure, preserving original reason and secondary failure visibility when it really happens. Prevent stale persistenceError being copied into durable state on a successful run. Preserve the existing process-survival repair. Add focused regression (or extend the newly added error-report-merge test from the immediately prior run) using real compiled server and offline fixture: inject both failures, observe both errors; restore writes, recover on SAME server and verify persistenceError absent while running and after completion, including persisted state; induce a later ordinary collection error whose reporting succeeds and ensure no stale secondary error. Keep original pre-existing tests, helpers, collector, dependencies and historical data unchanged; only the immediately prior new focused test may be extended. Show failing-before/passing-after against rebuilt code and root npm ci/check in a fresh filtered copy. Bounded strict child processes with cleanup, no swallowing unhandled errors. Report all modified paths including generated dist JS/map. No unrelated lifecycle changes or UI. Offline only; npm allowed; no live xe.gr/Spitogatos, personal profiles/production data or hosting changes."
+  },
+  "baselineRuns": 3,
+  "atomaRuns": 0,
+  "heldOutBaselineRuns": 0,
+  "heldOutAtomaRuns": 0,
+  "timeoutMs": 1800000,
+  "treatmentProtocol": "current"
+}

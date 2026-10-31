@@ -1,0 +1,19 @@
+{
+  "_comment": "CALIBRATION 2026-10-31 (see PROTOCOL.md): control arm only, N=3, on the private Attica corpus task attica-a1; the seed is off-tree and its digest is in the protocol. atomaRuns is 0 on purpose.",
+  "primary": {
+    "id": "attica-a1",
+    "seed": "/Users/mgtf/.atoma/benchmark-seeds/attica-a1",
+    "goal": "Fix one demonstrated usability defect in saved-listing search. In browser/listing-selection.ts matchesQuery only lowercases text, so search Αθηνα / αθηνα / ΑΘΗΝΑ / decomposed Αθήνα fails to find stored Αθήνα; ΚΟΣΜΟΣ fails to find Κόσμος, and etage fails to find Étage. Make saved-listing substring search insensitive to case, Greek/French diacritics and canonically equivalent Unicode, including Greek final sigma variants. Apply the same search-only normalization to query and existing searchable fields, retaining exact original stored/displayed identifiers, location, description, exports and source objects. Do not transliterate between Greek and Latin, invent matches for unrelated scripts or modify source/store text. Preserve exact numeric sorting, municipality/gap filters, pagination, keyboard access, French valuation formatting and cached offline browsing/recovery. Add strict TypeScript behavioral tests through actual selectListings for accented/unaccented/decomposed Greek and French, final sigma, irrelevant/nonmatching text, numeric identifier search and combined filters. Tests must verify unchanged original records/display text and existing behavior. Run focused tests plus full npm run check and npm run build using controlled offline fixtures only. Preserve every existing data/archive/config/package/lockfile and historical dist asset with full permission bits and emptyOutDir:false; allow only new build assets and narrowly related source/tests. No dependency upgrades and no real xe.gr/Spitogatos traffic."
+  },
+  "heldOut": {
+    "id": "attica-a1",
+    "seed": "/Users/mgtf/.atoma/benchmark-seeds/attica-a1",
+    "goal": "Fix one demonstrated usability defect in saved-listing search. In browser/listing-selection.ts matchesQuery only lowercases text, so search Αθηνα / αθηνα / ΑΘΗΝΑ / decomposed Αθήνα fails to find stored Αθήνα; ΚΟΣΜΟΣ fails to find Κόσμος, and etage fails to find Étage. Make saved-listing substring search insensitive to case, Greek/French diacritics and canonically equivalent Unicode, including Greek final sigma variants. Apply the same search-only normalization to query and existing searchable fields, retaining exact original stored/displayed identifiers, location, description, exports and source objects. Do not transliterate between Greek and Latin, invent matches for unrelated scripts or modify source/store text. Preserve exact numeric sorting, municipality/gap filters, pagination, keyboard access, French valuation formatting and cached offline browsing/recovery. Add strict TypeScript behavioral tests through actual selectListings for accented/unaccented/decomposed Greek and French, final sigma, irrelevant/nonmatching text, numeric identifier search and combined filters. Tests must verify unchanged original records/display text and existing behavior. Run focused tests plus full npm run check and npm run build using controlled offline fixtures only. Preserve every existing data/archive/config/package/lockfile and historical dist asset with full permission bits and emptyOutDir:false; allow only new build assets and narrowly related source/tests. No dependency upgrades and no real xe.gr/Spitogatos traffic."
+  },
+  "baselineRuns": 3,
+  "atomaRuns": 0,
+  "heldOutBaselineRuns": 0,
+  "heldOutAtomaRuns": 0,
+  "timeoutMs": 1800000,
+  "treatmentProtocol": "current"
+}

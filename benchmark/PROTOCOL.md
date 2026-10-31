@@ -959,3 +959,127 @@ traces of 2026-10-01. The two arms still share their top model, which is what
 round 14's comparison needs; H13, H14, the scale, the budget and the scorer
 are unchanged. Recorded here because the first driver output, with the
 refusal, was overwritten by the real launch's log.
+
+## CALIBRATION — pre-registration, 2026-10-31 20:20 UTC, before any run
+
+Rounds 10, 12 and 13 measured the treatment against controls at the
+ceiling: terra and sol solved tabstat 7/7 at $0.14–0.19. Supervision cannot
+raise a full-mark rate above 1, so those rounds could only measure its cost.
+The question the thesis actually needs is whether supervision helps WHERE A
+SINGLE AGENT FAILS, and no task on which that is true has been measured.
+This calibration finds such tasks, with the control arm alone, before any
+treatment run is spent on them.
+
+### Corpus
+
+Four maintenance tasks on the Attica repository (private;
+`mgtf/atoma-attica-property-flipping`), each taken from its own history in
+the SWE-bench manner: the seed is the parent of a real fix commit, the goal
+is that fix's problem statement, and the score is the fix commit's own
+tests, HELD OUT of the workspace and run by `verify-heldout.mjs` after the
+workspace's own `npm run build`. Every pair was verified mechanically today:
+the held-out tests FAIL on the rebuilt seed and PASS with the fix applied and
+rebuilt (fail-to-pass). Seeds and bundles are off-tree under
+`~/.atoma/benchmark-seeds/` (the corpus is private); their digests are the
+sha256 over the sorted file digests, first 16 hex characters.
+
+| task | fix commit | seed (its parent) | seed files / digest | held-out tests (digest) |
+|---|---|---|---|---|
+| `attica-a1` saved-listing search folds case, Greek/French diacritics, final sigma | `44f703e30c` (2026-10-31, atoma run bb600a3f) | `5b5c7210b4` | 298 / `8c954caf5ffbb709` | listing-selection (2 tests) `dfff9668e339bd33` |
+| `attica-a2` control polls stay small with retained history; poll/refresh semantics | `4e66dfb144` (2026-10-29, owner) | `6e45aa3007` | 255 / `fafdf4793b948f6c` | control-volume (3 tests) `8385fb4736ceb2e1` |
+| `attica-a3` /api/start releases its own admission lock when scheduler.save throws | `b403443206` (2026-10-17, atoma) | `95704559d1` | 165 / `40d7a641fe093e94` | attica-control-start-admission (1 test) `1e4585f258180330` |
+| `attica-a4` persistenceError reflects only the current failure | `cf0f3592db` (2026-10-17, atoma) | `88a4f75545` | 169 / `676b4dc64a8c6414` | attica-control-error-report-merge (1 test) `6289133af93dd948` |
+
+Goals: a1, a3 and a4 are the production goals as the commit messages record
+them, with the clauses that cannot apply here removed from a1 (Chromium
+suites — no `/usr/bin/chromium` on this machine — and run-process clauses
+about `/tmp` logs, publication and hosting); a2's commit is the owner's and
+carries no statement, so its goal was written today from the held-out
+test's assertions, which is what a problem statement for a held-out test
+must do. The a1 Chromium proof file of the fix commit is NOT in its bundle.
+Goal texts are in `experiment-cal-attica-a{1,2,3,4}.json`, byte-identical
+for every arm that will ever run them. Per the owner's decision of today, no
+goal forbids a TypeScript migration, and the scorer judges behaviour only.
+
+A fifth task, `attica-challenge-v1` (`benchmark/attica-challenge-v1/`,
+corpus digest `3152bd61…`), runs through `benchmark:models` in the worker
+container with its eight-case suite, six cases held out, as its protocol
+states; it is the one task here that needs no repository setup.
+
+### Design
+
+- Control only: `--baseline --comparison` on a throwaway store, exactly the
+  rounds 13–14 control (`armLaunchArgs`/`armLaunchEnv`, `atomaRuns: 0`).
+  Model `sub:openai:gpt-5.6-terra`, as in round 13; the challenge task also
+  runs `sub:openai:gpt-5.6-sol` because `benchmark:models` takes two arms.
+- n = 3 runs per task, 30-minute budget per run, scored whatever the
+  driver's label. Secondaries: cost, wall clock, LLM calls.
+- RETENTION RULE, fixed now: a task enters round 15 when the control's
+  full-mark count is 1 or 2 of 3 (between one third and two thirds). A task
+  at 3/3 is at the ceiling and is dropped; a task at 0/3 is re-read for a
+  goal or scorer defect before any decision, and dropped if none is found.
+- If NO task is retained, that is the calibration's result: at this scale
+  of work the thesis has no territory on this corpus, round 15 is not run,
+  and the product consequence is the one registered under round 15 below.
+
+### Round 15, registered with the calibration
+
+On the retained tasks: 6 treatment runs per task (`treatmentProtocol:
+current`, the product as shipped, inline learning, same pins as round 13)
+beside the 3 calibration control runs plus 3 more control runs per task
+(6 vs 6), one held-out pair where a sibling task exists. Scored by the same
+held-out bundles, from the same archives.
+
+**H15.** On every retained task, atoma's full-mark count out of 6 is
+STRICTLY GREATER than the terra control's out of 6. Cost is reported per
+task beside it and is not part of the hypothesis: the question is whether
+supervision buys correctness where one agent fails.
+
+Consequences, stated now. H15 refuted (any retained task where atoma is not
+strictly better): the README states that the supervision thesis is refuted
+on the whole range tested, from a 60-second maintenance task to real
+repository repairs that a single agent gets wrong one time in three; the
+single-agent path becomes the product's default depth, and inline learning
+is turned off by default. H15 supported on every retained task: the
+product's territory is "tasks on which one agent fails", stated as such in
+the README with the measured rates, and the depth router is built around
+that boundary, measured again before any gate is added.
+
+### Threats to validity, stated now
+
+1. Three runs per task make a coarse sieve: a task at 1/3 could be a 50%
+   task or a 10% task. Round 15's 6 vs 6 is the measurement; this is the
+   selection, and the selection rule is fixed before the first run.
+2. a1, a3 and a4 were SOLVED IN PRODUCTION BY ATOMA under these goals, and
+   their held-out tests were written by the solving run: they encode that
+   run's reading of the goal. The control never saw them; neither will the
+   round-15 treatment, which runs on this machine's store, not production's.
+   A test that only the authoring solution can pass is a scorer defect and is
+   what the 0/3 re-read looks for.
+3. The seeds carry the repository's own suites and `dist/`; an agent may
+   break an unrelated suite and still score full here. The held-out bundle
+   measures the fix, not the whole repository's health; round 15 reports
+   `npm run check` on each delivery as a secondary.
+4. Subscription-served models, uncontrolled provider caches, a machine that
+   is not idle (load ≈3 at registration) — as in round 13.
+5. The challenge task is a pure function with eight cases; it may sit at
+   the ceiling like tabstat. It is here because its scorer already exists.
+
+**Output.** `benchmark/calibration-2026-10-31/`: one CSV, one driver report
+and one score file per task, and `CALIBRATION.md` with the retention
+decision. Launch, recorded here:
+
+```bash
+for t in attica-a1 attica-a2 attica-a3 attica-a4; do
+  ATOMA_MODEL_L1=sub:openai:gpt-5.6-luna ATOMA_MODEL_L2=sub:openai:gpt-5.6-terra \
+  ATOMA_MODEL_L3=sub:openai:gpt-5.6-sol ATOMA_BASELINE_MODEL=sub:openai:gpt-5.6-terra \
+  npm run benchmark -- --config benchmark/experiment-cal-$t.json \
+    --out benchmark/calibration-2026-10-31/results-$t.csv \
+    --result benchmark/calibration-2026-10-31/REPORT-$t.md
+done
+for n in 1 2 3; do
+  npm run benchmark:models -- --corpus benchmark/attica-challenge-v1/corpus.json \
+    --model sub:openai:gpt-5.6-terra --model sub:openai:gpt-5.6-sol \
+    --out benchmark/calibration-2026-10-31/challenge-$n --execute
+done
+```
