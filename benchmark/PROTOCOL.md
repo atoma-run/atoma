@@ -935,11 +935,27 @@ evidence for since August.
 
 ```bash
 ATOMA_MODEL_L1=sub:openai:gpt-5.6-luna ATOMA_MODEL_L2=sub:openai:gpt-5.6-terra \
-ATOMA_MODEL_L3=sub:openai:gpt-6-astra ATOMA_BASELINE_MODEL=sub:openai:gpt-5.6-terra \
+ATOMA_MODEL_L3=sub:openai:gpt-5.6-sol ATOMA_BASELINE_MODEL=sub:openai:gpt-5.6-terra \
 npm run benchmark -- --config benchmark/experiment-round13.json \
   --out benchmark/results-round13.csv --result benchmark/ROUND13.md
 ATOMA_MODEL_L1=sub:openai:gpt-5.6-luna ATOMA_MODEL_L2=sub:openai:gpt-5.6-terra \
-ATOMA_MODEL_L3=sub:openai:gpt-6-astra ATOMA_BASELINE_MODEL=sub:openai:gpt-6-astra \
+ATOMA_MODEL_L3=sub:openai:gpt-5.6-sol ATOMA_BASELINE_MODEL=sub:openai:gpt-5.6-sol \
 npm run benchmark -- --config benchmark/experiment-round14.json \
   --out benchmark/results-round14.csv --result benchmark/ROUND14.md
 ```
+
+### Amendment — 2026-10-31 00:50 UTC, before any round-13 run, nothing spent
+
+**`gpt-6-astra` replaced by `gpt-5.6-sol` on the treatment's L3 and as the
+round 14 control.** The first launch was refused at selector parsing, before
+any model call: the host ChatGPT subscription serves exactly `gpt-5.6-sol`,
+`gpt-5.6-terra` and `gpt-5.6-luna` (`CHATGPT_SUBSCRIPTION_MODELS`), and the
+production run whose pins this round copied reaches `gpt-6-astra` only through
+the requester's OWN login (`own:openai:`), which the operator path refuses by
+design (`allowOwn` is false without a supplied credential snapshot). Changing
+that rule for a measurement would measure a path no run takes. `gpt-5.6-sol`
+is the frontier model the host subscription serves and the L3 of the operator
+traces of 2026-10-01. The two arms still share their top model, which is what
+round 14's comparison needs; H13, H14, the scale, the budget and the scorer
+are unchanged. Recorded here because the first driver output, with the
+refusal, was overwritten by the real launch's log.

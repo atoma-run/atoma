@@ -1,5 +1,5 @@
 {
-  "_comment": "ROUND 13 — the product as shipped, 2026-10-31. Same tabstat goals as round 12, byte for byte. treatmentProtocol=current launches the atoma arm as an ordinary run launches today (routed tissue, default depth, root acceptance, inline learning) on the production tier pins; the control arm is one gpt-5.6-terra agent. Registered in PROTOCOL.md#round-13 before any run.",
+  "_comment": "ROUND 13 — the product as shipped, 2026-10-31. Same tabstat goals as round 12, byte for byte. treatmentProtocol=current launches the atoma arm as an ordinary run launches today (routed tissue, default depth, root acceptance, inline learning) on the production tier pins with gpt-5.6-sol at L3 (amendment, see PROTOCOL.md); the control arm is one gpt-5.6-terra agent. Registered in PROTOCOL.md#round-13 before any run.",
   "primary": {
     "id": "tabstat-maint",
     "seed": "benchmark/seeds/tabstat",

@@ -1,5 +1,5 @@
 {
-  "_comment": "ROUND 14 — the frontier control, same day and code as round 13: six gpt-6-astra single-agent runs on the primary task and one on the held-out, no treatment runs (round 13's atoma rows are the treatment, measured the same day). Registered in PROTOCOL.md#round-14 before any run.",
+  "_comment": "ROUND 14 — the frontier control, same day and code as round 13: six gpt-5.6-sol single-agent runs on the primary task and one on the held-out, no treatment runs (round 13's atoma rows are the treatment, measured the same day). Registered in PROTOCOL.md#round-14 before any run.",
   "primary": {
     "id": "tabstat-maint",
     "seed": "benchmark/seeds/tabstat",
