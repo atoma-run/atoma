@@ -1,0 +1,163 @@
+##### build.prev31 2026-10-31T19:02:07Z
+exit=0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17152.228
+vite v7.1.7 building for production...
+transforming...
+✓ 8 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/browser-assets/control.html                11.43 kB │ gzip: 3.82 kB
+../dist/browser-assets/assets/control-Ck6f9ZEe.js  26.20 kB │ gzip: 9.07 kB
+✓ built in 64ms
+##### build.prev32 2026-10-31T19:02:34Z
+exit=0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17179.989208
+vite v7.1.7 building for production...
+transforming...
+✓ 8 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/browser-assets/control.html                11.43 kB │ gzip: 3.82 kB
+../dist/browser-assets/assets/control-B9PRirqY.js  26.20 kB │ gzip: 9.08 kB
+✓ built in 64ms
+##### build.prev33 2026-10-31T19:03:01Z
+exit=0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17229.5695
+vite v7.1.7 building for production...
+transforming...
+✓ 8 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/browser-assets/control.html                11.43 kB │ gzip: 3.82 kB
+../dist/browser-assets/assets/control-DBf3mAvV.js  26.21 kB │ gzip: 9.08 kB
+✓ built in 64ms
+##### build.prev34 2026-10-31T19:03:28Z
+exit=0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17058.268708
+vite v7.1.7 building for production...
+transforming...
+✓ 6 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/browser-assets/control.html                 9.23 kB │ gzip: 3.31 kB
+../dist/browser-assets/assets/control-Cz62EOHe.js  16.52 kB │ gzip: 6.03 kB
+✓ built in 55ms
+##### build.prev35 2026-10-31T19:03:55Z
+exit=1
+
+/Users/mgtf/.atoma/workspaces/build.prev35/browser/control-connection.ts
+  111:5  error  'operation' is never reassigned. Use 'const' instead  prefer-const
+
+✖ 1 problem (1 error, 0 warnings)
+
+##### build.prev36 2026-10-31T19:03:58Z
+exit=0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17169.623375
+vite v7.1.7 building for production...
+transforming...
+✓ 6 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/browser-assets/control.html                 9.23 kB │ gzip: 3.31 kB
+../dist/browser-assets/assets/control-Dit4Hnna.js  16.54 kB │ gzip: 6.04 kB
+✓ built in 52ms
+##### build.prev37 2026-10-31T19:04:38Z
+exit=0
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16150.780791
+vite v7.1.7 building for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/browser-assets/browser/control.html  15.49 kB │ gzip: 5.29 kB
+✓ built in 25ms
+##### build.prev38 2026-10-31T19:05:01Z
+exit=0
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16151.085167
+vite v7.1.7 building for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/browser-assets/browser/control.html  15.49 kB │ gzip: 5.29 kB
+✓ built in 24ms
+##### build.prev39 2026-10-31T19:05:24Z
+exit=0
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16074.192084
+vite v7.1.7 building for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/browser-assets/browser/control.html  15.49 kB │ gzip: 5.29 kB
+✓ built in 24ms
+##### build.prev40 2026-10-31T19:05:47Z
+exit=0
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16187.116833
+vite v7.1.7 building for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/browser-assets/browser/control.html  15.49 kB │ gzip: 5.29 kB
+✓ built in 24ms
+##### build.prev41 2026-10-31T19:06:10Z
+exit=0
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16123.952083
+vite v7.1.7 building for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/browser-assets/browser/control.html  15.49 kB │ gzip: 5.29 kB
+✓ built in 25ms
+##### build 2026-10-31T19:06:33Z
+exit=0
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16117.423875
+vite v7.1.7 building for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/browser-assets/browser/control.html  15.49 kB │ gzip: 5.29 kB
+✓ built in 24ms
+##### DONE

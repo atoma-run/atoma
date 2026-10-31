@@ -1,0 +1,73 @@
+{
+  "model": "sub:openai:gpt-5.6-sol",
+  "startedAt": 1793473866265,
+  "finishedAt": 1793473998484,
+  "durationMs": 132219,
+  "stats": {
+    "outcome": "delivered",
+    "costUsd": 0.2611,
+    "subscriptionCostUsd": 0.2611,
+    "llmCalls": 1,
+    "opusCalls": 0,
+    "sonnetCalls": 0,
+    "haikuCalls": 0,
+    "otherCalls": 1,
+    "deterministicPhases": 0,
+    "escalations": 0,
+    "learnedSkills": 0,
+    "learnedEventSkills": 0,
+    "promotions": 0,
+    "refusals": 0,
+    "planRefusals": 0,
+    "resultRefusals": 0,
+    "acceptanceRefusals": 0,
+    "compileErrors": 0,
+    "demotions": 0,
+    "dispatchFallbacks": 0,
+    "uncoveredObligations": 0,
+    "deepenings": 0,
+    "rootRemediations": 0,
+    "landingRemediations": 0,
+    "unjudgedRemediations": 0,
+    "discardedLessons": 0,
+    "triggerRejections": 0,
+    "suiteDisputes": 0,
+    "cellBoundsWithheld": 0,
+    "cellBoundsApplied": 0,
+    "landingReasons": []
+  },
+  "score": {
+    "suiteDigest": "f8309984cb6c879a605699a4cb7dc586e45463aa500843ec57d22ea8c4e1c4a3",
+    "workspaceDigest": "bde043859017e3642f0c25dee3981420b63de150d7fa01b7c44d6d905badb562",
+    "subjectDigest": "df48129d3037106e9759cd95c1ce2cf014aba453eae495dfbe93c9bdd397f2f7",
+    "status": "passed",
+    "cause": "ran",
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "details": "[\"\",{\"name\":\"development-active-challenge\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"development-listings\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-copy\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-hidden-widget\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-ordinary-widget\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-challenge\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-script-only\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-ordinary-form\",\"status\":\"passed\",\"failures\":[]}]",
+    "windowMs": 120000,
+    "snapshot": {
+      "entries": 2,
+      "files": 2,
+      "bytes": 9888,
+      "links": 0,
+      "skipped": 0,
+      "unstable": 0,
+      "ms": 2
+    }
+  },
+  "timings": [
+    {
+      "phase": "process",
+      "startedAt": 1793473866265,
+      "durationMs": 131687
+    },
+    {
+      "phase": "process-finalization",
+      "startedAt": 1793473996345,
+      "durationMs": 1607
+    }
+  ],
+  "correct": true
+}

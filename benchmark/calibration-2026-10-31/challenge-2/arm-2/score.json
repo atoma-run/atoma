@@ -1,0 +1,73 @@
+{
+  "model": "sub:openai:gpt-5.6-terra",
+  "startedAt": 1793473761564,
+  "finishedAt": 1793473865446,
+  "durationMs": 103882,
+  "stats": {
+    "outcome": "delivered",
+    "costUsd": 0.1169,
+    "subscriptionCostUsd": 0.1169,
+    "llmCalls": 1,
+    "opusCalls": 0,
+    "sonnetCalls": 0,
+    "haikuCalls": 0,
+    "otherCalls": 1,
+    "deterministicPhases": 0,
+    "escalations": 0,
+    "learnedSkills": 0,
+    "learnedEventSkills": 0,
+    "promotions": 0,
+    "refusals": 0,
+    "planRefusals": 0,
+    "resultRefusals": 0,
+    "acceptanceRefusals": 0,
+    "compileErrors": 0,
+    "demotions": 0,
+    "dispatchFallbacks": 0,
+    "uncoveredObligations": 0,
+    "deepenings": 0,
+    "rootRemediations": 0,
+    "landingRemediations": 0,
+    "unjudgedRemediations": 0,
+    "discardedLessons": 0,
+    "triggerRejections": 0,
+    "suiteDisputes": 0,
+    "cellBoundsWithheld": 0,
+    "cellBoundsApplied": 0,
+    "landingReasons": []
+  },
+  "score": {
+    "suiteDigest": "f8309984cb6c879a605699a4cb7dc586e45463aa500843ec57d22ea8c4e1c4a3",
+    "workspaceDigest": "f1bb237eabf21305eacb6d4be06677053792392f896e5b675816aad8081e7a66",
+    "subjectDigest": "f1bb237eabf21305eacb6d4be06677053792392f896e5b675816aad8081e7a66",
+    "status": "failed",
+    "cause": "ran",
+    "passed": 6,
+    "failed": 2,
+    "skipped": 0,
+    "details": "[\"\",{\"name\":\"development-active-challenge\",\"status\":\"failed\",\"failures\":[\"AssertionError: expected false to be true // Object.is equality\\n    at Proxy.<anonymous> (/app/dist/tools/parentTestSetup.js:394:24)\\n    at ./atoma.acceptance.test.ts:4:190\\n    at file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\\n    at file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\\n    at file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\\n    at new Promise (<anonymous>)\\n    at runWithCancel (file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\\n    at file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\\n    at new Promise (<anonymous>)\\n    at runWithTimeout (file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\"]},{\"name\":\"development-listings\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-copy\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-hidden-widget\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-ordinary-widget\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-challenge\",\"status\":\"failed\",\"failures\":[\"AssertionError: expected false to be true // Object.is equality\\n    at Proxy.<anonymous> (/app/dist/tools/parentTestSetup.js:394:24)\\n    at ./atoma.acceptance.test.ts:19:234\\n    at file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\\n    at file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\\n    at file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\\n    at new Promise (<anonymous>)\\n    at runWithCancel (file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\\n    at file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\\n    at new Promise (<anonymous>)\\n    at runWithTimeout (file:///app/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\"]},{\"name\":\"holdout-script-only\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-ordinary-form\",\"status\":\"passed\",\"failures\":[]}]",
+    "windowMs": 120000,
+    "snapshot": {
+      "entries": 1,
+      "files": 1,
+      "bytes": 3581,
+      "links": 0,
+      "skipped": 0,
+      "unstable": 0,
+      "ms": 2
+    }
+  },
+  "timings": [
+    {
+      "phase": "process",
+      "startedAt": 1793473761565,
+      "durationMs": 103354
+    },
+    {
+      "phase": "process-finalization",
+      "startedAt": 1793473863315,
+      "durationMs": 1604
+    }
+  ],
+  "correct": false
+}

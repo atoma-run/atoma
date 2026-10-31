@@ -1083,3 +1083,35 @@ for n in 1 2 3; do
     --out benchmark/calibration-2026-10-31/challenge-$n --execute
 done
 ```
+
+### Round 15 — amendment after the calibration, 2026-10-31 19:30 UTC, before any round-15 run
+
+The calibration (`benchmark/calibration-2026-10-31/CALIBRATION.md`) dropped
+all four Attica repository tasks at 3/3 and retained one task,
+`attica-challenge-v1`, terra at 2/3 in the container. Two things the
+registration above did not foresee are fixed here, before any treatment run:
+
+1. **One path for both arms.** The calibration's challenge controls ran
+   through `benchmark:models` in the worker container with a 5-minute
+   budget; the treatment runs through the `benchmark` driver on the host.
+   Comparing across those would break the protocol's own same-path rule, so
+   round 15 runs BOTH arms through the driver on the host
+   (`experiment-round15.json`: 6 control + 6 treatment, 30-minute budget for
+   both, same pins as round 13) and the three container controls stay what
+   they were: selection evidence, reported beside, never pooled.
+2. **The instrument.** `verify-challenge.mjs` runs the corpus's eight-case
+   suite on the host against a scratch copy of each archived workspace with
+   this repository's vitest — the same cases and assertions `atoma-verify`
+   ran in the container. Checked today on the seed (2 of 8 fail, the two
+   true cases) and on the calibration's passing terra workspace (8/8).
+
+H15 is unchanged: atoma's full-mark count out of 6 strictly greater than the
+terra control's out of 6 on this task; cost reported beside it. Consequences
+as registered. Launch, recorded here:
+
+```bash
+ATOMA_MODEL_L1=sub:openai:gpt-5.6-luna ATOMA_MODEL_L2=sub:openai:gpt-5.6-terra \
+ATOMA_MODEL_L3=sub:openai:gpt-5.6-sol ATOMA_BASELINE_MODEL=sub:openai:gpt-5.6-terra \
+npm run benchmark -- --config benchmark/experiment-round15.json \
+  --out benchmark/results-round15.csv --result benchmark/ROUND15.md
+```

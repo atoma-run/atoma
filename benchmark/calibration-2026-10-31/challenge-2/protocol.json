@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "workerImage": "sha256:47705e7f6323bb3afa115a6a65916d57208b79267eb12e7dc74e24eb6cb1f112",
+  "corpus": "attica-challenge-v1",
+  "corpusDigest": "3152bd61d89298348c4f3adb9661fb2a16c1b9ed75aa7d401afc7a0fc47a3174",
+  "seedDigest": "e7e9718efe34f4924a1e7da5acd9131851bf9afa13f270311328f7e8ffc3ae26",
+  "models": [
+    "sub:openai:gpt-5.6-terra",
+    "sub:openai:gpt-5.6-sol"
+  ],
+  "goal": "Implement export function detectChallenge(html: string): boolean in challenge.ts. Return true only for a visible, active human-verification challenge that blocks the page. Ordinary listings, mentions of CAPTCHA or verification in prose/scripts, hidden challenge widgets, contact forms and search forms are not blocking challenges. The implementation must use document structure and context, not a bare keyword. Keep the function pure and preserve its signature. Development examples: a visible form action=\"/challenge\" with captcha-response input and a Verify button under \"Verify you are human\" is true; two ordinary listing articles are false. Read the existing source before editing.",
+  "suiteDigest": "f8309984cb6c879a605699a4cb7dc586e45463aa500843ec57d22ea8c4e1c4a3",
+  "timeoutMs": 300000,
+  "createdAt": "2026-10-31T19:07:02.202Z",
+  "code": {
+    "revision": "c4595a5ad806d0510fd388d0b4c6c5013d825e14",
+    "dirty": true
+  },
+  "cachePolicy": "Fresh workspace/store per arm; provider-side caches are not controlled.",
+  "environment": {
+    "ATOMA_CODEX_TOOL_TRANSPORT": null,
+    "ATOMA_JEV": null,
+    "ATOMA_CONTAINER": null,
+    "ATOMA_EGRESS_ALLOWLIST": null
+  }
+}

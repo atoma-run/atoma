@@ -1,0 +1,4 @@
+timestamp,arm,task_id,run_index,outcome,cost_usd,duration_s,llm_calls,opus_calls,sonnet_calls,haiku_calls,deterministic_phases,escalations,learned_skills,promotions,refusals,demotions,dispatch_fallbacks,trace
+2026-10-31T18:25:19.432Z,baseline,attica-a2,1,delivered,0.6972,269,1,0,0,0,0,0,0,0,0,0,0,2026-10-31T18-25-20-501-42df15e4.json
+2026-10-31T18:29:49.153Z,baseline,attica-a2,2,delivered,0.8518,299,1,0,0,0,0,0,0,0,0,0,0,2026-10-31T18-29-50-346-6c572ea8.json
+2026-10-31T18:34:49.260Z,baseline,attica-a2,3,delivered,0.6407,218,1,0,0,0,0,0,0,0,0,0,0,2026-10-31T18-34-50-465-9f4598cc.json

@@ -1,0 +1,54 @@
+{
+  "csv": "/Users/mgtf/dev/atoma-bench/benchmark/calibration-2026-10-31/results-attica-a4.csv",
+  "firstArchive": 39,
+  "lastArchive": null,
+  "workspaces": "/Users/mgtf/.atoma/workspaces",
+  "base": "build",
+  "results": [
+    {
+      "ts": "2026-10-31T18:47:15.339Z",
+      "arm": "baseline",
+      "taskId": "attica-a4",
+      "runIndex": 1,
+      "outcome": "delivered",
+      "costUsd": 0.5992,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev40",
+      "mappingOk": true,
+      "problems": [],
+      "score": 2,
+      "total": 2,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-10-31T18:52:05.690Z",
+      "arm": "baseline",
+      "taskId": "attica-a4",
+      "runIndex": 2,
+      "outcome": "delivered",
+      "costUsd": 0.4023,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev41",
+      "mappingOk": true,
+      "problems": [],
+      "score": 2,
+      "total": 2,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-10-31T18:56:37.155Z",
+      "arm": "baseline",
+      "taskId": "attica-a4",
+      "runIndex": 3,
+      "outcome": "delivered",
+      "costUsd": 0.5058,
+      "dir": "/Users/mgtf/.atoma/workspaces/build",
+      "mappingOk": true,
+      "problems": [],
+      "score": 2,
+      "total": 2,
+      "full": true,
+      "failed": []
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "protocol": {
+    "version": 1,
+    "workerImage": "sha256:47705e7f6323bb3afa115a6a65916d57208b79267eb12e7dc74e24eb6cb1f112",
+    "corpus": "attica-challenge-v1",
+    "corpusDigest": "3152bd61d89298348c4f3adb9661fb2a16c1b9ed75aa7d401afc7a0fc47a3174",
+    "seedDigest": "e7e9718efe34f4924a1e7da5acd9131851bf9afa13f270311328f7e8ffc3ae26",
+    "models": [
+      "sub:openai:gpt-5.6-terra",
+      "sub:openai:gpt-5.6-sol"
+    ],
+    "goal": "Implement export function detectChallenge(html: string): boolean in challenge.ts. Return true only for a visible, active human-verification challenge that blocks the page. Ordinary listings, mentions of CAPTCHA or verification in prose/scripts, hidden challenge widgets, contact forms and search forms are not blocking challenges. The implementation must use document structure and context, not a bare keyword. Keep the function pure and preserve its signature. Development examples: a visible form action=\"/challenge\" with captcha-response input and a Verify button under \"Verify you are human\" is true; two ordinary listing articles are false. Read the existing source before editing.",
+    "suiteDigest": "f8309984cb6c879a605699a4cb7dc586e45463aa500843ec57d22ea8c4e1c4a3",
+    "timeoutMs": 300000,
+    "createdAt": "2026-10-31T19:01:38.486Z",
+    "code": {
+      "revision": "c4595a5ad806d0510fd388d0b4c6c5013d825e14",
+      "dirty": true
+    },
+    "cachePolicy": "Fresh workspace/store per arm; provider-side caches are not controlled.",
+    "environment": {
+      "ATOMA_CODEX_TOOL_TRANSPORT": null,
+      "ATOMA_JEV": null,
+      "ATOMA_CONTAINER": null,
+      "ATOMA_EGRESS_ALLOWLIST": null
+    }
+  },
+  "rows": [
+    {
+      "model": "sub:openai:gpt-5.6-sol",
+      "startedAt": 1793473298520,
+      "finishedAt": 1793473425751,
+      "durationMs": 127231,
+      "stats": {
+        "outcome": "delivered",
+        "costUsd": 0.2707,
+        "subscriptionCostUsd": 0.2707,
+        "llmCalls": 1,
+        "opusCalls": 0,
+        "sonnetCalls": 0,
+        "haikuCalls": 0,
+        "otherCalls": 1,
+        "deterministicPhases": 0,
+        "escalations": 0,
+        "learnedSkills": 0,
+        "learnedEventSkills": 0,
+        "promotions": 0,
+        "refusals": 0,
+        "planRefusals": 0,
+        "resultRefusals": 0,
+        "acceptanceRefusals": 0,
+        "compileErrors": 0,
+        "demotions": 0,
+        "dispatchFallbacks": 0,
+        "uncoveredObligations": 0,
+        "deepenings": 0,
+        "rootRemediations": 0,
+        "landingRemediations": 0,
+        "unjudgedRemediations": 0,
+        "discardedLessons": 0,
+        "triggerRejections": 0,
+        "suiteDisputes": 0,
+        "cellBoundsWithheld": 0,
+        "cellBoundsApplied": 0,
+        "landingReasons": []
+      },
+      "score": {
+        "suiteDigest": "f8309984cb6c879a605699a4cb7dc586e45463aa500843ec57d22ea8c4e1c4a3",
+        "workspaceDigest": "fa8d537792d68f41daa66adbc5c981165f6f13f0bc4972fddf70f7f975253da0",
+        "subjectDigest": "f1337288eeb94bd5ec55881d17c31098b112388927b493ef9005d71e59ea2c5b",
+        "status": "passed",
+        "cause": "ran",
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "details": "[\"\",{\"name\":\"development-active-challenge\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"development-listings\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-copy\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-hidden-widget\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-ordinary-widget\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-challenge\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-script-only\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-ordinary-form\",\"status\":\"passed\",\"failures\":[]}]",
+        "windowMs": 120000,
+        "snapshot": {
+          "entries": 2,
+          "files": 2,
+          "bytes": 8996,
+          "links": 0,
+          "skipped": 0,
+          "unstable": 0,
+          "ms": 3
+        }
+      },
+      "timings": [
+        {
+          "phase": "process",
+          "startedAt": 1793473298521,
+          "durationMs": 126607
+        },
+        {
+          "phase": "process-finalization",
+          "startedAt": 1793473423522,
+          "durationMs": 1606
+        }
+      ],
+      "correct": true
+    },
+    {
+      "model": "sub:openai:gpt-5.6-terra",
+      "startedAt": 1793473425752,
+      "finishedAt": 1793473621461,
+      "durationMs": 195709,
+      "stats": {
+        "outcome": "delivered",
+        "costUsd": 0.1886,
+        "subscriptionCostUsd": 0.1886,
+        "llmCalls": 1,
+        "opusCalls": 0,
+        "sonnetCalls": 0,
+        "haikuCalls": 0,
+        "otherCalls": 1,
+        "deterministicPhases": 0,
+        "escalations": 0,
+        "learnedSkills": 0,
+        "learnedEventSkills": 0,
+        "promotions": 0,
+        "refusals": 0,
+        "planRefusals": 0,
+        "resultRefusals": 0,
+        "acceptanceRefusals": 0,
+        "compileErrors": 0,
+        "demotions": 0,
+        "dispatchFallbacks": 0,
+        "uncoveredObligations": 0,
+        "deepenings": 0,
+        "rootRemediations": 0,
+        "landingRemediations": 0,
+        "unjudgedRemediations": 0,
+        "discardedLessons": 0,
+        "triggerRejections": 0,
+        "suiteDisputes": 0,
+        "cellBoundsWithheld": 0,
+        "cellBoundsApplied": 0,
+        "landingReasons": []
+      },
+      "score": {
+        "suiteDigest": "f8309984cb6c879a605699a4cb7dc586e45463aa500843ec57d22ea8c4e1c4a3",
+        "workspaceDigest": "ee8b7177fd46cec2bc1a0731ddf475920553de297f8d28fc92bc86bd683d674f",
+        "subjectDigest": "fcdb4fd3be6503a0126f6f06d8d4e686b5353eb67d49b1476842b34b307152a8",
+        "status": "passed",
+        "cause": "ran",
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "details": "[\"\",{\"name\":\"development-active-challenge\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"development-listings\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-copy\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-hidden-widget\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-ordinary-widget\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-challenge\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-script-only\",\"status\":\"passed\",\"failures\":[]},{\"name\":\"holdout-ordinary-form\",\"status\":\"passed\",\"failures\":[]}]",
+        "windowMs": 120000,
+        "snapshot": {
+          "entries": 2,
+          "files": 2,
+          "bytes": 8559,
+          "links": 0,
+          "skipped": 0,
+          "unstable": 0,
+          "ms": 3
+        }
+      },
+      "timings": [
+        {
+          "phase": "process",
+          "startedAt": 1793473425752,
+          "durationMs": 195152
+        },
+        {
+          "phase": "process-finalization",
+          "startedAt": 1793473619299,
+          "durationMs": 1605
+        }
+      ],
+      "correct": true
+    }
+  ],
+  "note": "Single-agent capability comparison; no automatic model promotion or live latency claim."
+}
