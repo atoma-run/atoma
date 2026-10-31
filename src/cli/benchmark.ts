@@ -25,6 +25,12 @@
  * its framing chosen after the fact. `analyse()` below is pure and computes
  * the pre-registered metric only; a negative result is a result.
  *
+ * WHICH ATOMA. Rounds 1-12 launched the treatment arm with `--comparison`,
+ * which holds it on the entry protocol they were registered under. Since
+ * round 13 a config may say `"treatmentProtocol": "current"` and measure the
+ * product as it launches today instead (`armLaunchArgs`); the default stays
+ * `registered` so every earlier config means what it meant.
+ *
  * WHAT IT CANNOT SHOW. One task family, on a subscription transport where
  * every LLM call pays a 2-5s subprocess spawn — so wall-clock is biased
  * AGAINST the arm that makes more calls (atoma: ~14; baseline: 1). Call
@@ -66,6 +72,64 @@ export interface BenchmarkConfig {
   readonly heldOutBaselineRuns: number;
   readonly heldOutAtomaRuns: number;
   readonly timeoutMs: number;
+  /**
+   * Which atoma the treatment arm runs. `registered` (the default, and what
+   * every config before round 13 means) passes `--comparison`, which holds the
+   * run on the entry protocol rounds 1-12 were registered under: the fixed
+   * build tissue, no depth routing, no root delivery acceptance. `current`
+   * launches the arm exactly as an ordinary run launches today — routed
+   * tissue, the default depth, root acceptance, inline learning — so the
+   * round measures the product as shipped rather than the protocol as frozen.
+   */
+  readonly treatmentProtocol?: TreatmentProtocol;
+}
+
+export type TreatmentProtocol = 'registered' | 'current';
+
+/**
+ * The launcher flags of one arm. Pure, so a round's registration can be
+ * asserted against the flags its runs will actually carry.
+ */
+export function armLaunchArgs(arm: Arm, task: BenchmarkTask, protocol: TreatmentProtocol): string[] {
+  return [
+    ...(arm === 'baseline' ? ['--baseline'] : []),
+    // Both arms are measurement. The control arm, and a registered treatment
+    // arm, keep the protocol the round was registered under, whatever default
+    // ships later (`RunnerArgs.comparison`). A `current` treatment arm takes
+    // the default on purpose: that is the thing being measured.
+    ...(arm === 'baseline' || protocol === 'registered' ? ['--comparison'] : []),
+    ...(task.seed ? ['--seed', task.seed] : []),
+  ];
+}
+
+/**
+ * The environment of one arm beyond what `spawnRun` sets. The control arm is
+ * pointed at a THROWAWAY store: `--baseline` already skips seeding, so nothing
+ * should be written, and this makes it impossible rather than merely intended
+ * (a control that mutated the treatment's registry would invalidate every run
+ * after it). A `current` treatment arm keeps learning INSIDE the measured run
+ * (`ATOMA_DEFER_LEARNING=0`, as burn-in does): deferred, its cost would leave
+ * the row and the next run could start before the lesson it is meant to reuse
+ * exists.
+ */
+export function armLaunchEnv(arm: Arm, scratchDir: string, protocol: TreatmentProtocol): Record<string, string> {
+  if (arm === 'baseline') {
+    return {
+      ATOMA_DB_PATH: join(scratchDir, 'baseline-store.db'),
+      ATOMA_SKILLS_DIR: join(scratchDir, 'baseline-skills'),
+      ATOMA_LEDGER_DB: join(scratchDir, 'baseline-store.db'),
+      ATOMA_PREFILTER_CACHE: '0',
+    };
+  }
+  return protocol === 'current' ? { ATOMA_DEFER_LEARNING: '0' } : {};
+}
+
+export function treatmentProtocolOf(cfg: Pick<BenchmarkConfig, 'treatmentProtocol'>): TreatmentProtocol {
+  const value = cfg.treatmentProtocol ?? 'registered';
+  if (value !== 'registered' && value !== 'current') {
+    throw new Error(`treatmentProtocol must be "registered" or "current", got ${JSON.stringify(value)}`);
+  }
+  return value;
 }
 
 export interface BenchmarkRow {
@@ -319,32 +383,13 @@ async function runOne(
   const label = `${arm}-${task.id}-${String(runIndex).padStart(2, '0')}`;
   process.stdout.write(`▶ ${label} … `);
 
-  // The control arm is pointed at a THROWAWAY store. `--baseline` already
-  // skips seeding, so nothing should be written — this makes it impossible
-  // rather than merely intended, because a control that mutated the
-  // treatment's registry would invalidate every run after it.
-  const extraEnv: Record<string, string> =
-    arm === 'baseline'
-      ? {
-          ATOMA_DB_PATH: join(scratchDir, 'baseline-store.db'),
-          ATOMA_SKILLS_DIR: join(scratchDir, 'baseline-skills'),
-          ATOMA_LEDGER_DB: join(scratchDir, 'baseline-store.db'),
-          ATOMA_PREFILTER_CACHE: '0',
-        }
-      : {};
-
+  const protocol = treatmentProtocolOf(cfg);
   const log = await spawnRun({
     goal: task.goal,
     timeoutMs: cfg.timeoutMs,
     logPath: join(logsDir, `${label}.log`),
-    extraArgs: [
-      ...(arm === 'baseline' ? ['--baseline'] : []),
-      // Both arms are measurement: they keep the protocol the round was
-      // registered under, whatever default ships later (`RunnerArgs.comparison`).
-      '--comparison',
-      ...(task.seed ? ['--seed', task.seed] : []),
-    ],
-    extraEnv,
+    extraArgs: armLaunchArgs(arm, task, protocol),
+    extraEnv: armLaunchEnv(arm, scratchDir, protocol),
   });
 
   const stats = parseRunLog(log);
@@ -411,6 +456,19 @@ async function main(): Promise<void> {
   // visible BEFORE the round spends, not inferred from the report after it.
   console.log(`control arm  : ${arms.controlModel}`);
   console.log(`treatment arm: ${arms.treatmentTiers}`);
+  let protocol: TreatmentProtocol;
+  try {
+    protocol = treatmentProtocolOf(cfg);
+  } catch (err) {
+    console.error(`invalid benchmark config: ${(err as Error).message}`);
+    process.exit(2);
+  }
+  console.log(
+    `treatment protocol: ${protocol}` +
+      (protocol === 'current'
+        ? ' (the product as shipped: routed tissue, default depth, root acceptance, inline learning)'
+        : ' (the entry protocol rounds 1-12 were registered under: --comparison)')
+  );
   console.log(`primary task : ${cfg.primary.id}`);
   console.log(`held-out task: ${cfg.heldOut.id}`);
   if (cfg.primary.seed) console.log(`workspace seed : ${cfg.primary.seed}`);

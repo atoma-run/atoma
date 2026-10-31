@@ -819,3 +819,127 @@ in ROUND12.md as `--first-archive`, per the round 9 procedure.
 
 **Output.** `benchmark/results-round12.csv` / `ROUND12.md`. Thresholds
 `PROMOTE=1`, `TRUST=3`, as rounds 6-11.
+
+---
+
+## ROUND 13 — pre-registration, 2026-10-31, written before any round-13 run
+
+Round 12 (2026-08-16) refuted H12 on the protocol rounds 1-12 were registered
+under, and nothing has been measured since. The checkout is 1,806 commits past
+it. What a run IS has changed in that time — a routed tissue instead of the
+fixed builder, depth routing with root delivery acceptance and one remediation
+pass, a drafted acceptance checklist, Decision at every gate, parent-owned
+tests, read-only phases, compile-at-learn — and so have the models: the
+owner's production project runs are pinned to `gpt-5.6-luna` / `gpt-5.6-terra`
+/ `gpt-6-astra` (run `78208e3f`, 2026-10-30). The README has said since August
+that the twelve rounds "do not establish savings or correctness for the current
+release". This round asks the current release the question.
+
+### What changes in the harness, and what does not
+
+- The driver gains `"treatmentProtocol": "current"` (`armLaunchArgs`,
+  `armLaunchEnv`). Rounds 1-12 launched the atoma arm with `--comparison`,
+  which holds a run on the entry protocol they were registered under; a
+  `current` arm is launched exactly as `npm run run:build` launches an
+  ordinary run today, with learning kept INSIDE the measured run
+  (`ATOMA_DEFER_LEARNING=0`, as burn-in does) so its cost stays in the row and
+  the next run can find the lesson. Every config without the field keeps its
+  meaning (`treatmentProtocolOf` defaults to `registered`; tested).
+- The control arm is untouched: `--baseline --comparison`, a throwaway store,
+  the same prompt as rounds 9-12.
+- `score-round.mjs` gains `--scorer` and `--marker` so the tabstat family is
+  scored through the same workspace mapping as the wclite family, instead of
+  a second mapping.
+- The task is round 12's, byte for byte: `experiment-round13.json` carries the
+  same primary and held-out goals and the same seed, and
+  `tests/tabstat-benchmark-seed.test.ts` still refuses the untouched seed
+  (re-run today: 6/14 primary, held-out refused).
+
+### Arms
+
+| | |
+|---|---|
+| Control | one `sub:openai:gpt-5.6-terra` agent — the model a user would "just pick" for this work, and atoma's own L2 |
+| Treatment | atoma as shipped: `L1=sub:openai:gpt-5.6-luna`, `L2=sub:openai:gpt-5.6-terra`, `L3=sub:openai:gpt-6-astra`, the production pins, through the same Codex login; shipped lifecycle defaults, no threshold override (round 12 set `PROMOTE=1`/`TRUST=3`; the subject here is the release as it ships) |
+| Transport | `codex-cli` for both arms; costs are catalogue-price equivalents, as in every round |
+| Scale | 6 control + 6 atoma on the primary, then 1 + 1 on the held-out = 14 runs |
+| Budget | 1,800 s per run, both arms. Round 12 used 900 s; the current protocol runs root acceptance and may open one remediation pass, and the production ceiling is 60 minutes. A timeout is a result, not an excuse, and the wall clock is no longer comparable with round 12 in any case (different models and transport) |
+| Starting state | empty registry and empty skill store: `./atoma.db`, `./skills/` and `./runs/` are MOVED to `~/.atoma/archive/pre-round13-2026-10-31/` before the first run, never deleted |
+| Workspace anchor | highest `~/.atoma/workspaces/build.prev<n>` before the round: **8**, so `--first-archive 9` |
+
+### H13 — on the current release, supervision buys correctness at no more than the price of its middle tier
+
+Two conditions, both required:
+
+1. **Correctness.** atoma's full-mark rate on
+   [`verify-tabstat.mjs`](verify-tabstat.mjs) is **strictly greater** than
+   the terra control's.
+2. **Cost.** atoma's mean cost per run on the primary task is **at most** the
+   control's mean. `analyse()` still reports N* for continuity with H1.
+
+**H13 is refuted if either fails.** A third refutation of the correctness half
+— after rounds 10 and 12, now on the current release and its production models
+— means the README must say, in those words, that on this family supervision
+buys no correctness on the current release; and the owner-level consequence,
+stated now: no new gate, validator or heuristic is added to the pipeline until
+a task is found on which supervision measurably does. A refutation of the cost
+half alone, with correctness won, is the number the architecture was built to
+buy and is reported as such.
+
+### What is scored, and from where
+
+Every run that leaves a workspace is scored, **whatever label the driver gave
+it** (`delivered`, `partial`, timeout): the current protocol can refuse a
+correct deliverable at root acceptance, and a refusal that lands a correct
+workspace is a finding about the acceptor, not a reason to drop the row. The
+driver's cost analysis counts `delivered` rows as in every round; the mean over
+ALL rows is reported beside it, because a landed run spent too.
+
+Registered secondaries: wall clock and LLM calls per run; root refusals and
+remediation passes; deepenings; recipes learned and scripts compiled;
+Decision's share of the cost; the held-out pair (1 control, 1 atoma).
+
+### Round 14, registered with it — the frontier control
+
+Same day, same code, immediately after round 13: six `sub:openai:gpt-6-astra`
+single-agent runs on the primary task and one on the held-out, **no treatment
+runs** (`experiment-round14.json`, `atomaRuns: 0`). Round 13's atoma rows are
+its treatment, measured the same day, which is what the protocol's
+cross-round rule exists to guarantee. Its anchor is recorded in ROUND14.md
+before it starts.
+
+**H14.** Against one frontier agent, atoma's full-mark rate is **≥** the astra
+control's AND its mean cost is **lower**. Refuted if either fails. This is the
+claim the README once made ("beats frontier-direct") and has carried no
+evidence for since August.
+
+### Threats to validity, stated now
+
+1. One family, one difficulty, n=6 per arm. An indication with a method, not
+   a powered study; no significance test is claimed.
+2. The machine is not idle: an editor and its language servers are open
+   (load ≈3.5 at registration). Durations are reported with that caveat;
+   cost, the registered metric, is unaffected.
+3. Subscription-served models: the served model behind an alias can shift
+   between runs, and provider caches are not controlled.
+4. The treatment arm pays tuition from an empty registry on run 1 and routes
+   through a tissue it may have to author. Both are the product as shipped.
+5. The scorer is round 12's, unchanged, bounded at 16 manifest entries for
+   replay; the unbounded check is re-run after the round as in round 12.
+6. The tabstat task is small beside the work the product is used for (an
+   application repaired over 20 minutes). A result here bounds the claim to
+   this scale; it does not transfer upward by itself.
+
+**Output.** `benchmark/results-round13.csv` / `ROUND13.md`, then
+`results-round14.csv` / `ROUND14.md`. Launch, recorded here:
+
+```bash
+ATOMA_MODEL_L1=sub:openai:gpt-5.6-luna ATOMA_MODEL_L2=sub:openai:gpt-5.6-terra \
+ATOMA_MODEL_L3=sub:openai:gpt-6-astra ATOMA_BASELINE_MODEL=sub:openai:gpt-5.6-terra \
+npm run benchmark -- --config benchmark/experiment-round13.json \
+  --out benchmark/results-round13.csv --result benchmark/ROUND13.md
+ATOMA_MODEL_L1=sub:openai:gpt-5.6-luna ATOMA_MODEL_L2=sub:openai:gpt-5.6-terra \
+ATOMA_MODEL_L3=sub:openai:gpt-6-astra ATOMA_BASELINE_MODEL=sub:openai:gpt-6-astra \
+npm run benchmark -- --config benchmark/experiment-round14.json \
+  --out benchmark/results-round14.csv --result benchmark/ROUND14.md
+```

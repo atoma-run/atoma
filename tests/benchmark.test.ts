@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import {
   BENCHMARK_CSV_HEADER,
   analyse,
+  armLaunchArgs,
+  armLaunchEnv,
+  treatmentProtocolOf,
   benchmarkOutputPaths,
   createBenchmarkCsv,
   ensureBenchmarkResultAvailable,
@@ -219,5 +222,34 @@ describe('benchmark report immutability', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('which atoma the treatment arm runs', () => {
+  const task = { id: 'tabstat-maint', goal: 'g', seed: 'benchmark/seeds/tabstat' };
+
+  it('a config without the field means what every config before round 13 meant', () => {
+    expect(treatmentProtocolOf({})).toBe('registered');
+    expect(armLaunchArgs('atoma', task, 'registered')).toEqual(['--comparison', '--seed', 'benchmark/seeds/tabstat']);
+    expect(armLaunchEnv('atoma', '/scratch', 'registered')).toEqual({});
+  });
+
+  it('a current treatment arm launches as an ordinary run, learning inside the measured run', () => {
+    expect(armLaunchArgs('atoma', task, 'current')).toEqual(['--seed', 'benchmark/seeds/tabstat']);
+    expect(armLaunchEnv('atoma', '/scratch', 'current')).toEqual({ ATOMA_DEFER_LEARNING: '0' });
+  });
+
+  it('the control arm keeps its registered protocol and its throwaway store under either setting', () => {
+    for (const protocol of ['registered', 'current'] as const) {
+      expect(armLaunchArgs('baseline', task, protocol)).toEqual(['--baseline', '--comparison', '--seed', 'benchmark/seeds/tabstat']);
+      const env = armLaunchEnv('baseline', '/scratch', protocol);
+      expect(env['ATOMA_DB_PATH']).toBe('/scratch/baseline-store.db');
+      expect(env['ATOMA_PREFILTER_CACHE']).toBe('0');
+      expect(env).not.toHaveProperty('ATOMA_DEFER_LEARNING');
+    }
+  });
+
+  it('refuses a protocol it does not know rather than launching something unregistered', () => {
+    expect(() => treatmentProtocolOf({ treatmentProtocol: 'latest' as never })).toThrow(/registered|current/);
   });
 });

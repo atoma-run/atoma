@@ -4,7 +4,13 @@
  *
  *   node benchmark/score-round.mjs --csv benchmark/results-round9.csv \
  *     --first-archive 197 [--workspaces ~/.atoma/workspaces] [--base build] \
- *     [--out benchmark/results-round9-scores.json]
+ *     [--out benchmark/results-round9-scores.json] \
+ *     [--scorer verify-tabstat.mjs --marker tabstat.js]
+ *
+ * `--scorer` names the instrument beside this file (default `verify-maint.mjs`,
+ * the wclite family) and `--marker` the file a mapped workspace must hold to
+ * be that family's deliverable (default `wclite.js`). Round 13 scores the
+ * tabstat family through the same mapping, so the mapping is not duplicated.
  *
  * WHY THIS EXISTS. Round 8 scored its deliverables by hand and an off-by-one
  * in the workspace anchor produced a false 83.3% that had to be caught by
@@ -51,6 +57,8 @@ const firstArchive = Number(arg('first-archive'));
 const workspaces = resolve(arg('workspaces', join(homedir(), '.atoma', 'workspaces')));
 const base = arg('base', 'build');
 const outPath = arg('out');
+const scorer = arg('scorer', 'verify-maint.mjs');
+const marker = arg('marker', 'wclite.js');
 
 if (!csvPath || !Number.isInteger(firstArchive) || firstArchive < 1) {
   console.error('usage: score-round.mjs --csv <round.csv> --first-archive <n> [--workspaces <dir>] [--base build] [--out <json>]');
@@ -102,7 +110,7 @@ rows.forEach((row, k) => {
     if (mtime < Date.parse(row.ts)) problems.push(`mtime ${new Date(mtime).toISOString()} predates run start ${row.ts}`);
     if (mtime < previousMtime) problems.push('archives out of chronological order');
     previousMtime = mtime;
-    if (!existsSync(join(dir, 'wclite.js'))) problems.push('no wclite.js in the mapped workspace');
+    if (!existsSync(join(dir, marker))) problems.push(`no ${marker} in the mapped workspace`);
   }
 
   if (problems.length > 0) {
@@ -114,7 +122,7 @@ rows.forEach((row, k) => {
   try {
     const stdout = execFileSync(
       'node',
-      [join(import.meta.dirname, 'verify-maint.mjs'), dir, row.taskId],
+      [join(import.meta.dirname, scorer), dir, row.taskId],
       { encoding: 'utf8', timeout: 120000 }
     );
     scored = JSON.parse(stdout);
