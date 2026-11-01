@@ -1,0 +1,203 @@
+{
+  "csv": "/Users/mgtf/dev/atoma-bench/benchmark/results-round15.csv",
+  "firstArchive": 42,
+  "lastArchive": null,
+  "workspaces": "/Users/mgtf/.atoma/workspaces",
+  "base": "build",
+  "results": [
+    {
+      "ts": "2026-11-01T05:48:02.051Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 1,
+      "outcome": "delivered",
+      "costUsd": 0.1373,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev43",
+      "mappingOk": true,
+      "problems": [],
+      "score": 8,
+      "total": 8,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T05:50:13.805Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 2,
+      "outcome": "delivered",
+      "costUsd": 0.0959,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev44",
+      "mappingOk": true,
+      "problems": [],
+      "score": 8,
+      "total": 8,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T05:51:28.285Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 3,
+      "outcome": "delivered",
+      "costUsd": 0.1313,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev45",
+      "mappingOk": true,
+      "problems": [],
+      "score": 8,
+      "total": 8,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T05:53:08.366Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 4,
+      "outcome": "delivered",
+      "costUsd": 0.1383,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev46",
+      "mappingOk": true,
+      "problems": [],
+      "score": 6,
+      "total": 8,
+      "full": false,
+      "failed": [
+        "T1: development-active-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-g5mBnf/ws/atoma.",
+        "T6: holdout-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-g5mBnf/ws/atoma."
+      ]
+    },
+    {
+      "ts": "2026-11-01T05:54:55.998Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 5,
+      "outcome": "delivered",
+      "costUsd": 0.1614,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev47",
+      "mappingOk": true,
+      "problems": [],
+      "score": 6,
+      "total": 8,
+      "full": false,
+      "failed": [
+        "T1: development-active-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-UegcoO/ws/atoma.",
+        "T6: holdout-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-UegcoO/ws/atoma."
+      ]
+    },
+    {
+      "ts": "2026-11-01T05:55:48.599Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 6,
+      "outcome": "delivered",
+      "costUsd": 0.1843,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev48",
+      "mappingOk": true,
+      "problems": [],
+      "score": 7,
+      "total": 8,
+      "full": false,
+      "failed": [
+        "T6: holdout-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-kMqfSU/ws/atoma."
+      ]
+    },
+    {
+      "ts": "2026-11-01T05:58:21.904Z",
+      "arm": "atoma",
+      "taskId": "attica-challenge",
+      "runIndex": 1,
+      "outcome": "delivered",
+      "costUsd": 0.8233,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev49",
+      "mappingOk": true,
+      "problems": [],
+      "score": 8,
+      "total": 8,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T06:08:20.039Z",
+      "arm": "atoma",
+      "taskId": "attica-challenge",
+      "runIndex": 2,
+      "outcome": "delivered",
+      "costUsd": 0.7629,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev50",
+      "mappingOk": true,
+      "problems": [],
+      "score": 8,
+      "total": 8,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T06:20:05.798Z",
+      "arm": "atoma",
+      "taskId": "attica-challenge",
+      "runIndex": 3,
+      "outcome": "delivered",
+      "costUsd": 0.5683,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev51",
+      "mappingOk": true,
+      "problems": [],
+      "score": 7,
+      "total": 8,
+      "full": false,
+      "failed": [
+        "T6: holdout-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-KQ7IFG/ws/atoma."
+      ]
+    },
+    {
+      "ts": "2026-11-01T06:29:03.698Z",
+      "arm": "atoma",
+      "taskId": "attica-challenge",
+      "runIndex": 4,
+      "outcome": "delivered",
+      "costUsd": 0.5435,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev52",
+      "mappingOk": true,
+      "problems": [],
+      "score": 7,
+      "total": 8,
+      "full": false,
+      "failed": [
+        "T6: holdout-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-i2lzaC/ws/atoma."
+      ]
+    },
+    {
+      "ts": "2026-11-01T06:35:15.672Z",
+      "arm": "atoma",
+      "taskId": "attica-challenge",
+      "runIndex": 5,
+      "outcome": "delivered",
+      "costUsd": 1.4923,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev53",
+      "mappingOk": true,
+      "problems": [],
+      "score": 7,
+      "total": 8,
+      "full": false,
+      "failed": [
+        "T6: holdout-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-j6ZOMP/ws/atoma."
+      ]
+    },
+    {
+      "ts": "2026-11-01T06:56:17.732Z",
+      "arm": "atoma",
+      "taskId": "attica-challenge",
+      "runIndex": 6,
+      "outcome": "delivered",
+      "costUsd": 1.3762,
+      "dir": "/Users/mgtf/.atoma/workspaces/build",
+      "mappingOk": true,
+      "problems": [],
+      "score": 8,
+      "total": 8,
+      "full": true,
+      "failed": []
+    }
+  ]
+}

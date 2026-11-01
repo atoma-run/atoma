@@ -1,0 +1,107 @@
+{
+  "csv": "/Users/mgtf/dev/atoma-bench/benchmark/results-round15.csv",
+  "firstArchive": 42,
+  "lastArchive": 48,
+  "workspaces": "/Users/mgtf/.atoma/workspaces",
+  "base": "build",
+  "results": [
+    {
+      "ts": "2026-11-01T05:48:02.051Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 1,
+      "outcome": "delivered",
+      "costUsd": 0.1373,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev43",
+      "mappingOk": true,
+      "problems": [],
+      "score": 8,
+      "total": 8,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T05:50:13.805Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 2,
+      "outcome": "delivered",
+      "costUsd": 0.0959,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev44",
+      "mappingOk": true,
+      "problems": [],
+      "score": 8,
+      "total": 8,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T05:51:28.285Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 3,
+      "outcome": "delivered",
+      "costUsd": 0.1313,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev45",
+      "mappingOk": true,
+      "problems": [],
+      "score": 8,
+      "total": 8,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T05:53:08.366Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 4,
+      "outcome": "delivered",
+      "costUsd": 0.1383,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev46",
+      "mappingOk": true,
+      "problems": [],
+      "score": 6,
+      "total": 8,
+      "full": false,
+      "failed": [
+        "T1: development-active-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-OlibeM/ws/atoma.",
+        "T6: holdout-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-OlibeM/ws/atoma."
+      ]
+    },
+    {
+      "ts": "2026-11-01T05:54:55.998Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 5,
+      "outcome": "delivered",
+      "costUsd": 0.1614,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev47",
+      "mappingOk": true,
+      "problems": [],
+      "score": 6,
+      "total": 8,
+      "full": false,
+      "failed": [
+        "T1: development-active-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-0ERKGi/ws/atoma.",
+        "T6: holdout-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-0ERKGi/ws/atoma."
+      ]
+    },
+    {
+      "ts": "2026-11-01T05:55:48.599Z",
+      "arm": "baseline",
+      "taskId": "attica-challenge",
+      "runIndex": 6,
+      "outcome": "delivered",
+      "costUsd": 0.1843,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev48",
+      "mappingOk": true,
+      "problems": [],
+      "score": 7,
+      "total": 8,
+      "full": false,
+      "failed": [
+        "T6: holdout-challenge — failed AssertionError: expected false to be true // Object.is equality\n    at /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/atoma-challenge-XLzsdi/ws/atoma."
+      ]
+    }
+  ]
+}

@@ -335,7 +335,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 | Subsystems under their own contract | 19 |
 | MCP tools | 64 |
 | Curated agent names | 118 molecules · 40 cells · 20 tissues |
-| Controlled benchmark rounds | 14 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
+| Controlled benchmark rounds | 15 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
 | Interface locales | 13 catalogs — 1 source, 12 translated |
 
 <!-- atoma:facts:end -->
@@ -362,18 +362,24 @@ Browse the [documentation index](docs/README.md) for current guides and the
 
 ## Historical measurements
 
-**Fourteen controlled rounds** compared atoma with a single agent on build and
+**Fifteen controlled rounds** compared atoma with a single agent on build and
 maintenance tasks. Rounds 1–12 (August 2026) predate the 2026-08-18 state
-reset and are historical narrative. Rounds 13 and 14 (2026-10-31) measured
-the current release as it ships, on a three-file CLI maintenance task, against
-one `gpt-5.6-terra` agent and one `gpt-5.6-sol` agent: both controls were
-correct in every run, and atoma delivered the same correctness or less at
-roughly ten times the cost and sixteen times the wall clock. **On this family
-of work, supervision buys no correctness on the current release**, the third
-such result after rounds 10 and 12, and under the registered consequence no
-new gate, validator or heuristic is added until a task is found on which it
-measurably does. Read the [protocol](benchmark/PROTOCOL.md),
-[round 13](benchmark/ROUND13.md) and [round 14](benchmark/ROUND14.md).
+reset and are historical narrative. Rounds 13 to 15 (2026-10-31 and
+2026-11-01) measured the current release as it ships against one
+`gpt-5.6-terra` agent and one `gpt-5.6-sol` agent. On a three-file CLI
+maintenance task both controls were correct in every run, and atoma delivered
+the same correctness or less at roughly ten times the cost. A control-only
+calibration then looked for work a single agent gets wrong: on four real
+repository repairs it never did; on one small HTML-detection task it failed
+half its runs, and atoma, run six against six on that task, failed the same
+half at 6.6 times the cost. **On the whole range tested, the supervision
+thesis is refuted on the current release**: supervision has bought no
+correctness on any task family measured, and under the registered consequence
+the single-agent path is to become the product's default depth with inline
+learning off by default, a product-shape change recorded as owed in
+[round 15](benchmark/ROUND15.md). Read the [protocol](benchmark/PROTOCOL.md),
+[round 13](benchmark/ROUND13.md), [round 14](benchmark/ROUND14.md) and the
+[calibration](benchmark/calibration-2026-10-31/CALIBRATION.md).
 
 ## License
 

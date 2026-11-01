@@ -1115,3 +1115,21 @@ ATOMA_MODEL_L3=sub:openai:gpt-5.6-sol ATOMA_BASELINE_MODEL=sub:openai:gpt-5.6-te
 npm run benchmark -- --config benchmark/experiment-round15.json \
   --out benchmark/results-round15.csv --result benchmark/ROUND15.md
 ```
+
+### Round 15 — result and one post-hoc instrument correction, 2026-11-01 07:40 UTC
+
+Run as registered: 6 terra controls then 6 atoma runs, 05:48–07:13 UTC,
+anchor `build.prev41`. **H15 refuted**: 3 of 6 full marks against 3 of 6,
+atoma at 6.6× the cost. Every miss is the held-out `holdout-challenge` case
+(plus the goal's own example, missed twice by the control and never by
+atoma). Full report: [`ROUND15.md`](ROUND15.md).
+
+Post-hoc change, disclosed: `verify-challenge.mjs` as registered copied each
+workspace without its install and could not load a delivery that is a
+project (its own vite config, its own dependencies) — five atoma
+deliveries read 0/1. Corrected before any score was reported, to what
+`atoma-verify` already does (install linked in, one explicit config, fixed
+`include`); rescored from the same archives; the six control rows are
+unchanged by the fix. The registered consequence is applied in the README;
+the two product defaults it names are a product-shape decision recorded as
+owed to the owner in the report, not silently flipped.
