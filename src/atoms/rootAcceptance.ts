@@ -491,14 +491,8 @@ async function acceptRootResultInternal(args: {
     { landed: Boolean(result.unfinishedPhases?.length), source });
   const layoutsBlock = observedLayoutsBlock(ctx, stale);
   const inputsBlock = renderBrowserInputs(records);
-  // A TIER-1 ROOT ACTOR IS THE MOLECULE THAT EXECUTED (the direct depth,
-  // src/run/direct.ts): no cell supervised it, so the root runs the leaf
-  // action, disk and proof gates a cell would. On a file delivery only: an
-  // answer given without a tool call is a text delivery, and
-  // `observed-tool-action` would refuse it as narrative.
-  const leafGates = actor.tier === 1 && args.delivery !== 'text';
   const gates = await runResultGates(buildResultGateEnv({ task, result, ctx,
-    childName: actor.name, childToolNames: actor.toolNames() }), ctx.mechanicalResultRejections, leafGates ? 'leaf' : 'delegated');
+    childName: actor.name, childToolNames: actor.toolNames() }), ctx.mechanicalResultRejections, 'delegated');
   // A previous phase may have rendered its witness before a later phase
   // edited the same file. Re-render those reads from host-held records.
   const passEvidence = [...await carriedEvidence(args.previousEvidence, result.evidence, recordsById, digest),
@@ -645,11 +639,8 @@ async function acceptRootResultInternal(args: {
     // one block and decides whether the phases it did complete survive.
     ...(landingBlock ? { landingBlock } : {}),
   });
-  // Over a direct executor the refusal goes back to the very executor the
-  // gate's coaching addresses (its remediation pass reads the refusal).
   const raw = gates.rejection
-    ? { approved: false, reasoning: leafGates && gates.rejection.coaching
-      ? `${gates.rejection.reasoning}. ${gates.rejection.coaching}` : gates.rejection.reasoning }
+    ? { approved: false, reasoning: gates.rejection.reasoning }
     : review ? await reviewRoot() : { approved: true, reasoning: 'No mechanical finding requires review.' };
   const landed = Boolean(result.unfinishedPhases?.length);
   const initialJudged = judgementsAsked && 'criteria' in raw ? judgeCoverage(coverage, raw.criteria) : coverage;

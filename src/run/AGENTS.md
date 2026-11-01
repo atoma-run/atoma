@@ -312,17 +312,18 @@ Neighbours:
   budget, reading the task context every executor reads, recording a
   one-phase root plan with no declared delivery BEFORE its first call (so the
   declared manifest exists and a pass the budget cuts lands with that phase
-  unfinished), then re-recording it with the delivery the HOST observed
-  (`directDelivery`: files after an attested write or edit, or when a seeded
-  workspace no longer matches its start; text when it matches): any shell
-  call made `observedDelivery` say files, and a question went to the
-  report-blind criteria review. A failed execution runs once more on the
-  same workspace (`DIRECT_RETRY_INPUT`), the retry a cell would have given;
-  the budget and a cancellation are rethrown. It goes through the same
-  `runDepthTask`: checklist, attestations, root acceptance (which runs the
-  leaf gates over a tier-1 root actor's file delivery), the one remediation
-  pass, landing. It never deepens, selects no tissue, builds no cell,
-  matches no recipe and has no prompt to amend (`onApproved` skips it).
+  unfinished), then re-recording it with its delivery (`directDelivery`):
+  files after an attested write or edit whatever was declared; otherwise the
+  report's last-line declaration (`DELIVERY: text|files`), since checking an
+  answer leaves side effects and a large seed never compares equal; without
+  one, the seeded workspace compared with its start, or `observedDelivery`.
+  A remediation pass records only its outcome. A failed execution runs once
+  more on the same workspace (`DIRECT_RETRY_INPUT`), the retry a cell would
+  have given; an aborted signal (budget, deadline) is rethrown. It goes
+  through the same `runDepthTask`: checklist, attestations, root acceptance
+  with the DELEGATED gates, the one remediation pass, landing. It never
+  deepens, selects no tissue, builds no cell, matches no recipe and has no
+  prompt to amend (`onApproved` skips it).
   Checkpoints, pause/resume and client questions sit on root phases and stay
   `deep`'s. `--depth deep` enters through the selected tissue;
   `--depth short` explicitly retains direct L2 entry and selects an L3 only
@@ -513,6 +514,13 @@ Neighbours:
 
 ## Intentional choices and rejected shortcuts
 
+- The leaf result gates over a direct executor's result: tried and reverted
+  before shipping (2026-11-01). They read a molecule's JSON envelope
+  (`output.probes`) and its `record_probe` manifest; a plain-text report has
+  neither, so `web-styling-evidence` raised a finding no pass could clear,
+  `required-command-manifest` ignored commands run through `run_shell`, and
+  `observed-tool-action` refused a remediation pass that only corrected its
+  report. The holistic root review reads the report with the host's evidence.
 - Making `--baseline` the default depth: refused (2026-11-01). The baseline is
   a measurement arm: it self-certifies, reads only the goal, writes nothing to
   the store and records no root plan, so a project run on it could be neither

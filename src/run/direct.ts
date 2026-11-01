@@ -35,10 +35,11 @@ import { BASELINE_MAX_TOKENS, BASELINE_MAX_TOOL_ITERATIONS } from './baseline.js
  * a root plan the host can classify and persist.
  *
  * WHY TIER 1 ON THE L3 PIN. A molecule is the only rank that invokes
- * elements (src/tools/AGENTS.md), and no cell supervises this one, so root
- * acceptance runs over its file delivery the leaf gates a cell would
- * (`observed-tool-action`, `required-command-manifest`, `declared-unverified`,
- * src/atoms/rootAcceptance.ts). Its MODEL is the organisation's top pin: the one agent
+ * elements (src/tools/AGENTS.md). Root acceptance runs the DELEGATED gates
+ * over its result, never the leaf ones a cell runs over a molecule: those read
+ * a molecule's JSON envelope (`output.probes`) and its `record_probe`
+ * manifest, which this plain-text report never carries, so they raised false
+ * findings and refused correct passes (review 2026-11-01). Its MODEL is the organisation's top pin: the one agent
  * carrying a whole task is the frontier agent the rounds measured, never the
  * cheapest molecule model. That selector was authorised at launch as `l3`;
  * nothing here widens what the run may spend.
@@ -70,7 +71,27 @@ export const DIRECT_SYSTEM_PROMPT = [
   '',
   'Work until the task is genuinely done, then reply with a short plain-text report of',
   'what you built, how you verified it, and anything you could not complete.',
+  'End the report with one line, exactly "DELIVERY: files" when the task asked you to create or',
+  'change files in the project, or exactly "DELIVERY: text" when it only asked for an answer.',
 ].join('\n');
+
+/** The report's last line, as the system prompt asks for it. Anything else declares nothing. */
+const DELIVERY_LINE = /^DELIVERY:\s*(files|text)\s*$/i;
+
+/** What each direct result's report declared, held by the host beside the result. */
+const declarations = new WeakMap<Result, DeliveryKind>();
+
+/**
+ * The report without its declaration line, and the delivery that line
+ * declared. Only the LAST non-empty line counts, matched whole against the
+ * two values the prompt names; anywhere else, or anything else, is report.
+ */
+export function splitDeliveryDeclaration(text: string): { readonly report: string; readonly declared?: DeliveryKind } {
+  const lines = text.trimEnd().split('\n');
+  const match = DELIVERY_LINE.exec((lines.at(-1) ?? '').trim());
+  if (!match) return { report: text.trim() };
+  return { report: lines.slice(0, -1).join('\n').trim(), declared: match[1]!.toLowerCase() as DeliveryKind };
+}
 
 /** The task as the direct executor reads it: the goal, then the context every executor reads. */
 export function renderDirectUserContent(task: Task, hasShell: boolean): string {
@@ -89,11 +110,11 @@ export class DirectAtom extends Atom {
   }
 
   /**
-   * One phase, the whole task, and NO declared delivery. Recorded before any
-   * tool call, it is what the host persists as the declared manifest, and what
-   * lets a pass the run budget cuts land `partial` with its workspace kept
-   * (`landedBeforeAnyPhase`). The delivery is then judged from what the pass
-   * did (`observedDelivery`), as for any root plan that declared none.
+   * One phase, the whole task, and NO declared delivery. Recorded before the
+   * first pass's first tool call, it is what the host persists as the declared
+   * manifest, and what lets a pass the run budget cuts land `partial` with its
+   * workspace kept (`landedBeforeAnyPhase`). The delivery is recorded after
+   * the pass (`directDelivery`).
    */
   plan(task: Task): Promise<Plan> {
     return Promise.resolve({
@@ -122,8 +143,8 @@ export class DirectAtom extends Atom {
         if (observed.length < 64) observed.push({ name: info.name, ok: toolInvocationSucceeded(info) });
       },
     }));
-    const text = (resp.text ?? '').trim();
-    return {
+    const { report: text, declared } = splitDeliveryDeclaration(resp.text ?? '');
+    const result: Result = {
       output: text,
       summary: text.split('\n').find((line) => line.trim().length > 0)?.slice(0, 300) ?? 'the direct executor produced no report',
       trace: [],
@@ -132,23 +153,32 @@ export class DirectAtom extends Atom {
       ...(resp.toolBudgetExhausted ? { toolBudgetExhausted: true as const } : {}),
       evidence: executorEvidence(text, ctx),
     };
+    if (declared) declarations.set(result, declared);
+    return result;
   }
 }
 
 /**
- * What a direct pass delivered, decided by the HOST from what it observed,
- * since no planner declared it. A deep root plan says `text` for a question;
- * here the executor may run commands to answer one, and `observedDelivery`
- * reads any shell call as a file delivery, whose criteria review never sees
- * the answer. So: FILES when this attempt attested a write or an edit, or when
- * a seeded workspace no longer matches its starting snapshot (a shell command
- * that changed, added or removed a file); TEXT when it matches. A comparison
- * the host cannot read or complete counts as changed, and a run with no seed
- * to compare falls back to `observedDelivery`.
+ * What a direct pass delivered. A deep root plan DECLARES `text` for a
+ * question; with no planner, the executor declares it on its report's last
+ * line, and the host bounds what that declaration may say:
+ *
+ * 1. FILES whenever this attempt attested a write or an edit, whatever was
+ *    declared: written files are never judged, recorded or published as a
+ *    mere answer.
+ * 2. Otherwise the DECLARATION. Checking an answer has side effects (an
+ *    install writes a lockfile, a build writes `dist/`, a test runner its
+ *    reports), and a seed over the snapshot's bounds can never compare equal,
+ *    so observation alone sent most questions on a real repository to the
+ *    report-blind criteria review (review 2026-11-01).
+ * 3. With no declaration, OBSERVATION: a seeded workspace that no longer
+ *    matches its start (or cannot be compared) is files, one that matches is
+ *    text; a run with no seed falls back to `observedDelivery`.
  */
-export async function directDelivery(ctx: RunContext): Promise<DeliveryKind> {
+export async function directDelivery(ctx: RunContext, declared?: DeliveryKind): Promise<DeliveryKind> {
   const records = ctx.attestations?.forAttempt(ctx.attempt ?? 1) ?? [];
   if (records.some((record) => record.tool === 'write_file' || record.tool === 'edit_file')) return 'files';
+  if (declared) return declared;
   const seeded = ctx.startingWorkspace;
   if (!seeded) return observedDelivery(ctx);
   try {
@@ -172,14 +202,18 @@ export const DIRECT_RETRY_INPUT = 'directRetry';
  * A supervised run's cell retries a failed molecule; with no cell, one
  * transport error twenty minutes in would end the run `failed`, and a failed
  * run seeds nothing (`previousSeedRun`), which is production run 6ab0ae3b's
- * loss. The run budget and an explicit cancellation are not failures of the
- * execution: they abort the context and are rethrown, so the depth runner
- * lands or cancels as it always has. A second failure is the run's.
+ * loss. The run budget and its deadline abort the context and are rethrown,
+ * so the depth runner lands as it always has. A cancellation ends the run's
+ * process group, a retry already started included. A second failure is the
+ * run's.
  */
 export function directRootHandle(atom: DirectAtom): (task: Task, context: RunContext) => Promise<Result> {
   return async (task, context) => {
     const plan = await atom.plan(task);
-    context.recordRootPlan?.(plan);
+    // The delivery-less plan only before the FIRST pass: a remediation pass
+    // re-recording it would leave a manifest with no delivery behind it if
+    // that pass then failed and the run landed on the earlier, judged one.
+    if (task.inputs?.['rootAcceptanceAttempt'] === undefined) context.recordRootPlan?.(plan);
     let result: Result;
     try {
       result = await atom.execute(task, plan, context);
@@ -194,7 +228,7 @@ export function directRootHandle(atom: DirectAtom): (task: Task, context: RunCon
     // The same plan, now with the delivery the host observed: root acceptance
     // judges it, and the declared manifest records it (a text delivery after
     // a file one is kept files by the depth runner).
-    context.recordRootPlan?.({ ...plan, delivery: await directDelivery(context) });
+    context.recordRootPlan?.({ ...plan, delivery: await directDelivery(context, declarations.get(result)) });
     return result;
   };
 }

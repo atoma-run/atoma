@@ -36,14 +36,17 @@ arm's tool loop and budget, with what the product owes every executor:
   tool call, root acceptance by the host, the one remediation pass after a
   refusal, landing as `partial` when the run budget cuts it, the declared
   artifact manifest, preview and publication.
-- **Given back what a cell gave.** Root acceptance runs over a direct file
-  delivery the leaf gates a cell runs over a molecule (an action actually
-  observed, a required command recorded, an admission that a check did not
-  run). A failed execution runs once more on the same workspace. The host
-  decides whether the pass delivered files or an answer, from what it
-  observed: an attested write or edit, or a seeded workspace that no longer
-  matches its start, means files; otherwise the report is the answer and gets
-  the text review.
+- **Given back what a cell or a planner gave.** A failed execution runs once
+  more on the same workspace, as a cell retries a molecule. The executor
+  declares on its report's last line whether it delivered files or an
+  answer, as a planner declares a root plan's delivery; an attested write or
+  edit always makes it files, and with no declaration the host compares the
+  workspace with its start. An answer gets the text review.
+- **Not given back.** The leaf result gates a cell runs over a molecule. They
+  read a molecule's JSON envelope and probe manifest, which a plain-text
+  report does not carry; tried, they raised findings no pass could clear and
+  refused correct passes, so root acceptance runs the delegated gates, as it
+  does over a tissue.
 - **Dropped.** Tissue selection, planning, plan and result validators, peers,
   replans, the prefilter, recipes, script dispatch and learning.
 - **Identity.** A tier-1 actor named `Direct`, because a molecule is the only

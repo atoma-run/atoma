@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { attestingExecutor, createAttestationLog } from '../src/core/attestation.js';
 import type { Plan, ToolExecutor } from '../src/core/types.js';
-import { DirectAtom, DIRECT_ATOM_NAME, DIRECT_RETRY_INPUT, directRootHandle, renderDirectUserContent } from '../src/run/direct.js';
+import { DirectAtom, DIRECT_ATOM_NAME, DIRECT_RETRY_INPUT, DIRECT_SYSTEM_PROMPT, directDelivery, directRootHandle, renderDirectUserContent, splitDeliveryDeclaration } from '../src/run/direct.js';
 import { runDepthTask } from '../src/run/depth.js';
 import { parseRunnerArgs, resolveSupervisionDepth, RunnerConfigError } from '../src/run/runner.js';
 import { DEPTH_CONTRACT } from '../src/run/setup.js';
@@ -110,6 +110,54 @@ describe('the direct executor', () => {
       .rejects.toThrow('transport lost again');
     expect(restart).not.toHaveBeenCalled();
     expect(topology).toHaveBeenCalledExactlyOnceWith({ at: 'entry', mode: 'direct', reason: 'arm', attempt: 1 });
+  });
+});
+
+describe('what a direct pass delivered', () => {
+  const executed = async (calls: Array<[string, Record<string, unknown>]>) => {
+    const attestations = createAttestationLog();
+    const ctx = { ...makeCtx(), tools: attestingExecutor(fileTools(), attestations, undefined)!, attempt: 1, attestations };
+    for (const [name, args] of calls) await ctx.tools.execute(name, args);
+    return ctx;
+  };
+
+  it('reads the declaration from the report\'s last line only, and keeps it out of the report', () => {
+    expect(DIRECT_SYSTEM_PROMPT).toContain('"DELIVERY: text"');
+    expect(splitDeliveryDeclaration('It exports one object.\n\nDELIVERY: text\n')).toEqual({ report: 'It exports one object.', declared: 'text' });
+    expect(splitDeliveryDeclaration('Built it.\ndelivery: Files')).toEqual({ report: 'Built it.', declared: 'files' });
+    // Anywhere but the last line, or any other value, is report.
+    expect(splitDeliveryDeclaration('DELIVERY: text\nThen I built it.')).toEqual({ report: 'DELIVERY: text\nThen I built it.' });
+    expect(splitDeliveryDeclaration('Done.\nDELIVERY: both')).toEqual({ report: 'Done.\nDELIVERY: both' });
+  });
+
+  it('is files after an attested write whatever was declared, the declaration otherwise, and observation without one', async () => {
+    expect(await directDelivery(await executed([['write_file', { path: 'a.ts', content: 'x' }]]), 'text')).toBe('files');
+    // An answer checked with a command that left side effects is still the answer it says it is.
+    expect(await directDelivery(await executed([['run_shell', { cmd: 'npm ci && npm run build' }]]), 'text')).toBe('text');
+    expect(await directDelivery(await executed([['run_shell', { cmd: 'sed -i s/a/b/ a.ts' }]]), 'files')).toBe('files');
+    // No declaration and no seed to compare: any shell call reads as files (observedDelivery).
+    expect(await directDelivery(await executed([['run_shell', { cmd: 'cat a.ts' }]]))).toBe('files');
+    expect(await directDelivery(await executed([['read_file', { path: 'a.ts' }]]))).toBe('text');
+  });
+
+  it('records the delivery the report declared, after the pass, on the same one-phase plan', async () => {
+    const atom = new DirectAtom(tools, 'api:test:frontier');
+    const recorded: Plan[] = [];
+    const attestations = createAttestationLog();
+    const ctx = { ...makeCtx(), tools: attestingExecutor(fileTools(), attestations, undefined)!, attempt: 1, attestations,
+      recordRootPlan: (plan: Plan) => recorded.push(plan) };
+    ctx.llm.enqueue(async (req) => {
+      await req.executor!.execute('run_shell', { cmd: 'npm test' });
+      return { text: 'The suite passes: 12 tests.\nDELIVERY: text', stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    const out = await directRootHandle(atom)({ description: 'Does the suite pass?' }, ctx);
+    expect(out.output).toBe('The suite passes: 12 tests.');
+    expect(recorded.map((plan) => plan.delivery)).toEqual([undefined, 'text']);
+    // A remediation pass records only its outcome: the plan without a delivery is the first pass's.
+    recorded.length = 0;
+    ctx.llm.enqueueText('Still passing.\nDELIVERY: text');
+    await directRootHandle(atom)({ description: 'Does the suite pass?', inputs: { rootAcceptanceAttempt: 1 } }, ctx);
+    expect(recorded.map((plan) => plan.delivery)).toEqual(['text']);
   });
 });
 
