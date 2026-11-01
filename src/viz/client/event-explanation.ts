@@ -105,7 +105,7 @@ export function explainEvent(event: VizEvent, run: VizRun, t: Translate): {
       outcome = operations.includes(event.op) ? t(`detail.readable.skill.${event.op}`) : event.op;
     }
     field('outcome', outcome, tone);
-    if (event.kind === 'topology' && (event.mode === 'deep' || event.mode === 'short'))
+    if (event.kind === 'topology' && (event.mode === 'deep' || event.mode === 'short' || event.mode === 'direct'))
       field('observation', t(`detail.readable.topology.${event.mode}`));
     if (event.kind === 'trust' && typeof event.successes === 'number' && typeof event.failures === 'number')
       field('observation', [t('detail.readable.priorSuccesses', { count: event.successes }),

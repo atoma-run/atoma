@@ -27,6 +27,7 @@ vi.mock('../src/run/providers.js', async (original) => ({
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); resetHostLifecycleSnapshotForTests(); });
 
 describe('task-driven tissue selection through the real runner', () => {
+  // Tissue selection is the `deep` path; `direct` became the default on 2026-11-01 and selects none.
   it.each(['reuse', 'create'] as const)('imports repository context, routes via %s, reads evidence through L1 and accepts text', async (route) => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-routed-run-'));
     const seed = join(root, 'seed');
@@ -90,7 +91,7 @@ describe('task-driven tissue selection through the real runner', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(['--seed', seed, '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', goal], { providerEnv: { ...OLLAMA_PINS }, seedCatalog(ctx, canonical) {
+      handle = await startTask(['--depth', 'deep', '--seed', seed, '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', goal], { providerEnv: { ...OLLAMA_PINS }, seedCatalog(ctx, canonical) {
         canonical(ctx);
         molecule = ensureCanonicalFileScribeL1(ctx.registry, ctx.toolDecls).name;
         cell = ctx.registry.listByTier(2)[0]!.name;
@@ -160,7 +161,7 @@ describe('pending audits at runner shutdown', () => {
     });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(['--no-learn-skills', '--no-direct-skills', 'Audit closure fixture']);
+      handle = await startTask(['--depth', 'deep', '--no-learn-skills', '--no-direct-skills', 'Audit closure fixture']);
       await startedWork;
       if (mode === 'shutdown') { await handle.shutdown(); stop(); }
       await handle.settled;
@@ -214,7 +215,7 @@ describe('pending audits at runner shutdown', () => {
     });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(['--no-learn-skills', '--no-direct-skills', 'Watchdog audit fixture'], { onWedged: wedged });
+      handle = await startTask(['--depth', 'deep', '--no-learn-skills', '--no-direct-skills', 'Watchdog audit fixture'], { onWedged: wedged });
       await startedWork;
       expect(fireWatchdog).toBeDefined();
       fireWatchdog!();
@@ -285,7 +286,7 @@ describe('package roots of a seeded run', () => {
     });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(['--seed', join(root, 'seed'), '--no-learn-skills', '--no-direct-skills', 'Repair the browser suite'], opts);
+      handle = await startTask(['--depth', 'deep', '--seed', join(root, 'seed'), '--no-learn-skills', '--no-direct-skills', 'Repair the browser suite'], opts);
       await handle.settled;
     } finally { await handle?.shutdown(); closeStoreHandles(); }
     const path = readdirSync(runs).find(name => name.endsWith('.json') && name !== 'index.json')!;

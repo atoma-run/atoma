@@ -70,6 +70,7 @@ import { projectRunHasRetrievalReceipt } from '../projects/retrievalLaunch.js';
 import { HAYSTACK_LAUNCH_ENV, readHaystackLaunch } from '../contracts/retrievalHaystack.js';
 import { openProjectRunHaystack } from '../projects/retrievalHaystackLaunch.js';
 import { baselineModel, runFrontierBaseline } from './baseline.js';
+import { DirectAtom, directRootHandle } from './direct.js';
 import {
   assertIsolationBoundary,
   resolveIsolationRequirement,
@@ -312,6 +313,8 @@ const RUNNER_BOOLEAN_FLAGS = [
 ] as const;
 /** Booleans that also accept an explicit `--no-` form; the LAST spelling wins. */
 const RUNNER_NEGATABLE_FLAGS = ['--baseline', '--container', '--egress'] as const;
+/** Flags that consume the next token. Spelled with their dashes so a launcher's surface test can find them. */
+const RUNNER_VALUE_FLAGS = ['--seed', '--worker-image', '--depth', '--resume', '--pause-after-phase'] as const;
 
 const stripDashes = (flag: string): string => flag.slice(2);
 
@@ -325,7 +328,7 @@ export function formatUsage(): string {
       ? '--checkpoint (durable sequential phases in deep mode)' : flag),
     ...RUNNER_NEGATABLE_FLAGS.flatMap((flag) => [flag, `--no-${stripDashes(flag)}`]),
     '--seed <dir>',
-    '--depth <deep|short> (supervision depth, common final acceptance)',
+    '--depth <direct|short|deep> (supervision depth, common final acceptance)',
     '--worker-image <sha256:digest> (requires container mode)',
     '--pause-after-phase <n> (pause after validated root phase n; enables checkpoints)',
     '--resume <checkpoint-id> (same store; no new goal or seed)',
@@ -340,7 +343,8 @@ export function formatUsage(): string {
     `  --help, -h`,
     ``,
     `New runs default to ${DEPTH_CONTRACT.defaultMode} supervision; --depth overrides it.`,
-    `Short supervision enters at L2 and may restart once through L3.`,
+    `Direct runs one executor on the L3 model; short enters at L2 and may restart once through L3;`,
+    `deep decomposes through an L3 tissue from the start.`,
     `Every run needs ATOMA_MODEL_L1, ATOMA_MODEL_L2 and ATOMA_MODEL_L3 set to a`,
     `<api|sub|own>:<vendor>:<model> selector.`,
     ``,
@@ -360,7 +364,7 @@ export function parseRunnerArgs(argv: readonly string[]): RunnerArgs {
     negatableFlags: RUNNER_NEGATABLE_FLAGS.map(stripDashes),
     // `--seed` consumes the next token UNCONDITIONALLY (historical contract);
     // a trailing `--seed` records '' and deliberately clobbers ATOMA_SEED.
-    valueFlags: ['seed', 'worker-image', 'depth', 'resume', 'pause-after-phase'],
+    valueFlags: RUNNER_VALUE_FLAGS.map(stripDashes),
     undeclared: 'discard',
   });
   for (const token of undeclaredFlags) console.warn(`unknown flag: ${token}`);
@@ -382,7 +386,7 @@ export function parseRunnerArgs(argv: readonly string[]): RunnerArgs {
     throw new RunnerConfigError('--pause-after-phase requires a positive phase number');
   }
   if (depth && (!depth.success || baseline || comparison)) {
-    throw new RunnerConfigError('--depth must be deep or short and cannot be combined with baseline or a comparison arm');
+    throw new RunnerConfigError('--depth must be direct, short or deep and cannot be combined with baseline or a comparison arm');
   }
   if (workerImage !== undefined &&
       (!backendMode.container || !containerImageDigestSchema.safeParse(workerImage).success)) {
@@ -446,11 +450,15 @@ export function resolveSkillPromotion(
  * `records/experiments/depth-routing-experiment-2026-09-13.md`).
  */
 export function resolveSupervisionDepth(
-  args: Pick<RunnerArgs, 'depth' | 'baseline' | 'comparison'>,
+  args: Pick<RunnerArgs, 'depth' | 'baseline' | 'comparison' | 'checkpoint'>,
   defaultMode: DepthMode | undefined
 ): DepthMode | undefined {
   if (args.depth) return args.depth;
   if (args.baseline || args.comparison) return undefined;
+  // A checkpoint, a pause or a resume sits between ROOT PHASES, which only
+  // `deep` has: asking for one without naming a depth asks for `deep`, as it
+  // did while `deep` was the default (before 2026-11-01).
+  if (args.checkpoint) return 'deep';
   return defaultMode;
 }
 
@@ -508,21 +516,30 @@ export interface RunOutcome {
  */
 export { RunnerConfigError };
 
-export type LifecycleToggleSource = 'cli-disable' | 'environment-disable' | 'default-enable';
+export type LifecycleToggleSource = 'cli-disable' | 'environment-disable' | 'default-enable' | 'environment-enable' | 'default-disable';
 
 export interface LifecycleToggleDecision {
   readonly enabled: boolean;
   readonly source: LifecycleToggleSource;
 }
 
-/** Auto-distillation policy: CLI flag > HOST env > default-on. Pure. */
+/**
+ * Auto-distillation policy: CLI veto > HOST opt-in > default-OFF. Pure.
+ *
+ * OFF by default since 2026-11-01 (docs/decisions/direct-depth-2026-11-01.md):
+ * round 15 measured inline learning raising a run's cost without changing its
+ * correctness, and the default topology has no cell to learn from. Only the
+ * exact opt-in value `1` turns it on, so a typo fails closed; `--no-learn-skills`
+ * stays a veto over it.
+ */
 export function resolveSkillLearning(
   noLearnSkills: boolean,
   hostValue: string | undefined
 ): LifecycleToggleDecision {
   if (noLearnSkills) return { enabled: false, source: 'cli-disable' };
-  if (hostValue === '0') return { enabled: false, source: 'environment-disable' };
-  return { enabled: true, source: 'default-enable' };
+  if (hostValue === '1') return { enabled: true, source: 'environment-enable' };
+  if (hostValue !== undefined) return { enabled: false, source: 'environment-disable' };
+  return { enabled: false, source: 'default-disable' };
 }
 
 /** Trigger evaluation of learned drafts: a kill switch under learning's. Pure. */
@@ -921,17 +938,20 @@ async function startTaskInternal(
   // so the library hooks (which read them at call time) see the decision —
   // and so a second in-process run resolves from operator intent, not from
   // what the first run wrote.
-  // Auto-distillation is ON by default. Priority is CLI flag > env var >
-  // default-on. The L2 onApproved hook reads ATOMA_SKILL_LEARN === '1' at
-  // call time, so we just set the env var here and the lib stays unchanged.
+  // Auto-distillation is OFF by default since 2026-11-01. Priority is CLI
+  // veto > env opt-in > default-off. The L2 onApproved hook reads
+  // ATOMA_SKILL_LEARN === '1' at call time, so we just set the env var here
+  // and the lib stays unchanged.
   const learning = resolveSkillLearning(args.noLearnSkills, hostEnv.learn);
   process.env['ATOMA_SKILL_LEARN'] = learning.enabled ? '1' : '0';
   if (learning.source === 'cli-disable') {
     console.log('skill auto-distillation: off (--no-learn-skills)');
   } else if (learning.source === 'environment-disable') {
-    console.log('skill auto-distillation: off (ATOMA_SKILL_LEARN=0)');
+    console.log(`skill auto-distillation: off (ATOMA_SKILL_LEARN=${hostEnv.learn ?? ''})`);
+  } else if (learning.source === 'environment-enable') {
+    console.log('skill auto-distillation: ON (ATOMA_SKILL_LEARN=1)');
   } else {
-    console.log('skill auto-distillation: ON (default — pass --no-learn-skills to disable)');
+    console.log('skill auto-distillation: off (default — set ATOMA_SKILL_LEARN=1 to enable)');
   }
   // TRIGGER EVALUATION of every learned draft (owner decision 2026-10-15,
   // src/skills/triggerEval.ts): the production selector judges the draft's
@@ -1380,6 +1400,12 @@ async function startTaskInternal(
           ? { checklistOrigin: { source: 'user' as const, digest: acceptanceSpec.digest } } : {}),
         mode: args.depth!, task: t, ctx: c, floor: t.proofFloor!,
         createExecutor: async (mode) => {
+          // One executor on the run's live declarations; no tissue is
+          // selected and no cell is built (src/run/direct.ts).
+          if (mode === 'direct') {
+            const direct = new DirectAtom(backend.toolDecls);
+            return { actor: direct, handle: directRootHandle(direct) };
+          }
           const currentSeed = { ...seedCtx, toolDecls: backend.toolDecls };
           if (mode === 'short') {
             const entry = DEPTH_CONTRACT.entryCell(currentSeed);
@@ -1402,7 +1428,10 @@ async function startTaskInternal(
         },
         onTopology: (info) => recorder.recordTopology(info),
         onAcceptance: (info) => recorder.recordAcceptance(info),
-        onApproved: (actor, task, result, context, feedback, approval) => deferPromptLearning(registry, actor, task, result, context, feedback, approval),
+        // The direct executor has no registry row and no prompt of its own to
+        // amend: a method lesson has nobody to land on.
+        onApproved: (actor, task, result, context, feedback, approval) => actor instanceof DirectAtom ? undefined
+          : deferPromptLearning(registry, actor, task, result, context, feedback, approval),
       }); };
     } else {
       handle = async (t, c) => (await tissueFor(t, c)).handle(t, c);

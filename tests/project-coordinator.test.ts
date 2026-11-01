@@ -190,14 +190,19 @@ describe('project run environment', () => {
   });
 
   it('lets a tenant run learn, promote, dispatch and cache like any run', () => {
-    // The platform's own point: a project's runs get cheaper as it grows.
-    // Measured before this was on — two delivered runs, $0.59, learnedSkills 0.
+    // Learning follows the HOST like every lifecycle default (2026-11-01:
+    // off unless the host opts in; round 15 measured it raising cost without
+    // changing correctness). Before, it was pinned on here.
     const env = runEnv({
       ...BASE,
       skillsPath: '/control/skills',
       hostEnv: { PATH: '/bin', ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
     });
-    expect(env['ATOMA_SKILL_LEARN']).toBe('1');
+    expect(env['ATOMA_SKILL_LEARN']).toBeUndefined();
+    expect(runEnv({ ...BASE, skillsPath: '/control/skills',
+      hostEnv: { PATH: '/bin', ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key', ATOMA_SKILL_LEARN: '1' } })['ATOMA_SKILL_LEARN']).toBe('1');
+    expect(runEnv({ ...BASE, skillsPath: '/control/skills',
+      hostEnv: { PATH: '/bin', ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key', ATOMA_SKILL_LEARN: '0' } })['ATOMA_SKILL_LEARN']).toBeUndefined();
     expect(env['ATOMA_EVENT_SKILLS']).toBe('1');
     // The host selects the one platform catalog.
     expect(env['ATOMA_SKILLS_DIR']).toBe(resolvePath('/control/skills'));
@@ -840,7 +845,9 @@ describe('ProjectRunCoordinator', () => {
       hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
       driver, acquireLease: async () => lease(), publisher: { publish, syncRun } });
     const input = { orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId };
-    const first = await coordinator.start({ ...input, request: { goal: 'Write two files', idempotencyKey: 'first' } });
+    // Pausing and resuming is a deep run's capability: its checkpoints sit
+    // between root phases. The continuation below names no depth and keeps it.
+    const first = await coordinator.start({ ...input, request: { goal: 'Write two files', idempotencyKey: 'first', depth: 'deep' } });
     await coordinator.waitForIdle();
     const paused = f.store.getProjectRun(f.viewer.orgId, first.projectRunId)!;
     expect(paused.status).toBe(mode === 'crash' ? 'failed' : 'partial');

@@ -649,7 +649,7 @@ load-bearing.
   a table row with a stated disposition, never a new inline `if`. `required-command-manifest` judges a child without `record_probe` by the exact command's latest host receipt in its own branch, never the manifest it cannot write; its coaching names no tool, a holder's names record_probe (2026-10-26).
 - The same table applies envelope and explicit validation failures to L2 results at L3 before trust
   (`appliesToDelegatedResult`); a reporting one (`read-only-validation-failed`, `tool-budget-exhausted`, `unvalidated-fallback` for the cell's own fallback) takes
-  L3's trust and Decision paths away as at L2 (run dfa20873). Leaf action, disk and proof checks stay at L2.
+  L3's trust and Decision paths away as at L2 (run dfa20873). Leaf action, disk and proof checks stay with the molecule's own supervisor: L2, or root acceptance over a tier-1 root actor (the direct depth, 2026-11-01) on a file delivery, its coaching joined to the refusal.
 - `declared-unverified` reads a molecule's own summary admitting its checks did
   not run (`DECLARED_UNVERIFIED_RE`) and forces review, at the cell over that
   molecule only: the summary travels up into every aggregate, and a tier above

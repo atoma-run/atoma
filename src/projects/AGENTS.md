@@ -348,10 +348,9 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   Active learning also holds the requesting principal's profile-change guard.
   [Recovery and accounting](../../docs/decisions/approved-learning-2026-10-11.md).
 
-- SKILL LEARNING IS ON (`ATOMA_SKILL_LEARN=1`, `ATOMA_EVENT_SKILLS=1`). It is
-  the point of the platform: a tenant's runs get cheaper as their project
-  grows. It was off, and two delivered runs measured the cost of that —
-  $0.59 spent, `learnedSkills: 0`, nothing carried forward.
+- LEARNING FOLLOWS THE HOST (2026-11-01, [direct depth](../../docs/decisions/direct-depth-2026-11-01.md)): `ATOMA_SKILL_LEARN=1` reaches a project run only when the host opts in; `ATOMA_EVENT_SKILLS=1` stays.
+- EVERY NEW ROW STORES ITS DEPTH (`withResolvedDepth`, before the idempotency lookup): the request's, a continuation's source's, or the default `direct`. A row without one ran `deep` and every reader (launch, `--checkpoint`, continuation, rerun, GitHub-access resume, Compute validation) reads it through
+  `STORED_DEPTH_WHEN_ABSENT`, never today's default; every launch passes `--depth`.
 - `ATOMA_SKILLS_DIR` points at the host's ONE catalog, and `ATOMA_DB_PATH` at
   the host's ONE registry: a tenant run reads and earns exactly what every
   other run does ([platform trust record](../../docs/decisions/platform-trust-2026-09-15.md)).

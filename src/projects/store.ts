@@ -68,7 +68,20 @@ import {
 import { artifactManifestHash } from './artifacts.js';
 import { captureAcceptanceSpec, parseAcceptanceSpec } from '../run/acceptanceSpec.js';
 import type { AcceptanceSpec, ChecklistSource } from '../contracts/acceptanceChecklist.js';
-import type { DepthMode } from '../contracts/depthRouting.js';
+import { DEFAULT_DEPTH_MODE, STORED_DEPTH_WHEN_ABSENT, type DepthMode } from '../contracts/depthRouting.js';
+
+/**
+ * Whether a stored row's depth answers a request's, for a retry or a live
+ * re-attach. An ABSENT requested depth asks for the default, which a row
+ * written with the default answers, and so does an older row written with
+ * none: a start re-sent across the 2026-11-01 release is still the same
+ * request. A NAMED depth matches the depth the row ran at, an older row
+ * without one having run `deep`.
+ */
+export function requestedDepthMatches(stored: string | null | undefined, requested: DepthMode | undefined): boolean {
+  if (requested === undefined) return stored == null || stored === DEFAULT_DEPTH_MODE;
+  return (stored ?? STORED_DEPTH_WHEN_ABSENT) === requested;
+}
 import { MAX_READ_RUN_BYTES, MAX_READ_RUN_FILES } from '../contracts/readRuns.js';
 
 /** An acceptance list a run carries, and who wrote it. */
@@ -1689,7 +1702,7 @@ END;
     if (existing.requested_by_principal_id !== principalId || existing.goal !== request.goal ||
         (existing.base_run_id ?? null) !== (request.baseRunId ?? null) ||
         (existing.read_run_ids_json ?? null) !== this.requestedReadRuns(orgId, request) ||
-        (existing.resume_of_run_id ?? null) !== (request.resumeOf ?? null) || wantedDigest !== storedDigest || (existing.depth ?? null) !== (request.depth ?? null)) {
+        (existing.resume_of_run_id ?? null) !== (request.resumeOf ?? null) || wantedDigest !== storedDigest || !requestedDepthMatches(existing.depth, request.depth)) {
       throw new ProjectStateConflict('run idempotency key was already used for different input');
     }
     return this.runWithLearning(existing);
@@ -1730,7 +1743,7 @@ END;
     const wantedReadRuns = this.requestedReadRuns(orgId, request);
     const match = live.find((row) => !row.rerun_of_run_id && (row.base_run_id ?? null) === (request.baseRunId ?? null) && (row.resume_of_run_id ?? null) === (request.resumeOf ?? null) && row.goal === request.goal &&
       (row.read_run_ids_json ?? null) === wantedReadRuns &&
-      (row.depth ?? null) === (request.depth ?? null) &&
+      requestedDepthMatches(row.depth, request.depth) &&
       (this.getRunAcceptanceSpec(orgId, row.project_run_id)?.digest ?? null) === wantedDigest);
     return match ? this.runWithLearning(match) : null;
   }

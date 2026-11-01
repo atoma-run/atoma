@@ -19,6 +19,10 @@ Skills follow learn → compile → match → deterministic dispatch or inject �
 credit. Compilation happens AT LEARN TIME and dispatch needs no earned runs,
 by owner decision on 2026-09-26
 ([compile-at-learn record](../../docs/decisions/compile-at-learn-2026-09-26.md)).
+Since 2026-11-01 learning is OFF unless a host sets `ATOMA_SKILL_LEARN=1`, and
+the default depth (`direct`) has no cell or molecule to match, inject or credit
+a recipe: this lifecycle runs on `deep` and `short` runs
+([direct depth](../../docs/decisions/direct-depth-2026-11-01.md)).
 
 - ONE catalog, ONE trust, for every run on the platform — a run is a run
   ([platform trust record](../../docs/decisions/platform-trust-2026-09-15.md)). BODIES

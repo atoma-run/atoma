@@ -81,6 +81,15 @@ export interface AssayCase {
   readonly sampledAt: string;
 }
 
+/**
+ * The topology both arms run at. A recipe is matched and injected by cells
+ * and molecules, and the default depth since 2026-11-01 (`direct`) has
+ * neither, so an arm left on the default could never use the recipe it is
+ * judging: both arms would measure the same run. Pinned to the depth every
+ * assay before that date ran at.
+ */
+export const ASSAY_DEPTH: DepthMode = 'deep';
+
 /** What the arm launcher is handed; the default builds on `spawnRun`. */
 export interface ArmLaunch {
   readonly onSpawn?: (pid: number) => void;
@@ -345,7 +354,7 @@ export async function runAssay(target: AssayTarget, cases: readonly AssayCase[],
         let stats: RunStats | null = null;
         try {
           const log = await launch({ arm, caseIndex: index, goal: c.task, env, logPath, cwd: options.repoRoot, timeoutMs: options.timeoutMs,
-            isolation: options.isolation, ...(options.signal ? { signal: options.signal } : {}) });
+            depth: ASSAY_DEPTH, isolation: options.isolation, ...(options.signal ? { signal: options.signal } : {}) });
           stats = statsOf(log);
         } catch (error) {
           options.warn(`assay ${target.skillId}: case ${index} arm ${arm} could not run: ${error instanceof Error ? error.message : String(error)}`);

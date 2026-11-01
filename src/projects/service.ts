@@ -1,4 +1,5 @@
 import { computeValidationRetryInputSchema } from '../contracts/computeValidation.js';
+import { STORED_DEPTH_WHEN_ABSENT } from '../contracts/depthRouting.js';
 import { ComputeValidationRetryConflict } from '../core/computeValidation.js';
 import { deploymentSettingInputSchema, hostingAddressInputSchema } from '../contracts/projectDeployment.js';
 import { projectLearningInputSchema, projectLearningCursorSchema } from '../contracts/projectLearning.js';
@@ -1122,7 +1123,7 @@ export class ProjectService {
     }
     const acceptance = this.store.getRunAcceptanceSpec(viewer.orgId, projectRunId);
     return this.startProjectRunFromInput(viewer, projectId, {
-      resumeOf: projectRunId, goal: run.goal, depth: run.depth, idempotencyKey: this.coordinator.continuationRequestKey(run),
+      resumeOf: projectRunId, goal: run.goal, depth: run.depth ?? STORED_DEPTH_WHEN_ABSENT, idempotencyKey: this.coordinator.continuationRequestKey(run),
       ...(acceptance ? { acceptanceChecklist: acceptance.items.map(({ behaviour, check }) => ({ behaviour, check })) } : {}),
     }, requestedVia);
   }
@@ -1180,7 +1181,8 @@ export class ProjectService {
     }
     const acceptance = this.store.getRunAcceptanceSpec(viewer.orgId, projectRunId);
     const resumed = await this.startProjectRunFromInput(viewer, projectId, {
-      goal: run.goal, depth: run.depth, idempotencyKey: `github-access:${projectRunId}`,
+      // The same topology as the run it resumes: an older row without a depth was a deep run.
+      goal: run.goal, depth: run.depth ?? STORED_DEPTH_WHEN_ABSENT, idempotencyKey: `github-access:${projectRunId}`,
       ...(run.baseRunId ? { baseRunId: run.baseRunId } : {}),
       ...(run.readRunIds ? { readRunIds: run.readRunIds } : {}),
       ...(acceptance ? { acceptanceChecklist: acceptance.items.map(({ behaviour, check }) => ({ behaviour, check })) } : {}),

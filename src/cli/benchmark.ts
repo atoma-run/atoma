@@ -107,10 +107,11 @@ export function armLaunchArgs(arm: Arm, task: BenchmarkTask, protocol: Treatment
  * pointed at a THROWAWAY store: `--baseline` already skips seeding, so nothing
  * should be written, and this makes it impossible rather than merely intended
  * (a control that mutated the treatment's registry would invalidate every run
- * after it). A `current` treatment arm keeps learning INSIDE the measured run
- * (`ATOMA_DEFER_LEARNING=0`, as burn-in does): deferred, its cost would leave
- * the row and the next run could start before the lesson it is meant to reuse
- * exists.
+ * after it). A `current` treatment arm keeps any learning INSIDE the measured
+ * run (`ATOMA_DEFER_LEARNING=0`, as burn-in does): deferred, its cost would
+ * leave the row and the next run could start before the lesson it is meant to
+ * reuse exists. Since 2026-11-01 a `current` arm learns nothing unless the
+ * host opts in (`ATOMA_SKILL_LEARN=1`), and runs at the default `direct` depth.
  */
 export function armLaunchEnv(arm: Arm, scratchDir: string, protocol: TreatmentProtocol): Record<string, string> {
   if (arm === 'baseline') {

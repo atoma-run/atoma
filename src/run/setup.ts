@@ -16,7 +16,7 @@ import { prepareWorkspace as prepareWorkspaceRoot } from './workspace.js';
 import { DEFAULT_DB_PATH } from '../core/stores.js';
 import type { AtomRegistry } from '../registry/atomRegistry.js';
 import type { Tool } from '../core/types.js';
-import type { DepthMode, ProofFloor } from '../contracts/depthRouting.js';
+import { DEFAULT_DEPTH_MODE, type DepthMode, type ProofFloor } from '../contracts/depthRouting.js';
 
 /**
  * The technical setup of a run: where it keeps its workspace and store, how
@@ -117,7 +117,7 @@ export const DEPTH_CONTRACT: {
   readonly floor: ProofFloor;
   entryCell(ctx: SeedContext): ReturnType<typeof ensureCanonicalL2>;
 } = {
-  defaultMode: 'deep',
+  defaultMode: DEFAULT_DEPTH_MODE,
   // Runs also build APIs and CLIs. No universal HTML deliverable exists.
   // Empty floors still receive semantic root review; plans declare UI obligations.
   floor: [],

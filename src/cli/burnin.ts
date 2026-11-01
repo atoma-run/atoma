@@ -13,8 +13,11 @@ import type { RuntimeTiming } from '../contracts/runtimeTiming.js';
  * Task file shape:
  *   { "tasks": [ { "id": "cli-slug", "family": "cli", "goal": "…" }, … ] }
  *
- * Each run also matures the skill/trust counters as a side effect — the
- * harness IS usage. Every batch appended to the same CSV extends the curve.
+ * Each run is the product as it launches, so its side effects are usage's:
+ * since 2026-11-01 that is the `direct` depth with learning off, which
+ * matures no skill or trust counter unless the host opts in
+ * (`ATOMA_SKILL_LEARN=1`, and `--depth deep` for a goal that should use
+ * recipes). Every batch appended to the same CSV extends the curve.
  *
  * Implementation notes:
  *   - The child is spawned in its own process group and group-killed

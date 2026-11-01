@@ -1,4 +1,5 @@
 import { RUN_TIMEOUT_MS } from '../contracts/runTimeouts.js';
+import { depthModeSchema, type DepthMode } from '../contracts/depthRouting.js';
 /**
  * The MUTATING half of the MCP surface: starting a task run, watching it, and
  * cancelling it.
@@ -193,6 +194,8 @@ export function repoRoot(): string {
 export interface StartRunInput {
   goal: string;
   timeoutMs?: number;
+  /** Absent takes the runner's default (`direct` since 2026-11-01). */
+  depth?: DepthMode;
   learnSkills?: boolean;
   promoteSkills?: boolean;
   directSkills?: boolean;
@@ -228,6 +231,7 @@ export type RunDriver = (opts: Parameters<typeof spawnRun>[0]) => Promise<string
  */
 export function buildRunArgs(input: StartRunInput): string[] {
   const args: string[] = [];
+  if (input.depth) args.push('--depth', depthModeSchema.parse(input.depth));
   if (input.learnSkills === false) args.push('--no-learn-skills');
   if (input.promoteSkills === false) args.push('--no-promote-skills');
   if (input.directSkills === false) args.push('--no-direct-skills');
@@ -242,6 +246,9 @@ export function buildRunEnvOverrides(
   _hostEnv: NodeJS.ProcessEnv = process.env
 ): Record<string, string> {
   return {
+    // Learning is OFF by default since 2026-11-01: `true` is the opt-in an
+    // operator gets from ATOMA_SKILL_LEARN=1, and `false` stays the CLI veto.
+    ...(input.learnSkills === true ? { ATOMA_SKILL_LEARN: '1' } : {}),
     // Promotion is on by default for every run since 2026-09-26. `true` is
     // still the explicit opt-in an operator gets from ATOMA_SKILL_PROMOTE=1,
     // so it overrides a host whose own env turned compilation off. `false`
@@ -253,6 +260,7 @@ export function buildRunEnvOverrides(
 
 /** Every flag `buildRunArgs` can emit, for the surface test to compare. */
 export const RUN_FLAGS: readonly string[] = [
+  '--depth',
   '--no-learn-skills',
   '--no-promote-skills',
   '--no-direct-skills',

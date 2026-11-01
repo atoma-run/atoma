@@ -335,8 +335,8 @@ load-bearing and they are stated once, where the call sites are.
 - `superviseLoop` is the only plan → validate → execute → validate protocol, and
   L2/L3 reuse it for children; never duplicate that loop in concrete atoms. The
   full protocol contract is in [src/atoms](src/atoms/AGENTS.md).
-- Creation is fractal: application → L3 → L2 → L1. Registry creation/branching
-  owns names and counters.
+- Creation is fractal on the `deep` path: application → L3 → L2 → L1; the default `direct` depth (2026-11-01)
+  is one tier-1 executor under the same root acceptance ([src/run](src/run/AGENTS.md)). Registry creation/branching owns names and counters.
 - Verification is read-only. Supervisors may run fixed probes they own, but never replay
   model-authored commands. The authorized browser replay and parent-owned test harness are defined in [src/atoms](src/atoms/AGENTS.md).
 - Tools belong to L1 only, and only [src/tools](src/tools/AGENTS.md) may declare

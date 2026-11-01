@@ -413,7 +413,9 @@ readers never create queue tables or accept a caller-supplied evidence path.
   resident host as `--container --egress` (`isolation`), what a project run
   gets there: an arm executes model-authored commands and never does so on
   the deployment's own filesystem; the CLI's `--container` asks the same.
-  Nothing an arm does reaches the commons. The judge is the runner's machine epilogue
+  Nothing an arm does reaches the commons. Both arms run `--depth deep`
+  (`ASSAY_DEPTH`): since 2026-11-01 the default depth has no cell or molecule
+  to match a recipe, so two default arms would be the same run. The judge is the runner's machine epilogue
   (`parseRunStatsEpilogue`): delivered or not, after the same root acceptance
   every product run gets; "matched" is a runtime `skill` event (`match` or
   `direct`) in the arm's trace, never log text, which the goal is echoed into.

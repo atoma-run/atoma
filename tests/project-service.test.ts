@@ -146,8 +146,9 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
     await svc.controlCheckpoint(alice, project.projectId, run.projectRunId, 'pause');
     expect(pause).toHaveBeenCalledWith(run);
     await svc.controlCheckpoint(alice, project.projectId, run.projectRunId, 'resume');
+    // A row without a depth ran deep (STORED_DEPTH_WHEN_ABSENT): its continuation says so.
     expect(startOutcome).toHaveBeenCalledWith(expect.objectContaining({ request: {
-      goal: 'Saved goal', resumeOf: run.projectRunId, depth: undefined, idempotencyKey: 'saved-resume-key',
+      goal: 'Saved goal', resumeOf: run.projectRunId, depth: 'deep', idempotencyKey: 'saved-resume-key',
     } }));
   });
 

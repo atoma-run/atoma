@@ -32,15 +32,25 @@ const LIFECYCLE_VARS = [
 ] as const;
 
 describe('lifecycle toggles — pure resolvers over HOST intent', () => {
-  it('CLI flag > env kill switch > default-on, for learning and direct dispatch', () => {
-    for (const resolve of [resolveSkillLearning, resolveDirectDispatch]) {
-      expect(resolve(true, undefined)).toEqual({ enabled: false, source: 'cli-disable' });
-      expect(resolve(true, '1')).toEqual({ enabled: false, source: 'cli-disable' });
-      expect(resolve(false, '0')).toEqual({ enabled: false, source: 'environment-disable' });
-      expect(resolve(false, undefined)).toEqual({ enabled: true, source: 'default-enable' });
-      // Only the exact kill value disables; garbage stays default-on.
-      expect(resolve(false, 'off')).toEqual({ enabled: true, source: 'default-enable' });
-    }
+  it('direct dispatch: CLI flag > env kill switch > default-on', () => {
+    expect(resolveDirectDispatch(true, undefined)).toEqual({ enabled: false, source: 'cli-disable' });
+    expect(resolveDirectDispatch(true, '1')).toEqual({ enabled: false, source: 'cli-disable' });
+    expect(resolveDirectDispatch(false, '0')).toEqual({ enabled: false, source: 'environment-disable' });
+    expect(resolveDirectDispatch(false, undefined)).toEqual({ enabled: true, source: 'default-enable' });
+    // Only the exact kill value disables; garbage stays default-on.
+    expect(resolveDirectDispatch(false, 'off')).toEqual({ enabled: true, source: 'default-enable' });
+  });
+
+  it('learning: CLI veto > env opt-in > default-OFF since 2026-11-01', () => {
+    // Round 15 measured inline learning raising cost without changing
+    // correctness (docs/decisions/direct-depth-2026-11-01.md).
+    expect(resolveSkillLearning(true, undefined)).toEqual({ enabled: false, source: 'cli-disable' });
+    expect(resolveSkillLearning(true, '1')).toEqual({ enabled: false, source: 'cli-disable' });
+    expect(resolveSkillLearning(false, '1')).toEqual({ enabled: true, source: 'environment-enable' });
+    expect(resolveSkillLearning(false, '0')).toEqual({ enabled: false, source: 'environment-disable' });
+    expect(resolveSkillLearning(false, undefined)).toEqual({ enabled: false, source: 'default-disable' });
+    // Only the exact opt-in value enables: a typo fails closed.
+    expect(resolveSkillLearning(false, 'on')).toEqual({ enabled: false, source: 'environment-disable' });
   });
 });
 
@@ -60,18 +70,19 @@ describe('host lifecycle snapshot — the sticky-env fix', () => {
   });
 
   it('a run writing the env vars cannot change what the next run resolves against', () => {
-    // The documented bug: run 1 with --no-learn-skills wrote
-    // ATOMA_SKILL_LEARN='0', and run 2 WITHOUT the flag read that '0' back
-    // as the operator's choice — default-on silently became sticky-off.
+    // The documented bug, in today's direction: run 1 opted in through the
+    // HOST and wrote ATOMA_SKILL_LEARN='1'; a later host without the opt-in
+    // must not read that '1' back as the operator's choice (and, before
+    // 2026-11-01, a '0' written by --no-learn-skills became sticky-off).
     delete process.env['ATOMA_SKILL_LEARN'];
     const first = hostLifecycleSnapshot();
     expect(first.learn).toBeUndefined();
     // Run 1 mutates the live env (what startTask does after resolving).
-    process.env['ATOMA_SKILL_LEARN'] = '0';
+    process.env['ATOMA_SKILL_LEARN'] = '1';
     // Run 2 must still see the HOST's intent, not run 1's write.
     const second = hostLifecycleSnapshot();
     expect(second.learn).toBeUndefined();
-    expect(resolveSkillLearning(false, second.learn).enabled).toBe(true);
+    expect(resolveSkillLearning(false, second.learn).enabled).toBe(false);
   });
 
   it('a snapshot writing ATOMA_MODEL_L1 cannot change the next run\'s host pin', () => {

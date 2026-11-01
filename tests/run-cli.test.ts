@@ -99,7 +99,8 @@ describe('build profile — canonical seed and child catalog', () => {
   });
 
   it('keeps launch configuration independent of task constraints and root identity', () => {
-    expect(DEPTH_CONTRACT.defaultMode).toBe('deep');
+    // `direct` since 2026-11-01 (docs/decisions/direct-depth-2026-11-01.md).
+    expect(DEPTH_CONTRACT.defaultMode).toBe('direct');
     expect(DEPTH_CONTRACT.floor).toEqual([]);
   });
 });

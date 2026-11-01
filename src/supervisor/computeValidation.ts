@@ -1,4 +1,5 @@
 import { RunInitialStateStore, removeInitialStateWorkspace } from '../run/initialState.js';
+import { STORED_DEPTH_WHEN_ABSENT } from '../contracts/depthRouting.js';
 import { READ_RUNS_ENV, readRunCopyPath, encodeReadRunsIndex } from '../contracts/readRuns.js';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -141,7 +142,7 @@ export async function validateComputeNext(options: ComputeValidationOptions): Pr
       await (options.launch ?? defaultLauncher)({ arm: 'with', caseIndex: 0, goal: prepared.origin.goal,
         env, cwd: options.repoRoot, timeoutMs: COMPUTE_VALIDATION.timeoutMs, logPath,
         // Use the ordinary hosted proxy policy so clean dependency installs can run; device networking is never inherited.
-        isolation: 'container-egress', onSpawn: pid => lease.attachChild(pid), ...(prepared.origin.depth ? { depth: prepared.origin.depth } : {}),
+        isolation: 'container-egress', onSpawn: pid => lease.attachChild(pid), depth: prepared.origin.depth ?? STORED_DEPTH_WHEN_ABSENT,
         ...(options.signal ? { signal: options.signal } : {}) });
     } catch (error) { failure = (error as Error).message; }
     // Logs can echo a model-authored epilogue. Only host trace metadata establishes completion and cost.

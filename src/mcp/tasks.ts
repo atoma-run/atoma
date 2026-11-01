@@ -7,6 +7,7 @@ import { errorResult } from './results.js';
 import { randomBytes } from 'node:crypto';
 import type { CallToolResult, McpServer, ServerContext } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import { depthModeSchema } from '../contracts/depthRouting.js';
 import { retrievalRegistrationSchema } from '../contracts/retrievalCampaign.js';
 import { MAX_CHECKLIST_BEHAVIOUR_CHARS, MAX_CHECKLIST_ITEMS, parseChecklistLines } from '../contracts/acceptanceChecklist.js';
 import type { RetrievalCampaignStart } from '../cli/retrievalCampaignHost.js';
@@ -331,7 +332,10 @@ export const OPERATOR_RUN_INPUT = {
   goal: z.string().min(1).max(MAX_GOAL_CHARS),
   timeoutMs: z.number().int().positive().optional().describe(`Default ${DEFAULT_RUN_TIMEOUT_MS}.`),
   keepWorkspace: z.boolean().optional(),
-  learnSkills: z.boolean().optional(),
+  depth: depthModeSchema.optional().describe(
+    'Supervision depth. direct (default): one agent on the L3 model carries the whole task and final acceptance judges its result. short: an L2 cell plans and may deepen once. deep: an L3 tissue decomposes the goal. Every depth goes through the same final acceptance.'
+  ),
+  learnSkills: z.boolean().optional().describe('Skill learning is off by default; true opts this run in, false vetoes it.'),
   promoteSkills: z.boolean().optional(),
   directSkills: z.boolean().optional(),
   container: z.boolean().optional(),
@@ -364,8 +368,8 @@ export const PROJECT_RUN_INPUT = {
   models: z.object({ l1: z.string().min(1), l2: z.string().min(1), l3: z.string().min(1) }).optional().describe(
     'With rerunOf, required: the full model selector for each tier (<api|sub|own>:<vendor>:<model>).'
   ),
-  depth: z.enum(['short', 'deep']).optional().describe(
-    'Supervision depth. deep (default): choose an L3 tissue from the task and starting repository, then decompose the goal. Use deep for numbered findings or several acceptance criteria. short is for one named defect with one criterion: an L2 cell plans and the run selects an L3 once if it stalls. On a rerun, absent keeps the origin\'s.'
+  depth: depthModeSchema.optional().describe(
+    'Supervision depth. direct (default): one agent on the L3 model carries the whole goal, and final acceptance judges its result against the criteria. deep: choose an L3 tissue from the task and starting repository, then decompose the goal; the only depth that pauses between phases, asks blocking client questions and can be continued. short: an L2 cell plans and the run selects an L3 once if it stalls. On a rerun, absent keeps the origin\'s; on a continuation, the source\'s.'
   ),
 };
 

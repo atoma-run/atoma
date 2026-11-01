@@ -292,6 +292,10 @@ Neighbours:
 
 ## Run accounting
 
+- Inline learning is OFF by default since 2026-11-01 (`resolveSkillLearning`:
+  `--no-learn-skills` veto > `ATOMA_SKILL_LEARN=1` opt-in > default off; any
+  other value fails closed). Round 15 measured it raising a run's cost without
+  changing its correctness, and the default depth has no cell to learn from.
 - Root-approved lessons are committed before delivery and processed outside its
   trace and deadline by `learningWorker.ts`. The worker has no tool backend,
   uses the shared lifecycle/provider/metrics code and the source run's remaining
@@ -300,7 +304,27 @@ Neighbours:
   retain inline learning with `ATOMA_DEFER_LEARNING=0`.
   [Lifetime, recovery and review](../../docs/decisions/approved-learning-2026-10-11.md).
 
-- New ordinary runs default to deep supervision through the selected tissue.
+- New ordinary runs default to `direct` since 2026-11-01 (owner decision,
+  [direct depth](../../docs/decisions/direct-depth-2026-11-01.md)), on round
+  15's registered consequence: fifteen rounds found no task family on which
+  supervision bought correctness. `direct` is ONE executor (`DirectAtom`,
+  `direct.ts`): a tier-1 actor on the L3 pin, the control arm's tool loop and
+  budget, reading the task context every executor reads, recording a
+  one-phase root plan with no declared delivery BEFORE its first call (so the
+  declared manifest exists and a pass the budget cuts lands with that phase
+  unfinished), then re-recording it with the delivery the HOST observed
+  (`directDelivery`: files after an attested write or edit, or when a seeded
+  workspace no longer matches its start; text when it matches): any shell
+  call made `observedDelivery` say files, and a question went to the
+  report-blind criteria review. A failed execution runs once more on the
+  same workspace (`DIRECT_RETRY_INPUT`), the retry a cell would have given;
+  the budget and a cancellation are rethrown. It goes through the same
+  `runDepthTask`: checklist, attestations, root acceptance (which runs the
+  leaf gates over a tier-1 root actor's file delivery), the one remediation
+  pass, landing. It never deepens, selects no tissue, builds no cell,
+  matches no recipe and has no prompt to amend (`onApproved` skips it).
+  Checkpoints, pause/resume and client questions sit on root phases and stay
+  `deep`'s. `--depth deep` enters through the selected tissue;
   `--depth short` explicitly retains direct L2 entry and selects an L3 only
   when it deepens. A project
   run passes it from its own `depth` (since 2026-09-27; a rerun keeps its
@@ -488,6 +512,15 @@ Neighbours:
   not be relabeled timeout merely because the run signal has expired.
 
 ## Intentional choices and rejected shortcuts
+
+- Making `--baseline` the default depth: refused (2026-11-01). The baseline is
+  a measurement arm: it self-certifies, reads only the goal, writes nothing to
+  the store and records no root plan, so a project run on it could be neither
+  reviewed, previewed nor published. `direct` runs the same loop INSIDE the
+  product's acceptance and delivery. Reading a stored run's missing depth as
+  today's default: refused too; such a row ran `deep`
+  (`STORED_DEPTH_WHEN_ABSENT`), and a rerun, continuation or validation of it
+  keeps that topology.
 
 - Approved learning includes at most one prompt candidate per rank, on the saved L2 author and L1 reviewer models/payers. [Contract](../../docs/decisions/prompt-consolidation-2026-10-12.md).
 

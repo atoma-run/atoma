@@ -176,6 +176,11 @@ Neighbours:
 
 - `spawnRun` is the sole sanctioned operator run launcher. Keep compiled and
   source paths and flag ordering aligned; the goal is always the last argument.
+  `buildRunArgs` emits a CLOSED set (`RUN_FLAGS`), each one a flag the runner
+  declares with its dashes. An operator run may name its `depth` (absent is the
+  runner's default, `direct` since 2026-11-01); `learnSkills: true` is the
+  opt-in (`ATOMA_SKILL_LEARN=1`) and `false` the veto, since learning is off
+  by default.
 - Project runs hold SQLite reservations bounded by `run.concurrentMax` (default 10),
   at most ONE per organisation, including preparation and finalization. Excess global demand is queued; retries
   reattach as before. Operator runs remain exclusive through in-memory state

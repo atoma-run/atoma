@@ -1,4 +1,5 @@
 import { RUN_TIMEOUT_MS } from '../contracts/runTimeouts.js';
+import { DEFAULT_DEPTH_MODE, STORED_DEPTH_WHEN_ABSENT } from '../contracts/depthRouting.js';
 import { observeTiming, timingSidecar } from '../core/runtimeTiming.js';
 import { COMPUTE_NOT_ACCEPTING, ComputeDispatchPendingError, ComputeDispatchStore, ComputeFinalizationRefusedError, type ComputeDispatcher } from './computeDispatch.js';
 import type { ComputeResultsWaiting, ComputeRunProgress } from '../contracts/computeDevice.js';
@@ -1092,11 +1093,13 @@ export function projectRunEnvironment(input: {
     ATOMA_SKILLS_DIR: path.resolve(input.skillsPath),
     ATOMA_RUN_ID: input.runId,
     [ARTIFACT_MANIFEST_PATH_ENV]: path.resolve(input.artifactManifestPath),
-    // SKILL LEARNING IS ON, and it is the point of the platform: a tenant's
-    // runs should get cheaper as their project grows. It was off, and two
-    // delivered runs measured what that costs — $0.59 spent, `learnedSkills:
-    // 0`, nothing carried into the next run.
-    ATOMA_SKILL_LEARN: '1',
+    // SKILL LEARNING FOLLOWS THE HOST, like every other lifecycle default
+    // (A RUN IS A RUN, below). It was pinned on here as "the point of the
+    // platform"; round 15 (2026-11-01) measured it raising a run's cost
+    // without changing its correctness, and the default depth has no cell to
+    // learn from, so it is off unless the host opts in with ATOMA_SKILL_LEARN=1
+    // (docs/decisions/direct-depth-2026-11-01.md).
+    ...(input.hostEnv['ATOMA_SKILL_LEARN'] === '1' ? { ATOMA_SKILL_LEARN: '1' } : {}),
     ATOMA_EVENT_SKILLS: '1',
     // A RUN IS A RUN (docs/decisions/platform-trust-2026-09-15.md): promotion,
     // deterministic dispatch and the prefilter cache follow the same defaults
@@ -1120,6 +1123,18 @@ export function projectRunEnvironment(input: {
     environment['ATOMA_SUBSCRIPTION_TIERS'] = authorisedTiers.join(',');
   }
   return { environment, payers };
+}
+
+/**
+ * A new run's request with the depth it runs at, for its ROW: since
+ * 2026-11-01 every new row carries its depth, because the default moved from
+ * `deep` to `direct` and a row left without one could no longer say which
+ * default launched it. A rerun is left alone: absent keeps its origin's,
+ * which the store resolves.
+ */
+export function withResolvedDepth(request: StartProjectRunInput): StartProjectRunInput {
+  if ('rerunOf' in request || request.depth) return request;
+  return { ...request, depth: DEFAULT_DEPTH_MODE };
 }
 
 /**
@@ -2223,6 +2238,16 @@ export class ProjectRunCoordinator {
     catch (error) { throw new ProjectStateConflict((error as Error).message); }
   }
 
+  /**
+   * A continuation that names no depth takes its source's: an older source
+   * without one ran `deep` (`STORED_DEPTH_WHEN_ABSENT`). The check in
+   * `startOutcome` still refuses a continuation naming another depth.
+   */
+  private withContinuationDepth(orgId: string, request: StartProjectRunInput): StartProjectRunInput {
+    if ('rerunOf' in request || request.depth || !request.resumeOf) return request;
+    return { ...request, depth: this.store.getProjectRun(orgId, request.resumeOf)?.depth ?? STORED_DEPTH_WHEN_ABSENT };
+  }
+
   private continuation(orgId: string, projectId: string, principalId: string, sourceId: string): ProjectRun {
     const source = this.store.getProjectRun(orgId, sourceId);
     if (!source || source.projectId !== projectId) throw new ProjectStateConflict('Continuation source not found');
@@ -2375,6 +2400,11 @@ export class ProjectRunCoordinator {
     /** Which door asked: the caller's stamp, never the request's. */
     readonly requestedVia?: RunRequestedVia;
   }): Promise<{ readonly run: ProjectRun; readonly created: boolean; readonly admissionJournaled?: boolean }> {
+    // A continuation's depth is its source's, a fact that holds across releases:
+    // resolved before the idempotency lookup. A new run's absent depth means
+    // "the default", which depends on the release: it is looked up as it
+    // arrived, and written down only on the new row (`withResolvedDepth`).
+    input = { ...input, request: this.withContinuationDepth(input.orgId, input.request) };
     if (this.executorSocket) {
       try { return await callExecutor(this.executorSocket, { method: 'start', input }); }
       catch (error) { throw this.executorError(error); }
@@ -2426,7 +2456,7 @@ export class ProjectRunCoordinator {
       const source = this.continuation(input.orgId, input.projectId, input.principalId, input.request.resumeOf);
       const acceptance = this.store.getRunAcceptanceSpec(source.orgId, source.projectRunId);
       const expected = acceptance?.items.map(({ behaviour, check }) => ({ behaviour, check }));
-      if (source.goal !== input.request.goal || (source.depth ?? 'deep') !== (input.request.depth ?? 'deep') ||
+      if (source.goal !== input.request.goal || (source.depth ?? STORED_DEPTH_WHEN_ABSENT) !== (input.request.depth ?? STORED_DEPTH_WHEN_ABSENT) ||
           JSON.stringify(input.request.acceptanceChecklist) !== JSON.stringify(expected)) {
         throw new ProjectStateConflict('A continuation must keep its original goal and acceptance criteria');
       }
@@ -2480,9 +2510,9 @@ export class ProjectRunCoordinator {
         orgId: input.orgId,
         projectId: input.projectId,
         principalId: input.principalId,
-        request: input.request,
+        request: withResolvedDepth(input.request),
         ...(rerun ? { origin: { goal: rerun.origin.goal, acceptance: rerun.acceptance,
-          ...(rerun.origin.depth ? { depth: rerun.origin.depth } : {}) } } : {}),
+          depth: rerun.origin.depth ?? STORED_DEPTH_WHEN_ABSENT } } : {}),
         projectRunId: candidateRunId,
         ...(input.requestedVia ? { requestedVia: input.requestedVia } : {}),
         enforceCapacity: true,
@@ -2689,8 +2719,8 @@ export class ProjectRunCoordinator {
           // caches like any run (docs/decisions/platform-trust-2026-09-15.md).
           '--container',
           ...(continuation ? ['--resume', continuation.projectRunId] : seedFrom ? ['--seed', seedFrom] : []),
-          ...(!run.rerunOf && (run.depth ?? 'deep') === 'deep' ? ['--checkpoint'] : []),
-          ...(run.depth ? ['--depth', run.depth] : []),
+          ...(!run.rerunOf && (run.depth ?? STORED_DEPTH_WHEN_ABSENT) === 'deep' ? ['--checkpoint'] : []),
+          '--depth', run.depth ?? STORED_DEPTH_WHEN_ABSENT,
         ],
         env: environment,
         onSpawn: (pid) => lease.attachChild(pid),

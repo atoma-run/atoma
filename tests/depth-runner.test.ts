@@ -30,13 +30,13 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
   it.each<{ mode: string; matched: boolean; rootApproved: boolean; deadline?: boolean; deferred?: boolean; launchFails?: boolean }>([
     { mode: 'short', matched: false, rootApproved: true, deadline: true },
     { mode: 'short', matched: false, rootApproved: false, deadline: true },
-    { mode: 'default', matched: false, rootApproved: false }, { mode: 'default', matched: true, rootApproved: false },
-    { mode: 'default', matched: false, rootApproved: true },
+    // `deep` was the default these rows ran under until 2026-11-01; they name it now.
+    { mode: 'deep', matched: false, rootApproved: true },
     { mode: 'short', matched: false, rootApproved: false }, { mode: 'deep', matched: false, rootApproved: false },
     { mode: 'short', matched: true, rootApproved: false }, { mode: 'deep', matched: true, rootApproved: false },
-    { mode: 'default', matched: false, rootApproved: true, deferred: true },
-    { mode: 'default', matched: false, rootApproved: false, deferred: true },
-    { mode: 'default', matched: false, rootApproved: true, deferred: true, launchFails: true },
+    { mode: 'deep', matched: false, rootApproved: true, deferred: true },
+    { mode: 'deep', matched: false, rootApproved: false, deferred: true },
+    { mode: 'deep', matched: false, rootApproved: true, deferred: true, launchFails: true },
   ])('keeps phase trust and learning/credit with $mode supervision (matched=$matched, rootApproved=$rootApproved, deferred=$deferred, launchFails=$launchFails)', async ({ mode, matched, rootApproved, deadline, deferred, launchFails }) => {
     const unfinishedDescription = 'Write unfinished.txt. ' + 'Verify restart persistence and concurrent writes. '.repeat(100);
     const root = mkdtempSync(join(tmpdir(), 'atoma-depth-credit-'));
@@ -118,7 +118,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       // This fixture measures the entire serial path, including learning; the
       // separate-process path and approval handoff have their own regressions.
       vi.stubEnv('ATOMA_DEFER_LEARNING', deferred ? '1' : '0');
-      handle = await startTask([...(mode === 'default' ? [] : ['--depth', mode]), '--clean-workspace', 'Build a page backed by server.js'], { launchLearning, seedCatalog(seed, canonical) {
+      handle = await startTask(['--depth', mode, '--clean-workspace', 'Build a page backed by server.js'], { launchLearning, seedCatalog(seed, canonical) {
         canonical(seed);
         registry = seed.registry;
         const leaf = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 1)!;
@@ -150,7 +150,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         expect(existsSync(join(root, 'workspace', 'server.js'))).toBe(true);
       }
       expect(trace.events.filter((event) => event.kind === 'topology')).toMatchObject([
-        { mode: mode === 'default' ? 'deep' : mode, attempt: 1 },
+        { mode, attempt: 1 },
       ]);
       if (mode === 'short') expect(calls.some((req) => req.actor?.tier === 3 && req.actor.name !== 'run-root')).toBe(false);
       expect(trace.events.filter((event) => event.kind === 'acceptance'), trace.error).toMatchObject([
@@ -177,6 +177,147 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       await handle?.shutdown();
       // The test's registry holds the cached handle on the store (W4);
       // Windows will not remove a directory holding an open database file.
+      closeStoreHandles();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([{ refusedOnce: false }, { refusedOnce: true }])('runs a goal with no --depth through ONE direct executor on the L3 pin, judged at root acceptance (refusedOnce=$refusedOnce)', async ({ refusedOnce }) => {
+    // The default since 2026-11-01 (docs/decisions/direct-depth-2026-11-01.md):
+    // no tissue is selected, no cell plans or validates, no recipe is matched
+    // and nothing is learned; the host still drafts the checklist, attests
+    // every tool call, judges the delivery and opens its one remediation pass.
+    const root = mkdtempSync(join(tmpdir(), 'atoma-depth-direct-'));
+    const runs = join(root, 'runs');
+    const workspace = join(root, 'workspace');
+    const l3 = 'api:ollama:qwen3:32b';
+    for (const [key, value] of Object.entries({ ...OLLAMA_PINS, ATOMA_MODEL_L3: l3,
+      ATOMA_DB_PATH: join(root, 'store.db'), ATOMA_LEDGER_DB: join(root, 'store.db'), ATOMA_SKILLS_DIR: join(root, 'skills'), ATOMA_RUNS_DIR: runs,
+      // A production budget: the iteration cap shrinks with the wall clock left.
+      ATOMA_BUILD_WORKSPACE: workspace, ATOMA_BUILD_TIMEOUT_MS: '1800000',
+      ATOMA_CONTAINER: '0', ATOMA_REQUIRE_ISOLATION: '0', ATOMA_PREFILTER_CACHE: '0',
+      // What a project run is launched with: the coordinator refuses a run
+      // whose declared manifest is missing (src/projects/coordinator.ts).
+      ATOMA_RUN_ID: 'direct-fixture-run', ATOMA_ARTIFACT_MANIFEST_PATH: join(root, 'declared.json'),
+    })) vi.stubEnv(key, value);
+    const learnBefore = process.env['ATOMA_SKILL_LEARN'];
+    delete process.env['ATOMA_SKILL_LEARN'];
+    resetHostLifecycleSnapshotForTests();
+    const logs: string[] = [];
+    for (const method of ['log', 'warn', 'error'] as const) {
+      vi.spyOn(console, method).mockImplementation((...parts: unknown[]) => logs.push(parts.map(String).join(' ')));
+    }
+    const calls: LlmCompletionRequest[] = [];
+    let passes = 0;
+    let reviews = 0;
+    vi.mocked(buildTierClients).mockReturnValue({ ollama: { complete: async (req) => {
+      calls.push(req);
+      let text: string;
+      if (req.role === 'execute') {
+        passes += 1;
+        expect(req.actor).toEqual({ name: 'Direct', tier: 1 });
+        // The transport receives the L3 pin's model, never the molecule pin's.
+        expect(req.model).toBe('qwen3:32b');
+        // The whole task's loop, not one molecule's 24 or 40 (BASELINE_MAX_TOOL_ITERATIONS).
+        expect(req.maxToolIterations).toBeGreaterThan(40);
+        expect(req.userContent).toContain('TASK:\nBuild a page backed by server.js');
+        // The remediation pass reads the refusal from its task context.
+        expect(req.userContent.includes('Route behaviour is unverified')).toBe(passes === 2);
+        const args = { path: 'server.js', content: `module.exports = { ready: true, pass: ${passes} };` };
+        const startedAt = Date.now();
+        const value = await req.executor!.execute('write_file', args);
+        req.onToolInvocation?.({ name: 'write_file', args, result: value, startedAt, durationMs: Date.now() - startedAt });
+        text = `Wrote server.js (pass ${passes}).`;
+      } else if (req.role === 'validate-result' && req.actor?.name === 'run-root') {
+        reviews += 1;
+        const approved = !refusedOnce || reviews === 2;
+        text = JSON.stringify({ approved, reasoning: approved ? 'Reviewed delivery accepted' : 'Route behaviour is unverified' });
+      } else if (req.role === 'draft-checklist') {
+        throw new Error('no checklist in this fixture');
+      } else {
+        throw new Error(`Unexpected request: ${req.role} ${req.actor?.name ?? ''}`);
+      }
+      return { text, stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
+    } } });
+    let handle: Awaited<ReturnType<typeof startTask>> | undefined;
+    try {
+      handle = await startTask(['--clean-workspace', 'Build a page backed by server.js']);
+      expect(await handle.settled, logs.join('\n').slice(-4000)).toEqual({ outcome: 'delivered' });
+      const path = readdirSync(runs).find((name) => name.endsWith('.json') && name !== 'index.json')!;
+      const trace = JSON.parse(readFileSync(join(runs, path), 'utf8')) as VizRun;
+      expect(trace.events.filter((event) => event.kind === 'topology')).toMatchObject([{ at: 'entry', mode: 'direct', attempt: 1 }]);
+      expect(trace.events.filter((event) => event.kind === 'acceptance')).toMatchObject(
+        refusedOnce ? [{ approved: false }, { approved: true }] : [{ approved: true }]);
+      expect(passes).toBe(refusedOnce ? 2 : 1);
+      expect(trace.result?.producedBy).toMatchObject({ tier: 1, name: 'Direct' });
+      // Nothing of the supervised topology ran: no router, planner, validator of a plan, prefilter or recipe.
+      expect(calls.map((req) => req.role).filter((role) => !['execute', 'validate-result', 'draft-checklist'].includes(role!))).toEqual([]);
+      expect(calls.some((req) => req.actor?.name === 'run-router')).toBe(false);
+      expect(trace.events.some((event) => event.kind === 'skill')).toBe(false);
+      expect(readFileSync(join(workspace, 'server.js'), 'utf8')).toContain(`pass: ${passes}`);
+      // The one-phase root plan, re-recorded with the delivery judged from what the pass did.
+      expect(JSON.parse(readFileSync(join(root, 'declared.json'), 'utf8'))).toMatchObject({
+        version: 1, runId: 'direct-fixture-run', delivery: 'files', outputs: [] });
+      expect(logs).toContain('skill auto-distillation: off (default — set ATOMA_SKILL_LEARN=1 to enable)');
+      expect(parseRunLog(logs.join('\n'))).toMatchObject({ outcome: 'delivered', deepenings: 0 });
+    } finally {
+      await handle?.shutdown();
+      if (learnBefore === undefined) delete process.env['ATOMA_SKILL_LEARN'];
+      else process.env['ATOMA_SKILL_LEARN'] = learnBefore;
+      closeStoreHandles();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('judges a direct pass that only read a seeded workspace as a TEXT delivery, though it ran a shell command', async () => {
+    // Review of the direct depth (2026-11-01): `observedDelivery` reads any
+    // shell call as a file delivery, whose criteria review never sees the
+    // answer. A direct pass has no planner to declare text, so the host decides
+    // from what changed: nothing written, nothing different from the seed.
+    const root = mkdtempSync(join(tmpdir(), 'atoma-depth-direct-text-'));
+    const runs = join(root, 'runs');
+    const seed = join(root, 'seed');
+    mkdirSync(seed, { recursive: true });
+    writeFileSync(join(seed, 'server.js'), 'module.exports = { ready: true };\n');
+    for (const [key, value] of Object.entries({ ...OLLAMA_PINS,
+      ATOMA_DB_PATH: join(root, 'store.db'), ATOMA_LEDGER_DB: join(root, 'store.db'), ATOMA_SKILLS_DIR: join(root, 'skills'), ATOMA_RUNS_DIR: runs,
+      ATOMA_BUILD_WORKSPACE: join(root, 'workspace'), ATOMA_BUILD_TIMEOUT_MS: '1800000',
+      ATOMA_CONTAINER: '0', ATOMA_REQUIRE_ISOLATION: '0', ATOMA_PREFILTER_CACHE: '0',
+      ATOMA_RUN_ID: 'direct-text-run', ATOMA_ARTIFACT_MANIFEST_PATH: join(root, 'declared.json'),
+    })) vi.stubEnv(key, value);
+    resetHostLifecycleSnapshotForTests();
+    for (const method of ['log', 'warn', 'error'] as const) vi.spyOn(console, method).mockImplementation(() => {});
+    const calls: LlmCompletionRequest[] = [];
+    vi.mocked(buildTierClients).mockReturnValue({ ollama: { complete: async (req) => {
+      calls.push(req);
+      let text: string;
+      if (req.role === 'execute') {
+        const args = { cmd: 'cat server.js' };
+        const startedAt = Date.now();
+        const value = await req.executor!.execute('run_shell', args);
+        req.onToolInvocation?.({ name: 'run_shell', args, result: value, startedAt, durationMs: Date.now() - startedAt });
+        text = 'server.js exports one object, { ready: true }.';
+      } else if (req.actor?.name === 'run-text-reference') {
+        text = 'Independent reference: server.js exports an object with ready set to true.';
+      } else if (req.role === 'validate-result' && req.actor?.name === 'run-root') {
+        text = JSON.stringify({ approved: true, reasoning: 'The answer matches the file.' });
+      } else if (req.role === 'draft-checklist') {
+        throw new Error('no checklist in this fixture');
+      } else {
+        throw new Error(`Unexpected request: ${req.role} ${req.actor?.name ?? ''}`);
+      }
+      return { text, stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
+    } } });
+    let handle: Awaited<ReturnType<typeof startTask>> | undefined;
+    try {
+      handle = await startTask(['--seed', seed, 'What does server.js export? Answer only; change nothing.']);
+      expect(await handle.settled).toEqual({ outcome: 'delivered' });
+      expect(JSON.parse(readFileSync(join(root, 'declared.json'), 'utf8'))).toMatchObject({ delivery: 'text' });
+      // The text review ran: an independent reference, then the verdict.
+      expect(calls.some((req) => req.actor?.name === 'run-text-reference')).toBe(true);
+      expect(calls.filter((req) => req.actor?.name === 'run-root')).toHaveLength(1);
+    } finally {
+      await handle?.shutdown();
       closeStoreHandles();
       rmSync(root, { recursive: true, force: true });
     }

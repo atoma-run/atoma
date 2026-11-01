@@ -177,7 +177,8 @@ describe('durable sequential run continuation', () => {
 
   it('keeps work partial without implementation replay when root evidence reading is invalid', () => {
     const f = fixture();
-    const result = f.run(['Write two files in sequence'], '', { CHECKPOINT_TEST_ROOT_BAD_READ: '1' });
+    // The tissue fixture's root evidence reading is the `deep` path (no longer the default since 2026-11-01).
+    const result = f.run(['--depth', 'deep', 'Write two files in sequence'], '', { CHECKPOINT_TEST_ROOT_BAD_READ: '1' });
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(f.report().outcome).toBe('partial');
     expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');

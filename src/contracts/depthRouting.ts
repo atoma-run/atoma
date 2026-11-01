@@ -3,9 +3,32 @@ import { PROOF_OBLIGATIONS } from './attestation.js';
 import { checklistCoverageSchema, checklistSourceSchema } from './acceptanceChecklist.js';
 import { inheritedChecksSummarySchema } from './inheritedChecksSummary.js';
 
-/** Runtime-owned experiment inputs and evidence. Never parsed from model prose. */
-export const depthModeSchema = z.enum(['deep', 'short']);
+/**
+ * Runtime-owned experiment inputs and evidence. Never parsed from model prose.
+ *
+ * `direct`: one executor with the run's tools carries the whole task, and the
+ * host judges it at root acceptance like any other topology. `short`: an L2
+ * cell plans and deepens once. `deep`: an L3 tissue decomposes from the start.
+ */
+export const depthModeSchema = z.enum(['deep', 'short', 'direct']);
 export type DepthMode = z.infer<typeof depthModeSchema>;
+
+/**
+ * The depth a run takes when nobody names one: `direct` since 2026-11-01
+ * (owner decision, docs/decisions/direct-depth-2026-11-01.md). Fifteen
+ * controlled rounds found no task family on which supervision bought
+ * correctness, at six to ten times the cost; `deep` and `short` stay opt-in.
+ */
+export const DEFAULT_DEPTH_MODE: DepthMode = 'direct';
+
+/**
+ * What a stored run row WITHOUT a depth was launched with. Every such row
+ * predates 2026-11-01, when the default was `deep`; rows written since carry
+ * their depth explicitly. Readers that re-launch, continue or rerun a stored
+ * run read an absent value through this constant, never through the current
+ * default, which would silently change an old run's topology.
+ */
+export const STORED_DEPTH_WHEN_ABSENT: DepthMode = 'deep';
 export const proofFloorSchema = z.array(z.object({
   obligation: z.enum(PROOF_OBLIGATIONS),
   deliverable: z.string().min(1),

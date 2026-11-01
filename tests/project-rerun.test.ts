@@ -134,9 +134,11 @@ describe('comparison reruns', () => {
     const env = f.driver.mock.calls[2]![0].env!;
     expect([env['ATOMA_MODEL_L1'], env['ATOMA_MODEL_L2'], env['ATOMA_MODEL_L3']]).toEqual([OVERRIDES.l1, OVERRIDES.l2, OVERRIDES.l3]);
     expect(f.store.getRunPayers(f.viewer.orgId, b.projectRunId)?.l2).toMatchObject({ selection: OVERRIDES.l2, source: 'run' });
-    // Same protocol as its origin: no comparison arm, no depth override.
+    // Same protocol as its origin: no comparison arm, and the origin's own depth.
     expect(f.driver.mock.calls[2]![0].extraArgs).not.toContain('--comparison');
-    expect(f.driver.mock.calls[2]![0].extraArgs).not.toContain('--depth');
+    const args = f.driver.mock.calls[2]![0].extraArgs!;
+    expect(a.depth).toBe('direct');
+    expect(args[args.indexOf('--depth') + 1]).toBe(a.depth);
     // A drafted its own list; B is judged against THAT list, as a draft.
     expect(readAcceptanceSpec(env)?.items.map((item) => item.behaviour)).toEqual([
       'The page shows the current time', 'The page is served',
@@ -167,9 +169,11 @@ describe('comparison reruns', () => {
       const at = args.indexOf('--depth');
       return at >= 0 ? args[at + 1] : undefined;
     };
+    // A run that names no depth is written down with the default it ran at
+    // (`direct` since 2026-11-01), so a later default can never re-read it.
     const plain = await f.start({ idempotencyKey: 'p', goal: 'Build a clock.' });
-    expect(depthOf(0)).toBeUndefined();
-    expect(plain.depth).toBeUndefined();
+    expect(depthOf(0)).toBe('direct');
+    expect(plain.depth).toBe('direct');
     const deep = await f.start({ idempotencyKey: 'd', goal: 'Add a timezone selector.', depth: 'deep' });
     expect(depthOf(1)).toBe('deep');
     expect(deep.depth).toBe('deep');
@@ -182,6 +186,22 @@ describe('comparison reruns', () => {
     // The same key asking another depth is another request.
     await expect(f.coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
       request: { idempotencyKey: 's', rerunOf: deep.projectRunId, models: OVERRIDES, depth: 'deep' } })).rejects.toBeInstanceOf(ProjectStateConflict);
+    // A row written before 2026-11-01 holds no depth and ran deep: its rerun
+    // compares models on that topology, never on today's default.
+    const legacy = new Database(f.dbPath);
+    legacy.prepare('UPDATE project_runs SET depth = NULL WHERE project_run_id = ?').run(plain.projectRunId);
+    legacy.close();
+    const old = await f.start({ idempotencyKey: 'o', rerunOf: plain.projectRunId, models: OVERRIDES });
+    expect(depthOf(4)).toBe('deep');
+    expect(old.depth).toBe('deep');
+    // A start re-sent across the release, same key and no depth, is the same
+    // request: it finds the older row instead of a 409 (review 2026-11-01).
+    const again = await f.coordinator.startOutcome({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { idempotencyKey: 'p', goal: 'Build a clock.' } });
+    expect(again).toMatchObject({ created: false, run: { projectRunId: plain.projectRunId } });
+    // Naming a depth the older row did not run at is another request.
+    await expect(f.coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { idempotencyKey: 'p', goal: 'Build a clock.', depth: 'direct' } })).rejects.toBeInstanceOf(ProjectStateConflict);
   });
 
   it('is idempotent on its key, and refuses the key for other models or another origin', async () => {
