@@ -163,6 +163,9 @@ function enqueueAttempt(ctx: ReturnType<typeof makeCtx>): void {
  */
 describe('tenant retrieval downstream: what the platform registry shares', () => {
   it('keeps a deliberately non-generalized learned recipe in the owning project, including after reload and namespace sharing', async () => {
+    // Learning is off by default since 2026-11-01; this characterises a run
+    // that learns, so it opts in (it used to inherit '1' from a runner test).
+    vi.stubEnv('ATOMA_SKILL_LEARN', '1');
     const f = await fixture();
     const ctx = { ...makeCtx(), tools: f.backend.executor };
     ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: f.child.name, confidence: 'high', reasoning: 'source reader' }));
