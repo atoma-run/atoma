@@ -1,0 +1,101 @@
+{
+  "csv": "/Users/mgtf/dev/atoma-bench/benchmark/results-round16-tabstat.csv",
+  "firstArchive": 54,
+  "lastArchive": 60,
+  "workspaces": "/Users/mgtf/.atoma/workspaces",
+  "base": "build",
+  "results": [
+    {
+      "ts": "2026-11-01T08:34:06.980Z",
+      "arm": "baseline",
+      "taskId": "tabstat-maint",
+      "runIndex": 1,
+      "outcome": "delivered",
+      "costUsd": 0.204,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev55",
+      "mappingOk": true,
+      "problems": [],
+      "score": 14,
+      "total": 14,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T08:34:58.980Z",
+      "arm": "baseline",
+      "taskId": "tabstat-maint",
+      "runIndex": 2,
+      "outcome": "delivered",
+      "costUsd": 0.2069,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev56",
+      "mappingOk": true,
+      "problems": [],
+      "score": 14,
+      "total": 14,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T08:35:43.713Z",
+      "arm": "baseline",
+      "taskId": "tabstat-maint",
+      "runIndex": 3,
+      "outcome": "delivered",
+      "costUsd": 0.1668,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev57",
+      "mappingOk": true,
+      "problems": [],
+      "score": 14,
+      "total": 14,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T08:36:53.533Z",
+      "arm": "atoma",
+      "taskId": "tabstat-maint",
+      "runIndex": 1,
+      "outcome": "delivered",
+      "costUsd": 0.7086,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev58",
+      "mappingOk": true,
+      "problems": [],
+      "score": 14,
+      "total": 14,
+      "full": true,
+      "failed": []
+    },
+    {
+      "ts": "2026-11-01T08:41:14.183Z",
+      "arm": "atoma",
+      "taskId": "tabstat-maint",
+      "runIndex": 2,
+      "outcome": "delivered",
+      "costUsd": 0.5908,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev59",
+      "mappingOk": true,
+      "problems": [],
+      "score": 13,
+      "total": 14,
+      "full": false,
+      "failed": [
+        "manifest-matches-live: stale: npm run check; npm run build"
+      ]
+    },
+    {
+      "ts": "2026-11-01T08:44:46.916Z",
+      "arm": "atoma",
+      "taskId": "tabstat-maint",
+      "runIndex": 3,
+      "outcome": "delivered",
+      "costUsd": 0.589,
+      "dir": "/Users/mgtf/.atoma/workspaces/build.prev60",
+      "mappingOk": true,
+      "problems": [],
+      "score": 14,
+      "total": 14,
+      "full": true,
+      "failed": []
+    }
+  ]
+}

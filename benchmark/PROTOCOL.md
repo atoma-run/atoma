@@ -1197,3 +1197,18 @@ node benchmark/score-round.mjs --csv benchmark/results-round16-tabstat.csv --fir
 node benchmark/score-round.mjs --csv benchmark/results-round16-challenge.csv --first-archive <anchor+1> \
   --scorer verify-challenge.mjs --marker challenge.ts
 ```
+
+### Round 16 — result, 2026-11-01 09:20 UTC
+
+Run as registered on `fa64e08c`. **H16 refuted on both tasks**: tabstat 2 of 3
+full marks against 3 of 3, at 3.3 times the control's mean cost; challenge 3 of
+3 each, at 1.9 times. Under the registered consequence the branch is not
+pushed; [`ROUND16.md`](ROUND16.md) reports the cause to the owner. The
+acceptance wrapping costs at most 6% of a direct run; the gap is the
+strict-TypeScript policy the direct executor reads and the control does not
+(five of six direct runs migrated or scaffolded TypeScript; the sixth cost what
+the control costs). The one miss is a recorded `npm run check` whose output
+cannot replay, the defect round 13 scored. One scoring correction, disclosed:
+the challenge was first scored with `--first-archive 61`, one past its anchor
+plus one, which mapped one run to an absent archive; the committed scores use
+60, the archive listing confirms the mapping.
