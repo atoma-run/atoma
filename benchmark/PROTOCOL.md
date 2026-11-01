@@ -1133,3 +1133,67 @@ deliveries read 0/1. Corrected before any score was reported, to what
 unchanged by the fix. The registered consequence is applied in the README;
 the two product defaults it names are a product-shape decision recorded as
 owed to the owner in the report, not silently flipped.
+
+### Round 16 — the direct depth against the single agent it is built from, registered 2026-11-01 before any run
+
+The owner applied round 15's registered consequence on 2026-11-01
+([decision](../docs/decisions/direct-depth-2026-11-01.md)): a run that names no
+depth is now `direct`, one executor carrying the whole task, judged by the
+host's root acceptance, with one remediation pass and landing. This round does
+not re-test the thesis. It checks that the implementation of the new default,
+which wraps the measured single agent in the product's acceptance, context and
+delivery machinery, loses no correctness and adds no more than a bounded cost.
+The branch is not pushed to `main`, and so not deployed, before it reports.
+
+**Arms.** Control: `--baseline`, as in every round. Treatment: the product as
+it launches with no depth (`treatmentProtocol: current`, so `direct`). Both
+arms on the SAME model: `ATOMA_BASELINE_MODEL` is unset, so the baseline takes
+the L3 pin, which is also the direct executor's model. Pins: L1
+`sub:openai:gpt-5.6-luna` (the root acceptor of a file delivery), L2
+`sub:openai:gpt-5.6-terra`, L3 `sub:openai:gpt-5.6-sol`. Host path, the
+`atoma-bench` worktree at the branch's commit, 30-minute budget.
+
+**Tasks.** Two, three runs per arm each:
+
+1. `tabstat-maint`, round 13's goal minus its "Do not rewrite the CLI" clause
+   (owner decision 2026-10-31: a benchmark goal must not forbid the TypeScript
+   migration the product's policy asks for), scored by
+   [`verify-tabstat.mjs`](verify-tabstat.mjs);
+   [`experiment-round16-tabstat.json`](experiment-round16-tabstat.json).
+2. `attica-challenge`, round 15's seed and goal unchanged, scored by
+   [`verify-challenge.mjs`](verify-challenge.mjs) as corrected in round 15;
+   [`experiment-round16-challenge.json`](experiment-round16-challenge.json).
+
+**H16, per task, both parts required.** (a) The direct arm's full-mark count
+out of 3 is at least the control's. (b) The direct arm's mean cost is at most
+1.5 times the control's. Wall clock and LLM calls are reported beside them.
+
+**Consequences, stated now.** H16 holds on both tasks: the branch is pushed
+to `main` and deploys, and the README states the default with these numbers.
+Either part fails on either task: nothing is pushed; the failing runs are read
+to the trace and reported to the owner with the cause, before any change.
+
+**Threats, stated now.** Three runs per arm detect a large regression, not a
+small one; this is a release check, not an estimate. The direct arm reads the
+product's task context (strict TypeScript, verification reuse) and the control
+does not, so a direct run may migrate tabstat to TypeScript where the control
+edits JavaScript: both are scored on behaviour only, which is the registered
+rule. The direct arm's extra cost includes a checklist draft, the root
+acceptance call and, after a refusal, one more pass: all three are what the
+product charges, and are measured as such.
+
+**Anchor and launch.** Highest `build.prev` before the round: 53, so the
+tabstat round scores with `--first-archive 54`, and the challenge round with
+the anchor recorded when it starts. Commands, in this order:
+
+```bash
+ATOMA_MODEL_L1=sub:openai:gpt-5.6-luna ATOMA_MODEL_L2=sub:openai:gpt-5.6-terra \
+ATOMA_MODEL_L3=sub:openai:gpt-5.6-sol \
+npm run benchmark -- --config benchmark/experiment-round16-tabstat.json \
+  --out benchmark/results-round16-tabstat.csv --result benchmark/ROUND16-tabstat.md
+# then the same with experiment-round16-challenge.json, results-round16-challenge.csv, ROUND16-challenge.md
+node benchmark/score-round.mjs --csv benchmark/results-round16-tabstat.csv --first-archive 54 \
+  --last-archive <first archive of the challenge round> --scorer verify-tabstat.mjs --marker tabstat.js
+node benchmark/score-round.mjs --csv benchmark/results-round16-challenge.csv --first-archive <anchor+1> \
+  --scorer verify-challenge.mjs --marker challenge.ts
+```
