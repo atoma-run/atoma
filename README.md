@@ -335,7 +335,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 | Subsystems under their own contract | 19 |
 | MCP tools | 64 |
 | Curated agent names | 118 molecules · 40 cells · 20 tissues |
-| Controlled benchmark rounds | 16 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
+| Controlled benchmark rounds | 17 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
 | Interface locales | 13 catalogs — 1 source, 12 translated |
 
 <!-- atoma:facts:end -->
@@ -362,7 +362,7 @@ Browse the [documentation index](docs/README.md) for current guides and the
 
 ## Historical measurements
 
-**Sixteen controlled rounds** compared atoma with a single agent on build and
+**Seventeen controlled rounds** compared atoma with a single agent on build and
 maintenance tasks. Rounds 1–12 (August 2026) predate the 2026-08-18 state
 reset and are historical narrative. Rounds 13 to 15 (2026-10-31 and
 2026-11-01) measured the current release as it ships against one
@@ -381,8 +381,11 @@ learning off by default, a product-shape change recorded as owed in
 that default against the bare agent it wraps: no correctness lost on one task,
 one miss on the other, at 1.9 to 3.3 times the cost, nearly all of it the
 strict-TypeScript migration the product then asked of every existing
-JavaScript project. That rule now covers new applications only, and the
-default ships only once a re-check holds. Read the [protocol](benchmark/PROTOCOL.md),
+JavaScript project. That rule now covers new applications only.
+[Round 17](benchmark/ROUND17.md) re-checked: no run migrated, the cost was at
+parity on both tasks, and correctness matched on one task and fell one run
+short on the other, a held-out case the same model passes most of the time.
+Read the [protocol](benchmark/PROTOCOL.md),
 [round 13](benchmark/ROUND13.md), [round 14](benchmark/ROUND14.md) and the
 [calibration](benchmark/calibration-2026-10-31/CALIBRATION.md).
 

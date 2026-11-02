@@ -1300,3 +1300,16 @@ node benchmark/score-round.mjs --csv benchmark/results-round17-tabstat.csv --fir
 node benchmark/score-round.mjs --csv benchmark/results-round17-challenge.csv --first-archive <anchor+1> \
   --scorer verify-challenge.mjs --marker challenge.ts
 ```
+
+### Round 17 — result, 2026-11-02 11:45 UTC
+
+Run as registered on `f8436224`. **H17 holds on tabstat and fails part (a) on
+the challenge.** Tabstat: 3 of 3 full marks each, direct mean cost 0.99 times
+the control's. Challenge: direct 2 of 3 against 3 of 3, mean cost 0.95 times.
+No direct run migrated or scaffolded. Under the registered consequence the
+branch is not pushed; [`ROUND17.md`](ROUND17.md) reports the cause to the
+owner: one direct run's `detectChallenge` required "verify you are human"
+wording and missed the held-out "Security check" page, the case single agents
+and the supervised product failed half the time in round 15. Root acceptance
+approved it on the goal's examples, which it passed.
+

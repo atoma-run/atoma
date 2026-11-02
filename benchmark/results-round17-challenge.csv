@@ -1,0 +1,7 @@
+timestamp,arm,task_id,run_index,outcome,cost_usd,duration_s,llm_calls,opus_calls,sonnet_calls,haiku_calls,deterministic_phases,escalations,learned_skills,promotions,refusals,demotions,dispatch_fallbacks,trace
+2026-11-02T11:27:05.999Z,baseline,attica-challenge,1,delivered,0.3547,114,1,0,0,0,0,0,0,0,0,0,0,2026-11-02T11-27-06-980-ad252bff.json
+2026-11-02T11:29:00.786Z,baseline,attica-challenge,2,delivered,0.3511,128,1,0,0,0,0,0,0,0,0,0,0,2026-11-02T11-29-02-081-6364ffaa.json
+2026-11-02T11:31:09.978Z,baseline,attica-challenge,3,delivered,0.2864,99,1,0,0,0,0,0,0,0,0,0,0,2026-11-02T11-31-11-319-b540228b.json
+2026-11-02T11:32:50.134Z,atoma,attica-challenge,1,delivered,0.343,127,3,0,0,0,0,0,0,0,0,0,0,2026-11-02T11-32-51-381-2a68cffc.json
+2026-11-02T11:34:58.669Z,atoma,attica-challenge,2,delivered,0.271,103,3,0,0,0,0,0,0,0,0,0,0,2026-11-02T11-35-00-023-b4c0d5c8.json
+2026-11-02T11:36:43.345Z,atoma,attica-challenge,3,delivered,0.3278,86,3,0,0,0,0,0,0,0,0,0,0,2026-11-02T11-36-44-726-002112f6.json
