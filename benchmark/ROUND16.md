@@ -50,11 +50,21 @@ cost what the control costs.
 ## What the one miss was
 
 Tabstat direct run 2 (13/14) failed `manifest-matches-live`: it recorded
-`npm run check` and `npm run build` in `.atoma-probes.json`, and their recorded
-output does not replay identically (vitest prints durations). Those two
-commands exist only because the run migrated the CLI to TypeScript. It is the
-same failure round 13 scored against the supervised arm: a recorded command
-whose output can never replay is not a record.
+`npm run check` and `npm run build` in `.atoma-probes.json`. Those two
+commands exist only because the run migrated the CLI to TypeScript.
+
+**Correction, 2026-11-02.** This section first said both recorded outputs fail
+to replay. Re-read on a copy of the archive (`build.prev59`), only one does.
+`npm run check` records Vitest's report, which names the workspace's absolute
+directory and prints its start time and durations, so it can replay nowhere
+else. `npm run build` replays byte for byte. The scorer flagged it anyway,
+because it replays every entry as tabstat arguments
+(`node tabstat.js npm run build`). Round 13 had read the same pair correctly.
+The score stands, now for one real reason: one recorded entry could never
+replay. The scorer was amended before round 17 to replay such entries as the
+commands they are, in a copy of the workspace; under it every round 13 and
+round 16 score is unchanged (`build.prev17` and `build.prev59` both fail on
+`npm run check` alone).
 
 ## Remediation and the rest
 

@@ -24,7 +24,8 @@
  * mechanical and symmetric — a stale entry and an over-written entry both fail.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const dir = process.argv[2];
@@ -44,6 +45,38 @@ function run(args) {
     return { status: e.status ?? -1, stdout: String(e.stdout ?? ''), stderr: String(e.stderr ?? '') };
   }
 }
+
+// A recorded entry that is not a plain tabstat invocation (`npm run build`, a
+// test runner, a line with quotes, a pipe or a redirect) replays as the
+// command it is, through bash, in a COPY of the workspace: a replay happens
+// wherever a later reader sits, never in the recording's directory, and the
+// archive is evidence the scorer must not rebuild. Rounds 13 to 16 replayed such an
+// entry as tabstat arguments (`node tabstat.js npm run build`), which marked every
+// one stale, a deterministic build included; amended 2026-11-02 before round
+// 17 (PROTOCOL.md). The command gets a minimal environment, HOME inside the
+// copy, and a limit that keeps the whole scorer under score-round.mjs's own.
+const TABSTAT_INVOCATION = /^node\s+tabstat\.js(?:\s|$)/;
+const SHELL_SYNTAX = /["'`$|&;<>()\\*?{}[\]~]/;
+const REPLAY_LIMIT_MS = 90000;
+let replayCopy = null;
+function replayCommand(cmd) {
+  if (!replayCopy) {
+    replayCopy = mkdtempSync(join(tmpdir(), 'tabstat-replay-'));
+    // Removed however the scorer ends short of a kill: a return, a throw, process.exit.
+    process.on('exit', () => rmSync(replayCopy, { recursive: true, force: true }));
+    cpSync(dir, replayCopy, { recursive: true, verbatimSymlinks: true });
+  }
+  try {
+    const stdout = execFileSync('bash', ['-c', cmd], {
+      cwd: replayCopy, encoding: 'utf8', timeout: REPLAY_LIMIT_MS, stdio: ['ignore', 'pipe', 'pipe'],
+      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: replayCopy, LANG: 'C.UTF-8', CI: '1' },
+    });
+    return { status: 0, stdout };
+  } catch (e) {
+    return { status: e.status ?? -1, stdout: String(e.stdout ?? '') };
+  }
+}
+const plainInvocation = (cmd) => TABSTAT_INVOCATION.test(cmd) && !SHELL_SYNTAX.test(cmd);
 
 const checks = [];
 const check = (id, ok, detail) => checks.push({ id, ok: Boolean(ok), detail });
@@ -190,7 +223,7 @@ if (manifest && Array.isArray(manifest.entries)) {
   for (const e of manifest.entries.slice(0, 16)) {
     if (typeof e?.cmd !== 'string' || e.stdout === undefined) continue;
     const argv = e.cmd.replace(/^node\s+tabstat\.js\s*/, '').trim();
-    const got = run(argv ? argv.split(/\s+/) : []);
+    const got = plainInvocation(e.cmd) ? run(argv ? argv.split(/\s+/) : []) : replayCommand(e.cmd);
     if (got.status !== (e.exitCode ?? 0) || String(got.stdout) !== String(e.stdout)) stale.push(e.cmd);
   }
   check('manifest-matches-live', stale.length === 0,

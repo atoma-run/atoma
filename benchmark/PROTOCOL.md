@@ -1212,3 +1212,91 @@ cannot replay, the defect round 13 scored. One scoring correction, disclosed:
 the challenge was first scored with `--first-archive 61`, one past its anchor
 plus one, which mapped one run to an absent archive; the committed scores use
 60, the archive listing confirms the mapping.
+
+**Correction, 2026-11-02, disclosed.** The miss was first described as two
+recorded commands that cannot replay. Re-read on a copy of `build.prev59`,
+only `npm run check` cannot: Vitest's report names the workspace directory and
+prints a start time and durations. `npm run build` replays byte for byte; the
+scorer flagged it because it replayed every manifest entry as tabstat
+arguments. The score stands on the one real entry.
+[`ROUND16.md`](ROUND16.md) carries the details.
+
+### Round 17 — round 16 after the TypeScript rule was narrowed, registered 2026-11-02 before any run
+
+The owner chose on 2026-11-02 to narrow the strict-TypeScript rule
+([decision](../docs/decisions/typescript-new-applications-2026-11-02.md)): a
+new application is strict TypeScript from the skeleton, existing code keeps
+its language, and a migration happens only when the task or the project
+context asks. Round 16 attributed the direct default's cost to that rule. This
+round re-runs round 16 unchanged except for three things, all fixed before any
+run:
+
+1. **The narrowed rule**, in the task context every executor and reviewer
+   reads.
+2. **`record_probe`** keeps only the exit code of an output that names the
+   workspace's own directory as a whole path, as it already did for a bound
+   port, and takes `recordOutput: false`, which its description asks for on a
+   test, lint, typecheck, build or install report with timings.
+3. **The scorers' manifest replay** (`verify-tabstat.mjs`, and
+   `verify-maint.mjs` for later use): an entry that is not a plain CLI
+   invocation (another command, or a line with shell syntax) replays as the
+   command it is, through bash, in one temporary copy of the workspace, with a
+   minimal environment and a 90-second limit per entry; `score-round.mjs`
+   allows a scorer ten minutes instead of two. Rescored with it, every round
+   13 and round 16 score is unchanged (`build.prev17` and `build.prev59` fail
+   on `npm run check` alone, the others keep full marks).
+
+**Arms, models, budget.** As round 16: control `--baseline`, treatment the
+product at its default depth (`treatmentProtocol: current`, so `direct`),
+both on the L3 pin (`ATOMA_BASELINE_MODEL` unset). Pins: L1
+`sub:openai:gpt-5.6-luna`, L2 `sub:openai:gpt-5.6-terra`, L3
+`sub:openai:gpt-5.6-sol`. Host path, the `atoma-bench` worktree at the
+branch's commit, 30-minute budget.
+
+**Tasks.** Round 16's two, three runs per arm each, same goals and seeds:
+`tabstat-maint` ([`experiment-round17-tabstat.json`](experiment-round17-tabstat.json),
+scored by [`verify-tabstat.mjs`](verify-tabstat.mjs)) and `attica-challenge`
+([`experiment-round17-challenge.json`](experiment-round17-challenge.json),
+scored by [`verify-challenge.mjs`](verify-challenge.mjs)).
+
+**H17, per task, both parts required, the same bar as H16.** (a) The direct
+arm's full-mark count out of 3 is at least the control's. (b) The direct arm's
+mean cost is at most 1.5 times the control's. Reported beside them: wall
+clock, LLM calls, and how many direct runs migrated existing JavaScript or
+scaffolded a skeleton (the narrowed rule predicts none).
+
+**Consequences, stated now.** H17 holds on both tasks: `feat/direct-depth` is
+merged to `main`, which deploys it through the draining path
+(`EXECUTOR_COMPATIBILITY` 5), and the README states the default with these
+numbers. Either part fails on either task: nothing is pushed; the failing runs
+are read to the trace and reported to the owner with the cause.
+
+**Threats, stated now.** Three runs per arm detect a large regression only.
+Both arms run the same day on the same code path, so round 16's numbers are
+context, not a comparison arm. The control still reads only the goal; the
+direct arm reads the product's task context and pays for its checklist draft,
+root acceptance and any remediation pass, which is what the product charges.
+A direct run that still migrates despite the narrowed rule is scored on
+behaviour like any other and counted in the report. A run in either arm that
+records a report whose output varies, such as `node --test` durations, without
+`recordOutput: false` fails `manifest-matches-live` as round 16's did; the
+report names each such miss as a recording miss and gives the score without
+that check beside the registered one, which stays the verdict. Entries with no
+recorded stdout are not replayed by the scorer, so an exit code is not
+re-checked; replays share one copy in manifest order.
+
+**Anchor and launch.** Highest `build.prev` before the round: 65, so the
+tabstat round scores with `--first-archive 66`, and the challenge round with
+the anchor recorded when it starts. Commands, in this order:
+
+```bash
+ATOMA_MODEL_L1=sub:openai:gpt-5.6-luna ATOMA_MODEL_L2=sub:openai:gpt-5.6-terra \
+ATOMA_MODEL_L3=sub:openai:gpt-5.6-sol \
+npm run benchmark -- --config benchmark/experiment-round17-tabstat.json \
+  --out benchmark/results-round17-tabstat.csv --result benchmark/ROUND17-tabstat.md
+# then the same with experiment-round17-challenge.json, results-round17-challenge.csv, ROUND17-challenge.md
+node benchmark/score-round.mjs --csv benchmark/results-round17-tabstat.csv --first-archive 66 \
+  --last-archive <first archive of the challenge round> --scorer verify-tabstat.mjs --marker tabstat.js
+node benchmark/score-round.mjs --csv benchmark/results-round17-challenge.csv --first-archive <anchor+1> \
+  --scorer verify-challenge.mjs --marker challenge.ts
+```

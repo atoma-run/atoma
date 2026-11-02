@@ -130,7 +130,8 @@ rows.forEach((row, k) => {
     const stdout = execFileSync(
       'node',
       [join(import.meta.dirname, scorer), dir, row.taskId],
-      { encoding: 'utf8', timeout: 120000 }
+      // Ten minutes: a scorer may replay a recorded build or test command (90 s each).
+      { encoding: 'utf8', timeout: 600000 }
     );
     scored = JSON.parse(stdout);
   } catch (e) {

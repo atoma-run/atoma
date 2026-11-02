@@ -1,0 +1,19 @@
+{
+  "_comment": "ROUND 17 — round 16 re-run on the challenge task after the strict-TypeScript rule was narrowed to new applications (owner decision 2026-11-02); registered 2026-11-02 in PROTOCOL.md before any run. Same seed and goal as rounds 15 and 16. Both arms on the L3 pin; scored by verify-challenge.mjs.",
+  "primary": {
+    "id": "attica-challenge",
+    "seed": "benchmark/attica-challenge-v1/seed",
+    "goal": "Implement export function detectChallenge(html: string): boolean in challenge.ts. Return true only for a visible, active human-verification challenge that blocks the page. Ordinary listings, mentions of CAPTCHA or verification in prose/scripts, hidden challenge widgets, contact forms and search forms are not blocking challenges. The implementation must use document structure and context, not a bare keyword. Keep the function pure and preserve its signature. Development examples: a visible form action=\"/challenge\" with captcha-response input and a Verify button under \"Verify you are human\" is true; two ordinary listing articles are false. Read the existing source before editing."
+  },
+  "heldOut": {
+    "id": "attica-challenge",
+    "seed": "benchmark/attica-challenge-v1/seed",
+    "goal": "Implement export function detectChallenge(html: string): boolean in challenge.ts. Return true only for a visible, active human-verification challenge that blocks the page. Ordinary listings, mentions of CAPTCHA or verification in prose/scripts, hidden challenge widgets, contact forms and search forms are not blocking challenges. The implementation must use document structure and context, not a bare keyword. Keep the function pure and preserve its signature. Development examples: a visible form action=\"/challenge\" with captcha-response input and a Verify button under \"Verify you are human\" is true; two ordinary listing articles are false. Read the existing source before editing."
+  },
+  "baselineRuns": 3,
+  "atomaRuns": 3,
+  "heldOutBaselineRuns": 0,
+  "heldOutAtomaRuns": 0,
+  "timeoutMs": 1800000,
+  "treatmentProtocol": "current"
+}
