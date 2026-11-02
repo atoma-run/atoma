@@ -24,7 +24,7 @@ import {
   encryptBoundSecret,
 } from '../core/secretCrypto.js';
 import { openStoreHandle, storeDbPath } from '../core/stores.js';
-import { MCP_OAUTH_DDL, McpOAuthStore } from './mcpOAuthStore.js';
+import { MCP_OAUTH_DDL, McpOAuthStore, migrateMcpOAuthRefreshGrace } from './mcpOAuthStore.js';
 import type { AvatarMime } from './avatar.js';
 import type { SecretEncryptionContext } from './secretEncryption.js';
 import { providerKeyAad } from './secretEncryption.js';
@@ -718,6 +718,7 @@ export class AuthStore {
     if (options.initialize === false) return;
     this.db.exec(AUTH_TABLES_DDL);
     this.db.exec(MCP_OAUTH_DDL);
+    migrateMcpOAuthRefreshGrace(this.db);
 
     // The auth substrate was initially developed with no invitation column.
     // CREATE TABLE IF NOT EXISTS cannot upgrade that local pre-release shape,

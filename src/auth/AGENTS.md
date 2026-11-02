@@ -183,9 +183,12 @@ member, including for platform admins, and never expose tokens to the browser.
 - `mcpOAuthStore.ts` extends the PRIMARY store with clients, hashed codes,
   grants and hashed refresh history. API-token rows remain the authority for
   principal/org identity, live roles, listing and revocation. Access expires
-  after one hour; renewal has an absolute 30-day lifetime. Valid code/refresh
-  replay revokes the grant; every issuance/revocation uses the existing token
-  journal events. Temporary consent state is bounded and dies on restart;
+  after one hour; renewal has an absolute 30-day lifetime. Valid code replay
+  revokes the grant. A consumed refresh token answers again for two minutes, to
+  the network that rotated it only, with the grant's current pair, sealed under
+  a key only that token derives; its first replay is journaled
+  `token.refresh_replayed`. Elsewhere or later, its reuse revokes the grant.
+  Every issuance/revocation uses the existing token journal events. Temporary consent state is bounded and dies on restart;
   issued grants survive. Details: [OAuth contract](../../docs/mcp-oauth.md).
 
 ## Intentional choices and rejected shortcuts
@@ -228,3 +231,18 @@ member, including for platform admins, and never expose tokens to the browser.
 - Verifying a pasted Claude token with a model call: refused. It would bill
   the member for connecting; a revoked token surfaces as the CLI's refusal
   at the next run's first call, exactly as the host's login does.
+- Revoking an OAuth grant on ANY refresh-token reuse: relaxed on 2026-11-02
+  to a two-minute replay of the current pair. Racing client processes revoked
+  42 grants in October 2026 and forced every Codex and Claude Code user back
+  through consent; a client-side serializing helper for Codex failed closed
+  and stranded its own grant (docs/mcp-oauth.md).
+- A grace open to any address: refused in review (2026-11-02). A thief and
+  the rightful client would each catch up on the other's rotation by replay,
+  forever, and refresh rotation would detect no theft. The rotation's /24 or
+  /64 bounds it to the machine's own network.
+- Minting a NEW access token for a replay inside the grace: refused. A grant
+  holds one live access token, so each racer would sign the others out and
+  every 401 would trigger another renewal; a replay returns the same pair.
+- Storing the issued pair readable, or under a server key, for the grace:
+  refused. It is sealed under a key derived from the consumed refresh token,
+  which the store keeps only as a hash.

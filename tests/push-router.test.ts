@@ -146,6 +146,7 @@ describe('PUSH_ROUTES', () => {
       'push.unsubscribed',
       'token.created',
       'token.revoked',
+      'token.refresh_replayed',
       'github.installation_linked',
       // The two SENTINEL kinds. `run.anomaly` was never pushed: an alert
       // nobody trusts trains the operator to dismiss the channel.

@@ -1,4 +1,43 @@
-# Serialized OAuth renewal for Codex on macOS
+# Connecting Codex to Atoma's MCP
+
+Codex connects with its own OAuth support. Add the server, then sign in once
+in the browser:
+
+```toml
+[mcp_servers.atoma]
+url = "https://atoma.run/mcp"
+```
+
+```bash
+codex mcp login atoma
+```
+
+The desktop application's **Connect** action does the same. Several Codex
+windows or processes may renew the same grant at once: since 2026-11-02 the
+server answers a refresh token presented again by the same client, from the
+same network, within two minutes with the same current credentials, instead
+of revoking the grant
+([OAuth contract](mcp-oauth.md)). A grant still lasts 30 days absolutely;
+after that, sign in again.
+
+## Retiring the serialized helper
+
+Before that server change, a client-side helper serialized Codex's renewals
+(below). It is no longer needed, and a helper stranded in its fail-closed
+`renewing` state blocks every Codex connection, `codex mcp login` included,
+with "MCP HTTP headers helper exited with status 1". To remove it:
+
+1. Delete the `http_headers_helper` line from the `atoma` server in
+   `~/.codex/config.toml`, keeping the rest of the section.
+2. Run `codex mcp login atoma` and approve in the browser.
+3. Optionally revoke the helper's own grant in Atoma's token settings; it
+   otherwise ends at its 30-day expiry. Deleting the Keychain entry
+   `run.atoma.codex-oauth.v1` removes only the local copy.
+
+The rest of this page documents the helper as it was used from 2026-10-23 to
+2026-11-02.
+
+## The serialized helper (retired)
 
 When several Codex connections share an OAuth grant, a stale refresh token can
 revoke the entire grant. Atoma intentionally retains refresh rotation, replay

@@ -4,6 +4,8 @@ import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AuthStore, type Viewer } from '../src/auth/store.js';
 import { McpOAuth } from '../src/auth/mcpOAuth.js';
+import { coarseNetwork, MCP_REFRESH_REUSE_GRACE_MS } from '../src/auth/mcpOAuthStore.js';
+import { loginClientAddress, snapshotTrustedProxies } from '../src/auth/rate-limit.js';
 import { issueSession, parseCookieHeader, SESSION_COOKIE } from '../src/auth/sessions.js';
 import { McpHttpHost } from '../src/mcp/http.js';
 import { mcpHostWiring } from '../src/mcp/server.js';
@@ -39,7 +41,7 @@ beforeEach(async () => {
     const tokens = parseCookieHeader(req.headers.cookie).filter(c => c.name === SESSION_COOKIE);
     return tokens.length === 1 ? auth.resolveSession(tokens[0]!.value) : null;
   } };
-  const oauth = new McpOAuth({ gate, origin: new URL(base), clientAddress: () => 'local', emit: e => { events.push(e); },
+  const oauth = new McpOAuth({ gate, origin: new URL(base), clientAddress: req => String(req.headers['x-test-address'] ?? 'local'), emit: e => { events.push(e); },
     fetchClientMetadata: (url) => {
       fetched.push(url.href);
       const body = documents.get(url.href);
@@ -254,7 +256,10 @@ describe('MCP OAuth over HTTP', () => {
     ]);
   });
 
-  it('rotates refresh tokens, detects reuse and enforces access expiry and current roles', async () => {
+  /** Ages every consumed refresh token past the reuse grace, as two minutes passing would. */
+  const pastGrace = () => db.prepare('UPDATE auth_mcp_refresh SET used_at = used_at - ? WHERE used_at IS NOT NULL').run(MCP_REFRESH_REUSE_GRACE_MS + 1);
+
+  it('rotates refresh tokens, detects reuse past the grace and enforces access expiry and current roles', async () => {
     const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
     db.prepare('UPDATE auth_mcp_grants SET access_expires_at = 0').run();
     expect(auth.resolveApiToken(tokens.access_token)).toBeNull();
@@ -264,36 +269,208 @@ describe('MCP OAuth over HTTP', () => {
     expect(refreshed.refresh_token).not.toBe(tokens.refresh_token);
     expect(auth.resolveApiToken(tokens.access_token)).toBeNull();
     expect(auth.resolveApiToken(refreshed.access_token)?.role).toBe('org:viewer');
+    pastGrace();
     expect((await post('/oauth/token', data)).status).toBe(400);
     expect(auth.resolveApiToken(refreshed.access_token)).toBeNull();
+    expect((await fetch(`${base}/mcp`, { headers: { Authorization: `Bearer ${refreshed.access_token}` } })).status).toBe(401);
     expect(events.filter(e => e.kind === 'token.revoked')).toMatchObject([
       { detail: { clientId, reason: 'refresh_token_reuse' } },
     ]);
+    expect(events.filter(e => e.kind === 'token.refresh_replayed')).toEqual([]);
   });
 
-  it('journals concurrent refresh reuse once and rejects the winning credentials at the MCP boundary', async () => {
+  // Production journaled 42 refresh_token_reuse revocations in October 2026,
+  // nearly all a second client process renewing within seconds of the first.
+  it('answers racing renewals of one refresh token with one pair, journals the replay, and keeps the grant', async () => {
     const clientId = await register(); const authCode = await code(clientId);
     const tokens = await (await exchange(clientId, authCode)).json() as Tokens;
     const tokenId = auth.resolveApiToken(tokens.access_token)!.tokenId;
     const data = { grant_type: 'refresh_token', client_id: clientId, refresh_token: tokens.refresh_token, resource: `${base}/mcp` };
     // Two HTTP requests share one refresh credential, as independent client instances can.
     const responses = await Promise.all([post('/oauth/token', data), post('/oauth/token', data)]);
-    expect(responses.map(r => r.status).sort()).toEqual([200, 400]);
-    const rotated = await responses.find(r => r.status === 200)!.json() as Tokens;
-    expect(await responses.find(r => r.status === 400)!.json()).toEqual({ error: 'invalid_grant' });
-    const denied = await fetch(`${base}/mcp`, { headers: { Authorization: `Bearer ${rotated.access_token}` } });
-    expect(denied.status).toBe(401);
-    expect((await post('/oauth/token', { ...data, refresh_token: rotated.refresh_token })).status).toBe(400);
-    expect((await post('/oauth/token', data)).status).toBe(400);
-    expect(events.filter(e => e.kind === 'token.revoked')).toEqual([{
-      kind: 'token.revoked', actorType: 'principal', actorId: viewer.principalId,
-      orgId: viewer.orgId, summary: 'MCP OAuth authorization revoked',
-      detail: { tokenId, clientId, reason: 'refresh_token_reuse' },
+    expect(responses.map(r => r.status)).toEqual([200, 200]);
+    const [first, second] = await Promise.all(responses.map(r => r.json() as Promise<Tokens>));
+    // The same pair; only the countdown to its one expiry may have ticked between the two answers.
+    expect({ ...second, expires_in: 0 }).toEqual({ ...first, expires_in: 0 });
+    expect(Math.abs(second!.expires_in - first!.expires_in)).toBeLessThanOrEqual(1);
+    expect(first!.refresh_token).not.toBe(tokens.refresh_token);
+    const client = new Client({ name: 'grace', version: '1' });
+    try {
+      await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${first!.access_token}` } } }));
+      expect((await client.listTools()).tools.length).toBeGreaterThan(0);
+    } finally { await client.close(); }
+    expect(events.filter(e => e.kind === 'token.revoked')).toEqual([]);
+    // A third presentation still answers, and the journal keeps one row per consumed token.
+    expect((await post('/oauth/token', data)).status).toBe(200);
+    const replays = events.filter(e => e.kind === 'token.refresh_replayed');
+    expect(replays).toMatchObject([{
+      kind: 'token.refresh_replayed', actorType: 'principal', actorId: viewer.principalId, orgId: viewer.orgId,
+      summary: 'MCP OAuth refresh answered again within its reuse grace', detail: { tokenId, clientId },
     }]);
-    for (const secret of [authCode, tokens.access_token, tokens.refresh_token, rotated.access_token, rotated.refresh_token]) {
+    expect((replays[0]!.detail as { secondsAfterRotation: number }).secondsAfterRotation).toBeLessThanOrEqual(2);
+    // The next generation still rotates and still detects reuse past the grace.
+    const next = await (await post('/oauth/token', { ...data, refresh_token: first!.refresh_token })).json() as Tokens;
+    expect(auth.resolveApiToken(next.access_token)?.tokenId).toBe(tokenId);
+    pastGrace();
+    expect((await post('/oauth/token', data)).status).toBe(400);
+    expect(auth.resolveApiToken(next.access_token)).toBeNull();
+    expect(events.filter(e => e.kind === 'token.revoked')).toMatchObject([{ detail: { tokenId, clientId, reason: 'refresh_token_reuse' } }]);
+    for (const secret of [authCode, tokens.access_token, tokens.refresh_token, first!.access_token, first!.refresh_token]) {
       expect(JSON.stringify(events)).not.toContain(secret);
       expect(JSON.stringify(events)).not.toContain(createHash('sha256').update(secret).digest('hex'));
     }
+  });
+
+  it('answers a refresh token consumed twice since with the grant\'s CURRENT pair, never a superseded one', async () => {
+    const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
+    const data = { grant_type: 'refresh_token', client_id: clientId, resource: `${base}/mcp` };
+    const second = await (await post('/oauth/token', { ...data, refresh_token: tokens.refresh_token })).json() as Tokens;
+    const third = await (await post('/oauth/token', { ...data, refresh_token: second.refresh_token })).json() as Tokens;
+    expect(auth.resolveApiToken(second.access_token)).toBeNull();
+    // A process that lost the first response retries with the first token.
+    const retried = await (await post('/oauth/token', { ...data, refresh_token: tokens.refresh_token })).json() as Tokens;
+    expect(retried.access_token).toBe(third.access_token);
+    expect(retried.refresh_token).toBe(third.refresh_token);
+    expect(auth.resolveApiToken(retried.access_token)).not.toBeNull();
+    expect(events.filter(e => e.kind === 'token.revoked')).toEqual([]);
+  });
+
+  it('refuses a replay from another client and revokes a consumed token that predates the grace columns', async () => {
+    const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
+    const data = { grant_type: 'refresh_token', client_id: clientId, refresh_token: tokens.refresh_token, resource: `${base}/mcp` };
+    const refreshed = await (await post('/oauth/token', data)).json() as Tokens;
+    expect((await post('/oauth/token', { ...data, client_id: await register() })).status).toBe(400);
+    expect(auth.resolveApiToken(refreshed.access_token)).not.toBeNull();
+    // A refresh consumed by the previous release carries no used_at and no successor.
+    db.prepare('UPDATE auth_mcp_refresh SET used_at = NULL, successor = NULL WHERE used = 1').run();
+    expect((await post('/oauth/token', data)).status).toBe(400);
+    expect(auth.resolveApiToken(refreshed.access_token)).toBeNull();
+    expect(events.filter(e => e.kind === 'token.revoked')).toMatchObject([{ detail: { clientId, reason: 'refresh_token_reuse' } }]);
+  });
+
+  it('stores no readable credential for the grace and drops the sealed pair once the grace is over', async () => {
+    const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
+    const refreshed = await (await post('/oauth/token', { grant_type: 'refresh_token', client_id: clientId, refresh_token: tokens.refresh_token, resource: `${base}/mcp` })).json() as Tokens;
+    const rows = JSON.stringify(db.prepare('SELECT * FROM auth_mcp_refresh').all());
+    for (const secret of [tokens.refresh_token, refreshed.access_token, refreshed.refresh_token]) {
+      expect(rows).not.toContain(secret);
+      expect(rows).not.toContain(Buffer.from(secret).toString('base64url'));
+    }
+    expect(db.prepare('SELECT count(*) AS n FROM auth_mcp_refresh WHERE successor IS NOT NULL').get()).toEqual({ n: 1 });
+    auth.mcpOAuth.sweep();
+    expect(db.prepare('SELECT count(*) AS n FROM auth_mcp_refresh WHERE successor IS NOT NULL').get()).toEqual({ n: 1 });
+    pastGrace(); auth.mcpOAuth.sweep();
+    expect(db.prepare('SELECT count(*) AS n FROM auth_mcp_refresh WHERE successor IS NOT NULL').get()).toEqual({ n: 0 });
+  });
+
+  it('adds the grace columns when the auth store opens a store created before them', () => {
+    const old = new Database(':memory:');
+    try {
+      new AuthStore(old);
+      for (const column of ['replays', 'rotated_from', 'successor', 'used_at']) old.exec(`ALTER TABLE auth_mcp_refresh DROP COLUMN ${column}`);
+      expect((old.prepare('PRAGMA table_info(auth_mcp_refresh)').all() as Array<{ name: string }>).map(c => c.name)).toEqual(['token_hash', 'token_id', 'used']);
+      new AuthStore(old);
+      new AuthStore(old);
+      expect((old.prepare('PRAGMA table_info(auth_mcp_refresh)').all() as Array<{ name: string }>).map(c => c.name))
+        .toEqual(['token_hash', 'token_id', 'used', 'used_at', 'successor', 'rotated_from', 'replays']);
+    } finally { old.close(); }
+  });
+
+  it('replays only to the network that rotated: elsewhere a reuse still revokes, as a theft must', async () => {
+    const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
+    const data = { grant_type: 'refresh_token', client_id: clientId, refresh_token: tokens.refresh_token, resource: `${base}/mcp` };
+    const rotated = await (await post('/oauth/token', data, { 'x-test-address': '203.0.113.7' })).json() as Tokens;
+    // Another process behind the same home router: same /24.
+    const sibling = await post('/oauth/token', data, { 'x-test-address': '203.0.113.9' });
+    expect(sibling.status).toBe(200);
+    expect((await sibling.json() as Tokens).access_token).toBe(rotated.access_token);
+    // Someone elsewhere holding the same consumed token.
+    expect((await post('/oauth/token', data, { 'x-test-address': '198.51.100.4' })).status).toBe(400);
+    expect(auth.resolveApiToken(rotated.access_token)).toBeNull();
+    expect(events.filter(e => e.kind === 'token.revoked')).toMatchObject([{ detail: { clientId, reason: 'refresh_token_reuse' } }]);
+  });
+
+  it('answers nothing in the grace once the member has left the organisation', async () => {
+    const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
+    const data = { grant_type: 'refresh_token', client_id: clientId, refresh_token: tokens.refresh_token, resource: `${base}/mcp` };
+    expect((await post('/oauth/token', data)).status).toBe(200);
+    db.prepare('DELETE FROM auth_memberships WHERE principal_id = ?').run(viewer.principalId);
+    expect((await post('/oauth/token', data)).status).toBe(400);
+    expect(events.filter(e => e.kind === 'token.refresh_replayed')).toEqual([]);
+  });
+
+  it('refuses a replay from a revoked grant without journaling another revocation', async () => {
+    const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
+    const data = { grant_type: 'refresh_token', client_id: clientId, refresh_token: tokens.refresh_token, resource: `${base}/mcp` };
+    const rotated = await (await post('/oauth/token', data)).json() as Tokens;
+    const tokenId = auth.resolveApiToken(rotated.access_token)!.tokenId;
+    expect(auth.revokeApiToken(viewer.principalId, tokenId)).toBe(true);
+    const before = events.length;
+    expect((await post('/oauth/token', data)).status).toBe(400);
+    expect(events.length).toBe(before);
+  });
+
+  // Review 2026-11-02: refusing here left the rightful client locked out while
+  // a same-network thief who rotated in a burst kept the grant for 30 days.
+  it('revokes, with its own reason, when a replay would walk more rotations than one grace can hold', async () => {
+    const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
+    const input = { clientId, resource: `${base}/mcp`, network: 'local' };
+    let current = tokens.refresh_token;
+    for (let i = 0; i < 34; i += 1) current = auth.mcpOAuth.refresh(auth, { ...input, token: current })!.refresh_token;
+    const revoked: Array<{ reason: string }> = [];
+    expect(auth.mcpOAuth.refresh(auth, { ...input, token: tokens.refresh_token }, r => revoked.push(r))).toBeNull();
+    expect(revoked.map(r => r.reason)).toEqual(['refresh_chain_exhausted']);
+    expect(auth.mcpOAuth.refresh(auth, { ...input, token: current })).toBeNull();
+  });
+
+  it('never hands a replaying process a pair that a rotation from another network issued', async () => {
+    const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
+    const input = { clientId, resource: `${base}/mcp` };
+    // The rightful process rotates at home; someone elsewhere rotates the result.
+    const home = auth.mcpOAuth.refresh(auth, { ...input, token: tokens.refresh_token, network: coarseNetwork('203.0.113.7') })!;
+    auth.mcpOAuth.refresh(auth, { ...input, token: home.refresh_token, network: coarseNetwork('198.51.100.4') });
+    const revoked: unknown[] = [];
+    // A second home process presenting the first token must not receive what the other network obtained.
+    expect(auth.mcpOAuth.refresh(auth, { ...input, token: tokens.refresh_token, network: coarseNetwork('203.0.113.9') }, r => revoked.push(r))).toBeNull();
+    expect(revoked).toHaveLength(1);
+  });
+
+  it('derives the network from the forwarded client address behind the trusted proxy, as production does', () => {
+    const trusted = snapshotTrustedProxies({ ATOMA_VIZ_TRUSTED_PROXIES: '127.0.0.1,::1' });
+    const via = (forwarded: string, peer = '127.0.0.1') => coarseNetwork(loginClientAddress(
+      { socket: { remoteAddress: peer }, headers: { 'x-forwarded-for': forwarded } } as unknown as import('node:http').IncomingMessage, trusted));
+    expect(via('203.0.113.7')).toBe(via('203.0.113.9'));
+    expect(via('203.0.113.7')).not.toBe(via('198.51.100.4'));
+    // Without the trusted proxy every caller would share the proxy's network and the binding would bind nothing.
+    expect(coarseNetwork(loginClientAddress({ socket: { remoteAddress: '127.0.0.1' }, headers: { 'x-forwarded-for': '203.0.113.7' } } as unknown as import('node:http').IncomingMessage,
+      snapshotTrustedProxies({})))).toBe('v4:127.0.0');
+  });
+
+  it('revokes when a sealed pair was tampered with, and never answers without a network', async () => {
+    const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
+    const input = { clientId, resource: `${base}/mcp`, token: tokens.refresh_token };
+    const rotated = auth.mcpOAuth.refresh(auth, { ...input, network: 'local' })!;
+    const revoked: unknown[] = [];
+    expect(auth.mcpOAuth.refresh(auth, input, r => revoked.push(r))).toBeNull();
+    expect(revoked).toHaveLength(1);
+    const other = await register(); const second = await (await exchange(other, await code(other))).json() as Tokens;
+    const again = { clientId: other, resource: `${base}/mcp`, token: second.refresh_token, network: 'local' };
+    auth.mcpOAuth.refresh(auth, again);
+    const sealed = (db.prepare('SELECT successor FROM auth_mcp_refresh WHERE successor IS NOT NULL AND replays = 0 ORDER BY rowid DESC').get() as { successor: string }).successor;
+    const flipped = Buffer.from(sealed, 'base64url'); flipped[flipped.length - 1] = flipped[flipped.length - 1]! ^ 1;
+    db.prepare('UPDATE auth_mcp_refresh SET successor = ? WHERE successor = ?').run(flipped.toString('base64url'), sealed);
+    expect(auth.mcpOAuth.refresh(auth, again, r => revoked.push(r))).toBeNull();
+    expect(revoked).toHaveLength(2);
+    void rotated;
+  });
+
+  it('groups addresses by the network a NAT shares', () => {
+    expect(coarseNetwork('203.0.113.7')).toBe(coarseNetwork('203.0.113.250'));
+    expect(coarseNetwork('203.0.113.7')).not.toBe(coarseNetwork('203.0.114.7'));
+    expect(coarseNetwork('::ffff:203.0.113.7')).toBe(coarseNetwork('203.0.113.1'));
+    expect(coarseNetwork('2001:db8:1:2:aaaa::1')).toBe(coarseNetwork('2001:0db8:0001:0002:ffff:0:0:9'));
+    expect(coarseNetwork('2001:db8:1:2::1')).not.toBe(coarseNetwork('2001:db8:1:3::1'));
+    expect(coarseNetwork('local')).toBe('raw:local');
   });
 
   it('requires explicit consent bound to the displayed browser session, origin and organisation', async () => {

@@ -266,7 +266,11 @@ recorded run context. See [Decision's evaluation boundary](how-it-works.md#decis
   The code exchange requires the exact redirect used at authorization, including
   its chosen loopback port. Codes last five minutes; access tokens one hour;
   refresh authorization 30 days absolutely. A refresh rotates both credentials. Reuse of a correctly bound
-  redeemed code or refresh token revokes the grant.
+  redeemed code revokes the grant. A consumed refresh token presented again by
+  the same client, from the network its rotation came from (the IPv4 /24 or
+  IPv6 /64), within two minutes answers with the grant's current pair. From
+  elsewhere, later, or when no current pair can be reached, its reuse revokes
+  the grant.
 - `/oauth/revoke`: RFC 7009, client-bound access or refresh token, generic success
   for unknown credentials. Existing Settings/CLI revocation also blocks refresh.
 
@@ -283,18 +287,45 @@ request rates are bounded. Stateful authorization GETs observe deployment drain;
 are additive tables in the primary SQLite store. The existing `auth_api_tokens`
 row owns each grant and its revocation. Only hashes of codes/access/refresh
 credentials persist. Consumed refresh hashes remain until grant expiry or
-revocation so replay can revoke the current generation. The existing auth sweep
-prunes expired protocol state. No new secret-encryption key or product store is
-required. Existing API tokens retain their current behavior.
+revocation so replay can revoke the current generation. For the two-minute
+reuse grace, a rotation also stores what it issued, sealed with AES-256-GCM
+under a key derived (HKDF-SHA-256) from the consumed refresh token itself and
+bound to the grant id, with a hash of the network it came from: the server
+never holds a key that opens it, and a copy of the store alone opens nothing.
+With a consumed token of the same chain, a copy taken inside the grace opens
+what that token could obtain by replay. The auth sweep drops sealed pairs past
+the grace (deleted pages may persist on disk until reused) and prunes expired
+protocol state. No new secret-encryption key
+or product store is required. Existing API tokens retain their current behavior.
 
 OAuth `token.revoked` journal entries include `clientId` and `reason`:
-`authorization_code_reuse`, `refresh_token_reuse`, or `client_revocation`
-(the client called `/oauth/revoke`). No credential or credential hash is logged.
-Older entries lack the reason and cannot distinguish these cases. Concurrent
-refreshes using the same credential produce one successful rotation and one
-reuse rejection, which revokes even the newly issued credentials. A reuse event
-establishes repetition, not whether it came from concurrent clients, a retry
-after a lost response, or credential theft.
+`authorization_code_reuse`, `refresh_token_reuse`, `refresh_chain_exhausted`
+(a replay would walk more than 32 rotations made inside one grace), or
+`client_revocation` (the client called `/oauth/revoke`). No credential or credential hash is logged.
+Older entries lack the reason and cannot distinguish these cases. A refresh
+answered inside the reuse grace is journaled as `token.refresh_replayed`, with
+`clientId` and `secondsAfterRotation`. Concurrent refreshes using the same
+credential now produce one rotation and one replay of it, and every caller
+holds the same current pair. Before 2026-11-02 the second one revoked the
+grant: production journaled 42 such revocations in October 2026 (38 Codex,
+4 Claude Code), and the 21 from October 19 to 31 came 0.3 to 72 seconds after
+a successful renewal, 18 within 23 seconds, which set the two-minute grace.
+Neither event establishes whether it came from concurrent clients, a retry
+after a lost response, or credential theft. A thief on another network still
+collides and revokes the grant, as before. One on the rightful client's own
+network who renews within two minutes of each rotation keeps co-access until
+the grant's 30-day end or a collision past the grace; only the first replay of
+each consumed token is journaled, so a journal showing replays every hour is
+the sign to read. A grant can be revoked from the token settings at any time.
+
+The network is the client address the deployment gate already resolves:
+behind a reverse proxy it is meaningful only when `ATOMA_VIZ_TRUSTED_PROXIES`
+names the proxy and the proxy replaces `X-Forwarded-For` with the peer
+address. The production host does both (verified 2026-11-02). Without that,
+every caller shares the proxy's network and the binding binds nothing. Two clients of one grant that
+reach the server from different /24s, such as an IPv4 and an IPv6 path once
+an AAAA record exists, or a corporate egress spread over several ranges,
+still revoke the grant when they race, as before this grace.
 
 Wire tests exercise consent, client/resource/PKCE binding, replay, rotation,
 expiry, live roles and revocation. The process-level auth test follows upstream

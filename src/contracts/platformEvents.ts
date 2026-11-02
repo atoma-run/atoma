@@ -178,6 +178,15 @@ export const platformEventKindSchema = z.enum([
   'token.created',
   'token.revoked',
   /**
+   * A consumed MCP OAuth refresh token presented again within its reuse
+   * grace and answered with the credentials its rotation issued, instead of
+   * revoking the grant (docs/mcp-oauth.md). Racing client processes and a
+   * retry after a lost response look like this; so would a thief within two
+   * minutes of the rightful renewal, which is why it is journaled. Rows carry
+   * the token id, the client id and the seconds since the rotation.
+   */
+  'token.refresh_replayed',
+  /**
    * A platform admin re-stated one of the instance's run limits — the
    * wall-clock ceiling, the token or spend ceiling, a call timeout. SECURITY,
    * not `info`, and the reasoning is the same as for `admin.granted`: these
@@ -456,6 +465,7 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'invitation.created': 'security',
   'token.created': 'security',
   'token.revoked': 'security',
+  'token.refresh_replayed': 'security',
   'platform.settings_updated': 'security',
   // Self-service preference changes: worth the audit trail, not an alert.
   'org.models_updated': 'info',

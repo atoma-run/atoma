@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
 import type { AuthGate } from './gate.js';
-import { MCP_CODE_TTL_MS, MCP_OAUTH_SCOPE, oauthHash, type McpOAuthRevocation } from './mcpOAuthStore.js';
+import { coarseNetwork, MCP_CODE_TTL_MS, MCP_OAUTH_SCOPE, oauthHash, type McpOAuthReplay, type McpOAuthRevocation } from './mcpOAuthStore.js';
 import { authCookieName, parseCookieHeader, retireSessionCookie, serializeCookie, SESSION_COOKIE } from './sessions.js';
 import { BoundedFixedWindowRateLimiter } from './rate-limit.js';
 import { ClientMetadataResolver, isAllowedRedirectUri, matchesRegisteredRedirect, metadataClientUrl, type FetchDocument, type MetadataClient } from './clientMetadata.js';
@@ -211,7 +211,8 @@ export class McpOAuth {
         const result = grantType === 'authorization_code'
           ? auth.mcpOAuth.exchange(auth, { code: form.get('code') ?? '', clientId, redirectUri: form.get('redirect_uri') ?? '',
             verifier: form.get('code_verifier') ?? '', resource: this.resource }, this.revoked)
-          : auth.mcpOAuth.refresh(auth, { token: form.get('refresh_token') ?? '', clientId, resource: this.resource }, this.revoked);
+          : auth.mcpOAuth.refresh(auth, { token: form.get('refresh_token') ?? '', clientId, resource: this.resource,
+            network: coarseNetwork(this.options.clientAddress(req)) }, this.revoked, this.replayed);
         if (!result) { json(res, 400, { error: 'invalid_grant' }); return true; }
         if (grantType === 'authorization_code') this.options.emit({ kind: 'token.created', actorType: 'principal',
           actorId: result.principalId, orgId: result.orgId, summary: 'OAuth access granted to an MCP client',
@@ -229,6 +230,13 @@ export class McpOAuth {
     this.options.emit({ kind: 'token.revoked', actorType: 'principal', actorId: receipt.principalId,
       orgId: receipt.orgId, summary: 'MCP OAuth authorization revoked',
       detail: { tokenId: receipt.tokenId, clientId: receipt.clientId, reason: receipt.reason } });
+  };
+
+  /** A consumed refresh token answered inside the reuse grace: racing clients, a lost response, or theft. */
+  private readonly replayed = (receipt: McpOAuthReplay): void => {
+    this.options.emit({ kind: 'token.refresh_replayed', actorType: 'principal', actorId: receipt.principalId,
+      orgId: receipt.orgId, summary: 'MCP OAuth refresh answered again within its reuse grace',
+      detail: { tokenId: receipt.tokenId, clientId: receipt.clientId, secondsAfterRotation: receipt.secondsAfterRotation } });
   };
 
   private async authorize(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
