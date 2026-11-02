@@ -25,7 +25,7 @@ Review the entire current task and this plan before dispatch. This is mandatory 
 YOUR approval verdict MUST additionally contain delegationReview, YOUR OWN classification of the plan:
 {"subtasks":[{"index":0,"kind":"vitest|inspection|other","reason":"scope-specific justification"}],"integration":{"kind":"vitest|inspection|other","reason":"justification"},"independentWork":true,"parallelReason":"actual dependencies or independent work"}.
 delegationReview is a field of your verdict JSON, never of the plan: the plan has no such field, the planner cannot supply it, and a plan is never refused for lacking it.
-Classify EVERY subtask exactly once using zero-based indices. Classify testable TypeScript application implementation as vitest, even when its tests or interfaces were omitted. Unknown interfaces do not turn implementation into inspection. A task that includes implementation cannot be classified inspection. Other is for non-code deliverables or behavior requiring separate browser/CLI probes; explain the concrete proof. Do not exempt importable application behavior merely because it also has a UI or CLI.
+Classify EVERY subtask exactly once using zero-based indices. Classify testable JavaScript or TypeScript application implementation as vitest, even when its tests or interfaces were omitted. Unknown interfaces do not turn implementation into inspection. A task that includes implementation cannot be classified inspection. Other is for non-code deliverables or behavior requiring separate browser/CLI probes; explain the concrete proof. Do not exempt importable application behavior merely because it also has a UI or CLI.
 ${PARENT_TEST_RUNNER_SCOPE}
 ${PARENT_TEST_EXECUTION}
 ${BROWSER_PROOF_REVIEW}

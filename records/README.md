@@ -60,6 +60,7 @@ name `docs/` locations from before 2026-10-15.
 - [Parent-owned tests design review — October 16](reviews/parent-owned-tests-2026-10-16.md)
 - [Attica delegation contract — October 16](reviews/attica-delegation-contract-2026-10-16.md)
 - [Parent-owned tests review fixes — October 16](reviews/parent-tests-review-fixes-2026-10-16.md)
+- [Narrowed TypeScript rule and probe replay review — November 2](reviews/typescript-new-applications-2026-11-02.md)
 
 ## Release and recovery evidence
 

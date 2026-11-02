@@ -50,7 +50,7 @@ export const DIRECT_ATOM_NAME = 'Direct';
 /**
  * The control arm's measured prompt, plus one fact the product adds: who
  * judges the work and from what. Nothing atoma-specific is taught here
- * either; the run's own policies (strict TypeScript, verification reuse)
+ * either; the run's own policies (the TypeScript rule, verification reuse)
  * reach it through the task context, as they reach every executor.
  */
 export const DIRECT_SYSTEM_PROMPT = [

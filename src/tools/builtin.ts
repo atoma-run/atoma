@@ -1,5 +1,5 @@
 import { runParentTests } from './parentTests.js';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync, statSync, realpathSync } from 'node:fs';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer } from 'node:net';
@@ -12,6 +12,7 @@ import { scaffoldApplication } from './applicationSkeleton.js';
 import {
   DECORATED_CMD_RE,
   PORT_BEARING_STDOUT_RE,
+  namesWorkspaceRoot,
   PROBE_MANIFEST_FILENAME,
   PROBE_HISTORY_GUIDANCE,
   COMMAND_OUTPUT_GUIDANCE,
@@ -1035,7 +1036,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
         SHELL_OUTPUT_GUIDANCE,
         ...(opts.commandLogDirectory ? ['Keep proof output on stdout/stderr. If redirecting it, use a top-level /tmp/*.log file: changed regular UTF-8 logs are archived with this command before worker removal (8 MiB raw / 4 MiB encoded / 32 files per call, 256 listed paths; omissions are explicit). Archives are file snapshots, not independent proof of a command exit.'] : []),
         `Allowed executables: ${[...allowlist].join(', ')}.`,
-        'Built-in utility: command:"atoma-scaffold", args:["web"|"node"|"fullstack", "empty-directory"] creates the versioned TypeScript/ESLint/Vitest skeleton (Vite for browser apps). Use it directly, not inside bash or a compound command. It refuses nonempty directories; use .atoma-skeleton as a reference when adapting an existing app.',
+        'Built-in utility: command:"atoma-scaffold", args:["web"|"node"|"fullstack", "empty-directory"] creates the versioned TypeScript/ESLint/Vitest skeleton (Vite for browser apps). Use it directly, not inside bash or a compound command. It refuses nonempty directories. It is for a NEW application; generate it into .atoma-skeleton as a reference for an existing app only when the task asks for configuration adaptation.',
         'Do NOT use this for long-running processes (start_static_server or start_node_server own those).',
       ].join(' '),
       inputSchema: {
@@ -3842,6 +3843,21 @@ function sourceStartsLongRunningServer(
 }
 
 /**
+ * The sandbox directory as a recorded output may name it: as given, and
+ * resolved the way the kernel reports a working directory (`getcwd`, which a
+ * test runner prints), as the sandbox's own containment check resolves it.
+ */
+function workspaceRoots(root: string): string[] {
+  let real = root;
+  try {
+    real = realpathSync.native(root);
+  } catch {
+    // An unresolvable root keeps its lexical spelling only.
+  }
+  return real === root ? [root] : [root, real];
+}
+
+/**
  * RECORD_PROBE — run a command AND write its real result into the probe
  * manifest, in one step.
  *
@@ -3880,6 +3896,10 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
         'command, pass supersedes with the exact accidental command to remove only that stale entry',
         'after the replacement command has run. FINITE CLI/script commands only: never start a',
         'server here and never use curl/wget, which are refused: HTTP evidence is not a command probe.',
+        'Pass recordOutput:false for a command whose output changes from run to run although it',
+        'succeeds the same way (a test runner, linter, typecheck, build or install report with timings or',
+        'absolute paths): the exit code is then its whole record. Output naming the workspace directory',
+        'or a bound port is never recorded.',
         PROBE_HISTORY_GUIDANCE,
         COMMAND_OUTPUT_GUIDANCE,
       ].join(' '),
@@ -3899,6 +3919,11 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
             type: 'string',
             description:
               'Optional exact old cmd to remove after this command runs; use only when correcting an accidental probe whose command changed.',
+          },
+          recordOutput: {
+            type: 'boolean',
+            description:
+              'Default true. false records only the exit code, for a command whose output varies between runs (durations, timestamps, absolute paths).',
           },
         },
       },
@@ -4022,11 +4047,22 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
         cmd,
         exitCode: result.exitCode,
       };
-      // A bound port is different on every run, so recording it guarantees a
-      // future replay mismatch. Omitting stdout is the documented signal that
-      // only the exit code is comparable for this entry.
-      if (!PORT_BEARING_STDOUT_RE.test(stdout)) entry.stdout = stdout;
-      if (stderr) entry.stderr = stderr;
+      // A bound port is different on every run, and the workspace's own
+      // directory is where no later replay runs, so recording either
+      // guarantees a future replay mismatch. Omitting the output is the
+      // documented signal that only the exit code is comparable for this entry.
+      const roots = workspaceRoots(opts.sandbox.root);
+      const omitted =
+        args['recordOutput'] === false ? 'recordOutput:false'
+          : PORT_BEARING_STDOUT_RE.test(stdout) ? 'stdout names a bound port'
+            : namesWorkspaceRoot(stdout, roots) || namesWorkspaceRoot(stderr, roots) ? 'output names the workspace directory'
+              : undefined;
+      if (omitted === undefined) {
+        entry.stdout = stdout;
+        if (stderr) entry.stderr = stderr;
+      } else if (omitted === 'stdout names a bound port' && stderr) {
+        entry.stderr = stderr;
+      }
       if (typeof args['note'] === 'string' && args['note'].trim()) entry.note = args['note'].trim();
 
       const path = opts.sandbox.resolve(PROBE_MANIFEST_FILENAME);
@@ -4045,6 +4081,8 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
         recorded: true,
         manifest: PROBE_MANIFEST_FILENAME,
         recordedStdoutOmitted: entry.stdout === undefined,
+        ...(stderr && entry.stderr === undefined ? { recordedStderrOmitted: true } : {}),
+        ...(omitted ? { recordedOutputOmittedBecause: omitted } : {}),
         ranThroughShell: viaShell,
         ...(supersedes ? { superseded: supersedes } : {}),
       };

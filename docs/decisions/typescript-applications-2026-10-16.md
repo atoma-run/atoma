@@ -1,6 +1,9 @@
 # TypeScript for all JavaScript-runtime applications
 
-Accepted by the owner on 2026-10-16.
+Accepted by the owner on 2026-10-16. Narrowed on 2026-11-02: existing code
+keeps its language and only a new application is strict TypeScript
+([decision](typescript-new-applications-2026-11-02.md)). What follows is the
+rule as it stood before that date.
 
 All applications targeting a JavaScript runtime use TypeScript with strict
 checking for first-party browser and server logic and maintained tests. They

@@ -90,6 +90,38 @@ export const DECORATED_CMD_RE = /(?:;|&&|\|\|)\s*echo\s+[^;&|]*\$\?\s*$/;
  */
 export const PORT_BEARING_STDOUT_RE = /LISTENING_ON_PORT=\d+/;
 
+/** An SGR colour sequence, as a test runner writes around the paths it prints. */
+const ANSI_SGR = new RegExp(String.raw`\u001b\[[0-9;]*m`, 'g');
+
+/**
+ * A recorded output that names the workspace's own absolute directory. It
+ * replays only where a workspace sits at that same path. On a host, each
+ * project run has its own workspace (its run id is in the path), and neither
+ * an archive nor a scorer's copy sits where the recording did. Inside a worker
+ * the directory is the same `/workspace` mount everywhere, and what names it
+ * there in practice is a test runner's report, which carries a start time and
+ * durations as well. The application skeleton's runner is one: Vitest opens
+ * its report with `RUN v4 <root>`, and a recorded `npm run check` could never
+ * replay in rounds 13 and 16 (benchmark/ROUND16.md).
+ *
+ * Exact as the port marker is: the directory is the sandbox's own, known when
+ * the output is recorded, never a word list. It is matched as a whole path,
+ * colour codes removed: `/workspace` is named by neither `/workspaces` nor
+ * `src/workspace` nor a URL's `/workspace` path. Not complete: a runner that
+ * prints only durations is still recorded unless the caller passes
+ * `recordOutput: false`, which `record_probe`'s description asks for.
+ */
+export function namesWorkspaceRoot(output: string, roots: readonly string[]): boolean {
+  const plain = output.replace(ANSI_SGR, '');
+  return roots.some((root) => {
+    if (root.length <= 1) return false;
+    for (let at = plain.indexOf(root); at !== -1; at = plain.indexOf(root, at + 1)) {
+      if (!/[\w.~/-]/.test(plain.charAt(at - 1)) && !/[\w.-]/.test(plain.charAt(at + root.length))) return true;
+    }
+    return false;
+  });
+}
+
 /* ────────────────────────── schemas ────────────────────────── */
 
 /**

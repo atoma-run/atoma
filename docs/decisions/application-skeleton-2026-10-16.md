@@ -1,5 +1,10 @@
 # Versioned application skeleton
 
+Since 2026-11-02 the skeleton is for NEW applications only; an existing
+project, module or script keeps its own tooling
+([decision](typescript-new-applications-2026-11-02.md)). The contract below
+is otherwise unchanged.
+
 All JavaScript-runtime applications produced or modified by Atoma adopt the
 same application tooling contract, including existing applications:
 

@@ -1,9 +1,11 @@
 # Direct depth by default, learning off by default — owner decision 2026-11-01
 
 Status: decided and implemented on branch `feat/direct-depth`. Shipping to
-production waits on the pre-registered check in
-[`benchmark/PROTOCOL.md`](../../benchmark/PROTOCOL.md) (round 16). This record
-states what changed, what a direct run still owes, and what it gives up.
+production waits on a pre-registered check in
+[`benchmark/PROTOCOL.md`](../../benchmark/PROTOCOL.md): round 16 refuted it on
+cost, the TypeScript rule was narrowed on 2026-11-02, and round 17 re-checks.
+This record states what changed, what a direct run still owes, and what it
+gives up.
 
 ## The decision
 
@@ -31,7 +33,8 @@ One executor with the run's tools carries the whole task
 arm's tool loop and budget, with what the product owes every executor:
 
 - **Kept from the product.** The acceptance checklist (drafted or the client's
-  own), the task context every executor reads (strict TypeScript, verification
+  own), the task context every executor reads (the TypeScript rule, narrowed
+  on [2026-11-02](typescript-new-applications-2026-11-02.md), verification
   reuse, workspace preparation, project context), the attestation log of every
   tool call, root acceptance by the host, the one remediation pass after a
   refusal, landing as `partial` when the run budget cuts it, the declared

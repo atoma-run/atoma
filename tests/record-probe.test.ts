@@ -27,6 +27,7 @@ import {
   matchesWebIdentity,
   mergeProbeManifestWrite as contractMergeProbeManifestWrite,
   mergeShellProbe as contractMergeShellProbe,
+  namesWorkspaceRoot,
   validateProbeManifest,
   shellProbeManifestEvidence,
   webEntryIdentity,
@@ -183,6 +184,49 @@ describe('record_probe', () => {
     expect(res.recordedStdoutOmitted).toBe(true);
     expect(manifest().entries[0]).not.toHaveProperty('stdout');
     expect(manifest().entries[0]!['exitCode']).toBe(0);
+  });
+
+  // Rounds 13 and 16 (benchmark/ROUND16.md): a recorded `npm run check` kept
+  // Vitest's report, which opens with the workspace's absolute directory, so
+  // the entry could replay nowhere else, a correct delivery's copy included.
+  it('omits stdout and stderr that name the workspace directory, as a test runner\'s report does', async () => {
+    // process.cwd() is the symlink-resolved spelling (macOS: /private/var/…),
+    // the lexical root the one the sandbox was given (/var/…): both are named.
+    writeFileSync(join(root, 'report.js'),
+      `console.log(' RUN  v4.1.10 ' + process.cwd()); console.log(' Duration 12ms'); console.error('at ' + ${JSON.stringify(root)} + '/src/a.ts:3');`);
+    const t = recordProbeTool({ sandbox });
+    const res = (await t.execute({ cmd: 'node report.js' })) as {
+      stdout: string; recordedStdoutOmitted: boolean; recordedStderrOmitted?: boolean; recordedOutputOmittedBecause?: string;
+    };
+    expect(res.stdout).toContain('RUN  v4.1.10');
+    expect(res.recordedStdoutOmitted).toBe(true);
+    expect(res.recordedStderrOmitted).toBe(true);
+    expect(res.recordedOutputOmittedBecause).toBe('output names the workspace directory');
+    const entry = manifest().entries[0]!;
+    expect(entry).not.toHaveProperty('stdout');
+    expect(entry).not.toHaveProperty('stderr');
+    expect(entry['exitCode']).toBe(0);
+  });
+
+  it('records only the exit code when the caller says the output varies between runs', async () => {
+    writeFileSync(join(root, 'timed.js'), "console.log('Duration ' + Date.now() + 'ms'); console.error('warn');");
+    const t = recordProbeTool({ sandbox });
+    const res = (await t.execute({ cmd: 'node timed.js', recordOutput: false })) as {
+      stdout: string; recordedStdoutOmitted: boolean; recordedStderrOmitted?: boolean; recordedOutputOmittedBecause?: string;
+    };
+    expect(res.stdout).toContain('Duration');
+    expect(res.recordedStdoutOmitted).toBe(true);
+    expect(res.recordedStderrOmitted).toBe(true);
+    expect(res.recordedOutputOmittedBecause).toBe('recordOutput:false');
+    expect(manifest().entries[0]).toEqual({ cmd: 'node timed.js', exitCode: 0 });
+  });
+
+  it('keeps an output naming a sibling directory whose name only begins like the workspace\'s', async () => {
+    writeFileSync(join(root, 'sibling.js'), `console.log(${JSON.stringify(root)} + '-old/data.csv'); console.log(${JSON.stringify(root)} + 's');`);
+    const t = recordProbeTool({ sandbox });
+    const res = (await t.execute({ cmd: 'node sibling.js' })) as { recordedStdoutOmitted: boolean };
+    expect(res.recordedStdoutOmitted).toBe(false);
+    expect(manifest().entries[0]!['stdout']).toBe(`${root}-old/data.csv\n${root}s\n`);
   });
 
   it('refuses an exit-code echo decoration instead of recording echo\'s status', async () => {
@@ -1007,5 +1051,35 @@ describe('a command may ask for the time a finite suite needs', () => {
       (tool.declaration.inputSchema as { properties: { timeoutMs: { type: string; description: string } } }).properties.timeoutMs;
     expect(described(runShellTool({ sandbox }))).toMatchObject({ type: 'integer', description: expect.stringContaining('default 120000, at most 300000') });
     expect(described(recordProbeTool({ sandbox }))).toMatchObject({ type: 'integer', description: expect.stringContaining('default 120000, at most 300000') });
+  });
+});
+
+describe('namesWorkspaceRoot', () => {
+  it('matches the whole directory name, at the end of the output or before a separator', () => {
+    expect(namesWorkspaceRoot('RUN v4 /workspace', ['/workspace'])).toBe(true);
+    expect(namesWorkspaceRoot('\u001b[90m/workspace\u001b[39m', ['/workspace'])).toBe(true);
+    expect(namesWorkspaceRoot('wrote /workspace/out.json', ['/workspace'])).toBe(true);
+    expect(namesWorkspaceRoot('see https://example.test/workspaces/a', ['/workspace'])).toBe(false);
+    expect(namesWorkspaceRoot('/workspace-old/x and /workspace.bak', ['/workspace'])).toBe(false);
+    expect(namesWorkspaceRoot('/workspaces then /workspace:1', ['/workspace'])).toBe(true);
+  });
+
+  // Review 2026-11-02: a path or URL that only ENDS in the root's name is not
+  // the workspace, and deterministic output naming one must stay recorded.
+  it('does not take the tail of a longer path or a URL path for the workspace', () => {
+    expect(namesWorkspaceRoot('src/workspace/index.js', ['/workspace'])).toBe(false);
+    expect(namesWorkspaceRoot('GET http://localhost:3000/workspace 200', ['/workspace'])).toBe(false);
+    expect(namesWorkspaceRoot('/home/u/workspace/x', ['/workspace'])).toBe(false);
+    expect(namesWorkspaceRoot('cwd=/workspace', ['/workspace'])).toBe(true);
+    expect(namesWorkspaceRoot("'/workspace/a.ts'", ['/workspace'])).toBe(true);
+  });
+
+  it('sees the root through the colour codes a test runner wraps around it', () => {
+    expect(namesWorkspaceRoot(' \u001b[36mv4.1.10 \u001b[39m\u001b[90m/workspace\u001b[39m', ['/workspace'])).toBe(true);
+  });
+
+  it('never treats the filesystem root as a workspace every absolute path would name', () => {
+    expect(namesWorkspaceRoot('/usr/bin/node', ['/'])).toBe(false);
+    expect(namesWorkspaceRoot('anything', [''])).toBe(false);
   });
 });

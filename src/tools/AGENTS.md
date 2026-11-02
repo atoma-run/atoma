@@ -37,6 +37,11 @@ Neighbours:
   command, `fetch_url record:true` for a request, `validate_html` for a PASSING
   browser check (2026-10-11). Models choose what to probe; they do not
   transcribe the record, and `write_file`/`edit_file` refuse the file.
+  `record_probe` keeps only the exit code when its stdout names a bound port,
+  when its output names the workspace's own directory as a whole path, as
+  Vitest's report does, or when the caller passes `recordOutput:false` for a
+  report with timings (2026-11-02, rounds 13 and 16): such output never
+  replays byte for byte where a later reader sits.
 - Worker and in-process backends share contracts from `src/contracts/`; never
   fork protocol shapes.
 - Container execution uses `network none` unless explicit egress is selected.

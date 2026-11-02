@@ -408,19 +408,19 @@ load-bearing.
   plan budget's ladder then decides. A suite the tissue assigned cannot be cited and stays bounded.
   Rejected options, run stats: the `MAX_CELL_PLAN_REFUSALS` comment.
 
-- All JavaScript-runtime applications use strict TypeScript, including existing projects, browser/server
-  logic and maintained tests created or changed by the requested implementation.
-  Existing-app migration/skeleton adaptation cover the repair and necessary dependencies; explicit wider work still applies. Inspection, verification-only and reporting phases do not migrate.
+- A NEW JavaScript-runtime application is strict TypeScript from the versioned skeleton; existing code keeps
+  its language and is migrated only when the task or `projectContext` asks (narrowed 2026-11-02: round 16
+  measured whole-project migrations of a small CLI at 3 times a bare agent's cost for no correctness).
+  No unasked skeleton, manifest or tooling goes into existing code. Inspection/verification/reporting never migrate.
   `APPLICATION_TYPESCRIPT_GUIDANCE` in `taskContext.ts` is the runtime rule shared by tool-mode planners,
   executors and reviewers, including old stored types and fallbacks; reasoning tasks hold no tools and skip it.
-  Final review requires observed `check` (typecheck, lint, tests) and `build` success and effective
-  configuration/source coverage; transpilation or a script name is not proof. Compilation goes to a shell
-  molecule before browser verification, without widening static-web tools. Generated JavaScript, vendor
-  assets and necessary tooling glue remain valid. No extension-based rejection or supervisor command replay.
-  [Decision and review](../../docs/decisions/typescript-applications-2026-10-16.md).
-  Apps also adopt the [versioned application skeleton](../../docs/decisions/application-skeleton-2026-10-16.md):
-  ESLint/typescript-eslint, Vitest, Vite for browser assets, and uniform scripts.
-  Example tests prove the skeleton only; product behavior still needs evidence.
+  An app defining `check`/`build` needs both observed passing on final source plus configuration/source
+  coverage; one without them is judged on its own checks. Transpilation or a script name is not proof.
+  Compilation goes to a shell molecule before browser verification, without widening static-web tools.
+  Generated JavaScript, vendor assets and tooling glue remain valid. No extension-based rejection or
+  supervisor command replay. [Decision](../../docs/decisions/typescript-new-applications-2026-11-02.md),
+  [earlier rule](../../docs/decisions/typescript-applications-2026-10-16.md),
+  [skeleton](../../docs/decisions/application-skeleton-2026-10-16.md). Example tests prove the skeleton only.
 
 - Browser executors and reviewers share `WEB_DELIVERY_GUIDANCE`: user-entered
   plain text stays data in DOM attributes too, and documented launch modes must
