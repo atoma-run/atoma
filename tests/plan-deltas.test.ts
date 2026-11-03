@@ -12,6 +12,7 @@ import { MockLlmClient } from '../src/core/llm.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import type { LlmCompletionRequest, LlmCompletionResponse, Plan, Result, Task } from '../src/core/types.js';
 import { makeCtx } from './helpers.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS } from '../src/contracts/parentTests.js';
 
 // M3 of records/designs/replan-loop-2026-10-23.md: behind ATOMA_REVIEW_REPAIR a
 // planner may answer a refusal with typed deltas on its retained refused plan.
@@ -49,6 +50,7 @@ function actors() {
 // CRLF, a tab and a non-ASCII character.
 const SOURCE = "import { test, expect } from 'vitest';\r\nimport { add } from './add.ts';\ntest('adds digits', () => {\n\texpect(String(add(2, 3))).toMatch(/\\d+/);\n  expect(add(-2, 1)).toBe(-1); // signé\n});";
 const NEGATIVE = "import { test, expect } from 'vitest';\nimport { add } from './add.ts';\ntest('rejects text', () => {\n  expect(() => add('2' as never, 3)).toThrow(TypeError);\n  expect(add(0, 0)).toBe(0);\n});";
+const sizedSource = (size: number): string => `${NEGATIVE}\n//${'x'.repeat(size - NEGATIVE.length - 3)}`;
 const suite = { requirement: 'signed addition', cwd: '.', source: SOURCE };
 
 const strategy = (target: string) => ({ strategy: 'reuse', target, reasoning: 'Existing module author' });
@@ -192,9 +194,31 @@ describe('parsePlanPair with a retained base', () => {
   it('refuses a 12,001-character suite, in a delta reply and in a whole plan', () => {
     const long = `${NEGATIVE}\n//${'x'.repeat(12_001 - NEGATIVE.length - 3)}`;
     expect(long).toHaveLength(12_001);
-    expect(kind(deltaReply([{ kind: 'suite.replace', target: 0, source: long }]), { base })).toBe('schema');
+    expect(kind(deltaReply([{ kind: 'suite.replace', target: 0, source: long }]), { base })).toBe('suite-size');
+    expect(kind(deltaReply([{ kind: 'suite.split', target: 0, into: [
+      { description: 'first branch', acceptanceTests: { ...suite, source: long } },
+      { description: 'second branch', acceptanceTests: suite },
+    ] }]), { base })).toBe('suite-size');
     const whole = rawPlan('Urea');
     expect(kind(reply('Urea', { ...whole, subtasks: [{ ...whole.subtasks[0], acceptanceTests: { ...suite, source: long } }] }), { base })).toBe('suite-size');
+  });
+
+  it.each([8_001, 8_871, PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS])('accepts the same %i-character suite in a whole plan, replacement and split', size => {
+    const source = sizedSource(size);
+    const whole = rawPlan('Urea');
+    const expected = parsePlanPair(reply('Urea', {
+      ...whole,
+      subtasks: [{ ...whole.subtasks[0], acceptanceTests: { ...suite, source } }],
+    }), l2StrategySchema, 'end_turn', { base }).plan;
+    const replaced = parsePlanPair(deltaReply([{ kind: 'suite.replace', target: 0, source }]), l2StrategySchema, 'end_turn', { base }).plan;
+    expect(replaced).toEqual(expected);
+    expect(replaced.subtasks[0]?.acceptanceTests?.source).toBe(source);
+    const split = parsePlanPair(deltaReply([{ kind: 'suite.split', target: 0, into: [
+      { description: 'first branch', acceptanceTests: { ...suite, source } },
+      { description: 'second branch', acceptanceTests: suite },
+    ] }]), l2StrategySchema, 'end_turn', { base }).plan;
+    expect(split.subtasks[0]?.acceptanceTests?.source).toBe(source);
+    expect(kind(deltaReply([{ kind: 'suite.replace', target: 0, source }], 'f'.repeat(64)), { base })).toBe('schema');
   });
 
   it('bounds a reply to six deltas, two of them carrying a suite', () => {
@@ -209,7 +233,9 @@ describe('parsePlanPair with a retained base', () => {
 describe('the root loop under ATOMA_REVIEW_REPAIR', () => {
   it('reviews and executes exactly applyPlanDeltas(refused plan, deltas), its sources byte-equal', async () => {
     const { tissue, cellName } = actors();
-    const deltas = (prompt: string) => reply(cellName, { planDeltas: { base: digestIn(prompt), deltas: replaceSuite } });
+    const source = sizedSource(8_871); // First repair refused in Attica run 05614ddf.
+    const edits: PlanDelta[] = [{ kind: 'suite.replace', target: 0, source }];
+    const deltas = (prompt: string) => reply(cellName, { planDeltas: { base: digestIn(prompt), deltas: edits } });
     const ctx = makeCtx({ llm: routedLlm([reply(cellName, rawPlan(cellName)), deltas], [refusal, approval(1)]) });
     const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(delivered);
 
@@ -225,12 +251,13 @@ describe('the root loop under ATOMA_REVIEW_REPAIR', () => {
       `first line \\"import { test, expect } from 'vitest';\\"; ${SOURCE.length} characters]`);
     expect(plans[1]?.userContent).not.toContain('expect(add(-2, 1)).toBe(-1); // signé');
     const executed = execute.mock.calls[0]?.[1] as Plan;
-    expect(executed).toEqual(applyPlanDeltas(refused, replaceSuite));
-    expect(executed.subtasks[0]?.acceptanceTests?.source).toBe(NEGATIVE);
+    expect(executed).toEqual(applyPlanDeltas(refused, edits));
+    expect(executed.subtasks[0]?.acceptanceTests?.source).toBe(source);
     // The review read the amended plan as a whole plan, with its new bytes.
     const reviews = ctx.llm.calls.filter(call => call.role === 'validate-plan');
     expect(reviews).toHaveLength(2);
     expect(reviews[1]?.userContent).toContain("toThrow(TypeError)");
+    expect(execute).toHaveBeenCalledTimes(1);
   });
 
   it('spends one attempt on a wrong base, tells the planner why, and keeps the base for the next reply', async () => {

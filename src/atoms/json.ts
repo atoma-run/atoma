@@ -1333,10 +1333,9 @@ export const PLAN_DELTAS_MAX = 6;
 export const PLAN_DELTAS_SUITE_MAX = 2;
 
 const deltaIndex = z.number().int().nonnegative();
-// A suite a delta carries is written now, in a reply asked to stay short: it is
-// held to the soft target the planning text names, not to the authored bound.
-const deltaSource = z.string().min(1).max(PARENT_TEST_SOURCE_TARGET_CHARS);
-const deltaSuiteSchema = parentTestSuiteSchema.extend({ source: deltaSource });
+// Read suite bytes through the same schema as a whole plan. After applying
+// deltas, withinAuthoredBounds enforces the one authored bound with the same
+// typed feedback; the planning target must not become a second hard limit.
 const deltaCriteria = z.array(z.string().trim().min(1)).max(40);
 
 /**
@@ -1360,14 +1359,14 @@ export const planDeltaSchema = z.discriminatedUnion('kind', [
     kind: z.literal('suite.replace' satisfies PlanDeltaKind),
     target: z.union([deltaIndex, z.literal('plan')]),
     requirement: parentTestSuiteSchema.shape.requirement.optional(),
-    source: deltaSource,
+    source: parentTestSuiteSchema.shape.source,
   }),
   z.object({
     kind: z.literal('suite.split' satisfies PlanDeltaKind),
     target: deltaIndex,
     into: z.array(z.object({
       description: z.string().trim().min(1),
-      acceptanceTests: deltaSuiteSchema,
+      acceptanceTests: parentTestSuiteSchema,
       criteria: deltaCriteria.optional(),
       dependsOn: z.array(deltaIndex).optional(),
     })).min(2).max(PLAN_DELTAS_MAX),

@@ -9,7 +9,7 @@ import { SHELL_TIMEOUT_MAX_MS } from '../contracts/commandTimeouts.js';
 import { stripLiteralContractBlock } from './prompts.js';
 import { createHash } from 'node:crypto';
 import type { PlanBase } from '../core/atom.js';
-import { PARENT_TEST_SOURCE_TARGET_CHARS } from '../contracts/parentTests.js';
+import { PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS, PARENT_TEST_SOURCE_TARGET_CHARS } from '../contracts/parentTests.js';
 import { PROOF_OBLIGATIONS } from '../contracts/attestation.js';
 import { PLAN_DELTAS_MAX, PLAN_DELTAS_SUITE_MAX } from './json.js';
 
@@ -204,7 +204,7 @@ export function previousPlanLines(base: PlanBase | undefined): string[] {
     `Reply with a whole plan OR planDeltas on base ${base.digest}: the same two-object array, its second object either a whole plan or`,
     `{"planDeltas": {"base": "${base.digest}", "deltas": [...]}}, which the host applies to the previous plan in order (each index names a subtask`,
     `of the plan as the earlier deltas left it) and reviews as a whole plan; an empty list resubmits that plan unchanged. At most ${PLAN_DELTAS_MAX} deltas, at most ${PLAN_DELTAS_SUITE_MAX} of them carrying a suite,`,
-    `each suite source a whole file under ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters; a suite no delta names is kept byte for byte. Deltas:`,
+    `each suite source a whole file targeting ${PARENT_TEST_SOURCE_TARGET_CHARS.toLocaleString('en-US')} characters, with the same ${PARENT_TEST_AUTHORED_SOURCE_MAX_CHARS.toLocaleString('en-US')}-character hard bound as a whole plan; a suite no delta names is kept byte for byte. Deltas:`,
     `  {"kind": "suite.replace", "target": <index>|"plan", "requirement": "..."?, "source": "<the whole new suite>"}`,
     `  {"kind": "suite.split", "target": <index>, "into": [{"description": "...", "acceptanceTests": {"requirement": "...", "cwd": ".", "source": "..."}, "criteria": ["<id>"]?, "dependsOn": [<earlier index>]?}, ...]}`,
     `    (each part keeps the target's preferredChild, executionMode, outputs, inputs, proof obligations and, unless given, criteria; dependents of the target wait for every part)`,
