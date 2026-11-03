@@ -1,5 +1,8 @@
 # Attica startup latency — 2026-10-15
 
+STATE 2026-10-29: preparation already runs BESIDE the run since 7ff0284a (2026-10-15), not before the first model call; the embedding cache shipped (`cacheHits` in `[atoma retrieval]` log lines). Production gain still unmeasured — read the runner log of the next Attica run. Do not re-propose "parallelise Haystack".
+
+
 Read-only investigation requested by the owner. Production MCP identified
 project `07864f7c-d8f2-4023-9fca-afd8a7a51e52`; summary pages and runner logs
 were read to their available ends. SSH was used only after MCP lacked CPU

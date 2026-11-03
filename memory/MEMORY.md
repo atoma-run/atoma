@@ -12,6 +12,7 @@
 - [Worktree junction hazard](worktree-junction-hazard.md) — remove node_modules junctions before `git worktree remove --force`
 - [Validation runs too slow](validation-runs-too-slow.md) — 2026-10-24: pure validations go local or short-depth; deep Attica runs only for work that changes files
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
+- [No full suite beside Compute](no-full-suite-beside-compute.md) — 2026-10-30: full npm test filled the Mac's disk and killed live Compute run 3a81397b; targeted tests only while a run is live
 
 ## Current work
 - [Direct depth branch](direct-depth-2026-11-01.md) — 2026-11-02: feat/direct-depth not on main; TS rule narrowed; round 17 cost parity but challenge 2/3 vs 3/3 → no push; owner chooses ship anyway or 6v6 check
@@ -19,11 +20,15 @@
 - [Round 15 calibration](benchmark-round15-calibration-2026-10-31.md) — 2026-10-31: calibration DONE — 4 Attica repo tasks at ceiling (terra 3/3), only attica-challenge retained (terra 2/3); round 15 config + host scorer ready, awaiting owner go
 - [TypeScript rule over goal prohibition](typescript-rule-over-goal-prohibition.md) — 2026-10-31 owner decision: strict-TS rule wins over "do not rewrite"; benchmark goals must not forbid the migration
 - [Benchmark rounds 13-14](benchmark-round13-14-2026-10-31.md) — 2026-10-31: H13/H14 refuted, merged 51a157ca; controls 7/7 at $0.14-0.19 vs atoma 6/7 at $1.45; no new gate until supervision measurably pays; TS-skeleton guidance overrides goals
+- [Server multilingual Haystack](server-multilingual-haystack-2026-10-30.md) — 2026-10-30: server search now E5/mMARCO like Compute (26/26 vs 16/26); env backup kept; activated by deploy of e316edbf
+- [Run speed plan](run-speed-plan-2026-10-29.md) — 2026-10-30: wallClock, assayer preemption deployed; review repair on main behind ATOMA_REVIEW_REPAIR (off); points 5,6 open
 - [CI native headers and glob](ci-native-headers-and-glob-2026-10-31.md) — 2026-10-31: repair the audit and fresh-container ENOSPC blockers; exact packaging and offline native-build regressions
 - [Attica connection stability](attica-ingress-disconnections-2026-10-31.md) — 2026-10-31: nginx compression deployed, old failure reproduced, live five-minute check healthy; 1,059 listings and six file hashes/modes preserved
 - [Attica hosted control restored](attica-hosted-control-oom-2026-10-29.md) — 2026-10-29: OOM loop fixed directly; 1,010 listings retained; emergency runtime override recorded; no run or collection
 - [Attica same-checkpoint repair](attica-same-checkpoint-repair-2026-10-29.md) — source failed on Compute transport loss; automatic replay inconclusive at token ceiling, all proofs read, no accepted delivery
-- [Attica run 51c4e71d](attica-run-51c4e71d-2026-10-26.md) — 2026-10-26: analysis validated; seven fixes pushed d63cbdc6; Codex login-copy parallelism withdrawn (login-loss risk); Compute worker rollout + follow-up run pending
+- [Three run wastes fixed](three-run-wastes-2026-10-26.md) — 2026-10-26: seed package roots, Codex waiting samplings, recorder-aware prompts pushed 1b25b2b4; pre-registered checks on next Attica runs
+- [Project chat deployments](project-chat-deployments-2026-10-26.md) — 2026-10-26: chat tells deployments from row facts, accepted card stops asking (5e2943d8); history only on ?history=1
+- [Attica run 51c4e71d](attica-run-51c4e71d-2026-10-26.md) — 2026-10-26: fixes d63cbdc6; bd071108 accepted+online; follow-up measurement filed (worker fixes untested until a run on Compute 0.4.141)
 - [Attica run 40c20c5d analysis](attica-run-40c20c5d-analysis.md) — 2026-10-25: four defects fixed and deployed (6827f98e), Compute 0.4.128 installed; run finalized (partial) by the owner
 - [Hosted update stays explicit](hosted-update-explicit.md) — 2026-10-25: no auto-deploy on acceptance; one-click update with prepare-before-stop and visitor hold shipped (be1790c0)
 - [Compute results plain experience](compute-results-plain-experience.md) — 2026-10-25: results transfer automatically, waiting runs explained plainly everywhere (44c85654)
