@@ -14,6 +14,11 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Direct depth branch](direct-depth-2026-11-01.md) — 2026-11-02: feat/direct-depth not on main; TS rule narrowed; round 17 cost parity but challenge 2/3 vs 3/3 → no push; owner chooses ship anyway or 6v6 check
+- [Round 15 result](benchmark-round15-result-2026-11-01.md) — 2026-11-01: H15 refuted (3/6 vs 3/6, 6.6× cost); README updated; single-agent default + learning-off owed to owner decision
+- [Round 15 calibration](benchmark-round15-calibration-2026-10-31.md) — 2026-10-31: calibration DONE — 4 Attica repo tasks at ceiling (terra 3/3), only attica-challenge retained (terra 2/3); round 15 config + host scorer ready, awaiting owner go
+- [TypeScript rule over goal prohibition](typescript-rule-over-goal-prohibition.md) — 2026-10-31 owner decision: strict-TS rule wins over "do not rewrite"; benchmark goals must not forbid the migration
+- [Benchmark rounds 13-14](benchmark-round13-14-2026-10-31.md) — 2026-10-31: H13/H14 refuted, merged 51a157ca; controls 7/7 at $0.14-0.19 vs atoma 6/7 at $1.45; no new gate until supervision measurably pays; TS-skeleton guidance overrides goals
 - [CI native headers and glob](ci-native-headers-and-glob-2026-10-31.md) — 2026-10-31: repair the audit and fresh-container ENOSPC blockers; exact packaging and offline native-build regressions
 - [Attica connection stability](attica-ingress-disconnections-2026-10-31.md) — 2026-10-31: nginx compression deployed, old failure reproduced, live five-minute check healthy; 1,059 listings and six file hashes/modes preserved
 - [Attica hosted control restored](attica-hosted-control-oom-2026-10-29.md) — 2026-10-29: OOM loop fixed directly; 1,010 listings retained; emergency runtime override recorded; no run or collection
@@ -89,6 +94,7 @@
 - [Run titles state](run-titles-state.md) — short titles live since d1a1d71b; past runs not backfilled
 
 ## MCP
+- [Codex MCP auth, third failure](codex-mcp-auth-2026-11-02.md) — 2026-11-02: fixed at the source, server refresh grace bound to the caller's network (9677f478, deployed); Codex helper retired locally; owner runs codex mcp login atoma
 - [MCP one surface](mcp-one-surface.md) — one HTTP /mcp, role tiers, bearer tokens; OAuth open
 - [MCP two eras](mcp-two-eras.md) — serves 2026-07-28 beside 2025-11-25; health().clients decides when 2025 goes
 - [MCP review 2026-10-03](mcp-review-2026-10-03.md) — fixes pushed; owner decisions still open

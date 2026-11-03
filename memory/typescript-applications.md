@@ -1,4 +1,8 @@
-# TypeScript applications — owner decision 2026-10-16
+# TypeScript applications — owner decision 2026-10-16, NARROWED 2026-11-02
+
+**Superseded in part on 2026-11-02:** after round 16 the owner chose ("Ok continue" on the narrowing option) that only a NEW application is strict TypeScript from the skeleton; existing code keeps its language, and existing JavaScript is migrated only when the task or projectContext asks. Implemented on branch feat/direct-depth (docs/decisions/typescript-new-applications-2026-11-02.md). Attica's application code was already strict TypeScript on main b7034bc5 (2026-10-31): 85 TS files, 15 JS shims re-exporting dist, 27 JS tests and a few collection scripts left in JS.
+
+The rest of this note is the rule as of 2026-10-16.
 
 All JavaScript-runtime applications produced or modified by Atoma use strict
 TypeScript, including existing projects. The owner explicitly rejected the
