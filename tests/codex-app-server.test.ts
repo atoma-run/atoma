@@ -18,6 +18,7 @@ import {
   type CodexAppServerSpawn,
 } from '../src/auth/codexAppServer.js';
 import {
+  acquirePersonalCodexProcessSlot,
   codexLeaseWrapperNodeArgs,
   MAX_PERSONAL_CODEX_PROCESSES,
   PERSONAL_CODEX_PROFILE_ROOT_ENV,
@@ -249,6 +250,45 @@ describe('Codex app-server transport', () => {
     } finally {
       for (const release of releases) release();
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('queues a run for seats held by another process and admits it only after a release', async () => {
+    const root = testProfile('shared-seats');
+    const moduleUrl = new URL('../src/core/codexHomeLease.ts', import.meta.url).href;
+    const holder = spawn(process.execPath, ['--import', import.meta.resolve('tsx'), '--input-type=module', '-e', `
+      import { MAX_PERSONAL_CODEX_PROCESSES, tryAcquirePersonalCodexProcessSlot } from ${JSON.stringify(moduleUrl)};
+      const held = Array.from({length: MAX_PERSONAL_CODEX_PROCESSES}, () => tryAcquirePersonalCodexProcessSlot(process.argv[1]));
+      if (held.some(release => !release)) throw new Error('could not reserve isolated test seats');
+      process.stdout.write('held\\n');
+      process.stdin.once('data', () => { held.shift()(); process.stdout.write('released\\n'); });
+      process.stdin.once('end', () => { held.forEach(release => release()); process.exit(0); });
+    `, root], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const controller = new AbortController();
+    let release: (() => void) | undefined;
+    let pending: Promise<void> | undefined;
+    try {
+      await once(holder.stdout, 'data');
+      pending = acquirePersonalCodexProcessSlot(root, controller.signal).then(value => { release = value; });
+      await delay(50);
+      expect(release).toBeUndefined();
+      const released = once(holder.stdout, 'data');
+      holder.stdin.write('release');
+      await released;
+      await pending;
+      expect(release).toBeTypeOf('function');
+      expect(tryAcquirePersonalCodexProcessSlot(root)).toBeNull();
+      release!(); release = undefined;
+      const recovered = tryAcquirePersonalCodexProcessSlot(root);
+      expect(recovered).not.toBeNull();
+      recovered?.();
+    } finally {
+      controller.abort();
+      await pending?.catch(() => undefined);
+      release?.();
+      const closed = once(holder, 'close');
+      holder.stdin.end();
+      await closed;
     }
   });
 

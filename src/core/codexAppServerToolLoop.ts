@@ -6,7 +6,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { setTimeout as delay } from 'node:timers/promises';
 import { withPartialUsage } from './metrics.js';
 import { BUDGET_EXHAUSTED_HINT, DEFAULT_MAX_TOOL_ITERATIONS, offScopeToolMessage, formatToolResultContent, truncateToolResultContent } from './llm.js';
-import { acquireCodexHomeLease, PERSONAL_CODEX_PROFILE_ROOT_ENV, tryAcquirePersonalCodexProcessSlot } from './codexHomeLease.js';
+import { acquireCodexHomeLease, acquirePersonalCodexProcessSlot, PERSONAL_CODEX_PROFILE_ROOT_ENV } from './codexHomeLease.js';
 import {
   CODEX_TEXT_ONLY_DISABLED_FEATURES,
   CodexTransportError,
@@ -287,17 +287,28 @@ export async function completeCodexAppServerToolLoop(
   const originalAuth = path.join(opts.home, 'auth.json');
   if (!existsSync(originalAuth)) throw unavailable();
 
-  let releaseLease: (() => void) | null;
+  let releaseLease: (() => void) | null = null;
+  let releaseSeat: (() => void) | null = null;
+  const admissionSignal = AbortSignal.any([
+    ...(req.signal ? [req.signal] : []), AbortSignal.timeout(opts.silenceTimeoutMs),
+  ]);
   const waitStarted = Date.now();
   try {
-    releaseLease = await acquireCodexHomeLease(opts.home, req.signal);
+    // Never hold the login lease while waiting for a process seat: an active
+    // session may need that login to write back its rotation before releasing.
+    if (opts.profilesRoot) {
+      releaseSeat = await acquirePersonalCodexProcessSlot(opts.profilesRoot, admissionSignal);
+    }
+    releaseLease = await acquireCodexHomeLease(opts.home, admissionSignal);
   } catch {
+    releaseSeat?.();
+    releaseSeat = null;
     req.signal?.throwIfAborted();
+    if (admissionSignal.aborted) throw new CodexTransportError('timeout');
     throw unavailable();
   } finally {
     observeTiming(req.onTiming, 'profile-wait', waitStarted);
   }
-  let releaseSeat: (() => void) | null = null;
   let temporary: string | null = null;
   let login: BorrowedLogin | null = null;
   // Idempotent: the first model response, or the end of a session that never got one.
@@ -312,10 +323,6 @@ export async function completeCodexAppServerToolLoop(
     let profile: string;
     let jail: string;
     try {
-      if (opts.profilesRoot) {
-        releaseSeat = tryAcquirePersonalCodexProcessSlot(opts.profilesRoot);
-        if (!releaseSeat) throw new Error('no personal Codex process seat');
-      }
       temporary = mkdtempSync(path.join(tmpdir(), 'atoma-codex-app-'));
       liveTemporaries.add(temporary);
       profile = path.join(temporary, 'profile');

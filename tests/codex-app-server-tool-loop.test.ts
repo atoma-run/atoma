@@ -9,7 +9,7 @@ import type { ChildProcess } from 'node:child_process';
 import { CodexCliLlmClient, CodexTransportError, cleanupCodexJails } from '../src/core/llmCodexCli.js';
 import { buildCodexAppServerArgs, type CodexAppServerSpawn } from '../src/core/codexAppServerToolLoop.js';
 import { BUDGET_EXHAUSTED_HINT } from '../src/core/llm.js';
-import { PERSONAL_CODEX_PROFILE_ROOT_ENV, tryAcquireCodexHomeLease } from '../src/core/codexHomeLease.js';
+import { MAX_PERSONAL_CODEX_PROCESSES, PERSONAL_CODEX_PROFILE_ROOT_ENV, tryAcquireCodexHomeLease, tryAcquirePersonalCodexProcessSlot } from '../src/core/codexHomeLease.js';
 import type { LlmCompletionRequest } from '../src/core/types.js';
 import { makePlan, makeTool } from './helpers/factories.js';
 import { makeCtx } from './helpers.js';
@@ -185,6 +185,127 @@ function request(over: Partial<LlmCompletionRequest> = {}): LlmCompletionRequest
 }
 
 describe('Codex app-server tool session', () => {
+  it('waits for a shared process seat without falling back or holding the login lease', async () => {
+    const home = codexHome();
+    const profilesRoot = path.dirname(home);
+    const held: Array<() => void> = [];
+    for (let i = 0; i < MAX_PERSONAL_CODEX_PROCESSES; i++) held.push(tryAcquirePersonalCodexProcessSlot(profilesRoot)!);
+    const fixture = fakeAppServer(async server => {
+      await server.callTool('read_file', { path: 'source.ts' });
+      server.message('done'); server.complete();
+    });
+    const fallback = execFinal('wrong transport');
+    const client = new CodexCliLlmClient({
+      env: { CODEX_HOME: home, [PERSONAL_CODEX_PROFILE_ROOT_ENV]: profilesRoot },
+      appServerSpawnFn: fixture.spawnFn, spawnFn: fallback,
+    });
+    const controller = new AbortController();
+    const req = request({ signal: controller.signal });
+    let settled = false;
+    const completion = client.complete(req).finally(() => { settled = true; });
+    void completion.catch(() => undefined);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 60));
+      expect(settled).toBe(false);
+      expect(fallback).not.toHaveBeenCalled();
+      expect(fixture.spawned()).toBeNull();
+      const loginLease = tryAcquireCodexHomeLease(home);
+      expect(loginLease).not.toBeNull();
+      loginLease?.();
+      held.shift()!();
+      expect((await completion).text).toBe('done');
+      expect(req.executor!.execute).toHaveBeenCalledOnce();
+      expect(fallback).not.toHaveBeenCalled();
+      const recovered = tryAcquirePersonalCodexProcessSlot(profilesRoot);
+      expect(recovered).not.toBeNull();
+      expect(tryAcquirePersonalCodexProcessSlot(profilesRoot)).toBeNull();
+      recovered?.();
+    } finally {
+      controller.abort();
+      held.forEach(release => release());
+      await completion.catch(() => undefined);
+    }
+  });
+
+  it.each(['cancel', 'timeout'] as const)('ends a saturated process-seat wait on %s without starting either transport', async mode => {
+    const home = codexHome();
+    const profilesRoot = path.dirname(home);
+    const held = Array.from({ length: MAX_PERSONAL_CODEX_PROCESSES }, () => tryAcquirePersonalCodexProcessSlot(profilesRoot)!);
+    const fixture = fakeAppServer(async server => { server.message('unexpected'); server.complete(); });
+    const fallback = execFinal('unexpected fallback');
+    const controller = new AbortController();
+    const reason = new Error('owner cancelled');
+    const client = new CodexCliLlmClient({
+      env: { CODEX_HOME: home, [PERSONAL_CODEX_PROFILE_ROOT_ENV]: profilesRoot },
+      appServerSpawnFn: fixture.spawnFn, spawnFn: fallback, callTimeoutMs: mode === 'timeout' ? 40 : 5_000,
+    });
+    const completion = client.complete(request({ signal: controller.signal }));
+    const observed = completion.catch((error: unknown) => error);
+    try {
+      if (mode === 'cancel') {
+        await new Promise(resolve => setTimeout(resolve, 30));
+        controller.abort(reason);
+        expect(await observed).toBe(reason);
+      } else {
+        expect(await observed).toMatchObject({ code: 'timeout' });
+      }
+      expect(fallback).not.toHaveBeenCalled();
+      expect(fixture.spawned()).toBeNull();
+      const lease = tryAcquireCodexHomeLease(home);
+      expect(lease).not.toBeNull();
+      lease?.();
+      held.shift()!();
+      const recovered = tryAcquirePersonalCodexProcessSlot(profilesRoot);
+      expect(recovered).not.toBeNull();
+      expect(tryAcquirePersonalCodexProcessSlot(profilesRoot)).toBeNull();
+      recovered?.();
+    } finally {
+      controller.abort();
+      held.forEach(release => release());
+      await observed;
+    }
+  });
+
+  it.each(['cancel', 'timeout'] as const)('releases its reserved process seat on %s while waiting for the login lease', async mode => {
+    const home = codexHome();
+    const profilesRoot = path.dirname(home);
+    const held = Array.from({ length: MAX_PERSONAL_CODEX_PROCESSES - 1 }, () => tryAcquirePersonalCodexProcessSlot(profilesRoot)!);
+    const loginLease = tryAcquireCodexHomeLease(home)!;
+    const controller = new AbortController();
+    const fixture = fakeAppServer(async server => { server.message('unexpected'); server.complete(); });
+    const fallback = execFinal('unexpected fallback');
+    const client = new CodexCliLlmClient({
+      env: { CODEX_HOME: home, [PERSONAL_CODEX_PROFILE_ROOT_ENV]: profilesRoot },
+      appServerSpawnFn: fixture.spawnFn, spawnFn: fallback,
+      callTimeoutMs: mode === 'timeout' ? 200 : 5_000,
+    });
+    const observed = client.complete(request({ signal: controller.signal })).catch((error: unknown) => error);
+    try {
+      await vi.waitFor(() => {
+        const probe = tryAcquirePersonalCodexProcessSlot(profilesRoot);
+        probe?.();
+        expect(probe).toBeNull();
+      });
+      const reason = new Error('cancelled before login');
+      if (mode === 'cancel') {
+        controller.abort(reason);
+        expect(await observed).toBe(reason);
+      } else {
+        expect(await observed).toMatchObject({ code: 'timeout' });
+      }
+      const recovered = tryAcquirePersonalCodexProcessSlot(profilesRoot);
+      expect(recovered).not.toBeNull();
+      recovered?.();
+      expect(fallback).not.toHaveBeenCalled();
+      expect(fixture.spawned()).toBeNull();
+    } finally {
+      controller.abort();
+      loginLease();
+      held.forEach(release => release());
+      await observed;
+    }
+  });
+
   it('observes first token, response, queue and lease wait without changing tool execution', async () => {
     const home = codexHome();
     const timings: import('../src/contracts/runtimeTiming.js').RuntimeTiming[] = [];

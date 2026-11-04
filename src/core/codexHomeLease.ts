@@ -279,3 +279,16 @@ export function tryAcquirePersonalCodexProcessSlot(
   }
   return null;
 }
+
+/** Run calls queue for the existing shared ceiling; account probes may fail fast. */
+export async function acquirePersonalCodexProcessSlot(
+  profilesRoot: string,
+  signal: AbortSignal
+): Promise<() => void> {
+  for (;;) {
+    signal.throwIfAborted();
+    const release = tryAcquirePersonalCodexProcessSlot(profilesRoot);
+    if (release) return release;
+    await waitForCrossProcessLease(signal);
+  }
+}

@@ -105,6 +105,10 @@ Neighbours:
   provider messages, additional details or unknown variant values. Context,
   session-budget and policy refusals do not spend an exec fallback. A failure
   after a host tool still cannot replay the request through another transport.
+  Tool sessions queue for the existing eight shared process seats before
+  taking the login lease; saturation is neither an outage nor an exec fallback.
+  Admission shares the request cancellation and silence ceiling, releasing a
+  reserved seat even if login acquisition fails or times out.
   A terminal provider overload can continue ONCE in the SAME thread, after a
   delay, only with no unresolved host tool, cancellation or exhausted budget.
   Tool results, response/call counters and cumulative usage stay in place.
