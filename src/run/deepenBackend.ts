@@ -2,6 +2,14 @@ import type { WorkspaceRuntime } from '../contracts/workspaceRuntime.js';
 import { readRunCopyIntact } from '../contracts/readRuns.js';
 import type { ToolBackend } from './toolBackend.js';
 
+/** A refused full checkpoint need not invalidate the ordinary artifact export. */
+export class DeepeningSnapshotUnavailableError extends Error {
+  constructor(cause: unknown) {
+    super('The drained workspace checkpoint could not be sealed for deepening; retained work has no delivery approval.', { cause });
+    this.name = 'DeepeningSnapshotUnavailableError';
+  }
+}
+
 /** Change execution generation without reseeding over unfinished work. */
 export async function deepenBackend(options: {
   backend: ToolBackend;
@@ -19,7 +27,10 @@ export async function deepenBackend(options: {
   // The existing checkpoint capability seals two equal, bounded walks on the
   // execution host. Keep every byte, dependency and mode in place; never stream
   // the snapshot through the orchestrator or treat its contents as approval.
-  const snapshot = await workspace.checkpointExport();
+  const snapshot = await workspace.checkpointExport().catch((error: unknown) => {
+    signal.throwIfAborted();
+    throw new DeepeningSnapshotUnavailableError(error);
+  });
   let replacement: ToolBackend | undefined;
   try {
     signal.throwIfAborted();

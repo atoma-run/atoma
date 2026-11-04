@@ -1,5 +1,5 @@
 import { mockOtherProofReview } from './helpers/delegationReview.js';
-import { mkdtempSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, linkSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -182,7 +182,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     }
   });
 
-  it.skipIf(process.platform === 'win32')('reaps the abandoned server, preserves its files, recreates tools, and accounts for both attempts in one refused run', async () => {
+  it.skipIf(process.platform === 'win32').each([false, true])('preserves drained work when deepening (checkpoint links=%s)', async checkpointLinks => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-depth-runner-'));
     const workspace = join(root, 'workspace');
     const runs = join(root, 'runs');
@@ -232,6 +232,14 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         if (!originalTools) {
           originalTools = baseExecutorOf(req.executor!);
           await perform(req, 'write_file', { path: 'abandoned.txt', content: 'Evidence from attempt one' });
+          if (checkpointLinks) {
+            // npm installs esbuild this way: the full checkpoint refuses aliases,
+            // while the ordinary publication inventory excludes dependencies.
+            const dependency = join(workspace, 'node_modules', 'esbuild');
+            mkdirSync(dependency, { recursive: true });
+            writeFileSync(join(dependency, 'binary'), 'retained binary');
+            linkSync(join(dependency, 'binary'), join(dependency, 'binary-link'));
+          }
           await perform(req, 'write_file', { path: 'server.cjs', content: "const http=require('node:http');process.on('SIGTERM',()=>{});const s=http.createServer((q,r)=>r.end('old'));s.listen(0,'127.0.0.1',()=>console.log('LISTENING_ON_PORT='+s.address().port));" });
           const started = await perform(req, 'start_node_server', { entry: 'server.cjs' }) as { pid: number };
           serverPid = started.pid;
@@ -257,6 +265,22 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       const files = readdirSync(runs).filter((name) => name.endsWith('.json') && name !== 'index.json');
       expect(files).toHaveLength(1);
       const trace = JSON.parse(readFileSync(join(runs, files[0]!), 'utf8')) as VizRun;
+      if (checkpointLinks) {
+        expect(enteredDeep).toBe(false);
+        expect(provedFreshBackend).toBe(false);
+        expect(() => process.kill(serverPid!, 0)).toThrow();
+        expect(readFileSync(join(workspace, 'abandoned.txt'), 'utf8')).toBe('Evidence from attempt one');
+        expect(readFileSync(join(workspace, 'node_modules/esbuild/binary'), 'utf8')).toBe('retained binary');
+        expect(statSync(join(workspace, 'node_modules/esbuild/binary')).nlink).toBe(2);
+        expect(trace.error).toBeUndefined();
+        expect(trace.result?.refusal).toContain('checkpoint');
+        expect(trace.result?.summary).toContain('INCOMPLETE');
+        expect(trace.events.filter(event => event.kind === 'acceptance')).toEqual([]);
+        expect(trace.events.filter(event => event.kind === 'topology')).toHaveLength(1);
+        expect(trace.totals!.calls).toBe(calls.length);
+        expect(parseRunLog(logs.join('\n'))).toMatchObject({ outcome: 'partial', deepenings: 0, llmCalls: calls.length });
+        return;
+      }
       expect(trace.events.filter((event) => event.kind === 'topology'), trace.error).toMatchObject([
         { mode: 'short', attempt: 1 }, { at: 'deepening', mode: 'deep', attempt: 2 },
       ]);

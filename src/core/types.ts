@@ -270,9 +270,10 @@ export interface Result {
    */
   readonly readOnlyRestoration?: import('../contracts/readOnlyPhase.js').ResultRestoration;
   /**
-   * Why ROOT DELIVERY ACCEPTANCE refused this result, when it did.
+   * Why delivery was refused: root acceptance, or a host refusal to seal a
+   * drained workspace before deepening. The latter grants no review approval.
    *
-   * A refused run completed every phase it planned — `unfinishedPhases` is
+   * A result refused by root acceptance completed every phase it planned — `unfinishedPhases` is
    * empty BY CONSTRUCTION — and was then judged not to have proven what it
    * claimed. Until 2026-09-24 that threw out of `runDepthTask`, the runner
    * recorded `failed`, and `previousSeedRun` skipped the run on its status

@@ -397,7 +397,12 @@ Neighbours:
   existing bounded checkpoint export, then construct a new backend over the SAME
   files and dependencies and run the original task through L3. A changed digest,
   read-run identity, provenance or unconfirmed drain refuses replacement without
-  deleting the work. The continuation input labels all retained work unverified. Deep fallbacks remain
+  deleting the work. A checkpoint export refused after confirmed drain, before
+  any replacement is constructed, lands as an unpublishable partial with a host
+  refusal and no final-review approval. Cancellation, failed drain, read-run
+  mutation and replacement integrity failures still propagate. The snapshot
+  policy stays strict, including npm hard links; ordinary artifact export keeps
+  the recoverable files. The continuation input labels all retained work unverified. Deep fallbacks remain
   allowed. Gains already earned stay in this run; old attestations cannot
   cover the new attempt. Mechanical plan/result one-shot memos reset per
   attempt and stay fork-shared within it. Lifecycle settings are resolved

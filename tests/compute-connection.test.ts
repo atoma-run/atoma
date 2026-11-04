@@ -9,6 +9,7 @@ import { AUTH_TABLES_DDL } from '../src/auth/store.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { ComputeDeviceStore } from '../src/projects/computeDevices.js';
 import { COMPUTE_LEASE_MS, type ComputeActor } from '../src/contracts/computeDevice.js';
+import { deepenBackend, DeepeningSnapshotUnavailableError } from '../src/run/deepenBackend.js';
 
 let db: Database.Database, projects: ProjectStore, devices: ComputeDeviceStore, now: number;
 const imageDigest = `sha256:${'a'.repeat(64)}`;
@@ -262,6 +263,13 @@ it('refuses an npm-style hard-linked checkpoint over WSS without stopping the li
     linkSync(join(workspace, 'esbuild'), join(workspace, 'esbuild-link'));
     await expect(runtime.checkpointExport()).rejects.toThrow('Remote workspace operation failed');
     await expect(runtime.checkpointDigest()).rejects.toThrow('Remote workspace operation failed');
+    const backend = localToolBackend({ workspaceRoot: workspace, logger: silentLogger() });
+    const create = vi.fn(async () => backend);
+    try {
+      await expect(deepenBackend({ backend, workspace: runtime, signal: new AbortController().signal, create }))
+        .rejects.toBeInstanceOf(DeepeningSnapshotUnavailableError);
+      expect(create).not.toHaveBeenCalled();
+    } finally { await backend.cleanup(); }
     expect(connection.state()).toBe('active');
     expect(stopWorkloads).not.toHaveBeenCalled();
     expect(await runtime.canonicalPath()).toBe(workspace);

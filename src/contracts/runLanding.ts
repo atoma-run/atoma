@@ -9,8 +9,9 @@
  *     ran, or a phase failed its typed checks and the phases depending on it
  *     were never started (`markLanded`, `src/atoms/dispatch.ts`; the second
  *     kind is repeated in `blockedPhases`, which explains and never decides);
- *   - `refusal` — root delivery acceptance did not accept the result
- *     (`markRefused`, `src/run/depth.ts`).
+ *   - `refusal` — root delivery acceptance did not accept the result, or the
+ *     host could not seal the drained workspace before deepening
+ *     (`src/run/depth.ts`). Neither grants delivery approval.
  *
  * Both mean `partial`: work that is real, kept and seeded, but never
  * published. Absence of both means a delivery.

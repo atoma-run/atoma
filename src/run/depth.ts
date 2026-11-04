@@ -15,6 +15,7 @@ import { checklistPlanningLines, phaseCriteriaOf, type AcceptanceChecklist, type
 import { PhaseBoundaryPause } from '../contracts/runCheckpoint.js';
 import { DEPENDENCY_LANDING_INPUT } from '../contracts/runLanding.js';
 import { parentTestFindings, parentTestRejection, parentTestReviewFinding, parentTestsGrantNothing, parentTestSuperseded, parentTestNoResultFinding } from '../core/parentTests.js';
+import { DeepeningSnapshotUnavailableError } from './deepenBackend.js';
 
 export class DeepeningSignal extends Error {
   constructor() { super('Entry cell exhausted supervision; deepen once.'); this.name = 'DeepeningSignal'; }
@@ -687,7 +688,22 @@ export async function runDepthTask(args: {
       if (!requested || mode !== 'short') throw error;
       // Parallel dispatch drains cancelled siblings before the handle rejects.
       // Seal and preserve the drained workspace; the new attempt earns new proof.
-      tools = await args.restart();
+      try {
+        tools = await args.restart();
+      } catch (restartError) {
+        ctx.signal.throwIfAborted();
+        if (!(restartError instanceof DeepeningSnapshotUnavailableError)) throw restartError;
+        // No replacement ran and no acceptance was earned. Preserve the ordinary
+        // file export as an unpublishable partial instead of losing its seed.
+        ctx.logger.warn(`[root] ${restartError.message}`);
+        return {
+          output: null,
+          summary: `INCOMPLETE — ${restartError.message} No final delivery review ran; inspect and verify the retained files before continuing.`,
+          trace: [],
+          producedBy: { tier: actor.tier, name: actor.name, viaFallback: false },
+          refusal: restartError.message,
+        };
+      }
       ctx.recordRunStat?.('deepening');
     }
   }
