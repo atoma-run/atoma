@@ -1,6 +1,8 @@
 import { performance } from 'node:perf_hooks';
 import { COMPUTE_LEASE_MS } from '../contracts/computeDevice.js';
 
+const MAX_PENDING_HEARTBEATS = 8;
+
 /** One connection generation, never rearmed. The launcher owns stopWorkloads:
  * it resolves only after engine-confirmed teardown of tools/search/preview.
  * Neither a timer nor an unsuccessful teardown is a stop acknowledgement. */
@@ -38,9 +40,14 @@ export class ComputeLease {
     this.timer = setTimeout(() => { if (this.live()) this.arm(); }, Math.max(1, this.remaining()));
     this.timer.unref();
   }
+  /** A full queue delays the next tick, not the unchanged lease deadline.
+   * Keep every outstanding id so a delayed authenticated reply remains valid. */
+  canSendHeartbeat(): boolean {
+    return this.live() && this.pending.size < MAX_PENDING_HEARTBEATS;
+  }
   heartbeatSent(): number {
     if (!this.live()) throw new Error('Compute lease expired');
-    if (this.pending.size >= 8) throw new Error('Compute heartbeat capacity exceeded');
+    if (this.pending.size >= MAX_PENDING_HEARTBEATS) throw new Error('Compute heartbeat capacity exceeded');
     const request = ++this.next;
     this.pending.set(request, { monotonic: this.clock.monotonic(), wall: this.clock.wall() });
     return request;

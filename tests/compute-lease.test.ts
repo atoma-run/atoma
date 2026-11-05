@@ -32,6 +32,38 @@ it('ignores old out-of-order replies and tears down all workloads on timer expir
   expect(f.lease.state()).toBe('stopped'); expect(f.stopWorkloads).toHaveBeenCalledTimes(1);
 });
 
+it('bounds pending heartbeats while retaining delayed replies throughout the lease', async () => {
+  const f = fixture();
+  expect(f.lease.acknowledge(f.lease.heartbeatSent())).toBe(true);
+  const pending: number[] = [];
+  for (let i = 0; i < 8; i++) {
+    f.advance(5_000);
+    expect(f.lease.canSendHeartbeat()).toBe(true);
+    pending.push(f.lease.heartbeatSent());
+  }
+  expect(f.lease.canSendHeartbeat()).toBe(false);
+  f.advance(20_000);
+  expect(f.lease.canSendHeartbeat()).toBe(false);
+  f.lease.assertActive();
+  expect(f.stopWorkloads).not.toHaveBeenCalled();
+  for (const id of pending) expect(f.lease.acknowledge(id)).toBe(true);
+  expect(f.lease.canSendHeartbeat()).toBe(true);
+  expect(f.lease.acknowledge(pending[0]!)).toBe(false);
+  await f.lease.stop();
+});
+
+it('never renews the lease merely because its pending heartbeat queue is full', async () => {
+  const f = fixture();
+  f.lease.acknowledge(f.lease.heartbeatSent());
+  for (let i = 0; i < 8; i++) f.lease.heartbeatSent();
+  expect(f.lease.canSendHeartbeat()).toBe(false);
+  f.advance(COMPUTE_LEASE_MS);
+  expect(f.lease.canSendHeartbeat()).toBe(false);
+  expect(() => f.lease.assertActive()).toThrow();
+  expect(await f.lease.stop()).toBe(true);
+  expect(f.stopWorkloads).toHaveBeenCalledOnce();
+});
+
 it('checks elapsed sleep before any new work, even when the timer has not fired', async () => {
   const f = fixture(); f.lease.acknowledge(f.lease.heartbeatSent());
   f.sleep(COMPUTE_LEASE_MS + 1);

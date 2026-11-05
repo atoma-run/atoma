@@ -1536,6 +1536,61 @@ it.each(['pending-command', 'lost-command', 'lost-result', 'lost-result-ack'] as
     } finally { release(); await f.client.close(); await link.close(); }
   });
 
+it('retains an active execution when unanswered heartbeats fill their bounded queue', async () => {
+  // Accelerate periodic ticks only. TLS, transport retries, authentication and
+  // the real lease clocks keep their production implementation.
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  const link = await networkLink();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const execute = vi.fn(async (): Promise<WorkspaceReply> => {
+    await gate;
+    return { method: 'prepare', value: null };
+  });
+  const f = await migratingClient(link.url, execute);
+  const pending = f.peer.request(f.execution, { method: 'prepare', clean: false });
+  void pending.catch(() => {});
+  const blocked: number[] = [];
+  try {
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    link.filter((direction, text) => {
+      const frame = computeTransportFrameSchema.parse(JSON.parse(text));
+      if (direction === 'up' && frame.kind === 'channel-data' && frame.body.kind === 'heartbeat') {
+        blocked.push(Number(frame.body.id));
+      }
+      return false;
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(f.stop).not.toHaveBeenCalled();
+    expect(f.client.state()).toBe('active');
+    await vi.waitFor(() => expect(blocked).toHaveLength(8));
+    expect(new Set(blocked).size).toBe(8);
+
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    link.filter(() => true);
+    link.cut();
+    await vi.waitFor(() => expect(f.lines.some(line => line.includes('transport-resumed'))).toBe(true), { timeout: 4000 });
+    release();
+    await expect(pending).resolves.toEqual({ method: 'prepare', value: null });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(f.stop).not.toHaveBeenCalled();
+    expect(peers).toHaveLength(1);
+    expect(gateway.connectionFor(f.client.session)).toBe(f.peer);
+    devices.validateSession(f.client.session);
+    expect(devices.inspect(f.owner, f.paired.deviceId).assignment?.generation).toBe(f.execution.generation);
+    expect(f.lines.join('')).not.toContain(f.paired.credential);
+  } finally {
+    release();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    await f.client.close();
+    f.peer.close();
+    await pending.catch(() => {});
+    await link.close();
+  }
+});
+
 it('replaces a silently stale OPEN socket before the unchanged lease expires', async () => {
   const link = await networkLink();
   const execute = vi.fn(async (): Promise<WorkspaceReply> => ({ method: 'prepare', value: null }));

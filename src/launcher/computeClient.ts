@@ -110,7 +110,9 @@ export async function connectComputeWorkspace(options: {
     socket.send(text, error => { if (error) void close('send-error', { errorCode: computeErrorCode(error) }); });
   };
   const beat = () => {
-    try { send({ kind: 'heartbeat', id: lease.heartbeatSent() }); } catch (error) { void close('heartbeat-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
+    try {
+      if (lease.canSendHeartbeat()) send({ kind: 'heartbeat', id: lease.heartbeatSent() });
+    } catch (error) { void close('heartbeat-failed', { failure: computeFailure(error), errorCode: computeErrorCode(error) }); }
   };
   const heartbeat = setInterval(() => { if (session) beat(); }, 5000); heartbeat.unref();
   const networkWatch = setInterval(() => {

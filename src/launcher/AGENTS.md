@@ -98,7 +98,10 @@ unknown service), so gating would need server-first anyway and would turn
 one pending run into a device that cannot connect.
 `ComputeLease` guards this channel, but engine teardown remains caller-injected. Authenticated heartbeat acknowledgements renew from dispatch
 time, never receipt time. Monotonic and wall deadlines jointly detect expiry and
-sleep; every operation must call `assertActive`. Expiry starts cleanup once. Both ends log bounded transport causes and pending
+sleep; every operation must call `assertActive`. Eight outstanding heartbeat ids
+are retained; a full queue defers the next send without changing the lease or
+discarding delayed replies. Only authenticated acknowledgement renews it.
+Expiry starts cleanup once. Both ends log bounded transport causes and pending
 request metadata through `computeDiagnostics`; frame bodies, arbitrary exception
 messages and remote close text are excluded. The launcher retains two private
 1 MiB connection logs under its state root for desktop and CLI diagnosis.
