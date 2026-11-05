@@ -45,6 +45,11 @@ export interface TransportWitness {
   readonly observed: string;
   /** Host-observed process status for bounded historical outcome selection; never approval. */
   readonly exitCode?: number;
+  /** Later attested write/edit paths in this branch, not a dependency or staleness judgement. */
+  readonly writesAfter?: {
+    readonly paths: readonly string[];
+    readonly omittedPaths: number;
+  };
   /**
    * A browser observation's own facts, read from the record when the witness
    * is made, so evidence selection never parses the rendered line: whether it

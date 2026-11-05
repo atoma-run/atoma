@@ -70,6 +70,7 @@ public setting or client capability, and introduces no stored runtime identity.
 ## Schemas and examples
 
 - Transport witnesses carry optional host-observed `exitCode` for bounded historical evidence selection. Missing legacy status is unknown; declarations and output prose cannot supply it.
+- Shell witnesses may carry bounded `writesAfter` paths from later attested write/edit calls in their own branch. These record chronology only, with an explicit omitted-path count; legacy absence, shell side effects and dependencies remain unknown.
 
 - Contract examples are parsed at module load. A schema/example mismatch must
   fail tests immediately.

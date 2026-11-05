@@ -964,7 +964,12 @@ export function renderTransportEvidence(
       ? 'EARLIER CONTRASTING OUTCOME (not current state or automatic mutation proof): '
       : historicalSuccessIds.has(witness.eventId)
         ? 'EARLIER SUCCESSFUL EXECUTION (historical only, not current state or automatic mutation proof): ' : '';
-    const excerpt = shellEvidenceExcerpt(historical + witness.observed, allowance - witness.eventId.length - 3);
+    const chronology = witness.writesAfter
+      ? `; LATER FILE WRITES (same branch; relevance is not inferred): ${JSON.stringify(witness.writesAfter.paths)}` +
+        `; omitted paths=${witness.writesAfter.omittedPaths}. This execution preceded those writes; it does not establish their verification.` +
+        (witness.exitCode !== undefined ? `; observed exitCode=${witness.exitCode}` : '')
+      : '';
+    const excerpt = shellEvidenceExcerpt(historical + witness.observed + chronology, allowance - witness.eventId.length - 3);
     keep.add(witness.eventId);
     excerpts.set(witness.eventId, excerpt);
     evidenceChars += witness.eventId.length + 3 + excerpt.length;

@@ -1,4 +1,4 @@
-import { renderObservations, type AttestationRecord } from '../contracts/attestation.js';
+import { attestedFilePath, renderObservations, type AttestationRecord } from '../contracts/attestation.js';
 import { witnessesFromPayload, type TransportWitness, type Witness } from '../contracts/witness.js';
 import type { RunContext } from '../core/types.js';
 
@@ -32,6 +32,7 @@ export function executorEvidence(
     .slice(since)
     .filter((record) => (record.attempt ?? 1) === (ctx.attempt ?? 1) && keep(record));
   const lines = renderObservations(records);
+  const writesAfter = commandWriteChronology(records);
   return [
     ...witnessesFromPayload({ output }),
     ...records.map((record, index): Witness => ({
@@ -41,9 +42,30 @@ export function executorEvidence(
       observed: lines[index]!,
       ...(record.observation.kind === 'execution' && record.observation.exitCode !== undefined
         ? { exitCode: record.observation.exitCode } : {}),
+      ...(writesAfter.has(record.eventId) ? { writesAfter: writesAfter.get(record.eventId)! } : {}),
       ...(record.observation.kind === 'browser' ? { browser: browserFacts(record.observation) } : {}),
     })),
   ];
+}
+
+/** Facts from one branch's append order; never guess what a shell command changed or tested. */
+function commandWriteChronology(records: readonly AttestationRecord[]): ReadonlyMap<string, NonNullable<TransportWitness['writesAfter']>> {
+  const paths = new Set<string>();
+  const facts = new Map<string, NonNullable<TransportWitness['writesAfter']>>();
+  for (const record of [...records].reverse()) {
+    if (record.tool === 'write_file' || record.tool === 'edit_file') {
+      const path = attestedFilePath(record);
+      if (path !== undefined) paths.add(path);
+    } else if ((record.tool === 'record_probe' || record.tool === 'run_shell') && paths.size > 0) {
+      const shown: string[] = [];
+      for (const path of paths) {
+        if (shown.length === 6) break;
+        shown.push(path);
+      }
+      facts.set(record.eventId, { paths: shown, omittedPaths: paths.size - shown.length });
+    }
+  }
+  return facts;
 }
 
 /** What evidence selection reads of a browser observation (`renderTransportEvidence`). */
