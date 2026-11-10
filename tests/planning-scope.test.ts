@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
-import { APPLICATION_TYPESCRIPT_GUIDANCE, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, delegatedTaskContext, taskContextLines } from '../src/atoms/taskContext.js';
+import { APPLICATION_TYPESCRIPT_GUIDANCE, WIT_HANDOFF_GUIDANCE, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE, delegatedTaskContext, taskContextLines } from '../src/atoms/taskContext.js';
 
 it('renders repeated inherited corpus bytes once without dropping conflicting original facts', () => {
   const corpus = { version: 1, cases: 'preserve every assertion '.repeat(200) };
@@ -85,6 +85,7 @@ describe('runtime planning scope for existing catalog agents', () => {
         expect(req.userContent).toContain(PLANNING_SCOPE_GUIDANCE);
         expect(req.userContent).toContain(PROPORTIONATE_PLANNING_GUIDANCE);
         expect(req.userContent.includes(APPLICATION_TYPESCRIPT_GUIDANCE)).toBe(!reasoning);
+        expect(req.userContent.includes(WIT_HANDOFF_GUIDANCE)).toBe(!reasoning);
         if (!reasoning) {
           expect(req.userContent).toContain('Do not turn a local repair into a repository-wide migration');
           expect(req.userContent).toContain('Inspection, verification-only and reporting phases do not migrate');

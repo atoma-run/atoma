@@ -13,6 +13,30 @@ put the resulting binary on the worker process's PATH:
 go install github.com/zboralski/wit/cmd/wit@554cd59de19bf6a31770b14a624e6ca0701ce1a0
 ```
 
+## Evidence exchanged between agents
+
+Wit also supports evidence handovers, before a final deliverable exists.
+Runtime guidance reaches planners, tool-mode executors and reviewers, including
+agents loaded from stored types. For computed claims exchanged in Markdown,
+the producing molecule binds values, tables or examples to source-derived
+commands and checks the final document. Its result names the document, inputs,
+commands and observed outcome. Internal evidence stays separate from user
+documentation and within the assigned output scope; a handover does not require
+creating an extra file in a read-only or reasoning-only phase.
+
+Existing transport receipts carry the actual command exit and output to the
+supervisor and, as bounded historical observations, subsequent sequential
+agents. Recipients assess the sources and assertions as well as reproduction.
+They retain failed checks and later changes rather than turning an agent's
+success claim into an observed success. A new recipient does not itself require
+re-execution; changed inputs, disputed behavior or unknown freshness do.
+Supervisors read the evidence and delegate necessary execution to a molecule;
+they never execute Markdown directives themselves.
+
+This is runtime guidance using the existing evidence exchange, not automatic
+document generation or an additional acceptance gate. Parent-owned tests and
+other required proofs still apply.
+
 ## Authoring
 
 Keep the source data and any scripts needed to reproduce the result in the

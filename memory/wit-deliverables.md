@@ -59,3 +59,14 @@ Refresh feedback: the page uses the shared loading crystal for every in-flight
 query, including cached refetches (`isFetching`, not only initial `isLoading`).
 Its status row stays outside the scroll mask, old receipts remain readable,
 and refresh/paging controls are disabled until settlement. No artificial delay.
+
+## Evidence handover — 2026-11-10
+
+Owner prioritizes Wit in evidence exchanged between agents, not only final
+deliverables. `WIT_HANDOFF_GUIDANCE` in the shared runtime task context teaches
+producers to bind computed Markdown claims to sources and pass observed checks;
+receivers inspect source relevance, failures and freshness through the existing
+transport receipts. No supervisor replay, automatic document creation, new gate
+or extra model call. Internal evidence respects output scope and stays separate
+from reader-facing docs. Tests exercise sequential nested handover and result
+review for success, STALE and UNAVAILABLE without replay or inherited tool credit.

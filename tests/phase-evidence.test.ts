@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { dispatchWithAggregation } from '../src/atoms/dispatch.js';
-import { delegatedTaskContext, PREVIOUS_OBSERVATIONS_GUIDANCE } from '../src/atoms/taskContext.js';
+import { delegatedTaskContext, PREVIOUS_OBSERVATIONS_GUIDANCE, WIT_HANDOFF_GUIDANCE } from '../src/atoms/taskContext.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { llmVerdict, renderTransportEvidence } from '../src/atoms/verdict.js';
 import { STATEFUL_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
@@ -15,6 +15,52 @@ const MAX_TOOL_EVIDENCE_CHARS = 48_000;
 const reply = (value: unknown): LlmCompletionResponse => ({ text: jsonText(value), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } });
 
 describe('sequential phase observations', () => {
+  it.each([
+    [0, 'report.md: all witnesses reproduce'],
+    [1, 'STALE: node dist/summary.js'],
+    [1, 'UNAVAILABLE: missing source data'],
+  ] as const)('hands the observed Wit outcome to the next agent and its reviewer without replay (%s, %s)', async (exitCode, stdout) => {
+    const ctx = makeCtx();
+    const attestations = createAttestationLog();
+    const child = new L1Atom({ name: 'Methane', ordinal: 2, systemPrompt: 'old stored prompt', tools: makeTools(['run_shell']), params: {} });
+    const plan = makePlan({ aggregation: { mode: 'sequential' }, subtasks: [
+      { description: 'Check the witnessed report' }, { description: 'Assess the evidence handover' },
+    ] });
+    let executions = 0;
+    await dispatchWithAggregation(plan.subtasks, plan, ctx, async (subtask, index) => {
+      const task = { description: subtask.description, ...delegatedTaskContext({ description: 'Exchange reproducible evidence' }, subtask) };
+      const nested = { description: subtask.description, ...delegatedTaskContext(task, { description: subtask.description }) };
+      const phaseCtx = { ...ctx, attestations, attempt: 1, currentBranchId: `wit-${index}`,
+        tools: attestingExecutor({ has: () => true, execute: async () => {
+          executions++;
+          return { exitCode, stdout, stderr: '' };
+        } }, attestations, `wit-${index}`, undefined, 1)! };
+      ctx.llm.enqueue(async request => {
+        expect(request.userContent).toContain(WIT_HANDOFF_GUIDANCE);
+        if (index === 0) await request.executor!.execute('run_shell', { command: 'wit', args: ['check', 'report.md'] });
+        else {
+          expect(request.userContent).toContain(stdout);
+          expect(request.userContent).toContain(`exitCode=${exitCode}`);
+          expect(request.userContent).toContain('report.md');
+        }
+        return reply({ output: 'An agent claims success.', summary: 'A declaration, not an observed outcome.' });
+      });
+      const result = await child.execute(nested, makePlan(), phaseCtx);
+      ctx.llm.enqueue(request => {
+        expect(request.userContent).toContain(WIT_HANDOFF_GUIDANCE);
+        expect(request.userContent).toContain(stdout);
+        expect(request.userContent).toContain(`exitCode=${exitCode}`);
+        return reply({ approved: false, reasoning: 'Reproduction alone does not establish the requested correctness.' });
+      });
+      const verdict = await llmVerdict({ ctx: phaseCtx, model: 'test', supervisorName: 'Cell', supervisorTier: 2,
+        child, task: nested, subject: 'RESULT', payload: result, evidence: result.evidence, groundTruthBlock: '' });
+      expect(verdict.approved).toBe(false);
+      if (index === 1) expect(result.evidence ?? []).toHaveLength(0);
+      return result;
+    }, { dispatcher: 'Dispatcher' });
+    expect(executions).toBe(1);
+  });
+
   it('carries real run browser proof and earlier edits through dispatch, nested delegation and reporting validation', async () => {
     const events = JSON.parse(gunzipSync(readFileSync(new URL('../benchmark/stateful-evidence-2026-10-05/live-events.json.gz', import.meta.url))).toString()) as {
       id: string; name?: string; args: Record<string, unknown>; result: unknown;
