@@ -746,7 +746,8 @@ function activity(overrides: Partial<NonNullable<AssistantView['activity']>[numb
     continuation: false, comparison: false, acceptedAt: null, publicationStatus: null, ...overrides };
 }
 
-it('tells who asked for each project run and from where, once, at its place among the messages', async () => {
+it.each(['2026-10-26T12:00:00.000Z', '2026-11-10T12:00:00.000Z'])('tells who asked for each run without confusing its author and timestamp (now=%s)', async now => {
+  vi.spyOn(Date, 'now').mockReturnValue(Date.parse(now));
   const fromClaude = activity({ requestedVia: { door: 'mcp', client: 'claude-code' } });
   const teammate = activity({ runId: '1d0ef6d6-1d7a-4d36-9a7e-34b1e5a6b0c1', mine: false, requestedByName: 'Sam', status: 'delivered',
     title: 'Contact form', createdAt: '2026-10-25T08:00:00.000Z', endedAt: '2026-10-25T09:00:00.000Z', costUsd: 0.42,
@@ -778,7 +779,8 @@ it('tells who asked for each project run and from where, once, at its place amon
     expect.stringContaining('What happened yesterday?'),
     expect.stringContaining('You, from Claude Code'),
   ]);
-  expect(items[0]).not.toContain(','); // an unrecorded door is not guessed
+  // The author must not invent a door; an older timestamp may legitimately contain a comma.
+  expect(within(within(log).getAllByRole('article')[0]!).getByText('Robin', { selector: 'strong', exact: true })).toBeVisible();
   expect(items[5]).toContain('$0.42');
   expect(items[5]).toContain('This result was accepted and sent to GitHub.');
   expect(items[7]).toContain('Work requested: “Add a contact form”');

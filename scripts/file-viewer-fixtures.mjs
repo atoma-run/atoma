@@ -9,6 +9,11 @@ export async function fileViewerFixtures() {
     return await archive.generateAsync({ type: 'nodebuffer' });
   };
   return {
+    'images/sample.psd': {
+      // One red RGB pixel with an uncompressed composite, no layers.
+      bytes: Buffer.from('38425053000100000000000000030000000100000001000800030000000000000000000000000000ff0000', 'hex'),
+      selector: '.ofv-psd-canvas', text: '',
+    },
     'documents/mail.eml': {
       bytes: 'From: sender@example.test\r\nTo: reader@example.test\r\nSubject: Preview email\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nA decoded email body.',
       selector: '.ofv-email', text: 'A decoded email body.',
