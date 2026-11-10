@@ -625,6 +625,12 @@ above it.
 
 ## 8. Where the money goes
 
+> The cost premise behind this layout did not hold when measured. On the current
+> release atoma cost 6.6 to 10.4 times what one agent spent on the same tasks,
+> and in round 13 planning took half of the spend and execution a tenth. The
+> table below says where calls go, not that they add up to a saving. See
+> [the cost premise, measured](../README.md#the-cost-premise-measured).
+
 Typical roles in the measured normal path; counts are not hard limits or current benchmarks:
 
 | Slot | Model tier | Typical count | Note |

@@ -1133,3 +1133,21 @@ deliveries read 0/1. Corrected before any score was reported, to what
 unchanged by the fix. The registered consequence is applied in the README;
 the two product defaults it names are a product-shape decision recorded as
 owed to the owner in the report, not silently flipped.
+
+### Round 15 — the registered product consequence is declined, owner decision 2026-11-10
+
+The registration bound two consequences to a refuted H15. The first, the
+README statement, was applied on 2026-11-01 and stands. The second — "the
+single-agent path becomes the product's default depth, and inline learning is
+turned off by default" — is **not applied**. On 2026-11-10 the owner decided
+to keep the three-tier split as the product's default and to retire the cost
+premise instead: atoma is offered for auditing runs, not for saving on them
+([decision](../docs/decisions/three-tiers-stay-2026-11-10.md)).
+
+This is a deviation from the registration, taken after the result was known,
+and it is recorded here as one. The measurements and the verdicts of rounds 13
+to 15 are unchanged, and round 13's consequence stands: no new gate, validator
+or heuristic until a task is found on which supervision measurably buys
+correctness. The single-agent default built for the declined consequence sits
+unmerged on the `feat/direct-depth` branch with the two rounds that measured
+it; they are not rounds of this protocol on `main`.

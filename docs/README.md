@@ -38,6 +38,7 @@ current subsystem rules.
 
 | Area | Records |
 | --- | --- |
+| Product shape | [The three tiers stay, the cost premise is retired](decisions/three-tiers-stay-2026-11-10.md) |
 | Decision | [Decision and calibration](decisions/jev-decisions-2026-09-28.md) · [Policy corrections](decisions/jev-policy-2026-10-01.md) |
 | Acceptance and continuation | [Acceptance proposal](decisions/acceptance-contract-2026-09-14.md) · [Checklist](decisions/acceptance-checklist-2026-09-25.md) · [Continuation](decisions/run-continuation-design-2026-09-24.md) |
 | Existing projects | [Seed inheritance](decisions/seed-inheritance-2026-09-25.md) · [Browser regression checks](decisions/inherited-checks-replay-2026-10-01.md) · [Comparison reruns](decisions/comparison-reruns-2026-09-25.md) |

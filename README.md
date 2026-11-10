@@ -12,7 +12,7 @@ are taken by [Decision](#decision-handles-bounded-decisions), TypeSafe's Jev mod
 
 **[Open atoma.run →](https://atoma.run)**
 
-[Demo](#watch-the-demo) · [Use cases](#what-could-your-team-build) · [A run, step by step](#a-run-step-by-step) · [Features](#features) · [How it works](#how-it-works) · [Self-host](#install-and-evaluate-it-locally) · [Documentation](#documentation)
+[Demo](#watch-the-demo) · [Use cases](#what-could-your-team-build) · [A run, step by step](#a-run-step-by-step) · [Features](#features) · [How it works](#how-it-works) · [What was measured](#the-cost-premise-measured) · [Self-host](#install-and-evaluate-it-locally) · [Documentation](#documentation)
 
 [![CI](https://github.com/atoma-run/atoma/actions/workflows/ci.yml/badge.svg)](https://github.com/atoma-run/atoma/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
@@ -31,10 +31,23 @@ are taken by [Decision](#decision-handles-bounded-decisions), TypeSafe's Jev mod
 > Use the hosted service to evaluate the product, not to process data you could
 > not afford to see leak. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
+> [!IMPORTANT]
+> **Where atoma stands, November 2026.** atoma was built on a cost premise:
+> split a goal across three tiers of agents, give each tier the cheapest model
+> that can do its part, and finished work costs less than one frontier agent
+> doing all of it. On the evidence so far, that premise does not hold. Measured
+> on the current release, one agent was as correct or more correct, and atoma
+> cost 6.6 to 10.4 times as much. The three tiers remain what atoma runs,
+> because they leave something one agent does not: a run you can audit step by
+> step. Read [the cost premise, measured](#the-cost-premise-measured).
+
 ## Watch the demo
 
 Explore a two-run business scenario, three-tier coordination, MCP integration
-and model-cost optimization in this four-minute walkthrough.
+and the cost breakdown by tier and model in this four-minute walkthrough. The
+film predates the [measurements on the current release](#the-cost-premise-measured).
+Where it says atoma helps minimise model costs, take the breakdown for what it
+is: a way to see what a run spent, not a saving.
 
 https://github.com/user-attachments/assets/3c21219f-9696-4f96-abc8-82944faf5eac
 
@@ -242,6 +255,10 @@ start at the supervisor level; a planner then takes over if supervision
 exhausts its retries, and a seeded run keeps its starting workspace when it
 does.
 
+The split was designed to make finished work cheaper, and
+[it does not](#the-cost-premise-measured). It stays the default because every
+hand-off between tiers is recorded, which is what makes a run auditable.
+
 - **Workers build.** They read and write files, run commands and use tools.
   Project runs do so in a container with no network unless egress is
   explicitly allowed; a local `npm run run:build` uses the host unless it is
@@ -268,6 +285,68 @@ price: prompts and recipes a run writes, including wording derived from a
 document it was given, are readable by other organisations' runs. An instance
 therefore suits teams that accept pooling what their runs learn. The hosted
 service states this in its [shared-learning terms](docs/platform-commons-terms.md).
+
+## The cost premise, measured
+
+atoma began from a premise about cost. A frontier model plans, a mid-tier
+model supervises, and cheap models do the bulk of the work. Components that
+keep succeeding earn the right to skip reviews, and verified work is distilled
+into recipes and scripts that later runs reuse. The first runs would pay for
+the supervision and later runs would recover it, until atoma cost less than
+giving the same goal to one frontier agent.
+
+**Fifteen controlled rounds** compared atoma with a single agent on build and
+maintenance tasks. Rounds 1–12 (August 2026) predate the 2026-08-18 state
+reset and are historical narrative. Rounds 13 to 15 and a control-only
+calibration (2026-10-31 and 2026-11-01) measured the current release as it
+ships, three tiers on `gpt-5.6-luna`, `gpt-5.6-terra` and `gpt-5.6-sol`,
+against one `gpt-5.6-terra` agent and one `gpt-5.6-sol` agent.
+
+| Task | One agent | atoma, three tiers |
+| --- | --- | --- |
+| Maintenance of a three-file CLI (rounds 13 and 14) | 7 of 7 correct with either model | 6 of 7 correct, at 7.7 to 10.4 times the cost |
+| Four repairs in a real repository (calibration) | 12 of 12 correct | not run: nothing was left to improve |
+| An HTML detection function one agent gets wrong half the time (round 15) | 3 of 6 correct | 3 of 6 correct, at 6.6 times the cost |
+
+**On the evidence so far, the premise does not hold.** The supervision thesis
+is refuted on the whole range tested on the current release: on every task
+family measured, supervision buys no correctness, and it multiplied the cost.
+The overhead is the supervision itself: in round 13, planning took half of
+what the runs spent and the work itself a tenth. The mechanisms meant to
+recover it did not: the cost per run rose across both atoma series, and in
+round 13 no phase ran without a model call. The range tested runs from a
+one-minute maintenance task to repairs in a real repository. Larger builds
+have not been measured on the current release.
+
+What the three tiers do leave behind is a record. Every hand-off between tiers
+follows one protocol: a plan, a verdict on the plan, the work, a verdict on
+the work. Each step is stored with the agent and model behind it, its tokens
+and its cost. Verdicts rest on evidence the run produced (files, exit codes,
+HTTP probes, browser checks), and the acceptance criteria are fixed before
+planning starts. The timeline shows all of it in order, MCP clients read the
+same record, a finished run can be rerun on other models against the same goal
+and criteria, and the analyst writes a cited post-mortem of each finished run.
+The single agent atoma was measured against is one tool loop that certifies
+its own result.
+
+That is what atoma is offered for today: **auditing how agent work was
+produced and checked**, not producing it at the lowest cost. It suits
+reviewing an agent workflow before relying on it, comparing model mixes on the
+same goal, and keeping a verification record beside a deliverable. The rounds
+measured cost and correctness. They did not measure what that record is worth.
+On the tasks measured, if the cheapest correct result is the goal, one capable
+agent is the better tool.
+
+The consequence registered with round 15 was to make a single agent the
+product's default. On 2026-11-10 the project owner decided against it. The
+three-tier split stays the default, on [atoma.run](https://atoma.run) and in
+this repository, and the single-agent default built for that consequence stays
+unmerged on the
+[`feat/direct-depth`](https://github.com/atoma-run/atoma/tree/feat/direct-depth)
+branch. Read the [decision](docs/decisions/three-tiers-stay-2026-11-10.md),
+the [protocol](benchmark/PROTOCOL.md), [round 13](benchmark/ROUND13.md),
+[round 14](benchmark/ROUND14.md), [round 15](benchmark/ROUND15.md) and the
+[calibration](benchmark/calibration-2026-10-31/CALIBRATION.md).
 
 ## Install and evaluate it locally
 
@@ -316,6 +395,12 @@ atoma is an evolving open-source system. Its web console, project runs,
 acceptance criteria, comparison reruns, GitHub import and publication, result
 previews and MCP endpoint are in use on [atoma.run](https://atoma.run).
 
+Runs go through the three-tier split by default, and that is not changing.
+Expect a run to cost several times what one agent would spend on the same
+goal: the [cost premise](#the-cost-premise-measured) behind the split did not
+hold when measured, and atoma is offered for auditing runs, not for saving on
+them.
+
 Local file-tool containment is not shell isolation; use the container backend
 for isolated execution. A platform admin can read across organisations, and
 mutually untrusted tenants are not a supported deployment shape. Verification
@@ -359,27 +444,6 @@ Browse the [documentation index](docs/README.md) for current guides and the
 | Connect an MCP client | [MCP authorization](docs/mcp-oauth.md) |
 | Review changes | [Changelog](CHANGELOG.md) · [Code reviews](records/code-reviews.md) |
 | Report a vulnerability | [Security policy](SECURITY.md) |
-
-## Historical measurements
-
-**Fifteen controlled rounds** compared atoma with a single agent on build and
-maintenance tasks. Rounds 1–12 (August 2026) predate the 2026-08-18 state
-reset and are historical narrative. Rounds 13 to 15 (2026-10-31 and
-2026-11-01) measured the current release as it ships against one
-`gpt-5.6-terra` agent and one `gpt-5.6-sol` agent. On a three-file CLI
-maintenance task both controls were correct in every run, and atoma delivered
-the same correctness or less at roughly ten times the cost. A control-only
-calibration then looked for work a single agent gets wrong: on four real
-repository repairs it never did; on one small HTML-detection task it failed
-half its runs, and atoma, run six against six on that task, failed the same
-half at 6.6 times the cost. **On the whole range tested, the supervision
-thesis is refuted on the current release**: supervision has bought no
-correctness on any task family measured, and under the registered consequence
-the single-agent path is to become the product's default depth with inline
-learning off by default, a product-shape change recorded as owed in
-[round 15](benchmark/ROUND15.md). Read the [protocol](benchmark/PROTOCOL.md),
-[round 13](benchmark/ROUND13.md), [round 14](benchmark/ROUND14.md) and the
-[calibration](benchmark/calibration-2026-10-31/CALIBRATION.md).
 
 ## License
 
