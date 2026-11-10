@@ -54,3 +54,8 @@ reads. No new store, run execution, gate or trust rule. Ten indexed runs per
 cursor page; bounded event/receipt/output projection explicitly counts omissions.
 Counts are per page, never platform-wide success rates. Both GPU and semantic
 DOM use the same response; the source action opens the recorded tool event.
+
+Refresh feedback: the page uses the shared loading crystal for every in-flight
+query, including cached refetches (`isFetching`, not only initial `isLoading`).
+Its status row stays outside the scroll mask, old receipts remain readable,
+and refresh/paging controls are disabled until settlement. No artificial delay.

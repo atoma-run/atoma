@@ -2229,6 +2229,8 @@ try {
       /** Hosting POSTs as sent; the response waits for `releaseHostingPost` so the progress is observable. */
       const hostingPosts = [];
       let releaseHostingPost = null;
+      let holdWit = false;
+      let releaseWit = null;
       const stubs = {
         '/auth/whoami': {
           enabled: true,
@@ -2549,6 +2551,14 @@ try {
         let stub = stubs[path];
         if (path === '/api/admin/wit' && new URL(request.url()).searchParams.get('before') === 'older') {
           stub = { ...stub, nextBefore: null, receipts: [], runsScanned: 3 };
+        }
+        if (path === '/api/admin/wit' && holdWit) {
+          releaseWit = () => {
+            holdWit = false;
+            releaseWit = null;
+            void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(stub) });
+          };
+          return;
         }
         if (path === '/api/runs' && Array.isArray(stub)) stub = runIndexPageStub(stub, new URL(request.url()).searchParams);
         if (path === '/api/assistant' && stub?.conversation.projectId && !new URL(request.url()).searchParams.has('projectId')) {
@@ -4160,7 +4170,21 @@ try {
       await accountPage.waitForFunction(() => document.querySelector('section[aria-label="Wit"]')?.textContent?.includes('This page: 3 runs'));
       await clickAccountTarget('wit.latest');
       await accountPage.waitForFunction(() => document.querySelector('section[aria-label="Wit"]')?.textContent?.includes('STALE report.md'));
-      console.log('viz Wit reporting ok: canvas source navigation, older page and refresh');
+      // A cached refresh can wait on a slow corpus read. Keep the old receipts
+      // readable and the one loading crystal visible until the request settles.
+      await accountPage.waitForFunction(() => !document.querySelector('section[aria-label="Wit"] .gpu-loader'));
+      holdWit = true;
+      await clickAccountTarget('wit.latest');
+      await accountPage.waitForFunction(() => {
+        const region = document.querySelector('section[aria-label="Wit"]');
+        return region?.querySelector('.gpu-loader[aria-busy="true"]') && region.textContent.includes('STALE report.md') &&
+          globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('loading-atoma-crystal', true);
+      });
+      await accountPage.screenshot({ path: join(tmpdir(), 'atoma-wit-loading.png') });
+      if (!releaseWit) throw new Error('Wit refresh request was not held');
+      releaseWit();
+      await accountPage.waitForFunction(() => !document.querySelector('section[aria-label="Wit"] .gpu-loader'));
+      console.log('viz Wit reporting ok: canvas navigation, paging, retained receipts and loading crystal during refresh');
 
       // THE ACTIVE ADMIN-NAV REPRO. After a send, Announcements is already the
       // selected rail destination; clicking it again must reset the receipt to

@@ -30,3 +30,21 @@ it('exposes coverage, escaped evidence and keyboard controls', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Open source run' })); expect(onActivate).toHaveBeenLastCalledWith('wit.open.0');
   fireEvent.click(screen.getByRole('button', { name: 'Scan older runs' })); expect(onActivate).toHaveBeenLastCalledWith('wit.next');
 });
+
+it('announces initial loading and cached refresh without discarding results', () => {
+  const onActivate = vi.fn();
+  const report: WitReport = { generatedAt: '2026-11-10T00:00:00Z', runsScanned: 10, totalRuns: 20,
+    unreadableRuns: 0, omittedEvents: 0, nextBefore: 'older', receipts: [] };
+  const { rerender } = render(createElement(WitAccessible, { report: null, fetching: true, locale: 'en', t, onActivate }));
+  expect(screen.getByRole('status')).toHaveTextContent('Loading Wit results');
+  rerender(createElement(WitAccessible, { report, fetching: true, locale: 'en', t, onActivate }));
+  expect(screen.getByText('This page: 10 runs out of 20 indexed runs')).toBeVisible();
+  expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+  expect(screen.getByRole('button', { name: 'Latest runs / refresh' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Scan older runs' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Latest runs / refresh' }));
+  expect(onActivate).not.toHaveBeenCalled();
+  rerender(createElement(WitAccessible, { report, fetching: false, locale: 'en', t, onActivate }));
+  expect(screen.queryByRole('status')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Latest runs / refresh' })).toBeEnabled();
+});

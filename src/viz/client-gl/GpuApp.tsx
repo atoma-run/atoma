@@ -1288,6 +1288,7 @@ function GpuAppContent({
       const before = useGpuStore.getState().witBefore;
       const report = queryClient.getQueryData<import('../../contracts/witReport.js').WitReport>(['viz', 'admin', 'wit', before]);
       if (id === 'wit.latest' || id === 'wit.next') {
+        if (queryClient.isFetching({ queryKey: ['viz', 'admin', 'wit', before], exact: true })) return;
         useGpuStore.setState(s => ({ witBefore: id === 'wit.next' ? report?.nextBefore ?? null : null, scrollY: { ...s.scrollY, wit: 0 } }));
         if (id === 'wit.latest') void queryClient.invalidateQueries({ queryKey: ['viz', 'admin', 'wit', null] });
       } else if (id.startsWith('wit.open.')) {
@@ -1460,6 +1461,7 @@ function GpuAppContent({
       selectedLoading: selectedAssay !== null && assayQuery.isLoading, selectedError: !!assayQuery.error,
     },
     adminSentinel: adminSentinelQuery.data ?? null,
+    witFetching: isPlatformAdmin && adminWitQuery.isFetching,
     witReport: isPlatformAdmin ? adminWitQuery.data ?? null : null,
     platformStats: isPlatformAdmin ? adminStatsQuery.data ?? null : null,
     adminLiveRuns: isPlatformAdmin ? adminLiveRunsQuery.data ?? [] : [],
@@ -1498,7 +1500,7 @@ function GpuAppContent({
     assayQuery.data, assayQuery.isLoading, assayQuery.error, selectedAssay,
     adminSentinelQuery.data,
     adminLiveRunsQuery.data,
-    adminWitQuery.data,
+    adminWitQuery.data, adminWitQuery.isFetching,
     adminStatsQuery.data,
     isPlatformAdmin,
     authSnapshot,
@@ -1600,6 +1602,7 @@ function GpuAppContent({
         />
         <GpuDomBridge
           authSnapshot={authSnapshot}
+          witFetching={data.witFetching}
           witReport={data.witReport}
           platformStats={data.platformStats}
           platformDays={state.platformDays}

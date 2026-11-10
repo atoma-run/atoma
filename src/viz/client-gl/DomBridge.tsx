@@ -205,6 +205,7 @@ function ComputeResultsSection({ run, auth, githubRecovery, t, onActivate }: {
 }
 
 export function DomBridge({
+  witFetching = false,
   witReport = null,
   platformStats = null,
   platformDays = 30,
@@ -246,6 +247,7 @@ export function DomBridge({
   preview = null,
   onActivate,
 }: {
+  witFetching?: boolean;
   witReport?: import('../../contracts/witReport.js').WitReport | null;
   platformStats?: import('../../contracts/platformStats.js').PlatformStats | null;
   platformDays?: import('../../contracts/platformStats.js').PlatformStatsDays;
@@ -654,7 +656,7 @@ export function DomBridge({
         })() : null}
         {view === 'runs' && run ? <AccessibleRunActivity run={run} t={t}
           awaitingResults={!!runViewProjectRun && computeResultsWaiting(runViewProjectRun) !== null} /> : null}
-        {view === 'wit' && auth?.viewer.platformAdmin ? <WitAccessible report={witReport} locale={locale} t={t} onActivate={onActivate} /> : null}
+        {view === 'wit' && auth?.viewer.platformAdmin ? <WitAccessible fetching={witFetching} report={witReport} locale={locale} t={t} onActivate={onActivate} /> : null}
         {view === 'platform' && auth?.viewer.platformAdmin ? <PlatformStatsAccessible
           stats={platformStats} days={platformDays} locale={locale} t={t} onActivate={onActivate} /> : null}
         {view === 'sentinel' && auth?.viewer.platformAdmin ? (

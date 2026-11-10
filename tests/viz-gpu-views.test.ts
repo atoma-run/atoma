@@ -9264,3 +9264,16 @@ describe('Wit reporting layout', () => {
     expect(ctx.scrollMax.wit).toBeGreaterThanOrEqual(0);
   });
 });
+
+
+it('keeps the Wit loading crystal outside the scroll mask during a cached refresh', () => {
+  const ctx = createRecordingCtx();
+  drawWit(ctx, makeSnapshot({ view: 'wit', scrollY: { ...makeState().scrollY, wit: 400 } }, {
+    witFetching: true, witReport: { generatedAt: '2026-11-10T00:00:00Z', runsScanned: 10, totalRuns: 20,
+      unreadableRuns: 0, omittedEvents: 0, nextBefore: null, receipts: [] },
+  }), 800, 720);
+  expect(ctx.texts.some(text => text.value === 'Loading Wit results…')).toBe(true);
+  const layer = findByLabel(ctx.root, 'loading-crystal');
+  expect(layer && findByLabel(layer, 'loading-atoma-crystal')).toBeTruthy();
+  expect(layer?.parent).toBe(ctx.root);
+});

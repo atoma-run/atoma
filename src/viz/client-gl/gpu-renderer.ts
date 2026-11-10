@@ -184,6 +184,7 @@ export interface GpuDataSnapshot {
   connectorSettings?: import('./project-connectors.js').ConnectorSettingsView | null;
   computeSettings?: import('./project-compute.js').ComputeSettingsView | null;
   githubInstallations: VizGitHubInstallation[];
+  witFetching?: boolean;
   witReport?: import('../../contracts/witReport.js').WitReport | null;
   platformStats?: import('../../contracts/platformStats.js').PlatformStats | null;
   adminOrganisations: VizAdminOrganisation[];
