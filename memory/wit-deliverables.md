@@ -33,3 +33,15 @@ The real file-reader browser smoke passes on 16 files, including PSD; the
 full viz browser smokes also pass.
 Production uses the ordinary main CI → Deploy production pipeline; verify
 its exact revision and worker binary, never infer activation from a push.
+
+## Deployed — 2026-11-10
+
+Deploy production run 42777919623 activated `cfad746c` at about 08:00 UTC.
+Checked on the host: release and executor of that revision active, worker
+image `atoma-worker:cfad746c…` present, `/usr/local/bin/wit` and its licence
+inside it, and `wit` answers with its usage line in a `--network none`
+container.
+
+Another session had been told the same morning to deploy everything except
+Wit until the owner's own test. Told that Wit was already live, the owner
+chose to keep it in production and test it there. Nothing was reverted.

@@ -13,10 +13,11 @@
 - [Validation runs too slow](validation-runs-too-slow.md) — 2026-10-24: pure validations go local or short-depth; deep Attica runs only for work that changes files
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 - [No full suite beside Compute](no-full-suite-beside-compute.md) — 2026-10-30: full npm test filled the Mac's disk and killed live Compute run 3a81397b; targeted tests only while a run is live
+- [Conflicting instructions across sessions](conflicting-instructions-across-sessions.md) — 2026-11-10: a peer session deployed Wit on the owner's word while mine was told to hold it; read the peer's note, never cancel or revert its deploy, ask the owner; fetch before fixing a blocker a peer already names
 
 ## Current work
-- [Wit deliverables](wit-deliverables.md) — 2026-11-10: pinned upstream utility in worker + shell guidance; audit/date blockers corrected, full release checks and PSD browser proof pass
-- [Direct depth branch](direct-depth-2026-11-01.md) — 2026-11-02: feat/direct-depth not on main; TS rule narrowed; round 17 cost parity but challenge 2/3 vs 3/3 → no push; owner chooses ship anyway or 6v6 check
+- [Wit deliverables](wit-deliverables.md) — 2026-11-10: pinned upstream utility in worker + shell guidance; audit/date blockers corrected, full release checks and PSD browser proof pass; live in production as cfad746c, the owner keeps it there and tests it live
+- [Direct depth branch](direct-depth-2026-11-01.md) — CLOSED 2026-11-10: owner declined shipping it; feat/direct-depth stays an unmerged archive (rounds 16-17, narrowed TS rule live only there)
 - [Round 15 result](benchmark-round15-result-2026-11-01.md) — 2026-11-01: H15 refuted (3/6 vs 3/6, 6.6× cost); README updated; single-agent default + learning-off DECLINED by the owner 2026-11-10
 - [Round 15 calibration](benchmark-round15-calibration-2026-10-31.md) — 2026-10-31: calibration DONE — 4 Attica repo tasks at ceiling (terra 3/3), only attica-challenge retained (terra 2/3); round 15 config + host scorer ready, awaiting owner go
 - [TypeScript rule over goal prohibition](typescript-rule-over-goal-prohibition.md) — 2026-10-31 owner decision: strict-TS rule wins over "do not rewrite"; benchmark goals must not forbid the migration
