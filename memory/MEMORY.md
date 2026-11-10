@@ -16,7 +16,7 @@
 
 ## Current work
 - [Direct depth branch](direct-depth-2026-11-01.md) — 2026-11-02: feat/direct-depth not on main; TS rule narrowed; round 17 cost parity but challenge 2/3 vs 3/3 → no push; owner chooses ship anyway or 6v6 check
-- [Round 15 result](benchmark-round15-result-2026-11-01.md) — 2026-11-01: H15 refuted (3/6 vs 3/6, 6.6× cost); README updated; single-agent default + learning-off owed to owner decision
+- [Round 15 result](benchmark-round15-result-2026-11-01.md) — 2026-11-01: H15 refuted (3/6 vs 3/6, 6.6× cost); README updated; single-agent default + learning-off DECLINED by the owner 2026-11-10
 - [Round 15 calibration](benchmark-round15-calibration-2026-10-31.md) — 2026-10-31: calibration DONE — 4 Attica repo tasks at ceiling (terra 3/3), only attica-challenge retained (terra 2/3); round 15 config + host scorer ready, awaiting owner go
 - [TypeScript rule over goal prohibition](typescript-rule-over-goal-prohibition.md) — 2026-10-31 owner decision: strict-TS rule wins over "do not rewrite"; benchmark goals must not forbid the migration
 - [Benchmark rounds 13-14](benchmark-round13-14-2026-10-31.md) — 2026-10-31: H13/H14 refuted, merged 51a157ca; controls 7/7 at $0.14-0.19 vs atoma 6/7 at $1.45; no new gate until supervision measurably pays; TS-skeleton guidance overrides goals
@@ -76,6 +76,7 @@
 - [OpenClaw host on atoma.run](openclaw-host-atoma-run.md) — ChatGPT subscription via native ~/.codex, gpt-5.6-sol
 
 ## Owner decisions and their state
+- [Three tiers stay](three-tiers-stay-2026-11-10.md) — 2026-11-10: the 3-tier split stays the prod default; cost premise retired in the README (321eb4b0, docs only); single-agent default declined; atoma is positioned for auditing runs
 - [Parent-owned tests](parent-owned-tests.md) — L3 reviews L2-authored L1 tests; independent L2 branches must run in parallel
 - [TypeScript applications](typescript-applications.md) — 2026-10-16: all JS-runtime apps, including existing ones, use strict TypeScript; migrate only Attica now
 - [Supervisor replay exception](supervisor-replay-exception.md) — supervisor replays inherited web checks of static pages at root acceptance
