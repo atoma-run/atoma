@@ -9,6 +9,12 @@
 # skills directory, the ledger, any credential. `run_shell`'s child is not
 # jailed to its cwd, so in a single process those are always one filesystem
 # walk away; here the walk finds nothing because they were never mounted.
+# Wit is an L1 authoring utility. Compile a fixed upstream revision; neither
+# Go nor a runtime download is needed by an offline run. Its MIT notice ships
+# beside the binary. Keep the revision aligned with docs/witnessed-deliverables.md.
+FROM golang:1.26.3-bookworm AS wit-build
+RUN CGO_ENABLED=0 GOBIN=/out go install github.com/zboralski/wit/cmd/wit@554cd59de19bf6a31770b14a624e6ca0701ce1a0
+
 FROM node:24-slim
 
 # python3  -> start_static_server
@@ -47,6 +53,8 @@ RUN npm install --omit=dev --no-audit --no-fund
 COPY dist/tools ./dist/tools
 COPY dist/core ./dist/core
 COPY dist/contracts ./dist/contracts
+COPY --from=wit-build /out/wit /usr/local/bin/wit
+COPY docker/wit-LICENSE /usr/local/share/licenses/wit/LICENSE
 
 # A non-root user: `--cap-drop ALL` and `no-new-privileges` are set by the
 # caller, and this closes the last easy privilege the container had.

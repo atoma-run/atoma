@@ -15,6 +15,7 @@
 - [No full suite beside Compute](no-full-suite-beside-compute.md) — 2026-10-30: full npm test filled the Mac's disk and killed live Compute run 3a81397b; targeted tests only while a run is live
 
 ## Current work
+- [Wit deliverables](wit-deliverables.md) — 2026-11-10: pinned upstream utility in worker + shell guidance; 46 container tests pass; not deployed, existing audit/date-test blockers
 - [Direct depth branch](direct-depth-2026-11-01.md) — 2026-11-02: feat/direct-depth not on main; TS rule narrowed; round 17 cost parity but challenge 2/3 vs 3/3 → no push; owner chooses ship anyway or 6v6 check
 - [Round 15 result](benchmark-round15-result-2026-11-01.md) — 2026-11-01: H15 refuted (3/6 vs 3/6, 6.6× cost); README updated; single-agent default + learning-off DECLINED by the owner 2026-11-10
 - [Round 15 calibration](benchmark-round15-calibration-2026-10-31.md) — 2026-10-31: calibration DONE — 4 Attica repo tasks at ceiling (terra 3/3), only attica-challenge retained (terra 2/3); round 15 config + host scorer ready, awaiting owner go

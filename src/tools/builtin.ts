@@ -936,6 +936,7 @@ function recoverLiteralTokenEdit(oldString: string, newString: string, actualSpa
 export const DEFAULT_SHELL_ALLOWLIST: readonly string[] = [
   'atoma-scaffold',
   'atoma-verify',
+  'wit',
   // Interpreters and package tooling (unchanged).
   'node',
   'npm',
@@ -1036,6 +1037,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
         ...(opts.commandLogDirectory ? ['Keep proof output on stdout/stderr. If redirecting it, use a top-level /tmp/*.log file: changed regular UTF-8 logs are archived with this command before worker removal (8 MiB raw / 4 MiB encoded / 32 files per call, 256 listed paths; omissions are explicit). Archives are file snapshots, not independent proof of a command exit.'] : []),
         `Allowed executables: ${[...allowlist].join(', ')}.`,
         'Built-in utility: command:"atoma-scaffold", args:["web"|"node"|"fullstack", "empty-directory"] creates the versioned TypeScript/ESLint/Vitest skeleton (Vite for browser apps). Use it directly, not inside bash or a compound command. It refuses nonempty directories; use .atoma-skeleton as a reference when adapting an existing app.',
+        'Wit is preinstalled in the worker for reproducible Markdown deliverables: command:"wit", args:["generate"|"check", "report.md"]. Put <!-- wit: COMMAND --> immediately before a fenced output block or a Markdown region ending with <!-- wit:end -->. Commands run from the document directory and capture stdout. Use source-derived commands, not echo of the claimed answer. Generate after changes, then check the final files. STALE means output differs; UNAVAILABLE means evidence could not run and cached text is preserved; neither passes. Even check executes document commands and may have side effects. A successful check establishes reproduction, not correctness or independent acceptance; do not add verification logs to reader-facing docs unless requested. Local backends require Wit on PATH.',
         'Do NOT use this for long-running processes (start_static_server or start_node_server own those).',
       ].join(' '),
       inputSchema: {

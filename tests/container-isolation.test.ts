@@ -249,6 +249,50 @@ describeDocker('a containerised run cannot reach the stores', () => {
     expect(readFileSync(join(workspace, 'hello.txt'), 'utf8')).toContain('from the container');
   }, 60_000);
 
+  it('reproduces witnessed deliverables through the packaged Wit and shell tool', async () => {
+    mkdirSync(join(workspace, 'wit-report'));
+    writeFileSync(join(workspace, 'wit-report', 'value.txt'), '12\n');
+    const report = join(workspace, 'wit-report', 'report.md');
+    const stale = '<!-- wit: cat value.txt -->\n```text\nold\n```\n';
+    writeFileSync(report, stale);
+    const invoke = (mode: string) => exec.execute('run_shell', {
+      command: 'wit', args: [mode, 'wit-report/report.md'],
+    });
+    expect(await invoke('check')).toMatchObject({ exitCode: 1, stdout: expect.stringContaining('STALE') });
+    expect(readFileSync(report, 'utf8')).toBe(stale);
+    expect(await invoke('generate')).toMatchObject({ exitCode: 0 });
+    expect(readFileSync(report, 'utf8')).toBe(stale.replace('old', '12'));
+    expect(await invoke('check')).toMatchObject({ exitCode: 0, stdout: expect.stringContaining('all witnesses reproduce') });
+    writeFileSync(join(workspace, 'wit-report', 'value.txt'), '13\n');
+    expect(await invoke('check')).toMatchObject({ exitCode: 1 });
+  }, 60_000);
+
+  it('preserves the whole document when a witness is unavailable', async () => {
+    const report = join(workspace, 'wit-unavailable.md');
+    const cached = '<!-- wit: printf fresh -->\n```text\ncached\n```\n' +
+      '<!-- wit: cat wit-missing-source -->\n```text\nlast evidence\n```\n';
+    writeFileSync(report, cached);
+    for (const mode of ['check', 'generate']) {
+      expect(await exec.execute('run_shell', { cmd: `wit ${mode} wit-unavailable.md` }))
+        .toMatchObject({ exitCode: 1, stdout: expect.stringContaining('UNAVAILABLE') });
+      expect(readFileSync(report, 'utf8')).toBe(cached);
+    }
+  }, 60_000);
+
+  it('runs Wit witnesses inside the worker boundary with the shell timeout', async () => {
+    writeFileSync(join(workspace, 'wit-boundary.md'),
+      '<!-- wit: test ! -e /app/atoma.db && test ! -e /app/skills && test -z "$ANTHROPIC_API_KEY" && printf isolated -->\n```text\nisolated\n```\n');
+    expect(await exec.execute('run_shell', { command: 'wit', args: ['check', 'wit-boundary.md'] }))
+      .toMatchObject({ exitCode: 0 });
+    writeFileSync(join(workspace, 'wit-timeout.md'),
+      '<!-- wit: touch wit-started; sleep 2; touch wit-survivor -->\n```text\n\n```\n');
+    expect(await exec.execute('run_shell', { command: 'wit', args: ['check', 'wit-timeout.md'], timeoutMs: 500 }))
+      .toMatchObject({ exitCode: 1, error: expect.stringContaining('timed out after 500ms') });
+    expect(existsSync(join(workspace, 'wit-started'))).toBe(true);
+    await exec.execute('run_shell', { command: 'bash', args: ['-c', 'sleep 3; test ! -e wit-survivor'] })
+      .then(result => expect(result).toMatchObject({ exitCode: 0 }));
+  }, 60_000);
+
   it('records probe output through the worker contract at runtime', async () => {
     await exec.execute('write_file', {
       path: 'probe.js',
@@ -548,11 +592,11 @@ describeDocker('a read-run copy in a containerised run', () => {
   // worker too, where they run; a shell is detected, not refused.
   it('the worker\'s write_file and edit_file refuse a copy, under any spelling', async () => {
     for (const path of [`${copy}/browser/collect.js`, `./${copy}/browser/new.js`]) {
-      await expect(exec.execute('write_file', { path, content: 'the run\'s own' })).rejects.toThrow(/write_file: refuse to write into \.atoma-runs\//);
+      await expect(exec.execute('write_file', { path, content: 'the run\'s own' })).rejects.toThrow(/write_file: refuse to write into [.]atoma-runs\//);
     }
     await exec.execute('read_file', { path: `${copy}/browser/collect.js` });
     await expect(exec.execute('edit_file', { path: `${copy}/browser/collect.js`, old_string: 'SAVED', new_string: 'EDITED' }))
-      .rejects.toThrow(/edit_file: refuse to write into \.atoma-runs\//);
+      .rejects.toThrow(/edit_file: refuse to write into [.]atoma-runs\//);
     expect(readFileSync(join(workspace, copy, 'browser/collect.js'), 'utf8')).toBe('SAVED_BYTES_OF_THE_OTHER_RUN');
     expect(existsSync(join(workspace, copy, 'browser/new.js'))).toBe(false);
   }, 60_000);

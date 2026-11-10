@@ -329,6 +329,13 @@ Neighbours:
 
 ## Generated artefact conventions
 
+- `wit generate/check` is an L1 shell utility for witnessed Markdown, pinned
+  in the worker image; local backends require an operator installation on PATH.
+  Its commands execute with the ordinary shell boundary, including in check
+  mode. Supervisors never replay them. Reproduction is not independent
+  correctness or proof credit; no new acceptance gate is implied.
+  Usage and deployment: [witnessed deliverables](../../docs/witnessed-deliverables.md).
+
 - `run_shell` supplies the deterministic `atoma-scaffold` utility directly
   (not a PATH executable or a new element). It writes the versioned application
   skeleton into an empty sandbox directory and never installs packages or
