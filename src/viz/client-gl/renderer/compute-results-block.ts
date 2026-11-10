@@ -6,12 +6,12 @@ import { GPU_COLORS } from '../theme.js';
 import { canGetComputeResults, computeResultsMessageKey, computeResultsWaiting, COMPUTE_RESULTS_ACTION } from '../compute-results.js';
 
 /** Plain copy wrapped over measured 12px lines, every word drawn. */
-export function wrapCopyLines(ctx: RendererCtx, copy: string, width: number): string[] {
+export function wrapCopyLines(ctx: RendererCtx, copy: string, width: number, size = 12): string[] {
   const lines: string[] = [];
   let rest = copy.replace(/\s+/g, ' ').trim();
   while (rest) {
-    if (ctx.measureText(rest, { size: 12 }) <= width) { lines.push(rest); break; }
-    const fitted = ctx.fitText(rest, width, { size: 12 }).replace(/…$/, '');
+    if (ctx.measureText(rest, { size }) <= width) { lines.push(rest); break; }
+    const fitted = ctx.fitText(rest, width, { size }).replace(/…$/, '');
     const boundary = fitted.lastIndexOf(' ');
     const length = Math.max(1, boundary > 0 ? boundary : fitted.length);
     lines.push(rest.slice(0, length));

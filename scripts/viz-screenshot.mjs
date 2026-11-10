@@ -435,6 +435,13 @@ function gatedStubs() {
     '/api/admin/assays/assay-demo': { summary: { id: 'assay-demo', skillId: 'verify-json-api', surfaceDigest: 'a'.repeat(64), failure: null,
       judgement: { verdict: 'neutral', decision: 'keep', matchedCases: 1, deliveries: { with: 1, without: 1 } } },
       record: { cases: [{ task: 'Verify the JSON API returns the documented result.', with: { arm: 'with', outcome: 'delivered', matched: true, llmCalls: 4 }, without: { arm: 'without', outcome: 'delivered', matched: false, llmCalls: 6 } }] } },
+    '/api/admin/wit': {
+      generatedAt: new Date().toISOString(), runsScanned: 10, totalRuns: 28, unreadableRuns: 0, omittedEvents: 0, nextBefore: 'older',
+      receipts: [
+        { runId: 'trace-0', projectId, runLabel: 'Revenue analysis', eventId: 'wit-1', at: Date.now(), actor: 'Molecule', mode: 'check', command: 'wit check revenue.md', status: 'failed', exitCode: 1, durationMs: 120, output: 'STALE revenue.md:12 — command output differs from the cached block', outputTruncated: false },
+        { runId: 'trace-0', projectId, runLabel: 'Inventory report', eventId: 'wit-2', at: Date.now() - 60000, actor: 'Molecule', mode: 'check', command: 'wit check inventory.md', status: 'passed', exitCode: 0, durationMs: 80, output: '', outputTruncated: false },
+      ],
+    },
     '/api/admin/stats': platformStatsFixture(),
     '/api/admin/live-runs': [
       { projectRunId: 'cccccccc-1111-4222-8333-dddddddddd10', projectId,

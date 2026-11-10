@@ -305,6 +305,14 @@ export function useGithubInstallations(active: boolean) {
   });
 }
 
+export function useAdminWit(active: boolean, before: string | null) {
+  const query = useQuery({
+    queryKey: ['viz', 'admin', 'wit', before], queryFn: () => api.adminWit(before),
+    enabled: active, staleTime: 30_000,
+  });
+  return { ...query, error: active ? query.error : null };
+}
+
 export function useAdminStats(active: boolean, days: import('../../contracts/platformStats.js').PlatformStatsDays) {
   const query = useQuery({
     queryKey: ['viz', 'admin', 'stats', days], queryFn: () => api.adminStats(days),

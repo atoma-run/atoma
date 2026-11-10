@@ -1,3 +1,4 @@
+import { drawWit } from '../src/viz/client-gl/renderer/views/wit.js';
 import { UI_CSS_VARS, UI_SPACE } from '../src/viz/client-gl/ui-layout.js';
 import { RUN_SHUTDOWN_MESSAGE } from '../src/contracts/runShutdown.js';
 import { relativeTime } from '../src/viz/client-gl/renderer/relative-time.js';
@@ -700,12 +701,13 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     burninPage: 1,
     journalSeverity: 'all',
     journalFamily: 'all',
+    witBefore: null,
     platformDays: 30,
     selectedDocsTheme: 'quick',
     appearanceTheme: 'nocturne',
     appearanceTransitionTarget: null,
     themeDropdownOpen: false,
-    scrollY: { platform: 0, projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
+    scrollY: { wit: 0, platform: 0, projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
     entered: true,
     handheld: false,
     handheldAccepted: false,
@@ -2259,7 +2261,7 @@ describe('visibleViews', () => {
       visibleViews({ ...base, viewer: { ...viewer, platformAdmin: true } })
     ).toEqual([
       'projects', 'runs', 'registry', 'skills', 'docs',
-      'liveRuns', 'burnin', 'journal', 'ledger', 'sentinel', 'platform', 'admin', 'announce',
+      'liveRuns', 'burnin', 'journal', 'ledger', 'sentinel', 'platform', 'wit', 'admin', 'announce',
     ]);
   });
 
@@ -5255,7 +5257,8 @@ describe('drawRegistry scrolling honesty', () => {
         {
           view: 'registry',
           scrollY: {
-            platform: 0, projects: 0,
+            wit: 0,
+      platform: 0, projects: 0,
             runs: 0,
             registry: unscrolled.scrollMax.registry!,
             skills: 0,
@@ -5673,7 +5676,7 @@ describe('drawBurnin scroll, pagination and lifecycle columns', () => {
         {
           view: 'burnin',
           burninPage: 2,
-          scrollY: { platform: 0, projects: 0, runs: 0, registry: 0, skills: 0, burnin: 500, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
+          scrollY: { wit: 0, platform: 0, projects: 0, runs: 0, registry: 0, skills: 0, burnin: 500, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
         },
         data
       ),
@@ -5724,7 +5727,7 @@ describe('drawBurnin scroll, pagination and lifecycle columns', () => {
       makeSnapshot(
         {
           view: 'burnin',
-          scrollY: { platform: 0, projects: 0, runs: 0, registry: 0, skills: 0, burnin: SCROLL, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
+          scrollY: { wit: 0, platform: 0, projects: 0, runs: 0, registry: 0, skills: 0, burnin: SCROLL, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
         },
         data
       ),
@@ -7304,7 +7307,8 @@ describe('drawRuns behavior', () => {
       makeSnapshot(
         {
           scrollY: {
-            platform: 0, projects: 0,
+            wit: 0,
+      platform: 0, projects: 0,
             runs: ctx.scrollMax.runs!,
             registry: 0,
             skills: 0,
@@ -9171,7 +9175,7 @@ describe('platform overview', () => {
     const admin = { viewer: { platformAdmin: true } };
     expect(visibleViews(admin)).toEqual(SIDEBAR_GROUPS.flatMap(group => group.views));
     expect(SIDEBAR_GROUPS.find(group => group.key === 'operate')?.views).toEqual(['liveRuns', 'burnin', 'journal', 'ledger', 'sentinel']);
-    expect(SIDEBAR_GROUPS.find(group => group.key === 'admin')?.views).toEqual(['platform', 'admin', 'announce']);
+    expect(SIDEBAR_GROUPS.find(group => group.key === 'admin')?.views).toEqual(['platform', 'wit', 'admin', 'announce']);
     expect(isRoutableView('platform', makeAuth())).toBe(false);
     expect(isRoutableView('platform', null)).toBe(false);
     expect(isRoutableView('platform', admin)).toBe(true);
@@ -9240,5 +9244,23 @@ describe('compact presentation panels', () => {
     drawDocs(article, makeSnapshot({ view: 'docs', compactDetailView: 'docs' }), 334, 844);
     expect(article.buttons.some(button => button.id === 'detail.backList')).toBe(true);
     expect(article.buttons.some(button => button.id.startsWith('docs.theme.'))).toBe(false);
+  });
+});
+
+
+describe('Wit reporting layout', () => {
+  it.each([360, 800, 1400])('keeps reporting controls bounded at %ipx', width => {
+    const ctx = createRecordingCtx();
+    drawWit(ctx, makeSnapshot({ view: 'wit' }, { witReport: {
+      generatedAt: '2026-11-10T00:00:00Z', runsScanned: 10, totalRuns: 20,
+      unreadableRuns: 1, omittedEvents: 2, nextBefore: 'older', receipts: [],
+    } }), width, 720);
+    expect(ctx.texts.some(text => text.value.includes('Wit results'))).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'wit.latest')).toBe(true);
+    for (const button of ctx.buttons) {
+      expect(button.x + button.width).toBeLessThanOrEqual(width);
+      expect(button.width).toBeGreaterThan(0);
+    }
+    expect(ctx.scrollMax.wit).toBeGreaterThanOrEqual(0);
   });
 });

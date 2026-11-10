@@ -73,6 +73,7 @@ import {
   useAdminSentinel, useAdminAssayer, useAdminAssay, useAdminAssayerHealth,
   useAdminLiveRuns,
   useAdminOrganisations,
+  useAdminWit,
   useAdminStats,
   useBurnin,
   useOrganisation,
@@ -548,6 +549,7 @@ function GpuAppContent({
   const assayerQuery = useAdminAssayer(state.view === 'sentinel' && isPlatformAdmin);
   const assayQuery = useAdminAssay(state.view === 'sentinel' && isPlatformAdmin, selectedAssay);
   const adminSentinelQuery = useAdminSentinel(state.view === 'sentinel' && isPlatformAdmin);
+  const adminWitQuery = useAdminWit(state.view === 'wit' && isPlatformAdmin, state.witBefore);
   const adminStatsQuery = useAdminStats(state.view === 'platform' && isPlatformAdmin, state.platformDays);
   const adminLiveRunsQuery = useAdminLiveRuns(state.view === 'liveRuns' && isPlatformAdmin);
   // ONE way to ask for the next page, so the wheel gesture and the button
@@ -1282,6 +1284,24 @@ function GpuAppContent({
       if (role && orgId) void mintInvitation(orgId, role);
       return;
     }
+    if (id.startsWith('wit.')) {
+      const before = useGpuStore.getState().witBefore;
+      const report = queryClient.getQueryData<import('../../contracts/witReport.js').WitReport>(['viz', 'admin', 'wit', before]);
+      if (id === 'wit.latest' || id === 'wit.next') {
+        useGpuStore.setState(s => ({ witBefore: id === 'wit.next' ? report?.nextBefore ?? null : null, scrollY: { ...s.scrollY, wit: 0 } }));
+        if (id === 'wit.latest') void queryClient.invalidateQueries({ queryKey: ['viz', 'admin', 'wit', null] });
+      } else if (id.startsWith('wit.open.')) {
+        const row = report?.receipts[Number(id.slice('wit.open.'.length))];
+        if (row) {
+          if (row.projectId) store.selectProject(row.projectId);
+          store.selectRun(row.runId);
+          store.selectEvent(row.eventId || null);
+          useGpuStore.setState({ eventTechnicalOpen: true, runActivityOpen: false });
+          store.setView('runs');
+        }
+      }
+      return;
+    }
     if (id.startsWith('platform.period.')) {
       const days = Number(id.slice('platform.period.'.length));
       if (days === 7 || days === 30 || days === 90) useGpuStore.setState({ platformDays: days });
@@ -1354,6 +1374,7 @@ function GpuAppContent({
     (state.view === 'registry' && (registriesQuery.isLoading || registryQuery.isLoading)) ||
     (state.view === 'skills' && namespacesQuery.isLoading) ||
     (state.view === 'burnin' && burninQuery.isLoading) ||
+    (state.view === 'wit' && adminWitQuery.isLoading) ||
     (state.view === 'platform' && adminStatsQuery.isLoading) ||
     (state.view === 'admin' && adminOrganisationsQuery.isLoading) ||
     // The FIRST page only. A later page loads under a foot-of-list notice
@@ -1389,6 +1410,7 @@ function GpuAppContent({
     adminLedgerQuery.error,
     adminSentinelQuery.error,
     adminLiveRunsQuery.error,
+    adminWitQuery.error,
     adminStatsQuery.error,
   ], t);
   const data = useMemo(() => ({
@@ -1438,6 +1460,7 @@ function GpuAppContent({
       selectedLoading: selectedAssay !== null && assayQuery.isLoading, selectedError: !!assayQuery.error,
     },
     adminSentinel: adminSentinelQuery.data ?? null,
+    witReport: isPlatformAdmin ? adminWitQuery.data ?? null : null,
     platformStats: isPlatformAdmin ? adminStatsQuery.data ?? null : null,
     adminLiveRuns: isPlatformAdmin ? adminLiveRunsQuery.data ?? [] : [],
     adminInvitation,
@@ -1475,6 +1498,7 @@ function GpuAppContent({
     assayQuery.data, assayQuery.isLoading, assayQuery.error, selectedAssay,
     adminSentinelQuery.data,
     adminLiveRunsQuery.data,
+    adminWitQuery.data,
     adminStatsQuery.data,
     isPlatformAdmin,
     authSnapshot,
@@ -1576,6 +1600,7 @@ function GpuAppContent({
         />
         <GpuDomBridge
           authSnapshot={authSnapshot}
+          witReport={data.witReport}
           platformStats={data.platformStats}
           platformDays={state.platformDays}
           assayer={data.assayer}

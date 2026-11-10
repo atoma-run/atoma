@@ -60,3 +60,24 @@ Wit adds no automatic acceptance or trust credit.
 The worker build compiles upstream Go source at the pinned revision and ships
 its MIT license at `/usr/local/share/licenses/wit/LICENSE`. No Go toolchain,
 network installation or model call is needed to use it during a worker run.
+
+## Platform reporting
+
+Platform administrators can open **Admin → Wit** (`#/wit`) to inspect recorded
+checks and generations, their observed exit codes, output excerpts and source
+runs. The route `/api/admin/wit` enforces the same platform-admin boundary and
+cross-organisation audit as run readers. Opening a report executes no commands.
+
+Each page inspects ten indexed runs, newest first; **Scan older runs** advances
+the cursor and **Latest runs / refresh** returns to the current page. Counts
+apply only to that page. The reader examines the last 2,000 events per run,
+skips individual events above 256 KiB, and keeps the newest 50 matching calls
+per run. Unreadable runs and omitted events are explicitly counted. Output
+excerpts are capped at 2,000 characters; the source run retains the receipt.
+
+Only direct `wit check` / `wit generate` calls through `run_shell` or
+`record_probe` are recognized, including simple command-line forms. Shell
+composition, wrapper scripts and indirect invocations are not interpreted.
+A zero exit is reported separately for checks and generation; absent exit
+status stays unknown. A successful check may contain no witnesses and says
+nothing about later changes to the document or the correctness of its sources.

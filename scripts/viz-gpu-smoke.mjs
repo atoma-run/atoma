@@ -2286,6 +2286,12 @@ try {
             costUsd: 0, inputTokens: 0, outputTokens: 0, lastRequestId: null, modelChoice: 'api:openai:smoke',
           },
         },
+        '/api/admin/wit': {
+          generatedAt: '2026-11-10T10:00:00Z', runsScanned: 10, totalRuns: 20, unreadableRuns: 1, omittedEvents: 2, nextBefore: 'older',
+          receipts: [{ runId: 'trace-delivered', projectId, runLabel: 'Witnessed report', eventId: 'wit-event', at: 1794304800000,
+            actor: 'Molecule', mode: 'check', command: 'wit check report.md', status: 'failed', exitCode: 1, durationMs: 100,
+            output: 'STALE report.md', outputTruncated: false }],
+        },
         '/api/admin/live-runs': [
           { projectRunId: 'eeeeeeee-1111-4222-8333-ffffffffffff', projectId,
             projectName: 'App', projectSlug: 'app',
@@ -2541,6 +2547,9 @@ try {
           return;
         }
         let stub = stubs[path];
+        if (path === '/api/admin/wit' && new URL(request.url()).searchParams.get('before') === 'older') {
+          stub = { ...stub, nextBefore: null, receipts: [], runsScanned: 3 };
+        }
         if (path === '/api/runs' && Array.isArray(stub)) stub = runIndexPageStub(stub, new URL(request.url()).searchParams);
         if (path === '/api/assistant' && stub?.conversation.projectId && !new URL(request.url()).searchParams.has('projectId')) {
           stub = { ...stub, run: null, conversation: { ...stub.conversation, projectId: null, lastRun: null, messages: [] } };
@@ -4136,6 +4145,22 @@ try {
         updateRuns: runs => { stubs['/api/admin/live-runs'] = runs; },
         followLabel: 'A delivered change ready for review.',
       });
+
+      accountStage = 'wit-report';
+      await clickAccountTarget('nav.wit');
+      await accountPage.waitForFunction(() => document.querySelector('[aria-label="Wit"]')?.textContent?.includes('STALE report.md'));
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-scene-camera')?.dataset.sceneCameraMotion === 'settled' &&
+        document.querySelector('.gpu-cube')?.dataset.cubeTurn === 'idle');
+      await clickAccountTarget('wit.open.0');
+      await accountPage.waitForFunction(() => location.hash.startsWith('#/runs/trace-delivered'));
+      await clickAccountTarget('nav.wit');
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-scene-camera')?.dataset.sceneCameraMotion === 'settled' &&
+        document.querySelector('.gpu-cube')?.dataset.cubeTurn === 'idle');
+      await clickAccountTarget('wit.next');
+      await accountPage.waitForFunction(() => document.querySelector('section[aria-label="Wit"]')?.textContent?.includes('This page: 3 runs'));
+      await clickAccountTarget('wit.latest');
+      await accountPage.waitForFunction(() => document.querySelector('section[aria-label="Wit"]')?.textContent?.includes('STALE report.md'));
+      console.log('viz Wit reporting ok: canvas source navigation, older page and refresh');
 
       // THE ACTIVE ADMIN-NAV REPRO. After a send, Announcements is already the
       // selected rail destination; clicking it again must reset the receipt to

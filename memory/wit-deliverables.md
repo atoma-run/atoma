@@ -45,3 +45,12 @@ container.
 Another session had been told the same morning to deploy everything except
 Wit until the owner's own test. Told that Wit was already live, the owner
 chose to keep it in production and test it there. Nothing was reverted.
+
+## Platform reporting — 2026-11-10
+
+Owner requested a platform-admin reporting page. Admin → Wit projects existing
+trace tool receipts, read-only, behind the platform flag and audited foreign
+reads. No new store, run execution, gate or trust rule. Ten indexed runs per
+cursor page; bounded event/receipt/output projection explicitly counts omissions.
+Counts are per page, never platform-wide success rates. Both GPU and semantic
+DOM use the same response; the source action opens the recorded tool event.

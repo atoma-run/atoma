@@ -49,6 +49,8 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'detail.backList') return 'back';
   if (id === 'run.compact.summary') return 'checklist';
   if (id === 'run.compact.filters') return 'settings';
+  if (id.startsWith('wit.open.')) return 'play';
+  if (id === 'wit.next' || id === 'wit.latest') return 'clock';
   if (id.startsWith('platform.period.')) return 'clock';
   if (id.startsWith('liveRuns.run.')) return 'play';
   if (id === 'project.section.conversation') return 'send';

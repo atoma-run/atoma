@@ -21,6 +21,7 @@ export type NavIconKind =
   | 'tuning';
 
 const CONTROL_ICON: Readonly<Record<string, NavIconKind>> = {
+  'nav.wit': 'platform',
   'nav.platform': 'platform',
   'nav.projects': 'projects',
   'nav.runs': 'runs',

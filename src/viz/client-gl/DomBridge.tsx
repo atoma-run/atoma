@@ -1,6 +1,7 @@
 import { PLATFORM_EVENT_FAMILIES } from '../../contracts/platformEvents.js';
 import type { AssayerViewData } from './assayer-presentation.js';
 import { SentinelAccessible } from './SentinelAccessible.js';
+import { WitAccessible } from './WitAccessible.js';
 import { PlatformStatsAccessible } from './PlatformStatsAccessible.js';
 import { ProjectSettingsAccessible } from './ProjectSettingsAccessible.js';
 import { HostedUpdateOfferSection } from './HostedUpdateOffer.js';
@@ -204,6 +205,7 @@ function ComputeResultsSection({ run, auth, githubRecovery, t, onActivate }: {
 }
 
 export function DomBridge({
+  witReport = null,
   platformStats = null,
   platformDays = 30,
   runs,
@@ -244,6 +246,7 @@ export function DomBridge({
   preview = null,
   onActivate,
 }: {
+  witReport?: import('../../contracts/witReport.js').WitReport | null;
   platformStats?: import('../../contracts/platformStats.js').PlatformStats | null;
   platformDays?: import('../../contracts/platformStats.js').PlatformStatsDays;
   runs: RunIndexEntry[];
@@ -651,6 +654,7 @@ export function DomBridge({
         })() : null}
         {view === 'runs' && run ? <AccessibleRunActivity run={run} t={t}
           awaitingResults={!!runViewProjectRun && computeResultsWaiting(runViewProjectRun) !== null} /> : null}
+        {view === 'wit' && auth?.viewer.platformAdmin ? <WitAccessible report={witReport} locale={locale} t={t} onActivate={onActivate} /> : null}
         {view === 'platform' && auth?.viewer.platformAdmin ? <PlatformStatsAccessible
           stats={platformStats} days={platformDays} locale={locale} t={t} onActivate={onActivate} /> : null}
         {view === 'sentinel' && auth?.viewer.platformAdmin ? (

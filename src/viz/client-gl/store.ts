@@ -32,6 +32,7 @@ export type SettingsTab = (typeof SETTINGS_TABS)[number];
 export { DOC_THEMES, type DocsThemeKey } from './docs-content.js';
 
 export type ViewName =
+  | 'wit'
   | 'platform'
   | 'projects'
   | 'runs'
@@ -54,7 +55,7 @@ export type ViewName =
 export const SENTINEL_SECTIONS = ['watch', 'assayer', 'coverage', 'rules', 'findings'] as const;
 export type SentinelSection = (typeof SENTINEL_SECTIONS)[number];
 
-export const ADMIN_VIEWS: readonly ViewName[] = ['liveRuns', 'journal', 'ledger', 'sentinel', 'platform', 'admin', 'announce'];
+export const ADMIN_VIEWS: readonly ViewName[] = ['wit', 'liveRuns', 'journal', 'ledger', 'sentinel', 'platform', 'admin', 'announce'];
 
 /**
  * ONE definition of which nav tabs a viewer gets — the DOM tablist and the
@@ -101,7 +102,7 @@ export function visibleViews(auth: { viewer: { platformAdmin: boolean } } | null
 export const SIDEBAR_GROUPS: readonly { key: string; views: readonly ViewName[] }[] = [
   { key: 'workspace', views: ['projects', 'runs', 'registry', 'skills', 'docs'] },
   { key: 'operate', views: ['liveRuns', 'burnin', 'journal', 'ledger', 'sentinel'] },
-  { key: 'admin', views: ['platform', 'admin', 'announce'] },
+  { key: 'admin', views: ['platform', 'wit', 'admin', 'announce'] },
 ];
 
 /**
@@ -275,6 +276,7 @@ export interface GpuUiState {
   /** Journal filters. Server-side: filtering paged rows would thin the pages. */
   journalSeverity: string;
   journalFamily: string;
+  witBefore: string | null;
   platformDays: import('../../contracts/platformStats.js').PlatformStatsDays;
   selectedDocsTheme: DocsThemeKey;
   appearanceTheme: AppearanceTheme;
@@ -542,12 +544,14 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   burninPage: 1,
   journalSeverity: 'all',
   journalFamily: 'all',
+  witBefore: null,
   platformDays: 30,
   selectedDocsTheme: 'quick',
   appearanceTheme: initialAppearanceTheme(),
   appearanceTransitionTarget: null,
   themeDropdownOpen: false,
   scrollY: {
+    wit: 0,
     platform: 0,
     projects: 0,
     runs: 0,

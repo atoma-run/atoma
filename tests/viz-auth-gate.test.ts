@@ -816,6 +816,7 @@ describe('viz auth gate (process level)', () => {
     );
     await waitReady(running, `${base}/auth/whoami`);
     expect((await fetch(`${base}/api/admin/stats`)).status).toBe(401);
+    expect((await fetch(`${base}/api/admin/wit`)).status).toBe(401);
 
     const jar = new CookieJar();
     expect((await fetchWithJar(jar, `${base}/auth/login?provider=github`)).status).toBe(200);
@@ -839,7 +840,7 @@ describe('viz auth gate (process level)', () => {
     for (const path of ['/api/skills', '/api/registries']) {
       expect((await fetch(`${base}${path}`, { headers: cookie })).status).toBe(200);
     }
-    for (const path of ['/api/burnin', '/api/admin/stats', '/api/admin/organisations', '/api/admin/settings']) {
+    for (const path of ['/api/admin/wit', '/api/burnin', '/api/admin/stats', '/api/admin/organisations', '/api/admin/settings']) {
       const refused = await fetch(`${base}${path}`, { headers: cookie });
       expect(refused.status).toBe(403);
     }
@@ -878,6 +879,11 @@ describe('viz auth gate (process level)', () => {
     expect(await (await fetch(`${base}/api/runs/${benchmark.start.runId}`, { headers: cookie })).json()).toEqual(benchmark.trace);
     expect((await fetch(`${base}/api/burnin`, { headers: cookie })).status).toBe(200);
 
+    const witResponse = await fetch(`${base}/api/admin/wit`, { headers: cookie });
+    expect(witResponse.status).toBe(200);
+    expect(await witResponse.json()).toMatchObject({ runsScanned: 1, receipts: [], nextBefore: null });
+    expect((await fetch(`${base}/api/admin/wit?before=invalid`, { headers: cookie })).status).toBe(400);
+    expect((await fetch(`${base}/api/admin/wit`, { method: 'POST', headers: { ...cookie, origin: base } })).status).toBe(405);
     const statsResponse = await fetch(`${base}/api/admin/stats?days=7`, { headers: cookie });
     expect(statsResponse.status).toBe(200);
     const { platformStatsSchema } = await import('../src/contracts/platformStats.js');
@@ -2543,9 +2549,13 @@ it('audits all HTTP cross-org read paths and refuses reads if the journal fails'
       } });
     mkdirSync(layout.runsPath, { recursive: true });
     writeFileSync(join(layout.runsPath, `${runId}.json`), JSON.stringify({ id: runId,
-      label: 'Audit fixture', startedAt: '2026-09-20T12:00:00Z', events: [] }));
+      label: 'Audit fixture', startedAt: '2026-09-20T12:00:00Z', events: [{
+        id: 'wit-check', kind: 'tool', ts: 1, name: 'run_shell', durationMs: 1,
+        args: { command: 'wit', args: ['check', 'report.md'] }, result: { exitCode: 1, stderr: 'STALE report.md' },
+      }] }));
     projects.transitionProjectRun({ orgId: foreign.orgId, projectRunId: runId, from: 'queued', to: 'running' });
     const paths = [
+      ['/api/admin/wit', 'runs.index'],
       ['/api/admin/live-runs', 'runs.index'],
       ['/api/projects', 'projects.index'],
       [`/api/projects/${project.projectId}/runs`, 'projects.detail'],
@@ -2555,7 +2565,11 @@ it('audits all HTTP cross-org read paths and refuses reads if the journal fails'
     for (const [path, surface] of paths) {
       // Isolate each wiring seam; a previous receipt must not hide a missing hook.
       db.prepare("DELETE FROM platform_events WHERE kind = 'admin.cross_org_read'").run();
-      expect((await fetch(`${base}${path}`, { headers: cookie })).status).toBe(200);
+      const response = await fetch(`${base}${path}`, { headers: cookie });
+      expect(response.status).toBe(200);
+      if (path === '/api/admin/wit') expect(await response.json()).toMatchObject({ receipts: [{
+        runId, eventId: 'wit-check', status: 'failed', exitCode: 1, output: 'STALE report.md',
+      }] });
       const row = db.prepare("SELECT actor_id, org_id, detail FROM platform_events WHERE kind = 'admin.cross_org_read'").get() as {
         actor_id: string; org_id: string; detail: string;
       };

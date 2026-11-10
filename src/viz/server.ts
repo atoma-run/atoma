@@ -219,6 +219,7 @@ import { buildTierClients } from '../run/providers.js';
 import { RoutingLlmClient } from '../core/llmRouting.js';
 import type { LlmClient } from '../core/types.js';
 import { eventsRetentionDays, PlatformEventLog } from '../platform/events.js';
+import { readWitReport } from './witReport.js';
 import { PlatformTrafficStore, observePlatformRequest } from '../platform/traffic.js';
 import { platformStatsDaysSchema, platformStatsSince, type PlatformStats } from '../contracts/platformStats.js';
 import { RUN_RETENTION_DAYS } from '../projects/retention.js';
@@ -4266,6 +4267,18 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         return;
       }
       const authStore = AUTH.store!;
+      if (pathname === '/api/admin/wit') {
+        if (!methodAllowed(req, res, 'GET')) return;
+        const params = new URLSearchParams(url.searchParams);
+        params.set('limit', '10');
+        try {
+          sendJson(res, 200, readWitReport(runIndexPage(viewer, params), id => resolveRunFile(id, viewer)));
+        } catch (error) {
+          if (!(error instanceof ProjectHttpError)) throw error;
+          sendJson(res, error.status, error.problem);
+        }
+        return;
+      }
       if (pathname === '/api/admin/stats') {
         if (!methodAllowed(req, res, 'GET')) return;
         const days = platformStatsDaysSchema.safeParse(Number(url.searchParams.get('days') ?? 30));

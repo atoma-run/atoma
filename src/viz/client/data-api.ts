@@ -1,3 +1,4 @@
+import { witReportSchema } from '../../contracts/witReport.js';
 import { platformLiveRunSchema } from '../../contracts/projects.js';
 import type {
   BurninRow,
@@ -202,6 +203,7 @@ export const api = {
   }) => mutateJson<{ subscribed: boolean }>('/api/push/subscribe', body),
   unsubscribePush: (body: { endpoint: string }) =>
     mutateJson<{ removed: boolean }>('/api/push/unsubscribe', body),
+  adminWit: async (before: string | null) => witReportSchema.parse(await fetchJson(`/api/admin/wit${before ? `?before=${encodeURIComponent(before)}` : ''}`)),
   adminStats: (days: import('../../contracts/platformStats.js').PlatformStatsDays) => fetchJson<import('../../contracts/platformStats.js').PlatformStats>(`/api/admin/stats?days=${days}`),
   adminOrganisations: () => fetchJson<VizAdminOrganisation[]>('/api/admin/organisations'),
   // The journal reads as PAGES, newest first: `before` is the exclusive `seq`
